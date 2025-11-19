@@ -319,8 +319,6 @@ class ReasoningHandler {
 		}
 	}
 
-	getReasoningDetails() {}
-
 	getRedactedThinking(): ClineAssistantRedactedThinkingBlock[] {
 		return this.pendingReasoning?.redactedThinking || []
 	}

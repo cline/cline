@@ -84,7 +84,6 @@ import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
 import {
 	ClineAssistantContent,
-	ClineAssistantRedactedThinkingBlock,
 	ClineContent,
 	ClineImageContentBlock,
 	ClineMessageModelInfo,
@@ -2804,9 +2803,6 @@ export class Task {
 			let assistantTextOnly = "" // For API history (text only, no tool XML)
 			let assistantTextSignature: string | undefined
 
-			let reasoningID = ""
-			const redactedThinkingContent: ClineAssistantRedactedThinkingBlock[] = []
-
 			this.taskState.isStreaming = true
 			let didReceiveUsageChunk = false
 
@@ -2833,11 +2829,6 @@ export class Task {
 								details,
 								redacted_data: chunk.redacted_data,
 							})
-
-							// Capture reasoning ID for use when storing the message
-							if (chunk.id) {
-								reasoningID = chunk.id
-							}
 
 							// fixes bug where cancelling task > aborts task > for loop may be in middle of streaming reasoning > say function throws error before we get a chance to properly clean up and cancel the task.
 							if (!this.taskState.abort) {
@@ -3058,6 +3049,8 @@ export class Task {
 				)
 
 				const { reasonsHandler } = this.streamHandler.getHandlers()
+				const redactedThinkingContent = reasonsHandler.getRedactedThinking()
+
 				const requestId = this.streamHandler.requestId
 
 				// Build content array with thinking blocks, text (if any), and tool use blocks
@@ -3070,11 +3063,7 @@ export class Task {
 				// Add thinking block from the reasoning handler if available
 				const thinkingBlock = reasonsHandler.getCurrentReasoning()
 				if (thinkingBlock) {
-					assistantContent.push({
-						...thinkingBlock,
-						summary: thinkingBlock.summary, // reasoning_details are only stored on text blocks
-						call_id: reasoningID,
-					})
+					assistantContent.push({ ...thinkingBlock })
 				}
 
 				// Only add text block if there's actual text (not just tool XML)
