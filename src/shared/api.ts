@@ -3703,7 +3703,7 @@ export const basetenModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 export type BasetenModelId = keyof typeof basetenModels
-export const basetenDefaultModelId = "moonshotai/Kimi-K2-Thinking" satisfies BasetenModelId
+export const basetenDefaultModelId = "zai-org/GLM-4.6" satisfies BasetenModelId
 
 // Z AI
 // https://docs.z.ai/guides/llm/glm-4.5
