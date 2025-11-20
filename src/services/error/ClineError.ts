@@ -146,14 +146,14 @@ export class ClineError extends Error {
 		}
 
 		// Check auth errors
-		const isAuthStatus = status && status > 400 && status < 430
+		const isAuthStatus = status !== undefined && status > 400 && status < 429
 		if (code === "ERR_BAD_REQUEST" || err instanceof AuthInvalidTokenError || isAuthStatus) {
 			return ClineErrorType.Auth
 		}
 
 		if (message) {
 			// Check for specific error codes/messages if applicable
-			const authErrorRegex = [/[in]?valid[-_ ]?token|key/i, /authentication[-_ ]?failed/i, /unauthorized/i]
+			const authErrorRegex = [/(?:in)?valid[-_ ]?(?:api )?(?:token|key)/i, /authentication[-_ ]?failed/i, /unauthorized/i]
 			if (message?.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) || authErrorRegex.some((regex) => regex.test(message))) {
 				return ClineErrorType.Auth
 			}
