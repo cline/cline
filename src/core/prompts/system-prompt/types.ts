@@ -109,6 +109,7 @@ export interface SystemPromptContext {
 	readonly isTesting?: boolean
 	readonly runtimePlaceholders?: Readonly<Record<string, unknown>>
 	readonly yoloModeToggled?: boolean
+	readonly clineWebToolsEnabled?: boolean
 	readonly isMultiRootEnabled?: boolean
 	readonly workspaceRoots?: Array<{ path: string; name: string; vcs?: string }>
 	readonly isSubagentsEnabledAndCliInstalled?: boolean

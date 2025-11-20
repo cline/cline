@@ -138,6 +138,10 @@ export async function createOpenRouterStream(
 		topP = 0.95
 		openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 	}
+	if (model.id.startsWith("google/gemini-3.0") || model.id === "google/gemini-3.0") {
+		// Recommended value from google
+		temperature = 1.0
+	}
 
 	let reasoning: { max_tokens: number } | undefined
 	switch (model.id) {

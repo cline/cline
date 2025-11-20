@@ -172,6 +172,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["strictPlanModeEnabled"]>("strictPlanModeEnabled")
 		const yoloModeToggled = context.globalState.get<GlobalStateAndSettings["yoloModeToggled"]>("yoloModeToggled")
 		const useAutoCondense = context.globalState.get<GlobalStateAndSettings["useAutoCondense"]>("useAutoCondense")
+		const clineWebToolsEnabled =
+			context.globalState.get<GlobalStateAndSettings["clineWebToolsEnabled"]>("clineWebToolsEnabled")
 		const isNewUser = context.globalState.get<GlobalStateAndSettings["isNewUser"]>("isNewUser")
 		const welcomeViewCompleted =
 			context.globalState.get<GlobalStateAndSettings["welcomeViewCompleted"]>("welcomeViewCompleted")
@@ -629,6 +631,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			strictPlanModeEnabled: strictPlanModeEnabled ?? true,
 			yoloModeToggled: yoloModeToggled ?? false,
 			useAutoCondense: useAutoCondense ?? false,
+			clineWebToolsEnabled: clineWebToolsEnabled ?? true,
 			isNewUser: isNewUser ?? true,
 			welcomeViewCompleted,
 			lastShownAnnouncementId,
