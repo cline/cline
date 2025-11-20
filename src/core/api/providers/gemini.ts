@@ -28,6 +28,7 @@ interface GeminiHandlerOptions extends CommonApiHandlerOptions {
 	geminiApiKey?: string
 	geminiBaseUrl?: string
 	thinkingBudgetTokens?: number
+	thinkingLevel?: string
 	apiModelId?: string
 	ulid?: string
 }
@@ -119,10 +120,14 @@ export class GeminiHandler implements ApiHandler {
 		const _thinkingBudget = this.options.thinkingBudgetTokens ?? 0
 		const maxBudget = info.thinkingConfig?.maxBudget ?? 24576
 		const thinkingBudget = Math.min(_thinkingBudget, maxBudget)
-		const thinkLevel = info.thinkingConfig?.thinkingLevel
 		// When ThinkingLevel is defineded, thinking budget cannot be zero
 		// and only level is used to control thinking behavior.
-		const thinkingLevel = thinkLevel ? (thinkLevel === "low" ? ThinkingLevel.LOW : ThinkingLevel.HIGH) : undefined
+		let thinkingLevel: ThinkingLevel | undefined
+		if (this.options.thinkingLevel === "low") {
+			thinkingLevel = ThinkingLevel.LOW
+		} else if (this.options.thinkingLevel === "high") {
+			thinkingLevel = ThinkingLevel.HIGH
+		}
 
 		// Set up base generation config
 		const requestConfig: GenerateContentConfig = {
@@ -143,7 +148,7 @@ export class GeminiHandler implements ApiHandler {
 			// Turn on fixed thinking budget:
 			thinkingBudget: thinkingLevel ? undefined : thinkingBudget,
 			thinkingLevel,
-			includeThoughts: thinkingBudget > 0,
+			includeThoughts: thinkingBudget > 0 || !!thinkingLevel,
 		}
 
 		// Generate content using the configured parameters

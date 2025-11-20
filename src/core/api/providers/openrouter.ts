@@ -21,6 +21,7 @@ interface OpenRouterHandlerOptions extends CommonApiHandlerOptions {
 	openRouterProviderSorting?: string
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
+	geminiThinkingLevel?: string
 }
 
 export class OpenRouterHandler implements ApiHandler {
@@ -68,6 +69,7 @@ export class OpenRouterHandler implements ApiHandler {
 			this.options.thinkingBudgetTokens,
 			this.options.openRouterProviderSorting,
 			tools,
+			this.options.geminiThinkingLevel,
 		)
 
 		let didOutputUsage: boolean = false
