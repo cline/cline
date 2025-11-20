@@ -300,6 +300,11 @@ func (p *ToolResultParser) ParseWebFetch(content, url string) string {
 	return result.String()
 }
 
+// ParseWebSearch formats webSearch tool results
+func (p *ToolResultParser) ParseWebSearch(content, query string) string {
+	return ""
+}
+
 // detectLanguage returns syntax highlighting language based on file extension
 func (p *ToolResultParser) detectLanguage(ext string) string {
 	langMap := map[string]string{
@@ -365,6 +370,8 @@ func (p *ToolResultParser) ParseToolResult(tool *types.ToolMessage) string {
 		return p.ParseCodeDefinitions(tool.Content)
 	case "webFetch":
 		return p.ParseWebFetch(tool.Content, tool.Path)
+	case "webSearch":
+		return p.ParseWebSearch(tool.Content, tool.Path)
 	default:
 		return tool.Content
 	}
