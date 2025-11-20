@@ -88,6 +88,7 @@ import {
 	ClineImageContentBlock,
 	ClineMessageModelInfo,
 	ClineStorageMessage,
+	ClineTextContentBlock,
 	ClineToolResponseContent,
 	ClineUserContent,
 } from "@/shared/messages/content"
@@ -2555,13 +2556,22 @@ export class Task {
 			// No explicit UI message here, error message will be in ExtensionState.
 		}
 
+		// Get content based on user input before running condense check.
+		// TODO: Extract commands to confirm if there are commands before loading full context.
+		const useCompactPrompt = customPrompt === "compact" && isLocalModel(this.getCurrentProviderInfo())
+		let [parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(
+			userContent,
+			includeFileDetails,
+			useCompactPrompt,
+		)
+
 		// Separate logic when using the auto-condense context management vs the original context management methods
+		let shouldCompact = false
 		const useAutoCondense = this.stateManager.getGlobalSettingsKey("useAutoCondense")
 		if (useAutoCondense && isNextGenModelFamily(this.api.getModel().id)) {
 			// when we initially trigger the context cleanup, we will be increasing the context window size, so we need some state `currentlySummarizing`
 			// to store whether we have already started the context summarization flow, so we don't attempt to summarize again. additionally, immediately
 			// post summarizing we need to increment the conversationHistoryDeletedRange to mask out the summarization-trigger user & assistant response messaages
-			let shouldCompact = false
 			if (this.taskState.currentlySummarizing) {
 				this.taskState.currentlySummarizing = false
 
@@ -2607,66 +2617,41 @@ export class Task {
 				}
 			}
 
-			let parsedUserContent: ClineContent[]
-			let environmentDetails: string
-			let clinerulesError: boolean
-
 			// when summarizing the context window, we do not want to inject updated to the context
 			if (shouldCompact) {
 				parsedUserContent = userContent
 				environmentDetails = ""
 				clinerulesError = false
 				this.taskState.lastAutoCompactTriggerIndex = previousApiReqIndex
-			} else {
-				;[parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(
-					userContent,
-					includeFileDetails,
-				)
 			}
+		}
 
-			// error handling if the user uses the /newrule command & their .clinerules is a file, for file read operations didnt work properly
-			if (clinerulesError === true) {
-				await this.say(
-					"error",
-					"Issue with processing the /newrule command. Double check that, if '.clinerules' already exists, it's a directory and not a file. Otherwise there was an issue referencing this file/directory.",
-				)
-			}
-
-			userContent = parsedUserContent
-			// add environment details as its own text block, separate from tool results
-			// do not add environment details to the message which we are compacting the context window
-			if (!shouldCompact) {
-				userContent.push({ type: "text", text: environmentDetails })
-			}
-
-			if (shouldCompact) {
-				userContent.push({
-					type: "text",
-					text: summarizeTask(
-						this.stateManager.getGlobalSettingsKey("focusChainSettings"),
-						this.cwd,
-						isMultiRootEnabled(this.stateManager),
-					),
-				})
-			}
-		} else {
-			const useCompactPrompt = customPrompt === "compact" && isLocalModel(this.getCurrentProviderInfo())
-			const [parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(
-				userContent,
-				includeFileDetails,
-				useCompactPrompt,
+		// error handling if the user uses the /newrule command & their .clinerules is a file, for file read operations didnt work properly
+		if (clinerulesError === true) {
+			await this.say(
+				"error",
+				"Issue with processing the /newrule command. Double check that, if '.clinerules' already exists, it's a directory and not a file. Otherwise there was an issue referencing this file/directory.",
 			)
+		}
 
-			if (clinerulesError === true) {
-				await this.say(
-					"error",
-					"Issue with processing the /newrule command. Double check that, if '.clinerules' already exists, it's a directory and not a file. Otherwise there was an issue referencing this file/directory.",
-				)
-			}
+		// Replace userContent with parsed content that includes file details and command instructions.
+		userContent = parsedUserContent
 
-			userContent = parsedUserContent
-
+		// add environment details as its own text block, separate from tool results
+		// do not add environment details to the message which we are compacting the context window
+		if (environmentDetails) {
 			userContent.push({ type: "text", text: environmentDetails })
+		}
+
+		if (shouldCompact) {
+			userContent.push({
+				type: "text",
+				text: summarizeTask(
+					this.stateManager.getGlobalSettingsKey("focusChainSettings"),
+					this.cwd,
+					isMultiRootEnabled(this.stateManager),
+				),
+			})
 		}
 
 		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
@@ -3219,72 +3204,97 @@ export class Task {
 		includeFileDetails: boolean = false,
 		useCompactPrompt = false,
 	): Promise<[ClineContent[], string, boolean]> {
-		// Track if we need to check clinerulesFile
 		let needsClinerulesFileCheck = false
 
-		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.controller, this.cwd)
+		// Define user-generated content tags once
+		const USER_CONTENT_TAGS = ["<feedback>", "<answer>", "<task>", "<user_message>"] as const
 
-		const processUserContent = async () => {
-			// This is a temporary solution to dynamically load context mentions from tool results. It checks for the presence of tags that indicate that the tool was rejected and feedback was provided (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions). However if we allow multiple tools responses in the future, we will need to parse mentions specifically within the user content tags.
-			// (Note: this caused the @/ import alias bug where file contents were being parsed as well, since v2 converted tool results to text blocks)
-			return await Promise.all(
-				userContent.map(async (block) => {
-					if (block.type === "text") {
-						// We need to ensure any user generated content is wrapped in one of these tags so that we know to parse mentions
-						// FIXME: Only parse text in between these tags instead of the entire text block which may contain other tool results. This is part of a larger issue where we shouldn't be using regex to parse mentions in the first place (ie for cases where file paths have spaces)
-						if (
-							block.text.includes("<feedback>") ||
-							block.text.includes("<answer>") ||
-							block.text.includes("<task>") ||
-							block.text.includes("<user_message>")
-						) {
-							const parsedText = await parseMentions(
-								block.text,
-								this.cwd,
-								this.urlContentFetcher,
-								this.fileContextTracker,
-								this.workspaceManager,
-							)
-
-							// when parsing slash commands, we still want to allow the user to provide their desired context
-							const { processedText, needsClinerulesFileCheck: needsCheck } = await parseSlashCommands(
-								parsedText,
-								localWorkflowToggles,
-								globalWorkflowToggles,
-								this.ulid,
-								this.stateManager.getGlobalSettingsKey("focusChainSettings"),
-								this.useNativeToolCalls,
-								this.getCurrentProviderInfo(),
-							)
-
-							if (needsCheck) {
-								needsClinerulesFileCheck = true
-							}
-
-							return {
-								...block,
-								text: processedText,
-							}
-						}
-					}
-					return block
-				}),
-			)
+		const hasUserContentTag = (text: string): boolean => {
+			return USER_CONTENT_TAGS.some((tag) => text.includes(tag))
 		}
 
-		// Run initial promises in parallel
+		const parseTextBlock = async (text: string): Promise<string> => {
+			const parsedText = await parseMentions(
+				text,
+				this.cwd,
+				this.urlContentFetcher,
+				this.fileContextTracker,
+				this.workspaceManager,
+			)
+
+			const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.controller, this.cwd)
+
+			const { processedText, needsClinerulesFileCheck: needsCheck } = await parseSlashCommands(
+				parsedText,
+				localWorkflowToggles,
+				globalWorkflowToggles,
+				this.ulid,
+				this.stateManager.getGlobalSettingsKey("focusChainSettings"),
+				this.useNativeToolCalls,
+				this.getCurrentProviderInfo(),
+			)
+
+			if (needsCheck) {
+				needsClinerulesFileCheck = true
+			}
+
+			return processedText
+		}
+
+		const processTextContent = async (block: ClineTextContentBlock): Promise<ClineTextContentBlock> => {
+			if (block.type !== "text" || !hasUserContentTag(block.text)) {
+				return block
+			}
+
+			const processedText = await parseTextBlock(block.text)
+			return { ...block, text: processedText }
+		}
+
+		const processContentBlock = async (block: ClineContent): Promise<ClineContent> => {
+			if (block.type === "text") {
+				return processTextContent(block)
+			}
+
+			if (block.type === "tool_result") {
+				if (!block.content) {
+					return block
+				}
+
+				// Handle string content
+				if (typeof block.content === "string") {
+					const processed = await processTextContent({ type: "text", text: block.content })
+					return processed
+				}
+
+				// Handle array content
+				if (Array.isArray(block.content)) {
+					const processedContent = await Promise.all(
+						block.content.map(async (contentBlock) => {
+							return contentBlock.type === "text" ? processTextContent(contentBlock) : contentBlock
+						}),
+					)
+
+					return { ...block, content: processedContent }
+				}
+			}
+
+			return block
+		}
+
+		// Process all content and environment details in parallel
+		// NOTE: (Ara) This is a temporary solution to dynamically load context mentions from tool results. It checks for the presence of tags that indicate that the tool was rejected and feedback was provided (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions). However if we allow multiple tools responses in the future, we will need to parse mentions specifically within the user content tags.
+		// (Note: this caused the @/ import alias bug where file contents were being parsed as well, since v2 converted tool results to text blocks)
 		const [processedUserContent, environmentDetails] = await Promise.all([
-			processUserContent(),
+			Promise.all(userContent.map(processContentBlock)),
 			this.getEnvironmentDetails(includeFileDetails),
 		])
 
-		// After processing content, check clinerulesData if needed
-		let clinerulesError = false
-		if (needsClinerulesFileCheck) {
-			clinerulesError = await ensureLocalClineDirExists(this.cwd, GlobalFileNames.clineRules)
-		}
+		// Check clinerulesData if needed
+		const clinerulesError = needsClinerulesFileCheck
+			? await ensureLocalClineDirExists(this.cwd, GlobalFileNames.clineRules)
+			: false
 
-		// Add focus chain list instructions if needed
+		// Add focus chain instructions if needed
 		if (!useCompactPrompt && this.FocusChainManager?.shouldIncludeFocusChainInstructions()) {
 			const focusChainInstructions = this.FocusChainManager.generateFocusChainInstructions()
 			if (focusChainInstructions.trim()) {
@@ -3292,13 +3302,12 @@ export class Task {
 					type: "text",
 					text: focusChainInstructions,
 				})
-			}
 
-			this.taskState.apiRequestsSinceLastTodoUpdate = 0
-			this.taskState.todoListWasUpdatedByUser = false
+				this.taskState.apiRequestsSinceLastTodoUpdate = 0
+				this.taskState.todoListWasUpdatedByUser = false
+			}
 		}
 
-		// Return all results
 		return [processedUserContent, environmentDetails, clinerulesError]
 	}
 
