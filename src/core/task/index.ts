@@ -2190,6 +2190,8 @@ export class Task {
 					// this.ask will trigger postStateToWebview, so this change should be picked up.
 				}
 
+				const isAuthError = clineError.isErrorType(ClineErrorType.Auth)
+
 				// Check if this is a Cline provider insufficient credits error - don't auto-retry these
 				const isClineProviderInsufficientCredits = (() => {
 					if (providerId !== "cline") {
@@ -2204,8 +2206,8 @@ export class Task {
 				})()
 
 				let response: ClineAskResponse
-				// Skip auto-retry for Cline provider insufficient credits errors
-				if (!isClineProviderInsufficientCredits && this.taskState.autoRetryAttempts < 3) {
+				// Skip auto-retry for Cline provider insufficient credits or auth errors
+				if (!isClineProviderInsufficientCredits && !isAuthError && this.taskState.autoRetryAttempts < 3) {
 					// Auto-retry enabled with max 3 attempts: automatically approve the retry
 					this.taskState.autoRetryAttempts++
 
@@ -2239,7 +2241,7 @@ export class Task {
 					await setTimeoutPromise(delay)
 				} else {
 					// Show error_retry with failed flag to indicate all retries exhausted (but not for insufficient credits)
-					if (!isClineProviderInsufficientCredits) {
+					if (!isClineProviderInsufficientCredits && !isAuthError) {
 						await this.say(
 							"error_retry",
 							JSON.stringify({

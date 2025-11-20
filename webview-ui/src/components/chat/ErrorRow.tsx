@@ -16,18 +16,21 @@ interface ErrorRowProps {
 
 const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStreamingFailedMessage }: ErrorRowProps) => {
 	const { clineUser } = useClineAuth()
+	const rawApiError = apiRequestFailedMessage || apiReqStreamingFailedMessage
 
 	const renderErrorContent = () => {
 		switch (errorType) {
 			case "error":
 			case "mistake_limit_reached":
 				// Handle API request errors with special error parsing
-				if (apiRequestFailedMessage || apiReqStreamingFailedMessage) {
+				if (rawApiError) {
 					// FIXME: ClineError parsing should not be applied to non-Cline providers, but it seems we're using clineErrorMessage below in the default error display
-					const clineError = ClineError.parse(apiRequestFailedMessage || apiReqStreamingFailedMessage)
-					const clineErrorMessage = clineError?.message
+					const clineError = ClineError.parse(rawApiError)
+					const clineErrorMessage = clineError?._error?.message || clineError?.message || rawApiError
 					const requestId = clineError?._error?.request_id
-					const isClineProvider = clineError?.providerId === "cline" // FIXME: since we are modifying backend to return generic error, we need to make sure we're not expecting providerId here
+					const providerId = clineError?.providerId || clineError?._error?.providerId
+					const isClineProvider = providerId === "cline"
+					const errorCode = clineError?._error?.code
 
 					if (clineError) {
 						if (clineError.isErrorType(ClineErrorType.Balance)) {
@@ -53,20 +56,18 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 						)
 					}
 
-					// For non-cline providers, we display the raw error message
-					const errorMessageToDisplay = isClineProvider
-						? clineErrorMessage
-						: apiReqStreamingFailedMessage || apiRequestFailedMessage
-
-					// Default error display
 					return (
-						<p className="m-0 whitespace-pre-wrap text-(--vscode-errorForeground) wrap-anywhere">
-							{errorMessageToDisplay}
-							{requestId && <div>Request ID: {requestId}</div>}
+						<p className="m-0 whitespace-pre-wrap text-error wrap-anywhere flex flex-col gap-3" title={rawApiError}>
+							<header>
+								{providerId && <span className="uppercase">[{providerId}] </span>}
+								{errorCode && <span className="uppercase">{errorCode}</span>}
+								{clineErrorMessage}
+								{requestId && <div>Request ID: {requestId}</div>}
+							</header>
+
+							{/* Windows Powershell Issue */}
 							{clineErrorMessage?.toLowerCase()?.includes("powershell") && (
-								<>
-									<br />
-									<br />
+								<div>
 									It seems like you're having Windows PowerShell issues, please see this{" "}
 									<a
 										className="underline text-inherit"
@@ -74,22 +75,24 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 										troubleshooting guide
 									</a>
 									.
-								</>
+								</div>
 							)}
-							{clineError?.isErrorType(ClineErrorType.Auth) && (
-								<>
-									<br />
-									<br />
-									{/* The user is signed in or not using cline provider */}
-									{clineUser && !isClineProvider ? (
-										<span className="mb-4 text-(--vscode-descriptionForeground)">(Click "Retry" below)</span>
-									) : (
-										<VSCodeButton className="w-full mb-4" onClick={handleSignIn}>
-											Sign in to Cline
-										</VSCodeButton>
-									)}
-								</>
-							)}
+							{/* Display raw API error */}
+							<div className="p-2 text-xs font-mono bg-code-block-background border border-border-panel text-code-foreground">
+								{rawApiError}
+							</div>
+
+							{/* Display Login button for Cline users */}
+							<div>
+								{/* The user is signed in or not using cline provider */}
+								{isClineProvider && !clineUser ? (
+									<VSCodeButton className="w-full mb-4" onClick={handleSignIn}>
+										Sign in to Cline
+									</VSCodeButton>
+								) : (
+									<span className="mb-4 text-description">(Click "Retry" below)</span>
+								)}
+							</div>
 						</p>
 					)
 				}

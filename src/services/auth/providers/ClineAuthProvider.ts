@@ -2,10 +2,11 @@ import axios from "axios"
 import { ClineEnv, EnvironmentConfig } from "@/config"
 import { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
+import { AuthInvalidTokenError, AuthNetworkError } from "@/services/error/ClineError"
 import { Logger } from "@/services/logging/Logger"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { fetch, getAxiosSettings } from "@/shared/net"
-import type { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
+import { type ClineAccountUserInfo, type ClineAuthInfo } from "../AuthService"
 import { IAuthProvider } from "./IAuthProvider"
 
 interface ClineAuthApiUser {
@@ -100,26 +101,35 @@ export class ClineAuthProvider implements IAuthProvider {
 			try {
 				storedAuthData = JSON.parse(storedAuthDataString)
 			} catch (e) {
-				console.error("Failed to parse stored auth data:", e)
+				Logger.error("Failed to parse stored auth data:", e)
 				controller.stateManager.setSecret("cline:clineAccountId", undefined)
 				return null
 			}
 
 			if (!storedAuthData.refreshToken || !storedAuthData?.idToken) {
-				console.error("No valid token found in stored authentication data")
+				Logger.error("No valid token found in stored authentication data")
 				controller.stateManager.setSecret("cline:clineAccountId", undefined)
 				return null
 			}
 
 			if (await this.shouldRefreshIdToken(storedAuthData.refreshToken, storedAuthData.expiresAt)) {
 				// Try to refresh the token using the refresh token
-				const authInfo = await this.refreshToken(storedAuthData.refreshToken)
-				const newAuthInfoString = JSON.stringify(authInfo)
-				if (newAuthInfoString !== storedAuthDataString) {
-					controller.stateManager.setSecret("clineAccountId", undefined) // cleanup old key
-					controller.stateManager.setSecret("cline:clineAccountId", newAuthInfoString)
+				Logger.debug(`Token expired or expiring soon, attempting refresh. API Base URL: ${this.config.apiBaseUrl}`)
+				try {
+					const authInfo = await this.refreshToken(storedAuthData.refreshToken)
+					const newAuthInfoString = JSON.stringify(authInfo)
+					if (newAuthInfoString !== storedAuthDataString) {
+						controller.stateManager.setSecret("clineAccountId", undefined) // cleanup old key
+						controller.stateManager.setSecret("cline:clineAccountId", newAuthInfoString)
+					}
+					Logger.debug("Token refresh successful")
+					return authInfo || null
+				} catch (refreshError) {
+					Logger.error("Failed to refresh token, returning null. User will need to re-authenticate.", refreshError)
+					// Don't clear the stored data immediately - it might be a temporary network issue
+					// Let the user re-authenticate instead
+					return null
 				}
-				return authInfo || null
 			}
 
 			// Is the token valid?
@@ -154,26 +164,25 @@ export class ClineAuthProvider implements IAuthProvider {
 	 */
 	async refreshToken(refreshToken: string): Promise<ClineAuthInfo> {
 		try {
-			// Get the callback URL that was used during the initial auth request
 			const endpoint = new URL(CLINE_API_ENDPOINT.REFRESH_TOKEN, this.config.apiBaseUrl)
 			const response = await fetch(endpoint.toString(), {
 				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					refreshToken, // short_lived_auth_code
-					grantType: "refresh_token", // must be "authorization_code"
+					refreshToken,
+					grantType: "refresh_token",
 				}),
 			})
 
 			if (!response.ok) {
-				if (response.status === 400) {
+				// 400/401 = Invalid/expired token (permanent failure)
+				if (response.status === 400 || response.status === 401) {
 					const errorData = await response.json().catch(() => ({}))
-					const errorMessage = errorData?.error || "Invalid or expired authorization code"
-					throw new Error(errorMessage)
+					const errorMessage = errorData?.error || "Invalid or expired token"
+					throw new AuthInvalidTokenError(errorMessage)
 				}
-				throw new Error(`HTTP error! status: ${response.status}`)
+				// 5xx, 429, network errors = transient failures
+				throw new AuthNetworkError(`HTTP error! status: ${response.status}`)
 			}
 
 			const data: ClineAuthApiTokenExchangeResponse = await response.json()
@@ -193,6 +202,10 @@ export class ClineAuthProvider implements IAuthProvider {
 				provider: this.name,
 			}
 		} catch (error: any) {
+			// Network errors (ECONNREFUSED, timeout, etc)
+			if (error.name === "TypeError" || error.code === "ECONNREFUSED" || error.code === "ETIMEDOUT") {
+				throw new AuthNetworkError("Network error during token refresh", error)
+			}
 			throw error
 		}
 	}
