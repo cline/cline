@@ -2622,7 +2622,6 @@ export class Task {
 		const useCompactPrompt = customPrompt === "compact" && isLocalModel(this.getCurrentProviderInfo())
 		let shouldCompact = false
 		const useAutoCondense = this.stateManager.getGlobalSettingsKey("useAutoCondense")
-		let hookContextModification: string | undefined
 
 		if (useAutoCondense && isNextGenModelFamily(this.api.getModel().id)) {
 			// When we initially trigger context cleanup, we increase the context window size, so we need state `currentlySummarizing`
@@ -2666,160 +2665,6 @@ export class Task {
 						shouldCompact = false
 					}
 				}
-
-				// Run PreCompact hook if compaction would occur
-				if (shouldCompact) {
-					const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
-					if (hooksEnabled) {
-						try {
-							const { executeHook } = await import("../hooks/hook-executor")
-
-							const apiHistory = this.messageStateHandler.getApiConversationHistory()
-							const contextSize = apiHistory.length
-							const strategy = this.getCompactionStrategy()
-
-							// Extract token usage from previous API request
-							let tokensIn = 0
-							let tokensOut = 0
-							let tokensInCache = 0
-							let tokensOutCache = 0
-
-							if (previousApiReqIndex !== -1) {
-								const clineMessages = this.messageStateHandler.getClineMessages()
-								const previousRequest = clineMessages[previousApiReqIndex]
-								if (previousRequest?.text) {
-									try {
-										const apiReqInfo: ClineApiReqInfo = JSON.parse(previousRequest.text)
-										tokensIn = apiReqInfo.tokensIn || 0
-										tokensOut = apiReqInfo.tokensOut || 0
-										tokensInCache = apiReqInfo.cacheWrites || 0
-										tokensOutCache = apiReqInfo.cacheReads || 0
-									} catch (error) {
-										console.error("[PreCompact] Failed to parse previous API request info:", error)
-									}
-								}
-							}
-
-							// Extract truncation range if it exists
-							let deletedRangeStart = 0
-							let deletedRangeEnd = 0
-							if (this.taskState.conversationHistoryDeletedRange) {
-								;[deletedRangeStart, deletedRangeEnd] = this.taskState.conversationHistoryDeletedRange
-							}
-
-							const preCompactResult = await executeHook({
-								hookName: "PreCompact",
-								hookInput: {
-									preCompact: {
-										taskId: this.taskId,
-										ulid: this.ulid,
-										contextSize,
-										compactionStrategy: strategy,
-										previousApiReqIndex,
-										tokensIn,
-										tokensOut,
-										tokensInCache,
-										tokensOutCache,
-										deletedRangeStart,
-										deletedRangeEnd,
-									},
-								},
-								isCancellable: true,
-								say: this.say.bind(this),
-								setActiveHookExecution: this.setActiveHookExecution.bind(this),
-								clearActiveHookExecution: this.clearActiveHookExecution.bind(this),
-								messageStateHandler: this.messageStateHandler,
-								taskId: this.taskId,
-								hooksEnabled,
-							})
-
-							// Handle cancellation from hook
-							if (preCompactResult.cancel === true) {
-								// Provide detailed feedback based on cancellation source
-								if (preCompactResult.wasCancelled) {
-									await this.say(
-										"text",
-										"⚠️ Context compaction was cancelled by user. The conversation will continue without compacting, but may exceed context limits in future requests.",
-									)
-								} else {
-									await this.say(
-										"text",
-										"⚠️ Context compaction was cancelled by the PreCompact hook. The conversation will continue without compacting.",
-									)
-								}
-
-								// Capture telemetry for cancellation
-								telemetryService.capture({
-									event: "hook.executed",
-									properties: {
-										ulid: this.ulid,
-										hookName: "PreCompact",
-										status: "cancelled",
-										wasCancelled: preCompactResult.wasCancelled,
-										contextSize,
-										strategy,
-										tokensIn,
-										tokensOut,
-									},
-								})
-
-								shouldCompact = false
-							} else {
-								// Hook completed successfully
-								telemetryService.capture({
-									event: "hook.executed",
-									properties: {
-										ulid: this.ulid,
-										hookName: "PreCompact",
-										status: "completed",
-										contextSize,
-										strategy,
-										tokensIn,
-										tokensOut,
-										hadContextModification: !!preCompactResult.contextModification,
-									},
-								})
-
-								// Log successful execution for debugging
-								console.log(
-									`[PreCompact] Hook executed successfully for task ${this.taskId}. Context size: ${contextSize}, Strategy: ${strategy}`,
-								)
-
-								// Store context modification for later (after context loading)
-								if (preCompactResult.contextModification) {
-									hookContextModification = preCompactResult.contextModification.trim()
-								}
-							}
-						} catch (error) {
-							// Graceful degradation: Log error but continue with compaction
-							console.error("[PreCompact] Hook execution failed:", error)
-
-							// Capture telemetry for error
-							const errorMessage = error instanceof Error ? error.message : String(error)
-							const apiHistory = this.messageStateHandler.getApiConversationHistory()
-							telemetryService.capture({
-								event: "hook.executed",
-								properties: {
-									ulid: this.ulid,
-									hookName: "PreCompact",
-									status: "error",
-									errorMessage,
-									contextSize: apiHistory.length,
-									strategy: this.getCompactionStrategy(),
-								},
-							})
-
-							// Notify user but don't block compaction
-							await this.say(
-								"text",
-								"⚠️ PreCompact hook encountered an error but compaction will proceed. Check logs for details.",
-							)
-
-							// Continue with compaction despite hook error
-							// shouldCompact remains true
-						}
-					}
-				}
 			}
 		}
 
@@ -2842,14 +2687,6 @@ export class Task {
 				includeFileDetails,
 				useCompactPrompt,
 			)
-		}
-
-		// Add hook context modification AFTER context loading (so it gets processed correctly)
-		if (hookContextModification) {
-			parsedUserContent.push({
-				type: "text",
-				text: `<hook_context source="PreCompact">\n${hookContextModification}\n</hook_context>`,
-			})
 		}
 
 		// error handling if the user uses the /newrule command & their .clinerules is a file, for file read operations didnt work properly
