@@ -1,4 +1,4 @@
-import { ApiConfiguration } from "@shared/api"
+import { ApiConfiguration, ModelInfo } from "@shared/api"
 import {
 	GlobalState,
 	GlobalStateAndSettings,
@@ -43,6 +43,28 @@ export class StateManager {
 	private workspaceStateCache: LocalState = {} as LocalState
 	private context: ExtensionContext
 	private isInitialized = false
+
+	// In-memory model info cache (not persisted to disk)
+	// These are for dynamic providers that fetch models from APIs
+	private modelInfoCache: {
+		openRouterModels: Record<string, ModelInfo> | null
+		groqModels: Record<string, ModelInfo> | null
+		basetenModels: Record<string, ModelInfo> | null
+		huggingFaceModels: Record<string, ModelInfo> | null
+		requestyModels: Record<string, ModelInfo> | null
+		huaweiCloudMaasModels: Record<string, ModelInfo> | null
+		hicapModels: Record<string, ModelInfo> | null
+		aihubmixModels: Record<string, ModelInfo> | null
+	} = {
+		openRouterModels: null,
+		groqModels: null,
+		basetenModels: null,
+		huggingFaceModels: null,
+		requestyModels: null,
+		huaweiCloudMaasModels: null,
+		hicapModels: null,
+		aihubmixModels: null,
+	}
 
 	// Debounced persistence state
 	private pendingGlobalState = new Set<GlobalStateAndSettingsKey>()
@@ -346,6 +368,29 @@ export class StateManager {
 		}
 
 		this.remoteConfigCache = {} as GlobalStateAndSettings
+	}
+
+	/**
+	 * Set models cache for a specific provider (in-memory only, not persisted)
+	 */
+	setModelsCache(
+		provider: "openRouter" | "groq" | "baseten" | "huggingFace" | "requesty" | "huaweiCloudMaas" | "hicap" | "aihubmix",
+		models: Record<string, ModelInfo>,
+	): void {
+		const cacheKey = `${provider}Models` as keyof typeof this.modelInfoCache
+		this.modelInfoCache[cacheKey] = models
+	}
+
+	/**
+	 * Get model info by provider and model ID (from in-memory cache)
+	 */
+	getModelInfo(
+		provider: "openRouter" | "groq" | "baseten" | "huggingFace" | "requesty" | "huaweiCloudMaas" | "hicap" | "aihubmix",
+		modelId: string,
+	): ModelInfo | undefined {
+		const cacheKey = `${provider}Models` as keyof typeof this.modelInfoCache
+		console.log("[OpenRouter] modelInfoCache:", this.modelInfoCache)
+		return this.modelInfoCache[cacheKey]?.[modelId]
 	}
 
 	/**
