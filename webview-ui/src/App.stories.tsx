@@ -1,6 +1,6 @@
 import { HeroUIProvider } from "@heroui/react"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import type { ApiConfiguration } from "@shared/api"
+import { type ApiConfiguration, bedrockModels } from "@shared/api"
 import { CLINE_ONBOARDING_MODELS } from "@shared/cline/onboarding"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -226,8 +226,8 @@ const createMockState = (overrides: any = {}) => ({
 	clineMessages: mockActiveMessages,
 	taskHistory: mockTaskHistory,
 	apiConfiguration: mockApiConfiguration,
-	onboardingModels: { models: CLINE_ONBOARDING_MODELS },
-	openRouterModels: { models: CLINE_ONBOARDING_MODELS },
+	onboardingModels: undefined,
+	openRouterModels: bedrockModels,
 	...overrides,
 })
 
@@ -247,9 +247,7 @@ const createStoryDecorator =
 	}
 
 export const Welcome: Story = {
-	decorators: [
-		createStoryDecorator({ welcomeViewCompleted: false, showWelcome: true, clineMessages: [], onboardingModels: undefined }),
-	],
+	decorators: [createStoryDecorator({ welcomeViewCompleted: false, showWelcome: true, clineMessages: [] })],
 	parameters: {
 		docs: {
 			description: {
@@ -273,7 +271,14 @@ export const Welcome: Story = {
 }
 
 export const Onboarding: Story = {
-	decorators: [createStoryDecorator({ welcomeViewCompleted: false, showWelcome: true, clineMessages: [] })],
+	decorators: [
+		createStoryDecorator({
+			welcomeViewCompleted: false,
+			showWelcome: true,
+			clineMessages: [],
+			onboardingModels: { models: CLINE_ONBOARDING_MODELS },
+		}),
+	],
 	parameters: {
 		docs: {
 			description: {
@@ -351,6 +356,7 @@ export const Onboarding: Story = {
 
 		// Should see model selection again
 		await expect(canvas.getByPlaceholderText("Search model...")).toBeInTheDocument()
+		await userEvent.click(canvas.getByText("Back"))
 	},
 }
 
