@@ -3206,6 +3206,14 @@ export class Task {
 	): Promise<[ClineContent[], string, boolean]> {
 		let needsClinerulesFileCheck = false
 
+		// Pre-fetch necessary data to avoid redundant calls within loops
+		const ulid = this.ulid
+		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
+		const useNativeToolCalls = this.useNativeToolCalls
+		const providerInfo = this.getCurrentProviderInfo()
+		const cwd = this.cwd
+		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.controller, cwd)
+
 		// Define user-generated content tags once
 		const USER_CONTENT_TAGS = ["<feedback>", "<answer>", "<task>", "<user_message>"] as const
 
@@ -3216,22 +3224,20 @@ export class Task {
 		const parseTextBlock = async (text: string): Promise<string> => {
 			const parsedText = await parseMentions(
 				text,
-				this.cwd,
+				cwd,
 				this.urlContentFetcher,
 				this.fileContextTracker,
 				this.workspaceManager,
 			)
 
-			const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.controller, this.cwd)
-
 			const { processedText, needsClinerulesFileCheck: needsCheck } = await parseSlashCommands(
 				parsedText,
 				localWorkflowToggles,
 				globalWorkflowToggles,
-				this.ulid,
-				this.stateManager.getGlobalSettingsKey("focusChainSettings"),
-				this.useNativeToolCalls,
-				this.getCurrentProviderInfo(),
+				ulid,
+				focusChainSettings,
+				useNativeToolCalls,
+				providerInfo,
 			)
 
 			if (needsCheck) {
