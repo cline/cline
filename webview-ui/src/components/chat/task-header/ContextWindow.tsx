@@ -94,6 +94,12 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 		updateSetting("autoCondenseThreshold", newThreshold)
 	}, [])
 
+	const handleThresholdChange = useCallback((newThreshold: number) => {
+		setConfirmationNeeded(false)
+		setThreshold(newThreshold)
+		updateSetting("autoCondenseThreshold", newThreshold)
+	}, [])
+
 	const handleCompactClick = useCallback(
 		(e: React.MouseEvent) => {
 			e.preventDefault()
@@ -246,6 +252,8 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 									{useAutoCondense && (
 										<AutoCondenseMarker
 											isContextWindowHoverOpen={isOpened}
+											onThresholdChange={handleThresholdChange}
+											progressBarRef={progressBarRef}
 											shouldAnimate={shouldAnimateMarker}
 											threshold={threshold}
 											usage={tokenData.percentage}

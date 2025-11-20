@@ -126,14 +126,12 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 				<AccordionItem
 					isExpanded={expandedSections.has("threshold")}
 					onToggle={(event) => toggleSection("threshold", event)}
-					title="Auto Condense Threshold"
+					title="Compact Threshold"
 					value={<span className="text-muted-foreground">{`${(autoCompactThreshold * 100).toFixed(0)}%`}</span>}>
 					<div className="space-y-1">
-						<p className="text-xs leading-relaxed text-white">
-							[INTERNAL ONLY] Click on the context window bar to set a new threshold.
-						</p>
 						<p className="text-xs leading-relaxed mt-0 mb-0">
-							When the context window usage exceeds this threshold, the task will be automatically condensed.
+							When the context window usage exceeds this threshold, the task will be automatically condensed. Click
+							on the context window bar to set a new threshold.
 						</p>
 					</div>
 				</AccordionItem>
