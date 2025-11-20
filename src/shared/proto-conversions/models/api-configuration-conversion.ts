@@ -315,6 +315,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.HICAP
 		case "nousResearch":
 			return ProtoApiProvider.NOUSRESEARCH
+		case "burncloud":
+			return ProtoApiProvider.BURNCLOUD
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -403,6 +405,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "minimax"
 		case ProtoApiProvider.NOUSRESEARCH:
 			return "nousResearch"
+		case ProtoApiProvider.BURNCLOUD:
+			return "burncloud"
 		default:
 			return "anthropic"
 	}
@@ -488,6 +492,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		minimaxApiKey: config.minimaxApiKey,
 		minimaxApiLine: config.minimaxApiLine,
 		nousResearchApiKey: config.nousResearchApiKey,
+		burncloudApiKey: config.burncloudApiKey,
+		burncloudBaseUrl: config.burncloudBaseUrl,
 		ocaMode: config.ocaMode,
 		aihubmixApiKey: config.aihubmixApiKey,
 		aihubmixBaseUrl: config.aihubmixBaseUrl,
@@ -532,6 +538,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeHicapModelId: config.planModeHicapModelId,
 		planModeHicapModelInfo: convertModelInfoToProtoOpenRouter(config.planModeHicapModelInfo),
 		planModeNousResearchModelId: config.planModeNousResearchModelId,
+		planModeBurncloudModelId: config.planModeBurncloudModelId,
 
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider ? convertApiProviderToProto(config.actModeApiProvider) : undefined,
@@ -570,6 +577,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeHicapModelId: config.actModeHicapModelId,
 		actModeHicapModelInfo: convertModelInfoToProtoOpenRouter(config.actModeHicapModelInfo),
 		actModeNousResearchModelId: config.actModeNousResearchModelId,
+		actModeBurncloudModelId: config.actModeBurncloudModelId,
 	}
 }
 
@@ -659,6 +667,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		hicapApiKey: protoConfig.hicapApiKey,
 		hicapModelId: protoConfig.hicapModelId,
 		nousResearchApiKey: protoConfig.nousResearchApiKey,
+		burncloudApiKey: protoConfig.burncloudApiKey,
+		burncloudBaseUrl: protoConfig.burncloudBaseUrl,
 
 		// Plan mode configurations
 		planModeApiProvider:
@@ -700,6 +710,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeHicapModelId: protoConfig.planModeHicapModelId,
 		planModeHicapModelInfo: convertProtoToModelInfo(protoConfig.planModeHicapModelInfo),
 		planModeNousResearchModelId: protoConfig.planModeNousResearchModelId,
+		planModeBurncloudModelId: protoConfig.planModeBurncloudModelId,
 
 		// Act mode configurations
 		actModeApiProvider:
@@ -739,5 +750,6 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeHicapModelId: protoConfig.actModeHicapModelId,
 		actModeHicapModelInfo: convertProtoToModelInfo(protoConfig.actModeHicapModelInfo),
 		actModeNousResearchModelId: protoConfig.actModeNousResearchModelId,
+		actModeBurncloudModelId: protoConfig.actModeBurncloudModelId,
 	}
 }
