@@ -2849,6 +2849,7 @@ export class Task {
 							}
 
 							this.processNativeToolCalls(assistantTextOnly, toolUseHandler.getPartialToolUsesAsContent())
+							await this.presentAssistantMessage()
 							break
 						}
 						case "text": {
@@ -2871,6 +2872,8 @@ export class Task {
 							if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
 							}
+							// Process the new text content as it streams in without awaiting for full message
+							this.presentAssistantMessage()
 							break
 						}
 					}
@@ -2985,7 +2988,7 @@ export class Task {
 				totalCost,
 			})
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-			this.postStateToWebview()
+			await this.postStateToWebview()
 
 			// need to call here in case the stream was aborted
 			if (this.taskState.abort) {
@@ -3007,10 +3010,6 @@ export class Task {
 			if (partialBlocks.length > 0) {
 				await this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
 			}
-
-			await this.presentAssistantMessage().catch((error) => {
-				console.error("Error presenting final assistant message:", error)
-			})
 
 			// now add to apiconversationhistory
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
@@ -3269,7 +3268,8 @@ export class Task {
 				// Handle string content
 				if (typeof block.content === "string") {
 					const processed = await processTextContent({ type: "text", text: block.content })
-					return processed
+					// Creates NEW object and turns the string content as array
+					return { ...block, content: [processed] }
 				}
 
 				// Handle array content
