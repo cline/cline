@@ -189,6 +189,7 @@
 									"provider-config/fireworks",
 									"provider-config/zai",
 									"provider-config/gcp-vertex-ai",
+									"provider-config/baseten",
 									{
 										"group": "AWS Bedrock",
 										"pages": [
@@ -215,8 +216,7 @@
 									"provider-config/vscode-language-model-api",
 									"provider-config/sap-aicore",
 									"provider-config/vercel-ai-gateway",
-									"provider-config/requesty",
-									"provider-config/baseten"
+									"provider-config/requesty"
 								]
 							}
 						]
