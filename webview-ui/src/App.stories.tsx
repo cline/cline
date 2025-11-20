@@ -294,7 +294,7 @@ export const Onboarding: Story = {
 			control: { type: "object" },
 		},
 	},
-	// More on component testing: https://storycdbook.js.org/docs/writing-tests/interaction-testing
+	// More on component testing: https://storybook.js.org/docs/writing-tests/interaction-testing
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement)
 
