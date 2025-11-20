@@ -151,7 +151,6 @@ export class ClineHandler implements ApiHandler {
 				}
 
 				const delta = choice?.delta
-				Logger.debug("Cline chunk delta:" + JSON.stringify(delta))
 
 				if (delta?.content) {
 					yield {
@@ -193,6 +192,8 @@ export class ClineHandler implements ApiHandler {
 						details: delta.reasoning_details,
 					}
 				}
+
+				console.log("didOutputUsage", didOutputUsage, chunk.usage)
 
 				if (!didOutputUsage && chunk.usage) {
 					// @ts-ignore-next-line
