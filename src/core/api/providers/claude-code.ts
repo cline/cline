@@ -48,7 +48,7 @@ export class ClaudeCodeHandler implements ApiHandler {
 		}
 
 		let isPaidUsage = true
-		let thinkingDeltaAccumulator = ""
+		let reasoningDeltaAccumulator = ""
 
 		for await (const chunk of claudeProcess) {
 			if (typeof chunk === "string") {
@@ -90,12 +90,12 @@ export class ClaudeCodeHandler implements ApiHandler {
 									reasoning: event.content_block.thinking || "",
 								}
 								// If both thinking and signature are present at start, yield complete thinking block
-								const thinking = event.content_block.thinking
+								const reasoning = event.content_block.thinking
 								const signature = event.content_block.signature
-								if (thinking && signature) {
+								if (reasoning && signature) {
 									yield {
-										type: "ant_thinking",
-										thinking,
+										type: "reasoning",
+										reasoning,
 										signature,
 									}
 								}
@@ -104,12 +104,6 @@ export class ClaudeCodeHandler implements ApiHandler {
 								yield {
 									type: "reasoning",
 									reasoning: "[Redacted thinking block]",
-								}
-								if (event.content_block.data) {
-									yield {
-										type: "ant_redacted_thinking",
-										data: event.content_block.data,
-									}
 								}
 								break
 							case "text":
@@ -144,17 +138,17 @@ export class ClaudeCodeHandler implements ApiHandler {
 									type: "reasoning",
 									reasoning: event.delta.thinking || "",
 								}
-								thinkingDeltaAccumulator += event.delta.thinking || ""
+								reasoningDeltaAccumulator += event.delta.thinking || ""
 								break
 							case "signature_delta":
 								// Signature completes the thinking block
-								if (thinkingDeltaAccumulator && event.delta.signature) {
+								if (reasoningDeltaAccumulator && event.delta.signature) {
 									yield {
-										type: "ant_thinking",
-										thinking: thinkingDeltaAccumulator,
+										type: "reasoning",
+										reasoning: reasoningDeltaAccumulator,
 										signature: event.delta.signature,
 									}
-									thinkingDeltaAccumulator = ""
+									reasoningDeltaAccumulator = ""
 								}
 								break
 						}
@@ -170,25 +164,25 @@ export class ClaudeCodeHandler implements ApiHandler {
 
 					case "content_block_stop":
 						// Flush any remaining thinking delta if signature_delta wasn't received
-						if (thinkingDeltaAccumulator) {
+						if (reasoningDeltaAccumulator) {
 							yield {
-								type: "ant_thinking",
-								thinking: thinkingDeltaAccumulator,
+								type: "reasoning",
+								reasoning: reasoningDeltaAccumulator,
 								signature: "", // No signature received
 							}
-							thinkingDeltaAccumulator = ""
+							reasoningDeltaAccumulator = ""
 						}
 						break
 
 					case "message_stop":
 						// Final safety net: flush any remaining thinking delta
-						if (thinkingDeltaAccumulator) {
+						if (reasoningDeltaAccumulator) {
 							yield {
-								type: "ant_thinking",
-								thinking: thinkingDeltaAccumulator,
+								type: "reasoning",
+								reasoning: reasoningDeltaAccumulator,
 								signature: "", // No signature received
 							}
-							thinkingDeltaAccumulator = ""
+							reasoningDeltaAccumulator = ""
 						}
 						break
 				}
