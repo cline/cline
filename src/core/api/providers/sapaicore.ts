@@ -382,9 +382,10 @@ export class SapAiCoreHandler implements ApiHandler {
 	 * Checks if an error message indicates a context window issue
 	 */
 	private isContextWindowError(message: string, errorCode: number, modelName: string): boolean {
-		if (modelName.startsWith("gemini")) {
+		if (modelName.startsWith("gemini") && errorCode === 500) {
 			// Gemini returns just Internal Server Error? and no message
-			return errorCode === 500
+			// when in orchestratio mode using the stream interface
+			return true
 		}
 
 		if (errorCode !== 400) {
@@ -394,15 +395,16 @@ export class SapAiCoreHandler implements ApiHandler {
 		const lowerMessage = message.toLowerCase()
 
 		const contextWindowPatterns = [
-			"input is too long",
-			"exceed context limit",
+			"input is too long", // Sonnet
+			"tokens exceed the configured limit", // GPT
+			"exceeds the maximum", // Gemini
+			"exceed context limit", // Sonnet
 			"context length",
 			"context window exceeded",
 			"input exceeds maximum",
 			"request too large",
 			"context size limit",
 			"token limit exceeded",
-			"tokens exceed the configured limit",
 		]
 
 		return contextWindowPatterns.some((pattern) => lowerMessage.includes(pattern))
