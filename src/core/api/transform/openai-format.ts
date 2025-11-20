@@ -159,6 +159,7 @@ export function convertToOpenAiMessages(
 							// delete part.reasoning_details
 						}
 						if (part.type === "thinking" && part.thinking) {
+							// Reasoning details should have been moved to the text block
 							thinkingBlock.push(part)
 						}
 					})
@@ -173,15 +174,26 @@ export function convertToOpenAiMessages(
 				}
 
 				// Process tool use messages
-				const tool_calls: OpenAI.Chat.ChatCompletionMessageToolCall[] = toolMessages.map((toolMessage) => ({
-					id: toolMessage.id,
-					type: "function",
-					function: {
-						name: toolMessage.name,
-						// json string
-						arguments: JSON.stringify(toolMessage.input),
-					},
-				}))
+				const tool_calls: OpenAI.Chat.ChatCompletionMessageToolCall[] = toolMessages.map((toolMessage) => {
+					const toolDetails = toolMessage.reasoning_details
+					if (toolDetails?.length) {
+						if (Array.isArray(toolDetails)) {
+							reasoningDetails.push(...toolDetails)
+						} else {
+							reasoningDetails.push(toolDetails)
+						}
+					}
+
+					return {
+						id: toolMessage.id,
+						type: "function",
+						function: {
+							name: toolMessage.name,
+							// json string
+							arguments: JSON.stringify(toolMessage.input),
+						},
+					}
+				})
 
 				// Set content to blank when tool_calls are present but content has no text, per OpenAI API spec
 				const hasToolCalls = tool_calls.length > 0
