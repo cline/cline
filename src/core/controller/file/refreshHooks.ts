@@ -6,8 +6,12 @@ import { HostProvider } from "@/hosts/host-provider"
 import { VALID_HOOK_TYPES } from "../../hooks/utils"
 import { Controller } from ".."
 
-export async function refreshHooks(_controller: Controller): Promise<HooksToggles> {
-	const globalHooksDir = path.join(os.homedir(), "Documents", "Cline", "Hooks")
+export async function refreshHooks(
+	_controller: Controller,
+	_request?: any,
+	globalHooksDirOverride?: string,
+): Promise<HooksToggles> {
+	const globalHooksDir = globalHooksDirOverride || path.join(os.homedir(), "Documents", "Cline", "Hooks")
 	const isWindows = process.platform === "win32"
 
 	// Collect global hooks

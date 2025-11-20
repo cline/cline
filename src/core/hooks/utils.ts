@@ -39,12 +39,17 @@ export function isValidHookType(hookName: string): hookName is HookType {
  *
  * @param isGlobal - Whether to resolve the global hooks directory
  * @param workspaceName - For multi-root workspaces, the name of the specific workspace
+ * @param globalHooksDirOverride - Optional override for global hooks directory (for testing)
  * @returns The absolute path to the hooks directory
  * @throws Error if the specified workspace cannot be found
  */
-export async function resolveHooksDirectory(isGlobal: boolean, workspaceName?: string): Promise<string> {
+export async function resolveHooksDirectory(
+	isGlobal: boolean,
+	workspaceName?: string,
+	globalHooksDirOverride?: string,
+): Promise<string> {
 	if (isGlobal) {
-		return path.join(os.homedir(), "Documents", "Cline", "Hooks")
+		return globalHooksDirOverride || path.join(os.homedir(), "Documents", "Cline", "Hooks")
 	}
 
 	// For workspace hooks, find the correct workspace

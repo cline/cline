@@ -6,11 +6,15 @@ import { resolveHooksDirectory } from "../../hooks/utils"
 import { Controller } from ".."
 import { refreshHooks } from "./refreshHooks"
 
-export async function toggleHook(controller: Controller, request: ToggleHookRequest): Promise<ToggleHookResponse> {
+export async function toggleHook(
+	controller: Controller,
+	request: ToggleHookRequest,
+	globalHooksDirOverride?: string,
+): Promise<ToggleHookResponse> {
 	const { hookName, isGlobal, enabled, workspaceName } = request
 
 	// Determine hook path
-	const hooksDir = await resolveHooksDirectory(isGlobal, workspaceName)
+	const hooksDir = await resolveHooksDirectory(isGlobal, workspaceName, globalHooksDirOverride)
 
 	const hookPath = path.join(hooksDir, hookName)
 
@@ -32,6 +36,6 @@ export async function toggleHook(controller: Controller, request: ToggleHookRequ
 	await HookDiscoveryCache.getInstance().invalidateAll()
 
 	// Return updated state
-	const hooksToggles = await refreshHooks(controller)
+	const hooksToggles = await refreshHooks(controller, undefined, globalHooksDirOverride)
 	return ToggleHookResponse.create({ hooksToggles })
 }

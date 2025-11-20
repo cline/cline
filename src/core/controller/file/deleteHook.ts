@@ -6,11 +6,15 @@ import { resolveHooksDirectory } from "../../hooks/utils"
 import { Controller } from ".."
 import { refreshHooks } from "./refreshHooks"
 
-export async function deleteHook(controller: Controller, request: DeleteHookRequest): Promise<DeleteHookResponse> {
+export async function deleteHook(
+	controller: Controller,
+	request: DeleteHookRequest,
+	globalHooksDirOverride?: string,
+): Promise<DeleteHookResponse> {
 	const { hookName, isGlobal, workspaceName } = request
 
 	// Determine hook path
-	const hooksDir = await resolveHooksDirectory(isGlobal, workspaceName)
+	const hooksDir = await resolveHooksDirectory(isGlobal, workspaceName, globalHooksDirOverride)
 
 	const hookPath = path.join(hooksDir, hookName)
 
@@ -28,6 +32,6 @@ export async function deleteHook(controller: Controller, request: DeleteHookRequ
 	await HookDiscoveryCache.getInstance().invalidateAll()
 
 	// Return updated hooks state
-	const hooksToggles = await refreshHooks(controller)
+	const hooksToggles = await refreshHooks(controller, undefined, globalHooksDirOverride)
 	return DeleteHookResponse.create({ hooksToggles })
 }

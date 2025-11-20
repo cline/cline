@@ -7,7 +7,11 @@ import { isValidHookType, resolveHooksDirectory, VALID_HOOK_TYPES } from "../../
 import { Controller } from ".."
 import { refreshHooks } from "./refreshHooks"
 
-export async function createHook(controller: Controller, request: CreateHookRequest): Promise<CreateHookResponse> {
+export async function createHook(
+	controller: Controller,
+	request: CreateHookRequest,
+	globalHooksDirOverride?: string,
+): Promise<CreateHookResponse> {
 	const { hookName, isGlobal, workspaceName } = request
 
 	// Validate hook name is one of the valid hook types
@@ -16,7 +20,7 @@ export async function createHook(controller: Controller, request: CreateHookRequ
 	}
 
 	// Determine target directory
-	const hooksDir = await resolveHooksDirectory(isGlobal, workspaceName)
+	const hooksDir = await resolveHooksDirectory(isGlobal, workspaceName, globalHooksDirOverride)
 
 	// Ensure directory exists
 	await fs.mkdir(hooksDir, { recursive: true })
@@ -46,6 +50,6 @@ export async function createHook(controller: Controller, request: CreateHookRequ
 	await HookDiscoveryCache.getInstance().invalidateAll()
 
 	// Return updated hooks state
-	const hooksToggles = await refreshHooks(controller)
+	const hooksToggles = await refreshHooks(controller, undefined, globalHooksDirOverride)
 	return CreateHookResponse.create({ hooksToggles })
 }
