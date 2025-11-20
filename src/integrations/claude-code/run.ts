@@ -149,6 +149,8 @@ Anthropic is aware of this issue and is considering a fix: https://github.com/an
 		rl.close()
 		if (!cProcess.killed) {
 			cProcess.kill()
+			// Suppress expected rejection from kill to prevent "unhandled rejection" errors
+			cProcess.catch(() => {})
 		}
 
 		if (options.shouldUseFile) {

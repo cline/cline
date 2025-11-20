@@ -2290,14 +2290,8 @@ export class Task {
 			throw new Error("Cline instance aborted")
 		}
 
-		// Check if we have a complete tool block before acquiring the lock
-		// This allows tool execution to proceed during streaming without waiting for the lock
-		const currentBlock = this.taskState.assistantMessageContent[this.taskState.currentStreamingContentIndex]
-		const isCompleteToolBlock = currentBlock?.type === "tool_use" && !currentBlock.partial
-
-		// If we're locked and this is NOT a complete tool block, mark pending and return
-		// Complete tool blocks can proceed to acquire the lock and execute
-		if (this.taskState.presentAssistantMessageLocked && !isCompleteToolBlock) {
+		// If we're locked, mark pending and return
+		if (this.taskState.presentAssistantMessageLocked) {
 			this.taskState.presentAssistantMessageHasPendingUpdates = true
 			return
 		}
@@ -2724,7 +2718,6 @@ export class Task {
 					// lastMessage.ts = Date.now() DO NOT update ts since it is used as a key for virtuoso list
 					lastMessage.partial = false
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
-					console.log("updating partial message", lastMessage)
 					// await this.saveClineMessagesAndUpdateHistory()
 				}
 
@@ -2828,7 +2821,22 @@ export class Task {
 								// Only call say when we actually have new reasoning content to display
 								// fixes bug where cancelling task > aborts task > for loop may be in middle of streaming reasoning > say function throws error before we get a chance to properly clean up and cancel the task.
 								if (!this.taskState.abort) {
-									await this.say("reasoning", reasoningMessage, undefined, undefined, true)
+									// Check if tool execution has started (i.e. we have a complete tool block) to prevent race condition with ask()
+									const hasStartedToolExecution = this.taskState.assistantMessageContent.some(
+										(block) => block.type === "tool_use" && !block.partial,
+									)
+									if (!hasStartedToolExecution) {
+										await this.say("reasoning", reasoningMessage, undefined, undefined, true)
+									} else {
+										// Log the skipped reasoning content for diagnostics
+										const reasoningPreview =
+											reasoningMessage.length > 100
+												? reasoningMessage.substring(reasoningMessage.length - 100) + "..."
+												: reasoningMessage
+										console.log(
+											`[DEBUG_LATE_REASONING] Skipping say("reasoning") - tool execution started. Content length: ${reasoningMessage.length}, last 100 chars: "${reasoningPreview}"`,
+										)
+									}
 								}
 							}
 							if (chunk.signature) {
