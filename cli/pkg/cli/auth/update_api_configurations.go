@@ -12,7 +12,7 @@ import (
 )
 
 // updateApiConfigurationPartial is a helper that calls the gRPC method with optional verbose logging.
-// This replaces the Manager.UpdateApiConfigurationPartial method to keep auth-specific code in the auth package.
+// This replaces the Manager.updateApiConfigurationPartial method to keep auth-specific code in the auth package.
 func updateApiConfigurationPartial(ctx context.Context, manager *task.Manager, request *cline.UpdateApiConfigurationPartialRequest) error {
 	if global.Config.Verbose {
 		fmt.Println("[DEBUG] Updating API configuration (partial)")
@@ -144,6 +144,34 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 			ActModeProviderSpecificModelIDField:  "actModeOpenRouterModelId",
 		}, nil
 
+	case cline.ApiProvider_OCA:
+		return ProviderFields{
+			APIKeyField:                          "ocaApiKey",
+			PlanModeModelIDField:                 "planModeApiModelId",
+			ActModeModelIDField:                  "actModeApiModelId",
+			PlanModeModelInfoField:               "planModeOcaModelInfo",
+			ActModeModelInfoField:                "actModeOcaModelInfo",
+			PlanModeProviderSpecificModelIDField: "planModeOcaModelId",
+			ActModeProviderSpecificModelIDField:  "actModeOcaModelId",
+		}, nil
+	case cline.ApiProvider_HICAP:
+		return ProviderFields{
+			APIKeyField:                          "hicapApiKey",
+			PlanModeModelInfoField:               "planModeHicapModelInfo",
+			ActModeModelInfoField:                "actModeHicapModelInfo",
+			PlanModeProviderSpecificModelIDField: "planModeHicapModelId",
+			ActModeProviderSpecificModelIDField:  "actModeHicapModelId",
+		}, nil
+
+	case cline.ApiProvider_NOUSRESEARCH:
+		return ProviderFields{
+			APIKeyField:                          "nousResearchApiKey",
+			PlanModeModelIDField:                 "planModeApiModelId",
+			ActModeModelIDField:                  "actModeApiModelId",
+			PlanModeProviderSpecificModelIDField: "planModeNousResearchModelId",
+			ActModeProviderSpecificModelIDField:  "actModeNousResearchModelId",
+		}, nil
+
 	default:
 		return ProviderFields{}, fmt.Errorf("unsupported provider: %v", provider)
 	}
@@ -152,9 +180,12 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 // ProviderUpdatesPartial defines optional fields for partial provider updates
 // Uses pointers to distinguish between "not provided" and "set to empty"
 type ProviderUpdatesPartial struct {
-	ModelID   *string     // New model ID (optional)
-	APIKey    *string     // New API key (optional)
-	ModelInfo interface{} // New model info (optional, provider-specific)
+	ModelID      *string     // New model ID (optional)
+	APIKey       *string     // New API key (optional)
+	ModelInfo    interface{} // New model info (optional, provider-specific)
+	BaseURL      *string     // New base URL (optional, e.g., for OCA, Ollama)
+	RefreshToken *string     // New refresh token (optional, e.g., for OCA)
+	Mode         *string     // New mode (optional, e.g., "internal" or "external" for OCA)
 }
 
 // GetModelIDFieldName returns the appropriate model ID field name for a provider and mode.
@@ -252,6 +283,12 @@ func setAPIKeyField(apiConfig *cline.ModelsApiConfiguration, fieldName string, v
 		apiConfig.CerebrasApiKey = value
 	case "clineApiKey":
 		apiConfig.ClineApiKey = value
+	case "ocaApiKey":
+		apiConfig.OcaApiKey = value
+	case "hicapApiKey":
+		apiConfig.HicapApiKey = value
+	case "nousResearchApiKey":
+		apiConfig.NousResearchApiKey = value
 	}
 }
 
@@ -270,14 +307,15 @@ func setProviderSpecificModelID(apiConfig *cline.ModelsApiConfiguration, fieldNa
 	case "planModeAwsBedrockCustomModelBaseId":
 		apiConfig.PlanModeAwsBedrockCustomModelBaseId = value
 		apiConfig.ActModeAwsBedrockCustomModelBaseId = value
-	}
-}
-
-// setBaseURLField sets the appropriate base URL field in the config based on the field name
-func setBaseURLField(apiConfig *cline.ModelsApiConfiguration, fieldName string, value *string) {
-	switch fieldName {
-	case "openAiBaseUrl":
-		apiConfig.OpenAiBaseUrl = value
+	case "planModeOcaModelId":
+		apiConfig.PlanModeOcaModelId = value
+		apiConfig.ActModeOcaModelId = value
+	case "planModeHicapModelId":
+		apiConfig.PlanModeHicapModelId = value
+		apiConfig.ActModeHicapModelId = value
+	case "planModeNousResearchModelId":
+		apiConfig.PlanModeNousResearchModelId = value
+		apiConfig.ActModeNousResearchModelId = value
 	}
 }
 
@@ -443,6 +481,46 @@ func RemoveProviderPartial(ctx context.Context, manager *task.Manager, provider 
 	return nil
 }
 
+// setBaseURLField sets the appropriate base URL field in the config based on the field name
+func setBaseURLField(apiConfig *cline.ModelsApiConfiguration, fieldName string, value *string) {
+	switch fieldName {
+	case "ocaBaseUrl":
+		apiConfig.OcaBaseUrl = value
+	case "ollamaBaseUrl":
+		apiConfig.OllamaBaseUrl = value
+	case "openAiBaseUrl":
+		apiConfig.OpenAiBaseUrl = value
+	case "geminiBaseUrl":
+		apiConfig.GeminiBaseUrl = value
+	case "liteLlmBaseUrl":
+		apiConfig.LiteLlmBaseUrl = value
+	case "anthropicBaseUrl":
+		apiConfig.AnthropicBaseUrl = value
+	case "requestyBaseUrl":
+		apiConfig.RequestyBaseUrl = value
+	case "lmStudioBaseUrl":
+		apiConfig.LmStudioBaseUrl = value
+	case "oca":
+		apiConfig.OcaBaseUrl = value
+	}
+}
+
+// setRefreshTokenField sets the appropriate refresh token field in the config
+func setRefreshTokenField(apiConfig *cline.ModelsApiConfiguration, fieldName string, value *string) {
+	switch fieldName {
+	case "ocaRefreshToken":
+		apiConfig.OcaRefreshToken = value
+	}
+}
+
+// setModeField sets the appropriate mode field in the config
+func setModeField(apiConfig *cline.ModelsApiConfiguration, fieldName string, value *string) {
+	switch fieldName {
+	case "ocaMode":
+		apiConfig.OcaMode = value
+	}
+}
+
 // BedrockOptionalFields holds optional configuration fields for AWS Bedrock
 type BedrockOptionalFields struct {
 	SessionToken            *string // Optional: AWS session token for temporary credentials
@@ -454,6 +532,12 @@ type BedrockOptionalFields struct {
 	UseProfile              *bool   // Optional: Use AWS profile
 	Profile                 *string // Optional: AWS profile name
 	Endpoint                *string // Optional: Custom endpoint URL
+}
+
+// OcaOptionalFields holds optional configuration fields for Oracle Code Assist
+type OcaOptionalFields struct {
+	BaseURL *string // Optional: Base URL
+	Mode    *string // Optional: Mode ("internal" or "external")
 }
 
 // setBedrockOptionalFields sets optional Bedrock-specific fields in the API configuration
@@ -491,6 +575,20 @@ func setBedrockOptionalFields(apiConfig *cline.ModelsApiConfiguration, fields *B
 	}
 }
 
+// setOcaOptionalFields sets optional Oca-specific fields in the API configuration
+func setOcaOptionalFields(apiConfig *cline.ModelsApiConfiguration, fields *OcaOptionalFields) {
+	if fields == nil {
+		return
+	}
+
+	if fields.Mode != nil {
+		apiConfig.OcaMode = fields.Mode
+	}
+	if fields.BaseURL != nil {
+		apiConfig.OcaBaseUrl = fields.BaseURL
+	}
+}
+
 // buildBedrockOptionalFieldMask builds field mask paths for Bedrock optional fields that have values
 func buildBedrockOptionalFieldMask(fields *BedrockOptionalFields) []string {
 	if fields == nil {
@@ -525,6 +623,24 @@ func buildBedrockOptionalFieldMask(fields *BedrockOptionalFields) []string {
 	}
 	if fields.Endpoint != nil {
 		fieldPaths = append(fieldPaths, "awsBedrockEndpoint")
+	}
+
+	return fieldPaths
+}
+
+// buildOcaOptionalFieldMask builds field mask paths for Bedrock optional fields that have values
+func buildOcaOptionalFieldMask(fields *OcaOptionalFields) []string {
+	if fields == nil {
+		return nil
+	}
+
+	var fieldPaths []string
+
+	if fields.Mode != nil {
+		fieldPaths = append(fieldPaths, "ocaMode")
+	}
+	if fields.BaseURL != nil {
+		fieldPaths = append(fieldPaths, "ocaBaseUrl")
 	}
 
 	return fieldPaths

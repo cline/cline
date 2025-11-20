@@ -1,6 +1,10 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { RuleFileRequest } from "@shared/proto/index.cline"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { InfoIcon, PenIcon, Trash2Icon } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
 
 const RuleRow: React.FC<{
@@ -9,11 +13,17 @@ const RuleRow: React.FC<{
 	isGlobal: boolean
 	ruleType: string
 	toggleRule: (rulePath: string, enabled: boolean) => void
-}> = ({ rulePath, enabled, isGlobal, toggleRule, ruleType }) => {
+	isRemote?: boolean
+	alwaysEnabled?: boolean
+}> = ({ rulePath, enabled, isGlobal, toggleRule, ruleType, isRemote = false, alwaysEnabled = false }) => {
 	// Check if the path type is Windows
 	const win32Path = /^[a-zA-Z]:\\/.test(rulePath)
 	// Get the filename from the path for display
 	const displayName = rulePath.split(win32Path ? "\\" : "/").pop() || rulePath
+
+	// For remote rules, the rulePath is already the display name
+	const finalDisplayName = isRemote ? rulePath : displayName
+	const isDisabled = isRemote && alwaysEnabled
 
 	const getRuleTypeIcon = () => {
 		switch (ruleType) {
@@ -51,6 +61,20 @@ const RuleRow: React.FC<{
 						</g>
 					</svg>
 				)
+			case "agents":
+				return (
+					<svg
+						height="16"
+						style={{ verticalAlign: "middle" }}
+						viewBox="0 0 24 24"
+						width="16"
+						xmlns="http://www.w3.org/2000/svg">
+						<g fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5">
+							<circle cx="12" cy="8" r="3" />
+							<path d="M12 14c-4 0-6 2-6 4v2h12v-2c0-2-2-4-6-4z" />
+						</g>
+					</svg>
+				)
 			default:
 				return null
 		}
@@ -75,54 +99,52 @@ const RuleRow: React.FC<{
 	return (
 		<div className="mb-2.5">
 			<div
-				className={`flex items-center p-2 rounded bg-[var(--vscode-textCodeBlock-background)] h-[18px] ${
-					enabled ? "opacity-100" : "opacity-60"
-				}`}>
+				className={cn("flex items-center px-2 py-4 rounded bg-text-block-background max-h-4", {
+					"opacity-60": isDisabled,
+				})}>
 				<span className="flex-1 overflow-hidden break-all whitespace-normal flex items-center mr-1" title={rulePath}>
 					{getRuleTypeIcon() && <span className="mr-1.5">{getRuleTypeIcon()}</span>}
-					<span className="ph-no-capture">{displayName}</span>
+					<span className="ph-no-capture">{finalDisplayName}</span>
+					{ruleType === "agents" && (
+						<Tooltip>
+							<TooltipTrigger asChild className="cursor-help">
+								<InfoIcon className="ml-1.5 opacity-70 size-[0.85rem]" />
+							</TooltipTrigger>
+							<TooltipContent>
+								Searches recursively for all AGENTS.md files in the workspace when a top-level AGENTS.md exists
+							</TooltipContent>
+						</Tooltip>
+					)}
 				</span>
 
 				{/* Toggle Switch */}
-				<div className="flex items-center ml-2 space-x-2">
-					<div
-						aria-checked={enabled}
-						className={`w-[20px] h-[10px] rounded-[5px] relative cursor-pointer transition-colors duration-200 ${
-							enabled
-								? "bg-[var(--vscode-testing-iconPassed)] opacity-90"
-								: "bg-[var(--vscode-titleBar-inactiveForeground)] opacity-50"
-						}`}
+				<div className="flex items-center space-x-2 gap-2">
+					<Switch
+						checked={enabled}
+						className="mx-1"
+						disabled={isRemote}
+						key={rulePath}
 						onClick={() => toggleRule(rulePath, !enabled)}
-						onKeyDown={(e) => {
-							if (e.key === "Enter" || e.key === " ") {
-								e.preventDefault()
-								toggleRule(rulePath, !enabled)
-							}
-						}}
-						role="switch"
-						tabIndex={0}>
-						<div
-							className={`w-[6px] h-[6px] bg-white border border-[#66666699] rounded-full absolute top-[1px] transition-all duration-200 ${
-								enabled ? "left-[12px]" : "left-[2px]"
-							}`}
-						/>
-					</div>
-					<VSCodeButton
-						appearance="icon"
+						title={isDisabled ? "This rule is required and cannot be disabled" : undefined}
+					/>
+					<Button
 						aria-label="Edit rule file"
+						disabled={isRemote}
 						onClick={handleEditClick}
-						style={{ height: "20px" }}
-						title="Edit rule file">
-						<span className="codicon codicon-edit" style={{ fontSize: "14px" }} />
-					</VSCodeButton>
-					<VSCodeButton
-						appearance="icon"
+						size="xs"
+						title="Edit rule file"
+						variant="icon">
+						<PenIcon />
+					</Button>
+					<Button
 						aria-label="Delete rule file"
+						disabled={isRemote}
 						onClick={handleDeleteClick}
-						style={{ height: "20px" }}
-						title="Delete rule file">
-						<span className="codicon codicon-trash" style={{ fontSize: "14px" }} />
-					</VSCodeButton>
+						size="xs"
+						title="Delete rule file"
+						variant="icon">
+						<Trash2Icon />
+					</Button>
 				</div>
 			</div>
 		</div>

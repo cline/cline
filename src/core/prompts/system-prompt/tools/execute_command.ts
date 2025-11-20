@@ -1,9 +1,8 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ClineToolSpec } from "../spec"
-import { TASK_PROGRESS_PARAMETER } from "../types"
 
-const generic: ClineToolSpec = {
+const GENERIC: ClineToolSpec = {
 	variant: ModelFamily.GENERIC,
 	id: ClineDefaultTool.BASH,
 	name: "execute_command",
@@ -21,10 +20,12 @@ const generic: ClineToolSpec = {
 			instruction:
 				"A boolean indicating whether this command requires explicit user approval before execution in case the user has auto-approve mode enabled. Set to 'true' for potentially impactful operations like installing/uninstalling packages, deleting/overwriting files, system configuration changes, network operations, or any commands that could have unintended side effects. Set to 'false' for safe operations like reading files/directories, running development servers, building projects, and other non-destructive operations.",
 			usage: "true or false",
+			type: "boolean",
 		},
 		{
 			name: "timeout",
 			required: false,
+			type: "integer",
 			contextRequirements: (context) => context.yoloModeToggled === true,
 			instruction:
 				"Integer representing the timeout in seconds for how long to run the terminal command, before timing out and continuing the task.",
@@ -33,34 +34,55 @@ const generic: ClineToolSpec = {
 	],
 }
 
-const gpt: ClineToolSpec = {
-	variant: ModelFamily.GPT,
+const NATIVE_GPT_5: ClineToolSpec = {
+	variant: ModelFamily.NATIVE_GPT_5,
 	id: ClineDefaultTool.BASH,
-	name: "bash",
+	name: ClineDefaultTool.BASH,
 	description:
-		"Run an arbitrary terminal command at the root of the users project. E.g. `ls -la` for listing files, or `find` for searching latest version of the codebase files locally.",
+		"Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task.",
 	parameters: [
 		{
 			name: "command",
 			required: true,
-			instruction: "The command to run in the root of the users project. Must be shell escaped.",
-			usage: "Your command here",
+			instruction:
+				"The CLI command to execute. This should be valid for the current operating system. Do not use the ~ character or $HOME to refer to the home directory. Always use absolute paths. The command will be executed from the current workspace, you do not need to cd to the workspace.",
 		},
 		{
 			name: "requires_approval",
-			required: false,
-			instruction: "Whether the command is dangerous. If true, user will be asked to confirm.",
-		},
-		{
-			name: "timeout",
-			required: false,
-			contextRequirements: (context) => context.yoloModeToggled === true,
+			required: true,
 			instruction:
-				"Integer representing the timeout in seconds for how long to run the terminal command, before timing out and continuing the task.",
-			usage: "30",
+				"To indicate whether this command requires explicit user approval or interaction before it should be executed. For system/file altering operations like installing/uninstalling packages, removing/overwriting files, system configuration changes, network operations, or any commands that are considered potentially dangerous must be set to true. False for safe operations like running development servers, building projects, and other non-destructive operations.",
+			type: "boolean",
 		},
-		TASK_PROGRESS_PARAMETER,
 	],
 }
 
-export const execute_command_variants = [generic, gpt]
+const NATIVE_NEXT_GEN: ClineToolSpec = {
+	...NATIVE_GPT_5,
+	variant: ModelFamily.NATIVE_NEXT_GEN,
+}
+
+const GEMINI_3: ClineToolSpec = {
+	variant: ModelFamily.GEMINI_3,
+	id: ClineDefaultTool.BASH,
+	name: ClineDefaultTool.BASH,
+	description:
+		"Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. When chaining commands, use the shell operator && (not the HTML entity &amp;&amp;). If using search/grep commands, be careful to not use vague search terms that may return thousands of results. When in PLAN MODE, you may use the execute_command tool, but only in a non-destructive manner and in a way that does not alter any files.",
+	parameters: [
+		{
+			name: "command",
+			required: true,
+			instruction:
+				"The CLI command to execute. This should be valid for the current operating system. For command chaining, use proper shell operators like && to chain commands (e.g., 'cd path && command'). Do not use the ~ character or $HOME to refer to the home directory. Always use absolute paths. Do not run search/grep commands that may return thousands of results.",
+		},
+		{
+			name: "requires_approval",
+			required: true,
+			instruction:
+				"To indicate whether this command requires explicit user approval or interaction before it should be executed. For system/file altering operations like installing/uninstalling packages, removing/overwriting files, system configuration changes, network operations, or any commands that are considered potentially dangerous must be set to true. False for safe operations like running development servers, building projects, and other non-destructive operations.",
+			type: "boolean",
+		},
+	],
+}
+
+export const execute_command_variants: ClineToolSpec[] = [GENERIC, NATIVE_GPT_5, NATIVE_NEXT_GEN, GEMINI_3]

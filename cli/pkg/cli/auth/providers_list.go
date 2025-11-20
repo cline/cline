@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/task"
@@ -110,6 +111,9 @@ func (r *ProviderListResult) GetAllReadyProviders() []*ProviderDisplay {
 		cline.ApiProvider_GEMINI,
 		cline.ApiProvider_OLLAMA,
 		cline.ApiProvider_CEREBRAS,
+		cline.ApiProvider_NOUSRESEARCH,
+		cline.ApiProvider_OCA,
+		cline.ApiProvider_HICAP,
 	}
 
 	// Check each provider to see if it's ready to use
@@ -120,16 +124,23 @@ func (r *ProviderListResult) GetAllReadyProviders() []*ProviderDisplay {
 			continue
 		}
 
-		// Check if this provider has an API key
-		hasAPIKey := checkAPIKeyExists(r.apiConfig, provider)
-		if !hasAPIKey {
-			continue
-		}
-
 		// Check if this provider has a model configured
 		modelID := getProviderSpecificModelID(r.apiConfig, "plan", provider)
-		if modelID == "" {
-			continue
+
+		// Determine if credentials exist
+		hasCreds := checkAPIKeyExists(r.apiConfig, provider)
+
+		// Determine readiness: OCA uses auth state presence; others need creds and model
+		if provider == cline.ApiProvider_OCA {
+			state, _ := GetLatestOCAState(context.Background(), 2 *time.Second)
+			if state == nil || state.User == nil {
+				continue
+			}
+		} else {
+			// Provider is not ready unless it has credentials AND a model configured
+			if !hasCreds || modelID == "" {
+				continue
+			}
 		}
 
 		// Get base URL for Ollama
@@ -145,7 +156,7 @@ func (r *ProviderListResult) GetAllReadyProviders() []*ProviderDisplay {
 			Mode:      "Ready",
 			Provider:  provider,
 			ModelID:   modelID,
-			HasAPIKey: hasAPIKey,
+			HasAPIKey: checkAPIKeyExists(r.apiConfig, provider),
 			BaseURL:   baseURL,
 		})
 		seenProviders[provider] = true
@@ -203,13 +214,15 @@ func extractProviderFromState(stateData map[string]interface{}, mode string) *Pr
 // mapProviderStringToEnum converts provider string from state to ApiProvider enum
 // Returns (provider, ok) where ok is false if the provider is unknown
 func mapProviderStringToEnum(providerStr string) (cline.ApiProvider, bool) {
+	normalizedStr := strings.ToLower(providerStr)
+	
 	// Map string values to enum values
-	switch providerStr {
+	switch normalizedStr {
 	case "anthropic":
 		return cline.ApiProvider_ANTHROPIC, true
-	case "openai-compatible": // internal name is 'openai', but this is actually the openai-compatible provider
+	case "openai", "openai-compatible": // internal name is 'openai', but this is actually the openai-compatible provider
 		return cline.ApiProvider_OPENAI, true
-	case "openai", "openai-native": // This is the native, official Open AI provider
+	case "openai-native": // This is the native, official Open AI provider
 		return cline.ApiProvider_OPENAI_NATIVE, true
 	case "openrouter":
 		return cline.ApiProvider_OPENROUTER, true
@@ -225,6 +238,12 @@ func mapProviderStringToEnum(providerStr string) (cline.ApiProvider, bool) {
 		return cline.ApiProvider_CEREBRAS, true
 	case "cline":
 		return cline.ApiProvider_CLINE, true
+	case "oca":
+		return cline.ApiProvider_OCA, true
+	case "hicap":
+		return cline.ApiProvider_HICAP, true
+	case "nousResearch":
+		return cline.ApiProvider_NOUSRESEARCH, true
 	default:
 		return cline.ApiProvider_ANTHROPIC, false // Return 0 value with false
 	}
@@ -254,6 +273,12 @@ func GetProviderIDForEnum(provider cline.ApiProvider) string {
 		return "cerebras"
 	case cline.ApiProvider_CLINE:
 		return "cline"
+	case cline.ApiProvider_OCA:
+		return "oca"
+	case cline.ApiProvider_HICAP:
+		return "hicap"
+	case cline.ApiProvider_NOUSRESEARCH:
+		return "nousResearch"
 	default:
 		return ""
 	}
@@ -329,6 +354,12 @@ func GetProviderDisplayName(provider cline.ApiProvider) string {
 		return "Cerebras"
 	case cline.ApiProvider_CLINE:
 		return "Cline (Official)"
+	case cline.ApiProvider_OCA:
+		return "Oracle Code Assist"
+	case cline.ApiProvider_HICAP:
+		return "Hicap"
+	case cline.ApiProvider_NOUSRESEARCH:
+		return "NousResearch"
 	default:
 		return "Unknown"
 	}
@@ -378,7 +409,7 @@ func FormatProviderList(result *ProviderListResult) string {
 				} else {
 					output.WriteString("    Base URL: (default)\n")
 				}
-			} else if display.Provider == cline.ApiProvider_CLINE {
+			} else if display.Provider == cline.ApiProvider_CLINE || display.Provider == cline.ApiProvider_OCA {
 				output.WriteString("    Status:   Authenticated\n")
 			} else {
 				output.WriteString("    API Key:  Configured\n")
@@ -430,6 +461,12 @@ func DetectAllConfiguredProviders(ctx context.Context, manager *task.Manager) ([
 		verboseLog("[DEBUG] Cline provider is authenticated")
 	}
 
+	// Check OCA provider via global auth subscription (state presence)
+	if state, _ := GetLatestOCAState(context.Background(), 2*time.Second); state != nil && state.User != nil {
+		configuredProviders = append(configuredProviders, cline.ApiProvider_OCA)
+		verboseLog("[DEBUG] OCA provider has active auth state")
+	}
+
 	// Check each BYO provider for API key presence
 	providersToCheck := []struct {
 		provider cline.ApiProvider
@@ -444,6 +481,8 @@ func DetectAllConfiguredProviders(ctx context.Context, manager *task.Manager) ([
 		{cline.ApiProvider_GEMINI, "geminiApiKey"},
 		{cline.ApiProvider_OLLAMA, "ollamaBaseUrl"}, // Ollama uses baseUrl instead of API key
 		{cline.ApiProvider_CEREBRAS, "cerebrasApiKey"},
+		{cline.ApiProvider_HICAP, "hicapApiKey"},
+		{cline.ApiProvider_NOUSRESEARCH, "nousResearchApiKey"},
 	}
 
 	for _, providerCheck := range providersToCheck {
@@ -458,6 +497,7 @@ func DetectAllConfiguredProviders(ctx context.Context, manager *task.Manager) ([
 			verboseLog("[DEBUG]   Key %s not found", providerCheck.keyField)
 		}
 	}
+
 
 	verboseLog("[DEBUG] Total configured providers: %d", len(configuredProviders))
 	for _, p := range configuredProviders {

@@ -1,6 +1,7 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { FireworksModelId, fireworksDefaultModelId, fireworksModels, ModelInfo } from "@shared/api"
 import OpenAI from "openai"
+import { ClineStorageMessage } from "@/shared/messages/content"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -30,6 +31,7 @@ export class FireworksHandler implements ApiHandler {
 				this.client = new OpenAI({
 					baseURL: "https://api.fireworks.ai/inference/v1",
 					apiKey: this.options.fireworksApiKey,
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {
 				throw new Error(`Error creating Fireworks client: ${error.message}`)
@@ -39,7 +41,7 @@ export class FireworksHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
 		const client = this.ensureClient()
 		const modelId = this.options.fireworksModelId ?? ""
 

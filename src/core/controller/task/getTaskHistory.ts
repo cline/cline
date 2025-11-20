@@ -212,6 +212,7 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 				cacheReads: item.cacheReads || 0,
 				workspaceIds,
 				workspaceName,
+				modelId: item.modelId || "",
 			}
 		})
 

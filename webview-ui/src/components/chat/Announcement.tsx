@@ -1,12 +1,10 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { CSSProperties, memo, useState } from "react"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { XIcon } from "lucide-react"
+import { CSSProperties, memo } from "react"
 import { useMount } from "react-use"
-import { useClineAuth } from "@/context/ClineAuthContext"
+import { Button } from "@/components/ui/button"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { AccountServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
-import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 
 interface AnnouncementProps {
 	version: string
@@ -21,8 +19,7 @@ const containerStyle: CSSProperties = {
 	position: "relative",
 	flexShrink: 0,
 }
-const closeIconStyle: CSSProperties = { position: "absolute", top: "8px", right: "8px" }
-const h3TitleStyle: CSSProperties = { margin: "0 0 8px", fontWeight: "bold" }
+const h4TitleStyle: CSSProperties = { margin: "0 0 8px", fontWeight: "bold" }
 const ulStyle: CSSProperties = { margin: "0 0 8px", paddingLeft: "12px", listStyleType: "disc" }
 const _accountIconStyle: CSSProperties = { fontSize: 11 }
 const hrStyle: CSSProperties = {
@@ -41,78 +38,33 @@ Patch releases (3.19.1 → 3.19.2) will not trigger new announcements.
 */
 const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	const minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
-	const { clineUser } = useClineAuth()
-	const { openRouterModels, setShowChatModelSelector, refreshOpenRouterModels } = useExtensionState()
-	const user = clineUser || undefined
-	const { handleFieldsChange } = useApiConfigurationHandlers()
-
-	const [didClickGrokCodeButton, setDidClickGrokCodeButton] = useState(false)
-	const [didClickCodeSupernovaButton, setDidClickCodeSupernovaButton] = useState(false)
-
+	const { refreshOpenRouterModels } = useExtensionState()
 	// Need to get latest model list in case user hits shortcut button to set model
 	useMount(refreshOpenRouterModels)
 
-	const setGrokCodeFast1 = () => {
-		const modelId = "x-ai/grok-code-fast-1"
-		// set both plan and act modes to use grok-code-fast-1
-		handleFieldsChange({
-			planModeOpenRouterModelId: modelId,
-			actModeOpenRouterModelId: modelId,
-			planModeOpenRouterModelInfo: openRouterModels[modelId],
-			actModeOpenRouterModelInfo: openRouterModels[modelId],
-			planModeApiProvider: "cline",
-			actModeApiProvider: "cline",
-		})
-
-		setTimeout(() => {
-			setDidClickGrokCodeButton(true)
-			setShowChatModelSelector(true)
-		}, 10)
-	}
-
-	const setCodeSupernova = () => {
-		const modelId = "cline/code-supernova-1-million"
-		// set both plan and act modes to use code-supernova-1-million
-		handleFieldsChange({
-			planModeOpenRouterModelId: modelId,
-			actModeOpenRouterModelId: modelId,
-			planModeOpenRouterModelInfo: openRouterModels[modelId],
-			actModeOpenRouterModelInfo: openRouterModels[modelId],
-			planModeApiProvider: "cline",
-			actModeApiProvider: "cline",
-		})
-
-		setTimeout(() => {
-			setDidClickCodeSupernovaButton(true)
-			setShowChatModelSelector(true)
-		}, 10)
-	}
-
-	const handleShowAccount = () => {
-		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
-			console.error("Failed to get login URL:", err),
-		)
-	}
-
 	return (
 		<div style={containerStyle}>
-			<VSCodeButton appearance="icon" data-testid="close-button" onClick={hideAnnouncement} style={closeIconStyle}>
-				<span className="codicon codicon-close"></span>
-			</VSCodeButton>
-			<h3 style={h3TitleStyle}>
+			<Button
+				className="absolute top-2.5 right-2"
+				data-testid="close-announcement-button"
+				onClick={hideAnnouncement}
+				size="icon"
+				variant="icon">
+				<XIcon />
+			</Button>
+			<h4 style={h4TitleStyle}>
 				🎉{"  "}New in v{minorVersion}
-			</h3>
+			</h4>
 			<ul style={ulStyle}>
 				<li>
-					Cline Teams is now free through the end of the year for unlimited users. Includes Jetbrains, RBAC, centralized
-					billing and more.{" "}
-					<VSCodeLink href="https://app.cline.bot/login" style={linkStyle}>
-						Start using teams
-					</VSCodeLink>
+					<strong>MiniMax-M2</strong> is currently free to use in Cline!
 				</li>
 				<li>
-					Use the “exacto” versions of GLM-4.6, Kimi-K2, and Qwen3-Coder in the Cline provider model picker for the best
-					balance of cost, speed, accuracy and tool-calling.
+					<strong>Gemini 3 Pro Preview</strong> is now available with SOTA reasoning and coding capabilities.
+				</li>
+				<li>
+					<strong>AquaVoice's Avalon</strong> model scores 97.3% accuracy on AISpeak and now powers voice-to-text
+					dictation.
 				</li>
 			</ul>
 			<div style={hrStyle} />

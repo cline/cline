@@ -1,8 +1,10 @@
-import { toRequestyServiceUrl } from "@shared/providers/requesty"
+import { toRequestyServiceUrl } from "@shared/clients/requesty"
+import { StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
-import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { AccountServiceClient } from "@/services/grpc-client"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import RequestyModelPicker from "../RequestyModelPicker"
@@ -30,13 +32,31 @@ export const RequestyProvider = ({ showModelOptions, isPopup, currentMode }: Req
 	const apiKeyUrl = resolvedUrl != null ? new URL("api-keys", resolvedUrl).toString() : undefined
 
 	return (
-		<div>
+		<div style={{ display: "flex", flexDirection: "column" }}>
 			<ApiKeyField
 				initialValue={apiConfiguration?.requestyApiKey || ""}
 				onChange={(value) => handleFieldChange("requestyApiKey", value)}
 				providerName="Requesty"
 				signupUrl={apiKeyUrl}
 			/>
+			{!apiConfiguration?.requestyApiKey && (
+				<VSCodeButton
+					appearance="secondary"
+					onClick={async () => {
+						try {
+							await AccountServiceClient.requestyAuthClicked(
+								StringRequest.create({
+									value: apiConfiguration?.requestyBaseUrl || "",
+								}),
+							)
+						} catch (error) {
+							console.error("Failed to open Requesty auth:", error)
+						}
+					}}
+					style={{ margin: "5px 0 0 0" }}>
+					Get Requesty API Key
+				</VSCodeButton>
+			)}
 			<VSCodeCheckbox
 				checked={requestyEndpointSelected}
 				onChange={(e: any) => {

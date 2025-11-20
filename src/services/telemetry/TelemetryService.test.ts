@@ -66,6 +66,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 				{
 					ulid: "task-456",
 					apiProvider: "openai",
+					openAiCompatibleDomain: undefined,
 					...MOCK_METADATA,
 				},
 				"Task created event should include only the expected metadata properties",
@@ -125,6 +126,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			const expectedProperties = {
 				ulid: "multi-task-123",
 				apiProvider: "anthropic",
+				openAiCompatibleDomain: undefined,
 				...MOCK_METADATA,
 			}
 			assert.deepStrictEqual(properties1, expectedProperties, "First provider should receive correct properties")
@@ -191,7 +193,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			noOpTelemetryService.identifyAccount(MOCK_USER_INFO)
 			noOpTelemetryService.captureTaskCompleted("task-789")
 			noOpTelemetryService.captureModelSelected("gpt-4", "openai", "task-789")
-			noOpTelemetryService.captureToolUsage("task-789", "write_to_file", "gpt-4", false, true)
+			noOpTelemetryService.captureToolUsage("task-789", "write_to_file", "gpt-4", "openai", false, true)
 
 			// Test provider methods directly
 			noOpProvider.log("test_event", { test: "property" })

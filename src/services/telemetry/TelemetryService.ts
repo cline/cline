@@ -93,6 +93,7 @@ export class TelemetryService {
 			AUTH_SUCCEEDED: "user.auth_succeeded",
 			AUTH_FAILED: "user.auth_failed",
 			AUTH_LOGGED_OUT: "user.auth_logged_out",
+			ONBOARDING_PROGRESS: "user.onboarding_progress",
 		},
 		DICTATION: {
 			// Tracks when voice recording is started
@@ -179,6 +180,8 @@ export class TelemetryService {
 			AUTO_COMPACT: "task.summarize_task",
 			// Tracks when slash commands or workflows are activated
 			SLASH_COMMAND_USED: "task.slash_command_used",
+			// Tracks when a feature is toggled on/off
+			FEATURE_TOGGLED: "task.feature_toggled",
 			// Tracks when individual Cline rules are toggled on/off
 			RULE_TOGGLED: "task.rule_toggled",
 			// Tracks when auto condense setting is toggled on/off
@@ -265,7 +268,7 @@ export class TelemetryService {
 							items: ["Open Settings"],
 						},
 					})
-					.then((response) => {
+					.then((response: { selectedOption?: string }) => {
 						if (response.selectedOption === "Open Settings") {
 							void HostProvider.window.openSettings({
 								query: "telemetry.telemetryLevel",
@@ -533,11 +536,12 @@ export class TelemetryService {
 	 * Records when a new task/conversation is started
 	 * @param ulid Unique identifier for the new task
 	 * @param apiProvider Optional API provider
+	 * @param openAiCompatibleDomain Optional domain for OpenAI Compatible providers (e.g., "api.example.com")
 	 */
-	public captureTaskCreated(ulid: string, apiProvider?: string) {
+	public captureTaskCreated(ulid: string, apiProvider?: string, openAiCompatibleDomain?: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.CREATED,
-			properties: { ulid, apiProvider },
+			properties: { ulid, apiProvider, openAiCompatibleDomain },
 		})
 	}
 
@@ -545,11 +549,12 @@ export class TelemetryService {
 	 * Records when a task/conversation is restarted
 	 * @param ulid Unique identifier for the new task
 	 * @param apiProvider Optional API provider
+	 * @param openAiCompatibleDomain Optional domain for OpenAI Compatible providers (e.g., "api.example.com")
 	 */
-	public captureTaskRestarted(ulid: string, apiProvider?: string) {
+	public captureTaskRestarted(ulid: string, apiProvider?: string, openAiCompatibleDomain?: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.RESTARTED,
-			properties: { ulid, apiProvider },
+			properties: { ulid, apiProvider, openAiCompatibleDomain },
 		})
 	}
 
@@ -570,6 +575,7 @@ export class TelemetryService {
 	 * @param provider The API provider (e.g., OpenAI, Anthropic)
 	 * @param model The specific model used (e.g., GPT-4, Claude)
 	 * @param source The source of the message ("user" | "model"). Used to track message patterns and identify when users need to correct the model's responses.
+	 * @param mode The mode in which the conversation turn occurred ("plan" or "act")
 	 * @param tokenUsage Optional token usage data
 	 */
 	public captureConversationTurnEvent(
@@ -577,6 +583,7 @@ export class TelemetryService {
 		provider: string = "unknown",
 		model: string = "unknown",
 		source: "user" | "assistant",
+		mode: Mode,
 		tokenUsage: {
 			tokensIn?: number
 			tokensOut?: number
@@ -584,6 +591,7 @@ export class TelemetryService {
 			cacheReadTokens?: number
 			totalCost?: number
 		} = {},
+		isNativeToolCall?: boolean,
 	) {
 		// Ensure required parameters are provided
 		if (!ulid || !provider || !model || !source) {
@@ -598,8 +606,10 @@ export class TelemetryService {
 				provider,
 				model,
 				source,
+				mode,
 				timestamp: new Date().toISOString(), // Add timestamp for message sequencing
 				...tokenUsage,
+				isNativeToolCall,
 			},
 		})
 	}
@@ -642,15 +652,23 @@ export class TelemetryService {
 	 * Records when context summarization is triggered due to context window pressure
 	 * @param ulid Unique identifier for the task
 	 * @param modelId The model that triggered summarization
+	 * @param provider The API provider being used
 	 * @param currentTokens Total tokens in context window when summarization was triggered
 	 * @param maxContextWindow Maximum context window size for the model
 	 */
-	public captureSummarizeTask(ulid: string, modelId: string, currentTokens: number, maxContextWindow: number) {
+	public captureSummarizeTask(
+		ulid: string,
+		modelId: string,
+		provider: string,
+		currentTokens: number,
+		maxContextWindow: number,
+	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.AUTO_COMPACT,
 			properties: {
 				ulid,
 				modelId,
+				provider,
 				currentTokens,
 				maxContextWindow,
 			},
@@ -682,6 +700,7 @@ export class TelemetryService {
 	 * @param ulid Unique identifier for the task
 	 * @param tool Name of the tool being used
 	 * @param modelId The model ID being used
+	 * @param provider The API provider being used
 	 * @param autoApproved Whether the tool was auto-approved based on settings
 	 * @param success Whether the tool execution was successful
 	 * @param workspaceContext Optional workspace context for multi-root workspace tracking
@@ -690,6 +709,7 @@ export class TelemetryService {
 		ulid: string,
 		tool: string,
 		modelId: string,
+		provider: string,
 		autoApproved: boolean,
 		success: boolean,
 		workspaceContext?: {
@@ -698,6 +718,7 @@ export class TelemetryService {
 			resolvedToNonPrimary: boolean
 			resolutionMethod: "hint" | "primary_fallback" | "path_detection"
 		},
+		isNativeToolCall = false,
 	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TOOL_USED,
@@ -707,6 +728,7 @@ export class TelemetryService {
 				autoApproved,
 				success,
 				modelId,
+				provider,
 				// Workspace context (optional)
 				...(workspaceContext && {
 					workspace_multi_root_enabled: workspaceContext.isMultiRootEnabled,
@@ -714,6 +736,7 @@ export class TelemetryService {
 					workspace_resolved_non_primary: workspaceContext.resolvedToNonPrimary,
 					workspace_resolution_method: workspaceContext.resolutionMethod,
 				}),
+				isNativeToolCall,
 			},
 		})
 	}
@@ -738,6 +761,7 @@ export class TelemetryService {
 		status: "started" | "success" | "error",
 		errorMessage?: string,
 		argumentKeys?: string[],
+		isNativeToolCall = false,
 	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.MCP_TOOL_CALLED,
@@ -748,6 +772,7 @@ export class TelemetryService {
 				status,
 				errorMessage,
 				argumentKeys,
+				isNativeToolCall,
 			},
 		})
 	}
@@ -780,15 +805,20 @@ export class TelemetryService {
 	/**
 	 * Records when a diff edit (replace_in_file) operation fails
 	 * @param ulid Unique identifier for the task
+	 * @param modelId The model ID being used
+	 * @param provider The API provider being used
 	 * @param errorType Type of error that occurred (e.g., "search_not_found", "invalid_format")
+	 * @param isNativeToolCall Whether the diff edit was invoked by a native tool call
 	 */
-	public captureDiffEditFailure(ulid: string, modelId: string, errorType?: string) {
+	public captureDiffEditFailure(ulid: string, modelId: string, provider: string, errorType?: string, isNativeToolCall = false) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.DIFF_EDIT_FAILED,
 			properties: {
 				ulid,
 				errorType,
 				modelId,
+				provider,
+				isNativeToolCall,
 			},
 		})
 	}
@@ -1003,6 +1033,7 @@ export class TelemetryService {
 		provider?: string
 		errorStatus?: number | undefined
 		requestId?: string | undefined
+		isNativeToolCall?: boolean
 	}) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.PROVIDER_API_ERROR,
@@ -1078,12 +1109,16 @@ export class TelemetryService {
 	 * @param totalItems Total number of items in the focus chain list
 	 * @param completedItems Number of completed items
 	 * @param incompleteItems Number of incomplete items
+	 * @param modelId The model ID being used
+	 * @param provider The API provider being used
 	 */
 	public captureFocusChainIncompleteOnCompletion(
 		ulid: string,
 		totalItems: number,
 		completedItems: number,
 		incompleteItems: number,
+		modelId: string,
+		provider: string,
 	) {
 		if (!this.isCategoryEnabled("focus_chain")) {
 			return
@@ -1097,6 +1132,8 @@ export class TelemetryService {
 				completedItems,
 				incompleteItems,
 				completionPercentage: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
+				modelId,
+				provider,
 			},
 		})
 	}
@@ -1148,6 +1185,25 @@ export class TelemetryService {
 				ulid,
 				commandName,
 				commandType,
+			},
+		})
+	}
+
+	/**
+	 * Records when a feature is enabled/disabled by the user
+	 * @param ulid Unique identifier for the task
+	 * @param featureName The name of the feature being toggled
+	 * @param enabled Whether the feature was enabled (true) or disabled (false)
+	 * @param modelId The model ID being used when the toggle occurred
+	 */
+	public captureFeatureToggle(ulid: string, featureName: string, enabled: boolean, modelId: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.FEATURE_TOGGLED,
+			properties: {
+				ulid,
+				featureName,
+				enabled,
+				modelId,
 			},
 		})
 	}
@@ -1578,6 +1634,15 @@ export class TelemetryService {
 				outputLines,
 				success,
 				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	public captureOnboardingProgress(args: { step: number; action?: string; model?: string; completed?: boolean }) {
+		this.capture({
+			event: TelemetryService.EVENTS.USER.ONBOARDING_PROGRESS,
+			properties: {
+				...args,
 			},
 		})
 	}

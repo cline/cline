@@ -1,11 +1,13 @@
 syntax = "proto3";
 
 package cline;
+
 import "cline/common.proto";
 import "cline/state.proto";
+
 option go_package = "github.com/cline/grpc-go/cline";
-option java_package = "bot.cline.proto";
 option java_multiple_files = true;
+option java_package = "bot.cline.proto";
 
 service TaskService {
   // Cancels the currently running task
@@ -73,6 +75,7 @@ message TaskResponse {
   int32 cache_writes = 9;
   int32 cache_reads = 10;
   bool is_cross_workspace = 11; // True if task is from another workspace
+  string model_id = 12;
 }
 
 // Request for getting task history with filtering
@@ -105,12 +108,13 @@ message TaskItem {
   int32 cache_reads = 10;
   repeated string workspace_ids = 11; // Workspaces this task belongs to
   string workspace_name = 12; // Primary workspace display name
+  string model_id = 13;
 }
 
 // Request for ask response operation
 message AskResponseRequest {
   Metadata metadata = 1;
-  string response_type = 2; 
+  string response_type = 2;
   string text = 3;
   repeated string images = 4;
   repeated string files = 5;

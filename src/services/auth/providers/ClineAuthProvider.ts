@@ -4,6 +4,7 @@ import { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/services/logging/Logger"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
+import { fetch, getAxiosSettings } from "@/shared/net"
 import type { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
 import { IAuthProvider } from "./IAuthProvider"
 
@@ -115,6 +116,7 @@ export class ClineAuthProvider implements IAuthProvider {
 				const authInfo = await this.refreshToken(storedAuthData.refreshToken)
 				const newAuthInfoString = JSON.stringify(authInfo)
 				if (newAuthInfoString !== storedAuthDataString) {
+					controller.stateManager.setSecret("clineAccountId", undefined) // cleanup old key
 					controller.stateManager.setSecret("cline:clineAccountId", newAuthInfoString)
 				}
 				return authInfo || null
@@ -305,6 +307,7 @@ export class ClineAuthProvider implements IAuthProvider {
 				headers: {
 					Authorization: `Bearer workos:${tokenData.accessToken}`,
 				},
+				...getAxiosSettings(),
 			})
 
 			return userResponse.data.data

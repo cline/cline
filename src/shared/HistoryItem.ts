@@ -18,4 +18,6 @@ export type HistoryItem = {
 	// Multi-workspace support
 	workspaceIds?: string[] // Array of workspace paths this task belongs to
 	workspaceName?: string // Display name for primary workspace
+
+	modelId?: string
 }

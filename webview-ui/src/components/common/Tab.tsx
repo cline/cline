@@ -9,7 +9,7 @@ export const Tab = ({ className, children, ...props }: TabProps) => (
 )
 
 export const TabHeader = ({ className, children, ...props }: TabProps) => (
-	<div className={`px-5 py-2.5 border-b border-[var(--vscode-panel-border)] ${className}`} {...props}>
+	<div className={`px-5 py-2.5 border-b border-(--vscode-panel-border) ${className}`} {...props}>
 		{children}
 	</div>
 )

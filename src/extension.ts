@@ -28,10 +28,12 @@ import { improveWithCline } from "./core/controller/commands/improveWithCline"
 import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
 import { initializeWorkspaceMetadata } from "./core/controller/workspace/initializeWorkspaceMetadata"
+import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
+import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { migrateTaskHistoryToWorkspaceState, migrateWorkspaceMetadata } from "./core/storage/state-migrations"
 import { workspaceResolver } from "./core/workspace"
 import { focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtils"
-import { abortCommitGeneration, generateCommitMessage } from "./hosts/vscode/commit-message-generator"
+import { abortCommitGeneration, generateCommitMsg } from "./hosts/vscode/commit-message-generator"
 import { initializeVSCodeWorkspace } from "./hosts/vscode/initializeWorkspace"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
@@ -58,6 +60,30 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Run migration before initializing StateManager
 	await migrateTaskHistoryToWorkspaceState(context)
+
+	// Initialize hook discovery cache for performance optimization
+	HookDiscoveryCache.getInstance().initialize(
+		context as any, // Adapt VSCode ExtensionContext to generic interface
+		(dir: string) => {
+			try {
+				const pattern = new vscode.RelativePattern(dir, "*")
+				const watcher = vscode.workspace.createFileSystemWatcher(pattern)
+				// Adapt VSCode FileSystemWatcher to generic interface
+				return {
+					onDidCreate: (listener: () => void) => watcher.onDidCreate(listener),
+					onDidChange: (listener: () => void) => watcher.onDidChange(listener),
+					onDidDelete: (listener: () => void) => watcher.onDidDelete(listener),
+					dispose: () => watcher.dispose(),
+				}
+			} catch {
+				return null
+			}
+		},
+		(callback: () => void) => {
+			// Adapt VSCode Disposable to generic interface
+			return vscode.workspace.onDidChangeWorkspaceFolders(callback)
+		},
+	)
 
 	const webview = (await initialize(context)) as VscodeWebviewProvider
 
@@ -381,7 +407,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Register the generateGitCommitMessage command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.GenerateCommit, async (scm) => {
-			generateCommitMessage(webview.controller.stateManager, scm)
+			generateCommitMsg(webview.controller.stateManager, scm)
 		}),
 		vscode.commands.registerCommand(commands.AbortCommit, () => {
 			abortCommitGeneration()
@@ -390,7 +416,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		context.secrets.onDidChange(async (event) => {
-			if (event.key === "clineAccountId" || event.key === "cline:clineAccountId") {
+			if (event.key === "cline:clineAccountId") {
 				// Check if the secret was removed (logout) or added/updated (login)
 				const secretValue = await context.secrets.get(event.key)
 				const activeWebview = WebviewProvider.getVisibleInstance()
@@ -461,10 +487,18 @@ async function getBinaryLocation(name: string): Promise<string> {
 
 // This method is called when your extension is deactivated
 export async function deactivate() {
+	Logger.log("Cline extension deactivating, cleaning up resources...")
+
 	tearDown()
 
 	// Clean up test mode
 	cleanupTestMode()
+
+	// Kill any running hook processes to prevent zombies
+	await HookProcessRegistry.terminateAll()
+
+	// Clean up hook discovery cache
+	HookDiscoveryCache.getInstance().dispose()
 
 	Logger.log("Cline extension deactivated")
 }

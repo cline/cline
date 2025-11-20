@@ -1,6 +1,8 @@
+import type { ApiProviderInfo } from "@core/api"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import fs from "fs/promises"
 import { telemetryService } from "@/services/telemetry"
+import { isNativeToolCallingConfig } from "@/utils/model-utils"
 import {
 	condenseToolResponse,
 	deepPlanningToolResponse,
@@ -9,6 +11,22 @@ import {
 	reportBugToolResponse,
 	subagentToolResponse,
 } from "../prompts/commands"
+import { StateManager } from "../storage/StateManager"
+
+type FileBasedWorkflow = {
+	fullPath: string
+	fileName: string
+	isRemote: false
+}
+
+type RemoteWorkflow = {
+	fullPath: string
+	fileName: string
+	isRemote: true
+	contents: string
+}
+
+type Workflow = FileBasedWorkflow | RemoteWorkflow
 
 /**
  * Processes text for slash commands and transforms them with appropriate instructions
@@ -20,16 +38,21 @@ export async function parseSlashCommands(
 	globalWorkflowToggles: ClineRulesToggles,
 	ulid: string,
 	focusChainSettings?: { enabled: boolean },
+	enableNativeToolCalls?: boolean,
+	providerInfo?: ApiProviderInfo,
 ): Promise<{ processedText: string; needsClinerulesFileCheck: boolean }> {
 	const SUPPORTED_DEFAULT_COMMANDS = ["newtask", "smol", "compact", "newrule", "reportbug", "deep-planning", "subagent"]
 
+	// Determine if the current provider/model/setting actually uses native tool calling
+	const willUseNativeTools = isNativeToolCallingConfig(providerInfo!, enableNativeToolCalls || false)
+
 	const commandReplacements: Record<string, string> = {
-		newtask: newTaskToolResponse(),
+		newtask: newTaskToolResponse(willUseNativeTools),
 		smol: condenseToolResponse(focusChainSettings),
 		compact: condenseToolResponse(focusChainSettings),
 		newrule: newRuleToolResponse(),
 		reportbug: reportBugToolResponse(),
-		"deep-planning": deepPlanningToolResponse(focusChainSettings),
+		"deep-planning": deepPlanningToolResponse(focusChainSettings, providerInfo),
 		subagent: subagentToolResponse(),
 	}
 
@@ -74,36 +97,55 @@ export async function parseSlashCommands(
 				return { processedText: processedText, needsClinerulesFileCheck: commandName === "newrule" }
 			}
 
-			const globalWorkflows = Object.entries(globalWorkflowToggles)
+			const globalWorkflows: Workflow[] = Object.entries(globalWorkflowToggles)
 				.filter(([_, enabled]) => enabled)
-				.map(([filePath, _]) => {
-					const fileName = filePath.replace(/^.*[/\\]/, "")
-					return {
-						fullPath: filePath,
-						fileName: fileName,
-					}
-				})
+				.map(([filePath, _]) => ({
+					fullPath: filePath,
+					fileName: filePath.replace(/^.*[/\\]/, ""),
+					isRemote: false,
+				}))
 
-			const localWorkflows = Object.entries(localWorkflowToggles)
+			const localWorkflows: Workflow[] = Object.entries(localWorkflowToggles)
 				.filter(([_, enabled]) => enabled)
-				.map(([filePath, _]) => {
-					const fileName = filePath.replace(/^.*[/\\]/, "")
-					return {
-						fullPath: filePath,
-						fileName: fileName,
-					}
-				})
+				.map(([filePath, _]) => ({
+					fullPath: filePath,
+					fileName: filePath.replace(/^.*[/\\]/, ""),
+					isRemote: false,
+				}))
 
-			// local workflows have precedence over global workflows
-			const enabledWorkflows = [...localWorkflows, ...globalWorkflows]
+			// Get remote workflows from remote config
+			const stateManager = StateManager.get()
+			const remoteConfigSettings = stateManager.getRemoteConfigSettings()
+			const remoteWorkflows = remoteConfigSettings.remoteGlobalWorkflows || []
+			const remoteWorkflowToggles = stateManager.getGlobalStateKey("remoteWorkflowToggles") || {}
+
+			const enabledRemoteWorkflows: Workflow[] = remoteWorkflows
+				.filter((workflow) => {
+					// If alwaysEnabled, always include; otherwise check toggle
+					return workflow.alwaysEnabled || remoteWorkflowToggles[workflow.name] !== false
+				})
+				.map((workflow) => ({
+					fullPath: "",
+					fileName: workflow.name,
+					isRemote: true,
+					contents: workflow.contents,
+				}))
+
+			// local workflows have precedence over global workflows, which have precedence over remote workflows
+			const enabledWorkflows: Workflow[] = [...localWorkflows, ...globalWorkflows, ...enabledRemoteWorkflows]
 
 			// Then check if the command matches any enabled workflow filename
 			const matchingWorkflow = enabledWorkflows.find((workflow) => workflow.fileName === commandName)
 
 			if (matchingWorkflow) {
 				try {
-					// Read workflow file content from the full path
-					const workflowContent = (await fs.readFile(matchingWorkflow.fullPath, "utf8")).trim()
+					// Get workflow content - either from file or from remote config
+					let workflowContent: string
+					if (matchingWorkflow.isRemote) {
+						workflowContent = matchingWorkflow.contents.trim()
+					} else {
+						workflowContent = (await fs.readFile(matchingWorkflow.fullPath, "utf8")).trim()
+					}
 
 					// find position of slash command within the full match
 					const fullMatchStartIndex = match.index

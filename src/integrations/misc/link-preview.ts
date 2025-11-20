@@ -1,5 +1,6 @@
 import axios from "axios"
 import ogs from "open-graph-scraper"
+import { getAxiosSettings } from "@/shared/net"
 
 export interface OpenGraphData {
 	title?: string
@@ -94,6 +95,7 @@ export async function detectImageUrl(url: string): Promise<boolean> {
 				"User-Agent": "Mozilla/5.0 (compatible; VSCodeExtension/1.0; +https://cline.bot)",
 			},
 			timeout: 3000,
+			...getAxiosSettings(),
 		})
 
 		const contentType = response.headers["content-type"]

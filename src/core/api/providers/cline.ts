@@ -1,17 +1,20 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
 import OpenAI from "openai"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineEnv } from "@/config"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
 import { buildClineExtraHeaders } from "@/services/EnvUtils"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
+import { ClineStorageMessage } from "@/shared/messages/content"
+import { fetch, getAxiosSettings } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
+import { ToolCallProcessor } from "../transform/tool-call-processor"
 import { OpenRouterErrorResponse } from "./types"
 
 interface ClineHandlerOptions extends CommonApiHandlerOptions {
@@ -93,7 +96,7 @@ export class ClineHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		try {
 			const client = await this.ensureClient()
 
@@ -110,7 +113,10 @@ export class ClineHandler implements ApiHandler {
 				this.options.reasoningEffort,
 				this.options.thinkingBudgetTokens,
 				this.options.openRouterProviderSorting,
+				tools,
 			)
+
+			const toolCallProcessor = new ToolCallProcessor()
 
 			for await (const chunk of stream) {
 				// openrouter returns an error object instead of the openai sdk throwing an error
@@ -148,6 +154,12 @@ export class ClineHandler implements ApiHandler {
 						type: "text",
 						text: delta.content,
 					}
+					continue
+				}
+
+				if (delta?.tool_calls) {
+					yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
+					continue
 				}
 
 				// Reasoning tokens are returned separately from the content
@@ -155,9 +167,9 @@ export class ClineHandler implements ApiHandler {
 				if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
 					yield {
 						type: "reasoning",
-						// @ts-ignore-next-line
-						reasoning: delta.reasoning,
+						reasoning: typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning),
 					}
+					continue
 				}
 
 				/* 
@@ -175,20 +187,18 @@ export class ClineHandler implements ApiHandler {
 					!shouldSkipReasoningForModel(this.options.openRouterModelId)
 				) {
 					yield {
-						type: "reasoning_details",
-						reasoning_details: delta.reasoning_details,
+						type: "reasoning",
+						reasoning: "",
+						details: delta.reasoning_details,
 					}
+					continue
 				}
 
 				if (!didOutputUsage && chunk.usage) {
 					// @ts-ignore-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 
-					if (this.getModel().id === "cline/code-supernova-1-million") {
-						totalCost = 0
-					}
-
-					if (this.getModel().id === "x-ai/grok-code-fast-1") {
+					if (this.getModel().id === "x-ai/grok-code-fast-1" || this.getModel().id === "minimax/minimax-m2") {
 						totalCost = 0
 					}
 
@@ -198,8 +208,7 @@ export class ClineHandler implements ApiHandler {
 						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
 						inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
 						outputTokens: chunk.usage.completion_tokens || 0,
-						// @ts-ignore-next-line
-						totalCost: totalCost,
+						totalCost,
 					}
 					didOutputUsage = true
 				}
@@ -235,6 +244,7 @@ export class ClineHandler implements ApiHandler {
 				const response = await axios.get(`${this.clineAccountService.baseUrl}/generation?id=${this.lastGenerationId}`, {
 					headers,
 					timeout: 15_000, // this request hangs sometimes
+					...getAxiosSettings(),
 				})
 
 				const generation = response.data

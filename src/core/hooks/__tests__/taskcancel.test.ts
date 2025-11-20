@@ -42,10 +42,19 @@ describe("TaskCancel Hook", () => {
 		} as any)
 
 		getEnv = () => ({ tempDir })
+
+		// Reset hook discovery cache for clean test state
+		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
+		HookDiscoveryCache.resetForTesting()
 	})
 
 	afterEach(async () => {
 		sandbox.restore()
+
+		// Clean up hook discovery cache
+		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
+		HookDiscoveryCache.resetForTesting()
+
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
 		} catch (error) {
@@ -61,7 +70,7 @@ const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const metadata = input.taskCancel.taskMetadata;
 const hasAllFields = metadata.taskId && metadata.ulid && metadata.completionStatus;
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: hasAllFields ? "Test passed" : "Missing metadata",
   errorMessage: ""
 }))`
@@ -82,7 +91,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			// Note: contextModification is ignored for TaskCancel hooks
 		})
 
@@ -96,7 +105,7 @@ if (status !== "abandoned") {
   process.exit(1);
 }
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "",
   errorMessage: ""
 }))`
@@ -117,7 +126,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			// Note: contextModification is ignored for TaskCancel hooks
 		})
 
@@ -133,7 +142,7 @@ if (!hasAllFields) {
   process.exit(1);
 }
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "",
   errorMessage: ""
 }))`
@@ -154,7 +163,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			// Note: contextModification is ignored for TaskCancel hooks
 		})
 	})
@@ -164,7 +173,7 @@ console.log(JSON.stringify({
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
 			const hookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "This is a context modification that should be ignored",
   errorMessage: ""
 }))`
@@ -185,14 +194,14 @@ console.log(JSON.stringify({
 				},
 			})
 
-			// Hook returns contextModification, but it's completely ignored
-			result1.shouldContinue.should.be.true()
+			// Hook returns contextModification, but it's completely ignored (fire-and-forget)
+			result1.cancel.should.be.false()
 			result1.contextModification!.should.equal("This is a context modification that should be ignored")
 
 			// Update hook to return different contextModification
 			const hookScript2 = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "Different context that is also ignored",
   errorMessage: ""
 }))`
@@ -210,10 +219,10 @@ console.log(JSON.stringify({
 			})
 
 			// Both results behave identically - contextModification has no effect
-			result2.shouldContinue.should.be.true()
+			result2.cancel.should.be.false()
 			result2.contextModification!.should.equal("Different context that is also ignored")
-			// The key point: both executions succeeded with shouldContinue: true
-			// The contextModification value is different but behavior is identical
+			// The key point: both executions succeeded with cancel: false
+			// The contextModification value is different but behavior is identical (fire-and-forget)
 		})
 
 		it("should succeed regardless of hook return value", async () => {
@@ -221,7 +230,7 @@ console.log(JSON.stringify({
 			const hookScript = `#!/usr/bin/env node
 // Note: contextModification is ignored for TaskCancel hooks
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "",
   errorMessage: ""
 }))`
@@ -243,14 +252,14 @@ console.log(JSON.stringify({
 			})
 
 			// TaskCancel is fire-and-forget, so it always reports success
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 		})
 
-		it("should return error message when hook returns shouldContinue: false", async () => {
+		it("should return error message when hook returns cancel: true", async () => {
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
 			const hookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: false,
+  cancel: true,
   contextModification: "",
   errorMessage: "Hook tried to block cancellation"
 }))`
@@ -271,10 +280,10 @@ console.log(JSON.stringify({
 				},
 			})
 
-			// Hook result includes shouldContinue: false and errorMessage
+			// Hook result includes cancel: true and errorMessage
 			// In abortTask(), the errorMessage will be surfaced to the user via this.say("error", ...)
 			// but cancellation will still proceed (fire-and-forget behavior)
-			result.shouldContinue.should.be.false()
+			result.cancel.should.be.true()
 			result.errorMessage!.should.equal("Hook tried to block cancellation")
 		})
 
@@ -286,7 +295,7 @@ const status = input.taskCancel.taskMetadata.completionStatus;
 // Hook can perform cleanup/logging based on status
 // Note: contextModification is ignored for TaskCancel hooks
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "",
   errorMessage: ""
 }))`
@@ -307,7 +316,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 		})
 	})
 
@@ -351,21 +360,21 @@ console.log("not valid json")`
 			const factory = new HookFactory()
 			const runner = await factory.create("TaskCancel")
 
-			try {
-				await runner.run({
-					taskId: "test-task-id",
-					taskCancel: {
-						taskMetadata: {
-							taskId: "test-task-id",
-							ulid: "test-ulid",
-							completionStatus: "cancelled",
-						},
+			// When hook exits 0 but has malformed JSON, it returns success without context
+			const result = await runner.run({
+				taskId: "test-task-id",
+				taskCancel: {
+					taskMetadata: {
+						taskId: "test-task-id",
+						ulid: "test-ulid",
+						completionStatus: "cancelled",
 					},
-				})
-				throw new Error("Should have thrown")
-			} catch (error: any) {
-				error.message.should.match(/Failed to parse hook output/)
-			}
+				},
+			})
+
+			// Hook succeeded (exit 0) but couldn't parse JSON, so returns success without context
+			result.cancel.should.be.false()
+			;(result.contextModification === undefined || result.contextModification === "").should.be.true()
 		})
 	})
 
@@ -393,7 +402,7 @@ console.log("not valid json")`
 			const globalHookScript = `#!/usr/bin/env node
 // Note: contextModification is ignored for TaskCancel hooks
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "",
   errorMessage: ""
 }))`
@@ -404,7 +413,7 @@ console.log(JSON.stringify({
 			const workspaceHookScript = `#!/usr/bin/env node
 // Note: contextModification is ignored for TaskCancel hooks
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "",
   errorMessage: ""
 }))`
@@ -423,7 +432,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			// Both hooks executed successfully
 		})
 
@@ -434,7 +443,7 @@ const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 // Can perform cleanup based on completion status
 // Note: contextModification is ignored for TaskCancel hooks
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "",
   errorMessage: ""
 }))`
@@ -444,7 +453,7 @@ console.log(JSON.stringify({
 			const workspaceHookScript = `#!/usr/bin/env node
 // Note: contextModification is ignored for TaskCancel hooks
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "",
   errorMessage: ""
 }))`
@@ -463,7 +472,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			// Both hooks executed successfully
 		})
 	})
@@ -484,12 +493,12 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 		})
 	})
 
 	describe("Fixture-Based Tests", () => {
-		it("should handle shouldContinue: false with no error message", async () => {
+		it("should handle cancel: true with no error message", async () => {
 			await loadFixture("hooks/taskcancel/false-no-error", getEnv().tempDir)
 
 			const factory = new HookFactory()
@@ -506,13 +515,13 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.false()
+			result.cancel.should.be.true()
 			result.errorMessage!.should.equal("")
 			// In abortTask(), no error is surfaced since errorMessage is empty
 			// Cancellation still proceeds (fire-and-forget)
 		})
 
-		it("should handle shouldContinue: false with error message", async () => {
+		it("should handle cancel: true with error message", async () => {
 			await loadFixture("hooks/taskcancel/false-with-error", getEnv().tempDir)
 
 			const factory = new HookFactory()
@@ -529,13 +538,13 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.false()
+			result.cancel.should.be.true()
 			result.errorMessage!.should.equal("some error happened")
 			// In abortTask(), the errorMessage WILL be surfaced to user via this.say("error", ...)
 			// Cancellation still proceeds (fire-and-forget)
 		})
 
-		it("should handle shouldContinue: true with no error message", async () => {
+		it("should handle cancel: false with no error message", async () => {
 			await loadFixture("hooks/taskcancel/true-no-error", getEnv().tempDir)
 
 			const factory = new HookFactory()
@@ -552,12 +561,12 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.errorMessage!.should.equal("")
 			// Normal success case - no errors to surface
 		})
 
-		it("should handle shouldContinue: true with error message", async () => {
+		it("should handle cancel: false with error message", async () => {
 			await loadFixture("hooks/taskcancel/true-with-error", getEnv().tempDir)
 
 			const factory = new HookFactory()
@@ -574,7 +583,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.errorMessage!.should.equal("some error happened")
 			// In abortTask(), the errorMessage WILL be surfaced to user via this.say("error", ...)
 			// This is the scenario that was fixed - error messages are now displayed regardless of shouldContinue value

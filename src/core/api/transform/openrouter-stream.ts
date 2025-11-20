@@ -7,8 +7,10 @@ import {
 	openRouterClaudeSonnet451mModelId,
 } from "@shared/api"
 import OpenAI from "openai"
+import { ChatCompletionTool } from "openai/resources/chat/completions"
 import { convertToOpenAiMessages } from "./openai-format"
 import { convertToR1Format } from "./r1-format"
+import { getOpenAIToolParams } from "./tool-call-processor"
 
 export async function createOpenRouterStream(
 	client: OpenAI,
@@ -18,6 +20,7 @@ export async function createOpenRouterStream(
 	reasoningEffort?: string,
 	thinkingBudgetTokens?: number,
 	openRouterProviderSorting?: string,
+	tools?: Array<ChatCompletionTool>,
 ) {
 	// Convert Anthropic messages to OpenAI format
 	let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -135,6 +138,10 @@ export async function createOpenRouterStream(
 		topP = 0.95
 		openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 	}
+	if (model.id.startsWith("google/gemini-3.0") || model.id === "google/gemini-3.0") {
+		// Recommended value from google
+		temperature = 1.0
+	}
 
 	let reasoning: { max_tokens: number } | undefined
 	switch (model.id) {
@@ -185,6 +192,7 @@ export async function createOpenRouterStream(
 		...(openRouterProviderSorting && !providerPreferences ? { provider: { sort: openRouterProviderSorting } } : {}),
 		...(providerPreferences ? { provider: providerPreferences } : {}),
 		...(isClaudeSonnet1m ? { provider: { order: ["anthropic", "google-vertex/global"], allow_fallbacks: false } } : {}),
+		...getOpenAIToolParams(tools),
 	})
 
 	return stream

@@ -6,6 +6,7 @@ import { DictationSettings } from "@shared/DictationSettings"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { McpDisplayMode } from "@shared/McpDisplayMode"
 import { WorkspaceRoot } from "@shared/multi-root/types"
+import { GlobalInstructionsFile } from "@shared/remote-config/schema"
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
@@ -32,6 +33,15 @@ export type GlobalStateAndSettingsKey = keyof (GlobalState & Settings)
 
 export type GlobalStateAndSettings = GlobalState & Settings
 
+export interface RemoteConfigExtraFields {
+	remoteConfiguredProviders: string[]
+	allowedMCPServers: Array<{ id: string }>
+	remoteGlobalRules?: GlobalInstructionsFile[]
+	remoteGlobalWorkflows?: GlobalInstructionsFile[]
+}
+
+export type RemoteConfigFields = GlobalStateAndSettings & RemoteConfigExtraFields
+
 export interface GlobalState {
 	lastShownAnnouncementId: string | undefined
 	// taskHistory moved to LocalState for workspace isolation
@@ -54,6 +64,9 @@ export interface GlobalState {
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
 	lastDismissedCliBannerVersion: number
+	nativeToolCallEnabled: boolean
+	remoteRulesToggles: ClineRulesToggles
+	remoteWorkflowToggles: ClineRulesToggles
 }
 
 export interface Settings {
@@ -108,6 +121,7 @@ export interface Settings {
 	strictPlanModeEnabled: boolean
 	yoloModeToggled: boolean
 	useAutoCondense: boolean
+	clineWebToolsEnabled: boolean
 	preferredLanguage: string
 	openaiReasoningEffort: OpenaiReasoningEffort
 	mode: Mode
@@ -117,9 +131,13 @@ export interface Settings {
 	difyBaseUrl: string | undefined
 	autoCondenseThreshold: number | undefined // number from 0 to 1
 	ocaBaseUrl: string | undefined
+	minimaxApiLine: string | undefined
 	ocaMode: string | undefined
+	aihubmixBaseUrl: string | undefined
+	aihubmixAppCode: string | undefined
 	hooksEnabled: boolean
 	subagentsEnabled: boolean
+	hicapModelId: string | undefined
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
@@ -153,6 +171,11 @@ export interface Settings {
 	planModeHuaweiCloudMaasModelInfo: ModelInfo | undefined
 	planModeOcaModelId: string | undefined
 	planModeOcaModelInfo: OcaModelInfo | undefined
+	planModeHicapModelId: string | undefined
+	planModeHicapModelInfo: ModelInfo | undefined
+	planModeAihubmixModelId: string | undefined
+	planModeAihubmixModelInfo: ModelInfo | undefined
+	planModeNousResearchModelId: string | undefined
 	// Act mode configurations
 	actModeApiProvider: ApiProvider
 	actModeApiModelId: string | undefined
@@ -183,12 +206,13 @@ export interface Settings {
 	actModeHuggingFaceModelInfo: ModelInfo | undefined
 	actModeHuaweiCloudMaasModelId: string | undefined
 	actModeHuaweiCloudMaasModelInfo: ModelInfo | undefined
-	planModeVercelAiGatewayModelId: string | undefined
-	planModeVercelAiGatewayModelInfo: ModelInfo | undefined
-	actModeVercelAiGatewayModelId: string | undefined
-	actModeVercelAiGatewayModelInfo: ModelInfo | undefined
 	actModeOcaModelId: string | undefined
 	actModeOcaModelInfo: OcaModelInfo | undefined
+	actModeHicapModelId: string | undefined
+	actModeHicapModelInfo: ModelInfo | undefined
+	actModeAihubmixModelId: string | undefined
+	actModeAihubmixModelInfo: ModelInfo | undefined
+	actModeNousResearchModelId: string | undefined
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: boolean
@@ -246,6 +270,11 @@ export interface Secrets {
 	difyApiKey: string | undefined
 	ocaApiKey: string | undefined
 	ocaRefreshToken: string | undefined
+	minimaxApiKey: string | undefined
+	hicapApiKey: string | undefined
+	aihubmixApiKey: string | undefined
+	mcpOAuthSecrets: string | undefined
+	nousResearchApiKey: string | undefined
 }
 
 export interface LocalState {
@@ -254,5 +283,6 @@ export interface LocalState {
 	localClineRulesToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
+	localAgentsRulesToggles: ClineRulesToggles
 	workflowToggles: ClineRulesToggles
 }

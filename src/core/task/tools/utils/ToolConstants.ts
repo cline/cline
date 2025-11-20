@@ -16,6 +16,7 @@ export const TASK_CONFIG_KEYS = [
 	"mode",
 	"strictPlanModeEnabled",
 	"yoloModeToggled",
+	"vscodeTerminalExecutionMode",
 	"context",
 	"taskState",
 	"messageState",
@@ -63,6 +64,9 @@ export const TASK_CALLBACKS_KEYS = [
 	"cancelTask",
 	"updateTaskHistory",
 	"switchToActMode",
+	"setActiveHookExecution",
+	"clearActiveHookExecution",
+	"getActiveHookExecution",
 ] as const
 
 /**

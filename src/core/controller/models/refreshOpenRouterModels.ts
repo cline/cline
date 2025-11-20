@@ -1,16 +1,17 @@
 import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import { ModelInfo } from "@shared/api"
+import type { ModelInfo } from "@shared/api"
 import axios from "axios"
 import cloneDeep from "clone-deep"
 import fs from "fs/promises"
 import path from "path"
 import {
+	ANTHROPIC_MAX_THINKING_BUDGET,
 	CLAUDE_SONNET_1M_TIERS,
-	clineCodeSupernovaModelInfo,
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 } from "@/shared/api"
-import { Controller } from ".."
+import { getAxiosSettings } from "@/shared/net"
+import type { Controller } from ".."
 
 type OpenRouterSupportedParams =
 	| "frequency_penalty"
@@ -64,7 +65,6 @@ interface OpenRouterRawModelInfo {
 		input_cache_read: string
 		input_cache_write: string
 	} | null
-	thinking_config: any | null
 	supports_global_endpoint: boolean | null
 	tiers: any[] | null
 	supported_parameters?: OpenRouterSupportedParams[] | null
@@ -80,7 +80,7 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 
 	const models: Record<string, ModelInfo> = {}
 	try {
-		const response = await axios.get("https://openrouter.ai/api/v1/models")
+		const response = await axios.get("https://openrouter.ai/api/v1/models", getAxiosSettings())
 
 		if (response.data?.data) {
 			const rawModels = response.data.data
@@ -91,8 +91,10 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 				return undefined
 			}
 			for (const rawModel of rawModels as OpenRouterRawModelInfo[]) {
-				const supportThinking = rawModel.supported_parameters?.some((p) => p === "include_reasoning")
+				const supportThinking = rawModel.supported_parameters?.some((p) => p === "include_reasoning" || p === "reasoning")
+
 				const modelInfo: ModelInfo = {
+					name: rawModel.name,
 					maxTokens: rawModel.top_provider?.max_completion_tokens ?? 0,
 					contextWindow: rawModel.context_length ?? 0,
 					supportsImages: rawModel.architecture?.modality?.includes("image") ?? false,
@@ -102,7 +104,9 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 					cacheWritesPrice: parsePrice(rawModel.pricing?.input_cache_write),
 					cacheReadsPrice: parsePrice(rawModel.pricing?.input_cache_read),
 					description: rawModel.description ?? "",
-					thinkingConfig: supportThinking ? (rawModel.thinking_config ?? {}) : undefined,
+					// If thinking is supported, set maxBudget with a default value as a placeholder
+					// to ensure it has a valid thinkingConfig that lets the application know thinking is supported.
+					thinkingConfig: supportThinking ? { maxBudget: ANTHROPIC_MAX_THINKING_BUDGET } : undefined,
 					supportsGlobalEndpoint: rawModel.supports_global_endpoint ?? undefined,
 					tiers: rawModel.tiers ?? undefined,
 				}
@@ -250,21 +254,8 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
  * Stealth models are models that are compatible with the OpenRouter API but not listed on the OpenRouter website or API.
  */
 const CLINE_STEALTH_MODELS: Record<string, ModelInfo> = {
-	"cline/code-supernova-1-million": {
-		maxTokens: clineCodeSupernovaModelInfo.maxTokens ?? 0,
-		contextWindow: clineCodeSupernovaModelInfo.contextWindow ?? 0,
-		supportsImages: clineCodeSupernovaModelInfo.supportsImages ?? false,
-		supportsPromptCache: clineCodeSupernovaModelInfo.supportsPromptCache ?? false,
-		inputPrice: clineCodeSupernovaModelInfo.inputPrice ?? 0,
-		outputPrice: clineCodeSupernovaModelInfo.outputPrice ?? 0,
-		cacheWritesPrice: clineCodeSupernovaModelInfo.cacheWritesPrice ?? 0,
-		cacheReadsPrice: clineCodeSupernovaModelInfo.cacheReadsPrice ?? 0,
-		description: clineCodeSupernovaModelInfo.description ?? "",
-		thinkingConfig: clineCodeSupernovaModelInfo.thinkingConfig ?? undefined,
-		supportsGlobalEndpoint: clineCodeSupernovaModelInfo.supportsGlobalEndpoint ?? undefined,
-		tiers: clineCodeSupernovaModelInfo.tiers,
-	},
 	// Add more stealth models here as needed
+	// Right now this list is empty as the latest stealth model was removed
 }
 
 export function appendClineStealthModels(currentModels: Record<string, ModelInfo>): Record<string, ModelInfo> {
