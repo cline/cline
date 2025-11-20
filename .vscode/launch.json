@@ -167,7 +167,7 @@
 			"internalConsoleOptions": "openOnSessionStart"
 		},
 		{
-			"name": "Storybook",
+			"name": "Open Storybook",
 			"type": "node",
 			"request": "launch",
 			"runtimeExecutable": "npm",
