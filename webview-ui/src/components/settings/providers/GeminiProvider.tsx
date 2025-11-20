@@ -10,7 +10,12 @@ import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 // Gemini models that support thinking/reasoning mode
-const SUPPORTED_THINKING_MODELS = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite-preview-06-17"]
+const SUPPORTED_THINKING_MODELS = [
+	"gemini-3-pro-preview",
+	"gemini-2.5-pro",
+	"gemini-2.5-flash",
+	"gemini-2.5-flash-lite-preview-06-17",
+]
 
 /**
  * Props for the GeminiProvider component
@@ -62,7 +67,8 @@ export const GeminiProvider = ({ showModelOptions, isPopup, currentMode }: Gemin
 						selectedModelId={selectedModelId}
 					/>
 
-					{SUPPORTED_THINKING_MODELS.includes(selectedModelId) && (
+					{/* When ThinkLevel is set, thinking budget cannot be adjusted and must be enabled */}
+					{SUPPORTED_THINKING_MODELS.includes(selectedModelId) && !selectedModelInfo.thinkingConfig?.thinkingLevel && (
 						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
 					)}
 

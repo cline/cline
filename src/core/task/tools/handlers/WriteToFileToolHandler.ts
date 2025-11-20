@@ -8,7 +8,6 @@ import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { ClineSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
-import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
@@ -17,6 +16,7 @@ import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { applyModelContentFixes } from "../utils/ModelContentProcessor"
 import { ToolDisplayUtils } from "../utils/ToolDisplayUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
@@ -93,9 +93,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		const rawDiff = block.params.diff // for replace_in_file
 
 		// Extract provider information for telemetry
-		const apiConfig = config.services.stateManager.getApiConfiguration()
-		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+		const { providerId, modelId } = this.getModelInfo(config)
 
 		// Validate required parameters based on tool type
 		if (!rawRelPath) {
@@ -177,8 +175,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				telemetryService.captureToolUsage(
 					config.ulid,
 					block.name,
-					config.api.getModel().id,
-					provider,
+					modelId,
+					providerId,
 					true,
 					true,
 					workspaceContext,
@@ -231,8 +229,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					telemetryService.captureToolUsage(
 						config.ulid,
 						block.name,
-						config.api.getModel().id,
-						provider,
+						modelId,
+						providerId,
 						false,
 						false,
 						workspaceContext,
@@ -262,14 +260,28 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					telemetryService.captureToolUsage(
 						config.ulid,
 						block.name,
-						config.api.getModel().id,
-						provider,
+						modelId,
+						providerId,
 						false,
 						true,
 						workspaceContext,
 						block.isNativeToolCall,
 					)
 				}
+			}
+
+			// Run PreToolUse hook after approval but before execution
+			try {
+				const { ToolHookUtils } = await import("../utils/ToolHookUtils")
+				await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+			} catch (error) {
+				const { PreToolUseHookCancellationError } = await import("@core/hooks/PreToolUseHookCancellationError")
+				if (error instanceof PreToolUseHookCancellationError) {
+					await config.services.diffViewProvider.revertChanges()
+					await config.services.diffViewProvider.reset()
+					return formatResponse.toolDenied()
+				}
+				throw error
 			}
 
 			// Mark the file as edited by Cline
@@ -332,10 +344,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 	 *          or undefined if validation fails
 	 */
 	async validateAndPrepareFileOperation(config: TaskConfig, block: ToolUse, relPath: string, diff?: string, content?: string) {
-		// Extract provider information for telemetry
-		const apiConfig = config.services.stateManager.getApiConfiguration()
-		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
 		// Parse workspace hint and resolve path for multi-workspace support
 		const pathResult = resolveWorkspacePath(config, relPath, "WriteToFileToolHandler.validateAndPrepareFileOperation")
 		const { absolutePath, resolvedPath } =
@@ -372,6 +380,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				config.coordinator,
 				config.taskState.toolUseIdMap,
 			)
+
 			return
 		}
 
@@ -390,11 +399,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 		if (diff) {
 			// Handle replace_in_file with diff construction
-			if (!config.api.getModel().id.includes("claude")) {
-				// deepseek models tend to use unescaped html entities in diffs
-				diff = fixModelHtmlEscaping(diff)
-				diff = removeInvalidChars(diff)
-			}
+			// Apply model-specific fixes (deepseek models tend to use unescaped html entities in diffs)
+			diff = applyModelContentFixes(diff, config.api.getModel().id, resolvedPath)
 
 			// open the editor if not done already.  This is to fix diff error when model provides correct search-replace text but Cline throws error
 			// because file is not open.
@@ -413,9 +419,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				await config.callbacks.say("diff_error", relPath)
 
 				// Extract provider information for telemetry
-				const apiConfig = config.services.stateManager.getApiConfiguration()
-				const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-				const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+				const { providerId, modelId } = this.getModelInfo(config)
 
 				// Extract error type from error message if possible
 				const errorType =
@@ -425,13 +429,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 				// Add telemetry for diff edit failure
 				const isNativeToolCall = block.isNativeToolCall === true
-				telemetryService.captureDiffEditFailure(
-					config.ulid,
-					config.api.getModel().id,
-					provider,
-					errorType,
-					isNativeToolCall,
-				)
+				telemetryService.captureDiffEditFailure(config.ulid, modelId, providerId, errorType, isNativeToolCall)
 
 				// Push tool result with detailed error using existing utilities
 				const errorResponse = formatResponse.toolError(
@@ -470,11 +468,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
 			}
 
-			if (!config.api.getModel().id.includes("claude")) {
-				// it seems not just llama models are doing this, but also gemini and potentially others
-				newContent = fixModelHtmlEscaping(newContent)
-				newContent = removeInvalidChars(newContent)
-			}
+			// Apply model-specific fixes (llama, gemini, and other models may add escape characters)
+			newContent = applyModelContentFixes(newContent, config.api.getModel().id, resolvedPath)
 		} else {
 			// can't happen, since we already checked for content/diff above. but need to do this for type error
 			return
@@ -483,5 +478,14 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		newContent = newContent.trimEnd() // remove any trailing newlines, since it's automatically inserted by the editor
 
 		return { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext }
+	}
+
+	private getModelInfo(config: TaskConfig) {
+		// Extract provider information for telemetry
+		const apiConfig = config.services.stateManager.getApiConfiguration()
+		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+		const providerId = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+		const modelId = config.api.getModel().id
+		return { providerId, modelId }
 	}
 }

@@ -45,7 +45,7 @@ const NATIVE_GPT_5: ClineToolSpec = {
 			name: "command",
 			required: true,
 			instruction:
-				"The CLI command to execute. This should be valid for the current operating system. Do not use the ~ character or $HOME to refer to the home directory. Always use absolute paths.",
+				"The CLI command to execute. This should be valid for the current operating system. Do not use the ~ character or $HOME to refer to the home directory. Always use absolute paths. The command will be executed from the current workspace, you do not need to cd to the workspace.",
 		},
 		{
 			name: "requires_approval",
@@ -62,4 +62,27 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 	variant: ModelFamily.NATIVE_NEXT_GEN,
 }
 
-export const execute_command_variants: ClineToolSpec[] = [GENERIC, NATIVE_GPT_5, NATIVE_NEXT_GEN]
+const GEMINI_3: ClineToolSpec = {
+	variant: ModelFamily.GEMINI_3,
+	id: ClineDefaultTool.BASH,
+	name: ClineDefaultTool.BASH,
+	description:
+		"Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. When chaining commands, use the shell operator && (not the HTML entity &amp;&amp;). If using search/grep commands, be careful to not use vague search terms that may return thousands of results. When in PLAN MODE, you may use the execute_command tool, but only in a non-destructive manner and in a way that does not alter any files.",
+	parameters: [
+		{
+			name: "command",
+			required: true,
+			instruction:
+				"The CLI command to execute. This should be valid for the current operating system. For command chaining, use proper shell operators like && to chain commands (e.g., 'cd path && command'). Do not use the ~ character or $HOME to refer to the home directory. Always use absolute paths. Do not run search/grep commands that may return thousands of results.",
+		},
+		{
+			name: "requires_approval",
+			required: true,
+			instruction:
+				"To indicate whether this command requires explicit user approval or interaction before it should be executed. For system/file altering operations like installing/uninstalling packages, removing/overwriting files, system configuration changes, network operations, or any commands that are considered potentially dangerous must be set to true. False for safe operations like running development servers, building projects, and other non-destructive operations.",
+			type: "boolean",
+		},
+	],
+}
+
+export const execute_command_variants: ClineToolSpec[] = [GENERIC, NATIVE_GPT_5, NATIVE_NEXT_GEN, GEMINI_3]
