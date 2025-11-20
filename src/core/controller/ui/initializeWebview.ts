@@ -5,6 +5,7 @@ import { telemetryService } from "@/services/telemetry"
 import { GlobalStateAndSettings } from "@/shared/storage/state-keys"
 import type { Controller } from "../index"
 import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
+import { refreshAvalaiModels } from "../models/refreshAvalaiModels"
 import { refreshBasetenModels } from "../models/refreshBasetenModels"
 import { refreshGroqModels } from "../models/refreshGroqModels"
 import { refreshHicapModels } from "../models/refreshHicapModels"
@@ -183,6 +184,49 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 					// Update act mode model info if we have a model ID
 					if (actModelId && response.models[actModelId]) {
 						updates.actModeHicapModelInfo = response.models[actModelId]
+					}
+
+					// Post state update if we updated any model info
+					if ((planModelId && response.models[planModelId]) || (actModelId && response.models[actModelId])) {
+						controller.stateManager.setGlobalStateBatch(updates)
+						await controller.postStateToWebview()
+					}
+				}
+			}
+		})
+
+		// Refresh AvalAI models from API
+		refreshAvalaiModels(controller, EmptyRequest.create()).then(async (response) => {
+			if (response && response.models) {
+				// Update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
+				const apiConfiguration = controller.stateManager.getApiConfiguration()
+				const planActSeparateModelsSetting = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
+				const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
+
+				if (planActSeparateModelsSetting) {
+					// Separate models: update only current mode
+					const modelIdField = currentMode === "plan" ? "planModeAvalaiModelId" : "actModeAvalaiModelId"
+					const modelInfoField = currentMode === "plan" ? "planModeAvalaiModelInfo" : "actModeAvalaiModelInfo"
+					const modelId = apiConfiguration[modelIdField]
+
+					if (modelId && response.models[modelId]) {
+						controller.stateManager.setGlobalState(modelInfoField, response.models[modelId])
+						await controller.postStateToWebview()
+					}
+				} else {
+					// Shared models: update both plan and act modes
+					const planModelId = apiConfiguration.planModeAvalaiModelId
+					const actModelId = apiConfiguration.actModeAvalaiModelId
+					const updates: Partial<GlobalStateAndSettings> = {}
+
+					// Update plan mode model info if we have a model ID
+					if (planModelId && response.models[planModelId]) {
+						updates.planModeAvalaiModelInfo = response.models[planModelId]
+					}
+
+					// Update act mode model info if we have a model ID
+					if (actModelId && response.models[actModelId]) {
+						updates.actModeAvalaiModelInfo = response.models[actModelId]
 					}
 
 					// Post state update if we updated any model info
