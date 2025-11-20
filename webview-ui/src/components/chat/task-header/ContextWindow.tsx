@@ -19,7 +19,7 @@ interface ContextWindowInfoProps {
 }
 
 interface ContextWindowProgressProps extends ContextWindowInfoProps {
-	useAutoCondense: boolean
+	useAutoCondense?: boolean
 	lastApiReqTotalTokens?: number
 	contextWindow?: number
 	autoCondenseThreshold?: number

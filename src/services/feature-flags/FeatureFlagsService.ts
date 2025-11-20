@@ -97,6 +97,10 @@ export class FeatureFlagsService {
 		return this.getBooleanFlagEnabled(FeatureFlag.NATIVE_TOOL_CALLS_NEXT_GEN_MODELS)
 	}
 
+	public getUseAutoCondenseEnabled(): boolean {
+		return this.getBooleanFlagEnabled(FeatureFlag.AUTO_CONDENSE)
+	}
+
 	public isResponseApiEnabled(): boolean {
 		return this.getBooleanFlagEnabled(FeatureFlag.OPENAI_NATIVE_RESPONSE_API)
 	}
