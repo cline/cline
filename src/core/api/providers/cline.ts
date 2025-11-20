@@ -27,6 +27,7 @@ interface ClineHandlerOptions extends CommonApiHandlerOptions {
 	openRouterModelId?: string
 	openRouterModelInfo?: ModelInfo
 	clineAccountId?: string
+	geminiThinkingLevel?: string
 }
 
 export class ClineHandler implements ApiHandler {
@@ -115,6 +116,7 @@ export class ClineHandler implements ApiHandler {
 				this.options.thinkingBudgetTokens,
 				this.options.openRouterProviderSorting,
 				tools,
+				this.options.geminiThinkingLevel,
 			)
 
 			const toolCallProcessor = new ToolCallProcessor()
@@ -151,7 +153,6 @@ export class ClineHandler implements ApiHandler {
 				}
 
 				const delta = choice?.delta
-				Logger.debug("Cline chunk delta:" + JSON.stringify(delta))
 
 				if (delta?.content) {
 					yield {
@@ -193,6 +194,8 @@ export class ClineHandler implements ApiHandler {
 						details: delta.reasoning_details,
 					}
 				}
+
+				console.log("didOutputUsage", didOutputUsage, chunk.usage)
 
 				if (!didOutputUsage && chunk.usage) {
 					// @ts-ignore-next-line
