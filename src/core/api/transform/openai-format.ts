@@ -1,6 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { Logger } from "@/services/logging/Logger"
 import {
 	ClineAssistantRedactedThinkingBlock,
 	ClineAssistantThinkingBlock,
@@ -213,7 +212,6 @@ export function convertToOpenAiMessages(
 		}
 	}
 
-	Logger.debug("Converted OpenAI Messages: " + JSON.stringify(openAiMessages))
 	return openAiMessages
 }
 
