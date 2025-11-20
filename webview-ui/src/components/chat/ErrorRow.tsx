@@ -26,8 +26,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 				if (rawApiError) {
 					// FIXME: ClineError parsing should not be applied to non-Cline providers, but it seems we're using clineErrorMessage below in the default error display
 					const clineError = ClineError.parse(rawApiError)
-					const clineErrorMessage = clineError?._error?.message
-					const errorMessage = clineError?.message || rawApiError
+					const errorMessage = clineError?._error?.message || clineError?.message || rawApiError
 					const requestId = clineError?._error?.request_id
 					const providerId = clineError?.providerId || clineError?._error?.providerId
 					const isClineProvider = providerId === "cline"
@@ -58,10 +57,11 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 					return (
 						<p className="m-0 whitespace-pre-wrap text-error wrap-anywhere flex flex-col gap-3">
 							{/* Display the well-formatted error extracted from the ClineError instance */}
+
 							<header>
 								{providerId && <span className="uppercase">[{providerId}] </span>}
 								{errorCode && <span>{errorCode}</span>}
-								{clineErrorMessage}
+								{errorMessage}
 								{requestId && <div>Request ID: {requestId}</div>}
 							</header>
 
@@ -79,11 +79,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 							)}
 
 							{/* Display raw API error if different from parsed error message */}
-							{clineErrorMessage !== errorMessage && (
-								<div className="p-2 text-xs font-mono bg-code-block-background border border-border-panel text-code-foreground">
-									{rawApiError}
-								</div>
-							)}
+							{errorMessage !== rawApiError && <div>{rawApiError}</div>}
 
 							{/* Display Login button for non-logged in users using the Cline provider */}
 							<div>

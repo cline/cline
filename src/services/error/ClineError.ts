@@ -138,7 +138,7 @@ export class ClineError extends Error {
 	 */
 	static getErrorType(err: ClineError): ClineErrorType | undefined {
 		const { code, status, details } = err._error
-		const message = err.message || err._error?.message || JSON.stringify(err._error)
+		const message = (err._error?.message || err.message || JSON.stringify(err._error))?.toLowerCase()
 
 		// Check balance error first (most specific)
 		if (code === "insufficient_credits" && typeof details?.current_balance === "number") {
@@ -153,7 +153,7 @@ export class ClineError extends Error {
 
 		if (message) {
 			// Check for specific error codes/messages if applicable
-			const authErrorRegex = [/[in]?valid[-_ ]?[api ]?token|key/i, /authentication[-_ ]?failed/i, /unauthorized/i]
+			const authErrorRegex = [/[in]?valid[-_ ]?token|key/i, /authentication[-_ ]?failed/i, /unauthorized/i]
 			if (message?.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) || authErrorRegex.some((regex) => regex.test(message))) {
 				return ClineErrorType.Auth
 			}
