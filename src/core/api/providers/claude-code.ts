@@ -44,9 +44,11 @@ export class ClaudeCodeHandler implements ApiHandler {
 			outputTokens: 0,
 			cacheReadTokens: 0,
 			cacheWriteTokens: 0,
+			totalCost: 0, // Initialize to 0, will be updated if paid
 		}
 
 		let isPaidUsage = true
+		let reasoningDeltaAccumulator = ""
 
 		for await (const chunk of claudeProcess) {
 			if (typeof chunk === "string") {
@@ -64,6 +66,131 @@ export class ClaudeCodeHandler implements ApiHandler {
 				continue
 			}
 
+			// Handle streaming events from --include-partial-messages flag
+			if (chunk.type === "stream_event" && "event" in chunk) {
+				const event = chunk.event
+
+				switch (event.type) {
+					case "message_start":
+						// Yield initial usage stats
+						usage.inputTokens = event.message.usage.input_tokens || 0
+						usage.cacheWriteTokens = event.message.usage.cache_creation_input_tokens || 0
+						usage.cacheReadTokens = event.message.usage.cache_read_input_tokens || 0
+						usage.outputTokens = event.message.usage.output_tokens || 0
+						// Keep totalCost at 0 until we get the result chunk with actual cost
+						usage.totalCost = 0
+						yield usage
+						break
+
+					case "content_block_start":
+						switch (event.content_block.type) {
+							case "thinking":
+								yield {
+									type: "reasoning",
+									reasoning: event.content_block.thinking || "",
+								}
+								// If both thinking and signature are present at start, yield complete thinking block
+								const reasoning = event.content_block.thinking
+								const signature = event.content_block.signature
+								if (reasoning && signature) {
+									yield {
+										type: "reasoning",
+										reasoning,
+										signature,
+									}
+								}
+								break
+							case "redacted_thinking":
+								yield {
+									type: "reasoning",
+									reasoning: "[Redacted thinking block]",
+								}
+								break
+							case "text":
+								// Insert line break between multiple text blocks
+								if (event.index > 0) {
+									yield {
+										type: "text",
+										text: "\n",
+									}
+								}
+								// Initial text block may have content
+								if (event.content_block.text) {
+									yield {
+										type: "text",
+										text: event.content_block.text,
+									}
+								}
+								break
+						}
+						break
+
+					case "content_block_delta":
+						switch (event.delta.type) {
+							case "text_delta":
+								yield {
+									type: "text",
+									text: event.delta.text || "",
+								}
+								break
+							case "thinking_delta":
+								yield {
+									type: "reasoning",
+									reasoning: event.delta.thinking || "",
+								}
+								reasoningDeltaAccumulator += event.delta.thinking || ""
+								break
+							case "signature_delta":
+								// Signature completes the thinking block
+								if (reasoningDeltaAccumulator && event.delta.signature) {
+									yield {
+										type: "reasoning",
+										reasoning: reasoningDeltaAccumulator,
+										signature: event.delta.signature,
+									}
+									reasoningDeltaAccumulator = ""
+								}
+								break
+						}
+						break
+
+					case "message_delta":
+						// Update output tokens (cumulative count, not delta)
+						usage.outputTokens = event.usage.output_tokens || 0
+						// Keep totalCost at 0 until we get the result chunk with actual cost
+						usage.totalCost = 0
+						yield usage
+						break
+
+					case "content_block_stop":
+						// Flush any remaining thinking delta if signature_delta wasn't received
+						if (reasoningDeltaAccumulator) {
+							yield {
+								type: "reasoning",
+								reasoning: reasoningDeltaAccumulator,
+								signature: "", // No signature received
+							}
+							reasoningDeltaAccumulator = ""
+						}
+						break
+
+					case "message_stop":
+						// Final safety net: flush any remaining thinking delta
+						if (reasoningDeltaAccumulator) {
+							yield {
+								type: "reasoning",
+								reasoning: reasoningDeltaAccumulator,
+								signature: "", // No signature received
+							}
+							reasoningDeltaAccumulator = ""
+						}
+						break
+				}
+
+				continue
+			}
+
+			// Keep backward compatibility with older Claude CLI versions that don't support --include-partial-messages
 			if (chunk.type === "assistant" && "message" in chunk) {
 				const message = chunk.message
 
