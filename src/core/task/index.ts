@@ -2601,7 +2601,7 @@ export class Task {
 		// Get content based on user input before running condense check.
 		// TODO: Extract commands to confirm if there are commands before loading full context.
 		const useCompactPrompt = customPrompt === "compact" && isLocalModel(this.getCurrentProviderInfo())
-		let [parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(
+		const [parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(
 			userContent,
 			includeFileDetails,
 			useCompactPrompt,
@@ -2780,6 +2780,17 @@ export class Task {
 							console.log(
 								`[PreCompact] Hook executed successfully for task ${this.taskId}. Context size: ${contextSize}, Strategy: ${strategy}`,
 							)
+
+							// Add context modification if provided
+							if (preCompactResult.contextModification) {
+								const contextText = preCompactResult.contextModification.trim()
+								if (contextText) {
+									userContent.push({
+										type: "text",
+										text: `<hook_context source="PreCompact">\n${contextText}\n</hook_context>`,
+									})
+								}
+							}
 						}
 					} catch (error) {
 						// Graceful degradation: Log error but continue with compaction
