@@ -55,6 +55,10 @@ export interface ClineAuthApiTokenRefreshResponse {
 
 export class ClineAuthProvider implements IAuthProvider {
 	readonly name = "cline"
+	private refreshRetryCount = 0
+	private lastRefreshAttempt = 0
+	private readonly MAX_REFRESH_RETRIES = 3
+	private readonly RETRY_DELAY_MS = 30000 // 30 seconds
 
 	get config(): EnvironmentConfig {
 		return ClineEnv.config()
@@ -93,6 +97,9 @@ export class ClineAuthProvider implements IAuthProvider {
 
 			if (!storedAuthDataString) {
 				Logger.debug("No stored authentication data found")
+				// Reset retry count when there's no stored auth
+				this.refreshRetryCount = 0
+				this.lastRefreshAttempt = 0
 				return null
 			}
 
@@ -103,18 +110,46 @@ export class ClineAuthProvider implements IAuthProvider {
 			} catch (e) {
 				Logger.error("Failed to parse stored auth data:", e)
 				controller.stateManager.setSecret("cline:clineAccountId", undefined)
+				this.refreshRetryCount = 0
+				this.lastRefreshAttempt = 0
 				return null
 			}
 
 			if (!storedAuthData.refreshToken || !storedAuthData?.idToken) {
-				Logger.error("No valid token found in stored authentication data")
+				Logger.error("No refresh token or ID token found in store")
 				controller.stateManager.setSecret("cline:clineAccountId", undefined)
+				this.refreshRetryCount = 0
+				this.lastRefreshAttempt = 0
 				return null
 			}
 
 			if (await this.shouldRefreshIdToken(storedAuthData.refreshToken, storedAuthData.expiresAt)) {
+				// Check if we need to wait before retrying
+				const now = Date.now()
+				const timeSinceLastAttempt = now - this.lastRefreshAttempt
+				if (timeSinceLastAttempt < this.RETRY_DELAY_MS && this.refreshRetryCount > 0) {
+					Logger.debug(
+						`Waiting ${Math.ceil((this.RETRY_DELAY_MS - timeSinceLastAttempt) / 1000)}s before retry attempt ${this.refreshRetryCount + 1}/${this.MAX_REFRESH_RETRIES}`,
+					)
+					return null
+				}
+
+				// Check if we've exceeded max retries
+				if (this.refreshRetryCount >= this.MAX_REFRESH_RETRIES) {
+					Logger.error(`Max refresh retries (${this.MAX_REFRESH_RETRIES}) exceeded. Clearing auth state.`)
+					controller.stateManager.setSecret("cline:clineAccountId", undefined)
+					this.refreshRetryCount = 0
+					this.lastRefreshAttempt = 0
+					return null
+				}
+
 				// Try to refresh the token using the refresh token
-				Logger.debug(`Token expired or expiring soon, attempting refresh. API Base URL: ${this.config.apiBaseUrl}`)
+				this.refreshRetryCount++
+				this.lastRefreshAttempt = now
+				Logger.debug(
+					`Token expired or expiring soon, attempting refresh (attempt ${this.refreshRetryCount}/${this.MAX_REFRESH_RETRIES}). API Base URL: ${this.config.apiBaseUrl}`,
+				)
+
 				try {
 					const authInfo = await this.refreshToken(storedAuthData.refreshToken)
 					const newAuthInfoString = JSON.stringify(authInfo)
@@ -122,15 +157,34 @@ export class ClineAuthProvider implements IAuthProvider {
 						controller.stateManager.setSecret("clineAccountId", undefined) // cleanup old key
 						controller.stateManager.setSecret("cline:clineAccountId", newAuthInfoString)
 					}
+					// Reset retry count on success
+					this.refreshRetryCount = 0
+					this.lastRefreshAttempt = 0
 					Logger.debug("Token refresh successful")
 					return authInfo || null
 				} catch (refreshError) {
-					Logger.error("Failed to refresh token, returning null. User will need to re-authenticate.", refreshError)
-					// Don't clear the stored data immediately - it might be a temporary network issue
-					// Let the user re-authenticate instead
+					Logger.error(
+						`Token refresh failed (attempt ${this.refreshRetryCount}/${this.MAX_REFRESH_RETRIES}):`,
+						refreshError,
+					)
+
+					// If it's an invalid token error, clear immediately and don't retry
+					if (refreshError instanceof AuthInvalidTokenError) {
+						Logger.error("Invalid or expired refresh token. Clearing auth state.")
+						controller.stateManager.setSecret("cline:clineAccountId", undefined)
+						this.refreshRetryCount = 0
+						this.lastRefreshAttempt = 0
+						throw refreshError
+					}
+
+					// For network errors, return null and let retry logic handle it
 					return null
 				}
 			}
+
+			// Token is still valid and not expired, reset retry count
+			this.refreshRetryCount = 0
+			this.lastRefreshAttempt = 0
 
 			// Is the token valid?
 			if (storedAuthData.idToken && storedAuthData.refreshToken && storedAuthData.userInfo.id) {
@@ -148,11 +202,14 @@ export class ClineAuthProvider implements IAuthProvider {
 			if (payload.external_id) {
 				storedAuthData.userInfo.id = payload.external_id
 			}
-
-			console.log("Successfully retrieved and validated stored auth token")
 			return storedAuthData
 		} catch (error) {
-			console.error("Error retrieving stored authentication credential:", error)
+			Logger.error("Authentication failed with stored credential:", error)
+			// Reset retry count on unexpected errors
+			if (!(error instanceof AuthInvalidTokenError)) {
+				this.refreshRetryCount = 0
+				this.lastRefreshAttempt = 0
+			}
 			return null
 		}
 	}
@@ -182,7 +239,8 @@ export class ClineAuthProvider implements IAuthProvider {
 					throw new AuthInvalidTokenError(errorMessage)
 				}
 				// 5xx, 429, network errors = transient failures
-				throw new AuthNetworkError(`HTTP error! status: ${response.status}`)
+				const errorData = await response.json().catch(() => ({}))
+				throw new AuthNetworkError(`status: ${response.status}`, errorData)
 			}
 
 			const data: ClineAuthApiTokenExchangeResponse = await response.json()
@@ -250,7 +308,7 @@ export class ClineAuthProvider implements IAuthProvider {
 
 			throw new Error("Unexpected response from auth server")
 		} catch (error) {
-			console.error("Error during authentication request:", error)
+			Logger.error("Error during authentication request:", error)
 			throw new Error(`Authentication failed: ${error instanceof Error ? error.message : "Unknown error"}`)
 		}
 	}
@@ -285,8 +343,6 @@ export class ClineAuthProvider implements IAuthProvider {
 			}
 
 			const responseJSON = await response.json()
-			console.log("Token data received:", responseJSON)
-
 			const responseType: ClineAuthApiTokenExchangeResponse = responseJSON
 			const tokenData = responseType.data
 
@@ -309,7 +365,7 @@ export class ClineAuthProvider implements IAuthProvider {
 
 			return clineAuthInfo
 		} catch (error) {
-			console.error("Error handling auth callback:", error)
+			Logger.error("Error handling auth callback:", error)
 			throw error
 		}
 	}
@@ -325,7 +381,7 @@ export class ClineAuthProvider implements IAuthProvider {
 
 			return userResponse.data.data
 		} catch (error) {
-			console.error("Error fetching user info:", error)
+			Logger.error("Error fetching user info:", error)
 
 			// If fetching user info fail for whatever reason, fallback to the token data and refetch on token expiry (10 minutes)
 			return {
