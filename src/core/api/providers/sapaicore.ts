@@ -408,6 +408,28 @@ export class SapAiCoreHandler implements ApiHandler {
 		return contextWindowPatterns.some((pattern) => lowerMessage.includes(pattern))
 	}
 
+	private extractValueWithIndexOf(text: string, key: string, endStr: string): string {
+		const pattern = `"${key}":`
+		const startIndex = text.indexOf(pattern)
+		if (startIndex === -1) throw new Error(`Could not find start index for ${key}`)
+
+		let valueStart = startIndex + pattern.length
+		let valueEnd = text.indexOf(endStr, valueStart)
+		if (valueEnd === -1) throw new Error(`Could not find end index for ${key}`)
+		// Skip all whitespace characters
+		while (valueStart < text.length && /\s/.test(text[valueStart])) {
+			valueStart++
+		}
+		// values that are strings are surrounded by ""
+		if (valueEnd === valueStart) {
+			valueStart += 1
+			valueEnd = text.indexOf(endStr, valueStart)
+		}
+		if (valueEnd === -1) throw new Error(`Could not find end index for ${key}`)
+
+		return text.substring(valueStart, valueEnd)
+	}
+
 	/**
 	 * Handles SAP AI Core API errors consistently across both deployment and orchestration modes
 	 */
@@ -421,11 +443,20 @@ export class SapAiCoreHandler implements ApiHandler {
 			detailedMessage = errorData.trim()
 		}
 
-		// In orchestration mode we have json inside of the
-		// error.message where the real error string is. Unfortunately, the message can
-		// get really big as it contains the original context send over. So parsing the
-		// complete JSON is somewhat slower. Yes, this is not nice.
-		if (!errorData && error.message) {
+		if (!errorData && error.cause && error.cause instanceof Error) {
+			// in streaming mode we can get the error in a mixed string/json format, which we cannot parse directly
+			// E.g.: Error received from the server. {"request_id":"...","code":400,"message":"400 - LLM Module ..."...}
+			try {
+				code = Number(this.extractValueWithIndexOf(error.cause.message, "code", ","))
+				detailedMessage = this.extractValueWithIndexOf(error.cause.message, "message", '"')
+			} catch {
+				detailedMessage = error.message
+			}
+		} else if (!errorData && error.message) {
+			// In orchestration mode we have json inside of the
+			// error.message where the real error string is. Unfortunately, the message can
+			// get really big as it contains the original context send over. So parsing the
+			// complete JSON is somewhat slower. Yes, this is not nice.
 			try {
 				// This may be somewhat slow for big strings.
 				// ~28ms for 8mb compared to 0.1ms when searching directly for a key
