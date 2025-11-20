@@ -26,47 +26,47 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 				if (rawApiError) {
 					// FIXME: ClineError parsing should not be applied to non-Cline providers, but it seems we're using clineErrorMessage below in the default error display
 					const clineError = ClineError.parse(rawApiError)
-					const clineErrorMessage = clineError?._error?.message || clineError?.message || rawApiError
+					const clineErrorMessage = clineError?._error?.message
+					const errorMessage = clineError?.message || rawApiError
 					const requestId = clineError?._error?.request_id
 					const providerId = clineError?.providerId || clineError?._error?.providerId
 					const isClineProvider = providerId === "cline"
 					const errorCode = clineError?._error?.code
 
-					if (clineError) {
-						if (clineError.isErrorType(ClineErrorType.Balance)) {
-							const errorDetails = clineError._error?.details
-							return (
-								<CreditLimitError
-									buyCreditsUrl={errorDetails?.buy_credits_url}
-									currentBalance={errorDetails?.current_balance}
-									message={errorDetails?.message}
-									totalPromotions={errorDetails?.total_promotions}
-									totalSpent={errorDetails?.total_spent}
-								/>
-							)
-						}
+					if (clineError?.isErrorType(ClineErrorType.Balance)) {
+						const errorDetails = clineError._error?.details
+						return (
+							<CreditLimitError
+								buyCreditsUrl={errorDetails?.buy_credits_url}
+								currentBalance={errorDetails?.current_balance}
+								message={errorDetails?.message}
+								totalPromotions={errorDetails?.total_promotions}
+								totalSpent={errorDetails?.total_spent}
+							/>
+						)
 					}
 
 					if (clineError?.isErrorType(ClineErrorType.RateLimit)) {
 						return (
 							<p className="m-0 whitespace-pre-wrap text-(--vscode-errorForeground) wrap-anywhere">
-								{clineErrorMessage}
+								{errorMessage}
 								{requestId && <div>Request ID: {requestId}</div>}
 							</p>
 						)
 					}
 
 					return (
-						<p className="m-0 whitespace-pre-wrap text-error wrap-anywhere flex flex-col gap-3" title={rawApiError}>
+						<p className="m-0 whitespace-pre-wrap text-error wrap-anywhere flex flex-col gap-3">
+							{/* Display the well-formatted error extracted from the ClineError instance */}
 							<header>
 								{providerId && <span className="uppercase">[{providerId}] </span>}
-								{errorCode && <span className="uppercase">{errorCode}</span>}
+								{errorCode && <span>{errorCode}</span>}
 								{clineErrorMessage}
 								{requestId && <div>Request ID: {requestId}</div>}
 							</header>
 
 							{/* Windows Powershell Issue */}
-							{clineErrorMessage?.toLowerCase()?.includes("powershell") && (
+							{errorMessage?.toLowerCase()?.includes("powershell") && (
 								<div>
 									It seems like you're having Windows PowerShell issues, please see this{" "}
 									<a
@@ -77,12 +77,15 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 									.
 								</div>
 							)}
-							{/* Display raw API error */}
-							<div className="p-2 text-xs font-mono bg-code-block-background border border-border-panel text-code-foreground">
-								{rawApiError}
-							</div>
 
-							{/* Display Login button for Cline users */}
+							{/* Display raw API error if different from parsed error message */}
+							{clineErrorMessage !== errorMessage && (
+								<div className="p-2 text-xs font-mono bg-code-block-background border border-border-panel text-code-foreground">
+									{rawApiError}
+								</div>
+							)}
+
+							{/* Display Login button for non-logged in users using the Cline provider */}
 							<div>
 								{/* The user is signed in or not using cline provider */}
 								{isClineProvider && !clineUser ? (
