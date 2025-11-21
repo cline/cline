@@ -64,8 +64,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ChatCompletionTool[]): ApiStream {
-		// If feature flag enabled for OpenAI Response API with model using the Responses format
-		if (featureFlagsService.isResponseApiEnabled() && this.getModel()?.info?.apiFormat === ApiFormat.OPENAI_RESPONSES) {
+		if (tools?.length && this.getModel()?.info?.apiFormat === ApiFormat.OPENAI_RESPONSES) {
 			yield* this.createResponseStream(systemPrompt, messages, tools)
 		} else {
 			yield* this.createCompletionStream(systemPrompt, messages, tools)
@@ -404,7 +403,12 @@ export class OpenAiNativeHandler implements ApiHandler {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in openAiNativeModels) {
 			const id = modelId as OpenAiNativeModelId
-			return { id, info: openAiNativeModels[id] }
+			const info: ModelInfo = { ...openAiNativeModels[id] }
+			// Ensure model is compatible with feature flags
+			if (info.apiFormat === ApiFormat.OPENAI_RESPONSES && !featureFlagsService.isResponseApiEnabled()) {
+				info.apiFormat = undefined
+			}
+			return { id, info }
 		}
 		return {
 			id: openAiNativeDefaultModelId,
