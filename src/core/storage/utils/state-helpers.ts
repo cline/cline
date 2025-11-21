@@ -3,7 +3,6 @@ import { GlobalStateAndSettings, LocalState, SecretKey, Secrets } from "@shared/
 import { ExtensionContext } from "vscode"
 import { Controller } from "@/core/controller"
 import { getHooksEnabledSafe } from "@/core/hooks/hooks-utils"
-import { featureFlagsService } from "@/services/feature-flags"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@/shared/BrowserSettings"
 import { ClineRulesToggles } from "@/shared/cline-rules"
@@ -637,7 +636,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			dictationSettings: { ...DEFAULT_DICTATION_SETTINGS, ...dictationSettings },
 			strictPlanModeEnabled: strictPlanModeEnabled ?? true,
 			yoloModeToggled: yoloModeToggled ?? false,
-			useAutoCondense: useAutoCondense ?? featureFlagsService.getUseAutoCondenseEnabled(),
+			useAutoCondense: useAutoCondense ?? false,
 			clineWebToolsEnabled: clineWebToolsEnabled ?? true,
 			isNewUser: isNewUser ?? true,
 			welcomeViewCompleted,

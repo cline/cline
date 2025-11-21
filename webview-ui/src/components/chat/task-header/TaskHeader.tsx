@@ -209,7 +209,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							tokensIn={tokensIn}
 							tokensOut={tokensOut}
 							// Requires both user setting and feature flag to be enabled
-							useAutoCondense={useAutoCondense?.user && useAutoCondense.featureFlag}
+							useAutoCondense={useAutoCondense?.user && useAutoCondense?.featureFlag}
 						/>
 
 						<TaskTimeline messages={clineMessages} onBlockClick={onScrollToMessage} />
