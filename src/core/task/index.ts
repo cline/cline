@@ -2123,15 +2123,7 @@ export class Task {
 			// saves task history item which we use to keep track of conversation history deleted range
 		}
 
-		// Response API requires native tool calls to be enabled
-		const useResponseApi = this.useNativeToolCalls && featureFlagsService.isResponseApiEnabled()
-
-		const stream = this.api.createMessage(
-			systemPrompt,
-			contextManagementMetadata.truncatedConversationHistory,
-			tools,
-			useResponseApi,
-		)
+		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory, tools)
 
 		const iterator = stream[Symbol.asyncIterator]()
 

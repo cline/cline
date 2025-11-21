@@ -1,4 +1,5 @@
 import type { LanguageModelChatSelector } from "../core/api/providers/types"
+import { ApiFormat } from "./proto/cline/models"
 
 export type ApiProvider =
 	| "anthropic"
@@ -257,6 +258,7 @@ export interface ModelInfo {
 		cacheReadsPrice?: number
 	}[]
 	temperature?: number
+	apiFormat?: ApiFormat
 }
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
@@ -1400,8 +1402,45 @@ export const geminiModels = {
 // OpenAI Native
 // https://openai.com/api/pricing/
 export type OpenAiNativeModelId = keyof typeof openAiNativeModels
-export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-5-2025-08-07"
+export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-5.1-2025-11-13"
 export const openAiNativeModels = {
+	"gpt-5.1-2025-11-13": {
+		maxTokens: 8_192,
+		contextWindow: 272000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10.0,
+		cacheReadsPrice: 0.125,
+	},
+	"gpt-5.1": {
+		maxTokens: 8_192, // 128000 breaks context window truncation
+		contextWindow: 272000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10.0,
+		cacheReadsPrice: 0.125,
+	},
+	"gpt-5.1-codex": {
+		maxTokens: 8_192, // 128000 breaks context window truncation
+		contextWindow: 400000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10.0,
+		cacheReadsPrice: 0.125,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+	},
+	"gpt-5.1-chat-latest": {
+		maxTokens: 8_192,
+		contextWindow: 400000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10,
+		cacheReadsPrice: 0.125,
+	},
 	"gpt-5-2025-08-07": {
 		maxTokens: 8_192, // 128000 breaks context window truncation
 		contextWindow: 272000,
@@ -1410,6 +1449,16 @@ export const openAiNativeModels = {
 		inputPrice: 1.25,
 		outputPrice: 10.0,
 		cacheReadsPrice: 0.125,
+	},
+	"gpt-5-codex": {
+		maxTokens: 8_192, // 128000 breaks context window truncation
+		contextWindow: 400000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10.0,
+		cacheReadsPrice: 0.125,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
 	},
 	"gpt-5-mini-2025-08-07": {
 		maxTokens: 8_192,
@@ -1430,33 +1479,6 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.005,
 	},
 	"gpt-5-chat-latest": {
-		maxTokens: 8_192,
-		contextWindow: 400000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 1.25,
-		outputPrice: 10,
-		cacheReadsPrice: 0.125,
-	},
-	"gpt-5.1-2025-11-13": {
-		maxTokens: 8_192,
-		contextWindow: 272000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 1.25,
-		outputPrice: 10.0,
-		cacheReadsPrice: 0.125,
-	},
-	"gpt-5.1": {
-		maxTokens: 8_192,
-		contextWindow: 272000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 1.25,
-		outputPrice: 10.0,
-		cacheReadsPrice: 0.125,
-	},
-	"gpt-5.1-chat-latest": {
 		maxTokens: 8_192,
 		contextWindow: 400000,
 		supportsImages: true,

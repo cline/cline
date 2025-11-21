@@ -92,8 +92,9 @@ export function convertToOpenAIResponsesInput(messages: ClineStorageMessage[]): 
 					case "thinking":
 						// Include reasoning item if it has a call_id, even if thinking is empty
 						// This is required because the API expects reasoning items to be paired with
-						// their corresponding function_calls, and will error if a function_call
-						// references a reasoning item that wasn't sent
+						// their corresponding function_calls or text, and will error if a function_call
+						// references a reasoning item that wasn't sent, or if a reasoning item is not
+						// included with a tool call: Item 'fc_' of type 'function_call' was provided without its required 'reasoning' item: 'rs_'
 						if (part.call_id && part.call_id.length > 0) {
 							assistantItems.push({
 								id: part.call_id,

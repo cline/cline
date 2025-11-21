@@ -316,6 +316,8 @@ class ReasoningHandler {
 			thinking: this.pendingReasoning.content,
 			signature: this.pendingReasoning.signature,
 			summary: this.pendingReasoning.summary,
+			// Include the reasoning ID so it can be used when converting back to Responses API format
+			call_id: this.pendingReasoning.id,
 		}
 	}
 
