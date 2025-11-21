@@ -65,7 +65,7 @@ However, if while writing your response you realize you actually need to do more
 		{
 			name: "response",
 			required: true,
-			instruction: `The response to provide to the user. Do not try to use tools in this parameter, this is simply a chat response. (You MUST use the response parameter, do not simply place the response text directly within <plan_mode_respond> tags.)`,
+			instruction: `The response to provide to the user.)`,
 			usage: "Your response here",
 		},
 		{

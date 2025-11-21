@@ -2,9 +2,11 @@ import { ModelInfo, OpenAiNativeModelId, openAiNativeDefaultModelId, openAiNativ
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
+import { featureFlagsService } from "@/services/feature-flags"
 import { Logger } from "@/services/logging/Logger"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
+import { ApiFormat } from "@/shared/proto/cline/models"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -61,13 +63,9 @@ export class OpenAiNativeHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(
-		systemPrompt: string,
-		messages: ClineStorageMessage[],
-		tools?: ChatCompletionTool[],
-		useResponseFormat = false,
-	): ApiStream {
-		if (useResponseFormat) {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ChatCompletionTool[]): ApiStream {
+		// If feature flag enabled for OpenAI Response API with model using the Responses format
+		if (featureFlagsService.isResponseApiEnabled() && this.getModel()?.info?.apiFormat === ApiFormat.OPENAI_RESPONSES) {
 			yield* this.createResponseStream(systemPrompt, messages, tools)
 		} else {
 			yield* this.createCompletionStream(systemPrompt, messages, tools)
