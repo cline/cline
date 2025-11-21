@@ -21,6 +21,7 @@ export async function createOpenRouterStream(
 	thinkingBudgetTokens?: number,
 	openRouterProviderSorting?: string,
 	tools?: Array<ChatCompletionTool>,
+	geminiThinkingLevel?: string,
 ) {
 	// Convert Anthropic messages to OpenAI format
 	let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -138,6 +139,10 @@ export async function createOpenRouterStream(
 		topP = 0.95
 		openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 	}
+	if (model.id.startsWith("google/gemini-3.0") || model.id === "google/gemini-3.0") {
+		// Recommended value from google
+		temperature = 1.0
+	}
 
 	let reasoning: { max_tokens: number } | undefined
 	switch (model.id) {
@@ -161,7 +166,12 @@ export async function createOpenRouterStream(
 			}
 			break
 		default:
-			if (thinkingBudgetTokens && model.info?.thinkingConfig && thinkingBudgetTokens > 0) {
+			if (
+				thinkingBudgetTokens &&
+				model.info?.thinkingConfig &&
+				thinkingBudgetTokens > 0 &&
+				!(model.id.includes("gemini") && geminiThinkingLevel)
+			) {
 				temperature = undefined // extended thinking does not support non-1 temperature
 				reasoning = { max_tokens: thinkingBudgetTokens }
 				break
@@ -189,6 +199,9 @@ export async function createOpenRouterStream(
 		...(providerPreferences ? { provider: providerPreferences } : {}),
 		...(isClaudeSonnet1m ? { provider: { order: ["anthropic", "google-vertex/global"], allow_fallbacks: false } } : {}),
 		...getOpenAIToolParams(tools),
+		...(model.id.includes("gemini") && geminiThinkingLevel
+			? { thinking_config: { thinking_level: geminiThinkingLevel, include_thoughts: true } }
+			: {}),
 	})
 
 	return stream

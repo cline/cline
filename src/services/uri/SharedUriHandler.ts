@@ -90,6 +90,20 @@ export class SharedUriHandler {
 					Logger.warn("SharedUriHandler: Missing prompt parameter for task creation")
 					return false
 				}
+				// Match /mcp-auth/callback/{hash}
+				case path.match(/^\/mcp-auth\/callback\/[^/]+$/)?.input: {
+					const serverHash = path.split("/").pop()
+					const code = query.get("code")
+					const state = query.get("state")
+
+					if (!code || !serverHash) {
+						Logger.warn("SharedUriHandler: Missing code or hash in MCP OAuth callback")
+						return false
+					}
+
+					await visibleWebview.controller.handleMcpOAuthCallback(serverHash, code, state)
+					return true
+				}
 				default:
 					Logger.warn(`SharedUriHandler: Unknown path: ${path}`)
 					return false
