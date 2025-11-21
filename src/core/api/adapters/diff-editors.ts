@@ -135,7 +135,7 @@ function extractNewContentFromPatch(patchContent: string): string {
 		if (line.startsWith("+")) {
 			// Remove the + prefix and exactly ONE space if present (but not if it's a tab)
 			let content = line.substring(1)
-			if (content.startsWith(" ") && !content.startsWith(" \t")) {
+			if (content.startsWith(" ") && !content.startsWith("\t")) {
 				content = content.substring(1)
 			}
 			contentLines.push(content)
