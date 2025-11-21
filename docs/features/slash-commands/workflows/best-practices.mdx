@@ -31,33 +31,90 @@ Workflows live in `.clinerules/workflows/` for project-specific ones or `~/Docum
   **Start Simple:** Begin with small, single-task workflows. As you get comfortable, you can combine them or create more complex sequences.
 </Tip>
 
-### 1. Be Modular
+### Be Modular
 Instead of creating one massive workflow file, break complex tasks into smaller, reusable workflows. This makes them easier to maintain and debug.
 
-### 2. Use Clear Comments
+### Use Clear Comments
 Just like with code, commenting your workflow steps is crucial. Explain *why* a step is happening, not just *what* is happening. This helps both you (the future maintainer) and Cline understand the intent.
 
-```markdown
-# Good Commenting
-## 3. Run Tests
-I need to run the test suite to ensure the new changes didn't break anything.
-```
-
-### 3. Version Control
+### Version Control
 Treat your workflows as part of your codebase. Store them in your Git repository (in `.clinerules/workflows/`) so they are versioned, reviewed, and shared with your team.
 
 ## Prompt Engineering for Cline
 
-### 1. Be Specific with Tool Use
+### Be Specific with Tool Use
 Don't just say "find the file." Be explicit about which tool Cline should use.
 
 *   **Bad:** "Find the user controller."
 *   **Good:** "Use `search_files` to look for `UserController` in the `src/controllers` directory."
 
-### 2. Leverage Interactive Tools
-Use `ask_followup_question` to make your workflows interactive. This allows you to provide input or confirmation at critical steps.
-
 ## Advanced Techniques
+
+### Available Tools
+
+Cline has a powerful set of tools you can use within your workflows. Here are the most common ones:
+
+#### execute_command
+Executes a CLI command on your system. Use this for running tests, builds, git commands, or any other terminal operation.
+
+```xml
+<execute_command>
+  <command>npm run test</command>
+  <requires_approval>false</requires_approval>
+</execute_command>
+```
+
+#### read_file
+Reads the contents of a file. Essential for analyzing code or configuration.
+
+```xml
+<read_file>
+  <path>src/config.json</path>
+</read_file>
+```
+
+#### write_to_file
+Creates or overwrites a file. Use this to generate boilerplate, config files, or documentation.
+
+```xml
+<write_to_file>
+  <path>src/components/Button.tsx</path>
+  <content>
+    // File content goes here...
+  </content>
+</write_to_file>
+```
+
+#### search_files
+Searches for a regex pattern across files in a directory. Great for finding TODOs, usage examples, or specific code patterns.
+
+```xml
+<search_files>
+  <path>src</path>
+  <regex>TODO</regex>
+  <file_pattern>*.ts</file_pattern>
+</search_files>
+```
+
+#### ask_followup_question
+Asks the user for input or confirmation. This makes your workflow interactive and allows for human-in-the-loop decision making.
+
+```xml
+<ask_followup_question>
+  <question>Do you want to deploy to production?</question>
+  <options>["Yes", "No"]</options>
+</ask_followup_question>
+```
+
+#### browser_action
+Controls a built-in browser to interact with websites or local servers. Useful for testing web UIs or scraping data.
+
+```xml
+<browser_action>
+  <action>launch</action>
+  <url>http://localhost:3000</url>
+</browser_action>
+```
 
 ### Leverage MCP Tools
 You can use Model Context Protocol (MCP) tools within your workflows to interact with external services like GitHub, Slack, or databases. This allows you to create powerful end-to-end automations.
@@ -69,6 +126,6 @@ Be mindful of Cline's context window. If a workflow is too long or processes too
 
 ## Learn More
 
-<Card title="Prompt Engineering Guide" icon="lightbulb" href="https://docs.cline.bot/prompting/prompting-guide">
+<Card title="Cline Learn" icon="lightbulb" href="https://cline.bot/learn">
   Dive deeper into general prompt engineering strategies to write even better instructions for Cline.
 </Card>
