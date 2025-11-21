@@ -90,7 +90,7 @@ export class FeatureFlagsService {
 	}
 
 	public getHooksEnabled(): boolean {
-		return false
+		return this.getBooleanFlagEnabled(FeatureFlag.HOOKS)
 	}
 
 	public getNativeToolCallEnabled(): boolean {

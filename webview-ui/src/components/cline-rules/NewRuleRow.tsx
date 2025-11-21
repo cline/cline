@@ -5,7 +5,6 @@ import { useClickAway } from "react-use"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
-import "@/styles/accessibility.css"
 
 interface NewRuleRowProps {
 	isGlobal: boolean

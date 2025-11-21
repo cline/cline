@@ -17,6 +17,7 @@ import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient } from "@/services/grpc-client"
+import { isMacOSOrLinux } from "@/utils/platformUtils"
 import HookRow from "./HookRow"
 import NewRuleRow from "./NewRuleRow"
 import RuleRow from "./RuleRow"
@@ -49,7 +50,8 @@ const ClineRulesToggleModal: React.FC = () => {
 	const [workspaceHooks, setWorkspaceHooks] = useState<
 		Array<{ workspaceName: string; hooks: Array<{ name: string; enabled: boolean; absolutePath: string }> }>
 	>([])
-	const [isWindows, setIsWindows] = useState(false)
+
+	const isWindows = !isMacOSOrLinux()
 	const [isVisible, setIsVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
 	const modalRef = useRef<HTMLDivElement>(null)
@@ -57,6 +59,14 @@ const ClineRulesToggleModal: React.FC = () => {
 	const [arrowPosition, setArrowPosition] = useState(0)
 	const [menuPosition, setMenuPosition] = useState(0)
 	const [currentView, setCurrentView] = useState<"rules" | "workflows" | "hooks">("rules")
+
+	// Auto-switch to rules tab if hooks become disabled while viewing hooks tab
+	useEffect(() => {
+		const areHooksEnabled = hooksEnabled?.user
+		if (currentView === "hooks" && !areHooksEnabled) {
+			setCurrentView("rules")
+		}
+	}, [currentView, hooksEnabled])
 
 	useEffect(() => {
 		if (isVisible) {
@@ -116,7 +126,6 @@ const ClineRulesToggleModal: React.FC = () => {
 					if (!abortController.signal.aborted) {
 						setGlobalHooks(response.globalHooks || [])
 						setWorkspaceHooks(response.workspaceHooks || [])
-						setIsWindows(response.isWindows || false)
 					}
 				})
 				.catch((error) => {
@@ -404,7 +413,7 @@ const ClineRulesToggleModal: React.FC = () => {
 							<TabButton isActive={currentView === "workflows"} onClick={() => setCurrentView("workflows")}>
 								Workflows
 							</TabButton>
-							{hooksEnabled?.featureFlag && (
+							{hooksEnabled?.user && (
 								<TabButton isActive={currentView === "hooks"} onClick={() => setCurrentView("hooks")}>
 									Hooks
 								</TabButton>
@@ -640,7 +649,6 @@ const ClineRulesToggleModal: React.FC = () => {
 													// Use response data directly, no need to refresh
 													setGlobalHooks(hooksToggles.globalHooks || [])
 													setWorkspaceHooks(hooksToggles.workspaceHooks || [])
-													setIsWindows(hooksToggles.isWindows || false)
 												}}
 												onToggle={(name: string, newEnabled: boolean) =>
 													toggleHook(true, name, newEnabled)
@@ -672,7 +680,6 @@ const ClineRulesToggleModal: React.FC = () => {
 														// Use response data directly, no need to refresh
 														setGlobalHooks(hooksToggles.globalHooks || [])
 														setWorkspaceHooks(hooksToggles.workspaceHooks || [])
-														setIsWindows(hooksToggles.isWindows || false)
 													}}
 													onToggle={(name: string, newEnabled: boolean) =>
 														toggleHook(false, name, newEnabled, workspace.workspaceName)
