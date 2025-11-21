@@ -6,6 +6,7 @@ import { HistoryItem } from "@shared/HistoryItem"
 import { RemoteConfig } from "@shared/remote-config/schema"
 import { GlobalState, Settings } from "@shared/storage/state-keys"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
+import { randomUUID } from "crypto"
 import fs from "fs/promises"
 import os from "os"
 import * as path from "path"
@@ -33,6 +34,26 @@ export const GlobalFileNames = {
 	taskMetadata: "task_metadata.json",
 	mcpMarketplaceCatalog: "mcp_marketplace_catalog.json",
 	remoteConfig: (orgId: string) => `remote_config_${orgId}.json`,
+}
+
+/**
+ * Atomic write: Write to temp file, then rename
+ * Prevents corruption from partial writes and concurrent access
+ */
+async function atomicWriteFile(filePath: string, content: string): Promise<void> {
+	const tempPath = `${filePath}.${randomUUID()}.tmp`
+	try {
+		// Write to temp file
+		await fs.writeFile(tempPath, content, "utf8")
+		// Atomic rename (overwrites target if exists)
+		await fs.rename(tempPath, filePath)
+	} catch (error) {
+		// Clean up temp file if it exists
+		try {
+			await fs.unlink(tempPath)
+		} catch {}
+		throw error
+	}
 }
 
 export async function getDocumentsPath(): Promise<string> {
@@ -135,7 +156,7 @@ export async function getSavedApiConversationHistory(taskId: string): Promise<An
 export async function saveApiConversationHistory(taskId: string, apiConversationHistory: Anthropic.MessageParam[]) {
 	try {
 		const filePath = path.join(await ensureTaskDirectoryExists(taskId), GlobalFileNames.apiConversationHistory)
-		await fs.writeFile(filePath, JSON.stringify(apiConversationHistory))
+		await atomicWriteFile(filePath, JSON.stringify(apiConversationHistory))
 	} catch (error) {
 		// in the off chance this fails, we don't want to stop the task
 		console.error("Failed to save API conversation history:", error)
@@ -162,7 +183,7 @@ export async function saveClineMessages(taskId: string, uiMessages: ClineMessage
 	try {
 		const taskDir = await ensureTaskDirectoryExists(taskId)
 		const filePath = path.join(taskDir, GlobalFileNames.uiMessages)
-		await fs.writeFile(filePath, JSON.stringify(uiMessages))
+		await atomicWriteFile(filePath, JSON.stringify(uiMessages))
 	} catch (error) {
 		console.error("Failed to save ui messages:", error)
 	}
@@ -184,7 +205,7 @@ export async function saveTaskMetadata(taskId: string, metadata: TaskMetadata) {
 	try {
 		const taskDir = await ensureTaskDirectoryExists(taskId)
 		const filePath = path.join(taskDir, GlobalFileNames.taskMetadata)
-		await fs.writeFile(filePath, JSON.stringify(metadata, null, 2))
+		await atomicWriteFile(filePath, JSON.stringify(metadata, null, 2))
 	} catch (error) {
 		console.error("Failed to save task metadata:", error)
 	}
@@ -237,16 +258,177 @@ export async function taskHistoryStateFileExists(): Promise<boolean> {
 	return fileExistsAtPath(filePath)
 }
 
+/**
+ * Validates task history data before writing to disk.
+ * Ensures data integrity and prevents accidental data loss from malformed writes.
+ *
+ * @param items - The task history data to validate
+ * @returns Validation result with any errors found
+ */
+function validateTaskHistory(items: any): { valid: boolean; errors: string[] } {
+	const errors: string[] = []
+
+	if (!Array.isArray(items)) {
+		errors.push("Task history must be an array")
+		return { valid: false, errors }
+	}
+
+	for (let i = 0; i < items.length; i++) {
+		const item = items[i]
+		if (!item.id) {
+			errors.push(`Item ${i} missing 'id' field`)
+		}
+		if (!item.ts || typeof item.ts !== "number") {
+			errors.push(`Item ${i} missing or invalid 'ts' field`)
+		}
+	}
+
+	return { valid: errors.length === 0, errors }
+}
+
+/**
+ * Cleans up old backup files, keeping only the 5 most recent.
+ * Prevents unlimited backup file accumulation and disk space issues.
+ *
+ * @param originalPath - Path to the original file whose backups should be cleaned
+ */
+async function cleanupOldBackups(originalPath: string): Promise<void> {
+	try {
+		const dir = path.dirname(originalPath)
+		const basename = path.basename(originalPath)
+		const files = await fs.readdir(dir)
+
+		// Find all backup files for this original file
+		const backupPattern = new RegExp(`^${basename}\\.backup-(.+)$`)
+		const backups = files
+			.filter((file) => backupPattern.test(file))
+			.map((file) => ({
+				name: file,
+				path: path.join(dir, file),
+				match: file.match(backupPattern),
+			}))
+			.filter((backup) => backup.match !== null)
+			.sort((a, b) => {
+				// Sort by timestamp in filename (ISO format sorts lexicographically)
+				return b.match![1].localeCompare(a.match![1])
+			})
+
+		// Keep only the 5 most recent backups
+		const backupsToDelete = backups.slice(5)
+		for (const backup of backupsToDelete) {
+			try {
+				await fs.unlink(backup.path)
+			} catch (error) {
+				console.error(`[Disk] Failed to delete old backup ${backup.name}:`, error)
+			}
+		}
+	} catch (error) {
+		console.error("[Disk] Failed to cleanup old backups:", error)
+	}
+}
+
+/**
+ * Creates a timestamped backup of the task history file before modifications.
+ * Enables recovery in case of write failures or corruption.
+ * Maintains up to 5 recent backups to balance safety and disk space.
+ *
+ * @returns The path to the created backup file, or null if backup failed
+ */
+async function createTaskHistoryBackup(): Promise<string | null> {
+	try {
+		const originalPath = await getTaskHistoryStateFilePath()
+		if (!(await fileExistsAtPath(originalPath))) {
+			return null
+		}
+
+		const timestamp = new Date().toISOString().replace(/:/g, "-").replace(/\..+/, "")
+		const backupPath = `${originalPath}.backup-${timestamp}`
+
+		await fs.copyFile(originalPath, backupPath)
+
+		// Keep only last 5 backups
+		await cleanupOldBackups(originalPath)
+
+		return backupPath
+	} catch (error) {
+		console.error("[Disk] Failed to create backup:", error)
+		return null
+	}
+}
+
+/**
+ * Reads task history from disk with corruption recovery.
+ *
+ * CRITICAL: This function must NEVER return an empty array on corruption,
+ * as that empty array could be written back to disk, causing permanent data loss.
+ * Instead, it attempts backup recovery and throws an error if all recovery fails.
+ *
+ * Recovery strategy:
+ * 1. Try to read and parse the main file
+ * 2. On parse failure, try to read from the most recent backup
+ * 3. If all recovery fails, throw error to prevent empty array write-back
+ *
+ * @returns Task history array from either main file or backup
+ * @throws Error if file is corrupted and no valid backup exists
+ */
 export async function readTaskHistoryFromState(): Promise<HistoryItem[]> {
 	try {
 		const filePath = await getTaskHistoryStateFilePath()
 		if (await fileExistsAtPath(filePath)) {
 			const contents = await fs.readFile(filePath, "utf8")
 			try {
-				return JSON.parse(contents)
-			} catch (error) {
-				console.error("[Disk] Failed to parse task history:", error)
-				return []
+				const parsed = JSON.parse(contents)
+				return parsed
+			} catch (parseError) {
+				console.error("[Disk] Failed to parse task history from main file:", parseError)
+				console.error("[Disk] Corrupted content length:", contents.length, "bytes")
+				console.error("[Disk] First 100 chars:", contents.substring(0, 100))
+
+				// CRITICAL: Try to recover from backup instead of returning empty array
+				console.warn("[Disk] Attempting recovery from backup files...")
+
+				try {
+					const dir = path.dirname(filePath)
+					const basename = path.basename(filePath)
+					const files = await fs.readdir(dir)
+
+					// Find all backup files
+					const backupPattern = new RegExp(`^${basename}\\.backup-(.+)$`)
+					const backups = files
+						.filter((file) => backupPattern.test(file))
+						.map((file) => ({
+							name: file,
+							path: path.join(dir, file),
+							match: file.match(backupPattern),
+						}))
+						.filter((backup) => backup.match !== null)
+						.sort((a, b) => {
+							// Sort by timestamp (most recent first)
+							return b.match![1].localeCompare(a.match![1])
+						})
+
+					// Try each backup in order (most recent first)
+					for (const backup of backups) {
+						try {
+							console.log("[Disk] Trying backup:", backup.name)
+							const backupContents = await fs.readFile(backup.path, "utf8")
+							const parsed = JSON.parse(backupContents)
+							console.log("[Disk] Successfully recovered from backup:", backup.name)
+							console.warn("[Disk] IMPORTANT: Main file is corrupted. Consider restoring from backup.")
+							return parsed
+						} catch (backupError) {
+							console.error(`[Disk] Backup ${backup.name} also corrupted:`, backupError)
+							// Continue to next backup
+						}
+					}
+
+					// All backups failed
+					console.error("[Disk] CRITICAL: All backup recovery attempts failed!")
+					throw new Error("Task history file is corrupted and no valid backups exist. Data recovery required.")
+				} catch (recoveryError) {
+					console.error("[Disk] Backup recovery process failed:", recoveryError)
+					throw new Error(`Task history corrupted and recovery failed: ${recoveryError}`)
+				}
 			}
 		}
 		return []
@@ -256,11 +438,61 @@ export async function readTaskHistoryFromState(): Promise<HistoryItem[]> {
 	}
 }
 
+/**
+ * Writes task history to disk with atomic write protection and validation.
+ *
+ * CRITICAL FIX: This function uses atomic writes to prevent corruption from:
+ * - Interrupted writes (process crashes, system shutdown)
+ * - Concurrent writes from multiple extension instances
+ * - Partial writes that leave the file in an invalid state
+ *
+ * Safety mechanisms:
+ * 1. Validates data structure before writing
+ * 2. Creates backup before overwriting existing file
+ * 3. Uses atomic write (temp file + rename) to ensure consistency
+ * 4. Warns if attempting to write empty array to non-empty file
+ *
+ * @param items - Task history items to write
+ * @throws Error if validation fails or write operation fails
+ */
 export async function writeTaskHistoryToState(items: HistoryItem[]): Promise<void> {
 	try {
 		const filePath = await getTaskHistoryStateFilePath()
-		// Always create the file; if items is empty, write [] to ensure presence on first startup
-		await fs.writeFile(filePath, JSON.stringify(items))
+
+		// STEP 1: Validate data structure
+		const validation = validateTaskHistory(items)
+		if (!validation.valid) {
+			console.error("[Disk] Task history validation failed:", validation.errors)
+			throw new Error(`Invalid task history data: ${validation.errors.join(", ")}`)
+		}
+
+		// STEP 2: Check if writing empty array to non-empty file (potential data loss)
+		if (items.length === 0 && (await fileExistsAtPath(filePath))) {
+			try {
+				const existingContents = await fs.readFile(filePath, "utf8")
+				const existingItems = JSON.parse(existingContents)
+				if (Array.isArray(existingItems) && existingItems.length > 0) {
+					console.warn("[Disk] WARNING: Attempting to write empty array to file with", existingItems.length, "items")
+					console.warn("[Disk] This could indicate accidental data loss. Creating backup before proceeding...")
+					// Continue with write after warning - empty array might be intentional (e.g., deleteAllTaskHistory)
+				}
+			} catch (readError) {
+				// If we can't read existing file, it might be corrupted, so proceeding with write is OK
+				console.log("[Disk] Could not read existing file for empty array check:", readError)
+			}
+		}
+
+		// STEP 3: Create backup before overwriting
+		const backupPath = await createTaskHistoryBackup()
+		if (backupPath) {
+			console.log("[Disk] Created backup before write:", path.basename(backupPath))
+		}
+
+		// STEP 4: Use atomic write to prevent corruption
+		// This is the CRITICAL FIX - replaces fs.writeFile with atomicWriteFile
+		await atomicWriteFile(filePath, JSON.stringify(items))
+
+		console.log("[Disk] Successfully wrote", items.length, "items to task history")
 	} catch (error) {
 		console.error("[Disk] Failed to write task history:", error)
 		throw error
@@ -297,7 +529,7 @@ export async function writeTaskSettingsToStorage(taskId: string, settings: Parti
 		}
 
 		const updatedSettings = { ...existingSettings, ...settings }
-		await fs.writeFile(settingsFilePath, JSON.stringify(updatedSettings, null, 2))
+		await atomicWriteFile(settingsFilePath, JSON.stringify(updatedSettings, null, 2))
 	} catch (error) {
 		console.error("[Disk] Failed to write task settings:", error)
 		throw error
