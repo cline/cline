@@ -304,7 +304,7 @@ EOF`,
 				],
 			},
 			{
-				name: "real life example",
+				name: "should handle multiple apply_patch operations in one message",
 				input: [
 					{
 						role: "assistant",
@@ -314,7 +314,7 @@ EOF`,
 								id: "toolu_paired",
 								name: "apply_patch",
 								input: {
-									input: '%%bash\napply_patch <<"EOF"\n*** Begin Patch\n*** Update File: CONTRIBUTING.md\n@@\n-3. Install the necessary dependencies for the extension and webview-gui:\n-\t```bash\n-\tnpm run install:all\n-\t```\n-4. Generate Protocol Buffer files (required before first build):\n-\t```bash\n-\tnpm run protos\n-\t```\n+3. Install the necessary dependencies for the extension and webview-gui:\n+\t```bash\n+\tbun run install:all\n+\t```\n+4. Generate Protocol Buffer files (required before first build):\n+\t```bash\n+\tbun run protos\n+\t```\n@@\n-1. Before creating a PR, generate a changeset entry:\n-\t```bash\n-\tnpm run changeset\n-\t```\n+1. Before creating a PR, generate a changeset entry:\n+\t```bash\n+\tbun run changeset\n+\t```\n@@\n-4. Testing\n-\n-\t- Run `npm run test` to run tests locally. \n-\t- Before submitting PR, run `npm run format:fix` to format your code\n+4. Testing\n+\n+\t- Run `bun run test` to run tests locally. \n+\t- Before submitting PR, run `bun run format:fix` to format your code\n@@\n-2. **Local Development**\n-\t- Run `npm run install:all` to install dependencies\n-\t- Run `npm run protos` to generate Protocol Buffer files (required before first build)\n-\t- Run `npm run test` to run tests locally\n+2. **Local Development**\n+\t- Run `bun run install:all` to install dependencies\n+\t- Run `bun run protos` to generate Protocol Buffer files (required before first build)\n+\t- Run `bun run test` to run tests locally\n** End Patch\nEOF',
+									input: '%%bash\napply_patch <<"EOF"\n*** Begin Patch\n*** Update File: CONTRIBUTING.md\n@@\n-3. Install the necessary dependencies for the extension and webview-gui:\n-\t```bash\n-\tnpm run install:all\n-\t```\n-4. Generate Protocol Buffer files (required before first build):\n-\t```bash\n-\tnpm run protos\n-\t```\n+3. Install the necessary dependencies for the extension and webview-gui:\n+\t```bash\n+\tbun run install:all\n+\t```\n+4. Generate Protocol Buffer files (required before first build):\n+\t```bash\n+\tbun run protos\n+\t```\n@@\n-1. Before creating a PR, generate a changeset entry:\n-\t```bash\n-\tnpm run changeset\n-\t```\n+1. Before creating a PR, generate a changeset entry:\n+\t```bash\n+\tbun run changeset\n+\t```\n@@\n-4. Testing\n-\n-\t- Run `npm run test` to run tests locally. \n-\t- Before submitting PR, run `npm run format:fix` to format your code\n+4. Testing\n+\n+\t- Run `bun run test` to run tests locally. \n+\t- Before submitting PR, run `bun run format:fix` to format your code\n@@\n-2. **Local Development**\n-\t- Run `npm run install:all` to install dependencies\n-\t- Run `npm run protos` to generate Protocol Buffer files (required before first build)\n-\t- Run `npm run test` to run tests locally\n+2. **Local Development**\n+\t- Run `bun run install:all` to install dependencies\n+\t- Run `bun run protos` to generate Protocol Buffer files (required before first build)\n+\t- Run `bun run test` to run tests locally\n*** End Patch\nEOF',
 								},
 							},
 						],
@@ -331,7 +331,7 @@ EOF`,
 				],
 			},
 			{
-				name: "simple example",
+				name: "should handle context after @@ markers as first line of search block",
 				input: [
 					{
 						role: "assistant",

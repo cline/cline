@@ -1,5 +1,7 @@
 import { ClineStorageMessage } from "@/shared/messages/content"
 
+const APPLY_PATCH_PATCH_REGEX = /\*\*\* Begin Patch\s+([\s\S]*?)\s+\*\*\* End Patch/m
+
 /**
  * Convert apply_patch tool calls to write_to_file and replace_in_file format
  */
@@ -65,8 +67,8 @@ interface ConvertedTool {
 function convertApplyPatchToToolCalls(input: any): ConvertedTool {
 	const patchInput = typeof input === "string" ? input : input?.input || ""
 
-	// Parse the patch format - handle both *** End Patch and ** End Patch
-	const patchMatch = patchInput.match(/\*\*\* Begin Patch\s+([\s\S]*?)\s+\*\*+ End Patch/m)
+	// Parse the patch format
+	const patchMatch = patchInput.match(APPLY_PATCH_PATCH_REGEX)
 	if (!patchMatch) {
 		// If we can't parse it, return as-is with write_to_file
 		return {
@@ -273,7 +275,7 @@ function reconstructApplyPatchResult(
 		// For replace_in_file, we need to reconstruct the V4A patch format result
 		// Try to parse the original patch to get the action and build context
 		const patchInput = typeof originalInput === "string" ? originalInput : originalInput?.input || ""
-		const patchMatch = patchInput.match(/\*\*\* Begin Patch\s+([\s\S]*?)\s+\*\*\* End Patch/m)
+		const patchMatch = patchInput.match(APPLY_PATCH_PATCH_REGEX)
 
 		if (patchMatch) {
 			const patchContent = patchMatch[1]
