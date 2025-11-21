@@ -316,6 +316,7 @@ class ReasoningHandler {
 			thinking: this.pendingReasoning.content,
 			signature: this.pendingReasoning.signature,
 			summary: this.pendingReasoning.summary,
+			call_id: this.pendingReasoning.id,
 		}
 	}
 

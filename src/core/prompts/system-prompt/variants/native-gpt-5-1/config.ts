@@ -65,7 +65,7 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5_1)
 		ClineDefaultTool.TODO,
 	)
 	.placeholders({
-		MODEL_FAMILY: ModelFamily.NATIVE_GPT_5,
+		MODEL_FAMILY: ModelFamily.NATIVE_GPT_5_1,
 	})
 	.config({})
 	// Override components with custom templates from overrides.ts
@@ -78,7 +78,7 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5_1)
 	.build()
 
 // Compile-time validation
-const validationResult = validateVariant({ ...config, id: ModelFamily.NATIVE_GPT_5 }, { strict: true })
+const validationResult = validateVariant({ ...config, id: ModelFamily.NATIVE_GPT_5_1 }, { strict: true })
 if (!validationResult.isValid) {
 	console.error("GPT-5-1 variant configuration validation failed:", validationResult.errors)
 	throw new Error(`Invalid GPT-5-1 variant configuration: ${validationResult.errors.join(", ")}`)
