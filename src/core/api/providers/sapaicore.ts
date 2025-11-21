@@ -684,7 +684,6 @@ export class SapAiCoreHandler implements ApiHandler {
 			payload = {
 				stream: true,
 				messages: openAiMessages,
-				max_tokens: model.info.maxTokens,
 				temperature: 0.0,
 				frequency_penalty: 0,
 				presence_penalty: 0,
@@ -703,7 +702,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			const response = await axios.post(url, JSON.stringify(payload, null, 2), {
 				headers,
 				responseType: "stream",
-				// ...getAxiosSettings(),
+				...getAxiosSettings(),
 			})
 
 			if (model.id === "o3-mini") {
