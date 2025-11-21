@@ -3463,7 +3463,7 @@ export const sapAiCoreModels = {
 		description: sapAiCoreModelDescription,
 	},
 	"sonar-pro": {
-		maxTokens: 128_000,
+		maxTokens: 200_000,
 		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
