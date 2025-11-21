@@ -142,9 +142,16 @@ export const RemoteConfigSchema = z.object({
 	telemetryEnabled: z.boolean().optional(),
 
 	// MCP settings
+	// If this is false, the MCP marketplace is disabled in the extension
 	mcpMarketplaceEnabled: z.boolean().optional(),
+
+	// If this is configured, the users only have access to these allowlisted MCP servers in the marketplace.
 	allowedMCPServers: z.array(AllowedMCPServerSchema).optional(),
+
+	// A list of pre-configured remote MCP servers.
 	remoteMCPServers: z.array(RemoteMCPServerSchema).optional(),
+	// If this is true, users cannot use or configure MCP servers that are not remotely configured.
+	blockPersonalRemoteMCPServers: z.boolean().optional(),
 
 	// If the user is allowed to enable YOLO mode. Note this is different from the extension setting
 	// yoloModeEnabled, because we do not want to force YOLO enabled for the user.
