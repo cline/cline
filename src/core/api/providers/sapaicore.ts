@@ -585,6 +585,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			"o4-mini",
 		]
 
+		const perplexityModels = ["sonar-pro", "sonar"]
 		const geminiModels = ["gemini-2.5-flash", "gemini-2.5-pro"]
 
 		let url: string
@@ -673,6 +674,23 @@ export class SapAiCoreHandler implements ApiHandler {
 				delete payload.stream
 				delete payload.stream_options
 			}
+		} else if (perplexityModels.includes(model.id)) {
+			const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+				{ role: "system", content: systemPrompt },
+				...convertToOpenAiMessages(messages),
+			]
+
+			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/chat/completions`
+			payload = {
+				stream: true,
+				messages: openAiMessages,
+				temperature: 0.0,
+				frequency_penalty: 0,
+				presence_penalty: 0,
+				stop: null,
+				model: model.id,
+				stream_options: { include_usage: true },
+			}
 		} else if (geminiModels.includes(model.id)) {
 			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/models/${model.id}:streamGenerateContent`
 			payload = Gemini.prepareRequestPayload(systemPrompt, messages, model, this.options.thinkingBudgetTokens)
@@ -715,7 +733,7 @@ export class SapAiCoreHandler implements ApiHandler {
 						outputTokens: response.data.usage.completion_tokens,
 					}
 				}
-			} else if (openAIModels.includes(model.id)) {
+			} else if (openAIModels.includes(model.id) || perplexityModels.includes(model.id)) {
 				yield* this.streamCompletionGPT(response.data, model)
 			} else if (
 				model.id === "anthropic--claude-4.5-sonnet" ||
