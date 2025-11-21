@@ -150,8 +150,8 @@ export const RemoteConfigSchema = z.object({
 
 	// A list of pre-configured remote MCP servers.
 	remoteMCPServers: z.array(RemoteMCPServerSchema).optional(),
-	// If this is true, users cannot add more remote MCP servers in the extension.
-	usersCannotAddRemoteServers: z.boolean().optional(),
+	// If this is true, users cannot use or configure MCP servers that are not remotely configured.
+	blockPersonalRemoteMCPServers: z.boolean().optional(),
 
 	// If the user is allowed to enable YOLO mode. Note this is different from the extension setting
 	// yoloModeEnabled, because we do not want to force YOLO enabled for the user.

@@ -314,7 +314,7 @@ describe("Remote Config Schema", () => {
 				version: "v1",
 				telemetryEnabled: true,
 				mcpMarketplaceEnabled: false,
-				usersCannotAddRemoteServers: true,
+				blockPersonalRemoteMCPServers: true,
 				allowedMCPServers: [{ id: "https://github.com/mcp/filesystem" }, { id: "https://github.com/mcp/github" }],
 				yoloModeAllowed: true,
 				openTelemetryEnabled: true,
