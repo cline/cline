@@ -95,7 +95,11 @@ func FetchSapAiCoreModels(ctx context.Context, manager *task.Manager, clientID, 
 
 	// Extract deployment information
 	deployments := make([]SapAiCoreDeployment, len(resp.Deployments))
-	
+	if len(deployments) == 0 {
+		fmt.Errorf("No running deployments found")
+		return deployments, resp.OrchestrationAvailable, nil
+	}
+
 	for i, deployment := range resp.Deployments {
 		// Create a shortened deployment ID for display (last 8 characters)
 		shortDeploymentID := deployment.DeploymentId
@@ -108,10 +112,6 @@ func FetchSapAiCoreModels(ctx context.Context, manager *task.Manager, clientID, 
 			DeploymentID: deployment.DeploymentId,
 			DisplayName:  fmt.Sprintf("%s (%s)", deployment.ModelName, shortDeploymentID),
 		}
-	}
-
-	if len(deployments) == 0 {
-		fmt.Errorf("No running deployments found")
 	}
 
 	return deployments, resp.OrchestrationAvailable, nil
@@ -174,17 +174,14 @@ func DisplaySapAiCoreDeploymentSelectionMenu(deployments []SapAiCoreDeployment, 
 		}
 	}
 
+	// Build options with section separators
+	var options []huh.Option[int]
+	deploymentIndex := 0
+
 	// Sort each section by model name for consistent display
 	sort.Slice(deployed, func(i, j int) bool {
 		return deployed[i].ModelName < deployed[j].ModelName
 	})
-	sort.Slice(notDeployed, func(i, j int) bool {
-		return notDeployed[i].ModelName < notDeployed[j].ModelName
-	})
-
-	// Build options with section separators
-	var options []huh.Option[int]
-	deploymentIndex := 0
 
 	// Add deployed models section
 	if len(deployed) > 0 {
@@ -196,6 +193,10 @@ func DisplaySapAiCoreDeploymentSelectionMenu(deployments []SapAiCoreDeployment, 
 			deploymentIndex++
 		}
 	}
+
+	sort.Slice(notDeployed, func(i, j int) bool {
+		return notDeployed[i].ModelName < notDeployed[j].ModelName
+	})
 
 	// Add not deployed models section
 	if len(notDeployed) > 0 {
