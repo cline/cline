@@ -311,6 +311,17 @@ class ReasoningHandler {
 			return null
 		}
 
+		// Ensure signature is set if it's hidden in the summary / reasoning details
+		// to ensure it's always accessible at the top level by each provider.
+		if (!this.pendingReasoning.signature && this.pendingReasoning.summary.length) {
+			const lastSummary = this.pendingReasoning.summary.at(-1)
+			if (lastSummary && typeof lastSummary === "object" && "signature" in lastSummary) {
+				if (typeof lastSummary.signature === "string") {
+					this.pendingReasoning.signature = lastSummary.signature
+				}
+			}
+		}
+
 		return {
 			type: "thinking",
 			thinking: this.pendingReasoning.content,
