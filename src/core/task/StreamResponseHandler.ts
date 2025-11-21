@@ -6,6 +6,7 @@ import {
 	ClineAssistantRedactedThinkingBlock,
 	ClineAssistantThinkingBlock,
 	ClineAssistantToolUseBlock,
+	ClineReasoningDetailParam,
 } from "@/shared/messages/content"
 import { ClineDefaultTool } from "@/shared/tools"
 
@@ -39,8 +40,8 @@ export interface PendingReasoning {
 	id?: string
 	content: string
 	signature: string
-	details: any[]
 	redactedThinking: ClineAssistantRedactedThinkingBlock[]
+	summary: unknown[] | ClineReasoningDetailParam[]
 }
 
 const ESCAPE_MAP: Record<string, string> = {
@@ -144,12 +145,12 @@ class ToolUseHandler {
 		}
 	}
 
-	getAllFinalizedToolUses(): ClineAssistantToolUseBlock[] {
+	getAllFinalizedToolUses(summary?: ClineAssistantToolUseBlock["reasoning_details"]): ClineAssistantToolUseBlock[] {
 		const results: ClineAssistantToolUseBlock[] = []
 		for (const id of this.pendingToolUses.keys()) {
 			const toolUse = this.getFinalizedToolUse(id)
 			if (toolUse) {
-				results.push(toolUse)
+				results.push({ ...toolUse, reasoning_details: summary })
 			}
 		}
 		return results
@@ -273,8 +274,8 @@ class ReasoningHandler {
 				id: delta.id,
 				content: "",
 				signature: "",
-				details: [],
 				redactedThinking: [],
+				summary: [],
 			}
 		}
 
@@ -291,9 +292,9 @@ class ReasoningHandler {
 		}
 		if (delta.details) {
 			if (Array.isArray(delta.details)) {
-				this.pendingReasoning.details.push(...delta.details)
+				this.pendingReasoning.summary.push(...delta.details)
 			} else {
-				this.pendingReasoning.details.push(delta.details)
+				this.pendingReasoning.summary.push(delta.details)
 			}
 		}
 		if (delta.redacted_data) {
@@ -305,25 +306,16 @@ class ReasoningHandler {
 		}
 	}
 
-	getCurrentReasoning(): { content: string; details: any[]; redactedThinking: ClineAssistantRedactedThinkingBlock[] } | null {
+	getCurrentReasoning(): ClineAssistantThinkingBlock | null {
 		if (!this.pendingReasoning) {
 			return null
 		}
-		return {
-			content: this.pendingReasoning.content,
-			details: this.pendingReasoning.details,
-			redactedThinking: this.pendingReasoning.redactedThinking,
-		}
-	}
 
-	getThinkingBlock(): ClineAssistantThinkingBlock | null {
-		if (!this.pendingReasoning) {
-			return null
-		}
 		return {
 			type: "thinking",
 			thinking: this.pendingReasoning.content,
 			signature: this.pendingReasoning.signature,
+			summary: this.pendingReasoning.summary,
 		}
 	}
 

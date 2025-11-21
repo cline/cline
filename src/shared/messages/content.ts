@@ -46,12 +46,16 @@ export interface ClineUserToolResultContentBlock extends Anthropic.ToolResultBlo
  * Assistant only content types
  */
 export interface ClineAssistantToolUseBlock extends Anthropic.ToolUseBlockParam, ClineSharedMessageParam {
+	// reasoning_details only exists for providers listed in REASONING_DETAILS_PROVIDERS
+	reasoning_details?: unknown[] | ClineReasoningDetailParam[]
 	// Thought Signature associates with Gemini
 	signature?: string
 }
 
 export interface ClineAssistantThinkingBlock extends Anthropic.ThinkingBlock, ClineSharedMessageParam {
-	summary?: unknown[]
+	// The summary items returned by OpenAI response API
+	// The reasoning details that will be moved to the text block when finalized
+	summary?: unknown[] | ClineReasoningDetailParam[]
 }
 
 export interface ClineAssistantRedactedThinkingBlock extends Anthropic.RedactedThinkingBlockParam, ClineSharedMessageParam {}

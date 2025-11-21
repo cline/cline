@@ -11,6 +11,7 @@ import {
 import { BooleanRequest, Int64Request, StringRequest } from "@shared/proto/cline/common"
 import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
+import { FoldVerticalIcon } from "lucide-react"
 import React, { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import styled from "styled-components"
@@ -750,7 +751,9 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div style={headerStyle}>
-								{toolIcon("book")}
+								<span style={{ color: normalColor, marginBottom: "-1.5px" }}>
+									<FoldVerticalIcon size={16} />
+								</span>
 								<span style={{ fontWeight: "bold" }}>Cline is condensing the conversation:</span>
 							</div>
 							<div

@@ -122,7 +122,7 @@ const RuleRow: React.FC<{
 					<Switch
 						checked={enabled}
 						className="mx-1"
-						disabled={isRemote}
+						disabled={isDisabled}
 						key={rulePath}
 						onClick={() => toggleRule(rulePath, !enabled)}
 						title={isDisabled ? "This rule is required and cannot be disabled" : undefined}

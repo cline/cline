@@ -165,8 +165,9 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		await this.runTaskCompleteHook(config, block)
 
 		const { response, text, images, files: completionFiles } = await config.callbacks.ask("completion_result", "", false)
+		const prefix = "[attempt_completion] Result: Done"
 		if (response === "yesButtonClicked") {
-			return "" // signals to recursive loop to stop (for now this never happens since yesButtonClicked will trigger a new task)
+			return prefix // signals to recursive loop to stop (for now this never happens since yesButtonClicked will trigger a new task)
 		}
 
 		await config.callbacks.say("user_feedback", text ?? "", images, completionFiles)
@@ -182,32 +183,39 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 				toolResults.push(...commandResult)
 			}
 		}
-		toolResults.push({
-			type: "text",
-			text: `The user has provided feedback on the results. Consider their input to continue the task, and then attempt completion again.\n<feedback>\n${text}\n</feedback>`,
-		})
-		toolResults.push(...formatResponse.imageBlocks(images))
 
-		let fileContentString = ""
-		if (completionFiles && completionFiles.length > 0) {
-			fileContentString = await processFilesIntoText(completionFiles)
+		if (text) {
+			toolResults.push(
+				{
+					type: "text",
+					text: "The user has provided feedback on the results. Consider their input to continue the task, and then attempt completion again.",
+				},
+				{
+					type: "text",
+					text: `<feedback>\n${text}\n</feedback>`,
+				},
+			)
+		}
+
+		const fileContentString = completionFiles?.length ? await processFilesIntoText(completionFiles) : ""
+		if (fileContentString) {
+			toolResults.push({
+				type: "text" as const,
+				text: fileContentString,
+			})
+		}
+
+		if (images && images.length > 0) {
+			toolResults.push(...formatResponse.imageBlocks(images))
 		}
 
 		// Return the tool results as a complex response
 		return [
 			{
 				type: "text" as const,
-				text: `[attempt_completion] Result:`,
+				text: prefix,
 			},
 			...toolResults,
-			...(fileContentString
-				? [
-						{
-							type: "text" as const,
-							text: fileContentString,
-						},
-					]
-				: []),
 		]
 	}
 
