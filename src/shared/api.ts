@@ -141,6 +141,7 @@ export interface ApiHandlerOptions {
 	// Plan mode configurations
 	planModeApiModelId?: string
 	planModeThinkingBudgetTokens?: number
+	geminiPlanModeThinkingLevel?: string
 	planModeReasoningEffort?: string
 	planModeVerbosity?: string
 	planModeVsCodeLmModelSelector?: LanguageModelChatSelector
@@ -180,6 +181,7 @@ export interface ApiHandlerOptions {
 	// Act mode configurations
 	actModeApiModelId?: string
 	actModeThinkingBudgetTokens?: number
+	geminiActModeThinkingLevel?: string
 	actModeReasoningEffort?: string
 	actModeVerbosity?: string
 	actModeVsCodeLmModelSelector?: LanguageModelChatSelector
@@ -241,7 +243,8 @@ export interface ModelInfo {
 		maxBudget?: number // Max allowed thinking budget tokens
 		outputPrice?: number // Output price per million tokens when budget > 0
 		outputPriceTiers?: PriceTier[] // Optional: Tiered output price when budget > 0
-		thinkingLevel?: "low" | "high" // Optional: preset thinking level
+		geminiThinkingLevel?: "low" | "high" // Optional: preset thinking level
+		supportsThinkingLevel?: boolean // Whether the model supports thinking level (low/high)
 	}
 	supportsGlobalEndpoint?: boolean // Whether the model supports a global endpoint with Vertex AI
 	cacheWritesPrice?: number
@@ -840,8 +843,11 @@ export const vertexModels = {
 		supportsGlobalEndpoint: true,
 		inputPrice: 2.0,
 		outputPrice: 12.0,
-		description: "Gemini 3.0 Pro",
 		temperature: 1.0,
+		thinkingConfig: {
+			geminiThinkingLevel: "high",
+			supportsThinkingLevel: true,
+		},
 	},
 	"claude-sonnet-4-5@20250929": {
 		maxTokens: 8192,
@@ -1205,7 +1211,8 @@ export const geminiModels = {
 		thinkingConfig: {
 			// If you don't specify a thinking level, Gemini will use the model's default
 			// dynamic thinking level, "high", for Gemini 3 Pro Preview.
-			thinkingLevel: "high",
+			geminiThinkingLevel: "high",
+			supportsThinkingLevel: true,
 		},
 		tiers: [
 			{

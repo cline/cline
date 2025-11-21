@@ -172,6 +172,8 @@ export const RemoteConfigSchema = z.object({
 	globalWorkflows: z.array(GlobalInstructionsFileSchema).optional(),
 })
 
+export const APIKeySchema = z.record(z.string(), z.string())
+
 // Type inference from schemas
 export type RemoteConfig = z.infer<typeof RemoteConfigSchema>
 export type MCPServer = z.infer<typeof AllowedMCPServerSchema>
@@ -192,3 +194,5 @@ export type VertexModel = z.infer<typeof VertexModelSchema>
 
 export type LiteLLMSettings = z.infer<typeof LiteLLMSchema>
 export type LiteLLMModel = z.infer<typeof LiteLLMModelSchema>
+
+export type APIKeySettings = z.infer<typeof APIKeySchema>
