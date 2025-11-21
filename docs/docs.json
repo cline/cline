@@ -151,7 +151,14 @@
 									"features/slash-commands/deep-planning"
 								]
 							},
-							"features/slash-commands/workflows",
+							{
+								"group": "Workflows",
+								"pages": [
+									"features/slash-commands/workflows/index",
+									"features/slash-commands/workflows/quickstart",
+									"features/slash-commands/workflows/best-practices"
+								]
+							},
 							{
 								"group": "Task Management",
 								"pages": [
