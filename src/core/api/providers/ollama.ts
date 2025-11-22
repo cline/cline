@@ -19,6 +19,7 @@ const DEFAULT_CONTEXT_WINDOW = 32768
 export class OllamaHandler implements ApiHandler {
 	private options: OllamaHandlerOptions
 	private client: Ollama | undefined
+	private currentAbortController: AbortController | null = null
 
 	constructor(options: OllamaHandlerOptions) {
 		const ollamaApiOptionsCtxNum = (options.ollamaApiOptionsCtxNum ?? DEFAULT_CONTEXT_WINDOW).toString()
@@ -52,11 +53,22 @@ export class OllamaHandler implements ApiHandler {
 		const client = this.ensureClient()
 		const ollamaMessages: Message[] = [{ role: "system", content: systemPrompt }, ...convertToOllamaMessages(messages)]
 
+		// Create new AbortController for this request
+		this.currentAbortController = new AbortController()
+		const abortController = this.currentAbortController
+
 		try {
 			// Create a promise that rejects after timeout
 			const timeoutMs = this.options.requestTimeoutMs || 30000
 			const timeoutPromise = new Promise<never>((_, reject) => {
 				setTimeout(() => reject(new Error(`Ollama request timed out after ${timeoutMs / 1000} seconds`)), timeoutMs)
+			})
+
+			// Create a promise that rejects on abort
+			const abortPromise = new Promise<never>((_, reject) => {
+				abortController.signal.addEventListener("abort", () => {
+					reject(new Error("Ollama request cancelled by user"))
+				})
 			})
 
 			// Create the actual API request promise
@@ -69,11 +81,16 @@ export class OllamaHandler implements ApiHandler {
 				},
 			})
 
-			// Race the API request against the timeout
-			const stream = (await Promise.race([apiPromise, timeoutPromise])) as Awaited<typeof apiPromise>
+			// Race the API request against timeout and abort
+			const stream = (await Promise.race([apiPromise, timeoutPromise, abortPromise])) as Awaited<typeof apiPromise>
 
 			try {
 				for await (const chunk of stream) {
+					// Check if request was cancelled
+					if (abortController.signal.aborted) {
+						throw new Error("Ollama request cancelled by user")
+					}
+
 					if (typeof chunk.message.content === "string") {
 						yield {
 							type: "text",
@@ -95,6 +112,12 @@ export class OllamaHandler implements ApiHandler {
 				throw new Error(`Ollama stream processing error: ${streamError.message || "Unknown error"}`)
 			}
 		} catch (error) {
+			// Check if it's a cancellation error
+			if (error?.message?.includes("cancelled by user")) {
+				console.log("Ollama request cancelled by user")
+				throw error // Re-throw to propagate cancellation
+			}
+
 			// Check if it's a timeout error
 			if (error?.message?.includes("timed out")) {
 				const timeoutMs = this.options.requestTimeoutMs || 30000
@@ -107,6 +130,19 @@ export class OllamaHandler implements ApiHandler {
 
 			console.error(`Ollama API error (${statusCode || "unknown"}): ${errorMessage}`)
 			throw error
+		} finally {
+			// Clean up abort controller
+			this.currentAbortController = null
+		}
+	}
+
+	/**
+	 * Cancels the current Ollama request if one is in progress
+	 */
+	public abortCurrentRequest(): void {
+		if (this.currentAbortController) {
+			console.log("Aborting current Ollama request...")
+			this.currentAbortController.abort()
 		}
 	}
 
