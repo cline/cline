@@ -195,8 +195,6 @@ export class ClineHandler implements ApiHandler {
 					}
 				}
 
-				console.log("didOutputUsage", didOutputUsage, chunk.usage)
-
 				if (!didOutputUsage && chunk.usage) {
 					// @ts-ignore-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
