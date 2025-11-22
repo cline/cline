@@ -1,8 +1,9 @@
+import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ModelsServiceClient } from "@/services/grpc-client"
 import { ApiKeyField } from "../common/ApiKeyField"
 import GroqModelPicker from "../GroqModelPicker"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
  * Props for the GroqProvider component
@@ -18,13 +19,23 @@ interface GroqProviderProps {
  */
 export const GroqProvider = ({ showModelOptions, isPopup, currentMode }: GroqProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
 
 	return (
 		<div>
 			<ApiKeyField
 				initialValue={apiConfiguration?.groqApiKey || ""}
-				onChange={(value) => handleFieldChange("groqApiKey", value)}
+				onChange={async (value) => {
+					await ModelsServiceClient.updateApiConfiguration(
+						UpdateApiConfigurationRequestNew.create({
+							updates: {
+								secrets: {
+									groqApiKey: value,
+								},
+							},
+							updateMask: ["secrets.groqApiKey"],
+						}),
+					)
+				}}
 				providerName="Groq"
 				signupUrl="https://console.groq.com/keys"
 			/>

@@ -1,11 +1,12 @@
 import { qwenCodeModels } from "@shared/api"
+import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ModelsServiceClient } from "@/services/grpc-client"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
  * Props for the QwenCodeProvider component
@@ -21,7 +22,6 @@ interface QwenCodeProviderProps {
  */
 export const QwenCodeProvider = ({ showModelOptions, isPopup, currentMode }: QwenCodeProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -30,7 +30,18 @@ export const QwenCodeProvider = ({ showModelOptions, isPopup, currentMode }: Qwe
 		<div>
 			<h3 style={{ color: "var(--vscode-foreground)", margin: "8px 0" }}>Qwen Code API Configuration</h3>
 			<VSCodeTextField
-				onInput={(e: any) => handleFieldChange("qwenCodeOauthPath", e.target.value)}
+				onInput={async (e: any) => {
+					await ModelsServiceClient.updateApiConfiguration(
+						UpdateApiConfigurationRequestNew.create({
+							updates: {
+								options: {
+									qwenCodeOauthPath: e.target.value,
+								},
+							},
+							updateMask: ["options.qwenCodeOauthPath"],
+						}),
+					)
+				}}
 				placeholder="~/.qwen/oauth_creds.json"
 				style={{ width: "100%" }}
 				value={apiConfiguration?.qwenCodeOauthPath || ""}>
@@ -71,9 +82,20 @@ export const QwenCodeProvider = ({ showModelOptions, isPopup, currentMode }: Qwe
 					<ModelSelector
 						label="Model"
 						models={qwenCodeModels}
-						onChange={(modelId) => {
-							const fieldName = currentMode === "plan" ? "planModeApiModelId" : "actModeApiModelId"
-							handleFieldChange(fieldName, modelId)
+						onChange={async (modelId) => {
+							await ModelsServiceClient.updateApiConfiguration(
+								UpdateApiConfigurationRequestNew.create(
+									currentMode === "plan"
+										? {
+												updates: { options: { planModeApiModelId: modelId } },
+												updateMask: ["options.planModeApiModelId"],
+											}
+										: {
+												updates: { options: { actModeApiModelId: modelId } },
+												updateMask: ["options.actModeApiModelId"],
+											},
+								),
+							)
 						}}
 						selectedModelId={selectedModelId}
 					/>
