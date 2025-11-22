@@ -6,7 +6,15 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { openFile } from "./open-file"
 
-export async function downloadTask(dateTs: number, conversationHistory: Anthropic.MessageParam[]) {
+export interface TaskUsageStats {
+	tokensIn: number
+	tokensOut: number
+	cacheWrites?: number
+	cacheReads?: number
+	totalCost: number
+}
+
+export async function downloadTask(dateTs: number, conversationHistory: Anthropic.MessageParam[], usageStats?: TaskUsageStats) {
 	// File name
 	const date = new Date(dateTs)
 	const month = date.toLocaleString("en-US", { month: "short" }).toLowerCase()
@@ -20,8 +28,30 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 	hours = hours ? hours : 12 // the hour '0' should be '12'
 	const fileName = `cline_task_${month}-${day}-${year}_${hours}-${minutes}-${seconds}-${ampm}.md`
 
-	// Generate markdown
-	const markdownContent = conversationHistory
+	// Generate usage summary if stats are provided
+	let usageSummary = ""
+	if (usageStats) {
+		const totalTokens =
+			usageStats.tokensIn + usageStats.tokensOut + (usageStats.cacheWrites || 0) + (usageStats.cacheReads || 0)
+
+		usageSummary = `# Task Usage Summary\n\n`
+		usageSummary += `**Total Tokens:** ${totalTokens.toLocaleString()}\n`
+		usageSummary += `- Input Tokens: ${usageStats.tokensIn.toLocaleString()}\n`
+		usageSummary += `- Output Tokens: ${usageStats.tokensOut.toLocaleString()}\n`
+
+		if (usageStats.cacheWrites && usageStats.cacheWrites > 0) {
+			usageSummary += `- Cache Write Tokens: ${usageStats.cacheWrites.toLocaleString()}\n`
+		}
+		if (usageStats.cacheReads && usageStats.cacheReads > 0) {
+			usageSummary += `- Cache Read Tokens: ${usageStats.cacheReads.toLocaleString()}\n`
+		}
+
+		usageSummary += `\n**Total Cost:** $${usageStats.totalCost.toFixed(4)}\n\n`
+		usageSummary += `---\n\n`
+	}
+
+	// Generate conversation content
+	const conversationContent = conversationHistory
 		.map((message) => {
 			const role = message.role === "user" ? "**User:**" : "**Assistant:**"
 			const content = Array.isArray(message.content)
@@ -30,6 +60,9 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 			return `${role}\n\n${content}\n\n`
 		})
 		.join("---\n\n")
+
+	// Combine usage summary and conversation content
+	const markdownContent = usageSummary + conversationContent
 
 	// Prompt user for save location
 	const saveResponse = await HostProvider.window.showSaveDialog({
