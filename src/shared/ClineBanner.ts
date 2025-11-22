@@ -42,3 +42,26 @@ export interface BannerRules {
 	/** Target specific audience segment */
 	audience?: BannerAudience
 }
+
+/**
+ * Banner event types for telemetry
+ */
+export type BannerEventType = "dismiss"
+
+/**
+ * Banner event payload sent to the telemetry API
+ */
+export interface BannerEventPayload {
+	banner_id: string
+	instance_id: string
+	surface: "vscode" | "jetbrains"
+	event_type: BannerEventType
+}
+
+/**
+ * Tracks when a banner was dismissed by a user
+ */
+export interface BannerDismissal {
+	bannerId: string
+	dismissedAt: number // timestamp
+}

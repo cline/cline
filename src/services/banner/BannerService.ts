@@ -1,11 +1,13 @@
 import type { Banner, BannerRules, BannersResponse } from "@shared/ClineBanner"
 import { isClineInternalTester } from "@shared/internal/account"
 import axios from "axios"
+import { createHash } from "crypto"
 import { ClineEnv } from "@/config"
 import type { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
 import { getAxiosSettings } from "@/shared/net"
 import { AuthService } from "../auth/AuthService"
+import { getDistinctId } from "../logging/distinctId"
 import { Logger } from "../logging/Logger"
 
 /**
@@ -446,5 +448,133 @@ export class BannerService {
 		this._cachedBanners = []
 		this._lastFetchTime = 0
 		Logger.log("BannerService: Cache cleared")
+	}
+
+	/**
+	 * Sends a banner event to the telemetry endpoint
+	 * @param bannerId The ID of the banner
+	 * @param eventType The type of event (seen, dismiss, click)
+	 */
+	public async sendBannerEvent(bannerId: string, eventType: "seen" | "dismiss" | "click"): Promise<void> {
+		try {
+			const url = new URL("/banners/v1/events", this._baseUrl).toString()
+
+			// Get IDE type for surface
+			const ideType = await this.getIdeType()
+			const surface = ideType === "vscode" ? "vscode" : "jetbrains"
+
+			// Get instance ID (hashed distinct ID)
+			const distinctId = this.getInstanceDistinctId()
+			const instanceId = this.hashInstanceId(distinctId)
+
+			const payload = {
+				banner_id: bannerId,
+				instance_id: instanceId,
+				surface,
+				event_type: eventType,
+			}
+
+			await axios.post(url, payload, {
+				timeout: 10000,
+				headers: {
+					"Content-Type": "application/json",
+				},
+				...getAxiosSettings(),
+			})
+
+			Logger.log(`BannerService: Sent ${eventType} event for banner ${bannerId}`)
+		} catch (error) {
+			// Log error but don't throw - telemetry failures shouldn't break functionality
+			Logger.error(`BannerService: Error sending banner event`, error)
+		}
+	}
+
+	/**
+	 * Marks a banner as dismissed and stores it in state
+	 * @param bannerId The ID of the banner to dismiss
+	 */
+	public async dismissBanner(bannerId: string): Promise<void> {
+		try {
+			// Get current dismissed banners
+			const dismissedBanners = this._controller.stateManager.getGlobalStateKey("dismissedBanners") || []
+
+			// Check if already dismissed
+			if (dismissedBanners.some((b) => b.bannerId === bannerId)) {
+				Logger.log(`BannerService: Banner ${bannerId} already dismissed`)
+				return
+			}
+
+			// Add new dismissal
+			const newDismissal = {
+				bannerId,
+				dismissedAt: Date.now(),
+			}
+
+			this._controller.stateManager.setGlobalState("dismissedBanners", [...dismissedBanners, newDismissal])
+
+			// Send dismiss event to telemetry
+			await this.sendBannerEvent(bannerId, "dismiss")
+
+			// Clear cache to force re-fetch on next request
+			this.clearCache()
+
+			Logger.log(`BannerService: Banner ${bannerId} dismissed`)
+		} catch (error) {
+			Logger.error(`BannerService: Error dismissing banner`, error)
+		}
+	}
+
+	/**
+	 * Checks if a banner has been dismissed by the user
+	 * @param bannerId The ID of the banner to check
+	 * @returns true if the banner has been dismissed
+	 */
+	public isBannerDismissed(bannerId: string): boolean {
+		try {
+			const dismissedBanners = this._controller.stateManager.getGlobalStateKey("dismissedBanners") || []
+			return dismissedBanners.some((b) => b.bannerId === bannerId)
+		} catch (error) {
+			Logger.error(`BannerService: Error checking if banner is dismissed`, error)
+			return false
+		}
+	}
+
+	/**
+	 * Gets banners that haven't been dismissed by the user
+	 * @param forceRefresh If true, bypasses cache and fetches fresh data
+	 * @returns Array of non-dismissed banners
+	 */
+	public async getNonDismissedBanners(forceRefresh = false): Promise<Banner[]> {
+		const allBanners = await this.fetchActiveBanners(forceRefresh)
+		return allBanners.filter((banner) => !this.isBannerDismissed(banner.id))
+	}
+
+	/**
+	 * Gets the distinct ID for the current user
+	 * @returns distinct ID string
+	 */
+	private getInstanceDistinctId(): string {
+		try {
+			return getDistinctId()
+		} catch (error) {
+			Logger.error("BannerService: Error getting distinct ID", error)
+			return "unknown"
+		}
+	}
+
+	/**
+	 * Hashes the instance ID for privacy
+	 * @param distinctId The distinct ID to hash
+	 * @returns SHA-256 hash of the distinct ID
+	 */
+	private hashInstanceId(distinctId: string): string {
+		try {
+			const hash = createHash("sha256")
+			hash.update(distinctId)
+			return `sha256:${hash.digest("hex")}`
+		} catch (error) {
+			Logger.error("BannerService: Error hashing instance ID", error)
+			return "sha256:unknown"
+		}
 	}
 }

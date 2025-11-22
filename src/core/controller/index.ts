@@ -71,6 +71,7 @@ export class Controller {
 	authService: AuthService
 	ocaAuthService: OcaAuthService
 	readonly stateManager: StateManager
+	private bannerServiceInitialized = false
 
 	// NEW: Add workspace manager (optional initially)
 	private workspaceManager?: WorkspaceRootManager
@@ -1033,5 +1034,75 @@ export class Controller {
 		}
 		this.stateManager.setGlobalState("taskHistory", history)
 		return history
+	}
+
+	// Banner Service Methods
+
+	/**
+	 * Initializes the BannerService if not already initialized
+	 */
+	private async ensureBannerService() {
+		if (!this.bannerServiceInitialized) {
+			try {
+				const { BannerService } = await import("@/services/banner/BannerService")
+				if (!BannerService.isInitialized()) {
+					BannerService.initialize(this)
+				}
+				this.bannerServiceInitialized = true
+			} catch (error) {
+				console.error("Failed to initialize BannerService:", error)
+			}
+		}
+	}
+
+	/**
+	 * Fetches non-dismissed banners for display
+	 * @returns Array of banners that haven't been dismissed
+	 */
+	async fetchBannersForDisplay(): Promise<any[]> {
+		try {
+			await this.ensureBannerService()
+			const { BannerService } = await import("@/services/banner/BannerService")
+			if (BannerService.isInitialized()) {
+				return await BannerService.get().getNonDismissedBanners()
+			}
+		} catch (error) {
+			console.error("Failed to fetch banners:", error)
+		}
+		return []
+	}
+
+	/**
+	 * Dismisses a banner and sends telemetry
+	 * @param bannerId The ID of the banner to dismiss
+	 */
+	async dismissBanner(bannerId: string): Promise<void> {
+		try {
+			await this.ensureBannerService()
+			const { BannerService } = await import("@/services/banner/BannerService")
+			if (BannerService.isInitialized()) {
+				await BannerService.get().dismissBanner(bannerId)
+				await this.postStateToWebview()
+			}
+		} catch (error) {
+			console.error("Failed to dismiss banner:", error)
+		}
+	}
+
+	/**
+	 * Sends a banner event for telemetry tracking
+	 * @param bannerId The ID of the banner
+	 * @param eventType The type of event (seen, dismiss, click)
+	 */
+	async trackBannerEvent(bannerId: string, eventType: "seen" | "dismiss" | "click"): Promise<void> {
+		try {
+			await this.ensureBannerService()
+			const { BannerService } = await import("@/services/banner/BannerService")
+			if (BannerService.isInitialized()) {
+				await BannerService.get().sendBannerEvent(bannerId, eventType)
+			}
+		} catch (error) {
+			console.error("Failed to track banner event:", error)
+		}
 	}
 }
