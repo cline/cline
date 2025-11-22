@@ -86,7 +86,7 @@ export interface ExtensionState {
 	mcpResponsesCollapsed?: boolean
 	strictPlanModeEnabled?: boolean
 	yoloModeToggled?: boolean
-	useAutoCondense?: boolean
+	useAutoCondense?: ClineFeatureSetting
 	focusChainSettings: FocusChainSettings
 	dictationSettings: DictationSettings
 	customPrompt?: string

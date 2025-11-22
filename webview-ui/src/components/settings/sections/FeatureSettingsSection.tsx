@@ -338,7 +338,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 					)}
 					<div style={{ marginTop: 10 }}>
 						<VSCodeCheckbox
-							checked={useAutoCondense}
+							checked={useAutoCondense?.user}
 							onChange={(e: any) => {
 								const checked = e.target.checked === true
 								updateSetting("useAutoCondense", checked)

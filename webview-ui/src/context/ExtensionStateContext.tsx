@@ -221,7 +221,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		strictPlanModeEnabled: false,
 		yoloModeToggled: false,
 		customPrompt: undefined,
-		useAutoCondense: false,
+		useAutoCondense: { user: false, featureFlag: false },
 		autoCondenseThreshold: undefined,
 		favoritedModelIds: [],
 		lastDismissedInfoBannerVersion: 0,
