@@ -222,6 +222,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		yoloModeToggled: false,
 		customPrompt: undefined,
 		useAutoCondense: false,
+		clineWebToolsEnabled: true,
 		autoCondenseThreshold: undefined,
 		favoritedModelIds: [],
 		lastDismissedInfoBannerVersion: 0,
