@@ -1,5 +1,6 @@
-import { askSageDefaultURL, askSageModels } from "@shared/api"
+import { askSageDefaultURL, askSageModels, ModelInfo } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { useEffect, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
@@ -23,9 +24,48 @@ interface AskSageProviderProps {
 export const AskSageProvider = ({ showModelOptions, isPopup, currentMode }: AskSageProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+	const [availableModels, setAvailableModels] = useState<Record<string, ModelInfo>>(askSageModels)
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+
+	useEffect(() => {
+		const fetchModels = async () => {
+			try {
+				const apiUrl = apiConfiguration?.asksageApiUrl || askSageDefaultURL
+				const response = await fetch(`${apiUrl}/get-models`)
+
+				if (!response.ok) {
+					console.error("Failed to fetch AskSage models, falling back to default list.")
+					setAvailableModels(askSageModels)
+					return
+				}
+
+				const data = await response.json()
+				const modelIds = data.response as string[]
+
+				if (Array.isArray(modelIds) && modelIds.length > 0) {
+					const filteredModels = Object.entries(askSageModels)
+						.filter(([id]) => modelIds.includes(id))
+						.reduce(
+							(acc, [id, info]) => {
+								acc[id] = info
+								return acc
+							},
+							{} as Record<string, ModelInfo>,
+						)
+					setAvailableModels(Object.keys(filteredModels).length > 0 ? filteredModels : askSageModels)
+				} else {
+					setAvailableModels(askSageModels)
+				}
+			} catch (error) {
+				console.error("Error fetching AskSage models:", error)
+				setAvailableModels(askSageModels)
+			}
+		}
+
+		fetchModels()
+	}, [apiConfiguration?.asksageApiUrl])
 
 	return (
 		<div>
@@ -49,7 +89,7 @@ export const AskSageProvider = ({ showModelOptions, isPopup, currentMode }: AskS
 				<>
 					<ModelSelector
 						label="Model"
-						models={askSageModels}
+						models={availableModels}
 						onChange={(e) =>
 							handleModeFieldChange(
 								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
