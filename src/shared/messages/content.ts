@@ -125,12 +125,27 @@ export function convertClineStorageToAnthropicMessage(
  * Clean a content block by removing Cline-specific fields and returning only Anthropic-compatible fields
  */
 export function cleanContentBlock(block: ClineContent): Anthropic.ContentBlock {
-	// Remove Cline-specific fields: reasoning_details, call_id, summary
-	if ("reasoning_details" in block || "call_id" in block || "summary" in block) {
-		// biome-ignore lint/correctness/noUnusedVariables: intentional destructuring to remove properties
-		const { reasoning_details, call_id, summary, ...cleanBlock } = block as any
-		return cleanBlock as Anthropic.ContentBlock
+	// Fast path: if no Cline-specific fields exist, return as-is
+	const hasClineFields =
+		"reasoning_details" in block ||
+		"call_id" in block ||
+		"summary" in block ||
+		(block.type === "tool_use" && "signature" in block)
+
+	if (!hasClineFields) {
+		return block as Anthropic.ContentBlock
 	}
 
-	return block as Anthropic.ContentBlock
+	// Remove Cline-specific fields (signature only for tool_use blocks)
+	// biome-ignore lint/correctness/noUnusedVariables: intentional destructuring to remove properties
+	const { reasoning_details, call_id, summary, ...rest } = block as any
+
+	// Remove signature only from tool_use blocks (used by Gemini)
+	if (rest.type === "tool_use" && "signature" in rest) {
+		// biome-ignore lint/correctness/noUnusedVariables: intentional destructuring to remove properties
+		const { signature, ...cleanBlock } = rest
+		return cleanBlock satisfies Anthropic.ContentBlock
+	}
+
+	return rest satisfies Anthropic.ContentBlock
 }
