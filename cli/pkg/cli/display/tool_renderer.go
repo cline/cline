@@ -161,6 +161,14 @@ func (tr *ToolRenderer) generateToolHeader(tool *types.ToolMessage, verbTense st
 		}
 		return fmt.Sprintf("### Cline %s `%s`", action, tool.Path)
 
+	case string(types.ToolTypeWebSearch):
+		if verbTense == "wants to" {
+			action = "wants to search for"
+		} else {
+			action = "is searching for"
+		}
+		return fmt.Sprintf("### Cline %s `%s`", action, tool.Path)
+
 	case string(types.ToolTypeListCodeDefinitionNames):
 		if verbTense == "wants to" {
 			action = "wants to list code definitions in"
@@ -207,8 +215,8 @@ func (tr *ToolRenderer) GenerateToolContentPreview(tool *types.ToolMessage) stri
 		previewMd := fmt.Sprintf("```\n%s\n```", preview)
 		return tr.renderMarkdown(previewMd)
 
-	case string(types.ToolTypeReadFile), string(types.ToolTypeWebFetch), string(types.ToolTypeFileDeleted):
-		// No preview for read/fetch operations
+	case string(types.ToolTypeReadFile), string(types.ToolTypeWebFetch), string(types.ToolTypeWebSearch), string(types.ToolTypeFileDeleted):
+		// No preview for read/fetch/search operations
 		return ""
 
 	default:
@@ -243,7 +251,8 @@ func (tr *ToolRenderer) GenerateToolContentBody(tool *types.ToolMessage) string 
 		string(types.ToolTypeListFilesRecursive),
 		string(types.ToolTypeListCodeDefinitionNames),
 		string(types.ToolTypeSearchFiles),
-		string(types.ToolTypeWebFetch):
+		string(types.ToolTypeWebFetch),
+		string(types.ToolTypeWebSearch):
 		// Use parser for structured output
 		preview := toolParser.ParseToolResult(tool)
 		return tr.renderMarkdown(preview)
