@@ -1,5 +1,6 @@
 /* Editor theme mapping */
 @theme {
+	--color-cline: #9663f1;
 	--color-background: var(--vscode-sideBar-background);
 	--color-border: var(--vscode-focusBorder);
 	--color-border-panel: var(--vscode-panel-border);
@@ -187,5 +188,19 @@
 		overflow: visible;
 		clip: auto;
 		white-space: normal;
+	}
+
+	@keyframes flash {
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.5;
+		}
+	}
+
+	.animate-flash {
+		animation: flash 1.5s ease-in-out infinite;
 	}
 }
