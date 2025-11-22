@@ -77,7 +77,24 @@ message TaskCompleteData {
 
 // Data for PreCompact hook
 message PreCompactData {
-  int64 context_size = 1;
-  int32 messages_to_compact = 2;
-  string compaction_strategy = 3;
+  // Task identification
+  string task_id = 1;
+  string ulid = 2;
+
+  // Context size information
+  int64 context_size = 3; // Number of messages in API conversation history
+  string compaction_strategy = 4; // "auto-condense" or "standard-truncation"
+
+  // API request tracking
+  int64 previous_api_req_index = 5; // Index of last API request in clineMessages
+
+  // Token usage data from last API request
+  int64 tokens_in = 6;
+  int64 tokens_out = 7;
+  int64 tokens_in_cache = 8;
+  int64 tokens_out_cache = 9;
+
+  // Truncation information (if applicable)
+  int32 deleted_range_start = 10; // Start index of deleted conversation range
+  int32 deleted_range_end = 11; // End index of deleted conversation range
 }
