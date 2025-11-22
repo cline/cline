@@ -24,6 +24,7 @@ export const toolParamNames = [
 	"url",
 	"coordinate",
 	"text",
+	"prompt",
 	"server_name",
 	"tool_name",
 	"arguments",
