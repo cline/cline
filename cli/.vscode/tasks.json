@@ -1,0 +1,96 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Cline: Kill all CLI instances",
+			"type": "shell",
+			"command": "${workspaceFolder}/bin/cline",
+			"options": {
+				"env": {
+					"CLINE_BIN_DIR": "${workspaceFolder}/bin",
+					"CLINE_ROOT_DIR": "${workspaceFolder}/../dist-standalone"
+				}
+			},
+			"args": [
+				"instance",
+				"kill",
+				"--all-cli"
+			],
+			"problemMatcher": [],
+			"detail": "Kill all running Cline CLI instances (excludes JetBrains)"
+		},
+		{
+			"label": "Cline: Start core at port (direct)",
+			"type": "shell",
+			"command": "/bin/zsh",
+			"args": [
+				"-c",
+				"cd '${workspaceFolder}'; CORE_PORT='${input:corePort}'; HOST_PORT=$((CORE_PORT + 1000)); node ../dist-standalone/cline-host.js --port $HOST_PORT --verbose & sleep 2; node ../dist-standalone/cline-core.js --port $CORE_PORT --host-bridge-port $HOST_PORT --config ~/.cline/config & echo 'Started core on localhost:$CORE_PORT and host on localhost:$HOST_PORT'"
+			],
+			"problemMatcher": [],
+			"isBackground": true,
+			"detail": "Directly start cline-core and cline-host on specific ports (bypasses CLI limitation)"
+		},
+		{
+			"label": "Cline: Kill and start core at port (direct)",
+			"type": "shell",
+			"command": "/bin/zsh",
+			"args": [
+				"-c",
+				"${workspaceFolder}/bin/cline instance kill --all-cli; sleep 1; cd '${workspaceFolder}'; CORE_PORT='${input:corePort}'; HOST_PORT=$((CORE_PORT + 1000)); node ../dist-standalone/cline-host.js --port $HOST_PORT --verbose & sleep 2; node ../dist-standalone/cline-core.js --port $CORE_PORT --host-bridge-port $HOST_PORT --config ~/.cline/config & echo 'Killed old instances. Started new core on localhost:$CORE_PORT and host on localhost:$HOST_PORT'"
+			],
+			"problemMatcher": [],
+			"isBackground": true,
+			"detail": "Kill all CLI instances, then directly start new core and host on specific ports"
+		},
+		{
+			"label": "Cline: List instances",
+			"type": "shell",
+			"command": "${workspaceFolder}/bin/cline",
+			"args": [
+				"instance",
+				"list"
+			],
+			"problemMatcher": [],
+			"detail": "List all registered Cline instances with status"
+		},
+		{
+			"label": "Cline: Start new instance (auto ports)",
+			"type": "shell",
+			"command": "${workspaceFolder}/bin/cline",
+			"args": [
+				"instance",
+				"new"
+			],
+			"problemMatcher": [],
+			"isBackground": false,
+			"detail": "Start a new Cline instance, ports are auto-assigned"
+		},
+		{
+			"label": "Cline: Kill instance by address",
+			"type": "shell",
+			"command": "${workspaceFolder}/bin/cline",
+			"args": [
+				"instance",
+				"kill",
+				"${input:coreAddress}"
+			],
+			"problemMatcher": [],
+			"detail": "Kill a specific Cline instance by address (e.g., localhost:51051)"
+		}
+	],
+	"inputs": [
+		{
+			"id": "corePort",
+			"type": "promptString",
+			"description": "Enter core port for new instance",
+			"default": "51051"
+		},
+		{
+			"id": "coreAddress",
+			"type": "promptString",
+			"description": "Enter Cline Core address (host:port)",
+			"default": "localhost:51051"
+		}
+	]
+}
