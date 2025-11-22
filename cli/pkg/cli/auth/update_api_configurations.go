@@ -331,7 +331,9 @@ func AddProviderPartial(ctx context.Context, manager *task.Manager, provider cli
 	apiConfig := &cline.ModelsApiConfiguration{}
 
 	// Set API key field
-	if apiKey != "" || fields.APIKeyField != "ollamaBaseUrl" {
+	// For Ollama, always set the base URL field (empty string means "use default")
+	// For other providers, only set if non-empty
+	if fields.APIKeyField == "ollamaBaseUrl" || apiKey != "" {
 		setAPIKeyField(apiConfig, fields.APIKeyField, proto.String(apiKey))
 	}
 
