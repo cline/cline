@@ -6,7 +6,8 @@ export function checkContextWindowExceededError(error: unknown): boolean {
 		checkIsOpenRouterContextWindowError(error) ||
 		checkIsAnthropicContextWindowError(error) ||
 		checkIsCerebrasContextWindowError(error) ||
-		checkIsBedrockContextWindowError(error)
+		checkIsBedrockContextWindowError(error) ||
+		checkIsVercelContextWindowError(error)
 	)
 }
 
@@ -109,6 +110,27 @@ function checkIsBedrockContextWindowError(error: any): boolean {
 		] as const
 
 		return BEDROCK_CONTEXT_PATTERNS.some((pattern) => pattern.test(message))
+	} catch {
+		return false
+	}
+}
+
+function checkIsVercelContextWindowError(error: any): boolean {
+	try {
+		const CONTEXT_ERROR_STRINGS = [
+			"context_length_exceeded",
+			"input is too long",
+			"input token count exceeds",
+			"maximum number of tokens allowed",
+			"input exceeds the context window",
+			"exceeds maximum input length",
+			"requested input length",
+			"context length",
+			"context window",
+			"maximum context",
+		] as const
+		const errorString = JSON.stringify(error).toLowerCase()
+		return CONTEXT_ERROR_STRINGS.some((str) => errorString.includes(str))
 	} catch {
 		return false
 	}
