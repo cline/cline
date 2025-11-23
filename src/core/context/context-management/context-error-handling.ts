@@ -115,22 +115,56 @@ function checkIsBedrockContextWindowError(error: any): boolean {
 	}
 }
 
-function checkIsVercelContextWindowError(error: any): boolean {
+export function checkIsVercelContextWindowError(error: any): boolean {
 	try {
-		const CONTEXT_ERROR_STRINGS = [
-			"context_length_exceeded",
-			"input is too long",
-			"input token count exceeds",
-			"maximum number of tokens allowed",
-			"input exceeds the context window",
-			"exceeds maximum input length",
-			"requested input length",
-			"context length",
-			"context window",
-			"maximum context",
+		const status = error?.status ?? error?.error?.param?.statusCode ?? error?.statusCode
+
+		// Check for explicit context_length_exceeded code (OpenAI streaming errors)
+		const errorCode = error?.error?.error?.code
+		if (errorCode === "context_length_exceeded") {
+			return true
+		}
+
+		const messages: string[] = [
+			error?.message,
+			error?.error?.message,
+			error?.error?.param?.message,
+			error?.error?.param?.error,
+			error?.error?.error?.message,
+			error?.error?.value?.error_message, // Alibaba Qwen validation errors
+		].filter((msg) => msg != null)
+
+		if (messages.length === 0) {
+			return false
+		}
+
+		// Must be a 400 error OR have 400 embedded in error_message (Alibaba Qwen case)
+		const hasValidStatus = String(status) === "400"
+		const errorMessage = error?.error?.value?.error_message
+		const has400InMessage =
+			errorMessage &&
+			typeof errorMessage === "string" &&
+			(errorMessage.includes('"code":400') || errorMessage.includes('"code": 400'))
+
+		if (!hasValidStatus && !has400InMessage) {
+			return false
+		}
+
+		const CONTEXT_ERROR_PATTERNS = [
+			/input is too long/i,
+			/input token count exceeds.*maximum.*tokens? allowed/i,
+			/input exceeds.*context window/i,
+			/requested input length.*exceeds.*maximum input length/i,
+			/prompt is too long.*tokens?\s*>\s*\d+\s*maximum/i,
+			/\bcontext\s*(?:length|window)\b.*exceed/i,
+			/\bmaximum\s*context\b/i,
+			/\b(?:input\s*)?tokens?\s*exceed/i,
+			/too\s*many\s*tokens/i,
 		] as const
-		const errorString = JSON.stringify(error).toLowerCase()
-		return CONTEXT_ERROR_STRINGS.some((str) => errorString.includes(str))
+
+		return messages
+			.map((msg) => String(msg).toLowerCase())
+			.some((message) => CONTEXT_ERROR_PATTERNS.some((pattern) => pattern.test(message)))
 	} catch {
 		return false
 	}
