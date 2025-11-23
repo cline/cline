@@ -15,14 +15,14 @@ export const InfoBanner: React.FC = () => {
 		return (
 			<a
 				className="bg-banner-background px-3 py-2 flex flex-col gap-1 shrink-0 mb-1 relative text-sm m-4 no-underline transition-colors hover:brightness-120 rounded-sm"
-				href="https://docs.cline.bot/features/customization/opening-cline-in-sidebar"
+				href="https://cline.bot/enterprise"
 				rel="noopener noreferrer"
 				style={{ color: "var(--vscode-foreground)", outline: "none" }}
 				target="_blank">
-				<h4 className="m-0">💡 Cline in the Right Sidebar</h4>
+				<h4 className="m-0">💡 Cline for Enterprise</h4>
 				<p className="m-0">
-					Keep your files visible when chatting with Cline. Drag the Cline icon to the right sidebar panel for a better
-					experience. <span className="text-link cursor-pointer">See how →</span>
+					Upgrade to Cline for Enterprise to unlock global configuration and analytics for your team.{" "}
+					<span className="text-link cursor-pointer">Learn more →</span>
 				</p>
 
 				{/* Close button */}
