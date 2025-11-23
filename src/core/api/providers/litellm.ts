@@ -284,60 +284,84 @@ export class LiteLlmHandler implements ApiHandler {
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
+			const content = delta?.content || ""
 
-			// Handle normal text content
-			if (delta?.content) {
+			if (chunk.usage) {
+                const usage = chunk.usage as {
+                   prompt_tokens: number
+                   completion_tokens: number
+                   cache_creation_input_tokens?: number
+                   prompt_cache_miss_tokens?: number
+                   cache_read_input_tokens?: number
+                   prompt_cache_hit_tokens?: number
+                }
+
+                const cacheWriteTokens = usage.cache_creation_input_tokens || usage.prompt_cache_miss_tokens || 0
+                const cacheReadTokens = usage.cache_read_input_tokens || usage.prompt_cache_hit_tokens || 0
+
+                // Calculate cost using the actual token usage including cache tokens
+                const totalCost =
+                   (await this.calculateCost(
+                      usage.prompt_tokens || 0,
+                      usage.completion_tokens || 0,
+                      cacheWriteTokens > 0 ? cacheWriteTokens : undefined,
+                      cacheReadTokens > 0 ? cacheReadTokens : undefined,
+                   )) || 0
+
+                yield {
+                   type: "usage",
+                   inputTokens: usage.prompt_tokens || 0,
+                   outputTokens: usage.completion_tokens || 0,
+                   cacheWriteTokens: cacheWriteTokens > 0 ? cacheWriteTokens : undefined,
+                   cacheReadTokens: cacheReadTokens > 0 ? cacheReadTokens : undefined,
+                   totalCost,
+                }
+            }
+
+			// 2. DETECT REASONING SIGNALS
+			// Check if LiteLLM explicitly flagged this as a thinking block
+			const hasThinkingBlock = (delta as any)?.thinking_blocks && (delta as any).thinking_blocks.length > 0
+			// Check deepseek/reasoning specific fields
+			const hasReasoningContent = (delta as any)?.reasoning_content
+
+			// 3. HANDLE TRANSITION
+			// If the content contains the closing tag, we must split it.
+			if (content.includes("</think>")) {
+				const [thinkingPart, textPart] = content.split("</think>")
+
+				if (thinkingPart) {
+					yield { type: "reasoning", reasoning: thinkingPart.replace("<think>", "") }
+				}
+				if (textPart) {
+					yield { type: "text", text: textPart }
+				}
+				continue // Skip the rest of the loop for this chunk
+			}
+
+			// 4. HANDLE PURE REASONING
+			// If it has explicit reasoning fields OR starts with the opening tag
+			if (hasThinkingBlock || hasReasoningContent || content.includes("<think>")) {
+				let reasoningText =
+					content || (delta as any)?.thinking_blocks?.[0]?.thinking || (delta as any)?.reasoning_content || ""
+
+				// Clean up the opening tag if present
+				reasoningText = reasoningText.replace("<think>", "")
+
+				if (reasoningText) {
+					yield {
+						type: "reasoning",
+						reasoning: reasoningText,
+					}
+				}
+				continue // Ensure we don't yield this again as text
+			}
+
+			// 5. HANDLE NORMAL TEXT
+			// If we reached here, it's standard content (and not a signature block which usually has empty content)
+			if (content) {
 				yield {
 					type: "text",
-					text: delta.content,
-				}
-			}
-
-			// Handle reasoning events
-			// This is not in the standard types but may be in the response
-			interface ThinkingDelta {
-				reasoning_content?: string
-			}
-
-			if ((delta as ThinkingDelta)?.reasoning_content) {
-				yield {
-					type: "reasoning",
-					reasoning: (delta as ThinkingDelta).reasoning_content || "",
-				}
-			}
-
-			// Handle token usage information
-			if (chunk.usage) {
-				// Extract cache-related information if available
-				// Need to use type assertion since these properties are not in the standard OpenAI types
-				const usage = chunk.usage as {
-					prompt_tokens: number
-					completion_tokens: number
-					cache_creation_input_tokens?: number
-					prompt_cache_miss_tokens?: number
-					cache_read_input_tokens?: number
-					prompt_cache_hit_tokens?: number
-				}
-
-				const cacheWriteTokens = usage.cache_creation_input_tokens || usage.prompt_cache_miss_tokens || 0
-				const cacheReadTokens = usage.cache_read_input_tokens || usage.prompt_cache_hit_tokens || 0
-
-				// Calculate cost using the actual token usage including cache tokens
-				const totalCost =
-					(await this.calculateCost(
-						usage.prompt_tokens || 0,
-						usage.completion_tokens || 0,
-						cacheWriteTokens > 0 ? cacheWriteTokens : undefined,
-						cacheReadTokens > 0 ? cacheReadTokens : undefined,
-					)) || 0
-
-				yield {
-					type: "usage",
-					inputTokens: usage.prompt_tokens || 0,
-					outputTokens: usage.completion_tokens || 0,
-					cacheWriteTokens: cacheWriteTokens > 0 ? cacheWriteTokens : undefined,
-					cacheReadTokens: cacheReadTokens > 0 ? cacheReadTokens : undefined,
-					totalCost,
+					text: content,
 				}
 			}
 		}
