@@ -37,7 +37,10 @@ export type ApiProvider =
 	| "vercel-ai-gateway"
 	| "zai"
 	| "oca"
+	| "aihubmix"
 	| "minimax"
+	| "hicap"
+	| "nousResearch"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic
@@ -45,6 +48,9 @@ export interface ApiHandlerSecrets {
 	awsAccessKey?: string
 	awsSecretKey?: string
 	openRouterApiKey?: string
+	aihubmixApiKey?: string
+	aihubmixBaseUrl?: string
+	aihubmixAppCode?: string
 
 	clineAccountId?: string
 	awsSessionToken?: string
@@ -77,6 +83,8 @@ export interface ApiHandlerSecrets {
 	vercelAiGatewayApiKey?: string
 	difyApiKey?: string
 	minimaxApiKey?: string
+	hicapApiKey?: string
+	nousResearchApiKey?: string
 }
 
 export interface ApiHandlerOptions {
@@ -120,15 +128,21 @@ export interface ApiHandlerOptions {
 	sapAiCoreUseOrchestrationMode?: boolean
 	difyBaseUrl?: string
 	zaiApiLine?: string
+	hicapApiKey?: string
+	hicapModelId?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 	ocaBaseUrl?: string
 	minimaxApiLine?: string
 	ocaMode?: string
+	aihubmixBaseUrl?: string
+	aihubmixAppCode?: string
 
 	// Plan mode configurations
 	planModeApiModelId?: string
 	planModeThinkingBudgetTokens?: number
+	geminiPlanModeThinkingLevel?: string
 	planModeReasoningEffort?: string
+	planModeVerbosity?: string
 	planModeVsCodeLmModelSelector?: LanguageModelChatSelector
 	planModeAwsBedrockCustomSelected?: boolean
 	planModeAwsBedrockCustomModelBaseId?: string
@@ -154,16 +168,21 @@ export interface ApiHandlerOptions {
 	planModeHuggingFaceModelInfo?: ModelInfo
 	planModeHuaweiCloudMaasModelId?: string
 	planModeHuaweiCloudMaasModelInfo?: ModelInfo
-	planModeVercelAiGatewayModelId?: string
-	planModeVercelAiGatewayModelInfo?: ModelInfo
 	planModeOcaModelId?: string
 	planModeOcaModelInfo?: OcaModelInfo
+	planModeAihubmixModelId?: string
+	planModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
+	planModeHicapModelId?: string
+	planModeHicapModelInfo?: ModelInfo
+	planModeNousResearchModelId?: string
 	// Act mode configurations
 
 	// Act mode configurations
 	actModeApiModelId?: string
 	actModeThinkingBudgetTokens?: number
+	geminiActModeThinkingLevel?: string
 	actModeReasoningEffort?: string
+	actModeVerbosity?: string
 	actModeVsCodeLmModelSelector?: LanguageModelChatSelector
 	actModeAwsBedrockCustomSelected?: boolean
 	actModeAwsBedrockCustomModelBaseId?: string
@@ -189,10 +208,13 @@ export interface ApiHandlerOptions {
 	actModeHuggingFaceModelInfo?: ModelInfo
 	actModeHuaweiCloudMaasModelId?: string
 	actModeHuaweiCloudMaasModelInfo?: ModelInfo
-	actModeVercelAiGatewayModelId?: string
-	actModeVercelAiGatewayModelInfo?: ModelInfo
 	actModeOcaModelId?: string
 	actModeOcaModelInfo?: OcaModelInfo
+	actModeAihubmixModelId?: string
+	actModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
+	actModeHicapModelId?: string
+	actModeHicapModelInfo?: ModelInfo
+	actModeNousResearchModelId?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions &
@@ -209,6 +231,7 @@ interface PriceTier {
 }
 
 export interface ModelInfo {
+	name?: string
 	maxTokens?: number
 	contextWindow?: number
 	supportsImages?: boolean
@@ -219,6 +242,8 @@ export interface ModelInfo {
 		maxBudget?: number // Max allowed thinking budget tokens
 		outputPrice?: number // Output price per million tokens when budget > 0
 		outputPriceTiers?: PriceTier[] // Optional: Tiered output price when budget > 0
+		geminiThinkingLevel?: "low" | "high" // Optional: preset thinking level
+		supportsThinkingLevel?: boolean // Whether the model supports thinking level (low/high)
 	}
 	supportsGlobalEndpoint?: boolean // Whether the model supports a global endpoint with Vertex AI
 	cacheWritesPrice?: number
@@ -231,6 +256,7 @@ export interface ModelInfo {
 		cacheWritesPrice?: number
 		cacheReadsPrice?: number
 	}[]
+	temperature?: number
 }
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
@@ -262,6 +288,20 @@ export const CLAUDE_SONNET_1M_TIERS = [
 		cacheReadsPrice: 0.6,
 	},
 ]
+
+export interface HicapCompatibleModelInfo extends ModelInfo {
+	temperature?: number
+}
+
+export const hicapModelInfoSaneDefaults: HicapCompatibleModelInfo = {
+	maxTokens: -1,
+	contextWindow: 128_000,
+	supportsImages: true,
+	supportsPromptCache: true,
+	inputPrice: 0,
+	outputPrice: 0,
+	temperature: 1,
+}
 
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
@@ -717,7 +757,7 @@ export const OPENROUTER_PROVIDER_PREFERENCES: Record<string, { order: string[]; 
 		allow_fallbacks: false,
 	},
 	"qwen/qwen3-coder:exacto": {
-		order: ["baseten", "cerebras"],
+		order: ["baseten"],
 		allow_fallbacks: false,
 	},
 	"openai/gpt-oss-120b:exacto": {
@@ -792,8 +832,22 @@ export const OPENROUTER_PROVIDER_PREFERENCES: Record<string, { order: string[]; 
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
 // https://cloud.google.com/vertex-ai/generative-ai/pricing#partner-models
 export type VertexModelId = keyof typeof vertexModels
-export const vertexDefaultModelId: VertexModelId = "claude-sonnet-4@20250514" // TODO: update to 4-5
+export const vertexDefaultModelId: VertexModelId = "gemini-3-pro-preview"
 export const vertexModels = {
+	"gemini-3-pro-preview": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 2.0,
+		outputPrice: 12.0,
+		temperature: 1.0,
+		thinkingConfig: {
+			geminiThinkingLevel: "high",
+			supportsThinkingLevel: true,
+		},
+	},
 	"claude-sonnet-4-5@20250929": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -1143,8 +1197,37 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 // Gemini
 // https://ai.google.dev/gemini-api/docs/models/gemini
 export type GeminiModelId = keyof typeof geminiModels
-export const geminiDefaultModelId: GeminiModelId = "gemini-2.5-pro"
+export const geminiDefaultModelId: GeminiModelId = "gemini-3-pro-preview"
 export const geminiModels = {
+	"gemini-3-pro-preview": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 4.0,
+		outputPrice: 18.0,
+		cacheReadsPrice: 0.4,
+		thinkingConfig: {
+			// If you don't specify a thinking level, Gemini will use the model's default
+			// dynamic thinking level, "high", for Gemini 3 Pro Preview.
+			geminiThinkingLevel: "high",
+			supportsThinkingLevel: true,
+		},
+		tiers: [
+			{
+				contextWindow: 200000,
+				inputPrice: 2.0,
+				outputPrice: 12.0,
+				cacheReadsPrice: 0.2,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 4.0,
+				outputPrice: 18.0,
+				cacheReadsPrice: 0.4,
+			},
+		],
+	},
 	"gemini-2.5-pro": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
@@ -1355,6 +1438,33 @@ export const openAiNativeModels = {
 		outputPrice: 10,
 		cacheReadsPrice: 0.125,
 	},
+	"gpt-5.1-2025-11-13": {
+		maxTokens: 8_192,
+		contextWindow: 272000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10.0,
+		cacheReadsPrice: 0.125,
+	},
+	"gpt-5.1": {
+		maxTokens: 8_192,
+		contextWindow: 272000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10.0,
+		cacheReadsPrice: 0.125,
+	},
+	"gpt-5.1-chat-latest": {
+		maxTokens: 8_192,
+		contextWindow: 400000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10,
+		cacheReadsPrice: 0.125,
+	},
 	o3: {
 		maxTokens: 100_000,
 		contextWindow: 200_000,
@@ -1463,7 +1573,7 @@ export const openAiNativeModels = {
 		inputPrice: 5,
 		outputPrice: 15,
 	},
-} as const satisfies Record<string, ModelInfo>
+} as const satisfies Record<string, OpenAiCompatibleModelInfo>
 
 // Azure OpenAI
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
@@ -3011,26 +3121,6 @@ export const cerebrasModels = {
 		outputPrice: 0,
 		description: "Intelligent general purpose model with 3,000 tokens/s",
 	},
-	"qwen-3-coder-480b-free": {
-		maxTokens: 40000,
-		contextWindow: 64000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description:
-			"SOTA coding model with ~2000 tokens/s ($0 free tier)\n\n• Use this if you don't have a Cerebras subscription\n• 64K context window\n• Rate limits: 150K TPM, 1M TPH/TPD, 10 RPM, 100 RPH/RPD\n\nUpgrade for higher limits: [https://cloud.cerebras.ai/?utm=cline](https://cloud.cerebras.ai/?utm=cline)",
-	},
-	"qwen-3-coder-480b": {
-		maxTokens: 40000,
-		contextWindow: 128000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description:
-			"SOTA coding model with ~2000 tokens/s ($50/$250 paid tiers)\n\n• Use this if you have a Cerebras subscription\n• 131K context window with higher rate limits",
-	},
 	"qwen-3-235b-a22b-instruct-2507": {
 		maxTokens: 64000,
 		contextWindow: 64000,
@@ -3068,23 +3158,6 @@ export const cerebrasModels = {
 		description: "SOTA performance with ~1500 tokens/s",
 	},
 } as const satisfies Record<string, ModelInfo>
-
-// VERCEL AI GATEWAY MODELS
-export type VercelAIGatewayModelId = string
-
-export const vercelAiGatewayDefaultModelId = "anthropic/claude-sonnet-4"
-export const vercelAiGatewayDefaultModelInfo: ModelInfo = {
-	maxTokens: 64_000,
-	contextWindow: 200_000,
-	supportsImages: true,
-	supportsPromptCache: true,
-	inputPrice: 3.0,
-	outputPrice: 15.0,
-	cacheWritesPrice: 3.75,
-	cacheReadsPrice: 0.3,
-	description:
-		"Claude Sonnet 4 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
-}
 
 // Groq
 // https://console.groq.com/docs/models
@@ -3229,6 +3302,13 @@ export const sapAiCoreDefaultModelId: SapAiCoreModelId = "anthropic--claude-3.5-
 // Pricing is calculated using Capacity Units, not directly in USD
 const sapAiCoreModelDescription = "Pricing is calculated using SAP's Capacity Units rather than direct USD pricing."
 export const sapAiCoreModels = {
+	"anthropic--claude-4.5-sonnet": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
 	"anthropic--claude-4-sonnet": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -3382,6 +3462,20 @@ export const sapAiCoreModels = {
 		supportsPromptCache: true,
 		description: sapAiCoreModelDescription,
 	},
+	sonar: {
+		maxTokens: 128_000,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
+	},
+	"sonar-pro": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // Moonshot AI Studio
@@ -3394,6 +3488,7 @@ export const moonshotModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.6,
 		outputPrice: 2.5,
+		temperature: 0.6,
 	},
 	"kimi-k2-0711-preview": {
 		maxTokens: 32_000,
@@ -3402,6 +3497,7 @@ export const moonshotModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.6,
 		outputPrice: 2.5,
+		temperature: 0.6,
 	},
 	"kimi-k2-turbo-preview": {
 		maxTokens: 32_000,
@@ -3410,24 +3506,27 @@ export const moonshotModels = {
 		supportsPromptCache: false,
 		inputPrice: 2.4,
 		outputPrice: 10,
+		temperature: 0.6,
 	},
-	"moonshot-v1-128k-vision-preview": {
+	"kimi-k2-thinking": {
 		maxTokens: 32_000,
-		contextWindow: 131_072,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 2,
-		outputPrice: 5,
-	},
-	"kimi-thinking-preview": {
-		maxTokens: 32_000,
-		contextWindow: 131_072,
+		contextWindow: 262_144,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 30,
-		outputPrice: 30,
+		inputPrice: 0.6,
+		outputPrice: 2.5,
+		temperature: 1.0,
 	},
-} as const satisfies Record<string, ModelInfo>
+	"kimi-k2-thinking-turbo": {
+		maxTokens: 32_000,
+		contextWindow: 262_144,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.4,
+		outputPrice: 10,
+		temperature: 1.0,
+	},
+} as const satisfies Record<string, OpenAiCompatibleModelInfo>
 export type MoonshotModelId = keyof typeof moonshotModels
 export const moonshotDefaultModelId = "kimi-k2-0905-preview" satisfies MoonshotModelId
 
@@ -3513,9 +3612,20 @@ export interface BasetenModelInfo extends ModelInfo {
 }
 
 export const basetenModels = {
+	"moonshotai/Kimi-K2-Thinking": {
+		maxTokens: 163_800,
+		contextWindow: 262_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.6,
+		outputPrice: 2.5,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Kimi K2 Thinking - A model with enhanced reasoning capabilities from Kimi K2",
+	},
 	"zai-org/GLM-4.6": {
-		maxTokens: 200000,
-		contextWindow: 200000,
+		maxTokens: 200_000,
+		contextWindow: 200_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.6,
@@ -3524,20 +3634,9 @@ export const basetenModels = {
 		cacheReadsPrice: 0,
 		description: "Frontier open model with advanced agentic, reasoning and coding capabilities",
 	},
-	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
-		maxTokens: 262144,
-		contextWindow: 262144,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.22,
-		outputPrice: 0.8,
-		cacheWritesPrice: 0,
-		cacheReadsPrice: 0,
-		description: "Mixture-of-experts LLM with math and reasoning capabilities",
-	},
 	"deepseek-ai/DeepSeek-R1": {
-		maxTokens: 131072,
-		contextWindow: 163840,
+		maxTokens: 131_072,
+		contextWindow: 163_840,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 2.55,
@@ -3546,9 +3645,20 @@ export const basetenModels = {
 		cacheReadsPrice: 0,
 		description: "DeepSeek's first-generation reasoning model",
 	},
+	"deepseek-ai/DeepSeek-R1-0528": {
+		maxTokens: 131_072,
+		contextWindow: 163_840,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.55,
+		outputPrice: 5.95,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "The latest revision of DeepSeek's first-generation reasoning model",
+	},
 	"deepseek-ai/DeepSeek-V3-0324": {
-		maxTokens: 131072,
-		contextWindow: 163840,
+		maxTokens: 131_072,
+		contextWindow: 163_840,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.77,
@@ -3558,8 +3668,8 @@ export const basetenModels = {
 		description: "Fast general-purpose LLM with enhanced reasoning capabilities",
 	},
 	"deepseek-ai/DeepSeek-V3.1": {
-		maxTokens: 131072,
-		contextWindow: 163840,
+		maxTokens: 131_072,
+		contextWindow: 163_840,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.5,
@@ -3568,9 +3678,20 @@ export const basetenModels = {
 		cacheReadsPrice: 0,
 		description: "Extremely capable general-purpose LLM with hybrid reasoning capabilities and advanced tool calling",
 	},
+	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
+		maxTokens: 262_144,
+		contextWindow: 262_144,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.22,
+		outputPrice: 0.8,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Mixture-of-experts LLM with math and reasoning capabilities",
+	},
 	"Qwen/Qwen3-Coder-480B-A35B-Instruct": {
-		maxTokens: 262144,
-		contextWindow: 262144,
+		maxTokens: 262_144,
+		contextWindow: 262_144,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.38,
@@ -3580,8 +3701,8 @@ export const basetenModels = {
 		description: "Mixture-of-experts LLM with advanced coding and reasoning capabilities",
 	},
 	"openai/gpt-oss-120b": {
-		maxTokens: 128072,
-		contextWindow: 128072,
+		maxTokens: 128_072,
+		contextWindow: 128_072,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.1,
@@ -3591,8 +3712,8 @@ export const basetenModels = {
 		description: "Extremely capable general-purpose LLM with strong, controllable reasoning capabilities",
 	},
 	"moonshotai/Kimi-K2-Instruct-0905": {
-		maxTokens: 168000,
-		contextWindow: 262000,
+		maxTokens: 168_000,
+		contextWindow: 262_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.6,
@@ -3600,17 +3721,6 @@ export const basetenModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
 		description: "State of the art language model for agentic and coding tasks. Septemeber Update.",
-	},
-	"deepseek-ai/DeepSeek-R1-0528": {
-		maxTokens: 131072,
-		contextWindow: 163840,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 2.55,
-		outputPrice: 5.95,
-		cacheWritesPrice: 0,
-		cacheReadsPrice: 0,
-		description: "The latest revision of DeepSeek's first-generation reasoning model",
 	},
 } as const satisfies Record<string, ModelInfo>
 export type BasetenModelId = keyof typeof basetenModels
@@ -3748,16 +3858,6 @@ export const fireworksModels = {
 		description:
 			"Kimi K2 model gets a new version update: Agentic coding: more accurate, better generalization across scaffolds. Frontend coding: improved aesthetics and functionalities on web, 3d, and other tasks. Context length: extended from 128k to 256k, providing better long-horizon support.",
 	},
-	"accounts/fireworks/models/kimi-k2-instruct": {
-		maxTokens: 16384,
-		contextWindow: 128000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.6,
-		outputPrice: 2.5,
-		description:
-			"Kimi K2 is a state-of-the-art mixture-of-experts (MoE) language model with 32 billion activated parameters and 1 trillion total parameters. Trained with the Muon optimizer, Kimi K2 achieves exceptional performance across frontier knowledge, reasoning, and coding tasks while being meticulously optimized for agentic capabilities.",
-	},
 	"accounts/fireworks/models/qwen3-235b-a22b-instruct-2507": {
 		maxTokens: 32768,
 		contextWindow: 256000,
@@ -3842,5 +3942,32 @@ export const minimaxModels = {
 		outputPrice: 1.2,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// NousResearch
+// https://inference-api.nousResearch.com
+export type NousResearchModelId = keyof typeof nousResearchModels
+export const nousResearchDefaultModelId: NousResearchModelId = "Hermes-4-405B"
+export const nousResearchModels = {
+	"Hermes-4-405B": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.09,
+		outputPrice: 0.37,
+		description:
+			"This is the largest model in the Hermes 4 family, and it is the fullest expression of our design, focused on advanced reasoning and creative depth rather than optimizing inference speed or cost.",
+	},
+	"Hermes-4-70B": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.05,
+		outputPrice: 0.2,
+		description:
+			"This incarnation of Hermes 4 balances scale and size. It handles complex reasoning tasks, while staying fast and cost effective. A versatile choice for many use cases.",
 	},
 } as const satisfies Record<string, ModelInfo>

@@ -14,7 +14,6 @@ import (
 	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/handlers"
-	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/cli/pkg/cli/types"
 	"github.com/cline/grpc-go/client"
 	"github.com/cline/grpc-go/cline"
@@ -213,19 +212,7 @@ func (m *Manager) cancelExistingTaskIfNeeded(ctx context.Context) error {
 					m.renderer.RenderDebug("Cancel task returned error: %v", err)
 				}
 			} else {
-				// Output cancellation message in appropriate format
-				if global.Config.JsonFormat() {
-					// Output as JSON status message
-					statusMsg := map[string]interface{}{
-						"type":    "status",
-						"message": "Cancelled existing task to start new one",
-					}
-					if jsonBytes, err := json.MarshalIndent(statusMsg, "", "  "); err == nil {
-						fmt.Println(string(jsonBytes))
-					}
-				} else {
-					fmt.Println("Cancelled existing task to start new one")
-				}
+				fmt.Println("Cancelled existing task to start new one")
 			}
 		}
 	}
@@ -295,7 +282,6 @@ func (m *Manager) CheckSendEnabled(ctx context.Context) error {
 	errorTypes := []string{
 		string(types.AskTypeAPIReqFailed),           // "api_req_failed"
 		string(types.AskTypeMistakeLimitReached),    // "mistake_limit_reached"
-		string(types.AskTypeAutoApprovalMaxReached), // "auto_approval_max_req_reached"
 	}
 
 	isError := false
@@ -554,13 +540,14 @@ func (m *Manager) getCurrentTaskId(ctx context.Context) (string, error) {
 }
 
 // ReinitExistingTaskFromId reinitializes an existing task from the given task ID
-// This is a helper function that does not output anything - callers handle all output.
 func (m *Manager) ReinitExistingTaskFromId(ctx context.Context, taskId string) error {
 	req := &cline.StringRequest{Value: taskId}
-	_, err := m.client.Task.ShowTaskWithId(ctx, req)
+	resp, err := m.client.Task.ShowTaskWithId(ctx, req)
 	if err != nil {
 		return fmt.Errorf("Failed to reinitialize task %s: %w", taskId, err)
 	}
+
+	fmt.Printf("Successfully reinitialized task: %s (ID: %s)\n", taskId, resp.Id)
 
 	return nil
 }
@@ -574,9 +561,12 @@ func (m *Manager) ResumeTask(ctx context.Context, taskID string) error {
 		m.renderer.RenderDebug("Resuming task: %s", taskID)
 	}
 
+	// This call handles cancellation of any active task
 	if err := m.ReinitExistingTaskFromId(ctx, taskID); err != nil {
 		return fmt.Errorf("failed to resume task %s: %w", taskID, err)
 	}
+
+	fmt.Printf("Task %s resumed successfully\n", taskID)
 
 	return nil
 }
@@ -622,13 +612,7 @@ func (m *Manager) ShowConversation(ctx context.Context) error {
 	if err != nil {
 		// Handle specific error cases
 		if errors.Is(err, ErrNoActiveTask) {
-			if global.Config.JsonFormat() {
-				output.OutputStatusMessage("status", "No active task found", map[string]interface{}{
-					"suggestion": "Use 'cline task new' to create a task first",
-				})
-			} else {
-				fmt.Println("No active task found. Use 'cline task new' to create a task first.")
-			}
+			fmt.Println("No active task found. Use 'cline task new' to create a task first.")
 			return nil
 		}
 		// For other errors (like task busy), we can still show the conversation
@@ -676,29 +660,16 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 	m.isInteractive = interactive
 	m.mu.Unlock()
 
-	// Output headers in appropriate format
-	if global.Config.JsonFormat() {
-		statusMsg := map[string]interface{}{
-			"type":        "status",
-			"message":     "Following task conversation",
-			"instance":    instanceAddress,
-			"interactive": interactive,
-		}
-		if jsonBytes, err := json.MarshalIndent(statusMsg, "", "  "); err == nil {
-			fmt.Println(string(jsonBytes))
-		}
+	if global.Config.OutputFormat != "plain" {
+		markdown := fmt.Sprintf("*Using instance: %s*\n*Press Ctrl+C to exit*", instanceAddress)
+		rendered := m.renderer.RenderMarkdown(markdown)
+		fmt.Printf("%s", rendered)
 	} else {
-		if !global.Config.PlainFormat() {
-			markdown := fmt.Sprintf("*Using instance: %s*\n*Press Ctrl+C to exit*", instanceAddress)
-			rendered := m.renderer.RenderMarkdown(markdown)
-			fmt.Printf("%s", rendered)
+		fmt.Printf("Using instance: %s\n", instanceAddress)
+		if interactive {
+			fmt.Println("Following task conversation in interactive mode... (Press Ctrl+C to exit)")
 		} else {
-			fmt.Printf("Using instance: %s\n", instanceAddress)
-			if interactive {
-				fmt.Println("Following task conversation in interactive mode... (Press Ctrl+C to exit)")
-			} else {
-				fmt.Println("Following task conversation... (Press Ctrl+C to exit)")
-			}
+			fmt.Println("Following task conversation... (Press Ctrl+C to exit)")
 		}
 	}
 
@@ -719,7 +690,7 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 	// Start both streams concurrently
 	errChan := make(chan error, 3)
 
-	if global.Config.JsonFormat() {
+	if global.Config.OutputFormat == "json" {
 		go m.handleStateStream(ctx, coordinator, errChan, nil)
 	} else {
 		go m.handleStateStream(ctx, coordinator, errChan, nil)
@@ -788,18 +759,7 @@ func (m *Manager) FollowConversationUntilCompletion(ctx context.Context) error {
 	m.isStreamingMode = true
 	m.mu.Unlock()
 
-	// Output header in appropriate format
-	if global.Config.JsonFormat() {
-		statusMsg := map[string]interface{}{
-			"type":    "status",
-			"message": "Following task conversation until completion",
-		}
-		if jsonBytes, err := json.MarshalIndent(statusMsg, "", "  "); err == nil {
-			fmt.Println(string(jsonBytes))
-		}
-	} else {
-		fmt.Println("Following task conversation until completion... (Press Ctrl+C to exit)")
-	}
+	fmt.Println("Following task conversation until completion... (Press Ctrl+C to exit)")
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -819,7 +779,7 @@ func (m *Manager) FollowConversationUntilCompletion(ctx context.Context) error {
 	errChan := make(chan error, 2)
 	completionChan := make(chan bool, 1)
 
-	if global.Config.JsonFormat() {
+	if global.Config.OutputFormat == "json" {
 		go m.handleStateStream(ctx, coordinator, errChan, completionChan)
 	} else {
 		go m.handleStateStream(ctx, coordinator, errChan, completionChan)
@@ -861,7 +821,7 @@ func (m *Manager) handleStateStream(ctx context.Context, coordinator *StreamCoor
 
 			var pErr error
 
-			if global.Config.JsonFormat() {
+			if global.Config.OutputFormat == "json" {
 				pErr = m.processStateUpdateJsonMode(stateUpdate, coordinator, completionChan)
 			} else {
 				pErr = m.processStateUpdate(stateUpdate, coordinator, completionChan)
@@ -1133,7 +1093,7 @@ func (m *Manager) truncateText(text string, maxLen int) string {
 
 // displayMessage displays a single message using the handler system
 func (m *Manager) displayMessage(msg *types.ClineMessage, isLast, isPartial bool, messageIndex int) error {
-	if global.Config.JsonFormat() {
+	if global.Config.OutputFormat == "json" {
 		return m.outputMessageAsJSON(msg)
 	} else {
 		m.mu.RLock()
@@ -1157,9 +1117,9 @@ func (m *Manager) displayMessage(msg *types.ClineMessage, isLast, isPartial bool
 	}
 }
 
-// outputMessageAsJSON prints a single cline message as json (compact JSONL format)
+// outputMessageAsJSON prints a single cline message as json
 func (m *Manager) outputMessageAsJSON(msg *types.ClineMessage) error {
-	jsonBytes, err := json.Marshal(msg)
+	jsonBytes, err := json.MarshalIndent(msg, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal message as JSON: %w", err)
 	}
@@ -1183,18 +1143,7 @@ func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) 
 	}
 
 	if len(messages) == 0 {
-		// Output "no history" message in appropriate format
-		if global.Config.JsonFormat() {
-			statusMsg := map[string]interface{}{
-				"type":    "status",
-				"message": "No conversation history found",
-			}
-			if jsonBytes, err := json.MarshalIndent(statusMsg, "", "  "); err == nil {
-				fmt.Println(string(jsonBytes))
-			}
-		} else {
-			fmt.Println("No conversation history found.")
-		}
+		fmt.Println("No conversation history found.")
 		return 0, nil
 	}
 
@@ -1203,41 +1152,22 @@ func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) 
 	totalMessages := len(messages)
 	startIndex := 0
 
-	// Output history headers in appropriate format
-	if global.Config.JsonFormat() {
-		// In JSON mode, output structured status with counts
-		statusMsg := map[string]interface{}{
-			"type":              "status",
-			"message":           "Conversation history",
-			"totalMessages":     totalMessages,
-			"displayedMessages": maxHistoryMessages,
-		}
-		if totalMessages <= maxHistoryMessages {
-			statusMsg["displayedMessages"] = totalMessages
+	if totalMessages > maxHistoryMessages {
+		startIndex = totalMessages - maxHistoryMessages
+		if global.Config.OutputFormat != "plain" {
+			markdown := fmt.Sprintf("*Conversation history (%d of %d messages)*", maxHistoryMessages, totalMessages)
+			rendered := m.renderer.RenderMarkdown(markdown)
+			fmt.Printf("\n%s\n\n", rendered)
 		} else {
-			startIndex = totalMessages - maxHistoryMessages
-		}
-		if jsonBytes, err := json.MarshalIndent(statusMsg, "", "  "); err == nil {
-			fmt.Println(string(jsonBytes))
+			fmt.Printf("--- Conversation history (%d of %d messages) ---\n", maxHistoryMessages, totalMessages)
 		}
 	} else {
-		if totalMessages > maxHistoryMessages {
-			startIndex = totalMessages - maxHistoryMessages
-			if !global.Config.PlainFormat() {
-				markdown := fmt.Sprintf("*Conversation history (%d of %d messages)*", maxHistoryMessages, totalMessages)
-				rendered := m.renderer.RenderMarkdown(markdown)
-				fmt.Printf("\n%s\n\n", rendered)
-			} else {
-				fmt.Printf("--- Conversation history (%d of %d messages) ---\n", maxHistoryMessages, totalMessages)
-			}
+		if global.Config.OutputFormat != "plain" {
+			markdown := fmt.Sprintf("*Conversation history (%d messages)*", totalMessages)
+			rendered := m.renderer.RenderMarkdown(markdown)
+			fmt.Printf("\n%s\n\n", rendered)
 		} else {
-			if !global.Config.PlainFormat() {
-				markdown := fmt.Sprintf("*Conversation history (%d messages)*", totalMessages)
-				rendered := m.renderer.RenderMarkdown(markdown)
-				fmt.Printf("\n%s\n\n", rendered)
-			} else {
-				fmt.Printf("--- Conversation history (%d messages) ---\n", totalMessages)
-			}
+			fmt.Printf("--- Conversation history (%d messages) ---\n", totalMessages)
 		}
 	}
 
@@ -1308,17 +1238,17 @@ func (m *Manager) updateMode(stateJson string) {
 
 // UpdateTaskAutoApprovalAction enables a specific auto-approval action for the current task
 func (m *Manager) UpdateTaskAutoApprovalAction(ctx context.Context, actionKey string) error {
+	boolPtr := func(b bool) *bool { return &b }
+	
 	settings := &cline.Settings{
 		AutoApprovalSettings: &cline.AutoApprovalSettings{
-			Enabled:     true,
-			MaxRequests: 20, // Important: avoid maxRequests=0 bug
-			Actions:     &cline.AutoApprovalActions{},
+			Actions: &cline.AutoApprovalActions{},
 		},
 	}
 
 	// Set the specific action to true based on actionKey
-	truePtr := func() *bool { b := true; return &b }()
-
+	truePtr := boolPtr(true)
+	
 	switch actionKey {
 	case "read_files":
 		settings.AutoApprovalSettings.Actions.ReadFiles = truePtr

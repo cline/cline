@@ -57,15 +57,14 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h4>
 			<ul style={ulStyle}>
 				<li>
-					Cline Teams is now free through the end of the year for unlimited users. Includes Jetbrains, RBAC, centralized
-					billing and more.{" "}
-					<VSCodeLink href="https://app.cline.bot/login" style={linkStyle}>
-						Start using teams
-					</VSCodeLink>
+					<strong>MiniMax-M2</strong> is currently free to use in Cline!
 				</li>
 				<li>
-					Use the “exacto” versions of GLM-4.6, Kimi-K2, and Qwen3-Coder in the Cline provider model picker for the best
-					balance of cost, speed, accuracy and tool-calling.
+					<strong>Gemini 3 Pro Preview</strong> is now available with SOTA reasoning and coding capabilities.
+				</li>
+				<li>
+					<strong>AquaVoice's Avalon</strong> model scores 97.3% accuracy on AISpeak and now powers voice-to-text
+					dictation.
 				</li>
 			</ul>
 			<div style={hrStyle} />

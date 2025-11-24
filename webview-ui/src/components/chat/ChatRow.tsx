@@ -11,12 +11,14 @@ import {
 import { BooleanRequest, Int64Request, StringRequest } from "@shared/proto/cline/common"
 import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
+import { FoldVerticalIcon } from "lucide-react"
 import React, { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import styled from "styled-components"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
+import { CheckpointControls } from "@/components/common/CheckpointControls"
 import CodeBlock, {
 	CHAT_ROW_EXPANDED_BG_COLOR,
 	CODE_BLOCK_BG_COLOR,
@@ -36,6 +38,7 @@ import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import { ErrorBlockTitle } from "./ErrorBlockTitle"
 import ErrorRow from "./ErrorRow"
+import HookMessage from "./HookMessage"
 import NewTaskPreview from "./NewTaskPreview"
 import QuoteButton from "./QuoteButton"
 import ReportBugPreview from "./ReportBugPreview"
@@ -50,6 +53,26 @@ const _cancelledColor = "var(--vscode-descriptionForeground)"
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
 	position: relative;
+
+	&:hover ${CheckpointControls} {
+		opacity: 1;
+	}
+
+	/* Fade-in animation for hook messages being inserted */
+	&.hook-message-animate {
+		animation: hookFadeSlideIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	@keyframes hookFadeSlideIn {
+		from {
+			opacity: 0;
+			transform: translateY(-12px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
 `
 
 interface ChatRowProps {
@@ -396,16 +419,6 @@ export const ChatRowContent = memo(
 							}}></span>,
 						<span style={{ color: errorColor, fontWeight: "bold" }}>Cline is having trouble...</span>,
 					]
-				case "auto_approval_max_req_reached":
-					return [
-						<span
-							className="codicon codicon-warning"
-							style={{
-								color: errorColor,
-								marginBottom: "-1.5px",
-							}}></span>,
-						<span style={{ color: errorColor, fontWeight: "bold" }}>Maximum Requests Reached</span>,
-					]
 				case "command":
 					return [
 						<span
@@ -534,6 +547,24 @@ export const ChatRowContent = memo(
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>Cline wants to edit this file:</span>
+							</div>
+							<CodeAccordian
+								// isLoading={message.partial}
+								code={tool.content}
+								isExpanded={isExpanded}
+								onToggleExpand={handleToggle}
+								path={tool.path!}
+							/>
+						</>
+					)
+				case "fileDeleted":
+					return (
+						<>
+							<div style={headerStyle}>
+								{toolIcon("diff-removed")}
+								{tool.operationIsLocatedInWorkspace === false &&
+									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
+								<span style={{ fontWeight: "bold" }}>Cline wants to delete this file:</span>
 							</div>
 							<CodeAccordian
 								// isLoading={message.partial}
@@ -720,7 +751,9 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div style={headerStyle}>
-								{toolIcon("book")}
+								<span style={{ color: normalColor, marginBottom: "-1.5px" }}>
+									<FoldVerticalIcon size={16} />
+								</span>
 								<span style={{ fontWeight: "bold" }}>Cline is condensing the conversation:</span>
 							</div>
 							<div
@@ -1602,6 +1635,11 @@ export const ChatRowContent = memo(
 								</div>
 							)
 						}
+					case "hook":
+						return <HookMessage CommandOutput={CommandOutput} message={message} />
+					case "hook_output":
+						// hook_output messages are combined with hook messages, so we don't render them separately
+						return null
 					case "shell_integration_warning_with_suggestion":
 						const isBackgroundModeEnabled = vscodeTerminalExecutionMode === "backgroundExec"
 						return (
@@ -1703,8 +1741,6 @@ export const ChatRowContent = memo(
 				switch (message.ask) {
 					case "mistake_limit_reached":
 						return <ErrorRow errorType="mistake_limit_reached" message={message} />
-					case "auto_approval_max_req_reached":
-						return <ErrorRow errorType="auto_approval_max_req_reached" message={message} />
 					case "completion_result":
 						if (message.text) {
 							const hasChanges = message.text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false

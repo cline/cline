@@ -88,6 +88,14 @@
 							"cline-cli/overview",
 							"cline-cli/installation",
 							"cline-cli/three-core-flows",
+							{
+								"group": "CLI Samples",
+								"pages": [
+									"cline-cli/samples/overview",
+									"cline-cli/samples/github-issue-rca",
+									"cline-cli/samples/github-integration"
+								]
+							},
 							"cline-cli/cli-reference"
 						]
 					},
@@ -130,6 +138,7 @@
 							"features/drag-and-drop",
 							"features/editing-messages",
 							"features/focus-chain",
+							"features/hooks",
 							"features/multiroot-workspace",
 							"features/plan-and-act",
 							{
@@ -142,7 +151,14 @@
 									"features/slash-commands/deep-planning"
 								]
 							},
-							"features/slash-commands/workflows",
+							{
+								"group": "Workflows",
+								"pages": [
+									"features/slash-commands/workflows/index",
+									"features/slash-commands/workflows/quickstart",
+									"features/slash-commands/workflows/best-practices"
+								]
+							},
 							{
 								"group": "Task Management",
 								"pages": [
@@ -180,6 +196,7 @@
 									"provider-config/fireworks",
 									"provider-config/zai",
 									"provider-config/gcp-vertex-ai",
+									"provider-config/baseten",
 									{
 										"group": "AWS Bedrock",
 										"pages": [
@@ -206,8 +223,7 @@
 									"provider-config/vscode-language-model-api",
 									"provider-config/sap-aicore",
 									"provider-config/vercel-ai-gateway",
-									"provider-config/requesty",
-									"provider-config/baseten"
+									"provider-config/requesty"
 								]
 							}
 						]
@@ -315,6 +331,10 @@
 		{
 			"source": "/getting-started/your-first-task",
 			"destination": "/getting-started/your-first-project"
+		},
+		{
+			"source": "/cline-cli/samples",
+			"destination": "/cline-cli/samples/overview"
 		}
 	],
 	"search": {

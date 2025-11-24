@@ -23,6 +23,7 @@ service StateService {
   rpc updateSettingsCli(UpdateSettingsRequestCli) returns (Empty);
   rpc updateTaskSettings(UpdateTaskSettingsRequest) returns (Empty);
   rpc updateTelemetrySetting(TelemetrySettingRequest) returns (Empty);
+  rpc captureOnboardingProgress(OnboardingProgressRequest) returns (Empty);
   rpc setWelcomeViewCompleted(BooleanRequest) returns (Empty);
   rpc updateInfoBannerVersion(Int64Request) returns (Empty);
   rpc updateModelBannerVersion(Int64Request) returns (Empty);
@@ -30,6 +31,7 @@ service StateService {
   rpc installClineCli(EmptyRequest) returns (Empty);
   rpc checkCliInstallation(EmptyRequest) returns (Boolean);
   rpc getProcessInfo(EmptyRequest) returns (ProcessInfo);
+  rpc flushPendingState(EmptyRequest) returns (Empty);
 }
 
 message AutoApprovalActions {
@@ -46,11 +48,8 @@ message AutoApprovalActions {
 // Auto approval settings for task execution
 message AutoApprovalSettings {
   int32 version = 1;
-  bool enabled = 2;
-  AutoApprovalActions actions = 3;
-  int32 max_requests = 4;
-  bool enable_notifications = 5;
-  repeated string favorites = 6;
+  AutoApprovalActions actions = 2;
+  optional bool enable_notifications = 3;
 }
 
 message Secrets {
@@ -90,6 +89,8 @@ message Secrets {
   optional string dify_api_key = 36;
   optional string oca_api_key = 37;
   optional string oca_refresh_token = 38;
+  optional string hicap_api_key = 39;
+  optional string mcp_oauth_secrets = 40;
 }
 
 message Settings {
@@ -217,6 +218,13 @@ message Settings {
   optional int32 max_consecutive_mistakes = 124;
   optional bool subagents_enabled = 125;
   optional int32 subagent_terminal_output_line_limit = 126;
+  optional string aihubmix_api_key = 127;
+  optional string aihubmix_base_url = 128;
+  optional string aihubmix_app_code = 129;
+  optional string plan_mode_aihubmix_model_id = 130;
+  optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 131;
+  optional string act_mode_aihubmix_model_id = 132;
+  optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 133;
 }
 
 message DictationSettings {
@@ -283,11 +291,8 @@ message ResetStateRequest {
 message AutoApprovalSettingsRequest {
   Metadata metadata = 1;
   int32 version = 2;
-  bool enabled = 3;
-  AutoApprovalActions actions = 4;
-  int32 max_requests = 5;
-  bool enable_notifications = 6;
-  repeated string favorites = 7;
+  AutoApprovalActions actions = 3;
+  bool enable_notifications = 4;
 }
 
 enum TelemetrySettingEnum {
@@ -356,6 +361,8 @@ message UpdateSettingsRequest {
   optional bool subagents_enabled = 29;
   optional int32 subagent_terminal_output_line_limit = 30;
   optional string cline_env = 31;
+  optional bool native_tool_call_enabled = 32;
+  optional OnboardingModelGroup onboarding_models = 33;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {
@@ -375,4 +382,25 @@ message ProcessInfo {
   int32 process_id = 1;
   optional string version = 2;
   optional int64 uptime_ms = 3;
+}
+
+message OnboardingProgressRequest {
+  int32 step = 1;
+  optional string action = 2;
+  optional bool completed = 3;
+  optional string model_selected = 4;
+}
+
+message OnboardingModelGroup {
+  repeated OnboardingModel models = 1;
+}
+
+message OnboardingModel {
+  string id = 1;
+  string name = 2;
+  int32 score = 3;
+  int32 latency = 4;
+  string badge = 5;
+  string group = 6;
+  OpenRouterModelInfo info = 7;
 }

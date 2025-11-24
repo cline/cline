@@ -208,7 +208,7 @@ see the manual page: man cline`,
 	rootCmd.AddCommand(cli.NewVersionCommand())
 	rootCmd.AddCommand(cli.NewAuthCommand())
 	rootCmd.AddCommand(cli.NewLogsCommand())
-	rootCmd.AddCommand(cli.NewDoctorCommand())
+	// rootCmd.AddCommand(cli.NewDoctorCommand()) // Disabled for now
 
 	// Suppress Cobra's default error printing - we'll handle it ourselves
 	rootCmd.SilenceErrors = true

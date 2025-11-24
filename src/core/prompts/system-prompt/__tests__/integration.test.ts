@@ -164,12 +164,8 @@ const baseContext: SystemPromptContext = {
 	preferredLanguageInstructions: "Prefer TypeScript",
 	isTesting: true,
 	providerInfo: mockProviderInfo,
+	enableNativeToolCalls: false,
 }
-
-const makeMockContext = (modelId: string, providerId: string = "test"): SystemPromptContext => ({
-	...baseContext,
-	providerInfo: makeMockProviderInfo(modelId, providerId),
-})
 
 describe("Prompt System Integration Tests", () => {
 	beforeEach(() => {
@@ -215,9 +211,9 @@ describe("Prompt System Integration Tests", () => {
 			contextVariations,
 		},
 		{
-			modelGroup: ModelFamily.GPT_5,
-			modelIds: ["gpt-5"],
-			providerId: "openai",
+			modelGroup: ModelFamily.HERMES,
+			modelIds: ["hermes-4"],
+			providerId: "test",
 			contextVariations,
 		},
 		{
@@ -230,6 +226,36 @@ describe("Prompt System Integration Tests", () => {
 			modelGroup: ModelFamily.XS,
 			modelIds: ["qwen3_coder"],
 			providerId: "lmstudio",
+			contextVariations,
+		},
+		{
+			modelGroup: ModelFamily.NATIVE_NEXT_GEN,
+			modelIds: ["claude-4-5-sonnet"],
+			providerId: "cline",
+			contextVariations,
+		},
+		{
+			modelGroup: ModelFamily.GPT_5,
+			modelIds: ["gpt-5"],
+			providerId: "openai",
+			contextVariations,
+		},
+		{
+			modelGroup: ModelFamily.NATIVE_GPT_5,
+			modelIds: ["gpt-5-codex"],
+			providerId: "openai",
+			contextVariations,
+		},
+		{
+			modelGroup: ModelFamily.NATIVE_GPT_5_1,
+			modelIds: ["gpt-5-1"],
+			providerId: "openai",
+			contextVariations,
+		},
+		{
+			modelGroup: ModelFamily.GEMINI_3,
+			modelIds: ["gemini-3"],
+			providerId: "vertex",
 			contextVariations,
 		},
 	]
@@ -255,17 +281,22 @@ describe("Prompt System Integration Tests", () => {
 							...baseContext,
 							providerInfo: makeMockProviderInfo(modelId, providerId),
 							isTesting: true,
+							enableNativeToolCalls:
+								modelGroup === ModelFamily.NATIVE_NEXT_GEN ||
+								modelGroup === ModelFamily.NATIVE_GPT_5 ||
+								modelGroup === ModelFamily.NATIVE_GPT_5_1 ||
+								modelGroup === ModelFamily.GEMINI_3,
 						}
 						it(`should generate consistent prompt for ${providerId}/${modelId} with ${contextName} context`, async function () {
 							this.timeout(30000) // Allow more time for prompt generation
 
 							try {
-								const prompt = await getSystemPrompt(context as SystemPromptContext)
+								const { systemPrompt } = await getSystemPrompt(context as SystemPromptContext)
 
 								// Basic structure assertions
-								expect(prompt).to.be.a("string")
-								expect(prompt.length).to.be.greaterThan(100)
-								expect(prompt).to.not.include("{{TOOL_USE_SECTION}}") // Tools placeholder should be removed
+								expect(systemPrompt).to.be.a("string")
+								expect(systemPrompt.length).to.be.greaterThan(100)
+								expect(systemPrompt).to.not.include("{{TOOL_USE_SECTION}}") // Tools placeholder should be removed
 
 								// Snapshot testing logic
 								const snapshotName = `${providerId}_${modelId.replace(/[^a-zA-Z0-9]/g, "_")}-${contextName}.snap`
@@ -273,13 +304,13 @@ describe("Prompt System Integration Tests", () => {
 
 								if (UPDATE_SNAPSHOTS) {
 									// Update mode: write new snapshot
-									await fs.writeFile(snapshotPath, prompt, "utf-8")
-									console.log(`Updated snapshot: ${snapshotName} (${prompt.length} chars)`)
+									await fs.writeFile(snapshotPath, systemPrompt, "utf-8")
+									console.log(`Updated snapshot: ${snapshotName} (${systemPrompt.length} chars)`)
 								} else {
 									// Test mode: compare with existing snapshot
 									try {
 										const existingSnapshot = await fs.readFile(snapshotPath, "utf-8")
-										const differences = compareStrings(existingSnapshot, prompt)
+										const differences = compareStrings(existingSnapshot, systemPrompt)
 
 										if (differences) {
 											throw new Error(formatSnapshotError(snapshotName, differences))
@@ -296,10 +327,9 @@ describe("Prompt System Integration Tests", () => {
 														`This is a new test case. Run with --update-snapshots to create the initial snapshot.`,
 												),
 											)
-										} else {
-											// Re-throw comparison errors
-											throw error
 										}
+										// Re-throw comparison errors
+										throw error
 									}
 								}
 							} catch (error) {
@@ -325,8 +355,8 @@ describe("Prompt System Integration Tests", () => {
 			const contextWithBrowser = { ...baseContext, supportsBrowserUse: true }
 
 			try {
-				const prompt = await getSystemPrompt(contextWithBrowser)
-				expect(prompt.toLowerCase()).to.include("browser")
+				const { systemPrompt } = await getSystemPrompt(contextWithBrowser)
+				expect(systemPrompt.toLowerCase()).to.include("browser")
 			} catch (error) {
 				if (error instanceof Error && error.message.includes("No prompt variant found")) {
 					this.skip()
@@ -340,8 +370,8 @@ describe("Prompt System Integration Tests", () => {
 			this.timeout(30000)
 
 			try {
-				const prompt = await getSystemPrompt(baseContext)
-				expect(prompt).to.include("MCP")
+				const { systemPrompt } = await getSystemPrompt(baseContext)
+				expect(systemPrompt).to.include("MCP")
 			} catch (error) {
 				if (error instanceof Error && error.message.includes("No prompt variant found")) {
 					this.skip()
@@ -355,8 +385,8 @@ describe("Prompt System Integration Tests", () => {
 			this.timeout(30000)
 
 			try {
-				const prompt = await getSystemPrompt(baseContext)
-				expect(prompt).to.include("TODO")
+				const { systemPrompt } = await getSystemPrompt(baseContext)
+				expect(systemPrompt).to.include("TODO")
 			} catch (error) {
 				if (error instanceof Error && error.message.includes("No prompt variant found")) {
 					this.skip()
@@ -370,8 +400,8 @@ describe("Prompt System Integration Tests", () => {
 			this.timeout(30000)
 
 			try {
-				const prompt = await getSystemPrompt(baseContext)
-				expect(prompt).to.include("USER'S CUSTOM INSTRUCTIONS")
+				const { systemPrompt } = await getSystemPrompt(baseContext)
+				expect(systemPrompt).to.include("USER'S CUSTOM INSTRUCTIONS")
 			} catch (error) {
 				if (error instanceof Error && error.message.includes("No prompt variant found")) {
 					this.skip()
@@ -387,14 +417,8 @@ describe("Prompt System Integration Tests", () => {
 			this.timeout(30000)
 
 			const invalidContext = {} as SystemPromptContext
-
-			try {
-				const prompt = await getSystemPrompt(invalidContext)
-				expect(prompt).to.be.a("string")
-			} catch (error) {
-				// Error is acceptable for invalid context
-				expect(error).to.be.instanceOf(Error)
-			}
+			const { systemPrompt } = await getSystemPrompt(invalidContext)
+			expect(systemPrompt).to.be.a("string")
 		})
 
 		it("should handle undefined context properties", async function () {
@@ -410,9 +434,9 @@ describe("Prompt System Integration Tests", () => {
 			}
 
 			try {
-				const prompt = await getSystemPrompt(contextWithNulls)
-				expect(prompt).to.be.a("string")
-				expect(prompt).to.include("{{TOOL_USE_SECTION}}")
+				const { systemPrompt } = await getSystemPrompt(contextWithNulls)
+				expect(systemPrompt).to.be.a("string")
+				expect(systemPrompt).to.include("{{TOOL_USE_SECTION}}")
 			} catch (error) {
 				// Error is acceptable for invalid context
 				expect(error).to.be.instanceOf(Error)

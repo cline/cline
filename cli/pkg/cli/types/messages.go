@@ -37,17 +37,16 @@ const (
 type AskType string
 
 const (
-	AskTypeFollowup               AskType = "followup"
-	AskTypePlanModeRespond        AskType = "plan_mode_respond"
-	AskTypeCommand                AskType = "command"
-	AskTypeCommandOutput          AskType = "command_output"
-	AskTypeCompletionResult       AskType = "completion_result"
-	AskTypeTool                   AskType = "tool"
-	AskTypeAPIReqFailed           AskType = "api_req_failed"
-	AskTypeResumeTask             AskType = "resume_task"
-	AskTypeResumeCompletedTask    AskType = "resume_completed_task"
-	AskTypeMistakeLimitReached    AskType = "mistake_limit_reached"
-	AskTypeAutoApprovalMaxReached AskType = "auto_approval_max_req_reached"
+	AskTypeFollowup            AskType = "followup"
+	AskTypePlanModeRespond     AskType = "plan_mode_respond"
+	AskTypeCommand             AskType = "command"
+	AskTypeCommandOutput       AskType = "command_output"
+	AskTypeCompletionResult    AskType = "completion_result"
+	AskTypeTool                AskType = "tool"
+	AskTypeAPIReqFailed        AskType = "api_req_failed"
+	AskTypeResumeTask          AskType = "resume_task"
+	AskTypeResumeCompletedTask AskType = "resume_completed_task"
+	AskTypeMistakeLimitReached AskType = "mistake_limit_reached"
 	AskTypeBrowserActionLaunch    AskType = "browser_action_launch"
 	AskTypeUseMcpServer           AskType = "use_mcp_server"
 	AskTypeNewTask                AskType = "new_task"
@@ -108,6 +107,7 @@ const (
 	ToolTypeEditedExistingFile      ToolType = "editedExistingFile"
 	ToolTypeNewFileCreated          ToolType = "newFileCreated"
 	ToolTypeReadFile                ToolType = "readFile"
+	ToolTypeFileDeleted             ToolType = "fileDeleted"
 	ToolTypeListFilesTopLevel       ToolType = "listFilesTopLevel"
 	ToolTypeListFilesRecursive      ToolType = "listFilesRecursive"
 	ToolTypeListCodeDefinitionNames ToolType = "listCodeDefinitionNames"
@@ -247,8 +247,6 @@ func convertProtoAskType(askType cline.ClineAsk) string {
 		return string(AskTypeResumeCompletedTask)
 	case cline.ClineAsk_MISTAKE_LIMIT_REACHED:
 		return string(AskTypeMistakeLimitReached)
-	case cline.ClineAsk_AUTO_APPROVAL_MAX_REQ_REACHED:
-		return string(AskTypeAutoApprovalMaxReached)
 	case cline.ClineAsk_BROWSER_ACTION_LAUNCH:
 		return string(AskTypeBrowserActionLaunch)
 	case cline.ClineAsk_USE_MCP_SERVER:

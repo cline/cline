@@ -189,7 +189,7 @@ func renderAutoApprovalSettings(value interface{}, censor bool) error {
 				}
 			}
 		} else {
-			// Print other fields normally (enabled, maxRequests, enableNotifications, favorites)
+			// Print other fields normally (enabled, enableNotifications, favorites)
 			fmt.Printf("  %s: %s\n", camelToKebab(key), formatValue(val, key, censor))
 		}
 	}
