@@ -88,8 +88,14 @@ export class BannerService {
 			}
 
 			// Fetch from API
-			const url = new URL("/banners/v1/messages", this._baseUrl).toString()
-			Logger.log(`BannerService: Fetching banners from ${url}`)
+			let url: string
+			try {
+				url = new URL("/banners/v1/messages", this._baseUrl).toString()
+				Logger.log(`BannerService: Fetching banners from ${url}`)
+			} catch (urlError) {
+				console.error("Error constructing URL:", urlError)
+				throw urlError
+			}
 
 			const response = await axios.get<BannersResponse>(url, {
 				timeout: 10000, // 10 second timeout
@@ -99,12 +105,12 @@ export class BannerService {
 				...getAxiosSettings(),
 			})
 
-			if (!response.data?.data?.banners) {
+			if (!response.data?.data?.items) {
 				Logger.log("BannerService: Invalid response format")
 				return []
 			}
 
-			const allBanners = response.data.data.banners
+			const allBanners = response.data.data.items
 			Logger.log(`BannerService: Received ${allBanners.length} banners from API`)
 
 			// Filter banners based on rules evaluation
@@ -136,8 +142,6 @@ export class BannerService {
 	private async evaluateBannerRules(banner: Banner): Promise<boolean> {
 		try {
 			// Check date range first (active_from and active_to)
-			// The API response should already check this and only
-			// return active time window banners, here is to ensure.
 			if (!this.isWithinActiveDateRange(banner)) {
 				Logger.log(`BannerService: Banner ${banner.id} filtered out - outside active date range`)
 				return false
@@ -200,6 +204,11 @@ export class BannerService {
 							return !!apiConfiguration?.cerebrasApiKey
 						case "groq":
 							return !!apiConfiguration?.groqApiKey
+						case "cline":
+							return (
+								apiConfiguration?.planModeApiProvider === "cline" ||
+								apiConfiguration?.actModeApiProvider === "cline"
+							)
 						default:
 							return false
 					}
@@ -222,41 +231,31 @@ export class BannerService {
 				}
 			}
 
-			// Check audience segment
-			if (rules.audience && this._controller) {
-				switch (rules.audience) {
-					case "all":
-						// Show to all users
-						Logger.log(`BannerService: Banner ${banner.id} targets all users`)
-						break
+			if (rules.audience && rules.audience.length > 0 && this._controller) {
+				const matchesAnyAudience = rules.audience.some((audienceType) => {
+					switch (audienceType) {
+						case "all":
+							return true
 
-					case "team admin only":
-						// Show only to team admins
-						const isTeamAdmin = this.isUserTeamAdmin()
-						if (!isTeamAdmin) {
-							Logger.log(`BannerService: Banner ${banner.id} filtered out - user is not a team admin`)
-							return false
-						}
-						break
+						case "team_admin_only":
+							const isTeamAdmin = this.isUserTeamAdmin()
+							return isTeamAdmin
 
-					case "team members":
-						// Show only to users who are part of a team (have organizations)
-						const hasOrganizations = this.hasOrganizations()
-						if (!hasOrganizations) {
-							Logger.log(`BannerService: Banner ${banner.id} filtered out - user is not a team member`)
-							return false
-						}
-						break
+						case "team_members":
+							const hasOrganizations = this.hasOrganizations()
+							return hasOrganizations
 
-					case "personal only":
-						// Show only to users who have NO enterprise/organization account
-						// (Enterprise users also have a personal account by default, but this targets only non-enterprise users)
-						const hasOrgs = this.hasOrganizations()
-						if (hasOrgs) {
-							Logger.log(`BannerService: Banner ${banner.id} filtered out - user has enterprise account`)
+						case "personal_only":
+							const hasOrgs = this.hasOrganizations()
+							return !hasOrgs
+
+						default:
 							return false
-						}
-						break
+					}
+				})
+
+				if (!matchesAnyAudience) {
+					return false
 				}
 			}
 

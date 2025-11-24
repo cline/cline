@@ -18,14 +18,16 @@ export interface Banner {
 
 export interface BannersResponse {
 	data: {
-		banners: Banner[]
+		items: Banner[]
+		nextToken: string
 	}
+	success: boolean
 }
 
 /**
  * Audience targeting options
  */
-export type BannerAudience = "all" | "team admin only" | "team members" | "personal only"
+export type BannerAudience = "all" | "team_admin_only" | "team_members" | "personal_only"
 
 /**
  * Rules that can be evaluated for banner targeting
@@ -40,7 +42,7 @@ export interface BannerRules {
 	/** Target users with specific API providers (e.g., "anthropic", "openai") */
 	providers?: string[]
 	/** Target specific audience segment */
-	audience?: BannerAudience
+	audience?: BannerAudience[]
 }
 
 /**
