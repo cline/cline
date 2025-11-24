@@ -4,6 +4,7 @@ import axios from "axios"
 import cloneDeep from "clone-deep"
 import fs from "fs/promises"
 import path from "path"
+import { StateManager } from "@/core/storage/StateManager"
 import {
 	ANTHROPIC_MAX_THINKING_BUDGET,
 	CLAUDE_SONNET_1M_TIERS,
@@ -78,7 +79,7 @@ interface OpenRouterRawModelInfo {
 export async function refreshOpenRouterModels(controller: Controller): Promise<Record<string, ModelInfo>> {
 	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
 
-	const models: Record<string, ModelInfo> = {}
+	let models: Record<string, ModelInfo> = {}
 	try {
 		const response = await axios.get("https://openrouter.ai/api/v1/models", getAxiosSettings())
 
@@ -247,12 +248,17 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 		// If we failed to fetch models, try to read cached models
 		const cachedModels = await controller.readOpenRouterModels()
 		if (cachedModels) {
-			// Cached models are already in application format (ModelInfo)
-			return appendClineStealthModels(cachedModels as Record<string, ModelInfo>)
+			models = cachedModels
 		}
 	}
+
 	// Append stealth models if any
-	return appendClineStealthModels(models)
+	const finalModels = appendClineStealthModels(models)
+
+	// Store in StateManager's in-memory cache
+	StateManager.get().setModelsCache("openRouter", finalModels)
+
+	return finalModels
 }
 
 /**

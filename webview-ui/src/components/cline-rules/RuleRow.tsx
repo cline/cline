@@ -100,7 +100,7 @@ const RuleRow: React.FC<{
 		<div className="mb-2.5">
 			<div
 				className={cn("flex items-center px-2 py-4 rounded bg-text-block-background max-h-4", {
-					'opacity-60': isDisabled,
+					"opacity-60": isDisabled,
 				})}>
 				<span className="flex-1 overflow-hidden break-all whitespace-normal flex items-center mr-1" title={rulePath}>
 					{getRuleTypeIcon() && <span className="mr-1.5">{getRuleTypeIcon()}</span>}
@@ -122,7 +122,7 @@ const RuleRow: React.FC<{
 					<Switch
 						checked={enabled}
 						className="mx-1"
-						disabled={isRemote}
+						disabled={isDisabled}
 						key={rulePath}
 						onClick={() => toggleRule(rulePath, !enabled)}
 						title={isDisabled ? "This rule is required and cannot be disabled" : undefined}

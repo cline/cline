@@ -14,6 +14,7 @@ export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 		"openai",
 		"minimax",
 		"openai-native",
+		"baseten",
 		"vercel-ai-gateway",
 	].some((id) => providerId === id)
 }
@@ -103,6 +104,11 @@ export function isHermesModelFamily(id: string): boolean {
 	)
 }
 
+export function isNextGenOpenSourceModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return ["kimi-k2"].some((substring) => modelId.includes(substring))
+}
+
 export function isGemini3ModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return modelId.includes("gemini3") || modelId.includes("gemini-3")
@@ -116,7 +122,8 @@ export function isNextGenModelFamily(id: string): boolean {
 		isGrok4ModelFamily(modelId) ||
 		isGPT5ModelFamily(modelId) ||
 		isMinimaxModelFamily(modelId) ||
-		isGemini3ModelFamily(modelId)
+		isGemini3ModelFamily(modelId) ||
+		isNextGenOpenSourceModelFamily(modelId)
 	)
 }
 
