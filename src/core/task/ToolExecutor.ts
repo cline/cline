@@ -34,6 +34,7 @@ import { NewTaskHandler } from "./tools/handlers/NewTaskHandler"
 import { PlanModeRespondHandler } from "./tools/handlers/PlanModeRespondHandler"
 import { ReadFileToolHandler } from "./tools/handlers/ReadFileToolHandler"
 import { ReportBugHandler } from "./tools/handlers/ReportBugHandler"
+import { RetrievalCustomerOperationsHandler } from "./tools/handlers/RetrievalCustomerOperationsHandler"
 import { SearchFilesToolHandler } from "./tools/handlers/SearchFilesToolHandler"
 import { SummarizeTaskHandler } from "./tools/handlers/SummarizeTaskHandler"
 import { UseMcpToolHandler } from "./tools/handlers/UseMcpToolHandler"
@@ -198,6 +199,7 @@ export class ToolExecutor {
 		this.coordinator.register(new BrowserToolHandler())
 		this.coordinator.register(new AskFollowupQuestionToolHandler())
 		this.coordinator.register(new WebFetchToolHandler())
+		this.coordinator.register(new RetrievalCustomerOperationsHandler())
 
 		// Register WriteToFileToolHandler for all three file tools with proper typing
 		const writeHandler = new WriteToFileToolHandler(validator)

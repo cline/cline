@@ -15,6 +15,7 @@ import { new_task_variants } from "./new_task"
 import { plan_mode_respond_variants } from "./plan_mode_respond"
 import { read_file_variants } from "./read_file"
 import { replace_in_file_variants } from "./replace_in_file"
+import { retrieval_customer_operations_variants } from "./retrieval_customer_operations"
 import { search_files_variants } from "./search_files"
 import { use_mcp_tool_variants } from "./use_mcp_tool"
 import { web_fetch_variants } from "./web_fetch"
@@ -42,6 +43,7 @@ export function registerClineToolSets(): void {
 		...plan_mode_respond_variants,
 		...read_file_variants,
 		...replace_in_file_variants,
+		...retrieval_customer_operations_variants,
 		...search_files_variants,
 		...use_mcp_tool_variants,
 		...web_fetch_variants,

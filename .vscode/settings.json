@@ -1,8 +1,23 @@
 // Place your settings in this file to overwrite default and user settings.
 {
 	"files.exclude": {
-		"out": false, // set this to true to hide the "out" folder with the compiled JS files
-		"dist": false // set this to true to hide the "dist" folder with the compiled JS files
+		"**/.git": true,
+		"**/.svn": true,
+		"**/.hg": true,
+		"**/.DS_Store": true,
+		"**/Thumbs.db": true,
+		"**/.apivcs": true,
+		"**/.gitignore": true,
+		"**/.designer.json": true,
+		"**/.exchange.xml": true,
+		"**/.vscode": true,
+		"**/.mvn": true,
+		"**/.tmp": true,
+		"**/.settings": true,
+		"**/.exchange_modules_tmp": true,
+		"out": false,
+		"dist": false,
+		".mule": true
 	},
 	"search.exclude": {
 		"out": true, // set this to false to include "out" folder in search results
