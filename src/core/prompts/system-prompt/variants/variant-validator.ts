@@ -125,11 +125,11 @@ export class VariantValidator {
 
 		// Check component overrides reference valid components
 		if (variant.componentOverrides) {
-			const invalidOverrides = Object.keys(variant.componentOverrides).filter(
-				(key) => !variant.componentOrder.includes(key as SystemPromptSection),
+			const invalidOverrides = Object.entries(variant.componentOverrides).filter(
+				([key, component]) => component.enabled !== false && !variant.componentOrder.includes(key as SystemPromptSection),
 			)
 			if (invalidOverrides.length > 0) {
-				warnings.push(`Component overrides for unused components: ${invalidOverrides.join(", ")}`)
+				warnings.push(`Component overrides for unused components: ${invalidOverrides.map(([k]) => k).join(", ")}`)
 			}
 		}
 	}
@@ -156,12 +156,7 @@ export class VariantValidator {
 
 	private validateBestPractices(variant: PromptVariant, warnings: string[]): void {
 		// Check for recommended components
-		const recommendedComponents = [
-			SystemPromptSection.AGENT_ROLE,
-			SystemPromptSection.TOOL_USE,
-			SystemPromptSection.RULES,
-			SystemPromptSection.SYSTEM_INFO,
-		]
+		const recommendedComponents = [SystemPromptSection.AGENT_ROLE, SystemPromptSection.RULES, SystemPromptSection.SYSTEM_INFO]
 
 		const missingRecommended = recommendedComponents.filter((c) => !variant.componentOrder.includes(c))
 		if (missingRecommended.length > 0) {
