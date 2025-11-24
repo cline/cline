@@ -31,6 +31,7 @@ service StateService {
   rpc installClineCli(EmptyRequest) returns (Empty);
   rpc checkCliInstallation(EmptyRequest) returns (Boolean);
   rpc getProcessInfo(EmptyRequest) returns (ProcessInfo);
+  rpc flushPendingState(EmptyRequest) returns (Empty);
 }
 
 message AutoApprovalActions {
@@ -89,6 +90,7 @@ message Secrets {
   optional string oca_api_key = 37;
   optional string oca_refresh_token = 38;
   optional string hicap_api_key = 39;
+  optional string mcp_oauth_secrets = 40;
 }
 
 message Settings {
@@ -360,6 +362,7 @@ message UpdateSettingsRequest {
   optional int32 subagent_terminal_output_line_limit = 30;
   optional string cline_env = 31;
   optional bool native_tool_call_enabled = 32;
+  optional OnboardingModelGroup onboarding_models = 33;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {
@@ -386,4 +389,18 @@ message OnboardingProgressRequest {
   optional string action = 2;
   optional bool completed = 3;
   optional string model_selected = 4;
+}
+
+message OnboardingModelGroup {
+  repeated OnboardingModel models = 1;
+}
+
+message OnboardingModel {
+  string id = 1;
+  string name = 2;
+  int32 score = 3;
+  int32 latency = 4;
+  string badge = 5;
+  string group = 6;
+  OpenRouterModelInfo info = 7;
 }

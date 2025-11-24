@@ -9,12 +9,12 @@ import type {
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import { ClineEnv } from "@/config"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
+import { getAxiosSettings } from "@/shared/net"
 import { AuthService } from "../auth/AuthService"
 
 export class ClineAccountService {
 	private static instance: ClineAccountService
 	private _authService: AuthService
-	private readonly _baseUrl = ClineEnv.config().apiBaseUrl
 
 	constructor() {
 		this._authService = AuthService.getInstance()
@@ -36,7 +36,7 @@ export class ClineAccountService {
 	 * @returns The base URL as a string
 	 */
 	get baseUrl(): string {
-		return this._baseUrl
+		return ClineEnv.config().apiBaseUrl
 	}
 
 	/**
@@ -47,7 +47,7 @@ export class ClineAccountService {
 	 * @throws Error if the API key is not found or the request fails
 	 */
 	private async authenticatedRequest<T>(endpoint: string, config: AxiosRequestConfig = {}): Promise<T> {
-		const url = new URL(endpoint, this._baseUrl).toString() // Validate URL
+		const url = new URL(endpoint, this.baseUrl).toString() // Validate URL
 		// IMPORTANT: Prefixed with 'workos:' so backend can route verification to WorkOS provider
 		const clineAccountAuthToken = await this._authService.getAuthToken()
 		if (!clineAccountAuthToken) {
@@ -60,6 +60,7 @@ export class ClineAccountService {
 				"Content-Type": "application/json",
 				...config.headers,
 			},
+			...getAxiosSettings(),
 		}
 		const response: AxiosResponse<{ data?: T; error: string; success: boolean }> = await axios.request({
 			url,

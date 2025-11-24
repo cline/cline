@@ -151,7 +151,14 @@
 									"features/slash-commands/deep-planning"
 								]
 							},
-							"features/slash-commands/workflows",
+							{
+								"group": "Workflows",
+								"pages": [
+									"features/slash-commands/workflows/index",
+									"features/slash-commands/workflows/quickstart",
+									"features/slash-commands/workflows/best-practices"
+								]
+							},
 							{
 								"group": "Task Management",
 								"pages": [
@@ -189,6 +196,7 @@
 									"provider-config/fireworks",
 									"provider-config/zai",
 									"provider-config/gcp-vertex-ai",
+									"provider-config/baseten",
 									{
 										"group": "AWS Bedrock",
 										"pages": [
@@ -215,8 +223,7 @@
 									"provider-config/vscode-language-model-api",
 									"provider-config/sap-aicore",
 									"provider-config/vercel-ai-gateway",
-									"provider-config/requesty",
-									"provider-config/baseten"
+									"provider-config/requesty"
 								]
 							}
 						]

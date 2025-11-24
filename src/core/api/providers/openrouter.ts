@@ -1,10 +1,11 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import { Anthropic } from "@anthropic-ai/sdk"
+import { StateManager } from "@core/storage/StateManager"
 import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch, getAxiosSettings } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
@@ -20,6 +21,7 @@ interface OpenRouterHandlerOptions extends CommonApiHandlerOptions {
 	openRouterProviderSorting?: string
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
+	geminiThinkingLevel?: string
 }
 
 export class OpenRouterHandler implements ApiHandler {
@@ -54,7 +56,7 @@ export class OpenRouterHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: OpenAITool[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		this.lastGenerationId = undefined
 
@@ -67,6 +69,7 @@ export class OpenRouterHandler implements ApiHandler {
 			this.options.thinkingBudgetTokens,
 			this.options.openRouterProviderSorting,
 			tools,
+			this.options.geminiThinkingLevel,
 		)
 
 		let didOutputUsage: boolean = false
@@ -127,8 +130,7 @@ export class OpenRouterHandler implements ApiHandler {
 			if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
 				yield {
 					type: "reasoning",
-					// @ts-ignore-next-line
-					reasoning: delta.reasoning,
+					reasoning: typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning),
 				}
 			}
 
@@ -142,8 +144,9 @@ export class OpenRouterHandler implements ApiHandler {
 				!shouldSkipReasoningForModel(this.options.openRouterModelId)
 			) {
 				yield {
-					type: "reasoning_details",
-					reasoning_details: delta.reasoning_details,
+					type: "reasoning",
+					reasoning: "",
+					details: delta.reasoning_details,
 				}
 			}
 
@@ -214,11 +217,11 @@ export class OpenRouterHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.openRouterModelId
-		const modelInfo = this.options.openRouterModelInfo
-		if (modelId && modelInfo) {
-			return { id: modelId, info: modelInfo }
+		const modelId = this.options.openRouterModelId || openRouterDefaultModelId
+		const cachedModelInfo = StateManager.get().getModelInfo("openRouter", modelId)
+		return {
+			id: modelId,
+			info: cachedModelInfo || openRouterDefaultModelInfo,
 		}
-		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
 	}
 }

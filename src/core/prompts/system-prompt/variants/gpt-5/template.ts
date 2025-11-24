@@ -3,7 +3,6 @@ import type { SystemPromptContext } from "../../types"
 
 /**
  * Base template for GPT-5 variant with structured sections
- * Removed SystemPromptSection.TASK_PROGRESS
  */
 export const BASE = `{{${SystemPromptSection.AGENT_ROLE}}}
 
@@ -11,7 +10,7 @@ export const BASE = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 ====
 
-{{${SystemPromptSection.TODO}}}
+{{${SystemPromptSection.TASK_PROGRESS}}}
 
 ====
 
@@ -28,10 +27,6 @@ export const BASE = `{{${SystemPromptSection.AGENT_ROLE}}}
 ====
 
 {{${SystemPromptSection.CLI_SUBAGENTS}}}
-
-====
-
-{{${SystemPromptSection.TASK_PROGRESS}}}
 
 ====
 
