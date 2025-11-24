@@ -298,13 +298,13 @@ export class BannerService {
 
 	/**
 	 * Gets the current IDE type
-	 * @returns IDE type (vscode, jetbrains, or unknown)
+	 * @returns IDE type (vscode, jetbrains, cli, or unknown)
 	 */
 	private async getIdeType(): Promise<string> {
 		try {
 			const hostVersion = await HostProvider.env.getHostVersion({})
 
-			// Use clineType field which contains values like "VSCode Extension", "Cline for JetBrains", etc.
+			// Use clineType field which contains values like "VSCode Extension", "Cline for JetBrains", "CLI", etc.
 			const clineType = hostVersion.clineType?.toLowerCase() || ""
 
 			if (clineType.includes("vscode")) {
@@ -312,6 +312,9 @@ export class BannerService {
 			}
 			if (clineType.includes("jetbrains")) {
 				return "jetbrains"
+			}
+			if (clineType.includes("cli")) {
+				return "cli"
 			}
 
 			return "unknown"
@@ -453,15 +456,22 @@ export class BannerService {
 	/**
 	 * Sends a banner event to the telemetry endpoint
 	 * @param bannerId The ID of the banner
-	 * @param eventType The type of event (seen, dismiss, click)
+	 * @param eventType The type of event (now we only support dismiss, in the future we might want to support seen, click...)
 	 */
-	public async sendBannerEvent(bannerId: string, eventType: "seen" | "dismiss" | "click"): Promise<void> {
+	public async sendBannerEvent(bannerId: string, eventType: "dismiss"): Promise<void> {
 		try {
 			const url = new URL("/banners/v1/events", this._baseUrl).toString()
 
 			// Get IDE type for surface
 			const ideType = await this.getIdeType()
-			const surface = ideType === "vscode" ? "vscode" : "jetbrains"
+			let surface: string
+			if (ideType === "cli") {
+				surface = "cli"
+			} else if (ideType === "jetbrains") {
+				surface = "jetbrains"
+			} else {
+				surface = "vscode"
+			}
 
 			// Get instance ID (hashed distinct ID)
 			const distinctId = this.getInstanceDistinctId()
@@ -484,7 +494,6 @@ export class BannerService {
 
 			Logger.log(`BannerService: Sent ${eventType} event for banner ${bannerId}`)
 		} catch (error) {
-			// Log error but don't throw - telemetry failures shouldn't break functionality
 			Logger.error(`BannerService: Error sending banner event`, error)
 		}
 	}

@@ -38,6 +38,7 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import type { AuthState } from "@/shared/proto/index.cline"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getCwd, getDesktopDir } from "@/utils/path"
+import { BannerService } from "../../services/banner/BannerService"
 import { PromptRegistry } from "../prompts/system-prompt"
 import {
 	ensureCacheDirectoryExists,
@@ -1036,15 +1037,12 @@ export class Controller {
 		return history
 	}
 
-	// Banner Service Methods
-
 	/**
 	 * Initializes the BannerService if not already initialized
 	 */
 	private async ensureBannerService() {
 		if (!this.bannerServiceInitialized) {
 			try {
-				const { BannerService } = await import("@/services/banner/BannerService")
 				if (!BannerService.isInitialized()) {
 					BannerService.initialize(this)
 				}
@@ -1062,7 +1060,6 @@ export class Controller {
 	async fetchBannersForDisplay(): Promise<any[]> {
 		try {
 			await this.ensureBannerService()
-			const { BannerService } = await import("@/services/banner/BannerService")
 			if (BannerService.isInitialized()) {
 				return await BannerService.get().getNonDismissedBanners()
 			}
@@ -1079,7 +1076,6 @@ export class Controller {
 	async dismissBanner(bannerId: string): Promise<void> {
 		try {
 			await this.ensureBannerService()
-			const { BannerService } = await import("@/services/banner/BannerService")
 			if (BannerService.isInitialized()) {
 				await BannerService.get().dismissBanner(bannerId)
 				await this.postStateToWebview()
@@ -1094,10 +1090,9 @@ export class Controller {
 	 * @param bannerId The ID of the banner
 	 * @param eventType The type of event (seen, dismiss, click)
 	 */
-	async trackBannerEvent(bannerId: string, eventType: "seen" | "dismiss" | "click"): Promise<void> {
+	async trackBannerEvent(bannerId: string, eventType: "dismiss"): Promise<void> {
 		try {
 			await this.ensureBannerService()
-			const { BannerService } = await import("@/services/banner/BannerService")
 			if (BannerService.isInitialized()) {
 				await BannerService.get().sendBannerEvent(bannerId, eventType)
 			}

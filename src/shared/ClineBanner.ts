@@ -54,7 +54,7 @@ export type BannerEventType = "dismiss"
 export interface BannerEventPayload {
 	banner_id: string
 	instance_id: string
-	surface: "vscode" | "jetbrains"
+	surface: "vscode" | "jetbrains" | "cli"
 	event_type: BannerEventType
 }
 
