@@ -99,7 +99,7 @@ func TestJSONOutputForAutomation(t *testing.T) {
 	}
 
 	// Extract address from structured data
-	data, ok := newData["result"].(map[string]interface{})
+	data, ok := newData["data"].(map[string]interface{})
 	if !ok {
 		t.Fatal("JSON should have data field")
 	}
@@ -207,7 +207,7 @@ func TestBatchProcessingMultipleCommands(t *testing.T) {
 			t.Fatalf("failed to parse instance %d: %v", i, err)
 		}
 
-		if d, ok := data["result"].(map[string]interface{}); ok {
+		if d, ok := data["data"].(map[string]interface{}); ok {
 			if addr, ok := d["address"].(string); ok {
 				addresses = append(addresses, addr)
 			}
@@ -223,7 +223,7 @@ func TestBatchProcessingMultipleCommands(t *testing.T) {
 	}
 
 	// Count instances
-	if data, ok := listData["result"].(map[string]interface{}); ok {
+	if data, ok := listData["data"].(map[string]interface{}); ok {
 		if instances, ok := data["instances"].([]interface{}); ok {
 			if len(instances) != 3 {
 				t.Errorf("expected 3 instances, got %d", len(instances))
@@ -240,7 +240,7 @@ func TestBatchProcessingMultipleCommands(t *testing.T) {
 	}
 
 	// Verify all killed
-	if data, ok := killData["result"].(map[string]interface{}); ok {
+	if data, ok := killData["data"].(map[string]interface{}); ok {
 		if killedCount, ok := data["killedCount"].(float64); ok {
 			if int(killedCount) != 3 {
 				t.Errorf("expected 3 killed, got %d", int(killedCount))

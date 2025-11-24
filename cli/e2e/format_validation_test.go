@@ -75,12 +75,12 @@ func TestJSONOutputVersion(t *testing.T) {
 	}
 
 	// Validate data fields
-	data, ok := response["result"].(map[string]interface{})
+	data, ok := response["data"].(map[string]interface{})
 	if !ok {
-		t.Fatalf("expected data to be object, got %T", response["result"])
+		t.Fatalf("expected data to be object, got %T", response["data"])
 	}
 
-	// Data is directly under "result" key (OutputJSONSuccess uses "result" for the data field)
+	// Data is directly under "data" key (OutputJSONSuccess uses "data" for the data field)
 	requiredFields := []string{"cliVersion", "coreVersion", "commit", "date", "builtBy", "goVersion", "os", "arch"}
 	for _, field := range requiredFields {
 		if _, ok := data[field]; !ok {
@@ -157,7 +157,7 @@ func TestJSONOutputInstanceList(t *testing.T) {
 		t.Errorf("expected status=success, got %v", response["status"])
 	}
 
-	data, ok := response["result"].(map[string]interface{})
+	data, ok := response["data"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("expected data to be object")
 	}
@@ -219,7 +219,7 @@ func TestJSONOutputInstanceNew(t *testing.T) {
 		t.Errorf("expected status=success, got %v", response["status"])
 	}
 
-	data, ok := response["result"].(map[string]interface{})
+	data, ok := response["data"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("expected data to be object")
 	}
@@ -260,7 +260,7 @@ func TestJSONOutputLogsPath(t *testing.T) {
 		t.Errorf("expected status=success, got %v", response["status"])
 	}
 
-	data, ok := response["result"].(map[string]interface{})
+	data, ok := response["data"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("expected data to be object")
 	}
@@ -351,7 +351,7 @@ func TestJSONOutputLogsList(t *testing.T) {
 		t.Errorf("expected status=success, got %v", response["status"])
 	}
 
-	data, ok := response["result"].(map[string]interface{})
+	data, ok := response["data"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("expected data to be object")
 	}
@@ -397,7 +397,7 @@ func TestJSONOutputConfigList(t *testing.T) {
 		t.Errorf("expected status=success, got %v", response["status"])
 	}
 
-	data, ok := response["result"].(map[string]interface{})
+	data, ok := response["data"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("expected data to be object")
 	}
@@ -555,8 +555,8 @@ func TestAllCommandsJSONValidity(t *testing.T) {
 
 			// Success responses should have data
 			if response["status"] == "success" {
-				if _, ok := response["result"]; !ok {
-					t.Error("success response missing result field")
+				if _, ok := response["data"]; !ok {
+					t.Error("success response missing data field")
 				}
 			}
 
@@ -579,7 +579,7 @@ func TestJSONOutputInstanceKill(t *testing.T) {
 	out := mustRunCLI(ctx, t, "instance", "new", "--output-format", "json")
 	var newResponse map[string]interface{}
 	json.Unmarshal([]byte(out), &newResponse)
-	data, ok := newResponse["result"].(map[string]interface{})
+	data, ok := newResponse["data"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("failed to get data from instance new response")
 	}
@@ -613,7 +613,7 @@ func TestJSONOutputInstanceDefault(t *testing.T) {
 	out := mustRunCLI(ctx, t, "instance", "new", "--output-format", "json")
 	var newResponse map[string]interface{}
 	json.Unmarshal([]byte(out), &newResponse)
-	data, ok := newResponse["result"].(map[string]interface{})
+	data, ok := newResponse["data"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("failed to get result from instance new response")
 	}
@@ -677,7 +677,7 @@ func TestJSONOutputTaskOpen(t *testing.T) {
 		var obj map[string]interface{}
 		if json.Unmarshal([]byte(line), &obj) == nil {
 			if status, ok := obj["status"].(string); ok && status == "success" {
-				if data, ok := obj["result"].(map[string]interface{}); ok {
+				if data, ok := obj["data"].(map[string]interface{}); ok {
 					taskID = data["taskId"].(string)
 					break
 				}
@@ -1015,7 +1015,7 @@ func TestRegistryTextLeakage(t *testing.T) {
 
 	// The output should ONLY contain valid JSON structure
 	// No stray text from registryLog() or registryWarning() calls
-	if data, ok := response["result"].(map[string]interface{}); ok {
+	if data, ok := response["data"].(map[string]interface{}); ok {
 		// Verify we got structured data about the kill operation
 		if _, ok := data["killedCount"]; !ok {
 			t.Error("response should include killedCount")

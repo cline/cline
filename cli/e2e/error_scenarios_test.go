@@ -304,7 +304,7 @@ func TestConcurrentErrors(t *testing.T) {
 	}
 
 	// Default should not have changed
-	if data, ok := listData["result"].(map[string]interface{}); ok {
+	if data, ok := listData["data"].(map[string]interface{}); ok {
 		if defaultInstance, ok := data["defaultInstance"].(string); ok && defaultInstance == "nonexistent:9999" {
 			t.Error("default instance should not have changed after failed update")
 		}

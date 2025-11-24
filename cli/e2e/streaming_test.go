@@ -86,7 +86,7 @@ func TestNonStreamingJSONOutput(t *testing.T) {
 	if _, ok := result["status"]; !ok {
 		t.Error("response should have status field")
 	}
-	if _, ok := result["result"]; !ok {
+	if _, ok := result["data"]; !ok {
 		t.Error("response should have data field")
 	}
 }

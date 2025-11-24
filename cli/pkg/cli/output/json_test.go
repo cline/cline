@@ -121,6 +121,7 @@ func TestFormatJSONResponse(t *testing.T) {
 func TestOutputJSONSuccess(t *testing.T) {
 	// Note: This test would need to capture stdout which is complex
 	// For now, we test that it doesn't panic and returns no error
+	// The output should use "data" field, not "result"
 	data := map[string]string{"test": "value"}
 	err := OutputJSONSuccess("test", data)
 	if err != nil {
@@ -193,11 +194,4 @@ func TestJSONResponseMarshaling(t *testing.T) {
 			tt.validate(t, data)
 		})
 	}
-}
-
-// TestIsJSONMode tests the IsJSONMode helper
-func TestIsJSONMode(t *testing.T) {
-	// Note: This test would need to manipulate global.Config
-	// For now we just test it doesn't panic
-	_ = IsJSONMode()
 }

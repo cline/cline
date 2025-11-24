@@ -81,7 +81,7 @@ func OutputCommandStatus(command, status, message string, data map[string]interf
 	}
 
 	if data != nil {
-		obj["result"] = data
+		obj["data"] = data
 	}
 
 	return OutputJSONLine(obj)
@@ -93,7 +93,7 @@ func OutputJSONSuccess(command string, data interface{}) error {
 		"type":    "command",
 		"command": command,
 		"status":  "success",
-		"result":    data,
+		"data":    data,
 	}
 	return OutputJSONLine(response)
 }
