@@ -546,6 +546,7 @@ export class Task {
 			this.setActiveHookExecution.bind(this),
 			this.clearActiveHookExecution.bind(this),
 			this.getActiveHookExecution.bind(this),
+			this.runUserPromptSubmitHook.bind(this),
 		)
 	}
 
