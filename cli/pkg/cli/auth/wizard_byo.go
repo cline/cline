@@ -552,14 +552,12 @@ func (pw *ProviderWizard) applyModelChange(provider cline.ApiProvider, modelID s
 	}
 
 	// Check if this provider supports deployment IDs by checking its ProviderFields configuration
-	if fields, err := GetProviderFields(provider); err == nil {
-		// If the provider has deployment ID fields configured, try to extract it from modelInfo
-		if fields.PlanModeDeploymentIDField != "" && fields.ActModeDeploymentIDField != "" && modelInfo != nil {
-			if modelInfoMap, ok := modelInfo.(map[string]interface{}); ok {
-				if deploymentID, exists := modelInfoMap["deploymentId"]; exists {
-					if deploymentIDStr, ok := deploymentID.(string); ok && deploymentIDStr != "" {
-						updates.DeploymentID = &deploymentIDStr
-					}
+	fields, err := GetProviderFields(provider)
+	if err == nil && fields.PlanModeDeploymentIDField != "" && fields.ActModeDeploymentIDField != "" && modelInfo != nil {
+		if modelInfoMap, ok := modelInfo.(map[string]interface{}); ok {
+			if deploymentID, exists := modelInfoMap["deploymentId"]; exists {
+				if deploymentIDStr, ok := deploymentID.(string); ok && deploymentIDStr != "" {
+					updates.DeploymentID = &deploymentIDStr
 				}
 			}
 		}
