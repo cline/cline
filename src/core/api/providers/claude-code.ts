@@ -48,6 +48,7 @@ export class ClaudeCodeHandler implements ApiHandler {
 		}
 
 		let isPaidUsage = true
+		let didReceiveStreamEvents = false
 
 		for await (const chunk of claudeProcess) {
 			if (typeof chunk === "string") {
@@ -67,6 +68,7 @@ export class ClaudeCodeHandler implements ApiHandler {
 
 			// Handle streaming events from --include-partial-messages flag
 			if (chunk.type === "stream_event" && "event" in chunk) {
+				didReceiveStreamEvents = true
 				const event = chunk.event
 
 				switch (event.type) {
@@ -174,6 +176,10 @@ export class ClaudeCodeHandler implements ApiHandler {
 
 			// Keep backward compatibility with older Claude CLI versions that don't support --include-partial-messages
 			if (chunk.type === "assistant" && "message" in chunk) {
+				if (didReceiveStreamEvents) {
+					continue
+				}
+
 				const message = chunk.message
 
 				if (message.stop_reason !== null) {
