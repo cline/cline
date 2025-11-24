@@ -19,6 +19,7 @@ import { GroqHandler } from "./providers/groq"
 import { HicapHandler } from "./providers/hicap"
 import { HuaweiCloudMaaSHandler } from "./providers/huawei-cloud-maas"
 import { HuggingFaceHandler } from "./providers/huggingface"
+import { IoIntelligenceHandler } from "./providers/iointelligence"
 import { LiteLlmHandler } from "./providers/litellm"
 import { LmStudioHandler } from "./providers/lmstudio"
 import { MinimaxHandler } from "./providers/minimax"
@@ -424,6 +425,15 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				nousResearchApiKey: options.nousResearchApiKey,
 				apiModelId: mode === "plan" ? options.planModeNousResearchModelId : options.actModeNousResearchModelId,
+			})
+		case "iointelligence":
+			return new IoIntelligenceHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				ioIntelligenceApiKey: options.ioIntelligenceApiKey,
+				ioIntelligenceBaseUrl: options.ioIntelligenceBaseUrl,
+				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				openAiModelInfo: mode === "plan" ? options.planModeOpenAiModelInfo : options.actModeOpenAiModelInfo,
+				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
 			})
 		default:
 			return new AnthropicHandler({

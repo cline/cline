@@ -403,6 +403,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "minimax"
 		case ProtoApiProvider.NOUSRESEARCH:
 			return "nousResearch"
+		case ProtoApiProvider.IOINTELLIGENCE:
+			return "iointelligence"
 		default:
 			return "anthropic"
 	}
@@ -494,6 +496,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		aihubmixAppCode: config.aihubmixAppCode,
 		hicapApiKey: config.hicapApiKey,
 		hicapModelId: config.hicapModelId,
+		ioIntelligenceApiKey: config.ioIntelligenceApiKey,
+		ioIntelligenceBaseUrl: config.ioIntelligenceBaseUrl,
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider ? convertApiProviderToProto(config.planModeApiProvider) : undefined,
@@ -661,6 +665,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		hicapApiKey: protoConfig.hicapApiKey,
 		hicapModelId: protoConfig.hicapModelId,
 		nousResearchApiKey: protoConfig.nousResearchApiKey,
+		ioIntelligenceApiKey: protoConfig.ioIntelligenceApiKey,
+		ioIntelligenceBaseUrl: protoConfig.ioIntelligenceBaseUrl,
 
 		// Plan mode configurations
 		planModeApiProvider:
