@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.38.2]
+
+- Add Claude Opus 4.5
+
 ## [3.38.1]
 
 ### Fixed
