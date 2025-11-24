@@ -444,74 +444,74 @@ func GetSapAiCoreModelsWithMerging(ctx context.Context, manager *task.Manager,
 
 		return staticModels, nil, nil
 
-	} else {
-		// In non-orchestration mode: fetch deployments dynamically and merge with static models
-		// Fetch dynamic deployments
-		dynamicModels, _, err := FetchSapAiCoreModels(
-			ctx, manager,
-			clientID,
-			clientSecret,
-			baseURL,
-			tokenURL,
-			resourceGroup,
-		)
-
-		// Fetch static models
-		staticModelIDs, _, staticErr := FetchStaticModels(cline.ApiProvider_SAPAICORE)
-		if staticErr != nil {
-			return nil, nil, fmt.Errorf("failed to get static models: %w", staticErr)
-		}
-
-		// Merge: Add static models that aren't already in the dynamic list
-		mergedModels := dynamicModels
-		if err == nil && len(dynamicModels) > 0 {
-			// Create a map of existing model names for quick lookup
-			existingModelNames := make(map[string]bool)
-			for _, deployment := range dynamicModels {
-				existingModelNames[deployment.ModelName] = true
-			}
-
-			// Add static models that don't exist in dynamic deployments
-			for _, staticModelID := range staticModelIDs {
-				if !existingModelNames[staticModelID] {
-					mergedModels = append(mergedModels, SapAiCoreDeployment{
-						ModelName:    staticModelID,
-						DeploymentID: "", // No deployment ID for static models
-						DisplayName:  staticModelID,
-					})
-				}
-			}
-		} else {
-			// If fetching failed or returned no results, use static models only
-			renderer := display.NewRenderer("auto")
-
-			if err != nil {
-				warningMsg := "⚠️  Unable to fetch models from SAP AI Core."
-				errorMsg := fmt.Sprintf("Error: %s", err.Error())
-				fallbackMsg := "Using default model list instead."
-				fmt.Printf("\n%s\n", renderer.Yellow(renderer.Bold(warningMsg)))
-				fmt.Printf("%s\n", renderer.Red(errorMsg))
-				fmt.Printf("%s\n\n", renderer.Dim(fallbackMsg))
-			} else {
-				warningMsg := "⚠️  No running deployments found in SAP AI Core.\nThis is probably due to a misconfiguration."
-				fallbackMsg := "Using default model list instead"
-				fmt.Printf("\n%s\n", renderer.Red(renderer.Bold(warningMsg)))
-				fmt.Printf("%s\n\n", renderer.Dim(fallbackMsg))
-			}
-
-			// Convert static model IDs to deployment structure
-			mergedModels = make([]SapAiCoreDeployment, len(staticModelIDs))
-			for i, modelID := range staticModelIDs {
-				mergedModels[i] = SapAiCoreDeployment{
-					ModelName:    modelID,
-					DeploymentID: "",
-					DisplayName:  modelID,
-				}
-			}
-		}
-
-		return nil, mergedModels, nil
 	}
+
+	// In non-orchestration mode: fetch deployments dynamically and merge with static models
+	// Fetch dynamic deployments
+	dynamicModels, _, err := FetchSapAiCoreModels(
+		ctx, manager,
+		clientID,
+		clientSecret,
+		baseURL,
+		tokenURL,
+		resourceGroup,
+	)
+
+	// Fetch static models
+	staticModelIDs, _, staticErr := FetchStaticModels(cline.ApiProvider_SAPAICORE)
+	if staticErr != nil {
+		return nil, nil, fmt.Errorf("failed to get static models: %w", staticErr)
+	}
+
+	// Merge: Add static models that aren't already in the dynamic list
+	mergedModels := dynamicModels
+	if err == nil && len(dynamicModels) > 0 {
+		// Create a map of existing model names for quick lookup
+		existingModelNames := make(map[string]bool)
+		for _, deployment := range dynamicModels {
+			existingModelNames[deployment.ModelName] = true
+		}
+
+		// Add static models that don't exist in dynamic deployments
+		for _, staticModelID := range staticModelIDs {
+			if !existingModelNames[staticModelID] {
+				mergedModels = append(mergedModels, SapAiCoreDeployment{
+					ModelName:    staticModelID,
+					DeploymentID: "", // No deployment ID for static models
+					DisplayName:  staticModelID,
+				})
+			}
+		}
+	} else {
+		// If fetching failed or returned no results, use static models only
+		renderer := display.NewRenderer("auto")
+
+		if err != nil {
+			warningMsg := "⚠️  Unable to fetch models from SAP AI Core."
+			errorMsg := fmt.Sprintf("Error: %s", err.Error())
+			fallbackMsg := "Using default model list instead."
+			fmt.Printf("\n%s\n", renderer.Yellow(renderer.Bold(warningMsg)))
+			fmt.Printf("%s\n", renderer.Red(errorMsg))
+			fmt.Printf("%s\n\n", renderer.Dim(fallbackMsg))
+		} else {
+			warningMsg := "⚠️  No running deployments found in SAP AI Core.\nThis is probably due to a misconfiguration."
+			fallbackMsg := "Using default model list instead"
+			fmt.Printf("\n%s\n", renderer.Red(renderer.Bold(warningMsg)))
+			fmt.Printf("%s\n\n", renderer.Dim(fallbackMsg))
+		}
+
+		// Convert static model IDs to deployment structure
+		mergedModels = make([]SapAiCoreDeployment, len(staticModelIDs))
+		for i, modelID := range staticModelIDs {
+			mergedModels[i] = SapAiCoreDeployment{
+				ModelName:    modelID,
+				DeploymentID: "",
+				DisplayName:  modelID,
+			}
+		}
+	}
+
+	return nil, mergedModels, nil
 }
 
 // SetupSapAiCoreWithDynamicModels sets up SAP AI Core with dynamic model fetching
