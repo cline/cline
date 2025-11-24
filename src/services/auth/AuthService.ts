@@ -7,7 +7,9 @@ import { setWelcomeViewCompleted } from "@/core/controller/state/setWelcomeViewC
 import { HostProvider } from "@/hosts/host-provider"
 import { telemetryService } from "@/services/telemetry"
 import { openExternal } from "@/utils/env"
+import { AuthInvalidTokenError, AuthNetworkError } from "../error/ClineError"
 import { featureFlagsService } from "../feature-flags"
+import { Logger } from "../logging/Logger"
 import { ClineAuthProvider } from "./providers/ClineAuthProvider"
 import { IAuthProvider } from "./providers/IAuthProvider"
 import { LogoutReason } from "./types"
@@ -148,30 +150,37 @@ export class AuthService {
 			}
 
 			// Check if token has expired
+
 			if (await provider.shouldRefreshIdToken(clineAccountAuthToken, this._clineAuthInfo.expiresAt)) {
-				const updatedAuthInfo = await provider.retrieveClineAuthInfo(this._controller)
-				if (updatedAuthInfo) {
-					this._clineAuthInfo = updatedAuthInfo
-					this._authenticated = true
-					clineAccountAuthToken = updatedAuthInfo.idToken
-				} else if (this.shouldClearAuthInfo(provider)) {
-					this._clineAuthInfo = null
-					this._authenticated = false
-					telemetryService.captureAuthLoggedOut(this._provider?.name, LogoutReason.ERROR_RECOVERY)
+				try {
+					const updatedAuthInfo = await provider.retrieveClineAuthInfo(this._controller)
+					if (updatedAuthInfo) {
+						this._clineAuthInfo = updatedAuthInfo
+						this._authenticated = true
+						clineAccountAuthToken = updatedAuthInfo.idToken
+					}
+				} catch (error) {
+					// Only log out for permanent auth failures, not network issues
+					if (error instanceof AuthInvalidTokenError) {
+						Logger.error("Token is invalid or expired:", error)
+						this._clineAuthInfo = null
+						this._authenticated = false
+						telemetryService.captureAuthLoggedOut(this._provider?.name, LogoutReason.ERROR_RECOVERY)
+					} else if (error instanceof AuthNetworkError) {
+						Logger.error("Network error refreshing token", error)
+						// Keep existing auth info, will retry on next getAuthToken() call
+					} else {
+						throw error // Re-throw unexpected errors
+					}
 				}
 				await this.sendAuthStatusUpdate()
 			}
 
-			// IMPORTANT: Prefix with 'workos:' so backend can route verification to WorkOS provider
 			return clineAccountAuthToken ? `workos:${clineAccountAuthToken}` : null
 		} catch (error) {
-			console.error("Error getting auth token:", error)
+			Logger.error("Error getting auth token:", error)
 			return null
 		}
-	}
-
-	private shouldClearAuthInfo(provider: IAuthProvider) {
-		return this._clineAuthInfo?.provider === provider.name
 	}
 
 	protected _initProvider(): void {
