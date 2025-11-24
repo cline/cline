@@ -2050,6 +2050,127 @@ export class Task {
 	private async handleContextWindowExceededError(): Promise<void> {
 		const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 
+		// Run PreCompact hook before truncation
+		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
+		if (hooksEnabled) {
+			try {
+				const { executeHook } = await import("../hooks/hook-executor")
+
+				const contextSize = apiConversationHistory.length
+
+				// Extract token usage from the most recent API request
+				const clineMessages = this.messageStateHandler.getClineMessages()
+				const previousApiReqIndex = findLastIndex(clineMessages, (m) => m.say === "api_req_started")
+
+				let tokensIn = 0
+				let tokensOut = 0
+				let tokensInCache = 0
+				let tokensOutCache = 0
+
+				if (previousApiReqIndex !== -1) {
+					const previousRequest = clineMessages[previousApiReqIndex]
+					if (previousRequest?.text) {
+						try {
+							const apiReqInfo = JSON.parse(previousRequest.text)
+							tokensIn = apiReqInfo.tokensIn || 0
+							tokensOut = apiReqInfo.tokensOut || 0
+							tokensInCache = apiReqInfo.cacheWrites || 0
+							tokensOutCache = apiReqInfo.cacheReads || 0
+						} catch (error) {
+							console.error("[PreCompact] Failed to parse previous API request info:", error)
+						}
+					}
+				}
+
+				// Calculate what the new deleted range will be
+				const newDeletedRange = this.contextManager.getNextTruncationRange(
+					apiConversationHistory,
+					this.taskState.conversationHistoryDeletedRange,
+					"quarter", // Force aggressive truncation on error
+				)
+
+				let deletedRangeStart = 0
+				let deletedRangeEnd = 0
+				if (newDeletedRange) {
+					;[deletedRangeStart, deletedRangeEnd] = newDeletedRange
+				}
+
+				// Strategy is standard-truncation-quarter for context window errors
+				const strategy = "standard-truncation-quarter"
+
+				const preCompactResult = await executeHook({
+					hookName: "PreCompact",
+					hookInput: {
+						preCompact: {
+							taskId: this.taskId,
+							ulid: this.ulid,
+							contextSize: contextSize,
+							compactionStrategy: strategy,
+							previousApiReqIndex: previousApiReqIndex,
+							tokensIn: tokensIn,
+							tokensOut: tokensOut,
+							tokensInCache: tokensInCache,
+							tokensOutCache: tokensOutCache,
+							deletedRangeStart: deletedRangeStart,
+							deletedRangeEnd: deletedRangeEnd,
+						},
+					},
+					isCancellable: true,
+					say: this.say.bind(this),
+					setActiveHookExecution: this.setActiveHookExecution.bind(this),
+					clearActiveHookExecution: this.clearActiveHookExecution.bind(this),
+					messageStateHandler: this.messageStateHandler,
+					taskId: this.taskId,
+					hooksEnabled,
+				})
+
+				// Handle cancellation from hook
+				if (preCompactResult.cancel === true) {
+					// Provide feedback based on cancellation source
+					if (preCompactResult.wasCancelled) {
+						await this.say("text", "⚠️ Context compaction was cancelled by user. Aborting task...")
+					} else {
+						await this.say("text", "⚠️ Context compaction was cancelled by the PreCompact hook. Aborting task...")
+					}
+
+					// Save state before cancelling (required for proper task resumption)
+					this.taskState.didFinishAbortingStream = true
+					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+					await this.messageStateHandler.overwriteApiConversationHistory(
+						this.messageStateHandler.getApiConversationHistory(),
+					)
+					await this.postStateToWebview()
+
+					// Trigger full cancellation flow (shows Resume Task button)
+					await this.cancelTask()
+
+					// Don't continue with truncation - throw to exit the attempt flow
+					throw new Error("Context compaction cancelled by hook")
+				}
+
+				// Hook completed successfully
+				if (preCompactResult.contextModification) {
+					console.log(`[PreCompact] Hook provided context modification for task ${this.taskId}`)
+					// Context modification will be handled by the retry mechanism
+				}
+			} catch (error) {
+				// If this is the cancellation error we threw above, re-throw it
+				if (error instanceof Error && error.message === "Context compaction cancelled by hook") {
+					throw error
+				}
+
+				// Graceful degradation: Log error but continue with truncation
+				console.error("[PreCompact] Hook execution failed:", error)
+
+				// Notify user but don't block truncation
+				await this.say(
+					"text",
+					"⚠️ PreCompact hook encountered an error but context truncation will proceed. Check logs for details.",
+				)
+			}
+		}
+
+		// Proceed with standard truncation
 		this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
 			apiConversationHistory,
 			this.taskState.conversationHistoryDeletedRange,
