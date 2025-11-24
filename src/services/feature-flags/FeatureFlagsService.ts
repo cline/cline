@@ -152,20 +152,6 @@ export class FeatureFlagsService {
 	}
 
 	/**
-	 * Reset the feature flags cache
-	 * Should run on user auth state changes to ensure flags are up-to-date
-	 */
-	public reset(userId?: string): void {
-		// Skip known user ID to avoid redundant resets
-		if (userId && this.cacheInfo.userId === userId) {
-			return
-		}
-		// Invalidate cache by resetting timestamp, but keep existing values
-		// until poll() repopulates them. This prevents empty cache during auth transitions.
-		this.cacheInfo = { updateTime: 0, userId: userId || null }
-	}
-
-	/**
 	 * For testing: directly set a feature flag in the cache
 	 */
 	public test(flagName: FeatureFlag, value: boolean) {
