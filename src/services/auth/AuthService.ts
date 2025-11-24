@@ -395,9 +395,12 @@ export class AuthService {
 			telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
 			// Reset feature flags to ensure they are fetched for the new/logged in user
 			featureFlagsService.reset(this._clineAuthInfo?.userInfo?.id)
+			// Poll feature flags immediately for authenticated users to ensure cache is populated
+			await featureFlagsService.poll(this._clineAuthInfo?.userInfo?.id)
+		} else {
+			// Poll feature flags for unauthenticated state
+			await featureFlagsService.poll(undefined)
 		}
-		// Poll feature flags to ensure they are up to date for all users
-		await featureFlagsService.poll(this._clineAuthInfo?.userInfo?.id)
 
 		// Update state in webviews once per unique controller
 		await Promise.all(Array.from(uniqueControllers).map((c) => c.postStateToWebview()))

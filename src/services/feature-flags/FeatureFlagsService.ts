@@ -38,12 +38,14 @@ export class FeatureFlagsService {
 				return
 			}
 		}
-		this.cacheInfo = { updateTime: timesNow, userId: userId || null }
 
 		for (const flag of FEATURE_FLAGS) {
 			const payload = await this.getFeatureFlag(flag).catch(() => false)
 			this.cache.set(flag, payload ?? false)
 		}
+
+		// Only update timestamp after successfully populating cache
+		this.cacheInfo = { updateTime: timesNow, userId: userId || null }
 
 		getClineOnboardingModels() // Refresh onboarding models cache if relevant flag changed
 	}
@@ -158,8 +160,9 @@ export class FeatureFlagsService {
 		if (userId && this.cacheInfo.userId === userId) {
 			return
 		}
+		// Invalidate cache by resetting timestamp, but keep existing values
+		// until poll() repopulates them. This prevents empty cache during auth transitions.
 		this.cacheInfo = { updateTime: 0, userId: userId || null }
-		this.cache.clear()
 	}
 
 	/**
