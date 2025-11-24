@@ -172,6 +172,39 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 
 		await config.callbacks.say("user_feedback", text ?? "", images, completionFiles)
 
+		// Run UserPromptSubmit hook when user provides post-completion feedback
+		let hookContextModification: string | undefined
+		if (text || (images && images.length > 0) || (completionFiles && completionFiles.length > 0)) {
+			const userContentForHook: any[] = []
+			if (text) {
+				userContentForHook.push({
+					type: "text",
+					text: `<feedback>\n${text}\n</feedback>`,
+				})
+			}
+			if (images && images.length > 0) {
+				userContentForHook.push(...formatResponse.imageBlocks(images))
+			}
+			if (completionFiles && completionFiles.length > 0) {
+				const fileContentString = await processFilesIntoText(completionFiles)
+				if (fileContentString) {
+					userContentForHook.push({
+						type: "text",
+						text: fileContentString,
+					})
+				}
+			}
+
+			const hookResult = await config.callbacks.runUserPromptSubmitHook(userContentForHook, "feedback")
+
+			if (hookResult.cancel === true) {
+				return formatResponse.toolDenied()
+			}
+
+			// Capture hook context modification to add to tool results
+			hookContextModification = hookResult.contextModification
+		}
+
 		const toolResults: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = []
 		if (commandResult) {
 			if (typeof commandResult === "string") {
@@ -195,6 +228,14 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 					text: `<feedback>\n${text}\n</feedback>`,
 				},
 			)
+		}
+
+		// Add hook context modification if provided
+		if (hookContextModification) {
+			toolResults.push({
+				type: "text" as const,
+				text: `<hook_context source="UserPromptSubmit">\n${hookContextModification}\n</hook_context>`,
+			})
 		}
 
 		const fileContentString = completionFiles?.length ? await processFilesIntoText(completionFiles) : ""

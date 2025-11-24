@@ -122,6 +122,12 @@ export interface TaskCallbacks {
 	setActiveHookExecution: (hookExecution: HookExecution) => Promise<void>
 	clearActiveHookExecution: () => Promise<void>
 	getActiveHookExecution: () => Promise<HookExecution | undefined>
+
+	// User prompt hook callback
+	runUserPromptSubmitHook: (
+		userContent: any[],
+		context: "initial_task" | "resume" | "feedback",
+	) => Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }>
 }
 
 /**
