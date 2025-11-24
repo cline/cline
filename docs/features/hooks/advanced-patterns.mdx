@@ -317,7 +317,7 @@ if [[ "$is_correction" == true ]]; then
   jq --argjson new_entry "$correction_entry" '. += [$new_entry]' "$corrections_file" > "${corrections_file}.tmp" && mv "${corrections_file}.tmp" "$corrections_file"
   
   # Keep only last 100 corrections
-  jq '.[−100:]' "$corrections_file" > "${corrections_file}.tmp" && mv "${corrections_file}.tmp" "$corrections_file"
+  jq '.[-100:]' "$corrections_file" > "${corrections_file}.tmp" && mv "${corrections_file}.tmp" "$corrections_file"
   
   # Generate learned context
   context="LEARNING: User correction detected. This feedback helps improve future suggestions for this project type."
