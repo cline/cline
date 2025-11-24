@@ -69,6 +69,7 @@ export class AuthService {
 	protected _activeAuthStatusUpdateHandlers = new Set<StreamingResponseHandler<AuthState>>()
 	protected _handlerToController = new Map<StreamingResponseHandler<AuthState>, Controller>()
 	protected _controller: Controller
+	protected _isRefreshing: boolean = false
 
 	/**
 	 * Creates an instance of AuthService.
@@ -152,12 +153,22 @@ export class AuthService {
 			// Check if token has expired
 
 			if (await provider.shouldRefreshIdToken(clineAccountAuthToken, this._clineAuthInfo.expiresAt)) {
+				// Prevent concurrent refresh attempts
+				if (this._isRefreshing) {
+					Logger.info("Token refresh already in progress, using existing token")
+					return clineAccountAuthToken ? `workos:${clineAccountAuthToken}` : null
+				}
+
+				this._isRefreshing = true
+				let authStatusChanged = false
+
 				try {
 					const updatedAuthInfo = await provider.retrieveClineAuthInfo(this._controller)
 					if (updatedAuthInfo) {
 						this._clineAuthInfo = updatedAuthInfo
 						this._authenticated = true
 						clineAccountAuthToken = updatedAuthInfo.idToken
+						authStatusChanged = true
 					}
 				} catch (error) {
 					// Only log out for permanent auth failures, not network issues
@@ -166,14 +177,25 @@ export class AuthService {
 						this._clineAuthInfo = null
 						this._authenticated = false
 						telemetryService.captureAuthLoggedOut(this._provider?.name, LogoutReason.ERROR_RECOVERY)
+						authStatusChanged = true
 					} else if (error instanceof AuthNetworkError) {
 						Logger.error("Network error refreshing token", error)
 						// Keep existing auth info, will retry on next getAuthToken() call
 					} else {
 						throw error // Re-throw unexpected errors
 					}
+				} finally {
+					this._isRefreshing = false
 				}
-				await this.sendAuthStatusUpdate()
+
+				// Defer auth status update to avoid infinite loop
+				if (authStatusChanged) {
+					setImmediate(() => {
+						this.sendAuthStatusUpdate().catch((error) => {
+							Logger.error("Error sending auth status update after token refresh:", error)
+						})
+					})
+				}
 			}
 
 			return clineAccountAuthToken ? `workos:${clineAccountAuthToken}` : null
