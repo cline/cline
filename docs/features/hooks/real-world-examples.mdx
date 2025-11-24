@@ -1,0 +1,744 @@
+---
+title: "Real-World Examples"
+sidebarTitle: "Real-World Examples"
+description: "Practical examples and complete working scripts for common hook use cases"
+---
+
+This page provides complete, production-ready hook examples that you can use immediately in your projects. Each example includes the full script, explanation, and variations for different scenarios.
+
+## Code Quality Enforcement
+
+### TypeScript-only Project Hook
+
+Prevent creation of JavaScript files in TypeScript projects and enforce proper file extensions.
+
+**Hook:** `PreToolUse`
+
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+# Extract tool information
+tool_name=$(echo "$input" | jq -r '.preToolUse.toolName')
+
+# Only process file creation/modification tools
+if [[ "$tool_name" != "write_to_file" && "$tool_name" != "replace_in_file" ]]; then
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+# Check if this is a TypeScript project
+if [[ ! -f "tsconfig.json" ]]; then
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+# Get the file path
+file_path=$(echo "$input" | jq -r '.preToolUse.parameters.path // empty')
+
+if [[ -z "$file_path" ]]; then
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+# Block .js files in TypeScript projects
+if [[ "$file_path" == *.js ]]; then
+  echo '{"cancel": true, "errorMessage": "JavaScript files (.js) are not allowed in TypeScript projects. Use .ts extension instead."}'
+  exit 0
+fi
+
+# Block .jsx files, suggest .tsx
+if [[ "$file_path" == *.jsx ]]; then
+  echo '{"cancel": true, "errorMessage": "JSX files (.jsx) are not allowed in TypeScript projects. Use .tsx extension instead."}'
+  exit 0
+fi
+
+# Suggest better patterns for certain files
+context=""
+if [[ "$file_path" == *"component"* ]] && [[ "$file_path" != *.tsx ]]; then
+  context="CODING_STANDARDS: React components should use .tsx extension and follow functional component patterns with proper TypeScript interfaces."
+elif [[ "$file_path" == *"test"* ]] || [[ "$file_path" == *"spec"* ]]; then
+  context="CODING_STANDARDS: Test files should include comprehensive type checking and use jest-dom matchers for better assertions."
+fi
+
+if [[ -n "$context" ]]; then
+  jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
+else
+  echo '{"cancel": false}'
+fi
+```
+
+### Linting Integration Hook
+
+Run linters before file modifications and provide immediate feedback.
+
+**Hook:** `PreToolUse`
+
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+tool_name=$(echo "$input" | jq -r '.preToolUse.toolName')
+
+# Only lint file write operations
+if [[ "$tool_name" != "write_to_file" ]]; then
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+file_path=$(echo "$input" | jq -r '.preToolUse.parameters.path // empty')
+
+# Skip non-code files
+if [[ ! "$file_path" =~ \.(ts|tsx|js|jsx|py|rs)$ ]]; then
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+# Get file content from the tool parameters  
+content=$(echo "$input" | jq -r '.preToolUse.parameters.content // empty')
+
+if [[ -z "$content" ]]; then
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+# Create temporary file for linting
+temp_file=$(mktemp)
+echo "$content" > "$temp_file"
+
+# Run appropriate linter based on file extension
+lint_errors=""
+if [[ "$file_path" =~ \.(ts|tsx)$ ]] && command -v eslint > /dev/null; then
+  lint_output=$(eslint "$temp_file" --format=json 2>/dev/null || true)
+  if [[ "$lint_output" != "[]" ]] && [[ -n "$lint_output" ]]; then
+    error_count=$(echo "$lint_output" | jq '.[0].errorCount // 0')
+    if (( error_count > 0 )); then
+      messages=$(echo "$lint_output" | jq -r '.[0].messages[] | "\(.line):\(.column) \(.message)"')
+      lint_errors="ESLint errors found:\n$messages"
+    fi
+  fi
+elif [[ "$file_path" =~ \.py$ ]] && command -v flake8 > /dev/null; then
+  lint_output=$(flake8 "$temp_file" 2>/dev/null || true)
+  if [[ -n "$lint_output" ]]; then
+    lint_errors="Flake8 errors found:\n$lint_output"
+  fi
+fi
+
+# Cleanup
+rm -f "$temp_file"
+
+# Block if linting errors found
+if [[ -n "$lint_errors" ]]; then
+  error_message="Code quality check failed. Please fix these issues:\n\n$lint_errors"
+  jq -n --arg msg "$error_message" '{"cancel": true, "errorMessage": $msg}'
+else
+  echo '{"cancel": false}'
+fi
+```
+
+## Security Enforcement
+
+### Secrets Detection Hook
+
+Prevent accidental commit of API keys, passwords, and other sensitive data.
+
+**Hook:** `PreToolUse`
+
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+tool_name=$(echo "$input" | jq -r '.preToolUse.toolName')
+
+# Only check file operations
+if [[ "$tool_name" != "write_to_file" ]]; then
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+content=$(echo "$input" | jq -r '.preToolUse.parameters.content // empty')
+file_path=$(echo "$input" | jq -r '.preToolUse.parameters.path // empty')
+
+# Skip if no content
+if [[ -z "$content" ]]; then
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+# Define secret patterns
+declare -a patterns=(
+  "(?i)(api[_-]?key|apikey)\s*[:=]\s*['\"][a-zA-Z0-9_-]{10,}['\"]"
+  "(?i)(secret|password|pwd)\s*[:=]\s*['\"][^'\"]{8,}['\"]"
+  "(?i)token\s*[:=]\s*['\"][a-zA-Z0-9_-]{10,}['\"]"
+  "(?i)(aws[_-]?access[_-]?key[_-]?id)\s*[:=]\s*['\"][A-Z0-9]{20}['\"]"
+  "(?i)(aws[_-]?secret[_-]?access[_-]?key)\s*[:=]\s*['\"][a-zA-Z0-9+/]{40}['\"]"
+  "sk-[a-zA-Z0-9]{20,50}"  # OpenAI API keys
+  "ghp_[a-zA-Z0-9]{36}"    # GitHub personal access tokens
+)
+
+# Check for secrets
+secrets_found=""
+for pattern in "${patterns[@]}"; do
+  if echo "$content" | grep -qP "$pattern"; then
+    match=$(echo "$content" | grep -oP "$pattern" | head -1)
+    secrets_found+="- Potential secret detected: ${match:0:20}...\n"
+  fi
+done
+
+# Check for hardcoded private keys
+if echo "$content" | grep -q "BEGIN.*PRIVATE KEY"; then
+  secrets_found+="- Private key detected\n"
+fi
+
+# Allow secrets in certain safe files
+safe_patterns=("\.env\.example$" "\.env\.template$" "/docs/" "/examples/" "\.md$")
+is_safe_file=false
+for safe_pattern in "${safe_patterns[@]}"; do
+  if [[ "$file_path" =~ $safe_pattern ]]; then
+    is_safe_file=true
+    break
+  fi
+done
+
+if [[ -n "$secrets_found" ]] && [[ "$is_safe_file" == false ]]; then
+  error_message="🔒 SECURITY ALERT: Potential secrets detected in $file_path
+
+$secrets_found
+Please:
+1. Use environment variables instead: process.env.API_KEY
+2. Add sensitive files to .gitignore
+3. Use a secrets management service
+4. Consider using .env.example for documentation"
+
+  jq -n --arg msg "$error_message" '{"cancel": true, "errorMessage": $msg}'
+else
+  echo '{"cancel": false}'
+fi
+```
+
+### File Access Auditing Hook
+
+Track and log all file access for compliance and security monitoring.
+
+**Hook:** `PostToolUse`
+
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+tool_name=$(echo "$input" | jq -r '.postToolUse.toolName')
+success=$(echo "$input" | jq -r '.postToolUse.success')
+timestamp=$(echo "$input" | jq -r '.timestamp')
+task_id=$(echo "$input" | jq -r '.taskId')
+user_id=$(echo "$input" | jq -r '.userId')
+
+# Only log file operations
+case "$tool_name" in
+  "read_file"|"write_to_file"|"replace_in_file"|"list_files")
+    ;;
+  *)
+    echo '{"cancel": false}'
+    exit 0
+    ;;
+esac
+
+# Extract file path
+file_path=""
+case "$tool_name" in
+  "read_file"|"write_to_file"|"replace_in_file")
+    file_path=$(echo "$input" | jq -r '.postToolUse.parameters.path // "unknown"')
+    ;;
+  "list_files")
+    file_path=$(echo "$input" | jq -r '.postToolUse.parameters.path // "unknown"')
+    ;;
+esac
+
+# Create audit log directory
+audit_dir="$HOME/.cline_audit"
+mkdir -p "$audit_dir"
+
+# Log to daily audit file
+audit_file="$audit_dir/$(date +%Y-%m-%d).log"
+
+# Create detailed log entry
+log_entry=$(jq -n \
+  --arg timestamp "$timestamp" \
+  --arg task_id "$task_id" \
+  --arg user_id "$user_id" \
+  --arg tool "$tool_name" \
+  --arg path "$file_path" \
+  --arg success "$success" \
+  '{
+    timestamp: $timestamp,
+    task_id: $task_id, 
+    user_id: $user_id,
+    operation: $tool,
+    file_path: $path,
+    success: ($success == "true"),
+    workspace: env.PWD
+  }')
+
+echo "$log_entry" >> "$audit_file"
+
+# Alert on sensitive file access
+sensitive_patterns=("\.env$" "\.key$" "\.pem$" "\.p12$" "config/" "secrets/")
+is_sensitive=false
+for pattern in "${sensitive_patterns[@]}"; do
+  if [[ "$file_path" =~ $pattern ]]; then
+    is_sensitive=true
+    break
+  fi
+done
+
+if [[ "$is_sensitive" == true ]]; then
+  context="SECURITY_AUDIT: Sensitive file accessed: $file_path. This operation has been logged for compliance."
+  jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
+else
+  echo '{"cancel": false}'
+fi
+```
+
+## Development Workflow Integration
+
+### Git Integration Hook
+
+Automatically create meaningful commit messages and enforce branch naming conventions.
+
+**Hook:** `PostToolUse`
+
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+tool_name=$(echo "$input" | jq -r '.postToolUse.toolName')
+success=$(echo "$input" | jq -r '.postToolUse.success')
+
+# Only process successful file modifications
+if [[ "$success" != "true" ]] || [[ "$tool_name" != "write_to_file" && "$tool_name" != "replace_in_file" ]]; then
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+# Check if we're in a git repository
+if ! git rev-parse --git-dir > /dev/null 2>&1; then
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+file_path=$(echo "$input" | jq -r '.postToolUse.parameters.path // empty')
+
+# Skip if no file path
+if [[ -z "$file_path" ]]; then
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+# Check current branch
+current_branch=$(git branch --show-current 2>/dev/null || echo "main")
+
+# Suggest better branch naming for certain patterns
+context=""
+if [[ "$file_path" == *"component"* ]] && [[ "$current_branch" == "main" || "$current_branch" == "master" ]]; then
+  context="GIT_WORKFLOW: Consider creating a feature branch for component changes: git checkout -b feature/add-${file_path##*/}"
+elif [[ "$file_path" == *"test"* ]] || [[ "$file_path" == *"spec"* ]]; then
+  if [[ "$current_branch" == "main" || "$current_branch" == "master" ]]; then
+    context="GIT_WORKFLOW: Consider creating a test branch: git checkout -b test/add-${file_path##*/}-tests"
+  fi
+elif [[ "$file_path" == *"fix"* ]] || [[ "$file_path" == *"bug"* ]]; then
+  if [[ "$current_branch" == "main" || "$current_branch" == "master" ]]; then
+    context="GIT_WORKFLOW: Consider creating a bugfix branch: git checkout -b bugfix/fix-issue-description"
+  fi
+fi
+
+# Stage the file automatically (optional - remove if you prefer manual staging)
+# git add "$file_path" 2>/dev/null || true
+
+# Add context about staging
+if [[ -n "$context" ]]; then
+  context="$context After your changes are complete, use 'git add $file_path' to stage for commit."
+else
+  context="GIT_WORKFLOW: File modified: $file_path. Use 'git add $file_path' to stage when ready to commit."
+fi
+
+jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
+```
+
+### CI/CD Trigger Hook
+
+Notify CI/CD systems and trigger builds when certain files are modified.
+
+**Hook:** `PostToolUse`
+
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+tool_name=$(echo "$input" | jq -r '.postToolUse.toolName')
+success=$(echo "$input" | jq -r '.postToolUse.success')
+
+# Only process successful file operations
+if [[ "$success" != "true" ]] || [[ "$tool_name" != "write_to_file" && "$tool_name" != "replace_in_file" ]]; then
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+file_path=$(echo "$input" | jq -r '.postToolUse.parameters.path // empty')
+
+# Define trigger patterns for different workflows
+declare -A triggers=(
+  ["package\\.json|yarn\\.lock|package-lock\\.json"]="dependencies"
+  ["\\.github/workflows/.*\\.ya?ml"]="workflow"
+  ["Dockerfile|docker-compose\\.ya?ml"]="docker"
+  ["src/.*\\.(ts|tsx|js|jsx)"]="frontend"
+  ["api/.*\\.(ts|js|py)"]="backend"
+  ["\\.(test|spec)\\.(ts|tsx|js|jsx|py)"]="tests"
+)
+
+# Check which workflows should be triggered
+triggered_workflows=""
+for pattern in "${!triggers[@]}"; do
+  if [[ "$file_path" =~ $pattern ]]; then
+    workflow_type="${triggers[$pattern]}"
+    triggered_workflows+="$workflow_type "
+  fi
+done
+
+if [[ -n "$triggered_workflows" ]]; then
+  # Create webhook payload (example - adjust URL and payload as needed)
+  webhook_url="${CI_WEBHOOK_URL:-}"
+  
+  if [[ -n "$webhook_url" ]]; then
+    payload=$(jq -n \
+      --arg file "$file_path" \
+      --arg workflows "$triggered_workflows" \
+      --arg timestamp "$(date -Iseconds)" \
+      '{
+        event: "file_modified",
+        file_path: $file,
+        triggered_workflows: ($workflows | split(" ") | map(select(length > 0))),
+        timestamp: $timestamp,
+        source: "cline_hook"
+      }')
+    
+    # Trigger webhook asynchronously (don't block on network issues)
+    curl -X POST \
+      -H "Content-Type: application/json" \
+      -d "$payload" \
+      "$webhook_url" \
+      --max-time 5 \
+      --silent \
+      > /dev/null 2>&1 &
+  fi
+  
+  context="CI_CD: File modification may trigger workflows: $triggered_workflows. Check your CI/CD dashboard for build status."
+  jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
+else
+  echo '{"cancel": false}'
+fi
+```
+
+## Performance Monitoring
+
+### Operation Performance Tracker
+
+Monitor and log slow operations to identify performance bottlenecks.
+
+**Hook:** `PostToolUse`
+
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+tool_name=$(echo "$input" | jq -r '.postToolUse.toolName')
+execution_time=$(echo "$input" | jq -r '.postToolUse.executionTimeMs // 0')
+success=$(echo "$input" | jq -r '.postToolUse.success')
+timestamp=$(echo "$input" | jq -r '.timestamp')
+
+# Performance thresholds (in milliseconds)
+SLOW_THRESHOLD=2000
+VERY_SLOW_THRESHOLD=5000
+
+# Create performance log directory
+perf_dir="$HOME/.cline_performance"
+mkdir -p "$perf_dir"
+
+# Log all operations to daily performance file
+perf_file="$perf_dir/$(date +%Y-%m-%d).json"
+
+# Create performance log entry
+log_entry=$(jq -n \
+  --arg timestamp "$timestamp" \
+  --arg tool "$tool_name" \
+  --arg duration "$execution_time" \
+  --arg success "$success" \
+  '{
+    timestamp: $timestamp,
+    tool: $tool,
+    duration_ms: ($duration | tonumber),
+    success: ($success == "true"),
+    workspace: env.PWD
+  }')
+
+echo "$log_entry" >> "$perf_file"
+
+# Generate context based on performance
+context=""
+if (( execution_time > VERY_SLOW_THRESHOLD )); then
+  context="PERFORMANCE_ALERT: Very slow operation detected! $tool_name took ${execution_time}ms. Consider optimizing or investigating system resources."
+elif (( execution_time > SLOW_THRESHOLD )); then
+  context="PERFORMANCE_WARNING: Slow operation - $tool_name took ${execution_time}ms. Monitor for patterns."
+fi
+
+# Calculate daily statistics (simple version)
+if [[ "$tool_name" == "execute_command" ]] && (( execution_time > SLOW_THRESHOLD )); then
+  # For slow commands, add specific guidance
+  context+=" For slow commands, consider using background processes or breaking into smaller steps."
+fi
+
+if [[ -n "$context" ]]; then
+  jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
+else
+  echo '{"cancel": false}'
+fi
+```
+
+## External Integrations
+
+### Slack Notifications Hook
+
+Send notifications to Slack for important events and errors.
+
+**Hook:** `PostToolUse`
+
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+tool_name=$(echo "$input" | jq -r '.postToolUse.toolName')
+success=$(echo "$input" | jq -r '.postToolUse.success')
+result=$(echo "$input" | jq -r '.postToolUse.result // empty')
+
+# Only notify on significant events or errors
+notify_tools=("execute_command" "browser_action")
+should_notify=false
+
+for notify_tool in "${notify_tools[@]}"; do
+  if [[ "$tool_name" == "$notify_tool" ]]; then
+    should_notify=true
+    break
+  fi
+done
+
+# Also notify on any failures
+if [[ "$success" == "false" ]]; then
+  should_notify=true
+fi
+
+if [[ "$should_notify" != "true" ]]; then
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+# Get Slack webhook URL from environment
+slack_webhook="${SLACK_WEBHOOK_URL:-}"
+
+if [[ -z "$slack_webhook" ]]; then
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+# Determine message color and content
+if [[ "$success" == "false" ]]; then
+  color="danger"
+  status_icon="🚨"
+  title="Cline Operation Failed"
+else
+  color="good"
+  status_icon="✅"
+  title="Cline Operation Completed"
+fi
+
+# Create Slack message
+user_id=$(echo "$input" | jq -r '.userId')
+task_id=$(echo "$input" | jq -r '.taskId')
+workspace=$(basename "$PWD")
+
+# Truncate long results
+truncated_result="$result"
+if [[ ${#result} -gt 200 ]]; then
+  truncated_result="${result:0:200}..."
+fi
+
+slack_payload=$(jq -n \
+  --arg color "$color" \
+  --arg title "$title" \
+  --arg icon "$status_icon" \
+  --arg tool "$tool_name" \
+  --arg workspace "$workspace" \
+  --arg result "$truncated_result" \
+  --arg user "$user_id" \
+  --arg task "$task_id" \
+  '{
+    attachments: [{
+      color: $color,
+      title: ($icon + " " + $title),
+      fields: [
+        {title: "Tool", value: $tool, short: true},
+        {title: "Workspace", value: $workspace, short: true},
+        {title: "User", value: $user, short: true},
+        {title: "Task ID", value: $task, short: true},
+        {title: "Result", value: $result, short: false}
+      ],
+      ts: now
+    }]
+  }')
+
+# Send to Slack asynchronously
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d "$slack_payload" \
+  "$slack_webhook" \
+  --max-time 5 \
+  --silent \
+  > /dev/null 2>&1 &
+
+echo '{"cancel": false}'
+```
+
+### Jira Integration Hook
+
+Create Jira tickets for errors and track development progress.
+
+**Hook:** `TaskStart`
+
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+initial_task=$(echo "$input" | jq -r '.taskStart.taskMetadata.initialTask')
+task_id=$(echo "$input" | jq -r '.taskId')
+
+# Get Jira configuration from environment
+jira_url="${JIRA_URL:-}"
+jira_user="${JIRA_USER:-}"
+jira_token="${JIRA_TOKEN:-}"
+jira_project="${JIRA_PROJECT:-DEV}"
+
+if [[ -z "$jira_url" || -z "$jira_user" || -z "$jira_token" ]]; then
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+# Determine if this looks like a bug fix or feature
+issue_type="Task"
+priority="Medium"
+
+if echo "$initial_task" | grep -qi "bug\|fix\|error\|issue\|problem"; then
+  issue_type="Bug"
+  priority="High"
+elif echo "$initial_task" | grep -qi "feature\|add\|implement\|create"; then
+  issue_type="Story"
+  priority="Medium"
+fi
+
+# Create Jira ticket payload
+jira_payload=$(jq -n \
+  --arg project "$jira_project" \
+  --arg summary "Cline Task: $(echo "$initial_task" | head -c 100)" \
+  --arg description "Automated task created from Cline:
+
+**Task ID:** $task_id
+**Full Description:** $initial_task
+**Workspace:** $(basename "$PWD")
+**Created:** $(date -Iseconds)
+
+This ticket tracks development work performed by Cline AI assistant." \
+  --arg issue_type "$issue_type" \
+  --arg priority "$priority" \
+  '{
+    fields: {
+      project: {key: $project},
+      summary: $summary,
+      description: $description,
+      issuetype: {name: $issue_type},
+      priority: {name: $priority},
+      labels: ["cline", "automated", "ai-generated"]
+    }
+  }')
+
+# Create Jira ticket
+jira_response=$(curl -X POST \
+  -H "Content-Type: application/json" \
+  -u "$jira_user:$jira_token" \
+  -d "$jira_payload" \
+  "$jira_url/rest/api/2/issue/" \
+  --max-time 10 \
+  --silent)
+
+# Extract ticket key if successful
+ticket_key=$(echo "$jira_response" | jq -r '.key // empty' 2>/dev/null)
+
+if [[ -n "$ticket_key" ]]; then
+  context="JIRA_INTEGRATION: Created ticket $ticket_key for this task. Visit $jira_url/browse/$ticket_key to track progress."
+  jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
+else
+  echo '{"cancel": false}'
+fi
+```
+
+## Usage Tips
+
+### Running Multiple Hooks
+
+You can use multiple hooks together by creating separate files for each hook type:
+
+```bash
+# Create hooks directory
+mkdir -p .clinerules/hooks
+
+# Create multiple hooks
+touch .clinerules/hooks/PreToolUse
+touch .clinerules/hooks/PostToolUse
+touch .clinerules/hooks/TaskStart
+
+# Make them executable
+chmod +x .clinerules/hooks/*
+```
+
+### Environment Configuration
+
+Set up environment variables for external integrations:
+
+```bash
+# Add to your .bashrc or .zshrc
+export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..."
+export JIRA_URL="https://yourcompany.atlassian.net"
+export JIRA_USER="your-email@company.com"
+export JIRA_TOKEN="your-api-token"
+export CI_WEBHOOK_URL="https://your-ci-system.com/hooks/cline"
+```
+
+### Testing Your Hooks
+
+Test hooks manually by simulating their input:
+
+```bash
+# Test a PreToolUse hook
+echo '{
+  "clineVersion": "1.0.0",
+  "hookName": "PreToolUse",
+  "timestamp": "2024-01-01T12:00:00Z",
+  "taskId": "test",
+  "workspaceRoots": ["/path/to/workspace"],
+  "userId": "test-user",
+  "preToolUse": {
+    "toolName": "write_to_file",
+    "parameters": {
+      "path": "test.js",
+      "content": "console.log(\"test\");"
+    }
+  }
+}' | .clinerules/hooks/PreToolUse
+```
+
+These examples provide a solid foundation for implementing hooks in your development workflow. Customize them based on your specific needs, tools, and integrations.

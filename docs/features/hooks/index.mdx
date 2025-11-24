@@ -1,0 +1,145 @@
+---
+title: "Hooks Overview"
+sidebarTitle: "Overview"
+description: "Inject custom logic into Cline's workflow to validate operations, monitor tool usage, and shape AI decisions"
+---
+
+Hooks let you inject custom logic into Cline's workflow at key moments. Think of them as automated checkpoints where you can validate operations before they execute, monitor tool usage as it happens, and shape how Cline makes decisions.
+
+Hooks run automatically when specific events happen during development. They receive detailed information about each operation, can block problematic actions before they cause issues, and can inject context that guides future AI decisions.
+
+The real power comes from combining these capabilities. You can:
+
+- Stop operations before they cause problems (like creating `.js` files in a TypeScript project)
+- Learn from what's happening and build up project knowledge over time
+- Monitor performance and catch issues as they emerge
+- Track everything for analytics or compliance
+- Trigger external tools or services at the right moments
+
+<Warning>
+Hooks are currently supported on macOS and Linux only. Windows support is not available.
+</Warning>
+
+## Getting Started
+
+<Frame>
+	<img src="https://storage.googleapis.com/cline_public_images/hooks.gif" alt="Hooks in action" />
+</Frame>
+
+Enabling hooks in Cline is straightforward. Here's what you need to do:
+
+<Steps>
+<Step title="Enable Hooks in Settings">
+Open Cline settings and check the **"Enable Hooks"** checkbox.
+
+You can find this setting by:
+1. Opening Cline
+2. Click the "Settings" button on the top right corner
+3. Click the "Feature" section in the left side navigation menu.
+4. Scroll down until you see the "Enable Hooks" checkbox and check it. 
+</Step>
+
+<Step title="Choose Your Hook Location">
+Decide where to place your hooks:
+
+**For personal or organization-wide hooks:**
+- Create hooks in `~/Documents/Cline/Rules/Hooks/`
+- These apply to all workspaces automatically
+
+**For project-specific hooks:**
+- Create hooks in `.clinerules/hooks/` in your project root
+- These only apply to the specific workspace
+- Commit them to version control so your team can use them too
+</Step>
+
+<Step title="Create Your First Hook">
+Hook files must have exact names with no file extensions. For example, to create a TaskStart hook:
+
+```bash
+# Create the hook file
+vim .clinerules/hooks/TaskStart
+```
+
+Add your script (must start with shebang)
+``` bash
+#!/usr/bin/env bash
+
+# Store piped input into a variable
+input=$(cat)
+
+# Dump the entire JSON payload
+echo "$input" | jq .
+
+# Get the type of a field
+echo "$input" | jq -r '.timestamp | type'
+```
+
+This example script demonstrates the key mechanics of hook input/output: reading the JSON payload from stdin with `input=$(cat)`, and using `jq` to inspect the data structure and field types that your hook receives. This helps you understand what data is available before building more complex hook logic.
+
+**Make it executable**
+
+```bash
+chmod +x .clinerules/hooks/TaskStart
+```
+</Step>
+
+<Step title="Test Your Hook">
+Start a task in Cline and verify your hook executes.
+</Step>
+</Steps>
+
+<Tip>
+Start with a simple hook that just logs information before building complex validation logic. This helps you understand the data structure and timing.
+</Tip>
+
+## What You Can Build
+
+Once you understand the basics, hooks open up creative possibilities:
+
+<CardGroup cols={2}>
+  <Card title="Intelligent Code Review" icon="code-branch">
+    Run linters or custom validators before files get saved. Block commits that don't pass checks. Track code quality metrics over time.
+  </Card>
+  
+  <Card title="Security Enforcement" icon="shield-halved">
+    Prevent operations that violate security policies. Detect when sensitive data might be exposed. Audit all file access for compliance.
+  </Card>
+  
+  <Card title="Development Analytics" icon="chart-line">
+    Measure how long different operations take. Identify patterns in how the AI works. Generate productivity reports from hook data.
+  </Card>
+  
+  <Card title="Integration Hub" icon="plug">
+    Connect to issue trackers when certain keywords appear. Update project management tools. Sync with external APIs at the right moments.
+  </Card>
+</CardGroup>
+
+The key is combining hooks with external tools. A hook can be the glue between Cline's workflow and the rest of your development ecosystem.
+
+## Explore the Documentation
+
+<CardGroup cols={2}>
+  <Card title="Hook Reference" icon="book" href="/features/hooks/hook-reference">
+    Complete API reference for all hook types, JSON schemas, and field documentation.
+  </Card>
+  
+  <Card title="Real-World Examples" icon="code" href="/features/hooks/real-world-examples">
+    Practical examples and complete working scripts for common use cases.
+  </Card>
+  
+  <Card title="Advanced Patterns" icon="cog" href="/features/hooks/advanced-patterns">
+    Complex hook combinations, stateful patterns, and performance optimization techniques.
+  </Card>
+  
+  <Card title="Testing & Debugging" icon="bug" href="/features/hooks/testing-and-debugging">
+    Hook testing strategies, debugging techniques, and development best practices.
+  </Card>
+</CardGroup>
+
+## Related Features
+
+Hooks complement other Cline features:
+
+- [Cline Rules](/features/cline-rules) define high-level guidance that hooks can enforce
+- [Checkpoints](/features/checkpoints) let you roll back changes if a hook didn't catch an issue
+- [Auto-Approve](/features/auto-approve) works well with hooks as safety nets for automated operations

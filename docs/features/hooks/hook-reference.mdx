@@ -1,0 +1,416 @@
+---
+title: "Hook Reference"
+sidebarTitle: "Hook Reference"
+description: "Complete API reference for all Cline hook types, JSON schemas, and field documentation"
+---
+
+This reference provides complete technical documentation for all hook types, their JSON schemas, input/output formats, and communication protocols.
+
+## Hook Types
+
+Cline provides multiple hook types that let you tap into different stages of the AI workflow. They're organized into categories based on their trigger points and use cases.
+
+<Note>
+The hook names below are the exact file names you need to create. For example, to use the TaskStart hook, create a file named `TaskStart` (no file extension) in your hooks directory.
+</Note>
+
+Each hook receives base fields in addition to its specific data: `clineVersion`, `hookName`, `timestamp`, `taskId`, `workspaceRoots`, `userId`.
+
+### Tool Execution
+
+These hooks intercept and validate tool operations before and after they execute. Use them to enforce policies, track changes, and learn from operations.
+
+#### PreToolUse
+
+Runs before any tool executes. Use it to block invalid operations, validate parameters, and enforce project policies before changes happen.
+
+**Input Fields:**
+```json
+{
+  "clineVersion": "string",
+  "hookName": "PreToolUse",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
+  "preToolUse": {
+    "toolName": "string",
+    "parameters": {}
+  }
+}
+```
+
+**Example Usage:**
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+# Block creating .js files in TypeScript projects
+tool_name=$(echo "$input" | jq -r '.preToolUse.toolName')
+if [[ "$tool_name" == "write_to_file" ]]; then
+  file_path=$(echo "$input" | jq -r '.preToolUse.parameters.path')
+  if [[ "$file_path" == *.js ]] && [[ -f "tsconfig.json" ]]; then
+    echo '{"cancel": true, "errorMessage": "JavaScript files not allowed in TypeScript project"}'
+    exit 0
+  fi
+fi
+
+echo '{"cancel": false}'
+```
+
+#### PostToolUse
+
+Runs after a tool completes. Use it to learn from results, track performance metrics, and build project knowledge based on operations performed.
+
+**Input Fields:**
+```json
+{
+  "clineVersion": "string",
+  "hookName": "PostToolUse",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
+  "postToolUse": {
+    "toolName": "string",
+    "parameters": {},
+    "result": "string",
+    "success": boolean,
+    "executionTimeMs": number
+  }
+}
+```
+
+**Example Usage:**
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+# Log slow operations for performance monitoring
+execution_time=$(echo "$input" | jq -r '.postToolUse.executionTimeMs')
+tool_name=$(echo "$input" | jq -r '.postToolUse.toolName')
+
+if (( execution_time > 5000 )); then
+  context="PERFORMANCE: Slow operation detected - $tool_name took ${execution_time}ms"
+  echo "{\"cancel\": false, \"contextModification\": \"$context\"}"
+else
+  echo '{"cancel": false}'
+fi
+```
+
+### User Interaction
+
+These hooks monitor and enhance user communication with Cline. Use them to validate input, inject context, and track interaction patterns.
+
+#### UserPromptSubmit
+
+Runs when a user sends a message to Cline. Use it to validate input, inject context based on the prompt, and track interaction patterns.
+
+**Input Fields:**
+```json
+{
+  "clineVersion": "string",
+  "hookName": "UserPromptSubmit",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
+  "userPromptSubmit": {
+    "prompt": "string",
+    "attachments": ["string"]
+  }
+}
+```
+
+**Example Usage:**
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+# Inject coding standards context for certain keywords
+prompt=$(echo "$input" | jq -r '.userPromptSubmit.prompt')
+context=""
+
+if echo "$prompt" | grep -qi "component\|react"; then
+  context="CODING_STANDARDS: Follow React functional component patterns with proper TypeScript types"
+elif echo "$prompt" | grep -qi "api\|endpoint"; then
+  context="CODING_STANDARDS: Use consistent REST API patterns with proper error handling"
+fi
+
+if [[ -n "$context" ]]; then
+  jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
+else
+  echo '{"cancel": false}'
+fi
+```
+
+### Task Lifecycle
+
+These hooks monitor and respond to task state changes from start to finish. Use them to track progress, restore state, and trigger workflows.
+
+#### TaskStart
+
+Runs when a new task begins. Use it to detect project type, initialize tracking, and inject initial context that shapes how Cline approaches the work.
+
+**Input Fields:**
+```json
+{
+  "clineVersion": "string",
+  "hookName": "TaskStart",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
+  "taskStart": {
+    "taskMetadata": {
+      "taskId": "string",
+      "ulid": "string",
+      "initialTask": "string"
+    }
+  }
+}
+```
+
+**Example Usage:**
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+# Detect project type and inject relevant context
+context=""
+
+if [[ -f "package.json" ]]; then
+  if grep -q "react" package.json; then
+    context="PROJECT_TYPE: React application detected. Follow component-based architecture."
+  elif grep -q "express" package.json; then
+    context="PROJECT_TYPE: Express.js API detected. Follow RESTful patterns."
+  else
+    context="PROJECT_TYPE: Node.js project detected."
+  fi
+elif [[ -f "requirements.txt" ]] || [[ -f "pyproject.toml" ]]; then
+  context="PROJECT_TYPE: Python project detected. Follow PEP 8 standards."
+elif [[ -f "Cargo.toml" ]]; then
+  context="PROJECT_TYPE: Rust project detected. Follow Rust conventions."
+fi
+
+if [[ -n "$context" ]]; then
+  jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
+else
+  echo '{"cancel": false}'
+fi
+```
+
+#### TaskResume
+
+Runs when a task resumes after interruption. Use it to restore state, refresh context, and log resumption for analytics or external system notifications.
+
+**Input Fields:**
+```json
+{
+  "clineVersion": "string",
+  "hookName": "TaskResume",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
+  "taskResume": {
+    "taskMetadata": {
+      "taskId": "string",
+      "ulid": "string"
+    },
+    "previousState": {
+      "lastMessageTs": "string",
+      "messageCount": "string",
+      "conversationHistoryDeleted": "string"
+    }
+  }
+}
+```
+
+#### TaskCancel
+
+Runs when a task is cancelled. Use it to cleanup resources, log cancellation details, and notify external systems about interrupted work.
+
+**Input Fields:**
+```json
+{
+  "clineVersion": "string",
+  "hookName": "TaskCancel",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
+  "taskCancel": {
+    "taskMetadata": {
+      "taskId": "string",
+      "ulid": "string",
+      "completionStatus": "string"
+    }
+  }
+}
+```
+
+### System Events
+
+These hooks monitor internal Cline operations and system-level events. Use them to track context usage, log system behavior, and analyze performance patterns.
+
+{/*
+#### PreCompact
+
+Runs before conversation context is truncated to fit token limits. Use it to monitor compaction frequency, log events, and track context usage patterns.
+
+**Input Fields:**
+```json
+{
+  "clineVersion": "string",
+  "hookName": "PreCompact",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
+  "preCompact": {
+    "contextSize": number,
+    "messagesToCompact": number,
+    "compactionStrategy": "string"
+  }
+}
+```
+*/}
+
+## JSON Communication Protocol
+
+Hooks receive JSON via stdin and return JSON via stdout.
+
+### Input Format
+
+All hooks receive a JSON object through stdin with this base structure:
+
+```json
+{
+  "clineVersion": "string",
+  "hookName": "string", 
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
+  "[hookSpecificField]": {
+    // Hook-specific data structure
+  }
+}
+```
+
+### Output Format
+
+Your hook script must output a JSON response as the final stdout content:
+
+```json
+{
+  "cancel": false,
+  "contextModification": "WORKSPACE_RULES: Use TypeScript",
+  "errorMessage": "Error details if blocking"
+}
+```
+
+**Field Descriptions:**
+
+- **`cancel`** (required): Boolean controlling whether execution continues
+  - `true`: Block the current action
+  - `false`: Allow the action to proceed
+
+- **`contextModification`** (optional): String that gets injected into the conversation
+  - Affects future AI decisions, not the current one
+  - Use clear prefixes like `WORKSPACE_RULES:`, `PERFORMANCE:`, `SECURITY:` for categorization
+  - Maximum length: 50KB
+
+- **`errorMessage`** (optional): String shown to user when `cancel` is `true`
+  - Only displayed when blocking an action
+  - Should explain why the action was blocked
+
+### Logging During Execution
+
+Your hook script can output logging or diagnostic information to stdout during execution, as long as the JSON response is the last thing written:
+
+```bash
+#!/usr/bin/env bash
+echo "Processing hook..."  # This is fine
+echo "Tool: $tool_name"    # This is also fine
+
+# The JSON must be last:
+echo '{"cancel": false}'
+```
+
+Cline will parse only the final JSON object from stdout.
+
+### Error Handling
+
+If your hook script:
+- Exits with non-zero status: The action is blocked
+- Outputs invalid JSON: The action is blocked  
+- Times out: The action is blocked
+- Outputs no JSON: The action proceeds
+
+### Context Modification Timing
+
+Context injection affects future decisions, not current ones. When a hook runs:
+
+1. The AI has already decided what to do
+2. The hook can block or allow it
+3. Any context gets added to the conversation
+4. The next AI request sees that context
+
+This means:
+- **PreToolUse hooks**: Use for blocking bad actions + injecting context for next decision
+- **PostToolUse hooks**: Use for learning from completed actions
+
+### String Escaping in JSON
+
+When your hook needs to include strings containing unescaped quote characters (`"`) in JSON output, use jq's `--arg` flag for proper escaping:
+
+```bash
+#!/usr/bin/env bash
+
+# When $output contains unescaped quote characters (")...
+output='{"foo":"bar"}'
+
+# Use the --arg flag for automatic string escaping
+jq -n --arg ctx "$output" '{cancel: false, contextModification: $ctx}'
+
+# This will result in:
+# {
+#     "cancel": false,
+#     "contextModification": "{\"foo\":\"bar\"}"
+# }
+```
+
+The `--arg` flag automatically escapes special characters, preventing JSON parsing errors when your context modification includes complex strings or nested JSON structures.
+
+## Hook Execution Environment
+
+### Execution Context
+
+Hooks run with the same permissions as VS Code and have access to:
+- All workspace files and directories
+- Environment variables
+- System commands and tools
+- Network access
+
+### Security Considerations
+
+<Warning>
+Hooks run with the same permissions as VS Code. They can access all workspace files and environment variables. Review hooks from untrusted sources before enabling them.
+</Warning>
+
+### Performance Guidelines
+
+- **Keep hooks fast**: Aim for sub-100ms execution time
+- **Avoid blocking operations**: Network calls, heavy computations
+- **Use async patterns**: For expensive operations, trigger background processes
+- **Cache when possible**: Store results to avoid re-computation
+
+### Hook Discovery
+
+Cline searches for hooks in this order:
+1. Project-specific: `.clinerules/hooks/` in workspace root
+2. User-global: `~/Documents/Cline/Rules/Hooks/`
+
+Project-specific hooks override global hooks with the same name.

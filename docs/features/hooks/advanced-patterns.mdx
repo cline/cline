@@ -1,0 +1,675 @@
+---
+title: "Advanced Patterns"
+sidebarTitle: "Advanced Patterns"
+description: "Complex hook combinations, stateful patterns, and performance optimization techniques"
+---
+
+This page covers advanced hook patterns that leverage multiple hook types together, maintain state across operations, and implement sophisticated logic for complex development workflows.
+
+## Hook Chaining Patterns
+
+### Multi-Stage Validation Pipeline
+
+Combine multiple hook types to create comprehensive validation workflows that span the entire operation lifecycle.
+
+**Pattern Overview:** Use `PreToolUse` for initial validation, `PostToolUse` for result verification, and `UserPromptSubmit` for context-aware guidance.
+
+**File: `PreToolUse`**
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+tool_name=$(echo "$input" | jq -r '.preToolUse.toolName')
+task_id=$(echo "$input" | jq -r '.taskId')
+
+# Create validation state directory
+state_dir="$HOME/.cline_hook_state"
+mkdir -p "$state_dir"
+
+# Store validation context for post-hook processing
+validation_file="$state_dir/${task_id}_validation.json"
+
+validation_context=$(jq -n \
+  --arg tool "$tool_name" \
+  --arg timestamp "$(date -Iseconds)" \
+  --arg validation_level "pre" \
+  '{
+    tool: $tool,
+    timestamp: $timestamp,
+    validation_level: $validation_level,
+    checks_performed: [],
+    warnings: [],
+    context_suggestions: []
+  }')
+
+echo "$validation_context" > "$validation_file"
+
+# Perform pre-validation checks
+warnings=()
+context_suggestions=()
+
+if [[ "$tool_name" == "write_to_file" ]]; then
+  file_path=$(echo "$input" | jq -r '.preToolUse.parameters.path // empty')
+  
+  # Check for potential overwrites of important files
+  if [[ -f "$file_path" ]] && [[ "$file_path" =~ \.(config|env)$ ]]; then
+    warnings+=("overwrite_config_file")
+    context_suggestions+=("VALIDATION: You're overwriting a configuration file. Consider backing up the original.")
+  fi
+  
+  # Check for missing directories
+  dir_path=$(dirname "$file_path")
+  if [[ ! -d "$dir_path" ]] && [[ "$dir_path" != "." ]]; then
+    warnings+=("missing_directory")
+    context_suggestions+=("DIRECTORY_STRUCTURE: Creating file in non-existent directory: $dir_path")
+  fi
+fi
+
+# Update validation context
+updated_context=$(jq \
+  --argjson warnings "$(printf '%s\n' "${warnings[@]}" | jq -R . | jq -s .)" \
+  --argjson suggestions "$(printf '%s\n' "${context_suggestions[@]}" | jq -R . | jq -s .)" \
+  '.warnings = $warnings | .context_suggestions = $suggestions' \
+  "$validation_file")
+
+echo "$updated_context" > "$validation_file"
+
+# Return context if any suggestions were generated
+if [[ ${#context_suggestions[@]} -gt 0 ]]; then
+  combined_context=$(IFS=$'\n'; echo "${context_suggestions[*]}")
+  jq -n --arg ctx "$combined_context" '{"cancel": false, "contextModification": $ctx}'
+else
+  echo '{"cancel": false}'
+fi
+```
+
+**File: `PostToolUse`**
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+tool_name=$(echo "$input" | jq -r '.postToolUse.toolName')
+success=$(echo "$input" | jq -r '.postToolUse.success')
+task_id=$(echo "$input" | jq -r '.taskId')
+execution_time=$(echo "$input" | jq -r '.postToolUse.executionTimeMs // 0')
+
+state_dir="$HOME/.cline_hook_state"
+validation_file="$state_dir/${task_id}_validation.json"
+
+# Check if we have pre-validation context
+if [[ ! -f "$validation_file" ]]; then
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+# Load and update validation context
+validation_context=$(cat "$validation_file")
+pre_warnings=$(echo "$validation_context" | jq -r '.warnings[]?' | tr '\n' '|')
+
+# Perform post-validation
+post_context=""
+if [[ "$success" == "true" ]]; then
+  # Success case - check if pre-warnings materialized
+  if [[ "$pre_warnings" =~ "overwrite_config_file" ]]; then
+    post_context+="VALIDATION_RESULT: Configuration file was successfully updated. Consider testing the application. "
+  fi
+  
+  if [[ "$pre_warnings" =~ "missing_directory" ]]; then
+    post_context+="VALIDATION_RESULT: Directory structure was created automatically. "
+  fi
+  
+  # Performance validation
+  if (( execution_time > 1000 )); then
+    post_context+="PERFORMANCE_NOTE: Operation took ${execution_time}ms - this may indicate large files or slow I/O. "
+  fi
+else
+  # Failure case - provide recovery suggestions
+  post_context="VALIDATION_FAILURE: Operation failed. "
+  if [[ "$pre_warnings" =~ "missing_directory" ]]; then
+    post_context+="This might be due to directory permission issues. Try creating the directory manually first. "
+  fi
+fi
+
+# Update validation log with final results
+final_context=$(echo "$validation_context" | jq \
+  --arg post_level "post" \
+  --arg success "$success" \
+  --arg exec_time "$execution_time" \
+  --arg post_timestamp "$(date -Iseconds)" \
+  '. + {
+    post_validation: {
+      success: ($success == "true"),
+      execution_time_ms: ($exec_time | tonumber),
+      timestamp: $post_timestamp,
+      validation_level: $post_level
+    }
+  }')
+
+echo "$final_context" > "$validation_file"
+
+# Cleanup old validation files (keep only last 10)
+find "$state_dir" -name "*_validation.json" -mtime +1 -exec rm {} \; 2>/dev/null || true
+
+if [[ -n "$post_context" ]]; then
+  jq -n --arg ctx "$post_context" '{"cancel": false, "contextModification": $ctx}'
+else
+  echo '{"cancel": false}'
+fi
+```
+
+## Stateful Hook Patterns
+
+### Project Knowledge Accumulation
+
+Build up knowledge about the project over time and use it to provide increasingly intelligent suggestions.
+
+**File: `TaskStart`**
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+task_text=$(echo "$input" | jq -r '.taskStart.taskMetadata.initialTask')
+task_id=$(echo "$input" | jq -r '.taskId')
+
+# Project knowledge storage
+knowledge_dir="$HOME/.cline_knowledge/$(basename "$PWD")"
+mkdir -p "$knowledge_dir"
+
+# Load existing project knowledge
+patterns_file="$knowledge_dir/patterns.json"
+frameworks_file="$knowledge_dir/frameworks.json"
+conventions_file="$knowledge_dir/conventions.json"
+
+# Initialize knowledge files if they don't exist
+[[ ! -f "$patterns_file" ]] && echo '{}' > "$patterns_file"
+[[ ! -f "$frameworks_file" ]] && echo '{}' > "$frameworks_file"
+[[ ! -f "$conventions_file" ]] && echo '{}' > "$conventions_file"
+
+# Analyze task for patterns
+detected_patterns=()
+detected_frameworks=()
+suggested_conventions=()
+
+# Framework detection
+if echo "$task_text" | grep -qi "react\|component\|jsx\|tsx"; then
+  detected_frameworks+=("react")
+  suggested_conventions+=("Use functional components with TypeScript interfaces")
+fi
+
+if echo "$task_text" | grep -qi "api\|endpoint\|server\|express"; then
+  detected_frameworks+=("api")
+  suggested_conventions+=("Follow RESTful conventions with proper error handling")
+fi
+
+if echo "$task_text" | grep -qi "test\|testing\|spec"; then
+  detected_patterns+=("testing")
+  suggested_conventions+=("Include comprehensive test coverage with descriptive test names")
+fi
+
+if echo "$task_text" | grep -qi "database\|db\|sql\|migration"; then
+  detected_patterns+=("database")
+  suggested_conventions+=("Use migrations for schema changes and include rollback procedures")
+fi
+
+# Update knowledge files
+if [[ ${#detected_frameworks[@]} -gt 0 ]]; then
+  for framework in "${detected_frameworks[@]}"; do
+    jq --arg fw "$framework" --arg ts "$(date -Iseconds)" \
+      '.[$fw] = (.[$fw] // 0) + 1 | .last_seen = $ts' \
+      "$frameworks_file" > "$frameworks_file.tmp" && mv "$frameworks_file.tmp" "$frameworks_file"
+  done
+fi
+
+if [[ ${#detected_patterns[@]} -gt 0 ]]; then
+  for pattern in "${detected_patterns[@]}"; do
+    jq --arg pt "$pattern" --arg ts "$(date -Iseconds)" \
+      '.[$pt] = (.[$pt] // 0) + 1 | .last_seen = $ts' \
+      "$patterns_file" > "$patterns_file.tmp" && mv "$patterns_file.tmp" "$patterns_file"
+  done
+fi
+
+# Load historical knowledge to build context
+historical_frameworks=$(jq -r 'to_entries | sort_by(.value) | reverse | .[0:3] | .[].key' "$frameworks_file" 2>/dev/null | tr '\n' ' ')
+historical_patterns=$(jq -r 'to_entries | sort_by(.value) | reverse | .[0:3] | .[].key' "$patterns_file" 2>/dev/null | tr '\n' ' ')
+
+# Build intelligent context
+context_parts=()
+
+if [[ -n "$historical_frameworks" ]]; then
+  context_parts+=("PROJECT_KNOWLEDGE: Based on previous work, this project commonly uses: $historical_frameworks")
+fi
+
+if [[ -n "$historical_patterns" ]]; then
+  context_parts+=("DEVELOPMENT_PATTERNS: Frequently used patterns in this project: $historical_patterns")
+fi
+
+# Add specific suggestions for current task
+if [[ ${#suggested_conventions[@]} -gt 0 ]]; then
+  conventions_text=$(IFS='; '; echo "${suggested_conventions[*]}")
+  context_parts+=("TASK_CONVENTIONS: For this task type, consider: $conventions_text")
+fi
+
+# Check for file structure insights
+if [[ -f "package.json" ]]; then
+  deps=$(jq -r '.dependencies // {} | keys | join(", ")' package.json 2>/dev/null | head -c 100)
+  if [[ -n "$deps" && "$deps" != "null" ]]; then
+    context_parts+=("PROJECT_DEPENDENCIES: Available libraries include: $deps")
+  fi
+fi
+
+# Combine all context
+if [[ ${#context_parts[@]} -gt 0 ]]; then
+  final_context=$(IFS=$'\n'; echo "${context_parts[*]}")
+  jq -n --arg ctx "$final_context" '{"cancel": false, "contextModification": $ctx}'
+else
+  echo '{"cancel": false}'
+fi
+```
+
+### Adaptive Rule Learning
+
+Learn from user corrections and gradually improve validation rules.
+
+**File: `UserPromptSubmit`**
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+prompt_text=$(echo "$input" | jq -r '.userPromptSubmit.prompt')
+task_id=$(echo "$input" | jq -r '.taskId')
+
+# Learning storage
+learning_dir="$HOME/.cline_learning"
+mkdir -p "$learning_dir"
+corrections_file="$learning_dir/user_corrections.json"
+
+# Initialize corrections file
+[[ ! -f "$corrections_file" ]] && echo '[]' > "$corrections_file"
+
+# Detect correction patterns in user prompts
+correction_indicators=("actually" "instead" "not" "don't" "shouldn't" "wrong" "fix" "change" "correct")
+is_correction=false
+
+for indicator in "${correction_indicators[@]}"; do
+  if echo "$prompt_text" | grep -qi "$indicator"; then
+    is_correction=true
+    break
+  fi
+done
+
+# Process corrections to learn new rules
+if [[ "$is_correction" == true ]]; then
+  # Extract what the user is correcting
+  correction_entry=$(jq -n \
+    --arg timestamp "$(date -Iseconds)" \
+    --arg task_id "$task_id" \
+    --arg prompt "$prompt_text" \
+    --arg workspace "$(basename "$PWD")" \
+    '{
+      timestamp: $timestamp,
+      task_id: $task_id,
+      prompt: $prompt,
+      workspace: $workspace,
+      type: "user_correction"
+    }')
+  
+  # Add to corrections log
+  jq --argjson new_entry "$correction_entry" '. += [$new_entry]' "$corrections_file" > "${corrections_file}.tmp" && mv "${corrections_file}.tmp" "$corrections_file"
+  
+  # Keep only last 100 corrections
+  jq '.[−100:]' "$corrections_file" > "${corrections_file}.tmp" && mv "${corrections_file}.tmp" "$corrections_file"
+  
+  # Generate learned context
+  context="LEARNING: User correction detected. This feedback helps improve future suggestions for this project type."
+  
+  # Look for patterns in recent corrections
+  recent_corrections=$(jq -r '.[-5:] | .[].prompt' "$corrections_file" 2>/dev/null)
+  
+  if echo "$recent_corrections" | grep -qi "typescript"; then
+    context+=" Note: Recent corrections indicate strong TypeScript preferences."
+  elif echo "$recent_corrections" | grep -qi "test\|testing"; then
+    context+=" Note: Recent corrections emphasize testing practices."
+  fi
+  
+  jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
+else
+  echo '{"cancel": false}'
+fi
+```
+
+## Performance Optimization Patterns
+
+### Async Hook Processing
+
+Handle expensive operations without blocking Cline's execution.
+
+**File: `PostToolUse` (Async Pattern)**
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+tool_name=$(echo "$input" | jq -r '.postToolUse.toolName')
+success=$(echo "$input" | jq -r '.postToolUse.success')
+
+# Only process successful file operations
+if [[ "$success" != "true" ]] || [[ "$tool_name" != "write_to_file" && "$tool_name" != "replace_in_file" ]]; then
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+file_path=$(echo "$input" | jq -r '.postToolUse.parameters.path // empty')
+task_id=$(echo "$input" | jq -r '.taskId')
+
+# Skip non-code files
+if [[ ! "$file_path" =~ \.(ts|tsx|js|jsx|py|rs|go)$ ]]; then
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+# Queue directory for background processing
+queue_dir="$HOME/.cline_processing_queue"
+mkdir -p "$queue_dir"
+
+# Create processing job
+job_file="$queue_dir/${task_id}_$(date +%s).json"
+job_data=$(jq -n \
+  --arg file "$file_path" \
+  --arg task "$task_id" \
+  --arg workspace "$PWD" \
+  --arg timestamp "$(date -Iseconds)" \
+  '{
+    file_path: $file,
+    task_id: $task,
+    workspace: $workspace,
+    timestamp: $timestamp,
+    job_type: "code_analysis"
+  }')
+
+echo "$job_data" > "$job_file"
+
+# Start background processor if not running
+pgrep -f "cline_background_processor" > /dev/null || {
+  nohup bash -c "
+    while true; do
+      for job in '$queue_dir'/*.json; do
+        [[ -f \"\$job\" ]] || continue
+        
+        # Process job
+        file_path=\$(jq -r '.file_path' \"\$job\")
+        workspace=\$(jq -r '.workspace' \"\$job\")
+        
+        cd \"\$workspace\" 2>/dev/null || continue
+        
+        # Run expensive analysis (linting, complexity metrics, etc.)
+        if [[ \"\$file_path\" =~ \\.(ts|tsx|js|jsx)\$ ]] && command -v eslint > /dev/null; then
+          eslint \"\$file_path\" --format json > \"/tmp/\$(basename \"\$job\").lint\" 2>/dev/null || true
+        fi
+        
+        # Calculate complexity metrics
+        if command -v cloc > /dev/null; then
+          cloc \"\$file_path\" --json > \"/tmp/\$(basename \"\$job\").metrics\" 2>/dev/null || true
+        fi
+        
+        # Remove processed job
+        rm \"\$job\"
+      done
+      
+      sleep 5
+    done
+  " > /dev/null 2>&1 &
+}
+
+# Provide immediate feedback without waiting
+echo '{"cancel": false, "contextModification": "BACKGROUND_PROCESSING: Code analysis queued for background processing. Results will be available for future tasks."}'
+```
+
+### Caching and Memoization
+
+Cache expensive computations to improve hook performance.
+
+**File: `PreToolUse` (With Caching)**
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+tool_name=$(echo "$input" | jq -r '.preToolUse.toolName')
+
+# Only process file operations  
+if [[ "$tool_name" != "write_to_file" ]]; then
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+file_path=$(echo "$input" | jq -r '.preToolUse.parameters.path // empty')
+content=$(echo "$input" | jq -r '.preToolUse.parameters.content // empty')
+
+# Setup caching
+cache_dir="$HOME/.cline_cache"
+mkdir -p "$cache_dir"
+
+# Generate cache key from content hash
+content_hash=$(echo -n "$content" | sha256sum | cut -d' ' -f1)
+cache_key="validation_${content_hash:0:16}"
+cache_file="$cache_dir/$cache_key"
+
+# Check cache first
+if [[ -f "$cache_file" ]] && [[ $(find "$cache_file" -mmin -60) ]]; then
+  # Cache hit - use cached result
+  cached_result=$(cat "$cache_file")
+  echo "$cached_result"
+  exit 0
+fi
+
+# Cache miss - perform validation
+validation_result='{"cancel": false}'
+
+# Perform expensive validation only if not cached
+if [[ "$file_path" =~ \.(ts|tsx|js|jsx)$ ]] && command -v eslint > /dev/null; then
+  temp_file=$(mktemp)
+  echo "$content" > "$temp_file"
+  
+  lint_output=$(eslint "$temp_file" --format json 2>/dev/null || echo "[]")
+  error_count=$(echo "$lint_output" | jq '.[0].errorCount // 0' 2>/dev/null || echo "0")
+  
+  if (( error_count > 0 )); then
+    validation_result='{"cancel": true, "errorMessage": "ESLint validation failed. Check code quality."}'
+  fi
+  
+  rm -f "$temp_file"
+fi
+
+# Cache the result
+echo "$validation_result" > "$cache_file"
+
+# Cleanup old cache files (keep only files from last 24 hours)
+find "$cache_dir" -name "validation_*" -mtime +1 -delete 2>/dev/null || true
+
+echo "$validation_result"
+```
+
+## Conditional Logic Patterns
+
+### Context-Aware Decision Making
+
+Make intelligent decisions based on project context, user history, and environmental factors.
+
+**File: `PreToolUse` (Context-Aware)**
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+tool_name=$(echo "$input" | jq -r '.preToolUse.toolName')
+user_id=$(echo "$input" | jq -r '.userId')
+task_id=$(echo "$input" | jq -r '.taskId')
+
+# Load user preferences and history
+prefs_dir="$HOME/.cline_user_prefs"
+mkdir -p "$prefs_dir"
+user_prefs="$prefs_dir/${user_id}_preferences.json"
+
+# Initialize user preferences if needed
+if [[ ! -f "$user_prefs" ]]; then
+  echo '{
+    "strictness_level": "medium",
+    "preferred_languages": [],
+    "coding_style": "standard",
+    "notification_preferences": {
+      "security_alerts": true,
+      "performance_warnings": true,
+      "style_suggestions": false
+    }
+  }' > "$user_prefs"
+fi
+
+# Load current preferences
+strictness=$(jq -r '.strictness_level // "medium"' "$user_prefs")
+security_alerts=$(jq -r '.notification_preferences.security_alerts // true' "$user_prefs")
+style_suggestions=$(jq -r '.notification_preferences.style_suggestions // false' "$user_prefs")
+
+# Adapt behavior based on user preferences
+case "$strictness" in
+  "strict")
+    # Strict mode - block more operations, provide detailed feedback
+    if [[ "$tool_name" == "write_to_file" ]]; then
+      file_path=$(echo "$input" | jq -r '.preToolUse.parameters.path // empty')
+      content=$(echo "$input" | jq -r '.preToolUse.parameters.content // empty')
+      
+      # In strict mode, require documentation for new functions
+      if echo "$content" | grep -q "function\|const.*=.*=>" && ! echo "$content" | grep -q "\/\*\*"; then
+        echo '{"cancel": true, "errorMessage": "Strict mode: All functions must have JSDoc documentation."}'
+        exit 0
+      fi
+    fi
+    ;;
+    
+  "permissive")
+    # Permissive mode - minimal blocking, focus on critical issues only
+    if [[ "$security_alerts" == "false" ]]; then
+      echo '{"cancel": false}'
+      exit 0
+    fi
+    ;;
+esac
+
+# Time-based logic
+current_hour=$(date +%H)
+if (( current_hour >= 18 || current_hour <= 6 )); then
+  # After hours - be less intrusive
+  if [[ "$style_suggestions" == "true" ]]; then
+    # Override style suggestions during off-hours
+    echo '{"cancel": false, "contextModification": "AFTER_HOURS: Style suggestions reduced during off-hours. Focus on functionality."}'
+    exit 0
+  fi
+fi
+
+# Project-specific context
+context_suggestions=""
+
+# Check for project-specific configuration files
+if [[ -f ".cline-project-config.json" ]]; then
+  project_strictness=$(jq -r '.validation.strictness // "inherit"' .cline-project-config.json 2>/dev/null)
+  if [[ "$project_strictness" != "inherit" && "$project_strictness" != "null" ]]; then
+    strictness="$project_strictness"
+    context_suggestions+="PROJECT_CONFIG: Using project-specific validation level: $project_strictness. "
+  fi
+fi
+
+# Git context awareness
+if git rev-parse --git-dir > /dev/null 2>&1; then
+  current_branch=$(git branch --show-current 2>/dev/null)
+  
+  if [[ "$current_branch" == "main" || "$current_branch" == "master" ]]; then
+    context_suggestions+="GIT_CONTEXT: Working on main branch - extra caution recommended. "
+  elif [[ "$current_branch" =~ ^hotfix/ ]]; then
+    context_suggestions+="GIT_CONTEXT: Hotfix branch detected - focus on minimal, targeted changes. "
+  fi
+fi
+
+# Build final response
+if [[ -n "$context_suggestions" ]]; then
+  jq -n --arg ctx "$context_suggestions" '{"cancel": false, "contextModification": $ctx}'
+else
+  echo '{"cancel": false}'
+fi
+```
+
+## Error Recovery and Resilience
+
+### Self-Healing Hook System
+
+Implement automatic recovery from hook failures and graceful degradation.
+
+**File: `PostToolUse` (Resilient)**
+```bash
+#!/usr/bin/env bash
+
+# Trap errors and ensure graceful failure
+set -o pipefail
+trap 'echo "{\"cancel\": false}" >&2; exit 0' ERR
+
+input=$(cat)
+
+# Validate input JSON
+if ! echo "$input" | jq empty 2>/dev/null; then
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+tool_name=$(echo "$input" | jq -r '.postToolUse.toolName // "unknown"')
+success=$(echo "$input" | jq -r '.postToolUse.success // "false"')
+
+# Health check directory
+health_dir="$HOME/.cline_hook_health"
+mkdir -p "$health_dir" 2>/dev/null || {
+  echo '{"cancel": false}'
+  exit 0
+}
+
+health_file="$health_dir/hook_health.json"
+
+# Initialize health tracking
+if [[ ! -f "$health_file" ]]; then
+  echo '{
+    "last_success": null,
+    "failure_count": 0,
+    "consecutive_failures": 0,
+    "degraded_mode": false
+  }' > "$health_file" 2>/dev/null || {
+    echo '{"cancel": false}'
+    exit 0
+  }
+fi
+
+# Update health status
+if [[ "$success" == "true" ]]; then
+  # Reset failure counters on success
+  jq '. + {
+    "last_success": now,
+    "consecutive_failures": 0,
+    "degraded_mode": false
+  }' "$health_file" > "${health_file}.tmp" 2>/dev/null && mv "${health_file}.tmp" "$health_file" 2>/dev/null || true
+else
+  # Increment failure counters
+  jq '. + {
+    "failure_count": (.failure_count + 1),
+    "consecutive_failures": (.consecutive_failures + 1)
+  }' "$health_file" > "${health_file}.tmp" 2>/dev/null && mv "${health_file}.tmp" "$health_file" 2>/dev/null || true
+fi
+
+# Check if we should enter degraded mode
+consecutive_failures=$(jq -r '.consecutive_failures // 0' "$health_file" 2>/dev/null || echo "0")
+
+if (( consecutive_failures >= 3 )); then
+  # Enable degraded mode
+  jq '. + {"degraded_mode": true}' "$health_file" > "${health_file}.tmp" 2>/dev/null && mv "${health_file}.tmp" "$health_file" 2>/dev/null || true
+  
+  context="HOOK_HEALTH: Operating in degraded mode due to repeated failures. Hook functionality is reduced to prevent blocking operations."
+  jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}' 2>/dev/null || echo '{"cancel": false}'
+else
+  echo '{"cancel": false}'
+fi
+```
+
+These advanced patterns demonstrate how hooks can work together to create sophisticated, intelligent development workflows. They show how to maintain state, optimize performance, adapt to user preferences, and ensure resilient operation even when individual components fail.
+
+Remember to test these patterns thoroughly in your environment and adapt them to your specific workflow requirements. The key to successful advanced hook implementation is gradual adoption - start with simpler patterns and build up to more complex combinations as you become comfortable with the system.

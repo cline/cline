@@ -138,7 +138,16 @@
 							"features/drag-and-drop",
 							"features/editing-messages",
 							"features/focus-chain",
-							"features/hooks",
+							{
+								"group": "Hooks",
+								"pages": [
+									"features/hooks/index",
+									"features/hooks/hook-reference",
+									"features/hooks/real-world-examples",
+									"features/hooks/advanced-patterns",
+									"features/hooks/testing-and-debugging"
+								]
+							},
 							"features/multiroot-workspace",
 							"features/plan-and-act",
 							{
@@ -335,6 +344,10 @@
 		{
 			"source": "/cline-cli/samples",
 			"destination": "/cline-cli/samples/overview"
+		},
+		{
+			"source": "/features/hooks",
+			"destination": "/features/hooks/index"
 		}
 	],
 	"search": {
