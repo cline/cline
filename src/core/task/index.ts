@@ -2997,26 +2997,9 @@ export class Task {
 				throw new Error("Cline instance aborted")
 			}
 
-			this.taskState.didCompleteReadingStream = true
+			const assistantHasContent = assistantMessage.length > 0 || this.useNativeToolCalls
 
-			// set any blocks to be complete to allow presentAssistantMessage to finish and set userMessageContentReady to true
-			// (could be a text block that had no subsequent tool uses, or a text block at the very end, or an invalid tool use, etc. whatever the case, presentAssistantMessage relies on these blocks either to be completed or the user to reject a block in order to proceed and eventually set userMessageContentReady to true)
-			const partialBlocks = this.taskState.assistantMessageContent.filter((block) => block.partial)
-			partialBlocks.forEach((block) => {
-				block.partial = false
-			})
-			// in case there are native tool calls pending
-			const partialToolBlocks = toolUseHandler.getPartialToolUsesAsContent()?.map((block) => ({ ...block, partial: false }))
-			this.processNativeToolCalls(assistantTextOnly, partialToolBlocks)
-
-			if (partialBlocks.length > 0) {
-				await this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
-			}
-
-			// now add to apiconversationhistory
-			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
-			let didEndLoop = false
-			if (assistantMessage.length > 0 || this.useNativeToolCalls) {
+			if (assistantHasContent) {
 				const currentMode = this.stateManager.getGlobalSettingsKey("mode")
 				telemetryService.captureConversationTurnEvent(
 					this.ulid,
@@ -3084,7 +3067,26 @@ export class Task {
 						id: requestId,
 					})
 				}
+			}
 
+			this.taskState.didCompleteReadingStream = true
+
+			// set any blocks to be complete to allow presentAssistantMessage to finish and set userMessageContentReady to true
+			// (could be a text block that had no subsequent tool uses, or a text block at the very end, or an invalid tool use, etc. whatever the case, presentAssistantMessage relies on these blocks either to be completed or the user to reject a block in order to proceed and eventually set userMessageContentReady to true)
+			const partialBlocks = this.taskState.assistantMessageContent.filter((block) => block.partial)
+			partialBlocks.forEach((block) => {
+				block.partial = false
+			})
+			// in case there are native tool calls pending
+			const partialToolBlocks = toolUseHandler.getPartialToolUsesAsContent()?.map((block) => ({ ...block, partial: false }))
+			this.processNativeToolCalls(assistantTextOnly, partialToolBlocks)
+
+			if (partialBlocks.length > 0) {
+				await this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
+			}
+
+			let didEndLoop = false
+			if (assistantHasContent) {
 				// NOTE: this comment is here for future reference - this was a workaround for userMessageContent not getting set to true. It was due to it not recursively calling for partial blocks when didRejectTool, so it would get stuck waiting for a partial block to complete before it could continue.
 				// in case the content blocks finished
 				// it may be the api stream finished after the last parsed content block was executed, so  we are able to detect out of bounds and set userMessageContentReady to true (note you should not call presentAssistantMessage since if the last block is completed it will be presented again)
