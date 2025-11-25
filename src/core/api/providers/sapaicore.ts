@@ -360,6 +360,21 @@ export class SapAiCoreHandler implements ApiHandler {
 		this.options = options
 	}
 
+	/**
+	 * Converts a chunk from the stream to a UTF-8 string
+	 * Handles Buffer, string, and byte array formats
+	 */
+	private chunkToString(chunk: any): string {
+		if (Buffer.isBuffer(chunk)) {
+			return chunk.toString("utf-8")
+		} else if (typeof chunk === "string") {
+			return chunk
+		} else {
+			// Handle comma-separated byte values or other array-like formats
+			return Buffer.from(chunk).toString("utf-8")
+		}
+	}
+
 	private validateCredentials(): void {
 		if (
 			!this.options.sapAiCoreClientId ||
@@ -814,17 +829,7 @@ export class SapAiCoreHandler implements ApiHandler {
 
 		try {
 			for await (const chunk of stream) {
-				// Convert chunk to string - handle both Buffer and byte array formats
-				let chunkStr: string
-				if (Buffer.isBuffer(chunk)) {
-					chunkStr = chunk.toString("utf-8")
-				} else if (typeof chunk === "string") {
-					chunkStr = chunk
-				} else {
-					// Handle comma-separated byte values or other array-like formats
-					chunkStr = Buffer.from(chunk).toString("utf-8")
-				}
-
+				const chunkStr = this.chunkToString(chunk)
 				const lines = chunkStr.split("\n").filter(Boolean)
 				for (const line of lines) {
 					if (line.startsWith("data: ")) {
@@ -884,17 +889,7 @@ export class SapAiCoreHandler implements ApiHandler {
 		try {
 			// Iterate over the stream and process each chunk
 			for await (const chunk of stream) {
-				// Convert chunk to string - handle both Buffer and byte array formats
-				let chunkStr: string
-				if (Buffer.isBuffer(chunk)) {
-					chunkStr = chunk.toString("utf-8")
-				} else if (typeof chunk === "string") {
-					chunkStr = chunk
-				} else {
-					// Handle comma-separated byte values or other array-like formats
-					chunkStr = Buffer.from(chunk).toString("utf-8")
-				}
-
+				const chunkStr = this.chunkToString(chunk)
 				const lines = chunkStr.split("\n").filter(Boolean)
 
 				for (const line of lines) {
@@ -968,17 +963,7 @@ export class SapAiCoreHandler implements ApiHandler {
 
 		try {
 			for await (const chunk of stream) {
-				// Convert chunk to string - handle both Buffer and byte array formats
-				let chunkStr: string
-				if (Buffer.isBuffer(chunk)) {
-					chunkStr = chunk.toString("utf-8")
-				} else if (typeof chunk === "string") {
-					chunkStr = chunk
-				} else {
-					// Handle comma-separated byte values or other array-like formats
-					chunkStr = Buffer.from(chunk).toString("utf-8")
-				}
-
+				const chunkStr = this.chunkToString(chunk)
 				const lines = chunkStr.split("\n").filter(Boolean)
 				for (const line of lines) {
 					if (line.trim() === "data: [DONE]") {
@@ -1051,17 +1036,7 @@ export class SapAiCoreHandler implements ApiHandler {
 
 		try {
 			for await (const chunk of stream) {
-				// Convert chunk to string - handle both Buffer and byte array formats
-				let chunkStr: string
-				if (Buffer.isBuffer(chunk)) {
-					chunkStr = chunk.toString("utf-8")
-				} else if (typeof chunk === "string") {
-					chunkStr = chunk
-				} else {
-					// Handle comma-separated byte values or other array-like formats
-					chunkStr = Buffer.from(chunk).toString("utf-8")
-				}
-
+				const chunkStr = this.chunkToString(chunk)
 				const lines = chunkStr.split("\n").filter(Boolean)
 				for (const line of lines) {
 					if (line.startsWith("data: ")) {
