@@ -18,11 +18,6 @@ export async function GetActiveBanners(controller: Controller): Promise<BannersR
 				bodyMd: banner.bodyMd,
 				severity: banner.severity,
 				placement: banner.placement,
-				ctaText: banner.ctaText,
-				ctaUrl: banner.ctaUrl,
-				activeFrom: banner.activeFrom,
-				activeTo: banner.activeTo,
-				rulesJson: banner.rulesJson,
 			}),
 		)
 

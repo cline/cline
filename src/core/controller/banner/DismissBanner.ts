@@ -1,5 +1,5 @@
 import type { DismissBannerRequest } from "@/shared/proto/cline/banners"
-import { Empty } from "@/shared/proto/google/protobuf/empty"
+import { Empty } from "@/shared/proto/cline/common"
 import type { Controller } from ".."
 
 /**
