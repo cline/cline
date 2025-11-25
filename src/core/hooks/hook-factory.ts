@@ -261,7 +261,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 		// NOTE: Proto3 by default omits empty strings (default values) from toJSON()
 		// To ensure hooks receive consistent data (e.g., {"prompt": ""} instead of {}),
 		// we manually construct the JSON object and explicitly include empty string fields
-		const jsonObj = HookInput.toJSON(input) as any
+		const jsonObj = HookInput.toJSON(input) as Record<string, any>
 
 		// Ensure empty prompt strings are preserved in UserPromptSubmit data
 		if (jsonObj.userPromptSubmit && jsonObj.userPromptSubmit.prompt === undefined) {

@@ -11,7 +11,7 @@ import type { ClineContent } from "@shared/messages/content"
  * @param text Optional feedback text from user
  * @param images Optional array of base64 image data
  * @param files Optional array of file paths to include
- * @returns Array of ClineContent blocks ready for hook processing
+ * @returns Array of ClineContent blocks ready for hook processing (may be empty if no content provided)
  */
 export async function buildUserFeedbackContent(text?: string, images?: string[], files?: string[]): Promise<ClineContent[]> {
 	const content: ClineContent[] = []
