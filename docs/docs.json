@@ -151,7 +151,14 @@
 									"features/slash-commands/deep-planning"
 								]
 							},
-							"features/slash-commands/workflows",
+							{
+								"group": "Workflows",
+								"pages": [
+									"features/slash-commands/workflows/index",
+									"features/slash-commands/workflows/quickstart",
+									"features/slash-commands/workflows/best-practices"
+								]
+							},
 							{
 								"group": "Task Management",
 								"pages": [
@@ -189,6 +196,7 @@
 									"provider-config/fireworks",
 									"provider-config/zai",
 									"provider-config/gcp-vertex-ai",
+									"provider-config/baseten",
 									{
 										"group": "AWS Bedrock",
 										"pages": [
@@ -215,8 +223,7 @@
 									"provider-config/vscode-language-model-api",
 									"provider-config/sap-aicore",
 									"provider-config/vercel-ai-gateway",
-									"provider-config/requesty",
-									"provider-config/baseten"
+									"provider-config/requesty"
 								]
 							}
 						]
@@ -242,13 +249,6 @@
 						]
 					},
 					{
-						"group": "Enterprise",
-						"pages": [
-							"enterprise-solutions/overview",
-							"enterprise-solutions/security-concerns"
-						]
-					},
-					{
 						"group": "Reference",
 						"pages": [
 							"troubleshooting/terminal-quick-fixes",
@@ -259,14 +259,35 @@
 				]
 			},
 			{
+				"tab": "Enterprise",
+				"icon": "building",
+				"groups": [
+					{
+						"group": "Enterprise Solutions",
+						"pages": [
+							"enterprise-solutions/overview",
+							"enterprise-solutions/onboarding",
+							"enterprise-solutions/members/roles-and-permissions",
+							{
+								"group": "Provider Remote Configuration",
+								"pages": [
+									{
+										"group": "AWS Bedrock",
+										"pages": [
+											"enterprise-solutions/provider-remote-config/aws-bedrock/admin-configuration",
+											"enterprise-solutions/provider-remote-config/aws-bedrock/member-configuration"
+										]
+									}
+								]
+							}
+						]
+					}
+				]
+			},
+			{
 				"tab": "Learn",
 				"icon": "graduation-cap",
 				"href": "https://cline.bot/learn"
-			},
-			{
-				"tab": "Blog",
-				"icon": "newspaper",
-				"href": "https://cline.bot/blog"
 			}
 		]
 	},
@@ -328,6 +349,22 @@
 		{
 			"source": "/cline-cli/samples",
 			"destination": "/cline-cli/samples/overview"
+		},
+		{
+			"source": "/enterprise-solutions/configure-AWS-Bedrock-Admin",
+			"destination": "/enterprise-solutions/provider-remote-config/aws-bedrock/admin-configuration"
+		},
+		{
+			"source": "/enterprise-solutions/configure-AWS-Bedrock-Member",
+			"destination": "/enterprise-solutions/provider-remote-config/aws-bedrock/member-configuration"
+		},
+		{
+			"source": "/enterprise-solutions/configure-workOS-authkit",
+			"destination": "/enterprise-solutions/onboarding"
+		},
+		{
+			"source": "/enterprise-solutions/Onboarding your Organization",
+			"destination": "/enterprise-solutions/onboarding"
 		}
 	],
 	"search": {

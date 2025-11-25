@@ -48,21 +48,30 @@ export class ToolResultUtils {
 			}
 
 			// Create ToolResultBlockParam with description and result
-			userMessageContent.push(ToolResultUtils.createToolResultBlock(`${description} Result:\n${resultText}`, toolUseId))
+			userMessageContent.push(
+				ToolResultUtils.createToolResultBlock(`${description} Result:\n${resultText}`, toolUseId, block.call_id),
+			)
 		} else {
 			// For complex content (arrays with text/image blocks), pass it through directly
 			// The content array should already be properly formatted with type, text, source, etc.
 			const toolUseId = toolUseIdMap?.get(block.name) || "cline"
-			userMessageContent.push(ToolResultUtils.createToolResultBlock(content, toolUseId))
+
+			// If using backward-compatible "cline" ID and content is an array, spread it directly
+			// instead of wrapping it (which would cause JSON.stringify in createToolResultBlock)
+			if ((toolUseId === "cline" || !toolUseId) && Array.isArray(content)) {
+				userMessageContent.push(...content)
+			} else {
+				userMessageContent.push(ToolResultUtils.createToolResultBlock(content, toolUseId, block.call_id))
+			}
 		}
 		// once a tool result has been collected, ignore all other tool uses since we should only ever present one tool result per message
 		markToolAsUsed()
 	}
 
-	private static createToolResultBlock(content: ToolResponse, id?: string) {
+	private static createToolResultBlock(content: ToolResponse, id?: string, call_id?: string) {
 		// If id is "cline", we treat it as a plain text result for backward compatibility
 		// as we cannot find any existing tool call that matches this id.
-		if (id === "cline") {
+		if (id === "cline" || !id) {
 			return {
 				type: "text",
 				text: typeof content === "string" ? content : JSON.stringify(content, null, 2),
@@ -75,6 +84,7 @@ export class ToolResultUtils {
 		return {
 			type: "tool_result",
 			tool_use_id: id,
+			call_id: call_id,
 			content: typeof content === "string" ? content : content,
 		}
 	}

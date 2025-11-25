@@ -1,0 +1,112 @@
+---
+title: "Workflows Quick Start"
+sidebarTitle: "Quick Start"
+description: "A step-by-step guide to creating your first Cline workflow."
+---
+
+In this tutorial, you will create a powerful workflow that automates the process of reviewing a GitHub Pull Request. This example demonstrates how to combine CLI tools, file analysis, and user interaction into a seamless process.
+
+### Prerequisites
+
+*   You have Cline installed.
+*   You have the [GitHub CLI (`gh`)](https://cli.github.com/) installed and authenticated.
+*   You have a Git repository open with a Pull Request you want to test this on.
+
+## Creating a Pull Request Review Workflow
+
+This workflow will automate the process of fetching PR details, analyzing the code changes for issues, and drafting a review comment.
+
+<Steps>
+  <Step title="Create the Workflow File">
+    First, create the directory structure for your project-specific workflows.
+
+    1.  In the root of your project, create a new folder named `.clinerules`.
+    2.  Inside `.clinerules`, create another folder named `workflows`.
+    3.  Finally, create a new file named `pr-review.md` inside the `workflows` folder.
+  </Step>
+
+  <Step title="Write the Workflow Content">
+    Open the `pr-review.md` file and add the following content. This workflow will gather PR details, analyze the changes, and help you submit a review.
+
+    ````markdown pr-review.md
+    # Pull Request Reviewer
+
+    This workflow helps me review a pull request by analyzing the changes and drafting a review.
+
+    ## 1. Gather PR Information
+    First, I need to understand what this PR is about. I'll fetch the title, description, and list of changed files.
+
+    ```bash
+    gh pr view PR_NUMBER --json title,body,files
+    ```
+
+    ## 2. Examine Modified Files
+    Now I will examine the diff to understand the specific code changes.
+
+    ```bash
+    gh pr diff PR_NUMBER
+    ```
+
+    ## 3. Analyze Changes
+    I will analyze the code changes for:
+    *   **Bugs:** Logic errors or edge cases.
+    *   **Performance:** Inefficient loops or operations.
+    *   **Security:** Vulnerabilities or unsafe practices.
+
+    ## 4. Confirm Assessment
+    Based on my analysis, I will present my findings and ask how you want to proceed.
+
+    ```xml
+    <ask_followup_question>
+      <question>I've reviewed PR #PR_NUMBER. Here is my assessment:
+
+    [Insert Analysis Here]
+
+    Do you want me to approve this PR, request changes, or just leave a comment?</question>
+      <options>["Approve", "Request Changes", "Comment", "Do nothing"]</options>
+    </ask_followup_question>
+    ```
+
+    ## 5. Execute Review
+    Finally, I will execute the review command based on your decision.
+
+    ```bash
+    # If approving:
+    gh pr review PR_NUMBER --approve --body "Looks good to me! [Summary of analysis]"
+
+    # If requesting changes:
+    gh pr review PR_NUMBER --request-changes --body "Please address the following: [Issues list]"
+
+    # If commenting:
+    gh pr review PR_NUMBER --comment --body "[Comments]"
+    ```
+    ````
+
+    <Note>
+      When you run this workflow, you will replace `PR_NUMBER` with the actual number of the pull request you want to review (e.g., `/pr-review.md 123`).
+    </Note>
+  </Step>
+
+  <Step title="Run the Workflow">
+    Now you're ready to run your new workflow.
+
+    1.  Open the Cline chat panel.
+    2.  Type `/pr-review.md` followed by the PR number (e.g., `/pr-review.md 42`) and press Enter.
+    3.  Cline will fetch the PR details, analyze the code, and present you with its findings before submitting the review.
+
+    <Tip>
+      As Cline executes commands (like `gh pr view`), it may show you the output and pause. You will need to click the **Proceed While Running** button to allow Cline to analyze the content and continue with the workflow.
+    </Tip>
+  </Step>
+</Steps>
+
+### Other Common Use Cases
+
+This is just one example. You can create workflows for a wide variety of tasks, such as:
+
+*   **Creating Components:** Automate the boilerplate for new files (like React components or API endpoints).
+*   **Running Tests:** Create a workflow that runs your test suite and summarizes the results.
+*   **Deploying Your Application:** Automate your deployment pipeline using tools like `docker` and `kubectl`.
+*   **Refactoring Code:** Guide Cline through a complex refactoring process step-by-step.
+
+Explore Cline's capabilities and your own development processes to find repetitive tasks that can be turned into efficient workflows.
