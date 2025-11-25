@@ -93,6 +93,7 @@ export class TelemetryService {
 			AUTH_SUCCEEDED: "user.auth_succeeded",
 			AUTH_FAILED: "user.auth_failed",
 			AUTH_LOGGED_OUT: "user.auth_logged_out",
+			ONBOARDING_PROGRESS: "user.onboarding_progress",
 		},
 		DICTATION: {
 			// Tracks when voice recording is started
@@ -590,6 +591,7 @@ export class TelemetryService {
 			cacheReadTokens?: number
 			totalCost?: number
 		} = {},
+		isNativeToolCall?: boolean,
 	) {
 		// Ensure required parameters are provided
 		if (!ulid || !provider || !model || !source) {
@@ -607,6 +609,7 @@ export class TelemetryService {
 				mode,
 				timestamp: new Date().toISOString(), // Add timestamp for message sequencing
 				...tokenUsage,
+				isNativeToolCall,
 			},
 		})
 	}
@@ -1030,6 +1033,7 @@ export class TelemetryService {
 		provider?: string
 		errorStatus?: number | undefined
 		requestId?: string | undefined
+		isNativeToolCall?: boolean
 	}) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.PROVIDER_API_ERROR,
@@ -1630,6 +1634,15 @@ export class TelemetryService {
 				outputLines,
 				success,
 				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	public captureOnboardingProgress(args: { step: number; action?: string; model?: string; completed?: boolean }) {
+		this.capture({
+			event: TelemetryService.EVENTS.USER.ONBOARDING_PROGRESS,
+			properties: {
+				...args,
 			},
 		})
 	}

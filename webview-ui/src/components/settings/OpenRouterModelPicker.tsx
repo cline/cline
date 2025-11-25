@@ -1,7 +1,7 @@
 import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
 import type { Mode } from "@shared/storage/types"
-import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import type React from "react"
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
@@ -12,6 +12,7 @@ import { StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { ContextWindowSwitcher } from "./common/ContextWindowSwitcher"
 import { ModelInfoView } from "./common/ModelInfoView"
+import { DropdownContainer } from "./common/ModelSelector"
 import FeaturedModelCard from "./FeaturedModelCard"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
@@ -51,8 +52,13 @@ const featuredModels = [
 		label: "Best",
 	},
 	{
-		id: "z-ai/glm-4.6:exacto",
-		description: "Fast open-source model with improved performance in Cline",
+		id: "anthropic/claude-opus-4.5",
+		description: "SOTA performance on coding at 3x lower cost than Opus 4.1",
+		label: "New",
+	},
+	{
+		id: "google/gemini-3-pro-preview",
+		description: "Google's latest reasoning model with 1M context window",
 		label: "Trending",
 	},
 	{
@@ -65,7 +71,7 @@ const featuredModels = [
 const FREE_CLINE_MODELS = featuredModels.filter((m) => m.isFree)
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode }) => {
-	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { handleModeFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds, openRouterModels, refreshOpenRouterModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
@@ -257,11 +263,19 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 			selectedModelId?.toLowerCase().includes("claude-sonnet-4") ||
 			selectedModelId?.toLowerCase().includes("claude-opus-4.1") ||
 			selectedModelId?.toLowerCase().includes("claude-opus-4") ||
+			selectedModelId?.toLowerCase().includes("claude-opus-4.5") ||
 			selectedModelId?.toLowerCase().includes("claude-3-7-sonnet") ||
 			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet") ||
 			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet:thinking")
 		)
 	}, [selectedModelId])
+
+	const showThinkingLevel = useMemo(() => {
+		return selectedModelId?.toLowerCase().includes("gemini") && selectedModelId?.includes("3")
+	}, [selectedModelId])
+
+	const geminiThinkingLevel =
+		currentMode === "plan" ? apiConfiguration?.geminiPlanModeThinkingLevel : apiConfiguration?.geminiActModeThinkingLevel
 
 	return (
 		<div style={{ width: "100%" }}>
@@ -387,7 +401,29 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 
 			{hasInfo ? (
 				<>
-					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
+					{showBudgetSlider && !showThinkingLevel && <ThinkingBudgetSlider currentMode={currentMode} />}
+
+					{showThinkingLevel && (
+						<DropdownContainer className="dropdown-container" zIndex={1}>
+							<label htmlFor="thinking-level">
+								<span className="font-medium">Thinking Level</span>
+							</label>
+							<VSCodeDropdown
+								className="w-full"
+								id="thinking-level"
+								onChange={(e: any) =>
+									handleModeFieldChange(
+										{ plan: "geminiPlanModeThinkingLevel", act: "geminiActModeThinkingLevel" },
+										e.target.value,
+										currentMode,
+									)
+								}
+								value={geminiThinkingLevel || "high"}>
+								<VSCodeOption value="low">Low</VSCodeOption>
+								<VSCodeOption value="high">High</VSCodeOption>
+							</VSCodeDropdown>
+						</DropdownContainer>
+					)}
 
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>

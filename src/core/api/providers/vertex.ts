@@ -1,8 +1,8 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { FunctionDeclaration as GoogleTool } from "@google/genai"
 import { ModelInfo, VertexModelId, vertexDefaultModelId, vertexModels } from "@shared/api"
+import { ClineStorageMessage } from "@/shared/messages/content"
 import { ClineTool } from "@/shared/tools"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
@@ -67,7 +67,7 @@ export class VertexHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: ClineTool[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ClineTool[]): ApiStream {
 		const model = this.getModel()
 		const modelId = model.id
 
@@ -95,6 +95,7 @@ export class VertexHandler implements ApiHandler {
 			case "claude-haiku-4-5@20251001":
 			case "claude-sonnet-4-5@20250929":
 			case "claude-sonnet-4@20250514":
+			case "claude-opus-4-5@20251101":
 			case "claude-opus-4-1@20250805":
 			case "claude-opus-4@20250514":
 			case "claude-3-7-sonnet@20250219":
@@ -103,13 +104,6 @@ export class VertexHandler implements ApiHandler {
 			case "claude-3-5-haiku@20241022":
 			case "claude-3-opus@20240229":
 			case "claude-3-haiku@20240307": {
-				// Find indices of user messages for cache control
-				const userMsgIndices = messages.reduce(
-					(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
-					[] as number[],
-				)
-				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
-				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 				stream = await clientAnthropic.beta.messages.create(
 					{
 						model: modelId,
@@ -123,7 +117,7 @@ export class VertexHandler implements ApiHandler {
 								cache_control: { type: "ephemeral" },
 							},
 						],
-						messages: sanitizeAnthropicMessages(messages, lastUserMsgIndex, secondLastMsgUserIndex),
+						messages: sanitizeAnthropicMessages(messages, true),
 						stream: true,
 						tools: tools?.length ? (tools as AnthropicTool[]) : undefined,
 						// tool_choice options:
@@ -149,7 +143,7 @@ export class VertexHandler implements ApiHandler {
 							type: "text",
 						},
 					],
-					messages: sanitizeAnthropicMessages(messages),
+					messages: sanitizeAnthropicMessages(messages, false),
 					stream: true,
 					tools: tools?.length ? (tools as AnthropicTool[]) : undefined,
 					// tool_choice options:
@@ -166,7 +160,7 @@ export class VertexHandler implements ApiHandler {
 
 		for await (const chunk of stream) {
 			switch (chunk?.type) {
-				case "message_start":
+				case "message_start": {
 					const usage = chunk.message.usage
 					yield {
 						type: "usage",
@@ -176,6 +170,7 @@ export class VertexHandler implements ApiHandler {
 						cacheReadTokens: usage.cache_read_input_tokens || undefined,
 					}
 					break
+				}
 				case "message_delta":
 					yield {
 						type: "usage",

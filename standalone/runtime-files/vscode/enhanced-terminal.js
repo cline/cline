@@ -35,8 +35,16 @@ class StandaloneTerminalProcess extends EventEmitter {
 			// Spawn the process
 			this.childProcess = spawn(shell, shellArgs, {
 				cwd: cwd,
-				stdio: ["pipe", "pipe", "pipe"],
-				env: { ...process.env, TERM: "xterm-256color" },
+				stdio: ["ignore", "pipe", "pipe"], // Disable STDIN to prevent interactivity
+				env: {
+					...process.env,
+					TERM: "xterm-256color",
+					PAGER: "cat", // Prevent less from being used, reducing interactivity
+					EDITOR: process.env.EDITOR || "cat", // Set EDITOR if not already set
+					GIT_PAGER: "cat", // Prevent git from using less
+					SYSTEMD_PAGER: "", // Disable systemd pager
+					MANPAGER: "cat", // Disable man pager
+				},
 			})
 
 			// Track process state
@@ -192,7 +200,8 @@ class StandaloneTerminalProcess extends EventEmitter {
 			if (shell.toLowerCase().includes("powershell") || shell.toLowerCase().includes("pwsh")) {
 				return ["-Command", command]
 			} else {
-				return ["/c", command]
+				// Use /s /c with quoted command for proper quote handling in cmd.exe
+				return ["/s", "/c", `"${command}"`]
 			}
 		} else {
 			// Use -l for login shell, -c for command
@@ -202,17 +211,38 @@ class StandaloneTerminalProcess extends EventEmitter {
 
 	// Terminate the process if it's still running
 	terminate() {
-		if (this.childProcess && !this.isCompleted) {
-			console.log(`[StandaloneTerminal] Terminating process ${this.childProcess.pid}`)
+		if (!this.childProcess || this.isCompleted) {
+			console.log(`[StandaloneTerminal] Process already completed or doesn't exist, skipping termination`)
+			return
+		}
+
+		const pid = this.childProcess.pid
+		console.log(`[StandaloneTerminal] Terminating process ${pid} with SIGTERM`)
+
+		try {
 			this.childProcess.kill("SIGTERM")
 
-			// Force kill after timeout
+			// Force kill after timeout if process doesn't exit gracefully
 			setTimeout(() => {
-				if (!this.isCompleted) {
-					console.log(`[StandaloneTerminal] Force killing process ${this.childProcess.pid}`)
-					this.childProcess.kill("SIGKILL")
+				if (!this.isCompleted && this.childProcess) {
+					console.log(`[StandaloneTerminal] Process ${pid} did not exit gracefully, force killing with SIGKILL`)
+					try {
+						this.childProcess.kill("SIGKILL")
+					} catch (killError) {
+						console.error(`[StandaloneTerminal] Failed to force kill process ${pid}:`, killError)
+					}
+				} else {
+					console.log(`[StandaloneTerminal] Process ${pid} exited gracefully`)
 				}
 			}, 5000)
+		} catch (error) {
+			console.error(`[StandaloneTerminal] Failed to send SIGTERM to process ${pid}:`, error)
+			// Try SIGKILL immediately if SIGTERM fails
+			try {
+				this.childProcess.kill("SIGKILL")
+			} catch (killError) {
+				console.error(`[StandaloneTerminal] Failed to send SIGKILL to process ${pid}:`, killError)
+			}
 		}
 	}
 }
@@ -511,6 +541,17 @@ class StandaloneTerminalManager {
 				const value = descriptor.value.bind(promise)
 				Reflect.defineProperty(process, property, { ...descriptor, value })
 			}
+		}
+
+		// Ensure terminate() is accessible on the merged promise
+		// This allows Task.cancelBackgroundCommand() to kill the process
+		if (process.terminate && typeof process.terminate === "function") {
+			Object.defineProperty(process, "terminate", {
+				value: process.terminate.bind(process),
+				writable: false,
+				enumerable: false,
+				configurable: false,
+			})
 		}
 
 		return process

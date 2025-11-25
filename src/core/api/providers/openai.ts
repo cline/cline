@@ -1,7 +1,7 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { azureOpenAiDefaultApiVersion, ModelInfo, OpenAiCompatibleModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import OpenAI, { AzureOpenAI } from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
+import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
@@ -65,11 +65,7 @@ export class OpenAiHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-		tools?: ChatCompletionTool[],
-	): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ChatCompletionTool[]): ApiStream {
 		const client = this.ensureClient()
 		const modelId = this.options.openAiModelId ?? ""
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
@@ -81,7 +77,13 @@ export class OpenAiHandler implements ApiHandler {
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
-		let temperature: number | undefined = this.options.openAiModelInfo?.temperature ?? openAiModelInfoSaneDefaults.temperature
+		let temperature: number | undefined
+		if (this.options.openAiModelInfo?.temperature !== undefined) {
+			const tempValue = Number(this.options.openAiModelInfo.temperature)
+			temperature = tempValue === 0 ? undefined : tempValue
+		} else {
+			temperature = openAiModelInfoSaneDefaults.temperature
+		}
 		let reasoningEffort: ChatCompletionReasoningEffort | undefined
 		let maxTokens: number | undefined
 
