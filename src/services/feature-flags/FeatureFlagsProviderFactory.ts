@@ -64,7 +64,7 @@ class NoOpFeatureFlagsProvider implements IFeatureFlagsProvider {
 		return undefined
 	}
 
-	public async getFeatureFlagPayload(flagName: string): Promise<unknown> {
+	public async getFeatureFlagPayload(flagName: string) {
 		Logger.info(`[NoOpFeatureFlagsProvider] getFeatureFlagPayload called with flagName=${flagName}`)
 		return null
 	}

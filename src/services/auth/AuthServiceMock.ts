@@ -16,9 +16,7 @@ export class AuthServiceMock extends AuthService {
 			throw new Error("AuthServiceMock should only be used in local environment for testing purposes.")
 		}
 
-		// Support both auth providers, default to firebase for compatibility
-		const authProvider = process.env.E2E_TEST_AUTH_PROVIDER || "firebase"
-		this._setProvider(authProvider)
+		this._initProvider()
 		this._controller = controller
 	}
 

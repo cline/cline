@@ -9,7 +9,7 @@ import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client
 import { getAsVar, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 
-export const CURRENT_MODEL_BANNER_VERSION = 2
+export const CURRENT_MODEL_BANNER_VERSION = 3
 
 export const NewModelBanner: React.FC = () => {
 	const { clineUser } = useClineAuth()
@@ -31,7 +31,7 @@ export const NewModelBanner: React.FC = () => {
 	}, [])
 
 	const setNewModel = () => {
-		const modelId = "anthropic/claude-haiku-4.5"
+		const modelId = "anthropic/claude-opus-4.5"
 		// set both plan and act modes to use new model
 		handleFieldsChange({
 			planModeOpenRouterModelId: modelId,
@@ -74,10 +74,10 @@ export const NewModelBanner: React.FC = () => {
 			}}>
 			<h4 className="m-0 flex items-center gap-2">
 				<Megaphone className="w-4 h-4" />
-				Claude Haiku 4.5
+				Claude Opus 4.5
 			</h4>
 			<p className="m-0">
-				Anthropic's fastest model with frontier-level coding intelligence at a fraction of the cost.{" "}
+				Anthropic's latest model with SOTA performance at 3x lower cost than Opus 4.1.{" "}
 				<span className="text-link cursor-pointer">{user ? "Try new model" : "Try with Cline account"} →</span>
 			</p>
 

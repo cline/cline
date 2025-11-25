@@ -263,6 +263,26 @@
 				"watch"
 			],
 			"command": "rm -rf ${workspaceFolder}/dist/tmp/user && mkdir -p ${workspaceFolder}/dist/tmp/user"
+		},
+		{
+			"type": "npm",
+			"script": "storybook",
+			"group": "build",
+			"problemMatcher": [],
+			"isBackground": false,
+			"label": "npm: storybook",
+			"dependsOn": [
+				"npm: protos",
+				"npm: build:webview"
+			],
+			"presentation": {
+				"reveal": "always"
+			},
+			"options": {
+				"env": {
+					"IS_DEV": "true"
+				}
+			}
 		}
 	],
 	"inputs": [

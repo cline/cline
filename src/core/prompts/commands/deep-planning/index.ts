@@ -1,6 +1,7 @@
 import type { ApiProviderInfo } from "@/core/api"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt/types"
 import { getDeepPlanningRegistry } from "./registry"
+import { generateGemini3Template } from "./variants/gemini3"
 import { generateGPT51Template } from "./variants/gpt5"
 
 /**
@@ -24,6 +25,8 @@ export function getDeepPlanningPrompt(focusChainSettings?: { enabled: boolean },
 	let template: string
 	if (variant.id === "gpt-5") {
 		template = generateGPT51Template(focusChainSettings?.enabled ?? false)
+	} else if (variant.id === "gemini-3") {
+		template = generateGemini3Template(focusChainSettings?.enabled ?? false)
 	} else {
 		template = variant.template
 	}

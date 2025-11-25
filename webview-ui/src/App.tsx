@@ -23,7 +23,7 @@ const AppContent = () => {
 		showHistory,
 		showAccount,
 		showAnnouncement,
-		showOnboardingFlow,
+		onboardingModels,
 		setShowAnnouncement,
 		setShouldShowAnnouncement,
 		closeMcpView,
@@ -56,7 +56,7 @@ const AppContent = () => {
 	}
 
 	if (showWelcome) {
-		return showOnboardingFlow ? <OnboardingView /> : <WelcomeView />
+		return onboardingModels ? <OnboardingView onboardingModels={onboardingModels} /> : <WelcomeView />
 	}
 
 	return (

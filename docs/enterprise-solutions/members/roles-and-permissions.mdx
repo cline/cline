@@ -1,0 +1,83 @@
+---
+title: "Roles and Permissions"
+sidebarTitle: "Roles and Permissions"
+description: "An overview of member roles, permissions, and best practices for your enterprise organization."
+---
+
+Choosing the right role for each member is crucial for maintaining security and ensuring your team can work effectively. This guide provides a detailed breakdown of the available roles, their specific permissions, and best practices for managing your organization.
+
+## Role Definitions
+
+Here’s a summary of the available roles and their intended use cases.
+
+<CardGroup cols={1}>
+  <Card title="Owner" icon="user-crown">
+    **Best for:** The primary account holder or a small number of designated leaders.
+
+    Owners have unrestricted access to all settings, including billing, member management, and security configurations. To maintain tight control over the organization, the number of Owners should be kept to a minimum.
+  </Card>
+  <Card title="Admin" icon="user-gear">
+    **Best for:** Team leads or IT administrators who need to manage users and configurations.
+
+    Admins can invite, edit, and remove members, as well as manage provider configurations. They have broad access but cannot manage billing or change the Owner. This is a suitable role for trusted team managers.
+  </Card>
+  <Card title="Member" icon="user">
+    **Best for:** Most developers and individual contributors.
+
+    Members can use Cline with the organization's shared resources but cannot change any settings or view other users' activity. This is the safest default role for new users.
+  </Card>
+</CardGroup>
+
+## Permissions Matrix
+
+For a detailed comparison, this matrix outlines the specific capabilities of each role.
+
+| Permission                  | Member | Admin  | Owner  |
+| --------------------------- | :----: | :----: | :----: |
+| **General Usage**           |        |        |        |
+| Use Cline                   |   ✅   |   ✅   |   ✅   |
+| Access Shared API Providers |   ✅   |   ✅   |   ✅   |
+|                             |        |        |        |
+| **Member Management**       |        |        |        |
+| View Members                |   ❌   |   ✅   |   ✅   |
+| Invite New Members          |   ❌   |   ✅   |   ✅   |
+| Edit Member Roles           |   ❌   |   ✅   |   ✅   |
+| Remove Members              |   ❌   |   ✅   |   ✅   |
+| Remove Admins               |   ❌   |   ❌   |   ✅   |
+|                             |        |        |        |
+| **Configuration**           |        |        |        |
+| Configure API Providers     |   ❌   |   ✅   |   ✅   |
+| Manage Security Settings    |   ❌   |   ❌   |   ✅   |
+|                             |        |        |        |
+| **Billing & Ownership**     |        |        |        |
+| View Billing Information    |   ❌   |   ❌   |   ✅   |
+| Manage Subscription         |   ❌   |   ❌   |   ✅   |
+| Transfer Ownership          |   ❌   |   ❌   |   ✅   |
+
+## Role Management Best Practices
+
+Effective role management is fundamental to securing your organization.
+
+-   **Apply the Principle of Least Privilege**: Always assign the role with the minimum necessary permissions. Most users should be **Members**. Grant **Admin** rights only to those who are responsible for user management or technical configuration.
+
+-   **Limit the Number of Owners**: The **Owner** role should be reserved for one or two key individuals who control the account and billing. This centralization of power prevents accidental or malicious changes to critical settings.
+
+-   **Regularly Audit Roles**: Periodically review the list of Admins and Owners to ensure the assigned roles are still appropriate. When a team member's responsibilities change, adjust their role accordingly.
+
+## Identity Providers and Domain Verification
+
+For a user to successfully join and sign in to your organization, two conditions must be met:
+1.  Their email must be managed by your organization's verified **Identity Provider (IDP)**, such as Microsoft Entra ID, Okta, or AWS.
+2.  Your organization must have a **verified domain** with a provider like Google or Microsoft.
+
+This ensures that only authenticated users from your company can access your Cline organization.
+
+## Seat Management and Invitations
+
+Each user in your organization, regardless of role, consumes one seat from your license.
+
+-   When an invitation is sent, a seat is considered "pending."
+-   If an invited user does not accept, the invitation can be revoked to free up the seat.
+-   Removing a member from the organization immediately frees up a seat.
+
+Now that you understand the different roles and how to manage them, you can proceed to [configuring provider remote access](/enterprise-solutions/provider-remote-config/aws-bedrock/admin-configuration) for your organization.

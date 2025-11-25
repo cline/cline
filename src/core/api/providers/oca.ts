@@ -1,7 +1,5 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
 import OpenAI, { APIError, OpenAIError } from "openai"
-import type { FinalRequestOptions, Headers as OpenAIHeaders } from "openai/core"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import {
@@ -11,6 +9,7 @@ import {
 } from "@/services/auth/oca/utils/constants"
 import { createOcaHeaders } from "@/services/auth/oca/utils/utils"
 import { Logger } from "@/services/logging/Logger"
+import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiHandler, type CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
@@ -38,7 +37,7 @@ export class OcaHandler implements ApiHandler {
 
 	protected initializeClient(options: OcaHandlerOptions) {
 		return new (class OCIOpenAI extends OpenAI {
-			protected override async prepareOptions(opts: FinalRequestOptions<unknown>): Promise<void> {
+			protected override async prepareOptions(opts: any): Promise<void> {
 				const token = await OcaAuthService.getInstance().getAuthToken()
 				if (!token) {
 					throw new OpenAIError("Unable to handle auth, Oracle Code Assist (OCA) access token is not available")
@@ -55,7 +54,7 @@ export class OcaHandler implements ApiHandler {
 				status: number | undefined,
 				error: Object | undefined,
 				message: string | undefined,
-				headers: OpenAIHeaders | undefined,
+				headers: any | undefined,
 			): APIError {
 				interface OciError {
 					code?: string
@@ -75,7 +74,8 @@ export class OcaHandler implements ApiHandler {
 				if (opcRequestId) {
 					ociErrorMessage += `\n(${OCI_HEADER_OPC_REQUEST_ID}: ${opcRequestId})`
 				}
-				return super.makeStatusError(status, error, ociErrorMessage, headers)
+				const statusCode = typeof status === "number" ? status : 500
+				return super.makeStatusError(statusCode, error ?? {}, ociErrorMessage, headers)
 			}
 		})({
 			baseURL:
@@ -139,7 +139,7 @@ export class OcaHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: OpenAITool[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const formattedMessages = convertToOpenAiMessages(messages)
 		const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam = {
@@ -151,7 +151,7 @@ export class OcaHandler implements ApiHandler {
 
 		// Configuration for extended thinking
 		const budgetTokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = budgetTokens !== 0 ? true : false
+		const reasoningOn = budgetTokens !== 0
 		const thinkingConfig = reasoningOn ? { type: "enabled", budget_tokens: budgetTokens } : undefined
 
 		let temperature: number | undefined = this.options.ocaModelInfo?.temperature ?? 0

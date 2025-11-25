@@ -26,6 +26,7 @@ const SUPPORTED_THINKING_MODELS = [
 	"claude-sonnet-4-5@20250929",
 	"claude-3-7-sonnet@20250219",
 	"claude-sonnet-4@20250514",
+	"claude-opus-4-5@20251101",
 	"claude-opus-4@20250514",
 	"claude-opus-4-1@20250805",
 	"gemini-2.5-flash",
@@ -47,6 +48,9 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 
 	// Determine which models to use based on region
 	const modelsToUse = apiConfiguration?.vertexRegion === "global" ? vertexGlobalModels : vertexModels
+
+	const geminiThinkingLevel =
+		currentMode === "plan" ? apiConfiguration?.geminiPlanModeThinkingLevel : apiConfiguration?.geminiActModeThinkingLevel
 
 	return (
 		<div
@@ -118,6 +122,28 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 
 					{SUPPORTED_THINKING_MODELS.includes(selectedModelId) && (
 						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
+					)}
+
+					{selectedModelInfo.thinkingConfig?.supportsThinkingLevel && (
+						<DropdownContainer className="dropdown-container" style={{ marginTop: "8px" }} zIndex={1}>
+							<label htmlFor="thinking-level">
+								<span style={{ fontWeight: 500 }}>Thinking Level</span>
+							</label>
+							<VSCodeDropdown
+								className="w-full"
+								id="thinking-level"
+								onChange={(e: any) =>
+									handleModeFieldChange(
+										{ plan: "geminiPlanModeThinkingLevel", act: "geminiActModeThinkingLevel" },
+										e.target.value,
+										currentMode,
+									)
+								}
+								value={geminiThinkingLevel || "high"}>
+								<VSCodeOption value="low">Low</VSCodeOption>
+								<VSCodeOption value="high">High</VSCodeOption>
+							</VSCodeDropdown>
+						</DropdownContainer>
 					)}
 
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />

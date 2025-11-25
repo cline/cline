@@ -1,0 +1,139 @@
+---
+title: "Workflows Overview"
+sidebarTitle: "Overview"
+description: "Learn what Cline workflows are, why they are useful, and how to structure them."
+---
+
+Workflows in Cline are Markdown files that define a series of steps to guide Cline through repetitive or complex tasks. They are a powerful way to automate your development processes directly within your editor.
+
+To invoke a workflow, you simply type `/` followed by the workflow's filename in the chat (e.g., `/deploy.md`).
+
+## Why Use Cline Workflows?
+
+*   **Automation:** Automate repetitive tasks like setting up a new project, deploying a service, or running a specific test suite.
+*   **Consistency:** Ensure that tasks are performed the same way every time, reducing errors.
+*   **Reduced Cognitive Load:** Don't waste mental energy remembering complex sequences of commands or steps.
+*   **Contextual:** Workflows run within your project's context, so Cline has access to your files and can use its tools to interact with them.
+
+## How They Work
+
+A workflow file is a standard Markdown file with a `.md` extension. Cline reads this file and interprets the instructions step-by-step. The real power comes from Cline's ability to use its built-in tools and other capabilities within these instructions:
+
+*   **Cline Tools:** Use tools like `read_file`, `write_to_file`, `execute_command`, and `ask_followup_question`.
+*   **Command-Line Tools:** Instruct Cline to use any CLI tool installed on your machine (e.g., `git`, `gh`, `npm`, `docker`).
+*   **MCP Tools:** Reference tools from connected Model Context Protocol (MCP) servers.
+
+## Workflows vs. Rules
+
+It's important to understand the difference between Cline Workflows and Cline Rules, as they serve different purposes:
+
+| Feature | Purpose | When to Use |
+| :--- | :--- | :--- |
+| **Cline Rules** | Define *how* Cline should behave generally. They are always active (or contextually triggered) and set the "ground rules" for your project. | Enforcing coding standards, tech stack preferences, or project-specific constraints (e.g., "Always use TypeScript", "Never edit the `db` folder"). |
+| **Cline Workflows** | Define *what* specific task Cline should perform. They are sequences of steps invoked on-demand to automate a process. | Automating repetitive tasks like creating a component, running a release process, or generating a daily report. |
+
+Think of **Rules** as the *environment* Cline works in, and **Workflows** as the *scripts* you give Cline to execute.
+
+### Example: Automating a Release
+
+Imagine you need to prepare a new release for your library.
+
+**Without a workflow**, you might have to manually:
+1.  Open `package.json` and bump the version number.
+2.  Run your test suite to make sure everything is green.
+3.  Update `CHANGELOG.md` with the latest commits.
+4.  Run `git commit -am "v1.0.1"`.
+5.  Run `git tag v1.0.1`.
+6.  Run `git push origin main --tags`.
+
+This is tedious and easy to mess up. You might forget to run the tests or format the changelog correctly.
+
+**With a Cline workflow**, you define these steps once in a `release.md` file. Then, you just type:
+
+```bash
+/release.md
+```
+
+Cline will then meticulously follow your instructions: updating files, running tests, and executing git commands—pausing only if it encounters an error or needs your input.
+
+## Where are Workflows Stored?
+
+You can store workflows in two locations, depending on whether they are specific to a project or meant to be global.
+
+<Tabs>
+  <Tab title="Project-Specific Workflows">
+    Store workflows that are specific to a single project in a `.clinerules/workflows/` directory in your project's root.
+
+    1.  Create a `.clinerules` folder in your project's root directory (if it doesn't already exist).
+        <Note>
+          The `.clinerules` directory may be hidden by default on some systems. You might need to enable **Show Hidden Files** to see it.
+        </Note>
+    2.  Inside `.clinerules`, create a `workflows` folder.
+    3.  Create your Markdown workflow files (e.g., `deploy.md`) in this folder.
+
+    These workflows will only be available when you have this specific project open.
+  </Tab>
+  <Tab title="Global Workflows">
+    Store workflows that you want to use across all your projects in a global directory.
+
+    *   **macOS/Linux:** `~/Documents/Cline/Workflows/`
+    *   **Windows:** `C:\Users\USERNAME\Documents\Cline\Workflows\`
+
+    Create your Markdown workflow files directly in this directory. They will be available in any project you open with Cline.
+  </Tab>
+</Tabs>
+
+## Manage Workflows
+
+You can easily manage your workflows directly within the extension. This feature provides a unified interface to handle all your automation needs without leaving your editor or hunting through file directories. It consolidates both project-specific rules and global workflows into one view, giving you full control over your automation environment.
+
+1.  Click the **Manage Cline Rules and Workflows** button (<Icon icon="scale-balanced" />) at the bottom of the extension.
+2.  This opens an interface where you can:
+    *   **View all available workflows:** See a comprehensive list of both project-specific and global workflows.
+    *   **Control automation:** Toggle individual workflows on and off as needed for your current task.
+    *   **Create and Edit:** Add new workflows or modify existing ones directly within the interface.
+    *   **Clean up:** Delete workflows you no longer need.
+
+<Frame caption="Manage Workflows">
+  <img src="https://storage.googleapis.com/cline_public_images/workflow-menu.gif" alt="Manage Cline Rules and Workflows Interface" />
+</Frame>
+
+## Workflow Structure Example
+
+Here is a simple example of a workflow file (`daily-changelog.md`) that helps you create a daily changelog.
+
+````markdown daily-changelog.md
+# Daily Changelog Generator
+
+This workflow helps you create a changelog for your daily work.
+
+1.  **Check your recent git commits:**
+    I will run the following command to see your commits from today.
+    ```bash
+    git log --author="$(git config user.name)" --since="yesterday" --oneline
+    ```
+
+2.  **Summarize your work:**
+    I will present the commits to you and ask for a summary of your changes to be added to the `changelog.md` file.
+
+3.  **Create/Append to daily changelog:**
+    I will append to the `changelog.md` file. The content will include a header with the current date, the list of commits, and your summary.
+````
+
+### Breakdown of the Workflow
+
+This workflow demonstrates that you don't always need to provide specific tool calls (like XML blocks). Cline is smart enough to interpret your high-level instructions.
+
+1.  **Step 1: Check recent git commits**
+    *   We give Cline a specific command to run. This ensures it gets exactly the data we want (today's commits).
+    <Tip>
+      After Cline shows the git commit history, you may need to click the **Proceed While Running** button to allow the workflow to continue.
+    </Tip>
+
+2.  **Step 2: Summarize your work**
+    *   Instead of forcing a specific tool, we simply tell Cline what to do: "ask for a summary".
+    *   Cline knows it needs to use its capabilities to ask you a question.
+
+3.  **Step 3: Create/Append to daily changelog**
+    *   We describe the desired outcome: "append to the `changelog.md` file" with specific content.
+    *   Cline figures out how to format the file and use its file-writing tools to accomplish the task.

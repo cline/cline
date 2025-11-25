@@ -41,7 +41,7 @@ export class ErrorService {
 
 	public logException(error: Error | ClineError, properties?: Record<string, unknown>): void {
 		this.provider.logException(error, properties)
-		console.error("[ErrorService] Logging exception", error)
+		console.error("[ErrorService] Logging exception", JSON.stringify(error))
 	}
 
 	public logMessage(

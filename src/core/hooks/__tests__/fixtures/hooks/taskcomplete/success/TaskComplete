@@ -1,0 +1,6 @@
+#!/usr/bin/env node
+console.log(JSON.stringify({
+  cancel: false,
+  contextModification: "TaskComplete hook executed successfully",
+  errorMessage: ""
+}));

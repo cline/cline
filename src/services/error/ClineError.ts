@@ -58,11 +58,13 @@ export class ClineError extends Error {
 	) {
 		const error = serializeError(raw)
 
-		const message = error.message || String(error) || error?.cause?.means
+		const message = error.message || error?.response?.message || String(error) || error?.cause?.means
 		super(message)
 
 		// Extract status from multiple possible locations
 		const status = error.status || error.statusCode || error.response?.status
+		this.modelId = modelId || error.modelId
+		this.providerId = providerId || error.providerId
 
 		// Construct the error details object to includes relevant information
 		// And ensure it has a consistent structure
@@ -76,8 +78,8 @@ export class ClineError extends Error {
 				error.response?.request_id ||
 				error.response?.headers?.["x-request-id"],
 			code: error.code || error?.cause?.code,
-			modelId,
-			providerId,
+			modelId: this.modelId,
+			providerId: this.providerId,
 			details: error.details || error.error, // Additional details provided by the server
 			stack: undefined, // Avoid serializing stack trace to keep the error object clean
 		}
@@ -135,6 +137,7 @@ export class ClineError extends Error {
 	 */
 	static getErrorType(err: ClineError): ClineErrorType | undefined {
 		const { code, status, details } = err._error
+		const message = (err._error?.message || err.message || JSON.stringify(err._error))?.toLowerCase()
 
 		// Check balance error first (most specific)
 		if (code === "insufficient_credits" && typeof details?.current_balance === "number") {
@@ -142,18 +145,19 @@ export class ClineError extends Error {
 		}
 
 		// Check auth errors
-		if (code === "ERR_BAD_REQUEST" || status === 401) {
+		const isAuthStatus = status !== undefined && status > 400 && status < 429
+		if (code === "ERR_BAD_REQUEST" || err instanceof AuthInvalidTokenError || isAuthStatus) {
 			return ClineErrorType.Auth
 		}
 
-		// Check for auth message (only if message exists)
-		const message = err.message
-		if (message?.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)) {
-			return ClineErrorType.Auth
-		}
-
-		// Check rate limit patterns
 		if (message) {
+			// Check for specific error codes/messages if applicable
+			const authErrorRegex = [/(?:in)?valid[-_ ]?(?:api )?(?:token|key)/i, /authentication[-_ ]?failed/i, /unauthorized/i]
+			if (message?.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) || authErrorRegex.some((regex) => regex.test(message))) {
+				return ClineErrorType.Auth
+			}
+
+			// Check rate limit patterns
 			const lowerMessage = message.toLowerCase()
 			if (RATE_LIMIT_PATTERNS.some((pattern) => pattern.test(lowerMessage))) {
 				return ClineErrorType.RateLimit
@@ -161,5 +165,22 @@ export class ClineError extends Error {
 		}
 
 		return undefined
+	}
+}
+
+export class AuthNetworkError extends Error {
+	constructor(
+		message: string,
+		override readonly cause?: Error,
+	) {
+		super(message)
+		this.name = ClineErrorType.Network
+	}
+}
+
+export class AuthInvalidTokenError extends Error {
+	constructor(message: string) {
+		super(message)
+		this.name = ClineErrorType.Auth
 	}
 }

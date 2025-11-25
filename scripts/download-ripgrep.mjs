@@ -11,7 +11,7 @@ import fs from "fs"
 import https from "https"
 import path from "path"
 import { pipeline } from "stream/promises"
-import tar from "tar"
+import * as tar from "tar"
 import { promisify } from "util"
 import { createGunzip } from "zlib"
 

@@ -1,6 +1,12 @@
 import type { SystemPromptContext } from "@/core/prompts/system-prompt/types"
 import type { DeepPlanningVariant, DeepPlanningRegistry as IDeepPlanningRegistry } from "./types"
-import { createAnthropicVariant, createGeminiVariant, createGenericVariant, createGPT51Variant } from "./variants"
+import {
+	createAnthropicVariant,
+	createGemini3Variant,
+	createGeminiVariant,
+	createGenericVariant,
+	createGPT51Variant,
+} from "./variants"
 
 /**
  * Singleton registry for managing deep-planning prompt variants
@@ -15,6 +21,7 @@ class DeepPlanningRegistry implements IDeepPlanningRegistry {
 		// Initialize all variants
 		this.registerVariant(createAnthropicVariant())
 		this.registerVariant(createGeminiVariant())
+		this.registerVariant(createGemini3Variant())
 		this.registerVariant(createGPT51Variant())
 
 		// Generic variant must be registered last as fallback

@@ -1,7 +1,10 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { RuleFileRequest } from "@shared/proto/index.cline"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { InfoIcon, PenIcon, Trash2Icon } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
 
 const RuleRow: React.FC<{
@@ -96,18 +99,16 @@ const RuleRow: React.FC<{
 	return (
 		<div className="mb-2.5">
 			<div
-				className={`flex items-center p-2 py-4 rounded bg-(--vscode-textCodeBlock-background) h-[18px] ${
-					enabled ? "opacity-100" : "opacity-60"
-				} ${isDisabled ? "opacity-50" : ""}`}>
+				className={cn("flex items-center px-2 py-4 rounded bg-text-block-background max-h-4", {
+					"opacity-60": isDisabled,
+				})}>
 				<span className="flex-1 overflow-hidden break-all whitespace-normal flex items-center mr-1" title={rulePath}>
 					{getRuleTypeIcon() && <span className="mr-1.5">{getRuleTypeIcon()}</span>}
 					<span className="ph-no-capture">{finalDisplayName}</span>
 					{ruleType === "agents" && (
 						<Tooltip>
-							<TooltipTrigger asChild>
-								<span className="mt-1 ml-1.5 cursor-help">
-									<i className="codicon codicon-info" style={{ fontSize: "12px", opacity: 0.7 }} />
-								</span>
+							<TooltipTrigger asChild className="cursor-help">
+								<InfoIcon className="ml-1.5 opacity-70 size-[0.85rem]" />
 							</TooltipTrigger>
 							<TooltipContent>
 								Searches recursively for all AGENTS.md files in the workspace when a top-level AGENTS.md exists
@@ -117,52 +118,33 @@ const RuleRow: React.FC<{
 				</span>
 
 				{/* Toggle Switch */}
-				<div className="flex items-center ml-2 space-x-2">
-					<div
-						aria-checked={enabled}
-						className={`w-[20px] h-[10px] rounded-[5px] relative transition-colors duration-200 outline-none focus:outline-none ${
-							isDisabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
-						} ${
-							enabled
-								? "bg-(--vscode-testing-iconPassed) opacity-90"
-								: "bg-(--vscode-titleBar-inactiveForeground) opacity-50"
-						}`}
-						onClick={() => !isDisabled && toggleRule(rulePath, !enabled)}
-						onKeyDown={(e) => {
-							if (!isDisabled && (e.key === "Enter" || e.key === " ")) {
-								e.preventDefault()
-								toggleRule(rulePath, !enabled)
-							}
-						}}
-						role="switch"
-						tabIndex={isDisabled ? -1 : 0}
-						title={isDisabled ? "This rule is required and cannot be disabled" : undefined}>
-						<div
-							className={`w-[8px] h-[8px] bg-white border border-[#66666699] rounded-full absolute top-[1px] transition-all duration-200 pointer-events-none ${
-								enabled ? "left-[11px]" : "left-[1px]"
-							}`}
-						/>
-					</div>
-					{!isRemote && (
-						<>
-							<VSCodeButton
-								appearance="icon"
-								aria-label="Edit rule file"
-								onClick={handleEditClick}
-								style={{ height: "20px" }}
-								title="Edit rule file">
-								<span className="codicon codicon-edit" style={{ fontSize: "14px" }} />
-							</VSCodeButton>
-							<VSCodeButton
-								appearance="icon"
-								aria-label="Delete rule file"
-								onClick={handleDeleteClick}
-								style={{ height: "20px" }}
-								title="Delete rule file">
-								<span className="codicon codicon-trash" style={{ fontSize: "14px" }} />
-							</VSCodeButton>
-						</>
-					)}
+				<div className="flex items-center space-x-2 gap-2">
+					<Switch
+						checked={enabled}
+						className="mx-1"
+						disabled={isDisabled}
+						key={rulePath}
+						onClick={() => toggleRule(rulePath, !enabled)}
+						title={isDisabled ? "This rule is required and cannot be disabled" : undefined}
+					/>
+					<Button
+						aria-label="Edit rule file"
+						disabled={isRemote}
+						onClick={handleEditClick}
+						size="xs"
+						title="Edit rule file"
+						variant="icon">
+						<PenIcon />
+					</Button>
+					<Button
+						aria-label="Delete rule file"
+						disabled={isRemote}
+						onClick={handleDeleteClick}
+						size="xs"
+						title="Delete rule file"
+						variant="icon">
+						<Trash2Icon />
+					</Button>
 				</div>
 			</div>
 		</div>

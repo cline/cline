@@ -62,7 +62,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const modifiedMessages = useMemo(() => {
 		const slicedMessages = messages.slice(1)
 		// Only combine hook sequences if hooks are enabled (both user setting and feature flag)
-		const areHooksEnabled = hooksEnabled?.user && hooksEnabled?.featureFlag
+		const areHooksEnabled = hooksEnabled?.user
 		const withHooks = areHooksEnabled ? combineHookSequences(slicedMessages) : slicedMessages
 		return combineApiRequests(combineCommandSequences(withHooks))
 	}, [messages, hooksEnabled])
