@@ -1,21 +1,25 @@
 import { cn } from "@heroui/react"
-import React, { useEffect, useMemo, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 export const AutoCondenseMarker: React.FC<{
 	threshold: number
 	usage: number
 	isContextWindowHoverOpen?: boolean
 	shouldAnimate?: boolean
-}> = ({ threshold, usage, isContextWindowHoverOpen, shouldAnimate = false }) => {
+	onThresholdChange?: (newThreshold: number) => void
+	progressBarRef?: React.RefObject<HTMLDivElement>
+}> = ({ threshold, usage, isContextWindowHoverOpen, shouldAnimate = false, onThresholdChange, progressBarRef }) => {
 	const [isAnimating, setIsAnimating] = useState(false)
 	const [animatedPosition, setAnimatedPosition] = useState(0)
 	const [showPercentageAfterAnimation, setShowPercentageAfterAnimation] = useState(false)
 	const [isFadingOut, setIsFadingOut] = useState(false)
+	const [isDragging, setIsDragging] = useState(false)
 
 	// Refs to store animation frame and timeout IDs for cleanup
 	const animationFrameRef = useRef<number | null>(null)
 	const fadeOutTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 	const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+	const isDraggingRef = useRef(false)
 
 	// Animation effect when shouldAnimate prop changes (initial load)
 	useEffect(() => {
@@ -80,6 +84,44 @@ export const AutoCondenseMarker: React.FC<{
 		return cleanup
 	}, [shouldAnimate, threshold])
 
+	// Drag handlers
+	const handleMouseDown = useCallback((e: React.MouseEvent) => {
+		e.preventDefault()
+		e.stopPropagation()
+		isDraggingRef.current = true
+		setIsDragging(true)
+	}, [])
+
+	const handleMouseMove = useCallback(
+		(e: MouseEvent) => {
+			if (!isDraggingRef.current || !progressBarRef?.current || !onThresholdChange) {
+				return
+			}
+
+			const rect = progressBarRef.current.getBoundingClientRect()
+			const clickX = e.clientX - rect.left
+			const percentage = Math.max(0, Math.min(1, clickX / rect.width))
+			const newThreshold = Math.round(percentage * 100) / 100
+			onThresholdChange(newThreshold)
+		},
+		[progressBarRef, onThresholdChange],
+	)
+
+	const handleMouseUp = useCallback(() => {
+		isDraggingRef.current = false
+		setIsDragging(false)
+	}, [])
+
+	// Add global mouse event listeners for dragging - always listen but only act when dragging
+	useEffect(() => {
+		document.addEventListener("mousemove", handleMouseMove)
+		document.addEventListener("mouseup", handleMouseUp)
+		return () => {
+			document.removeEventListener("mousemove", handleMouseMove)
+			document.removeEventListener("mouseup", handleMouseUp)
+		}
+	}, [handleMouseMove, handleMouseUp])
+
 	// The marker position is calculated based on the threshold percentage
 	// It goes over the progress bar to indicate where the auto-condense will trigger
 	// and it should highlight from what the current percentage (usage) is
@@ -103,21 +145,34 @@ export const AutoCondenseMarker: React.FC<{
 
 	return (
 		<div className="flex-1" id="auto-condense-threshold-marker">
+			{/* Invisible wider hit area for easier dragging */}
 			<div
-				className={cn(
-					"absolute top-0 bottom-0 h-full cursor-pointer pointer-events-none z-10 bg-button-background shadow-lg w-1",
-					{
-						"transition-all duration-75": !isAnimating,
-					},
-				)}
+				className={cn("absolute top-0 bottom-0 h-full cursor-ew-resize z-10", {
+					"pointer-events-auto": onThresholdChange,
+					"pointer-events-none": !onThresholdChange,
+				})}
+				onMouseDown={onThresholdChange ? handleMouseDown : undefined}
+				style={{
+					left: marker.start,
+					width: "12px",
+					transform: `translateX(-6px)`, // Center the hit area on the marker
+				}}
+			/>
+			{/* Visible 1px line */}
+			<div
+				className={cn("absolute top-0 bottom-0 h-full pointer-events-none z-10 bg-button-background shadow-lg w-1", {
+					"transition-all duration-75": !isAnimating && !isDragging,
+					"opacity-80": isDragging,
+				})}
 				style={{
 					left: marker.start,
 					transform: isAnimating ? `translateX(${animatedPosition - threshold * 100}%)` : "translateX(0)",
 				}}>
-				{(isContextWindowHoverOpen || isAnimating || showPercentageAfterAnimation) && (
+				{(isContextWindowHoverOpen || isAnimating || showPercentageAfterAnimation || isDragging) && (
 					<div
 						className={cn("absolute -top-4 -left-1 text-button-background font-mono text-xs", {
-							"opacity-0": isFadingOut,
+							"opacity-0": isFadingOut && !isDragging,
+							"font-bold": isDragging,
 						})}>
 						{marker.label}%
 					</div>
