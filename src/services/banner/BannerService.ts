@@ -472,7 +472,6 @@ export class BannerService {
 				surface = "vscode"
 			}
 
-			// Get instance ID (hashed distinct ID)
 			const distinctId = this.getInstanceDistinctId()
 			const instanceId = this.hashInstanceId(distinctId)
 
@@ -503,16 +502,12 @@ export class BannerService {
 	 */
 	public async dismissBanner(bannerId: string): Promise<void> {
 		try {
-			// Get current dismissed banners
 			const dismissedBanners = this._controller.stateManager.getGlobalStateKey("dismissedBanners") || []
 
-			// Check if already dismissed
 			if (dismissedBanners.some((b) => b.bannerId === bannerId)) {
 				Logger.log(`BannerService: Banner ${bannerId} already dismissed`)
 				return
 			}
-
-			// Add new dismissal
 			const newDismissal = {
 				bannerId,
 				dismissedAt: Date.now(),
@@ -520,10 +515,8 @@ export class BannerService {
 
 			this._controller.stateManager.setGlobalState("dismissedBanners", [...dismissedBanners, newDismissal])
 
-			// Send dismiss event to telemetry
 			await this.sendBannerEvent(bannerId, "dismiss")
 
-			// Clear cache to force re-fetch on next request
 			this.clearCache()
 
 			Logger.log(`BannerService: Banner ${bannerId} dismissed`)

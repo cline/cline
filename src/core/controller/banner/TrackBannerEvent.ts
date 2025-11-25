@@ -14,7 +14,6 @@ export async function TrackBannerEvent(controller: Controller, request: TrackBan
 		if (request.eventType === "dismiss") {
 			await controller.trackBannerEvent(request.bannerId, "dismiss")
 		}
-		// For "seen" and "click", we'd need to extend the backend method
 		return Empty.create({})
 	} catch (error) {
 		console.error("Failed to track banner event:", error)

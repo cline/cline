@@ -11,7 +11,6 @@ export async function GetActiveBanners(controller: Controller): Promise<BannersR
 	try {
 		const banners = await controller.fetchBannersForDisplay()
 
-		// Convert to proto Banner format
 		const protoBanners = banners.map((banner) =>
 			Banner.create({
 				id: banner.id,
