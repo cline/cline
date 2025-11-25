@@ -35,6 +35,7 @@ import { focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtil
 import { abortCommitGeneration, generateCommitMsg } from "./hosts/vscode/commit-message-generator"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
+import { CommandHistoryTracker } from "./integrations/terminal/CommandHistoryTracker"
 import { ExtensionRegistryInfo } from "./registry"
 import { AuthService } from "./services/auth/AuthService"
 import { LogoutReason } from "./services/auth/types"
@@ -83,6 +84,29 @@ export async function activate(context: vscode.ExtensionContext) {
 	const webview = (await initialize(context)) as VscodeWebviewProvider
 
 	Logger.log("Cline extension activated")
+
+	// Initialize command history tracker for "Add Command to Cline" feature
+	const commandHistoryTracker = new CommandHistoryTracker(() => {
+		// Update context key when command history changes
+		const terminal = vscode.window.activeTerminal
+		const hasHistory = terminal && commandHistoryTracker.hasHistory(terminal)
+		vscode.commands.executeCommand("setContext", "cline.terminalHasCommandHistory", hasHistory)
+	})
+	context.subscriptions.push(commandHistoryTracker)
+
+	// Update context when active terminal changes
+	context.subscriptions.push(
+		vscode.window.onDidChangeActiveTerminal(() => {
+			const terminal = vscode.window.activeTerminal
+			const hasHistory = terminal && commandHistoryTracker.hasHistory(terminal)
+			vscode.commands.executeCommand("setContext", "cline.terminalHasCommandHistory", hasHistory)
+		}),
+	)
+
+	// Initialize context on activation
+	const initialTerminal = vscode.window.activeTerminal
+	const initialHasHistory = initialTerminal && commandHistoryTracker.hasHistory(initialTerminal)
+	vscode.commands.executeCommand("setContext", "cline.terminalHasCommandHistory", initialHasHistory)
 
 	const testModeWatchers = await initializeTestMode(webview)
 	// Initialize test mode and add disposables to context
@@ -207,6 +231,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				await sendAddToInputEvent(`Terminal output:\n\`\`\`\n${terminalContents}\n\`\`\``)
 
+				// Telemetry
+				telemetryService.captureButtonClick("command_addTerminalOutputToChat")
+
 				console.log("addSelectedTerminalOutputToChat", terminalContents, terminal.name)
 			} catch (error) {
 				// Ensure clipboard is restored even if an error occurs
@@ -215,6 +242,73 @@ export async function activate(context: vscode.ExtensionContext) {
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message: "Failed to get terminal contents",
+				})
+			}
+		}),
+	)
+
+	// Register command for terminal command decoration context menu (shell integration)
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.AddTerminalCommandToChat, async (terminalArg?: any) => {
+			try {
+				// VSCode passes the Terminal object as the argument
+				const terminal = terminalArg || vscode.window.activeTerminal
+
+				if (!terminal) {
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: "No active terminal found",
+					})
+					return
+				}
+
+				// Get the most recent command from history
+				// Note: This should always exist since menu only appears when cline.terminalHasCommandHistory is true
+				const commandInfo = commandHistoryTracker.getLatestCommand(terminal)
+
+				if (!commandInfo) {
+					// This shouldn't happen given the menu visibility condition, but handle gracefully
+					console.error("Menu shown but no command history available")
+					return
+				}
+
+				// Build formatted message
+				let message = `Terminal Command Execution:\n`
+				message += `Command: \`${commandInfo.commandLine}\`\n`
+				message += `Directory: \`${commandInfo.cwd || "Unknown"}\`\n`
+				message += `Time: ${commandInfo.timestamp.toLocaleString()}\n`
+				message += `Duration: ${commandInfo.duration}ms\n`
+
+				if (commandInfo.exitCode !== undefined) {
+					const status = commandInfo.exitCode === 0 ? "Success" : `Failed`
+					message += `Exit Code: ${commandInfo.exitCode} (${status})\n`
+				} else {
+					message += `Status: Still running or unknown\n`
+				}
+
+				if (commandInfo.cleanOutput.trim()) {
+					message += `\nOutput:\n\`\`\`\n${commandInfo.cleanOutput.trim()}\n\`\`\``
+				}
+
+				// Show chat and send message
+				await focusChatInput()
+				await sendAddToInputEvent(message)
+
+				// Telemetry
+				telemetryService.captureButtonClick("command_addTerminalCommandToChat")
+
+				console.log("addTerminalCommandToChat result:", {
+					commandLine: commandInfo.commandLine,
+					cwd: commandInfo.cwd,
+					exitCode: commandInfo.exitCode,
+					outputLength: commandInfo.cleanOutput.length,
+					duration: commandInfo.duration,
+				})
+			} catch (error) {
+				console.error("Error adding terminal command to chat:", error)
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: "Failed to add terminal command to chat",
 				})
 			}
 		}),
