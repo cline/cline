@@ -243,11 +243,52 @@ Runs when a task is cancelled. Use it to cleanup resources, log cancellation det
   "taskCancel": {
     "taskMetadata": {
       "taskId": "string",
-      "ulid": "string",
-      "completionStatus": "string"
+      "ulid": "string"
     }
   }
 }
+```
+
+#### TaskComplete
+
+Runs when a task completes successfully. Use it to track completion metrics, generate reports, log task outcomes, and trigger completion workflows.
+
+**Input Fields:**
+```json
+{
+  "clineVersion": "string",
+  "hookName": "TaskComplete",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
+  "taskComplete": {
+    "taskMetadata": {
+      "taskId": "string",
+      "ulid": "string"
+    }
+  }
+}
+```
+
+**Example Usage:**
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+# Extract task metadata
+task_id=$(echo "$input" | jq -r '.taskComplete.taskMetadata.taskId // "unknown"')
+ulid=$(echo "$input" | jq -r '.taskComplete.taskMetadata.ulid // "unknown"')
+
+# Log completion
+completion_log="$HOME/.cline_completions/$(date +%Y-%m-%d).log"
+mkdir -p "$(dirname "$completion_log")"
+
+echo "$(date -Iseconds): Task $task_id completed (ULID: $ulid)" >> "$completion_log"
+
+# Provide context about completion
+context="TASK_COMPLETED: Task $task_id finished successfully. Completion logged."
+jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
 ```
 
 ### System Events

@@ -698,74 +698,73 @@ Track successful task completions and generate completion reports.
 #!/usr/bin/env bash
 input=$(cat)
 
+# Extract task metadata using proper API field paths
 task_id=$(echo "$input" | jq -r '.taskId')
-initial_task=$(echo "$input" | jq -r '.taskComplete.taskMetadata.initialTask')
+ulid=$(echo "$input" | jq -r '.taskComplete.taskMetadata.ulid // "unknown"')
 completion_time=$(echo "$input" | jq -r '.timestamp')
-total_operations=$(echo "$input" | jq -r '.taskComplete.totalOperations // 0')
-duration_minutes=$(echo "$input" | jq -r '.taskComplete.durationMinutes // 0')
 
-# Create completion report directory
+# Create completion report directory (with proper path validation)
 reports_dir="$HOME/.cline_reports"
-mkdir -p "$reports_dir"
+if [[ ! -d "$(dirname "$reports_dir")" ]]; then
+  echo '{"cancel": false, "errorMessage": "Cannot access home directory"}' 
+  exit 0
+fi
+mkdir -p "$reports_dir" || exit 0
 
-# Generate completion report
-report_file="$reports_dir/completion_$(date +%Y%m%d_%H%M%S)_${task_id}.md"
+# Generate safe report filename
+safe_task_id=$(echo "$task_id" | tr -cd '[:alnum:]_-' | head -c 50)
+report_file="$reports_dir/completion_$(date +%Y%m%d_%H%M%S)_${safe_task_id}.md"
 
+# Generate completion report with available data
 cat > "$report_file" << EOF
 # Cline Task Completion Report
 
 **Task ID:** $task_id
+**ULID:** $ulid
 **Completed:** $(date -Iseconds)
-**Duration:** ${duration_minutes} minutes
-**Total Operations:** $total_operations
-
-## Task Description
-$initial_task
+**Completion Time:** $completion_time
 
 ## Workspace Information
 - **Project:** $(basename "$PWD")
 - **Git Branch:** $(git branch --show-current 2>/dev/null || echo "No git repository")
 - **Git Status:** $(git status --porcelain 2>/dev/null | wc -l || echo "0") modified files
 
-## Performance Metrics
-- Average operations per minute: $(echo "scale=2; $total_operations / ($duration_minutes + 1)" | bc 2>/dev/null || echo "N/A")
-- Completion status: ✅ Success
+## Completion Status
+✅ Task completed successfully
 
 ## Next Steps
 - Review changes made during this task
-- Consider committing changes: \`git add -A && git commit -m "Complete: ${initial_task:0:50}"\`
+- Consider committing changes if appropriate
 - Run tests to verify functionality
 EOF
 
-# Send completion notification if webhook configured
+# Send completion notification if webhook configured (async with timeout)
 webhook_url="${COMPLETION_WEBHOOK_URL:-}"
 if [[ -n "$webhook_url" ]]; then
   payload=$(jq -n \
     --arg task_id "$task_id" \
-    --arg task "$initial_task" \
-    --arg duration "$duration_minutes" \
-    --arg operations "$total_operations" \
+    --arg ulid "$ulid" \
     --arg workspace "$(basename "$PWD")" \
+    --arg timestamp "$completion_time" \
     '{
       event: "task_completed",
       task_id: $task_id,
-      description: $task,
-      duration_minutes: ($duration | tonumber),
-      total_operations: ($operations | tonumber),
+      ulid: $ulid,
       workspace: $workspace,
-      timestamp: now | strftime("%Y-%m-%dT%H:%M:%SZ")
+      timestamp: $timestamp
     }')
   
-  curl -X POST \
+  # Send notification in background with timeout
+  (curl -X POST \
     -H "Content-Type: application/json" \
     -d "$payload" \
     "$webhook_url" \
     --max-time 5 \
-    --silent > /dev/null 2>&1 &
+    --silent > /dev/null 2>&1) &
 fi
 
 # Provide completion summary
-context="TASK_COMPLETED: ✅ Task finished successfully in ${duration_minutes} minutes with ${total_operations} operations. Report saved to: $report_file"
+context="TASK_COMPLETED: ✅ Task $task_id finished successfully (ULID: $ulid). Report saved to: $(basename "$report_file")"
 
 jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
 ```
@@ -780,82 +779,87 @@ Handle task cancellations gracefully with cleanup and logging.
 #!/usr/bin/env bash
 input=$(cat)
 
+# Extract task metadata using proper API field paths
 task_id=$(echo "$input" | jq -r '.taskId')
-cancellation_reason=$(echo "$input" | jq -r '.taskCancel.reason // "User requested"')
-partial_operations=$(echo "$input" | jq -r '.taskCancel.completedOperations // 0')
-duration_minutes=$(echo "$input" | jq -r '.taskCancel.durationMinutes // 0')
+ulid=$(echo "$input" | jq -r '.taskCancel.taskMetadata.ulid // "unknown"')
+cancellation_timestamp=$(echo "$input" | jq -r '.timestamp')
 
-# Create cancellation log directory
+# Create cancellation log directory (with proper path validation)
 cancel_dir="$HOME/.cline_cancellations"
-mkdir -p "$cancel_dir"
+if [[ ! -d "$(dirname "$cancel_dir")" ]]; then
+  echo '{"cancel": false, "errorMessage": "Cannot access home directory"}'
+  exit 0
+fi
+mkdir -p "$cancel_dir" || exit 0
 
-# Log cancellation details
+# Log cancellation details with available data
 cancel_log="$cancel_dir/$(date +%Y-%m-%d).log"
 
 cancel_entry=$(jq -n \
-  --arg timestamp "$(date -Iseconds)" \
+  --arg timestamp "$cancellation_timestamp" \
   --arg task_id "$task_id" \
-  --arg reason "$cancellation_reason" \
-  --arg operations "$partial_operations" \
-  --arg duration "$duration_minutes" \
+  --arg ulid "$ulid" \
   --arg workspace "$(basename "$PWD")" \
   '{
     timestamp: $timestamp,
     task_id: $task_id,
-    reason: $reason,
-    completed_operations: ($operations | tonumber),
-    duration_minutes: ($duration | tonumber),
+    ulid: $ulid,
+    event: "task_canceled",
     workspace: $workspace
   }')
 
 echo "$cancel_entry" >> "$cancel_log"
 
-# Clean up temporary files created during this task
-temp_patterns=("*.tmp" "*.temp" ".cline_*" "*_backup_*")
+# Clean up temporary files created during this task (with safe patterns)
+temp_patterns=("*.tmp" "*.temp" ".cline_${task_id}_*")
 cleaned_files=0
 
 for pattern in "${temp_patterns[@]}"; do
-  if ls $pattern 1> /dev/null 2>&1; then
-    rm -f $pattern 2>/dev/null || true
-    ((cleaned_files++))
+  # Use find to safely handle patterns and avoid shell expansion issues
+  if find . -maxdepth 1 -name "$pattern" -type f 2>/dev/null | grep -q .; then
+    find . -maxdepth 1 -name "$pattern" -type f -exec rm -f {} + 2>/dev/null || true
+    cleaned_files=$((cleaned_files + $(find . -maxdepth 1 -name "$pattern" -type f 2>/dev/null | wc -l)))
   fi
 done
 
-# Revert any uncommitted git changes if requested
-if [[ "$cancellation_reason" == *"revert"* ]] && git rev-parse --git-dir > /dev/null 2>&1; then
-  if [[ -n "$(git status --porcelain)" ]]; then
-    git stash push -m "Auto-stash from canceled Cline task $task_id" > /dev/null 2>&1 || true
-    context="TASK_CANCELED: Task $task_id canceled after ${duration_minutes}m and ${partial_operations} operations. Uncommitted changes stashed. Cleaned $cleaned_files temporary files."
-  else
-    context="TASK_CANCELED: Task $task_id canceled after ${duration_minutes}m and ${partial_operations} operations. No uncommitted changes found. Cleaned $cleaned_files temporary files."
+# Handle git repository cleanup (only if safe to do so)
+context="TASK_CANCELED: Task $task_id (ULID: $ulid) was canceled."
+
+if git rev-parse --git-dir > /dev/null 2>&1; then
+  uncommitted_count=$(git status --porcelain | wc -l)
+  if (( uncommitted_count > 0 )); then
+    # Only offer to stash if there are changes and it's safe
+    context+=" Found $uncommitted_count uncommitted changes."
   fi
-else
-  context="TASK_CANCELED: Task $task_id canceled after ${duration_minutes}m and ${partial_operations} operations. Reason: $cancellation_reason. Cleaned $cleaned_files temporary files."
 fi
 
-# Optional: Send cancellation alert
+if (( cleaned_files > 0 )); then
+  context+=" Cleaned up $cleaned_files temporary files."
+fi
+
+# Optional: Send cancellation alert (async with proper timeout)
 cancel_webhook="${CANCEL_WEBHOOK_URL:-}"
 if [[ -n "$cancel_webhook" ]]; then
   payload=$(jq -n \
     --arg task_id "$task_id" \
-    --arg reason "$cancellation_reason" \
-    --arg operations "$partial_operations" \
-    --arg duration "$duration_minutes" \
+    --arg ulid "$ulid" \
+    --arg timestamp "$cancellation_timestamp" \
+    --arg workspace "$(basename "$PWD")" \
     '{
       event: "task_canceled",
       task_id: $task_id,
-      reason: $reason,
-      partial_operations: ($operations | tonumber),
-      duration_minutes: ($duration | tonumber),
-      timestamp: now | strftime("%Y-%m-%dT%H:%M:%SZ")
+      ulid: $ulid,
+      timestamp: $timestamp,
+      workspace: $workspace
     }')
   
-  curl -X POST \
+  # Send notification in background with timeout
+  (curl -X POST \
     -H "Content-Type: application/json" \
     -d "$payload" \
     "$cancel_webhook" \
     --max-time 3 \
-    --silent > /dev/null 2>&1 &
+    --silent > /dev/null 2>&1) &
 fi
 
 jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
@@ -871,17 +875,35 @@ Prepare environment and validate state when resuming tasks.
 #!/usr/bin/env bash
 input=$(cat)
 
+# Extract task metadata and previous state using proper API field paths
 task_id=$(echo "$input" | jq -r '.taskId')
-original_task=$(echo "$input" | jq -r '.taskResume.taskMetadata.initialTask')
-pause_duration=$(echo "$input" | jq -r '.taskResume.pauseDurationMinutes // 0')
-last_operation=$(echo "$input" | jq -r '.taskResume.lastCompletedOperation // "unknown"')
+ulid=$(echo "$input" | jq -r '.taskResume.taskMetadata.ulid // "unknown"')
+last_message_ts=$(echo "$input" | jq -r '.taskResume.previousState.lastMessageTs // "unknown"')
+message_count=$(echo "$input" | jq -r '.taskResume.previousState.messageCount // "0"')
+history_deleted=$(echo "$input" | jq -r '.taskResume.previousState.conversationHistoryDeleted // "false"')
+
+# Calculate approximate pause duration from last message timestamp (if available)
+pause_info=""
+if [[ "$last_message_ts" != "unknown" && "$last_message_ts" != "null" ]]; then
+  # Try to calculate time since last message (simplified)
+  current_time=$(date +%s)
+  if command -v gdate > /dev/null; then
+    last_time=$(gdate -d "$last_message_ts" +%s 2>/dev/null || echo "$current_time")
+  else
+    last_time=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$last_message_ts" +%s 2>/dev/null || echo "$current_time")
+  fi
+  pause_seconds=$((current_time - last_time))
+  if (( pause_seconds > 60 )); then
+    pause_minutes=$((pause_seconds / 60))
+    pause_info="paused for approximately $pause_minutes minutes"
+  fi
+fi
 
 # Validate workspace state
 workspace_issues=""
 
 # Check if git repository state changed
 if git rev-parse --git-dir > /dev/null 2>&1; then
-  # Check for new commits since pause
   current_branch=$(git branch --show-current 2>/dev/null || echo "")
   uncommitted_changes=$(git status --porcelain | wc -l)
   
@@ -889,70 +911,91 @@ if git rev-parse --git-dir > /dev/null 2>&1; then
     workspace_issues+="⚠️ Many uncommitted changes detected ($uncommitted_changes files). "
   fi
   
-  # Check if branch switched
+  # Check if branch switched (using safe task-specific tracking)
   expected_branch_file=".cline_task_${task_id}_branch"
   if [[ -f "$expected_branch_file" ]]; then
-    expected_branch=$(cat "$expected_branch_file")
+    expected_branch=$(cat "$expected_branch_file" | tr -d '\n\r')
     if [[ "$current_branch" != "$expected_branch" ]]; then
       workspace_issues+="⚠️ Git branch changed from '$expected_branch' to '$current_branch'. "
     fi
   else
-    # Store current branch for future reference
-    echo "$current_branch" > "$expected_branch_file"
+    # Store current branch for future reference (safely)
+    if [[ -n "$current_branch" ]]; then
+      echo "$current_branch" > "$expected_branch_file"
+    fi
   fi
 fi
 
-# Check for dependency changes
+# Check for dependency changes (with proper validation)
 dependency_issues=""
 if [[ -f "package.json" ]]; then
-  if [[ -f ".cline_task_${task_id}_package_hash" ]]; then
-    stored_hash=$(cat ".cline_task_${task_id}_package_hash")
-    current_hash=$(shasum package.json | cut -d' ' -f1)
-    if [[ "$stored_hash" != "$current_hash" ]]; then
+  hash_file=".cline_task_${task_id}_package_hash"
+  if [[ -f "$hash_file" ]]; then
+    stored_hash=$(cat "$hash_file" | tr -d '\n\r')
+    current_hash=$(shasum package.json | cut -d' ' -f1 2>/dev/null || echo "unknown")
+    if [[ "$stored_hash" != "$current_hash" && "$current_hash" != "unknown" ]]; then
       dependency_issues+="⚠️ package.json modified during pause - dependencies may have changed. Consider running npm install. "
     fi
   else
-    shasum package.json | cut -d' ' -f1 > ".cline_task_${task_id}_package_hash"
+    # Store current hash for future reference
+    if command -v shasum > /dev/null; then
+      shasum package.json | cut -d' ' -f1 > "$hash_file" 2>/dev/null || true
+    fi
   fi
 fi
 
-# Check system resources
-available_space=$(df . | tail -1 | awk '{print $4}')
-if (( available_space < 1000000 )); then  # Less than ~1GB
-  workspace_issues+="⚠️ Low disk space ($(echo $available_space | awk '{print $1/1000000 "GB"}'). "
+# Check system resources (with safer calculation)
+available_space=$(df . 2>/dev/null | tail -1 | awk '{print $4}' || echo "unknown")
+if [[ "$available_space" != "unknown" ]] && (( available_space < 1000000 )); then  # Less than ~1GB
+  gb_available=$(echo "$available_space" | awk '{printf "%.1f", $1/1000000}')
+  workspace_issues+="⚠️ Low disk space (${gb_available}GB available). "
 fi
 
-# Create resume context
-context="TASK_RESUMED: Continuing task after ${pause_duration} minute pause. Last operation: $last_operation."
+# Create resume context with available information
+context="TASK_RESUMED: Task $task_id (ULID: $ulid) resuming"
+if [[ -n "$pause_info" ]]; then
+  context+=" ($pause_info)"
+fi
+context+=". Previous message count: $message_count."
+
+if [[ "$history_deleted" == "true" ]]; then
+  context+=" Note: Some conversation history was previously compacted."
+fi
 
 if [[ -n "$workspace_issues" ]]; then
-  context="$context WORKSPACE_CHANGES: $workspace_issues"
+  context+=" WORKSPACE_CHANGES: $workspace_issues"
 fi
 
 if [[ -n "$dependency_issues" ]]; then
-  context="$context DEPENDENCY_CHANGES: $dependency_issues"
+  context+=" DEPENDENCY_CHANGES: $dependency_issues"
 fi
 
-# Log resume event
+# Log resume event (with proper path validation)
 resume_log="$HOME/.cline_resumes/$(date +%Y-%m-%d).log"
-mkdir -p "$(dirname "$resume_log")"
-
-resume_entry=$(jq -n \
-  --arg timestamp "$(date -Iseconds)" \
-  --arg task_id "$task_id" \
-  --arg pause_duration "$pause_duration" \
-  --arg last_op "$last_operation" \
-  --arg workspace_issues "$workspace_issues" \
-  '{
-    timestamp: $timestamp,
-    task_id: $task_id,
-    pause_duration_minutes: ($pause_duration | tonumber),
-    last_operation: $last_op,
-    workspace_issues: $workspace_issues,
-    workspace: env.PWD
-  }')
-
-echo "$resume_entry" >> "$resume_log"
+if [[ -d "$HOME" ]]; then
+  mkdir -p "$(dirname "$resume_log")" 2>/dev/null || true
+  
+  resume_entry=$(jq -n \
+    --arg timestamp "$(date -Iseconds)" \
+    --arg task_id "$task_id" \
+    --arg ulid "$ulid" \
+    --arg last_msg_ts "$last_message_ts" \
+    --arg msg_count "$message_count" \
+    --arg history_deleted "$history_deleted" \
+    --arg workspace_issues "$workspace_issues" \
+    '{
+      timestamp: $timestamp,
+      task_id: $task_id,
+      ulid: $ulid,
+      last_message_timestamp: $last_msg_ts,
+      previous_message_count: ($msg_count | tonumber),
+      conversation_history_deleted: ($history_deleted == "true"),
+      workspace_issues: $workspace_issues,
+      workspace: env.PWD
+    }')
+  
+  echo "$resume_entry" >> "$resume_log" 2>/dev/null || true
+fi
 
 jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
 ```
