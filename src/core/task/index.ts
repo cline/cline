@@ -91,7 +91,7 @@ import {
 	ClineTextContentBlock,
 	ClineToolResponseContent,
 	ClineUserContent,
-} from "@/shared/messages/content"
+} from "@/shared/messages"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
 import { isInTestMode } from "../../services/test/TestMode"
@@ -2730,6 +2730,8 @@ export class Task {
 								}]`,
 						},
 					],
+					modelInfo,
+					id: this.streamHandler.requestId,
 				})
 
 				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
