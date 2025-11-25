@@ -16,7 +16,6 @@ import { CheckpointError } from "./CheckpointError"
 import ContextWindow from "./ContextWindow"
 import { FocusChain } from "./FocusChain"
 import { highlightText } from "./Highlights"
-import TaskTimeline from "./TaskTimeline"
 
 const IS_DEV = process.env.IS_DEV === '"true"'
 interface TaskHeaderProps {
@@ -209,8 +208,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							tokensOut={tokensOut}
 							useAutoCondense={false} // Disable auto-condense configuration in UI for now
 						/>
-
-						<TaskTimeline messages={clineMessages} onBlockClick={onScrollToMessage} />
 					</div>
 				)}
 			</div>
