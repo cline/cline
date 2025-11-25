@@ -100,7 +100,7 @@ describe("buildUserFeedbackContent", () => {
 			const result = await buildUserFeedbackContent(undefined, [])
 
 			result.should.have.length(0)
-			formatResponseStub.should.not.be.called()
+			sinon.assert.notCalled(formatResponseStub)
 		})
 	})
 
@@ -134,14 +134,14 @@ describe("buildUserFeedbackContent", () => {
 			const result = await buildUserFeedbackContent(undefined, undefined, ["empty.txt"])
 
 			result.should.have.length(0) // Should not add empty text block
-			processFilesStub.should.be.calledOnce()
+			sinon.assert.calledOnce(processFilesStub)
 		})
 
 		it("should return empty array when files array is empty", async () => {
 			const result = await buildUserFeedbackContent(undefined, undefined, [])
 
 			result.should.have.length(0)
-			processFilesStub.should.not.be.called()
+			sinon.assert.notCalled(processFilesStub)
 		})
 	})
 
@@ -230,24 +230,23 @@ describe("buildUserFeedbackContent", () => {
 			const result = await buildUserFeedbackContent()
 
 			result.should.have.length(0)
-			formatResponseStub.should.not.be.called()
-			processFilesStub.should.not.be.called()
+			sinon.assert.notCalled(formatResponseStub)
+			sinon.assert.notCalled(processFilesStub)
 		})
 
 		it("should return empty array when all inputs are empty", async () => {
 			const result = await buildUserFeedbackContent(undefined, [], [])
 
 			result.should.have.length(0)
-			formatResponseStub.should.not.be.called()
-			processFilesStub.should.not.be.called()
+			sinon.assert.notCalled(formatResponseStub)
+			sinon.assert.notCalled(processFilesStub)
 		})
 
 		it("should handle empty string text", async () => {
 			const result = await buildUserFeedbackContent("")
 
-			// Empty string is still truthy for the text check, so it gets wrapped
-			result.should.have.length(1)
-			result[0].should.have.property("text", "<feedback>\n\n</feedback>")
+			// Empty string should be treated as no content
+			result.should.have.length(0)
 		})
 
 		it("should skip files that produce empty content", async () => {
