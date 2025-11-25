@@ -393,6 +393,14 @@ export function normalizeApiConfiguration(
 						? nousResearchModels[nousResearchModelId as keyof typeof nousResearchModels]
 						: nousResearchModels[nousResearchDefaultModelId],
 			}
+		case "iointelligence":
+			const ioIntelligenceModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeApiModelId : apiConfiguration?.actModeApiModelId
+			return {
+				selectedProvider: provider,
+				selectedModelId: ioIntelligenceModelId || "",
+				selectedModelInfo: openAiModelInfoSaneDefaults,
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -699,6 +707,7 @@ export async function syncModeConfigurations(
 		case "sapaicore":
 		case "zai":
 		case "minimax":
+		case "iointelligence":
 		default:
 			updates.planModeApiModelId = sourceFields.apiModelId
 			updates.actModeApiModelId = sourceFields.apiModelId
