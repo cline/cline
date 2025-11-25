@@ -107,6 +107,8 @@ import { StreamResponseHandler } from "./StreamResponseHandler"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { detectAvailableCliTools, extractProviderDomainFromUrl, updateApiReqMsg } from "./utils"
+import { buildUserFeedbackContent } from "./utils/buildUserFeedbackContent"
+
 export type ToolResponse = ClineToolResponseContent
 
 type TaskParams = {
@@ -1261,29 +1263,7 @@ export class Task {
 
 		// Run UserPromptSubmit hook for task resumption with ONLY the new user feedback
 		// (not the entire conversation context that includes previous messages)
-		const userFeedbackContent: ClineContent[] = []
-
-		// Only include the actual user feedback if provided
-		if (responseText || (responseImages && responseImages.length > 0) || (responseFiles && responseFiles.length > 0)) {
-			if (responseText) {
-				userFeedbackContent.push({
-					type: "text",
-					text: `<feedback>\n${responseText}\n</feedback>`,
-				})
-			}
-			if (responseImages && responseImages.length > 0) {
-				userFeedbackContent.push(...formatResponse.imageBlocks(responseImages))
-			}
-			if (responseFiles && responseFiles.length > 0) {
-				const fileContentString = await processFilesIntoText(responseFiles)
-				if (fileContentString) {
-					userFeedbackContent.push({
-						type: "text",
-						text: fileContentString,
-					})
-				}
-			}
-		}
+		const userFeedbackContent = await buildUserFeedbackContent(responseText, responseImages, responseFiles)
 
 		const userPromptHookResult = await this.runUserPromptSubmitHook(userFeedbackContent, "resume")
 
