@@ -36,8 +36,9 @@ export function extractUserPromptFromContent(userContent: ClineContent[]): strin
 			continue
 		}
 
-		// Check if block contains user content tags
-		const hasUserTag = USER_CONTENT_TAGS.some((tag) => text.includes(tag))
+		// Check if block contains user content tags (case-insensitive)
+		const textLower = text.toLowerCase()
+		const hasUserTag = USER_CONTENT_TAGS.some((tag) => textLower.includes(tag.toLowerCase()))
 
 		if (hasUserTag) {
 			// Extract content from within known user content tags
@@ -70,10 +71,10 @@ function extractFromUserContentTags(text: string, tags: string[]): string {
 	const results: string[] = []
 
 	for (const tag of tags) {
-		// Create regex to match opening and closing tags
-		// e.g., <task>content</task> or <feedback>content</feedback>
+		// Create regex to match opening and closing tags (case-insensitive)
+		// e.g., <task>content</task>, <TASK>content</TASK>, or <Task>content</Task>
 		const tagName = tag.replace(/[<>]/g, "")
-		const regex = new RegExp(`<${tagName}>([\\s\\S]*?)</${tagName}>`, "g")
+		const regex = new RegExp(`<${tagName}>([\\s\\S]*?)</${tagName}>`, "gi")
 
 		let match: RegExpExecArray | null
 		while ((match = regex.exec(text)) !== null) {

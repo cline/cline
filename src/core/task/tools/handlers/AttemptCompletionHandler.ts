@@ -3,11 +3,12 @@ import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
+import { telemetryService } from "@services/telemetry"
 import { findLastIndex } from "@shared/array"
 import { COMPLETION_RESULT_CHANGES_FLAG } from "@shared/ExtensionMessage"
-import { telemetryService } from "@/services/telemetry"
-import { ClineDefaultTool } from "@/shared/tools"
+import { ClineDefaultTool } from "@shared/tools"
 import type { ToolResponse } from "../../index"
+import { buildUserFeedbackContent } from "../../utils/buildUserFeedbackContent"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
@@ -175,25 +176,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		// Run UserPromptSubmit hook when user provides post-completion feedback
 		let hookContextModification: string | undefined
 		if (text || (images && images.length > 0) || (completionFiles && completionFiles.length > 0)) {
-			const userContentForHook: any[] = []
-			if (text) {
-				userContentForHook.push({
-					type: "text",
-					text: `<feedback>\n${text}\n</feedback>`,
-				})
-			}
-			if (images && images.length > 0) {
-				userContentForHook.push(...formatResponse.imageBlocks(images))
-			}
-			if (completionFiles && completionFiles.length > 0) {
-				const fileContentString = await processFilesIntoText(completionFiles)
-				if (fileContentString) {
-					userContentForHook.push({
-						type: "text",
-						text: fileContentString,
-					})
-				}
-			}
+			const userContentForHook = await buildUserFeedbackContent(text, images, completionFiles)
 
 			const hookResult = await config.callbacks.runUserPromptSubmitHook(userContentForHook, "feedback")
 
