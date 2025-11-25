@@ -100,8 +100,8 @@ export class TrajectoryUpdater {
 	addStep(step: ATIFStepObject): this {
 		// Ensure step_id is sequential
 		const lastStepId = this.trajectory.steps[this.trajectory.steps.length - 1]?.step_id || 0
-		step.step_id = lastStepId + 1
-		this.trajectory.steps.push(step)
+		const newStep = { ...step, step_id: lastStepId + 1 }
+		this.trajectory.steps.push(newStep)
 		this.updateFinalMetrics()
 		return this
 	}
