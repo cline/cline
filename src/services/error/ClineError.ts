@@ -56,14 +56,13 @@ export class ClineError extends Error {
 		public readonly modelId?: string,
 		public readonly providerId?: string,
 	) {
-		const serialized = serializeError(raw)
-		const error = serialized?.response || serialized
+		const error = serializeError(raw)
 
-		const message = error.message || String(error) || error?.cause?.means
+		const message = error.message || error?.response?.message || String(error) || error?.cause?.means
 		super(message)
 
 		// Extract status from multiple possible locations
-		const status = error.status || error.statusCode
+		const status = error.status || error.statusCode || error.response?.status
 		this.modelId = modelId || error.modelId
 		this.providerId = providerId || error.providerId
 
