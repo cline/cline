@@ -38,12 +38,14 @@ export class FeatureFlagsService {
 				return
 			}
 		}
-		this.cacheInfo = { updateTime: timesNow, userId: userId || null }
 
 		for (const flag of FEATURE_FLAGS) {
 			const payload = await this.getFeatureFlag(flag).catch(() => false)
 			this.cache.set(flag, payload ?? false)
 		}
+
+		// Only update timestamp after successfully populating cache
+		this.cacheInfo = { updateTime: timesNow, userId: userId || null }
 
 		getClineOnboardingModels() // Refresh onboarding models cache if relevant flag changed
 	}
@@ -147,19 +149,6 @@ export class FeatureFlagsService {
 	 */
 	public getSettings() {
 		return this.provider.getSettings()
-	}
-
-	/**
-	 * Reset the feature flags cache
-	 * Should run on user auth state changes to ensure flags are up-to-date
-	 */
-	public reset(userId?: string): void {
-		// Skip known user ID to avoid redundant resets
-		if (userId && this.cacheInfo.userId === userId) {
-			return
-		}
-		this.cacheInfo = { updateTime: 0, userId: userId || null }
-		this.cache.clear()
 	}
 
 	/**
