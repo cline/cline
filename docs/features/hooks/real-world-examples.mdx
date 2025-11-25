@@ -686,6 +686,471 @@ else
 fi
 ```
 
+## Task Lifecycle Management
+
+### Task Completion Tracking Hook
+
+Track successful task completions and generate completion reports.
+
+**Hook:** `TaskComplete`
+
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+task_id=$(echo "$input" | jq -r '.taskId')
+initial_task=$(echo "$input" | jq -r '.taskComplete.taskMetadata.initialTask')
+completion_time=$(echo "$input" | jq -r '.timestamp')
+total_operations=$(echo "$input" | jq -r '.taskComplete.totalOperations // 0')
+duration_minutes=$(echo "$input" | jq -r '.taskComplete.durationMinutes // 0')
+
+# Create completion report directory
+reports_dir="$HOME/.cline_reports"
+mkdir -p "$reports_dir"
+
+# Generate completion report
+report_file="$reports_dir/completion_$(date +%Y%m%d_%H%M%S)_${task_id}.md"
+
+cat > "$report_file" << EOF
+# Cline Task Completion Report
+
+**Task ID:** $task_id
+**Completed:** $(date -Iseconds)
+**Duration:** ${duration_minutes} minutes
+**Total Operations:** $total_operations
+
+## Task Description
+$initial_task
+
+## Workspace Information
+- **Project:** $(basename "$PWD")
+- **Git Branch:** $(git branch --show-current 2>/dev/null || echo "No git repository")
+- **Git Status:** $(git status --porcelain 2>/dev/null | wc -l || echo "0") modified files
+
+## Performance Metrics
+- Average operations per minute: $(echo "scale=2; $total_operations / ($duration_minutes + 1)" | bc 2>/dev/null || echo "N/A")
+- Completion status: ✅ Success
+
+## Next Steps
+- Review changes made during this task
+- Consider committing changes: \`git add -A && git commit -m "Complete: ${initial_task:0:50}"\`
+- Run tests to verify functionality
+EOF
+
+# Send completion notification if webhook configured
+webhook_url="${COMPLETION_WEBHOOK_URL:-}"
+if [[ -n "$webhook_url" ]]; then
+  payload=$(jq -n \
+    --arg task_id "$task_id" \
+    --arg task "$initial_task" \
+    --arg duration "$duration_minutes" \
+    --arg operations "$total_operations" \
+    --arg workspace "$(basename "$PWD")" \
+    '{
+      event: "task_completed",
+      task_id: $task_id,
+      description: $task,
+      duration_minutes: ($duration | tonumber),
+      total_operations: ($operations | tonumber),
+      workspace: $workspace,
+      timestamp: now | strftime("%Y-%m-%dT%H:%M:%SZ")
+    }')
+  
+  curl -X POST \
+    -H "Content-Type: application/json" \
+    -d "$payload" \
+    "$webhook_url" \
+    --max-time 5 \
+    --silent > /dev/null 2>&1 &
+fi
+
+# Provide completion summary
+context="TASK_COMPLETED: ✅ Task finished successfully in ${duration_minutes} minutes with ${total_operations} operations. Report saved to: $report_file"
+
+jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
+```
+
+### Task Cancellation Handler Hook  
+
+Handle task cancellations gracefully with cleanup and logging.
+
+**Hook:** `TaskCancel`
+
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+task_id=$(echo "$input" | jq -r '.taskId')
+cancellation_reason=$(echo "$input" | jq -r '.taskCancel.reason // "User requested"')
+partial_operations=$(echo "$input" | jq -r '.taskCancel.completedOperations // 0')
+duration_minutes=$(echo "$input" | jq -r '.taskCancel.durationMinutes // 0')
+
+# Create cancellation log directory
+cancel_dir="$HOME/.cline_cancellations"
+mkdir -p "$cancel_dir"
+
+# Log cancellation details
+cancel_log="$cancel_dir/$(date +%Y-%m-%d).log"
+
+cancel_entry=$(jq -n \
+  --arg timestamp "$(date -Iseconds)" \
+  --arg task_id "$task_id" \
+  --arg reason "$cancellation_reason" \
+  --arg operations "$partial_operations" \
+  --arg duration "$duration_minutes" \
+  --arg workspace "$(basename "$PWD")" \
+  '{
+    timestamp: $timestamp,
+    task_id: $task_id,
+    reason: $reason,
+    completed_operations: ($operations | tonumber),
+    duration_minutes: ($duration | tonumber),
+    workspace: $workspace
+  }')
+
+echo "$cancel_entry" >> "$cancel_log"
+
+# Clean up temporary files created during this task
+temp_patterns=("*.tmp" "*.temp" ".cline_*" "*_backup_*")
+cleaned_files=0
+
+for pattern in "${temp_patterns[@]}"; do
+  if ls $pattern 1> /dev/null 2>&1; then
+    rm -f $pattern 2>/dev/null || true
+    ((cleaned_files++))
+  fi
+done
+
+# Revert any uncommitted git changes if requested
+if [[ "$cancellation_reason" == *"revert"* ]] && git rev-parse --git-dir > /dev/null 2>&1; then
+  if [[ -n "$(git status --porcelain)" ]]; then
+    git stash push -m "Auto-stash from canceled Cline task $task_id" > /dev/null 2>&1 || true
+    context="TASK_CANCELED: Task $task_id canceled after ${duration_minutes}m and ${partial_operations} operations. Uncommitted changes stashed. Cleaned $cleaned_files temporary files."
+  else
+    context="TASK_CANCELED: Task $task_id canceled after ${duration_minutes}m and ${partial_operations} operations. No uncommitted changes found. Cleaned $cleaned_files temporary files."
+  fi
+else
+  context="TASK_CANCELED: Task $task_id canceled after ${duration_minutes}m and ${partial_operations} operations. Reason: $cancellation_reason. Cleaned $cleaned_files temporary files."
+fi
+
+# Optional: Send cancellation alert
+cancel_webhook="${CANCEL_WEBHOOK_URL:-}"
+if [[ -n "$cancel_webhook" ]]; then
+  payload=$(jq -n \
+    --arg task_id "$task_id" \
+    --arg reason "$cancellation_reason" \
+    --arg operations "$partial_operations" \
+    --arg duration "$duration_minutes" \
+    '{
+      event: "task_canceled",
+      task_id: $task_id,
+      reason: $reason,
+      partial_operations: ($operations | tonumber),
+      duration_minutes: ($duration | tonumber),
+      timestamp: now | strftime("%Y-%m-%dT%H:%M:%SZ")
+    }')
+  
+  curl -X POST \
+    -H "Content-Type: application/json" \
+    -d "$payload" \
+    "$cancel_webhook" \
+    --max-time 3 \
+    --silent > /dev/null 2>&1 &
+fi
+
+jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
+```
+
+### Task Resume Preparation Hook
+
+Prepare environment and validate state when resuming tasks.
+
+**Hook:** `TaskResume`
+
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+task_id=$(echo "$input" | jq -r '.taskId')
+original_task=$(echo "$input" | jq -r '.taskResume.taskMetadata.initialTask')
+pause_duration=$(echo "$input" | jq -r '.taskResume.pauseDurationMinutes // 0')
+last_operation=$(echo "$input" | jq -r '.taskResume.lastCompletedOperation // "unknown"')
+
+# Validate workspace state
+workspace_issues=""
+
+# Check if git repository state changed
+if git rev-parse --git-dir > /dev/null 2>&1; then
+  # Check for new commits since pause
+  current_branch=$(git branch --show-current 2>/dev/null || echo "")
+  uncommitted_changes=$(git status --porcelain | wc -l)
+  
+  if (( uncommitted_changes > 5 )); then
+    workspace_issues+="⚠️ Many uncommitted changes detected ($uncommitted_changes files). "
+  fi
+  
+  # Check if branch switched
+  expected_branch_file=".cline_task_${task_id}_branch"
+  if [[ -f "$expected_branch_file" ]]; then
+    expected_branch=$(cat "$expected_branch_file")
+    if [[ "$current_branch" != "$expected_branch" ]]; then
+      workspace_issues+="⚠️ Git branch changed from '$expected_branch' to '$current_branch'. "
+    fi
+  else
+    # Store current branch for future reference
+    echo "$current_branch" > "$expected_branch_file"
+  fi
+fi
+
+# Check for dependency changes
+dependency_issues=""
+if [[ -f "package.json" ]]; then
+  if [[ -f ".cline_task_${task_id}_package_hash" ]]; then
+    stored_hash=$(cat ".cline_task_${task_id}_package_hash")
+    current_hash=$(shasum package.json | cut -d' ' -f1)
+    if [[ "$stored_hash" != "$current_hash" ]]; then
+      dependency_issues+="⚠️ package.json modified during pause - dependencies may have changed. Consider running npm install. "
+    fi
+  else
+    shasum package.json | cut -d' ' -f1 > ".cline_task_${task_id}_package_hash"
+  fi
+fi
+
+# Check system resources
+available_space=$(df . | tail -1 | awk '{print $4}')
+if (( available_space < 1000000 )); then  # Less than ~1GB
+  workspace_issues+="⚠️ Low disk space ($(echo $available_space | awk '{print $1/1000000 "GB"}'). "
+fi
+
+# Create resume context
+context="TASK_RESUMED: Continuing task after ${pause_duration} minute pause. Last operation: $last_operation."
+
+if [[ -n "$workspace_issues" ]]; then
+  context="$context WORKSPACE_CHANGES: $workspace_issues"
+fi
+
+if [[ -n "$dependency_issues" ]]; then
+  context="$context DEPENDENCY_CHANGES: $dependency_issues"
+fi
+
+# Log resume event
+resume_log="$HOME/.cline_resumes/$(date +%Y-%m-%d).log"
+mkdir -p "$(dirname "$resume_log")"
+
+resume_entry=$(jq -n \
+  --arg timestamp "$(date -Iseconds)" \
+  --arg task_id "$task_id" \
+  --arg pause_duration "$pause_duration" \
+  --arg last_op "$last_operation" \
+  --arg workspace_issues "$workspace_issues" \
+  '{
+    timestamp: $timestamp,
+    task_id: $task_id,
+    pause_duration_minutes: ($pause_duration | tonumber),
+    last_operation: $last_op,
+    workspace_issues: $workspace_issues,
+    workspace: env.PWD
+  }')
+
+echo "$resume_entry" >> "$resume_log"
+
+jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
+```
+
+## Memory and Context Management
+
+### Pre-Compact Context Preservation Hook
+
+Backup important conversation context before history compaction.
+
+**Hook:** `PreCompact`
+
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+task_id=$(echo "$input" | jq -r '.taskId')
+messages_to_remove=$(echo "$input" | jq -r '.preCompact.messagesToRemove // 0')
+total_messages=$(echo "$input" | jq -r '.preCompact.totalMessages // 0')
+compaction_trigger=$(echo "$input" | jq -r '.preCompact.trigger // "context_limit"')
+
+# Create context backup directory
+backup_dir="$HOME/.cline_context_backups"
+mkdir -p "$backup_dir"
+
+# Create dated backup file
+backup_file="$backup_dir/${task_id}_$(date +%Y%m%d_%H%M%S).json"
+
+# Extract conversation history for backup
+conversation_history=$(echo "$input" | jq '.preCompact.conversationHistory // []')
+
+# Create comprehensive backup
+backup_data=$(jq -n \
+  --arg task_id "$task_id" \
+  --arg timestamp "$(date -Iseconds)" \
+  --arg trigger "$compaction_trigger" \
+  --arg messages_removed "$messages_to_remove" \
+  --arg total_messages "$total_messages" \
+  --argjson history "$conversation_history" \
+  '{
+    task_id: $task_id,
+    backup_timestamp: $timestamp,
+    compaction_trigger: $trigger,
+    messages_removed: ($messages_removed | tonumber),
+    total_messages: ($total_messages | tonumber),
+    workspace: env.PWD,
+    git_commit: null,
+    conversation_history: $history
+  }')
+
+# Add git commit hash if available
+if git rev-parse --git-dir > /dev/null 2>&1; then
+  git_hash=$(git rev-parse HEAD 2>/dev/null || echo "no-commit")
+  backup_data=$(echo "$backup_data" | jq --arg hash "$git_hash" '.git_commit = $hash')
+fi
+
+echo "$backup_data" > "$backup_file"
+
+# Compress older backups (keep last 5 uncompressed)
+find "$backup_dir" -name "${task_id}_*.json" -type f | sort -r | tail -n +6 | while read old_backup; do
+  if [[ ! -f "${old_backup}.gz" ]]; then
+    gzip "$old_backup" 2>/dev/null || true
+  fi
+done
+
+# Extract key information for context preservation
+important_context=""
+
+# Look for error patterns in history
+if echo "$conversation_history" | jq -r '.[] | select(.type == "error") | .content' | grep -q .; then
+  error_count=$(echo "$conversation_history" | jq '[.[] | select(.type == "error")] | length')
+  important_context+="Previous errors encountered: $error_count. "
+fi
+
+# Look for successful patterns
+if echo "$conversation_history" | jq -r '.[] | select(.type == "success") | .content' | grep -q .; then
+  success_patterns=$(echo "$conversation_history" | jq -r '[.[] | select(.type == "success")] | length')
+  important_context+="Successful operations: $success_patterns. "
+fi
+
+# Create context summary for AI
+context="CONTEXT_COMPACTION: Removing $messages_to_remove of $total_messages messages due to $compaction_trigger. Backup saved to: $(basename "$backup_file"). "
+
+if [[ -n "$important_context" ]]; then
+  context+="PRESERVED_CONTEXT: $important_context"
+fi
+
+# Optional: Send to external storage
+external_backup_webhook="${CONTEXT_BACKUP_WEBHOOK:-}"
+if [[ -n "$external_backup_webhook" ]]; then
+  curl -X POST \
+    -H "Content-Type: application/json" \
+    -d "$backup_data" \
+    "$external_backup_webhook" \
+    --max-time 10 \
+    --silent > /dev/null 2>&1 &
+fi
+
+jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
+```
+
+### User Input Validation Hook
+
+Validate and enhance user prompts before processing.
+
+**Hook:** `UserPromptSubmit`
+
+```bash
+#!/usr/bin/env bash
+input=$(cat)
+
+user_prompt=$(echo "$input" | jq -r '.userPromptSubmit.prompt')
+prompt_type=$(echo "$input" | jq -r '.userPromptSubmit.type // "text"')
+task_id=$(echo "$input" | jq -r '.taskId')
+user_id=$(echo "$input" | jq -r '.userId')
+
+# Log user activity for analytics
+activity_log="$HOME/.cline_user_activity/$(date +%Y-%m-%d).log"
+mkdir -p "$(dirname "$activity_log")"
+
+activity_entry=$(jq -n \
+  --arg timestamp "$(date -Iseconds)" \
+  --arg task_id "$task_id" \
+  --arg user_id "$user_id" \
+  --arg prompt_length "${#user_prompt}" \
+  --arg prompt_type "$prompt_type" \
+  '{
+    timestamp: $timestamp,
+    task_id: $task_id,
+    user_id: $user_id,
+    prompt_length: ($prompt_length | tonumber),
+    prompt_type: $prompt_type,
+    workspace: env.PWD
+  }')
+
+echo "$activity_entry" >> "$activity_log"
+
+# Analyze prompt for potential issues
+context_modifications=""
+cancel_request=false
+
+# Check for potentially harmful requests
+harmful_patterns=("rm -rf" "delete" "remove all" "format.*drive" "sudo.*passwd")
+for pattern in "${harmful_patterns[@]}"; do
+  if echo "$user_prompt" | grep -qi "$pattern"; then
+    cancel_request=true
+    error_message="🚨 SAFETY ALERT: Potentially harmful command detected in prompt. Please review your request and ensure it's safe to execute."
+    break
+  fi
+done
+
+# Enhance prompts with helpful context
+if [[ "$cancel_request" == false ]]; then
+  # Add project context if user asks about files
+  if echo "$user_prompt" | grep -qi "file\|directory\|folder" && [[ ! "$user_prompt" == *"context:"* ]]; then
+    if [[ -f "package.json" ]]; then
+      project_name=$(jq -r '.name // "unknown"' package.json 2>/dev/null)
+      context_modifications+="PROJECT_CONTEXT: Working in Node.js project '$project_name'. "
+    elif [[ -f "requirements.txt" ]] || [[ -f "setup.py" ]]; then
+      context_modifications+="PROJECT_CONTEXT: Working in Python project. "
+    elif [[ -f "Cargo.toml" ]]; then
+      project_name=$(grep '^name = ' Cargo.toml | cut -d'"' -f2 2>/dev/null || echo "unknown")
+      context_modifications+="PROJECT_CONTEXT: Working in Rust project '$project_name'. "
+    fi
+  fi
+  
+  # Add git context for version control related requests
+  if echo "$user_prompt" | grep -qi "git\|commit\|branch\|merge" && git rev-parse --git-dir > /dev/null 2>&1; then
+    current_branch=$(git branch --show-current 2>/dev/null)
+    uncommitted=$(git status --porcelain | wc -l)
+    context_modifications+="GIT_CONTEXT: On branch '$current_branch' with $uncommitted uncommitted changes. "
+  fi
+  
+  # Suggest specific tools for common requests
+  if echo "$user_prompt" | grep -qi "search.*code\|find.*function"; then
+    context_modifications+="TOOL_SUGGESTION: Consider using search_files tool for code exploration. "
+  elif echo "$user_prompt" | grep -qi "test.*website\|check.*browser"; then
+    context_modifications+="TOOL_SUGGESTION: Consider using browser_action tool for web testing. "
+  fi
+  
+  # Flag overly broad requests
+  if (( ${#user_prompt} < 20 )) && echo "$user_prompt" | grep -qi "^(fix|update|change|modify)"; then
+    context_modifications+="CLARITY_NEEDED: Request seems broad. Consider providing more specific details about what needs to be fixed/updated. "
+  fi
+fi
+
+# Return appropriate response
+if [[ "$cancel_request" == true ]]; then
+  jq -n --arg msg "$error_message" '{"cancel": true, "errorMessage": $msg}'
+else
+  if [[ -n "$context_modifications" ]]; then
+    jq -n --arg ctx "$context_modifications" '{"cancel": false, "contextModification": $ctx}'
+  else
+    echo '{"cancel": false}'
+  fi
+fi
+```
+
 ## Usage Tips
 
 ### Running Multiple Hooks
