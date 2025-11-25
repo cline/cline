@@ -2,46 +2,37 @@ syntax = "proto3";
 
 package cline;
 
-import "google/protobuf/empty.proto";
+import "cline/common.proto";
 
-// Banner service for fetching and managing banners
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
 service BannerService {
-  // Get active banners that haven't been dismissed
-  rpc GetActiveBanners(google.protobuf.Empty) returns (BannersResponse);
+  rpc GetActiveBanners(EmptyRequest) returns (BannersResponse);
 
-  // Dismiss a banner
-  rpc DismissBanner(DismissBannerRequest) returns (google.protobuf.Empty);
+  rpc DismissBanner(DismissBannerRequest) returns (Empty);
 
-  // Track a banner event (seen, click, dismiss)
-  rpc TrackBannerEvent(TrackBannerEventRequest) returns (google.protobuf.Empty);
+  rpc TrackBannerEvent(TrackBannerEventRequest) returns (Empty);
 }
 
-// Response containing active banners
 message BannersResponse {
   repeated Banner banners = 1;
 }
 
-// Request to dismiss a banner
 message DismissBannerRequest {
   string banner_id = 1;
 }
 
-// Request to track a banner event
 message TrackBannerEventRequest {
   string banner_id = 1;
-  string event_type = 2; // "seen", "dismiss", or "click"
+  string event_type = 2;
 }
 
-// Banner message
 message Banner {
   string id = 1;
   string title_md = 2;
   string body_md = 3;
-  string severity = 4; // "info", "warning", "error"
-  string placement = 5; // "top", "inline"
-  optional string cta_text = 6;
-  optional string cta_url = 7;
-  optional string active_from = 8;
-  optional string active_to = 9;
-  string rules_json = 10;
+  string severity = 4;
+  string placement = 5;
 }
