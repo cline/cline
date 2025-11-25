@@ -16,6 +16,7 @@ import type {
 	ATIFTrajectory,
 } from "./atif"
 import {
+	ClineAssistantThinkingBlock,
 	type ClineAssistantToolUseBlock,
 	type ClineContent,
 	type ClineStorageMessage,
@@ -367,17 +368,15 @@ export function convertATIFStepToClineMessage(step: ATIFStepObject): ClineStorag
 			reasoningEffort: step.reasoning_effort,
 		}
 
-		if (step.reasoning_effort !== undefined) {
-			message.modelInfo.reasoningEffort = step.reasoning_effort
+		const thinkingBlock: ClineAssistantThinkingBlock = {
+			type: "thinking",
+			thinking: step.reasoning_content || "",
+			signature: step.step_id.toString(),
 		}
-		if (step.reasoning_content) {
-			message.content = [
-				{
-					type: "thinking",
-					thinking: step.reasoning_content,
-					signature: step.step_id.toString(),
-				},
-			]
+		if (Array.isArray(message.content)) {
+			message.content.unshift(thinkingBlock)
+		} else {
+			message.content = [thinkingBlock, { type: "text", text: message.content }]
 		}
 		if (step.metrics) {
 			message.metrics = {
@@ -422,7 +421,13 @@ export function validateClineMessageForATIF(message: ClineStorageMessage): strin
 		if (message.modelInfo?.reasoningEffort !== undefined) {
 			errors.push("reasoning_effort can only be set on assistant messages")
 		}
-		if (message.modelInfo?.reasoningEffort) {
+		// Check for reasoning_content in message.content
+		if (
+			Array.isArray(message.content) &&
+			message.content.some((block: any) => block.type === "reasoning_content" || block.reasoning_content !== undefined)
+		) {
+			errors.push("reasoning_content can only be set on assistant messages")
+		} else if (typeof message.content === "object" && message.content !== null && "reasoning_content" in message.content) {
 			errors.push("reasoning_content can only be set on assistant messages")
 		}
 		if (message.metrics) {
