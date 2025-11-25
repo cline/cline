@@ -368,16 +368,20 @@ export function convertATIFStepToClineMessage(step: ATIFStepObject): ClineStorag
 			reasoningEffort: step.reasoning_effort,
 		}
 
-		const thinkingBlock: ClineAssistantThinkingBlock = {
-			type: "thinking",
-			thinking: step.reasoning_content || "",
-			signature: step.step_id.toString(),
+		if (step.reasoning_content) {
+			const thinkingBlock: ClineAssistantThinkingBlock = {
+				type: "thinking",
+				thinking: step.reasoning_content,
+				// TODO: signature should be provided if needed
+				signature: step.step_id.toString(),
+			}
+			if (Array.isArray(message.content)) {
+				message.content.unshift(thinkingBlock)
+			} else {
+				message.content = [thinkingBlock, { type: "text", text: message.content }]
+			}
 		}
-		if (Array.isArray(message.content)) {
-			message.content.unshift(thinkingBlock)
-		} else {
-			message.content = [thinkingBlock, { type: "text", text: message.content }]
-		}
+
 		if (step.metrics) {
 			message.metrics = {
 				promptTokens: step.metrics.prompt_tokens || 0,
