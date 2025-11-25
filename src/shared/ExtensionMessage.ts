@@ -104,23 +104,6 @@ export interface ExtensionState {
 	remoteConfigSettings?: Partial<RemoteConfigFields>
 	subagentsEnabled?: boolean
 	nativeToolCallSetting?: ClineFeatureSetting
-	apiBanners?: Banner[]
-}
-
-/**
- * API-fetched banner from the banner service
- */
-export interface Banner {
-	id: string
-	titleMd: string
-	bodyMd: string
-	severity: "info" | "warning" | "error"
-	placement: "top" | "inline"
-	ctaText?: string
-	ctaUrl?: string
-	activeFrom?: string
-	activeTo?: string
-	rulesJson: string
 }
 
 export interface ClineMessage {

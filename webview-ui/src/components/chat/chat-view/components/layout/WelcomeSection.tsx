@@ -1,6 +1,5 @@
 import React from "react"
 import Announcement from "@/components/chat/Announcement"
-import ApiBanner from "@/components/common/ApiBanner"
 import CliInstallBanner, { CURRENT_CLI_BANNER_VERSION } from "@/components/common/CliInstallBanner"
 import InfoBanner, { CURRENT_INFO_BANNER_VERSION } from "@/components/common/InfoBanner"
 import HistoryPreview from "@/components/history/HistoryPreview"
@@ -23,7 +22,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	taskHistory,
 	shouldShowQuickWins,
 }) => {
-	const { lastDismissedInfoBannerVersion, lastDismissedCliBannerVersion, apiBanners } = useExtensionState()
+	const { lastDismissedInfoBannerVersion, lastDismissedCliBannerVersion } = useExtensionState()
 
 	const shouldShowInfoBanner = lastDismissedInfoBannerVersion < CURRENT_INFO_BANNER_VERSION
 	// const shouldShowNewModelBanner = lastDismissedModelBannerVersion < CURRENT_MODEL_BANNER_VERSION
@@ -41,9 +40,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 				{showAnnouncement && <Announcement hideAnnouncement={hideAnnouncement} version={version} />}
 				{/* {shouldShowNewModelBanner && <NewModelBanner />} */}
 				{shouldShowCliBanner && <CliInstallBanner />}
-				{apiBanners?.map((banner) => (
-					<ApiBanner banner={banner} key={banner.id} />
-				))}
 				<HomeHeader shouldShowQuickWins={shouldShowQuickWins} />
 				{!shouldShowQuickWins && taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
 			</div>
