@@ -165,7 +165,6 @@ export class VertexHandler implements ApiHandler {
 		const lastStartedToolCall = { id: "", name: "", arguments: "" }
 
 		for await (const chunk of stream) {
-			console.log("Vertex Anthropic chunk:", chunk)
 			switch (chunk?.type) {
 				case "message_start": {
 					const usage = chunk.message.usage
@@ -227,6 +226,13 @@ export class VertexHandler implements ApiHandler {
 					break
 				case "content_block_delta":
 					switch (chunk.delta.type) {
+						case "signature_delta":
+							yield {
+								type: "reasoning",
+								reasoning: "",
+								signature: chunk.delta.signature,
+							}
+							break
 						case "thinking_delta":
 							yield {
 								type: "reasoning",
