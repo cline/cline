@@ -22,7 +22,7 @@ export async function openFile(_controller: Controller, request: StringRequest):
 		if (request.value.startsWith(REMOTE_URI_SCHEME)) {
 			await openRemoteFile(request.value)
 		} else {
-			openFileIntegration(request.value)
+			await openFileIntegration(request.value)
 		}
 	}
 	return Empty.create()
