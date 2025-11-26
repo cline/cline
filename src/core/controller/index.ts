@@ -892,8 +892,7 @@ export class Controller {
 		const lastDismissedCliBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedCliBannerVersion") || 0
 		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
 
-		// Fetch API banners
-		const apiBanners = await this.fetchBannersForDisplay()
+		const activeBanners = await this.fetchBannersForDisplay()
 
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
@@ -993,12 +992,9 @@ export class Controller {
 			lastDismissedModelBannerVersion,
 			remoteConfigSettings: this.stateManager.getRemoteConfigSettings(),
 			lastDismissedCliBannerVersion,
+			activeBanners,
 			subagentsEnabled,
-			nativeToolCallSetting: {
-				user: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
-				featureFlag: featureFlagsService.getNativeToolCallEnabled(),
-			},
-			apiBanners,
+			nativeToolCallSetting: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 		}
 	}
 
