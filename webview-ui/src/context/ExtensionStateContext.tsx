@@ -230,6 +230,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		backgroundCommandRunning: false,
 		backgroundCommandTaskId: undefined,
 		lastDismissedCliBannerVersion: 0,
+		activeBanners: [],
 		subagentsEnabled: false,
 
 		// NEW: Add workspace information with defaults
