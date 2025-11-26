@@ -103,7 +103,7 @@ export interface ExtensionState {
 	hooksEnabled?: ClineFeatureSetting
 	remoteConfigSettings?: Partial<RemoteConfigFields>
 	subagentsEnabled?: boolean
-	nativeToolCallSetting?: ClineFeatureSetting
+	nativeToolCallSetting?: boolean
 }
 
 export interface ClineMessage {
