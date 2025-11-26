@@ -108,6 +108,7 @@ export class VertexHandler implements ApiHandler {
 			case "claude-3-5-haiku@20241022":
 			case "claude-3-opus@20240229":
 			case "claude-3-haiku@20240307": {
+				const anthropicMessages = sanitizeAnthropicMessages(messages, true)
 				stream = await clientAnthropic.beta.messages.create(
 					{
 						model: modelId,
@@ -121,7 +122,7 @@ export class VertexHandler implements ApiHandler {
 								cache_control: { type: "ephemeral" },
 							},
 						],
-						messages: sanitizeAnthropicMessages(messages, true),
+						messages: anthropicMessages,
 						stream: true,
 						tools: nativeToolsOn ? (tools as AnthropicTool[]) : undefined,
 						// tool_choice options:
@@ -164,6 +165,7 @@ export class VertexHandler implements ApiHandler {
 		const lastStartedToolCall = { id: "", name: "", arguments: "" }
 
 		for await (const chunk of stream) {
+			console.log("Vertex Anthropic chunk:", chunk)
 			switch (chunk?.type) {
 				case "message_start": {
 					const usage = chunk.message.usage
