@@ -14,8 +14,16 @@ export async function refreshLiteLlmModelsRpc(
 	_controller: Controller,
 	_request: EmptyRequest,
 ): Promise<OpenRouterCompatibleModelInfo> {
-	const models = await refreshLiteLlmModels()
-	return OpenRouterCompatibleModelInfo.create({
-		models: toProtobufModels(models),
-	})
+	try {
+		const models = await refreshLiteLlmModels()
+		return OpenRouterCompatibleModelInfo.create({
+			models: toProtobufModels(models),
+		})
+	} catch (error) {
+		// LiteLLM not configured, this is expected for most users
+		// Return empty models list instead of throwing
+		return OpenRouterCompatibleModelInfo.create({
+			models: {},
+		})
+	}
 }

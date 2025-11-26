@@ -22,7 +22,9 @@ export async function refreshLiteLlmModels(): Promise<Record<string, ModelInfo>>
 		const apiKey = apiConfiguration.liteLlmApiKey
 
 		if (!apiKey) {
-			throw new Error("LiteLLM API key is not configured or is invalid")
+			// LiteLLM not configured - this is expected for most users
+			// Return empty models and skip the event notification below
+			return models
 		}
 
 		// Use the shared utility function to fetch model info
@@ -56,8 +58,10 @@ export async function refreshLiteLlmModels(): Promise<Record<string, ModelInfo>>
 			}
 		}
 	} catch (error) {
+		// Only log unexpected errors (network issues, parsing errors, etc.)
 		console.error("Error fetching LiteLLM models:", error)
-		throw error
+		// Return empty models instead of rethrowing
+		return models
 	}
 
 	// Store in StateManager's in-memory cache
