@@ -71,7 +71,7 @@ Use a dedicated project for AI workloads to better track usage and costs. Ensure
 <Accordion title="Region (required)">
 Select the Google Cloud region where your Vertex AI models should be accessed. Common options include `us-central1`, `us-east4`, or `europe-west4`.
 
-[View Google Cloud Regions](https://cloud.google.com/compute/docs/regions-zones)
+[View Google Cloud Regions](https://cloud.google.com/docs/geography-and-regions)
 
 <Note>
 Choose a region close to your team's location for optimal performance. Some models may not be available in all regions.
@@ -83,17 +83,9 @@ Configure which Vertex AI models are available to your organization. You can all
 
 Available model categories:
 - **Gemini models**: Latest multimodal capabilities
-- **PaLM models**: Text generation and reasoning
-- **Codey models**: Code generation and completion
 - **Custom models**: Your organization's fine-tuned models
 </Accordion>
 
-<Accordion title="Authentication Method (optional)">
-Configure how team members will authenticate with Vertex AI:
-- **Service Account Keys**: Centralized key management  
-- **Application Default Credentials**: Use local Google Cloud authentication
-- **Workload Identity**: For containerized environments
-</Accordion>
 
 <Accordion title="Cost Controls (optional)">
 Set up usage monitoring and budget controls if desired:
@@ -134,13 +126,7 @@ The models available through your remote Vertex AI configuration include:
 - **Gemini Pro Vision**: Image understanding and generation
 - **Gemini Ultra**: Most capable model for complex tasks
 
-**PaLM Models:**
-- **PaLM 2**: Text generation and conversational AI
-- **Chat-Bison**: Optimized for conversational interfaces
-- **Text-Bison**: Focused on text completion and generation
-
 **Specialized Models:**
-- **Codey**: Code generation, completion, and explanation
 - **Embedding models**: For semantic search and similarity
 - **Custom models**: Your organization's fine-tuned variants
 
@@ -205,4 +191,4 @@ Verify that team members have appropriate Google Cloud credentials configured. C
 **Model access errors**  
 Ensure the models are enabled in your Google Cloud project. Check that project quotas are sufficient and that billing is properly configured.
 
-**Configuration changes don't persist**  
+**Configuration changes don't persist**
