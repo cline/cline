@@ -3208,7 +3208,8 @@ export class Task {
 		// Pre-fetch necessary data to avoid redundant calls within loops
 		const ulid = this.ulid
 		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
-		const useNativeToolCalls = this.useNativeToolCalls
+		const useNativeToolCalls =
+			featureFlagsService.getNativeToolCallEnabled() && this.stateManager.getGlobalStateKey("nativeToolCallEnabled")
 		const providerInfo = this.getCurrentProviderInfo()
 		const cwd = this.cwd
 		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.controller, cwd)
