@@ -540,7 +540,7 @@ export class Task {
 			this.removeLastPartialMessageIfExistsWithType.bind(this),
 			this.executeCommandTool.bind(this),
 			() => this.checkpointManager?.doesLatestTaskCompletionHaveNewChanges() ?? Promise.resolve(false),
-			this.FocusChainManager?.updateFCListFromToolResponse.bind(this.FocusChainManager) || (async () => { }),
+			this.FocusChainManager?.updateFCListFromToolResponse.bind(this.FocusChainManager) || (async () => {}),
 			this.switchToActModeCallback.bind(this),
 			this.cancelTask,
 			// Atomic hook state helpers for ToolExecutor
@@ -796,7 +796,8 @@ export class Task {
 	async sayAndCreateMissingParamError(toolName: ClineDefaultTool, paramName: string, relPath?: string) {
 		await this.say(
 			"error",
-			`Cline tried to use ${toolName}${relPath ? ` for '${relPath.toPosix()}'` : ""
+			`Cline tried to use ${toolName}${
+				relPath ? ` for '${relPath.toPosix()}'` : ""
 			} without value for required parameter '${paramName}'. Retrying...`,
 		)
 		return formatResponse.toolError(formatResponse.missingToolParameterError(paramName))
@@ -1825,7 +1826,8 @@ export class Task {
 			return [
 				true,
 				formatResponse.toolResult(
-					`Command is still running in the user's terminal.${result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+					`Command is still running in the user's terminal.${
+						result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
 					}\n\nThe user provided the following feedback:\n<feedback>\n${userFeedback.text}\n</feedback>`,
 					userFeedback.images,
 					fileContentString,
@@ -1838,7 +1840,8 @@ export class Task {
 		} else {
 			return [
 				false,
-				`Command is still running in the user's terminal.${result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+				`Command is still running in the user's terminal.${
+					result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
 				}\n\nYou will be updated on the terminal status and new output in the future.`,
 			]
 		}
@@ -2098,8 +2101,7 @@ export class Task {
 			workspaceRoots,
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
-			enableNativeToolCalls:
-				featureFlagsService.getNativeToolCallEnabled() && this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
+			enableNativeToolCalls: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 		}
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
@@ -2437,7 +2439,7 @@ export class Task {
 					model.id,
 					this.stateManager.getGlobalSettingsKey("mode"),
 				)
-			} catch { }
+			} catch {}
 		}
 
 		const modelInfo = {
@@ -2723,9 +2725,10 @@ export class Task {
 							type: "text",
 							text:
 								assistantMessage +
-								`\n\n[${cancelReason === "streaming_failed"
-									? "Response interrupted by API Error"
-									: "Response interrupted by user"
+								`\n\n[${
+									cancelReason === "streaming_failed"
+										? "Response interrupted by API Error"
+										: "Response interrupted by user"
 								}]`,
 						},
 					],
@@ -3208,8 +3211,7 @@ export class Task {
 		// Pre-fetch necessary data to avoid redundant calls within loops
 		const ulid = this.ulid
 		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
-		const useNativeToolCalls =
-			featureFlagsService.getNativeToolCallEnabled() && this.stateManager.getGlobalStateKey("nativeToolCallEnabled")
+		const useNativeToolCalls = this.stateManager.getGlobalStateKey("nativeToolCallEnabled")
 		const providerInfo = this.getCurrentProviderInfo()
 		const cwd = this.cwd
 		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.controller, cwd)
@@ -3459,7 +3461,7 @@ export class Task {
 			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
 				interval: 100,
 				timeout: 15_000,
-			}).catch(() => { })
+			}).catch(() => {})
 		}
 
 		this.taskState.didEditFile = false // reset, this lets us know when to wait for saved files to update terminals
