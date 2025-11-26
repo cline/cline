@@ -2053,15 +2053,30 @@ export class Task {
 		// Run PreCompact hook before truncation
 		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 		if (hooksEnabled) {
-			let conversationHistoryPath: string | undefined
+			let contextJsonPath: string | undefined
+			let contextRawPath: string | undefined
 			try {
 				const { executeHook } = await import("../hooks/hook-executor")
-				const { writeConversationHistoryForHook, cleanupConversationHistoryFile } = await import("../storage/disk")
+				const { writeConversationHistoryForHook, writeFullContextForHook, cleanupConversationHistoryFile } = await import(
+					"../storage/disk"
+				)
 
-				const contextSize = apiConversationHistory.length
+				// Get current active context (respects previous compactions)
+				const currentContext = this.contextManager.getTruncatedMessages(
+					apiConversationHistory,
+					this.taskState.conversationHistoryDeletedRange,
+				)
+
+				const contextSize = currentContext.length
+
+				// Generate single timestamp for both files to ensure they match
+				const hookTimestamp = Date.now()
 
 				// Write conversation history to temporary file for hook access
-				conversationHistoryPath = await writeConversationHistoryForHook(this.taskId, apiConversationHistory)
+				contextJsonPath = await writeConversationHistoryForHook(this.taskId, currentContext, hookTimestamp)
+
+				// Write formatted conversation history to temporary file
+				contextRawPath = await writeFullContextForHook(this.taskId, currentContext, hookTimestamp)
 
 				// Extract token usage from the most recent API request
 				const clineMessages = this.messageStateHandler.getClineMessages()
@@ -2118,7 +2133,8 @@ export class Task {
 							tokensOutCache: tokensOutCache,
 							deletedRangeStart: deletedRangeStart,
 							deletedRangeEnd: deletedRangeEnd,
-							conversationHistoryPath: conversationHistoryPath,
+							contextJsonPath: contextJsonPath,
+							contextRawPath: contextRawPath,
 						},
 					},
 					isCancellable: true,
@@ -2131,8 +2147,12 @@ export class Task {
 				})
 
 				// Clean up the temporary conversation history file
-				await cleanupConversationHistoryFile(conversationHistoryPath)
-				conversationHistoryPath = undefined
+				await cleanupConversationHistoryFile(contextJsonPath)
+				contextJsonPath = undefined
+
+				// Clean up the temporary full context file
+				await cleanupConversationHistoryFile(contextRawPath)
+				contextRawPath = undefined
 
 				// Handle cancellation from hook
 				if (preCompactResult.cancel === true) {
@@ -2165,9 +2185,13 @@ export class Task {
 				}
 			} catch (error) {
 				// Clean up the temporary file if it exists (error path)
-				if (conversationHistoryPath) {
+				if (contextJsonPath) {
 					const { cleanupConversationHistoryFile } = await import("../storage/disk")
-					await cleanupConversationHistoryFile(conversationHistoryPath)
+					await cleanupConversationHistoryFile(contextJsonPath)
+				}
+				if (contextRawPath) {
+					const { cleanupConversationHistoryFile } = await import("../storage/disk")
+					await cleanupConversationHistoryFile(contextRawPath)
 				}
 
 				// If this is the cancellation error we threw above, re-throw it

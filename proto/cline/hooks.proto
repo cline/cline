@@ -98,10 +98,18 @@ message PreCompactData {
   int32 deleted_range_start = 10; // Start index of deleted conversation range
   int32 deleted_range_end = 11; // End index of deleted conversation range
 
-  // Conversation history file path
+  // Context JSON file path
   // Path to a temporary JSON file containing the full API conversation history
   // The file contains an array of message objects with role and content
   // Hooks can read this file to analyze conversation contents before compaction
   // This file will be automatically cleaned up after the hook completes
-  string conversation_history_path = 12;
+  string context_json_path = 12;
+
+  // Context raw/formatted file path
+  // Path to a temporary text file containing the complete context window sent to the LLM
+  // This includes the system prompt, environment details, conversation history, and all formatting
+  // Represents the actual input the LLM receives (format varies by provider)
+  // Use this to analyze total context size, overhead, and exactly what the model sees
+  // This file will be automatically cleaned up after the hook completes
+  string context_raw_path = 13;
 }

@@ -38,18 +38,31 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 			// Run PreCompact hook right before showing the condensing message
 			const hooksEnabled = config.services.stateManager.getGlobalSettingsKey("hooksEnabled")
 			if (hooksEnabled) {
-				let conversationHistoryPath: string | undefined
+				let contextJsonPath: string | undefined
+				let contextRawPath: string | undefined
 				try {
 					const { executeHook } = await import("../../../hooks/hook-executor")
-					const { writeConversationHistoryForHook, cleanupConversationHistoryFile } = await import(
-						"../../../storage/disk"
-					)
+					const { writeConversationHistoryForHook, writeFullContextForHook, cleanupConversationHistoryFile } =
+						await import("../../../storage/disk")
 
 					const apiHistory = config.messageState.getApiConversationHistory()
-					const contextSize = apiHistory.length
+
+					// Get current active context (respects previous compactions)
+					const currentContext = config.services.contextManager.getTruncatedMessages(
+						apiHistory,
+						config.taskState.conversationHistoryDeletedRange,
+					)
+
+					const contextSize = currentContext.length
+
+					// Generate single timestamp for both files to ensure they match
+					const hookTimestamp = Date.now()
 
 					// Write conversation history to temporary file for hook access
-					conversationHistoryPath = await writeConversationHistoryForHook(config.taskId, apiHistory)
+					contextJsonPath = await writeConversationHistoryForHook(config.taskId, currentContext, hookTimestamp)
+
+					// Write formatted conversation history to temporary file
+					contextRawPath = await writeFullContextForHook(config.taskId, currentContext, hookTimestamp)
 
 					// Extract token usage from the most recent API request
 					const clineMessages = config.messageState.getClineMessages()
@@ -101,7 +114,8 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 								tokensOutCache,
 								deletedRangeStart,
 								deletedRangeEnd,
-								conversationHistoryPath: conversationHistoryPath,
+								contextJsonPath: contextJsonPath,
+								contextRawPath: contextRawPath,
 							},
 						},
 						isCancellable: true,
@@ -114,8 +128,12 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 					})
 
 					// Clean up the temporary conversation history file
-					await cleanupConversationHistoryFile(conversationHistoryPath)
-					conversationHistoryPath = undefined
+					await cleanupConversationHistoryFile(contextJsonPath)
+					contextJsonPath = undefined
+
+					// Clean up the temporary full context file
+					await cleanupConversationHistoryFile(contextRawPath)
+					contextRawPath = undefined
 
 					// Handle cancellation from hook
 					if (preCompactResult.cancel === true) {
@@ -149,9 +167,13 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 					}
 				} catch (error) {
 					// Clean up the temporary file if it exists (error path)
-					if (conversationHistoryPath) {
+					if (contextJsonPath) {
 						const { cleanupConversationHistoryFile } = await import("../../../storage/disk")
-						await cleanupConversationHistoryFile(conversationHistoryPath)
+						await cleanupConversationHistoryFile(contextJsonPath)
+					}
+					if (contextRawPath) {
+						const { cleanupConversationHistoryFile } = await import("../../../storage/disk")
+						await cleanupConversationHistoryFile(contextRawPath)
 					}
 
 					// Graceful degradation: Log error but continue with compaction
