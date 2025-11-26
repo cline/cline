@@ -90,6 +90,9 @@ export class VertexHandler implements ApiHandler {
 				modelId.includes("haiku-4-5")) &&
 			budget_tokens !== 0
 		)
+		// Tools are available only when native tools are enabled.
+		const nativeToolsOn = tools?.length ? tools?.length > 0 : false
+
 		let stream
 
 		switch (modelId) {
@@ -120,12 +123,13 @@ export class VertexHandler implements ApiHandler {
 						],
 						messages: sanitizeAnthropicMessages(messages, true),
 						stream: true,
-						tools: tools?.length ? (tools as AnthropicTool[]) : undefined,
+						tools: nativeToolsOn ? (tools as AnthropicTool[]) : undefined,
 						// tool_choice options:
 						// - none: disables tool use, even if tools are provided. Claude will not call any tools.
 						// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
 						// - any: tells Claude that it must use one of the provided tools, but doesn’t force a particular tool.
-						tool_choice: tools ? { type: "any" } : undefined,
+						// NOTE: Forcing tool use when tools are provided will result in error when thinking is also enabled.
+						tool_choice: nativeToolsOn && !reasoningOn ? { type: "any" } : undefined,
 					},
 					{
 						headers: {},
