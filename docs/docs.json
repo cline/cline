@@ -251,6 +251,7 @@
 					{
 						"group": "Reference",
 						"pages": [
+							"troubleshooting/networking-and-proxies",
 							"troubleshooting/terminal-quick-fixes",
 							"troubleshooting/terminal-integration-guide",
 							"more-info/telemetry"
