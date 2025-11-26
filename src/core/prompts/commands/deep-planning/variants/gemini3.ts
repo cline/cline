@@ -216,14 +216,13 @@ ${
 
 When you are ready to create the implementation task, you must call the new_task tool with the following structure:
 
-\`\`\`json
 {
   "name": "new_task",
   "arguments": {
     "context": "Your detailed context here following the 5-point structure..."
   }
 }
-\`\`\`
+
 The context parameter should include all five sections as described above.
 
 `
@@ -231,11 +230,9 @@ The context parameter should include all five sections as described above.
 
 When you are ready to create the implementation task, you must call the new_task tool with the following structure:
 
-\`\`\`xml
 <new_task>
 <context>Your detailed context here following the 5-point structure...</context>
 </new_task>
-\`\`\`
 
 The context parameter should include all five sections as described above.
 
