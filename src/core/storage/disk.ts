@@ -428,3 +428,47 @@ export async function getWorkspaceHooksDirs(): Promise<string[]> {
 		)
 	).filter((path): path is string => Boolean(path))
 }
+
+/**
+ * Writes the API conversation history to a temporary file for hook consumption.
+ * The file is created in the task's directory with a unique timestamp-based name.
+ * Returns the absolute path to the created file.
+ *
+ * @param taskId The task ID
+ * @param apiConversationHistory The conversation history to write
+ * @returns The absolute path to the temporary file
+ */
+export async function writeConversationHistoryForHook(
+	taskId: string,
+	apiConversationHistory: Anthropic.MessageParam[],
+): Promise<string> {
+	const taskDir = await ensureTaskDirectoryExists(taskId)
+	const timestamp = Date.now()
+	const tempFileName = `conversation_history_${timestamp}.json`
+	const tempFilePath = path.join(taskDir, tempFileName)
+
+	try {
+		await fs.writeFile(tempFilePath, JSON.stringify(apiConversationHistory, null, 2))
+		return tempFilePath
+	} catch (error) {
+		console.error("Failed to write conversation history for hook:", error)
+		throw error
+	}
+}
+
+/**
+ * Cleans up a temporary conversation history file created for hook execution.
+ * Silently handles errors (file already deleted, permissions, etc.)
+ *
+ * @param filePath The path to the temporary file to delete
+ */
+export async function cleanupConversationHistoryFile(filePath: string): Promise<void> {
+	try {
+		if (await fileExistsAtPath(filePath)) {
+			await fs.unlink(filePath)
+		}
+	} catch (error) {
+		// Silently handle errors - this is cleanup, not critical
+		console.debug("Failed to cleanup conversation history file:", filePath, error)
+	}
+}

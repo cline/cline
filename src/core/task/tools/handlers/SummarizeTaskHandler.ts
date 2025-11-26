@@ -38,11 +38,18 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 			// Run PreCompact hook right before showing the condensing message
 			const hooksEnabled = config.services.stateManager.getGlobalSettingsKey("hooksEnabled")
 			if (hooksEnabled) {
+				let conversationHistoryPath: string | undefined
 				try {
 					const { executeHook } = await import("../../../hooks/hook-executor")
+					const { writeConversationHistoryForHook, cleanupConversationHistoryFile } = await import(
+						"../../../storage/disk"
+					)
 
 					const apiHistory = config.messageState.getApiConversationHistory()
 					const contextSize = apiHistory.length
+
+					// Write conversation history to temporary file for hook access
+					conversationHistoryPath = await writeConversationHistoryForHook(config.taskId, apiHistory)
 
 					// Extract token usage from the most recent API request
 					const clineMessages = config.messageState.getClineMessages()
@@ -94,6 +101,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 								tokensOutCache,
 								deletedRangeStart,
 								deletedRangeEnd,
+								conversationHistoryPath: conversationHistoryPath,
 							},
 						},
 						isCancellable: true,
@@ -104,6 +112,10 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 						taskId: config.taskId,
 						hooksEnabled,
 					})
+
+					// Clean up the temporary conversation history file
+					await cleanupConversationHistoryFile(conversationHistoryPath)
+					conversationHistoryPath = undefined
 
 					// Handle cancellation from hook
 					if (preCompactResult.cancel === true) {
@@ -136,6 +148,12 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 						console.log(`[PreCompact] Hook provided context modification for task ${config.taskId}`)
 					}
 				} catch (error) {
+					// Clean up the temporary file if it exists (error path)
+					if (conversationHistoryPath) {
+						const { cleanupConversationHistoryFile } = await import("../../../storage/disk")
+						await cleanupConversationHistoryFile(conversationHistoryPath)
+					}
+
 					// Graceful degradation: Log error but continue with compaction
 					console.error("[PreCompact] Hook execution failed:", error)
 

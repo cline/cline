@@ -2053,10 +2053,15 @@ export class Task {
 		// Run PreCompact hook before truncation
 		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 		if (hooksEnabled) {
+			let conversationHistoryPath: string | undefined
 			try {
 				const { executeHook } = await import("../hooks/hook-executor")
+				const { writeConversationHistoryForHook, cleanupConversationHistoryFile } = await import("../storage/disk")
 
 				const contextSize = apiConversationHistory.length
+
+				// Write conversation history to temporary file for hook access
+				conversationHistoryPath = await writeConversationHistoryForHook(this.taskId, apiConversationHistory)
 
 				// Extract token usage from the most recent API request
 				const clineMessages = this.messageStateHandler.getClineMessages()
@@ -2113,6 +2118,7 @@ export class Task {
 							tokensOutCache: tokensOutCache,
 							deletedRangeStart: deletedRangeStart,
 							deletedRangeEnd: deletedRangeEnd,
+							conversationHistoryPath: conversationHistoryPath,
 						},
 					},
 					isCancellable: true,
@@ -2123,6 +2129,10 @@ export class Task {
 					taskId: this.taskId,
 					hooksEnabled,
 				})
+
+				// Clean up the temporary conversation history file
+				await cleanupConversationHistoryFile(conversationHistoryPath)
+				conversationHistoryPath = undefined
 
 				// Handle cancellation from hook
 				if (preCompactResult.cancel === true) {
@@ -2154,6 +2164,12 @@ export class Task {
 					// Context modification will be handled by the retry mechanism
 				}
 			} catch (error) {
+				// Clean up the temporary file if it exists (error path)
+				if (conversationHistoryPath) {
+					const { cleanupConversationHistoryFile } = await import("../storage/disk")
+					await cleanupConversationHistoryFile(conversationHistoryPath)
+				}
+
 				// If this is the cancellation error we threw above, re-throw it
 				if (error instanceof Error && error.message === "Context compaction cancelled by hook") {
 					throw error

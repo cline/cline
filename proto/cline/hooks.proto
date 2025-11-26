@@ -97,4 +97,11 @@ message PreCompactData {
   // Truncation information (if applicable)
   int32 deleted_range_start = 10; // Start index of deleted conversation range
   int32 deleted_range_end = 11; // End index of deleted conversation range
+
+  // Conversation history file path
+  // Path to a temporary JSON file containing the full API conversation history
+  // The file contains an array of message objects with role and content
+  // Hooks can read this file to analyze conversation contents before compaction
+  // This file will be automatically cleaned up after the hook completes
+  string conversation_history_path = 12;
 }
