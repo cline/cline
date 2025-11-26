@@ -26,6 +26,7 @@ import { MistralHandler } from "./providers/mistral"
 import { MoonshotHandler } from "./providers/moonshot"
 import { NebiusHandler } from "./providers/nebius"
 import { NousResearchHandler } from "./providers/nousresearch"
+import { BailingHandler } from "./providers/bailing"
 import { OcaHandler } from "./providers/oca"
 import { OllamaHandler } from "./providers/ollama"
 import { OpenAiHandler } from "./providers/openai"
@@ -418,6 +419,12 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				hicapApiKey: options.hicapApiKey,
 				hicapModelId: mode === "plan" ? options.planModeHicapModelId : options.actModeHicapModelId,
+			})
+		case "bailing":
+			return new BailingHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				bailingApiKey: options.bailingApiKey,
+				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		case "nousResearch":
 			return new NousResearchHandler({
