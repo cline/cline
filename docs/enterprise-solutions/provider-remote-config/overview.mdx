@@ -1,0 +1,120 @@
+---
+title: "Provider Remote Configuration"
+sidebarTitle: "Overview"
+description: "Configure AI providers remotely through the Cline admin console for centralized organization management"
+---
+
+Provider Remote Configuration allows administrators to centrally configure AI providers for their entire organization through the Cline admin console. This approach ensures consistent provider access, security policies, and cost management across all team members without requiring individual developer setup.
+
+## How Remote Configuration Works
+
+Remote configuration operates through Cline's hosted service at [app.cline.bot](https://app.cline.bot), where administrators can:
+
+<CardGroup cols={2}>
+  <Card title="Centralized Setup" icon="gear">
+    Configure providers once for the entire organization through the web-based admin console.
+  </Card>
+  
+  <Card title="Automatic Enforcement" icon="shield-check">
+    Team members automatically receive the configured provider settings when signed into their organization.
+  </Card>
+  
+  <Card title="Simplified Onboarding" icon="user-plus">
+    New team members get instant access to AI providers without complex individual configuration.
+  </Card>
+  
+  <Card title="Consistent Experience" icon="users">
+    Ensure all team members use the same models, regions, and settings organization-wide.
+  </Card>
+</CardGroup>
+
+## Supported Providers
+
+Cline supports remote configuration for the following AI providers:
+
+### **Amazon Bedrock**
+- **Use Case**: Organizations using AWS infrastructure
+- **Configuration**: Region selection, VPC endpoints, cross-region inference, prompt caching
+- **Member Setup**: AWS credential configuration in VS Code
+
+### **LiteLLM**
+- **Use Case**: Organizations requiring multi-model access through a unified proxy
+- **Configuration**: Proxy endpoint, authentication, model routing
+- **Member Setup**: API key or endpoint configuration in VS Code
+
+### **Google Vertex AI**
+- **Use Case**: Organizations using Google Cloud Platform
+- **Configuration**: Project ID, region selection, model access
+- **Member Setup**: Service account or credential configuration in VS Code
+
+## Remote vs. Infrastructure Configuration
+
+<Note>
+**Understanding the Difference**
+
+- **Provider Remote Configuration** (this section): Simple cloud-based setup via app.cline.bot admin console
+- **Enterprise Configurations > Providers**: Deep infrastructure setup with VPC, multi-account, compliance features
+
+Choose remote configuration for quick organizational setup. Choose enterprise infrastructure configuration for complex security, compliance, and multi-environment requirements.
+</Note>
+
+## Configuration Process
+
+The typical remote configuration process follows these steps:
+
+<Steps>
+<Step title="Administrator Setup">
+Access the Cline admin console and configure the desired AI provider with organization-wide settings.
+</Step>
+
+<Step title="Automatic Distribution">
+Provider configuration is automatically distributed to all organization members signed into Cline.
+</Step>
+
+<Step title="Member Credential Setup">
+Team members add their individual credentials (API keys, AWS profiles, etc.) to connect to the configured provider.
+</Step>
+
+<Step title="Immediate Access">
+Once credentials are configured, members can immediately start using the AI provider through Cline.
+</Step>
+</Steps>
+
+## Benefits of Remote Configuration
+
+### **For Administrators**
+- **Centralized Control**: Manage all provider settings from one location
+- **Cost Management**: Control which models and regions are available
+- **Security Compliance**: Ensure consistent security policies across the organization
+- **Easy Updates**: Change provider settings organization-wide instantly
+
+### **For Team Members**  
+- **Simplified Setup**: No need to research provider configuration options
+- **Consistent Experience**: Same models and features available to everyone
+- **Quick Onboarding**: Get started immediately with pre-configured providers
+- **Focus on Development**: Spend time coding instead of configuring AI providers
+
+## Getting Started
+
+To get started with provider remote configuration:
+
+1. **Choose Your Provider**: Select the AI provider that best fits your organization's needs and existing infrastructure
+2. **Admin Configuration**: Follow the provider-specific admin configuration guide
+3. **Member Onboarding**: Have team members complete the provider-specific member configuration
+4. **Start Developing**: Begin using Cline with centrally managed AI provider access
+
+Select your provider below to begin the configuration process:
+
+<CardGroup cols={3}>
+  <Card title="Amazon Bedrock" icon="aws" href="/enterprise-solutions/provider-remote-config/aws-bedrock/admin-configuration">
+    AWS-based AI models with enterprise security and compliance features.
+  </Card>
+  
+  <Card title="LiteLLM" icon="layer-group" href="/enterprise-solutions/provider-remote-config/litellm/admin-configuration">
+    Unified proxy for accessing 100+ AI models through a single interface.
+  </Card>
+  
+  <Card title="Google Vertex AI" icon="google" href="/enterprise-solutions/provider-remote-config/google-vertex/admin-configuration">
+    Google Cloud's AI platform with advanced ML capabilities and global infrastructure.
+  </Card>
+</CardGroup>

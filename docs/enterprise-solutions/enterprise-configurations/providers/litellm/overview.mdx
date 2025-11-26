@@ -1,0 +1,395 @@
+---
+title: "LiteLLM Enterprise Configuration"
+sidebarTitle: "LiteLLM"
+description: "Configure LiteLLM proxy for unified access to 100+ AI models in your enterprise deployment"
+---
+
+LiteLLM provides a unified proxy layer that standardizes access to over 100 different AI models through a single OpenAI-compatible API. This enables your enterprise to use multiple AI providers seamlessly while maintaining consistent interfaces and centralized governance.
+
+## Enterprise Benefits
+
+<CardGroup cols={2}>
+  <Card title="Unified API" icon="api">
+    Single OpenAI-compatible interface for all AI models, reducing integration complexity.
+  </Card>
+  
+  <Card title="Cost Optimization" icon="dollar-sign">
+    Intelligent routing to cost-effective models based on request patterns and budgets.
+  </Card>
+  
+  <Card title="Load Balancing" icon="scale">
+    Distribute requests across multiple providers and regions for high availability.
+  </Card>
+  
+  <Card title="Usage Analytics" icon="chart-bar">
+    Comprehensive tracking of usage, costs, and performance across all models.
+  </Card>
+</CardGroup>
+
+## Architecture Overview
+
+```mermaid
+graph TB
+    A[Cline Enterprise] --> B[LiteLLM Proxy]
+    B --> C[OpenAI]
+    B --> D[Anthropic]
+    B --> E[AWS Bedrock]
+    B --> F[Google Vertex]
+    B --> G[Azure OpenAI]
+    B --> H[Custom Models]
+    
+    B --> I[Cost Tracking]
+    B --> J[Load Balancing]
+    B --> K[Rate Limiting]
+    B --> L[Caching]
+```
+
+## Configuration
+
+### Basic Setup
+
+Create a LiteLLM configuration file for your enterprise deployment:
+
+```yaml
+# litellm-config.yaml
+model_list:
+  # Production models
+  - model_name: gpt-4-turbo
+    litellm_params:
+      model: gpt-4-turbo-preview
+      api_key: ${OPENAI_API_KEY}
+      
+  - model_name: claude-3-sonnet
+    litellm_params:
+      model: bedrock/anthropic.claude-3-sonnet-20240229-v1:0
+      aws_access_key_id: ${AWS_ACCESS_KEY_ID}
+      aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+      aws_region_name: us-east-1
+      
+  - model_name: gemini-pro
+    litellm_params:
+      model: vertex_ai/gemini-pro
+      vertex_project: ${GOOGLE_PROJECT_ID}
+      vertex_location: us-central1
+      
+  # Cost-optimized models
+  - model_name: gpt-3.5-turbo
+    litellm_params:
+      model: gpt-3.5-turbo
+      api_key: ${OPENAI_API_KEY}
+
+# Enterprise settings
+general_settings:
+  master_key: ${LITELLM_MASTER_KEY}
+  disable_spend_logs: false
+  store_model_in_db: true
+  
+# Database for persistence
+database_url: "postgresql://litellm:${DB_PASSWORD}@postgres:5432/litellm"
+
+# Load balancing configuration
+router_settings:
+  routing_strategy: "least-busy"
+  enable_pre_call_checks: true
+  redis_host: ${REDIS_HOST}
+  redis_port: 6379
+```
+
+### Enterprise Deployment
+
+Deploy LiteLLM in your enterprise environment:
+
+<Tabs>
+<Tab title="Docker Compose">
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    ports:
+      - "4000:4000"
+    environment:
+      - DATABASE_URL=postgresql://litellm:password@postgres:5432/litellm
+      - REDIS_HOST=redis
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+    volumes:
+      - ./litellm-config.yaml:/app/config.yaml
+    command: ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "8"]
+    depends_on:
+      - postgres
+      - redis
+      
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: litellm
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      
+  redis:
+    image: redis:7-alpine
+    
+volumes:
+  postgres_data:
+```
+</Tab>
+
+<Tab title="Kubernetes">
+```yaml
+# litellm-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: litellm-proxy
+  namespace: cline-enterprise
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: litellm-proxy
+  template:
+    metadata:
+      labels:
+        app: litellm-proxy
+    spec:
+      containers:
+      - name: litellm
+        image: ghcr.io/berriai/litellm:main-stable
+        ports:
+        - containerPort: 4000
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: litellm-secrets
+              key: database-url
+        - name: LITELLM_MASTER_KEY
+          valueFrom:
+            secretKeyRef:
+              name: litellm-secrets
+              key: master-key
+        volumeMounts:
+        - name: config
+          mountPath: /app/config.yaml
+          subPath: config.yaml
+        command: ["--config", "/app/config.yaml", "--port", "4000"]
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 4000
+          initialDelaySeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 4000
+          initialDelaySeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: litellm-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: litellm-service
+  namespace: cline-enterprise
+spec:
+  selector:
+    app: litellm-proxy
+  ports:
+  - port: 4000
+    targetPort: 4000
+  type: ClusterIP
+```
+</Tab>
+</Tabs>
+
+## Enterprise Features
+
+### Cost Tracking & Budgets
+
+Configure budget controls and cost tracking:
+
+```yaml
+# Budget configuration
+budgets:
+  - budget_id: "team-frontend"
+    max_budget: 1000.0  # $1000 per month
+    time_period: "1mo"
+    budget_duration: null  # Recurring monthly
+    applicable_models: ["gpt-3.5-turbo", "gpt-4-turbo"]
+    
+  - budget_id: "team-ai-research" 
+    max_budget: 5000.0  # $5000 per month
+    time_period: "1mo"
+    applicable_models: ["claude-3-sonnet", "gpt-4-turbo", "gemini-pro"]
+
+# Cost tracking settings
+litellm_settings:
+  success_callback: ["langfuse", "posthog"]  # Track successful requests
+  failure_callback: ["sentry"]              # Track failures
+  spend_logs_metadata: ["user", "team", "project"]
+```
+
+### Authentication & Authorization
+
+Set up enterprise authentication:
+
+```yaml
+# User management
+users:
+  - user_id: "admin@company.com"
+    key: "sk-admin-key-12345"
+    models: ["*"]  # Access to all models
+    max_budget: 10000.0
+    
+  - user_id: "frontend-team"
+    key: "sk-frontend-67890"
+    models: ["gpt-3.5-turbo", "gpt-4-turbo"]
+    max_budget: 1000.0
+    tpm_limit: 1000  # Tokens per minute
+    rpm_limit: 100   # Requests per minute
+
+# Team-based access control
+teams:
+  - team_id: "engineering"
+    members: ["dev1@company.com", "dev2@company.com"]
+    models: ["gpt-4-turbo", "claude-3-sonnet"]
+    max_budget: 2000.0
+```
+
+### Load Balancing & Failover
+
+Configure intelligent request routing:
+
+```yaml
+# Routing strategy
+router_settings:
+  routing_strategy: "least-busy"  # Options: simple-shuffle, least-busy, usage-based-routing
+  
+  # Fallback configuration
+  fallbacks: [
+    {"gpt-4-turbo": ["claude-3-sonnet", "gemini-pro"]},
+    {"claude-3-sonnet": ["gpt-4-turbo", "gemini-pro"]}
+  ]
+  
+  # Health checks
+  enable_pre_call_checks: true
+  allowed_fails: 3
+  cooldown_time: 30  # seconds
+  
+  # Retry configuration
+  num_retries: 2
+  timeout: 30
+```
+
+## Monitoring & Observability
+
+### Built-in Dashboard
+
+Access the LiteLLM admin dashboard at `http://your-litellm-proxy:4000/ui`:
+
+- Real-time usage metrics
+- Cost breakdowns by team/user/model
+- Request/response logs
+- Performance analytics
+- Configuration management
+
+### Integration with External Tools
+
+Connect to your existing observability stack:
+
+```yaml
+# Observability integrations
+litellm_settings:
+  success_callback: ["langfuse", "posthog", "prometheus"]
+  failure_callback: ["sentry", "datadog"]
+  
+  # Custom webhook
+  webhook_url: "https://your-webhook.company.com/litellm-events"
+  
+  # Prometheus metrics
+  prometheus_port: 8080
+```
+
+### Key Metrics
+
+Monitor these critical metrics:
+
+- **Request Volume**: Total requests per model/user/team
+- **Response Times**: Average, P95, P99 latencies
+- **Error Rates**: HTTP errors, model failures, timeouts
+- **Cost Tracking**: Spend by model, user, team over time
+- **Token Usage**: Input/output tokens consumed
+- **Cache Hit Rate**: Percentage of cached responses
+
+## Security Best Practices
+
+### Network Security
+- Deploy behind a reverse proxy (nginx, Traefik)
+- Use HTTPS with valid certificates
+- Configure rate limiting and DDoS protection
+- Implement IP whitelisting for admin endpoints
+
+### Credential Management
+- Use environment variables for sensitive keys
+- Rotate API keys regularly
+- Implement least-privilege access
+- Monitor for unusual usage patterns
+
+### Audit & Compliance
+- Enable comprehensive request logging
+- Store logs in secure, immutable storage
+- Implement retention policies
+- Configure alerting for suspicious activity
+
+## Production Checklist
+
+Before deploying to production:
+
+- [ ] Configure database with proper backups
+- [ ] Set up Redis for caching and session storage
+- [ ] Implement monitoring and alerting
+- [ ] Configure load balancing and failover
+- [ ] Set up authentication and authorization
+- [ ] Enable audit logging
+- [ ] Test disaster recovery procedures
+- [ ] Configure budget limits and alerts
+- [ ] Validate SSL/TLS configuration
+- [ ] Performance test under load
+
+## Troubleshooting
+
+### Common Issues
+
+**High Latency**
+```bash
+# Check Redis connectivity
+redis-cli -h $REDIS_HOST ping
+
+# Monitor database performance
+SELECT * FROM pg_stat_activity WHERE application_name LIKE '%litellm%';
+```
+
+**Authentication Errors**
+```bash
+# Test API key
+curl -X GET "http://localhost:4000/health" \
+  -H "Authorization: Bearer sk-your-key"
+
+# Check user configuration
+curl -X GET "http://localhost:4000/user/info" \
+  -H "Authorization: Bearer sk-your-key"
+```
+
+**Model Failures**
+```bash
+# Check model availability
+curl -X POST "http://localhost:4000/chat/completions" \
+  -H "Authorization: Bearer sk-your-key" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gpt-4-turbo", "messages": [{"role": "user", "content": "test"}]}'
+```

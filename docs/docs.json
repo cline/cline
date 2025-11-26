@@ -267,17 +267,71 @@
 						"pages": [
 							"enterprise-solutions/overview",
 							"enterprise-solutions/onboarding",
-							"enterprise-solutions/members/roles-and-permissions",
+							"enterprise-solutions/managing-members",
+							{
+								"group": "Member Management",
+								"pages": [
+									"enterprise-solutions/members/overview",
+									"enterprise-solutions/members/roles-and-permissions",
+									"enterprise-solutions/members/managing-members"
+								]
+							},
 							{
 								"group": "Provider Remote Configuration",
 								"pages": [
+									"enterprise-solutions/provider-remote-config/overview",
 									{
 										"group": "AWS Bedrock",
 										"pages": [
 											"enterprise-solutions/provider-remote-config/aws-bedrock/admin-configuration",
 											"enterprise-solutions/provider-remote-config/aws-bedrock/member-configuration"
 										]
+									},
+									{
+										"group": "LiteLLM",
+										"pages": [
+											"enterprise-solutions/provider-remote-config/litellm/admin-configuration",
+											"enterprise-solutions/provider-remote-config/litellm/member-configuration"
+										]
+									},
+									{
+										"group": "Google Vertex AI",
+										"pages": [
+											"enterprise-solutions/provider-remote-config/google-vertex/admin-configuration",
+											"enterprise-solutions/provider-remote-config/google-vertex/member-configuration"
+										]
 									}
+								]
+							},
+							{
+								"group": "Enterprise Configurations",
+								"pages": [
+									"enterprise-solutions/enterprise-configurations/overview",
+									{
+										"group": "Providers",
+										"pages": [
+											"enterprise-solutions/enterprise-configurations/providers/aws-bedrock/overview",
+											"enterprise-solutions/enterprise-configurations/providers/litellm/overview",
+											"enterprise-solutions/enterprise-configurations/providers/google-vertex/overview"
+										]
+									},
+									{
+										"group": "MCP",
+										"pages": [
+											"enterprise-solutions/enterprise-configurations/mcp/mcp-marketplace",
+											"enterprise-solutions/enterprise-configurations/mcp/remote-mcp-servers"
+										]
+									},
+									"enterprise-solutions/enterprise-configurations/rules",
+									"enterprise-solutions/enterprise-configurations/workflows",
+									"enterprise-solutions/enterprise-configurations/control-other-cline-features"
+								]
+							},
+							{
+								"group": "Monitoring",
+								"pages": [
+									"enterprise-solutions/monitoring/overview", 
+									"enterprise-solutions/monitoring/opentelemetry"
 								]
 							}
 						]
