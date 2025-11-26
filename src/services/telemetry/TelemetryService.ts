@@ -885,12 +885,14 @@ export class TelemetryService {
 		provider: string,
 		autoApproved: boolean,
 		success: boolean,
-		workspaceContext?: {
-			isMultiRootEnabled: boolean
-			usedWorkspaceHint: boolean
-			resolvedToNonPrimary: boolean
-			resolutionMethod: "hint" | "primary_fallback" | "path_detection"
-		},
+		workspaceContext:
+			| {
+					isMultiRootEnabled: boolean
+					usedWorkspaceHint: boolean
+					resolvedToNonPrimary: boolean
+					resolutionMethod: "hint" | "primary_fallback" | "path_detection"
+			  }
+			| undefined = undefined,
 		isNativeToolCall = false,
 	) {
 		this.capture({
@@ -902,13 +904,18 @@ export class TelemetryService {
 				success,
 				modelId,
 				provider,
-				// Workspace context (optional)
-				...(workspaceContext && {
-					workspace_multi_root_enabled: workspaceContext.isMultiRootEnabled,
-					workspace_hint_used: workspaceContext.usedWorkspaceHint,
-					workspace_resolved_non_primary: workspaceContext.resolvedToNonPrimary,
-					workspace_resolution_method: workspaceContext.resolutionMethod,
-				}),
+				// Workspace context (optional) - set to undefined if not provided
+				// else the properties will not be included, and the value for isNativeToolCall will be shifted.
+				workspaceContext: {
+					...(workspaceContext
+						? {
+								workspace_multi_root_enabled: workspaceContext.isMultiRootEnabled,
+								workspace_hint_used: workspaceContext.usedWorkspaceHint,
+								workspace_resolved_non_primary: workspaceContext.resolvedToNonPrimary,
+								workspace_resolution_method: workspaceContext.resolutionMethod,
+							}
+						: undefined),
+				},
 				isNativeToolCall,
 			},
 		})
