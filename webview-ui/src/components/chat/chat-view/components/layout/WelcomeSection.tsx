@@ -24,10 +24,12 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	taskHistory,
 	shouldShowQuickWins,
 }) => {
-	const { lastDismissedInfoBannerVersion, lastDismissedCliBannerVersion, lastDismissedModelBannerVersion } = useExtensionState()
+	const { lastDismissedInfoBannerVersion, lastDismissedCliBannerVersion, lastDismissedModelBannerVersion, activeBanners } =
+		useExtensionState()
 
 	const shouldShowInfoBanner = lastDismissedInfoBannerVersion < CURRENT_INFO_BANNER_VERSION
 	const shouldShowNewModelBanner = lastDismissedModelBannerVersion < CURRENT_MODEL_BANNER_VERSION
+	const topBanners = activeBanners?.filter((banner) => banner.placement === "top") || []
 
 	// Show CLI banner if not dismissed and platform is VSCode (not JetBrains/standalone)
 	const shouldShowCliBanner =
@@ -42,7 +44,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 				{showAnnouncement && <Announcement hideAnnouncement={hideAnnouncement} version={version} />}
 				{shouldShowNewModelBanner && <NewModelBanner />}
 				{shouldShowCliBanner && <CliInstallBanner />}
-				{activeBanners?.map((banner) => (
+				{topBanners.map((banner) => (
 					<ApiBanner banner={banner} key={banner.id} />
 				))}
 				<HomeHeader shouldShowQuickWins={shouldShowQuickWins} />
