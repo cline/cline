@@ -143,7 +143,7 @@
 								"pages": [
 									"features/hooks/index",
 									"features/hooks/hook-reference",
-									"features/hooks/real-world-examples",
+									"features/hooks/samples",
 									"features/hooks/advanced-patterns",
 									"features/hooks/testing-and-debugging"
 								]
@@ -362,6 +362,10 @@
 		{
 			"source": "/features/hooks",
 			"destination": "/features/hooks/index"
+		},
+		{
+			"source": "/features/hooks/real-world-examples",
+			"destination": "/features/hooks/samples"
     },
     {
 			"source": "/enterprise-solutions/configure-AWS-Bedrock-Admin",

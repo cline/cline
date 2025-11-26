@@ -26,42 +26,49 @@ Hooks are currently supported on macOS and Linux only. Windows support is not av
 	<img src="https://storage.googleapis.com/cline_public_images/hooks.gif" alt="Hooks in action" />
 </Frame>
 
-Enabling hooks in Cline is straightforward. Here's what you need to do:
+Setting up hooks in Cline is user-friendly with the built-in hooks management interface. Here's how to get started:
 
 <Steps>
-<Step title="Enable Hooks in Settings">
-Open Cline settings and check the **"Enable Hooks"** checkbox.
+<Step title="Access the Hooks Interface">
+Navigate to the Hooks management interface:
 
-You can find this setting by:
-1. Opening Cline
-2. Click the "Settings" button on the top right corner
-3. Click the "Feature" section in the left side navigation menu.
-4. Scroll down until you see the "Enable Hooks" checkbox and check it. 
+1. Open Cline (ensure hooks are enabled in settings)
+2. Look for the **Hooks** tab at the top (alongside Rules and Workflows)
+3. Click on **Hooks** to open the hooks management panel
+
+The interface shows you all available hook types and existing hooks organized by workspace.
 </Step>
 
-<Step title="Choose Your Hook Location">
-Decide where to place your hooks:
+<Step title="Understand Hook Locations">
+Hooks are automatically organized by location in the interface:
 
-**For personal or organization-wide hooks:**
-- Create hooks in `~/Documents/Cline/Rules/Hooks/`
-- These apply to all workspaces automatically
+**Global Hooks** - Apply to all workspaces:
+- Stored in `~/Documents/Cline/Rules/Hooks/`
+- Perfect for personal coding standards and universal rules
 
-**For project-specific hooks:**
-- Create hooks in `.clinerules/hooks/` in your project root
-- These only apply to the specific workspace
-- Commit them to version control so your team can use them too
+**Workspace-Specific Hooks** - Apply only to current project:
+- Stored in `.clinerules/hooks/` in your project root
+- Great for project-specific validation and team workflows
+- Can be committed to version control for team sharing
+
+Multi-workspace setups show hooks from all your open workspaces, making it easy to manage hooks across different projects.
 </Step>
 
 <Step title="Create Your First Hook">
-Hook files must have exact names with no file extensions. For example, to create a TaskStart hook:
+Use the intuitive interface to create hooks:
 
+1. **Choose your location**: Decide between Global Hooks or workspace-specific hooks
+2. **Select hook type**: Click the **"New hook..."** dropdown in your chosen location
+3. **Pick a hook type**: Choose from available options like:
+   - `TaskStart` - Runs when tasks begin
+   - `PreToolUse` - Validates operations before execution  
+   - `PostToolUse` - Processes results after tools complete
+   - `UserPromptSubmit` - Enhances user input
+4. **Enable the hook**: Toggle the switch to activate it
+5. **Edit the hook**: Click the pencil icon to add your custom logic
+
+**Example starter script:**
 ```bash
-# Create the hook file
-vim .clinerules/hooks/TaskStart
-```
-
-Add your script (must start with shebang)
-``` bash
 #!/usr/bin/env bash
 
 # Store piped input into a variable
@@ -74,17 +81,14 @@ echo "$input" | jq .
 echo "$input" | jq -r '.timestamp | type'
 ```
 
-This example script demonstrates the key mechanics of hook input/output: reading the JSON payload from stdin with `input=$(cat)`, and using `jq` to inspect the data structure and field types that your hook receives. This helps you understand what data is available before building more complex hook logic.
-
-**Make it executable**
-
-```bash
-chmod +x .clinerules/hooks/TaskStart
-```
+This example demonstrates the key mechanics: reading JSON from stdin and using `jq` to inspect the data structure.
 </Step>
 
 <Step title="Test Your Hook">
-Start a task in Cline and verify your hook executes.
+Start a task in Cline and verify your hook executes. You can:
+- Check the hook's toggle switch shows it's active
+- Monitor Cline's behavior for your hook's effects
+- Use the edit button to refine your hook logic as needed
 </Step>
 </Steps>
 
@@ -123,7 +127,7 @@ The key is combining hooks with external tools. A hook can be the glue between C
     Complete API reference for all hook types, JSON schemas, and field documentation.
   </Card>
   
-  <Card title="Real-World Examples" icon="code" href="/features/hooks/real-world-examples">
+  <Card title="Samples" icon="code" href="/features/hooks/samples">
     Practical examples and complete working scripts for common use cases.
   </Card>
   

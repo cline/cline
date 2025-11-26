@@ -295,29 +295,6 @@ jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
 
 These hooks monitor internal Cline operations and system-level events. Use them to track context usage, log system behavior, and analyze performance patterns.
 
-{/*
-#### PreCompact
-
-Runs before conversation context is truncated to fit token limits. Use it to monitor compaction frequency, log events, and track context usage patterns.
-
-**Input Fields:**
-```json
-{
-  "clineVersion": "string",
-  "hookName": "PreCompact",
-  "timestamp": "string",
-  "taskId": "string",
-  "workspaceRoots": ["string"],
-  "userId": "string",
-  "preCompact": {
-    "contextSize": number,
-    "messagesToCompact": number,
-    "compactionStrategy": "string"
-  }
-}
-```
-*/}
-
 ## JSON Communication Protocol
 
 Hooks receive JSON via stdin and return JSON via stdout.
