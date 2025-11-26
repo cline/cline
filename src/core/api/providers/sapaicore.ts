@@ -6,7 +6,7 @@ import {
 } from "@aws-sdk/client-bedrock-runtime"
 import { ChatMessage, OrchestrationClient, OrchestrationModuleConfig } from "@sap-ai-sdk/orchestration"
 import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels } from "@shared/api"
-import axios from "axios"
+import axios, { AxiosError } from "axios"
 import OpenAI from "openai"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { getAxiosSettings } from "@/shared/net"
@@ -40,6 +40,22 @@ interface Token {
 	jti: string
 	token_type: string
 	expires_at: number
+}
+
+/**
+ * Custom error class for validation exceptions that preserves stack traces
+ * and follows best practices for error handling
+ */
+class ValidationException extends Error {
+	public readonly code: number
+
+	constructor(message: string, code: number) {
+		super(message)
+		this.name = "ValidationException"
+		this.code = code
+		// Ensure proper prototype chain for instanceof checks
+		Object.setPrototypeOf(this, ValidationException.prototype)
+	}
 }
 
 // Bedrock namespace containing caching-related functions
@@ -363,6 +379,139 @@ export class SapAiCoreHandler implements ApiHandler {
 		this.options = options
 	}
 
+	/**
+	 * Checks if an error message indicates a context window issue
+	 */
+	private isContextWindowError(message: string, errorCode: number, modelName: string): boolean {
+		if (modelName.startsWith("gemini") && errorCode === 500) {
+			// Gemini returns just Internal Server Error? and no message
+			// when in orchestratio mode using the stream interface
+			return true
+		}
+
+		if (errorCode !== 400) {
+			return false
+		}
+
+		const lowerMessage = message.toLowerCase()
+
+		const contextWindowPatterns = [
+			"input is too long", // Sonnet
+			"tokens exceed the configured limit", // GPT
+			"exceeds the maximum", // Gemini
+			"exceed context limit", // Sonnet
+			"context length",
+			"context window exceeded",
+			"input exceeds maximum",
+			"request too large",
+			"context size limit",
+			"token limit exceeded",
+		]
+
+		return contextWindowPatterns.some((pattern) => lowerMessage.includes(pattern))
+	}
+
+	private extractValueWithIndexOf(text: string, key: string, endStr: string): string {
+		const pattern = `"${key}":`
+		const startIndex = text.indexOf(pattern)
+		if (startIndex === -1) throw new Error(`Could not find start index for ${key}`)
+
+		let valueStart = startIndex + pattern.length
+		let valueEnd = text.indexOf(endStr, valueStart)
+		if (valueEnd === -1) throw new Error(`Could not find end index for ${key}`)
+		// Skip all whitespace characters
+		while (valueStart < text.length && /\s/.test(text[valueStart])) {
+			valueStart++
+		}
+		// values that are strings are surrounded by ""
+		if (valueEnd === valueStart) {
+			valueStart += 1
+			valueEnd = text.indexOf(endStr, valueStart)
+		}
+		if (valueEnd === -1) throw new Error(`Could not find end index for ${key}`)
+
+		return text.substring(valueStart, valueEnd)
+	}
+
+	/**
+	 * Handles SAP AI Core API errors consistently across both deployment and orchestration modes
+	 */
+	private handleSapAiCoreError(error: AxiosError, mode: string): never {
+		// Normalize error data - try to get structured data from either response or message
+		let errorData = error.response?.data
+		let detailedMessage = "Bad Request"
+		let code = null
+
+		if (typeof errorData === "string") {
+			detailedMessage = errorData.trim()
+		}
+
+		if (!errorData && error.cause && error.cause instanceof Error) {
+			// in streaming mode we can get the error in a mixed string/json format, which we cannot parse directly
+			// E.g.: Error received from the server. {"request_id":"...","code":400,"message":"400 - LLM Module ..."...}
+			try {
+				code = Number(this.extractValueWithIndexOf(error.cause.message, "code", ","))
+				detailedMessage = this.extractValueWithIndexOf(error.cause.message, "message", '"')
+			} catch {
+				detailedMessage = error.message
+			}
+		} else if (!errorData && error.message) {
+			// In orchestration mode we have json inside of the
+			// error.message where the real error string is. Unfortunately, the message can
+			// get really big as it contains the original context send over. So parsing the
+			// complete JSON is somewhat slower. Yes, this is not nice.
+			try {
+				// This may be somewhat slow for big strings.
+				// ~28ms for 8mb compared to 0.1ms when searching directly for a key
+				const parsedError = JSON.parse(error.message)
+				errorData = parsedError
+				if (errorData && typeof errorData === "object") {
+					if ("message" in errorData) {
+						detailedMessage = errorData.message as string
+					}
+					if ("code" in errorData) {
+						code = Number(errorData.code as string)
+					}
+				}
+			} catch {
+				detailedMessage = error.message
+			}
+		}
+
+		// Check for context window errors using unified logic
+		const errorCode = code || error.response?.status || 0
+		if (this.isContextWindowError(detailedMessage, errorCode, this.getModel().id)) {
+			throw new ValidationException("Context is too long for requested model", errorCode)
+		}
+
+		if (error.response) {
+			const status = error.response.status
+			if (status === 400) {
+				throw new Error(`${mode} Validation Error: ${detailedMessage}`)
+			}
+
+			// The request was made and the server responded with a status code
+			// that falls out of the range of 2xx
+			console.error("Error status:", status)
+			console.error("Error data:", error.response.data || error.response)
+			console.error("Error headers:", error.response.headers)
+			if (status === 404) {
+				console.error("404 Error reason:", error.response.data || error.response)
+				throw new Error(`404 Not Found: ${detailedMessage}`)
+			}
+			throw new Error("Failed to create message")
+		} else if (error.request) {
+			// The request was made but no response was received
+			console.error("Error request:", error.request)
+			throw new Error("No response received from server")
+		} else {
+			// Something happened in setting up the request that triggered an Error
+			console.error("Error code:", code)
+			console.error("Error message:", detailedMessage)
+			throw new Error(`Error setting up request: ${detailedMessage}`)
+		}
+	}
+
 	private validateCredentials(): void {
 		if (
 			!this.options.sapAiCoreClientId ||
@@ -536,8 +685,7 @@ export class SapAiCoreHandler implements ApiHandler {
 				}
 			}
 		} catch (error) {
-			console.error("Error in SAP orchestration mode:", error)
-			throw error
+			this.handleSapAiCoreError(error, "SAP AI Core Orchestration")
 		}
 	}
 
@@ -702,8 +850,35 @@ export class SapAiCoreHandler implements ApiHandler {
 			const response = await axios.post(url, JSON.stringify(payload, null, 2), {
 				headers,
 				responseType: "stream",
+				// Transform response to handle both success (stream) and error (parsed) cases
+				transformResponse: [(data, headers) => data],
+				// Validate status to ensure we get proper error responses
+				validateStatus: (status) => status >= 200 && status < 600,
 				...getAxiosSettings(),
 			})
+
+			// Check if we got an error status code
+			if (response.status >= 400) {
+				// For error responses, we need to read the stream to get the error message
+				let errorData = ""
+				if (response.data && typeof response.data.on === "function") {
+					// It's a stream, read it
+					for await (const chunk of response.data) {
+						errorData += chunk.toString()
+					}
+				} else {
+					errorData = response.data
+				}
+
+				// Create an error object that mimics AxiosError structure
+				const error = new Error(`Request failed with status code ${response.status}`) as AxiosError
+				error.response = {
+					...response,
+					data: errorData,
+				}
+				error.status = response.status
+				throw error
+			}
 
 			if (model.id === "o3-mini") {
 				const response = await axios.post(url, JSON.stringify(payload, null, 2), { headers, ...getAxiosSettings() })
@@ -748,28 +923,7 @@ export class SapAiCoreHandler implements ApiHandler {
 				yield* this.streamCompletion(response.data, model)
 			}
 		} catch (error) {
-			if (error.response) {
-				// The request was made and the server responded with a status code
-				// that falls out of the range of 2xx
-				console.error("Error status:", error.response.status)
-				console.error("Error data:", error.response.data)
-				console.error("Error headers:", error.response.headers)
-
-				if (error.response.status === 404) {
-					console.error("404 Error reason:", error.response.data)
-					throw new Error(`404 Not Found: ${error.response.data}`)
-				}
-			} else if (error.request) {
-				// The request was made but no response was received
-				console.error("Error request:", error.request)
-				throw new Error("No response received from server")
-			} else {
-				// Something happened in setting up the request that triggered an Error
-				console.error("Error message:", error.message)
-				throw new Error(`Error setting up request: ${error.message}`)
-			}
-
-			throw new Error("Failed to create message")
+			this.handleSapAiCoreError(error, "SAP AI Core")
 		}
 	}
 
