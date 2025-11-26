@@ -52,20 +52,14 @@ const featuredModels = [
 		label: "Best",
 	},
 	{
-		id: "google/gemini-3-pro-preview",
-		description: "Google's latest reasoning model with 1M context window",
+		id: "anthropic/claude-opus-4.5",
+		description: "SOTA performance on coding at 3x lower cost than Opus 4.1",
 		label: "New",
 	},
 	{
-		id: "openai/gpt-5.1",
-		description: "Latest flagship model from OpenAI with enhanced coding capabilities",
+		id: "google/gemini-3-pro-preview",
+		description: "Google's latest reasoning model with 1M context window",
 		label: "Trending",
-	},
-	{
-		id: "minimax/minimax-m2",
-		description: "Compact, high-efficiency model optimized for coding and agentic workflows",
-		label: "Free",
-		isFree: true,
 	},
 	{
 		id: "x-ai/grok-code-fast-1",
@@ -269,6 +263,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 			selectedModelId?.toLowerCase().includes("claude-sonnet-4") ||
 			selectedModelId?.toLowerCase().includes("claude-opus-4.1") ||
 			selectedModelId?.toLowerCase().includes("claude-opus-4") ||
+			selectedModelId?.toLowerCase().includes("claude-opus-4.5") ||
 			selectedModelId?.toLowerCase().includes("claude-3-7-sonnet") ||
 			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet") ||
 			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet:thinking")

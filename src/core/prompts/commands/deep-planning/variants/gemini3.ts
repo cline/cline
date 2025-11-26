@@ -26,8 +26,9 @@ export function createGemini3Variant(): DeepPlanningVariant {
 /**
  * Generates the deep-planning template with shell-specific commands
  * @param focusChainEnabled Whether focus chain (task_progress) is enabled for this task
+ * @param enableNativeToolCalls Whether native tool calling is enabled
  */
-export function generateGemini3Template(focusChainEnabled: boolean): string {
+export function generateGemini3Template(focusChainEnabled: boolean, enableNativeToolCalls: boolean): string {
 	const detectedShell = getShell()
 
 	let isPowerShell = false
@@ -209,7 +210,34 @@ You also MUST include the path to the markdown file you have created in your new
 }
 </IMPORTANT>
 
+${
+	enableNativeToolCalls
+		? `**new_task Tool Definition:**
 
+When you are ready to create the implementation task, you must call the new_task tool with the following structure:
+
+{
+  "name": "new_task",
+  "arguments": {
+    "context": "Your detailed context here following the 5-point structure..."
+  }
+}
+
+The context parameter should include all five sections as described above.
+
+`
+		: `**new_task Tool Definition:**
+
+When you are ready to create the implementation task, you must call the new_task tool with the following structure:
+
+<new_task>
+<context>Your detailed context here following the 5-point structure...</context>
+</new_task>
+
+The context parameter should include all five sections as described above.
+
+`
+}
 ### Mode Switching
 
 <IMPORTANT>
