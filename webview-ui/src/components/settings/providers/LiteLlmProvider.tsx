@@ -31,7 +31,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 	// Refresh models on mount
 	useEffect(() => {
 		refreshLiteLlmModels()
-	}, [refreshLiteLlmModels])
+	}, [refreshLiteLlmModels, apiConfiguration?.liteLlmApiKey])
 
 	// Handle model change
 	const handleModelChange = (e: any) => {

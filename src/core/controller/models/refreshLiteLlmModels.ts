@@ -21,9 +21,8 @@ export async function refreshLiteLlmModels(): Promise<Record<string, ModelInfo>>
 		const baseUrl = apiConfiguration.liteLlmBaseUrl || ""
 		const apiKey = apiConfiguration.liteLlmApiKey
 
-		// Return empty object if no API key (like OpenRouter does)
 		if (!apiKey) {
-			return {}
+			throw new Error("LiteLLM API key is not configured or is invalid")
 		}
 
 		// Use the shared utility function to fetch model info
@@ -58,8 +57,7 @@ export async function refreshLiteLlmModels(): Promise<Record<string, ModelInfo>>
 		}
 	} catch (error) {
 		console.error("Error fetching LiteLLM models:", error)
-		// Return empty object on error (no disk fallback)
-		return {}
+		throw error
 	}
 
 	// Store in StateManager's in-memory cache

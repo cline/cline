@@ -85,12 +85,12 @@ export async function fetchLiteLlmModelsInfo(baseUrl: string, apiKey: string): P
 				return data
 			} else {
 				console.error("Failed to fetch LiteLLM model info with Authorization header:", retryResponse.statusText)
-				return undefined
+				throw new Error(`Failed to fetch LiteLLM model info: ${retryResponse.statusText}`)
 			}
 		}
 	} catch (error) {
 		console.error("Error fetching LiteLLM model info:", error)
-		return undefined
+		throw error
 	}
 }
 
