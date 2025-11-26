@@ -18,6 +18,7 @@ interface VertexHandlerOptions extends CommonApiHandlerOptions {
 	geminiApiKey?: string
 	geminiBaseUrl?: string
 	ulid?: string
+	thinkingLevel?: string
 }
 
 export class VertexHandler implements ApiHandler {
@@ -89,12 +90,16 @@ export class VertexHandler implements ApiHandler {
 				modelId.includes("haiku-4-5")) &&
 			budget_tokens !== 0
 		)
+		// Tools are available only when native tools are enabled.
+		const nativeToolsOn = tools?.length ? tools?.length > 0 : false
+
 		let stream
 
 		switch (modelId) {
 			case "claude-haiku-4-5@20251001":
 			case "claude-sonnet-4-5@20250929":
 			case "claude-sonnet-4@20250514":
+			case "claude-opus-4-5@20251101":
 			case "claude-opus-4-1@20250805":
 			case "claude-opus-4@20250514":
 			case "claude-3-7-sonnet@20250219":
@@ -103,6 +108,7 @@ export class VertexHandler implements ApiHandler {
 			case "claude-3-5-haiku@20241022":
 			case "claude-3-opus@20240229":
 			case "claude-3-haiku@20240307": {
+				const anthropicMessages = sanitizeAnthropicMessages(messages, true)
 				stream = await clientAnthropic.beta.messages.create(
 					{
 						model: modelId,
@@ -116,14 +122,15 @@ export class VertexHandler implements ApiHandler {
 								cache_control: { type: "ephemeral" },
 							},
 						],
-						messages: sanitizeAnthropicMessages(messages, true),
+						messages: anthropicMessages,
 						stream: true,
-						tools: tools?.length ? (tools as AnthropicTool[]) : undefined,
+						tools: nativeToolsOn ? (tools as AnthropicTool[]) : undefined,
 						// tool_choice options:
 						// - none: disables tool use, even if tools are provided. Claude will not call any tools.
 						// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
 						// - any: tells Claude that it must use one of the provided tools, but doesn’t force a particular tool.
-						tool_choice: tools ? { type: "any" } : undefined,
+						// NOTE: Forcing tool use when tools are provided will result in error when thinking is also enabled.
+						tool_choice: nativeToolsOn && !reasoningOn ? { type: "any" } : undefined,
 					},
 					{
 						headers: {},
@@ -219,6 +226,13 @@ export class VertexHandler implements ApiHandler {
 					break
 				case "content_block_delta":
 					switch (chunk.delta.type) {
+						case "signature_delta":
+							yield {
+								type: "reasoning",
+								reasoning: "",
+								signature: chunk.delta.signature,
+							}
+							break
 						case "thinking_delta":
 							yield {
 								type: "reasoning",

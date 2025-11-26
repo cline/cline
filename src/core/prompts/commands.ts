@@ -241,8 +241,13 @@ cline "<prompt>"
  * Generates the deep-planning slash command response with model-family-aware variant selection
  * @param focusChainSettings Optional focus chain settings to include in the prompt
  * @param providerInfo Optional API provider info for model family detection
+ * @param enableNativeToolCalls Optional flag to determine if native tool calling is enabled
  * @returns The deep-planning prompt string with appropriate variant and focus chain settings applied
  */
-export const deepPlanningToolResponse = (focusChainSettings?: { enabled: boolean }, providerInfo?: ApiProviderInfo) => {
-	return getDeepPlanningPrompt(focusChainSettings, providerInfo)
+export const deepPlanningToolResponse = (
+	focusChainSettings?: { enabled: boolean },
+	providerInfo?: ApiProviderInfo,
+	enableNativeToolCalls?: boolean,
+) => {
+	return getDeepPlanningPrompt(focusChainSettings, providerInfo, enableNativeToolCalls)
 }
