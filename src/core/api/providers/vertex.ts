@@ -18,6 +18,7 @@ interface VertexHandlerOptions extends CommonApiHandlerOptions {
 	geminiApiKey?: string
 	geminiBaseUrl?: string
 	ulid?: string
+	thinkingLevel?: string
 }
 
 export class VertexHandler implements ApiHandler {
