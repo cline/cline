@@ -273,7 +273,9 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	continue() {
 		this.emitRemainingBufferIfListening()
 		this.isListening = false
-		this.removeAllListeners("line")
+		// Note: We no longer remove all "line" listeners here.
+		// This allows DetachedProcessManager to keep listening after the Task has "continued".
+		// The Task should remove its own listener before calling continue() if needed.
 		this.emit("continue")
 	}
 

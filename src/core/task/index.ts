@@ -42,6 +42,7 @@ import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
+import { DetachedProcessManager } from "@integrations/terminal/DetachedProcessManager"
 import { TerminalManager } from "@integrations/terminal/TerminalManager"
 import { TerminalProcessResultPromise } from "@integrations/terminal/TerminalProcess"
 import { BrowserSession } from "@services/browser/BrowserSession"
@@ -253,6 +254,9 @@ export class Task {
 	// Task Locking (Sqlite)
 	private taskLockAcquired: boolean
 
+	// Detached process manager for "Proceed while running" commands
+	private detachedProcessManager: DetachedProcessManager
+
 	constructor(params: TaskParams) {
 		const {
 			controller,
@@ -288,6 +292,7 @@ export class Task {
 		this.cancelTask = cancelTask
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
 		this.taskLockAcquired = taskLockAcquired
+		this.detachedProcessManager = new DetachedProcessManager()
 
 		// TODO(ae) this is a hack to replace the terminal manager for standalone,
 		// until we have proper host bridge support for terminal execution. The
@@ -1635,6 +1640,10 @@ export class Task {
 				if (response === "yesButtonClicked") {
 					// Track when user clicks "Process while Running"
 					telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.PROCESS_WHILE_RUNNING)
+
+					// Register this command as a detached process for background monitoring
+					this.detachedProcessManager.addProcess(process, command)
+
 					// proceed while running - but still capture user feedback if provided
 					if (text || (images && images.length > 0) || (files && files.length > 0)) {
 						userFeedback = { text, images, files }
@@ -3549,6 +3558,12 @@ export class Task {
 
 		if (terminalDetails) {
 			details += terminalDetails
+		}
+
+		// Add detached processes section (commands that user clicked "Proceed while running")
+		const detachedSummary = this.detachedProcessManager.getSummary()
+		if (detachedSummary) {
+			details += "\n\n" + detachedSummary
 		}
 
 		// Add recently modified files section
