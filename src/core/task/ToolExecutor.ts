@@ -4,6 +4,7 @@ import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import laminarService from "@services/laminar/LaminarService"
 import { McpHub } from "@services/mcp/McpHub"
 import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import { ClineDefaultTool } from "@shared/tools"
@@ -547,6 +548,13 @@ export class ToolExecutor {
 	 * @param config The task configuration containing all necessary context
 	 */
 	private async handleCompleteBlock(block: ToolUse, config: any): Promise<void> {
+		laminarService.startSpan("tool", {
+			name: block.name,
+			spanType: "TOOL",
+			input: block,
+		})
+
+		laminarService.endSpan("tool")
 		// Check abort flag at the very start to prevent execution after cancellation
 		if (this.taskState.abort) {
 			return

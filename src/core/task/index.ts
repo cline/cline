@@ -48,6 +48,7 @@ import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { featureFlagsService } from "@services/feature-flags"
 import { listFiles } from "@services/glob/list-files"
+import laminarService from "@services/laminar/LaminarService"
 import { Logger } from "@services/logging/Logger"
 import { McpHub } from "@services/mcp/McpHub"
 import { ApiConfiguration } from "@shared/api"
@@ -1305,6 +1306,8 @@ export class Task {
 		let nextUserContent = userContent
 		let includeFileDetails = true
 		while (!this.taskState.abort) {
+			// starting first task.step span for the first turn of conversation
+			laminarService.startSpan("task.step", { name: `task.step`, sessionId: this.taskId, input: userContent }, true)
 			const didEndLoop = await this.recursivelyMakeClineRequests(nextUserContent, includeFileDetails)
 			includeFileDetails = false // we only need file details the first time
 
@@ -1344,6 +1347,7 @@ export class Task {
 			return true
 		}
 
+		laminarService.endSpan("task.step")
 		// Run if the API is currently streaming (work happening now)
 		if (this.taskState.isStreaming) {
 			return true
@@ -2143,6 +2147,11 @@ export class Task {
 		// Response API requires native tool calls to be enabled
 		const useResponseApi = this.useNativeToolCalls && featureFlagsService.isResponseApiEnabled()
 
+		laminarService.startSpan("llm", {
+			name: "llm_call",
+			spanType: "LLM",
+			input: [{ role: "system", content: systemPrompt }, ...contextManagementMetadata.truncatedConversationHistory],
+		})
 		const stream = this.api.createMessage(
 			systemPrompt,
 			contextManagementMetadata.truncatedConversationHistory,
@@ -2159,6 +2168,7 @@ export class Task {
 			yield firstChunk.value
 			this.taskState.isWaitingForFirstChunk = false
 		} catch (error) {
+			laminarService.recordExceptionOnSpan("llm", error)
 			const isContextWindowExceededError = checkContextWindowExceededError(error)
 			const { model, providerId } = this.getCurrentProviderInfo()
 			const clineError = ErrorService.get().toClineError(error, model.id, providerId)
@@ -2905,6 +2915,7 @@ export class Task {
 
 					if (this.taskState.abort) {
 						if (!this.taskState.abandoned) {
+							laminarService.endSpan("llm")
 							// only need to gracefully abort if this instance isn't abandoned (sometimes openrouter stream hangs, in which case this would affect future instances of cline)
 							await abortStream("user_cancelled")
 						}
@@ -2928,6 +2939,7 @@ export class Task {
 				}
 			} catch (error) {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
+				laminarService.recordExceptionOnSpan("llm", error)
 				if (!this.taskState.abandoned) {
 					const clineError = ErrorService.get().toClineError(error, this.api.getModel().id)
 					const errorMessage = clineError.serialize()
@@ -3012,6 +3024,8 @@ export class Task {
 
 			// need to call here in case the stream was aborted
 			if (this.taskState.abort) {
+				laminarService.recordExceptionOnSpan("task.step", new Error("Cline instance aborted"))
+				laminarService.endSpan("task.step")
 				throw new Error("Cline instance aborted")
 			}
 
@@ -3093,6 +3107,19 @@ export class Task {
 					assistantContent.push(...toolUseBlocks)
 				}
 
+				laminarService.addLlmAttributesToSpan("llm", {
+					inputTokens,
+					outputTokens,
+					totalCost: totalCost ?? 0,
+					modelId: model.id,
+					providerId,
+					cacheWriteTokens,
+					cacheReadTokens,
+				})
+				laminarService.addAttributesToSpan("llm", {
+					"lmnr.span.output": JSON.stringify([{ role: "assistant", content: assistantMessage }]),
+				})
+				laminarService.endSpan("llm")
 				// Append the assistant's content to the API conversation history only if there's content
 				if (assistantContent.length > 0) {
 					await this.messageStateHandler.addToApiConversationHistory({
@@ -3112,6 +3139,18 @@ export class Task {
 				// }
 
 				await pWaitFor(() => this.taskState.userMessageContentReady)
+
+				// Start a new task.step active span for the next turn of conversation when user sends next message.
+				// The new task.step span will only be started if the previous task.step span was ended. Otherwise, this call to startSpan will do nothing.
+				laminarService.startSpan(
+					"task.step",
+					{
+						name: "task.step",
+						sessionId: this.taskId,
+						input: this.taskState.userMessageContent,
+					},
+					true,
+				)
 
 				// if the model did not tool use, then we need to tell it to either use a tool or attempt_completion
 				const didToolUse = this.taskState.assistantMessageContent.some((block) => block.type === "tool_use")

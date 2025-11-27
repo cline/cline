@@ -10,6 +10,7 @@ import { WebviewProvider } from "./core/webview"
 import { Logger } from "./services/logging/Logger"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
+import laminarService from "@services/laminar/LaminarService"
 import { HostProvider } from "@/hosts/host-provider"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
 import { StateManager } from "./core/storage/StateManager"
@@ -49,6 +50,9 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	// Setup the external services
 	await ErrorService.initialize()
 	await featureFlagsService.poll()
+
+	// Initialize Laminar tracing
+	await laminarService.initialize()
 
 	// Migrate custom instructions to global Cline rules (one-time cleanup)
 	await migrateCustomInstructionsToGlobalRules(context)
