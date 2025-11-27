@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+echo "UserPromptSubmit running inside local cline/.clinerules/hooks/ directory"
+
+input=$(cat)
+echo $input | jq .
+
+for i in {1..5}; do
+  sleep 1
+  echo "$i"
+done
+
+cat <<EOF
+{
+  "cancel": false,
+  "contextModification": "UserPromptSubmit response from the local cline/.clinerules/hooks/ directory.",
+  "errorMessage": "UserPromptSubmit hook custom errorMessage"
+}
+EOF

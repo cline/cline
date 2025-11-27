@@ -1,7 +1,6 @@
 import { isFocusChainItem } from "@shared/focus-chain-utils"
 import * as fs from "fs/promises"
 import * as path from "path"
-import * as vscode from "vscode"
 import { ensureTaskDirectoryExists } from "../../storage/disk"
 
 /**
@@ -17,12 +16,12 @@ export function getFocusChainFilePath(taskDir: string, taskId: string): string {
 export function createFocusChainMarkdownContent(taskId: string, focusChainList: string): string {
 	return `# Focus Chain List for Task ${taskId}
 
-<!-- Edit this markdown file to update your focus chain focusChain list -->
+<!-- Edit this markdown file to update your focus chain list -->
 <!-- Use the format: - [ ] for incomplete items and - [x] for completed items -->
 
 ${focusChainList}
 
-<!-- Save this file and the focusChain list will be updated in the task -->`
+<!-- Save this file and the focus chain list will be updated in the task -->`
 }
 
 /**
@@ -49,12 +48,8 @@ export function extractFocusChainListFromText(text: string): string | null {
  * Ensure a focusChain file exists, creating it with provided content if it doesn't exist
  * Returns the file path
  */
-export async function ensureFocusChainFile(
-	context: vscode.ExtensionContext,
-	taskId: string,
-	initialFocusChainContent?: string,
-): Promise<string> {
-	const taskDir = await ensureTaskDirectoryExists(context, taskId)
+export async function ensureFocusChainFile(taskId: string, initialFocusChainContent?: string): Promise<string> {
+	const taskDir = await ensureTaskDirectoryExists(taskId)
 	const focusChainFilePath = getFocusChainFilePath(taskDir, taskId)
 
 	// Check if file exists

@@ -11,8 +11,7 @@ import { Controller } from "../index"
  */
 export async function getDetectedChromePath(controller: Controller, _: EmptyRequest): Promise<ChromePath> {
 	try {
-		const browserSettings = controller.stateManager.getGlobalStateKey("browserSettings")
-		const browserSession = new BrowserSession(controller.context, browserSettings)
+		const browserSession = new BrowserSession(controller.stateManager)
 		const result = await browserSession.getDetectedChromePath()
 
 		return ChromePath.create({

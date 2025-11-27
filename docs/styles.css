@@ -1,0 +1,88 @@
+/* Custom styles for Cline documentation */
+
+/* Import Geist Sans font from Google Fonts */
+@import url("https://fonts.googleapis.com/css2?family=Geist+Sans:wght@300;400;500;600;700&display=swap");
+
+/* Import Geist Mono font from Google Fonts */
+@import url("https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&display=swap");
+
+/* Apply Geist Sans to body text, but not headings or code */
+body,
+p,
+li,
+td,
+th,
+span:not(code *),
+div:not(code *):not(pre *) {
+	font-family:
+		"Geist Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif !important;
+}
+
+/* Ensure code blocks use Geist Mono */
+code,
+pre,
+.code,
+pre code,
+code *,
+pre * {
+	font-family: "Geist Mono", "Monaco", "Courier New", monospace !important;
+}
+
+/* Make h1 titles lighter in font weight */
+h1 {
+	font-weight: 600 !important;
+}
+
+/* Keep headings and images at full opacity */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+img {
+	opacity: 1 !important;
+	font-family:
+		"Geist Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif !important;
+}
+
+/* Also apply to any h1 elements within content areas */
+.content h1,
+.markdown h1,
+article h1,
+main h1 {
+	font-weight: 500 !important;
+}
+
+/* JetBrains logo visibility fix for dark mode */
+/* Add a subtle background and border to ensure visibility in both light and dark modes */
+img[alt="JetBrains logo"] {
+	background-color: rgba(255, 255, 255, 0.9);
+	border: 1px solid rgba(0, 0, 0, 0.1);
+	border-radius: 8px;
+	padding: 12px;
+	transition: all 0.3s ease;
+}
+
+/* Dark mode specific styling */
+[data-theme="dark"] img[alt="JetBrains logo"],
+.dark img[alt="JetBrains logo"] {
+	background-color: rgba(255, 255, 255, 0.95);
+	border: 1px solid rgba(0, 0, 0, 0.2);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Media query for system dark mode preference */
+@media (prefers-color-scheme: dark) {
+	img[alt="JetBrains logo"] {
+		background-color: rgba(255, 255, 255, 0.95);
+		border: 1px solid rgba(0, 0, 0, 0.2);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+	}
+}
+
+/* Hover effect for better interactivity */
+img[alt="JetBrains logo"]:hover {
+	transform: scale(1.02);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}

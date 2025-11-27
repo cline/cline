@@ -1,0 +1,82 @@
+name: "Publish Nightly Release"
+
+on:
+  schedule:
+    - cron: '0 12 * * *'  # 4 AM PST (UTC-8) = 12 UTC
+  workflow_dispatch:
+
+permissions:
+    contents: write
+    packages: write
+    checks: write
+    pull-requests: write
+
+jobs:
+    test:
+        uses: ./.github/workflows/test.yml
+
+    publish:
+        needs: test
+        name: Publish Cline (Nightly) Extension
+        if: github.repository == 'cline/cline'
+        runs-on: ubuntu-latest
+        environment: PublishNightly
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Check for recent commits
+              run: |
+                if [ $(git rev-list --count HEAD --since="24 hours ago") -eq 0 ]; then
+                  echo "No commits in last 24 hours, exiting"
+                  exit 0
+                fi
+                echo "Found recent commits, proceeding with build"
+                
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "lts/*"
+
+            # Cache root dependencies - only reuse if package-lock.json exactly matches
+            - name: Cache root dependencies
+              uses: actions/cache@v4
+              id: root-cache
+              with:
+                  path: node_modules
+                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+
+            # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
+            - name: Cache webview-ui dependencies
+              uses: actions/cache@v4
+              id: webview-cache
+              with:
+                  path: webview-ui/node_modules
+                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+
+            - name: Install root dependencies
+              if: steps.root-cache.outputs.cache-hit != 'true'
+              run: npm ci --include=optional
+
+            - name: Install webview-ui dependencies
+              if: steps.webview-cache.outputs.cache-hit != 'true'
+              run: cd webview-ui && npm ci --include=optional
+
+            - name: Install Publishing Tools
+              run: npm install -g @vscode/vsce ovsx
+
+            - name: Publish Extension as Pre-release
+              env:
+                  VSCE_PAT: ${{ secrets.VSCE_PAT }}
+                  OVSX_PAT: ${{ secrets.OVSX_PAT }}
+                  TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+                  ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+                  CLINE_ENVIRONMENT: production
+                  # OpenTelemetry production defaults (can be overridden at runtime)
+                  OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+                  OTEL_LOGS_EXPORTER: console,otlp
+                  OTEL_METRICS_EXPORTER: console,otlp
+                  OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+                  OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+                  OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+              run: npm run publish:marketplace:nightly

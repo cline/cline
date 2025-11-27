@@ -1,11 +1,14 @@
 syntax = "proto3";
 
 package cline;
-import "cline/common.proto";
-option java_package = "bot.cline.proto";
-option java_multiple_files = true;
 
-// Service for running IDE commands, for example context menu actions, 
+import "cline/common.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+// Service for running IDE commands, for example context menu actions,
 // commands, etc.
 // In contrast to the rest of the ProtoBus services, these are
 // intended to be called by the IDE directly instead of through the webview,

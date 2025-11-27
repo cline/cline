@@ -1,0 +1,13 @@
+#!/usr/bin/env node
+const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
+const lastMessageTs = parseInt(input.taskResume?.previousState?.lastMessageTs || '0');
+const now = Date.now();
+const minutesAgo = Math.floor((now - lastMessageTs) / 60000);
+
+console.log(JSON.stringify({
+  cancel: false,
+  contextModification: minutesAgo < 5 
+    ? "TASK_CONTEXT: Recently paused task - context is still fresh"
+    : "",
+  errorMessage: ""
+}));

@@ -11,6 +11,7 @@ export type ButtonActionType =
 	| "new_task" // Start a new task
 	| "cancel" // Cancel streaming
 	| "utility" // Execute utility function (condense, report_bug)
+	| "retry" // Retry the last action
 
 /**
  * Button configuration for different message states
@@ -31,25 +32,17 @@ export interface ButtonConfig {
 export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	// Error recovery states - user must take action
 	api_req_failed: {
-		sendingDisabled: false,
+		sendingDisabled: true,
 		enableButtons: true,
 		primaryText: "Retry",
 		secondaryText: "Start New Task",
-		primaryAction: "approve",
+		primaryAction: "retry",
 		secondaryAction: "new_task",
 	},
 	mistake_limit_reached: {
 		sendingDisabled: false,
 		enableButtons: true,
 		primaryText: "Proceed Anyways",
-		secondaryText: "Start New Task",
-		primaryAction: "proceed",
-		secondaryAction: "new_task",
-	},
-	auto_approval_max_req_reached: {
-		sendingDisabled: false,
-		enableButtons: true,
-		primaryText: "Proceed",
 		secondaryText: "Start New Task",
 		primaryAction: "proceed",
 		secondaryAction: "new_task",
@@ -147,7 +140,7 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		enableButtons: true,
 		primaryText: "Start New Task",
 		secondaryText: undefined,
-		primaryAction: "proceed",
+		primaryAction: "new_task",
 		secondaryAction: undefined,
 	},
 	new_task: {
@@ -155,7 +148,7 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		enableButtons: true,
 		primaryText: "Start New Task with Context",
 		secondaryText: undefined,
-		primaryAction: "utility",
+		primaryAction: "new_task",
 		secondaryAction: undefined,
 	},
 
@@ -206,7 +199,7 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	},
 }
 
-const errorTypes = ["api_req_failed", "mistake_limit_reached", "auto_approval_max_req_reached"]
+const errorTypes = ["api_req_failed", "mistake_limit_reached"]
 
 /**
  * Determines button configuration based on message type and state
@@ -234,15 +227,13 @@ export function getButtonConfig(message: ClineMessage | undefined, _mode: Mode =
 				return BUTTON_CONFIGS.api_req_failed
 			case "mistake_limit_reached":
 				return BUTTON_CONFIGS.mistake_limit_reached
-			case "auto_approval_max_req_reached":
-				return BUTTON_CONFIGS.auto_approval_max_req_reached
 
 			// Tool approval (most common)
 			case "tool": {
 				// Only parse JSON if we need to determine save vs approve
 				try {
 					const tool = JSON.parse(message.text || "{}") as ClineSayTool
-					if (tool.tool === "editedExistingFile" || tool.tool === "newFileCreated") {
+					if (tool.tool === "editedExistingFile" || tool.tool === "newFileCreated" || tool.tool === "fileDeleted") {
 						return BUTTON_CONFIGS.tool_save
 					}
 				} catch {

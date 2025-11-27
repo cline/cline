@@ -1,5 +1,6 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { AskSageModelId, askSageDefaultModelId, askSageDefaultURL, askSageModels, ModelInfo } from "@shared/api"
+import { ClineStorageMessage } from "@/shared/messages/content"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
@@ -46,7 +47,7 @@ export class AskSageHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
 		try {
 			const model = this.getModel()
 

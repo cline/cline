@@ -1,33 +1,29 @@
-import { Empty } from "@shared/proto/cline/common"
-import { WebviewProviderType, WebviewProviderTypeRequest } from "@shared/proto/cline/ui"
+import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import type { Controller } from "../index"
 
-// Track subscriptions with their provider type
-const subscriptions = new Map<StreamingResponseHandler<Empty>, WebviewProviderType>()
+// Keep track of active settings button clicked subscriptions
+const activeSettingsButtonClickedSubscriptions = new Set<StreamingResponseHandler<Empty>>()
 
 /**
  * Subscribe to settings button clicked events
  * @param controller The controller instance
- * @param request The request with provider type
+ * @param request The empty request
  * @param responseStream The streaming response handler
  * @param requestId The ID of the request (passed by the gRPC handler)
  */
 export async function subscribeToSettingsButtonClicked(
 	_controller: Controller,
-	request: WebviewProviderTypeRequest,
+	_request: EmptyRequest,
 	responseStream: StreamingResponseHandler<Empty>,
 	requestId?: string,
 ): Promise<void> {
-	const providerType = request.providerType
-	console.log(`[DEBUG] set up settings button subscription for ${WebviewProviderType[providerType]} webview`)
-
-	// Store the subscription with its provider type
-	subscriptions.set(responseStream, providerType)
+	// Add this subscription to the active subscriptions
+	activeSettingsButtonClickedSubscriptions.add(responseStream)
 
 	// Register cleanup when the connection is closed
 	const cleanup = () => {
-		subscriptions.delete(responseStream)
+		activeSettingsButtonClickedSubscriptions.delete(responseStream)
 	}
 
 	// Register the cleanup function with the request registry if we have a requestId
@@ -37,23 +33,17 @@ export async function subscribeToSettingsButtonClicked(
 }
 
 /**
- * Send a settings button clicked event to active subscribers of matching provider type
- * @param webviewType The type of webview that triggered the event
+ * Send a settings button clicked event to all active subscribers
  */
-export async function sendSettingsButtonClickedEvent(webviewType?: WebviewProviderType): Promise<void> {
-	// Process all subscriptions, filtering based on the source
-	const promises = Array.from(subscriptions.entries()).map(async ([responseStream, providerType]) => {
-		// If webviewType is provided, only send to subscribers of the same type
-		if (webviewType !== undefined && webviewType !== providerType) {
-			return // Skip subscribers of different types
-		}
-
+export async function sendSettingsButtonClickedEvent(): Promise<void> {
+	// Send the event to all active subscribers
+	const promises = Array.from(activeSettingsButtonClickedSubscriptions).map(async (responseStream) => {
 		try {
 			const event = Empty.create({})
 			await responseStream(event, false) // Not the last message
 		} catch (error) {
-			console.error(`Error sending settings button clicked event to ${WebviewProviderType[providerType]}:`, error)
-			subscriptions.delete(responseStream)
+			console.error("Error sending settings button clicked event:", error)
+			activeSettingsButtonClickedSubscriptions.delete(responseStream)
 		}
 	})
 

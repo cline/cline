@@ -1,9 +1,12 @@
 syntax = "proto3";
 
 package cline;
+
 import "cline/common.proto";
-option java_package = "bot.cline.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
 option java_multiple_files = true;
+option java_package = "bot.cline.proto";
 
 // SlashService provides methods for managing slash
 service SlashService {

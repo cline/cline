@@ -1,0 +1,7 @@
+#!/usr/bin/env node
+// Note: For TaskCancel, contextModification is completely ignored.
+
+console.log(JSON.stringify({
+  cancel: true,
+  errorMessage: "some error happened"
+}));

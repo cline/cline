@@ -23,6 +23,7 @@ import {
 	geminiModels,
 	groqDefaultModelId,
 	groqModels,
+	hicapModelInfoSaneDefaults,
 	huaweiCloudMaasDefaultModelId,
 	huaweiCloudMaasModels,
 	huggingFaceDefaultModelId,
@@ -37,12 +38,16 @@ import {
 	mainlandQwenModels,
 	mainlandZAiDefaultModelId,
 	mainlandZAiModels,
+	minimaxDefaultModelId,
+	minimaxModels,
 	mistralDefaultModelId,
 	mistralModels,
 	moonshotDefaultModelId,
 	moonshotModels,
 	nebiusDefaultModelId,
 	nebiusModels,
+	nousResearchDefaultModelId,
+	nousResearchModels,
 	openAiModelInfoSaneDefaults,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
@@ -56,8 +61,6 @@ import {
 	sambanovaModels,
 	sapAiCoreDefaultModelId,
 	sapAiCoreModels,
-	vercelAiGatewayDefaultModelId,
-	vercelAiGatewayDefaultModelInfo,
 	vertexDefaultModelId,
 	vertexModels,
 	xaiDefaultModelId,
@@ -80,9 +83,11 @@ export interface NormalizedApiConfig {
 export function normalizeApiConfiguration(
 	apiConfiguration: ApiConfiguration | undefined,
 	currentMode: Mode,
+	liteLlmModels?: Record<string, ModelInfo>,
 ): NormalizedApiConfig {
 	const provider =
 		(currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "anthropic"
+
 	const modelId = currentMode === "plan" ? apiConfiguration?.planModeApiModelId : apiConfiguration?.actModeApiModelId
 
 	const getProviderData = (models: Record<string, ModelInfo>, defaultId: string) => {
@@ -117,10 +122,13 @@ export function normalizeApiConfiguration(
 					currentMode === "plan"
 						? apiConfiguration?.planModeAwsBedrockCustomModelBaseId
 						: apiConfiguration?.actModeAwsBedrockCustomModelBaseId
+
 				return {
 					selectedProvider: provider,
 					selectedModelId: modelId || bedrockDefaultModelId,
-					selectedModelInfo: (baseModelId && bedrockModels[baseModelId]) || bedrockModels[bedrockDefaultModelId],
+					selectedModelInfo:
+						(baseModelId && bedrockModels[baseModelId as keyof typeof bedrockModels]) ||
+						bedrockModels[bedrockDefaultModelId],
 				}
 			}
 			return getProviderData(bedrockModels, bedrockDefaultModelId)
@@ -191,6 +199,14 @@ export function normalizeApiConfiguration(
 				selectedModelId: openAiModelId || "",
 				selectedModelInfo: openAiModelInfo || openAiModelInfoSaneDefaults,
 			}
+		case "hicap":
+			const hicapModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeHicapModelId : apiConfiguration?.actModeHicapModelId
+			return {
+				selectedProvider: provider,
+				selectedModelId: hicapModelId || "",
+				selectedModelInfo: hicapModelInfoSaneDefaults,
+			}
 		case "ollama":
 			const ollamaModelId =
 				currentMode === "plan" ? apiConfiguration?.planModeOllamaModelId : apiConfiguration?.actModeOllamaModelId
@@ -229,12 +245,12 @@ export function normalizeApiConfiguration(
 		case "litellm":
 			const liteLlmModelId =
 				currentMode === "plan" ? apiConfiguration?.planModeLiteLlmModelId : apiConfiguration?.actModeLiteLlmModelId
-			const liteLlmModelInfo =
-				currentMode === "plan" ? apiConfiguration?.planModeLiteLlmModelInfo : apiConfiguration?.actModeLiteLlmModelInfo
+			// model info lookup
+			const liteLlmModelInfo = liteLlmModels?.[liteLlmModelId || ""]
 			return {
 				selectedProvider: provider,
 				selectedModelId: liteLlmModelId || "",
-				selectedModelInfo: liteLlmModelInfo || liteLlmModelInfoSaneDefaults,
+				selectedModelInfo: liteLlmModelInfo || ({} as ModelInfo),
 			}
 		case "xai":
 			return getProviderData(xaiModels, xaiDefaultModelId)
@@ -316,18 +332,17 @@ export function normalizeApiConfiguration(
 				},
 			}
 		case "vercel-ai-gateway":
-			const vercelAiGatewayModelId =
+			// Vercel AI Gateway uses OpenRouter model fields
+			const vercelModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeOpenRouterModelId : apiConfiguration?.actModeOpenRouterModelId
+			const vercelModelInfo =
 				currentMode === "plan"
-					? apiConfiguration?.planModeVercelAiGatewayModelId
-					: apiConfiguration?.actModeVercelAiGatewayModelId
-			const vercelAiGatewayModelInfo =
-				currentMode === "plan"
-					? apiConfiguration?.planModeVercelAiGatewayModelInfo
-					: apiConfiguration?.actModeVercelAiGatewayModelInfo
+					? apiConfiguration?.planModeOpenRouterModelInfo
+					: apiConfiguration?.actModeOpenRouterModelInfo
 			return {
 				selectedProvider: provider,
-				selectedModelId: vercelAiGatewayModelId || vercelAiGatewayDefaultModelId,
-				selectedModelInfo: vercelAiGatewayModelInfo || vercelAiGatewayDefaultModelInfo,
+				selectedModelId: vercelModelId || openRouterDefaultModelId,
+				selectedModelInfo: vercelModelInfo || openRouterDefaultModelInfo,
 			}
 		case "zai":
 			const zaiModels = apiConfiguration?.zaiApiLine === "china" ? mainlandZAiModels : internationalZAiModels
@@ -344,6 +359,40 @@ export function normalizeApiConfiguration(
 					fireworksModelId && fireworksModelId in fireworksModels
 						? fireworksModels[fireworksModelId as keyof typeof fireworksModels]
 						: fireworksModels[fireworksDefaultModelId],
+			}
+		case "oca":
+			const ocaModelId = currentMode === "plan" ? apiConfiguration?.planModeOcaModelId : apiConfiguration?.actModeOcaModelId
+			const ocaModelInfo =
+				currentMode === "plan" ? apiConfiguration?.planModeOcaModelInfo : apiConfiguration?.actModeOcaModelInfo
+			return {
+				selectedProvider: provider,
+				selectedModelId: ocaModelId || "",
+				selectedModelInfo: ocaModelInfo || liteLlmModelInfoSaneDefaults,
+			}
+		case "aihubmix":
+			const aihubmixModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeAihubmixModelId : apiConfiguration?.actModeAihubmixModelId
+			const aihubmixModelInfo =
+				currentMode === "plan" ? apiConfiguration?.planModeAihubmixModelInfo : apiConfiguration?.actModeAihubmixModelInfo
+			return {
+				selectedProvider: provider,
+				selectedModelId: aihubmixModelId || "",
+				selectedModelInfo: aihubmixModelInfo || openAiModelInfoSaneDefaults,
+			}
+		case "minimax":
+			return getProviderData(minimaxModels, minimaxDefaultModelId)
+		case "nousResearch":
+			const nousResearchModelId =
+				currentMode === "plan"
+					? apiConfiguration?.planModeNousResearchModelId
+					: apiConfiguration?.actModeNousResearchModelId
+			return {
+				selectedProvider: provider,
+				selectedModelId: nousResearchModelId || nousResearchDefaultModelId,
+				selectedModelInfo:
+					nousResearchModelId && nousResearchModelId in nousResearchModels
+						? nousResearchModels[nousResearchModelId as keyof typeof nousResearchModels]
+						: nousResearchModels[nousResearchDefaultModelId],
 			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
@@ -376,7 +425,9 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			basetenModelId: undefined,
 			huggingFaceModelId: undefined,
 			huaweiCloudMaasModelId: undefined,
-			vercelAiGatewayModelId: undefined,
+			hicapModelId: undefined,
+			aihubmixModelId: undefined,
+			nousResearchModelId: undefined,
 
 			// Model info objects
 			openAiModelInfo: undefined,
@@ -386,8 +437,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			groqModelInfo: undefined,
 			basetenModelInfo: undefined,
 			huggingFaceModelInfo: undefined,
-			vercelAiGatewayModelInfo: undefined,
 			vsCodeLmModelSelector: undefined,
+			aihubmixModelInfo: undefined,
 
 			// AWS Bedrock fields
 			awsBedrockCustomSelected: undefined,
@@ -423,8 +474,11 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			mode === "plan" ? apiConfiguration.planModeHuggingFaceModelId : apiConfiguration.actModeHuggingFaceModelId,
 		huaweiCloudMaasModelId:
 			mode === "plan" ? apiConfiguration.planModeHuaweiCloudMaasModelId : apiConfiguration.actModeHuaweiCloudMaasModelId,
-		vercelAiGatewayModelId:
-			mode === "plan" ? apiConfiguration.planModeVercelAiGatewayModelId : apiConfiguration.actModeVercelAiGatewayModelId,
+		ocaModelId: mode === "plan" ? apiConfiguration.planModeOcaModelId : apiConfiguration.actModeOcaModelId,
+		hicapModelId: mode === "plan" ? apiConfiguration.planModeHicapModelId : apiConfiguration.actModeHicapModelId,
+		aihubmixModelId: mode === "plan" ? apiConfiguration.planModeAihubmixModelId : apiConfiguration.actModeAihubmixModelId,
+		nousResearchModelId:
+			mode === "plan" ? apiConfiguration.planModeNousResearchModelId : apiConfiguration.actModeNousResearchModelId,
 
 		// Model info objects
 		openAiModelInfo: mode === "plan" ? apiConfiguration.planModeOpenAiModelInfo : apiConfiguration.actModeOpenAiModelInfo,
@@ -437,12 +491,11 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		basetenModelInfo: mode === "plan" ? apiConfiguration.planModeBasetenModelInfo : apiConfiguration.actModeBasetenModelInfo,
 		huggingFaceModelInfo:
 			mode === "plan" ? apiConfiguration.planModeHuggingFaceModelInfo : apiConfiguration.actModeHuggingFaceModelInfo,
-		vercelAiGatewayModelInfo:
-			mode === "plan"
-				? apiConfiguration.planModeVercelAiGatewayModelInfo
-				: apiConfiguration.actModeVercelAiGatewayModelInfo,
 		vsCodeLmModelSelector:
 			mode === "plan" ? apiConfiguration.planModeVsCodeLmModelSelector : apiConfiguration.actModeVsCodeLmModelSelector,
+		hicapModelInfo: mode === "plan" ? apiConfiguration.planModeHicapModelInfo : apiConfiguration.actModeHicapModelInfo,
+		aihubmixModelInfo:
+			mode === "plan" ? apiConfiguration.planModeAihubmixModelInfo : apiConfiguration.actModeAihubmixModelInfo,
 
 		// AWS Bedrock fields
 		awsBedrockCustomSelected:
@@ -464,6 +517,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		thinkingBudgetTokens:
 			mode === "plan" ? apiConfiguration.planModeThinkingBudgetTokens : apiConfiguration.actModeThinkingBudgetTokens,
 		reasoningEffort: mode === "plan" ? apiConfiguration.planModeReasoningEffort : apiConfiguration.actModeReasoningEffort,
+		// Oracle Code Assist
+		ocaModelInfo: mode === "plan" ? apiConfiguration.planModeOcaModelInfo : apiConfiguration.actModeOcaModelInfo,
 	}
 }
 
@@ -595,11 +650,36 @@ export async function syncModeConfigurations(
 			// The model is configured in the Dify application itself
 			break
 
+		case "hicap":
+			updates.planModeHicapModelId = sourceFields.hicapModelId
+			updates.actModeHicapModelId = sourceFields.hicapModelId
+			updates.planModeHicapModelInfo = sourceFields.hicapModelInfo
+			updates.actModeHicapModelInfo = sourceFields.hicapModelInfo
+			break
+
 		case "vercel-ai-gateway":
-			updates.planModeVercelAiGatewayModelId = sourceFields.vercelAiGatewayModelId
-			updates.actModeVercelAiGatewayModelId = sourceFields.vercelAiGatewayModelId
-			updates.planModeVercelAiGatewayModelInfo = sourceFields.vercelAiGatewayModelInfo
-			updates.actModeVercelAiGatewayModelInfo = sourceFields.vercelAiGatewayModelInfo
+			// Vercel AI Gateway uses OpenRouter model fields
+			updates.planModeOpenRouterModelId = sourceFields.openRouterModelId
+			updates.actModeOpenRouterModelId = sourceFields.openRouterModelId
+			updates.planModeOpenRouterModelInfo = sourceFields.openRouterModelInfo
+			updates.actModeOpenRouterModelInfo = sourceFields.openRouterModelInfo
+			break
+		case "oca":
+			updates.planModeOcaModelId = sourceFields.ocaModelId
+			updates.actModeOcaModelId = sourceFields.ocaModelId
+			updates.planModeOcaModelInfo = sourceFields.ocaModelInfo
+			updates.actModeOcaModelInfo = sourceFields.ocaModelInfo
+			break
+		case "nousResearch":
+			updates.planModeNousResearchModelId = sourceFields.nousResearchModelId
+			updates.actModeNousResearchModelId = sourceFields.nousResearchModelId
+			break
+
+		case "aihubmix":
+			updates.planModeAihubmixModelId = sourceFields.aihubmixModelId
+			updates.planModeAihubmixModelInfo = sourceFields.aihubmixModelInfo
+			updates.actModeAihubmixModelId = sourceFields.aihubmixModelId
+			updates.actModeAihubmixModelInfo = sourceFields.aihubmixModelInfo
 			break
 
 		// Providers that use apiProvider + apiModelId fields
@@ -619,6 +699,7 @@ export async function syncModeConfigurations(
 		case "cerebras":
 		case "sapaicore":
 		case "zai":
+		case "minimax":
 		default:
 			updates.planModeApiModelId = sourceFields.apiModelId
 			updates.actModeApiModelId = sourceFields.apiModelId

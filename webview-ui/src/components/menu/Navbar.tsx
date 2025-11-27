@@ -1,9 +1,9 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { HistoryIcon, PlusIcon, SettingsIcon, UserCircleIcon } from "lucide-react"
 import { useMemo } from "react"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import HeroTooltip from "../common/HeroTooltip"
 
 // Custom MCP Server Icon component using VSCode codicon
 const McpServerIcon = ({ className, size }: { className?: string; size?: number }) => (
@@ -67,22 +67,23 @@ export const Navbar = () => {
 	return (
 		<nav
 			className="flex-none inline-flex justify-end bg-transparent gap-2 mb-1 z-10 border-none items-center mr-4!"
-			id="cline-navbar-container"
-			style={{ gap: "4px" }}>
+			id="cline-navbar-container">
 			{SETTINGS_TABS.map((tab) => (
-				<HeroTooltip content={tab.tooltip} key={`navbar-tooltip-${tab.id}`} placement="bottom">
-					<VSCodeButton
-						appearance="icon"
-						aria-label={tab.tooltip}
-						data-testid={`tab-${tab.id}`}
-						key={`navbar-button-${tab.id}`}
-						onClick={() => tab.navigate()}
-						style={{ padding: "0px", height: "20px" }}>
-						<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
-							<tab.icon className="text-[var(--vscode-foreground)]" size={18} strokeWidth={1} />
-						</div>
-					</VSCodeButton>
-				</HeroTooltip>
+				<Tooltip key={`navbar-tooltip-${tab.id}`}>
+					<TooltipContent side="bottom">{tab.tooltip}</TooltipContent>
+					<TooltipTrigger asChild>
+						<Button
+							aria-label={tab.tooltip}
+							className="p-0 h-7"
+							data-testid={`tab-${tab.id}`}
+							key={`navbar-button-${tab.id}`}
+							onClick={() => tab.navigate()}
+							size="icon"
+							variant="icon">
+							<tab.icon className="stroke-1 [svg]:size-4" size={18} />
+						</Button>
+					</TooltipTrigger>
+				</Tooltip>
 			))}
 		</nav>
 	)

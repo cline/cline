@@ -109,7 +109,7 @@ class LaminarService {
 
 		const span = this.spans.get(key)
 		if (span) {
-			const { "lmnr.span.output": output, ...rest } = attributes
+			const { "lmnr.span.output": _output, ...rest } = attributes
 			const filteredAttributes = this.recordSpanIO ? attributes : rest
 
 			span.setAttributes(filteredAttributes)

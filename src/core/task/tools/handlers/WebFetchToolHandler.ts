@@ -1,17 +1,18 @@
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import { ClineAsk, ClineSayTool } from "@shared/ExtensionMessage"
-import { ToolUse, ToolUseName } from "../../../assistant-message"
+import { ClineDefaultTool } from "@shared/tools"
+import { telemetryService } from "@/services/telemetry"
+import { ToolUse } from "../../../assistant-message"
 import { formatResponse } from "../../../prompts/responses"
 import { ToolResponse } from "../.."
-import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
+import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class WebFetchToolHandler implements IFullyManagedTool {
-	name = "web_fetch"
-	supportedTools: ToolUseName[] = ["web_fetch"]
+	readonly name = ClineDefaultTool.WEB_FETCH
 
 	getDescription(block: ToolUse): string {
 		return `[${block.name} for '${block.params.url}']`
@@ -24,7 +25,7 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 			path: uiHelpers.removeClosingTag(block, "url", url),
 			content: `Fetching URL: ${uiHelpers.removeClosingTag(block, "url", url)}`,
 			operationIsLocatedInWorkspace: false, // web_fetch is always external
-		}
+		} satisfies ClineSayTool
 
 		const partialMessage = JSON.stringify(sharedMessageProps)
 
@@ -35,18 +36,18 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, don't execute yet
-		if (block.partial) {
-			return ""
-		}
-
 		try {
 			const url: string | undefined = block.params.url
+
+			// Extract provider information for telemetry
+			const apiConfig = config.services.stateManager.getApiConfiguration()
+			const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+			const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
 
 			// Validate required parameter
 			if (!url) {
 				config.taskState.consecutiveMistakeCount++
-				return await config.callbacks.sayAndCreateMissingParamError("web_fetch", "url")
+				return await config.callbacks.sayAndCreateMissingParamError(this.name, "url")
 			}
 			config.taskState.consecutiveMistakeCount = 0
 
@@ -59,30 +60,65 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 			}
 			const completeMessage = JSON.stringify(sharedMessageProps)
 
-			// Check auto-approval (web_fetch uses simple boolean, not array)
-			const autoApprove = config.autoApprovalSettings.enabled && config.autoApprovalSettings.actions.useBrowser
-
-			if (autoApprove) {
+			if (config.callbacks.shouldAutoApproveTool(this.name)) {
 				// Auto-approve flow
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
 				await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
-				config.taskState.consecutiveAutoApprovedRequestsCount++
-				telemetryService.captureToolUsage(config.ulid, "web_fetch", config.api.getModel().id, true, true)
+				telemetryService.captureToolUsage(
+					config.ulid,
+					"web_fetch",
+					config.api.getModel().id,
+					provider,
+					true,
+					true,
+					undefined,
+					block.isNativeToolCall,
+				)
 			} else {
 				// Manual approval flow
-				showNotificationForApprovalIfAutoApprovalEnabled(
+				showNotificationForApproval(
 					`Cline wants to fetch content from ${url}`,
-					config.autoApprovalSettings.enabled,
 					config.autoApprovalSettings.enableNotifications,
 				)
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
 
-				const { response } = await config.callbacks.ask("tool", completeMessage, false)
-				if (response !== "yesButtonClicked") {
-					telemetryService.captureToolUsage(config.ulid, "web_fetch", config.api.getModel().id, false, false)
-					return "The user denied this operation."
+				const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
+				if (!didApprove) {
+					telemetryService.captureToolUsage(
+						config.ulid,
+						block.name,
+						config.api.getModel().id,
+						provider,
+						false,
+						false,
+						undefined,
+						block.isNativeToolCall,
+					)
+					return formatResponse.toolDenied()
+				} else {
+					telemetryService.captureToolUsage(
+						config.ulid,
+						block.name,
+						config.api.getModel().id,
+						provider,
+						false,
+						true,
+						undefined,
+						block.isNativeToolCall,
+					)
 				}
-				telemetryService.captureToolUsage(config.ulid, "web_fetch", config.api.getModel().id, false, true)
+			}
+
+			// Run PreToolUse hook after approval but before execution
+			try {
+				const { ToolHookUtils } = await import("../utils/ToolHookUtils")
+				await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+			} catch (error) {
+				const { PreToolUseHookCancellationError } = await import("@core/hooks/PreToolUseHookCancellationError")
+				if (error instanceof PreToolUseHookCancellationError) {
+					return formatResponse.toolDenied()
+				}
+				throw error
 			}
 
 			// Execute the actual fetch

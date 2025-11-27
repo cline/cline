@@ -1,4 +1,3 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 // Import proper AWS SDK types
 import type { ContentBlock, Message } from "@aws-sdk/client-bedrock-runtime"
 import {
@@ -9,14 +8,16 @@ import {
 	InvokeModelWithResponseStreamCommand,
 } from "@aws-sdk/client-bedrock-runtime"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
-import { BedrockModelId, bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_4_1M_SUFFIX, ModelInfo } from "@shared/api"
-import { calculateApiCostOpenAI } from "@utils/cost"
+import { BedrockModelId, bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX, ModelInfo } from "@shared/api"
+import { calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
+import { ExtensionRegistryInfo } from "@/registry"
+import { ClineStorageMessage } from "@/shared/messages/content"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 
-interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
+export interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
 	apiModelId?: string
 	awsAccessKey?: string
 	awsSecretKey?: string
@@ -25,12 +26,13 @@ interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
 	awsAuthentication?: string
 	awsBedrockApiKey?: string
 	awsUseCrossRegionInference?: boolean
+	awsUseGlobalInference?: boolean
 	awsBedrockUsePromptCache?: boolean
 	awsUseProfile?: boolean
 	awsProfile?: string
 	awsBedrockEndpoint?: string
 	awsBedrockCustomSelected?: boolean
-	awsBedrockCustomModelBaseId?: BedrockModelId
+	awsBedrockCustomModelBaseId?: string
 	thinkingBudgetTokens?: number
 }
 
@@ -106,6 +108,10 @@ interface ProviderChainOptions {
 	profile?: string
 }
 
+// a special jp inference profile was created for sonnet 4.5
+// https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html
+const JP_SUPPORTED_CRIS_MODELS = ["anthropic.claude-sonnet-4-5-20250929-v1:0", "anthropic.claude-sonnet-4-5-20250929-v1:0:1m"]
+
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
 	private options: AwsBedrockHandlerOptions
@@ -115,15 +121,15 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	@withRetry({ maxRetries: 4 })
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
 		// cross region inference requires prefixing the model id with the region
 		const rawModelId = await this.getModelId()
 
-		const modelId = rawModelId.endsWith(CLAUDE_SONNET_4_1M_SUFFIX)
-			? rawModelId.slice(0, -CLAUDE_SONNET_4_1M_SUFFIX.length)
+		const modelId = rawModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
+			? rawModelId.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
 			: rawModelId
 
-		const enable1mContextWindow = rawModelId.endsWith(CLAUDE_SONNET_4_1M_SUFFIX)
+		const enable1mContextWindow = rawModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
 
 		const model = this.getModel()
 
@@ -141,6 +147,12 @@ export class AwsBedrockHandler implements ApiHandler {
 
 		if (baseModelId.includes("openai")) {
 			yield* this.createOpenAIMessage(systemPrompt, messages, modelId, model)
+			return
+		}
+
+		// Check if this is a Qwen model
+		if (baseModelId.includes("qwen")) {
+			yield* this.createQwenMessage(systemPrompt, messages, modelId, model)
 			return
 		}
 
@@ -170,7 +182,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			if (baseModel && baseModel in bedrockModels) {
 				return {
 					id: modelId,
-					info: bedrockModels[baseModel],
+					info: bedrockModels[baseModel as BedrockModelId],
 				}
 			}
 			// For custom models without valid base model in bedrock model list, use default model's capabilities
@@ -258,7 +270,12 @@ export class AwsBedrockHandler implements ApiHandler {
 				},
 			}
 		}
+
+		// TODO: Add proxy support for AWS SDK
+		// AWS SDK uses a different architecture than fetch-based SDKs.
+		// To add proxy support, we need to provide a custom requestHandler.
 		return new BedrockRuntimeClient({
+			userAgentAppId: `cline#${ExtensionRegistryInfo.version}`,
 			region: this.getRegion(),
 			...auth,
 			...(this.options.awsBedrockEndpoint && { endpoint: this.options.awsBedrockEndpoint }),
@@ -271,6 +288,9 @@ export class AwsBedrockHandler implements ApiHandler {
 	 */
 	async getModelId(): Promise<string> {
 		if (!this.options.awsBedrockCustomSelected && this.options.awsUseCrossRegionInference) {
+			if (this.getModel().info.supportsGlobalEndpoint && this.options.awsUseGlobalInference) {
+				return `global.${this.getModel().id}`
+			}
 			const regionPrefix = this.getRegion().slice(0, 3)
 			switch (regionPrefix) {
 				case "us-":
@@ -278,6 +298,9 @@ export class AwsBedrockHandler implements ApiHandler {
 				case "eu-":
 					return `eu.${this.getModel().id}`
 				case "ap-":
+					if (JP_SUPPORTED_CRIS_MODELS.includes(this.getModel().id)) {
+						return `jp.${this.getModel().id}`
+					}
 					return `apac.${this.getModel().id}`
 				default:
 					// cross region inference is not supported in this region, falling back to default model
@@ -319,7 +342,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	 */
 	private async *createDeepseekMessage(
 		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
+		messages: ClineStorageMessage[],
 		modelId: string,
 		model: { id: string; info: ModelInfo },
 	): ApiStream {
@@ -457,7 +480,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * First uses convertToR1Format to merge consecutive messages with the same role,
 	 * then converts to the string format that DeepSeek R1 expects
 	 */
-	private formatDeepseekR1Prompt(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): string {
+	private formatDeepseekR1Prompt(systemPrompt: string, messages: ClineStorageMessage[]): string {
 		// First use convertToR1Format to merge consecutive messages with the same role
 		const r1Messages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 
@@ -490,7 +513,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * Estimates token count based on text length (approximate)
 	 * Note: This is a rough estimation, as the actual token count depends on the tokenizer
 	 */
-	private estimateInputTokens(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): number {
+	private estimateInputTokens(systemPrompt: string, messages: ClineStorageMessage[]): number {
 		// For Deepseek R1, we estimate the token count of the formatted prompt
 		// The formatted prompt includes special tokens and consistent formatting
 		const formattedPrompt = this.formatDeepseekR1Prompt(systemPrompt, messages)
@@ -657,11 +680,7 @@ export class AwsBedrockHandler implements ApiHandler {
 				}
 			}
 		} catch (error) {
-			console.error("Error processing Converse API response:", error)
-			yield {
-				type: "text",
-				text: `[ERROR] Failed to process response: ${error instanceof Error ? error.message : String(error)}`,
-			}
+			throw error
 		}
 	}
 
@@ -680,9 +699,20 @@ export class AwsBedrockHandler implements ApiHandler {
 				text: `[ERROR] Model stream error: ${chunk.modelStreamErrorException.message}`,
 			}
 		} else if (chunk.validationException) {
+			// Check if this is a context window error - if so, throw it
+			// so the retry mechanism can handle truncation
+			const message = chunk.validationException.message || ""
+			const isContextError = /input.*too long|context.*exceed|maximum.*token|input length.*max.*tokens/i.test(message)
+
+			if (isContextError) {
+				// Throw as exception so context management can handle it
+				throw chunk.validationException
+			}
+
+			// Otherwise yield as error text
 			yield {
 				type: "text",
-				text: `[ERROR] Validation error: ${chunk.validationException.message}`,
+				text: `[ERROR] Validation error: ${message}`,
 			}
 		} else if (chunk.throttlingException) {
 			yield {
@@ -741,7 +771,11 @@ export class AwsBedrockHandler implements ApiHandler {
 	 */
 	private shouldEnableReasoning(baseModelId: string, budgetTokens: number): boolean {
 		return (
-			(baseModelId.includes("3-7") || baseModelId.includes("sonnet-4") || baseModelId.includes("opus-4")) &&
+			(baseModelId.includes("3-7") ||
+				baseModelId.includes("sonnet-4") ||
+				baseModelId.includes("opus-4") ||
+				baseModelId.includes("haiku-4-5") ||
+				baseModelId.includes("sonnet-4-5")) &&
 			budgetTokens !== 0
 		)
 	}
@@ -752,7 +786,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	 */
 	private async *createAnthropicMessage(
 		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
+		messages: ClineStorageMessage[],
 		modelId: string,
 		model: { id: string; info: ModelInfo },
 		enable1mContextWindow: boolean,
@@ -808,7 +842,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * Formats messages for models using the Converse API specification
 	 * Used by both Anthropic and Nova models to avoid code duplication
 	 */
-	private formatMessagesForConverseAPI(messages: Anthropic.Messages.MessageParam[]): Message[] {
+	private formatMessagesForConverseAPI(messages: ClineStorageMessage[]): Message[] {
 		return messages.map((message) => {
 			// Determine role (user or assistant)
 			const role = message.role === "user" ? ConversationRole.USER : ConversationRole.ASSISTANT
@@ -941,7 +975,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	 */
 	private async *createNovaMessage(
 		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
+		messages: ClineStorageMessage[],
 		modelId: string,
 		model: { id: string; info: ModelInfo },
 	): ApiStream {
@@ -981,7 +1015,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	 */
 	private async *createOpenAIMessage(
 		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
+		messages: ClineStorageMessage[],
 		modelId: string,
 		model: { id: string; info: ModelInfo },
 	): ApiStream {
@@ -1095,6 +1129,141 @@ export class AwsBedrockHandler implements ApiHandler {
 
 			// Try to extract more detailed error information
 			let errorMessage = "Failed to process OpenAI model request"
+			if (error instanceof Error) {
+				errorMessage = error.message
+				// Check for specific AWS SDK errors
+				if ("name" in error) {
+					errorMessage = `${error.name}: ${error.message}`
+				}
+			}
+
+			yield {
+				type: "text",
+				text: `[ERROR] ${errorMessage}`,
+			}
+		}
+	}
+
+	/**
+	 * Creates a message using Qwen models through AWS Bedrock
+	 * Uses non-streaming Converse API and simulates streaming for models that don't support it
+	 */
+	private async *createQwenMessage(
+		systemPrompt: string,
+		messages: ClineStorageMessage[],
+		modelId: string,
+		model: { id: string; info: ModelInfo },
+	): ApiStream {
+		// Get Bedrock client with proper credentials
+		const client = await this.getBedrockClient()
+
+		// Format messages for Converse API
+		const formattedMessages = this.formatMessagesForConverseAPI(messages)
+
+		// Prepare system message
+		const systemMessages = systemPrompt ? [{ text: systemPrompt }] : undefined
+
+		// Prepare the non-streaming Converse command
+		const command = new ConverseCommand({
+			modelId: modelId,
+			messages: formattedMessages,
+			system: systemMessages,
+			inferenceConfig: {
+				maxTokens: model.info.maxTokens || 8192,
+				temperature: 0,
+			},
+		})
+
+		try {
+			// Track token usage
+			const inputTokenEstimate = this.estimateInputTokens(systemPrompt, messages)
+			let outputTokens = 0
+
+			// Execute the non-streaming request
+			const response = await client.send(command)
+
+			// Extract the complete response text and reasoning content
+			let fullText = ""
+			let reasoningText = ""
+
+			if (response.output?.message?.content) {
+				for (const contentBlock of response.output.message.content) {
+					// Check for reasoning content first
+					if ("reasoningContent" in contentBlock && contentBlock.reasoningContent) {
+						// Handle nested reasoning structure
+						const reasoning = contentBlock.reasoningContent
+						if ("reasoningText" in reasoning && reasoning.reasoningText && "text" in reasoning.reasoningText) {
+							reasoningText += reasoning.reasoningText.text
+						}
+					}
+					// Handle regular text content
+					else if ("text" in contentBlock && contentBlock.text) {
+						fullText += contentBlock.text
+					}
+				}
+			}
+
+			// If we have actual usage data from the response, use it
+			if (response.usage) {
+				const actualInputTokens = response.usage.inputTokens || inputTokenEstimate
+				const actualOutputTokens = response.usage.outputTokens || this.estimateTokenCount(fullText + reasoningText)
+				outputTokens = actualOutputTokens
+
+				// Report actual usage after processing content
+				const actualCost = calculateApiCostQwen(model.info, actualInputTokens, actualOutputTokens, 0, 0)
+				yield {
+					type: "usage",
+					inputTokens: actualInputTokens,
+					outputTokens: actualOutputTokens,
+					totalCost: actualCost,
+				}
+			} else {
+				// Estimate output tokens if not provided (includes both regular text and reasoning)
+				outputTokens = this.estimateTokenCount(fullText + reasoningText)
+			}
+
+			// Yield reasoning content first if present
+			if (reasoningText) {
+				const reasoningChunkSize = 1000 // Characters per chunk
+				for (let i = 0; i < reasoningText.length; i += reasoningChunkSize) {
+					const chunk = reasoningText.slice(i, Math.min(i + reasoningChunkSize, reasoningText.length))
+
+					yield {
+						type: "reasoning",
+						reasoning: chunk,
+					}
+				}
+			}
+
+			// Simulate streaming by chunking the response text
+			if (fullText) {
+				const chunkSize = 1000 // Characters per chunk
+
+				for (let i = 0; i < fullText.length; i += chunkSize) {
+					const chunk = fullText.slice(i, Math.min(i + chunkSize, fullText.length))
+
+					yield {
+						type: "text",
+						text: chunk,
+					}
+				}
+			}
+
+			// Report final usage if we didn't have actual usage data earlier
+			if (!response.usage) {
+				const finalCost = calculateApiCostQwen(model.info, inputTokenEstimate, outputTokens, 0, 0)
+				yield {
+					type: "usage",
+					inputTokens: inputTokenEstimate,
+					outputTokens: outputTokens,
+					totalCost: finalCost,
+				}
+			}
+		} catch (error) {
+			console.error("Error with Qwen model via Converse API:", error)
+
+			// Try to extract more detailed error information
+			let errorMessage = "Failed to process Qwen model request"
 			if (error instanceof Error) {
 				errorMessage = error.message
 				// Check for specific AWS SDK errors

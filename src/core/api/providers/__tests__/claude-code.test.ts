@@ -1,8 +1,8 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import sinon from "sinon"
 import "should"
 import { ClaudeCodeHandler } from "@core/api/providers/claude-code"
+import { ClineStorageMessage } from "@/shared/messages/content"
 
 describe("ClaudeCodeHandler", () => {
 	let handler: ClaudeCodeHandler
@@ -12,7 +12,7 @@ describe("ClaudeCodeHandler", () => {
 		sandbox = sinon.createSandbox()
 		handler = new ClaudeCodeHandler({
 			claudeCodePath: "/mock/path",
-			apiModelId: "claude-3-5-sonnet-20241022",
+			apiModelId: "claude-opus-4-1-20250805",
 		})
 	})
 
@@ -71,7 +71,7 @@ describe("ClaudeCodeHandler", () => {
 			runClaudeCodeStub.returns(mockGenerator() as any)
 
 			const systemPrompt = "You are a helpful assistant."
-			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Hello" }]
+			const messages: ClineStorageMessage[] = [{ role: "user", content: "Hello" }]
 
 			const usageData: any[] = []
 
@@ -140,7 +140,7 @@ describe("ClaudeCodeHandler", () => {
 			runClaudeCodeStub.returns(mockGenerator() as any)
 
 			const systemPrompt = "You are a helpful assistant."
-			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Hello" }]
+			const messages: ClineStorageMessage[] = [{ role: "user", content: "Hello" }]
 
 			const usageData: any[] = []
 
@@ -199,7 +199,7 @@ describe("ClaudeCodeHandler", () => {
 			runClaudeCodeStub.returns(mockGenerator() as any)
 
 			const systemPrompt = "You are a helpful assistant."
-			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Hello" }]
+			const messages: ClineStorageMessage[] = [{ role: "user", content: "Hello" }]
 
 			const usageData: any[] = []
 
@@ -229,11 +229,11 @@ describe("ClaudeCodeHandler", () => {
 	describe("getModel", () => {
 		it("should return the correct model when specified", () => {
 			const handler = new ClaudeCodeHandler({
-				apiModelId: "claude-3-5-sonnet-20241022",
+				apiModelId: "claude-sonnet-4-5-20250929",
 			})
 
 			const model = handler.getModel()
-			model.id.should.equal("claude-3-5-sonnet-20241022")
+			model.id.should.equal("claude-sonnet-4-5-20250929")
 		})
 
 		it("should return default model when not specified", () => {

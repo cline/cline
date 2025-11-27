@@ -35,8 +35,16 @@ class StandaloneTerminalProcess extends EventEmitter {
 			// Spawn the process
 			this.childProcess = spawn(shell, shellArgs, {
 				cwd: cwd,
-				stdio: ["pipe", "pipe", "pipe"],
-				env: { ...process.env, TERM: "xterm-256color" },
+				stdio: ["ignore", "pipe", "pipe"], // Disable STDIN to prevent interactivity
+				env: {
+					...process.env,
+					TERM: "xterm-256color",
+					PAGER: "cat", // Prevent less from being used, reducing interactivity
+					EDITOR: process.env.EDITOR || "cat", // Set EDITOR if not already set
+					GIT_PAGER: "cat", // Prevent git from using less
+					SYSTEMD_PAGER: "", // Disable systemd pager
+					MANPAGER: "cat", // Disable man pager
+				},
 			})
 
 			// Track process state
@@ -202,17 +210,38 @@ class StandaloneTerminalProcess extends EventEmitter {
 
 	// Terminate the process if it's still running
 	terminate() {
-		if (this.childProcess && !this.isCompleted) {
-			console.log(`[StandaloneTerminal] Terminating process ${this.childProcess.pid}`)
+		if (!this.childProcess || this.isCompleted) {
+			console.log(`[StandaloneTerminal] Process already completed or doesn't exist, skipping termination`)
+			return
+		}
+
+		const pid = this.childProcess.pid
+		console.log(`[StandaloneTerminal] Terminating process ${pid} with SIGTERM`)
+
+		try {
 			this.childProcess.kill("SIGTERM")
 
-			// Force kill after timeout
+			// Force kill after timeout if process doesn't exit gracefully
 			setTimeout(() => {
-				if (!this.isCompleted) {
-					console.log(`[StandaloneTerminal] Force killing process ${this.childProcess.pid}`)
-					this.childProcess.kill("SIGKILL")
+				if (!this.isCompleted && this.childProcess) {
+					console.log(`[StandaloneTerminal] Process ${pid} did not exit gracefully, force killing with SIGKILL`)
+					try {
+						this.childProcess.kill("SIGKILL")
+					} catch (killError) {
+						console.error(`[StandaloneTerminal] Failed to force kill process ${pid}:`, killError)
+					}
+				} else {
+					console.log(`[StandaloneTerminal] Process ${pid} exited gracefully`)
 				}
 			}, 5000)
+		} catch (error) {
+			console.error(`[StandaloneTerminal] Failed to send SIGTERM to process ${pid}:`, error)
+			// Try SIGKILL immediately if SIGTERM fails
+			try {
+				this.childProcess.kill("SIGKILL")
+			} catch (killError) {
+				console.error(`[StandaloneTerminal] Failed to send SIGKILL to process ${pid}:`, killError)
+			}
 		}
 	}
 }
@@ -340,6 +369,7 @@ class StandaloneTerminalManager {
 		this.shellIntegrationTimeout = 4000
 		this.terminalReuseEnabled = true
 		this.terminalOutputLineLimit = 500
+		this.subagentTerminalOutputLineLimit = 2000
 		this.defaultTerminalProfile = "default"
 	}
 
@@ -436,9 +466,10 @@ class StandaloneTerminalManager {
 		return process ? process.isHot : false
 	}
 
-	processOutput(outputLines) {
-		if (outputLines.length > this.terminalOutputLineLimit) {
-			const halfLimit = Math.floor(this.terminalOutputLineLimit / 2)
+	processOutput(outputLines, overrideLimit, isSubagentCommand) {
+		const limit = isSubagentCommand && overrideLimit ? overrideLimit : this.terminalOutputLineLimit
+		if (outputLines.length > limit) {
+			const halfLimit = Math.floor(limit / 2)
 			const start = outputLines.slice(0, halfLimit)
 			const end = outputLines.slice(outputLines.length - halfLimit)
 			return `${start.join("\n")}\n... (output truncated) ...\n${end.join("\n")}`.trim()
@@ -484,6 +515,12 @@ class StandaloneTerminalManager {
 		console.log(`[StandaloneTerminalManager] Set terminal output line limit to ${limit}`)
 	}
 
+	// Set subagent terminal output line limit (compatibility method)
+	setSubagentTerminalOutputLineLimit(limit) {
+		this.subagentTerminalOutputLineLimit = limit
+		console.log(`[StandaloneTerminalManager] Set subagent terminal output line limit to ${limit}`)
+	}
+
 	// Set default terminal profile (compatibility method)
 	setDefaultTerminalProfile(profile) {
 		this.defaultTerminalProfile = profile
@@ -503,6 +540,17 @@ class StandaloneTerminalManager {
 				const value = descriptor.value.bind(promise)
 				Reflect.defineProperty(process, property, { ...descriptor, value })
 			}
+		}
+
+		// Ensure terminate() is accessible on the merged promise
+		// This allows Task.cancelBackgroundCommand() to kill the process
+		if (process.terminate && typeof process.terminate === "function") {
+			Object.defineProperty(process, "terminate", {
+				value: process.terminate.bind(process),
+				writable: false,
+				enumerable: false,
+				configurable: false,
+			})
 		}
 
 		return process

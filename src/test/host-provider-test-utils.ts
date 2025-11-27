@@ -14,13 +14,19 @@ export function setVscodeHostProviderMock(options?: {
 	hostBridgeClient?: HostBridgeClientProvider
 	logToChannel?: (message: string) => void
 	getCallbackUri?: () => Promise<string>
+	getBinaryLocation?: (name: string) => Promise<string>
+	extensionFsPath?: string
+	globalStorageFsPath?: string
 }) {
 	HostProvider.reset()
 	HostProvider.initialize(
-		options?.webviewProviderCreator ?? (((_) => {}) as WebviewProviderCreator),
+		options?.webviewProviderCreator ?? ((() => {}) as WebviewProviderCreator),
 		options?.diffViewProviderCreator ?? ((() => {}) as DiffViewProviderCreator),
 		options?.hostBridgeClient ?? vscodeHostBridgeClient,
 		options?.logToChannel ?? ((_) => {}),
 		options?.getCallbackUri ?? (async () => "http://example.com:1234/"),
+		options?.getBinaryLocation ?? (async (n) => `/mock/path/to/binary/${n}`),
+		options?.extensionFsPath ?? "/mock/path/to/extension",
+		options?.globalStorageFsPath ?? "/mock/path/to/globalstorage",
 	)
 }

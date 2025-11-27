@@ -1,0 +1,70 @@
+---
+title: "Overview"
+description: "Install the CLI, run your first task, and learn to automate code reviews and integrate AI agents into your development workflow"
+---
+
+<Warning>
+**Preview Release - macOS and Linux Only**
+
+Cline CLI is currently in preview and only available for macOS and Linux users. Windows support is coming soon.
+</Warning>
+
+## What is Cline CLI?
+
+Cline CLI runs AI coding agents directly in your terminal. Pipe git diffs for automated code reviews in CI/CD, run multiple instances simultaneously for parallel development, or integrate Cline into your existing shell workflows.
+
+The CLI tracks instances across your system and outputs in formats designed for both humans and scripts—JSON, plain text, or rich terminal output.
+
+<Tip>
+Ready to get started? Check out the [installation guide](/cline-cli/installation) to install Cline CLI and run your first task.
+</Tip>
+
+## Supported Model Providers
+
+Cline CLI supports multiple AI model providers, giving you flexibility in choosing the best model for your needs:
+
+- **Anthropic**
+- **OpenAI**
+- **OpenAI Compatible**
+- **OpenRouter**
+- **X AI (Grok)**
+- **AWS Bedrock**
+- **Google Gemini**
+- **Ollama**
+- **Cerebras**
+
+During installation, you'll authenticate and configure your preferred provider using the `cline auth` command.
+
+## What you can build with this
+
+**Automated code maintenance**
+- Schedule daily runs to identify and fix linting issues across your codebase
+- Create tasks that scan for security vulnerabilities and automatically patch them
+- Build scripts that update deprecated dependencies and run tests
+
+**Multi-instance development**
+- Run separate Cline instances for frontend and backend simultaneously
+- Spawn instances for different feature branches, each with isolated state
+- Create parallel review processes for multiple PRs
+
+**Custom workflows**
+- Build shell scripts that combine Cline with git hooks for pre-commit analysis
+- Create custom commands that pipe complex data structures through Cline for processing
+- Integrate with your existing toolchain (jq, grep, awk) for sophisticated automation
+
+**CI/CD integration**
+- Add Cline to GitHub Actions for automatic code review on every PR
+- Create GitLab pipelines that generate migration scripts from schema changes
+- Build Jenkins jobs that use Cline to analyze test failures and suggest fixes
+
+## Learn more
+
+<Columns cols={2}>
+  <Card title="Installation" icon="download" href="/cline-cli/installation">
+    Install Cline CLI and authenticate with your account to get started.
+  </Card>
+  
+  <Card title="Three Core Flows" icon="route" href="/cline-cli/three-core-flows">
+    Master the three ways to use Cline CLI: interactive mode, headless automation, and multi-instance parallelization.
+  </Card>
+</Columns>

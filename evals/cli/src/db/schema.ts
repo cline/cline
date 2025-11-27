@@ -5,7 +5,6 @@ export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS runs (
   id TEXT PRIMARY KEY,
   timestamp INTEGER NOT NULL,
-  model TEXT NOT NULL,
   benchmark TEXT NOT NULL,
   completed INTEGER NOT NULL DEFAULT 0
 );

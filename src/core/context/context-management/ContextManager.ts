@@ -108,15 +108,22 @@ export class ContextManager {
 	/**
 	 * Determine whether we should compact context window, based on token counts
 	 */
-	shouldCompactContextWindow(clineMessages: ClineMessage[], api: ApiHandler, previousApiReqIndex: number): boolean {
+	shouldCompactContextWindow(
+		clineMessages: ClineMessage[],
+		api: ApiHandler,
+		previousApiReqIndex: number,
+		thresholdPercentage?: number,
+	): boolean {
 		if (previousApiReqIndex >= 0) {
 			const previousRequest = clineMessages[previousApiReqIndex]
 			if (previousRequest && previousRequest.text) {
 				const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequest.text)
 				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 
-				const { maxAllowedSize } = getContextWindowInfo(api)
-				return totalTokens >= maxAllowedSize
+				const { contextWindow, maxAllowedSize } = getContextWindowInfo(api)
+				const roundedThreshold = thresholdPercentage ? Math.floor(contextWindow * thresholdPercentage) : maxAllowedSize
+				const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize)
+				return totalTokens >= thresholdTokens
 			}
 		}
 		return false
@@ -291,7 +298,7 @@ export class ContextManager {
 
 		// Make sure that the last message being removed is a assistant message, so the next message after the initial user-assistant pair is an assistant message. This preserves the user-assistant-user-assistant structure.
 		// NOTE: anthropic format messages are always user-assistant-user-assistant, while openai format messages can have multiple user messages in a row (we use anthropic format throughout cline)
-		if (apiMessages[rangeEndIndex].role !== "assistant") {
+		if (apiMessages[rangeEndIndex] && apiMessages[rangeEndIndex].role !== "assistant") {
 			rangeEndIndex -= 1
 		}
 
@@ -322,8 +329,119 @@ export class ContextManager {
 
 		const updatedMessages = this.applyContextHistoryUpdates(messages, deletedRange ? deletedRange[1] + 1 : 2)
 
+		// Validate and fix tool_use/tool_result pairing
+		this.ensureToolResultsFollowToolUse(updatedMessages)
+
 		// OLD NOTE: if you try to console log these, don't forget that logging a reference to an array may not provide the same result as logging a slice() snapshot of that array at that exact moment. The following DOES in fact include the latest assistant message.
 		return updatedMessages
+	}
+
+	/**
+	 * Ensures that every tool_use block in assistant messages has a corresponding tool_result in the next user message,
+	 * and that tool_result blocks immediately follow their corresponding tool_use blocks
+	 */
+	private ensureToolResultsFollowToolUse(messages: Anthropic.Messages.MessageParam[]): void {
+		for (let i = 0; i < messages.length - 1; i++) {
+			const message = messages[i]
+
+			// Only process assistant messages with content
+			if (message.role !== "assistant" || !Array.isArray(message.content)) {
+				continue
+			}
+
+			// Extract tool_use IDs in order
+			const toolUseIds: string[] = []
+			for (const block of message.content) {
+				if (block.type === "tool_use" && block.id) {
+					toolUseIds.push(block.id)
+				}
+			}
+
+			// Skip if no tool_use blocks found
+			if (toolUseIds.length === 0) {
+				continue
+			}
+
+			const nextMessage = messages[i + 1]
+
+			// Skip if next message is not a user message
+			if (nextMessage.role !== "user") {
+				continue
+			}
+
+			// Ensure content is an array
+			if (!Array.isArray(nextMessage.content)) {
+				nextMessage.content = []
+			}
+
+			// Separate tool_results from other blocks in a single pass
+			const toolResultMap = new Map<string, Anthropic.Messages.ToolResultBlockParam>()
+			const otherBlocks: Anthropic.Messages.ContentBlockParam[] = []
+			let needsUpdate = false
+
+			for (const block of nextMessage.content) {
+				if (block.type === "tool_result" && block.tool_use_id) {
+					toolResultMap.set(block.tool_use_id, block)
+				} else {
+					otherBlocks.push(block)
+				}
+			}
+
+			// Check if reordering is needed (tool_results not at start in correct order)
+			if (toolResultMap.size > 0) {
+				let expectedIndex = 0
+				for (let j = 0; j < nextMessage.content.length && expectedIndex < toolUseIds.length; j++) {
+					const block = nextMessage.content[j]
+					if (block.type === "tool_result" && block.tool_use_id === toolUseIds[expectedIndex]) {
+						expectedIndex++
+					} else if (block.type === "tool_result" || expectedIndex < toolUseIds.length) {
+						needsUpdate = true
+						break
+					}
+				}
+				if (!needsUpdate && expectedIndex < toolResultMap.size) {
+					needsUpdate = true
+				}
+			}
+
+			// Add missing tool_results
+			for (const toolUseId of toolUseIds) {
+				if (!toolResultMap.has(toolUseId)) {
+					toolResultMap.set(toolUseId, {
+						type: "tool_result",
+						tool_use_id: toolUseId,
+						content: "result missing",
+					})
+					needsUpdate = true
+				}
+			}
+
+			// Only modify if changes are needed
+			if (!needsUpdate) {
+				continue
+			}
+
+			// Build new content: tool_results first (in toolUseIds order), then other blocks
+			const newContent: Anthropic.Messages.ContentBlockParam[] = []
+
+			// Add tool_results in the order of toolUseIds
+			const processedToolResults = new Set<string>()
+			for (const toolUseId of toolUseIds) {
+				const toolResult = toolResultMap.get(toolUseId)
+				if (toolResult) {
+					newContent.push(toolResult)
+					processedToolResults.add(toolUseId)
+				}
+			}
+
+			// Add all other blocks
+			newContent.push(...otherBlocks)
+
+			// Clone and update the message
+			const clonedMessage = cloneDeep(nextMessage)
+			clonedMessage.content = newContent
+			messages[i + 1] = clonedMessage
+		}
 	}
 
 	/**
@@ -338,6 +456,21 @@ export class ContextManager {
 		const firstChunk = messages.slice(0, 2) // get first user-assistant pair
 		const secondChunk = messages.slice(startFromIndex) // get remaining messages within context
 		const messagesToUpdate = [...firstChunk, ...secondChunk]
+
+		// Remove orphaned tool_results from the first message after truncation (if it's a user message)
+		if (startFromIndex > 2 && messagesToUpdate.length > 2) {
+			const firstMessageAfterTruncation = messagesToUpdate[2]
+			if (firstMessageAfterTruncation.role === "user" && Array.isArray(firstMessageAfterTruncation.content)) {
+				const hasToolResults = firstMessageAfterTruncation.content.some((block) => block.type === "tool_result")
+				if (hasToolResults) {
+					// Clone and filter out all tool_result blocks
+					messagesToUpdate[2] = cloneDeep(firstMessageAfterTruncation)
+					;(messagesToUpdate[2].content as Anthropic.Messages.ContentBlockParam[]) = (
+						firstMessageAfterTruncation.content as Anthropic.Messages.ContentBlockParam[]
+					).filter((block) => block.type !== "tool_result")
+				}
+			}
+		}
 
 		// we need the mapping from the local indices in messagesToUpdate to the global array of updates in this.contextHistoryUpdates
 		const originalIndices = [
@@ -506,7 +639,7 @@ export class ContextManager {
 				}
 
 				if (firstUserMessage) {
-					const processedFirstUserMessage = formatResponse.processFirstUserMessageForTruncation(firstUserMessage)
+					const processedFirstUserMessage = formatResponse.processFirstUserMessageForTruncation()
 
 					const innerMap = new Map<number, ContextUpdate[]>()
 					innerMap.set(0, [[timestamp, "text", [processedFirstUserMessage], []]])

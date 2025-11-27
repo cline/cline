@@ -1,34 +1,40 @@
 syntax = "proto3";
 
 package host;
-option java_package = "bot.cline.host.proto";
-option java_multiple_files = true;
 
 import "cline/common.proto";
+
+option go_package = "github.com/cline/grpc-go/host";
+option java_multiple_files = true;
+option java_package = "bot.cline.host.proto";
 
 // Provides methods for working with workspaces/projects.
 service WorkspaceService {
   // Returns a list of the top level directories of the workspace.
   rpc getWorkspacePaths(GetWorkspacePathsRequest) returns (GetWorkspacePathsResponse);
 
-  // Saves an open document if it's open in the editor and has unsaved changes. 
+  // Saves an open document if it's open in the editor and has unsaved changes.
   // Returns true if the document was saved, returns false if the document was not found, or did not
   // need to be saved.
   rpc saveOpenDocumentIfDirty(SaveOpenDocumentIfDirtyRequest) returns (SaveOpenDocumentIfDirtyResponse);
 
   // Get diagnostics from the workspace.
   rpc getDiagnostics(GetDiagnosticsRequest) returns (GetDiagnosticsResponse);
-  // Returns workspace items (files/folders) matching a query for mention autocomplete
-  rpc searchWorkspaceItems(SearchWorkspaceItemsRequest) returns (SearchWorkspaceItemsResponse);
 
   // Makes the problems panel/pane visible in the IDE and focuses it.
   rpc openProblemsPanel(OpenProblemsPanelRequest) returns (OpenProblemsPanelResponse);
 
   // Opens the IDE file explorer panel and selects a file or directory.
-  rpc openInFileExplorerPanel(OpenInFileExplorerPanelRequest) returns (OpenInFileExplorerPanelResponse); 
+  rpc openInFileExplorerPanel(OpenInFileExplorerPanelRequest) returns (OpenInFileExplorerPanelResponse);
 
   // Opens and focuses the Cline sidebar panel in the host IDE.
   rpc openClineSidebarPanel(OpenClineSidebarPanelRequest) returns (OpenClineSidebarPanelResponse);
+
+  // Opens and focuses the terminal panel.
+  rpc openTerminalPanel(OpenTerminalRequest) returns (OpenTerminalResponse);
+
+  // Executes a command in a new terminal
+  rpc executeCommandInTerminal(ExecuteCommandInTerminalRequest) returns (ExecuteCommandInTerminalResponse);
 }
 
 message GetWorkspacePathsRequest {
@@ -48,7 +54,7 @@ message SaveOpenDocumentIfDirtyRequest {
   optional string file_path = 2;
 }
 message SaveOpenDocumentIfDirtyResponse {
-  // Returns true if the document was saved. 
+  // Returns true if the document was saved.
   optional bool was_saved = 1;
 }
 
@@ -62,8 +68,8 @@ message GetDiagnosticsResponse {
 
 // Request for host-side workspace search (files/folders) used by mentions autocomplete
 message SearchWorkspaceItemsRequest {
-  string query = 1;                    // Search query string
-  optional int32 limit = 2;            // Optional limit for results (default decided by host)
+  string query = 1; // Search query string
+  optional int32 limit = 2; // Optional limit for results (default decided by host)
   // Optional selected type filter
   enum SearchItemType {
     FILE = 0;
@@ -75,21 +81,29 @@ message SearchWorkspaceItemsRequest {
 // Response for host-side workspace search
 message SearchWorkspaceItemsResponse {
   message SearchItem {
-    string path = 1;                    // Workspace-relative path using platform separators
+    string path = 1; // Workspace-relative path using platform separators
     SearchWorkspaceItemsRequest.SearchItemType type = 2;
-    optional string label = 3;          // Optional display label (e.g., basename)
+    optional string label = 3; // Optional display label (e.g., basename)
   }
   repeated SearchItem items = 1;
 }
 
 message OpenProblemsPanelRequest {}
 message OpenProblemsPanelResponse {}
-
 message OpenInFileExplorerPanelRequest {
   string path = 1;
 }
 message OpenInFileExplorerPanelResponse {}
-
-// Request/response for opening the Cline sidebar
 message OpenClineSidebarPanelRequest {}
 message OpenClineSidebarPanelResponse {}
+message OpenTerminalRequest {}
+message OpenTerminalResponse {}
+
+// Execute a command in the terminal
+message ExecuteCommandInTerminalRequest {
+  string command = 1; // The command to execute
+}
+
+message ExecuteCommandInTerminalResponse {
+  bool success = 1; // Whether the command was successfully sent to the terminal
+}

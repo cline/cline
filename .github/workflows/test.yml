@@ -1,6 +1,9 @@
 name: Tests
 
 on:
+    push:
+        branches:
+            - main
     workflow_dispatch:
     pull_request:
         branches:
@@ -14,7 +17,45 @@ permissions:
     pull-requests: write # Needed to add comments/annotations to PRs
 
 jobs:
+    quality-checks:
+        runs-on: ubuntu-latest
+        name: Quality Checks
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js environment
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+
+            - name: Cache root dependencies
+              uses: actions/cache@v4
+              id: root-cache
+              with:
+                  path: node_modules
+                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+
+            - name: Cache webview-ui dependencies
+              uses: actions/cache@v4
+              id: webview-cache
+              with:
+                  path: webview-ui/node_modules
+                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+
+            - name: Install root dependencies
+              if: steps.root-cache.outputs.cache-hit != 'true'
+              run: npm ci
+
+            - name: Install webview-ui dependencies
+              if: steps.webview-cache.outputs.cache-hit != 'true'
+              run: cd webview-ui && npm ci
+
+            - name: Run Quality Checks (Parallel)
+              run: npm run ci:check-all
+
     test:
+        needs: quality-checks
         strategy:
             fail-fast: false
             matrix:
@@ -33,18 +74,6 @@ jobs:
               with:
                   node-version: 22
 
-            # Setup Python for coverage script
-            - name: Setup Python
-              uses: actions/setup-python@v4
-              with:
-                  python-version: "3.10"
-
-            - name: Install Python dependencies
-              run: |
-                  python -m pip install --upgrade pip
-                  pip install requests
-
-            # Cache root dependencies - only reuse if package-lock.json exactly matches
             - name: Cache root dependencies
               uses: actions/cache@v4
               id: root-cache
@@ -52,7 +81,6 @@ jobs:
                   path: node_modules
                   key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
 
-            # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
             - name: Cache webview-ui dependencies
               uses: actions/cache@v4
               id: webview-cache
@@ -68,54 +96,45 @@ jobs:
               if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
-            - name: Install xvfb on Linux
-              if: runner.os == 'Linux'
-              run: sudo apt-get update && sudo apt-get install -y xvfb
-              
             - name: Set up NPM on Windows
               if: runner.os == 'Windows'
               run: |
                   npm config set script-shell "C:\\Program Files\\Git\\bin\\bash.exe"
 
-            - name: Type Check
-              run: npm run check-types
-
-            - name: Lint Check
-              run: npm run lint
-
-            - name: Format Check
-              run: npm run format
-
-            # Build the extension before running tests
+            # Build the extension and tests (without redundant checks)
             - name: Build Tests and Extension
-              run: npm run pretest
+              id: build_step
+              run: npm run ci:build
 
-            - name: Unit Tests
-              run: npm run test:unit
-
-            # Run extension tests with coverage
-            - name: Extension Integration Tests with Coverage
-              id: extension_coverage
-              continue-on-error: true
+            - name: Unit Tests with coverage - Linux
+              id: unit_tests_linux
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os == 'Linux' }}
               run: |
-                  node ./scripts/test-ci.js 2>&1 | tee extension_coverage.txt
-                  # Default the encoding to UTF-8 - It's not the default on Windows
-                  PYTHONUTF8=1 PYTHONPATH=.github/scripts python -m coverage_check extract-coverage extension_coverage.txt --type=extension --github-output --verbose
+                  npx nyc --nycrc-path .nycrc.unit.json --reporter=lcov npm run test:unit
 
-            # Run webview tests with coverage
+            - name: Unit Tests - Non-Linux
+              id: unit_tests_non_linux
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os != 'Linux' }}
+              run: |
+                  npm run test:unit
+
+            - name: Extension Integration Tests - Linux
+              id: integration_tests_linux
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os == 'Linux' }}
+              run: xvfb-run -a npm run test:coverage
+
+            - name: Extension Integration Tests - Non-Linux
+              id: integration_tests_non_linux
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os != 'Linux' }}
+              run: npm run test:integration
+
             - name: Webview Tests with Coverage
-              id: webview_coverage
-              continue-on-error: true
+              id: webview_tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
               run: |
                   cd webview-ui
-                  # Ensure coverage dependency is installed
-                  npm install --no-save @vitest/coverage-v8
-                  npm run test:coverage 2>&1 | tee webview_coverage.txt
-                  cd ..
-                  # Default the encoding to UTF-8 - It's not the default on Windows
-                  PYTHONUTF8=1 PYTHONPATH=.github/scripts python -m coverage_check extract-coverage webview-ui/webview_coverage.txt --type=webview --github-output --verbose
+                  npm run test:coverage
 
-            # Save coverage reports as artifacts (workflow-scoped)
             - name: Save Coverage Reports
               uses: actions/upload-artifact@v4
               # Only upload artifacts on Linux - We only need coverage from one OS
@@ -123,52 +142,21 @@ jobs:
               with:
                   name: pr-coverage-reports
                   path: |
-                      extension_coverage.txt
-                      webview-ui/webview_coverage.txt
+                      coverage-unit/lcov.info
+                      webview-ui/coverage/lcov.info
 
-            # Set the check as failed if any of the tests failed
-            - name: Check for test failures
-              run: |
-                  # Check if any of the test steps failed
-                  # https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/accessing-contextual-information-about-workflow-runs#steps-context
-                  if [ "${{ steps.extension_coverage.outcome }}" != "success" ]; then
-                      echo "Extension Integration Tests failed, see previous step for test output."
-                  fi
-                  if [ "${{ steps.webview_coverage.outcome }}" != "success" ]; then
-                      echo "Webview Tests failed, see previous step for test output."
-                  fi
-                  if [ "${{ steps.extension_coverage.outcome }}" != "success" ] || [ "${{ steps.webview_coverage.outcome }}" != "success" ]; then
-                      exit 1
-                  fi
-
-    coverage:
-        needs: test
+    test-platform-integration:
+        needs: quality-checks
         runs-on: ubuntu-latest
-        # Only run on PRs to main branch
-        if: github.event_name == 'pull_request' && github.base_ref == 'main'
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
-              with:
-                  fetch-depth: 0 # Fetch all history for accurate comparison
-
-            # Setup Python for coverage script
-            - name: Setup Python
-              uses: actions/setup-python@v4
-              with:
-                  python-version: "3.10"
-
-            - name: Install Python dependencies
-              run: |
-                  python -m pip install --upgrade pip
-                  pip install requests
 
             - name: Setup Node.js environment
               uses: actions/setup-node@v4
               with:
                   node-version: 22
-
-            # Cache root dependencies - only reuse if package-lock.json exactly matches
+                  
             - name: Cache root dependencies
               uses: actions/cache@v4
               id: root-cache
@@ -176,13 +164,20 @@ jobs:
                   path: node_modules
                   key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
 
-            # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
             - name: Cache webview-ui dependencies
               uses: actions/cache@v4
               id: webview-cache
               with:
                   path: webview-ui/node_modules
                   key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+
+            # Cache testing-platform dependencies
+            - name: Cache testing-platform dependencies
+              uses: actions/cache@v4
+              id: testing-platform-cache
+              with:
+                path: testing-platform/node_modules
+                key: ${{ runner.os }}-npm-testing-platform-${{ hashFiles('testing-platform/package-lock.json') }}
 
             - name: Install root dependencies
               if: steps.root-cache.outputs.cache-hit != 'true'
@@ -192,30 +187,85 @@ jobs:
               if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
-            # Build the extension before running tests
-            - name: Build Extension
-              run: npm run compile
+            - name: Setup Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: '1.24'
+                  cache-dependency-path: cli/go.sum
 
-            # Download coverage artifacts from test job
-            - name: Download Coverage Reports
+            - name: Build CLI binaries
+              run: npm run compile-cli-all-platforms
+
+            - name: Download ripgrep binaries
+              run: npm run download-ripgrep
+
+            - name: Compile NPM package
+              run: npm run compile-standalone-npm
+
+            - name: Install testing platform dependencies
+              if: steps.testing-platform-cache.outputs.cache-hit != 'true'
+              run: cd testing-platform && npm ci
+
+            - name: Running testing platform integration spec tests
+              continue-on-error: true
+              timeout-minutes: 7
+              # Temporarily wrapping the test command to always return a neutral exit code.
+              # This prevents the job from showing as failed and avoids distracting developers
+              # until the integration tests are ready to be enforced.
+              run: |
+                npm run test:tp-orchestrator -- tests/specs/ --count=1 --coverage || true
+
+            - name: Save Coverage Reports
+              uses: actions/upload-artifact@v4
+              with:
+                name: test-platform-integration-core-coverage
+                path: coverage/**/lcov.info
+
+    qlty:
+        needs: [test, test-platform-integration]
+        runs-on: ubuntu-latest
+        # Run on PRs to main, pushes to main, and manual dispatches
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Download unit tests coverage reports
               uses: actions/download-artifact@v4
               with:
                   name: pr-coverage-reports
-                  path: . # Download to root directory to match expected paths
+                  path: .
 
-            # Process coverage workflow
-            - name: Process coverage workflow
-              id: coverage
-              run: |
-                  # Extract PR number from GITHUB_REF
-                  PR_NUMBER=$(echo "$GITHUB_REF" | sed -e 's/refs\/pull\///' -e 's/\/merge//')
+            - name: Upload core unit tests coverage to Qlty
+              uses: qltysh/qlty-action/coverage@v2
+              with:
+                  token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
+                  # we can merge multiple files if necessary
+                  files: |
+                    coverage-unit/lcov.info
+                  tag: unit:core
 
-                  # Run the coverage workflow from root directory
-                  PYTHONPATH=.github/scripts python -m coverage_check process-workflow \
-                    --base-branch ${{ github.base_ref }} \
-                    --pr-number $PR_NUMBER \
-                    --repo $GITHUB_REPOSITORY \
-                    --token ${{ secrets.GITHUB_TOKEN }} \
-                    --verbose
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            - name: Upload webview-ui unit tests coverage to Qlty
+              uses: qltysh/qlty-action/coverage@v2
+              with:
+                  token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
+                  # we can merge multiple files if necessary
+                  files: |
+                    webview-ui/coverage/lcov.info
+                  tag: unit:webview-ui
+                  add-prefix: webview-ui/
+
+            - name: Download test platform integration core coverage artifact
+              uses: actions/download-artifact@v4
+              continue-on-error: true
+              id: download-integration-coverage
+              with:
+                name: test-platform-integration-core-coverage
+                path: integration-core-coverage-reports
+
+            - name: Upload core integration tests coverage to Qlty
+              if: steps.download-integration-coverage.outcome == 'success'
+              uses: qltysh/qlty-action/coverage@v2
+              with:
+                token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
+                files: integration-core-coverage-reports/**/lcov.info
+                tag: integration:core

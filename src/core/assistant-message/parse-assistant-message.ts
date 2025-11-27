@@ -1,4 +1,5 @@
-import { AssistantMessageContent, TextContent, ToolParamName, ToolUse, ToolUseName, toolParamNames, toolUseNames } from "." // Assuming types are defined in index.ts or a similar file
+import { ClineDefaultTool, toolUseNames } from "@shared/tools"
+import { AssistantMessageContent, TextStreamContent, ToolParamName, ToolUse, toolParamNames } from "." // Assuming types are defined in index.ts or a similar file
 
 // parseAssistantmessageV1 removed in https://github.com/cline/cline/pull/5425
 
@@ -26,14 +27,14 @@ import { AssistantMessageContent, TextContent, ToolParamName, ToolUse, ToolUseNa
 export function parseAssistantMessageV2(assistantMessage: string): AssistantMessageContent[] {
 	const contentBlocks: AssistantMessageContent[] = []
 	let currentTextContentStart = 0 // Index where the current text block started
-	let currentTextContent: TextContent | undefined
+	let currentTextContent: TextStreamContent | undefined
 	let currentToolUseStart = 0 // Index *after* the opening tag of the current tool use
 	let currentToolUse: ToolUse | undefined
 	let currentParamValueStart = 0 // Index *after* the opening tag of the current param
 	let currentParamName: ToolParamName | undefined
 
 	// Precompute tags for faster lookups
-	const toolUseOpenTags = new Map<string, ToolUseName>()
+	const toolUseOpenTags = new Map<string, ClineDefaultTool>()
 	const toolParamOpenTags = new Map<string, ToolParamName>()
 	for (const name of toolUseNames) {
 		toolUseOpenTags.set(`<${name}>`, name)

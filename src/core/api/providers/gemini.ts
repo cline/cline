@@ -1,15 +1,25 @@
-import type { Anthropic } from "@anthropic-ai/sdk"
 // Restore GenerateContentConfig import and add GenerateContentResponseUsageMetadata
-import { type GenerateContentConfig, type GenerateContentResponseUsageMetadata, GoogleGenAI, Part } from "@google/genai"
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
+import {
+	ApiError,
+	FunctionCallingConfigMode,
+	type GenerateContentConfig,
+	type GenerateContentResponseUsageMetadata,
+	GoogleGenAI,
+	FunctionDeclaration as GoogleTool,
+	ThinkingLevel,
+} from "@google/genai"
 import { GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
+import { telemetryService } from "@/services/telemetry"
+import { ClineStorageMessage } from "@/shared/messages/content"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
-import { withRetry } from "../retry"
+import { RetriableError, withRetry } from "../retry"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
 
 // Define a default TTL for the cache (e.g., 15 minutes in seconds)
 const _DEFAULT_CACHE_TTL_SECONDS = 900
+
+const rateLimitPatterns = [/got status: 429/i, /429 Too Many Requests/i, /rate limit exceeded/i, /too many requests/i]
 
 interface GeminiHandlerOptions extends CommonApiHandlerOptions {
 	isVertex?: boolean
@@ -18,6 +28,7 @@ interface GeminiHandlerOptions extends CommonApiHandlerOptions {
 	geminiApiKey?: string
 	geminiBaseUrl?: string
 	thinkingBudgetTokens?: number
+	thinkingLevel?: string
 	apiModelId?: string
 	ulid?: string
 }
@@ -100,34 +111,49 @@ export class GeminiHandler implements ApiHandler {
 		baseDelay: 2000,
 		maxDelay: 15000,
 	})
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: GoogleTool[]): ApiStream {
 		const client = this.ensureClient()
 		const { id: modelId, info } = this.getModel()
 		const contents = messages.map(convertAnthropicMessageToGemini)
 
 		// Configure thinking budget if supported
-		const thinkingBudget = this.options.thinkingBudgetTokens ?? 0
-		const _maxBudget = info.thinkingConfig?.maxBudget ?? 0
+		const _thinkingBudget = this.options.thinkingBudgetTokens ?? 0
+		const maxBudget = info.thinkingConfig?.maxBudget ?? 24576
+		const thinkingBudget = Math.min(_thinkingBudget, maxBudget)
+		// When ThinkingLevel is defineded, thinking budget cannot be zero
+		// and only level is used to control thinking behavior.
+		let thinkingLevel: ThinkingLevel | undefined
+		if (this.options.thinkingLevel === "low") {
+			thinkingLevel = ThinkingLevel.LOW
+		} else if (this.options.thinkingLevel === "high") {
+			thinkingLevel = ThinkingLevel.HIGH
+		}
 
 		// Set up base generation config
 		const requestConfig: GenerateContentConfig = {
 			// Add base URL if configured
 			httpOptions: this.options.geminiBaseUrl ? { baseUrl: this.options.geminiBaseUrl } : undefined,
-			...{ systemInstruction: systemPrompt },
+			systemInstruction: systemPrompt,
 			// Set temperature (default to 0)
-			temperature: 0,
+			// Gemini 3.0 recommends 1.0
+			temperature: info.temperature ?? 1,
 		}
 
 		// Add thinking config if the model supports it
-		if (thinkingBudget > 0) {
-			requestConfig.thinkingConfig = {
-				thinkingBudget: thinkingBudget,
-				includeThoughts: true,
-			}
+		requestConfig.thinkingConfig = {
+			// Turn off thinking:
+			// thinkingBudget: 0
+			// Turn on dynamic thinking:
+			// thinkingBudget: -1
+			// Turn on fixed thinking budget:
+			thinkingBudget: thinkingLevel ? undefined : thinkingBudget,
+			thinkingLevel,
+			includeThoughts: thinkingBudget > 0 || !!thinkingLevel,
 		}
 
 		// Generate content using the configured parameters
 		const sdkCallStartTime = Date.now()
+		let responseId: string | undefined
 		let sdkFirstChunkTime: number | undefined
 		let ttftSdkMs: number | undefined
 		let apiSuccess = false
@@ -137,6 +163,17 @@ export class GeminiHandler implements ApiHandler {
 		let cacheReadTokens = 0
 		let thoughtsTokenCount = 0 // Initialize thought token counts
 		let lastUsageMetadata: GenerateContentResponseUsageMetadata | undefined
+
+		const isNativeToolCallsEnabled = tools?.length
+		if (isNativeToolCallsEnabled) {
+			requestConfig.tools = [{ functionDeclarations: tools }]
+			requestConfig.toolConfig = {
+				// Force the model to call 'any' function.
+				functionCallingConfig: {
+					mode: FunctionCallingConfigMode.ANY,
+				},
+			}
+		}
 
 		try {
 			const result = await client.models.generateContentStream({
@@ -156,38 +193,45 @@ export class GeminiHandler implements ApiHandler {
 				}
 
 				// Handle thinking content from Gemini's response
-				const candidateForThoughts = chunk?.candidates?.[0]
-				const partsForThoughts = candidateForThoughts?.content?.parts
-				let thoughts = "" // Initialize as empty string
-
-				if (partsForThoughts) {
-					// This ensures partsForThoughts is a Part[] array
-					for (const part of partsForThoughts) {
-						const { thought, text } = part as Part
-						if (thought && text) {
-							// Ensure part.text exists
-							// Handle the thought part
-							thoughts += text + "\n" // Append thought and a newline
+				const parts = chunk?.candidates?.[0]?.content?.parts || []
+				for (const part of parts) {
+					if (part.thought && part.text) {
+						yield {
+							type: "reasoning",
+							id: chunk.responseId,
+							reasoning: part.text || "",
+							signature: part.thoughtSignature,
+						}
+					} else if (part.text) {
+						yield {
+							type: "text",
+							text: part.text,
+							id: chunk.responseId,
+							signature: part.thoughtSignature,
+						}
+					}
+					if (part.functionCall) {
+						const functionCall = part.functionCall
+						const args = Object.entries(functionCall.args || {}).filter(([_key, val]) => !!val)
+						if (functionCall.args && args.length > 0) {
+							yield {
+								type: "tool_calls",
+								id: chunk.responseId,
+								tool_call: {
+									function: {
+										id: chunk.responseId,
+										name: functionCall.name,
+										arguments: JSON.stringify(functionCall.args),
+									},
+								},
+								signature: part.thoughtSignature,
+							}
 						}
 					}
 				}
 
-				if (thoughts.trim() !== "") {
-					yield {
-						type: "reasoning",
-						reasoning: thoughts.trim(),
-					}
-					thoughts = "" // Reset thoughts after yielding
-				}
-
-				if (chunk.text) {
-					yield {
-						type: "text",
-						text: chunk.text,
-					}
-				}
-
 				if (chunk.usageMetadata) {
+					responseId = chunk.responseId
 					lastUsageMetadata = chunk.usageMetadata
 					promptTokens = lastUsageMetadata.promptTokenCount ?? promptTokens
 					outputTokens = lastUsageMetadata.candidatesTokenCount ?? outputTokens
@@ -213,6 +257,7 @@ export class GeminiHandler implements ApiHandler {
 					cacheReadTokens,
 					cacheWriteTokens: 0,
 					totalCost,
+					id: responseId,
 				}
 			}
 		} catch (error) {
@@ -222,24 +267,40 @@ export class GeminiHandler implements ApiHandler {
 			if (error instanceof Error) {
 				apiError = error.message
 
-				// Gemini doesn't include status codes in their errors
-				// https://github.com/googleapis/js-genai/blob/61f7f27b866c74333ca6331883882489bcb708b9/src/_api_client.ts#L569
-				const rateLimitPatterns = [
-					/got status: 429/i,
-					/429 Too Many Requests/i,
-					/rate limit exceeded/i,
-					/too many requests/i,
-				]
+				if (error instanceof ApiError) {
+					if (error.status === 429) {
+						// The API includes more details in the message
+						// https://github.com/googleapis/js-genai/blob/v1.11.0/src/_api_client.ts#L758
+						const response = this.attemptParse(error.message)
 
-				const isRateLimit =
-					error.name === "ClientError" && rateLimitPatterns.some((pattern) => pattern.test(error.message))
+						if (response && response.error) {
+							const responseBody = this.attemptParse(response.error.message)
 
-				if (isRateLimit) {
-					const rateLimitError = Object.assign(new Error(error.message), {
-						...error,
-						status: 429,
-					})
-					throw rateLimitError
+							if (responseBody.error) {
+								const detail = responseBody.error.details?.find(
+									(d: any) => d["@type"] === "type.googleapis.com/google.rpc.RetryInfo",
+								)
+
+								const detailedError = new RetriableError(
+									apiError,
+									this.parseRetryDelay(detail?.retryDelay) || undefined,
+									{
+										cause: error,
+									},
+								)
+								throw detailedError
+							}
+						}
+
+						throw new RetriableError(apiError, undefined, { cause: error })
+					}
+
+					// Fallback in case Gemini throws a rate limit error without a 429 status code
+					// https://github.com/cline/cline/pull/5205#discussion_r2311761559
+					const isRateLimit = rateLimitPatterns.some((pattern) => pattern.test(error.message))
+					if (isRateLimit) {
+						throw new RetriableError(apiError, undefined, { cause: error })
+					}
 				}
 			} else {
 				apiError = String(error)
@@ -419,5 +480,36 @@ export class GeminiHandler implements ApiHandler {
 		}, 0)
 
 		return Math.ceil(totalChars / 4)
+	}
+
+	private parseRetryDelay(retryAfter?: string): number {
+		if (!retryAfter) {
+			return 0
+		}
+
+		const unit = retryAfter.at(-1)
+		const value = parseInt(retryAfter, 10)
+
+		if (Number.isNaN(value)) {
+			return 0
+		}
+
+		if (unit === "s") {
+			return value
+		} else if (unit === "m") {
+			return value * 60 // Convert minutes to seconds
+		} else if (unit === "h") {
+			return value * 60 * 60 // Convert hours to seconds
+		}
+
+		return value
+	}
+
+	private attemptParse(str: string) {
+		try {
+			return JSON.parse(str)
+		} catch (_) {
+			return null
+		}
 	}
 }

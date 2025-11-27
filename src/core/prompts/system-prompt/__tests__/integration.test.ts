@@ -5,10 +5,10 @@
  * model families and context configurations using snapshot testing.
  *
  * Usage:
- * - Run tests normally: `npm test` or `yarn test`
+ * - Run tests normally: `npm run test:unit -- --update-snapshots`
  *   Tests will fail if generated prompts don't match existing snapshots
  *
- * - Update snapshots: `npm test -- --update-snapshots` or `yarn test --update-snapshots`
+ * - Update snapshots: `npm run test:unit -- --update-snapshots`
  *   This will regenerate all snapshot files with current prompt output
  *
  * When tests fail:
@@ -27,7 +27,7 @@ import { getSystemPrompt } from "../index"
 import type { SystemPromptContext } from "../types"
 
 // Check if snapshots should be updated via process argument
-const UPDATE_SNAPSHOTS = process.argv.includes("--update-snapshots")
+const UPDATE_SNAPSHOTS = process.argv.includes("--update-snapshots") || process.env.UPDATE_SNAPSHOTS === "true"
 
 // Helper to format snapshot mismatch error messages
 const formatSnapshotError = (snapshotName: string, differences: string): string => {
@@ -48,9 +48,7 @@ ${differences}
    - ❌ Unexpected changes (bugs, regressions)
 
 3. 🔄 If changes are correct, update snapshots:
-   npm test -- --update-snapshots
-   # or
-   yarn test --update-snapshots
+   npm run test:unit -- --update-snapshots
 
 4. 🐛 If changes are unintentional, investigate:
    - Check recent changes to prompt generation logic
@@ -63,7 +61,9 @@ ${differences}
 
 // Helper to compare two strings and return differences
 const compareStrings = (expected: string, actual: string): string | null => {
-	if (expected === actual) return null
+	if (expected === actual) {
+		return null
+	}
 
 	const expectedLines = expected.split("\n")
 	const actualLines = actual.split("\n")
@@ -78,15 +78,19 @@ const compareStrings = (expected: string, actual: string): string | null => {
 			if (differences.length < 10) {
 				// Limit to first 10 differences for readability
 				differences.push(`Line ${i + 1}:`)
-				if (expectedLine)
+				if (expectedLine) {
 					differences.push(`  - Expected: ${expectedLine.substring(0, 100)}${expectedLine.length > 100 ? "..." : ""}`)
-				if (actualLine)
+				}
+				if (actualLine) {
 					differences.push(`  + Actual:   ${actualLine.substring(0, 100)}${actualLine.length > 100 ? "..." : ""}`)
+				}
 			}
 		}
 	}
 
-	if (differences.length === 0) return null
+	if (differences.length === 0) {
+		return null
+	}
 
 	const summary = [
 		`Expected length: ${expected.length} characters`,
@@ -125,6 +129,7 @@ const makeMockProviderInfo = (modelId: string, providerId: string = "test") => (
 
 const baseContext: SystemPromptContext = {
 	cwd: "/test/project",
+	ide: "TestIde",
 	supportsBrowserUse: true,
 	mcpHub: {
 		getServers: () => [
@@ -159,12 +164,8 @@ const baseContext: SystemPromptContext = {
 	preferredLanguageInstructions: "Prefer TypeScript",
 	isTesting: true,
 	providerInfo: mockProviderInfo,
+	enableNativeToolCalls: false,
 }
-
-const makeMockContext = (modelId: string, providerId: string = "test"): SystemPromptContext => ({
-	...baseContext,
-	providerInfo: makeMockProviderInfo(modelId, providerId),
-})
 
 describe("Prompt System Integration Tests", () => {
 	beforeEach(() => {
@@ -204,6 +205,18 @@ describe("Prompt System Integration Tests", () => {
 			contextVariations,
 		},
 		{
+			modelGroup: ModelFamily.GLM,
+			modelIds: ["glm-4.6"],
+			providerId: "zai",
+			contextVariations,
+		},
+		{
+			modelGroup: ModelFamily.HERMES,
+			modelIds: ["hermes-4"],
+			providerId: "test",
+			contextVariations,
+		},
+		{
 			modelGroup: ModelFamily.NEXT_GEN,
 			modelIds: ["claude-sonnet-4"],
 			providerId: "anthropic",
@@ -213,6 +226,36 @@ describe("Prompt System Integration Tests", () => {
 			modelGroup: ModelFamily.XS,
 			modelIds: ["qwen3_coder"],
 			providerId: "lmstudio",
+			contextVariations,
+		},
+		{
+			modelGroup: ModelFamily.NATIVE_NEXT_GEN,
+			modelIds: ["claude-4-5-sonnet"],
+			providerId: "cline",
+			contextVariations,
+		},
+		{
+			modelGroup: ModelFamily.GPT_5,
+			modelIds: ["gpt-5"],
+			providerId: "openai",
+			contextVariations,
+		},
+		{
+			modelGroup: ModelFamily.NATIVE_GPT_5,
+			modelIds: ["gpt-5-codex"],
+			providerId: "openai",
+			contextVariations,
+		},
+		{
+			modelGroup: ModelFamily.NATIVE_GPT_5_1,
+			modelIds: ["gpt-5-1"],
+			providerId: "openai",
+			contextVariations,
+		},
+		{
+			modelGroup: ModelFamily.GEMINI_3,
+			modelIds: ["gemini-3"],
+			providerId: "vertex",
 			contextVariations,
 		},
 	]
@@ -238,17 +281,22 @@ describe("Prompt System Integration Tests", () => {
 							...baseContext,
 							providerInfo: makeMockProviderInfo(modelId, providerId),
 							isTesting: true,
+							enableNativeToolCalls:
+								modelGroup === ModelFamily.NATIVE_NEXT_GEN ||
+								modelGroup === ModelFamily.NATIVE_GPT_5 ||
+								modelGroup === ModelFamily.NATIVE_GPT_5_1 ||
+								modelGroup === ModelFamily.GEMINI_3,
 						}
 						it(`should generate consistent prompt for ${providerId}/${modelId} with ${contextName} context`, async function () {
 							this.timeout(30000) // Allow more time for prompt generation
 
 							try {
-								const prompt = await getSystemPrompt(context as SystemPromptContext)
+								const { systemPrompt } = await getSystemPrompt(context as SystemPromptContext)
 
 								// Basic structure assertions
-								expect(prompt).to.be.a("string")
-								expect(prompt.length).to.be.greaterThan(100)
-								expect(prompt).to.not.include("{{TOOL_USE_SECTION}}") // Tools placeholder should be removed
+								expect(systemPrompt).to.be.a("string")
+								expect(systemPrompt.length).to.be.greaterThan(100)
+								expect(systemPrompt).to.not.include("{{TOOL_USE_SECTION}}") // Tools placeholder should be removed
 
 								// Snapshot testing logic
 								const snapshotName = `${providerId}_${modelId.replace(/[^a-zA-Z0-9]/g, "_")}-${contextName}.snap`
@@ -256,13 +304,13 @@ describe("Prompt System Integration Tests", () => {
 
 								if (UPDATE_SNAPSHOTS) {
 									// Update mode: write new snapshot
-									await fs.writeFile(snapshotPath, prompt, "utf-8")
-									console.log(`Updated snapshot: ${snapshotName} (${prompt.length} chars)`)
+									await fs.writeFile(snapshotPath, systemPrompt, "utf-8")
+									console.log(`Updated snapshot: ${snapshotName} (${systemPrompt.length} chars)`)
 								} else {
 									// Test mode: compare with existing snapshot
 									try {
 										const existingSnapshot = await fs.readFile(snapshotPath, "utf-8")
-										const differences = compareStrings(existingSnapshot, prompt)
+										const differences = compareStrings(existingSnapshot, systemPrompt)
 
 										if (differences) {
 											throw new Error(formatSnapshotError(snapshotName, differences))
@@ -279,10 +327,9 @@ describe("Prompt System Integration Tests", () => {
 														`This is a new test case. Run with --update-snapshots to create the initial snapshot.`,
 												),
 											)
-										} else {
-											// Re-throw comparison errors
-											throw error
 										}
+										// Re-throw comparison errors
+										throw error
 									}
 								}
 							} catch (error) {
@@ -308,8 +355,8 @@ describe("Prompt System Integration Tests", () => {
 			const contextWithBrowser = { ...baseContext, supportsBrowserUse: true }
 
 			try {
-				const prompt = await getSystemPrompt(contextWithBrowser)
-				expect(prompt.toLowerCase()).to.include("browser")
+				const { systemPrompt } = await getSystemPrompt(contextWithBrowser)
+				expect(systemPrompt.toLowerCase()).to.include("browser")
 			} catch (error) {
 				if (error instanceof Error && error.message.includes("No prompt variant found")) {
 					this.skip()
@@ -323,8 +370,8 @@ describe("Prompt System Integration Tests", () => {
 			this.timeout(30000)
 
 			try {
-				const prompt = await getSystemPrompt(baseContext)
-				expect(prompt).to.include("MCP")
+				const { systemPrompt } = await getSystemPrompt(baseContext)
+				expect(systemPrompt).to.include("MCP")
 			} catch (error) {
 				if (error instanceof Error && error.message.includes("No prompt variant found")) {
 					this.skip()
@@ -338,8 +385,8 @@ describe("Prompt System Integration Tests", () => {
 			this.timeout(30000)
 
 			try {
-				const prompt = await getSystemPrompt(baseContext)
-				expect(prompt).to.include("TODO")
+				const { systemPrompt } = await getSystemPrompt(baseContext)
+				expect(systemPrompt).to.include("TODO")
 			} catch (error) {
 				if (error instanceof Error && error.message.includes("No prompt variant found")) {
 					this.skip()
@@ -353,8 +400,8 @@ describe("Prompt System Integration Tests", () => {
 			this.timeout(30000)
 
 			try {
-				const prompt = await getSystemPrompt(baseContext)
-				expect(prompt).to.include("USER'S CUSTOM INSTRUCTIONS")
+				const { systemPrompt } = await getSystemPrompt(baseContext)
+				expect(systemPrompt).to.include("USER'S CUSTOM INSTRUCTIONS")
 			} catch (error) {
 				if (error instanceof Error && error.message.includes("No prompt variant found")) {
 					this.skip()
@@ -370,14 +417,8 @@ describe("Prompt System Integration Tests", () => {
 			this.timeout(30000)
 
 			const invalidContext = {} as SystemPromptContext
-
-			try {
-				const prompt = await getSystemPrompt(invalidContext)
-				expect(prompt).to.be.a("string")
-			} catch (error) {
-				// Error is acceptable for invalid context
-				expect(error).to.be.instanceOf(Error)
-			}
+			const { systemPrompt } = await getSystemPrompt(invalidContext)
+			expect(systemPrompt).to.be.a("string")
 		})
 
 		it("should handle undefined context properties", async function () {
@@ -385,6 +426,7 @@ describe("Prompt System Integration Tests", () => {
 
 			const contextWithNulls: SystemPromptContext = {
 				cwd: undefined,
+				ide: "",
 				supportsBrowserUse: undefined,
 				mcpHub: undefined,
 				focusChainSettings: undefined,
@@ -392,296 +434,12 @@ describe("Prompt System Integration Tests", () => {
 			}
 
 			try {
-				const prompt = await getSystemPrompt(contextWithNulls)
-				expect(prompt).to.be.a("string")
-				expect(prompt).to.include("{{TOOL_USE_SECTION}}")
+				const { systemPrompt } = await getSystemPrompt(contextWithNulls)
+				expect(systemPrompt).to.be.a("string")
+				expect(systemPrompt).to.include("{{TOOL_USE_SECTION}}")
 			} catch (error) {
 				// Error is acceptable for invalid context
 				expect(error).to.be.instanceOf(Error)
-			}
-		})
-	})
-
-	describe("Legacy Prompt Compatibility", () => {
-		// Import old prompt functions
-		let SYSTEM_PROMPT_NEXT_GEN: any
-		let SYSTEM_PROMPT_GENERIC: any
-
-		before(async () => {
-			const nextGenModule = await import("../../system-prompt-legacy/families/next-gen-models/next-gen-system-prompt")
-			const genericModule = await import("../../system-prompt-legacy/generic-system-prompt")
-			SYSTEM_PROMPT_NEXT_GEN = nextGenModule.SYSTEM_PROMPT_NEXT_GEN
-			SYSTEM_PROMPT_GENERIC = genericModule.SYSTEM_PROMPT_GENERIC
-		})
-
-		// Helper function to extract section titles from prompt text
-		const extractSectionTitles = (prompt: string): string[] => {
-			const lines = prompt.split("\n")
-			const titles: string[] = []
-
-			for (const line of lines) {
-				// Look for lines that start with # (markdown headers)
-				const headerMatch = line.match(/^#+\s+(.+)$/)
-				if (headerMatch) {
-					titles.push(headerMatch[1].trim())
-				}
-				// Look for lines that are all caps (like "TOOL USE", "BROWSER USE", etc.)
-				else if (line.match(/^[A-Z\s]+$/) && line.trim().length > 3) {
-					titles.push(line.trim())
-				}
-				// Look for lines with === or --- separators
-				else if (line.match(/^[=-]+$/) && titles.length > 0) {
-					// This is a separator, the previous title might be the actual section
-					const prevTitle = titles[titles.length - 1]
-					if (prevTitle && prevTitle.length > 0) {
-						// Keep the previous title as it's likely a section header
-					}
-				}
-			}
-
-			return titles.filter((title) => title.length > 0)
-		}
-
-		// Helper function to build old prompt with context
-		const buildOldPrompt = async (promptType: "next-gen" | "generic", focusChainEnabled: boolean): Promise<string> => {
-			const mockMcpHub = {
-				getServers: () => [
-					{
-						name: "test-server",
-						status: "connected",
-						config: '{"command": "test"}',
-						tools: [
-							{
-								name: "test_tool",
-								description: "A test tool",
-								inputSchema: { type: "object", properties: {} },
-							},
-						],
-						resources: [],
-						resourceTemplates: [],
-					},
-				],
-			} as unknown as McpHub
-
-			const mockBrowserSettings = {
-				viewport: {
-					width: 1280,
-					height: 720,
-				},
-			}
-
-			const mockFocusChainSettings = {
-				enabled: focusChainEnabled,
-				remindClineInterval: 6,
-			}
-
-			if (promptType === "next-gen") {
-				return await SYSTEM_PROMPT_NEXT_GEN(
-					"/test/project",
-					true,
-					mockMcpHub,
-					mockBrowserSettings,
-					mockFocusChainSettings,
-				)
-			} else {
-				return await SYSTEM_PROMPT_GENERIC("/test/project", true, mockMcpHub, mockBrowserSettings, mockFocusChainSettings)
-			}
-		}
-
-		it("should generate old prompts with focus chain enabled and disabled", async function () {
-			this.timeout(30000)
-
-			// Generate old prompts with different focus chain settings
-			const oldNextGenWithFocus = await buildOldPrompt("next-gen", true)
-			const oldNextGenWithoutFocus = await buildOldPrompt("next-gen", false)
-			const oldGenericWithFocus = await buildOldPrompt("generic", true)
-			const oldGenericWithoutFocus = await buildOldPrompt("generic", false)
-
-			// Basic validation
-			expect(oldNextGenWithFocus).to.be.a("string")
-			expect(oldNextGenWithoutFocus).to.be.a("string")
-			expect(oldGenericWithFocus).to.be.a("string")
-			expect(oldGenericWithoutFocus).to.be.a("string")
-
-			// Check that focus chain content is present when enabled
-			expect(oldNextGenWithFocus).to.include("task_progress")
-			expect(oldGenericWithFocus).to.include("task_progress")
-
-			// Check that focus chain content is absent when disabled
-			expect(oldNextGenWithoutFocus).to.not.include("task_progress")
-			expect(oldGenericWithoutFocus).to.not.include("task_progress")
-
-			// Snapshot testing for old prompts
-			const snapshotsDir = path.join(__dirname, "__snapshots__")
-			await fs.mkdir(snapshotsDir, { recursive: true })
-
-			const snapshots = [
-				{ name: "old-next-gen-with-focus.snap", content: oldNextGenWithFocus },
-				{ name: "old-next-gen-without-focus.snap", content: oldNextGenWithoutFocus },
-				{ name: "old-generic-with-focus.snap", content: oldGenericWithFocus },
-				{ name: "old-generic-without-focus.snap", content: oldGenericWithoutFocus },
-			]
-
-			for (const snapshot of snapshots) {
-				const snapshotPath = path.join(snapshotsDir, snapshot.name)
-
-				if (UPDATE_SNAPSHOTS) {
-					// Update mode: write new snapshot
-					await fs.writeFile(snapshotPath, snapshot.content, "utf-8")
-					console.log(`Updated old prompt snapshot: ${snapshot.name} (${snapshot.content.length} chars)`)
-				} else {
-					// Test mode: compare with existing snapshot
-					try {
-						const existingSnapshot = await fs.readFile(snapshotPath, "utf-8")
-						const differences = compareStrings(existingSnapshot, snapshot.content)
-
-						if (differences) {
-							throw new Error(formatSnapshotError(snapshot.name, differences))
-						}
-
-						console.log(`✓ Old prompt snapshot matches: ${snapshot.name}`)
-					} catch (error) {
-						if (error instanceof Error && (error as any).code === "ENOENT") {
-							// Snapshot doesn't exist
-							throw new Error(
-								formatSnapshotError(
-									snapshot.name,
-									`Old prompt snapshot file does not exist: ${snapshotPath}\n` +
-										`This is a new test case. Run with --update-snapshots to create the initial snapshot.`,
-								),
-							)
-						} else {
-							// Re-throw comparison errors
-							throw error
-						}
-					}
-				}
-			}
-		})
-
-		it("should compare old and new prompts for section title compatibility", async function () {
-			this.timeout(30000)
-
-			// Generate old prompts
-			const oldNextGenWithFocus = await buildOldPrompt("next-gen", true)
-			const oldGenericWithFocus = await buildOldPrompt("generic", true)
-
-			// Generate new prompts
-			const claudeContext = makeMockContext("claude-sonnet-4")
-			const newNextGenPrompt = await getSystemPrompt(claudeContext)
-			const newGenericPrompt = await getSystemPrompt(baseContext)
-
-			// Extract section titles from old prompts
-			const oldNextGenTitles = extractSectionTitles(oldNextGenWithFocus)
-			const oldGenericTitles = extractSectionTitles(oldGenericWithFocus)
-
-			// Extract section titles from new prompts
-			const newNextGenTitles = extractSectionTitles(newNextGenPrompt)
-			const newGenericTitles = extractSectionTitles(newGenericPrompt)
-
-			// Normalize and compare sets of titles
-			const normalize = (t: string) => t.trim().toLowerCase()
-			const unique = (arr: string[]) => Array.from(new Set(arr.map(normalize)))
-
-			const oldCombined = unique([...oldNextGenTitles, ...oldGenericTitles])
-			const newCombined = unique([...newNextGenTitles, ...newGenericTitles])
-
-			// Quick sanity checks
-			expect(newCombined.length).to.be.greaterThan(5)
-			expect(oldCombined.length).to.be.greaterThan(5)
-
-			// Compute diffs
-			const oldOnly = oldCombined.filter((t) => !newCombined.includes(t))
-			const newOnly = newCombined.filter((t) => !oldCombined.includes(t))
-
-			// If counts differ or there are diffs, fail with detailed message
-			if (oldCombined.length !== newCombined.length || oldOnly.length || newOnly.length) {
-				const diffReport = {
-					oldCount: oldCombined.length,
-					newCount: newCombined.length,
-					missingInNew: oldOnly,
-					extraInNew: newOnly,
-					oldNextGenTitles,
-					oldGenericTitles,
-					newNextGenTitles,
-					newGenericTitles,
-				}
-				throw new Error(
-					`Section title mismatch between legacy and new prompts.\n` +
-						`Old count=${diffReport.oldCount}, New count=${diffReport.newCount}.\n` +
-						`Missing in new: ${JSON.stringify(diffReport.missingInNew, null, 2)}\n` +
-						`Extra in new: ${JSON.stringify(diffReport.extraInNew, null, 2)}\n`,
-				)
-			}
-
-			// Check for key sections that should be present in both old and new
-			const keySections = ["TOOL USE", "Tools", "execute_command", "read_file", "write_to_file"]
-
-			for (const section of keySections) {
-				// Check if section exists in old prompts (case insensitive)
-				const oldNextGenHasSection = oldNextGenTitles.some((title) => title.toLowerCase().includes(section.toLowerCase()))
-				const oldGenericHasSection = oldGenericTitles.some((title) => title.toLowerCase().includes(section.toLowerCase()))
-
-				// Check if section exists in new prompts (case insensitive)
-				const newNextGenHasSection = newNextGenTitles.some((title) => title.toLowerCase().includes(section.toLowerCase()))
-				const newGenericHasSection = newGenericTitles.some((title) => title.toLowerCase().includes(section.toLowerCase()))
-
-				// Assert that key sections are present in both old and new prompts
-				expect(oldNextGenHasSection || oldGenericHasSection).to.be.true
-				expect(newNextGenHasSection || newGenericHasSection).to.be.true
-			}
-
-			// Snapshot testing for section title comparison
-			const snapshotsDir = path.join(__dirname, "__snapshots__")
-			const comparisonPath = path.join(snapshotsDir, "section-title-comparison.json")
-
-			const comparison = {
-				oldNextGenTitles,
-				newNextGenTitles,
-				oldGenericTitles,
-				newGenericTitles,
-				keySections,
-				summary: {
-					oldNextGenCount: oldNextGenTitles.length,
-					newNextGenCount: newNextGenTitles.length,
-					oldGenericCount: oldGenericTitles.length,
-					newGenericCount: newGenericTitles.length,
-				},
-			}
-
-			// Use tabs for indentation to match existing snapshot format
-			const comparisonContent = JSON.stringify(comparison, null, "\t").trim()
-
-			if (UPDATE_SNAPSHOTS) {
-				// Update mode: write new comparison snapshot
-				await fs.writeFile(comparisonPath, comparisonContent, "utf-8")
-				console.log(`Updated section title comparison snapshot`)
-			} else {
-				// Test mode: compare with existing snapshot
-				try {
-					const existingComparison = await fs.readFile(comparisonPath, "utf-8")
-					const differences = compareStrings(existingComparison, comparisonContent)
-
-					if (differences) {
-						throw new Error(formatSnapshotError("section-title-comparison.json", differences))
-					}
-
-					console.log(`✓ Section title comparison matches`)
-				} catch (error) {
-					if (error instanceof Error && (error as any).code === "ENOENT") {
-						// Snapshot doesn't exist
-						throw new Error(
-							formatSnapshotError(
-								"section-title-comparison.json",
-								`Section title comparison snapshot file does not exist: ${comparisonPath}\n` +
-									`This is a new test case. Run with --update-snapshots to create the initial snapshot.`,
-							),
-						)
-					} else {
-						// Re-throw comparison errors
-						throw error
-					}
-				}
 			}
 		})
 	})

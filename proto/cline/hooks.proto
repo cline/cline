@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package cline;
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+// Input message for all hooks
+message HookInput {
+  string cline_version = 1;
+  string hook_name = 2;
+  string timestamp = 3;
+  string task_id = 4;
+  repeated string workspace_roots = 5;
+  string user_id = 6;
+  oneof data {
+    PreToolUseData pre_tool_use = 10;
+    PostToolUseData post_tool_use = 11;
+    UserPromptSubmitData user_prompt_submit = 12;
+    TaskStartData task_start = 13;
+    TaskResumeData task_resume = 14;
+    TaskCancelData task_cancel = 15;
+    TaskCompleteData task_complete = 16;
+    PreCompactData pre_compact = 17;
+  }
+}
+
+// Output message for all hooks
+message HookOutput {
+  string context_modification = 1;
+  bool cancel = 2;
+  string error_message = 3;
+}
+
+// Data for PreToolUse hook
+message PreToolUseData {
+  string tool_name = 1;
+  map<string, string> parameters = 2;
+}
+
+// Data for PostToolUse hook
+message PostToolUseData {
+  string tool_name = 1;
+  map<string, string> parameters = 2;
+  string result = 3;
+  bool success = 4;
+  int64 execution_time_ms = 5;
+}
+
+// Data for UserPromptSubmit hook
+message UserPromptSubmitData {
+  string prompt = 1;
+  repeated string attachments = 2;
+}
+
+// Data for TaskStart hook
+message TaskStartData {
+  map<string, string> task_metadata = 1;
+}
+
+// Data for TaskResume hook
+message TaskResumeData {
+  map<string, string> task_metadata = 1;
+  map<string, string> previous_state = 2;
+}
+
+// Data for TaskCancel hook
+message TaskCancelData {
+  map<string, string> task_metadata = 1;
+}
+
+// Data for TaskComplete hook
+message TaskCompleteData {
+  map<string, string> task_metadata = 1;
+}
+
+// Data for PreCompact hook
+message PreCompactData {
+  int64 context_size = 1;
+  int32 messages_to_compact = 2;
+  string compaction_strategy = 3;
+}

@@ -12,7 +12,7 @@ import type { Controller } from "../index"
  */
 export async function onDidShowAnnouncement(controller: Controller, _request: EmptyRequest): Promise<Boolean> {
 	try {
-		const latestAnnouncementId = getLatestAnnouncementId(controller.context)
+		const latestAnnouncementId = getLatestAnnouncementId()
 		// Update the lastShownAnnouncementId to the current latestAnnouncementId
 		controller.stateManager.setGlobalState("lastShownAnnouncementId", latestAnnouncementId)
 		return Boolean.create({ value: false })

@@ -37,7 +37,8 @@
 				"useYield": "off",
 				"noConstructorReturn": "off",
 				"noInvalidPositionAtImportRule": "off",
-				"noSwitchDeclarations": "off"
+				"noSwitchDeclarations": "off",
+				"noUnusedImports": "error"
 			},
 			"a11y": "off",
 			"style": {
@@ -69,7 +70,7 @@
 				"noControlCharactersInRegex": "off",
 				"noShadowRestrictedNames": "off",
 				"noArrayIndexKey": "info",
-				"noAssignInExpressions": "warn"
+				"noAssignInExpressions": "info"
 			},
 			"complexity": {
 				"noUselessConstructor": "off",
@@ -81,7 +82,7 @@
 				"noStaticOnlyClass": "off"
 			},
 			"security": {
-				"noDangerouslySetInnerHtml": "warn"
+				"noDangerouslySetInnerHtml": "info"
 			}
 		}
 	},
@@ -113,16 +114,17 @@
 	"files": {
 		"includes": [
 			"**",
-			"!**/dist/**",
-			"!**/dist-*/**",
-			"!**/out/**",
-			"!**/evals/**",
-			"!**/playwright/**",
-			"!**/test-results/**",
-			"!**/node_modules/**",
-			"!**/webview-ui/build/**",
-			"!**/generated/**",
-			"!**/proto/**"
+			"!**/dist",
+			"!**/dist-*",
+			"!**/out",
+			"!**/evals",
+			"!**/playwright",
+			"!**/test-results",
+			"!**/node_modules",
+			"!**/webview-ui/build",
+			"!**/generated",
+			"!**/proto",
+			"!**/tests/specs"
 		]
 	},
 	"plugins": [
@@ -134,7 +136,12 @@
 				"**",
 				"!**/hosts/vscode/**",
 				"!**/test/**",
-				"!src/extension.ts"
+				"!**/*.test.ts",
+				"!src/dev/**",
+				"!src/extension.ts",
+				"!src/integrations/git/commit-message-generator.ts",
+				"!src/integrations/terminal/**",
+				"!src/core/controller/ui/openWalkthrough.ts"
 			],
 			"plugins": [
 				"src/dev/grit/vscode-api.grit"
@@ -147,6 +154,7 @@
 				"!src/core/storage/FileContextTracker.ts",
 				"!src/core/context/context-tracking/FileContextTracker.ts",
 				"!src/common.ts",
+				"!src/services/logging/distinctId.ts",
 				"!src/core/storage/utils/state-helpers.ts",
 				"!src/extension.ts"
 			],
