@@ -2,7 +2,7 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { VirtuosoHandle } from "react-virtuoso"
 import { ButtonActionType, getButtonConfig } from "../../shared/buttonConfig"
 import type { ChatState, MessageHandlers } from "../../types/chatTypes"
@@ -32,8 +32,12 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	messageHandlers,
 	scrollBehavior,
 }) => {
-	const { inputValue, selectedImages, selectedFiles, setSendingDisabled } = chatState
+	const { inputValue, selectedImages, selectedFiles, setSendingDisabled, setInputValue, setSelectedImages, setSelectedFiles } =
+		chatState
 	const [isProcessing, setIsProcessing] = useState(false)
+
+	// Track previous message state to detect genuine transitions
+	const prevMessageStateRef = useRef<{ lastMessageTs?: number; secondLastMessageAsk?: string }>({})
 
 	// Memoize last messages to avoid unnecessary recalculations
 	const [lastMessage, secondLastMessage] = useMemo(() => {
@@ -54,13 +58,38 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 
 	// Clear input when transitioning from command_output to api_req
 	// This happens when user provides feedback during command execution
+	// We track previous state to ensure we only clear on genuine NEW transitions,
+	// not when the component re-renders with the same message state
 	useEffect(() => {
-		if (lastMessage?.type === "say" && lastMessage.say === "api_req_started" && secondLastMessage?.ask === "command_output") {
-			chatState.setInputValue("")
-			chatState.setSelectedImages([])
-			chatState.setSelectedFiles([])
+		const isTransitionConditionMet =
+			lastMessage?.type === "say" && lastMessage.say === "api_req_started" && secondLastMessage?.ask === "command_output"
+
+		// Check if this is a NEW transition (message timestamp changed)
+		const isNewTransition =
+			lastMessage?.ts !== prevMessageStateRef.current.lastMessageTs ||
+			secondLastMessage?.ask !== prevMessageStateRef.current.secondLastMessageAsk
+
+		// Update the ref with current state
+		prevMessageStateRef.current = {
+			lastMessageTs: lastMessage?.ts,
+			secondLastMessageAsk: secondLastMessage?.ask,
 		}
-	}, [lastMessage?.type, lastMessage?.say, secondLastMessage?.ask, chatState])
+
+		// Only clear input if the condition is met AND it's a new transition
+		if (isTransitionConditionMet && isNewTransition) {
+			setInputValue("")
+			setSelectedImages([])
+			setSelectedFiles([])
+		}
+	}, [
+		lastMessage?.type,
+		lastMessage?.say,
+		lastMessage?.ts,
+		secondLastMessage?.ask,
+		setInputValue,
+		setSelectedImages,
+		setSelectedFiles,
+	])
 
 	const handleActionClick = useCallback(
 		(action: ButtonActionType, text?: string, images?: string[], files?: string[]) => {
