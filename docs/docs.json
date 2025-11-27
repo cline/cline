@@ -269,68 +269,68 @@
 							"enterprise-solutions/overview",
 							"enterprise-solutions/onboarding",
 							{
-								"group": "Team Management",
+								"group": "Managing Members",
 								"pages": [
 									"enterprise-solutions/team-management/overview",
-									"enterprise-solutions/team-management/roles-and-permissions",
-									"enterprise-solutions/team-management/managing-members"
+									"enterprise-solutions/team-management/roles-and-permissions"
 								]
 							},
 							{
-								"group": "Configuration",
+								"group": "Provider Remote Configurations",
 								"pages": [
-									"enterprise-solutions/configuration/overview",
+									"enterprise-solutions/configuration/remote-configuration/overview",
 									{
-										"group": "Remote Configuration",
+										"group": "AWS Bedrock",
 										"pages": [
-											"enterprise-solutions/configuration/remote-configuration/overview",
-											{
-												"group": "AWS Bedrock",
-												"pages": [
-													"enterprise-solutions/configuration/remote-configuration/aws-bedrock/admin-configuration",
-													"enterprise-solutions/configuration/remote-configuration/aws-bedrock/member-configuration"
-												]
-											},
-											{
-												"group": "LiteLLM",
-												"pages": [
-													"enterprise-solutions/configuration/remote-configuration/litellm/admin-configuration",
-													"enterprise-solutions/configuration/remote-configuration/litellm/member-configuration"
-												]
-											},
-											{
-												"group": "Google Vertex AI",
-												"pages": [
-													"enterprise-solutions/configuration/remote-configuration/google-vertex/admin-configuration",
-													"enterprise-solutions/configuration/remote-configuration/google-vertex/member-configuration"
-												]
-											}
+											"enterprise-solutions/configuration/remote-configuration/aws-bedrock/admin-configuration",
+											"enterprise-solutions/configuration/remote-configuration/aws-bedrock/member-configuration"
 										]
 									},
 									{
-										"group": "Infrastructure Configuration",
+										"group": "LiteLLM",
 										"pages": [
-											"enterprise-solutions/configuration/infrastructure-configuration/overview",
-											{
-												"group": "Providers",
-												"pages": [
-													"enterprise-solutions/configuration/infrastructure-configuration/providers/overview",
-													"enterprise-solutions/configuration/infrastructure-configuration/providers/aws-bedrock/overview",
-													"enterprise-solutions/configuration/infrastructure-configuration/providers/litellm/overview",
-													"enterprise-solutions/configuration/infrastructure-configuration/providers/google-vertex/overview"
-												]
-											},
-											{
-												"group": "MCP",
-												"pages": [
-													"enterprise-solutions/configuration/infrastructure-configuration/mcp/overview",
-													"enterprise-solutions/configuration/infrastructure-configuration/mcp/mcp-marketplace",
-													"enterprise-solutions/configuration/infrastructure-configuration/mcp/remote-mcp-servers"
-												]
-											},
-											"enterprise-solutions/configuration/infrastructure-configuration/rules",
-											"enterprise-solutions/configuration/infrastructure-configuration/workflows",
-											"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features"
+											"enterprise-solutions/configuration/remote-configuration/litellm/admin-configuration",
+											"enterprise-solutions/configuration/remote-configuration/litellm/member-configuration"
+										]
+									},
+									{
+										"group": "Google Vertex AI",
+										"pages": [
+											"enterprise-solutions/configuration/remote-configuration/google-vertex/admin-configuration",
+											"enterprise-solutions/configuration/remote-configuration/google-vertex/member-configuration"
+										]
+									}
+								]
+							},
+							{
+								"group": "Enterprise Configurations",
+								"pages": [
+									"enterprise-solutions/configuration/overview",
+									{
+										"group": "Providers",
+										"pages": [
+											"enterprise-solutions/configuration/infrastructure-configuration/providers/overview",
+											"enterprise-solutions/configuration/infrastructure-configuration/providers/aws-bedrock/overview",
+											"enterprise-solutions/configuration/infrastructure-configuration/providers/litellm/overview",
+											"enterprise-solutions/configuration/infrastructure-configuration/providers/google-vertex/overview"
+										]
+									},
+									{
+										"group": "MCP",
+										"pages": [
+											"enterprise-solutions/configuration/infrastructure-configuration/mcp/overview",
+											"enterprise-solutions/configuration/infrastructure-configuration/mcp/mcp-marketplace",
+											"enterprise-solutions/configuration/infrastructure-configuration/mcp/remote-mcp-servers"
+										]
+									},
+									"enterprise-solutions/configuration/infrastructure-configuration/rules",
+									"enterprise-solutions/configuration/infrastructure-configuration/workflows",
+									{
+										"group": "Control Other Cline Features",
+										"pages": [
+											"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/overview",
+											"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/yolo-mode",
+											"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/telemetry"
 										]
 									}
 								]
@@ -338,8 +338,13 @@
 							{
 								"group": "Monitoring",
 								"pages": [
-									"enterprise-solutions/monitoring/overview", 
-									"enterprise-solutions/monitoring/opentelemetry"
+									"enterprise-solutions/monitoring/overview",
+									{
+										"group": "OpenTelemetry",
+										"pages": [
+											"enterprise-solutions/monitoring/opentelemetry"
+										]
+									}
 								]
 							}
 						]
