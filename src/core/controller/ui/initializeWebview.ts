@@ -195,8 +195,11 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 			}
 		})
 
-		// State update event sent within the refreshLiteLlmModels function
-		refreshLiteLlmModels()
+		const liteLlmBaseUrl = controller.stateManager.getGlobalSettingsKey("liteLlmBaseUrl")
+		const liteLlmApiKey = controller.stateManager.getSecretKey("liteLlmApiKey")
+		if (liteLlmBaseUrl && liteLlmApiKey) {
+			await refreshLiteLlmModels()
+		}
 
 		// GUI relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
 		// We do this for all users since many users switch between api providers and if they were to switch back to openrouter it would be showing outdated model info if we hadn't retrieved the latest at this point
