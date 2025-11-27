@@ -22,8 +22,10 @@ export class DetachedProcessManager {
 	 * Creates a log file and pipes output to it.
 	 */
 	addProcess(process: TerminalProcess, command: string): DetachedProcess {
+		console.log("[DEBUG DetachedProcessManager.addProcess] Called with command:", command)
 		const id = `detached-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 		const logFilePath = path.join(os.tmpdir(), `cline-${id}.log`)
+		console.log("[DEBUG DetachedProcessManager.addProcess] Created id:", id, "logFilePath:", logFilePath)
 
 		const detached: DetachedProcess = {
 			id,

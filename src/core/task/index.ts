@@ -1617,17 +1617,41 @@ export class Task {
 		let bufferStuckTimer: NodeJS.Timeout | null = null
 		const BUFFER_STUCK_TIMEOUT_MS = 6000 // 6 seconds
 
+		// Flag to prevent multiple concurrent ask calls
+		let isWaitingForAskResponse = false
+
 		const flushBuffer = async (force = false) => {
+			console.log(
+				"[DEBUG flushBuffer] Called with force:",
+				force,
+				"outputBuffer.length:",
+				outputBuffer.length,
+				"isWaitingForAskResponse:",
+				isWaitingForAskResponse,
+			)
+
+			// If we're already waiting for a response, just accumulate output - don't send another ask
+			if (isWaitingForAskResponse && !force) {
+				console.log("[DEBUG flushBuffer] Already waiting for ask response, skipping")
+				return
+			}
+
 			if (outputBuffer.length === 0) {
 				if (force) {
 					// If force is true, flush anyway
+					console.log("[DEBUG flushBuffer] Force flush with empty buffer")
 				} else {
+					console.log("[DEBUG flushBuffer] Returning early - empty buffer and not forced")
 					return
 				}
 			}
 			const chunk = outputBuffer.join("\n")
 			outputBuffer = []
 			outputBufferSize = 0
+			console.log("[DEBUG flushBuffer] Chunk length:", chunk.length, "Calling this.ask('command_output')")
+
+			// Set flag before asking
+			isWaitingForAskResponse = true
 
 			// Start timer to detect if buffer gets stuck
 			bufferStuckTimer = setTimeout(() => {
@@ -1636,27 +1660,42 @@ export class Task {
 			}, BUFFER_STUCK_TIMEOUT_MS)
 
 			try {
+				console.log("[DEBUG flushBuffer] Before this.ask('command_output')")
 				const { response, text, images, files } = await this.ask("command_output", chunk)
+				console.log("[DEBUG flushBuffer] After this.ask - response:", response, "text:", text)
+
+				// Clear the waiting flag immediately after getting response
+				// This must happen BEFORE we try to flush remaining buffer below
+				isWaitingForAskResponse = false
+
 				if (response === "yesButtonClicked") {
+					console.log("[DEBUG flushBuffer] yesButtonClicked - Proceed while running")
 					// Track when user clicks "Process while Running"
 					telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.PROCESS_WHILE_RUNNING)
 
 					// Register this command as a detached process for background monitoring
+					console.log("[DEBUG flushBuffer] Calling detachedProcessManager.addProcess")
 					this.detachedProcessManager.addProcess(process, command)
+					console.log("[DEBUG flushBuffer] detachedProcessManager.addProcess completed")
 
 					// proceed while running - but still capture user feedback if provided
 					if (text || (images && images.length > 0) || (files && files.length > 0)) {
 						userFeedback = { text, images, files }
+						console.log("[DEBUG flushBuffer] User feedback captured:", userFeedback)
 					}
 				} else if (response === "noButtonClicked" && text === COMMAND_CANCEL_TOKEN) {
+					console.log("[DEBUG flushBuffer] noButtonClicked with COMMAND_CANCEL_TOKEN - Cancelled")
 					telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.CANCELLED)
 					didCancelViaUi = true
 					userFeedback = undefined
 				} else {
+					console.log("[DEBUG flushBuffer] Other response - userFeedback set")
 					userFeedback = { text, images, files }
 				}
+				console.log("[DEBUG flushBuffer] Setting didContinue = true, calling process.continue()")
 				didContinue = true
 				process.continue()
+				console.log("[DEBUG flushBuffer] process.continue() called successfully")
 
 				if (didCancelViaUi) {
 					outputBuffer = []
@@ -1672,6 +1711,9 @@ export class Task {
 				Logger.error("Error while asking for command output")
 			} finally {
 				// If the command finishes execution before the 'command_output' ask promise resolves (in other words before the user responded to the ask, which is expected when the command finishes execution first), this block is reached. This is expected and safe to ignore, as no further handling is required.
+
+				// Clear the waiting flag so new output can trigger asks
+				isWaitingForAskResponse = false
 
 				// Clear the stuck timer
 				if (bufferStuckTimer) {
