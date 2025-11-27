@@ -756,6 +756,7 @@ export async function resetGlobalState(controller: Controller) {
 		"aihubmixApiKey",
 		"mcpOAuthSecrets",
 		"nousResearchApiKey",
+		"ioIntelligenceApiKey",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
 	await controller.stateManager.reInitialize()

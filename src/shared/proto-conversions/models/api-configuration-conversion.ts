@@ -315,6 +315,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.HICAP
 		case "nousResearch":
 			return ProtoApiProvider.NOUSRESEARCH
+		case "iointelligence":
+			return ProtoApiProvider.IOINTELLIGENCE
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}

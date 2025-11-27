@@ -114,6 +114,7 @@ func (r *ProviderListResult) GetAllReadyProviders() []*ProviderDisplay {
 		cline.ApiProvider_NOUSRESEARCH,
 		cline.ApiProvider_OCA,
 		cline.ApiProvider_HICAP,
+		cline.ApiProvider_IOINTELLIGENCE,
 	}
 
 	// Check each provider to see if it's ready to use
