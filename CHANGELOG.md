@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.38.3]
+
+- Task export feature now opens the task directory, allowing easy access to the full task files
+- Added Grok 4.1 and Grok Code to XAI provider
+- Enabled native tool calling for Baseten and Kimi K2 models
+- Added thinking level to Gemini 3.0 Pro preview
+- Expanded Hooks functionality
+- Removed Task Timeline from Task Header
+- Bug fix for slash commands
+- Bug fixes for Vertex provider
+- Bug fixes for thinking/reasoning issues across multiple providers when using native tool calling
+- Bug fixes for terminal usage on Windows devices
+
 ## [3.38.2]
 
 - Add Claude Opus 4.5

@@ -239,6 +239,7 @@ export interface ModelInfo {
 	contextWindow?: number
 	supportsImages?: boolean
 	supportsPromptCache: boolean // this value is hardcoded for now
+	supportsReasoning?: boolean // Whether the model supports reasoning/thinking mode
 	inputPrice?: number // Keep for non-tiered input models
 	outputPrice?: number // Keep for non-tiered output models
 	thinkingConfig?: {
@@ -2861,6 +2862,33 @@ export const nebiusDefaultModelId = "Qwen/Qwen2.5-32B-Instruct-fast" satisfies N
 export type XAIModelId = keyof typeof xaiModels
 export const xaiDefaultModelId: XAIModelId = "grok-4"
 export const xaiModels = {
+	"grok-4-1-fast-reasoning": {
+		contextWindow: 2_000_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.2,
+		cacheReadsPrice: 0.05,
+		outputPrice: 0.5,
+		description: "xAI's Grok 4.1 Reasoning Fast - multimodal model with 2M context.",
+	},
+	"grok-4-1-fast-non-reasoning": {
+		contextWindow: 2_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.2,
+		cacheReadsPrice: 0.05,
+		outputPrice: 0.5,
+		description: "xAI's Grok 4.1 Non-Reasoning Fast - multimodal model with 2M context.",
+	},
+	"grok-code-fast-1": {
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.2,
+		cacheReadsPrice: 0.02,
+		outputPrice: 1.5,
+		description: "xAI's Grok Coding model.",
+	},
 	"grok-4-fast-reasoning": {
 		maxTokens: 30000,
 		contextWindow: 2000000,
@@ -3149,7 +3177,7 @@ export const cerebrasModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
-		description: "Intelligent general purpose model with 2,000 tokens/s",
+		description: "Intelligent general purpose model with 1,000 tokens/s",
 	},
 	"gpt-oss-120b": {
 		maxTokens: 65536,
@@ -3186,15 +3214,6 @@ export const cerebrasModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 		description: "SOTA coding performance with ~2500 tokens/s",
-	},
-	"qwen-3-235b-a22b-thinking-2507": {
-		maxTokens: 32000,
-		contextWindow: 65000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description: "SOTA performance with ~1500 tokens/s",
 	},
 } as const satisfies Record<string, ModelInfo>
 
