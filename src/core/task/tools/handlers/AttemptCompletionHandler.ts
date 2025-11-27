@@ -52,6 +52,18 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 
 		config.taskState.consecutiveMistakeCount = 0
 
+		// Run PreToolUse hook before execution
+		try {
+			const { ToolHookUtils } = await import("../utils/ToolHookUtils")
+			await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+		} catch (error) {
+			const { PreToolUseHookCancellationError } = await import("@core/hooks/PreToolUseHookCancellationError")
+			if (error instanceof PreToolUseHookCancellationError) {
+				return formatResponse.toolDenied()
+			}
+			throw error
+		}
+
 		// Show notification if enabled
 		if (config.autoApprovalSettings.enableNotifications) {
 			showSystemNotification({
@@ -81,7 +93,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		}
 
 		// Remove any partial completion_result message that may exist
-		// PreToolUse hook inserts messages after the partial, so we need to search backwards to find it
+		// Search backwards since other messages may have been inserted after the partial
 		const clineMessages = config.messageState.getClineMessages()
 		const partialCompletionIndex = findLastIndex(
 			clineMessages,
@@ -148,9 +160,14 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 			await config.callbacks.updateFCListFromToolResponse(block.params.task_progress)
 		}
 
+		// Run TaskComplete hook BEFORE presenting the "Start New Task" button
+		// At this point we know: task is complete, checkpoint saved, result shown to user
+		await this.runTaskCompleteHook(config, block)
+
 		const { response, text, images, files: completionFiles } = await config.callbacks.ask("completion_result", "", false)
+		const prefix = "[attempt_completion] Result: Done"
 		if (response === "yesButtonClicked") {
-			return "" // signals to recursive loop to stop (for now this never happens since yesButtonClicked will trigger a new task)
+			return prefix // signals to recursive loop to stop (for now this never happens since yesButtonClicked will trigger a new task)
 		}
 
 		await config.callbacks.say("user_feedback", text ?? "", images, completionFiles)
@@ -166,32 +183,79 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 				toolResults.push(...commandResult)
 			}
 		}
-		toolResults.push({
-			type: "text",
-			text: `The user has provided feedback on the results. Consider their input to continue the task, and then attempt completion again.\n<feedback>\n${text}\n</feedback>`,
-		})
-		toolResults.push(...formatResponse.imageBlocks(images))
 
-		let fileContentString = ""
-		if (completionFiles && completionFiles.length > 0) {
-			fileContentString = await processFilesIntoText(completionFiles)
+		if (text) {
+			toolResults.push(
+				{
+					type: "text",
+					text: "The user has provided feedback on the results. Consider their input to continue the task, and then attempt completion again.",
+				},
+				{
+					type: "text",
+					text: `<feedback>\n${text}\n</feedback>`,
+				},
+			)
+		}
+
+		const fileContentString = completionFiles?.length ? await processFilesIntoText(completionFiles) : ""
+		if (fileContentString) {
+			toolResults.push({
+				type: "text" as const,
+				text: fileContentString,
+			})
+		}
+
+		if (images && images.length > 0) {
+			toolResults.push(...formatResponse.imageBlocks(images))
 		}
 
 		// Return the tool results as a complex response
 		return [
 			{
 				type: "text" as const,
-				text: `[attempt_completion] Result:`,
+				text: prefix,
 			},
 			...toolResults,
-			...(fileContentString
-				? [
-						{
-							type: "text" as const,
-							text: fileContentString,
-						},
-					]
-				: []),
 		]
+	}
+
+	/**
+	 * Runs the TaskComplete hook after user confirms task completion.
+	 * This is a non-cancellable, observation-only hook similar to TaskCancel.
+	 * Errors are logged but do not affect task completion.
+	 */
+	private async runTaskCompleteHook(config: TaskConfig, block: ToolUse): Promise<void> {
+		const hooksEnabled = config.services.stateManager.getGlobalSettingsKey("hooksEnabled")
+		if (!hooksEnabled) {
+			return
+		}
+
+		try {
+			const { executeHook } = await import("@core/hooks/hook-executor")
+
+			await executeHook({
+				hookName: "TaskComplete",
+				hookInput: {
+					taskComplete: {
+						taskMetadata: {
+							taskId: config.taskId,
+							ulid: config.ulid,
+							result: block.params.result || "",
+							command: block.params.command || "",
+						},
+					},
+				},
+				isCancellable: false, // Non-cancellable - task is already complete
+				say: config.callbacks.say,
+				setActiveHookExecution: undefined, // Explicitly undefined for non-cancellable hooks
+				clearActiveHookExecution: undefined, // Explicitly undefined for non-cancellable hooks
+				messageStateHandler: config.messageState,
+				taskId: config.taskId,
+				hooksEnabled,
+			})
+		} catch (error) {
+			// TaskComplete hook failed - non-fatal, just log
+			console.error("[TaskComplete Hook] Failed (non-fatal):", error)
+		}
 	}
 }

@@ -517,7 +517,7 @@ func (pw *ProviderWizard) applyModelChange(provider cline.ApiProvider, modelID s
 		ModelInfo: modelInfo,
 	}
 
-	return UpdateProviderPartial(pw.ctx, pw.manager, provider, updates, false)
+	return UpdateProviderPartial(pw.ctx, pw.manager, provider, updates, true)
 }
 
 // SwitchToBYOProvider switches to a BYO provider that's already configured.

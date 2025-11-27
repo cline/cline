@@ -53,24 +53,21 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				<XIcon />
 			</Button>
 			<h4 style={h4TitleStyle}>
-				🎉{"  "}New in v{minorVersion}
+				🎉{"  "}New in v{version}
 			</h4>
 			<ul style={ulStyle}>
 				<li>
-					<strong>Hooks</strong> allow you to inject custom logic into Cline's workflow&nbsp; (
-					<a href="https://docs.cline.bot/features/hooks" style={linkStyle}>
-						Hooks Docs
-					</a>
-					)
+					<strong>MiniMax-M2</strong> is currently free to use in Cline!
 				</li>
 				<li>
-					Bug fixes and improvements, including support for <code>&lt;think&gt;</code> tags (for better compatibility
-					with open-source models), refinements to the GLM-4.6 system prompt, CLI auth & provider updates, and fixes for
-					the OpenAI Compatible provider.&nbsp; (
-					<a href="https://github.com/cline/cline/blob/main/CHANGELOG.md" style={linkStyle}>
-						View full changelog
-					</a>
-					)
+					<strong>Gemini 3 Pro Preview</strong> and <strong>Claude Opus 4.5</strong> are available with SOTA reasoning
+					and coding capabilities.
+				</li>
+				<li>
+					<strong>Bug fixes,</strong> expanded features, and more! Check out the{" "}
+					<VSCodeLink href="https://github.com/cline/cline/blob/main/CHANGELOG.md" style={linkStyle}>
+						changelog
+					</VSCodeLink>
 				</li>
 			</ul>
 			<div style={hrStyle} />

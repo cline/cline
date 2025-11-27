@@ -1,12 +1,14 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { BasetenModelId, basetenDefaultModelId, basetenModels, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface BasetenHandlerOptions extends CommonApiHandlerOptions {
 	basetenApiKey?: string
@@ -98,10 +100,11 @@ export class BasetenHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
 		const maxTokens = this.getOptimalMaxTokens(model)
+		const toolCallProcessor = new ToolCallProcessor()
 
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
@@ -115,21 +118,22 @@ export class BasetenHandler implements ApiHandler {
 			stream: true,
 			stream_options: { include_usage: true },
 			temperature: 0,
+			tools,
+			tool_choice: tools && tools.length > 0 ? "auto" : undefined,
 		})
 
 		let didOutputUsage = false
 
 		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
+			const delta = chunk?.choices?.[0]?.delta
 
 			// Handle reasoning field if present (for reasoning models with parsed output)
-			if ((delta as any)?.reasoning) {
-				const reasoningContent = (delta as any).reasoning as string
+			if (delta && "reasoning" in delta && delta?.reasoning) {
+				const reasoning = typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning)
 				yield {
 					type: "reasoning",
-					reasoning: reasoningContent,
+					reasoning,
 				}
-				continue
 			}
 
 			// Handle content field
@@ -138,6 +142,10 @@ export class BasetenHandler implements ApiHandler {
 					type: "text",
 					text: delta.content,
 				}
+			}
+
+			if (delta?.tool_calls) {
+				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 			}
 
 			// Handle usage information - only output once
