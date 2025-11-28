@@ -1,6 +1,6 @@
 import axios from "axios"
 import ogs from "open-graph-scraper"
-import { getAxiosSettings } from "@/shared/net"
+import { fetch, getAxiosSettings } from "@/shared/net"
 
 export interface OpenGraphData {
 	title?: string
@@ -28,6 +28,7 @@ export async function fetchOpenGraphData(url: string): Promise<OpenGraphData> {
 			fetchOptions: {
 				redirect: "follow", // Follow redirects
 			} as any,
+			fetch, // Use configured fetch with proxy support
 		}
 
 		const { result } = await ogs(options)

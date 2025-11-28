@@ -254,7 +254,7 @@ Refer to @path/to/file/markdown.md for a complete breakdown of the task requirem
 
 {{FOCUS_CHAIN_PARAM}}
 
-
+{{NEW_TASK_INSTRUCTIONS}}
 
 ### Mode Switching
 

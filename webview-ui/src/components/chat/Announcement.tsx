@@ -53,18 +53,21 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				<XIcon />
 			</Button>
 			<h4 style={h4TitleStyle}>
-				🎉{"  "}New in v{minorVersion}
+				🎉{"  "}New in v{version}
 			</h4>
 			<ul style={ulStyle}>
 				<li>
 					<strong>MiniMax-M2</strong> is currently free to use in Cline!
 				</li>
 				<li>
-					<strong>Gemini 3 Pro Preview</strong> is now available with SOTA reasoning and coding capabilities.
+					<strong>Gemini 3 Pro Preview</strong> and <strong>Claude Opus 4.5</strong> are available with SOTA reasoning
+					and coding capabilities.
 				</li>
 				<li>
-					<strong>AquaVoice's Avalon</strong> model scores 97.3% accuracy on AISpeak and now powers voice-to-text
-					dictation.
+					<strong>Bug fixes,</strong> expanded features, and more! Check out the{" "}
+					<VSCodeLink href="https://github.com/cline/cline/blob/main/CHANGELOG.md" style={linkStyle}>
+						changelog
+					</VSCodeLink>
 				</li>
 			</ul>
 			<div style={hrStyle} />

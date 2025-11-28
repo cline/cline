@@ -17,7 +17,7 @@ describe("ModelContextTracker", () => {
 		sandbox = sinon.createSandbox()
 
 		// Mock disk module functions
-		mockTaskMetadata = { files_in_context: [], model_usage: [] }
+		mockTaskMetadata = { files_in_context: [], model_usage: [], environment_history: [] }
 		getTaskMetadataStub = sandbox.stub(diskModule, "getTaskMetadata").resolves(mockTaskMetadata)
 		saveTaskMetadataStub = sandbox.stub(diskModule, "saveTaskMetadata").resolves()
 

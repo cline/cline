@@ -15,7 +15,18 @@ export interface ModelMetadataEntry {
 	mode: string
 }
 
+export interface EnvironmentMetadataEntry {
+	ts: number
+	os_name: string
+	os_version: string
+	os_arch: string
+	host_name: string
+	host_version: string
+	cline_version: string
+}
+
 export interface TaskMetadata {
 	files_in_context: FileMetadataEntry[]
 	model_usage: ModelMetadataEntry[]
+	environment_history: EnvironmentMetadataEntry[]
 }

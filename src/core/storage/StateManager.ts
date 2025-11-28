@@ -55,6 +55,7 @@ export class StateManager {
 		huaweiCloudMaasModels: Record<string, ModelInfo> | null
 		hicapModels: Record<string, ModelInfo> | null
 		aihubmixModels: Record<string, ModelInfo> | null
+		liteLlmModels: Record<string, ModelInfo> | null
 	} = {
 		openRouterModels: null,
 		groqModels: null,
@@ -64,6 +65,7 @@ export class StateManager {
 		huaweiCloudMaasModels: null,
 		hicapModels: null,
 		aihubmixModels: null,
+		liteLlmModels: null,
 	}
 
 	// Debounced persistence state
@@ -374,7 +376,16 @@ export class StateManager {
 	 * Set models cache for a specific provider (in-memory only, not persisted)
 	 */
 	setModelsCache(
-		provider: "openRouter" | "groq" | "baseten" | "huggingFace" | "requesty" | "huaweiCloudMaas" | "hicap" | "aihubmix",
+		provider:
+			| "openRouter"
+			| "groq"
+			| "baseten"
+			| "huggingFace"
+			| "requesty"
+			| "huaweiCloudMaas"
+			| "hicap"
+			| "aihubmix"
+			| "liteLlm",
 		models: Record<string, ModelInfo>,
 	): void {
 		const cacheKey = `${provider}Models` as keyof typeof this.modelInfoCache
@@ -385,11 +396,19 @@ export class StateManager {
 	 * Get model info by provider and model ID (from in-memory cache)
 	 */
 	getModelInfo(
-		provider: "openRouter" | "groq" | "baseten" | "huggingFace" | "requesty" | "huaweiCloudMaas" | "hicap" | "aihubmix",
+		provider:
+			| "openRouter"
+			| "groq"
+			| "baseten"
+			| "huggingFace"
+			| "requesty"
+			| "huaweiCloudMaas"
+			| "hicap"
+			| "aihubmix"
+			| "liteLlm",
 		modelId: string,
 	): ModelInfo | undefined {
 		const cacheKey = `${provider}Models` as keyof typeof this.modelInfoCache
-		console.log("[OpenRouter] modelInfoCache:", this.modelInfoCache)
 		return this.modelInfoCache[cacheKey]?.[modelId]
 	}
 

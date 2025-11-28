@@ -83,6 +83,7 @@ export interface NormalizedApiConfig {
 export function normalizeApiConfiguration(
 	apiConfiguration: ApiConfiguration | undefined,
 	currentMode: Mode,
+	liteLlmModels?: Record<string, ModelInfo>,
 ): NormalizedApiConfig {
 	const provider =
 		(currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "anthropic"
@@ -244,12 +245,12 @@ export function normalizeApiConfiguration(
 		case "litellm":
 			const liteLlmModelId =
 				currentMode === "plan" ? apiConfiguration?.planModeLiteLlmModelId : apiConfiguration?.actModeLiteLlmModelId
-			const liteLlmModelInfo =
-				currentMode === "plan" ? apiConfiguration?.planModeLiteLlmModelInfo : apiConfiguration?.actModeLiteLlmModelInfo
+			// model info lookup
+			const liteLlmModelInfo = liteLlmModels?.[liteLlmModelId || ""]
 			return {
 				selectedProvider: provider,
 				selectedModelId: liteLlmModelId || "",
-				selectedModelInfo: liteLlmModelInfo || liteLlmModelInfoSaneDefaults,
+				selectedModelInfo: liteLlmModelInfo || ({} as ModelInfo),
 			}
 		case "xai":
 			return getProviderData(xaiModels, xaiDefaultModelId)

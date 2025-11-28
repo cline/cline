@@ -129,6 +129,7 @@ function createHandlerForProvider(
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 				geminiApiKey: options.geminiApiKey,
 				geminiBaseUrl: options.geminiBaseUrl,
+				thinkingLevel: mode === "plan" ? options.geminiPlanModeThinkingLevel : options.geminiActModeThinkingLevel,
 				ulid: options.ulid,
 			})
 		case "openai":

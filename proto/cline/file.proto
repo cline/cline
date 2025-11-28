@@ -225,7 +225,7 @@ message ToggleWorkflowRequest {
 message HookInfo {
   string name = 1;
   bool enabled = 2;
-  string absolutePath = 3;
+  string absolute_path = 3;
 }
 
 message WorkspaceHooks {
