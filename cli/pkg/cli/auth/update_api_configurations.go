@@ -474,20 +474,6 @@ func UpdateProviderPartial(ctx context.Context, manager *task.Manager, provider 
 	return nil
 }
 
-// getSapAiCoreRemovalFields returns all SAP AI Core-specific fields that should be cleared when removing the provider
-func getSapAiCoreRemovalFields() []string {
-	return []string{
-		"sapAiCoreClientId",
-		"sapAiCoreClientSecret",
-		"sapAiCoreBaseUrl",
-		"sapAiCoreTokenUrl",
-		"sapAiResourceGroup",
-		"sapAiCoreUseOrchestrationMode",
-		"planModeSapAiCoreDeploymentId",
-		"actModeSapAiCoreDeploymentId",
-	}
-}
-
 // RemoveProviderPartial removes a provider by clearing its API key using partial updates
 func RemoveProviderPartial(ctx context.Context, manager *task.Manager, provider cline.ApiProvider) error {
 	// Get field mapping for this provider
@@ -502,14 +488,23 @@ func RemoveProviderPartial(ctx context.Context, manager *task.Manager, provider 
 
 	// Build field mask with provider-specific fields to clear
 	var fieldPaths []string
-	
+
 	switch provider {
 	case cline.ApiProvider_BEDROCK:
 		// For Bedrock, include both access key and secret key
 		fieldPaths = []string{fields.APIKeyField, "awsSecretKey"}
 	case cline.ApiProvider_SAPAICORE:
 		// For SAP AI Core, include all configuration fields
-		fieldPaths = getSapAiCoreRemovalFields()
+		fieldPaths = []string{
+			"sapAiCoreClientId",
+			"sapAiCoreClientSecret",
+			"sapAiCoreBaseUrl",
+			"sapAiCoreTokenUrl",
+			"sapAiResourceGroup",
+			"sapAiCoreUseOrchestrationMode",
+			"planModeSapAiCoreDeploymentId",
+			"actModeSapAiCoreDeploymentId",
+		}
 	default:
 		// For other providers, just clear the API key field
 		fieldPaths = []string{fields.APIKeyField}
