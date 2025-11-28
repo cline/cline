@@ -221,7 +221,7 @@
 				"command": "cline.reviewComment.addToChat",
 				"title": "Add to Cline Chat",
 				"category": "Cline",
-				"icon": "$(open-in-product)"
+				"icon": "$(link-external)"
 			}
 		],
 		"keybindings": [

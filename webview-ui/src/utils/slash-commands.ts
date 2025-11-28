@@ -35,6 +35,11 @@ export const DEFAULT_SLASH_COMMANDS: SlashCommand[] = [
 		description: "Invoke a Cline CLI subagent for focused research tasks",
 		section: "default",
 	},
+	{
+		name: "explain-changes",
+		description: "Explain code changes between git refs with AI-generated comments",
+		section: "default",
+	},
 ]
 
 export function getWorkflowCommands(

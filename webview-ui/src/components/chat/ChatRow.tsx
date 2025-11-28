@@ -5,6 +5,7 @@ import {
 	ClineAskUseMcpServer,
 	ClineMessage,
 	ClinePlanModeResponse,
+	ClineSayGenerateExplanation,
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
@@ -1462,6 +1463,109 @@ export const ChatRowContent = memo(
 								Loading MCP documentation
 							</div>
 						)
+					case "generate_explanation": {
+						let explanationInfo: ClineSayGenerateExplanation = {
+							title: "code changes",
+							fromRef: "",
+							toRef: "",
+							status: "generating",
+						}
+						try {
+							if (message.text) {
+								explanationInfo = JSON.parse(message.text)
+							}
+						} catch {
+							// Use defaults if parsing fails
+						}
+						const isGenerating = explanationInfo.status === "generating"
+						const isError = explanationInfo.status === "error"
+						return (
+							<div
+								style={{
+									display: "flex",
+									flexDirection: "column",
+									backgroundColor: CODE_BLOCK_BG_COLOR,
+									border: "1px solid var(--vscode-editorGroup-border)",
+									borderRadius: 5,
+									padding: "10px 12px",
+									fontSize: 12,
+								}}>
+								<div
+									style={{
+										display: "flex",
+										alignItems: "center",
+									}}>
+									{isGenerating ? (
+										<span style={{ marginRight: 8 }}>
+											<ProgressIndicator />
+										</span>
+									) : isError ? (
+										<i
+											className="codicon codicon-error"
+											style={{ marginRight: 8, color: "var(--vscode-errorForeground)" }}
+										/>
+									) : (
+										<i
+											className="codicon codicon-check"
+											style={{ marginRight: 8, color: "var(--vscode-charts-green)" }}
+										/>
+									)}
+									<span style={{ fontWeight: 500 }}>
+										{isGenerating
+											? "Generating explanation"
+											: isError
+												? "Failed to generate explanation"
+												: "Generated explanation"}
+									</span>
+								</div>
+								{isError && explanationInfo.error && (
+									<div
+										style={{
+											opacity: 0.8,
+											marginLeft: 24,
+											marginTop: 6,
+											color: "var(--vscode-errorForeground)",
+											wordBreak: "break-word",
+										}}>
+										{explanationInfo.error}
+									</div>
+								)}
+								{!isError && (explanationInfo.title || explanationInfo.fromRef) && (
+									<div style={{ opacity: 0.8, marginLeft: 24, marginTop: 6 }}>
+										<div>{explanationInfo.title}</div>
+										{explanationInfo.fromRef && (
+											<div
+												style={{
+													fontSize: 11,
+													opacity: 0.7,
+													marginTop: 4,
+													marginLeft: -3,
+													wordBreak: "break-all",
+												}}>
+												<code
+													style={{
+														background: "var(--vscode-textBlockQuote-background)",
+														padding: "2px 6px",
+														borderRadius: 3,
+													}}>
+													{explanationInfo.fromRef}
+												</code>
+												<span style={{ margin: "0 6px" }}>→</span>
+												<code
+													style={{
+														background: "var(--vscode-textBlockQuote-background)",
+														padding: "2px 6px",
+														borderRadius: 3,
+													}}>
+													{explanationInfo.toRef || "working directory"}
+												</code>
+											</div>
+										)}
+									</div>
+								)}
+							</div>
+						)
+					}
 					case "completion_result":
 						const hasChanges = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
 						const text = hasChanges ? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
@@ -1523,7 +1627,7 @@ export const ChatRowContent = memo(
 												width: "100%",
 											}}>
 											<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
-											View changes
+											View Changes
 										</SuccessButton>
 										<SuccessButton
 											disabled={explainChangesDisabled}
@@ -1544,7 +1648,7 @@ export const ChatRowContent = memo(
 												borderColor: "var(--vscode-button-secondaryBackground)",
 											}}>
 											<i className="codicon codicon-comment-discussion" style={{ marginRight: 6 }} />
-											{explainChangesDisabled ? "Explaining..." : "Explain changes"}
+											{explainChangesDisabled ? "Explaining..." : "Explain Changes"}
 										</SuccessButton>
 									</div>
 								)}
@@ -1829,7 +1933,7 @@ export const ChatRowContent = memo(
 														cursor: seeNewChangesDisabled ? "wait" : "pointer",
 													}}
 												/>
-												View changes
+												View Changes
 											</SuccessButton>
 											<SuccessButton
 												appearance="secondary"
@@ -1851,7 +1955,7 @@ export const ChatRowContent = memo(
 														cursor: explainChangesDisabled ? "wait" : "pointer",
 													}}
 												/>
-												{explainChangesDisabled ? "Explaining..." : "Explain changes"}
+												{explainChangesDisabled ? "Explaining..." : "Explain Changes"}
 											</SuccessButton>
 										</div>
 									)}

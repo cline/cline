@@ -100,6 +100,18 @@ export class CommentReviewController implements vscode.Disposable {
 		this.onReplyCallback = callback
 	}
 
+	/**
+	 * Ensure the comments.openView setting is set to "never" to prevent
+	 * the Comments panel from auto-opening when comments are added.
+	 */
+	async ensureCommentsViewDisabled(): Promise<void> {
+		const config = vscode.workspace.getConfiguration("comments")
+		const currentValue = config.get<string>("openView")
+		if (currentValue !== "never") {
+			await config.update("openView", "never", vscode.ConfigurationTarget.Global)
+		}
+	}
+
 	/** The currently streaming comment thread */
 	private streamingThread: vscode.CommentThread | null = null
 	private streamingContent: string = ""
@@ -152,6 +164,7 @@ export class CommentReviewController implements vscode.Disposable {
 
 	/**
 	 * Start a streaming review comment - creates the thread immediately with placeholder text
+	 * @param revealComment - If true, opens the document and scrolls to show the comment (default: false)
 	 */
 	startStreamingComment(
 		filePath: string,
@@ -159,6 +172,7 @@ export class CommentReviewController implements vscode.Disposable {
 		endLine: number,
 		relativePath?: string,
 		fileContent?: string,
+		revealComment: boolean = false,
 	): void {
 		// Use virtual diff URI if relativePath and fileContent are provided
 		let uri: vscode.Uri
@@ -173,7 +187,7 @@ export class CommentReviewController implements vscode.Disposable {
 
 		// Create with placeholder
 		const commentObj: vscode.Comment = {
-			body: new vscode.MarkdownString("_Analyzing..._"),
+			body: new vscode.MarkdownString("_Thinking..._"),
 			mode: vscode.CommentMode.Preview,
 			author: {
 				name: "Cline",
@@ -195,33 +209,69 @@ export class CommentReviewController implements vscode.Disposable {
 		const threadKey = this.getThreadKey(filePath, startLine, endLine)
 		this.threads.set(threadKey, thread)
 		this.threadFilePaths.set(thread, filePath)
+
+		// Open the virtual document and scroll to show the comment in center (only if requested)
+		if (revealComment) {
+			this.revealCommentInDocument(thread)
+		}
+	}
+
+	/**
+	 * Open the document containing the comment and scroll to show it in center.
+	 * This is used during streaming to show each comment as it's added.
+	 */
+	private async revealCommentInDocument(thread: vscode.CommentThread): Promise<void> {
+		try {
+			// Open the document (works with virtual URIs)
+			const doc = await vscode.workspace.openTextDocument(thread.uri)
+
+			// Show the document and scroll to the comment
+			// Use the start of the range so the comment appears in center (not the code block)
+			const commentPosition = new vscode.Range(thread.range.start, thread.range.start)
+			const editor = await vscode.window.showTextDocument(doc, {
+				selection: commentPosition,
+				preserveFocus: false,
+				preview: true,
+			})
+
+			// Reveal with the start position in center so the comment bubble is visible
+			editor.revealRange(commentPosition, vscode.TextEditorRevealType.InCenter)
+		} catch (error) {
+			// Ignore errors - this is not critical
+			console.error("[CommentReviewController] Error revealing comment:", error)
+		}
 	}
 
 	/**
 	 * Append text to the currently streaming comment
 	 */
 	appendToStreamingComment(chunk: string): void {
-		if (!this.streamingThread) return
+		if (!this.streamingThread) {
+			return
+		}
 
 		this.streamingContent += chunk
 
-		// Update the comment body
+		// Update the comment body - reassigning comments triggers VS Code to refresh the UI
 		const commentObj: vscode.Comment = {
-			body: new vscode.MarkdownString(this.streamingContent || "_Analyzing..._"),
+			body: new vscode.MarkdownString(this.streamingContent || "_Thinking..._"),
 			mode: vscode.CommentMode.Preview,
 			author: {
 				name: "Cline",
 				iconPath: vscode.Uri.parse(CLINE_AVATAR_URL),
 			},
 		}
-		this.streamingThread.comments = [commentObj]
+		// Create a new array to ensure VS Code detects the change
+		this.streamingThread.comments = [...[commentObj]]
 	}
 
 	/**
 	 * End the current streaming comment
 	 */
 	endStreamingComment(): void {
-		if (!this.streamingThread) return
+		if (!this.streamingThread) {
+			return
+		}
 
 		// Finalize with trimmed content
 		const finalContent = this.streamingContent.trim() || "_No comment generated_"
