@@ -277,6 +277,7 @@ export const ChatRowContent = memo(
 	}: ChatRowContentProps) => {
 		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode } = useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
+		const [explainChangesDisabled, setExplainChangesDisabled] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
 			top: 0,
@@ -323,6 +324,7 @@ export const ChatRowContent = memo(
 		useEffect(() => {
 			return onRelinquishControl(() => {
 				setSeeNewChangesDisabled(false)
+				setExplainChangesDisabled(false)
 			})
 		}, [onRelinquishControl])
 
@@ -1503,7 +1505,7 @@ export const ChatRowContent = memo(
 									)}
 								</WithCopyButton>
 								{message.partial !== true && hasChanges && (
-									<div style={{ paddingTop: 17 }}>
+									<div style={{ paddingTop: 17, display: "flex", flexDirection: "column", gap: 8 }}>
 										<SuccessButton
 											disabled={seeNewChangesDisabled}
 											onClick={() => {
@@ -1521,7 +1523,28 @@ export const ChatRowContent = memo(
 												width: "100%",
 											}}>
 											<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
-											See new changes
+											View changes
+										</SuccessButton>
+										<SuccessButton
+											disabled={explainChangesDisabled}
+											onClick={() => {
+												setExplainChangesDisabled(true)
+												TaskServiceClient.explainChanges({
+													metadata: {},
+													messageTs: message.ts,
+												}).catch((err) => {
+													console.error("Failed to explain changes:", err)
+													setExplainChangesDisabled(false)
+												})
+											}}
+											style={{
+												cursor: explainChangesDisabled ? "wait" : "pointer",
+												width: "100%",
+												backgroundColor: "var(--vscode-button-secondaryBackground)",
+												borderColor: "var(--vscode-button-secondaryBackground)",
+											}}>
+											<i className="codicon codicon-comment-discussion" style={{ marginRight: 6 }} />
+											{explainChangesDisabled ? "Explaining..." : "Explain changes"}
 										</SuccessButton>
 									</div>
 								)}
@@ -1785,7 +1808,7 @@ export const ChatRowContent = memo(
 										)}
 									</WithCopyButton>
 									{message.partial !== true && hasChanges && (
-										<div style={{ marginTop: 15 }}>
+										<div style={{ marginTop: 15, display: "flex", flexDirection: "column", gap: 8 }}>
 											<SuccessButton
 												appearance="secondary"
 												disabled={seeNewChangesDisabled}
@@ -1806,7 +1829,29 @@ export const ChatRowContent = memo(
 														cursor: seeNewChangesDisabled ? "wait" : "pointer",
 													}}
 												/>
-												See new changes
+												View changes
+											</SuccessButton>
+											<SuccessButton
+												appearance="secondary"
+												disabled={explainChangesDisabled}
+												onClick={() => {
+													setExplainChangesDisabled(true)
+													TaskServiceClient.explainChanges({
+														metadata: {},
+														messageTs: message.ts,
+													}).catch((err) => {
+														console.error("Failed to explain changes:", err)
+														setExplainChangesDisabled(false)
+													})
+												}}>
+												<i
+													className="codicon codicon-comment-discussion"
+													style={{
+														marginRight: 6,
+														cursor: explainChangesDisabled ? "wait" : "pointer",
+													}}
+												/>
+												{explainChangesDisabled ? "Explaining..." : "Explain changes"}
 											</SuccessButton>
 										</div>
 									)}

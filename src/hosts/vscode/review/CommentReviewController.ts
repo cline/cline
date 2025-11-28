@@ -1,0 +1,435 @@
+import * as vscode from "vscode"
+import { sendAddToInputEvent } from "@/core/controller/ui/subscribeToAddToInput"
+import { DIFF_VIEW_URI_SCHEME } from "../VscodeDiffViewProvider"
+
+/**
+ * Cline's GitHub avatar URL
+ */
+const CLINE_AVATAR_URL = "https://avatars.githubusercontent.com/u/184127137"
+
+/**
+ * Represents a review comment from the AI
+ */
+export interface ReviewComment {
+	/** Absolute path to the file */
+	filePath: string
+	/** 0-indexed start line of the code this comment applies to */
+	startLine: number
+	/** 0-indexed end line of the code this comment applies to */
+	endLine: number
+	/** The comment text (supports markdown) */
+	comment: string
+	/** Optional label for the comment type */
+	label?: string
+	/** Relative path for virtual URI (e.g., "src/file.ts") */
+	relativePath?: string
+	/** File content for virtual URI (encoded in query string) */
+	fileContent?: string
+}
+
+/**
+ * Callback for when user replies to a comment thread.
+ * The onChunk callback is called with each text chunk as it streams in.
+ */
+export type OnReplyCallback = (
+	filePath: string,
+	startLine: number,
+	endLine: number,
+	replyText: string,
+	existingComments: string[],
+	onChunk: (chunk: string) => void,
+) => Promise<void>
+
+/**
+ * CommentReviewController manages VS Code's Comment API for AI code review.
+ *
+ * This controller:
+ * - Creates inline comment threads on files at specific line ranges
+ * - Displays AI-generated review comments with markdown support
+ * - Handles user replies and dispatches them to the AI
+ * - Manages the lifecycle of all comment threads
+ *
+ * Comments appear in VS Code's Comments Panel and inline in editors.
+ */
+export class CommentReviewController implements vscode.Disposable {
+	private commentController: vscode.CommentController
+	private threads: Map<string, vscode.CommentThread> = new Map()
+	/** Maps thread to its absolute file path (needed because virtual URIs don't contain the full path) */
+	private threadFilePaths: Map<vscode.CommentThread, string> = new Map()
+	private onReplyCallback?: OnReplyCallback
+	private disposables: vscode.Disposable[] = []
+
+	constructor() {
+		// Create the comment controller
+		this.commentController = vscode.comments.createCommentController("cline-ai-review", "Cline AI Review")
+
+		// Configure options for the reply input
+		this.commentController.options = {
+			placeHolder: "Ask a question about this code...",
+			prompt: "Reply to Cline",
+		}
+
+		// Configure the commenting range provider (optional - allows commenting on any line)
+		this.commentController.commentingRangeProvider = {
+			provideCommentingRanges: (document: vscode.TextDocument, _token: vscode.CancellationToken): vscode.Range[] => {
+				// Allow commenting on any line in the document
+				const lineCount = document.lineCount
+				return [new vscode.Range(0, 0, lineCount - 1, 0)]
+			},
+		}
+
+		// Register reply command - this is called when user clicks the Reply button
+		this.disposables.push(
+			vscode.commands.registerCommand("cline.reviewComment.reply", async (reply: vscode.CommentReply) => {
+				await this.handleReply(reply)
+			}),
+		)
+
+		// Register add to chat command - sends the conversation to Cline's main chat
+		this.disposables.push(
+			vscode.commands.registerCommand("cline.reviewComment.addToChat", async (thread: vscode.CommentThread) => {
+				await this.handleAddToChat(thread)
+			}),
+		)
+	}
+
+	/**
+	 * Set the callback for handling user replies
+	 */
+	setOnReplyCallback(callback: OnReplyCallback): void {
+		this.onReplyCallback = callback
+	}
+
+	/** The currently streaming comment thread */
+	private streamingThread: vscode.CommentThread | null = null
+	private streamingContent: string = ""
+
+	/**
+	 * Add a review comment to a file
+	 */
+	addReviewComment(comment: ReviewComment): vscode.CommentThread {
+		// Use virtual diff URI if relativePath and fileContent are provided
+		// This allows comments to attach to the diff view's virtual documents
+		let uri: vscode.Uri
+		if (comment.relativePath && comment.fileContent !== undefined) {
+			uri = vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${comment.relativePath}`).with({
+				query: Buffer.from(comment.fileContent).toString("base64"),
+			})
+		} else {
+			uri = vscode.Uri.file(comment.filePath)
+		}
+		const range = new vscode.Range(
+			new vscode.Position(comment.startLine, 0),
+			new vscode.Position(comment.endLine, Number.MAX_SAFE_INTEGER),
+		)
+
+		// Create the comment object
+		const commentObj: vscode.Comment = {
+			body: new vscode.MarkdownString(comment.comment),
+			mode: vscode.CommentMode.Preview,
+			author: {
+				name: "Cline",
+				iconPath: vscode.Uri.parse(CLINE_AVATAR_URL),
+			},
+		}
+
+		// Create the thread
+		const thread = this.commentController.createCommentThread(uri, range, [commentObj])
+
+		// Configure thread
+		thread.canReply = true
+		thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded
+		// thread.label = comment.label || "AI Review"
+
+		// Store for later management
+		const threadKey = this.getThreadKey(comment.filePath, comment.startLine, comment.endLine)
+		this.threads.set(threadKey, thread)
+		// Store absolute file path for reply handling (virtual URIs don't contain the full path)
+		this.threadFilePaths.set(thread, comment.filePath)
+
+		return thread
+	}
+
+	/**
+	 * Start a streaming review comment - creates the thread immediately with placeholder text
+	 */
+	startStreamingComment(
+		filePath: string,
+		startLine: number,
+		endLine: number,
+		relativePath?: string,
+		fileContent?: string,
+	): void {
+		// Use virtual diff URI if relativePath and fileContent are provided
+		let uri: vscode.Uri
+		if (relativePath && fileContent !== undefined) {
+			uri = vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${relativePath}`).with({
+				query: Buffer.from(fileContent).toString("base64"),
+			})
+		} else {
+			uri = vscode.Uri.file(filePath)
+		}
+		const range = new vscode.Range(new vscode.Position(startLine, 0), new vscode.Position(endLine, Number.MAX_SAFE_INTEGER))
+
+		// Create with placeholder
+		const commentObj: vscode.Comment = {
+			body: new vscode.MarkdownString("_Analyzing..._"),
+			mode: vscode.CommentMode.Preview,
+			author: {
+				name: "Cline",
+				iconPath: vscode.Uri.parse(CLINE_AVATAR_URL),
+			},
+		}
+
+		// Create the thread
+		const thread = this.commentController.createCommentThread(uri, range, [commentObj])
+		thread.canReply = true
+		thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded
+		// thread.label = "AI Review"
+
+		// Store for streaming updates
+		this.streamingThread = thread
+		this.streamingContent = ""
+
+		// Store for later management
+		const threadKey = this.getThreadKey(filePath, startLine, endLine)
+		this.threads.set(threadKey, thread)
+		this.threadFilePaths.set(thread, filePath)
+	}
+
+	/**
+	 * Append text to the currently streaming comment
+	 */
+	appendToStreamingComment(chunk: string): void {
+		if (!this.streamingThread) return
+
+		this.streamingContent += chunk
+
+		// Update the comment body
+		const commentObj: vscode.Comment = {
+			body: new vscode.MarkdownString(this.streamingContent || "_Analyzing..._"),
+			mode: vscode.CommentMode.Preview,
+			author: {
+				name: "Cline",
+				iconPath: vscode.Uri.parse(CLINE_AVATAR_URL),
+			},
+		}
+		this.streamingThread.comments = [commentObj]
+	}
+
+	/**
+	 * End the current streaming comment
+	 */
+	endStreamingComment(): void {
+		if (!this.streamingThread) return
+
+		// Finalize with trimmed content
+		const finalContent = this.streamingContent.trim() || "_No comment generated_"
+		const commentObj: vscode.Comment = {
+			body: new vscode.MarkdownString(finalContent),
+			mode: vscode.CommentMode.Preview,
+			author: {
+				name: "Cline",
+				iconPath: vscode.Uri.parse(CLINE_AVATAR_URL),
+			},
+		}
+		this.streamingThread.comments = [commentObj]
+
+		// Clear streaming state
+		this.streamingThread = null
+		this.streamingContent = ""
+	}
+
+	/**
+	 * Add multiple review comments at once
+	 */
+	addReviewComments(comments: ReviewComment[]): vscode.CommentThread[] {
+		return comments.map((comment) => this.addReviewComment(comment))
+	}
+
+	/**
+	 * Clear all review comments
+	 */
+	clearAllComments(): void {
+		for (const thread of this.threads.values()) {
+			this.threadFilePaths.delete(thread)
+			thread.dispose()
+		}
+		this.threads.clear()
+	}
+
+	/**
+	 * Clear comments for a specific file
+	 */
+	clearCommentsForFile(filePath: string): void {
+		const keysToRemove: string[] = []
+		for (const [key, thread] of this.threads.entries()) {
+			if (key.startsWith(filePath + ":")) {
+				this.threadFilePaths.delete(thread)
+				thread.dispose()
+				keysToRemove.push(key)
+			}
+		}
+		for (const key of keysToRemove) {
+			this.threads.delete(key)
+		}
+	}
+
+	/**
+	 * Get the number of active comment threads
+	 */
+	getThreadCount(): number {
+		return this.threads.size
+	}
+
+	/**
+	 * Handle a reply from the user
+	 */
+	private async handleReply(reply: vscode.CommentReply): Promise<void> {
+		const thread = reply.thread
+		const replyText = reply.text
+
+		// Add user's reply to the thread immediately
+		const userComment: vscode.Comment = {
+			body: new vscode.MarkdownString(replyText),
+			mode: vscode.CommentMode.Preview,
+			author: {
+				name: "You",
+			},
+		}
+		thread.comments = [...thread.comments, userComment]
+
+		// If we have a callback, get AI response
+		if (this.onReplyCallback) {
+			// Use stored absolute path (virtual URIs don't contain the full path)
+			const filePath = this.threadFilePaths.get(thread) || thread.uri.fsPath
+			const startLine = thread.range.start.line
+			const endLine = thread.range.end.line
+
+			// Collect existing comments for context (exclude the user's reply we just added)
+			const existingComments = thread.comments.slice(0, -1).map((c) => {
+				const author = c.author.name
+				const body = typeof c.body === "string" ? c.body : c.body.value
+				return `${author}: ${body}`
+			})
+
+			// Add an empty streaming comment that will be updated as chunks arrive
+			let streamingContent = ""
+			const updateStreamingComment = (content: string) => {
+				const streamingComment: vscode.Comment = {
+					body: new vscode.MarkdownString(content || "_Thinking..._"),
+					mode: vscode.CommentMode.Preview,
+					author: {
+						name: "Cline",
+						iconPath: vscode.Uri.parse(CLINE_AVATAR_URL),
+					},
+				}
+				thread.comments = [...thread.comments.slice(0, -1), streamingComment]
+			}
+
+			// Add initial thinking placeholder
+			const thinkingComment: vscode.Comment = {
+				body: new vscode.MarkdownString("_Thinking..._"),
+				mode: vscode.CommentMode.Preview,
+				author: {
+					name: "Cline",
+					iconPath: vscode.Uri.parse(CLINE_AVATAR_URL),
+				},
+			}
+			thread.comments = [...thread.comments, thinkingComment]
+
+			// Fire off the AI request with streaming callback
+			this.onReplyCallback(filePath, startLine, endLine, replyText, existingComments, (chunk) => {
+				// Append chunk and update the comment
+				streamingContent += chunk
+				updateStreamingComment(streamingContent)
+			})
+				.then(() => {
+					// Ensure final content is displayed
+					if (streamingContent) {
+						updateStreamingComment(streamingContent)
+					}
+				})
+				.catch((error) => {
+					// Show error
+					const errorComment: vscode.Comment = {
+						body: new vscode.MarkdownString(
+							`_Error getting response: ${error instanceof Error ? error.message : "Unknown error"}_`,
+						),
+						mode: vscode.CommentMode.Preview,
+						author: {
+							name: "Cline",
+							iconPath: vscode.Uri.parse(CLINE_AVATAR_URL),
+						},
+					}
+					thread.comments = [...thread.comments.slice(0, -1), errorComment]
+				})
+		}
+	}
+
+	/**
+	 * Handle adding the thread conversation to Cline's main chat
+	 */
+	private async handleAddToChat(thread: vscode.CommentThread): Promise<void> {
+		const filePath = this.threadFilePaths.get(thread) || thread.uri.fsPath
+		const startLine = thread.range.start.line + 1 // Convert to 1-indexed for display
+		const endLine = thread.range.end.line + 1
+
+		// Collect all comments from the thread
+		const conversation = thread.comments
+			.map((c) => {
+				const author = c.author.name === "You" ? "User" : c.author.name
+				const body = typeof c.body === "string" ? c.body : c.body.value
+				return `**${author}:** ${body}`
+			})
+			.join("\n\n")
+
+		// Format the context message
+		const contextMessage = `The following is a conversation from a code review comment on \`${filePath}\` (lines ${startLine}-${endLine}). The user would like to continue this discussion with you:
+
+---
+
+${conversation}
+
+---
+
+Please continue helping the user with their question about this code.`
+
+		await sendAddToInputEvent(contextMessage)
+	}
+
+	private getThreadKey(filePath: string, startLine: number, endLine: number): string {
+		return `${filePath}:${startLine}:${endLine}`
+	}
+
+	dispose(): void {
+		this.clearAllComments()
+		this.commentController.dispose()
+		for (const disposable of this.disposables) {
+			disposable.dispose()
+		}
+	}
+}
+
+// Singleton instance for the extension
+let instance: CommentReviewController | undefined
+
+/**
+ * Get or create the CommentReviewController singleton
+ */
+export function getCommentReviewController(): CommentReviewController {
+	if (!instance) {
+		instance = new CommentReviewController()
+	}
+	return instance
+}
+
+/**
+ * Dispose the CommentReviewController singleton
+ */
+export function disposeCommentReviewController(): void {
+	if (instance) {
+		instance.dispose()
+		instance = undefined
+	}
+}
