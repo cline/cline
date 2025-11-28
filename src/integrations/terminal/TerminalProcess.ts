@@ -181,15 +181,6 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				}
 
 				this.fullOutput += data
-				// Always emit lines - DetachedProcessManager needs to receive them even after continue()
-				// The isListening flag now only controls whether we update lastRetrievedIndex
-				console.log(
-					"[DEBUG TerminalProcess] emitIfEol called, isListening:",
-					this.isListening,
-					"data length:",
-					data.length,
-				)
-				this.emitIfEol(data)
 				if (this.isListening) {
 					this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
 				}
@@ -262,12 +253,6 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			// if (line.endsWith("\r")) {
 			// 	line = line.slice(0, -1)
 			// }
-			console.log(
-				"[DEBUG TerminalProcess.emitIfEol] Emitting line, isListening:",
-				this.isListening,
-				"line:",
-				line.substring(0, 50),
-			)
 			this.emit("line", line)
 			this.buffer = this.buffer.slice(lineEndIndex + 1)
 		}
@@ -285,12 +270,9 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	}
 
 	continue() {
-		console.log("[DEBUG TerminalProcess.continue] Called, setting isListening to false")
 		this.emitRemainingBufferIfListening()
 		this.isListening = false
-		// Note: We no longer remove all "line" listeners here.
-		// This allows DetachedProcessManager to keep listening after the Task has "continued".
-		// The Task should remove its own listener before calling continue() if needed.
+		this.removeAllListeners("line")
 		this.emit("continue")
 	}
 
