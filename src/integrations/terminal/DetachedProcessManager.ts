@@ -48,7 +48,6 @@ export class DetachedProcessManager {
 		// Pipe process output to log file
 		process.on("line", (line: string) => {
 			detached.lineCount++
-			console.log("[DEBUG DetachedProcessManager] Received line event #" + detached.lineCount + ":", line.substring(0, 50))
 			logStream.write(line + "\n")
 		})
 

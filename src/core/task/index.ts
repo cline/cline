@@ -1695,7 +1695,6 @@ export class Task {
 				// After "Proceed While Running":
 				// - For backgroundExec mode: DON'T stream to UI (DetachedProcessManager handles logging to file)
 				if (this.terminalExecutionMode !== "backgroundExec") {
-					console.log("[DEBUG process.on('line')] didContinue=true, calling this.say('command_output')")
 					this.say("command_output", line)
 				}
 				// In backgroundExec mode, output is captured by DetachedProcessManager and written to log file
@@ -1762,7 +1761,6 @@ export class Task {
 
 					// Handle user clicking "Proceed While Running"
 					if (raceResult === "proceed") {
-						console.log("[DEBUG Task.executeCommandTool] User clicked Proceed While Running")
 						didContinue = true
 						return await this.handleProceedWhileRunning(
 							process,
@@ -1821,7 +1819,6 @@ export class Task {
 
 					if (raceResult === "proceed") {
 						// User opted to continue while command runs (backgrounded)
-						console.log("[DEBUG Task.executeCommandTool] User clicked Proceed While Running (no timeout path)")
 						didContinue = true
 						return await this.handleProceedWhileRunning(
 							process,
@@ -1926,11 +1923,9 @@ export class Task {
 	): Promise<[boolean, string]> {
 		let detachedProcess: { logFilePath: string } | undefined
 		if (this.terminalExecutionMode === "backgroundExec" && this.detachedProcessManager) {
-			console.log("[DEBUG Task.executeCommandTool] Adding process to DetachedProcessManager BEFORE continue()")
 			detachedProcess = this.detachedProcessManager.addProcess(process, command)
 		}
 
-		console.log("[DEBUG Task.executeCommandTool] Calling process.continue()")
 		process.continue()
 
 		// Cleanup timers
@@ -3597,8 +3592,13 @@ export class Task {
 			await setTimeoutPromise(300) // delay after saving file to let terminals catch up
 		}
 
+		// In backgroundExec mode with running detached processes, skip the terminal wait entirely
+		// since those processes are intentionally running in the background after "Proceed While Running"
+		const hasRunningDetachedProcesses = this.detachedProcessManager?.getAllProcesses().some((p) => p.status === "running")
+		const shouldSkipTerminalWait = this.terminalExecutionMode === "backgroundExec" && hasRunningDetachedProcesses
+
 		// let terminalWasBusy = false
-		if (busyTerminals.length > 0) {
+		if (busyTerminals.length > 0 && !shouldSkipTerminalWait) {
 			// wait for terminals to cool down
 			// terminalWasBusy = allTerminals.some((t) => this.terminalManager.isProcessHot(t.id))
 			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
