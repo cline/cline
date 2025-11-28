@@ -1629,27 +1629,29 @@ export const ChatRowContent = memo(
 											<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
 											View Changes
 										</SuccessButton>
-										<SuccessButton
-											disabled={explainChangesDisabled}
-											onClick={() => {
-												setExplainChangesDisabled(true)
-												TaskServiceClient.explainChanges({
-													metadata: {},
-													messageTs: message.ts,
-												}).catch((err) => {
-													console.error("Failed to explain changes:", err)
-													setExplainChangesDisabled(false)
-												})
-											}}
-											style={{
-												cursor: explainChangesDisabled ? "wait" : "pointer",
-												width: "100%",
-												backgroundColor: "var(--vscode-button-secondaryBackground)",
-												borderColor: "var(--vscode-button-secondaryBackground)",
-											}}>
-											<i className="codicon codicon-comment-discussion" style={{ marginRight: 6 }} />
-											{explainChangesDisabled ? "Explaining..." : "Explain Changes"}
-										</SuccessButton>
+										{PLATFORM_CONFIG.type === PlatformType.VSCODE && (
+											<SuccessButton
+												disabled={explainChangesDisabled}
+												onClick={() => {
+													setExplainChangesDisabled(true)
+													TaskServiceClient.explainChanges({
+														metadata: {},
+														messageTs: message.ts,
+													}).catch((err) => {
+														console.error("Failed to explain changes:", err)
+														setExplainChangesDisabled(false)
+													})
+												}}
+												style={{
+													cursor: explainChangesDisabled ? "wait" : "pointer",
+													width: "100%",
+													backgroundColor: "var(--vscode-button-secondaryBackground)",
+													borderColor: "var(--vscode-button-secondaryBackground)",
+												}}>
+												<i className="codicon codicon-comment-discussion" style={{ marginRight: 6 }} />
+												{explainChangesDisabled ? "Explaining..." : "Explain Changes"}
+											</SuccessButton>
+										)}
 									</div>
 								)}
 							</>
@@ -1935,28 +1937,30 @@ export const ChatRowContent = memo(
 												/>
 												View Changes
 											</SuccessButton>
-											<SuccessButton
-												appearance="secondary"
-												disabled={explainChangesDisabled}
-												onClick={() => {
-													setExplainChangesDisabled(true)
-													TaskServiceClient.explainChanges({
-														metadata: {},
-														messageTs: message.ts,
-													}).catch((err) => {
-														console.error("Failed to explain changes:", err)
-														setExplainChangesDisabled(false)
-													})
-												}}>
-												<i
-													className="codicon codicon-comment-discussion"
-													style={{
-														marginRight: 6,
-														cursor: explainChangesDisabled ? "wait" : "pointer",
-													}}
-												/>
-												{explainChangesDisabled ? "Explaining..." : "Explain Changes"}
-											</SuccessButton>
+											{PLATFORM_CONFIG.type === PlatformType.VSCODE && (
+												<SuccessButton
+													appearance="secondary"
+													disabled={explainChangesDisabled}
+													onClick={() => {
+														setExplainChangesDisabled(true)
+														TaskServiceClient.explainChanges({
+															metadata: {},
+															messageTs: message.ts,
+														}).catch((err) => {
+															console.error("Failed to explain changes:", err)
+															setExplainChangesDisabled(false)
+														})
+													}}>
+													<i
+														className="codicon codicon-comment-discussion"
+														style={{
+															marginRight: 6,
+															cursor: explainChangesDisabled ? "wait" : "pointer",
+														}}
+													/>
+													{explainChangesDisabled ? "Explaining..." : "Explain Changes"}
+												</SuccessButton>
+											)}
 										</div>
 									)}
 								</div>
