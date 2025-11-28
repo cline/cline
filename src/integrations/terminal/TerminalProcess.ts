@@ -181,8 +181,8 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				}
 
 				this.fullOutput += data
-				this.emitIfEol(data)
 				if (this.isListening) {
+					this.emitIfEol(data)
 					this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
 				}
 			}
