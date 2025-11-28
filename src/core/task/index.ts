@@ -1934,9 +1934,15 @@ export class Task {
 		process.continue()
 
 		// Cleanup timers
-		if (cleanupProceedCheck) cleanupProceedCheck()
-		if (chunkTimer) clearTimeout(chunkTimer)
-		if (completionTimer) clearTimeout(completionTimer)
+		if (cleanupProceedCheck) {
+			cleanupProceedCheck()
+		}
+		if (chunkTimer) {
+			clearTimeout(chunkTimer)
+		}
+		if (completionTimer) {
+			clearTimeout(completionTimer)
+		}
 
 		// Send a message to the UI with the log file path (only in backgroundExec mode)
 		if (this.terminalExecutionMode === "backgroundExec" && detachedProcess) {
