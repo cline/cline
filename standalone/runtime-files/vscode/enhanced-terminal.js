@@ -149,8 +149,10 @@ class StandaloneTerminalProcess extends EventEmitter {
 		// Store full output
 		this.fullOutput += data
 
+		// Always emit lines - DetachedProcessManager needs to receive them even after continue()
+		// The isListening flag now only controls whether we update lastRetrievedIndex
+		this.emitLines(data)
 		if (this.isListening) {
-			this.emitLines(data)
 			this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
 		}
 	}
@@ -179,7 +181,9 @@ class StandaloneTerminalProcess extends EventEmitter {
 	continue() {
 		this.emitRemainingBuffer()
 		this.isListening = false
-		this.removeAllListeners("line")
+		// Note: We no longer remove all "line" listeners here.
+		// This allows DetachedProcessManager to keep listening after the Task has "continued".
+		// The Task should remove its own listener before calling continue() if needed.
 		this.emit("continue")
 	}
 
