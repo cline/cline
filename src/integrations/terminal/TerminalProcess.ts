@@ -262,6 +262,12 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			// if (line.endsWith("\r")) {
 			// 	line = line.slice(0, -1)
 			// }
+			console.log(
+				"[DEBUG TerminalProcess.emitIfEol] Emitting line, isListening:",
+				this.isListening,
+				"line:",
+				line.substring(0, 50),
+			)
 			this.emit("line", line)
 			this.buffer = this.buffer.slice(lineEndIndex + 1)
 		}
@@ -279,6 +285,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	}
 
 	continue() {
+		console.log("[DEBUG TerminalProcess.continue] Called, setting isListening to false")
 		this.emitRemainingBufferIfListening()
 		this.isListening = false
 		// Note: We no longer remove all "line" listeners here.
