@@ -181,6 +181,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				}
 
 				this.fullOutput += data
+				this.emitIfEol(data)
 				if (this.isListening) {
 					this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
 				}
@@ -240,6 +241,21 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			// 	console.log(`Emitting continue after delay for terminal`)
 			// 	// can't emit completed since we don't if the command actually completed, it could still be running server
 			// }, 500) // Adjust this delay as needed
+		}
+	}
+
+	// Inspired by https://github.com/sindresorhus/execa/blob/main/lib/transform/split.js
+	private emitIfEol(chunk: string) {
+		this.buffer += chunk
+		let lineEndIndex: number
+		while ((lineEndIndex = this.buffer.indexOf("\n")) !== -1) {
+			const line = this.buffer.slice(0, lineEndIndex).trimEnd() // removes trailing \r
+			// Remove \r if present (for Windows-style line endings)
+			// if (line.endsWith("\r")) {
+			// 	line = line.slice(0, -1)
+			// }
+			this.emit("line", line)
+			this.buffer = this.buffer.slice(lineEndIndex + 1)
 		}
 	}
 
