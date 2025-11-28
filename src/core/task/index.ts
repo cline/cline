@@ -1470,6 +1470,7 @@ export class Task {
 
 			// PHASE 7: Clean up resources
 			this.terminalManager.disposeAll()
+			this.detachedProcessManager.dispose()
 			this.urlContentFetcher.closeBrowser()
 			await this.browserSession.dispose()
 			this.clineIgnoreController.dispose()

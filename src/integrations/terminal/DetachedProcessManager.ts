@@ -3,6 +3,9 @@ import * as os from "os"
 import * as path from "path"
 import { TerminalProcess } from "./TerminalProcess"
 
+// 10 minute hard timeout for detached processes
+const HARD_TIMEOUT_MS = 10 * 60 * 1000
+
 export interface DetachedProcess {
 	id: string
 	command: string
@@ -16,10 +19,12 @@ export interface DetachedProcess {
 export class DetachedProcessManager {
 	private processes: Map<string, DetachedProcess> = new Map()
 	private logStreams: Map<string, fs.WriteStream> = new Map()
+	private timeouts: Map<string, NodeJS.Timeout> = new Map()
 
 	/**
 	 * Add a process to be tracked as detached.
 	 * Creates a log file and pipes output to it.
+	 * Sets up a 10-minute hard timeout to prevent zombie processes.
 	 */
 	addProcess(process: TerminalProcess, command: string): DetachedProcess {
 		console.log("[DEBUG DetachedProcessManager.addProcess] Called with command:", command)
@@ -47,14 +52,41 @@ export class DetachedProcessManager {
 			logStream.write(line + "\n")
 		})
 
-		// Listen for completion
+		// Set up 10-minute hard timeout to prevent zombie processes
+		const timeoutId = setTimeout(() => {
+			if (detached.status === "running") {
+				console.log(`[DetachedProcessManager] Hard timeout reached for process ${id}, terminating...`)
+				detached.status = "timed_out"
+				logStream.write("\n[TIMEOUT] Process killed after 10 minutes\n")
+				logStream.end()
+
+				// Terminate the process if it has a terminate method (StandaloneTerminalProcess / enhanced terminal)
+				// Regular TerminalProcess (VSCode terminal) doesn't have terminate(), so we check
+				if (process && typeof (process as any).terminate === "function") {
+					;(process as any).terminate()
+				}
+			}
+		}, HARD_TIMEOUT_MS)
+		this.timeouts.set(id, timeoutId)
+
+		// Listen for completion - clear timeout
 		process.on("completed", () => {
+			const timeout = this.timeouts.get(id)
+			if (timeout) {
+				clearTimeout(timeout)
+				this.timeouts.delete(id)
+			}
 			detached.status = "completed"
 			logStream.end()
 		})
 
-		// Listen for errors
+		// Listen for errors - clear timeout
 		process.on("error", (error: Error) => {
+			const timeout = this.timeouts.get(id)
+			if (timeout) {
+				clearTimeout(timeout)
+				this.timeouts.delete(id)
+			}
 			detached.status = "error"
 			// Try to extract exit code from error message if available
 			const exitCodeMatch = error.message.match(/exit code (\d+)/)
@@ -97,5 +129,30 @@ export class DetachedProcessManager {
 			lines.push(`- ${p.command} (running ${duration}m, ${p.lineCount} lines, log: ${p.logFilePath})`)
 		}
 		return lines.join("\n")
+	}
+
+	/**
+	 * Clean up all resources (timeouts, log streams).
+	 * Called when the Task is disposed.
+	 */
+	dispose(): void {
+		// Clear all timeouts
+		for (const [id, timeout] of this.timeouts) {
+			clearTimeout(timeout)
+		}
+		this.timeouts.clear()
+
+		// Close all log streams
+		for (const [id, logStream] of this.logStreams) {
+			try {
+				logStream.end()
+			} catch (error) {
+				console.error(`[DetachedProcessManager] Error closing log stream for ${id}:`, error)
+			}
+		}
+		this.logStreams.clear()
+
+		// Clear process tracking
+		this.processes.clear()
 	}
 }
