@@ -338,7 +338,7 @@ var rawConfigFields = `	[
 	    "category": "sapaicore",
 	    "required": true,
 	    "fieldType": "password",
-	    "placeholder": "Enter your API key"
+	    "placeholder": "Enter Client ID"
 	  },
 	  {
 	    "name": "sapAiCoreClientSecret",
@@ -347,7 +347,7 @@ var rawConfigFields = `	[
 	    "category": "sapaicore",
 	    "required": true,
 	    "fieldType": "password",
-	    "placeholder": "Enter your API key"
+	    "placeholder": "Enter Client Secret"
 	  },
 	  {
 	    "name": "ulid",
