@@ -1694,7 +1694,6 @@ export class Task {
 			} else {
 				// After "Proceed While Running":
 				// - For backgroundExec mode: DON'T stream to UI (DetachedProcessManager handles logging to file)
-				// - For vscodeTerminal mode: Keep streaming to UI (user can see output in the terminal)
 				if (this.terminalExecutionMode !== "backgroundExec") {
 					console.log("[DEBUG process.on('line')] didContinue=true, calling this.say('command_output')")
 					this.say("command_output", line)
@@ -1848,58 +1847,64 @@ export class Task {
 					throw error
 				}
 			} else {
-				// No timeout - race between process completion and user clicking "Proceed While Running"
-				const raceResult = await Promise.race([process.then(() => "completed" as const), proceedPromise])
+				if (this.terminalExecutionMode !== "backgroundExec") {
+					await process
+				} else {
+					// No timeout - race between process completion and user clicking "Proceed While Running"
+					const raceResult = await Promise.race([process.then(() => "completed" as const), proceedPromise])
 
-				// Handle user clicking "Proceed While Running"
-				if (raceResult === "proceed") {
-					console.log("[DEBUG Task.executeCommandTool] User clicked Proceed While Running (no timeout path)")
-					didContinue = true
+					// Handle user clicking "Proceed While Running"
+					if (raceResult === "proceed") {
+						console.log("[DEBUG Task.executeCommandTool] User clicked Proceed While Running (no timeout path)")
+						didContinue = true
 
-					// Only use DetachedProcessManager for backgroundExec mode
-					// In vscodeTerminal mode, user can see output directly in the terminal
-					let detachedProcess: { logFilePath: string } | undefined
-					if (this.terminalExecutionMode === "backgroundExec" && this.detachedProcessManager) {
-						console.log("[DEBUG Task.executeCommandTool] Adding process to DetachedProcessManager BEFORE continue()")
-						detachedProcess = this.detachedProcessManager.addProcess(process, command)
-					}
+						// Only use DetachedProcessManager for backgroundExec mode
+						// In vscodeTerminal mode, user can see output directly in the terminal
+						let detachedProcess: { logFilePath: string } | undefined
+						if (this.terminalExecutionMode === "backgroundExec" && this.detachedProcessManager) {
+							console.log(
+								"[DEBUG Task.executeCommandTool] Adding process to DetachedProcessManager BEFORE continue()",
+							)
+							detachedProcess = this.detachedProcessManager.addProcess(process, command)
+						}
 
-					console.log("[DEBUG Task.executeCommandTool] Calling process.continue()")
-					process.continue()
+						console.log("[DEBUG Task.executeCommandTool] Calling process.continue()")
+						process.continue()
 
-					// Cleanup timers
-					if (cleanupProceedCheck) {
-						cleanupProceedCheck()
-					}
-					if (chunkTimer) {
-						clearTimeout(chunkTimer)
-						chunkTimer = null
-					}
-					if (completionTimer) {
-						clearTimeout(completionTimer)
-						completionTimer = null
-					}
+						// Cleanup timers
+						if (cleanupProceedCheck) {
+							cleanupProceedCheck()
+						}
+						if (chunkTimer) {
+							clearTimeout(chunkTimer)
+							chunkTimer = null
+						}
+						if (completionTimer) {
+							clearTimeout(completionTimer)
+							completionTimer = null
+						}
 
-					// Send a message to the UI with the log file path (only in backgroundExec mode)
-					if (this.terminalExecutionMode === "backgroundExec" && detachedProcess) {
-						await this.say("command_output", `\n📋 Output is being logged to: ${detachedProcess.logFilePath}`)
-					}
+						// Send a message to the UI with the log file path (only in backgroundExec mode)
+						if (this.terminalExecutionMode === "backgroundExec" && detachedProcess) {
+							await this.say("command_output", `\n📋 Output is being logged to: ${detachedProcess.logFilePath}`)
+						}
 
-					// Process any output we captured so far
-					await setTimeoutPromise(50)
-					const result = terminalManager.processOutput(outputLines, undefined, false)
+						// Process any output we captured so far
+						await setTimeoutPromise(50)
+						const result = terminalManager.processOutput(outputLines, undefined, false)
 
-					// Return different messages based on mode
-					if (this.terminalExecutionMode === "backgroundExec" && detachedProcess) {
-						return [
-							false,
-							`Command is running in the background. You can proceed with other tasks.\nLog file: ${detachedProcess.logFilePath}\n${result.length > 0 ? `Output so far:\n${result}` : ""}`,
-						]
-					} else {
-						return [
-							false,
-							`Command is running in the background. You can proceed with other tasks.\n${result.length > 0 ? `Output so far:\n${result}` : ""}`,
-						]
+						// Return different messages based on mode
+						if (this.terminalExecutionMode === "backgroundExec" && detachedProcess) {
+							return [
+								false,
+								`Command is running in the background. You can proceed with other tasks.\nLog file: ${detachedProcess.logFilePath}\n${result.length > 0 ? `Output so far:\n${result}` : ""}`,
+							]
+						} else {
+							return [
+								false,
+								`Command is running in the background. You can proceed with other tasks.\n${result.length > 0 ? `Output so far:\n${result}` : ""}`,
+							]
+						}
 					}
 				}
 				// If raceResult === "completed", process finished normally - continue to end of function
@@ -3668,7 +3673,7 @@ export class Task {
 			details += terminalDetails
 		}
 
-		// Add detached processes section (commands that user clicked "Proceed while running")
+		// Add detached processes summary section (commands that user clicked "Proceed while running")
 		// Only available in backgroundExec mode
 		if (this.detachedProcessManager) {
 			const detachedSummary = this.detachedProcessManager.getSummary()
