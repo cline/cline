@@ -1671,16 +1671,7 @@ export class Task {
 
 		const outputLines: string[] = []
 		process.on("line", async (line) => {
-			console.log(
-				"[DEBUG process.on('line')] Received line, didCancelViaUi:",
-				didCancelViaUi,
-				"didContinue:",
-				didContinue,
-				"line length:",
-				line.length,
-			)
 			if (didCancelViaUi) {
-				console.log("[DEBUG process.on('line')] Skipping - cancelled via UI")
 				return
 			}
 			outputLines.push(line)
@@ -1692,7 +1683,6 @@ export class Task {
 
 			// Apply buffered streaming for both vscodeTerminal and backgroundExec modes
 			if (!didContinue) {
-				console.log("[DEBUG process.on('line')] Adding to buffer, buffer length:", outputBuffer.length + 1)
 				outputBuffer.push(line)
 				outputBufferSize += Buffer.byteLength(line, "utf8")
 				// Flush if buffer is large enough
