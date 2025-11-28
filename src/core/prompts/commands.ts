@@ -256,14 +256,28 @@ Follow these steps to explain code changes:
 
 ## 1. Gather Information About the Changes
 
-First, use git or gh CLI tools to understand what changes exist:
+First, use git or gh CLI tools to understand what changes exist. **Always get the full unified diff output**, not just stats:
 
-- For commits: \`git --no-pager log --oneline -n 10\` to see recent commits, \`git --no-pager show <commit>\` to see a specific commit's changes
-- For commit ranges: \`git --no-pager log --oneline <from>..<to>\` to see commits in range
-- For branches: \`git --no-pager diff <branch1>..<branch2> --stat\` to see what files changed
-- For pull requests: \`gh pr view <number> --json commits,files\` or \`gh pr diff <number> | cat\`
-- For staged changes: \`git --no-pager diff --cached --stat\` to see staged files
-- For working directory: \`git --no-pager diff --stat\` or \`git status\`
+- For commits: \`git --no-pager show <commit>\` to see a specific commit's full diff
+- For commit ranges: \`git --no-pager log --oneline <from>..<to>\` to see commits in range, then \`git --no-pager diff <from>..<to>\` for full diff
+- For branches: \`git --no-pager diff <branch1>..<branch2>\` to see full diff of all changes
+- For pull requests: \`gh pr view <number> --json commits,files\` for metadata, then \`gh pr diff <number> | cat\` for full diff
+- For staged changes: \`git --no-pager diff --cached\` to see full diff of staged files
+- For working directory: \`git --no-pager diff\` for full diff of unstaged changes
+
+To get a comprehensive overview between two refs, run:
+
+**Bash:**
+\`\`\`bash
+echo "=== COMMITS ==="; git --no-pager log --oneline <from_ref>..<to_ref>; echo "=== CHANGED FILES ==="; git diff <from_ref>..<to_ref> --name-only; echo "=== FULL DIFF ==="; git --no-pager diff <from_ref>..<to_ref>
+\`\`\`
+
+**PowerShell:**
+\`\`\`powershell
+'=== COMMITS ==='; git --no-pager log --oneline <from_ref>..<to_ref>; '=== CHANGED FILES ==='; git diff <from_ref>..<to_ref> --name-only; '=== FULL DIFF ==='; git --no-pager diff <from_ref>..<to_ref>
+\`\`\`
+
+Replace \`<from_ref>\` and \`<to_ref>\` with the appropriate git references (commit hashes, branch names, tags, HEAD~1, etc.).
 
 ## 2. Build Context for Better Explanations
 

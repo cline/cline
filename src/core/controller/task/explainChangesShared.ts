@@ -238,10 +238,9 @@ Rules:
    - The diff view collapses unchanged lines, so comments must be on a line that's part of the diff to be visible
 3. Then write your comment text (can span multiple lines)
 4. End with @@@ on its own line
-5. MAX ${maxCommentsPerFile} comment${maxCommentsPerFile > 1 ? "s" : ""} per file - focus on the most significant changes
-6. NOT every file needs a comment - skip files with trivial or self-explanatory changes
-7. Keep comments digestible - explain important/non-obvious changes, not every little thing
-8. Skip trivial changes - ignore whitespace, formatting, simple renames, obvious fixes
+5. Each file MUST have at least one comment, MAX ${maxCommentsPerFile} comment${maxCommentsPerFile > 1 ? "s" : ""} per file - focus on the most significant changes
+6. Keep comments digestible - explain important/non-obvious changes, not every little thing
+7. Skip trivial changes - ignore whitespace, formatting, simple renames, obvious fixes
 `
 
 	const userMessage = `Explain these code changes:
