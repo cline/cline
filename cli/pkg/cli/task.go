@@ -668,7 +668,8 @@ func CreateAndFollowTask(ctx context.Context, prompt string, opts TaskOptions) e
 	// If yolo mode is enabled, follow until completion (non-interactive)
 	// Otherwise, follow in interactive mode
 	if opts.Yolo {
-		return taskManager.FollowConversationUntilCompletion(ctx)
+		// Pass true to skip initial check since we just created the task
+		return taskManager.FollowConversationUntilCompletion(ctx, true)
 	} else {
 		return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance(), true)
 	}
