@@ -55,14 +55,7 @@ import { ApiConfiguration } from "@shared/api"
 import { findLast, findLastIndex } from "@shared/array"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
-import {
-	ClineApiReqCancelReason,
-	ClineApiReqInfo,
-	ClineAsk,
-	ClineMessage,
-	ClineSay,
-	COMMAND_CANCEL_TOKEN,
-} from "@shared/ExtensionMessage"
+import { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import { CLINE_MCP_TOOL_IDENTIFIER } from "@shared/mcp"
@@ -84,7 +77,7 @@ import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
 import { isSubagentCommand, transformClineCommand } from "@/integrations/cli-subagents/subagent_command"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
-import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
+import { TerminalHangStage, telemetryService } from "@/services/telemetry"
 import {
 	ClineAssistantContent,
 	ClineContent,
@@ -1602,7 +1595,26 @@ export class Task {
 
 		let userFeedback: { text?: string; images?: string[]; files?: string[] } | undefined
 		let didContinue = false
-		let didCancelViaUi = false
+		const didCancelViaUi = false
+
+		// Create a promise that resolves when user clicks "Proceed While Running"
+		// This allows us to race between process completion and user action
+		let cleanupProceedCheck: (() => void) | undefined
+		const proceedPromise = new Promise<"proceed">((resolve) => {
+			const checkInterval = setInterval(() => {
+				if (this.taskState.askResponse === "yesButtonClicked") {
+					// Clear the response so it doesn't interfere with other asks
+					this.taskState.askResponse = undefined
+					clearInterval(checkInterval)
+					resolve("proceed")
+				}
+			}, 100)
+
+			cleanupProceedCheck = () => clearInterval(checkInterval)
+
+			// Also cleanup when process completes to prevent memory leaks
+			process.then(() => clearInterval(checkInterval)).catch(() => clearInterval(checkInterval))
+		})
 
 		// Chunked terminal output buffering
 		const CHUNK_LINE_COUNT = 20
@@ -1618,108 +1630,37 @@ export class Task {
 		const BUFFER_STUCK_TIMEOUT_MS = 6000 // 6 seconds
 
 		// Flag to prevent multiple concurrent ask calls
-		let isWaitingForAskResponse = false
+		const isWaitingForAskResponse = false
 
 		const flushBuffer = async (force = false) => {
-			console.log(
-				"[DEBUG flushBuffer] Called with force:",
-				force,
-				"outputBuffer.length:",
-				outputBuffer.length,
-				"isWaitingForAskResponse:",
-				isWaitingForAskResponse,
-			)
-
-			// If we're already waiting for a response, just accumulate output - don't send another ask
-			if (isWaitingForAskResponse && !force) {
-				console.log("[DEBUG flushBuffer] Already waiting for ask response, skipping")
+			if (outputBuffer.length === 0 && !force) {
 				return
-			}
-
-			if (outputBuffer.length === 0) {
-				if (force) {
-					// If force is true, flush anyway
-					console.log("[DEBUG flushBuffer] Force flush with empty buffer")
-				} else {
-					console.log("[DEBUG flushBuffer] Returning early - empty buffer and not forced")
-					return
-				}
 			}
 			const chunk = outputBuffer.join("\n")
 			outputBuffer = []
 			outputBufferSize = 0
-			console.log("[DEBUG flushBuffer] Chunk length:", chunk.length, "Calling this.ask('command_output')")
 
-			// Set flag before asking
-			isWaitingForAskResponse = true
+			if (!didContinue) {
+				// First time showing output - use ask() to show "Proceed while running" button
+				// But DON'T wait for the response - just show the UI and continue streaming
 
-			// Start timer to detect if buffer gets stuck
-			bufferStuckTimer = setTimeout(() => {
-				telemetryService.captureTerminalHang(TerminalHangStage.BUFFER_STUCK)
-				bufferStuckTimer = null
-			}, BUFFER_STUCK_TIMEOUT_MS)
+				// Start timer to detect if buffer gets stuck
+				bufferStuckTimer = setTimeout(() => {
+					telemetryService.captureTerminalHang(TerminalHangStage.BUFFER_STUCK)
+					bufferStuckTimer = null
+				}, BUFFER_STUCK_TIMEOUT_MS)
 
-			try {
-				console.log("[DEBUG flushBuffer] Before this.ask('command_output')")
-				const { response, text, images, files } = await this.ask("command_output", chunk)
-				console.log("[DEBUG flushBuffer] After this.ask - response:", response, "text:", text)
+				// Use say() to stream output without blocking
+				await this.say("command_output", chunk)
 
-				// Clear the waiting flag immediately after getting response
-				// This must happen BEFORE we try to flush remaining buffer below
-				isWaitingForAskResponse = false
-
-				if (response === "yesButtonClicked") {
-					console.log("[DEBUG flushBuffer] yesButtonClicked - Proceed while running")
-					// Track when user clicks "Process while Running"
-					telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.PROCESS_WHILE_RUNNING)
-
-					// Register this command as a detached process for background monitoring
-					console.log("[DEBUG flushBuffer] Calling detachedProcessManager.addProcess")
-					this.detachedProcessManager.addProcess(process, command)
-					console.log("[DEBUG flushBuffer] detachedProcessManager.addProcess completed")
-
-					// proceed while running - but still capture user feedback if provided
-					if (text || (images && images.length > 0) || (files && files.length > 0)) {
-						userFeedback = { text, images, files }
-						console.log("[DEBUG flushBuffer] User feedback captured:", userFeedback)
-					}
-				} else if (response === "noButtonClicked" && text === COMMAND_CANCEL_TOKEN) {
-					console.log("[DEBUG flushBuffer] noButtonClicked with COMMAND_CANCEL_TOKEN - Cancelled")
-					telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.CANCELLED)
-					didCancelViaUi = true
-					userFeedback = undefined
-				} else {
-					console.log("[DEBUG flushBuffer] Other response - userFeedback set")
-					userFeedback = { text, images, files }
-				}
-				console.log("[DEBUG flushBuffer] Setting didContinue = true, calling process.continue()")
-				didContinue = true
-				process.continue()
-				console.log("[DEBUG flushBuffer] process.continue() called successfully")
-
-				if (didCancelViaUi) {
-					outputBuffer = []
-					outputBufferSize = 0
-					await this.say("command_output", "Command cancelled")
-				}
-
-				// If more output accumulated, flush again
-				if (!didCancelViaUi && outputBuffer.length > 0) {
-					await flushBuffer()
-				}
-			} catch {
-				Logger.error("Error while asking for command output")
-			} finally {
-				// If the command finishes execution before the 'command_output' ask promise resolves (in other words before the user responded to the ask, which is expected when the command finishes execution first), this block is reached. This is expected and safe to ignore, as no further handling is required.
-
-				// Clear the waiting flag so new output can trigger asks
-				isWaitingForAskResponse = false
-
-				// Clear the stuck timer
+				// Clear the stuck timer since we successfully sent output
 				if (bufferStuckTimer) {
 					clearTimeout(bufferStuckTimer)
 					bufferStuckTimer = null
 				}
+			} else {
+				// Already continuing - just stream output via say()
+				await this.say("command_output", chunk)
 			}
 		}
 
@@ -1732,7 +1673,16 @@ export class Task {
 
 		const outputLines: string[] = []
 		process.on("line", async (line) => {
+			console.log(
+				"[DEBUG process.on('line')] Received line, didCancelViaUi:",
+				didCancelViaUi,
+				"didContinue:",
+				didContinue,
+				"line length:",
+				line.length,
+			)
 			if (didCancelViaUi) {
+				console.log("[DEBUG process.on('line')] Skipping - cancelled via UI")
 				return
 			}
 			outputLines.push(line)
@@ -1744,6 +1694,7 @@ export class Task {
 
 			// Apply buffered streaming for both vscodeTerminal and backgroundExec modes
 			if (!didContinue) {
+				console.log("[DEBUG process.on('line')] Adding to buffer, buffer length:", outputBuffer.length + 1)
 				outputBuffer.push(line)
 				outputBufferSize += Buffer.byteLength(line, "utf8")
 				// Flush if buffer is large enough
@@ -1755,6 +1706,7 @@ export class Task {
 			} else {
 				// For backgroundExec mode, stream output directly to UI after user continues
 				// For vscodeTerminal mode, this maintains existing behavior
+				console.log("[DEBUG process.on('line')] didContinue=true, calling this.say('command_output')")
 				this.say("command_output", line)
 			}
 		})
@@ -1810,13 +1762,53 @@ export class Task {
 				})
 
 				try {
-					await Promise.race([process, timeoutPromise])
+					// Race between: process completion, timeout, and user clicking "Proceed While Running"
+					const raceResult = await Promise.race([
+						process.then(() => "completed" as const),
+						timeoutPromise,
+						proceedPromise,
+					])
+
+					// Handle user clicking "Proceed While Running"
+					if (raceResult === "proceed") {
+						didContinue = true
+						process.continue()
+
+						// Cleanup timers
+						if (cleanupProceedCheck) {
+							cleanupProceedCheck()
+						}
+						if (chunkTimer) {
+							clearTimeout(chunkTimer)
+							chunkTimer = null
+						}
+						if (completionTimer) {
+							clearTimeout(completionTimer)
+							completionTimer = null
+						}
+
+						// Hand off to DetachedProcessManager for background tracking
+						this.detachedProcessManager.addProcess(process, command)
+
+						// Process any output we captured so far
+						await setTimeoutPromise(50)
+						const result = terminalManager.processOutput(outputLines, undefined, false)
+
+						return [
+							false,
+							`Command is running in the background. You can proceed with other tasks.\n${result.length > 0 ? `Output so far:\n${result}` : ""}`,
+						]
+					}
+					// If raceResult === "completed", process finished normally - continue to end of function
 				} catch (error) {
 					// This will continue running the command in the background
 					didContinue = true
 					process.continue()
 
 					// Clear all our timers
+					if (cleanupProceedCheck) {
+						cleanupProceedCheck()
+					}
 					if (chunkTimer) {
 						clearTimeout(chunkTimer)
 						chunkTimer = null
@@ -1841,8 +1833,46 @@ export class Task {
 					throw error
 				}
 			} else {
-				await process
+				// No timeout - race between process completion and user clicking "Proceed While Running"
+				const raceResult = await Promise.race([process.then(() => "completed" as const), proceedPromise])
+
+				// Handle user clicking "Proceed While Running"
+				if (raceResult === "proceed") {
+					didContinue = true
+					process.continue()
+
+					// Cleanup timers
+					if (cleanupProceedCheck) {
+						cleanupProceedCheck()
+					}
+					if (chunkTimer) {
+						clearTimeout(chunkTimer)
+						chunkTimer = null
+					}
+					if (completionTimer) {
+						clearTimeout(completionTimer)
+						completionTimer = null
+					}
+
+					// Hand off to DetachedProcessManager for background tracking
+					this.detachedProcessManager.addProcess(process, command)
+
+					// Process any output we captured so far
+					await setTimeoutPromise(50)
+					const result = terminalManager.processOutput(outputLines, undefined, false)
+
+					return [
+						false,
+						`Command is running in the background. You can proceed with other tasks.\n${result.length > 0 ? `Output so far:\n${result}` : ""}`,
+					]
+				}
+				// If raceResult === "completed", process finished normally - continue to end of function
 			}
+		}
+
+		// Cleanup the proceed check interval if still running
+		if (cleanupProceedCheck) {
+			cleanupProceedCheck()
 		}
 
 		// Clear timer if process completes normally
