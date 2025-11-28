@@ -1774,32 +1774,18 @@ export class Task {
 					}
 					// If raceResult === "completed", process finished normally - continue to end of function
 				} catch (error) {
-					// This will continue running the command in the background
-					didContinue = true
-					process.continue()
-
-					// Clear all our timers
-					if (cleanupProceedCheck) {
-						cleanupProceedCheck()
-					}
-					if (chunkTimer) {
-						clearTimeout(chunkTimer)
-						chunkTimer = null
-					}
-					if (completionTimer) {
-						clearTimeout(completionTimer)
-						completionTimer = null
-					}
-
-					// Process any output we captured before timeout
-					await setTimeoutPromise(50)
-					const result = this.terminalManager.processOutput(outputLines, undefined, false)
-
 					if (error.message === "COMMAND_TIMEOUT") {
-						return [
-							false,
-							`Command execution timed out after ${timeoutSeconds} seconds. ${result.length > 0 ? `\nOutput so far:\n${result}` : ""}`,
-						]
+						// Handle timeout the same way as "Proceed While Running" - register with DetachedProcessManager
+						didContinue = true
+						return await this.handleProceedWhileRunning(
+							process,
+							command,
+							outputLines,
+							cleanupProceedCheck,
+							chunkTimer,
+							completionTimer,
+							terminalManager,
+						)
 					}
 
 					// Re-throw other errors
