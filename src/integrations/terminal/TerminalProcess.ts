@@ -181,8 +181,16 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				}
 
 				this.fullOutput += data
+				// Always emit lines - DetachedProcessManager needs to receive them even after continue()
+				// The isListening flag now only controls whether we update lastRetrievedIndex
+				console.log(
+					"[DEBUG TerminalProcess] emitIfEol called, isListening:",
+					this.isListening,
+					"data length:",
+					data.length,
+				)
+				this.emitIfEol(data)
 				if (this.isListening) {
-					this.emitIfEol(data)
 					this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
 				}
 			}
