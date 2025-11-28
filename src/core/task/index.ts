@@ -1778,7 +1778,7 @@ export class Task {
 						// IMPORTANT: Add to DetachedProcessManager BEFORE calling continue()
 						// so it can receive events while the process is still emitting
 						console.log("[DEBUG Task.executeCommandTool] Adding process to DetachedProcessManager BEFORE continue()")
-						this.detachedProcessManager.addProcess(process, command)
+						const detachedProcess = this.detachedProcessManager.addProcess(process, command)
 
 						console.log("[DEBUG Task.executeCommandTool] Calling process.continue()")
 						process.continue()
@@ -1796,13 +1796,21 @@ export class Task {
 							completionTimer = null
 						}
 
+						// Send a message to the UI with the log file path (only in backgroundExec mode)
+						if (this.terminalExecutionMode === "backgroundExec") {
+							await this.say(
+								"command_output",
+								`\n📋 Output is being logged to: ${detachedProcess.logFilePath}\n(Click the path to open the log file)`,
+							)
+						}
+
 						// Process any output we captured so far
 						await setTimeoutPromise(50)
 						const result = terminalManager.processOutput(outputLines, undefined, false)
 
 						return [
 							false,
-							`Command is running in the background. You can proceed with other tasks.\n${result.length > 0 ? `Output so far:\n${result}` : ""}`,
+							`Command is running in the background. You can proceed with other tasks.\nLog file: ${detachedProcess.logFilePath}\n${result.length > 0 ? `Output so far:\n${result}` : ""}`,
 						]
 					}
 					// If raceResult === "completed", process finished normally - continue to end of function
@@ -1850,7 +1858,7 @@ export class Task {
 					// IMPORTANT: Add to DetachedProcessManager BEFORE calling continue()
 					// so it can receive events while the process is still emitting
 					console.log("[DEBUG Task.executeCommandTool] Adding process to DetachedProcessManager BEFORE continue()")
-					this.detachedProcessManager.addProcess(process, command)
+					const detachedProcess = this.detachedProcessManager.addProcess(process, command)
 
 					console.log("[DEBUG Task.executeCommandTool] Calling process.continue()")
 					process.continue()
@@ -1868,13 +1876,21 @@ export class Task {
 						completionTimer = null
 					}
 
+					// Send a message to the UI with the log file path (only in backgroundExec mode)
+					if (this.terminalExecutionMode === "backgroundExec") {
+						await this.say(
+							"command_output",
+							`\n📋 Output is being logged to: ${detachedProcess.logFilePath}\n(Click the path to open the log file)`,
+						)
+					}
+
 					// Process any output we captured so far
 					await setTimeoutPromise(50)
 					const result = terminalManager.processOutput(outputLines, undefined, false)
 
 					return [
 						false,
-						`Command is running in the background. You can proceed with other tasks.\n${result.length > 0 ? `Output so far:\n${result}` : ""}`,
+						`Command is running in the background. You can proceed with other tasks.\nLog file: ${detachedProcess.logFilePath}\n${result.length > 0 ? `Output so far:\n${result}` : ""}`,
 					]
 				}
 				// If raceResult === "completed", process finished normally - continue to end of function
