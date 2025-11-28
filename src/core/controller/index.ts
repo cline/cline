@@ -466,6 +466,10 @@ export class Controller {
 			if (this.task) {
 				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
 				this.task.taskState.abandoned = true
+
+				// Clear message queues after abort to prevent stale messages
+				this.task.messageStateHandler.setClineMessages([])
+				this.task.messageStateHandler.setApiConversationHistory([])
 			}
 
 			// Small delay to ensure state manager has persisted the history update
@@ -1005,6 +1009,10 @@ export class Controller {
 		if (this.task) {
 			// Clear task settings cache when task ends
 			await this.stateManager.clearTaskSettings()
+
+			// Clear message queues to prevent stale messages from appearing
+			this.task.messageStateHandler.setClineMessages([])
+			this.task.messageStateHandler.setApiConversationHistory([])
 		}
 		await this.task?.abortTask()
 		this.task = undefined // removes reference to it, so once promises end it will be garbage collected
