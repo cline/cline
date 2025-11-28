@@ -47,11 +47,13 @@ This is tricky—multiple prompt variants and configs. **Always search for exist
 
 1. **Add to `ClineDefaultTool` enum** in `src/shared/tools.ts`
 2. **Tool definition** in `src/core/prompts/system-prompt/tools/` (create file like `generate_explanation.ts`)
-   - Define variants for each `ModelFamily` (generic, next-gen, etc.)
-   - Export variants array
-3. **Register in `src/core/prompts/system-prompt/tools/init.ts`** - Add to `allToolVariants`
-4. **Add to variant configs** - Each model family has its own config in `src/core/prompts/system-prompt/variants/*/config.ts`:
+   - Define variants for each `ModelFamily` (generic, next-gen, xs, etc.)
+   - Export variants array (e.g., `export const my_tool_variants = [GENERIC, NATIVE_NEXT_GEN, XS]`)
+   - **Fallback behavior**: If a variant isn't defined, `ClineToolSet.getToolByNameWithFallback()` falls back to GENERIC. But explicit variants are cleaner.
+3. **Register in `src/core/prompts/system-prompt/tools/init.ts`** - Import and spread into `allToolVariants`
+4. **Add to variant configs** - Each model family has its own config in `src/core/prompts/system-prompt/variants/*/config.ts`. Add your tool's enum to the `.tools()` list:
    - `generic/config.ts`, `next-gen/config.ts`, `gpt-5/config.ts`, `native-gpt-5/config.ts`, `native-gpt-5-1/config.ts`, `native-next-gen/config.ts`, `gemini-3/config.ts`, `glm/config.ts`, `hermes/config.ts`, `xs/config.ts`
+   - **Important**: If you add to a variant's config, make sure the tool spec exports a variant for that ModelFamily (or relies on GENERIC fallback)
 5. **Create handler** in `src/core/task/tools/handlers/`
 6. **Wire up in `ToolExecutor.ts`** if needed for execution flow
 7. **Add to tool parsing** in `src/core/assistant-message/index.ts` if needed
