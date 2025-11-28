@@ -56,6 +56,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		aihubmixApiKey,
 		mcpOAuthSecrets,
 		nousResearchApiKey,
+		ioIntelligenceApiKey,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
 		context.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
@@ -100,6 +101,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("aihubmixApiKey") as Promise<Secrets["aihubmixApiKey"]>,
 		context.secrets.get("mcpOAuthSecrets") as Promise<Secrets["mcpOAuthSecrets"]>,
 		context.secrets.get("nousResearchApiKey") as Promise<Secrets["nousResearchApiKey"]>,
+		context.secrets.get("ioIntelligenceApiKey") as Promise<Secrets["ioIntelligenceApiKey"]>,
 	])
 
 	return {
@@ -146,6 +148,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		aihubmixApiKey,
 		mcpOAuthSecrets,
 		nousResearchApiKey,
+		ioIntelligenceApiKey,
 	}
 }
 
@@ -282,6 +285,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const hicapModelId = context.globalState.get<GlobalStateAndSettings["hicapModelId"]>("hicapModelId")
 		const aihubmixBaseUrl = context.globalState.get<GlobalStateAndSettings["aihubmixBaseUrl"]>("aihubmixBaseUrl")
 		const aihubmixAppCode = context.globalState.get<GlobalStateAndSettings["aihubmixAppCode"]>("aihubmixAppCode")
+		const ioIntelligenceBaseUrl =
+			context.globalState.get<GlobalStateAndSettings["ioIntelligenceBaseUrl"]>("ioIntelligenceBaseUrl")
 
 		// OpenTelemetry configuration
 		const openTelemetryEnabled =
@@ -552,6 +557,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			hicapModelId,
 			aihubmixBaseUrl,
 			aihubmixAppCode,
+			ioIntelligenceBaseUrl,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,

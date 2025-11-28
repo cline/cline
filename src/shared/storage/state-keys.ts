@@ -124,6 +124,7 @@ export interface Settings {
 	ocaMode: string | undefined
 	aihubmixBaseUrl: string | undefined
 	aihubmixAppCode: string | undefined
+	ioIntelligenceBaseUrl: string | undefined
 	hooksEnabled: boolean
 	subagentsEnabled: boolean
 	hicapModelId: string | undefined
@@ -266,6 +267,7 @@ export interface Secrets {
 	aihubmixApiKey: string | undefined
 	mcpOAuthSecrets: string | undefined
 	nousResearchApiKey: string | undefined
+	ioIntelligenceApiKey: string | undefined
 }
 
 export interface LocalState {

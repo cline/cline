@@ -49,6 +49,15 @@ service ModelsService {
   rpc refreshOcaModels(StringRequest) returns (OcaCompatibleModelInfo);
   // Fetches available models from AIhubmix
   rpc getAihubmixModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Fetches available models from IO Intelligence
+  rpc refreshIoIntelligenceModels(IoIntelligenceModelsRequest) returns (OpenRouterCompatibleModelInfo);
+}
+
+// Request for fetching IO Intelligence models
+message IoIntelligenceModelsRequest {
+  Metadata metadata = 1;
+  string base_url = 2;
+  string api_key = 3;
 }
 
 // List of VS Code LM models
