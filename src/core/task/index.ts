@@ -1794,10 +1794,7 @@ export class Task {
 
 						// Send a message to the UI with the log file path (only in backgroundExec mode)
 						if (this.terminalExecutionMode === "backgroundExec" && detachedProcess) {
-							await this.say(
-								"command_output",
-								`\n📋 Output is being logged to: ${detachedProcess.logFilePath}\n(Click the path to open the log file)`,
-							)
+							await this.say("command_output", `\n📋 Output is being logged to: ${detachedProcess.logFilePath}`)
 						}
 
 						// Process any output we captured so far
@@ -1885,10 +1882,7 @@ export class Task {
 
 					// Send a message to the UI with the log file path (only in backgroundExec mode)
 					if (this.terminalExecutionMode === "backgroundExec" && detachedProcess) {
-						await this.say(
-							"command_output",
-							`\n📋 Output is being logged to: ${detachedProcess.logFilePath}\n(Click the path to open the log file)`,
-						)
+						await this.say("command_output", `\n📋 Output is being logged to: ${detachedProcess.logFilePath}`)
 					}
 
 					// Process any output we captured so far
