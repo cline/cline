@@ -1629,9 +1629,6 @@ export class Task {
 		let bufferStuckTimer: NodeJS.Timeout | null = null
 		const BUFFER_STUCK_TIMEOUT_MS = 6000 // 6 seconds
 
-		// Flag to prevent multiple concurrent ask calls
-		const isWaitingForAskResponse = false
-
 		const flushBuffer = async (force = false) => {
 			if (outputBuffer.length === 0 && !force) {
 				return
