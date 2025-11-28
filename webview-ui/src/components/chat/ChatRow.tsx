@@ -1275,7 +1275,7 @@ export const ChatRowContent = memo(
 											style={{
 												opacity: cost != null && cost > 0 ? 1 : 0,
 											}}>
-											${Number(cost || 0)?.toFixed(4)}
+											{cost != null && Number(cost || 0) > 0 ? `$${Number(cost || 0).toFixed(4)}` : ""}
 										</VSCodeBadge>
 									</div>
 									<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
