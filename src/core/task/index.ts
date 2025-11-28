@@ -1701,10 +1701,14 @@ export class Task {
 					scheduleFlush()
 				}
 			} else {
-				// For backgroundExec mode, stream output directly to UI after user continues
-				// For vscodeTerminal mode, this maintains existing behavior
-				console.log("[DEBUG process.on('line')] didContinue=true, calling this.say('command_output')")
-				this.say("command_output", line)
+				// After "Proceed While Running":
+				// - For backgroundExec mode: DON'T stream to UI (DetachedProcessManager handles logging to file)
+				// - For vscodeTerminal mode: Keep streaming to UI (user can see output in the terminal)
+				if (this.terminalExecutionMode !== "backgroundExec") {
+					console.log("[DEBUG process.on('line')] didContinue=true, calling this.say('command_output')")
+					this.say("command_output", line)
+				}
+				// In backgroundExec mode, output is captured by DetachedProcessManager and written to log file
 			}
 		})
 
