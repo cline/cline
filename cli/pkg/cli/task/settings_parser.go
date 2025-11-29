@@ -144,7 +144,7 @@ func setSimpleField(settings *cline.Settings, key, value string) error {
 	case "oca_base_url":
 		settings.OcaBaseUrl = strPtr(value)
 	case "a2a_agent_card_url":
-		settings.A2AAgentCardUrl = strPtr(value)
+		settings.A2aAgentCardUrl = strPtr(value)
 	case "plan_mode_api_model_id":
 		settings.PlanModeApiModelId = strPtr(value)
 	case "plan_mode_reasoning_effort":
@@ -742,7 +742,7 @@ func setSecretField(secrets *cline.Secrets, key, value string) error {
 	case "hicap_api_key":
 		secrets.HicapApiKey = strPtr(value)
 	case "a2a_auth_token":
-		secrets.A2AAuthToken = strPtr(value)
+		secrets.A2aAuthToken = strPtr(value)
 	default:
 		return fmt.Errorf("unsupported secret field '%s'", key)
 	}

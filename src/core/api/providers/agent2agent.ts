@@ -1,5 +1,6 @@
 import { Message, MessageSendParams, Part, TaskArtifactUpdateEvent, TaskStatusUpdateEvent } from "@a2a-js/sdk"
-import { A2AClient } from "@a2a-js/sdk/client"
+import type { A2AClient } from "@a2a-js/sdk/client"
+import { A2AClient as A2AClientImpl } from "@a2a-js/sdk/client"
 import { v4 as uuidv4 } from "uuid"
 import { ModelInfo } from "@/shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -32,12 +33,12 @@ export class A2AHandler implements ApiHandler {
 					}
 				: undefined
 
-			this.client = await A2AClient.fromCardUrl(
+			this.client = await A2AClientImpl.fromCardUrl(
 				this.options.a2aAgentCardUrl || "http://localhost:10002/.well-known/agent-card.json",
 				{ fetchImpl },
 			)
 		}
-		return this.client
+		return this.client!
 	}
 
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
