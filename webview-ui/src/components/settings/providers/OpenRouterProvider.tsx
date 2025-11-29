@@ -1,15 +1,15 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
+import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { AccountServiceClient } from "@/services/grpc-client"
+import { AccountServiceClient, ModelsServiceClient } from "@/services/grpc-client"
 import { useOpenRouterKeyInfo } from "../../ui/hooks/useOpenRouterKeyInfo"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { DropdownContainer } from "../common/ModelSelector"
 import OpenRouterModelPicker, { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../OpenRouterModelPicker"
 import { formatPrice } from "../utils/pricingUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
  * Component to display OpenRouter balance information
@@ -61,7 +61,6 @@ interface OpenRouterProviderProps {
  */
 export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: OpenRouterProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
 
 	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
 
@@ -70,7 +69,18 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 			<div>
 				<DebouncedTextField
 					initialValue={apiConfiguration?.openRouterApiKey || ""}
-					onChange={(value) => handleFieldChange("openRouterApiKey", value)}
+					onChange={async (value) => {
+						await ModelsServiceClient.updateApiConfiguration(
+							UpdateApiConfigurationRequestNew.create({
+								updates: {
+									secrets: {
+										openRouterApiKey: value,
+									},
+								},
+								updateMask: ["secrets.openRouterApiKey"],
+							}),
+						)
+					}}
 					placeholder="Enter API Key..."
 					style={{ width: "100%" }}
 					type="password">
@@ -109,11 +119,20 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 				<>
 					<VSCodeCheckbox
 						checked={providerSortingSelected}
-						onChange={(e: any) => {
+						onChange={async (e: any) => {
 							const isChecked = e.target.checked === true
 							setProviderSortingSelected(isChecked)
 							if (!isChecked) {
-								handleFieldChange("openRouterProviderSorting", "")
+								await ModelsServiceClient.updateApiConfiguration(
+									UpdateApiConfigurationRequestNew.create({
+										updates: {
+											options: {
+												openRouterProviderSorting: "",
+											},
+										},
+										updateMask: ["options.openRouterProviderSorting"],
+									}),
+								)
 							}
 						}}
 						style={{ marginTop: -10 }}>
@@ -124,8 +143,17 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 						<div style={{ marginBottom: -6 }}>
 							<DropdownContainer className="dropdown-container" zIndex={OPENROUTER_MODEL_PICKER_Z_INDEX + 1}>
 								<VSCodeDropdown
-									onChange={(e: any) => {
-										handleFieldChange("openRouterProviderSorting", e.target.value)
+									onChange={async (e: any) => {
+										await ModelsServiceClient.updateApiConfiguration(
+											UpdateApiConfigurationRequestNew.create({
+												updates: {
+													options: {
+														openRouterProviderSorting: e.target.value,
+													},
+												},
+												updateMask: ["options.openRouterProviderSorting"],
+											}),
+										)
 									}}
 									style={{ width: "100%", marginTop: 3 }}
 									value={apiConfiguration?.openRouterProviderSorting}>

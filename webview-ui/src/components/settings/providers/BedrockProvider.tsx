@@ -1,16 +1,17 @@
 import { bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX } from "@shared/api"
+import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import BedrockData from "@shared/providers/bedrock.json"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeRadio, VSCodeRadioGroup } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ModelsServiceClient } from "@/services/grpc-client"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer } from "../common/ModelSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 const CLAUDE_MODELS = [
 	"anthropic.claude-3-7-sonnet-20250219-v1:0",
@@ -37,7 +38,6 @@ interface BedrockProviderProps {
 
 export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: BedrockProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
 
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
@@ -46,9 +46,18 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 	return (
 		<div className="flex flex-col gap-1">
 			<VSCodeRadioGroup
-				onChange={(e) => {
+				onChange={async (e) => {
 					const value = (e.target as HTMLInputElement)?.value
-					handleFieldChange("awsAuthentication", value)
+					await ModelsServiceClient.updateApiConfiguration(
+						UpdateApiConfigurationRequestNew.create({
+							updates: {
+								options: {
+									awsAuthentication: value,
+								},
+							},
+							updateMask: ["options.awsAuthentication"],
+						}),
+					)
 				}}
 				value={apiConfiguration?.awsAuthentication ?? (apiConfiguration?.awsProfile ? "profile" : "credentials")}>
 				<VSCodeRadio value="apikey">API Key</VSCodeRadio>
@@ -62,7 +71,18 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					className="w-full"
 					initialValue={apiConfiguration?.awsProfile ?? ""}
 					key="profile"
-					onChange={(value) => handleFieldChange("awsProfile", value)}
+					onChange={async (value) => {
+						await ModelsServiceClient.updateApiConfiguration(
+							UpdateApiConfigurationRequestNew.create({
+								updates: {
+									options: {
+										awsProfile: value,
+									},
+								},
+								updateMask: ["options.awsProfile"],
+							}),
+						)
+					}}
 					placeholder="Enter profile name (default if empty)">
 					<span className="font-medium">AWS Profile Name</span>
 				</DebouncedTextField>
@@ -71,7 +91,18 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					className="w-full"
 					initialValue={apiConfiguration?.awsBedrockApiKey ?? ""}
 					key="apikey"
-					onChange={(value) => handleFieldChange("awsBedrockApiKey", value)}
+					onChange={async (value) => {
+						await ModelsServiceClient.updateApiConfiguration(
+							UpdateApiConfigurationRequestNew.create({
+								updates: {
+									secrets: {
+										awsBedrockApiKey: value,
+									},
+								},
+								updateMask: ["secrets.awsBedrockApiKey"],
+							}),
+						)
+					}}
 					placeholder="Enter Bedrock Api Key"
 					type="password">
 					<span className="font-medium">AWS Bedrock Api Key</span>
@@ -82,7 +113,18 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 						className="w-full"
 						initialValue={apiConfiguration?.awsAccessKey || ""}
 						key="accessKey"
-						onChange={(value) => handleFieldChange("awsAccessKey", value)}
+						onChange={async (value) => {
+							await ModelsServiceClient.updateApiConfiguration(
+								UpdateApiConfigurationRequestNew.create({
+									updates: {
+										secrets: {
+											awsAccessKey: value,
+										},
+									},
+									updateMask: ["secrets.awsAccessKey"],
+								}),
+							)
+						}}
 						placeholder="Enter Access Key..."
 						type="password">
 						<span className="font-medium">AWS Access Key</span>
@@ -90,7 +132,18 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					<DebouncedTextField
 						className="w-full"
 						initialValue={apiConfiguration?.awsSecretKey || ""}
-						onChange={(value) => handleFieldChange("awsSecretKey", value)}
+						onChange={async (value) => {
+							await ModelsServiceClient.updateApiConfiguration(
+								UpdateApiConfigurationRequestNew.create({
+									updates: {
+										secrets: {
+											awsSecretKey: value,
+										},
+									},
+									updateMask: ["secrets.awsSecretKey"],
+								}),
+							)
+						}}
 						placeholder="Enter Secret Key..."
 						type="password">
 						<span className="font-medium">AWS Secret Key</span>
@@ -98,7 +151,18 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					<DebouncedTextField
 						className="w-full"
 						initialValue={apiConfiguration?.awsSessionToken || ""}
-						onChange={(value) => handleFieldChange("awsSessionToken", value)}
+						onChange={async (value) => {
+							await ModelsServiceClient.updateApiConfiguration(
+								UpdateApiConfigurationRequestNew.create({
+									updates: {
+										secrets: {
+											awsSessionToken: value,
+										},
+									},
+									updateMask: ["secrets.awsSessionToken"],
+								}),
+							)
+						}}
 						placeholder="Enter Session Token..."
 						type="password">
 						<span className="font-medium">AWS Session Token</span>
@@ -124,7 +188,18 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 							className="w-full"
 							disabled={remoteConfigSettings?.awsRegion !== undefined}
 							id="aws-region-dropdown"
-							onChange={(e: any) => handleFieldChange("awsRegion", e.target.value)}
+							onChange={async (e: any) => {
+								await ModelsServiceClient.updateApiConfiguration(
+									UpdateApiConfigurationRequestNew.create({
+										updates: {
+											options: {
+												awsRegion: e.target.value,
+											},
+										},
+										updateMask: ["options.awsRegion"],
+									}),
+								)
+							}}
 							value={apiConfiguration?.awsRegion || ""}>
 							<VSCodeOption value="">Select a region...</VSCodeOption>
 							{/* The user will have to choose a region that supports the model they use, but this shouldn't be a problem since they'd have to request access for it in that region in the first place. */}
@@ -148,11 +223,20 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 							<VSCodeCheckbox
 								checked={awsEndpointSelected}
 								disabled={remoteConfigSettings?.awsBedrockEndpoint !== undefined}
-								onChange={(e: any) => {
+								onChange={async (e: any) => {
 									const isChecked = e.target.checked === true
 									setAwsEndpointSelected(isChecked)
 									if (!isChecked) {
-										handleFieldChange("awsBedrockEndpoint", "")
+										await ModelsServiceClient.updateApiConfiguration(
+											UpdateApiConfigurationRequestNew.create({
+												updates: {
+													options: {
+														awsBedrockEndpoint: "",
+													},
+												},
+												updateMask: ["options.awsBedrockEndpoint"],
+											}),
+										)
 									}
 								}}>
 								Use custom VPC endpoint
@@ -167,7 +251,18 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 								className="mt-0.5 mb-1 text-sm text-description"
 								disabled={remoteConfigSettings?.awsBedrockEndpoint !== undefined}
 								initialValue={apiConfiguration?.awsBedrockEndpoint || ""}
-								onChange={(value) => handleFieldChange("awsBedrockEndpoint", value)}
+								onChange={async (value) => {
+									await ModelsServiceClient.updateApiConfiguration(
+										UpdateApiConfigurationRequestNew.create({
+											updates: {
+												options: {
+													awsBedrockEndpoint: value,
+												},
+											},
+											updateMask: ["options.awsBedrockEndpoint"],
+										}),
+									)
+								}}
 								placeholder="Enter VPC Endpoint URL (optional)"
 								type="text"
 							/>
@@ -184,10 +279,19 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 							<VSCodeCheckbox
 								checked={apiConfiguration?.awsUseCrossRegionInference || false}
 								disabled={remoteConfigSettings?.awsUseCrossRegionInference !== undefined}
-								onChange={(e: any) => {
+								onChange={async (e: any) => {
 									const isChecked = e.target.checked === true
 
-									handleFieldChange("awsUseCrossRegionInference", isChecked)
+									await ModelsServiceClient.updateApiConfiguration(
+										UpdateApiConfigurationRequestNew.create({
+											updates: {
+												options: {
+													awsUseCrossRegionInference: isChecked,
+												},
+											},
+											updateMask: ["options.awsUseCrossRegionInference"],
+										}),
+									)
 								}}>
 								Use cross-region inference
 							</VSCodeCheckbox>
@@ -208,9 +312,18 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 								<VSCodeCheckbox
 									checked={apiConfiguration?.awsUseGlobalInference || false}
 									disabled={remoteConfigSettings?.awsUseGlobalInference !== undefined}
-									onChange={(e: any) => {
+									onChange={async (e: any) => {
 										const isChecked = e.target.checked === true
-										handleFieldChange("awsUseGlobalInference", isChecked)
+										await ModelsServiceClient.updateApiConfiguration(
+											UpdateApiConfigurationRequestNew.create({
+												updates: {
+													options: {
+														awsUseGlobalInference: isChecked,
+													},
+												},
+												updateMask: ["options.awsUseGlobalInference"],
+											}),
+										)
 									}}>
 									Use global inference profile
 								</VSCodeCheckbox>
@@ -232,9 +345,18 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 								<VSCodeCheckbox
 									checked={apiConfiguration?.awsBedrockUsePromptCache || false}
 									disabled={remoteConfigSettings?.awsBedrockUsePromptCache !== undefined}
-									onChange={(e: any) => {
+									onChange={async (e: any) => {
 										const isChecked = e.target.checked === true
-										handleFieldChange("awsBedrockUsePromptCache", isChecked)
+										await ModelsServiceClient.updateApiConfiguration(
+											UpdateApiConfigurationRequestNew.create({
+												updates: {
+													options: {
+														awsBedrockUsePromptCache: isChecked,
+													},
+												},
+												updateMask: ["options.awsBedrockUsePromptCache"],
+											}),
+										)
 									}}>
 									Use prompt caching
 								</VSCodeCheckbox>
@@ -262,27 +384,41 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 						<VSCodeDropdown
 							className="w-full"
 							id="bedrock-model-dropdown"
-							onChange={(e: any) => {
+							onChange={async (e: any) => {
 								const isCustom = e.target.value === "custom"
 
-								handleModeFieldsChange(
-									{
-										apiModelId: { plan: "planModeApiModelId", act: "actModeApiModelId" },
-										awsBedrockCustomSelected: {
-											plan: "planModeAwsBedrockCustomSelected",
-											act: "actModeAwsBedrockCustomSelected",
-										},
-										awsBedrockCustomModelBaseId: {
-											plan: "planModeAwsBedrockCustomModelBaseId",
-											act: "actModeAwsBedrockCustomModelBaseId",
-										},
-									},
-									{
-										apiModelId: isCustom ? "" : e.target.value,
-										awsBedrockCustomSelected: isCustom,
-										awsBedrockCustomModelBaseId: bedrockDefaultModelId,
-									},
-									currentMode,
+								await ModelsServiceClient.updateApiConfiguration(
+									UpdateApiConfigurationRequestNew.create(
+										currentMode === "plan"
+											? {
+													updates: {
+														options: {
+															planModeApiModelId: isCustom ? "" : e.target.value,
+															planModeAwsBedrockCustomSelected: isCustom,
+															planModeAwsBedrockCustomModelBaseId: bedrockDefaultModelId,
+														},
+													},
+													updateMask: [
+														"options.planModeApiModelId",
+														"options.planModeAwsBedrockCustomSelected",
+														"options.planModeAwsBedrockCustomModelBaseId",
+													],
+												}
+											: {
+													updates: {
+														options: {
+															actModeApiModelId: isCustom ? "" : e.target.value,
+															actModeAwsBedrockCustomSelected: isCustom,
+															actModeAwsBedrockCustomModelBaseId: bedrockDefaultModelId,
+														},
+													},
+													updateMask: [
+														"options.actModeApiModelId",
+														"options.actModeAwsBedrockCustomSelected",
+														"options.actModeAwsBedrockCustomModelBaseId",
+													],
+												},
+									),
 								)
 							}}
 							value={modeFields.awsBedrockCustomSelected ? "custom" : selectedModelId}>
@@ -309,13 +445,21 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 								className="w-full mt-0.5"
 								id="bedrock-model-input"
 								initialValue={modeFields.apiModelId || ""}
-								onChange={(value) =>
-									handleModeFieldChange(
-										{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-										value,
-										currentMode,
+								onChange={async (value) => {
+									await ModelsServiceClient.updateApiConfiguration(
+										UpdateApiConfigurationRequestNew.create(
+											currentMode === "plan"
+												? {
+														updates: { options: { planModeApiModelId: value } },
+														updateMask: ["options.planModeApiModelId"],
+													}
+												: {
+														updates: { options: { actModeApiModelId: value } },
+														updateMask: ["options.actModeApiModelId"],
+													},
+										),
 									)
-								}
+								}}
 								placeholder="Enter custom model ID...">
 								<span className="font-medium">Model ID</span>
 							</DebouncedTextField>
@@ -326,16 +470,25 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 								<VSCodeDropdown
 									className="w-full"
 									id="bedrock-base-model-dropdown"
-									onChange={(e: any) =>
-										handleModeFieldChange(
-											{
-												plan: "planModeAwsBedrockCustomModelBaseId",
-												act: "actModeAwsBedrockCustomModelBaseId",
-											},
-											e.target.value,
-											currentMode,
+									onChange={async (e: any) => {
+										await ModelsServiceClient.updateApiConfiguration(
+											UpdateApiConfigurationRequestNew.create(
+												currentMode === "plan"
+													? {
+															updates: {
+																options: { planModeAwsBedrockCustomModelBaseId: e.target.value },
+															},
+															updateMask: ["options.planModeAwsBedrockCustomModelBaseId"],
+														}
+													: {
+															updates: {
+																options: { actModeAwsBedrockCustomModelBaseId: e.target.value },
+															},
+															updateMask: ["options.actModeAwsBedrockCustomModelBaseId"],
+														},
+											),
 										)
-									}
+									}}
 									value={modeFields.awsBedrockCustomModelBaseId || bedrockDefaultModelId}>
 									<VSCodeOption value="">Select a model...</VSCodeOption>
 									{Object.keys(bedrockModels).map((modelId) => (

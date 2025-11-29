@@ -1,12 +1,13 @@
 import { claudeCodeModels } from "@shared/api"
+import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ModelsServiceClient } from "@/services/grpc-client"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { SUPPORTED_ANTHROPIC_THINKING_MODELS } from "./AnthropicProvider"
 
 /**
@@ -23,7 +24,6 @@ interface ClaudeCodeProviderProps {
  */
 export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: ClaudeCodeProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -32,7 +32,18 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 		<div>
 			<DebouncedTextField
 				initialValue={apiConfiguration?.claudeCodePath || ""}
-				onChange={(value) => handleFieldChange("claudeCodePath", value)}
+				onChange={async (value) => {
+					await ModelsServiceClient.updateApiConfiguration(
+						UpdateApiConfigurationRequestNew.create({
+							updates: {
+								options: {
+									claudeCodePath: value,
+								},
+							},
+							updateMask: ["options.claudeCodePath"],
+						}),
+					)
+				}}
 				placeholder="Default: claude"
 				style={{ width: "100%", marginTop: 3 }}
 				type="text">
@@ -53,13 +64,23 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 					<ModelSelector
 						label="Model"
 						models={claudeCodeModels}
-						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
+						onChange={async (e: any) => {
+							const value = e.target.value
+
+							await ModelsServiceClient.updateApiConfiguration(
+								UpdateApiConfigurationRequestNew.create(
+									currentMode === "plan"
+										? {
+												updates: { options: { planModeApiModelId: value } },
+												updateMask: ["options.planModeApiModelId"],
+											}
+										: {
+												updates: { options: { actModeApiModelId: value } },
+												updateMask: ["options.actModeApiModelId"],
+											},
+								),
 							)
-						}
+						}}
 						selectedModelId={selectedModelId}
 					/>
 
