@@ -31,8 +31,17 @@ export class IoIntelligenceHandler implements ApiHandler {
 				throw new Error("IO Intelligence API key is required")
 			}
 			try {
+				// Normalize base URL to ensure it ends with /api/v1
+				let baseURL = this.options.ioIntelligenceBaseUrl || "https://api.intelligence.io.solutions"
+				// Remove trailing slash if present
+				baseURL = baseURL.replace(/\/$/, "")
+				// Append /api/v1 if not already present
+				if (!baseURL.endsWith("/api/v1")) {
+					baseURL = `${baseURL}/api/v1`
+				}
+
 				this.client = new OpenAI({
-					baseURL: this.options.ioIntelligenceBaseUrl || "https://api.intelligence.io.solutions/api/v1",
+					baseURL: baseURL,
 					apiKey: this.options.ioIntelligenceApiKey,
 					fetch, // Use configured fetch with proxy support
 				})

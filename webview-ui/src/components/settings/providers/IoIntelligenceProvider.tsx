@@ -114,7 +114,7 @@ export const IoIntelligenceProvider = ({ showModelOptions, isPopup, currentMode 
 					setLocalBaseUrl(value)
 					handleFieldChange("ioIntelligenceBaseUrl", value)
 				}}
-				placeholder="Default: https://api.intelligence.io.solutions/api/v1"
+				placeholder="Default: https://api.intelligence.io.solutions"
 			/>
 
 			{showModelOptions && (

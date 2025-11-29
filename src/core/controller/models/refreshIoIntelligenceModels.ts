@@ -44,9 +44,16 @@ export async function refreshIoIntelligenceModels(
 
 	let models: Record<string, OpenRouterModelInfo> = {}
 
-	// Use provided base URL or default
-	const baseUrl = request.baseUrl || "https://api.intelligence.io.solutions"
-	const apiUrl = `${baseUrl}/api/v1/models`
+	// Normalize base URL to ensure it ends with /api/v1 (same logic as handler)
+	let baseUrl = request.baseUrl || "https://api.intelligence.io.solutions"
+	// Remove trailing slash if present
+	baseUrl = baseUrl.replace(/\/$/, "")
+	// Append /api/v1 if not already present
+	if (!baseUrl.endsWith("/api/v1")) {
+		baseUrl = `${baseUrl}/api/v1`
+	}
+	// Construct the full models endpoint URL
+	const apiUrl = `${baseUrl}/models`
 
 	try {
 		// Fetch models from IO Intelligence API
