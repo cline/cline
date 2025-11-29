@@ -42,7 +42,9 @@ export class ZAiHandler implements ApiHandler {
 			}
 			try {
 				this.client = new OpenAI({
-					baseURL: this.useChinaApi() ? "https://open.bigmodel.cn/api/paas/v4" : "https://api.z.ai/api/paas/v4",
+					baseURL: this.useChinaApi()
+						? "https://open.bigmodel.cn/api/coding/paas/v4"
+						: "https://api.z.ai/api/coding/paas/v4",
 					apiKey: this.options.zaiApiKey,
 					defaultHeaders: {
 						"HTTP-Referer": "https://cline.bot",
