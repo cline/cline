@@ -15,6 +15,7 @@ const ClineCommands = {
 	HistoryButton: prefix + ".historyButtonClicked",
 	AccountButton: prefix + ".accountButtonClicked",
 	TerminalOutput: prefix + ".addTerminalOutputToChat",
+	AddTerminalCommandToChat: prefix + ".addTerminalCommandToChat",
 	AddToChat: prefix + ".addToChat",
 	FixWithCline: prefix + ".fixWithCline",
 	ExplainCode: prefix + ".explainCode",
