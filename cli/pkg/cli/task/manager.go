@@ -753,12 +753,12 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 }
 
 // FollowConversationUntilCompletion streams conversation updates until task completion
-// If skipInitialCheck is true, it skips the check for an active task (used when we just created a task)
-func (m *Manager) FollowConversationUntilCompletion(ctx context.Context, skipInitialCheck ...bool) error {
+// If taskWasJustCreated is true, it skips the check for an active task (to avoid race condition)
+func (m *Manager) FollowConversationUntilCompletion(ctx context.Context, taskWasJustCreated ...bool) error {
 	// Check if there's an active task before entering follow mode
-	// Skip this check if we just created a task (to avoid race condition)
-	shouldSkipCheck := len(skipInitialCheck) > 0 && skipInitialCheck[0]
-	if !shouldSkipCheck {
+	// Skip this check if we just created a task (to avoid race condition where task isn't active yet)
+	skipActiveTaskCheck := len(taskWasJustCreated) > 0 && taskWasJustCreated[0]
+	if !skipActiveTaskCheck {
 		err := m.CheckSendEnabled(ctx)
 		if err != nil {
 			if errors.Is(err, ErrNoActiveTask) {
