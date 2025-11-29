@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils"
 import { highlightText } from "./Highlights"
 
 interface StickyUserMessageProps {
-	readonly lastUserMessage?: ClineMessage
+	readonly lastUserMessage: ClineMessage | null
 	readonly onScrollToMessage?: () => void
 	readonly isVisible: boolean
 }
