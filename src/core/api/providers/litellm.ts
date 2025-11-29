@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
 import OpenAI from "openai"
+import { StateManager } from "@/core/storage/StateManager"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { isAnthropicModelId } from "@/utils/model-utils"
@@ -19,6 +20,14 @@ interface LiteLlmHandlerOptions extends CommonApiHandlerOptions {
 	ulid?: string
 }
 
+/**
+ * Extended chat completion parameters that include LiteLLM-specific options
+ * not present in the standard OpenAI SDK types
+ */
+interface LiteLlmChatCompletionCreateParams extends OpenAI.Chat.ChatCompletionCreateParamsStreaming {
+	drop_params?: boolean
+}
+
 export interface LiteLlmModelInfoResponse {
 	data: Array<{
 		model_name: string
@@ -35,6 +44,54 @@ export interface LiteLlmModelInfoResponse {
 			[key: string]: any
 		}
 	}>
+}
+
+/**
+ * Exported utility function to fetch LiteLLM model info
+ * @param baseUrl The base URL for the LiteLLM API
+ * @param apiKey The API key for authentication
+ * @returns The model info response or undefined if fetch fails
+ */
+export async function fetchLiteLlmModelsInfo(baseUrl: string, apiKey: string): Promise<LiteLlmModelInfoResponse | undefined> {
+	// Handle base URLs that already include /v1 to avoid double /v1/v1/
+	const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`
+	const url = `${normalizedBaseUrl}/model/info`
+
+	try {
+		const response = await fetch(url, {
+			method: "GET",
+			headers: {
+				accept: "application/json",
+				"x-litellm-api-key": apiKey,
+			},
+		})
+
+		if (response.ok) {
+			const data: LiteLlmModelInfoResponse = await response.json()
+			return data
+		} else {
+			console.error("Failed to fetch LiteLLM model info:", response.statusText)
+			// Try with Authorization header instead
+			const retryResponse = await fetch(url, {
+				method: "GET",
+				headers: {
+					accept: "application/json",
+					Authorization: `Bearer ${apiKey}`,
+				},
+			})
+
+			if (retryResponse.ok) {
+				const data: LiteLlmModelInfoResponse = await retryResponse.json()
+				return data
+			} else {
+				console.error("Failed to fetch LiteLLM model info with Authorization header:", retryResponse.statusText)
+				throw new Error(`Failed to fetch LiteLLM model info: ${retryResponse.statusText}`)
+			}
+		}
+	} catch (error) {
+		console.error("Error fetching LiteLLM model info:", error)
+		throw error
+	}
 }
 
 export class LiteLlmHandler implements ApiHandler {
@@ -84,49 +141,14 @@ export class LiteLlmHandler implements ApiHandler {
 		}
 
 		const client = this.ensureClient()
-		// Handle base URLs that already include /v1 to avoid double /v1/v1/
-		const baseUrl = client.baseURL.endsWith("/v1") ? client.baseURL : `${client.baseURL}/v1`
-		const url = `${baseUrl}/model/info`
+		const data = await fetchLiteLlmModelsInfo(client.baseURL, this.options.liteLlmApiKey || "")
 
-		try {
-			const response = await fetch(url, {
-				method: "GET",
-				headers: {
-					accept: "application/json",
-					"x-litellm-api-key": this.options.liteLlmApiKey || "",
-				},
-			})
-
-			if (response.ok) {
-				const data: LiteLlmModelInfoResponse = await response.json()
-				this.modelInfoCache = data
-				this.modelInfoCacheTimestamp = now
-				return data
-			} else {
-				console.warn("Failed to fetch LiteLLM model info:", response.statusText)
-				// Try with Authorization header instead
-				const retryResponse = await fetch(url, {
-					method: "GET",
-					headers: {
-						accept: "application/json",
-						Authorization: `Bearer ${this.options.liteLlmApiKey || ""}`,
-					},
-				})
-
-				if (retryResponse.ok) {
-					const data: LiteLlmModelInfoResponse = await retryResponse.json()
-					this.modelInfoCache = data
-					this.modelInfoCacheTimestamp = now
-					return data
-				} else {
-					console.warn("Failed to fetch LiteLLM model info with Authorization header:", retryResponse.statusText)
-					return undefined
-				}
-			}
-		} catch (error) {
-			console.warn("Error fetching LiteLLM model info:", error)
-			return undefined
+		if (data) {
+			this.modelInfoCache = data
+			this.modelInfoCacheTimestamp = now
 		}
+
+		return data
 	}
 
 	private async getModelCostInfo(publicModelName: string): Promise<{
@@ -186,6 +208,7 @@ export class LiteLlmHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
 		const client = this.ensureClient()
+
 		const formattedMessages = convertToOpenAiMessages(messages)
 		const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam | Anthropic.Messages.TextBlockParam = {
 			role: "system",
@@ -193,23 +216,23 @@ export class LiteLlmHandler implements ApiHandler {
 		}
 		const modelId = this.options.liteLlmModelId || liteLlmDefaultModelId
 		const isOminiModel = modelId.includes("o1-mini") || modelId.includes("o3-mini") || modelId.includes("o4-mini")
+		const isCodexModel = modelId.toLowerCase().includes("codex")
 
 		// Configuration for extended thinking
 		const budgetTokens = this.options.thinkingBudgetTokens || 0
 		const reasoningOn = budgetTokens !== 0
 		const thinkingConfig = reasoningOn ? { type: "enabled", budget_tokens: budgetTokens } : undefined
 
-		let temperature: number | undefined = this.options.liteLlmModelInfo?.temperature ?? 0
+		let temperature: number | undefined = this.options.liteLlmModelInfo?.temperature ?? 1
 
 		if ((isOminiModel || isAnthropicModelId(modelId)) && reasoningOn) {
 			temperature = undefined // OAI omni and Anthropic extended thinking mode doesn't support temperature
 		}
 
 		const modelInfo = await this.modelInfo(modelId)
+		// Automatically enable caching if the model supports it
 		const cacheControl =
-			this.options.liteLlmUsePromptCache && Boolean(modelInfo?.model_info.supports_prompt_caching)
-				? { cache_control: { type: "ephemeral" } }
-				: undefined
+			(modelInfo?.model_info.supports_prompt_caching ?? false) ? { cache_control: { type: "ephemeral" } } : undefined
 
 		if (cacheControl) {
 			// Add cache_control to system message if enabled
@@ -277,10 +300,11 @@ export class LiteLlmHandler implements ApiHandler {
 			messages: [systemMessage, ...enhancedMessages],
 			temperature,
 			stream: true,
-			stream_options: { include_usage: true },
+			drop_params: true,
+			...(!isCodexModel && { stream_options: { include_usage: true } }), // Codex models are only on the responses api, which doesn't take the stream_options parameter. we will need to migrate to the responses api for this to work
 			...(thinkingConfig && { thinking: thinkingConfig }), // Add thinking configuration when applicable
 			...(this.options.ulid && { litellm_session_id: `cline-${this.options.ulid}` }), // Add session ID for LiteLLM tracking
-		})
+		} as LiteLlmChatCompletionCreateParams)
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
@@ -344,9 +368,17 @@ export class LiteLlmHandler implements ApiHandler {
 	}
 
 	getModel() {
+		const modelId = this.options.liteLlmModelId || liteLlmDefaultModelId
+
+		// Try to get model info from StateManager cache first
+		const cachedModelInfo = StateManager.get().getModelInfo("liteLlm", modelId)
+
+		// Fall back to provided model info or defaults if not in cache
+		const modelInfo = cachedModelInfo || liteLlmModelInfoSaneDefaults
+
 		return {
-			id: this.options.liteLlmModelId || liteLlmDefaultModelId,
-			info: this.options.liteLlmModelInfo || liteLlmModelInfoSaneDefaults,
+			id: modelId,
+			info: modelInfo,
 		}
 	}
 }

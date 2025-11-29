@@ -5,6 +5,7 @@ import { AssistantMessageContent, parseAssistantMessageV2, ToolUse } from "@core
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
+import { EnvironmentContextTracker } from "@core/context/context-tracking/EnvironmentContextTracker"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { ModelContextTracker } from "@core/context/context-tracking/ModelContextTracker"
 import {
@@ -65,6 +66,7 @@ import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import { CLINE_MCP_TOOL_IDENTIFIER } from "@shared/mcp"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
+import type { Mode } from "@shared/storage/types"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import { isClaude4PlusModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
@@ -226,6 +228,7 @@ export class Task {
 	// Metadata tracking
 	private fileContextTracker: FileContextTracker
 	private modelContextTracker: ModelContextTracker
+	private environmentContextTracker: EnvironmentContextTracker
 
 	// Focus Chain
 	private FocusChainManager?: FocusChainManager
@@ -362,9 +365,10 @@ export class Task {
 			updateTaskHistory: this.updateTaskHistory,
 		})
 
-		// Initialize file context tracker
+		// Initialize context trackers
 		this.fileContextTracker = new FileContextTracker(controller, this.taskId)
 		this.modelContextTracker = new ModelContextTracker(this.taskId)
+		this.environmentContextTracker = new EnvironmentContextTracker(this.taskId)
 
 		// Initialize focus chain manager only if enabled
 		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
@@ -1017,6 +1021,13 @@ export class Task {
 			})
 		}
 
+		// Record environment metadata for new task
+		try {
+			await this.environmentContextTracker.recordEnvironment()
+		} catch (error) {
+			console.error("Failed to record environment metadata:", error)
+		}
+
 		await this.initiateTaskLoop(userContent)
 	}
 
@@ -1277,6 +1288,13 @@ export class Task {
 				type: "text",
 				text: `<hook_context source="UserPromptSubmit">\n${userPromptHookResult.contextModification}\n</hook_context>`,
 			})
+		}
+
+		// Record environment metadata when resuming task (tracks cross-platform migrations)
+		try {
+			await this.environmentContextTracker.recordEnvironment()
+		} catch (error) {
+			console.error("Failed to record environment metadata on resume:", error)
 		}
 
 		await this.messageStateHandler.overwriteApiConversationHistory(modifiedApiConversationHistory)
@@ -2109,8 +2127,7 @@ export class Task {
 			workspaceRoots,
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
-			enableNativeToolCalls:
-				featureFlagsService.getNativeToolCallEnabled() && this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
+			enableNativeToolCalls: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 		}
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
@@ -2679,7 +2696,9 @@ export class Task {
 			content: userContent,
 		})
 
-		const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+		const modeSetting = this.stateManager.getGlobalSettingsKey("mode")
+		const currentMode: Mode = modeSetting === "act" ? "act" : "plan"
+
 		telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "user", currentMode)
 
 		// Capture task initialization timing telemetry for the first API request
@@ -2756,7 +2775,6 @@ export class Task {
 				})
 				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
-				const currentMode = this.stateManager.getGlobalSettingsKey("mode")
 				telemetryService.captureConversationTurnEvent(
 					this.ulid,
 					providerId,
@@ -3219,7 +3237,7 @@ export class Task {
 		// Pre-fetch necessary data to avoid redundant calls within loops
 		const ulid = this.ulid
 		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
-		const useNativeToolCalls = this.useNativeToolCalls
+		const useNativeToolCalls = this.stateManager.getGlobalStateKey("nativeToolCallEnabled")
 		const providerInfo = this.getCurrentProviderInfo()
 		const cwd = this.cwd
 		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.controller, cwd)
