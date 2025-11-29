@@ -5,6 +5,9 @@ import { useEvent } from "react-use"
 import { ListRange, VirtuosoHandle } from "react-virtuoso"
 import { ScrollBehavior } from "../types/chatTypes"
 
+// Height of the sticky user message header (padding + content)
+const STICKY_HEADER_HEIGHT = 32
+
 /**
  * Custom hook for managing scroll behavior
  * Handles auto-scrolling, manual scrolling, and scroll-to-message functionality
@@ -189,7 +192,7 @@ export function useScrollBehavior(
 				const isFirstUserMessage =
 					groupIndex === 0 || !visibleMessages.slice(0, visibleIndex).some((msg) => msg.say === "user_feedback")
 
-				const stickyHeaderOffset = isFirstUserMessage ? 0 : 32
+				const stickyHeaderOffset = isFirstUserMessage ? 0 : STICKY_HEADER_HEIGHT
 
 				// Use scrollToIndex with offset - Virtuoso handles this more reliably than manual scrollTo
 				requestAnimationFrame(() => {

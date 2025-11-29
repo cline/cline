@@ -3,6 +3,7 @@ import React, { useCallback, useMemo } from "react"
 import { Virtuoso } from "react-virtuoso"
 import { StickyUserMessage } from "@/components/chat/task-header/StickyUserMessage"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { cn } from "@/lib/utils"
 import { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
 import { createMessageRenderer } from "../messages/MessageRenderer"
 
@@ -86,7 +87,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		<div className="overflow-hidden flex flex-col h-full relative">
 			{/* Sticky User Message - positioned absolutely to avoid layout shifts */}
 			<div
-				className={`absolute top-0 left-0 right-0 z-10 pl-[15px] pr-[14px]${scrolledPastUserMessage ? " pb-2" : ""}`}
+				className={cn("absolute top-0 left-0 right-0 z-10 pl-[15px] pr-[14px]", scrolledPastUserMessage && "pb-2")}
 				style={{ backgroundColor: "var(--vscode-sideBar-background)" }}>
 				<StickyUserMessage
 					isVisible={!!scrolledPastUserMessage}
