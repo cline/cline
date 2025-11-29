@@ -95,6 +95,10 @@ export class FeatureFlagsService {
 		return this.getBooleanFlagEnabled(FeatureFlag.HOOKS)
 	}
 
+	public getUseAutoCondenseEnabled(): boolean {
+		return this.getBooleanFlagEnabled(FeatureFlag.AUTO_CONDENSE)
+	}
+
 	public isResponseApiEnabled(): boolean {
 		return this.getBooleanFlagEnabled(FeatureFlag.OPENAI_NATIVE_RESPONSE_API)
 	}
