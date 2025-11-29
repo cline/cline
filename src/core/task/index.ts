@@ -42,6 +42,7 @@ import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
+import { DetachedProcessManager } from "@integrations/terminal/DetachedProcessManager"
 import { TerminalManager } from "@integrations/terminal/TerminalManager"
 import { TerminalProcessResultPromise } from "@integrations/terminal/TerminalProcess"
 import { BrowserSession } from "@services/browser/BrowserSession"
@@ -54,14 +55,7 @@ import { ApiConfiguration } from "@shared/api"
 import { findLast, findLastIndex } from "@shared/array"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
-import {
-	ClineApiReqCancelReason,
-	ClineApiReqInfo,
-	ClineAsk,
-	ClineMessage,
-	ClineSay,
-	COMMAND_CANCEL_TOKEN,
-} from "@shared/ExtensionMessage"
+import { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import { CLINE_MCP_TOOL_IDENTIFIER } from "@shared/mcp"
@@ -83,7 +77,7 @@ import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
 import { isSubagentCommand, transformClineCommand } from "@/integrations/cli-subagents/subagent_command"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
-import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
+import { TerminalHangStage, telemetryService } from "@/services/telemetry"
 import {
 	ClineAssistantContent,
 	ClineContent,
@@ -251,6 +245,9 @@ export class Task {
 	// Task Locking (Sqlite)
 	private taskLockAcquired: boolean
 
+	// Detached process manager for "Proceed while running" commands (only used in backgroundExec mode)
+	private detachedProcessManager?: DetachedProcessManager
+
 	constructor(params: TaskParams) {
 		const {
 			controller,
@@ -286,6 +283,7 @@ export class Task {
 		this.cancelTask = cancelTask
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
 		this.taskLockAcquired = taskLockAcquired
+		this.detachedProcessManager = new DetachedProcessManager()
 
 		// TODO(ae) this is a hack to replace the terminal manager for standalone,
 		// until we have proper host bridge support for terminal execution. The
@@ -1474,6 +1472,7 @@ export class Task {
 
 			// PHASE 7: Clean up resources
 			this.terminalManager.disposeAll()
+			this.detachedProcessManager?.dispose()
 			this.urlContentFetcher.closeBrowser()
 			await this.browserSession.dispose()
 			this.clineIgnoreController.dispose()
@@ -1599,7 +1598,26 @@ export class Task {
 
 		let userFeedback: { text?: string; images?: string[]; files?: string[] } | undefined
 		let didContinue = false
-		let didCancelViaUi = false
+		const didCancelViaUi = false
+
+		// Create a promise that resolves when user clicks "Proceed While Running"
+		// This allows us to race between process completion and user action
+		let cleanupProceedCheck: (() => void) | undefined
+		const proceedPromise = new Promise<"proceed">((resolve) => {
+			const checkInterval = setInterval(() => {
+				if (this.taskState.askResponse === "yesButtonClicked") {
+					// Clear the response so it doesn't interfere with other asks
+					this.taskState.askResponse = undefined
+					clearInterval(checkInterval)
+					resolve("proceed")
+				}
+			}, 100)
+
+			cleanupProceedCheck = () => clearInterval(checkInterval)
+
+			// Also cleanup when process completes to prevent memory leaks
+			process.then(() => clearInterval(checkInterval)).catch(() => clearInterval(checkInterval))
+		})
 
 		// Chunked terminal output buffering
 		const CHUNK_LINE_COUNT = 20
@@ -1615,62 +1633,34 @@ export class Task {
 		const BUFFER_STUCK_TIMEOUT_MS = 6000 // 6 seconds
 
 		const flushBuffer = async (force = false) => {
-			if (outputBuffer.length === 0) {
-				if (force) {
-					// If force is true, flush anyway
-				} else {
-					return
-				}
+			if (outputBuffer.length === 0 && !force) {
+				return
 			}
 			const chunk = outputBuffer.join("\n")
 			outputBuffer = []
 			outputBufferSize = 0
 
-			// Start timer to detect if buffer gets stuck
-			bufferStuckTimer = setTimeout(() => {
-				telemetryService.captureTerminalHang(TerminalHangStage.BUFFER_STUCK)
-				bufferStuckTimer = null
-			}, BUFFER_STUCK_TIMEOUT_MS)
+			if (!didContinue) {
+				// First time showing output - use ask() to show "Proceed while running" button
+				// But DON'T wait for the response - just show the UI and continue streaming
 
-			try {
-				const { response, text, images, files } = await this.ask("command_output", chunk)
-				if (response === "yesButtonClicked") {
-					// Track when user clicks "Process while Running"
-					telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.PROCESS_WHILE_RUNNING)
-					// proceed while running - but still capture user feedback if provided
-					if (text || (images && images.length > 0) || (files && files.length > 0)) {
-						userFeedback = { text, images, files }
-					}
-				} else if (response === "noButtonClicked" && text === COMMAND_CANCEL_TOKEN) {
-					telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.CANCELLED)
-					didCancelViaUi = true
-					userFeedback = undefined
-				} else {
-					userFeedback = { text, images, files }
-				}
-				didContinue = true
-				process.continue()
+				// Start timer to detect if buffer gets stuck
+				bufferStuckTimer = setTimeout(() => {
+					telemetryService.captureTerminalHang(TerminalHangStage.BUFFER_STUCK)
+					bufferStuckTimer = null
+				}, BUFFER_STUCK_TIMEOUT_MS)
 
-				if (didCancelViaUi) {
-					outputBuffer = []
-					outputBufferSize = 0
-					await this.say("command_output", "Command cancelled")
-				}
+				// Use say() to stream output without blocking
+				await this.say("command_output", chunk)
 
-				// If more output accumulated, flush again
-				if (!didCancelViaUi && outputBuffer.length > 0) {
-					await flushBuffer()
-				}
-			} catch {
-				Logger.error("Error while asking for command output")
-			} finally {
-				// If the command finishes execution before the 'command_output' ask promise resolves (in other words before the user responded to the ask, which is expected when the command finishes execution first), this block is reached. This is expected and safe to ignore, as no further handling is required.
-
-				// Clear the stuck timer
+				// Clear the stuck timer since we successfully sent output
 				if (bufferStuckTimer) {
 					clearTimeout(bufferStuckTimer)
 					bufferStuckTimer = null
 				}
+			} else {
+				// Already continuing - just stream output via say()
+				await this.say("command_output", chunk)
 			}
 		}
 
@@ -1704,9 +1694,12 @@ export class Task {
 					scheduleFlush()
 				}
 			} else {
-				// For backgroundExec mode, stream output directly to UI after user continues
-				// For vscodeTerminal mode, this maintains existing behavior
-				this.say("command_output", line)
+				// After "Proceed While Running":
+				// - For backgroundExec mode: DON'T stream to UI (DetachedProcessManager handles logging to file)
+				if (this.terminalExecutionMode !== "backgroundExec") {
+					this.say("command_output", line)
+				}
+				// In backgroundExec mode, output is captured by DetachedProcessManager and written to log file
 			}
 		})
 
@@ -1761,39 +1754,78 @@ export class Task {
 				})
 
 				try {
-					await Promise.race([process, timeoutPromise])
+					// Race between: process completion, timeout, and user clicking "Proceed While Running"
+					const raceResult = await Promise.race([
+						process.then(() => "completed" as const),
+						timeoutPromise,
+						proceedPromise,
+					])
+
+					// Handle user clicking "Proceed While Running"
+					if (raceResult === "proceed") {
+						didContinue = true
+						return await this.handleProceedWhileRunning(
+							process,
+							command,
+							outputLines,
+							cleanupProceedCheck,
+							chunkTimer,
+							completionTimer,
+							terminalManager,
+						)
+					}
+					// If raceResult === "completed", process finished normally - continue to end of function
 				} catch (error) {
-					// This will continue running the command in the background
-					didContinue = true
-					process.continue()
-
-					// Clear all our timers
-					if (chunkTimer) {
-						clearTimeout(chunkTimer)
-						chunkTimer = null
-					}
-					if (completionTimer) {
-						clearTimeout(completionTimer)
-						completionTimer = null
-					}
-
-					// Process any output we captured before timeout
-					await setTimeoutPromise(50)
-					const result = this.terminalManager.processOutput(outputLines, undefined, false)
-
 					if (error.message === "COMMAND_TIMEOUT") {
-						return [
-							false,
-							`Command execution timed out after ${timeoutSeconds} seconds. ${result.length > 0 ? `\nOutput so far:\n${result}` : ""}`,
-						]
+						// Handle timeout the same way as "Proceed While Running" - register with DetachedProcessManager
+						didContinue = true
+						return await this.handleProceedWhileRunning(
+							process,
+							command,
+							outputLines,
+							cleanupProceedCheck,
+							chunkTimer,
+							completionTimer,
+							terminalManager,
+						)
 					}
 
 					// Re-throw other errors
 					throw error
 				}
 			} else {
-				await process
+				if (this.terminalExecutionMode !== "backgroundExec") {
+					await process
+				} else {
+					// This section handles the "backgroundExec" terminal execution mode.
+					// It waits for whichever comes first: (1) process completion, or (2) the user clicking "Proceed While Running".
+					// If the user clicks "Proceed", we trigger process.continue() to let the command finish in the background.
+					// If a DetachedProcessManager exists, we track the process and output log file.
+					// Any output captured so far is shown, and a message about the background execution is returned (and sent to the UI if a log file exists).
+
+					const raceResult = await Promise.race([process.then(() => "completed" as const), proceedPromise])
+
+					if (raceResult === "proceed") {
+						// User opted to continue while command runs (backgrounded)
+						didContinue = true
+						return await this.handleProceedWhileRunning(
+							process,
+							command,
+							outputLines,
+							cleanupProceedCheck,
+							chunkTimer,
+							completionTimer,
+							terminalManager,
+						)
+					}
+				}
+				// If raceResult === "completed", process finished normally - continue to end of function
 			}
+		}
+
+		// Cleanup the proceed check interval if still running
+		if (cleanupProceedCheck) {
+			cleanupProceedCheck()
 		}
 
 		// Clear timer if process completes normally
@@ -1862,6 +1894,53 @@ export class Task {
 				}\n\nYou will be updated on the terminal status and new output in the future.`,
 			]
 		}
+	}
+
+	/**
+	 * Helper method to handle "Proceed While Running" action.
+	 * Extracts common logic for when user clicks proceed while a command is still running.
+	 */
+	private async handleProceedWhileRunning(
+		process: TerminalProcessResultPromise,
+		command: string,
+		outputLines: string[],
+		cleanupProceedCheck: (() => void) | undefined,
+		chunkTimer: NodeJS.Timeout | null,
+		completionTimer: NodeJS.Timeout | null,
+		terminalManager: TerminalManager,
+	): Promise<[boolean, string]> {
+		let detachedProcess: { logFilePath: string } | undefined
+		if (this.terminalExecutionMode === "backgroundExec" && this.detachedProcessManager) {
+			detachedProcess = this.detachedProcessManager.addProcess(process, command)
+		}
+
+		process.continue()
+
+		// Cleanup timers
+		if (cleanupProceedCheck) {
+			cleanupProceedCheck()
+		}
+		if (chunkTimer) {
+			clearTimeout(chunkTimer)
+		}
+		if (completionTimer) {
+			clearTimeout(completionTimer)
+		}
+
+		// Send a message to the UI with the log file path (only in backgroundExec mode)
+		if (this.terminalExecutionMode === "backgroundExec" && detachedProcess) {
+			await this.say("command_output", `\n📋 Output is being logged to: ${detachedProcess.logFilePath}`)
+		}
+
+		await setTimeoutPromise(50)
+		const result = terminalManager.processOutput(outputLines, undefined, false)
+
+		// Build response message
+		const logMsg =
+			this.terminalExecutionMode === "backgroundExec" && detachedProcess ? `Log file: ${detachedProcess.logFilePath}\n` : ""
+		const outputMsg = result.length > 0 ? `Output so far:\n${result}` : ""
+
+		return [false, `Command is running in the background. You can proceed with other tasks.\n${logMsg}${outputMsg}`]
 	}
 
 	public async cancelBackgroundCommand(): Promise<boolean> {
@@ -3471,8 +3550,13 @@ export class Task {
 			await setTimeoutPromise(300) // delay after saving file to let terminals catch up
 		}
 
+		// In backgroundExec mode with running detached processes, skip the terminal wait entirely
+		// since those processes are intentionally running in the background after "Proceed While Running"
+		const hasRunningDetachedProcesses = this.detachedProcessManager?.getAllProcesses().some((p) => p.status === "running")
+		const shouldSkipTerminalWait = this.terminalExecutionMode === "backgroundExec" && hasRunningDetachedProcesses
+
 		// let terminalWasBusy = false
-		if (busyTerminals.length > 0) {
+		if (busyTerminals.length > 0 && !shouldSkipTerminalWait) {
 			// wait for terminals to cool down
 			// terminalWasBusy = allTerminals.some((t) => this.terminalManager.isProcessHot(t.id))
 			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
@@ -3521,6 +3605,15 @@ export class Task {
 
 		if (terminalDetails) {
 			details += terminalDetails
+		}
+
+		// Add detached processes summary section (commands that user clicked "Proceed while running")
+		// Only available in backgroundExec mode
+		if (this.detachedProcessManager) {
+			const detachedSummary = this.detachedProcessManager.getSummary()
+			if (detachedSummary) {
+				details += "\n\n" + detachedSummary
+			}
 		}
 
 		// Add recently modified files section
