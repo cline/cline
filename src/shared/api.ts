@@ -41,6 +41,7 @@ export type ApiProvider =
 	| "minimax"
 	| "hicap"
 	| "nousResearch"
+	| "agent2agent"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic
@@ -85,6 +86,7 @@ export interface ApiHandlerSecrets {
 	minimaxApiKey?: string
 	hicapApiKey?: string
 	nousResearchApiKey?: string
+	a2aAuthToken?: string
 }
 
 export interface ApiHandlerOptions {
@@ -136,6 +138,7 @@ export interface ApiHandlerOptions {
 	ocaMode?: string
 	aihubmixBaseUrl?: string
 	aihubmixAppCode?: string
+	a2aAgentCardUrl?: string
 
 	// Plan mode configurations
 	planModeApiModelId?: string
@@ -4064,5 +4067,21 @@ export const nousResearchModels = {
 		outputPrice: 0.2,
 		description:
 			"This incarnation of Hermes 4 balances scale and size. It handles complex reasoning tasks, while staying fast and cost effective. A versatile choice for many use cases.",
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Agent2Agent
+// https://a2a-protocol.org/latest/specification
+export type Agent2AgentModelId = keyof typeof agent2agentModels
+export const agent2agentDefaultModelId: Agent2AgentModelId = "agent2agent-agent"
+export const agent2agentModels = {
+	"agent2agent-agent": {
+		maxTokens: -1,
+		contextWindow: 1000000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Agent2Agent Provider",
 	},
 } as const satisfies Record<string, ModelInfo>
