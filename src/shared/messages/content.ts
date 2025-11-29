@@ -1,13 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { ClineMessageModelInfo, ClineTokenMetrics } from "./metrics"
 
-type ClinePromptInputContent = string
+export type ClinePromptInputContent = string
 
-type ClineMessageRole = "user" | "assistant"
-
-export interface ClineMessageModelInfo {
-	modelId: string
-	providerId: string
-}
+export type ClineMessageRole = "user" | "assistant"
 
 export interface ClineReasoningDetailParam {
 	type: "reasoning.text" | string
@@ -83,6 +79,8 @@ export type ClineContent = ClineUserContent | ClineAssistantContent
  * This ensures backward compatibility where the messages were stored in Anthropic format,
  * while allowing for additional metadata specific to Cline to avoid unknown fields in Anthropic SDK
  * added by ignoring the type checking for those fields.
+ *
+ * Extended with ATIF (Agent Trajectory Interchange Format) v1.3 compatible fields.
  */
 export interface ClineStorageMessage extends Anthropic.MessageParam {
 	/**
@@ -97,6 +95,16 @@ export interface ClineStorageMessage extends Anthropic.MessageParam {
 	 * MUST be removed before sending message to any LLM provider.
 	 */
 	modelInfo?: ClineMessageModelInfo
+	/**
+	 * ISO 8601 timestamp indicating when this message occurred
+	 * e.g., "2025-10-16T14:30:00Z"
+	 */
+	timestamp?: string
+	/**
+	 * LLM operational and performance metrics for this message
+	 * Includes token counts, costs.
+	 */
+	metrics?: ClineTokenMetrics
 }
 
 /**

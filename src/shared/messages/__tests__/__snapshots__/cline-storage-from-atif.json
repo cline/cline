@@ -1,0 +1,87 @@
+[
+	{
+		"role": "user",
+		"content": "What is the current trading price of Alphabet (GOOGL)?",
+		"timestamp": "2025-10-11T10:30:00Z"
+	},
+	{
+		"role": "assistant",
+		"content": [
+			{
+				"type": "thinking",
+				"thinking": "The request requires two data points: the current stock price and the latest volume data. I will execute two simultaneous tool calls—one for price and one for volume—to retrieve this information in a single step.",
+				"signature": "2"
+			},
+			{
+				"type": "text",
+				"text": "I will search for the current trading price and volume for GOOGL."
+			},
+			{
+				"type": "tool_use",
+				"id": "call_price_1",
+				"name": "financial_search",
+				"input": {
+					"ticker": "GOOGL",
+					"metric": "price"
+				}
+			},
+			{
+				"type": "tool_use",
+				"id": "call_volume_2",
+				"name": "financial_search",
+				"input": {
+					"ticker": "GOOGL",
+					"metric": "volume"
+				}
+			},
+			{
+				"type": "tool_result",
+				"tool_use_id": "call_price_1",
+				"content": "GOOGL is currently trading at $185.35 (Close: 10/11/2025)"
+			},
+			{
+				"type": "tool_result",
+				"tool_use_id": "call_volume_2",
+				"content": "GOOGL volume: 1.5M shares traded."
+			}
+		],
+		"timestamp": "2025-10-11T10:30:02Z",
+		"modelInfo": {
+			"modelId": "gemini-2.5-flash",
+			"providerId": "unknown",
+			"reasoningEffort": "medium"
+		},
+		"metrics": {
+			"promptTokens": 520,
+			"completionTokens": 80,
+			"cachedTokens": 200,
+			"totalCost": 0.00045
+		}
+	},
+	{
+		"role": "assistant",
+		"content": [
+			{
+				"type": "thinking",
+				"thinking": "The previous step retrieved all necessary data. I will now format this into a final conversational response for the user and terminate the task.",
+				"signature": "3"
+			},
+			{
+				"type": "text",
+				"text": "As of October 11, 2025, Alphabet (GOOGL) is trading at $185.35 with a volume of 1.5M shares traded."
+			}
+		],
+		"timestamp": "2025-10-11T10:30:05Z",
+		"modelInfo": {
+			"modelId": "gemini-2.5-flash",
+			"providerId": "unknown",
+			"reasoningEffort": "low"
+		},
+		"metrics": {
+			"promptTokens": 600,
+			"completionTokens": 44,
+			"cachedTokens": 0,
+			"totalCost": 0.00033
+		}
+	}
+]

@@ -1,0 +1,80 @@
+{
+	"schema_version": "ATIF-v1.3",
+	"session_id": "snapshot-test-session",
+	"agent": {
+		"name": "cline",
+		"version": "1.0.0",
+		"extra": {}
+	},
+	"steps": [
+		{
+			"step_id": 1,
+			"timestamp": "2025-01-15T10:00:00Z",
+			"source": "user",
+			"message": "Fix the authentication bug"
+		},
+		{
+			"step_id": 2,
+			"timestamp": "2025-01-15T10:00:05Z",
+			"source": "agent",
+			"message": "I'll investigate the issue",
+			"model_name": "claude-sonnet-4-20250514",
+			"reasoning_content": "Need to examine the auth code first",
+			"tool_calls": [
+				{
+					"tool_call_id": "call_read_1",
+					"function_name": "Read",
+					"arguments": {
+						"file_path": "/auth/login.ts"
+					}
+				}
+			],
+			"metrics": {
+				"prompt_tokens": 1000,
+				"completion_tokens": 500,
+				"cached_tokens": 200,
+				"cost_usd": 0.05
+			}
+		},
+		{
+			"step_id": 3,
+			"timestamp": "2025-01-15T10:00:10Z",
+			"source": "user",
+			"message": ""
+		},
+		{
+			"step_id": 4,
+			"timestamp": "2025-01-15T10:00:15Z",
+			"source": "agent",
+			"message": "Found the issue. The password validation is missing.",
+			"model_name": "claude-sonnet-4-20250514",
+			"tool_calls": [
+				{
+					"tool_call_id": "call_edit_1",
+					"function_name": "Edit",
+					"arguments": {
+						"file_path": "/auth/login.ts",
+						"old_string": "if (username) {",
+						"new_string": "if (username && password) {"
+					}
+				}
+			],
+			"metrics": {
+				"prompt_tokens": 1500,
+				"completion_tokens": 300,
+				"cached_tokens": 400,
+				"cost_usd": 0.03
+			}
+		}
+	],
+	"notes": "Fixed authentication bug",
+	"final_metrics": {
+		"total_prompt_tokens": 2500,
+		"total_completion_tokens": 800,
+		"total_cached_tokens": 600,
+		"total_cost_usd": 0.08,
+		"total_steps": 4,
+		"extra": {}
+	},
+	"extra": {}
+}
