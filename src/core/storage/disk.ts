@@ -13,6 +13,33 @@ import { HostProvider } from "@/hosts/host-provider"
 import { McpMarketplaceCatalog } from "@/shared/mcp"
 import { StateManager } from "./StateManager"
 
+/**
+ * Atomically write data to a file using temp file + rename pattern.
+ * This prevents readers from seeing partial/incomplete data by writing to a temporary
+ * file first, then renaming it to the target location. The rename operation is atomic
+ * in most cases on modern systems, though behavior may vary across platforms and filesystems.
+ *
+ * @param filePath - The target file path
+ * @param data - The data to write
+ */
+async function atomicWriteFile(filePath: string, data: string): Promise<void> {
+	const tmpPath = `${filePath}.tmp.${Date.now()}.${Math.random().toString(36).substring(7)}`
+	try {
+		// Write to temporary file first
+		await fs.writeFile(tmpPath, data, "utf8")
+		// Rename temp file to target (atomic in most cases)
+		await fs.rename(tmpPath, filePath)
+	} catch (error) {
+		// Clean up temp file if it exists
+		try {
+			await fs.unlink(tmpPath)
+		} catch {
+			// Ignore cleanup errors
+		}
+		throw error
+	}
+}
+
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
 	contextHistory: "context_history.json",
@@ -135,7 +162,7 @@ export async function getSavedApiConversationHistory(taskId: string): Promise<An
 export async function saveApiConversationHistory(taskId: string, apiConversationHistory: Anthropic.MessageParam[]) {
 	try {
 		const filePath = path.join(await ensureTaskDirectoryExists(taskId), GlobalFileNames.apiConversationHistory)
-		await fs.writeFile(filePath, JSON.stringify(apiConversationHistory))
+		await atomicWriteFile(filePath, JSON.stringify(apiConversationHistory))
 	} catch (error) {
 		// in the off chance this fails, we don't want to stop the task
 		console.error("Failed to save API conversation history:", error)
@@ -162,7 +189,7 @@ export async function saveClineMessages(taskId: string, uiMessages: ClineMessage
 	try {
 		const taskDir = await ensureTaskDirectoryExists(taskId)
 		const filePath = path.join(taskDir, GlobalFileNames.uiMessages)
-		await fs.writeFile(filePath, JSON.stringify(uiMessages))
+		await atomicWriteFile(filePath, JSON.stringify(uiMessages))
 	} catch (error) {
 		console.error("Failed to save ui messages:", error)
 	}
@@ -259,8 +286,7 @@ export async function readTaskHistoryFromState(): Promise<HistoryItem[]> {
 export async function writeTaskHistoryToState(items: HistoryItem[]): Promise<void> {
 	try {
 		const filePath = await getTaskHistoryStateFilePath()
-		// Always create the file; if items is empty, write [] to ensure presence on first startup
-		await fs.writeFile(filePath, JSON.stringify(items))
+		await atomicWriteFile(filePath, JSON.stringify(items))
 	} catch (error) {
 		console.error("[Disk] Failed to write task history:", error)
 		throw error
