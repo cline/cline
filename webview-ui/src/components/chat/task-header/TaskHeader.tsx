@@ -29,7 +29,6 @@ interface TaskHeaderProps {
 	lastApiReqTotalTokens?: number
 	lastProgressMessageText?: string
 	onClose: () => void
-	onScrollToMessage?: (messageIndex: number) => void
 	onSendMessage?: (command: string, files: string[], images: string[]) => void
 }
 
@@ -45,14 +44,12 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	lastApiReqTotalTokens,
 	lastProgressMessageText,
 	onClose,
-	onScrollToMessage,
 	onSendMessage,
 }) => {
 	const {
 		apiConfiguration,
 		currentTaskItem,
 		checkpointManagerErrorMessage,
-		clineMessages,
 		navigateToSettings,
 		mode,
 		expandTaskHeader: isTaskExpanded,
@@ -119,7 +116,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const environmentBorderColor = getEnvironmentColor(environment, "border")
 
 	return (
-		<div className={"p-2 flex flex-col gap-1.5"}>
+		<div className="pt-2 pb-2 pl-[15px] pr-[14px] flex flex-col gap-2">
 			{/* Display Checkpoint Error */}
 			<CheckpointError
 				checkpointManagerErrorMessage={checkpointManagerErrorMessage}

@@ -204,6 +204,22 @@ vscode-dropdown::part(listbox) {
 	}
 }
 
+/* Slide down animation for sticky user message */
+@keyframes slide-down {
+	0% {
+		opacity: 0;
+		transform: translateY(-8px);
+	}
+	100% {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.animate-slide-down {
+	animation: slide-down 0.3s ease-out forwards;
+}
+
 /* Fix tooltip arrow lag - disable animations on tooltips */
 [data-slot="tooltip-content"],
 [data-slot="tooltip-content"] * {

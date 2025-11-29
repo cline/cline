@@ -87,12 +87,12 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 
 	return (
 		<div
+			className="py-2 px-2.5"
 			onClick={handleClick}
 			style={{
 				backgroundColor: isEditing ? "unset" : "var(--vscode-badge-background)",
 				color: "var(--vscode-badge-foreground)",
 				borderRadius: "3px",
-				padding: "9px",
 				whiteSpace: "pre-line",
 				wordWrap: "break-word",
 			}}>
@@ -145,7 +145,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 					</div>
 				</>
 			) : (
-				<span className="ph-no-capture" style={{ display: "block" }}>
+				<span className="ph-no-capture text-sm" style={{ display: "block" }}>
 					{highlightText(editedText || text)}
 				</span>
 			)}
