@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/types"
 )
 
@@ -350,8 +351,7 @@ func (tr *ToolRenderer) RenderUserResponse(approved bool, feedback string) strin
 
 // renderMarkdown renders markdown if not in plain mode and in a TTY
 func (tr *ToolRenderer) renderMarkdown(markdown string) string {
-	// Skip markdown rendering if plain mode or not in TTY
-	if tr.outputFormat == "plain" || !isTTY() {
+	if global.Config.PlainFormat() {
 		return markdown
 	}
 

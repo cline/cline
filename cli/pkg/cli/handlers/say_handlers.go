@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/cline/cli/pkg/cli/clerror"
-	"github.com/cline/cli/pkg/cli/types"
 	"github.com/cline/cli/pkg/cli/output"
+	"github.com/cline/cli/pkg/cli/types"
 )
 
 // SayHandler handles SAY type messages
@@ -242,18 +242,17 @@ func (h *SayHandler) handleCompletionResult(msg *types.ClineMessage, dc *Display
 }
 
 func formatUserMessage(text string) string {
-    lines := strings.Split(text, "\n")
-    
-    // Wrap each line in backticks
-    for i, line := range lines {
-        if line != "" {
-            lines[i] = fmt.Sprintf("`%s`", line)
-        }
-    }
-    
-    return strings.Join(lines, "\n")
-}
+	lines := strings.Split(text, "\n")
 
+	// Wrap each line in backticks
+	for i, line := range lines {
+		if line != "" {
+			lines[i] = fmt.Sprintf("`%s`", line)
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
 
 // handleUserFeedback handles user feedback messages
 func (h *SayHandler) handleUserFeedback(msg *types.ClineMessage, dc *DisplayContext) error {

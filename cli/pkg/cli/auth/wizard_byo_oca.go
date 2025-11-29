@@ -107,14 +107,14 @@ type ocaAuthStream interface {
 
 // OcaAuthStatusListener manages subscription to OCA auth status updates
 type OcaAuthStatusListener struct {
-	stream        ocaAuthStream
-	updatesCh     chan *cline.OcaAuthState
-	errCh         chan error
-	ctx           context.Context
-	cancel        context.CancelFunc
-	mu            sync.RWMutex
-	lastState     *cline.OcaAuthState
-	firstEventCh  chan struct{}
+	stream         ocaAuthStream
+	updatesCh      chan *cline.OcaAuthState
+	errCh          chan error
+	ctx            context.Context
+	cancel         context.CancelFunc
+	mu             sync.RWMutex
+	lastState      *cline.OcaAuthState
+	firstEventCh   chan struct{}
 	firstEventOnce sync.Once
 }
 
@@ -295,7 +295,7 @@ func IsOCAAuthenticated(ctx context.Context) bool {
 	return l.IsAuthenticated()
 }
 
- // LatestState returns the last received OCA auth state (may be nil)
+// LatestState returns the last received OCA auth state (may be nil)
 func (l *OcaAuthStatusListener) LatestState() *cline.OcaAuthState {
 	l.mu.RLock()
 	defer l.mu.RUnlock()

@@ -1,0 +1,4 @@
+Test Task: Create a simple hello world Python script
+
+This is a simple test to verify that the Cline CLI can handle basic file creation tasks.
+Expected outcome: A Python script that prints "Hello, World!" should be created.

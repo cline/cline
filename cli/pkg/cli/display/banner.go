@@ -12,11 +12,11 @@ import (
 
 // BannerInfo contains information to display in the session banner
 type BannerInfo struct {
-	Version    string
-	Provider   string
-	ModelID    string
-	Workdir    string
-	Mode       string
+	Version  string
+	Provider string
+	ModelID  string
+	Workdir  string
+	Mode     string
 }
 
 // RenderSessionBanner renders a nice banner showing version, model, and workspace info
@@ -187,7 +187,7 @@ func shortenModelID(modelID string) string {
 	if len(modelID) > 9 {
 		suffix := modelID[len(modelID)-9:] // Last 9 chars: -20241022
 		if suffix[0] == '-' &&
-		   (strings.HasPrefix(suffix[1:], "202") || strings.HasPrefix(suffix[1:], "201")) {
+			(strings.HasPrefix(suffix[1:], "202") || strings.HasPrefix(suffix[1:], "201")) {
 			// Verify all remaining chars are digits
 			allDigits := true
 			for _, c := range suffix[1:] {

@@ -14,6 +14,7 @@ import (
 	"github.com/cline/cli/pkg/cli/auth"
 	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
+	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/cli/pkg/common"
 	"github.com/cline/grpc-go/cline"
 	"github.com/spf13/cobra"
@@ -68,12 +69,31 @@ see the manual page: man cline`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
+			// Get content from both args and stdin FIRST to determine if this is batch or interactive
+			prompt, err := getContentFromStdinAndArgs(args)
+			if err != nil {
+				return fmt.Errorf("failed to read prompt: %w", err)
+			}
+
+			// If no prompt provided, this is interactive mode - reject JSON
+			if prompt == "" {
+				// Check for JSON output mode - not supported for interactive mode
+				// Per the plan: Interactive commands output PLAIN TEXT errors, not JSON
+				if err := global.Config.MustNotBeJSON("interactive mode"); err != nil {
+					return fmt.Errorf("%w when no prompt is provided. Provide a prompt as an argument or use 'cline task new' instead", err)
+				}
+			}
+
 			var instanceAddress string
 
 			// If --address flag not provided, start instance BEFORE getting prompt
 			if !cmd.Flags().Changed("address") {
 				if global.Config.Verbose {
-					fmt.Println("Starting new Cline instance...")
+					if global.Config.JsonFormat() {
+						output.OutputStatusMessage("verbose", "Starting new Cline instance", nil)
+					} else {
+						fmt.Println("Starting new Cline instance...")
+					}
 				}
 				instance, err := global.Clients.StartNewInstance(ctx)
 				if err != nil {
@@ -81,24 +101,36 @@ see the manual page: man cline`,
 				}
 				instanceAddress = instance.Address
 				if global.Config.Verbose {
-					fmt.Printf("Started instance at %s\n\n", instanceAddress)
+					if global.Config.JsonFormat() {
+						output.OutputStatusMessage("verbose", "Started instance", map[string]interface{}{"address": instanceAddress})
+					} else {
+						fmt.Printf("Started instance at %s\n\n", instanceAddress)
+					}
 				}
 
 				// Set up cleanup on exit
 				defer func() {
 					if global.Config.Verbose {
-						fmt.Println("\nCleaning up instance...")
+						if global.Config.JsonFormat() {
+							output.OutputStatusMessage("verbose", "Cleaning up instance", nil)
+						} else {
+							fmt.Println("\nCleaning up instance...")
+						}
 					}
 					registry := global.Clients.GetRegistry()
 					if err := global.KillInstanceByAddress(context.Background(), registry, instanceAddress); err != nil {
 						if global.Config.Verbose {
-							fmt.Printf("Warning: Failed to clean up instance: %v\n", err)
+							if global.Config.JsonFormat() {
+								output.OutputStatusMessage("warning", "Failed to clean up instance", map[string]interface{}{"error": err.Error()})
+							} else {
+								fmt.Printf("Warning: Failed to clean up instance: %v\n", err)
+							}
 						}
 					}
 				}()
 
-				// Check if user has credentials configured
-				if !isUserReadyToUse(ctx, instanceAddress) {
+				// Check if user has credentials configured (only needed in interactive mode)
+				if prompt == "" && !isUserReadyToUse(ctx, instanceAddress) {
 					// Create renderer for welcome messages
 					renderer := display.NewRenderer(global.Config.OutputFormat)
 					fmt.Printf("\n%s\n\n", renderer.Dim("Hey there! Looks like you're new here. Let's get you set up"))
@@ -121,12 +153,6 @@ see the manual page: man cline`,
 			} else {
 				// User specified --address flag, use that
 				instanceAddress = coreAddress
-			}
-
-			// Get content from both args and stdin
-			prompt, err := getContentFromStdinAndArgs(args)
-			if err != nil {
-				return fmt.Errorf("failed to read prompt: %w", err)
 			}
 
 			// If no prompt from args or stdin, show interactive input
@@ -184,7 +210,72 @@ see the manual page: man cline`,
 	rootCmd.AddCommand(cli.NewLogsCommand())
 	// rootCmd.AddCommand(cli.NewDoctorCommand()) // Disabled for now
 
+	// Suppress Cobra's default error printing - we'll handle it ourselves
+	rootCmd.SilenceErrors = true
+	rootCmd.SilenceUsage = true
+
 	if err := rootCmd.ExecuteContext(context.Background()); err != nil {
+		// Check if JSON mode is enabled
+		// If global.Config is nil (error during early validation), check os.Args directly
+		isJSONMode := false
+		if global.Config != nil {
+			isJSONMode = global.Config.JsonFormat()
+		} else {
+			// Check os.Args for --output-format json flag
+			for i, arg := range os.Args {
+				if (arg == "--output-format" || arg == "-F") && i+1 < len(os.Args) {
+					isJSONMode = os.Args[i+1] == "json"
+					break
+				}
+				// Handle --output-format=json format
+				if strings.HasPrefix(arg, "--output-format=") {
+					isJSONMode = strings.TrimPrefix(arg, "--output-format=") == "json"
+					break
+				}
+			}
+		}
+
+		// Per the plan: Interactive commands output **plain text errors**, NOT JSON
+		// Check if this is an interactive command error
+		errMsg := err.Error()
+		isInteractiveError := strings.Contains(errMsg, "interactive")
+
+		// Output error in appropriate format
+		if isJSONMode && !isInteractiveError {
+			// Try to extract command name from os.Args
+			commandName := "unknown"
+			if len(os.Args) > 1 {
+				// First arg after binary name is typically the command
+				// Skip flags (starting with -)
+				for i := 1; i < len(os.Args); i++ {
+					arg := os.Args[i]
+					if !strings.HasPrefix(arg, "-") {
+						commandName = arg
+						// For subcommands like "instance kill", join them
+						if i+1 < len(os.Args) && !strings.HasPrefix(os.Args[i+1], "-") {
+							commandName = arg + " " + os.Args[i+1]
+						}
+						break
+					}
+				}
+			}
+
+			// Output error as JSON to stderr
+			errorResponse := map[string]interface{}{
+				"status":  "error",
+				"command": commandName,
+				"error":   err.Error(),
+			}
+			if jsonBytes, marshalErr := json.MarshalIndent(errorResponse, "", "  "); marshalErr == nil {
+				fmt.Fprintln(os.Stderr, string(jsonBytes))
+			} else {
+				// Fallback if JSON marshaling fails
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			}
+		} else {
+			// Output error as plain text in non-JSON modes
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		}
 		os.Exit(1)
 	}
 }
