@@ -2,6 +2,7 @@ import { ApiConfiguration, ModelInfo, QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { ClineTool } from "@/shared/tools"
+import { A2AHandler } from "./providers/agent2agent"
 import { AIhubmixHandler } from "./providers/aihubmix"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AskSageHandler } from "./providers/asksage"
@@ -425,6 +426,13 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				nousResearchApiKey: options.nousResearchApiKey,
 				apiModelId: mode === "plan" ? options.planModeNousResearchModelId : options.actModeNousResearchModelId,
+			})
+		case "agent2agent":
+			return new A2AHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				a2aAgentCardUrl: options.a2aAgentCardUrl,
+				a2aAuthToken: options.a2aAuthToken,
+				ulid: options.ulid,
 			})
 		default:
 			return new AnthropicHandler({

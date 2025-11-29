@@ -159,6 +159,10 @@
 		{
 			"value": "nousResearch",
 			"label": "NousResearch"
+		},
+		{
+			"value": "agent2agent",
+			"label": "Agent2Agent"
 		}
 	]
 }
