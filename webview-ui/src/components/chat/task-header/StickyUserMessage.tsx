@@ -38,11 +38,11 @@ export const StickyUserMessage: React.FC<StickyUserMessageProps> = memo(
 			return null
 		}
 
-		const truncatedText = lastUserMessage.text.trim()
+		const messageText = lastUserMessage.text.trim()
 
 		return (
 			<div
-				aria-label={`Scroll to your message: ${truncatedText}`}
+				aria-label={`Scroll to your message: ${messageText}`}
 				className={cn(
 					"relative flex items-center px-2.5 pt-2 pb-2 cursor-pointer select-none",
 					"backdrop-blur-sm",
@@ -57,14 +57,14 @@ export const StickyUserMessage: React.FC<StickyUserMessageProps> = memo(
 				}}
 				tabIndex={0}
 				title="Click to scroll to your message">
-				{/* Truncated message text */}
+				{/* Message text (truncated via CSS text-ellipsis) */}
 				<div
 					className={cn(
 						"flex-1 min-w-0 text-sm text-badge-foreground",
 						"overflow-hidden text-ellipsis whitespace-nowrap",
 						"ph-no-capture",
 					)}>
-					{highlightText(truncatedText, false)}
+					{highlightText(messageText, false)}
 				</div>
 			</div>
 		)

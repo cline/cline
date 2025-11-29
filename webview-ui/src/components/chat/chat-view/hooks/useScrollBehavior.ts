@@ -59,11 +59,16 @@ export function useScrollBehavior(
 		// We iterate from the end to find the latest one that's above the viewport
 		let mostRecentScrolledPast: ClineMessage | null = null
 
+		// Track if we've found any visible message element in the DOM
+		// This helps us determine if missing elements are above or below viewport
+		let foundAnyVisibleElement = false
+
 		for (let i = userFeedbackMessages.length - 1; i >= 0; i--) {
 			const msg = userFeedbackMessages[i]
 			const messageElement = scrollContainer.querySelector(`[data-message-ts="${msg.ts}"]`) as HTMLElement
 
 			if (messageElement) {
+				foundAnyVisibleElement = true
 				const messageRect = messageElement.getBoundingClientRect()
 				// Message is scrolled past if its bottom edge is above (or near) the container's top
 				// Add a small threshold so the pin appears slightly before message fully scrolls out
@@ -74,13 +79,14 @@ export function useScrollBehavior(
 				}
 			} else {
 				// Element not in DOM - it's virtualized out
-				// If we're looking for messages and they're not rendered, they're likely scrolled past
-				// But we need to be careful here - only consider it scrolled past if we've found
-				// at least one visible message after it that's still in view
-				// For now, assume if element is missing and we haven't found a visible one yet,
-				// this message is scrolled past
-				mostRecentScrolledPast = msg
-				break
+				// Only consider it scrolled past if we've already found a visible element after it
+				// (meaning this missing element is above the viewport, not below)
+				if (foundAnyVisibleElement) {
+					mostRecentScrolledPast = msg
+					break
+				}
+				// If we haven't found any visible elements yet, this message might be
+				// below the viewport, so continue looking for visible elements
 			}
 		}
 
@@ -115,7 +121,7 @@ export function useScrollBehavior(
 		scrollableElement.addEventListener("scroll", handleScroll, { passive: true })
 
 		// Also check on mount and when dependencies change
-		handleScroll()
+		checkScrolledPastUserMessage()
 
 		return () => {
 			scrollableElement.removeEventListener("scroll", handleScroll)
