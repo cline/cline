@@ -51,7 +51,8 @@ export const ACTION_METADATA: ActionMetadata[] = [
 		id: "useBrowser",
 		label: "Use the browser",
 		shortName: "Browser",
-		description: "Allows Cline to launch and interact with any website in a browser.",
+		description:
+			"Allows Cline to launch and interact with any website in a browser. Also enables websearch and webfetch tools.",
 		icon: "codicon-globe",
 	},
 	{
