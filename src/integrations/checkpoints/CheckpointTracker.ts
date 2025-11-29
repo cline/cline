@@ -1,4 +1,5 @@
 import { sendCheckpointEvent } from "@core/controller/checkpoints/subscribeToCheckpoints"
+import { observeDecorator } from "@services/laminar/LaminarService"
 import fs from "fs/promises"
 import * as path from "path"
 import simpleGit from "simple-git"
@@ -207,6 +208,7 @@ class CheckpointTracker {
 	 * - Initialize simple-git
 	 * - Stage or commit files
 	 */
+	@observeDecorator({ name: "CheckpointTracker.commit" })
 	public async commit(): Promise<string | undefined> {
 		let lockAcquired: boolean = false
 
