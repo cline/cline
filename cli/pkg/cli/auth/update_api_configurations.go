@@ -54,6 +54,9 @@ type ProviderFields struct {
 	// Provider-specific additional model ID fields
 	PlanModeProviderSpecificModelIDField string // e.g., "planModeOpenRouterModelId"
 	ActModeProviderSpecificModelIDField  string // e.g., "actModeOpenRouterModelId"
+	// Deployment ID fields (currently only used by SAP AI Core)
+	PlanModeDeploymentIDField string // e.g., "planModeSapAiCoreDeploymentId"
+	ActModeDeploymentIDField  string // e.g., "actModeSapAiCoreDeploymentId"
 }
 
 // GetProviderFields returns the field mapping for a given provider
@@ -133,6 +136,15 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 			ActModeModelIDField:  "actModeApiModelId",
 		}, nil
 
+	case cline.ApiProvider_SAPAICORE:
+		return ProviderFields{
+			APIKeyField:               "sapAiCoreClientId",
+			PlanModeModelIDField:      "planModeApiModelId",
+			ActModeModelIDField:       "actModeApiModelId",
+			PlanModeDeploymentIDField: "planModeSapAiCoreDeploymentId",
+			ActModeDeploymentIDField:  "actModeSapAiCoreDeploymentId",
+		}, nil
+
 	case cline.ApiProvider_CLINE:
 		return ProviderFields{
 			APIKeyField:                          "clineApiKey",
@@ -186,6 +198,7 @@ type ProviderUpdatesPartial struct {
 	BaseURL      *string     // New base URL (optional, e.g., for OCA, Ollama)
 	RefreshToken *string     // New refresh token (optional, e.g., for OCA)
 	Mode         *string     // New mode (optional, e.g., "internal" or "external" for OCA)
+	DeploymentID *string     // New deployment ID (optional, e.g., for SAP AI Core)
 }
 
 // GetModelIDFieldName returns the appropriate model ID field name for a provider and mode.
@@ -281,6 +294,10 @@ func setAPIKeyField(apiConfig *cline.ModelsApiConfiguration, fieldName string, v
 		apiConfig.OllamaBaseUrl = value
 	case "cerebrasApiKey":
 		apiConfig.CerebrasApiKey = value
+	case "sapAiCoreClientId":
+		apiConfig.SapAiCoreClientId = value
+	case "sapAiCoreClientSecret":
+		apiConfig.SapAiCoreClientSecret = value
 	case "clineApiKey":
 		apiConfig.ClineApiKey = value
 	case "ocaApiKey":
@@ -427,8 +444,19 @@ func UpdateProviderPartial(ctx context.Context, manager *task.Manager, provider 
 		}
 	}
 
+	// Update deployment ID if provided (currently only SAP AI Core uses this)
+	if updates.DeploymentID != nil && fields.PlanModeDeploymentIDField != "" && fields.ActModeDeploymentIDField != "" {
+		apiConfig.PlanModeSapAiCoreDeploymentId = updates.DeploymentID
+		apiConfig.ActModeSapAiCoreDeploymentId = updates.DeploymentID
+	}
+
 	// Build field mask for only the fields being updated
 	fieldPaths := buildProviderFieldMask(fields, includeAPIKey, includeModelID, includeModelInfo, false, setAsActive)
+
+	// Add deployment ID fields to field mask if they're being updated
+	if updates.DeploymentID != nil && fields.PlanModeDeploymentIDField != "" && fields.ActModeDeploymentIDField != "" {
+		fieldPaths = append(fieldPaths, fields.PlanModeDeploymentIDField, fields.ActModeDeploymentIDField)
+	}
 
 	// Create field mask
 	fieldMask := &fieldmaskpb.FieldMask{Paths: fieldPaths}
@@ -458,11 +486,28 @@ func RemoveProviderPartial(ctx context.Context, manager *task.Manager, provider 
 	// Fields in the mask without values will be cleared
 	apiConfig := &cline.ModelsApiConfiguration{}
 
-	// Build field mask with only the API key field(s)
-	// For Bedrock, include both access key and secret key
-	fieldPaths := []string{fields.APIKeyField}
-	if provider == cline.ApiProvider_BEDROCK {
-		fieldPaths = append(fieldPaths, "awsSecretKey")
+	// Build field mask with provider-specific fields to clear
+	var fieldPaths []string
+
+	switch provider {
+	case cline.ApiProvider_BEDROCK:
+		// For Bedrock, include both access key and secret key
+		fieldPaths = []string{fields.APIKeyField, "awsSecretKey"}
+	case cline.ApiProvider_SAPAICORE:
+		// For SAP AI Core, include all configuration fields
+		fieldPaths = []string{
+			"sapAiCoreClientId",
+			"sapAiCoreClientSecret",
+			"sapAiCoreBaseUrl",
+			"sapAiCoreTokenUrl",
+			"sapAiResourceGroup",
+			"sapAiCoreUseOrchestrationMode",
+			"planModeSapAiCoreDeploymentId",
+			"actModeSapAiCoreDeploymentId",
+		}
+	default:
+		// For other providers, just clear the API key field
+		fieldPaths = []string{fields.APIKeyField}
 	}
 
 	// Create field mask
