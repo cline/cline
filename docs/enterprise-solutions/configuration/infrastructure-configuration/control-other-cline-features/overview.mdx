@@ -1,0 +1,217 @@
+---
+title: "Overview"
+sidebarTitle: "Overview"
+description: "Overview of enterprise controls for managing Cline features, automation, and analytics across your organization"
+---
+
+# Control Other Cline Features
+
+Enterprise Feature Controls provide comprehensive management over Cline's capabilities, automation features, and analytics across your organization. This section covers the essential tools for controlling access, monitoring usage, and ensuring compliance with organizational policies.
+
+## What You Can Control
+
+This section provides comprehensive enterprise controls across three key areas:
+
+<CardGroup cols={3}>
+  <Card title="General Feature Controls" icon="settings">
+    Granular control over core Cline capabilities, development tools, and advanced features based on roles, environments, and projects.
+  </Card>
+  
+  <Card title="Yolo Mode" icon="rocket" href="/enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/yolo-mode">
+    Configure autonomous operation capabilities with enhanced automation while maintaining enterprise security standards.
+  </Card>
+  
+  <Card title="Telemetry" icon="chart-line" href="/enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/telemetry">
+    Enterprise analytics and monitoring for usage insights, performance tracking, and compliance reporting.
+  </Card>
+</CardGroup>
+
+## Feature Control Benefits
+
+<CardGroup cols={2}>
+  <Card title="Granular Permissions" icon="sliders">
+    Control access to individual features based on user roles, teams, and project requirements.
+  </Card>
+  
+  <Card title="Security Enforcement" icon="shield-lock">
+    Disable potentially risky features in production environments or for specific user groups.
+  </Card>
+  
+  <Card title="Compliance Management" icon="clipboard-check">
+    Ensure regulatory compliance by controlling AI capabilities and data access patterns.
+  </Card>
+  
+  <Card title="Cost Optimization" icon="dollar-sign">
+    Manage resource usage by controlling access to expensive or resource-intensive features.
+  </Card>
+</CardGroup>
+
+## General Feature Controls
+
+Enterprise Feature Controls allow you to manage access to Cline's capabilities across four key areas:
+
+### Core AI Features
+- **Chat Interface**: Rate limiting and approval requirements based on user roles
+- **Code Generation**: File pattern blocking and language-specific restrictions
+- **Model Selection**: Role-based access to different AI models and context sizes
+- **Context Management**: Control over context window sizes per user role
+
+### Development Tools
+- **File Explorer**: Path restrictions and file size warnings for sensitive areas
+- **Terminal Access**: Controlled command execution with role-based permissions
+- **Browser Automation**: Domain restrictions and approval requirements
+- **Git Operations**: Branch protection and repository access controls
+
+### Advanced Features
+- **Workflows**: Granular permissions for viewing, running, and creating workflows
+- **Hooks**: Control over different hook types and security-sensitive paths
+- **Checkpoints**: Storage limits and checkpoint quotas per user role
+- **MCP Servers**: Server access restrictions and approval workflows for custom integrations
+
+### Integration Controls
+- **External API Access**: Domain allowlists and approval requirements for third-party services
+- **Data Export**: Content type restrictions and size limits for exported data
+- **Cloud Services**: Regional restrictions and service-specific access controls
+
+## Control Dimensions
+
+Enterprise Feature Controls operate across multiple dimensions to provide comprehensive governance:
+
+### Role-Based Controls
+Define feature access based on organizational roles with graduated permissions:
+- **Intern**: Limited access with daily quotas and supervised operations
+- **Developer**: Standard access to core features with some restrictions
+- **Senior Developer**: Extended access including advanced features and limited administrative capabilities
+- **Tech Lead**: Full feature access with team-level control permissions
+- **Admin**: Complete access with organization-wide control capabilities
+
+### Environment-Specific Controls
+Tailor feature availability based on deployment environment:
+- **Development**: Full feature access for testing and development activities
+- **Staging**: Restricted access with limited external connectivity for testing
+- **Production**: Minimal feature access with strict approval requirements and enhanced security
+
+### Project-Specific Controls
+Adjust controls based on project sensitivity and classification:
+- **Public Projects**: Standard feature access with basic restrictions
+- **Internal Projects**: Moderate restrictions with approved domain access
+- **Confidential Projects**: Strict access controls with comprehensive audit logging
+- **Restricted Projects**: Minimal AI assistance with human oversight requirements
+
+## Implementation Approaches
+
+Feature controls can be implemented through multiple deployment strategies:
+
+### Infrastructure as Code
+- **Terraform/CloudFormation**: Deploy feature controls as infrastructure resources
+- **Configuration Management**: Use Ansible, Chef, or Puppet for consistent deployment across environments
+- **Version Control**: Manage feature control configurations alongside application code
+
+### GitOps Integration
+- **Automated Validation**: Validate configuration changes before deployment
+- **Staged Rollouts**: Deploy feature controls through development, staging, and production environments
+- **Audit Trail**: Maintain complete history of feature control changes
+
+### Dynamic Control Systems
+- **Real-Time Adjustments**: Modify feature access without system restarts
+- **Emergency Response**: Rapidly disable features during security incidents
+- **Approval Workflows**: Route feature requests through organizational approval processes
+
+## Monitoring & Management
+
+Comprehensive monitoring ensures Feature Controls operate effectively:
+
+### Real-Time Dashboards
+- **Feature Usage Metrics**: Track adoption and utilization patterns across the organization
+- **Access Control Analytics**: Monitor blocked attempts and approval queue metrics
+- **Performance Impact**: Assess the operational overhead of feature controls
+- **User Activity Tracking**: Understand how different roles interact with available features
+
+### Emergency Response
+- **Incident Procedures**: Predefined responses for security incidents, compliance audits, and resource exhaustion
+- **Automated Triggers**: Webhook-based activation of emergency controls
+- **Escalation Workflows**: Ensure critical situations receive appropriate attention
+
+### Audit & Compliance
+- **Access Reports**: Comprehensive user activity and feature usage summaries
+- **Compliance Frameworks**: Support for SOC 2, HIPAA, GDPR, and other regulatory requirements
+- **Evidence Collection**: Automated gathering of compliance evidence and documentation
+
+## Enterprise Integration
+
+Feature controls integrate seamlessly with existing enterprise systems:
+
+### Identity Management
+- **LDAP/Active Directory**: Synchronize user roles and permissions from enterprise directories
+- **SAML/SSO Integration**: Leverage existing single sign-on infrastructure for authentication
+- **Group-Based Permissions**: Map organizational groups to feature access levels
+
+### Security Frameworks
+- **Zero Trust Architecture**: Support least-privilege access principles
+- **Audit Logging**: Comprehensive logging of all feature access attempts
+- **Threat Response**: Automated feature restrictions in response to security alerts
+
+## Best Practices
+
+### Security-First Approach
+1. **Default Deny**: Start with minimal permissions and add as needed
+2. **Regular Reviews**: Periodically audit feature permissions and usage
+3. **Least Privilege**: Grant only the minimum features required for each role
+4. **Separation of Duties**: Require multiple approvers for sensitive features
+5. **Audit Everything**: Log all feature access attempts and decisions
+
+### User Experience
+1. **Clear Communication**: Inform users when features are disabled and why
+2. **Graceful Degradation**: Provide alternatives when features are unavailable
+3. **Self-Service**: Allow users to request feature access through automated workflows
+4. **Documentation**: Maintain up-to-date documentation of available features
+5. **Training**: Educate users on approved features and best practices
+
+### Operational Excellence
+1. **Automated Testing**: Test feature controls in staging before production
+2. **Rollback Capabilities**: Maintain ability to quickly revert feature changes
+3. **Performance Monitoring**: Track performance impact of feature controls
+4. **Emergency Procedures**: Have plans for emergency feature disabling
+5. **Change Management**: Use formal processes for feature control changes
+
+## Troubleshooting
+
+### Common Issues
+
+**Features Not Applying**:
+```bash
+# Check feature control status
+cline-enterprise features status --user alice@company.com
+
+# Validate configuration
+cline-enterprise features validate --config feature-controls.yaml
+
+# Sync user permissions
+cline-enterprise features sync-permissions --user alice@company.com
+```
+
+**Performance Impact**:
+```bash
+# Monitor feature control overhead
+cline-enterprise features metrics --timeframe 1h
+
+# Optimize slow rules
+cline-enterprise features optimize --rule complex-permission-rule
+
+# Check cache status
+cline-enterprise features cache-status
+```
+
+**Approval Workflow Issues**:
+```bash
+# Check approval queue
+cline-enterprise approvals list --status pending
+
+# Escalate stuck approvals
+cline-enterprise approvals escalate --request req-12345
+
+# Update approval rules
+cline-enterprise features update-approval-rules --dry-run
+```
+
+Enterprise Feature Controls provide comprehensive governance over Cline's capabilities while maintaining flexibility for legitimate use cases. Start with basic role-based controls and gradually implement more sophisticated policies as your organization's needs evolve.
