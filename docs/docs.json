@@ -268,17 +268,78 @@
 						"pages": [
 							"enterprise-solutions/overview",
 							"enterprise-solutions/onboarding",
-							"enterprise-solutions/members/roles-and-permissions",
 							{
-								"group": "Provider Remote Configuration",
+								"group": "Team Management",
 								"pages": [
+									"enterprise-solutions/team-management/overview",
+									"enterprise-solutions/team-management/roles-and-permissions",
+									"enterprise-solutions/team-management/managing-members"
+								]
+							},
+							{
+								"group": "Configuration",
+								"pages": [
+									"enterprise-solutions/configuration/overview",
 									{
-										"group": "AWS Bedrock",
+										"group": "Remote Configuration",
 										"pages": [
-											"enterprise-solutions/provider-remote-config/aws-bedrock/admin-configuration",
-											"enterprise-solutions/provider-remote-config/aws-bedrock/member-configuration"
+											"enterprise-solutions/configuration/remote-configuration/overview",
+											{
+												"group": "AWS Bedrock",
+												"pages": [
+													"enterprise-solutions/configuration/remote-configuration/aws-bedrock/admin-configuration",
+													"enterprise-solutions/configuration/remote-configuration/aws-bedrock/member-configuration"
+												]
+											},
+											{
+												"group": "LiteLLM",
+												"pages": [
+													"enterprise-solutions/configuration/remote-configuration/litellm/admin-configuration",
+													"enterprise-solutions/configuration/remote-configuration/litellm/member-configuration"
+												]
+											},
+											{
+												"group": "Google Vertex AI",
+												"pages": [
+													"enterprise-solutions/configuration/remote-configuration/google-vertex/admin-configuration",
+													"enterprise-solutions/configuration/remote-configuration/google-vertex/member-configuration"
+												]
+											}
+										]
+									},
+									{
+										"group": "Infrastructure Configuration",
+										"pages": [
+											"enterprise-solutions/configuration/infrastructure-configuration/overview",
+											{
+												"group": "Providers",
+												"pages": [
+													"enterprise-solutions/configuration/infrastructure-configuration/providers/overview",
+													"enterprise-solutions/configuration/infrastructure-configuration/providers/aws-bedrock/overview",
+													"enterprise-solutions/configuration/infrastructure-configuration/providers/litellm/overview",
+													"enterprise-solutions/configuration/infrastructure-configuration/providers/google-vertex/overview"
+												]
+											},
+											{
+												"group": "MCP",
+												"pages": [
+													"enterprise-solutions/configuration/infrastructure-configuration/mcp/overview",
+													"enterprise-solutions/configuration/infrastructure-configuration/mcp/mcp-marketplace",
+													"enterprise-solutions/configuration/infrastructure-configuration/mcp/remote-mcp-servers"
+												]
+											},
+											"enterprise-solutions/configuration/infrastructure-configuration/rules",
+											"enterprise-solutions/configuration/infrastructure-configuration/workflows",
+											"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features"
 										]
 									}
+								]
+							},
+							{
+								"group": "Monitoring",
+								"pages": [
+									"enterprise-solutions/monitoring/overview", 
+									"enterprise-solutions/monitoring/opentelemetry"
 								]
 							}
 						]
@@ -353,11 +414,11 @@
 		},
 		{
 			"source": "/enterprise-solutions/configure-AWS-Bedrock-Admin",
-			"destination": "/enterprise-solutions/provider-remote-config/aws-bedrock/admin-configuration"
+			"destination": "/enterprise-solutions/configuration/remote-configuration/aws-bedrock/admin-configuration"
 		},
 		{
 			"source": "/enterprise-solutions/configure-AWS-Bedrock-Member",
-			"destination": "/enterprise-solutions/provider-remote-config/aws-bedrock/member-configuration"
+			"destination": "/enterprise-solutions/configuration/remote-configuration/aws-bedrock/member-configuration"
 		},
 		{
 			"source": "/enterprise-solutions/configure-workOS-authkit",
