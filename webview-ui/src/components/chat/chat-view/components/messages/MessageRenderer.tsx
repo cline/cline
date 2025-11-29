@@ -57,19 +57,21 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 
 	// Regular message
 	return (
-		<ChatRow
-			inputValue={inputValue}
-			isExpanded={expandedRows[messageOrGroup.ts] || false}
-			isLast={isLast}
-			key={messageOrGroup.ts}
-			lastModifiedMessage={modifiedMessages.at(-1)}
-			message={messageOrGroup}
-			onCancelCommand={() => messageHandlers.executeButtonAction("cancel")}
-			onHeightChange={onHeightChange}
-			onSetQuote={onSetQuote}
-			onToggleExpand={onToggleExpand}
-			sendMessageFromChatRow={messageHandlers.handleSendMessage}
-		/>
+		<div data-message-ts={messageOrGroup.ts}>
+			<ChatRow
+				inputValue={inputValue}
+				isExpanded={expandedRows[messageOrGroup.ts] || false}
+				isLast={isLast}
+				key={messageOrGroup.ts}
+				lastModifiedMessage={modifiedMessages.at(-1)}
+				message={messageOrGroup}
+				onCancelCommand={() => messageHandlers.executeButtonAction("cancel")}
+				onHeightChange={onHeightChange}
+				onSetQuote={onSetQuote}
+				onToggleExpand={onToggleExpand}
+				sendMessageFromChatRow={messageHandlers.handleSendMessage}
+			/>
+		</div>
 	)
 }
 
