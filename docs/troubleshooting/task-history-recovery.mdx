@@ -1,0 +1,157 @@
+---
+title: "Task History Recovery Guide"
+sidebarTitle: "Task History Recovery"
+description: "How to recover and reconstruct your Cline task history"
+---
+
+Lost your task history? This guide covers how to get it back.
+
+<Tip>
+	Most cases are solved by running the built-in recovery command. Try that first before anything else.
+</Tip>
+
+## Quick Recovery
+
+1. Open Command Palette (`Cmd/Ctrl + Shift + P`)
+2. Type "Cline: Reconstruct Task History"
+3. Confirm when prompted
+4. Done - check your history panel
+
+## Where Cline Stores Data
+
+### Storage Paths
+
+<Tabs>
+	<Tab title="macOS">
+		```bash
+		~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/
+		```
+	</Tab>
+	<Tab title="Windows">
+		```powershell
+		%APPDATA%\Code\User\globalStorage\saoudrizwan.claude-dev\
+		```
+	</Tab>
+	<Tab title="Linux">
+		```bash
+		~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/
+		```
+	</Tab>
+</Tabs>
+
+For VS Code Insiders, replace `Code` with `Code - Insiders` in the paths above.
+
+### Directory Structure
+
+```
+saoudrizwan.claude-dev/
+├── state/
+│   ├── taskHistory.json          # Main history index
+│   └── taskHistory.backup.*.json # Backups
+├── tasks/
+│   └── <task-id>/                # Individual task data
+│       ├── api_conversation_history.json
+│       ├── ui_messages.json
+│       └── task_metadata.json
+└── checkpoints/
+```
+
+The `taskHistory.json` file is just an index. The actual conversation data lives in individual task folders under `tasks/`.
+
+## Using the Recovery Command
+
+The recovery command scans all task folders and rebuilds the history index from scratch.
+
+What it does:
+
+1. Backs up your current `taskHistory.json`
+2. Scans the `tasks/` directory
+3. Reads conversation data from each task folder
+4. Recalculates token usage and costs
+5. Creates a new `taskHistory.json`
+
+```mermaid
+graph LR
+    A[Backup current] --> B[Scan tasks/]
+    B --> C[Read each task]
+    C --> D[Rebuild index]
+    D --> E[Done]
+```
+
+<Warning>
+	This only works if the task folders still exist. If those are deleted, there's nothing to recover.
+</Warning>
+
+## Manual Recovery
+
+### Restoring from Backup
+
+Cline creates backups automatically. Find them in the `state/` folder:
+
+```bash
+# macOS/Linux
+cd ~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/state/
+ls taskHistory.backup.*.json
+
+# Pick the most recent one and restore it
+cp taskHistory.backup.1234567890.json taskHistory.json
+```
+
+Then restart VS Code.
+
+### Migrating to a New Machine
+
+1. Copy the entire `saoudrizwan.claude-dev` folder from your old machine
+2. Install VS Code and Cline on the new machine
+3. Close VS Code
+4. Paste the folder to the same path on the new machine
+5. Open VS Code
+
+The data format is the same across operating systems, so cross-platform migration works fine.
+
+## Common Problems
+
+### History empty after VS Code update
+
+Run "Cline: Reconstruct Task History". If that doesn't work, check if there's a backup file to restore.
+
+### History lost after reinstalling VS Code
+
+VS Code usually keeps extension data when uninstalled. Just install Cline and run the recovery command.
+
+### Token counts look wrong
+
+The recovery command recalculates all metrics from the conversation data. Running it should fix incorrect values.
+
+### "No tasks found" error
+
+The `tasks/` folder is empty or missing. This happens when:
+
+- VS Code data was completely cleared
+- You're looking at the wrong VS Code installation (standard vs Insiders)
+- The folder was manually deleted
+
+### Recovery runs but some tasks missing
+
+Corrupted task folders get skipped. The command shows how many were recovered vs skipped. Check the error messages for details.
+
+## Preventing Data Loss
+
+- Back up the `saoudrizwan.claude-dev` folder periodically
+- Don't use "Clear All Data" options that might affect extensions
+- Use Cline's export feature for important conversations
+
+## Still stuck?
+
+Open a GitHub issue at [cline/cline](https://github.com/cline/cline/issues) with:
+
+- Your OS and VS Code version
+- Cline version
+- What happened before the data loss
+- Any error messages
+
+Include the output of:
+
+```bash
+ls -la ~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/tasks/ | head -20
+```
