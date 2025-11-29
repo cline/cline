@@ -30,14 +30,12 @@ export const StickyUserMessage: React.FC<StickyUserMessageProps> = memo(
 
 		return (
 			<div
-				className={cn("relative flex items-center px-2.5 pt-2 pb-2 cursor-pointer select-none", "backdrop-blur-sm")}
+				className={cn(
+					"relative flex items-center px-2.5 pt-2 pb-2 cursor-pointer select-none",
+					"backdrop-blur-sm",
+					"hover:brightness-110",
+				)}
 				onClick={handleClick}
-				onMouseEnter={(e) => {
-					e.currentTarget.style.backgroundColor = "color-mix(in srgb, var(--vscode-badge-background) 90%, white 10%)"
-				}}
-				onMouseLeave={(e) => {
-					e.currentTarget.style.backgroundColor = "var(--vscode-badge-background)"
-				}}
 				style={{
 					backgroundColor: "var(--vscode-badge-background)",
 					borderRadius: "3px",
