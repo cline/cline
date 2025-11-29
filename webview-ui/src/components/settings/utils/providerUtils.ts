@@ -53,6 +53,7 @@ import {
 	openAiNativeModels,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
+	poolsideModelInfoSaneDefaults,
 	qwenCodeDefaultModelId,
 	qwenCodeModels,
 	requestyDefaultModelId,
@@ -394,6 +395,17 @@ export function normalizeApiConfiguration(
 						? nousResearchModels[nousResearchModelId as keyof typeof nousResearchModels]
 						: nousResearchModels[nousResearchDefaultModelId],
 			}
+		case "poolside":
+			const poolsideModelId =
+				currentMode === "plan" ? apiConfiguration?.planModePoolsideModelId : apiConfiguration?.actModePoolsideModelId
+			const poolsideModelInfo =
+				currentMode === "plan" ? apiConfiguration?.planModePoolsideModelInfo : apiConfiguration?.actModePoolsideModelInfo
+			return {
+				selectedProvider: provider,
+				selectedModelId: poolsideModelId || "",
+				selectedModelInfo: poolsideModelInfo || poolsideModelInfoSaneDefaults,
+			}
+
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -428,6 +440,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			hicapModelId: undefined,
 			aihubmixModelId: undefined,
 			nousResearchModelId: undefined,
+			poolsideModelId: undefined,
 
 			// Model info objects
 			openAiModelInfo: undefined,
@@ -439,6 +452,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			huggingFaceModelInfo: undefined,
 			vsCodeLmModelSelector: undefined,
 			aihubmixModelInfo: undefined,
+			poolsideModelInfo: undefined,
 
 			// AWS Bedrock fields
 			awsBedrockCustomSelected: undefined,
@@ -479,6 +493,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		aihubmixModelId: mode === "plan" ? apiConfiguration.planModeAihubmixModelId : apiConfiguration.actModeAihubmixModelId,
 		nousResearchModelId:
 			mode === "plan" ? apiConfiguration.planModeNousResearchModelId : apiConfiguration.actModeNousResearchModelId,
+		poolsideModelId: mode === "plan" ? apiConfiguration.planModePoolsideModelId : apiConfiguration.actModePoolsideModelId,
 
 		// Model info objects
 		openAiModelInfo: mode === "plan" ? apiConfiguration.planModeOpenAiModelInfo : apiConfiguration.actModeOpenAiModelInfo,
@@ -496,6 +511,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		hicapModelInfo: mode === "plan" ? apiConfiguration.planModeHicapModelInfo : apiConfiguration.actModeHicapModelInfo,
 		aihubmixModelInfo:
 			mode === "plan" ? apiConfiguration.planModeAihubmixModelInfo : apiConfiguration.actModeAihubmixModelInfo,
+		poolsideModelInfo:
+			mode === "plan" ? apiConfiguration.planModePoolsideModelInfo : apiConfiguration.actModePoolsideModelInfo,
 
 		// AWS Bedrock fields
 		awsBedrockCustomSelected:
@@ -680,6 +697,13 @@ export async function syncModeConfigurations(
 			updates.planModeAihubmixModelInfo = sourceFields.aihubmixModelInfo
 			updates.actModeAihubmixModelId = sourceFields.aihubmixModelId
 			updates.actModeAihubmixModelInfo = sourceFields.aihubmixModelInfo
+			break
+
+		case "poolside":
+			updates.planModePoolsideModelId = sourceFields.poolsideModelId
+			updates.actModePoolsideModelId = sourceFields.poolsideModelId
+			updates.planModePoolsideModelInfo = sourceFields.poolsideModelInfo
+			updates.actModePoolsideModelInfo = sourceFields.poolsideModelInfo
 			break
 
 		// Providers that use apiProvider + apiModelId fields

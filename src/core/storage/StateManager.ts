@@ -565,6 +565,8 @@ export class StateManager {
 			aihubmixApiKey,
 			aihubmixBaseUrl,
 			aihubmixAppCode,
+			poolsideApiKey,
+			poolsideBaseUrl,
 			// Plan mode configurations
 			planModeApiProvider,
 			planModeApiModelId,
@@ -603,6 +605,8 @@ export class StateManager {
 			planModeAihubmixModelInfo,
 			planModeNousResearchModelId,
 			geminiPlanModeThinkingLevel,
+			planModePoolsideModelId,
+			planModePoolsideModelInfo,
 			// Act mode configurations
 			actModeApiProvider,
 			actModeApiModelId,
@@ -641,6 +645,8 @@ export class StateManager {
 			actModeAihubmixModelInfo,
 			actModeNousResearchModelId,
 			geminiActModeThinkingLevel,
+			actModePoolsideModelId,
+			actModePoolsideModelInfo,
 		} = apiConfiguration
 
 		// Batch update global state keys
@@ -683,6 +689,8 @@ export class StateManager {
 			planModeAihubmixModelInfo,
 			planModeNousResearchModelId,
 			geminiPlanModeThinkingLevel,
+			planModePoolsideModelId,
+			planModePoolsideModelInfo,
 
 			// Act mode configuration updates
 			actModeApiProvider,
@@ -722,6 +730,8 @@ export class StateManager {
 			actModeAihubmixModelInfo,
 			actModeNousResearchModelId,
 			geminiActModeThinkingLevel,
+			actModePoolsideModelId,
+			actModePoolsideModelInfo,
 
 			// Global state updates
 			awsRegion,
@@ -767,6 +777,7 @@ export class StateManager {
 			hicapModelId,
 			aihubmixBaseUrl,
 			aihubmixAppCode,
+			poolsideBaseUrl,
 		})
 
 		// Batch update secrets
@@ -809,6 +820,7 @@ export class StateManager {
 			hicapApiKey,
 			aihubmixApiKey,
 			nousResearchApiKey,
+			poolsideApiKey,
 		})
 	}
 
@@ -1120,6 +1132,7 @@ export class StateManager {
 			minimaxApiKey: this.secretsCache["minimaxApiKey"],
 			hicapApiKey: this.secretsCache["hicapApiKey"],
 			aihubmixApiKey: this.secretsCache["aihubmixApiKey"],
+			poolsideApiKey: this.secretsCache["poolsideApiKey"],
 
 			// Global state (with remote config precedence for applicable fields)
 			awsRegion:
@@ -1194,6 +1207,7 @@ export class StateManager {
 			hicapModelId: this.globalStateCache["hicapModelId"],
 			aihubmixBaseUrl: this.taskStateCache["aihubmixBaseUrl"] || this.globalStateCache["aihubmixBaseUrl"],
 			aihubmixAppCode: this.taskStateCache["aihubmixAppCode"] || this.globalStateCache["aihubmixAppCode"],
+			poolsideBaseUrl: this.taskStateCache["poolsideBaseUrl"] || this.globalStateCache["poolsideBaseUrl"],
 
 			// Plan mode configurations
 			planModeApiProvider:
@@ -1267,6 +1281,10 @@ export class StateManager {
 				this.taskStateCache["planModeNousResearchModelId"] || this.globalStateCache["planModeNousResearchModelId"],
 			geminiPlanModeThinkingLevel:
 				this.taskStateCache["geminiPlanModeThinkingLevel"] || this.globalStateCache["geminiPlanModeThinkingLevel"],
+			planModePoolsideModelId:
+				this.taskStateCache["planModePoolsideModelId"] || this.globalStateCache["planModePoolsideModelId"],
+			planModePoolsideModelInfo:
+				this.taskStateCache["planModePoolsideModelInfo"] || this.globalStateCache["planModePoolsideModelInfo"],
 
 			// Act mode configurations
 			actModeApiProvider:
@@ -1338,6 +1356,10 @@ export class StateManager {
 			geminiActModeThinkingLevel:
 				this.taskStateCache["geminiActModeThinkingLevel"] || this.globalStateCache["geminiActModeThinkingLevel"],
 			nousResearchApiKey: this.secretsCache["nousResearchApiKey"],
+			actModePoolsideModelId:
+				this.taskStateCache["actModePoolsideModelId"] || this.globalStateCache["actModePoolsideModelId"],
+			actModePoolsideModelInfo:
+				this.taskStateCache["actModePoolsideModelInfo"] || this.globalStateCache["actModePoolsideModelInfo"],
 		}
 	}
 }
