@@ -4,12 +4,12 @@ import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
-import laminarService from "@services/laminar/LaminarService"
 import { McpHub } from "@services/mcp/McpHub"
 import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
+import { laminarService } from "@/services/laminar"
 import { modelDoesntSupportWebp } from "@/utils/model-utils"
 import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
@@ -365,13 +365,24 @@ export class ToolExecutor {
 				return true
 			}
 
+            console.log('[DEBUG] Tool execution starting:', block.name)
+            console.log('[DEBUG] LaminarService.isEnabled():', laminarService.isEnabled())
+			laminarService.startSpan("tool", {
+				name: block.name,
+				spanType: "TOOL",
+				input: block,
+			})
 			// Handle complete blocks
 			await this.handleCompleteBlock(block, config)
 			await this.saveCheckpoint()
+            console.log('[DEBUG] Ending tool span for:', block.name)
+            laminarService.endSpan("tool")
+            console.log('[DEBUG] Tool span ended for:', block.name)
 			return true
 		} catch (error) {
 			await this.handleError(`executing ${block.name}`, error as Error, block)
 			await this.saveCheckpoint()
+			laminarService.endSpan("tool")
 			return true
 		}
 	}
@@ -548,13 +559,6 @@ export class ToolExecutor {
 	 * @param config The task configuration containing all necessary context
 	 */
 	private async handleCompleteBlock(block: ToolUse, config: any): Promise<void> {
-		laminarService.startSpan("tool", {
-			name: block.name,
-			spanType: "TOOL",
-			input: block,
-		})
-
-		laminarService.endSpan("tool")
 		// Check abort flag at the very start to prevent execution after cancellation
 		if (this.taskState.abort) {
 			return

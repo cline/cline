@@ -10,8 +10,8 @@ import { WebviewProvider } from "./core/webview"
 import { Logger } from "./services/logging/Logger"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
-import laminarService from "@services/laminar/LaminarService"
 import { HostProvider } from "@/hosts/host-provider"
+import { laminarService } from "@/services/laminar"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
 import { StateManager } from "./core/storage/StateManager"
 import { ExtensionRegistryInfo } from "./registry"
@@ -137,6 +137,7 @@ export async function tearDown(): Promise<void> {
 	audioRecordingService.cleanup()
 
 	PostHogClientProvider.getInstance().dispose()
+	laminarService.dispose()
 	telemetryService.dispose()
 	ErrorService.get().dispose()
 	featureFlagsService.dispose()

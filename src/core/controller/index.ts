@@ -31,7 +31,7 @@ import { AuthService } from "@/services/auth/AuthService"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { LogoutReason } from "@/services/auth/types"
 import { featureFlagsService } from "@/services/feature-flags"
-import laminarService from "@/services/laminar/LaminarService"
+import { laminarService } from "@/services/laminar/LaminarService"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
 import { getAxiosSettings } from "@/shared/net"
@@ -366,7 +366,7 @@ export class Controller {
 		this.stateManager.setGlobalState("telemetrySetting", telemetrySetting)
 		const isOptedIn = telemetrySetting !== "disabled"
 		telemetryService.updateTelemetryState(isOptedIn)
-		laminarService.updateTelemetryState(isOptedIn)
+		laminarService.setOptIn(isOptedIn)
 		await this.postStateToWebview()
 	}
 

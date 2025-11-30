@@ -148,6 +148,12 @@ if (process.env.POSTHOG_TELEMETRY_ENABLED) {
 	buildEnvVars["process.env.POSTHOG_TELEMETRY_ENABLED"] = JSON.stringify(process.env.POSTHOG_TELEMETRY_ENABLED)
 }
 
+if (process.env.LMNR_PROJECT_API_KEY) {
+    buildEnvVars["process.env.LMNR_PROJECT_API_KEY"] = JSON.stringify(process.env.LMNR_PROJECT_API_KEY)
+}
+if (process.env.LMNR_RECORD_IO) {
+    buildEnvVars["process.env.LMNR_RECORD_IO"] = JSON.stringify(process.env.LMNR_RECORD_IO)
+}
 // OpenTelemetry configuration (injected at build time from GitHub secrets)
 // These provide production defaults that can be overridden at runtime via environment variables
 if (process.env.OTEL_TELEMETRY_ENABLED) {

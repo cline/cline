@@ -48,7 +48,6 @@ import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { featureFlagsService } from "@services/feature-flags"
 import { listFiles } from "@services/glob/list-files"
-import laminarService from "@services/laminar/LaminarService"
 import { Logger } from "@services/logging/Logger"
 import { McpHub } from "@services/mcp/McpHub"
 import { ApiConfiguration } from "@shared/api"
@@ -84,6 +83,7 @@ import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
 import { isSubagentCommand, transformClineCommand } from "@/integrations/cli-subagents/subagent_command"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
+import { laminarService } from "@/services/laminar"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
 import {
 	ClineAssistantContent,
@@ -1307,7 +1307,7 @@ export class Task {
 		let includeFileDetails = true
 		while (!this.taskState.abort) {
 			// starting first task.step span for the first turn of conversation
-			laminarService.startSpan("task.step", { name: `task.step`, sessionId: this.taskId, input: userContent }, true)
+			laminarService.startSpan("cline.task.step", { name: `cline.task.step`, sessionId: this.taskId, input: userContent }, true)
 			const didEndLoop = await this.recursivelyMakeClineRequests(nextUserContent, includeFileDetails)
 			includeFileDetails = false // we only need file details the first time
 
@@ -1347,7 +1347,7 @@ export class Task {
 			return true
 		}
 
-		laminarService.endSpan("task.step")
+		laminarService.endSpan("cline.task.step")
 		// Run if the API is currently streaming (work happening now)
 		if (this.taskState.isStreaming) {
 			return true
@@ -3024,8 +3024,8 @@ export class Task {
 
 			// need to call here in case the stream was aborted
 			if (this.taskState.abort) {
-				laminarService.recordExceptionOnSpan("task.step", new Error("Cline instance aborted"))
-				laminarService.endSpan("task.step")
+				laminarService.recordExceptionOnSpan("cline.task.step", new Error("Cline instance aborted"))
+				laminarService.endSpan("cline.task.step")
 				throw new Error("Cline instance aborted")
 			}
 
@@ -3143,9 +3143,9 @@ export class Task {
 				// Start a new task.step active span for the next turn of conversation when user sends next message.
 				// The new task.step span will only be started if the previous task.step span was ended. Otherwise, this call to startSpan will do nothing.
 				laminarService.startSpan(
-					"task.step",
+					"cline.task.step",
 					{
-						name: "task.step",
+						name: "cline.task.step",
 						sessionId: this.taskId,
 						input: this.taskState.userMessageContent,
 					},
