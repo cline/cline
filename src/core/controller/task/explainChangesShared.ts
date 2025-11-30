@@ -1,9 +1,9 @@
-import type Anthropic from "@anthropic-ai/sdk"
 import { buildApiHandler } from "@core/api"
 import { HostProvider } from "@/hosts/host-provider"
 import { getCommentReviewController } from "@/hosts/vscode/review/CommentReviewController"
 import { formatContentBlockToMarkdown } from "@/integrations/misc/export-markdown"
 import { ApiConfiguration } from "@/shared/api"
+import { ClineStorageMessage } from "@/shared/messages/content"
 
 /**
  * Binary file extensions to exclude from diff view
@@ -90,7 +90,7 @@ export interface ChangedFile {
 /**
  * Stringify conversation history into a readable summary for context
  */
-export function stringifyConversationHistory(apiConversationHistory: Anthropic.MessageParam[]): string {
+export function stringifyConversationHistory(apiConversationHistory: ClineStorageMessage[]): string {
 	if (!apiConversationHistory || apiConversationHistory.length === 0) {
 		return "No prior conversation context available."
 	}
