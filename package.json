@@ -307,7 +307,7 @@
 		"vscode:prepublish": "npm run package",
 		"compile": "npm run check-types && npm run lint && node esbuild.mjs",
 		"compile-standalone": "npm run check-types && npm run lint && node esbuild.mjs --standalone",
-		"compile-standalone-npm": "npm run protos && npm run protos-go && npm run check-types && node esbuild.mjs --standalone",
+		"compile-standalone-npm": "npm run protos && npm run protos-go && npm run check-types && npm run lint && node esbuild.mjs --standalone",
 		"compile-cli": "scripts/build-cli.sh",
 		"compile-cli-all-platforms": "scripts/build-cli-all-platforms.sh",
 		"compile-cli-man-page": "pandoc cli/man/cline.1.md -s -t man -o cli/man/cline.1",
