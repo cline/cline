@@ -35,11 +35,13 @@ Output an ordered list:
 
 ## Commands Reference
 ```bash
+git config user.email
 git diff origin/main...HEAD --name-only
 git diff origin/main...HEAD
 # Find related files for a domain (adjust pattern based on what you learn from the diff)
-find . -type f -name "*slash-command*" -o -name "*SlashCommand*" | head -20
-git log --format="%an <%ae>" -- "**/*slash-command*" | sort | uniq -c | sort -rn
+find . -type f \( -name "*slash-command*" -o -name "*SlashCommand*" \) | head -20
+# Get contributors for related files
+find . -type f \( -name "*slash-command*" -o -name "*SlashCommand*" \) -print0 | xargs -0 git log --format="%an <%ae>" -- | sort | uniq -c | sort -rn
 git log --format="%an <%ae>" -- <file> | sort | uniq -c | sort -rn
 git blame -L 10,20 origin/main -- <file>
 ```
