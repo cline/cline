@@ -266,7 +266,7 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
  * Stealth models are models that are compatible with the OpenRouter API but not listed on the OpenRouter website or API.
  */
 const CLINE_STEALTH_MODELS: Record<string, ModelInfo> = {
-	"cline/Spectre": {
+	"stealth/spectre": {
 		maxTokens: clineSpectreModelInfo.maxTokens ?? 0,
 		contextWindow: clineSpectreModelInfo.contextWindow ?? 0,
 		supportsImages: clineSpectreModelInfo.supportsImages ?? false,

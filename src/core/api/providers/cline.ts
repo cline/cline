@@ -202,7 +202,7 @@ export class ClineHandler implements ApiHandler {
 					if (
 						this.getModel().id === "x-ai/grok-code-fast-1" ||
 						this.getModel().id === "minimax/minimax-m2" ||
-						this.getModel().id === "cline/Spectre"
+						this.getModel().id === "stealth/spectre"
 					) {
 						totalCost = 0
 					}
