@@ -11,7 +11,7 @@ export interface FeaturedModelCardProps {
 
 const CardContainer = styled.div<{ isSelected: boolean }>`
 	padding: 2px 4px;
-	margin-bottom: 2px;
+	margin-bottom: 6px;
 	border-radius: 3px;
 	border: 1px solid var(--vscode-textLink-foreground);
 	opacity: ${(props) => (props.isSelected ? 1 : 0.6)};
