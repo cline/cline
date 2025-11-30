@@ -1,12 +1,10 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
-import { StringRequest } from "@shared/proto/cline/common"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { useCallback, useLayoutEffect, useMemo, useState } from "react"
 import Thumbnails from "@/components/common/Thumbnails"
 import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
-import { UiServiceClient } from "@/services/grpc-client"
 import { getEnvironmentColor } from "@/utils/environmentColors"
 import CopyTaskButton from "./buttons/CopyTaskButton"
 import DeleteTaskButton from "./buttons/DeleteTaskButton"
@@ -103,14 +101,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const toggleTaskExpanded = useCallback(() => setIsTaskExpanded(!isTaskExpanded), [setIsTaskExpanded, isTaskExpanded])
 
 	const handleCheckpointSettingsClick = useCallback(() => {
-		navigateToSettings()
-		setTimeout(async () => {
-			try {
-				await UiServiceClient.scrollToSettings(StringRequest.create({ value: "features" }))
-			} catch (error) {
-				console.error("Error scrolling to checkpoint settings:", error)
-			}
-		}, 300)
+		navigateToSettings("features")
 	}, [navigateToSettings])
 
 	const environmentBorderColor = getEnvironmentColor(environment, "border")
