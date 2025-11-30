@@ -8,7 +8,7 @@ import { StateManager } from "@/core/storage/StateManager"
 import {
 	ANTHROPIC_MAX_THINKING_BUDGET,
 	CLAUDE_SONNET_1M_TIERS,
-	clineCodeSupernovaModelInfo,
+	clineSpectreModelInfo,
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 } from "@/shared/api"
@@ -266,19 +266,19 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
  * Stealth models are models that are compatible with the OpenRouter API but not listed on the OpenRouter website or API.
  */
 const CLINE_STEALTH_MODELS: Record<string, ModelInfo> = {
-	"cline/code-supernova-1-million": {
-		maxTokens: clineCodeSupernovaModelInfo.maxTokens ?? 0,
-		contextWindow: clineCodeSupernovaModelInfo.contextWindow ?? 0,
-		supportsImages: clineCodeSupernovaModelInfo.supportsImages ?? false,
-		supportsPromptCache: clineCodeSupernovaModelInfo.supportsPromptCache ?? false,
-		inputPrice: clineCodeSupernovaModelInfo.inputPrice ?? 0,
-		outputPrice: clineCodeSupernovaModelInfo.outputPrice ?? 0,
-		cacheWritesPrice: clineCodeSupernovaModelInfo.cacheWritesPrice ?? 0,
-		cacheReadsPrice: clineCodeSupernovaModelInfo.cacheReadsPrice ?? 0,
-		description: clineCodeSupernovaModelInfo.description ?? "",
-		thinkingConfig: clineCodeSupernovaModelInfo.thinkingConfig ?? undefined,
-		supportsGlobalEndpoint: clineCodeSupernovaModelInfo.supportsGlobalEndpoint ?? undefined,
-		tiers: clineCodeSupernovaModelInfo.tiers,
+	"cline/Spectre": {
+		maxTokens: clineSpectreModelInfo.maxTokens ?? 0,
+		contextWindow: clineSpectreModelInfo.contextWindow ?? 0,
+		supportsImages: clineSpectreModelInfo.supportsImages ?? false,
+		supportsPromptCache: clineSpectreModelInfo.supportsPromptCache ?? false,
+		inputPrice: clineSpectreModelInfo.inputPrice ?? 0,
+		outputPrice: clineSpectreModelInfo.outputPrice ?? 0,
+		cacheWritesPrice: clineSpectreModelInfo.cacheWritesPrice ?? 0,
+		cacheReadsPrice: clineSpectreModelInfo.cacheReadsPrice ?? 0,
+		description: clineSpectreModelInfo.description ?? "",
+		thinkingConfig: clineSpectreModelInfo.thinkingConfig ?? undefined,
+		supportsGlobalEndpoint: clineSpectreModelInfo.supportsGlobalEndpoint ?? undefined,
+		tiers: clineSpectreModelInfo.tiers,
 	},
 	// Add more stealth models here as needed
 }
