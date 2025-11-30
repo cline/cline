@@ -67,6 +67,20 @@ Press Ctrl+C to exit the view.
 Run YOLO mode with care on a directory or a clean Git branch. You get speed in exchange for oversight, so be ready to revert if needed.
 </Note>
 
+### Overriding settings
+
+Use the `-s` flag to override settings for a specific task. You can specify multiple settings in two ways:
+
+```bash
+# Comma-separated settings
+cline -s aws-region=us-west-2,mode=act "Deploy the application"
+
+# Multiple -s flags
+cline task new -s aws-region=us-west-2 -s mode=act "Deploy the application"
+```
+
+Both formats work with `cline "prompt"` and `cline task new`.
+
 ## 3. Multi-instance: Run parallel agents
 
 Multiple instances let you parallelize work on the same project without colliding contexts. Run frontend, backend, and infrastructure tasks simultaneously.
