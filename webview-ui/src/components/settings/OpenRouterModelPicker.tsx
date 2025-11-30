@@ -67,6 +67,11 @@ const featuredModels = [
 		label: "Free",
 		isFree: true,
 	},
+	{
+		id: "cline/code-supernova-1-million",
+		description: "Stealth coding model with image support",
+		label: "Free",
+	},
 ]
 const FREE_CLINE_MODELS = featuredModels.filter((m) => m.isFree)
 
