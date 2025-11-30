@@ -57,19 +57,26 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h4>
 			<ul style={ulStyle}>
 				<li>
-					<strong>MiniMax-M2</strong> is currently free to use in Cline!
+					New{" "}
+					<VSCodeLink href="https://docs.cline.bot/features/explain-changes" style={linkStyle}>
+						Explain Changes
+					</VSCodeLink>{" "}
+					button when Cline completes a task that helps you review code with inline chat. You can reply to comments with
+					follow-up questions, and send that chat back to Cline to continue working.
 				</li>
 				<li>
-					<strong>Gemini 3 Pro Preview</strong> and <strong>Claude Opus 4.5</strong> are available with SOTA reasoning
-					and coding capabilities.
-				</li>
-				<li>
-					<strong>Bug fixes,</strong> expanded features, and more! Check out the{" "}
-					<VSCodeLink href="https://github.com/cline/cline/blob/main/CHANGELOG.md" style={linkStyle}>
-						changelog
-					</VSCodeLink>
+					You can also use a new{" "}
+					<VSCodeLink href="https://docs.cline.bot/features/slash-commands/explain-changes" style={linkStyle}>
+						/explain-changes
+					</VSCodeLink>{" "}
+					slash command to review commits, branches, PRs, or uncommitted work. Try asking Cline to explain the last
+					commit or a PR you need to review!
 				</li>
 			</ul>
+
+			<p style={{ margin: "0" }}>
+				See a demo: <VSCodeLink style={linkStyle}>INSERT_LINK</VSCodeLink>
+			</p>
 			<div style={hrStyle} />
 			<p style={linkContainerStyle}>
 				Join us on{" "}
