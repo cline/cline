@@ -187,6 +187,9 @@ export async function explainChanges(controller: Controller, request: ExplainCha
 			await openDiffView("Explain Changes", changedFiles)
 		}
 
+		// Capture reference to the task for abort checking
+		const task = controller.task
+
 		// Stream AI explanation comments and add them as they arrive
 		// Each comment will open its virtual doc and scroll to show the comment (if 3+ files)
 		await streamAIExplanationComments(
@@ -214,7 +217,18 @@ export async function explainChanges(controller: Controller, request: ExplainCha
 			() => {
 				commentController.endStreamingComment()
 			},
+			// shouldAbort: Check if task was cancelled
+			() => task?.taskState?.abort === true,
 		)
+
+		// Check if we were aborted during streaming
+		if (task?.taskState?.abort) {
+			// Close diff views and clear comments when cancelled
+			commentController.clearAllComments()
+			await commentController.closeDiffViews()
+			relinquishButton()
+			return Empty.create({})
+		}
 
 		// After all comments are done, open the multi-diff view to show everything together (if 3+ files)
 		if (shouldRevealComments) {

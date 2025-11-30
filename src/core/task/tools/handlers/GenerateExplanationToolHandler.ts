@@ -247,7 +247,17 @@ export class GenerateExplanationToolHandler implements IToolHandler, IPartialBlo
 				() => {
 					commentController.endStreamingComment()
 				},
+				// shouldAbort: Check if task was cancelled
+				() => config.taskState.abort === true,
 			)
+
+			// Check if we were aborted during streaming
+			if (config.taskState.abort) {
+				// Close diff views and clear comments when cancelled
+				commentController.clearAllComments()
+				await commentController.closeDiffViews()
+				return formatResponse.toolResult("Explanation generation was cancelled.")
+			}
 
 			// After all comments are done, open the multi-diff view to show everything together (if 3+ files)
 			if (shouldRevealComments) {

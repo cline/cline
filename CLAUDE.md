@@ -3,12 +3,14 @@
 This file is the secret sauce for working effectively in this codebase. It captures tribal knowledge—the nuanced, non-obvious patterns that make the difference between a quick fix and hours of back-and-forth & human intervention.
 
 **When to add to this file:**
-- User had to intervene, correct, or hand-hold → take that as a signal to document whatever was missing so they never have to step in again
-- You discovered something that required reading many multiple files to understand
-- A change touched files you wouldn't have guessed from the surface knowledge you get off the bat or light exploration
+- User had to intervene, correct, or hand-hold
+- Multiple back-and-forth attempts were needed to get something working
+- You discovered something that required reading many files to understand
+- A change touched files you wouldn't have guessed
 - Something worked differently than you expected
-- You had to extensively search around to find "how we do X here"
-- User explicitly asks to "add this to CLAUDE.md" or "document this gotcha"
+- User explicitly asks to "add this to CLAUDE.md"
+
+**Proactively suggest additions** when any of the above happen—don't wait to be asked.
 
 **What NOT to add:** Stuff you can figure out from reading a few files, obvious patterns, or standard practices. This file should be high-signal, not comprehensive.
 
@@ -93,3 +95,31 @@ Three places need updates:
 - `src/core/slash-commands/index.ts` - Command definitions
 - `src/core/prompts/commands.ts` - System prompt integration
 - `webview-ui/src/utils/slash-commands.ts` - Webview autocomplete
+
+## ChatRow Cancelled/Interrupted States
+When a ChatRow displays a loading/in-progress state (spinner), you must handle what happens when the task is cancelled. This is non-obvious because cancellation doesn't update the message content—you have to infer it from context.
+
+**The pattern:**
+1. A message has a `status` field (e.g., `"generating"`, `"complete"`, `"error"`) stored in `message.text` as JSON
+2. When cancelled mid-operation, the status stays `"generating"` forever—no one updates it
+3. To detect cancellation, check TWO conditions:
+   - `!isLast` — if this message is no longer the last message, something else happened after it (interrupted)
+   - `lastModifiedMessage?.ask === "resume_task" || "resume_completed_task"` — task was just cancelled and is waiting to resume
+
+**Example from `generate_explanation`:**
+```tsx
+const wasCancelled =
+    explanationInfo.status === "generating" &&
+    (!isLast ||
+        lastModifiedMessage?.ask === "resume_task" ||
+        lastModifiedMessage?.ask === "resume_completed_task")
+const isGenerating = explanationInfo.status === "generating" && !wasCancelled
+```
+
+**Why both checks?**
+- `!isLast` catches: cancelled → resumed → did other stuff → this old message is stale
+- `lastModifiedMessage?.ask === "resume_task"` catches: just cancelled, hasn't resumed yet, this message is still technically "last"
+
+**See also:** `BrowserSessionRow.tsx` uses similar pattern with `isLastApiReqInterrupted` and `isLastMessageResume`.
+
+**Backend side:** When streaming is cancelled, clean up properly (close tabs, clear comments, etc.) by checking `taskState.abort` after the streaming function returns.

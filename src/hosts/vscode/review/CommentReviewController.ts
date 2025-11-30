@@ -452,6 +452,33 @@ Please continue helping the user with their question about this code.`
 		return `${filePath}:${startLine}:${endLine}`
 	}
 
+	/**
+	 * Close all tabs that use the cline-diff URI scheme (both diff views and regular text documents)
+	 */
+	async closeDiffViews(): Promise<void> {
+		const tabs = vscode.window.tabGroups.all
+			.flatMap((tg) => tg.tabs)
+			.filter((tab) => {
+				// Check for diff view tabs
+				if (tab.input instanceof vscode.TabInputTextDiff && tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME) {
+					return true
+				}
+				// Check for regular text document tabs with cline-diff scheme (opened during comment reveal)
+				if (tab.input instanceof vscode.TabInputText && tab.input?.uri?.scheme === DIFF_VIEW_URI_SCHEME) {
+					return true
+				}
+				return false
+			})
+		for (const tab of tabs) {
+			try {
+				await vscode.window.tabGroups.close(tab)
+			} catch (error) {
+				// Tab might already be closed
+				console.warn("Failed to close diff tab:", error)
+			}
+		}
+	}
+
 	dispose(): void {
 		this.clearAllComments()
 		this.commentController.dispose()

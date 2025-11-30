@@ -5,81 +5,6 @@ import { formatContentBlockToMarkdown } from "@/integrations/misc/export-markdow
 import { ApiConfiguration } from "@/shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
 
-/**
- * Binary file extensions to exclude from diff view
- */
-const BINARY_EXTENSIONS = new Set([
-	// Images
-	".png",
-	".jpg",
-	".jpeg",
-	".gif",
-	".bmp",
-	".ico",
-	".webp",
-	".svg",
-	".tiff",
-	".tif",
-	// Audio
-	".mp3",
-	".wav",
-	".ogg",
-	".flac",
-	".aac",
-	".m4a",
-	// Video
-	".mp4",
-	".avi",
-	".mov",
-	".wmv",
-	".flv",
-	".webm",
-	".mkv",
-	// Archives
-	".zip",
-	".tar",
-	".gz",
-	".rar",
-	".7z",
-	".bz2",
-	// Documents
-	".pdf",
-	".doc",
-	".docx",
-	".xls",
-	".xlsx",
-	".ppt",
-	".pptx",
-	// Fonts
-	".ttf",
-	".otf",
-	".woff",
-	".woff2",
-	".eot",
-	// Executables/binaries
-	".exe",
-	".dll",
-	".so",
-	".dylib",
-	".bin",
-	".o",
-	".a",
-	// Other
-	".db",
-	".sqlite",
-	".sqlite3",
-	".lock",
-	".wasm",
-])
-
-/**
- * Check if a file is binary based on its extension
- */
-export function isBinaryFile(filePath: string): boolean {
-	const ext = filePath.substring(filePath.lastIndexOf(".")).toLowerCase()
-	return BINARY_EXTENSIONS.has(ext)
-}
-
 export interface ChangedFile {
 	relativePath: string
 	absolutePath: string
@@ -87,30 +12,14 @@ export interface ChangedFile {
 	after: string
 }
 
-/**
- * Stringify conversation history into a readable summary for context
- */
-export function stringifyConversationHistory(apiConversationHistory: ClineStorageMessage[]): string {
-	if (!apiConversationHistory || apiConversationHistory.length === 0) {
-		return "No prior conversation context available."
-	}
-
-	return apiConversationHistory
-		.map((message) => {
-			const role = message.role === "user" ? "**User:**" : "**Assistant:**"
-			const content = Array.isArray(message.content)
-				? message.content.map((block) => formatContentBlockToMarkdown(block)).join("\n")
-				: message.content
-			return `${role}\n\n${content}\n\n`
-		})
-		.join("---\n\n")
-}
-
-const EXPLAINER_SYSTEM_PROMPT = `You are an AI coding assistant explaining code changes to a developer. Your goal is to help the user understand what changed and why.
+const EXPLAINER_SYSTEM_PROMPT = `You are an AI coding assistant called Cline that will be explaining code changes to a developer. Your goal is to help the user understand what changed and why.
 - Use a friendly, conversational tone as if pair programming
 - When relevant, briefly explain technical concepts or patterns used
 - Focus on helping the user learn and understand the codebase
-- Highlight any important decisions, trade-offs, or things the user should be aware of`
+- Highlight any important decisions, trade-offs, or things the user should be aware of
+
+Remember: The user wants to understand the changes well enough to maintain, extend, or debug this code themselves.
+`
 
 /**
  * Add line numbers to content (0-indexed for AI reference)
@@ -191,6 +100,8 @@ export async function setupCommentController(
  * Stream AI explanation comments with real-time updates.
  * Uses a structured format that allows creating comment UI immediately when location is known,
  * then streaming the comment text as it arrives.
+ *
+ * @param shouldAbort - Optional callback that returns true if the operation should be aborted
  */
 export async function streamAIExplanationComments(
 	apiConfiguration: ApiConfiguration,
@@ -200,6 +111,7 @@ export async function streamAIExplanationComments(
 	onCommentStart: (filePath: string, startLine: number, endLine: number) => void,
 	onCommentChunk: (chunk: string) => void,
 	onCommentEnd: () => void,
+	shouldAbort?: () => boolean,
 ): Promise<number> {
 	// Disable thinking/reasoning for faster response
 	const configWithoutThinking: ApiConfiguration = {
@@ -236,11 +148,10 @@ Rules:
    - For ADDITIONS or MODIFICATIONS: Use the LAST LINE of the changed code block
    - For DELETIONS: Use the FIRST LINE where the deletion occurred (the line number in "After" where content was removed)
    - The diff view collapses unchanged lines, so comments must be on a line that's part of the diff to be visible
-3. Then write your comment text (can span multiple lines)
+3. Then write your comment text (can span multiple lines). Use markdown formatting where appropriate.
 4. End with @@@ on its own line
 5. Each file MUST have at least one comment, MAX ${maxCommentsPerFile} comment${maxCommentsPerFile > 1 ? "s" : ""} per file - focus on the most significant changes
-6. Keep comments digestible - explain important/non-obvious changes, not every little thing
-7. Skip trivial changes - ignore whitespace, formatting, simple renames, obvious fixes
+6. Explain important/non-obvious changes, not every little thing. Skip trivial changes - ignore whitespace, formatting, simple renames, obvious fixes.
 `
 
 	const userMessage = `Explain these code changes:
@@ -265,11 +176,28 @@ Output your explanation comments now using the @@@ format:`
 
 	try {
 		for await (const chunk of apiHandler.createMessage(systemPrompt, [{ role: "user", content: userMessage }])) {
+			// Check if we should abort before processing each chunk
+			if (shouldAbort?.()) {
+				// If we're in the middle of a comment, end it cleanly
+				if (inComment) {
+					onCommentEnd()
+				}
+				return commentCount
+			}
+
 			if (chunk.type === "text") {
 				buffer += chunk.text
 
 				// Process buffer line by line, keeping incomplete lines
 				while (true) {
+					// Check abort before processing each line
+					if (shouldAbort?.()) {
+						if (inComment) {
+							onCommentEnd()
+						}
+						return commentCount
+					}
+
 					const newlineIndex = buffer.indexOf("\n")
 					if (newlineIndex === -1) {
 						break
@@ -395,7 +323,9 @@ async function handleCommentReply(
 
 The user is asking followup questions about code change explanations you provided.
 Respond helpfully to the user's question about the code.
-Use markdown formatting where appropriate.`
+Use markdown formatting where appropriate.
+If the user asks you to make changes, fix something, or do any work that requires modifying code, let them know they can click the "Add to Cline Chat" button (the arrow icon in the top-right of the comment box) to send this conversation to the main Cline agent, which can then make the requested changes.
+`
 
 	const userMessage = `## Context
 ${conversationContext}
@@ -425,4 +355,98 @@ Please respond to the user's question about this code.`
 		console.error("Error getting reply:", error)
 		onChunk(`Error: ${error instanceof Error ? error.message : "Unknown error"}`)
 	}
+}
+
+/**
+ * Stringify conversation history into a readable summary for context
+ */
+export function stringifyConversationHistory(apiConversationHistory: ClineStorageMessage[]): string {
+	if (!apiConversationHistory || apiConversationHistory.length === 0) {
+		return "No prior conversation context available."
+	}
+
+	return apiConversationHistory
+		.map((message) => {
+			const role = message.role === "user" ? "**User:**" : "**Assistant:**"
+			const content = Array.isArray(message.content)
+				? message.content.map((block) => formatContentBlockToMarkdown(block)).join("\n")
+				: message.content
+			return `${role}\n\n${content}\n\n`
+		})
+		.join("---\n\n")
+}
+
+/**
+ * Binary file extensions to exclude from diff view
+ */
+const BINARY_EXTENSIONS = new Set([
+	// Images
+	".png",
+	".jpg",
+	".jpeg",
+	".gif",
+	".bmp",
+	".ico",
+	".webp",
+	".svg",
+	".tiff",
+	".tif",
+	// Audio
+	".mp3",
+	".wav",
+	".ogg",
+	".flac",
+	".aac",
+	".m4a",
+	// Video
+	".mp4",
+	".avi",
+	".mov",
+	".wmv",
+	".flv",
+	".webm",
+	".mkv",
+	// Archives
+	".zip",
+	".tar",
+	".gz",
+	".rar",
+	".7z",
+	".bz2",
+	// Documents
+	".pdf",
+	".doc",
+	".docx",
+	".xls",
+	".xlsx",
+	".ppt",
+	".pptx",
+	// Fonts
+	".ttf",
+	".otf",
+	".woff",
+	".woff2",
+	".eot",
+	// Executables/binaries
+	".exe",
+	".dll",
+	".so",
+	".dylib",
+	".bin",
+	".o",
+	".a",
+	// Other
+	".db",
+	".sqlite",
+	".sqlite3",
+	".lock",
+	".wasm",
+])
+
+/**
+ * Check if a file is binary based on its extension
+ */
+export function isBinaryFile(filePath: string): boolean {
+	const ext = filePath.substring(filePath.lastIndexOf(".")).toLowerCase()
+	return BINARY_EXTENSIONS.has(ext)
 }

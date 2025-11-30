@@ -311,32 +311,7 @@ Use the generate_explanation tool with:
 - **title**: A descriptive title for the diff view (e.g., "Changes in commit abc123", "PR #42: Add user authentication")
 - **from_ref**: The git reference for the "before" state
 - **to_ref**: The git reference for the "after" state (optional)
-
-# Examples
-
-## Explain the last commit
-1. Run: \`git --no-pager log --oneline -1\` (to get commit info)
-2. Run: \`git --no-pager show HEAD --stat\` (to see what changed)
-3. Read relevant files if needed for context
-4. Call generate_explanation with title, from_ref="HEAD~1", to_ref="HEAD"
-
-## Explain a pull request
-1. Run: \`gh pr view <number> --json baseRefName,headRefName,title\`
-2. Run: \`gh pr diff <number> | cat\` (to see what changed)
-3. Read key files to understand the changes
-4. Call generate_explanation with title="PR #<number>: <pr title>", from_ref="<baseRefName>", to_ref="<headRefName>"
-
-## Explain changes between branches
-1. Run: \`git --no-pager diff main..develop --stat\`
-2. Read important modified files for context
-3. Call generate_explanation with title="Changes from main to develop", from_ref="main", to_ref="develop"
-
-## Explain staged changes
-1. Run: \`git --no-pager diff --cached --stat\` (to see staged files)
-2. Read the staged files for context
-3. Call generate_explanation with title="Staged changes", from_ref="HEAD" (omit to_ref)
-
-Below is the user's input describing what changes they want explained.
+Below is the user's input describing what changes they want explained. If no input is provided, default to analyzing uncommitted changes in the working directory (may or may not be staged).
 </explicit_instructions>\n
 `
 

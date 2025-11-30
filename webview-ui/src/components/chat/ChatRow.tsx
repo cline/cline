@@ -1477,7 +1477,15 @@ export const ChatRowContent = memo(
 						} catch {
 							// Use defaults if parsing fails
 						}
-						const isGenerating = explanationInfo.status === "generating"
+						// Check if generation was interrupted:
+						// 1. If status is "generating" but this isn't the last message, it was interrupted
+						// 2. If status is "generating" and lastModifiedMessage is a resume ask, task was just cancelled
+						const wasCancelled =
+							explanationInfo.status === "generating" &&
+							(!isLast ||
+								lastModifiedMessage?.ask === "resume_task" ||
+								lastModifiedMessage?.ask === "resume_completed_task")
+						const isGenerating = explanationInfo.status === "generating" && !wasCancelled
 						const isError = explanationInfo.status === "error"
 						return (
 							<div
@@ -1504,6 +1512,11 @@ export const ChatRowContent = memo(
 											className="codicon codicon-error"
 											style={{ marginRight: 8, color: "var(--vscode-errorForeground)" }}
 										/>
+									) : wasCancelled ? (
+										<i
+											className="codicon codicon-circle-slash"
+											style={{ marginRight: 8, color: "var(--vscode-descriptionForeground)" }}
+										/>
 									) : (
 										<i
 											className="codicon codicon-check"
@@ -1515,7 +1528,9 @@ export const ChatRowContent = memo(
 											? "Generating explanation"
 											: isError
 												? "Failed to generate explanation"
-												: "Generated explanation"}
+												: wasCancelled
+													? "Explanation cancelled"
+													: "Generated explanation"}
 									</span>
 								</div>
 								{isError && explanationInfo.error && (
