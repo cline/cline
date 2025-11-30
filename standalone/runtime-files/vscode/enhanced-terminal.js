@@ -200,8 +200,7 @@ class StandaloneTerminalProcess extends EventEmitter {
 			if (shell.toLowerCase().includes("powershell") || shell.toLowerCase().includes("pwsh")) {
 				return ["-Command", command]
 			} else {
-				// Use /s /c with quoted command for proper quote handling in cmd.exe
-				return ["/s", "/c", `"${command}"`]
+				return ["/c", command]
 			}
 		} else {
 			// Use -l for login shell, -c for command
