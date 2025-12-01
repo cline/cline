@@ -116,6 +116,7 @@ export const mockProviderInfo = {
 			supportsPromptCache: false,
 		},
 	},
+	mode: "act" as const,
 }
 
 const makeMockProviderInfo = (modelId: string, providerId: string = "test") => ({
