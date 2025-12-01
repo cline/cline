@@ -228,9 +228,9 @@ message Settings {
   optional string poolside_api_key = 134;
   optional string poolside_base_url = 135;
   optional string plan_mode_poolside_model_id = 136;
-  optional string plan_mode_poolside_model_info = 137;
+  optional OpenAiCompatibleModelInfo plan_mode_poolside_model_info = 137;
   optional string act_mode_poolside_model_id = 138;
-  optional string act_mode_poolside_model_info = 139;
+  optional OpenAiCompatibleModelInfo act_mode_poolside_model_info = 139;
 }
 
 message DictationSettings {

@@ -191,13 +191,6 @@ export const PoolsideProvider = ({ showModelOptions, isPopup, currentMode }: Poo
 				</>
 			)}
 
-			<p
-				style={{
-					fontSize: "12px",
-					marginTop: 3,
-					color: "var(--vscode-descriptionForeground)",
-				}}></p>
-
 			{showModelOptions && (
 				<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 			)}
