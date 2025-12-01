@@ -2637,17 +2637,13 @@ export class Task {
 
 				// Determine whether we can save enough tokens from context rewriting to skip auto-compact
 				if (shouldCompact) {
-					const needToCondense = await this.contextManager.attemptFileReadOptimization(
+					shouldCompact = await this.contextManager.attemptFileReadOptimization(
 						this.messageStateHandler.getApiConversationHistory(),
 						this.taskState.conversationHistoryDeletedRange,
 						this.messageStateHandler.getClineMessages(),
 						previousApiReqIndex,
 						await ensureTaskDirectoryExists(this.taskId),
 					)
-
-					if (!needToCondense) {
-						shouldCompact = false
-					}
 				}
 			}
 
