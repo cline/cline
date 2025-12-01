@@ -2634,6 +2634,20 @@ export class Task {
 						shouldCompact = false
 					}
 				}
+
+				if (shouldCompact) {
+					const timestamp = Date.now()
+					const needToCondense = await this.contextManager.attemptFileReadOptimization(
+						this.messageStateHandler.getApiConversationHistory(),
+						this.taskState.conversationHistoryDeletedRange,
+						timestamp,
+						await ensureTaskDirectoryExists(this.taskId),
+					)
+
+					if (!needToCondense) {
+						shouldCompact = false
+					}
+				}
 			}
 
 			// when summarizing the context window, we do not want to inject updated to the context

@@ -206,25 +206,12 @@ export class ContextManager {
 						// So if totalTokens/2 is greater than maxAllowedSize, we truncate 3/4 instead of 1/2
 						const keep = totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
 
-						// we later check how many chars we trim to determine if we should still truncate history
-						let [anyContextUpdates, uniqueFileReadIndices] = this.applyContextOptimizations(
+						// Attempt file read optimization and check if we need to truncate
+						let { anyContextUpdates, needToTruncate } = this.attemptFileReadOptimizationCore(
 							apiConversationHistory,
-							conversationHistoryDeletedRange ? conversationHistoryDeletedRange[1] + 1 : 2,
+							conversationHistoryDeletedRange,
 							timestamp,
 						)
-
-						let needToTruncate = true
-						if (anyContextUpdates) {
-							// determine whether we've saved enough chars to not truncate
-							const charactersSavedPercentage = this.calculateContextOptimizationMetrics(
-								apiConversationHistory,
-								conversationHistoryDeletedRange,
-								uniqueFileReadIndices,
-							)
-							if (charactersSavedPercentage >= 0.3) {
-								needToTruncate = false
-							}
-						}
 
 						if (needToTruncate) {
 							// go ahead with truncation
@@ -586,6 +573,63 @@ export class ContextManager {
 		const contextHistoryUpdated = fileReadUpdatesBool
 
 		return [contextHistoryUpdated, uniqueFileReadIndices]
+	}
+
+	/**
+	 * Private helper that attempts file read optimization and checks threshold.
+	 */
+	private attemptFileReadOptimizationCore(
+		apiConversationHistory: Anthropic.Messages.MessageParam[],
+		conversationHistoryDeletedRange: [number, number] | undefined,
+		timestamp: number,
+	): {
+		anyContextUpdates: boolean
+		needToTruncate: boolean
+	} {
+		const startIndex = conversationHistoryDeletedRange ? conversationHistoryDeletedRange[1] + 1 : 2
+
+		const [anyContextUpdates, uniqueFileReadIndices] = this.applyContextOptimizations(
+			apiConversationHistory,
+			startIndex,
+			timestamp,
+		)
+
+		if (!anyContextUpdates) {
+			return { anyContextUpdates: false, needToTruncate: true }
+		}
+
+		const percentSaved = this.calculateContextOptimizationMetrics(
+			apiConversationHistory,
+			conversationHistoryDeletedRange,
+			uniqueFileReadIndices,
+		)
+
+		return {
+			anyContextUpdates: true,
+			needToTruncate: percentSaved < 0.3,
+		}
+	}
+
+	/**
+	 * Public helper that attempts file read optimization and saves to disk.
+	 */
+	async attemptFileReadOptimization(
+		apiConversationHistory: Anthropic.Messages.MessageParam[],
+		conversationHistoryDeletedRange: [number, number] | undefined,
+		timestamp: number,
+		taskDirectory: string,
+	): Promise<boolean> {
+		const { anyContextUpdates, needToTruncate } = this.attemptFileReadOptimizationCore(
+			apiConversationHistory,
+			conversationHistoryDeletedRange,
+			timestamp,
+		)
+
+		if (anyContextUpdates) {
+			await this.saveContextHistory(taskDirectory)
+		}
+
+		return needToTruncate
 	}
 
 	/**
