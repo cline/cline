@@ -46,6 +46,7 @@ export class ClineHandler implements ApiHandler {
 
 	private async ensureClient(): Promise<OpenAI> {
 		const clineAccountAuthToken = await this._authService.getAuthToken()
+		console.log(clineAccountAuthToken)
 		if (!clineAccountAuthToken) {
 			throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)
 		}

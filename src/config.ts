@@ -53,7 +53,7 @@ class ClineEndpoint {
 				return {
 					environment: Environment.staging,
 					appBaseUrl: "https://staging-app.cline.bot",
-					apiBaseUrl: "https://core-api.staging.int.cline.bot",
+					apiBaseUrl: "http://localhost:7777",
 					mcpBaseUrl: "https://core-api.staging.int.cline.bot/v1/mcp",
 				}
 			case Environment.local:
@@ -67,7 +67,7 @@ class ClineEndpoint {
 				return {
 					environment: Environment.production,
 					appBaseUrl: "https://app.cline.bot",
-					apiBaseUrl: "https://api.cline.bot",
+					apiBaseUrl: "http://localhost:7777",
 					mcpBaseUrl: "https://api.cline.bot/v1/mcp",
 				}
 		}

@@ -81,7 +81,7 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 
 	let models: Record<string, ModelInfo> = {}
 	try {
-		const response = await axios.get("https://openrouter.ai/api/v1/models", getAxiosSettings())
+		const response = await axios.get("http://localhost:7777/api/v1/ai/cline/models", getAxiosSettings())
 
 		if (response.data?.data) {
 			const rawModels = response.data.data
