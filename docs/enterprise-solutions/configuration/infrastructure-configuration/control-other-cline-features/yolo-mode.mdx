@@ -1,82 +1,137 @@
 ---
-title: Yolo Mode
-description: Configure Yolo Mode settings for enterprise environments
+title: "Yolo Mode"
+sidebarTitle: "Yolo Mode"
+description: "Enable autonomous operation mode for faster workflows"
 ---
 
-## Overview
+Yolo Mode enables Cline to operate with increased autonomy by reducing user confirmations and followup questions.
 
-Yolo Mode enables Cline to operate with increased automation while maintaining enterprise security and compliance standards. When enabled, Cline can execute approved operations with minimal user confirmation, accelerating development workflows.
+## What is Yolo Mode?
+
+When Yolo Mode is enabled, Cline:
+
+<CardGroup cols={2}>
+  <Card title="Skips Followup Questions" icon="forward">
+    Proceeds with reasonable assumptions instead of asking for clarification
+  </Card>
+  
+  <Card title="Auto-Approves Tools" icon="check-circle">
+    Automatically approves certain tool executions that would normally require confirmation
+  </Card>
+</CardGroup>
+
+<Warning>
+Yolo Mode increases automation speed but reduces oversight. Use in development environments only.
+</Warning>
+
+## How It Works
+
+### Normal Mode Behavior
+```
+User: "Update the API endpoint"
+Cline: "Which endpoint would you like to update?"
+User: "The users endpoint"
+Cline: [proceeds with changes]
+```
+
+### Yolo Mode Behavior
+```
+User: "Update the API endpoint"
+Cline: [analyzes codebase, identifies users endpoint, proceeds]
+```
 
 ## Configuration
 
-### Enabling Yolo Mode
+### For Individual Users
 
-Yolo Mode can be configured at the organization level through your enterprise dashboard:
+Toggle Yolo Mode in the Cline interface settings:
 
-1. Navigate to your enterprise configuration settings
-2. Access the "Advanced Features" section  
-3. Toggle Yolo Mode for your organization
-4. Configure specific automation rules and permissions
+1. Open Cline settings
+2. Find "Yolo Mode" toggle
+3. Enable or disable as needed
 
-### Permission Levels
+Changes apply immediately to new tasks.
 
-Yolo Mode operates with different permission levels:
+### For Enterprise Administrators
 
-- **Limited**: Basic automation for safe operations
-- **Standard**: Expanded automation for common development tasks
-- **Advanced**: Maximum automation with enterprise oversight
+Control whether users can enable Yolo Mode through remote configuration:
 
-### Safety Features
+```json
+{
+  "yoloModeAllowed": false
+}
+```
 
-Enterprise Yolo Mode includes built-in safety mechanisms:
+When set to `false`, the Yolo Mode toggle is disabled for all users.
 
-- **Operation Filtering**: Only pre-approved operations execute automatically
-- **Audit Logging**: All automated actions are logged for compliance
-- **Emergency Stop**: Administrators can disable Yolo Mode instantly
-- **Resource Limits**: Automated operations respect enterprise resource constraints
+## Behavior Changes
 
-## Enterprise Controls
+When Yolo Mode is enabled:
 
-### Administrative Oversight
+### Tool Execution
+- Most tools execute without asking for approval
+- Risky operations may still require confirmation
+- All actions are logged for review
 
-Enterprise administrators maintain full control over Yolo Mode settings:
+### Question Handling
+- Cline makes reasonable assumptions from context
+- Proceeds without asking followup questions
+- Uses available tools to gather information independently
 
-- Define which operations can be automated
-- Set resource usage limits
-- Configure audit and reporting requirements
-- Manage user access permissions
-
-### Compliance Integration
-
-Yolo Mode integrates with enterprise compliance systems:
-
-- Maintains detailed audit trails
-- Respects data governance policies  
-- Supports regulatory compliance requirements
-- Provides reporting for security reviews
+### Plan Mode Interaction
+- Automatically switches to Act Mode when appropriate
+- Reduces back-and-forth planning discussions
+- Focuses on execution over exploration
 
 ## Best Practices
 
-### Gradual Enablement
+<AccordionGroup>
+  <Accordion title="When to Use Yolo Mode" icon="thumbs-up">
+    - Development and testing environments
+    - Repetitive tasks with clear patterns
+    - When you trust Cline's judgment
+    - Time-sensitive workflows
+  </Accordion>
+  
+  <Accordion title="When to Disable Yolo Mode" icon="thumbs-down">
+    - Production environments
+    - Unfamiliar codebases
+    - Security-sensitive operations
+    - When you need to review each step
+  </Accordion>
+  
+  <Accordion title="Safety Tips" icon="shield">
+    - Review changes before committing
+    - Use version control checkpoints
+    - Keep backups of important files
+    - Monitor Cline's decisions and provide feedback
+  </Accordion>
+</AccordionGroup>
 
-- Start with Limited permission level
-- Monitor automated operations closely
-- Gradually expand permissions based on confidence
-- Regular review of automated actions
+## Enterprise Considerations
 
-### Team Training
+### Security
 
-- Ensure team members understand Yolo Mode capabilities
-- Train on emergency procedures
-- Review automation policies regularly
-- Document organization-specific configurations
+While Yolo Mode increases automation speed:
+- All tool executions are still logged
+- Certain operations may still require approval based on your configuration
+- Enterprise policies take precedence over user settings
 
-## Monitoring and Reporting
+### Monitoring
 
-Yolo Mode provides comprehensive monitoring:
+Track Yolo Mode usage through:
+- Telemetry events capture when mode is toggled
+- Task history shows which tasks used Yolo Mode
+- Standard logging captures all automated decisions
 
-- Real-time operation dashboards
-- Automated action summaries
-- Resource usage analytics
-- Compliance reporting tools
+## Related Settings
 
+<CardGroup cols={2}>
+  <Card title="Auto-Approve" icon="check-square" href="/features/auto-approve">
+    Configure which tools can be auto-approved
+  </Card>
+  
+  <Card title="Telemetry" icon="chart-line" href="/enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/telemetry">
+    Track usage and monitor behavior
+  </Card>
+</CardGroup>

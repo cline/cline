@@ -1,149 +1,138 @@
 ---
-title: Telemetry
-description: Configure telemetry and data collection for enterprise environments
+title: "Cline Telemetry"
+sidebarTitle: "Cline Telemetry"
+description: "Configure usage analytics and event tracking"
 ---
 
-## Overview
+Cline includes telemetry to help understand usage patterns and improve the product. Users can control whether to share this data.
 
-Cline's enterprise telemetry system collects usage analytics, performance metrics, and security events to help administrators optimize deployments, ensure compliance, and maintain operational excellence.
+## What is Cline Telemetry?
 
-## Data Collection
+Telemetry captures anonymous usage events such as:
 
-### Usage Analytics
+- Features used (which tools, commands, workflows)
+- Task completion rates
+- Error occurrences
+- Performance metrics
 
-Track how your team uses Cline across your organization:
+<Info>
+All telemetry data is **anonymous** and does not include code content, file contents, or other sensitive information.
+</Info>
 
-- **Session Metrics**: Login frequency, session duration, active users
-- **Feature Usage**: Tool utilization, command frequency, workflow patterns
-- **Project Analytics**: Code generation patterns, file types, project sizes
-- **Team Collaboration**: Shared workflows, knowledge transfer metrics
+## User Controls
 
-### Performance Monitoring
+### Enabling/Disabling Cline Telemetry
 
-Monitor system performance and resource utilization:
+Individual users can control telemetry through Cline settings:
 
-- **Response Times**: API calls, model inference, tool execution
-- **Resource Usage**: CPU, memory, network bandwidth consumption
-- **Error Rates**: Failed operations, timeout occurrences, retry patterns
-- **Throughput**: Requests per minute, concurrent users, workload distribution
+1. Open Cline settings
+2. Find "Cline Telemetry" toggle
+3. Enable or disable as preferred
 
-### Security Events
+Changes take effect immediately.
 
-Track security-related activities and compliance:
+### What Gets Collected
 
-- **Access Patterns**: Login attempts, permission changes, resource access
-- **Data Flow**: Information movement, external integrations, export activities
-- **Audit Events**: Administrative actions, policy changes, configuration updates
-- **Compliance Metrics**: Regulatory requirement adherence, policy violations
+When telemetry is enabled, Cline captures:
 
-## Privacy and Compliance
+<AccordionGroup>
+  <Accordion title="Feature Usage" icon="cursor-click">
+    - Tools executed (e.g., read_file, execute_command)
+    - Slash commands used
+    - Workflows triggered
+    - Settings changed
+  </Accordion>
+  
+  <Accordion title="Task Metrics" icon="tasks">
+    - Task started/completed events
+    - Mode switches (Plan/Act)
+    - Checkpoint usage
+    - Task duration
+  </Accordion>
+  
+  <Accordion title="Error Events" icon="triangle-exclamation">
+    - API failures
+    - Tool execution errors
+    - System errors
+    - Error types and frequencies
+  </Accordion>
+</AccordionGroup>
 
-### Data Privacy
+### What Doesn't Get Collected
 
-Enterprise telemetry is designed with privacy as a core principle:
+Cline Telemetry **never** includes:
 
-- **Data Minimization**: Only necessary data is collected
-- **Local Processing**: Sensitive data remains within your infrastructure
-- **Anonymization**: Personal information is anonymized or pseudonymized
-- **Retention Policies**: Configurable data retention periods
+- Your code or file contents
+- File paths or names
+- Command arguments or parameters
+- Conversation content
+- Personal information
+- API keys or credentials
 
-### Compliance Standards
+## Enterprise Configuration
 
-Supports major compliance frameworks:
+Administrators can set default telemetry state through remote configuration:
 
-- **GDPR**: European data protection compliance
-- **SOC 2**: Security and availability standards
-- **ISO 27001**: Information security management
-- **HIPAA**: Healthcare data protection (where applicable)
+```json
+{
+  "telemetryEnabled": true
+}
+```
 
-## Configuration
+<Note>
+Even with enterprise configuration, individual users can still disable Cline Telemetry in their local settings.
+</Note>
 
-### Telemetry Settings
+## OpenTelemetry Integration
 
-Configure telemetry collection through your enterprise dashboard:
+For enterprise deployments, Cline supports OpenTelemetry for advanced monitoring:
 
-1. Access enterprise telemetry settings
-2. Select data collection categories
-3. Set retention periods and storage locations
-4. Configure privacy and anonymization rules
+- Export telemetry to your own systems
+- Aggregate data across your organization
+- Custom dashboards and alerting
+- Integration with existing observability tools
 
-### Data Destinations
+See [OpenTelemetry](/enterprise-solutions/monitoring/opentelemetry) for configuration details.
 
-Choose where telemetry data is stored and processed:
+## Privacy
 
-- **On-Premises**: Keep all data within your infrastructure
-- **Hybrid**: Selected metrics to approved cloud services
-- **Private Cloud**: Dedicated cloud instances for your organization
-- **Data Lakes**: Integration with existing analytics platforms
+Cline's telemetry is designed with privacy in mind:
 
-### Granular Controls
+<CardGroup cols={2}>
+  <Card title="Anonymous" icon="user-secret">
+    No personal information is collected
+  </Card>
+  
+  <Card title="Optional" icon="toggle-on">
+    Users can disable at any time
+  </Card>
+  
+  <Card title="Local First" icon="laptop">
+    Code never leaves your machine
+  </Card>
+  
+  <Card title="Transparent" icon="eye">
+    Open source - see exactly what's collected
+  </Card>
+</CardGroup>
 
-Fine-tune data collection with granular settings:
+## Why Telemetry Matters
 
-- **User-Level**: Individual privacy preferences
-- **Team-Level**: Department-specific collection rules
-- **Project-Level**: Project-sensitive data handling
-- **Feature-Level**: Specific capability monitoring
+Anonymous usage data helps:
 
-## Analytics Dashboard
+- **Identify bugs**: Discover issues affecting users
+- **Prioritize features**: Focus on most-used capabilities
+- **Improve performance**: Find and fix slow operations
+- **Enhance reliability**: Track and reduce error rates
 
-### Real-Time Monitoring
+## Related
 
-Access live telemetry data through enterprise dashboards:
-
-- **Usage Dashboards**: Current active users, feature usage, system load
-- **Performance Metrics**: Response times, error rates, resource utilization
-- **Security Overview**: Access patterns, security events, compliance status
-- **Custom Views**: Tailored analytics for specific business needs
-
-### Historical Analysis
-
-Analyze trends and patterns over time:
-
-- **Usage Trends**: Adoption patterns, feature popularity, user engagement
-- **Performance History**: System improvements, capacity planning data
-- **Security Analytics**: Threat detection, access pattern analysis
-- **Compliance Reporting**: Audit trails, policy adherence metrics
-
-## Integration
-
-### Business Intelligence
-
-Integrate telemetry with existing BI systems:
-
-- **Data Export**: CSV, JSON, API endpoints for data extraction
-- **Webhook Integration**: Real-time data streaming to external systems
-- **Database Connectivity**: Direct database access for analytics tools
-- **Report Automation**: Scheduled reports and automated insights
-
-### Alerting and Notifications
-
-Set up automated monitoring and alerts:
-
-- **Performance Alerts**: CPU, memory, response time thresholds
-- **Security Notifications**: Unusual access patterns, policy violations
-- **Usage Alerts**: Capacity warnings, feature adoption notifications
-- **Compliance Alerts**: Regulatory requirement violations, audit reminders
-
-## Best Practices
-
-### Implementation Strategy
-
-- Start with essential metrics and expand gradually
-- Align collection with specific business objectives
-- Regular review of data utility and privacy impact
-- Team training on telemetry insights and usage
-
-### Data Governance
-
-- Establish clear data ownership and stewardship
-- Document data lineage and processing procedures
-- Regular privacy impact assessments
-- Transparent communication with users about data collection
-
-### Continuous Improvement
-
-- Regular analysis of collected data for insights
-- Feedback loops to improve product and processes
-- Performance optimization based on telemetry insights
-- Security posture enhancement using collected data
+<CardGroup cols={2}>
+  <Card title="OpenTelemetry" icon="chart-line" href="/enterprise-solutions/monitoring/opentelemetry">
+    Enterprise monitoring and observability
+  </Card>
+  
+  <Card title="Privacy" icon="shield" href="/more-info/telemetry">
+    Full telemetry documentation
+  </Card>
+</CardGroup>
