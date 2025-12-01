@@ -265,6 +265,20 @@ TASK SETTINGS
 
        mode   Starting mode (act/plan)
 
+CONTEXT WINDOW CONFIGURATION
+       The context window setting varies by provider:
+
+       Ollama
+              cline config s ollama-api-options-ctx-num=32768
+
+       LM Studio
+              cline config s lm-studio-max-tokens=32768
+
+       Other providers (Anthropic, OpenRouter, etc.)
+              The context window is defined per model in the model metadata.
+              It is not a user-settable field via CLI. Models have their own
+              built-in context limits that Cline uses automatically.
+
 NOTES & EXAMPLES
        The cline task send and cline task new commands support reading from
        stdin, enabling powerful pipeline compositions:
