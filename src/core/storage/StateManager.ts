@@ -565,6 +565,8 @@ export class StateManager {
 			aihubmixApiKey,
 			aihubmixBaseUrl,
 			aihubmixAppCode,
+			a2aAgentCardUrl,
+			a2aAuthToken,
 			// Plan mode configurations
 			planModeApiProvider,
 			planModeApiModelId,
@@ -767,6 +769,7 @@ export class StateManager {
 			hicapModelId,
 			aihubmixBaseUrl,
 			aihubmixAppCode,
+			a2aAgentCardUrl,
 		})
 
 		// Batch update secrets
@@ -809,6 +812,7 @@ export class StateManager {
 			hicapApiKey,
 			aihubmixApiKey,
 			nousResearchApiKey,
+			a2aAuthToken,
 		})
 	}
 
@@ -1120,6 +1124,7 @@ export class StateManager {
 			minimaxApiKey: this.secretsCache["minimaxApiKey"],
 			hicapApiKey: this.secretsCache["hicapApiKey"],
 			aihubmixApiKey: this.secretsCache["aihubmixApiKey"],
+			a2aAuthToken: this.secretsCache["a2aAuthToken"],
 
 			// Global state (with remote config precedence for applicable fields)
 			awsRegion:
@@ -1194,6 +1199,7 @@ export class StateManager {
 			hicapModelId: this.globalStateCache["hicapModelId"],
 			aihubmixBaseUrl: this.taskStateCache["aihubmixBaseUrl"] || this.globalStateCache["aihubmixBaseUrl"],
 			aihubmixAppCode: this.taskStateCache["aihubmixAppCode"] || this.globalStateCache["aihubmixAppCode"],
+			a2aAgentCardUrl: this.taskStateCache["a2aAgentCardUrl"] || this.globalStateCache["a2aAgentCardUrl"],
 
 			// Plan mode configurations
 			planModeApiProvider:

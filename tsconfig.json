@@ -53,6 +53,9 @@
 			],
 			"@utils/*": [
 				"src/utils/*"
+			],
+			"@a2a-js/sdk/client": [
+				"node_modules/@a2a-js/sdk/dist/client/index.d.ts"
 			]
 		}
 	},

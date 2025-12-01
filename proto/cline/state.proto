@@ -91,6 +91,7 @@ message Secrets {
   optional string oca_refresh_token = 38;
   optional string hicap_api_key = 39;
   optional string mcp_oauth_secrets = 40;
+  optional string a2a_auth_token = 41;
 }
 
 message Settings {
@@ -225,6 +226,7 @@ message Settings {
   optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 131;
   optional string act_mode_aihubmix_model_id = 132;
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 133;
+  optional string a2a_agent_card_url = 134;
 }
 
 message DictationSettings {

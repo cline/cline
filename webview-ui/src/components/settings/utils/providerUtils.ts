@@ -1,6 +1,8 @@
 import {
 	ApiConfiguration,
 	ApiProvider,
+	agent2agentDefaultModelId,
+	agent2agentModels,
 	anthropicDefaultModelId,
 	anthropicModels,
 	askSageDefaultModelId,
@@ -394,6 +396,13 @@ export function normalizeApiConfiguration(
 						? nousResearchModels[nousResearchModelId as keyof typeof nousResearchModels]
 						: nousResearchModels[nousResearchDefaultModelId],
 			}
+
+		case "agent2agent":
+			return {
+				selectedProvider: provider,
+				selectedModelId: agent2agentDefaultModelId,
+				selectedModelInfo: agent2agentModels[agent2agentDefaultModelId],
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -680,6 +689,9 @@ export async function syncModeConfigurations(
 			updates.planModeAihubmixModelInfo = sourceFields.aihubmixModelInfo
 			updates.actModeAihubmixModelId = sourceFields.aihubmixModelId
 			updates.actModeAihubmixModelInfo = sourceFields.aihubmixModelInfo
+			break
+
+		case "agent2agent":
 			break
 
 		// Providers that use apiProvider + apiModelId fields
