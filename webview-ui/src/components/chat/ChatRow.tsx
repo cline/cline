@@ -1275,7 +1275,7 @@ export const ChatRowContent = memo(
 											style={{
 												opacity: cost != null && cost > 0 ? 1 : 0,
 											}}>
-											${Number(cost || 0)?.toFixed(4)}
+											{cost != null && Number(cost || 0) > 0 ? `$${Number(cost || 0).toFixed(4)}` : ""}
 										</VSCodeBadge>
 									</div>
 									<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
@@ -1844,15 +1844,6 @@ export const ChatRowContent = memo(
 									ref={contentRef}
 									textToCopy={question}>
 									<Markdown markdown={question} />
-									<OptionsButtons
-										inputValue={inputValue}
-										isActive={
-											(isLast && lastModifiedMessage?.ask === "followup") ||
-											(!selected && options && options.length > 0)
-										}
-										options={options}
-										selected={selected}
-									/>
 									{quoteButtonState.visible && (
 										<QuoteButton
 											left={quoteButtonState.left}
@@ -1863,6 +1854,15 @@ export const ChatRowContent = memo(
 										/>
 									)}
 								</WithCopyButton>
+								<OptionsButtons
+									inputValue={inputValue}
+									isActive={
+										(isLast && lastModifiedMessage?.ask === "followup") ||
+										(!selected && options && options.length > 0)
+									}
+									options={options}
+									selected={selected}
+								/>
 							</div>
 						)
 					case "new_task":
@@ -1930,12 +1930,23 @@ export const ChatRowContent = memo(
 							response = message.text
 						}
 						return (
-							<WithCopyButton
-								onMouseUp={handleMouseUp}
-								position="bottom-right"
-								ref={contentRef}
-								textToCopy={response}>
-								<Markdown markdown={response} />
+							<>
+								<WithCopyButton
+									onMouseUp={handleMouseUp}
+									position="bottom-right"
+									ref={contentRef}
+									textToCopy={response}>
+									<Markdown markdown={response} />
+									{quoteButtonState.visible && (
+										<QuoteButton
+											left={quoteButtonState.left}
+											onClick={() => {
+												handleQuoteClick()
+											}}
+											top={quoteButtonState.top}
+										/>
+									)}
+								</WithCopyButton>
 								<OptionsButtons
 									inputValue={inputValue}
 									isActive={
@@ -1945,16 +1956,7 @@ export const ChatRowContent = memo(
 									options={options}
 									selected={selected}
 								/>
-								{quoteButtonState.visible && (
-									<QuoteButton
-										left={quoteButtonState.left}
-										onClick={() => {
-											handleQuoteClick()
-										}}
-										top={quoteButtonState.top}
-									/>
-								)}
-							</WithCopyButton>
+							</>
 						)
 					}
 					default:
