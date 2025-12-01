@@ -84,6 +84,26 @@ Other capable models include:
 - `mistral-small` - Good balance of performance and speed
 - `devstral-small` - Optimized for coding tasks
 
+### Configure context window size
+
+By default, Cline requests a 32,768 token context window from Ollama. If you've configured a custom context size in your Ollama model, Cline will override it unless you explicitly set the context window in Cline's settings.
+
+To use a custom context window size:
+
+1. Open Cline settings
+2. Scroll to the model configuration section
+3. Set your desired context window size in the "Context Length" field
+
+If you want Ollama to use the context size defined in your model's Modelfile (via `num_ctx`), set the context length in Cline to match that value.
+
+Example Modelfile with custom context:
+```
+FROM qwen3:30b
+PARAMETER num_ctx 100000
+```
+
+Then set Cline's context length to `100000` to match.
+
 ### Important Notes
 
 -   Start Ollama before using with Cline
