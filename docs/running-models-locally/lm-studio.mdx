@@ -87,6 +87,16 @@ After loading your model in the Developer tab, configure these settings:
 2. **KV Cache Quantization**: Leave unchecked (critical for consistent performance)
 3. **Flash Attention**: Enable if available (improves performance)
 
+#### Configure context window in Cline
+
+By default, Cline requests a specific context window size from LM Studio. To use a custom context window:
+
+1. Open Cline settings
+2. Scroll to the model configuration section
+3. Set your desired context window size in the "Context Length" field
+
+Ensure the value matches or is less than the context length configured in LM Studio's Developer tab.
+
 #### Quantization Guide
 
 Choose quantization based on your RAM:
