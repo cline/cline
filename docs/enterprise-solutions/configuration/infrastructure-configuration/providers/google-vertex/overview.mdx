@@ -1,483 +1,223 @@
 ---
-title: "Google Vertex AI Enterprise Configuration"
-sidebarTitle: "Google Vertex" 
-description: "Configure Google Cloud Vertex AI for enterprise Cline deployments with service accounts and regional compliance"
+title: "Google Vertex AI Configuration"
+sidebarTitle: "Google Vertex"
+description: "Configure Google Vertex AI for your Cline deployment"
 ---
 
-Google Vertex AI provides enterprise-grade AI models with advanced security, compliance, and regional deployment options. This guide covers integrating Vertex AI with your Cline Enterprise deployment for scalable, compliant AI operations.
+<Info>
+**Configuration Path: Self-Hosted**
 
-## Enterprise Benefits
+This guide covers Vertex AI configuration for self-hosted deployments. For simple web-based setup, see [Google Vertex SaaS Configuration](/enterprise-solutions/configuration/remote-configuration/google-vertex/admin-configuration).
+</Info>
 
-<CardGroup cols={2}>
-  <Card title="Enterprise Security" icon="shield-check">
-    VPC Service Controls, private endpoints, and Customer-Managed Encryption Keys (CMEK).
-  </Card>
-  
-  <Card title="Global Deployment" icon="globe">
-    Deploy models in 30+ regions worldwide to meet data residency requirements.
-  </Card>
-  
-  <Card title="Advanced Models" icon="brain">
-    Access to Gemini, PaLM, and specialized models for code generation and analysis.
-  </Card>
-  
-  <Card title="Enterprise Billing" icon="credit-card">
-    Unified billing with Google Cloud committed use discounts and enterprise pricing.
-  </Card>
-</CardGroup>
+Google Vertex AI provides enterprise access to Gemini and other Google AI models through Google Cloud Platform. Configure Cline to use Vertex AI with service account authentication.
 
-## Architecture Overview
+## What You'll Need
 
-```mermaid
-graph TB
-    A[Cline Enterprise] --> B[Vertex AI API]
-    B --> C[Gemini Pro]
-    B --> D[Gemini Ultra]
-    B --> E[PaLM 2]
-    B --> F[Custom Models]
-    
-    G[Service Account] --> B
-    H[VPC Connector] --> B
-    I[Cloud IAM] --> B
-    J[Cloud Logging] --> B
-```
+Before configuring Cline to use Vertex AI:
 
-## Prerequisites
-
-### Google Cloud Setup
-
-1. **Create a Google Cloud Project**:
-```bash
-# Create new project
-gcloud projects create cline-enterprise-prod --name="Cline Enterprise Production"
-
-# Set as active project
-gcloud config set project cline-enterprise-prod
-
-# Enable required APIs
-gcloud services enable aiplatform.googleapis.com
-gcloud services enable compute.googleapis.com
-gcloud services enable logging.googleapis.com
-gcloud services enable monitoring.googleapis.com
-```
-
-2. **Create Service Account**:
-```bash
-# Create service account for Cline Enterprise
-gcloud iam service-accounts create cline-vertex-sa \
-    --display-name="Cline Enterprise Vertex AI" \
-    --description="Service account for Cline Enterprise Vertex AI access"
-
-# Grant necessary permissions
-gcloud projects add-iam-policy-binding cline-enterprise-prod \
-    --member="serviceAccount:cline-vertex-sa@cline-enterprise-prod.iam.gserviceaccount.com" \
-    --role="roles/aiplatform.user"
-
-# Create and download key
-gcloud iam service-accounts keys create cline-vertex-key.json \
-    --iam-account=cline-vertex-sa@cline-enterprise-prod.iam.gserviceaccount.com
-```
+1. **Google Cloud Project** with Vertex AI API enabled
+2. **Service Account** with Vertex AI permissions
+3. **Service Account Key** (JSON file)
+4. **Region** where Vertex AI is available
 
 ## Configuration
 
-### Basic Configuration
+Configure Vertex AI through your remote configuration JSON:
 
-Create a Vertex AI configuration for your Cline Enterprise deployment:
-
-```yaml
-# vertex-config.yaml
-providers:
-  vertex-ai:
-    type: "google-vertex"
-    project_id: "cline-enterprise-prod"
-    location: "us-central1"
-    service_account_path: "/path/to/cline-vertex-key.json"
-    
-    # Available models
-    models:
-      - name: "gemini-pro"
-        model_id: "gemini-pro"
-        max_tokens: 8192
-        temperature: 0.1
-        
-      - name: "gemini-pro-vision"
-        model_id: "gemini-pro-vision"
-        max_tokens: 4096
-        supports_vision: true
-        
-      - name: "gemini-ultra"
-        model_id: "gemini-ultra"
-        max_tokens: 8192
-        tier: "premium"
-        
-    # Rate limiting
-    rate_limits:
-      requests_per_minute: 300
-      tokens_per_minute: 1000000
-      
-    # Retry configuration
-    retry_config:
-      max_retries: 3
-      backoff_multiplier: 2
-      max_backoff: 60
+```json
+{
+  "providerSettings": {
+    "provider": "vertex",
+    "vertexProject": "my-project-id",
+    "vertexRegion": "us-central1"
+  }
+}
 ```
 
-### Multi-Region Deployment
+### Configuration Options
 
-Configure multiple regions for high availability and compliance:
+| Field | Description | Required |
+|-------|-------------|----------|
+| `provider` | Must be `"vertex"` | Yes |
+| `vertexProject` | Google Cloud project ID | Yes |
+| `vertexRegion` | GCP region (e.g., `us-central1`) | Yes |
+| `vertexServiceAccountKey` | Path to service account JSON key | Yes |
 
-```yaml
-# multi-region-vertex-config.yaml
-providers:
-  # US regions
-  vertex-us-central:
-    type: "google-vertex"
-    project_id: "cline-enterprise-prod"
-    location: "us-central1"
-    service_account_path: "/path/to/service-account.json"
-    
-  vertex-us-east:
-    type: "google-vertex"  
-    project_id: "cline-enterprise-prod"
-    location: "us-east4"
-    service_account_path: "/path/to/service-account.json"
-    
-  # European regions for GDPR compliance
-  vertex-europe:
-    type: "google-vertex"
-    project_id: "cline-enterprise-eu"
-    location: "europe-west1"
-    service_account_path: "/path/to/eu-service-account.json"
-    data_residency: "EU"
-    
-  # Asia Pacific regions
-  vertex-asia:
-    type: "google-vertex"
-    project_id: "cline-enterprise-asia"
-    location: "asia-southeast1"
-    service_account_path: "/path/to/asia-service-account.json"
+## Setting Up Google Cloud
 
-# Routing rules based on user location
-routing_rules:
-  - condition: "user.region == 'EU'"
-    provider: "vertex-europe"
-  - condition: "user.region == 'APAC'" 
-    provider: "vertex-asia"
-  - default: "vertex-us-central"
+### 1. Enable Vertex AI API
+
+```bash
+# Enable the Vertex AI API
+gcloud services enable aiplatform.googleapis.com --project=my-project-id
 ```
 
-### Enterprise Security Configuration
+### 2. Create Service Account
 
-<Tabs>
-<Tab title="VPC Service Controls">
-```yaml
-# vpc-service-controls.yaml
-apiVersion: accesscontextmanager.cnrm.cloud.google.com/v1beta1
-kind: AccessContextManagerAccessPolicy
-metadata:
-  name: cline-enterprise-policy
-spec:
-  title: "Cline Enterprise Access Policy"
-  
----
-apiVersion: accesscontextmanager.cnrm.cloud.google.com/v1beta1
-kind: AccessContextManagerServicePerimeter
-metadata:
-  name: cline-vertex-perimeter
-spec:
-  title: "Cline Vertex AI Perimeter"
-  accessPolicyRef:
-    name: cline-enterprise-policy
-  perimeterType: "PERIMETER_TYPE_REGULAR"
-  status:
-    restrictedServices:
-      - "aiplatform.googleapis.com"
-    resources:
-      - "projects/123456789"  # Your project number
-    accessLevels:
-      - "accesscontextmanager.googleapis.com/accessPolicies/123456/accessLevels/cline_authorized"
+```bash
+# Create service account
+gcloud iam service-accounts create cline-vertex-sa \
+  --display-name="Cline Vertex AI" \
+  --project=my-project-id
+
+# Grant required permissions
+gcloud projects add-iam-policy-binding my-project-id \
+  --member="serviceAccount:cline-vertex-sa@my-project-id.iam.gserviceaccount.com" \
+  --role="roles/aiplatform.user"
+
+# Create and download key
+gcloud iam service-accounts keys create cline-vertex-key.json \
+  --iam-account=cline-vertex-sa@my-project-id.iam.gserviceaccount.com
 ```
-</Tab>
 
-<Tab title="Private Endpoints">
-```yaml
-# private-endpoint-config.yaml
-vertex_ai:
-  private_service_connect:
-    enabled: true
-    network: "projects/cline-enterprise-prod/global/networks/cline-vpc"
-    subnetwork: "projects/cline-enterprise-prod/regions/us-central1/subnetworks/cline-subnet"
-    
-  # Enterprise firewall rules
-  firewall_rules:
-    - name: "allow-vertex-ai-private"
-      direction: "EGRESS"
-      destination_ranges: ["199.36.153.8/30"]  # Vertex AI private endpoint range
-      allowed:
-        - protocol: "tcp"
-          ports: ["443"]
+### 3. Configure Cline
+
+Add the service account key to your configuration:
+
+```json
+{
+  "providerSettings": {
+    "provider": "vertex",
+    "vertexProject": "my-project-id",
+    "vertexRegion": "us-central1",
+    "vertexServiceAccountKey": "/path/to/cline-vertex-key.json"
+  }
+}
 ```
-</Tab>
 
-<Tab title="CMEK Encryption">
+## Available Models
+
+Common Vertex AI models for Cline:
+
+| Model ID | Description | Context Window |
+|----------|-------------|----------------|
+| `gemini-2.0-flash-exp` | Latest Gemini Flash (experimental) | 1M tokens |
+| `gemini-1.5-pro-002` | Gemini Pro (stable) | 2M tokens |
+| `gemini-1.5-flash-002` | Gemini Flash (stable) | 1M tokens |
+
+<Note>
+Model availability varies by region. Check the Vertex AI documentation for region-specific availability.
+</Note>
+
+## Regional Deployment
+
+Vertex AI is available in multiple Google Cloud regions:
+
+- **us-central1** (Iowa)
+- **us-east4** (Northern Virginia)
+- **europe-west1** (Belgium)
+- **asia-southeast1** (Singapore)
+
+Choose regions based on:
+- **Latency**: Closer to your users
+- **Compliance**: Data residency requirements
+- **Model Availability**: Not all models in all regions
+
+## Authentication Methods
+
+### Service Account Key (Recommended)
+
+Use a service account JSON key file for authentication:
+
+1. Create service account in Google Cloud Console
+2. Grant `roles/aiplatform.user` permission
+3. Download JSON key file
+4. Configure path in Cline settings
+
+### Workload Identity (GKE)
+
+For Kubernetes deployments on GKE, use Workload Identity:
+
 ```yaml
-# cmek-config.yaml
-encryption:
-  kms_key_name: "projects/cline-enterprise-prod/locations/us-central1/keyRings/cline-ring/cryptoKeys/vertex-key"
-  
-  # Configure CMEK for Vertex AI
-  vertex_ai_encryption:
-    prediction_encryption_spec:
-      kms_key_name: "projects/cline-enterprise-prod/locations/us-central1/keyRings/cline-ring/cryptoKeys/vertex-predictions"
-    
-    training_encryption_spec:
-      kms_key_name: "projects/cline-enterprise-prod/locations/us-central1/keyRings/cline-ring/cryptoKeys/vertex-training"
-```
-</Tab>
-</Tabs>
-
-## Enterprise Features
-
-### Workload Identity Integration
-
-Configure Workload Identity for Kubernetes deployments:
-
-```yaml
-# workload-identity-setup.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: cline-vertex-workload-identity
-  namespace: cline-enterprise
+  name: cline-vertex-sa
   annotations:
-    iam.gke.io/gcp-service-account: cline-vertex-sa@cline-enterprise-prod.iam.gserviceaccount.com
-
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: cline-enterprise
-  namespace: cline-enterprise
-spec:
-  template:
-    spec:
-      serviceAccountName: cline-vertex-workload-identity
-      containers:
-      - name: cline
-        env:
-        - name: GOOGLE_CLOUD_PROJECT
-          value: "cline-enterprise-prod"
-        - name: VERTEX_AI_LOCATION
-          value: "us-central1"
-```
-
-### Custom Model Deployment
-
-Deploy custom models on Vertex AI:
-
-```python
-# deploy-custom-model.py
-from google.cloud import aiplatform
-
-def deploy_custom_model():
-    aiplatform.init(
-        project="cline-enterprise-prod",
-        location="us-central1"
-    )
-    
-    # Upload custom model
-    model = aiplatform.Model.upload(
-        display_name="cline-custom-code-model",
-        artifact_uri="gs://cline-models/custom-code-model",
-        serving_container_image_uri="gcr.io/vertex-ai/prediction/pytorch-gpu.1-9:latest",
-        serving_container_environment_variables={
-            "MODEL_NAME": "cline-code-model"
-        }
-    )
-    
-    # Deploy to endpoint
-    endpoint = model.deploy(
-        machine_type="n1-standard-4",
-        min_replica_count=1,
-        max_replica_count=10,
-        accelerator_type="NVIDIA_TESLA_T4",
-        accelerator_count=1
-    )
-    
-    return endpoint
-
-if __name__ == "__main__":
-    endpoint = deploy_custom_model()
-    print(f"Model deployed to endpoint: {endpoint.resource_name}")
-```
-
-### Cost Management & Budgets
-
-Set up billing budgets and alerts:
-
-```bash
-# Create billing budget
-gcloud billing budgets create \
-    --billing-account=BILLING_ACCOUNT_ID \
-    --display-name="Cline Enterprise Vertex AI Budget" \
-    --budget-amount=5000 \
-    --threshold-rules-percent=50,90 \
-    --threshold-rules-spend-basis=CURRENT_SPEND \
-    --all-updates-rule-monitoring-notification-channels=NOTIFICATION_CHANNEL_ID \
-    --filter-projects=cline-enterprise-prod \
-    --filter-services=aiplatform.googleapis.com
-```
-
-## Monitoring & Observability
-
-### Cloud Monitoring Integration
-
-Configure monitoring dashboards and alerts:
-
-```yaml
-# monitoring-config.yaml
-monitoring:
-  dashboards:
-    - name: "Cline Vertex AI Usage"
-      widgets:
-        - title: "API Requests"
-          metric: "aiplatform.googleapis.com/api/request_count"
-          resource: "gce_instance"
-          
-        - title: "Response Latency" 
-          metric: "aiplatform.googleapis.com/api/request_latencies"
-          aggregation: "ALIGN_PERCENTILE_95"
-          
-        - title: "Token Usage"
-          metric: "aiplatform.googleapis.com/prediction/token_count"
-          
-  alerts:
-    - name: "High Error Rate"
-      condition: "error_rate > 0.05"
-      notification_channels: ["email", "slack"]
-      
-    - name: "Budget Alert"
-      condition: "monthly_spend > 4500"
-      notification_channels: ["email", "pagerduty"]
-```
-
-### Logging Configuration
-
-Enable comprehensive audit logging:
-
-```yaml
-# logging-config.yaml
-logging:
-  audit_logs:
-    - service: "aiplatform.googleapis.com"
-      audit_log_configs:
-        - log_type: "ADMIN_READ"
-        - log_type: "DATA_READ"
-        - log_type: "DATA_WRITE"
-          
-  log_sinks:
-    - name: "vertex-ai-audit-sink"
-      destination: "bigquery.googleapis.com/projects/cline-enterprise-prod/datasets/vertex_audit_logs"
-      filter: 'resource.type="aiplatform.googleapis.com/Model"'
-      
-    - name: "vertex-security-sink"
-      destination: "storage.googleapis.com/cline-security-logs"
-      filter: 'severity>=ERROR OR resource.type="gcp_network"'
+    iam.gke.io/gcp-service-account: cline-vertex-sa@my-project-id.iam.gserviceaccount.com
 ```
 
 ## Best Practices
 
 ### Security
-1. **Service Account Management**:
-   - Use dedicated service accounts per environment
-   - Implement regular key rotation (90 days)
-   - Apply principle of least privilege
+- **Service Account Keys**: Store securely, never commit to version control
+- **Least Privilege**: Grant only `aiplatform.user` role
+- **Key Rotation**: Rotate service account keys regularly (e.g., every 90 days)
+- **Audit Logging**: Enable Cloud Audit Logs for compliance
 
-2. **Network Security**:
-   - Use VPC Service Controls for sensitive workloads
-   - Enable private endpoints for production traffic
-   - Implement network-level access controls
-
-3. **Data Protection**:
-   - Enable Customer-Managed Encryption Keys (CMEK)
-   - Use data loss prevention (DLP) for sensitive content
-   - Implement request/response filtering
+### Cost Management
+- **Choose Appropriate Models**: Use Flash for speed, Pro for complex tasks
+- **Monitor Usage**: Track via Google Cloud Console billing
+- **Set Budget Alerts**: Configure budget alerts in GCP
+- **Optimize Prompts**: Reduce token usage through efficient prompting
 
 ### Performance
-1. **Regional Selection**:
-   - Choose regions closest to your users
-   - Use multiple regions for high availability
-   - Consider model availability per region
-
-2. **Model Selection**:
-   - Use Gemini Pro for general-purpose tasks
-   - Use specialized models for specific use cases
-   - Optimize prompt engineering for cost efficiency
-
-### Cost Optimization
-1. **Budget Management**:
-   - Set up billing alerts at 50%, 90% thresholds
-   - Monitor token usage patterns
-   - Implement cost allocation by team/project
-
-2. **Usage Optimization**:
-   - Cache responses for repeated queries
-   - Use appropriate model sizes for tasks
-   - Implement request batching where possible
-
-## Production Checklist
-
-Before deploying to production:
-
-- [ ] Service accounts configured with minimal permissions
-- [ ] VPC Service Controls enabled for sensitive data
-- [ ] Private endpoints configured
-- [ ] CMEK encryption enabled
-- [ ] Monitoring and alerting configured
-- [ ] Billing budgets and alerts set up
-- [ ] Backup and disaster recovery tested
-- [ ] Compliance requirements validated
-- [ ] Load testing completed
-- [ ] Security review passed
+- **Regional Selection**: Deploy in region closest to users
+- **Model Selection**: Flash models are faster but less capable
+- **Concurrent Requests**: Vertex AI handles concurrency automatically
 
 ## Troubleshooting
 
 ### Common Issues
 
-**Authentication Errors**:
-```bash
-# Verify service account permissions
-gcloud iam service-accounts get-iam-policy cline-vertex-sa@cline-enterprise-prod.iam.gserviceaccount.com
+**"Permission Denied" Errors**
 
-# Test API access
-gcloud ai models list --region=us-central1
+Verify service account has required permissions:
+```bash
+gcloud projects get-iam-policy my-project-id \
+  --flatten="bindings[].members" \
+  --filter="bindings.members:serviceAccount:cline-vertex-sa@my-project-id.iam.gserviceaccount.com"
 ```
 
-**Regional Availability**:
-```bash
-# Check model availability in region
-gcloud ai models list --region=europe-west1 --filter="displayName:gemini"
+**"API Not Enabled" Errors**
 
-# List supported regions
-gcloud ai locations list
+Enable the Vertex AI API:
+```bash
+gcloud services enable aiplatform.googleapis.com --project=my-project-id
 ```
 
-**Quota Issues**:
-```bash
-# Check current quotas
-gcloud compute project-info describe --format="value(quotas[].limit,quotas[].metric,quotas[].usage)"
+**"Model Not Found" Errors**
 
-# Request quota increase
-gcloud compute regions describe us-central1 --format="table(quotas[].metric,quotas[].limit,quotas[].usage)"
+Check model availability in your region:
+```bash
+gcloud ai models list --region=us-central1 --project=my-project-id
 ```
 
-**Performance Debugging**:
-```bash
-# Check model prediction latency
-gcloud ai endpoints explain ENDPOINT_ID \
-    --region=us-central1 \
-    --json-request=test-request.json
-    
-# Monitor API metrics
-gcloud logging read "resource.type=aiplatform.googleapis.com/Model" \
-    --limit=50
+## Example Configuration
+
+Complete example for production:
+
+```json
+{
+  "providerSettings": {
+    "provider": "vertex",
+    "vertexProject": "my-company-prod",
+    "vertexRegion": "us-central1",
+    "vertexServiceAccountKey": "/secure/path/to/service-account.json"
+  },
+  "modelSettings": {
+    "defaultModel": "gemini-1.5-pro-002"
+  }
+}
+```
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Vertex AI Documentation" icon="book" href="https://cloud.google.com/vertex-ai/docs">
+    Official Google Vertex AI documentation
+  </Card>
+  
+  <Card title="Service Accounts" icon="key" href="https://cloud.google.com/iam/docs/service-accounts">
+    Google Cloud service account best practices
+  </Card>
+  
+  <Card title="Gemini Models" icon="brain" href="https://cloud.google.com/vertex-ai/docs/generative-ai/model-reference/gemini">
+    Gemini model documentation
+  </Card>
+  
+  <Card title="Vertex AI Pricing" icon="dollar-sign" href="https://cloud.google.com/vertex-ai/pricing">
+    Google Vertex AI pricing details
+  </Card>
+</CardGroup>

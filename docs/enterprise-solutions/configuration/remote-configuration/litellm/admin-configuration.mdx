@@ -10,7 +10,7 @@ description: "This guide explains how administrators configure LiteLLM as the or
 This guide is for the web-based admin console at [app.cline.bot](https://app.cline.bot). For self-hosted infrastructure setup with load balancing, advanced routing, and detailed cost management, see [LiteLLM Self-Hosted Configuration](/enterprise-solutions/configuration/infrastructure-configuration/providers/litellm/overview).
 </Info>
 
-As an administrator, you can add LiteLLM as the organization-wide LLM provider for all Cline users through the hosted admin console. This centralized approach provides unified access to 100+ AI models through a single proxy interface while maintaining your organization's cost controls, model routing policies, and usage analytics.
+As an administrator, you can add LiteLLM as the organization-wide LLM provider for all Cline users through the hosted admin console. This centralized approach provides unified access to multiple AI models through your LiteLLM proxy interface.
 
 ## Before You Begin
 
@@ -27,11 +27,11 @@ You need admin privileges to enforce provider settings across your organization.
 You need a deployed LiteLLM proxy that your team can access. This can be self-hosted or managed through a cloud provider.
 
 <Note>
-If you haven't deployed LiteLLM yet, check the [Enterprise Infrastructure Setup](/enterprise-solutions/configuration/infrastructure-configuration/providers/litellm/overview) for comprehensive deployment guidance.
+If you haven't deployed LiteLLM yet, check the [Enterprise Infrastructure Setup](/enterprise-solutions/configuration/infrastructure-configuration/providers/litellm/overview) for deployment guidance, or work with your infrastructure team to set up a LiteLLM proxy instance.
 </Note>
 
-**LiteLLM master key**  
-You'll need the master key for your LiteLLM deployment to configure authentication and model access.
+**LiteLLM endpoint details**  
+You'll need the base URL of your LiteLLM proxy and optionally a master key if your deployment requires authentication.
 
 <Tip>
 Ensure your LiteLLM proxy is accessible from your team's development environments and has the models you want to make available configured.
@@ -63,7 +63,7 @@ Open the **API Provider** dropdown menu and select **LiteLLM**. This will open t
 </Step>
 
 <Step title="Configure LiteLLM Settings">
-The configuration panel includes several settings that control how LiteLLM works for your organization:
+The configuration panel includes settings that control how LiteLLM works for your organization:
 
 <AccordionGroup>
 <Accordion title="Base URL (required)">
@@ -80,17 +80,6 @@ If your LiteLLM proxy requires authentication, enter the master key here. This w
 <Warning>
 The master key provides full access to your LiteLLM proxy. Only enter this if your proxy requires authentication and you want centralized key management.
 </Warning>
-</Accordion>
-
-<Accordion title="Model Selection (optional)">
-Configure which models are available to your organization. You can either allow all models configured in your LiteLLM proxy, or restrict to specific models.
-
-[View LiteLLM Model List](https://litellm.vercel.app/docs/providers)
-</Accordion>
-
-
-<Accordion title="Cost Controls (optional)">
-Set up budget limits and usage monitoring if your LiteLLM deployment supports cost tracking features.
 </Accordion>
 </AccordionGroup>
 </Step>
@@ -115,54 +104,24 @@ To verify the configuration:
 3. Test with a member account to ensure they see only LiteLLM as a provider
 4. Verify that the configured models are available in the model dropdown
 
-## Model Management
-
-### Available Models
-The models available through your remote LiteLLM configuration depend on your proxy setup. Common model categories include:
-
-- **OpenAI Models**: GPT-4, GPT-3.5-turbo variants
-- **Anthropic Models**: Claude 3 Sonnet, Claude 3 Haiku, Claude 3 Opus  
-- **Open Source Models**: Llama 2, Mistral, CodeLlama
-- **Specialized Models**: Code generation, embedding, image analysis models
-
-### Model Configuration
-Configure available models in your organization through:
-
-1. **LiteLLM Proxy Configuration**: Add/remove models in your proxy's model list
-2. **Remote Configuration**: Restrict which models are visible to your team
-3. **Real-time Updates**: Changes to model availability can be updated without restarting
-
-## Cost Management
-
-### Usage Tracking
-If your LiteLLM deployment includes usage tracking:
-
-- **Per-User Monitoring**: Track usage by individual team members
-- **Model-Level Analytics**: See which models are most popular
-- **Cost Attribution**: Allocate costs across teams or projects
-- **Budget Alerts**: Set up notifications for usage thresholds
-
-### Budget Controls  
-Configure spending limits through the admin console:
-
-- **Monthly Budgets**: Set organization-wide spending limits
-- **Per-Model Limits**: Control access to expensive models
-- **User Quotas**: Limit individual team member usage
-- **Automatic Cutoffs**: Stop requests when budgets are exceeded
-
 ## Troubleshooting
 
 **Members don't see the configured provider**  
 Ensure you clicked Save after closing the configuration panel. Verify the member account belongs to the correct organization and that your LiteLLM proxy is accessible from their network.
 
 **Connection errors to LiteLLM proxy**  
-Verify the Base URL is correct and accessible. Check that any firewalls or security groups allow access from your team's IP addresses.
+Verify the Base URL is correct and accessible. Check that any firewalls or security groups allow access from your team's IP addresses or development environments.
 
 **Authentication failures**  
 If using a master key, verify it's correctly entered and has proper permissions in your LiteLLM deployment. Check the LiteLLM proxy logs for authentication errors.
 
 **Models not available**  
-Confirm the models are properly configured in your LiteLLM proxy. Check that model-specific API keys are valid and that the models are not rate-limited.
+Confirm the models are properly configured in your LiteLLM proxy deployment. The available models depend on how your LiteLLM proxy is configured.
 
 **Configuration changes don't persist**  
 Make sure to click the Save button on the main settings page, not just close the configuration panel.
+
+**Need to change endpoint or key later**  
+You can update these settings at any time. Changes take effect immediately for all organization members.
+
+For further details about LiteLLM deployment and configuration, consult the [LiteLLM Documentation](https://docs.litellm.ai/) and coordinate with your infrastructure team.

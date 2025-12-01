@@ -10,7 +10,7 @@ description: "This guide explains how administrators configure Google Vertex AI 
 This guide is for the web-based admin console at [app.cline.bot](https://app.cline.bot). For self-hosted infrastructure setup with VPC controls, custom IAM policies, and advanced compliance features, see [Google Vertex AI Self-Hosted Configuration](/enterprise-solutions/configuration/infrastructure-configuration/providers/google-vertex/overview).
 </Info>
 
-As an administrator, you can add Google Vertex AI as the organization-wide LLM provider for all Cline users through the hosted admin console. This centralized approach ensures consistent access to Google's advanced AI models while maintaining your organization's project boundaries, regional compliance requirements, and cost controls through Google Cloud's enterprise billing.
+As an administrator, you can add Google Vertex AI as the organization-wide LLM provider for all Cline users through the hosted admin console. This centralized approach ensures consistent access to Google's Gemini models while maintaining your organization's project boundaries and regional settings.
 
 ## Before You Begin
 
@@ -27,7 +27,7 @@ You need admin privileges to enforce provider settings across your organization.
 You need a Google Cloud project with the Vertex AI API enabled and appropriate models accessible.
 
 <Note>
-If you haven't set up Google Cloud or Vertex AI yet, check the [Enterprise Infrastructure Setup](/enterprise-solutions/configuration/infrastructure-configuration/providers/google-vertex/overview) for comprehensive deployment guidance.
+If you haven't set up Google Cloud or Vertex AI yet, work with your cloud team to enable the Vertex AI API and ensure necessary quotas are configured.
 </Note>
 
 **Project configuration details**  
@@ -63,7 +63,7 @@ Open the **API Provider** dropdown menu and select **Google Vertex AI**. This wi
 </Step>
 
 <Step title="Configure Vertex AI Settings">
-The configuration panel includes several settings that control how Vertex AI works for your organization:
+The configuration panel includes settings that control how Vertex AI works for your organization:
 
 <AccordionGroup>
 <Accordion title="Project ID (required)">
@@ -82,22 +82,6 @@ Select the Google Cloud region where your Vertex AI models should be accessed. C
 <Note>
 Choose a region close to your team's location for optimal performance. Some models may not be available in all regions.
 </Note>
-</Accordion>
-
-<Accordion title="Model Access (optional)">
-Configure which Vertex AI models are available to your organization. You can allow access to all available models or restrict to specific model families.
-
-Available model categories:
-- **Gemini models**: Latest multimodal capabilities
-- **Custom models**: Your organization's fine-tuned models
-</Accordion>
-
-
-<Accordion title="Cost Controls (optional)">
-Set up usage monitoring and budget controls if desired:
-- **Project-level budgets**: Monitor spending across the project
-- **Per-user quotas**: Limit individual team member usage
-- **Model-specific limits**: Control access to expensive models
 </Accordion>
 </AccordionGroup>
 </Step>
@@ -120,65 +104,7 @@ To verify the configuration:
 1. Check that the provider shows as "Google Vertex AI" in the Enabled provider field
 2. Confirm the settings persist after refreshing the page
 3. Test with a member account to ensure they see only Vertex AI as a provider
-4. Verify that the configured models are available in the model dropdown
-
-## Model Management
-
-### Available Model Families
-The models available through your remote Vertex AI configuration include:
-
-**Gemini Models:**
-- **Gemini Pro**: Advanced reasoning and multimodal capabilities
-- **Gemini Pro Vision**: Image understanding and generation
-- **Gemini Ultra**: Most capable model for complex tasks
-
-**Specialized Models:**
-- **Embedding models**: For semantic search and similarity
-- **Custom models**: Your organization's fine-tuned variants
-
-### Model Configuration
-Configure available models in your organization through:
-
-1. **Google Cloud Console**: Enable model access at the project level
-2. **Remote Configuration**: Restrict which models are visible to your team
-3. **Quota Management**: Control usage limits per model family
-4. **Regional Availability**: Some models may only be available in specific regions
-
-## Cost Management
-
-### Usage Monitoring
-Monitor Vertex AI usage through Google Cloud:
-
-- **Cloud Billing**: Track costs by project and model usage
-- **Vertex AI Quotas**: Monitor request and token consumption
-- **Custom Dashboards**: Create usage analytics for your team
-- **Budget Alerts**: Set up notifications for spending thresholds
-
-### Cost Controls
-Configure spending controls through the admin console and Google Cloud:
-
-- **Project Budgets**: Set organization-wide spending limits
-- **Model-Specific Quotas**: Limit access to expensive models
-- **User Attribution**: Track usage by individual team members
-- **Automatic Scaling**: Configure quotas that adjust based on usage patterns
-
-## Regional Compliance
-
-### Data Residency
-Ensure compliance with data residency requirements:
-
-- **Regional Model Access**: Choose regions that comply with your data governance policies
-- **Data Processing Locations**: Understand where your data is processed
-- **Cross-Border Transfers**: Configure appropriate regions for international teams
-- **Compliance Frameworks**: Leverage Google Cloud's compliance certifications
-
-### Security Controls
-Configure security settings for enterprise compliance:
-
-- **VPC Service Controls**: Restrict API access to authorized networks
-- **IAM Policies**: Control fine-grained access to Vertex AI resources
-- **Audit Logging**: Enable comprehensive request and response logging
-- **Encryption**: Ensure data is encrypted in transit and at rest
+4. Verify that Gemini models are available in the model dropdown
 
 ## Troubleshooting
 
@@ -189,12 +115,12 @@ Ensure you clicked Save after closing the configuration panel. Verify the member
 Verify the project ID is correct and that Vertex AI API is enabled. Check that the project has appropriate billing configured and hasn't exceeded quotas.
 
 **Regional availability issues**  
-Confirm the selected region supports the models you want to use. Some newer models may only be available in specific regions.
+Confirm the selected region supports the Gemini models you want to use. Some newer models may only be available in specific regions.
 
-**Authentication failures**  
-Verify that team members have appropriate Google Cloud credentials configured. Check that service accounts have the necessary Vertex AI permissions.
+**Configuration changes don't persist**  
+Make sure to click the Save button on the main settings page, not just close the configuration panel.
 
-**Model access errors**  
-Ensure the models are enabled in your Google Cloud project. Check that project quotas are sufficient and that billing is properly configured.
+**Need to change project or region later**  
+You can update these settings at any time. Members will need to ensure their local Google Cloud credentials have access to the new project/region.
 
-**Configuration changes don't persist**
+For further details, consult the [Google Cloud Vertex AI Documentation](https://cloud.google.com/vertex-ai/docs) and coordinate with your internal cloud team.

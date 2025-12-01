@@ -1,153 +1,144 @@
 ---
 title: "AI Provider Configuration"
 sidebarTitle: "Overview"
-description: "Configure and manage AI providers for your Cline Enterprise deployment"
+description: "Configure AI provider settings for your Cline deployment"
 ---
 
 <Info>
 **Configuration Path: Self-Hosted**
 
-This section covers self-hosted infrastructure deployment with YAML configs, Kubernetes/Helm, VPC endpoints, and advanced features. For web-based configuration through app.cline.bot, see [SaaS Provider Configuration](/enterprise-solutions/configuration/remote-configuration/overview).
+This section covers provider configuration for self-hosted deployments. For web-based configuration through app.cline.bot, see [SaaS Provider Configuration](/enterprise-solutions/configuration/remote-configuration/overview).
 </Info>
 
-Configure multiple AI providers to support your enterprise development teams with redundancy, cost optimization, and performance tuning. Cline Enterprise supports direct integration with major AI providers through secure, enterprise-grade configurations on your own infrastructure.
+Configure which AI providers your team can use and manage provider credentials centrally. Cline supports major AI providers with enterprise-grade authentication options.
 
 ## Supported Providers
 
 <CardGroup cols={2}>
   <Card title="AWS Bedrock" icon="aws" href="/enterprise-solutions/configuration/infrastructure-configuration/providers/aws-bedrock">
-    Enterprise-grade AWS Bedrock integration with IAM roles, VPC endpoints, and compliance controls.
-  </Card>
-  
-  <Card title="LiteLLM" icon="zap" href="/enterprise-solutions/configuration/infrastructure-configuration/providers/litellm">
-    Universal LLM proxy supporting 100+ AI models with unified API, load balancing, and cost tracking.
+    Amazon's managed service for Claude and other foundation models
   </Card>
   
   <Card title="Google Vertex AI" icon="google" href="/enterprise-solutions/configuration/infrastructure-configuration/providers/google-vertex">
-    Google Cloud Vertex AI integration with service accounts, regional deployment, and enterprise billing.
+    Google Cloud's AI platform with Gemini and PaLM models
+  </Card>
+  
+  <Card title="LiteLLM" icon="zap" href="/enterprise-solutions/configuration/infrastructure-configuration/providers/litellm">
+    Universal proxy for accessing 100+ AI models through a unified API
   </Card>
   
   <Card title="Custom Providers" icon="plug" href="/enterprise-solutions/configuration/infrastructure-configuration/providers/custom">
-    Configure custom OpenAI-compatible providers and self-hosted models.
+    OpenAI-compatible APIs and self-hosted models
   </Card>
 </CardGroup>
 
-## Enterprise Provider Features
+## What is Provider Configuration?
 
-### Multi-Provider Strategy
-- **Provider Fallback**: Automatic failover between providers for high availability
-- **Load Balancing**: Distribute requests across multiple provider endpoints
-- **Cost Optimization**: Route requests to most cost-effective providers based on usage patterns
-- **Regional Compliance**: Use region-specific providers to meet data sovereignty requirements
+Provider configuration in Cline allows administrators to:
 
-### Security & Governance
-- **Credential Management**: Secure storage and rotation of API keys and service accounts
-- **Network Security**: VPC endpoints, private connectivity, and IP whitelisting
-- **Audit Logging**: Complete request/response logging for compliance
-- **Rate Limiting**: Per-user and per-team rate limits to prevent abuse
+1. **Manage Credentials Centrally**: Store API keys and authentication details in one place
+2. **Control Model Access**: Specify which models teams can use
+3. **Enforce Provider Usage**: Direct all team members to approved providers
 
-### Performance Optimization
-- **Response Caching**: Intelligent caching of similar requests to reduce costs
-- **Request Routing**: Smart routing based on model capabilities and performance
-- **Batch Processing**: Optimize bulk operations with provider-specific batching
-- **Connection Pooling**: Persistent connections for reduced latency
+## How It Works
 
-## Provider Configuration Architecture
+Provider settings are configured through your remote configuration JSON file:
 
-```yaml
-# Example enterprise provider configuration
-providers:
-  primary:
-    - name: "aws-bedrock-us-east"
-      type: "aws-bedrock"
-      region: "us-east-1"
-      models: ["claude-3-sonnet", "claude-3-haiku"]
-      max_requests_per_minute: 1000
-      
-  fallback:
-    - name: "litellm-proxy"
-      type: "litellm" 
-      endpoint: "https://litellm.company.com/v1"
-      models: ["gpt-4", "gpt-3.5-turbo"]
-      
-routing_rules:
-  - condition: "model.startsWith('claude')"
-    provider: "aws-bedrock-us-east"
-  - condition: "user.team == 'research'"
-    provider: "litellm-proxy"
-  - default: "aws-bedrock-us-east"
+```json
+{
+  "providerSettings": {
+    "provider": "bedrock",
+    "bedrockRegion": "us-east-1",
+    "bedrockServiceRole": "arn:aws:iam::..."
+  }
+}
 ```
 
-## Configuration Management
+When configured, these settings:
+- Apply to all team members automatically
+- Override individual user settings
+- Ensure consistent provider usage across the team
 
-### Environment-Specific Configuration
-- **Development**: Relaxed limits, development models, cost tracking
-- **Staging**: Production-like configuration with test data isolation
-- **Production**: High availability, strict security, comprehensive monitoring
+## Configuration Options
 
-### Version Control Integration
-All provider configurations support GitOps workflows:
+### Provider Selection
 
-```bash
-# Deploy provider configuration via GitOps
-kubectl apply -f provider-configs/
-helm upgrade cline-enterprise ./helm-charts/cline-enterprise \
-  --set-file providers=configs/providers.yaml
+Choose from supported providers:
+- **bedrock**: Use AWS Bedrock
+- **vertex**: Use Google Vertex AI  
+- **openai**: Use OpenAI API
+- **azure**: Use Azure OpenAI
+- **litellm**: Use a LiteLLM proxy
+
+### Authentication
+
+Each provider supports different authentication methods:
+
+**AWS Bedrock:**
+- IAM roles with cross-account access
+- Access keys (not recommended for production)
+
+**Google Vertex AI:**
+- Service account JSON keys
+- Workload Identity (for GKE deployments)
+
+**OpenAI/Azure:**
+- API keys
+
+**LiteLLM:**
+- Endpoint URL + API key
+
+## Example Configurations
+
+### AWS Bedrock with IAM Role
+```json
+{
+  "providerSettings": {
+    "provider": "bedrock",
+    "bedrockRegion": "us-east-1",
+    "bedrockServiceRole": "arn:aws:iam::123456789012:role/ClineBedrockRole"
+  }
+}
 ```
 
-### Configuration Validation
-- **Schema Validation**: Ensure configurations meet enterprise requirements
-- **Connectivity Testing**: Verify provider endpoints are accessible
-- **Permission Validation**: Test service account and API key permissions
-- **Load Testing**: Validate rate limits and performance under load
+### Google Vertex AI
+```json
+{
+  "providerSettings": {
+    "provider": "vertex",
+    "vertexProject": "my-project-id",
+    "vertexRegion": "us-central1"
+  }
+}
+```
 
-## Monitoring & Observability
+### LiteLLM Proxy
+```json
+{
+  "providerSettings": {
+    "provider": "litellm",
+    "litellmBaseUrl": "https://litellm.company.com",
+    "litellmApiKey": "sk-..."
+  }
+}
+```
 
-Track provider performance and costs with built-in metrics:
+## Next Steps
 
-### Key Metrics
-- **Request Volume**: Requests per second/minute/hour by provider
-- **Response Times**: P50, P95, P99 latency metrics by provider and model
-- **Error Rates**: HTTP errors, timeouts, and provider-specific errors  
-- **Cost Tracking**: Token usage and estimated costs by provider/team/user
-
-### Alerts & Notifications
-Configure alerts for:
-- Provider availability issues
-- Unusual cost spikes
-- Rate limit breaches
-- Authentication failures
-
-## Best Practices
-
-### Security
-1. **Principle of Least Privilege**: Grant minimal required permissions
-2. **Credential Rotation**: Regularly rotate API keys and service accounts
-3. **Network Isolation**: Use private endpoints where available
-4. **Request Filtering**: Sanitize requests to prevent prompt injection
-
-### Performance
-1. **Provider Selection**: Choose providers based on geographic proximity
-2. **Model Selection**: Use appropriate model sizes for different tasks
-3. **Caching Strategy**: Cache responses for deterministic queries
-4. **Batch Operations**: Group requests for efficiency
-
-### Cost Management
-1. **Usage Monitoring**: Track costs by team, user, and project
-2. **Budget Alerts**: Set spending limits and automated notifications
-3. **Model Optimization**: Use cheaper models for appropriate tasks
-4. **Request Optimization**: Optimize prompts to reduce token usage
-
-## Getting Started
-
-1. **Choose Your Primary Provider**: Select based on compliance and performance requirements
-2. **Configure Authentication**: Set up service accounts or API keys
-3. **Test Connectivity**: Validate configuration with test requests
-4. **Set Up Monitoring**: Enable metrics and alerting
-5. **Deploy to Teams**: Roll out configuration to development teams
-
-Need help configuring a specific provider? Check out our detailed guides:
-
-- [AWS Bedrock Setup](/enterprise-solutions/configuration/infrastructure-configuration/providers/aws-bedrock)
-- [LiteLLM Configuration](/enterprise-solutions/configuration/infrastructure-configuration/providers/litellm)
-- [Google Vertex AI Integration](/enterprise-solutions/configuration/infrastructure-configuration/providers/google-vertex)
+<CardGroup cols={2}>
+  <Card title="Configure AWS Bedrock" icon="aws" href="/enterprise-solutions/configuration/infrastructure-configuration/providers/aws-bedrock">
+    Set up AWS Bedrock integration
+  </Card>
+  
+  <Card title="Configure Google Vertex" icon="google" href="/enterprise-solutions/configuration/infrastructure-configuration/providers/google-vertex">
+    Set up Google Vertex AI integration
+  </Card>
+  
+  <Card title="Configure LiteLLM" icon="zap" href="/enterprise-solutions/configuration/infrastructure-configuration/providers/litellm">
+    Set up LiteLLM proxy integration
+  </Card>
+  
+  <Card title="Configure Custom Provider" icon="plug" href="/enterprise-solutions/configuration/infrastructure-configuration/providers/custom">
+    Set up custom OpenAI-compatible provider
+  </Card>
+</CardGroup>

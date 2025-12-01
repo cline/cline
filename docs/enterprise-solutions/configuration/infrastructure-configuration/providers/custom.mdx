@@ -1,676 +1,301 @@
 ---
 title: "Custom Provider Configuration"
 sidebarTitle: "Custom Providers"
-description: "Configure custom OpenAI-compatible providers and self-hosted models for your Cline Enterprise deployment"
+description: "Configure custom OpenAI-compatible providers for your Cline deployment"
 ---
 
 <Info>
 **Configuration Path: Self-Hosted**
 
-This guide covers configuring custom AI providers for self-hosted infrastructure. This includes OpenAI-compatible APIs (Azure OpenAI, vLLM, FastChat) and self-hosted model deployments.
+This guide covers custom provider configuration for self-hosted deployments.
 </Info>
 
-Custom provider configuration enables enterprises to integrate any OpenAI-compatible API or self-hosted model deployment with Cline. This provides maximum flexibility for organizations with specific infrastructure requirements, existing AI investments, or regulatory constraints.
+Configure Cline to use custom OpenAI-compatible API providers, including Azure OpenAI, self-hosted models, and other third-party services.
 
-## Supported Custom Provider Types
+## What are Custom Providers?
 
-<CardGroup cols={2}>
-  <Card title="OpenAI-Compatible APIs" icon="code">
-    Any API that implements the OpenAI API format, including Azure OpenAI, vLLM, FastChat, LocalAI, and custom implementations.
-  </Card>
-  
-  <Card title="Self-Hosted Models" icon="server">
-    On-premise model deployments using Docker, Kubernetes, or bare metal servers with custom serving infrastructure.
-  </Card>
-  
-  <Card title="Multi-Cloud Deployments" icon="cloud">
-    Distributed model deployments across multiple cloud providers or hybrid cloud/on-premise architectures.
-  </Card>
-  
-  <Card title="Air-Gapped Environments" icon="shield">
-    Completely isolated deployments for highly regulated industries with no external connectivity.
-  </Card>
-</CardGroup>
-
-## OpenAI-Compatible Provider Configuration
-
-### Supported Providers
-
-Any service implementing the OpenAI API specification can be integrated:
+Custom providers include any API that implements the OpenAI API format:
 
 - **Azure OpenAI Service**: Microsoft's managed OpenAI models
-- **vLLM**: High-performance inference engine for LLMs
-- **FastChat**: Open-source platform for training and serving chatbots
-- **LocalAI**: Drop-in replacement OpenAI API for local models
-- **Text Generation Inference (TGI)**: Hugging Face's inference server
-- **Ollama**: Local model runner with OpenAI-compatible API
-- **Custom Implementations**: Your own API implementations
+- **vLLM**: Self-hosted inference server
+- **Ollama**: Local model runner
+- **Text Generation Inference**: Hugging Face's inference server
+- **FastChat**: Open-source chatbot platform
+- **LocalAI**: Local OpenAI API replacement
+- **Custom APIs**: Your own OpenAI-compatible implementations
 
-### Basic Configuration
+## Configuration
 
-Configure custom providers through YAML configuration:
+Configure custom providers through your remote configuration JSON:
 
-```yaml
-# custom-provider-config.yaml
-providers:
-  - name: "azure-openai-east"
-    type: "openai-compatible"
-    endpoint: "https://your-resource.openai.azure.com"
-    api_version: "2024-02-01"
-    authentication:
-      type: "api-key"
-      key_env_var: "AZURE_OPENAI_API_KEY"
-    models:
-      - id: "gpt-4"
-        deployment_name: "gpt-4-deployment"
-        context_window: 128000
-        supports_streaming: true
-    headers:
-      api-key: "${AZURE_OPENAI_API_KEY}"
-    
-  - name: "vllm-cluster"
-    type: "openai-compatible"
-    endpoint: "http://vllm.internal.company.com:8000/v1"
-    authentication:
-      type: "none"  # Internal network, no auth required
-    models:
-      - id: "meta-llama/Llama-2-70b-chat"
-        max_tokens: 4096
-        supports_streaming: true
-      - id: "codellama/CodeLlama-34b-Instruct"
-        max_tokens: 16384
-        supports_streaming: true
+```json
+{
+  "providerSettings": {
+    "provider": "openai",
+    "openaiBaseUrl": "https://your-api.company.com/v1",
+    "openaiApiKey": "your-api-key"
+  }
+}
 ```
 
-### Azure OpenAI Configuration
+### Configuration Options
 
-Enterprise configuration for Azure OpenAI Service:
+| Field | Description | Required |
+|-------|-------------|----------|
+| `provider` | Use `"openai"` for OpenAI-compatible APIs | Yes |
+| `openaiBaseUrl` | Base URL of your API endpoint | Yes |
+| `openaiApiKey` | API key for authentication | Yes |
+| `openaiModelId` | Model identifier (if different from default) | No |
 
-```yaml
-# azure-openai-enterprise-config.yaml
-provider:
-  name: "azure-openai-production"
-  type: "azure-openai"
-  resource_name: "your-openai-resource"
-  region: "eastus"
-  
-  authentication:
-    type: "azure-ad"
-    tenant_id: "${AZURE_TENANT_ID}"
-    client_id: "${AZURE_CLIENT_ID}"
-    client_secret: "${AZURE_CLIENT_SECRET}"
-  
-  deployments:
-    - deployment_name: "gpt-4-turbo"
-      model: "gpt-4"
-      sku: "Standard"
-      capacity: 100
-      
-    - deployment_name: "gpt-35-turbo"
-      model: "gpt-3.5-turbo"
-      sku: "Standard"
-      capacity: 300
-  
-  network:
-    private_endpoint: "https://your-resource-private.openai.azure.com"
-    virtual_network: "vnet-prod-eastus"
-    subnet: "subnet-openai"
-    
-  compliance:
-    data_residency: "us"
-    encryption:
-      enabled: true
-      key_vault: "kv-openai-prod"
-      key_name: "openai-encryption-key"
+## Common Custom Providers
+
+### Azure OpenAI
+
+Configure Cline to use Azure OpenAI Service:
+
+```json
+{
+  "providerSettings": {
+    "provider": "azure",
+    "azureApiKey": "your-azure-key",
+    "azureBaseUrl": "https://your-resource.openai.azure.com",
+    "azureDeployment": "gpt-4-deployment"
+  }
+}
 ```
 
-### vLLM Configuration
+### Self-Hosted vLLM
 
-High-performance serving with vLLM:
+Point to a self-hosted vLLM server:
 
-```yaml
-# vllm-deployment-config.yaml
-deployment:
-  name: "vllm-llama-cluster"
-  
-  model:
-    name: "meta-llama/Llama-2-70b-chat-hf"
-    quantization: "awq"
-    tensor_parallel_size: 4
-    
-  server:
-    host: "0.0.0.0"
-    port: 8000
-    api_key: "${VLLM_API_KEY}"
-    
-  inference:
-    max_model_len: 4096
-    max_num_batched_tokens: 8192
-    enable_prefix_caching: true
-    
-  resources:
-    gpu_memory_utilization: 0.9
-    max_num_seqs: 256
-    
-  kubernetes:
-    replicas: 3
-    resources:
-      limits:
-        nvidia.com/gpu: 4
-        memory: "200Gi"
-      requests:
-        nvidia.com/gpu: 4
-        memory: "180Gi"
+```json
+{
+  "providerSettings": {
+    "provider": "openai",
+    "openaiBaseUrl": "http://vllm.internal.company.com:8000/v1",
+    "openaiModelId": "meta-llama/Llama-2-70b-chat"
+  }
+}
 ```
 
-## Self-Hosted Model Deployments
+### Ollama
 
-### Docker Deployment
+Use locally deployed Ollama models:
 
-Deploy models using Docker Compose:
-
-```yaml
-# docker-compose.yml
-version: '3.8'
-
-services:
-  model-server:
-    image: vllm/vllm-openai:latest
-    command: >
-      --model meta-llama/Llama-2-70b-chat-hf
-      --tensor-parallel-size 4
-      --max-model-len 4096
-      --port 8000
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./models:/models
-      - ./cache:/root/.cache
-    environment:
-      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 4
-              capabilities: [gpu]
-    restart: unless-stopped
-    
-  nginx-proxy:
-    image: nginx:alpine
-    ports:
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./certs:/etc/nginx/certs:ro
-    depends_on:
-      - model-server
-    restart: unless-stopped
+```json
+{
+  "providerSettings": {
+    "provider": "openai",
+    "openaiBaseUrl": "http://localhost:11434/v1",
+    "openaiModelId": "codellama"
+  }
+}
 ```
 
-### Kubernetes Deployment
+### Text Generation Inference (TGI)
 
-Enterprise-grade Kubernetes deployment:
+Configure for Hugging Face TGI server:
 
-```yaml
-# llm-deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: llama-70b-deployment
-  namespace: ai-models
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: llama-70b
-  template:
-    metadata:
-      labels:
-        app: llama-70b
-    spec:
-      nodeSelector:
-        gpu: "true"
-        gpu-type: "a100"
-      
-      containers:
-      - name: vllm
-        image: vllm/vllm-openai:v0.3.0
-        command:
-          - python
-          - -m
-          - vllm.entrypoints.openai.api_server
-        args:
-          - --model
-          - meta-llama/Llama-2-70b-chat-hf
-          - --tensor-parallel-size
-          - "4"
-          - --max-model-len
-          - "4096"
-          - --port
-          - "8000"
-        ports:
-        - containerPort: 8000
-          name: http
-        resources:
-          limits:
-            nvidia.com/gpu: 4
-            memory: 200Gi
-          requests:
-            nvidia.com/gpu: 4
-            memory: 180Gi
-        env:
-        - name: HUGGING_FACE_HUB_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: hf-token
-              key: token
-        volumeMounts:
-        - name: model-cache
-          mountPath: /root/.cache
-          
-      volumes:
-      - name: model-cache
-        persistentVolumeClaim:
-          claimName: model-cache-pvc
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: llama-70b-service
-  namespace: ai-models
-spec:
-  type: LoadBalancer
-  selector:
-    app: llama-70b
-  ports:
-  - port: 443
-    targetPort: 8000
-    protocol: TCP
----
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: llama-70b-hpa
-  namespace: ai-models
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: llama-70b-deployment
-  minReplicas: 3
-  maxReplicas: 10
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
+```json
+{
+  "providerSettings": {
+    "provider": "openai",
+    "openaiBaseUrl": "http://tgi.company.com:8080/v1",
+    "openaiApiKey": "your-tgi-api-key"
+  }
+}
 ```
 
-## Enterprise Integration
+## Authentication
 
-### Authentication & Security
+Custom providers support various authentication methods:
 
-Secure your custom provider deployments:
+### API Key (Standard)
 
-```yaml
-# security-config.yaml
-security:
-  authentication:
-    # API Key Authentication
-    api_key:
-      enabled: true
-      rotation_period: 90d
-      key_storage: "vault"
-      
-    # OAuth 2.0 / OIDC
-    oauth:
-      enabled: true
-      issuer: "https://auth.company.com"
-      audience: "cline-ai-api"
-      
-    # Mutual TLS
-    mtls:
-      enabled: true
-      ca_cert: "/etc/certs/ca.crt"
-      server_cert: "/etc/certs/server.crt"
-      server_key: "/etc/certs/server.key"
-  
-  network:
-    # IP Whitelisting
-    allowed_ips:
-      - "10.0.0.0/8"
-      - "172.16.0.0/12"
-    
-    # Rate Limiting
-    rate_limits:
-      per_ip: 100
-      per_user: 1000
-      per_minute: true
-      
-  encryption:
-    # TLS Configuration
-    tls:
-      min_version: "1.3"
-      ciphers:
-        - "TLS_AES_256_GCM_SHA384"
-        - "TLS_CHACHA20_POLY1305_SHA256"
-    
-    # Data Encryption
-    at_rest:
-      enabled: true
-      algorithm: "AES-256-GCM"
+Most providers use API key authentication:
+```json
+{
+  "openaiApiKey": "sk-your-api-key-here"
+}
 ```
 
-### Load Balancing
+### No Authentication
 
-Configure load balancing for high availability:
-
-```yaml
-# load-balancer-config.yaml
-load_balancer:
-  type: "nginx"
-  algorithm: "least_connections"
-  
-  backends:
-    - name: "llm-server-1"
-      endpoint: "http://10.0.1.10:8000"
-      weight: 100
-      max_fails: 3
-      fail_timeout: 30s
-      
-    - name: "llm-server-2"
-      endpoint: "http://10.0.1.11:8000"
-      weight: 100
-      max_fails: 3
-      fail_timeout: 30s
-      
-    - name: "llm-server-3"
-      endpoint: "http://10.0.1.12:8000"
-      weight: 100
-      max_fails: 3
-      fail_timeout: 30s
-  
-  health_checks:
-    interval: 10s
-    timeout: 5s
-    healthy_threshold: 2
-    unhealthy_threshold: 3
-    path: "/health"
-    
-  session_persistence:
-    enabled: true
-    type: "cookie"
-    cookie_name: "llm_server"
+For internal networks without authentication:
+```json
+{
+  "provider": "openai",
+  "openaiBaseUrl": "http://internal.api:8000/v1"
+}
 ```
 
-### Monitoring & Observability
+<Note>
+Omit the `openaiApiKey` field for providers that don't require authentication.
+</Note>
 
-Implement comprehensive monitoring:
+## Model Selection
 
-```yaml
-# monitoring-config.yaml
-monitoring:
-  metrics:
-    prometheus:
-      enabled: true
-      port: 9090
-      path: "/metrics"
-      
-    custom_metrics:
-      - name: "requests_per_second"
-        type: "gauge"
-      - name: "tokens_per_second"
-        type: "gauge"
-      - name: "latency_p95"
-        type: "histogram"
-      - name: "error_rate"
-        type: "counter"
-        
-  logging:
-    level: "info"
-    format: "json"
-    
-    destinations:
-      - type: "elasticsearch"
-        endpoint: "https://logs.company.com"
-        index: "llm-inference-logs"
-        
-      - type: "cloudwatch"
-        log_group: "/aws/ai-models/inference"
-        retention_days: 30
-        
-  tracing:
-    enabled: true
-    provider: "opentelemetry"
-    endpoint: "http://otel-collector:4317"
-    sample_rate: 0.1
-    
-  alerts:
-    - name: "high_error_rate"
-      condition: "error_rate > 0.05"
-      notify: ["oncall-ai-team"]
-      
-    - name: "high_latency"
-      condition: "latency_p95 > 10000"
-      notify: ["oncall-ai-team"]
-```
+Specify which model to use:
 
-## Cost Tracking
-
-Track infrastructure costs for self-hosted models:
-
-```yaml
-# cost-tracking-config.yaml
-cost_tracking:
-  compute:
-    # GPU Costs
-    gpu_hourly_cost: 8.00  # Per GPU hour
-    gpu_count: 4
-    
-    # CPU/Memory Costs
-    cpu_hourly_cost: 0.10
-    cpu_count: 32
-    memory_hourly_cost: 0.01  # Per GB hour
-    memory_gb: 256
-    
-  storage:
-    # Model Storage
-    model_storage_monthly: 50.00  # Per TB
-    cache_storage_monthly: 20.00
-    
-  network:
-    # Egress Costs
-    egress_per_gb: 0.08
-    
-  attribution:
-    tag_by: ["team", "project", "environment"]
-    
-  reporting:
-    frequency: "daily"
-    destinations:
-      - type: "s3"
-        bucket: "cost-reports"
-      - type: "email"
-        recipients: ["finance@company.com"]
-```
-
-## Configuration Examples
-
-### Complete Enterprise Setup
-
-Full configuration for production deployment:
-
-```yaml
-# enterprise-custom-provider.yaml
-provider:
-  name: "enterprise-llama-production"
-  type: "custom-openai-compatible"
-  
-  endpoint:
-    url: "https://llm-api.company.com/v1"
-    health_check: "https://llm-api.company.com/health"
-    
-  authentication:
-    type: "oauth2"
-    token_url: "https://auth.company.com/oauth/token"
-    client_id: "${OAUTH_CLIENT_ID}"
-    client_secret: "${OAUTH_CLIENT_SECRET}"
-    scope: "ai.inference"
-    
-  models:
-    - id: "llama-70b-chat"
-      display_name: "Llama 2 70B Chat"
-      context_window: 4096
-      max_output_tokens: 2048
-      supports_streaming: true
-      cost_per_1k_input_tokens: 0.001
-      cost_per_1k_output_tokens: 0.002
-      
-  networking:
-    vpc_endpoint: "vpce-12345"
-    timeout: 300s
-    max_retries: 3
-    
-  compliance:
-    data_residency: "us-east"
-    encryption_at_rest: true
-    audit_logging: true
-    pii_detection: true
-    
-  performance:
-    connection_pool_size: 100
-    request_timeout: 120s
-    enable_caching: true
-    cache_ttl: 3600s
-    
-  resource_limits:
-    max_concurrent_requests: 1000
-    rate_limit_per_user: 100
-    rate_limit_window: 60s
+```json
+{
+  "providerSettings": {
+    "provider": "openai",
+    "openaiBaseUrl": "https://api.company.com/v1",
+    "openaiModelId": "gpt-4-custom"
+  },
+  "modelSettings": {
+    "defaultModel": "gpt-4-custom"
+  }
+}
 ```
 
 ## Best Practices
 
-### Infrastructure
-
-1. **GPU Utilization**: Monitor GPU memory and compute utilization to optimize costs
-2. **Batch Inference**: Use batch endpoints for non-real-time workloads
-3. **Model Caching**: Cache model weights on local storage to reduce load times
-4. **Auto-Scaling**: Implement HPA based on request queue length and CPU/GPU metrics
-
 ### Security
-
-1. **Network Isolation**: Deploy models in private subnets with no direct internet access
-2. **Secrets Management**: Use Vault, AWS Secrets Manager, or similar for credentials
-3. **Regular Updates**: Keep inference frameworks and dependencies updated
-4. **Access Logs**: Maintain detailed audit logs of all API access
+- **Use HTTPS**: Always use encrypted connections in production
+- **Secure API Keys**: Store keys securely, never commit to version control
+- **Network Isolation**: Deploy internal APIs on private networks
+- **Authentication**: Enable authentication even for internal services
 
 ### Performance
+- **Proximity**: Deploy services close to your users
+- **Load Balancing**: Use load balancers for high availability
+- **Timeout Configuration**: Set appropriate timeout values
+- **Connection Pooling**: Reuse connections when possible
 
-1. **Quantization**: Use quantization (INT8, INT4) to reduce memory and increase throughput
-2. **Tensor Parallelism**: Distribute large models across multiple GPUs
-3. **KV Cache**: Enable key-value caching for reduced latency
-4. **Request Batching**: Batch multiple requests for better GPU utilization
+### Reliability
+- **Health Checks**: Monitor endpoint availability
+- **Error Handling**: Implement retry logic for transient failures
+- **Fallback Providers**: Consider backup providers for critical systems
+- **Rate Limiting**: Respect provider rate limits
 
-### Cost Management
+## Deploying Self-Hosted Models
 
-1. **Right-Sizing**: Match GPU type and count to model requirements
-2. **Spot Instances**: Use spot instances for non-critical workloads
-3. **Reserved Capacity**: Purchase reserved instances for predictable workloads
-4. **Usage Analytics**: Track per-team and per-model usage for chargeback
+If you're deploying your own inference servers:
+
+### vLLM (Recommended)
+
+High-performance inference engine:
+```bash
+docker run --gpus all -p 8000:8000 \
+  vllm/vllm-openai:latest \
+  --model meta-llama/Llama-2-70b-chat-hf \
+  --tensor-parallel-size 4
+```
+
+### Ollama
+
+Easy local deployment:
+```bash
+# Install Ollama
+curl https://ollama.ai/install.sh | sh
+
+# Pull and run a model
+ollama pull codellama
+ollama serve
+```
+
+### Text Generation Inference
+
+Hugging Face's inference server:
+```bash
+docker run --gpus all -p 8080:80 \
+  ghcr.io/huggingface/text-generation-inference:latest \
+  --model-id meta-llama/Llama-2-70b-chat-hf
+```
+
+<Warning>
+Deploying and managing inference servers is outside the scope of Cline documentation. Consult the respective project documentation for setup guides.
+</Warning>
 
 ## Troubleshooting
 
-### Common Issues
+### Connection Errors
 
-**Model Loading Failures**
+Verify the endpoint is accessible:
 ```bash
-# Check model availability
-ls -lh /models/
-
-# Verify Hugging Face token
-export HUGGING_FACE_HUB_TOKEN=your_token
-huggingface-cli whoami
-
-# Check GPU availability
-nvidia-smi
+curl https://your-api.company.com/v1/models
 ```
 
-**Out of Memory Errors**
-```yaml
-# Adjust model configuration
-inference:
-  max_model_len: 2048  # Reduce from 4096
-  gpu_memory_utilization: 0.85  # Reduce from 0.9
-  tensor_parallel_size: 8  # Increase parallelism
+### Authentication Errors
+
+Test authentication:
+```bash
+curl -H "Authorization: Bearer your-api-key" \
+  https://your-api.company.com/v1/models
 ```
 
-**High Latency**
-```yaml
-# Enable caching and optimize batch size
-performance:
-  enable_prefix_caching: true
-  max_num_batched_tokens: 16384
-  max_num_seqs: 512
+### Model Not Found
+
+Verify the model ID is correct:
+```bash
+curl -H "Authorization: Bearer your-api-key" \
+  https://your-api.company.com/v1/models
 ```
 
-**Connection Timeouts**
-```yaml
-# Increase timeouts
-networking:
-  connect_timeout: 30s
-  read_timeout: 300s
-  keepalive: true
+### Timeout Issues
+
+Adjust timeout settings if responses are slow:
+- Check network latency
+- Verify server has adequate resources
+- Consider using faster models for time-sensitive operations
+
+## Example Configurations
+
+### Azure OpenAI Production
+
+```json
+{
+  "providerSettings": {
+    "provider": "azure",
+    "azureApiKey": "${AZURE_OPENAI_API_KEY}",
+    "azureBaseUrl": "https://company-prod.openai.azure.com",
+    "azureDeployment": "gpt-4-turbo"
+  }
+}
 ```
 
-## Migration Guide
+### Internal vLLM Cluster
 
-### From OpenAI to Custom Provider
-
-```yaml
-# Before (OpenAI)
-provider: openai
-api_key: sk-...
-
-# After (Custom)
-provider: openai-compatible
-endpoint: https://your-api.com/v1
-api_key: ${CUSTOM_API_KEY}
+```json
+{
+  "providerSettings": {
+    "provider": "openai",
+    "openaiBaseUrl": "http://vllm-prod.internal:8000/v1",
+    "openaiModelId": "meta-llama/Llama-2-70b-chat-hf"
+  }
+}
 ```
 
-### From Cloud to Self-Hosted
+### Local Development with Ollama
 
-<Steps>
-<Step title="Infrastructure Setup">
-Deploy GPU infrastructure (AWS, GCP, on-premise)
-</Step>
+```json
+{
+  "providerSettings": {
+    "provider": "openai",
+    "openaiBaseUrl": "http://localhost:11434/v1",
+    "openaiModelId": "codellama"
+  }
+}
+```
 
-<Step title="Model Deployment">
-Deploy model serving infrastructure (vLLM, TGI, etc.)
-</Step>
+## Related Resources
 
-<Step title="Configuration">
-Update Cline configuration to point to new endpoints
-</Step>
-
-<Step title="Testing">
-Validate latency, throughput, and accuracy
-</Step>
-
-<Step title="Cutover">
-Switch traffic gradually using weighted routing
-</Step>
-</Steps>
-
-## Additional Resources
-
-- [vLLM Documentation](https://docs.vllm.ai/)
-- [Hugging Face TGI](https://huggingface.co/docs/text-generation-inference/)
-- [Azure OpenAI Service](https://azure.microsoft.com/en-us/products/ai-services/openai-service)
-- [Ollama Documentation](https://ollama.ai/docs)
-
-Custom provider configuration provides maximum flexibility for enterprise AI deployments while maintaining full control over infrastructure, costs, and compliance requirements.
+<CardGroup cols={2}>
+  <Card title="Azure OpenAI" icon="microsoft" href="https://azure.microsoft.com/en-us/products/ai-services/openai-service">
+    Microsoft's managed OpenAI service
+  </Card>
+  
+  <Card title="vLLM" icon="server" href="https://docs.vllm.ai/">
+    High-performance inference engine
+  </Card>
+  
+  <Card title="Ollama" icon="download" href="https://ollama.ai/">
+    Run models locally
+  </Card>
+  
+  <Card title="Text Generation Inference" icon="code" href="https://huggingface.co/docs/text-generation-inference/">
+    Hugging Face inference server
+  </Card>
+</CardGroup>
