@@ -1069,37 +1069,37 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [apiConfiguration, openRouterModels])
 
-		const onModeToggle = useCallback(() => {
-			// if (textAreaDisabled) return
-			let changeModeDelay = 0
-			if (showModelSelector) {
-				// user has model selector open, so we should save it before switching modes
-				submitApiConfig()
-				changeModeDelay = 250 // necessary to let the api config update (we send message and wait for it to be saved) FIXME: this is a hack and we ideally should check for api config changes, then wait for it to be saved, before switching modes
+	const onModeToggle = useCallback(async () => {
+		// if (textAreaDisabled) return
+		if (showModelSelector) {
+			// user has model selector open, so we should save it before switching modes
+			try {
+				await submitApiConfig()
+			} catch (error) {
+				console.error("Failed to save API configuration before mode toggle:", error)
+				// Continue with mode toggle even if save fails - the config will be validated again
 			}
-			setTimeout(async () => {
-				const convertedProtoMode = mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
-				const response = await StateServiceClient.togglePlanActModeProto(
-					TogglePlanActModeRequest.create({
-						mode: convertedProtoMode,
-						chatContent: {
-							message: inputValue.trim() ? inputValue : undefined,
-							images: selectedImages,
-							files: selectedFiles,
-						},
-					}),
-				)
-				// Focus the textarea after mode toggle with slight delay
-				setTimeout(() => {
-					if (response.value) {
-						setInputValue("")
-					}
-					textAreaRef.current?.focus()
-				}, 100)
-			}, changeModeDelay)
-		}, [mode, showModelSelector, submitApiConfig, inputValue, selectedImages, selectedFiles])
-
-		useShortcut(usePlatform().togglePlanActKeys, onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
+		}
+		
+		const convertedProtoMode = mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
+		const response = await StateServiceClient.togglePlanActModeProto(
+			TogglePlanActModeRequest.create({
+				mode: convertedProtoMode,
+				chatContent: {
+					message: inputValue.trim() ? inputValue : undefined,
+					images: selectedImages,
+					files: selectedFiles,
+				},
+			}),
+		)
+		// Focus the textarea after mode toggle with slight delay
+		setTimeout(() => {
+			if (response.value) {
+				setInputValue("")
+			}
+			textAreaRef.current?.focus()
+		}, 100)
+	}, [mode, showModelSelector, submitApiConfig, inputValue, selectedImages, selectedFiles])		useShortcut(usePlatform().togglePlanActKeys, onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
 		const handleContextButtonClick = useCallback(() => {
 			// Focus the textarea first
