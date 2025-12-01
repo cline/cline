@@ -154,6 +154,9 @@ if (process.env.LMNR_PROJECT_API_KEY) {
 if (process.env.LMNR_RECORD_IO) {
     buildEnvVars["process.env.LMNR_RECORD_IO"] = JSON.stringify(process.env.LMNR_RECORD_IO)
 }
+if (process.env.LMNR_SPAN_CONTEXT) {
+    buildEnvVars["process.env.LMNR_SPAN_CONTEXT"] = JSON.stringify(process.env.LMNR_SPAN_CONTEXT)
+}
 // OpenTelemetry configuration (injected at build time from GitHub secrets)
 // These provide production defaults that can be overridden at runtime via environment variables
 if (process.env.OTEL_TELEMETRY_ENABLED) {

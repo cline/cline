@@ -83,7 +83,7 @@ import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
 import { isSubagentCommand, transformClineCommand } from "@/integrations/cli-subagents/subagent_command"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
-import { laminarService } from "@/services/laminar"
+import { getLaminarService } from "@/services/laminar"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
 import {
 	ClineAssistantContent,
@@ -1306,8 +1306,7 @@ export class Task {
 		let nextUserContent = userContent
 		let includeFileDetails = true
 		while (!this.taskState.abort) {
-			// starting first task.step span for the first turn of conversation
-			laminarService.startSpan("cline.task.step", { name: `cline.task.step`, sessionId: this.taskId, input: userContent }, true)
+			getLaminarService().startSpan("cline.task.step", { name: `cline.task.step`, sessionId: this.taskId, input: userContent }, true)
 			const didEndLoop = await this.recursivelyMakeClineRequests(nextUserContent, includeFileDetails)
 			includeFileDetails = false // we only need file details the first time
 
@@ -1347,7 +1346,7 @@ export class Task {
 			return true
 		}
 
-		laminarService.endSpan("cline.task.step")
+		getLaminarService().endSpan("cline.task.step")
 		// Run if the API is currently streaming (work happening now)
 		if (this.taskState.isStreaming) {
 			return true
@@ -2147,7 +2146,7 @@ export class Task {
 		// Response API requires native tool calls to be enabled
 		const useResponseApi = this.useNativeToolCalls && featureFlagsService.isResponseApiEnabled()
 
-		laminarService.startSpan("llm", {
+		getLaminarService().startSpan("llm", {
 			name: "llm_call",
 			spanType: "LLM",
 			input: [{ role: "system", content: systemPrompt }, ...contextManagementMetadata.truncatedConversationHistory],
@@ -2168,7 +2167,7 @@ export class Task {
 			yield firstChunk.value
 			this.taskState.isWaitingForFirstChunk = false
 		} catch (error) {
-			laminarService.recordExceptionOnSpan("llm", error)
+			getLaminarService().recordExceptionOnSpan("llm", error)
 			const isContextWindowExceededError = checkContextWindowExceededError(error)
 			const { model, providerId } = this.getCurrentProviderInfo()
 			const clineError = ErrorService.get().toClineError(error, model.id, providerId)
@@ -2915,7 +2914,7 @@ export class Task {
 
 					if (this.taskState.abort) {
 						if (!this.taskState.abandoned) {
-							laminarService.endSpan("llm")
+							getLaminarService().endSpan("llm")
 							// only need to gracefully abort if this instance isn't abandoned (sometimes openrouter stream hangs, in which case this would affect future instances of cline)
 							await abortStream("user_cancelled")
 						}
@@ -2938,8 +2937,7 @@ export class Task {
 					}
 				}
 			} catch (error) {
-				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
-				laminarService.recordExceptionOnSpan("llm", error)
+				getLaminarService().recordExceptionOnSpan("llm", error)
 				if (!this.taskState.abandoned) {
 					const clineError = ErrorService.get().toClineError(error, this.api.getModel().id)
 					const errorMessage = clineError.serialize()
@@ -3022,10 +3020,9 @@ export class Task {
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 			await this.postStateToWebview()
 
-			// need to call here in case the stream was aborted
 			if (this.taskState.abort) {
-				laminarService.recordExceptionOnSpan("cline.task.step", new Error("Cline instance aborted"))
-				laminarService.endSpan("cline.task.step")
+				getLaminarService().recordExceptionOnSpan("cline.task.step", new Error("Cline instance aborted"))
+				getLaminarService().endSpan("cline.task.step")
 				throw new Error("Cline instance aborted")
 			}
 
@@ -3107,7 +3104,7 @@ export class Task {
 					assistantContent.push(...toolUseBlocks)
 				}
 
-				laminarService.addLlmAttributesToSpan("llm", {
+				getLaminarService().addLlmAttributesToSpan("llm", {
 					inputTokens,
 					outputTokens,
 					totalCost: totalCost ?? 0,
@@ -3116,10 +3113,10 @@ export class Task {
 					cacheWriteTokens,
 					cacheReadTokens,
 				})
-				laminarService.addAttributesToSpan("llm", {
+				getLaminarService().addAttributesToSpan("llm", {
 					"lmnr.span.output": JSON.stringify([{ role: "assistant", content: assistantMessage }]),
 				})
-				laminarService.endSpan("llm")
+				getLaminarService().endSpan("llm")
 				// Append the assistant's content to the API conversation history only if there's content
 				if (assistantContent.length > 0) {
 					await this.messageStateHandler.addToApiConversationHistory({
@@ -3140,9 +3137,7 @@ export class Task {
 
 				await pWaitFor(() => this.taskState.userMessageContentReady)
 
-				// Start a new task.step active span for the next turn of conversation when user sends next message.
-				// The new task.step span will only be started if the previous task.step span was ended. Otherwise, this call to startSpan will do nothing.
-				laminarService.startSpan(
+				getLaminarService().startSpan(
 					"cline.task.step",
 					{
 						name: "cline.task.step",

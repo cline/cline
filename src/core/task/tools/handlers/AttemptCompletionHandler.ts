@@ -5,7 +5,7 @@ import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
 import { findLastIndex } from "@shared/array"
 import { COMPLETION_RESULT_CHANGES_FLAG } from "@shared/ExtensionMessage"
-import { laminarService } from "@/services/laminar/LaminarService"
+import { getLaminarService } from "@/services/laminar/LaminarService"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
@@ -151,8 +151,8 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 			telemetryService.captureTaskCompleted(config.ulid)
 		}
 
-		laminarService.endSpan("tool")
-		laminarService.endSpan("cline.task.step")
+		getLaminarService().endSpan("tool")
+		getLaminarService().endSpan("cline.task.step")
 		// we already sent completion_result says, an empty string asks relinquishes control over button and field
 		// in case last command was interactive and in partial state, the UI is expecting an ask response. This ends the command ask response, freeing up the UI to proceed with the completion ask.
 		if (config.messageState.getClineMessages().at(-1)?.ask === "command_output") {

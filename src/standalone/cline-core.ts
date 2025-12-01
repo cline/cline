@@ -210,7 +210,7 @@ async function shutdownGracefully(lockManager?: SqliteLockManager) {
 		// Step 3: Tear down services
 		log("Tearing down services...")
 		try {
-			tearDown()
+			await tearDown()
 			log("Services torn down successfully")
 		} catch (error) {
 			log(`Warning: Failed to tear down services: ${error}`)
