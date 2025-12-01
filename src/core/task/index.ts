@@ -20,6 +20,7 @@ import {
 	refreshExternalRulesToggles,
 } from "@core/context/instructions/user-instructions/external-rules"
 import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
+import { executePreCompactHookWithCleanup, HookCancellationError, HookExecution } from "@core/hooks/precompact-executor"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { parseMentions } from "@core/mentions"
 import { summarizeTask } from "@core/prompts/contextManagement"
@@ -828,51 +829,18 @@ export class Task {
 	}
 
 	/**
-	 * Extract token usage from a previous API request message
+	 * Calculate the new deleted range for PreCompact hook
+	 * @param apiConversationHistory The full API conversation history
+	 * @returns Tuple with start and end indices for the deleted range
 	 */
-	private extractTokenUsageFromApiRequest(previousRequest: ClineMessage): {
-		tokensIn: number
-		tokensOut: number
-		tokensInCache: number
-		tokensOutCache: number
-		totalTokens: number
-	} {
-		const defaultUsage = { tokensIn: 0, tokensOut: 0, tokensInCache: 0, tokensOutCache: 0, totalTokens: 0 }
+	private calculatePreCompactDeletedRange(apiConversationHistory: ClineStorageMessage[]): [number, number] {
+		const newDeletedRange = this.contextManager.getNextTruncationRange(
+			apiConversationHistory,
+			this.taskState.conversationHistoryDeletedRange,
+			"quarter", // Force aggressive truncation on error
+		)
 
-		if (!previousRequest?.text) {
-			return defaultUsage
-		}
-
-		try {
-			const { tokensIn, tokensOut, cacheWrites, cacheReads } = JSON.parse(previousRequest.text)
-			const parsedTokensIn = tokensIn || 0
-			const parsedTokensOut = tokensOut || 0
-			const parsedCacheWrites = cacheWrites || 0
-			const parsedCacheReads = cacheReads || 0
-			const total = parsedTokensIn + parsedTokensOut + parsedCacheWrites + parsedCacheReads
-
-			return {
-				tokensIn: parsedTokensIn,
-				tokensOut: parsedTokensOut,
-				tokensInCache: parsedCacheWrites,
-				tokensOutCache: parsedCacheReads,
-				totalTokens: total,
-			}
-		} catch (error) {
-			console.error("Failed to parse API request token usage:", error)
-			return defaultUsage
-		}
-	}
-
-	/**
-	 * Determine the truncation strategy based on token usage
-	 */
-	private determineTruncationStrategy(totalTokens: number): "quarter" | "half" {
-		const { contextWindow } = getContextWindowInfo(this.api)
-		const maxAllowedSize = contextWindow * 0.9
-
-		// Use quarter strategy if half the tokens already exceed the threshold
-		return totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
+		return newDeletedRange || [0, 0]
 	}
 
 	private async runUserPromptSubmitHook(
@@ -2029,126 +1997,35 @@ export class Task {
 
 	/**
 	 * Execute PreCompact hook before context window truncation
-	 * Returns true if hook cancelled the operation, false otherwise
+	 * @throws HookCancellationError if the hook cancels the operation
 	 */
-	private async executePreCompactHook(apiConversationHistory: ClineStorageMessage[]): Promise<{ cancelled: boolean }> {
-		const { executeHook } = await import("../hooks/hook-executor")
-		const { writeConversationHistoryForHook, writeFullContextForHook, cleanupConversationHistoryFile } = await import(
-			"../storage/disk"
-		)
+	private async executePreCompactHook(apiConversationHistory: ClineStorageMessage[]): Promise<void> {
+		// Calculate what the new deleted range will be
+		const deletedRange = this.calculatePreCompactDeletedRange(apiConversationHistory)
 
-		let contextJsonPath: string | undefined
-		let contextRawPath: string | undefined
-
-		try {
-			// Get current active context (respects previous compactions)
-			const currentContext = this.contextManager.getTruncatedMessages(
-				apiConversationHistory,
-				this.taskState.conversationHistoryDeletedRange,
-			)
-
-			// Generate single timestamp for both files to ensure they match
-			const hookTimestamp = Date.now()
-
-			// Write context files for hook access
-			contextJsonPath = await writeConversationHistoryForHook(this.taskId, currentContext, hookTimestamp)
-			contextRawPath = await writeFullContextForHook(this.taskId, currentContext, hookTimestamp)
-
-			// Extract token usage from the most recent API request
-			const clineMessages = this.messageStateHandler.getClineMessages()
-			const previousApiReqIndex = findLastIndex(clineMessages, (m) => m.say === "api_req_started")
-
-			let tokenUsage = { tokensIn: 0, tokensOut: 0, tokensInCache: 0, tokensOutCache: 0, totalTokens: 0 }
-			if (previousApiReqIndex !== -1) {
-				const previousRequest = clineMessages[previousApiReqIndex]
-				tokenUsage = this.extractTokenUsageFromApiRequest(previousRequest)
-			}
-
-			// Calculate what the new deleted range will be
-			const newDeletedRange = this.contextManager.getNextTruncationRange(
-				apiConversationHistory,
-				this.taskState.conversationHistoryDeletedRange,
-				"quarter", // Force aggressive truncation on error
-			)
-
-			const [deletedRangeStart, deletedRangeEnd] = newDeletedRange || [0, 0]
-
-			// Execute the hook
-			const preCompactResult = await executeHook({
-				hookName: "PreCompact",
-				hookInput: {
-					preCompact: {
-						taskId: this.taskId,
-						ulid: this.ulid,
-						contextSize: currentContext.length,
-						compactionStrategy: "standard-truncation-quarter",
-						previousApiReqIndex: previousApiReqIndex,
-						tokensIn: tokenUsage.tokensIn,
-						tokensOut: tokenUsage.tokensOut,
-						tokensInCache: tokenUsage.tokensInCache,
-						tokensOutCache: tokenUsage.tokensOutCache,
-						deletedRangeStart: deletedRangeStart,
-						deletedRangeEnd: deletedRangeEnd,
-						contextJsonPath: contextJsonPath,
-						contextRawPath: contextRawPath,
-					},
-				},
-				isCancellable: true,
-				say: this.say.bind(this),
-				setActiveHookExecution: this.setActiveHookExecution.bind(this),
-				clearActiveHookExecution: this.clearActiveHookExecution.bind(this),
-				messageStateHandler: this.messageStateHandler,
-				taskId: this.taskId,
-				hooksEnabled: true,
-			})
-
-			// Clean up temporary files
-			await cleanupConversationHistoryFile(contextJsonPath)
-			await cleanupConversationHistoryFile(contextRawPath)
-			contextJsonPath = undefined
-			contextRawPath = undefined
-
-			// Handle cancellation from hook
-			if (preCompactResult.cancel === true) {
-				const message = preCompactResult.wasCancelled
-					? "⚠️ Context compaction was cancelled by user. Aborting task..."
-					: "⚠️ Context compaction was cancelled by the PreCompact hook. Aborting task..."
-
-				await this.say("text", message)
-
-				// Save state before cancelling
-				this.taskState.didFinishAbortingStream = true
-				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-				await this.messageStateHandler.overwriteApiConversationHistory(
-					this.messageStateHandler.getApiConversationHistory(),
-				)
-				await this.postStateToWebview()
-
-				// Trigger full cancellation flow
-				await this.cancelTask()
-
-				return { cancelled: true }
-			}
-
-			// Hook completed successfully
-			if (preCompactResult.contextModification) {
-				console.log(`[PreCompact] Hook provided context modification for task ${this.taskId}`)
-			}
-
-			return { cancelled: false }
-		} catch (error) {
-			// Clean up temporary files on error
-			if (contextJsonPath) {
-				const { cleanupConversationHistoryFile } = await import("../storage/disk")
-				await cleanupConversationHistoryFile(contextJsonPath).catch(() => {})
-			}
-			if (contextRawPath) {
-				const { cleanupConversationHistoryFile } = await import("../storage/disk")
-				await cleanupConversationHistoryFile(contextRawPath).catch(() => {})
-			}
-
-			throw error
-		}
+		// Execute hook - throws HookCancellationError if cancelled
+		await executePreCompactHookWithCleanup({
+			taskId: this.taskId,
+			ulid: this.ulid,
+			apiConversationHistory,
+			conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
+			contextManager: this.contextManager,
+			clineMessages: this.messageStateHandler.getClineMessages(),
+			messageStateHandler: this.messageStateHandler,
+			compactionStrategy: "standard-truncation-lastquarter",
+			deletedRange,
+			say: this.say.bind(this),
+			setActiveHookExecution: async (hookExecution: HookExecution | undefined) => {
+				if (hookExecution) {
+					await this.setActiveHookExecution(hookExecution)
+				}
+			},
+			clearActiveHookExecution: this.clearActiveHookExecution.bind(this),
+			postStateToWebview: this.postStateToWebview.bind(this),
+			taskState: this.taskState,
+			cancelTask: this.cancelTask.bind(this),
+			hooksEnabled: true,
+		})
 	}
 
 	private async handleContextWindowExceededError(): Promise<void> {
@@ -2158,31 +2035,27 @@ export class Task {
 		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 		if (hooksEnabled) {
 			try {
-				const result = await this.executePreCompactHook(apiConversationHistory)
-				if (result.cancelled) {
-					throw new Error("Context compaction cancelled by hook")
-				}
+				await this.executePreCompactHook(apiConversationHistory)
 			} catch (error) {
-				// If this is the cancellation error, re-throw it
-				if (error instanceof Error && error.message === "Context compaction cancelled by hook") {
+				// If hook was cancelled, re-throw to stop compaction
+				if (error instanceof HookCancellationError) {
 					throw error
 				}
 
 				// Graceful degradation: Log error but continue with truncation
 				console.error("[PreCompact] Hook execution failed:", error)
-				await this.say(
-					"text",
-					"⚠️ PreCompact hook encountered an error but context truncation will proceed. Check logs for details.",
-				)
 			}
 		}
 
 		// Proceed with standard truncation
-		this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
+		const newDeletedRange = this.contextManager.getNextTruncationRange(
 			apiConversationHistory,
 			this.taskState.conversationHistoryDeletedRange,
 			"quarter", // Force aggressive truncation
 		)
+
+		this.taskState.conversationHistoryDeletedRange = newDeletedRange
+
 		await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 		await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
 			Date.now(),

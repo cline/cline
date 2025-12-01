@@ -467,7 +467,7 @@ export async function getWorkspaceHooksDirs(): Promise<string[]> {
 }
 
 /**
- * Writes the API conversation history to a temporary file for hook consumption.
+ * Writes the conversation history to a temporary JSON file for PreCompact hook consumption.
  * The file is created in the task's directory with a unique timestamp-based name.
  * Returns the absolute path to the created file.
  *
@@ -476,7 +476,7 @@ export async function getWorkspaceHooksDirs(): Promise<string[]> {
  * @param timestamp Optional timestamp to use for the filename (defaults to Date.now())
  * @returns The absolute path to the temporary file
  */
-export async function writeConversationHistoryForHook(
+export async function writeConversationHistoryJson(
 	taskId: string,
 	apiConversationHistory: Anthropic.MessageParam[],
 	timestamp?: number,
@@ -490,7 +490,7 @@ export async function writeConversationHistoryForHook(
 		await fs.writeFile(tempFilePath, JSON.stringify(apiConversationHistory, null, 2))
 		return tempFilePath
 	} catch (error) {
-		console.error("Failed to write conversation history for hook:", error)
+		console.error("Failed to write conversation history JSON for hook:", error)
 		throw error
 	}
 }
@@ -513,7 +513,7 @@ export async function cleanupConversationHistoryFile(filePath: string): Promise<
 }
 
 /**
- * Writes the conversation history in human-readable format to a temporary file for hook consumption.
+ * Writes the conversation history in human-readable text format to a temporary file for PreCompact hook consumption.
  * This formats the conversation history (user and assistant messages) in a readable text format,
  * making it easy to analyze the conversation flow without parsing JSON.
  *
@@ -522,7 +522,7 @@ export async function cleanupConversationHistoryFile(filePath: string): Promise<
  * @param timestamp Optional timestamp to use for the filename (defaults to Date.now())
  * @returns The absolute path to the temporary file
  */
-export async function writeFullContextForHook(
+export async function writeConversationHistoryText(
 	taskId: string,
 	conversationHistory: Anthropic.MessageParam[],
 	timestamp?: number,
@@ -579,7 +579,7 @@ export async function writeFullContextForHook(
 		await fs.writeFile(tempFilePath, fullContext, "utf8")
 		return tempFilePath
 	} catch (error) {
-		console.error("Failed to write full context for hook:", error)
+		console.error("Failed to write conversation history text for hook:", error)
 		throw error
 	}
 }

@@ -83,7 +83,13 @@ message PreCompactData {
 
   // Context size information
   int64 context_size = 3; // Number of messages in API conversation history
-  string compaction_strategy = 4; // "auto-condense" or "standard-truncation"
+
+  // Compaction strategy indicating how conversation history is managed:
+  // * auto-condense:                   AI-powered compression using summarize_task tool
+  // * standard-truncation-firstpair:   Keep only the original task (used during auto-condense)
+  // * standard-truncation-lasthalf:    Keep first pair + most recent 50% of conversation
+  // * standard-truncation-lastquarter: Keep first pair + most recent 25% of conversation (aggressive)
+  string compaction_strategy = 4;
 
   // API request tracking
   int64 previous_api_req_index = 5; // Index of last API request in clineMessages
