@@ -4,7 +4,6 @@ import { BrowserSettings } from "@shared/BrowserSettings"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { DictationSettings } from "@shared/DictationSettings"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
-import { HistoryItem } from "@shared/HistoryItem"
 import { McpDisplayMode } from "@shared/McpDisplayMode"
 import { WorkspaceRoot } from "@shared/multi-root/types"
 import { GlobalInstructionsFile } from "@shared/remote-config/schema"
@@ -12,6 +11,16 @@ import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { LanguageModelChatSelector } from "vscode"
+
+/**
+ * Metadata for a workspace that has been opened
+ */
+export interface WorkspaceMetadata {
+	path: string
+	name: string
+	lastOpened: number
+}
+
 export type SecretKey = keyof Secrets
 
 export type GlobalStateKey = keyof GlobalState
@@ -35,8 +44,10 @@ export type RemoteConfigFields = GlobalStateAndSettings & RemoteConfigExtraField
 
 export interface GlobalState {
 	lastShownAnnouncementId: string | undefined
-	taskHistory: HistoryItem[]
+	// taskHistory moved to LocalState for workspace isolation
 	userInfo: UserInfo | undefined
+	// Workspace metadata for multi-workspace support
+	workspaceMetadata: Record<string, WorkspaceMetadata> | undefined
 	favoritedModelIds: string[]
 	mcpMarketplaceEnabled: boolean
 	mcpResponsesCollapsed: boolean
@@ -269,6 +280,8 @@ export interface Secrets {
 }
 
 export interface LocalState {
+	// taskHistory removed - now stored ONLY in global taskHistory.json file
+	// This prevents VSCode workspace state bloat (was causing 1358KB warnings)
 	localClineRulesToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
