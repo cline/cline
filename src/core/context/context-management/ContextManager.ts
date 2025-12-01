@@ -616,9 +616,22 @@ export class ContextManager {
 	async attemptFileReadOptimization(
 		apiConversationHistory: Anthropic.Messages.MessageParam[],
 		conversationHistoryDeletedRange: [number, number] | undefined,
-		timestamp: number,
+		clineMessages: ClineMessage[],
+		previousApiReqIndex: number,
 		taskDirectory: string,
 	): Promise<boolean> {
+		// Extract timestamp using same logic as getNewContextMessagesAndMetadata
+		if (previousApiReqIndex < 0) {
+			return true
+		}
+
+		const previousRequest = clineMessages[previousApiReqIndex]
+		if (!previousRequest || !previousRequest.text) {
+			return true
+		}
+
+		const timestamp = previousRequest.ts
+
 		const { anyContextUpdates, needToTruncate } = this.attemptFileReadOptimizationCore(
 			apiConversationHistory,
 			conversationHistoryDeletedRange,
