@@ -105,8 +105,8 @@ export class BannerService {
 				...getAxiosSettings(),
 			})
 
-			if (!response.data?.data?.items) {
-				Logger.log("BannerService: Invalid response format")
+			if (!response.data?.data || !Array.isArray(response.data.data.items)) {
+				Logger.log("BannerService: Invalid response format - items array is missing or malformed")
 				return []
 			}
 
