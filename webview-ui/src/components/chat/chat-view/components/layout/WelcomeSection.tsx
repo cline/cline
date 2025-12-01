@@ -29,7 +29,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 
 	const shouldShowInfoBanner = lastDismissedInfoBannerVersion < CURRENT_INFO_BANNER_VERSION
 	const shouldShowNewModelBanner = lastDismissedModelBannerVersion < CURRENT_MODEL_BANNER_VERSION
-	const topBanners = activeBanners?.filter((banner) => banner.placement === "top") || []
+	const topBanners = (activeBanners || []).filter((banner) => banner.placement === "top")
 
 	// Show CLI banner if not dismissed and platform is VSCode (not JetBrains/standalone)
 	const shouldShowCliBanner =

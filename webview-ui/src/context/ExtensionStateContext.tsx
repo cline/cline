@@ -720,6 +720,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		remoteWorkflowToggles: state.remoteWorkflowToggles || {},
 		enableCheckpointsSetting: state.enableCheckpointsSetting,
 		currentFocusChainChecklist: state.currentFocusChainChecklist,
+		activeBanners: state.activeBanners || [],
 
 		// Navigation functions
 		navigateToMcp,
