@@ -674,6 +674,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			lastDismissedModelBannerVersion: lastDismissedModelBannerVersion ?? 0,
 			lastDismissedCliBannerVersion: lastDismissedCliBannerVersion ?? 0,
 			dismissedBanners: dismissedBanners || [],
+			activeBanners: [],
 			nativeToolCallEnabled: nativeToolCallEnabled ?? false,
 			// Multi-root workspace support
 			workspaceRoots,

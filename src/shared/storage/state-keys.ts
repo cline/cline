@@ -1,6 +1,7 @@
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { ApiProvider, ModelInfo, type OcaModelInfo } from "@shared/api"
 import { BrowserSettings } from "@shared/BrowserSettings"
+import type { Banner } from "@shared/ClineBanner"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { DictationSettings } from "@shared/DictationSettings"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
@@ -57,6 +58,7 @@ export interface GlobalState {
 	remoteRulesToggles: ClineRulesToggles
 	remoteWorkflowToggles: ClineRulesToggles
 	dismissedBanners: Array<{ bannerId: string; dismissedAt: number }>
+	activeBanners: Banner[]
 }
 
 export interface Settings {

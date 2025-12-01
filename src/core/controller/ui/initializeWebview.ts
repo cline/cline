@@ -216,6 +216,18 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 		// Silently refresh MCP marketplace catalog
 		controller.refreshMcpMarketplace(true /* sendCatalogEvent */)
 
+		controller
+			.fetchBannersForDisplay()
+			.then((banners) => {
+				controller.stateManager.setGlobalState("activeBanners", banners)
+				if (banners.length > 0) {
+					controller.postStateToWebview()
+				}
+			})
+			.catch((error) => {
+				console.error("Failed to fetch banners:", error)
+			})
+
 		// Initialize telemetry service with user's current setting
 		controller.getStateToPostToWebview().then((state) => {
 			const { telemetrySetting } = state
