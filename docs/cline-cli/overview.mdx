@@ -35,6 +35,20 @@ Cline CLI supports multiple AI model providers, giving you flexibility in choosi
 
 During installation, you'll authenticate and configure your preferred provider using the `cline auth` command.
 
+### Configuring context window for local providers
+
+For Ollama and LM Studio, you can configure the model context window via CLI:
+
+```bash
+# For Ollama
+cline config s ollama-api-options-ctx-num=32768
+
+# For LM Studio
+cline config s lm-studio-max-tokens=32768
+```
+
+For other providers (Anthropic, OpenRouter, etc.), the context window is defined per model in the model metadata and is not user-configurable—Cline uses each model's built-in context limits automatically.
+
 ## What you can build with this
 
 **Automated code maintenance**
