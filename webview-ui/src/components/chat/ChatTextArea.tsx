@@ -1067,18 +1067,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						console.error("Error refreshing state:", error)
 					})
 			}
-		}, [apiConfiguration, openRouterModels])
+		}, [mode, apiConfiguration, openRouterModels])
 
 		const onModeToggle = useCallback(async () => {
 			// if (textAreaDisabled) return
 			if (showModelSelector) {
 				// user has model selector open, so we should save it before switching modes
-				try {
-					await submitApiConfig()
-				} catch (error) {
-					console.error("Failed to save API configuration before mode toggle:", error)
-					// Continue with mode toggle even if save fails - the config will be validated again
-				}
+				await submitApiConfig()
 			}
 
 			const convertedProtoMode = mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
