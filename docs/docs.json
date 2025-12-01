@@ -268,13 +268,7 @@
 						"pages": [
 							"enterprise-solutions/overview",
 							"enterprise-solutions/onboarding",
-							{
-								"group": "Managing Members",
-								"pages": [
-									"enterprise-solutions/team-management/overview",
-									"enterprise-solutions/team-management/roles-and-permissions"
-								]
-							},
+						"enterprise-solutions/team-management/managing-members",
 							"enterprise-solutions/configuration/choosing-your-deployment",
 						{
 							"group": "SaaS Provider Configuration",
@@ -433,6 +427,14 @@
 		{
 			"source": "/enterprise-solutions/Onboarding your Organization",
 			"destination": "/enterprise-solutions/onboarding"
+		},
+		{
+			"source": "/enterprise-solutions/team-management/overview",
+			"destination": "/enterprise-solutions/team-management/managing-members"
+		},
+		{
+			"source": "/enterprise-solutions/team-management/roles-and-permissions",
+			"destination": "/enterprise-solutions/team-management/managing-members"
 		}
 	],
 	"search": {
