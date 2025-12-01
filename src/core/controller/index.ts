@@ -72,7 +72,6 @@ export class Controller {
 	authService: AuthService
 	ocaAuthService: OcaAuthService
 	readonly stateManager: StateManager
-	private bannerServiceInitialized = false
 
 	// NEW: Add workspace manager (optional initially)
 	private workspaceManager?: WorkspaceRootManager
@@ -1046,12 +1045,9 @@ export class Controller {
 	 * Initializes the BannerService if not already initialized
 	 */
 	private async ensureBannerService() {
-		if (!this.bannerServiceInitialized) {
+		if (!BannerService.isInitialized()) {
 			try {
-				if (!BannerService.isInitialized()) {
-					BannerService.initialize(this)
-				}
-				this.bannerServiceInitialized = true
+				BannerService.initialize(this)
 			} catch (error) {
 				console.error("Failed to initialize BannerService:", error)
 			}
