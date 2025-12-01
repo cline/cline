@@ -130,10 +130,14 @@ Cline also respects rules from other AI coding tools:
 
 | File/Directory | Tool | Location |
 |----------------|------|----------|
-| `.cursorrules` | Cursor | Workspace root |
-| `.cursor/rules/` | Cursor | Workspace directory |
-| `.windsurfrules` | Windsurf | Workspace root |
-| `AGENTS.md` | Various | Any directory (recursive) |
+| `.cursorrules` | Cursor | Workspace root (single file) |
+| `.cursor/rules/` | Cursor | Workspace directory (`.mdc` files) |
+| `.windsurfrules` | Windsurf | Workspace root (single file) |
+| `AGENTS.md` | Various | Workspace root + recursive search |
+
+<Note>
+**AGENTS.md behavior:** Cline only searches for nested `AGENTS.md` files recursively if a top-level `AGENTS.md` exists in your workspace root. If found, all `AGENTS.md` files are combined with their relative paths as headers.
+</Note>
 
 These files work the same way as `.clinerules/` files and can be toggled on/off independently.
 
