@@ -2634,6 +2634,17 @@ export class Task {
 						shouldCompact = false
 					}
 				}
+
+				// Determine whether we can save enough tokens from context rewriting to skip auto-compact
+				if (shouldCompact) {
+					shouldCompact = await this.contextManager.attemptFileReadOptimization(
+						this.messageStateHandler.getApiConversationHistory(),
+						this.taskState.conversationHistoryDeletedRange,
+						this.messageStateHandler.getClineMessages(),
+						previousApiReqIndex,
+						await ensureTaskDirectoryExists(this.taskId),
+					)
+				}
 			}
 
 			// when summarizing the context window, we do not want to inject updated to the context
