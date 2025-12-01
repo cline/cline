@@ -5,6 +5,26 @@ sidebarTitle: "/explain-changes"
 
 `/explain-changes` is a slash command that generates AI-powered explanations for any git diff. Unlike the [Explain Changes button](/features/explain-changes) which explains changes from a completed task, this command lets you explain changes between any two git references - commits, branches, tags, PRs, staged changes, or your working directory.
 
+
+	<video
+		src="https://storage.googleapis.com/cline_public_images/slash-code-explain.mp4"
+		autoPlay
+		loop
+		muted
+		playsInline
+	/>
+
+## Requirements
+
+<Note>
+The `/explain-changes` command requires a **git repository**. Make sure you're working in a directory that has been initialized with git.
+</Note>
+
+For PR explanations, you'll need the [GitHub CLI (gh)](https://cli.github.com/) installed and authenticated. For GitLab merge request explanations, you'll need the [GitLab CLI (glab)](https://gitlab.com/gitlab-org/cli) installed and authenticated.
+
+Unlike the Explain Changes button, this command does **not** require checkpoints to be enabled since it uses git references directly.
+
+
 ## Using the Command
 
 Type `/explain-changes` in the chat input. Cline will:
@@ -14,14 +34,18 @@ Type `/explain-changes` in the chat input. Cline will:
 3. Determine appropriate git references to compare
 4. Generate a diff view with streaming inline explanations
 
-<Frame>
-	<img
-		src="https://storage.googleapis.com/cline_public_images/docs/assets/explain-changes-command.png"
-		alt="Using the /explain-changes slash command"
-	/>
-</Frame>
 
-## Use Cases & Examples
+## How It Works
+
+When you use `/explain-changes`, Cline:
+
+1. **Gathers context**: Runs git commands to understand your repository state
+2. **Identifies changes**: Determines which files changed between references
+3. **Reads relevant files**: Builds context for better explanations
+4. **Calls generate_explanation**: Creates the diff view and streams explanations
+5. **Displays results**: Opens a multi-file diff with inline comments
+
+## Use Cases
 
 ### Explain the Last Commit
 
@@ -38,8 +62,6 @@ Cline will examine HEAD and compare it to HEAD~1, explaining all the changes in 
 - Reviewing your own work before pushing
 - Understanding what a merge commit brought in
 
----
-
 ### Explain Uncommitted Changes
 
 Understand your work-in-progress changes before committing:
@@ -55,8 +77,6 @@ Cline compares HEAD to your working directory, explaining all modified files.
 - After a long coding session to remember what you changed
 - To verify changes before creating a commit
 
----
-
 ### Explain Staged Changes
 
 Review exactly what you're about to commit:
@@ -71,8 +91,6 @@ Cline examines only the changes you've staged with `git add`.
 - Final review before committing
 - When you've staged a subset of changes and want to verify
 - To ensure you haven't accidentally staged unintended files
-
----
 
 ### Explain a Specific Commit
 
@@ -95,8 +113,6 @@ Cline will find the commit and explain what it changed.
 - Understanding historical decisions
 - Learning how a feature was implemented
 
----
-
 ### Explain a Range of Commits
 
 Understand multiple commits at once:
@@ -118,8 +134,6 @@ Cline compares the endpoints and explains all changes between them.
 - Reviewing a series of related commits
 - Catching up after being away from the project
 
----
-
 ### Explain a Pull Request
 
 Get AI explanations for any PR:
@@ -135,8 +149,6 @@ Cline uses the GitHub CLI to fetch PR details and explain the changes.
 - Understanding a PR before approving
 - Learning from PRs in open source projects
 - Preparing to give PR feedback
-
----
 
 ### Explain Branch Differences
 
@@ -158,8 +170,6 @@ Or see what's changed on a feature branch:
 - Planning a merge or rebase strategy
 - Reviewing what a colleague has been working on
 
----
-
 ### Explain Changes to Specific Files
 
 Focus on particular files or directories:
@@ -174,8 +184,6 @@ Cline filters the diff to show only relevant changes.
 - Understanding changes to a specific module
 - Tracking modifications to critical files
 - Learning how a particular feature evolved
-
----
 
 ### Explain Changes Since a Tag
 
@@ -192,8 +200,6 @@ Cline compares the tag to HEAD and explains all subsequent changes.
 - Understanding what's new since a deployment
 - Identifying changes for a changelog
 
----
-
 ### Explain a Merge Commit
 
 Understand what a merge brought in:
@@ -209,8 +215,6 @@ Cline explains all the changes that were merged.
 - Understanding what a merge conflict resolution changed
 - Reviewing what others merged into main
 
----
-
 ### Explain Stashed Changes
 
 Review what's in your stash:
@@ -225,8 +229,6 @@ Cline examines stash@{0} and explains its contents.
 - Before applying a stash
 - Deciding whether to keep or drop a stash
 - Remembering what you stashed days ago
-
----
 
 ## Interactive Comments
 
@@ -252,16 +254,6 @@ Click the title area of any comment thread to move that conversation into Cline'
 - You want to continue working with full Cline capabilities
 - A review comment sparks an idea for improvements
 
-## How It Works
-
-When you use `/explain-changes`, Cline:
-
-1. **Gathers context**: Runs git commands to understand your repository state
-2. **Identifies changes**: Determines which files changed between references
-3. **Reads relevant files**: Builds context for better explanations
-4. **Calls generate_explanation**: Creates the diff view and streams explanations
-5. **Displays results**: Opens a multi-file diff with inline comments
-
 ### The generate_explanation Tool
 
 Under the hood, `/explain-changes` uses the `generate_explanation` tool with these parameters:
@@ -273,16 +265,6 @@ Under the hood, `/explain-changes` uses the `generate_explanation` tool with the
 | `to_ref` | Git reference for the "after" state (optional) | `HEAD`, `develop` |
 
 If `to_ref` is omitted, the tool compares against the working directory.
-
-## Requirements
-
-<Note>
-The `/explain-changes` command requires a **git repository**. Make sure you're working in a directory that has been initialized with git.
-</Note>
-
-For PR explanations, you'll need the [GitHub CLI (gh)](https://cli.github.com/) installed and authenticated.
-
-Unlike the Explain Changes button, this command does **not** require checkpoints to be enabled since it uses git references directly.
 
 ## Tips for Better Explanations
 

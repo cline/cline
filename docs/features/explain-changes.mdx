@@ -5,6 +5,21 @@ sidebarTitle: "Explain Changes"
 
 Explain Changes is an AI-powered code review feature that adds inline explanations to your code changes. When Cline makes modifications to your codebase, you can click a button to get streaming, contextual explanations that appear directly in VS Code's diff view.
 
+<Note>
+Explain Changes requires **[Checkpoints](/features/checkpoints)** to be enabled. Make sure to enable checkpoints in your Cline settings before using this feature.
+</Note>
+
+<Frame>
+	<video
+		autoPlay
+		loop
+		muted
+		playsInline
+		src="https://storage.googleapis.com/cline_public_images/explain-code-button.mp4"
+	/>
+</Frame>
+
+
 ## How It Works
 
 After Cline completes a task that involves file changes, you'll see an "Explain Changes" button alongside the "View Changes" button in the completion message. Clicking this button:
@@ -14,13 +29,6 @@ After Cline completes a task that involves file changes, you'll see an "Explain 
 3. Places comments at relevant code locations to explain what changed and why
 
 The AI uses the full conversation context to provide meaningful explanations, not just describing what code does, but explaining the reasoning behind the changes.
-
-<Frame>
-	<img
-		src="https://storage.googleapis.com/cline_public_images/docs/assets/explain-changes-button.png"
-		alt="Explain Changes button in completion message"
-	/>
-</Frame>
 
 ## Interactive Comment Threads
 
@@ -43,19 +51,6 @@ If a conversation in a comment thread becomes complex or you want to continue wo
 - Continue the discussion with full Cline capabilities
 - Have Cline make additional changes based on the discussion
 - Keep the context from your review conversation
-
-## Requirements
-
-<Note>
-Explain Changes requires **Checkpoints** to be enabled. Checkpoints track the state of your workspace at each step, which is necessary for generating accurate diffs.
-</Note>
-
-To enable checkpoints:
-1. Open VS Code settings
-2. Search for "Cline checkpoints"
-3. Enable the checkpoint feature
-
-See [Checkpoints](/features/checkpoints) for more information.
 
 ## When to Use Explain Changes
 
