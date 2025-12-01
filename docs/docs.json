@@ -275,10 +275,11 @@
 									"enterprise-solutions/team-management/roles-and-permissions"
 								]
 							},
-							{
-								"group": "Provider Remote Configurations",
-								"pages": [
-									"enterprise-solutions/configuration/remote-configuration/overview",
+							"enterprise-solutions/configuration/choosing-your-deployment",
+						{
+							"group": "SaaS Provider Configuration",
+							"pages": [
+								"enterprise-solutions/configuration/remote-configuration/overview",
 									{
 										"group": "AWS Bedrock",
 										"pages": [
@@ -302,10 +303,10 @@
 									}
 								]
 							},
-							{
-								"group": "Enterprise Configurations",
-								"pages": [
-									"enterprise-solutions/configuration/overview",
+						{
+							"group": "Self-Hosted Configuration",
+							"pages": [
+								"enterprise-solutions/configuration/overview",
 									{
 										"group": "Providers",
 										"pages": [

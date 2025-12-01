@@ -1,10 +1,18 @@
 ---
-title: "Provider Remote Configuration"
+title: "SaaS Provider Configuration"
 sidebarTitle: "Overview"
-description: "Configure AI providers remotely through the Cline admin console for centralized organization management"
+description: "Configure AI providers through the Cline hosted admin console for centralized organization management"
 ---
 
-Provider Remote Configuration allows administrators to centrally configure AI providers for their entire organization through the Cline admin console. This approach ensures consistent provider access, security policies, and cost management across all team members without requiring individual developer setup.
+<Warning>
+**SaaS Configuration Path**
+
+This section is for teams using **Cline's hosted service** at [app.cline.bot](https://app.cline.bot). Configuration is done through a web-based admin console with simple dropdown menus and settings.
+
+**Need self-hosted infrastructure?** See [Self-Hosted Configuration](/enterprise-solutions/configuration/infrastructure-configuration/overview) for VPC endpoints, multi-account AWS, compliance frameworks, and deep infrastructure control including YAML configs, Kubernetes/Helm deployments, and advanced security features.
+</Warning>
+
+SaaS Provider Configuration allows administrators to centrally configure AI providers for their entire organization through the Cline hosted admin console. This approach ensures consistent provider access, security policies, and cost management across all team members without requiring individual developer setup or infrastructure deployment.
 
 ## How Remote Configuration Works
 
@@ -47,15 +55,15 @@ Cline supports remote configuration for the following AI providers:
 - **Configuration**: Project ID, region selection, model access
 - **Member Setup**: Service account or credential configuration in VS Code
 
-## Remote vs. Infrastructure Configuration
+## SaaS vs. Self-Hosted Configuration
 
 <Note>
 **Understanding the Difference**
 
-- **Provider Remote Configuration** (this section): Simple cloud-based setup via app.cline.bot admin console
-- **Enterprise Configurations > Providers**: Deep infrastructure setup with VPC, multi-account, compliance features
+- **SaaS Provider Configuration** (this section): Simple cloud-based setup via app.cline.bot admin console - no infrastructure required
+- **Self-Hosted Configuration**: Deep infrastructure setup with VPC, multi-account, compliance features, YAML configs, and Kubernetes deployment
 
-Choose remote configuration for quick organizational setup. Choose enterprise infrastructure configuration for complex security, compliance, and multi-environment requirements.
+Choose SaaS configuration for quick organizational setup. Choose self-hosted configuration for complex security, compliance, and multi-environment requirements.
 </Note>
 
 ## Configuration Process

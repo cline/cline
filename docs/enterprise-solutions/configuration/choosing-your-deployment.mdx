@@ -1,0 +1,230 @@
+---
+title: "Choosing Your Configuration Path"
+sidebarTitle: "Deployment Guide"
+description: "Decide between SaaS and Self-Hosted configuration for your Cline Enterprise deployment"
+---
+
+Choose the right configuration approach for your organization based on your infrastructure requirements, security needs, and deployment preferences.
+
+## Quick Decision Tree
+
+<Steps>
+<Step title="Do you already have AWS/GCP infrastructure?">
+**Yes** → Consider Self-Hosted Configuration for deep integration with your existing cloud environment
+
+**No** → SaaS Configuration is faster and requires no infrastructure setup
+</Step>
+
+<Step title="Do you need VPC endpoints and private connectivity?">
+**Yes** → Self-Hosted Configuration provides full control over network topology
+
+**No** → Either approach works, but SaaS is simpler
+</Step>
+
+<Step title="Do you need multi-account AWS setups or custom IAM policies?">
+**Yes** → Self-Hosted Configuration required for complex AWS architectures
+
+**No** → SaaS Configuration offers simpler credential management
+</Step>
+
+<Step title="Do you prefer web-based configuration or GitOps/YAML?">
+**Web-based** → SaaS Configuration uses an intuitive admin console
+
+**GitOps/YAML** → Self-Hosted Configuration integrates with your existing IaC workflows
+</Step>
+
+<Step title="What's your setup time expectation?">
+**5-10 minutes** → SaaS Configuration is ready immediately
+
+**Hours to days** → Self-Hosted Configuration requires infrastructure deployment
+</Step>
+</Steps>
+
+## Configuration Comparison
+
+### Feature Matrix
+
+| Feature | SaaS Configuration | Self-Hosted Configuration |
+|---------|-------------------|---------------------------|
+| **Setup Complexity** | Simple (5-10 min) | Complex (hours to days) |
+| **Configuration Method** | Web UI at app.cline.bot | YAML + Helm/Kubernetes |
+| **Infrastructure Required** | None - Fully hosted | Full AWS/GCP/K8s deployment |
+| **VPC Endpoints** | Optional basic configuration | Full control with private connectivity |
+| **Multi-Account AWS** | Not supported | Complete multi-account architecture |
+| **Custom IAM Policies** | Basic role assumption | Full IAM policy customization |
+| **Audit Logging** | Basic activity tracking | CloudTrail/Cloud Logging integration |
+| **Cost Management** | Basic usage tracking | Advanced budgets, alerts, allocation tags |
+| **Compliance Controls** | Standard controls | Custom compliance frameworks |
+| **Regional Control** | Single region selection | Multi-region deployment with routing |
+| **Load Balancing** | Automatic | Full control over routing strategies |
+| **Encryption** | Standard HTTPS | Custom KMS keys and encryption policies |
+| **Provisioned Throughput** | Not available | AWS Bedrock provisioned capacity |
+| **Batch Processing** | Not available | Custom batch inference jobs |
+| **GitOps Integration** | Not available | Full version control and CI/CD |
+| **Maintenance** | Fully managed by Cline | Your team maintains infrastructure |
+| **Updates** | Automatic | Controlled deployment windows |
+| **Best For** | Small to medium teams | Large enterprises |
+
+## Configuration Paths
+
+<CardGroup cols={2}>
+  <Card title="SaaS Provider Configuration" icon="cloud" href="/enterprise-solutions/configuration/remote-configuration/overview">
+    ### Quick Setup via Web Console
+    
+    ✅ No infrastructure required  
+    ✅ 5-10 minute configuration  
+    ✅ Web-based admin console  
+    ✅ Automatic updates  
+    ✅ Simplified credential management
+    
+    **Best for:**
+    - Small to medium teams (5-50 developers)
+    - Quick deployment needs
+    - Limited DevOps resources
+    - Standard security requirements
+    - Single region deployments
+  </Card>
+  
+  <Card title="Self-Hosted Configuration" icon="server" href="/enterprise-solutions/configuration/infrastructure-configuration/overview">
+    ### Full Infrastructure Control
+    
+    ✅ Your own AWS/GCP/K8s  
+    ✅ VPC endpoints & private connectivity  
+    ✅ Multi-account setups  
+    ✅ Advanced compliance & audit  
+    ✅ GitOps workflows
+    
+    **Best for:**
+    - Large enterprises (50+ developers)
+    - Complex security requirements
+    - Existing cloud infrastructure
+    - Multi-region deployments
+    - Custom compliance needs
+  </Card>
+</CardGroup>
+
+## Use Case Examples
+
+### SaaS Configuration Scenarios
+
+**Startup/SMB**
+- **Team Size**: 5-20 developers
+- **Need**: Quick AI integration without infrastructure overhead
+- **Setup**: Configure AWS Bedrock region through web console, team members add AWS credentials
+- **Time to Deploy**: 10 minutes
+
+**Mid-Size Company**
+- **Team Size**: 20-50 developers across 2-3 teams
+- **Need**: Centralized provider management with basic cost controls
+- **Setup**: Admin configures LiteLLM proxy endpoint, enforces model selections
+- **Time to Deploy**: 30 minutes
+
+### Self-Hosted Configuration Scenarios
+
+**Financial Services Enterprise**
+- **Team Size**: 100+ developers
+- **Need**: HIPAA compliance, VPC isolation, audit logging
+- **Setup**: Multi-account AWS Bedrock with VPC endpoints, CloudTrail, KMS encryption
+- **Time to Deploy**: 2-3 days
+
+**Global Technology Company**
+- **Team Size**: 500+ developers across 10+ regions
+- **Need**: Multi-region deployment, cost allocation by team, custom governance
+- **Setup**: Multi-region AWS Bedrock + GCP Vertex with GitOps, custom IAM, budget alerts
+- **Time to Deploy**: 1-2 weeks
+
+**Healthcare Organization**
+- **Team Size**: 50+ developers
+- **Need**: Data residency in EU, complete audit trails, custom encryption
+- **Setup**: EU-only deployments with customer-managed encryption keys and detailed logging
+- **Time to Deploy**: 3-5 days
+
+## Security Considerations
+
+### SaaS Configuration Security Features
+- Standard HTTPS encryption in transit
+- AWS credential isolation (credentials stay with individual developers)
+- Basic role-based access control
+- Activity logging through Cline platform
+- Regional compliance (provider region selection)
+
+### Self-Hosted Configuration Security Features  
+- Customer-managed encryption keys (KMS)
+- Private VPC endpoints (no public internet)
+- Custom IAM policies with least privilege
+- CloudTrail/Cloud Logging integration
+- Zero-trust network architecture
+- Custom compliance framework implementation
+- Data residency enforcement
+- Advanced threat detection integration
+
+## Cost Considerations
+
+### SaaS Configuration Costs
+- **Platform Fee**: Cline Enterprise subscription
+- **AI Provider Costs**: Pay directly to AI provider (AWS/GCP/etc.)
+- **No Infrastructure Costs**: No servers, databases, or networking to maintain
+- **Predictable**: Fixed platform fee + usage-based AI costs
+
+### Self-Hosted Configuration Costs
+- **Platform Fee**: Cline Enterprise subscription
+- **AI Provider Costs**: Pay directly to AI provider (AWS/GCP/etc.)
+- **Infrastructure Costs**: 
+  - Kubernetes cluster hosting
+  - Load balancers and networking
+  - Storage and databases
+  - Monitoring and logging infrastructure
+- **Personnel**: DevOps team to maintain infrastructure
+- **Variable**: Depends on scale and architecture complexity
+
+## Migration Path
+
+### Starting with SaaS, Moving to Self-Hosted
+
+Many organizations start with SaaS configuration for quick deployment, then migrate to self-hosted as requirements grow:
+
+<Steps>
+<Step title="Start with SaaS">
+Deploy quickly with SaaS configuration, establish workflows and patterns
+</Step>
+
+<Step title="Assess Requirements">
+After 3-6 months, evaluate if you need self-hosted features (VPC, multi-account, etc.)
+</Step>
+
+<Step title="Plan Infrastructure">
+Design your self-hosted architecture based on learned usage patterns
+</Step>
+
+<Step title="Deploy Self-Hosted">
+Deploy infrastructure and migrate teams gradually
+</Step>
+
+<Step title="Cutover">
+Complete migration and decommission SaaS configuration
+</Step>
+</Steps>
+
+This approach minimizes risk and ensures your self-hosted infrastructure meets actual requirements.
+
+## Getting Started
+
+<CardGroup cols={2}>
+  <Card title="Start with SaaS" icon="rocket" href="/enterprise-solutions/configuration/remote-configuration/overview">
+    Begin with quick SaaS setup
+  </Card>
+  
+  <Card title="Deploy Self-Hosted" icon="server" href="/enterprise-solutions/configuration/infrastructure-configuration/overview">
+    Plan your infrastructure deployment
+  </Card>
+</CardGroup>
+
+## Need Help Deciding?
+
+If you're unsure which path is right for your organization:
+
+1. **Contact Cline Enterprise Sales**: Our team can discuss your requirements and recommend the best approach
+2. **Start with SaaS**: For most teams, starting with SaaS is lower risk and faster
+3. **Consult with Your Cloud Team**: If you have existing infrastructure, your cloud architects can help assess self-hosted feasibility
+
+Remember: You can always migrate from SaaS to self-hosted as your needs evolve.
