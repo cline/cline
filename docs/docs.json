@@ -362,10 +362,6 @@
 			"destination": "/cline-cli/samples/overview"
 		},
 		{
-			"source": "/features/hooks",
-			"destination": "/features/hooks/index"
-		},
-		{
 			"source": "/features/hooks/real-world-examples",
 			"destination": "/features/hooks/samples"
     },
