@@ -10,214 +10,176 @@ description: "Configure Google Vertex AI for your Cline deployment"
 This guide covers Vertex AI configuration for self-hosted deployments. For simple web-based setup, see [Google Vertex SaaS Configuration](/enterprise-solutions/configuration/remote-configuration/google-vertex/admin-configuration).
 </Info>
 
-Google Vertex AI provides enterprise access to Gemini and other Google AI models through Google Cloud Platform. Configure Cline to use Vertex AI with service account authentication.
+Configure Cline to use Google Vertex AI for enterprise access to Gemini and other Google AI models through Google Cloud Platform.
 
-## What You'll Need
+## Configuration Format
 
-Before configuring Cline to use Vertex AI:
-
-1. **Google Cloud Project** with Vertex AI API enabled
-2. **Service Account** with Vertex AI permissions
-3. **Service Account Key** (JSON file)
-4. **Region** where Vertex AI is available
-
-## Configuration
-
-Configure Vertex AI through your remote configuration JSON:
+Configure Vertex AI through your remote configuration JSON using the `providerSettings.Vertex` section:
 
 ```json
 {
   "providerSettings": {
-    "provider": "vertex",
-    "vertexProject": "my-project-id",
-    "vertexRegion": "us-central1"
+    "Vertex": {
+      "models": [
+        {
+          "id": "claude-3-5-sonnet-v2@20241022",
+          "name": "Claude 3.5 Sonnet"
+        }
+      ],
+      "vertexProjectId": "my-project-id",
+      "vertexRegion": "us-central1"
+    }
   }
 }
 ```
 
-### Configuration Options
+## Configuration Fields
 
-| Field | Description | Required |
-|-------|-------------|----------|
-| `provider` | Must be `"vertex"` | Yes |
-| `vertexProject` | Google Cloud project ID | Yes |
-| `vertexRegion` | GCP region (e.g., `us-central1`) | Yes |
-| `vertexServiceAccountKey` | Path to service account JSON key | Yes |
+| Field | Type | Description | Required |
+|-------|------|-------------|----------|
+| `models` | Array | List of model configurations | Yes |
+| `vertexProjectId` | String | Google Cloud project ID | Yes |
+| `vertexRegion` | String | GCP region (e.g., `us-central1`) | Yes |
 
-## Setting Up Google Cloud
+### Model Configuration
 
-### 1. Enable Vertex AI API
-
-```bash
-# Enable the Vertex AI API
-gcloud services enable aiplatform.googleapis.com --project=my-project-id
-```
-
-### 2. Create Service Account
-
-```bash
-# Create service account
-gcloud iam service-accounts create cline-vertex-sa \
-  --display-name="Cline Vertex AI" \
-  --project=my-project-id
-
-# Grant required permissions
-gcloud projects add-iam-policy-binding my-project-id \
-  --member="serviceAccount:cline-vertex-sa@my-project-id.iam.gserviceaccount.com" \
-  --role="roles/aiplatform.user"
-
-# Create and download key
-gcloud iam service-accounts keys create cline-vertex-key.json \
-  --iam-account=cline-vertex-sa@my-project-id.iam.gserviceaccount.com
-```
-
-### 3. Configure Cline
-
-Add the service account key to your configuration:
+Each model in the `models` array requires:
 
 ```json
 {
-  "providerSettings": {
-    "provider": "vertex",
-    "vertexProject": "my-project-id",
-    "vertexRegion": "us-central1",
-    "vertexServiceAccountKey": "/path/to/cline-vertex-key.json"
+  "id": "claude-3-5-sonnet-v2@20241022",
+  "name": "Claude 3.5 Sonnet",
+  "info": {
+    "maxTokens": 8192,
+    "contextWindow": 200000,
+    "supportsImages": true,
+    "supportsPromptCache": true
   }
 }
 ```
 
-## Available Models
-
-Common Vertex AI models for Cline:
+## Common Model IDs
 
 | Model ID | Description | Context Window |
 |----------|-------------|----------------|
-| `gemini-2.0-flash-exp` | Latest Gemini Flash (experimental) | 1M tokens |
-| `gemini-1.5-pro-002` | Gemini Pro (stable) | 2M tokens |
-| `gemini-1.5-flash-002` | Gemini Flash (stable) | 1M tokens |
+| `claude-3-5-sonnet-v2@20241022` | Claude 3.5 Sonnet | 200K tokens |
+| `claude-3-5-haiku@20241022` | Claude 3.5 Haiku | 200K tokens |
+| `claude-3-opus@20240229` | Claude 3 Opus | 200K tokens |
+| `gemini-2.0-flash-exp` | Gemini Flash (experimental) | 1M tokens |
+| `gemini-1.5-pro-002` | Gemini Pro | 2M tokens |
+| `gemini-1.5-flash-002` | Gemini Flash | 1M tokens |
 
 <Note>
-Model availability varies by region. Check the Vertex AI documentation for region-specific availability.
+Model availability varies by region. See [Vertex AI documentation](https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models) for region-specific model availability.
 </Note>
 
-## Regional Deployment
+## Example Configurations
 
-Vertex AI is available in multiple Google Cloud regions:
-
-- **us-central1** (Iowa)
-- **us-east4** (Northern Virginia)
-- **europe-west1** (Belgium)
-- **asia-southeast1** (Singapore)
-
-Choose regions based on:
-- **Latency**: Closer to your users
-- **Compliance**: Data residency requirements
-- **Model Availability**: Not all models in all regions
-
-## Authentication Methods
-
-### Service Account Key (Recommended)
-
-Use a service account JSON key file for authentication:
-
-1. Create service account in Google Cloud Console
-2. Grant `roles/aiplatform.user` permission
-3. Download JSON key file
-4. Configure path in Cline settings
-
-### Workload Identity (GKE)
-
-For Kubernetes deployments on GKE, use Workload Identity:
-
-```yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: cline-vertex-sa
-  annotations:
-    iam.gke.io/gcp-service-account: cline-vertex-sa@my-project-id.iam.gserviceaccount.com
-```
-
-## Best Practices
-
-### Security
-- **Service Account Keys**: Store securely, never commit to version control
-- **Least Privilege**: Grant only `aiplatform.user` role
-- **Key Rotation**: Rotate service account keys regularly (e.g., every 90 days)
-- **Audit Logging**: Enable Cloud Audit Logs for compliance
-
-### Cost Management
-- **Choose Appropriate Models**: Use Flash for speed, Pro for complex tasks
-- **Monitor Usage**: Track via Google Cloud Console billing
-- **Set Budget Alerts**: Configure budget alerts in GCP
-- **Optimize Prompts**: Reduce token usage through efficient prompting
-
-### Performance
-- **Regional Selection**: Deploy in region closest to users
-- **Model Selection**: Flash models are faster but less capable
-- **Concurrent Requests**: Vertex AI handles concurrency automatically
-
-## Troubleshooting
-
-### Common Issues
-
-**"Permission Denied" Errors**
-
-Verify service account has required permissions:
-```bash
-gcloud projects get-iam-policy my-project-id \
-  --flatten="bindings[].members" \
-  --filter="bindings.members:serviceAccount:cline-vertex-sa@my-project-id.iam.gserviceaccount.com"
-```
-
-**"API Not Enabled" Errors**
-
-Enable the Vertex AI API:
-```bash
-gcloud services enable aiplatform.googleapis.com --project=my-project-id
-```
-
-**"Model Not Found" Errors**
-
-Check model availability in your region:
-```bash
-gcloud ai models list --region=us-central1 --project=my-project-id
-```
-
-## Example Configuration
-
-Complete example for production:
+### Basic Configuration
 
 ```json
 {
   "providerSettings": {
-    "provider": "vertex",
-    "vertexProject": "my-company-prod",
-    "vertexRegion": "us-central1",
-    "vertexServiceAccountKey": "/secure/path/to/service-account.json"
-  },
-  "modelSettings": {
-    "defaultModel": "gemini-1.5-pro-002"
+    "Vertex": {
+      "models": [
+        {
+          "id": "claude-3-5-sonnet-v2@20241022",
+          "name": "Claude 3.5 Sonnet"
+        }
+      ],
+      "vertexProjectId": "my-company-prod",
+      "vertexRegion": "us-central1"
+    }
   }
 }
 ```
+
+### Multiple Models
+
+```json
+{
+  "providerSettings": {
+    "Vertex": {
+      "models": [
+        {
+          "id": "claude-3-5-sonnet-v2@20241022",
+          "name": "Claude 3.5 Sonnet"
+        },
+        {
+          "id": "gemini-1.5-pro-002",
+          "name": "Gemini Pro"
+        }
+      ],
+      "vertexProjectId": "my-company-prod",
+      "vertexRegion": "us-central1"
+    }
+  }
+}
+```
+
+### With Extended Thinking
+
+```json
+{
+  "providerSettings": {
+    "Vertex": {
+      "models": [
+        {
+          "id": "claude-3-5-sonnet-v2@20241022",
+          "name": "Claude 3.5 Sonnet",
+          "thinkingBudgetTokens": 1600
+        }
+      ],
+      "vertexProjectId": "my-company-prod",
+      "vertexRegion": "us-central1"
+    }
+  }
+}
+```
+
+## Prerequisites
+
+Before configuring Cline to use Vertex AI, you need:
+
+1. **Google Cloud Project** with Vertex AI API enabled
+2. **Service Account** with Vertex AI User role (`roles/aiplatform.user`)
+3. **Service Account Credentials** configured for authentication
+4. **Model Access** verified in your project and region
+
+<Tip>
+For Google Cloud setup and authentication configuration, see the [Vertex AI documentation](https://cloud.google.com/vertex-ai/docs/generative-ai/start/quickstarts/quickstart-multimodal).
+</Tip>
+
+## Troubleshooting
+
+**"Permission Denied" Errors**
+
+Ensure your service account has the required Vertex AI permissions. See [Google Cloud IAM documentation](https://cloud.google.com/vertex-ai/docs/general/access-control) for permission requirements.
+
+**"API Not Enabled" Errors**
+
+Verify the Vertex AI API is enabled in your Google Cloud project.
+
+**"Model Not Found" Errors**
+
+Check that the model is available in your configured region and that your project has access to it.
 
 ## Related Resources
 
 <CardGroup cols={2}>
-  <Card title="Vertex AI Documentation" icon="book" href="https://cloud.google.com/vertex-ai/docs">
-    Official Google Vertex AI documentation
+  <Card title="Vertex AI Docs" icon="book" href="https://cloud.google.com/vertex-ai/docs">
+    Complete Vertex AI documentation
   </Card>
   
   <Card title="Service Accounts" icon="key" href="https://cloud.google.com/iam/docs/service-accounts">
-    Google Cloud service account best practices
+    Service account best practices
   </Card>
   
-  <Card title="Gemini Models" icon="brain" href="https://cloud.google.com/vertex-ai/docs/generative-ai/model-reference/gemini">
-    Gemini model documentation
+  <Card title="Model Guide" icon="brain" href="https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models">
+    Available models and features
   </Card>
   
-  <Card title="Vertex AI Pricing" icon="dollar-sign" href="https://cloud.google.com/vertex-ai/pricing">
-    Google Vertex AI pricing details
+  <Card title="Pricing" icon="dollar-sign" href="https://cloud.google.com/vertex-ai/pricing">
+    Vertex AI pricing details
   </Card>
 </CardGroup>

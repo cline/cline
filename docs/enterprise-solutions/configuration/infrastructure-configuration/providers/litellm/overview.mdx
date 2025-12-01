@@ -10,251 +10,206 @@ description: "Configure LiteLLM proxy for your Cline deployment"
 This guide covers LiteLLM configuration for self-hosted deployments. For web-based setup, see [LiteLLM SaaS Configuration](/enterprise-solutions/configuration/remote-configuration/litellm/admin-configuration).
 </Info>
 
-LiteLLM is a third-party unified proxy that provides a single OpenAI-compatible API for accessing 100+ AI models from different providers. Configure Cline to use an existing LiteLLM proxy deployment.
+Configure Cline to use an existing LiteLLM proxy for unified access to multiple AI models through a single API endpoint.
 
 ## What is LiteLLM?
 
-[LiteLLM](https://github.com/BerriAI/litellm) is an open-source proxy server that:
-
-- **Unifies APIs**: Single OpenAI-compatible interface for multiple providers
-- **Load Balancing**: Distributes requests across providers/models
-- **Cost Tracking**: Monitors usage and costs across all models
-- **Fallbacks**: Automatically retries with different models on failure
+[LiteLLM](https://github.com/BerriAI/litellm) is an open-source proxy that provides a unified OpenAI-compatible API for accessing 100+ AI models from different providers. Cline connects to your deployed LiteLLM instance.
 
 <Note>
-LiteLLM is a separate service you deploy and manage. Cline simply connects to your LiteLLM endpoint.
+LiteLLM is a separate service you deploy and manage. This guide covers how to configure Cline to connect to an existing LiteLLM deployment.
 </Note>
 
-## Configuration
+## Configuration Format
 
-Configure Cline to use your LiteLLM proxy:
-
-```json
-{
-  "providerSettings": {
-    "provider": "litellm",
-    "litellmBaseUrl": "https://litellm.yourcompany.com",
-    "litellmApiKey": "sk-your-litellm-key"
-  }
-}
-```
-
-### Configuration Options
-
-| Field | Description | Required |
-|-------|-------------|----------|
-| `provider` | Must be `"litellm"` | Yes |
-| `litellmBaseUrl` | URL of your LiteLLM proxy | Yes |
-| `litellmApiKey` | API key for authentication | Yes |
-
-## Setting Up LiteLLM
-
-LiteLLM must be deployed and configured separately from Cline. Common deployment options:
-
-### Docker
-
-```bash
-docker run -p 4000:4000 \
-  -e OPENAI_API_KEY=your-key \
-  -e AWS_ACCESS_KEY_ID=your-key \
-  -e AWS_SECRET_ACCESS_KEY=your-secret \
-  ghcr.io/berriai/litellm:main-stable \
-  --config /config.yaml
-```
-
-### Docker Compose
-
-```yaml
-version: '3.8'
-services:
-  litellm:
-    image: ghcr.io/berriai/litellm:main-stable
-    ports:
-      - "4000:4000"
-    volumes:
-      - ./config.yaml:/config.yaml
-    command: ["--config", "/config.yaml"]
-```
-
-### Kubernetes
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: litellm
-spec:
-  replicas: 2
-  template:
-    spec:
-      containers:
-      - name: litellm
-        image: ghcr.io/berriai/litellm:main-stable
-        ports:
-        - containerPort: 4000
-```
-
-<Warning>
-Configuring and deploying LiteLLM is outside the scope of Cline documentation. See [LiteLLM documentation](https://docs.litellm.ai/) for deployment guides.
-</Warning>
-
-## LiteLLM Configuration
-
-Your LiteLLM proxy needs to be configured with the models you want to access. Example LiteLLM config:
-
-```yaml
-# config.yaml
-model_list:
-  - model_name: gpt-4
-    litellm_params:
-      model: gpt-4-turbo-preview
-      api_key: ${OPENAI_API_KEY}
-      
-  - model_name: claude-3
-    litellm_params:
-      model: bedrock/anthropic.claude-3-sonnet-20240229-v1:0
-      aws_access_key_id: ${AWS_ACCESS_KEY_ID}
-      aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY}
-```
-
-## Using LiteLLM with Cline
-
-Once your LiteLLM proxy is running:
-
-1. **Get the endpoint URL** (e.g., `https://litellm.yourcompany.com`)
-2. **Get or create an API key** for authentication
-3. **Configure Cline** to use the endpoint
-
-Example Cline configuration:
+Configure LiteLLM through your remote configuration JSON using the `providerSettings.OpenAiCompatible` section:
 
 ```json
 {
   "providerSettings": {
-    "provider": "litellm",
-    "litellmBaseUrl": "https://litellm.yourcompany.com",
-    "litellmApiKey": "sk-abc123xyz"
-  },
-  "modelSettings": {
-    "defaultModel": "gpt-4"
+    "OpenAiCompatible": {
+      "models": [
+        {
+          "id": "gpt-4-turbo",
+          "name": "GPT-4 Turbo"
+        }
+      ],
+      "openAiBaseUrl": "https://litellm.yourcompany.com/v1"
+    }
   }
 }
 ```
 
-## Benefits of Using LiteLLM
+## Configuration Fields
 
-### For Multi-Provider Access
+| Field | Type | Description | Required |
+|-------|------|-------------|----------|
+| `models` | Array | List of model configurations | Yes |
+| `openAiBaseUrl` | String | LiteLLM proxy endpoint URL | Yes |
+| `openAiApiKey` | String | API key for authentication | No |
 
-If you want to use models from multiple providers:
-- Deploy one LiteLLM proxy
-- Configure it with all your provider credentials
-- Point Cline at the single endpoint
+### Model Configuration
 
-### For Load Balancing
+Each model in the `models` array requires:
 
-LiteLLM can distribute requests across multiple providers/regions:
-- Configure multiple providers for the same model
-- LiteLLM handles failover automatically
-- Reduces dependency on single provider
-
-### For Cost Tracking
-
-LiteLLM provides usage analytics:
-- Track spending across all models
-- Monitor usage by team or user
-- Set budget limits
-
-## Authentication 
-
-LiteLLM supports several authentication methods:
-
-### API Key (Recommended)
-
-Generate API keys in your LiteLLM deployment:
 ```json
 {
-  "litellmApiKey": "sk-your-generated-key"
+  "id": "gpt-4-turbo",
+  "name": "GPT-4 Turbo",
+  "info": {
+    "maxTokens": 4096,
+    "contextWindow": 128000,
+    "supportsImages": true
+  }
 }
 ```
 
-### No Authentication
+<Note>
+Model IDs must match the model names configured in your LiteLLM proxy deployment.
+</Note>
 
-For internal networks without authentication:
+## Example Configurations
+
+### Basic Configuration
+
 ```json
 {
-  "provider": "litellm",
-  "litellmBaseUrl": "http://litellm.internal:4000"
+  "providerSettings": {
+    "OpenAiCompatible": {
+      "models": [
+        {
+          "id": "gpt-4-turbo",
+          "name": "GPT-4 Turbo"
+        }
+      ],
+      "openAiBaseUrl": "https://litellm.company.com/v1"
+    }
+  }
 }
 ```
+
+### With Authentication
+
+```json
+{
+  "providerSettings": {
+    "OpenAiCompatible": {
+      "models": [
+        {
+          "id": "gpt-4-turbo",
+          "name": "GPT-4 Turbo"
+        }
+      ],
+      "openAiBaseUrl": "https://litellm.company.com/v1",
+      "openAiApiKey": "sk-your-litellm-key"
+    }
+  }
+}
+```
+
+### Multiple Models
+
+```json
+{
+  "providerSettings": {
+    "OpenAiCompatible": {
+      "models": [
+        {
+          "id": "gpt-4-turbo",
+          "name": "GPT-4 Turbo"
+        },
+        {
+          "id": "claude-3-5-sonnet",
+          "name": "Claude 3.5 Sonnet"
+        },
+        {
+          "id": "gemini-pro",
+          "name": "Gemini Pro"
+        }
+      ],
+      "openAiBaseUrl": "https://litellm.company.com/v1",
+      "openAiApiKey": "sk-your-litellm-key"
+    }
+  }
+}
+```
+
+### Internal Network (No Auth)
+
+```json
+{
+  "providerSettings": {
+    "OpenAiCompatible": {
+      "models": [
+        {
+          "id": "gpt-4-turbo",
+          "name": "GPT-4 Turbo"
+        }
+      ],
+      "openAiBaseUrl": "http://litellm.internal:4000/v1"
+    }
+  }
+}
+```
+
+## Prerequisites
+
+Before configuring Cline to use LiteLLM, you need:
+
+1. **LiteLLM Proxy** deployed and accessible
+2. **LiteLLM Configuration** with desired models enabled
+3. **API Key** (if authentication is enabled)
+4. **Network Access** from where Cline is being used
+
+<Tip>
+For LiteLLM deployment and configuration, see the [LiteLLM documentation](https://docs.litellm.ai/docs/proxy/quick_start).
+</Tip>
 
 ## Troubleshooting
 
-### Connection Errors
+**Connection Errors**
 
-Verify LiteLLM is running and accessible:
+Verify the LiteLLM proxy is running and accessible:
 ```bash
 curl https://litellm.yourcompany.com/health
 ```
 
-### Authentication Errors
+**Authentication Errors**
 
 Check your API key is valid:
 ```bash
 curl -H "Authorization: Bearer sk-your-key" \
-  https://litellm.yourcompany.com/models
+  https://litellm.yourcompany.com/v1/models
 ```
 
-### Model Not Found
+**Model Not Found**
 
-Verify the model is configured in your LiteLLM proxy:
-```bash
-curl -H "Authorization: Bearer sk-your-key" \
-  https://litellm.yourcompany.com/model/info
-```
+Verify the model is configured in your LiteLLM deployment. Model IDs in Cline's config must match the model names in LiteLLM's configuration.
 
-## Example Configurations
+## Benefits of Using LiteLLM
 
-### Simple Internal Proxy
-
-```json
-{
-  "providerSettings": {
-    "provider": "litellm",
-    "litellmBaseUrl": "http://litellm.internal:4000"
-  }
-}
-```
-
-### Production with Authentication
-
-```json
-{
-  "providerSettings": {
-    "provider": "litellm",
-    "litellmBaseUrl": "https://litellm.prod.company.com",
-    "litellmApiKey": "${LITELLM_API_KEY}"
-  },
-  "modelSettings": {
-    "defaultModel": "gpt-4-turbo"
-  }
-}
-```
+- **Multi-Provider Access**: Connect to multiple AI providers through one endpoint
+- **Load Balancing**: Distribute requests across providers automatically
+- **Fallback Support**: Automatic retry with different models on failure
+- **Cost Tracking**: Monitor usage and costs across all models
+- **Rate Limiting**: Control usage at the proxy level
 
 ## Related Resources
 
 <CardGroup cols={2}>
-  <Card title="LiteLLM Documentation" icon="book" href="https://docs.litellm.ai/">
-    Official LiteLLM deployment and configuration guide
+  <Card title="LiteLLM Docs" icon="book" href="https://docs.litellm.ai/">
+    Complete LiteLLM documentation
   </Card>
   
   <Card title="LiteLLM GitHub" icon="github" href="https://github.com/BerriAI/litellm">
-    LiteLLM source code and examples
+    Source code and deployment examples
   </Card>
   
-  <Card title="Supported Models" icon="list" href="https://docs.litellm.ai/docs/providers">
-    Complete list of supported AI providers
-  </Card>
-  
-  <Card title="LiteLLM Proxy" icon="server" href="https://docs.litellm.ai/docs/proxy/quick_start">
+  <Card title="Proxy Setup" icon="server" href="https://docs.litellm.ai/docs/proxy/quick_start">
     LiteLLM proxy deployment guide
+  </Card>
+  
+  <Card title="Supported Providers" icon="list" href="https://docs.litellm.ai/docs/providers">
+    List of supported AI providers
   </Card>
 </CardGroup>
