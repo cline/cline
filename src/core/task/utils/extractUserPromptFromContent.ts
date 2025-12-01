@@ -1,3 +1,4 @@
+import { SYSTEM_CONTENT_MARKERS, USER_CONTENT_TAGS } from "@shared/messages/constants"
 import type { ClineContent } from "@shared/messages/content"
 
 /**
@@ -9,12 +10,6 @@ import type { ClineContent } from "@shared/messages/content"
  * @returns Extracted user prompt text, or empty string if no user input found
  */
 export function extractUserPromptFromContent(userContent: ClineContent[]): string {
-	// Known tags that wrap user-generated content
-	const USER_CONTENT_TAGS = ["<task>", "<feedback>", "<answer>", "<user_message>"]
-
-	// Markers for system-generated content that should be excluded
-	const SYSTEM_CONTENT_MARKERS = ["[TASK RESUMPTION]", "<hook_context", "[Response interrupted", "Task was interrupted"]
-
 	const extractedTexts: string[] = []
 
 	for (const block of userContent) {
@@ -67,7 +62,7 @@ export function extractUserPromptFromContent(userContent: ClineContent[]): strin
  * @param tags Array of tag names to extract from
  * @returns Extracted content or empty string
  */
-function extractFromUserContentTags(text: string, tags: string[]): string {
+function extractFromUserContentTags(text: string, tags: readonly string[]): string {
 	const results: string[] = []
 
 	for (const tag of tags) {

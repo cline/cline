@@ -65,6 +65,7 @@ import {
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import { CLINE_MCP_TOOL_IDENTIFIER } from "@shared/mcp"
+import { USER_CONTENT_TAGS } from "@shared/messages/constants"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import type { Mode } from "@shared/storage/types"
 import { ClineDefaultTool } from "@shared/tools"
@@ -3240,9 +3241,6 @@ export class Task {
 		const providerInfo = this.getCurrentProviderInfo()
 		const cwd = this.cwd
 		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.controller, cwd)
-
-		// Define user-generated content tags once
-		const USER_CONTENT_TAGS = ["<feedback>", "<answer>", "<task>", "<user_message>"] as const
 
 		const hasUserContentTag = (text: string): boolean => {
 			return USER_CONTENT_TAGS.some((tag) => text.includes(tag))
