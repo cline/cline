@@ -68,7 +68,7 @@ const featuredModels = [
 		isFree: true,
 	},
 	{
-		id: "stealth/spectre",
+		id: "stealth/microwave",
 		description: "A stealth model for agentic coding tasks",
 		label: "Free",
 	},
