@@ -2764,6 +2764,15 @@ export class Task {
 								}]`,
 						},
 					],
+					modelInfo,
+					metrics: {
+						tokens: {
+							prompt: taskMetrics.inputTokens,
+							completion: taskMetrics.outputTokens,
+							cached: (taskMetrics.cacheWriteTokens ?? 0) + (taskMetrics.cacheReadTokens ?? 0),
+						},
+						cost: taskMetrics.totalCost,
+					},
 				})
 
 				telemetryService.captureConversationTurnEvent(
@@ -3082,6 +3091,14 @@ export class Task {
 						content: assistantContent,
 						modelInfo,
 						id: requestId,
+						metrics: {
+							tokens: {
+								prompt: taskMetrics.inputTokens,
+								completion: taskMetrics.outputTokens,
+								cached: (taskMetrics.cacheWriteTokens ?? 0) + (taskMetrics.cacheReadTokens ?? 0),
+							},
+							cost: taskMetrics.totalCost,
+						},
 					})
 				}
 			}
@@ -3163,6 +3180,14 @@ export class Task {
 					],
 					modelInfo,
 					id: this.streamHandler.requestId,
+					metrics: {
+						tokens: {
+							prompt: taskMetrics.inputTokens,
+							completion: taskMetrics.outputTokens,
+							cached: (taskMetrics.cacheWriteTokens ?? 0) + (taskMetrics.cacheReadTokens ?? 0),
+						},
+						cost: taskMetrics.totalCost,
+					},
 				})
 
 				let response: ClineAskResponse

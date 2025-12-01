@@ -138,18 +138,6 @@ export class MessageStateHandler {
 	}
 
 	async addToApiConversationHistory(message: ClineStorageMessage) {
-		// Add current token usage metrics (if larger than 0) to the message before saving
-		const metrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
-		if (metrics?.totalTokensIn || metrics?.totalTokensOut || metrics?.totalCost) {
-			message.metrics = {
-				cost: metrics.totalCost,
-				tokens: {
-					prompt: metrics.totalTokensIn,
-					completion: metrics.totalTokensOut,
-					cached: (metrics.totalCacheWrites ?? 0) + (metrics.totalCacheReads ?? 0),
-				},
-			}
-		}
 		// Protect with mutex to prevent concurrent modifications from corrupting data (RC-4)
 		return await this.withStateLock(async () => {
 			this.apiConversationHistory.push(message)
