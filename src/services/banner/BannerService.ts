@@ -1,7 +1,6 @@
 import type { Banner, BannerRules, BannersResponse } from "@shared/ClineBanner"
 import { isClineInternalTester } from "@shared/internal/account"
 import axios from "axios"
-import { createHash } from "crypto"
 import { ClineEnv } from "@/config"
 import type { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
@@ -472,8 +471,7 @@ export class BannerService {
 				surface = "vscode"
 			}
 
-			const distinctId = this.getInstanceDistinctId()
-			const instanceId = this.hashInstanceId(distinctId)
+			const instanceId = this.getInstanceDistinctId()
 
 			const payload = {
 				banner_id: bannerId,
@@ -560,22 +558,6 @@ export class BannerService {
 		} catch (error) {
 			Logger.error("BannerService: Error getting distinct ID", error)
 			return "unknown"
-		}
-	}
-
-	/**
-	 * Hashes the instance ID for privacy
-	 * @param distinctId The distinct ID to hash
-	 * @returns SHA-256 hash of the distinct ID
-	 */
-	private hashInstanceId(distinctId: string): string {
-		try {
-			const hash = createHash("sha256")
-			hash.update(distinctId)
-			return `sha256:${hash.digest("hex")}`
-		} catch (error) {
-			Logger.error("BannerService: Error hashing instance ID", error)
-			return "sha256:unknown"
 		}
 	}
 }
