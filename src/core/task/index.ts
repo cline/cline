@@ -550,6 +550,8 @@ export class Task {
 			this.setActiveHookExecution.bind(this),
 			this.clearActiveHookExecution.bind(this),
 			this.getActiveHookExecution.bind(this),
+			// Task completion callback for message queue system
+			this.controller.onTaskComplete,
 		)
 	}
 
@@ -1314,6 +1316,22 @@ export class Task {
 			if (didEndLoop) {
 				// For now a task never 'completes'. This will only happen if the user hits max requests and denies resetting the count.
 				//this.say("task_completed", `Task completed. Total API usage cost: ${totalCost}`)
+
+				// Notify completion callback for message queue system
+				const fs = require("fs")
+				const logPath = require("path").join(process.cwd(), "task-completion-debug.log")
+				fs.appendFileSync(logPath, `\n[${new Date().toISOString()}] didEndLoop - Task ending\n`)
+				fs.appendFileSync(
+					logPath,
+					`[${new Date().toISOString()}] onTaskComplete exists: ${!!this.controller.onTaskComplete}\n`,
+				)
+
+				if (this.controller.onTaskComplete) {
+					fs.appendFileSync(logPath, `[${new Date().toISOString()}] Calling onTaskComplete\n`)
+					this.controller.onTaskComplete("Task completed successfully")
+					fs.appendFileSync(logPath, `[${new Date().toISOString()}] onTaskComplete called\n`)
+				}
+
 				break
 			} else {
 				// this.say(

@@ -80,6 +80,9 @@ export class Controller {
 	// Flag to prevent duplicate cancellations from spam clicking
 	private cancelInProgress = false
 
+	// Callback for task completion (used by message queue system)
+	onTaskComplete?: (result: string) => void
+
 	// Shell integration warning tracker
 	private shellIntegrationWarningTracker: {
 		timestamps: number[]

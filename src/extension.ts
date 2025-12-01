@@ -12,6 +12,7 @@ import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeTo
 import { WebviewProvider } from "./core/webview"
 import { createClineAPI } from "./exports"
 import { Logger } from "./services/logging/Logger"
+import { MessageQueueService } from "./services/MessageQueueService"
 import { cleanupTestMode, initializeTestMode } from "./services/test/TestMode"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
@@ -83,6 +84,69 @@ export async function activate(context: vscode.ExtensionContext) {
 	const webview = (await initialize(context)) as VscodeWebviewProvider
 
 	Logger.log("Cline extension activated")
+
+	// Initialize Message Queue Service for external CLI communication
+	const workspaceFolders = vscode.workspace.workspaceFolders
+	if (workspaceFolders && workspaceFolders.length > 0) {
+		const workspaceRoot = workspaceFolders[0].uri.fsPath
+		const messageQueue = MessageQueueService.getInstance(workspaceRoot)
+
+		// Track current message ID for completion notifications
+		let currentMessageId: string | null = null
+
+		// Set up message handler to process incoming commands
+		messageQueue.setMessageHandler(async (message) => {
+			Logger.log(`Message Queue: Received command from ${message.from}: ${message.content}`)
+
+			try {
+				// Store message ID for completion notification
+				currentMessageId = message.id
+
+				// Create and execute a new task (like typing and pressing Enter)
+				await webview.controller.handleTaskCreation(message.content)
+
+				// Return acknowledgment
+				return `Task started: "${message.content}"`
+			} catch (error) {
+				Logger.log(`Message Queue: Error processing message: ${error}`)
+				currentMessageId = null
+				return `Error: ${error}`
+			}
+		})
+
+		// Set up task completion handler
+		webview.controller.onTaskComplete = (result: string) => {
+			console.log("[Extension] onTaskComplete called with result:", result, "currentMessageId:", currentMessageId)
+			if (currentMessageId) {
+				console.log("[Extension] Sending task completion to message queue")
+				messageQueue.sendTaskCompletion(currentMessageId, result)
+				currentMessageId = null
+			} else {
+				console.log("[Extension] No currentMessageId, skipping completion notification")
+			}
+		}
+
+		// Start watching for messages
+		messageQueue.startWatching()
+
+		// Set up periodic cleanup (every 30 minutes)
+		const cleanupInterval = setInterval(
+			() => {
+				messageQueue.cleanupOldMessages()
+			},
+			30 * 60 * 1000,
+		)
+
+		// Add to disposables
+		context.subscriptions.push({
+			dispose: () => {
+				clearInterval(cleanupInterval)
+				messageQueue.dispose()
+			},
+		})
+
+		Logger.log("Message Queue Service initialized and watching for external commands")
+	}
 
 	const testModeWatchers = await initializeTestMode(webview)
 	// Initialize test mode and add disposables to context

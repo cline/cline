@@ -122,6 +122,9 @@ export interface TaskCallbacks {
 	setActiveHookExecution: (hookExecution: HookExecution) => Promise<void>
 	clearActiveHookExecution: () => Promise<void>
 	getActiveHookExecution: () => Promise<HookExecution | undefined>
+
+	// Task completion callback for message queue system
+	onTaskComplete?: (result: string) => void
 }
 
 /**
