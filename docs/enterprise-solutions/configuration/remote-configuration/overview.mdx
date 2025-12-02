@@ -40,6 +40,11 @@ Remote configuration operates through Cline's hosted service at [app.cline.bot](
 
 Cline supports remote configuration for the following AI providers:
 
+### **Cline**
+- **Use Case**: Organizations using Cline's native provider with centralized API key management
+- **Configuration**: API provider selection, model access
+- **Member Setup**: No individual API keys needed - fully managed by organization
+
 ### **Amazon Bedrock**
 - **Use Case**: Organizations using AWS infrastructure
 - **Configuration**: Region selection, VPC endpoints, cross-region inference, prompt caching
@@ -48,7 +53,7 @@ Cline supports remote configuration for the following AI providers:
 ### **LiteLLM**
 - **Use Case**: Organizations requiring multi-model access through a unified proxy
 - **Configuration**: Proxy endpoint, authentication, model routing
-- **Member Setup**: API key or endpoint configuration in VS Code
+- **Member Setup**: API key or endpoint configuration in VS Code (or centralized with Master Key)
 
 ### **Google Vertex AI**
 - **Use Case**: Organizations using Google Cloud Platform
@@ -92,7 +97,6 @@ Once credentials are configured, members can immediately start using the AI prov
 
 ### **For Administrators**
 - **Centralized Control**: Manage all provider settings from one location
-- **Cost Management**: Control which models and regions are available
 - **Security Compliance**: Ensure consistent security policies across the organization
 - **Easy Updates**: Change provider settings organization-wide instantly
 

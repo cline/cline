@@ -300,39 +300,6 @@
 									}
 								]
 							},
-						{
-							"group": "Self-Hosted Configuration",
-							"pages": [
-								"enterprise-solutions/configuration/overview",
-									{
-										"group": "Providers",
-										"pages": [
-											"enterprise-solutions/configuration/infrastructure-configuration/providers/overview",
-											"enterprise-solutions/configuration/infrastructure-configuration/providers/aws-bedrock/overview",
-											"enterprise-solutions/configuration/infrastructure-configuration/providers/litellm/overview",
-											"enterprise-solutions/configuration/infrastructure-configuration/providers/google-vertex/overview"
-										]
-									},
-									{
-										"group": "MCP",
-										"pages": [
-											"enterprise-solutions/configuration/infrastructure-configuration/mcp/overview",
-											"enterprise-solutions/configuration/infrastructure-configuration/mcp/mcp-marketplace",
-											"enterprise-solutions/configuration/infrastructure-configuration/mcp/remote-mcp-servers"
-										]
-									},
-									"enterprise-solutions/configuration/infrastructure-configuration/rules",
-									"enterprise-solutions/configuration/infrastructure-configuration/workflows",
-									{
-										"group": "Control Other Cline Features",
-										"pages": [
-											"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/overview",
-											"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/yolo-mode",
-											"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/telemetry"
-										]
-									}
-								]
-							},
 							{
 								"group": "Monitoring",
 								"pages": [

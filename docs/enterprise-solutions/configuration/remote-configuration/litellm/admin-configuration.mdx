@@ -37,12 +37,6 @@ You'll need the base URL of your LiteLLM proxy and optionally a master key if yo
 Ensure your LiteLLM proxy is accessible from your team's development environments and has the models you want to make available configured.
 </Tip>
 
-<Frame>
-	<img
-		src="https://storage.googleapis.com/cline-static-assets-prod/assets/LiteLLM%20Remote%20Config.gif"
-	/>
-</Frame>
-
 ## Configuration Steps
 
 <Steps>
@@ -76,6 +70,10 @@ Use HTTPS endpoints in production for security. Make sure the URL is accessible 
 
 <Accordion title="Master Key (optional)">
 If your LiteLLM proxy requires authentication, enter the master key here. This will be used to authenticate requests from all organization members.
+
+<Note>
+**Centralized API Key Management**: By configuring the Master Key at the organization level, you enable centralized API key management. Organization members won't need to manage their own individual API keys - access is fully managed through this centralized configuration.
+</Note>
 
 <Warning>
 The master key provides full access to your LiteLLM proxy. Only enter this if your proxy requires authentication and you want centralized key management.
