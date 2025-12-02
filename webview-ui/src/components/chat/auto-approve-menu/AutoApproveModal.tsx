@@ -24,7 +24,6 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVis
 		e.stopPropagation()
 		navigateToSettings("general")
 	}
-
 	const modalRef = useRef<HTMLDivElement>(null)
 	const itemsContainerRef = useRef<HTMLDivElement>(null)
 	const [containerWidth, setContainerWidth] = useState(0)
@@ -84,6 +83,14 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVis
 						style={{ textDecoration: "underline" }}>
 						Configure notification settings
 					</span>
+					{" | "}
+					<a
+						className="text-link hover:text-link-hover"
+						href="https://docs.cline.bot/features/auto-approve#auto-approve"
+						rel="noopener"
+						target="_blank">
+						Docs
+					</a>
 				</div>
 
 				<div
