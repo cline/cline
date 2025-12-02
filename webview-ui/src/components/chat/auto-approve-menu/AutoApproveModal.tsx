@@ -84,6 +84,15 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVis
 						style={{ textDecoration: "underline" }}>
 						Configure notification settings
 					</span>
+					{" | "}
+					<a
+						className="underline cursor-pointer hover:text-foreground"
+						href="https://docs.cline.bot/features/auto-approve#auto-approve"
+						onClick={(e) => e.stopPropagation()}
+						rel="noopener noreferrer"
+						target="_blank">
+						Docs
+					</a>
 				</div>
 
 				<div
