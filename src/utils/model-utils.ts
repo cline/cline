@@ -26,13 +26,15 @@ export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel): boolea
 
 /**
  * Determines if reasoning content should be skipped for a given model
- * Currently skips reasoning for Grok-4 models since they only display "thinking" without useful information
+ * Currently skips reasoning for:
+ * - Grok-4 models since they only display "thinking" without useful information
+ * - Microwave models since they don't support reasoning_details field
  */
 export function shouldSkipReasoningForModel(modelId?: string): boolean {
 	if (!modelId) {
 		return false
 	}
-	return modelId.includes("grok-4")
+	return modelId.includes("grok-4") || modelId.includes("microwave")
 }
 
 export function isAnthropicModelId(modelId: string): modelId is AnthropicModelId {
