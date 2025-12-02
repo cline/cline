@@ -179,6 +179,7 @@ function createHandlerForProvider(
 			return new OpenAiNativeHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				openAiNativeApiKey: options.openAiNativeApiKey,
+				openAiBaseUrl: options.openAiBaseUrl,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 				thinkingBudgetTokens:
