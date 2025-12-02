@@ -65,6 +65,7 @@ import {
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import { CLINE_MCP_TOOL_IDENTIFIER } from "@shared/mcp"
+import { USER_CONTENT_TAGS } from "@shared/messages/constants"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import type { Mode } from "@shared/storage/types"
 import { ClineDefaultTool } from "@shared/tools"
@@ -107,6 +108,8 @@ import { StreamResponseHandler } from "./StreamResponseHandler"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { detectAvailableCliTools, extractProviderDomainFromUrl, updateApiReqMsg } from "./utils"
+import { buildUserFeedbackContent } from "./utils/buildUserFeedbackContent"
+
 export type ToolResponse = ClineToolResponseContent
 
 type TaskParams = {
@@ -550,6 +553,7 @@ export class Task {
 			this.setActiveHookExecution.bind(this),
 			this.clearActiveHookExecution.bind(this),
 			this.getActiveHookExecution.bind(this),
+			this.runUserPromptSubmitHook.bind(this),
 		)
 	}
 
@@ -857,19 +861,10 @@ export class Task {
 		}
 
 		const { executeHook } = await import("../hooks/hook-executor")
+		const { extractUserPromptFromContent } = await import("./utils/extractUserPromptFromContent")
 
-		// Serialize UserContent to string for the hook
-		const promptText = userContent
-			.map((block) => {
-				if (block.type === "text") {
-					return block.text
-				}
-				if (block.type === "image") {
-					return "[IMAGE]"
-				}
-				return ""
-			})
-			.join("\n\n")
+		// Extract clean user prompt from content, stripping system wrappers and metadata
+		const promptText = extractUserPromptFromContent(userContent)
 
 		const userPromptResult = await executeHook({
 			hookName: "UserPromptSubmit",
@@ -1267,8 +1262,11 @@ export class Task {
 			})
 		}
 
-		// Run UserPromptSubmit hook for task resumption AFTER all content is assembled
-		const userPromptHookResult = await this.runUserPromptSubmitHook(newUserContent, "resume")
+		// Run UserPromptSubmit hook for task resumption with ONLY the new user feedback
+		// (not the entire conversation context that includes previous messages)
+		const userFeedbackContent = await buildUserFeedbackContent(responseText, responseImages, responseFiles)
+
+		const userPromptHookResult = await this.runUserPromptSubmitHook(userFeedbackContent, "resume")
 
 		// Defensive check: Verify task wasn't aborted during hook execution (handles async cancellation)
 		if (this.taskState.abort) {
@@ -3243,9 +3241,6 @@ export class Task {
 		const providerInfo = this.getCurrentProviderInfo()
 		const cwd = this.cwd
 		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.controller, cwd)
-
-		// Define user-generated content tags once
-		const USER_CONTENT_TAGS = ["<feedback>", "<answer>", "<task>", "<user_message>"] as const
 
 		const hasUserContentTag = (text: string): boolean => {
 			return USER_CONTENT_TAGS.some((tag) => text.includes(tag))

@@ -1,7 +1,6 @@
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
 import { Button } from "@/components/ui/button"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { ActionMetadata } from "./types"
 
@@ -42,22 +41,17 @@ const AutoApproveMenuItem = ({ action, isChecked, onToggle, showIcon = true, dis
 	const content = (
 		<div className="w-full" style={{ opacity: disabled ? 0.5 : 1 }}>
 			<ActionButtonContainer className="w-full">
-				<Tooltip>
-					<TooltipContent showArrow={false}>{action.description}</TooltipContent>
-					<TooltipTrigger asChild>
-						<Button
-							className={cn("w-full flex text-sm items-center justify-start text-foreground gap-2")}
-							disabled={disabled}
-							onClick={(e) => onChange(e as unknown as Event)}
-							size="icon"
-							style={{ cursor: disabled ? "not-allowed" : "pointer" }}
-							variant="icon">
-							<VSCodeCheckbox checked={checked} disabled={disabled} />
-							{showIcon && <span className={`codicon ${action.icon} icon`}></span>}
-							<span className="label">{action.label}</span>
-						</Button>
-					</TooltipTrigger>
-				</Tooltip>
+				<Button
+					className={cn("w-full flex text-sm items-center justify-start text-foreground gap-2")}
+					disabled={disabled}
+					onClick={(e) => onChange(e as unknown as Event)}
+					size="icon"
+					style={{ cursor: disabled ? "not-allowed" : "pointer" }}
+					variant="icon">
+					<VSCodeCheckbox checked={checked} disabled={disabled} />
+					{showIcon && <span className={`codicon ${action.icon} icon`}></span>}
+					<span className="label">{action.label}</span>
+				</Button>
 			</ActionButtonContainer>
 			{action.subAction && (
 				<SubOptionAnimateIn show={checked}>
