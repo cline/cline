@@ -1,3 +1,4 @@
+import { getEnvironmentVariablesForDefaultProfile } from "@utils/shell"
 import * as vscode from "vscode"
 
 export interface TerminalInfo {
@@ -23,12 +24,18 @@ export class TerminalRegistry {
 	private static nextTerminalId = 1
 
 	static createTerminal(cwd?: string | vscode.Uri | undefined, shellPath?: string): TerminalInfo {
+		// Get environment variables from VSCode terminal profile
+		// Fixes #7793: VSCode Terminal Profile environment variables are not respected
+		const profileEnv = getEnvironmentVariablesForDefaultProfile()
+
 		const terminalOptions: vscode.TerminalOptions = {
 			cwd,
 			name: "Cline",
 			iconPath: new vscode.ThemeIcon("cline-icon"),
 			env: {
 				CLINE_ACTIVE: "true",
+				// Merge in profile environment variables
+				...profileEnv,
 			},
 		}
 
