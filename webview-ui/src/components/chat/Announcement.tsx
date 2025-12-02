@@ -66,26 +66,22 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 							<VSCodeLink href="https://docs.cline.bot/features/explain-changes" style={linkStyle}>
 								Explain Changes
 							</VSCodeLink>{" "}
-							button when Cline completes a task that helps you review code with inline chat. You can reply to
-							comments with follow-up questions, and send that chat back to Cline to continue working.
-						</li>
-						<li>
-							You can also use a new{" "}
+							button and{" "}
 							<VSCodeLink href="https://docs.cline.bot/features/slash-commands/explain-changes" style={linkStyle}>
 								/explain-changes
 							</VSCodeLink>{" "}
-							slash command to review commits, branches, PRs, or uncommitted work. Try asking Cline to explain the
-							last commit or a PR you need to review!
+							command to review diffs with inline AI comments. Reply in threads and send back to Cline.
+						</li>
+						<li>
+							<strong>Native Tool Calling</strong> now enabled by default for improved performance with supported
+							models.
+						</li>
+						<li>
+							New free <strong>microwave Stealth</strong> model now available
 						</li>
 					</>
 				)}
 			</ul>
-
-			{isVscode && (
-				<p style={{ margin: "0" }}>
-					See a demo: <VSCodeLink style={linkStyle}>INSERT_LINK</VSCodeLink>
-				</p>
-			)}
 			<div style={hrStyle} />
 			<p style={linkContainerStyle}>
 				Join us on{" "}
