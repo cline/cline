@@ -767,7 +767,15 @@ export const ChatRowContent = memo(
 									border: "1px solid var(--vscode-editorGroup-border)",
 								}}>
 								<div
+									aria-label={isExpanded ? "Collapse summary" : "Expand summary"}
 									onClick={handleToggle}
+									onKeyDown={(e) => {
+										if (e.key === "Enter" || e.key === " ") {
+											e.preventDefault()
+											e.stopPropagation()
+											handleToggle()
+										}
+									}}
 									style={{
 										color: "var(--vscode-descriptionForeground)",
 										padding: "9px 10px",
@@ -776,7 +784,8 @@ export const ChatRowContent = memo(
 										WebkitUserSelect: "none",
 										MozUserSelect: "none",
 										msUserSelect: "none",
-									}}>
+									}}
+									tabIndex={0}>
 									{isExpanded ? (
 										<div>
 											<div style={{ display: "flex", alignItems: "center", marginBottom: "8px" }}>
@@ -1249,7 +1258,15 @@ export const ChatRowContent = memo(
 						return (
 							<>
 								<div
+									aria-label={isExpanded ? "Collapse API request" : "Expand API request"}
 									onClick={handleToggle}
+									onKeyDown={(e) => {
+										if (e.key === "Enter" || e.key === " ") {
+											e.preventDefault()
+											e.stopPropagation()
+											handleToggle()
+										}
+									}}
 									style={{
 										...headerStyle,
 										marginBottom:
@@ -1260,7 +1277,8 @@ export const ChatRowContent = memo(
 										WebkitUserSelect: "none",
 										MozUserSelect: "none",
 										msUserSelect: "none",
-									}}>
+									}}
+									tabIndex={0}>
 									<div
 										style={{
 											display: "flex",
@@ -1362,7 +1380,15 @@ export const ChatRowContent = memo(
 							<>
 								{message.text && (
 									<div
+										aria-label={isExpanded ? "Collapse thinking" : "Expand thinking"}
 										onClick={handleToggle}
+										onKeyDown={(e) => {
+											if (e.key === "Enter" || e.key === " ") {
+												e.preventDefault()
+												e.stopPropagation()
+												handleToggle()
+											}
+										}}
 										style={{
 											// marginBottom: 15,
 											cursor: "pointer",
@@ -1370,7 +1396,8 @@ export const ChatRowContent = memo(
 
 											fontStyle: "italic",
 											overflow: "hidden",
-										}}>
+										}}
+										tabIndex={0}>
 										{isExpanded ? (
 											<div style={{ marginTop: -3 }}>
 												<span style={{ fontWeight: "bold", display: "block", marginBottom: "4px" }}>

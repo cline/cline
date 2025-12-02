@@ -126,7 +126,18 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					borderColor: environmentBorderColor,
 				}}>
 				{/* Task Title */}
-				<div className="flex justify-between items-center cursor-pointer" onClick={toggleTaskExpanded}>
+				<div
+					aria-label={isTaskExpanded ? "Collapse task header" : "Expand task header"}
+					className="flex justify-between items-center cursor-pointer"
+					onClick={toggleTaskExpanded}
+					onKeyDown={(e) => {
+						if (e.key === "Enter" || e.key === " ") {
+							e.preventDefault()
+							e.stopPropagation()
+							toggleTaskExpanded()
+						}
+					}}
+					tabIndex={0}>
 					<div className="flex justify-between items-center">
 						{isTaskExpanded ? <ChevronDownIcon size="16" /> : <ChevronRightIcon size="16" />}
 						{isTaskExpanded && (
