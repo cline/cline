@@ -35,14 +35,4 @@ const GENERIC: ClineToolSpec = {
 	],
 }
 
-const NATIVE_NEXT_GEN: ClineToolSpec = {
-	...GENERIC,
-	variant: ModelFamily.NATIVE_NEXT_GEN,
-}
-
-const NATIVE_GPT_5: ClineToolSpec = {
-	...GENERIC,
-	variant: ModelFamily.NATIVE_GPT_5,
-}
-
-export const generate_explanation_variants = [GENERIC, NATIVE_NEXT_GEN, NATIVE_GPT_5]
+export const generate_explanation_variants = [GENERIC]
