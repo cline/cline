@@ -71,6 +71,7 @@ const featuredModels = [
 		id: "stealth/microwave",
 		description: "A stealth model for agentic coding tasks",
 		label: "Free",
+		isFree: true,
 	},
 ]
 const FREE_CLINE_MODELS = featuredModels.filter((m) => m.isFree)
