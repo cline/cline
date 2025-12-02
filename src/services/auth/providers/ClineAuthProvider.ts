@@ -6,6 +6,7 @@ import { AuthInvalidTokenError, AuthNetworkError } from "@/services/error/ClineE
 import { Logger } from "@/services/logging/Logger"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { fetch, getAxiosSettings } from "@/shared/net"
+import { version as extensionVersion } from "../../../../package.json"
 import { type ClineAccountUserInfo, type ClineAuthInfo } from "../AuthService"
 import { IAuthProvider } from "./IAuthProvider"
 
@@ -224,7 +225,7 @@ export class ClineAuthProvider implements IAuthProvider {
 			const endpoint = new URL(CLINE_API_ENDPOINT.REFRESH_TOKEN, this.config.apiBaseUrl)
 			const response = await fetch(endpoint.toString(), {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
+				headers: { "Content-Type": "application/json", "User-Agent": extensionVersion },
 				body: JSON.stringify({
 					refreshToken,
 					grantType: "refresh_token",
@@ -287,6 +288,7 @@ export class ClineAuthProvider implements IAuthProvider {
 				headers: {
 					Accept: "application/json",
 					"Content-Type": "application/json",
+					"User-Agent": extensionVersion,
 				},
 			})
 
@@ -327,6 +329,7 @@ export class ClineAuthProvider implements IAuthProvider {
 				headers: {
 					"Content-Type": "application/json",
 					Accept: "application/json",
+					"User-Agent": extensionVersion,
 				},
 				body: JSON.stringify({
 					grant_type: "authorization_code",
