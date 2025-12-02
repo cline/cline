@@ -32,6 +32,10 @@ Setting up hooks in Cline is user-friendly with the built-in hooks management in
 <Step title="Access the Hooks Interface">
 Navigate to the Hooks management interface:
 
+<Frame>
+  <img src="/assets/hooks/hooks-interface-with-dropdown.png" alt="Hooks management interface showing Global Hooks and workspace-specific hooks with dropdown menu" />
+</Frame>
+
 1. Open Cline (ensure hooks are enabled in settings)
 2. Look for the **Hooks** tab at the top (alongside Rules and Workflows)
 3. Click on **Hooks** to open the hooks management panel
@@ -64,8 +68,17 @@ Use the intuitive interface to create hooks:
    - `PreToolUse` - Validates operations before execution  
    - `PostToolUse` - Processes results after tools complete
    - `UserPromptSubmit` - Enhances user input
+
+<Frame>
+  <img src="/assets/hooks/new-hook-dropdown.png" alt="Creating a new hook with the dropdown menu showing UserPromptSubmit selected with description" />
+</Frame>
+
 4. **Enable the hook**: Toggle the switch to activate it
 5. **Edit the hook**: Click the pencil icon to add your custom logic
+
+<Frame>
+  <img src="/assets/hooks/hook-controls.png" alt="Hook management controls showing toggle, edit, and delete buttons for each hook" />
+</Frame>
 
 **Example starter script:**
 ```bash
