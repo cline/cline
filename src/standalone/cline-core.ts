@@ -1,3 +1,4 @@
+import { ExternalCommentReviewController } from "@hosts/external/ExternalCommentReviewController"
 import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvider"
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
 import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-client-manager"
@@ -99,6 +100,7 @@ function setupHostProvider(extensionContext: any, extensionDir: string, dataDir:
 	const createDiffView = (): DiffViewProvider => {
 		return new ExternalDiffViewProvider()
 	}
+	const createCommentReview = () => new ExternalCommentReviewController()
 	const getCallbackUrl = (): Promise<string> => {
 		return AuthHandler.getInstance().getCallbackUrl()
 	}
@@ -108,6 +110,7 @@ function setupHostProvider(extensionContext: any, extensionDir: string, dataDir:
 	HostProvider.initialize(
 		createWebview,
 		createDiffView,
+		createCommentReview,
 		new ExternalHostBridgeClientManager(),
 		log,
 		getCallbackUrl,
