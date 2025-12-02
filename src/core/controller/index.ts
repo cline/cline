@@ -5,6 +5,7 @@ import { detectWorkspaceRoots } from "@core/workspace/detection"
 import { setupWorkspaceManager } from "@core/workspace/setup"
 import type { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
+import { downloadTask } from "@integrations/misc/export-markdown"
 import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
 import type { ApiProvider, ModelInfo } from "@shared/api"
@@ -19,7 +20,6 @@ import type { UserInfo } from "@shared/UserInfo"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
-import open from "open"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import type { FolderLockWithRetryResult } from "src/core/locks/types"
@@ -79,6 +79,9 @@ export class Controller {
 
 	// Flag to prevent duplicate cancellations from spam clicking
 	private cancelInProgress = false
+
+	// Callback for task completion (used by message queue system)
+	onTaskComplete?: (result: string) => void
 
 	// Shell integration warning tracker
 	private shellIntegrationWarningTracker: {
@@ -831,9 +834,8 @@ export class Controller {
 	}
 
 	async exportTaskWithId(id: string) {
-		const { taskDirPath } = await this.getTaskWithId(id)
-		console.log(`[EXPORT] Opening task directory: ${taskDirPath}`)
-		await open(taskDirPath)
+		const { historyItem, apiConversationHistory } = await this.getTaskWithId(id)
+		await downloadTask(historyItem, apiConversationHistory)
 	}
 
 	async deleteTaskFromState(id: string) {

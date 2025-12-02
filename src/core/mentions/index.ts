@@ -49,10 +49,14 @@ export async function openMention(mention?: string): Promise<void> {
 export async function getFileMentionFromPath(filePath: string) {
 	const cwd = await getCwd()
 	if (!cwd) {
-		return "@/" + filePath
+		const pathToUse = filePath.includes(" ") ? `"${filePath}"` : filePath
+		return "@/" + pathToUse
 	}
 	const relativePath = path.relative(cwd, filePath)
-	return "@/" + relativePath
+	// Quote paths containing spaces to prevent parsing errors
+	// Fixes #7789: Add to Cline doesn't quote file paths with spaces
+	const pathToUse = relativePath.includes(" ") ? `"${relativePath}"` : relativePath
+	return "@/" + pathToUse
 }
 
 export async function parseMentions(

@@ -10,6 +10,7 @@ export { config as Gemini3Config, type Gemini3VariantConfig } from "./gemini-3/c
 export { config as genericConfig, type GenericVariantConfig } from "./generic/config"
 export { config as glmConfig, type GLMVariantConfig } from "./glm/config"
 export { config as gpt5Config, type GPT5VariantConfig } from "./gpt-5/config"
+export { config as grokConfig, type GrokVariantConfig } from "./grok/config"
 export { config as hermesConfig, type HermesVariantConfig } from "./hermes/config"
 export { config as NativeGPT5Config } from "./native-gpt-5/config"
 export { config as NativeGPT51Config } from "./native-gpt-5-1/config"
@@ -22,6 +23,7 @@ import { config as Gemini3Config } from "./gemini-3/config"
 import { config as genericConfig } from "./generic/config"
 import { config as glmConfig } from "./glm/config"
 import { config as gpt5Config } from "./gpt-5/config"
+import { config as grokConfig } from "./grok/config"
 import { config as hermesConfig } from "./hermes/config"
 import { config as NativeGPT5Config } from "./native-gpt-5/config"
 import { config as NativeGPT51Config } from "./native-gpt-5-1/config"
@@ -51,6 +53,11 @@ export const VARIANT_CONFIGS = {
 	 * Gemini 3.0 variant - Optimized for Gemini 3 model with native tool calling
 	 */
 	[ModelFamily.GEMINI_3]: Gemini3Config,
+	/**
+	 * Grok variant - Optimized for xAI Grok models
+	 * Enhanced tool calling instructions and explicit file operation guidelines
+	 */
+	[ModelFamily.GROK]: grokConfig,
 	/**
 	 * Next-gen variant with native tool support.
 	 */

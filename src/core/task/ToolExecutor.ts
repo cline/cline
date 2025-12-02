@@ -119,6 +119,7 @@ export class ToolExecutor {
 		private setActiveHookExecution: (hookExecution: NonNullable<typeof taskState.activeHookExecution>) => Promise<void>,
 		private clearActiveHookExecution: () => Promise<void>,
 		private getActiveHookExecution: () => Promise<typeof taskState.activeHookExecution>,
+		private onTaskComplete?: (result: string) => void,
 	) {
 		this.autoApprover = new AutoApprove(this.stateManager)
 
@@ -178,6 +179,7 @@ export class ToolExecutor {
 				setActiveHookExecution: this.setActiveHookExecution,
 				clearActiveHookExecution: this.clearActiveHookExecution,
 				getActiveHookExecution: this.getActiveHookExecution,
+				onTaskComplete: this.onTaskComplete,
 			},
 			coordinator: this.coordinator,
 		}
@@ -586,6 +588,23 @@ export class ToolExecutor {
 				if (hookRequestedCancel) {
 					await config.callbacks.cancelTask()
 					shouldCancelAfterHook = true
+				}
+			} else if (block.name === "attempt_completion") {
+				// Task completed - notify external listeners (e.g., message queue system)
+				const fs = require("fs")
+				const logPath = require("path").join(process.cwd(), "completion-debug.log")
+				const timestamp = new Date().toISOString()
+
+				fs.appendFileSync(logPath, `\n[${timestamp}] attempt_completion detected\n`)
+				fs.appendFileSync(logPath, `[${timestamp}] onTaskComplete exists: ${!!this.onTaskComplete}\n`)
+
+				if (this.onTaskComplete) {
+					const resultText = block.params?.result || "Task completed"
+					fs.appendFileSync(logPath, `[${timestamp}] Calling onTaskComplete with result: ${resultText}\n`)
+					this.onTaskComplete(resultText)
+					fs.appendFileSync(logPath, `[${timestamp}] onTaskComplete called successfully\n`)
+				} else {
+					fs.appendFileSync(logPath, `[${timestamp}] ERROR: onTaskComplete is undefined!\n`)
 				}
 			}
 		} catch (error) {

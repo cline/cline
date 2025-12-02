@@ -1,5 +1,6 @@
 import { exec } from "child_process"
 import { promisify } from "util"
+import { execa } from "@packages/execa"
 
 const execAsync = promisify(exec)
 const GIT_OUTPUT_LINE_LIMIT = 500
@@ -60,16 +61,19 @@ export async function searchCommits(query: string, cwd: string): Promise<GitComm
 		}
 
 		// Search commits by hash or message, limiting to 10 results
-		const { stdout } = await execAsync(
-			`git log -n 10 --format="%H%n%h%n%s%n%an%n%ad" --date=short ` + `--grep="${query}" --regexp-ignore-case`,
+		// Using execa with array arguments to prevent command injection
+		const { stdout } = await execa(
+			"git",
+			["log", "-n", "10", "--format=%H%n%h%n%s%n%an%n%ad", "--date=short", `--grep=${query}`, "--regexp-ignore-case"],
 			{ cwd },
 		)
 
 		let output = stdout
 		if (!output.trim() && /^[a-f0-9]+$/i.test(query)) {
 			// If no results from grep search and query looks like a hash, try searching by hash
-			const { stdout: hashStdout } = await execAsync(
-				`git log -n 10 --format="%H%n%h%n%s%n%an%n%ad" --date=short ` + `--author-date-order ${query}`,
+			const { stdout: hashStdout } = await execa(
+				"git",
+				["log", "-n", "10", "--format=%H%n%h%n%s%n%an%n%ad", "--date=short", "--author-date-order", query],
 				{ cwd },
 			).catch(() => ({ stdout: "" }))
 
@@ -121,14 +125,17 @@ export async function getCommitInfo(hash: string, cwd: string): Promise<string> 
 		}
 
 		// Get commit info, stats, and diff separately
-		const { stdout: info } = await execAsync(`git show --format="%H%n%h%n%s%n%an%n%ad%n%b" --no-patch ${hash}`, {
-			cwd,
-		})
+		// Using execa with array arguments to prevent command injection
+		const { stdout: info } = await execa(
+			"git",
+			["show", "--format=%H%n%h%n%s%n%an%n%ad%n%b", "--no-patch", hash],
+			{ cwd },
+		)
 		const [fullHash, shortHash, subject, author, date, body] = info.trim().split("\n")
 
-		const { stdout: stats } = await execAsync(`git show --stat --format="" ${hash}`, { cwd })
+		const { stdout: stats } = await execa("git", ["show", "--stat", "--format=", hash], { cwd })
 
-		const { stdout: diff } = await execAsync(`git show --format="" ${hash}`, { cwd })
+		const { stdout: diff } = await execa("git", ["show", "--format=", hash], { cwd })
 
 		const summary = [
 			`Commit: ${shortHash} (${fullHash})`,
