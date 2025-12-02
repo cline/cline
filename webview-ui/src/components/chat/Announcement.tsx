@@ -77,7 +77,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 							models.
 						</li>
 						<li>
-							New free <strong>microwave Stealth</strong> model now available
+							New free <strong>microwave</strong> Stealth model now available
 						</li>
 					</>
 				)}
