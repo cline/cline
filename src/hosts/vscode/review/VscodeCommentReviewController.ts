@@ -1,5 +1,6 @@
 import * as vscode from "vscode"
 import { sendAddToInputEvent } from "@/core/controller/ui/subscribeToAddToInput"
+import { CommentReviewController, type OnReplyCallback, type ReviewComment } from "@/integrations/editor/CommentReviewController"
 import { DIFF_VIEW_URI_SCHEME } from "../VscodeDiffViewProvider"
 
 /**
@@ -8,50 +9,12 @@ import { DIFF_VIEW_URI_SCHEME } from "../VscodeDiffViewProvider"
 const CLINE_AVATAR_URL = "https://avatars.githubusercontent.com/u/184127137"
 
 /**
- * Represents a review comment from the AI
- */
-export interface ReviewComment {
-	/** Absolute path to the file */
-	filePath: string
-	/** 0-indexed start line of the code this comment applies to */
-	startLine: number
-	/** 0-indexed end line of the code this comment applies to */
-	endLine: number
-	/** The comment text (supports markdown) */
-	comment: string
-	/** Optional label for the comment type */
-	label?: string
-	/** Relative path for virtual URI (e.g., "src/file.ts") */
-	relativePath?: string
-	/** File content for virtual URI (encoded in query string) */
-	fileContent?: string
-}
-
-/**
- * Callback for when user replies to a comment thread.
- * The onChunk callback is called with each text chunk as it streams in.
- */
-export type OnReplyCallback = (
-	filePath: string,
-	startLine: number,
-	endLine: number,
-	replyText: string,
-	existingComments: string[],
-	onChunk: (chunk: string) => void,
-) => Promise<void>
-
-/**
- * CommentReviewController manages VS Code's Comment API for AI code review.
+ * VS Code implementation of CommentReviewController.
  *
- * This controller:
- * - Creates inline comment threads on files at specific line ranges
- * - Displays AI-generated review comments with markdown support
- * - Handles user replies and dispatches them to the AI
- * - Manages the lifecycle of all comment threads
- *
+ * Uses VS Code's Comment API to create inline comment threads on files.
  * Comments appear in VS Code's Comments Panel and inline in editors.
  */
-export class CommentReviewController implements vscode.Disposable {
+export class VscodeCommentReviewController extends CommentReviewController implements vscode.Disposable {
 	private commentController: vscode.CommentController
 	private threads: Map<string, vscode.CommentThread> = new Map()
 	/** Maps thread to its absolute file path (needed because virtual URIs don't contain the full path) */
@@ -59,7 +22,12 @@ export class CommentReviewController implements vscode.Disposable {
 	private onReplyCallback?: OnReplyCallback
 	private disposables: vscode.Disposable[] = []
 
+	/** The currently streaming comment thread */
+	private streamingThread: vscode.CommentThread | null = null
+	private streamingContent: string = ""
+
 	constructor() {
+		super()
 		// Create the comment controller
 		this.commentController = vscode.comments.createCommentController("cline-ai-review", "Cline AI Review")
 
@@ -112,14 +80,10 @@ export class CommentReviewController implements vscode.Disposable {
 		}
 	}
 
-	/** The currently streaming comment thread */
-	private streamingThread: vscode.CommentThread | null = null
-	private streamingContent: string = ""
-
 	/**
 	 * Add a review comment to a file
 	 */
-	addReviewComment(comment: ReviewComment): vscode.CommentThread {
+	addReviewComment(comment: ReviewComment): void {
 		// Use virtual diff URI if relativePath and fileContent are provided
 		// This allows comments to attach to the diff view's virtual documents
 		let uri: vscode.Uri
@@ -151,15 +115,12 @@ export class CommentReviewController implements vscode.Disposable {
 		// Configure thread
 		thread.canReply = true
 		thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded
-		// thread.label = comment.label || "AI Review"
 
 		// Store for later management
 		const threadKey = this.getThreadKey(comment.filePath, comment.startLine, comment.endLine)
 		this.threads.set(threadKey, thread)
 		// Store absolute file path for reply handling (virtual URIs don't contain the full path)
 		this.threadFilePaths.set(thread, comment.filePath)
-
-		return thread
 	}
 
 	/**
@@ -199,7 +160,6 @@ export class CommentReviewController implements vscode.Disposable {
 		const thread = this.commentController.createCommentThread(uri, range, [commentObj])
 		thread.canReply = true
 		thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded
-		// thread.label = "AI Review"
 
 		// Store for streaming updates
 		this.streamingThread = thread
@@ -238,7 +198,7 @@ export class CommentReviewController implements vscode.Disposable {
 			editor.revealRange(commentPosition, vscode.TextEditorRevealType.InCenter)
 		} catch (error) {
 			// Ignore errors - this is not critical
-			console.error("[CommentReviewController] Error revealing comment:", error)
+			console.error("[VscodeCommentReviewController] Error revealing comment:", error)
 		}
 	}
 
@@ -293,8 +253,8 @@ export class CommentReviewController implements vscode.Disposable {
 	/**
 	 * Add multiple review comments at once
 	 */
-	addReviewComments(comments: ReviewComment[]): vscode.CommentThread[] {
-		return comments.map((comment) => this.addReviewComment(comment))
+	addReviewComments(comments: ReviewComment[]): void {
+		comments.forEach((comment) => this.addReviewComment(comment))
 	}
 
 	/**
@@ -489,22 +449,22 @@ Please continue helping the user with their question about this code.`
 }
 
 // Singleton instance for the extension
-let instance: CommentReviewController | undefined
+let instance: VscodeCommentReviewController | undefined
 
 /**
- * Get or create the CommentReviewController singleton
+ * Get or create the VscodeCommentReviewController singleton
  */
-export function getCommentReviewController(): CommentReviewController {
+export function getVscodeCommentReviewController(): VscodeCommentReviewController {
 	if (!instance) {
-		instance = new CommentReviewController()
+		instance = new VscodeCommentReviewController()
 	}
 	return instance
 }
 
 /**
- * Dispose the CommentReviewController singleton
+ * Dispose the VscodeCommentReviewController singleton
  */
-export function disposeCommentReviewController(): void {
+export function disposeVscodeCommentReviewController(): void {
 	if (instance) {
 		instance.dispose()
 		instance = undefined

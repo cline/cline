@@ -1,6 +1,5 @@
 import { buildApiHandler } from "@core/api"
 import { HostProvider } from "@/hosts/host-provider"
-import { getCommentReviewController } from "@/hosts/vscode/review/CommentReviewController"
 import { formatContentBlockToMarkdown } from "@/integrations/misc/export-markdown"
 import { ApiConfiguration } from "@/shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -72,7 +71,7 @@ export async function setupCommentController(
 	changedFiles: ChangedFile[],
 	conversationContext: string,
 ) {
-	const commentController = getCommentReviewController()
+	const commentController = HostProvider.get().createCommentReviewController()
 	commentController.clearAllComments()
 
 	// Ensure the Comments panel won't auto-open when we add comments
