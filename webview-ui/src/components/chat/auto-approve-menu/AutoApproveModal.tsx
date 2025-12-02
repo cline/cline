@@ -1,9 +1,7 @@
-import { StringRequest } from "@shared/proto/cline/common"
 import React, { useEffect, useRef, useState } from "react"
 import { useClickAway } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useAutoApproveActions } from "@/hooks/useAutoApproveActions"
-import { UiServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import AutoApproveMenuItem from "./AutoApproveMenuItem"
 import { ActionMetadata } from "./types"
@@ -26,17 +24,6 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVis
 		e.stopPropagation()
 		navigateToSettings("general")
 	}
-
-	const handleDocsLinkClick = (e: React.MouseEvent) => {
-		e.preventDefault()
-		e.stopPropagation()
-		UiServiceClient.openUrl(
-			StringRequest.create({ value: "https://docs.cline.bot/features/auto-approve#auto-approve" }),
-		).catch((err) => {
-			console.error("Failed to open URL:", err)
-		})
-	}
-
 	const modalRef = useRef<HTMLDivElement>(null)
 	const itemsContainerRef = useRef<HTMLDivElement>(null)
 	const [containerWidth, setContainerWidth] = useState(0)
@@ -97,12 +84,13 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVis
 						Configure notification settings
 					</span>
 					{" | "}
-					<span
-						className="underline cursor-pointer hover:text-foreground"
-						onClick={handleDocsLinkClick}
-						style={{ textDecoration: "underline" }}>
+					<a
+						className="text-link hover:text-link-hover"
+						href="https://docs.cline.bot/features/auto-approve#auto-approve"
+						rel="noopener"
+						target="_blank">
 						Docs
-					</span>
+					</a>
 				</div>
 
 				<div
