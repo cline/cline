@@ -217,6 +217,12 @@ describe("Prompt System Integration Tests", () => {
 			contextVariations,
 		},
 		{
+			modelGroup: ModelFamily.MICROWAVE,
+			modelIds: ["microwave"],
+			providerId: "cline",
+			contextVariations,
+		},
+		{
 			modelGroup: ModelFamily.NEXT_GEN,
 			modelIds: ["claude-sonnet-4"],
 			providerId: "anthropic",

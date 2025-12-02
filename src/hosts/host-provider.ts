@@ -1,4 +1,5 @@
 import { WebviewProvider } from "@/core/webview"
+import { CommentReviewController } from "@/integrations/editor/CommentReviewController"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { HostBridgeClientProvider } from "./host-provider-types"
 /**
@@ -19,6 +20,7 @@ export class HostProvider {
 
 	createWebviewProvider: WebviewProviderCreator
 	createDiffViewProvider: DiffViewProviderCreator
+	createCommentReviewController: CommentReviewControllerCreator
 	hostBridge: HostBridgeClientProvider
 
 	// Logs to a user-visible output channel.
@@ -44,6 +46,7 @@ export class HostProvider {
 	private constructor(
 		createWebviewProvider: WebviewProviderCreator,
 		createDiffViewProvider: DiffViewProviderCreator,
+		createCommentReviewController: CommentReviewControllerCreator,
 		hostBridge: HostBridgeClientProvider,
 		logToChannel: LogToChannel,
 		getCallbackUrl: () => Promise<string>,
@@ -53,6 +56,7 @@ export class HostProvider {
 	) {
 		this.createWebviewProvider = createWebviewProvider
 		this.createDiffViewProvider = createDiffViewProvider
+		this.createCommentReviewController = createCommentReviewController
 		this.hostBridge = hostBridge
 		this.logToChannel = logToChannel
 		this.getCallbackUrl = getCallbackUrl
@@ -64,6 +68,7 @@ export class HostProvider {
 	public static initialize(
 		webviewProviderCreator: WebviewProviderCreator,
 		diffViewProviderCreator: DiffViewProviderCreator,
+		commentReviewControllerCreator: CommentReviewControllerCreator,
 		hostBridgeProvider: HostBridgeClientProvider,
 		logToChannel: LogToChannel,
 		getCallbackUrl: () => Promise<string>,
@@ -77,6 +82,7 @@ export class HostProvider {
 		HostProvider.instance = new HostProvider(
 			webviewProviderCreator,
 			diffViewProviderCreator,
+			commentReviewControllerCreator,
 			hostBridgeProvider,
 			logToChannel,
 			getCallbackUrl,
@@ -135,5 +141,10 @@ export type WebviewProviderCreator = () => WebviewProvider
  * A function that creates DiffViewProvider instances
  */
 export type DiffViewProviderCreator = () => DiffViewProvider
+
+/**
+ * A function that creates CommentReviewController instances
+ */
+export type CommentReviewControllerCreator = () => CommentReviewController
 
 export type LogToChannel = (message: string) => void
