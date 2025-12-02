@@ -114,6 +114,11 @@ export function isGemini3ModelFamily(id: string): boolean {
 	return modelId.includes("gemini3") || modelId.includes("gemini-3")
 }
 
+export function isMistralModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("mistral") || modelId.includes("pixtral") || modelId.includes("codestral")
+}
+
 export function isNextGenModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return (
