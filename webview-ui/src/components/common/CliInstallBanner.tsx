@@ -1,11 +1,10 @@
-import { StringRequest } from "@shared/proto/cline/common"
 import { EmptyRequest, Int64Request } from "@shared/proto/index.cline"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { Terminal, XIcon } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { StateServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { StateServiceClient } from "@/services/grpc-client"
 import { isMacOSOrLinux } from "@/utils/platformUtils"
 import { getAsVar, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
 
@@ -62,18 +61,9 @@ export const CliInstallBanner: React.FC = () => {
 		}
 	}
 
-	const handleEnableSubagents = async () => {
+	const handleEnableSubagents = () => {
 		if (!subagentsEnabled) {
-			// Navigate to settings and enable subagents
-			navigateToSettings()
-			// Scroll to features section after a brief delay to ensure settings is rendered
-			setTimeout(async () => {
-				try {
-					await UiServiceClient.scrollToSettings(StringRequest.create({ value: "features" }))
-				} catch (error) {
-					console.error("Error scrolling to features settings:", error)
-				}
-			}, 300)
+			navigateToSettings("features")
 		}
 	}
 

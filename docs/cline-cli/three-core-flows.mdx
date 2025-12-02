@@ -113,6 +113,20 @@ cline instances kill -a
 Keep track of instance addresses returned by `cline instance new`. When scripting multiple agents, store these IDs and direct your tasks to the appropriate instance.
 </Tip>
 
+## Configuring context window for local providers
+
+For Ollama and LM Studio, you can configure the model context window via CLI:
+
+```bash
+# For Ollama
+cline config s ollama-api-options-ctx-num=32768
+
+# For LM Studio
+cline config s lm-studio-max-tokens=32768
+```
+
+For other providers (Anthropic, OpenRouter, etc.), the context window is defined per model in the model metadata and is not user-configurable—Cline uses each model's built-in context limits automatically.
+
 ## Choosing the right flow
 
 - **Interactive mode**: Best for exploring new problems, learning how Cline works, or when you want to review plans before execution
