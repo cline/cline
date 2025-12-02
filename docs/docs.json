@@ -137,6 +137,7 @@
 							"features/dictation",
 							"features/drag-and-drop",
 							"features/editing-messages",
+							"features/explain-changes",
 							"features/focus-chain",
 							"features/hooks",
 							"features/multiroot-workspace",
@@ -146,6 +147,7 @@
 								"pages": [
 									"features/slash-commands/new-task",
 									"features/slash-commands/new-rule",
+									"features/slash-commands/explain-changes",
 									"features/slash-commands/smol",
 									"features/slash-commands/report-bug",
 									"features/slash-commands/deep-planning"
