@@ -66,12 +66,6 @@ const recommendedModels = [
 		description: "1M context window for large codebases",
 		label: "1M CTX",
 	},
-	{
-		id: "stealth/microwave",
-		description: "A stealth model for agentic coding tasks",
-		label: "Free",
-		isFree: true,
-	},
 ]
 
 const freeModels = [
@@ -84,6 +78,12 @@ const freeModels = [
 		id: "minimax/minimax-m2",
 		description: "Open source model with solid performance",
 		label: "OSS",
+	},
+	{
+		id: "stealth/microwave",
+		description: "A stealth model for agentic coding tasks",
+		label: "Free",
+		isFree: true,
 	},
 ]
 
