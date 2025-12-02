@@ -23,7 +23,7 @@ import { StateManager } from "./StateManager"
  * @param data - The data to write
  */
 async function atomicWriteFile(filePath: string, data: string): Promise<void> {
-	const tmpPath = `${filePath}.tmp.${Date.now()}.${Math.random().toString(36).substring(7)}`
+	const tmpPath = `${filePath}.tmp.${Date.now()}.${Math.random().toString(36).substring(7)}.json`
 	try {
 		// Write to temporary file first
 		await fs.writeFile(tmpPath, data, "utf8")
@@ -31,11 +31,7 @@ async function atomicWriteFile(filePath: string, data: string): Promise<void> {
 		await fs.rename(tmpPath, filePath)
 	} catch (error) {
 		// Clean up temp file if it exists
-		try {
-			await fs.unlink(tmpPath)
-		} catch {
-			// Ignore cleanup errors
-		}
+		fs.unlink(tmpPath).catch(() => {})
 		throw error
 	}
 }
