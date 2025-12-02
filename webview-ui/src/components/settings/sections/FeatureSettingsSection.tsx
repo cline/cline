@@ -356,6 +356,20 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</a>
 						</p>
 					</div>
+					<div className="mt-2.5">
+						<VSCodeCheckbox
+							checked={nativeToolCallSetting}
+							onChange={(e) => {
+								const enabled = (e?.target as HTMLInputElement).checked
+								updateSetting("nativeToolCallEnabled", enabled)
+							}}>
+							Enable Native Tool Call
+						</VSCodeCheckbox>
+						<p className="text-xs text-(--vscode-descriptionForeground)">
+							Uses the model's native tool calling API instead of XML-based tool parsing. This will improve
+							performance for supported models.
+						</p>
+					</div>
 					{multiRootSetting.featureFlag && (
 						<div className="mt-2.5">
 							<VSCodeCheckbox
@@ -395,16 +409,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								</span>
 							</p>
 						)}
-					</div>
-					<div className="mt-2.5">
-						<VSCodeCheckbox
-							checked={nativeToolCallSetting}
-							onChange={(e) => {
-								const enabled = (e?.target as HTMLInputElement).checked
-								updateSetting("nativeToolCallEnabled", enabled)
-							}}>
-							Enable Native Tool Call
-						</VSCodeCheckbox>
 					</div>
 					<div style={{ marginTop: 10 }}>
 						<Tooltip>
