@@ -116,6 +116,7 @@ export const mockProviderInfo = {
 			supportsPromptCache: false,
 		},
 	},
+	mode: "act" as const,
 }
 
 const makeMockProviderInfo = (modelId: string, providerId: string = "test") => ({
@@ -214,6 +215,12 @@ describe("Prompt System Integration Tests", () => {
 			modelGroup: ModelFamily.HERMES,
 			modelIds: ["hermes-4"],
 			providerId: "test",
+			contextVariations,
+		},
+		{
+			modelGroup: ModelFamily.MICROWAVE,
+			modelIds: ["microwave"],
+			providerId: "cline",
 			contextVariations,
 		},
 		{
