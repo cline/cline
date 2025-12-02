@@ -33,7 +33,7 @@ Setting up hooks in Cline is user-friendly with the built-in hooks management in
 Navigate to the Hooks management interface:
 
 <Frame>
-  <img src="/assets/hooks/hooks-interface-with-dropdown.png" alt="Hooks management interface showing Global Hooks and workspace-specific hooks with dropdown menu" />
+  <img src="/assets/hooks/hooks-interface-with-dropdown.png" alt="Hooks management interface showing Global Hooks and project-specific hooks with dropdown menu" />
 </Frame>
 
 1. Open Cline (ensure hooks are enabled in settings)
@@ -50,22 +50,22 @@ Hooks are automatically organized by location in the interface:
 - Stored in `~/Documents/Cline/Rules/Hooks/`
 - Perfect for personal coding standards and universal rules
 
-**Workspace-Specific Hooks** - Apply only to current project:
-- Stored in `.clinerules/hooks/` in your project root
+**Project-Specific Hooks** - Apply only to current project:
+- Stored in `.clinerules/hooks/` within your repo
 - Great for project-specific validation and team workflows
 - Can be committed to version control for team sharing
 
-Multi-workspace setups show hooks from all your open workspaces, making it easy to manage hooks across different projects.
+Multi-root workspaces run hooks from all of the repos in your open workspace, making it easy to manage and run hooks across different repos within the same workspace.
 </Step>
 
 <Step title="Create Your First Hook">
 Use the intuitive interface to create hooks:
 
 <Frame>
-  <img src="/assets/hooks/hooks-empty-state.png" alt="Empty hooks interface showing New hook... dropdowns for both Global Hooks and workspace-specific hooks before any hooks are created" />
+  <img src="/assets/hooks/hooks-empty-state.png" alt="Empty hooks interface showing New hook... dropdowns for both Global Hooks and project-specific hooks before any hooks are created" />
 </Frame>
 
-1. **Choose your location**: Decide between Global Hooks or workspace-specific hooks
+1. **Choose your location**: Decide between Global Hooks or project-specific hooks
 2. **Select hook type**: Click the **"New hook..."** dropdown in your chosen location
 3. **Pick a hook type**: Choose from available options like:
    - `TaskStart` - Runs when tasks begin
