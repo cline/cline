@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useMemo } from "react"
 import Announcement from "@/components/chat/Announcement"
 import ApiBanner from "@/components/common/ApiBanner"
 import CliInstallBanner, { CURRENT_CLI_BANNER_VERSION } from "@/components/common/CliInstallBanner"
@@ -29,7 +29,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 
 	const shouldShowInfoBanner = lastDismissedInfoBannerVersion < CURRENT_INFO_BANNER_VERSION
 	const shouldShowNewModelBanner = lastDismissedModelBannerVersion < CURRENT_MODEL_BANNER_VERSION
-	const topBanners = useMemo(() => activeBanners?.filter(banner => banner.placement === "top", [activeBanners])
+	const topBanners = useMemo(() => activeBanners?.filter((banner) => banner.placement === "top") || [], [activeBanners])
 
 	// Show CLI banner if not dismissed and platform is VSCode (not JetBrains/standalone)
 	const shouldShowCliBanner =
@@ -44,7 +44,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 				{showAnnouncement && <Announcement hideAnnouncement={hideAnnouncement} version={version} />}
 				{shouldShowNewModelBanner && <NewModelBanner />}
 				{shouldShowCliBanner && <CliInstallBanner />}
-				{topBanners.map((banner) => (
+				{topBanners?.map((banner) => (
 					<ApiBanner banner={banner} key={banner.id} />
 				))}
 				<HomeHeader shouldShowQuickWins={shouldShowQuickWins} />
