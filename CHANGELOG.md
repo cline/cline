@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.39.1]
+- Fix Openrouter and Cline Provider model info
+
 ## [3.39.0]
 - Add Explain Changes feature
 - Add microwave Stealth model
