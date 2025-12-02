@@ -84,6 +84,7 @@ export function normalizeApiConfiguration(
 	apiConfiguration: ApiConfiguration | undefined,
 	currentMode: Mode,
 	liteLlmModels?: Record<string, ModelInfo>,
+	ioIntelligenceModels?: Record<string, ModelInfo>,
 ): NormalizedApiConfig {
 	const provider =
 		(currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "anthropic"
@@ -397,10 +398,19 @@ export function normalizeApiConfiguration(
 		case "iointelligence":
 			const ioIntelligenceModelId =
 				currentMode === "plan" ? apiConfiguration?.planModeApiModelId : apiConfiguration?.actModeApiModelId
+			const ioIntelligenceModelInfo =
+				currentMode === "plan"
+					? apiConfiguration?.planModeIoIntelligenceModelInfo
+					: apiConfiguration?.actModeIoIntelligenceModelInfo
+			// Use model info from API if available, otherwise fall back to fetched models or defaults
+			const finalIoIntelligenceModelInfo =
+				ioIntelligenceModelInfo ||
+				(ioIntelligenceModelId && ioIntelligenceModels?.[ioIntelligenceModelId]) ||
+				openAiModelInfoSaneDefaults
 			return {
 				selectedProvider: provider,
 				selectedModelId: ioIntelligenceModelId || "",
-				selectedModelInfo: openAiModelInfoSaneDefaults,
+				selectedModelInfo: finalIoIntelligenceModelInfo,
 			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)

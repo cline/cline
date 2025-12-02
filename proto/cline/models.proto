@@ -607,6 +607,7 @@ message ModelsApiConfiguration {
   optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 136;
   optional string plan_mode_nous_research_model_id = 137;
   optional string gemini_plan_mode_thinking_level = 138;
+  optional OpenRouterModelInfo plan_mode_io_intelligence_model_info = 140;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -648,4 +649,5 @@ message ModelsApiConfiguration {
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 236;
   optional string act_mode_nous_research_model_id = 237;
   optional string gemini_act_mode_thinking_level = 238;
+  optional OpenRouterModelInfo act_mode_io_intelligence_model_info = 240;
 }

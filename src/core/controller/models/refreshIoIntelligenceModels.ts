@@ -33,7 +33,7 @@ interface IoIntelligenceModelsResponse {
 /**
  * Refreshes the IO Intelligence models and returns the updated model list
  * @param controller The controller instance
- * @param request Request containing API key and base URL
+ * @param request Request containing optional API key (not required for fetching models)
  * @returns Response containing the IO Intelligence models
  */
 export async function refreshIoIntelligenceModels(
@@ -44,23 +44,25 @@ export async function refreshIoIntelligenceModels(
 
 	let models: Record<string, OpenRouterModelInfo> = {}
 
-	// Normalize base URL to ensure it ends with /api/v1 (same logic as handler)
-	let baseUrl = request.baseUrl || "https://api.intelligence.io.solutions"
-	// Remove trailing slash if present
-	baseUrl = baseUrl.replace(/\/$/, "")
-	// Append /api/v1 if not already present
-	if (!baseUrl.endsWith("/api/v1")) {
-		baseUrl = `${baseUrl}/api/v1`
+	// Use static base URL - IO Intelligence models endpoint doesn't change
+	const baseUrl = "https://api.intelligence.io.solutions"
+	// Normalize base URL to ensure it ends with /api/v1
+	let normalizedBaseUrl = baseUrl.replace(/\/$/, "")
+	if (!normalizedBaseUrl.endsWith("/api/v1")) {
+		normalizedBaseUrl = `${normalizedBaseUrl}/api/v1`
 	}
 	// Construct the full models endpoint URL
-	const apiUrl = `${baseUrl}/models`
+	const apiUrl = `${normalizedBaseUrl}/models`
 
 	try {
-		// Fetch models from IO Intelligence API
+		// Fetch models from IO Intelligence API (API key is optional for model listing)
+		const headers: Record<string, string> = {}
+		if (request.apiKey) {
+			headers.Authorization = `Bearer ${request.apiKey}`
+		}
+
 		const response = await axios.get<IoIntelligenceModelsResponse>(apiUrl, {
-			headers: {
-				Authorization: `Bearer ${request.apiKey}`,
-			},
+			headers,
 			timeout: 10000,
 			...getAxiosSettings(),
 		})
@@ -73,8 +75,8 @@ export async function refreshIoIntelligenceModels(
 				const modelInfo = OpenRouterModelInfo.create({
 					maxTokens: rawModel.max_tokens || undefined,
 					contextWindow: rawModel.context_window || 128_000,
-					supportsImages: rawModel.supports_images_input || false,
-					supportsPromptCache: rawModel.supports_prompt_cache || false,
+					supportsImages: rawModel.supports_images_input ?? false,
+					supportsPromptCache: rawModel.supports_prompt_cache ?? false,
 					inputPrice: rawModel.input_token_price ? rawModel.input_token_price * 1_000_000 : 0,
 					outputPrice: rawModel.output_token_price ? rawModel.output_token_price * 1_000_000 : 0,
 					cacheWritesPrice: rawModel.cache_write_token_price ? rawModel.cache_write_token_price * 1_000_000 : 0,

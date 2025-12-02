@@ -41,6 +41,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	requestyModels: Record<string, ModelInfo>
 	groqModels: Record<string, ModelInfo>
 	basetenModels: Record<string, ModelInfo>
+	ioIntelligenceModels: Record<string, ModelInfo>
 	huggingFaceModels: Record<string, ModelInfo>
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
@@ -69,6 +70,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setRequestyModels: (value: Record<string, ModelInfo>) => void
 	setGroqModels: (value: Record<string, ModelInfo>) => void
 	setBasetenModels: (value: Record<string, ModelInfo>) => void
+	setIoIntelligenceModels: (value: Record<string, ModelInfo>) => void
 	setHuggingFaceModels: (value: Record<string, ModelInfo>) => void
 	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
@@ -266,6 +268,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [basetenModelsState, setBasetenModels] = useState<Record<string, ModelInfo>>({
 		[basetenDefaultModelId]: basetenModels[basetenDefaultModelId],
 	})
+	const [ioIntelligenceModelsState, setIoIntelligenceModels] = useState<Record<string, ModelInfo>>({})
 	const [huggingFaceModels, setHuggingFaceModels] = useState<Record<string, ModelInfo>>({})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [mcpMarketplaceCatalog, setMcpMarketplaceCatalog] = useState<McpMarketplaceCatalog>({ items: [] })
@@ -697,6 +700,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		requestyModels,
 		groqModels: groqModelsState,
 		basetenModels: basetenModelsState,
+		ioIntelligenceModels: ioIntelligenceModelsState,
 		huggingFaceModels,
 		mcpServers,
 		mcpMarketplaceCatalog,
@@ -747,6 +751,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setRequestyModels: (models: Record<string, ModelInfo>) => setRequestyModels(models),
 		setGroqModels: (models: Record<string, ModelInfo>) => setGroqModels(models),
 		setBasetenModels: (models: Record<string, ModelInfo>) => setBasetenModels(models),
+		setIoIntelligenceModels: (models: Record<string, ModelInfo>) => setIoIntelligenceModels(models),
 		setHuggingFaceModels: (models: Record<string, ModelInfo>) => setHuggingFaceModels(models),
 		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
 		setShowMcp,

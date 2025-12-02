@@ -166,6 +166,7 @@ export interface Settings {
 	planModeHicapModelInfo: ModelInfo | undefined
 	planModeAihubmixModelId: string | undefined
 	planModeAihubmixModelInfo: ModelInfo | undefined
+	planModeIoIntelligenceModelInfo: ModelInfo | undefined
 	planModeNousResearchModelId: string | undefined
 	// Act mode configurations
 	actModeApiProvider: ApiProvider
@@ -204,6 +205,7 @@ export interface Settings {
 	actModeHicapModelInfo: ModelInfo | undefined
 	actModeAihubmixModelId: string | undefined
 	actModeAihubmixModelInfo: ModelInfo | undefined
+	actModeIoIntelligenceModelInfo: ModelInfo | undefined
 	actModeNousResearchModelId: string | undefined
 
 	// OpenTelemetry configuration
