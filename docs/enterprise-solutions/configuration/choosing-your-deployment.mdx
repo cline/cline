@@ -75,21 +75,21 @@ Choose the right configuration approach for your organization. Most teams start 
     | **Infrastructure** | None required | Full AWS/GCP/K8s |
     | **VPC Endpoints** | Basic | Full private connectivity |
     | **Multi-Account** | ❌ | ✅ |
-    | **Custom IAM** | Basic roles | Full customization |
+    | **IAM** | Standard RBAC roles | Standard RBAC roles |
     | **Compliance** | Standard | Custom frameworks |
     | **GitOps** | ❌ | ✅ |
-    | **Maintenance** | Managed by Cline | Your team |
-    | **Updates** | Automatic | Controlled |
+    | **Maintenance** | Managed by Cline | Self-managed |
+    | **Updates** | Automatic (extension) | Automatic (extension) + Infrastructure control |
   </Accordion>
   
   <Accordion title="Security & Compliance" icon="shield">
     | Capability | SaaS | Self-Hosted |
     |------------|------|-------------|
-    | **Encryption** | HTTPS standard | Customer-managed KMS keys |
+    | **Network Encryption** | HTTPS/TLS | HTTPS/TLS |
     | **Network** | Public internet | Private VPC endpoints |
-    | **Access Control** | Basic RBAC | Custom IAM policies |
-    | **Audit Logs** | Platform logs | CloudTrail/Cloud Logging |
-    | **Data Residency** | Region selection | Complete control |
+    | **Access Control** | Standard RBAC | Standard RBAC |
+    | **Audit Logs** | OpenTelemetry traces | OpenTelemetry traces + Infrastructure logs |
+    | **Data Residency** | Cline-managed deployment | Customer-controlled deployment |
   </Accordion>
   
   <Accordion title="Cost Structure" icon="dollar-sign">
@@ -128,6 +128,6 @@ Most organizations start with SaaS configuration for quick deployment, then migr
 
 ## Need Help Deciding?
 
-- **Contact Cline Enterprise Sales** for a consultation on your specific requirements
+- [**Contact Cline Enterprise Sales**](https://cline.bot/contact-sales) for a consultation on your specific requirements
 - **Start with SaaS** if unsure - it's lower risk and you can always migrate later
 - **Consult your cloud team** if you have existing infrastructure that could benefit from self-hosted deployment
