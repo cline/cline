@@ -1,5 +1,5 @@
 ---
-"claude-dev": patch
+claude-dev: patch
 ---
 
 Added microwave family system prompt configuration
