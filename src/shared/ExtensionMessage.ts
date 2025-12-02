@@ -173,6 +173,7 @@ export type ClineSay =
 	| "clineignore_error"
 	| "checkpoint_created"
 	| "load_mcp_documentation"
+	| "generate_explanation"
 	| "info" // Added for general informational messages like retry status
 	| "task_progress"
 	| "hook"
@@ -234,6 +235,14 @@ export interface ClineSayBrowserAction {
 	action: BrowserAction
 	coordinate?: string
 	text?: string
+}
+
+export interface ClineSayGenerateExplanation {
+	title: string
+	fromRef: string
+	toRef: string
+	status: "generating" | "complete" | "error"
+	error?: string
 }
 
 export type BrowserActionResult = {
