@@ -39,6 +39,7 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import type { AuthState } from "@/shared/proto/index.cline"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getCwd, getDesktopDir } from "@/utils/path"
+import { BannerService } from "../../services/banner/BannerService"
 import { PromptRegistry } from "../prompts/system-prompt"
 import {
 	ensureCacheDirectoryExists,
@@ -1040,5 +1041,66 @@ export class Controller {
 		}
 		this.stateManager.setGlobalState("taskHistory", history)
 		return history
+	}
+
+	/**
+	 * Initializes the BannerService if not already initialized
+	 */
+	private async ensureBannerService() {
+		if (!BannerService.isInitialized()) {
+			try {
+				BannerService.initialize(this)
+			} catch (error) {
+				console.error("Failed to initialize BannerService:", error)
+			}
+		}
+	}
+
+	/**
+	 * Fetches non-dismissed banners for display
+	 * @returns Array of banners that haven't been dismissed
+	 */
+	async fetchBannersForDisplay(): Promise<any[]> {
+		try {
+			await this.ensureBannerService()
+			if (BannerService.isInitialized()) {
+				return await BannerService.get().getNonDismissedBanners()
+			}
+		} catch (error) {
+			console.error("Failed to fetch banners:", error)
+		}
+		return []
+	}
+
+	/**
+	 * Dismisses a banner and sends telemetry
+	 * @param bannerId The ID of the banner to dismiss
+	 */
+	async dismissBanner(bannerId: string): Promise<void> {
+		try {
+			await this.ensureBannerService()
+			if (BannerService.isInitialized()) {
+				await BannerService.get().dismissBanner(bannerId)
+				await this.postStateToWebview()
+			}
+		} catch (error) {
+			console.error("Failed to dismiss banner:", error)
+		}
+	}
+
+	/**
+	 * Sends a banner event for telemetry tracking
+	 * @param bannerId The ID of the banner
+	 * @param eventType The type of event (seen, dismiss, click)
+	 */
+	async trackBannerEvent(bannerId: string, eventType: "dismiss"): Promise<void> {
+		try {
+			await this.ensureBannerService()
+			if (BannerService.isInitialized()) {
+				await BannerService.get().sendBannerEvent(bannerId, eventType)
+			}
+		} catch (error) {
+			console.error("Failed to track banner event:", error)
+		}
 	}
 }

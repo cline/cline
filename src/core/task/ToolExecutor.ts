@@ -6,6 +6,7 @@ import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { McpHub } from "@services/mcp/McpHub"
 import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
+import { ClineContent } from "@shared/messages/content"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
@@ -28,6 +29,7 @@ import { AttemptCompletionHandler } from "./tools/handlers/AttemptCompletionHand
 import { BrowserToolHandler } from "./tools/handlers/BrowserToolHandler"
 import { CondenseHandler } from "./tools/handlers/CondenseHandler"
 import { ExecuteCommandToolHandler } from "./tools/handlers/ExecuteCommandToolHandler"
+import { GenerateExplanationToolHandler } from "./tools/handlers/GenerateExplanationToolHandler"
 import { ListCodeDefinitionNamesToolHandler } from "./tools/handlers/ListCodeDefinitionNamesToolHandler"
 import { ListFilesToolHandler } from "./tools/handlers/ListFilesToolHandler"
 import { LoadMcpDocumentationHandler } from "./tools/handlers/LoadMcpDocumentationHandler"
@@ -120,6 +122,10 @@ export class ToolExecutor {
 		private setActiveHookExecution: (hookExecution: NonNullable<typeof taskState.activeHookExecution>) => Promise<void>,
 		private clearActiveHookExecution: () => Promise<void>,
 		private getActiveHookExecution: () => Promise<typeof taskState.activeHookExecution>,
+		private runUserPromptSubmitHook: (
+			userContent: ClineContent[],
+			context: "initial_task" | "resume" | "feedback",
+		) => Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }>,
 	) {
 		this.autoApprover = new AutoApprove(this.stateManager)
 
@@ -179,6 +185,7 @@ export class ToolExecutor {
 				setActiveHookExecution: this.setActiveHookExecution,
 				clearActiveHookExecution: this.clearActiveHookExecution,
 				getActiveHookExecution: this.getActiveHookExecution,
+				runUserPromptSubmitHook: this.runUserPromptSubmitHook,
 			},
 			coordinator: this.coordinator,
 		}
@@ -221,6 +228,7 @@ export class ToolExecutor {
 		this.coordinator.register(new SummarizeTaskHandler(validator))
 		this.coordinator.register(new ReportBugHandler())
 		this.coordinator.register(new ApplyPatchHandler(validator))
+		this.coordinator.register(new GenerateExplanationToolHandler())
 	}
 
 	/**
