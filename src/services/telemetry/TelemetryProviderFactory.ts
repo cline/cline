@@ -47,7 +47,7 @@ export class TelemetryProviderFactory {
 			providers.push(new NoOpTelemetryProvider())
 		}
 
-		Logger.info("TelemetryProviderFactory: Created providers - " + providers.map((p) => p.constructor.name).join(", "))
+		Logger.info("TelemetryProviderFactory: Created providers - " + providers.map((p) => p.name()).join(", "))
 		return providers
 	}
 
@@ -107,6 +107,9 @@ export class TelemetryProviderFactory {
  * or for testing purposes
  */
 export class NoOpTelemetryProvider implements ITelemetryProvider {
+	name(): string {
+		return "NoOpTelemetryProvider"
+	}
 	private isOptIn = true
 
 	log(_event: string, _properties?: TelemetryProperties): void {
