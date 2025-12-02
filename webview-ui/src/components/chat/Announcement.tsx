@@ -138,7 +138,10 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</ul>
 			{isVscode && (
 				<p style={{ margin: "0" }}>
-					See a demo of 'Explain Changes' in action: <VSCodeLink style={linkStyle}>INSERT_LINK</VSCodeLink>
+					See a{" "}
+					<VSCodeLink href="https://x.com/sdrzn/status/1995840893816111246" style={linkStyle}>
+						demo of "Explain Changes"
+					</VSCodeLink>
 				</p>
 			)}
 			<div style={hrStyle} />
