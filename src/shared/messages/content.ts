@@ -1,13 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { ClineMessageMetricsInfo, ClineMessageModelInfo } from "./metrics"
 
-type ClinePromptInputContent = string
+export type ClinePromptInputContent = string
 
-type ClineMessageRole = "user" | "assistant"
-
-export interface ClineMessageModelInfo {
-	modelId: string
-	providerId: string
-}
+export type ClineMessageRole = "user" | "assistant"
 
 export interface ClineReasoningDetailParam {
 	type: "reasoning.text" | string
@@ -97,6 +93,11 @@ export interface ClineStorageMessage extends Anthropic.MessageParam {
 	 * MUST be removed before sending message to any LLM provider.
 	 */
 	modelInfo?: ClineMessageModelInfo
+	/**
+	 * LLM operational and performance metrics for this message
+	 * Includes token counts, costs.
+	 */
+	metrics?: ClineMessageMetricsInfo
 }
 
 /**
