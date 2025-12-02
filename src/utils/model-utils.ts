@@ -109,6 +109,11 @@ export function isNextGenOpenSourceModelFamily(id: string): boolean {
 	return ["kimi-k2"].some((substring) => modelId.includes(substring))
 }
 
+export function isMicrowaveModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("microwave")
+}
+
 export function isGemini3ModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return modelId.includes("gemini3") || modelId.includes("gemini-3")
