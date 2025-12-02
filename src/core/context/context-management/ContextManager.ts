@@ -739,7 +739,7 @@ export class ContextManager {
 		// messageFilePaths is only used for file mentions as there can be multiple files read in the same text chunk
 
 		// for all text blocks per file, has info for updating the block
-		// originally our messages were formated where the innerIndex was consistently at index=1, but that is no longer the case
+		// originally our messages were formatted where the innerIndex was consistently at index=1, but that is no longer the case
 		// which is why we now need to support both an outerIndex and innerIndex in this mapping
 		const fileReadIndices = new Map<string, [number, number, string, string, number][]>()
 
