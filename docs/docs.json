@@ -137,6 +137,7 @@
 							"features/dictation",
 							"features/drag-and-drop",
 							"features/editing-messages",
+							"features/explain-changes",
 							"features/focus-chain",
 							"features/hooks",
 							"features/multiroot-workspace",
@@ -146,6 +147,7 @@
 								"pages": [
 									"features/slash-commands/new-task",
 									"features/slash-commands/new-rule",
+									"features/slash-commands/explain-changes",
 									"features/slash-commands/smol",
 									"features/slash-commands/report-bug",
 									"features/slash-commands/deep-planning"
@@ -249,18 +251,39 @@
 						]
 					},
 					{
-						"group": "Enterprise",
-						"pages": [
-							"enterprise-solutions/overview",
-							"enterprise-solutions/security-concerns"
-						]
-					},
-					{
 						"group": "Reference",
 						"pages": [
+							"troubleshooting/networking-and-proxies",
 							"troubleshooting/terminal-quick-fixes",
 							"troubleshooting/terminal-integration-guide",
+							"troubleshooting/task-history-recovery",
 							"more-info/telemetry"
+						]
+					}
+				]
+			},
+			{
+				"tab": "Enterprise",
+				"icon": "building",
+				"groups": [
+					{
+						"group": "Enterprise Solutions",
+						"pages": [
+							"enterprise-solutions/overview",
+							"enterprise-solutions/onboarding",
+							"enterprise-solutions/members/roles-and-permissions",
+							{
+								"group": "Provider Remote Configuration",
+								"pages": [
+									{
+										"group": "AWS Bedrock",
+										"pages": [
+											"enterprise-solutions/provider-remote-config/aws-bedrock/admin-configuration",
+											"enterprise-solutions/provider-remote-config/aws-bedrock/member-configuration"
+										]
+									}
+								]
+							}
 						]
 					}
 				]
@@ -269,11 +292,6 @@
 				"tab": "Learn",
 				"icon": "graduation-cap",
 				"href": "https://cline.bot/learn"
-			},
-			{
-				"tab": "Blog",
-				"icon": "newspaper",
-				"href": "https://cline.bot/blog"
 			}
 		]
 	},
@@ -335,6 +353,22 @@
 		{
 			"source": "/cline-cli/samples",
 			"destination": "/cline-cli/samples/overview"
+		},
+		{
+			"source": "/enterprise-solutions/configure-AWS-Bedrock-Admin",
+			"destination": "/enterprise-solutions/provider-remote-config/aws-bedrock/admin-configuration"
+		},
+		{
+			"source": "/enterprise-solutions/configure-AWS-Bedrock-Member",
+			"destination": "/enterprise-solutions/provider-remote-config/aws-bedrock/member-configuration"
+		},
+		{
+			"source": "/enterprise-solutions/configure-workOS-authkit",
+			"destination": "/enterprise-solutions/onboarding"
+		},
+		{
+			"source": "/enterprise-solutions/Onboarding your Organization",
+			"destination": "/enterprise-solutions/onboarding"
 		}
 	],
 	"search": {

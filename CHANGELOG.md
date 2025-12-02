@@ -1,5 +1,33 @@
 # Changelog
 
+## [3.39.1]
+- Fix Openrouter and Cline Provider model info
+
+## [3.39.0]
+- Add Explain Changes feature
+- Add microwave Stealth model
+- Add Tabbed Model Picker with Recommended and Free tabs 
+- Add support to View remote rules and workflows in the editor 
+- Enable NTC (Native Tool Calling) by default
+- Bug fixes and improvements for LiteLLM provider
+
+## [3.38.3]
+
+- Task export feature now opens the task directory, allowing easy access to the full task files
+- Add Grok 4.1 and Grok Code to XAI provider
+- Enabled native tool calling for Baseten and Kimi K2 models
+- Add thinking level to Gemini 3.0 Pro preview
+- Expanded Hooks functionality
+- Removed Task Timeline from Task Header
+- Bug fix for slash commands
+- Bug fixes for Vertex provider
+- Bug fixes for thinking/reasoning issues across multiple providers when using native tool calling
+- Bug fixes for terminal usage on Windows devices
+
+## [3.38.2]
+
+- Add Claude Opus 4.5
+
 ## [3.38.1]
 
 ### Fixed
