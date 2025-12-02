@@ -8,11 +8,19 @@ This page covers advanced hook patterns that leverage multiple hook types togeth
 
 ## Hook Chaining Patterns
 
+Hook chaining coordinates multiple hooks across the operation lifecycle, allowing you to build stateful validation pipelines. The key advantage is maintaining context between pre-execution and post-execution phases - your PreToolUse hook can record warnings and expectations, then PostToolUse can verify whether those concerns materialized or provide recovery guidance if operations failed.
+
+This pattern is particularly valuable for operations with complex side effects (file overwrites, directory creation, configuration changes) where you want to track the complete operation flow rather than just the individual steps.
+
 ### Multi-Stage Validation Pipeline
 
-Combine multiple hook types to create comprehensive validation workflows that span the entire operation lifecycle.
+This example demonstrates a full validation pipeline that:
+- Stores validation state in PreToolUse for later reference
+- Checks if pre-identified warnings actually caused issues in PostToolUse  
+- Provides contextual guidance based on the complete operation outcome
+- Automatically cleans up old state files to prevent accumulation
 
-**Pattern Overview:** Use `PreToolUse` for initial validation, `PostToolUse` for result verification, and `UserPromptSubmit` for context-aware guidance.
+The state directory approach allows hooks to maintain context across Cline restarts and provides an audit trail of validation decisions.
 
 **File: `PreToolUse`**
 ```bash
@@ -97,33 +105,44 @@ state_dir="$HOME/.cline_hook_state"
 validation_file="$state_dir/${task_id}_validation.json"
 
 # Check if we have pre-validation context
+# PostToolUse runs after every tool execution, but we only have validation
+# context if PreToolUse ran first and stored state for this task_id
 if [[ ! -f "$validation_file" ]]; then
   echo '{"cancel": false}'
   exit 0
 fi
 
 # Load and update validation context
+# This retrieves the warnings and context that PreToolUse identified
 validation_context=$(cat "$validation_file")
 pre_warnings=$(echo "$validation_context" | jq -r '.warnings[]?' | tr '\n' '|')
 
 # Perform post-validation
+# The key insight here is checking whether pre-identified warnings actually
+# caused problems, or if the operation succeeded despite the concerns
 post_context=""
 if [[ "$success" == "true" ]]; then
-  # Success case - check if pre-warnings materialized
+  # Success case - provide outcome-specific guidance based on pre-warnings
+  # If PreToolUse warned about config overwrites and the operation succeeded,
+  # we now know the overwrite was safe and can suggest next steps
   if [[ "$pre_warnings" =~ "overwrite_config_file" ]]; then
     post_context+="VALIDATION_RESULT: Configuration file was successfully updated. Consider testing the application. "
   fi
   
+  # Directory creation warnings that didn't prevent success indicate
+  # automatic directory creation - mention this to set expectations
   if [[ "$pre_warnings" =~ "missing_directory" ]]; then
     post_context+="VALIDATION_RESULT: Directory structure was created automatically. "
   fi
   
-  # Performance validation
+  # Performance validation based on execution time
+  # >1000ms operations might indicate issues worth addressing
   if (( execution_time > 1000 )); then
     post_context+="PERFORMANCE_NOTE: Operation took ${execution_time}ms - this may indicate large files or slow I/O. "
   fi
 else
-  # Failure case - provide recovery suggestions
+  # Failure case - correlate pre-warnings with actual failure to provide
+  # actionable recovery suggestions rather than generic error messages
   post_context="VALIDATION_FAILURE: Operation failed. "
   if [[ "$pre_warnings" =~ "missing_directory" ]]; then
     post_context+="This might be due to directory permission issues. Try creating the directory manually first. "
@@ -131,6 +150,8 @@ else
 fi
 
 # Update validation log with final results
+# This creates a complete audit trail showing pre-warnings, execution outcome,
+# and timing data for later analysis or debugging
 final_context=$(echo "$validation_context" | jq \
   --arg post_level "post" \
   --arg success "$success" \
@@ -147,7 +168,8 @@ final_context=$(echo "$validation_context" | jq \
 
 echo "$final_context" > "$validation_file"
 
-# Cleanup old validation files (keep only last 10)
+# Cleanup old validation files (keep only files from last 24 hours)
+# This prevents unbounded growth while maintaining recent history for debugging
 find "$state_dir" -name "*_validation.json" -mtime +1 -exec rm {} \; 2>/dev/null || true
 
 if [[ -n "$post_context" ]]; then
@@ -159,9 +181,20 @@ fi
 
 ## Stateful Hook Patterns
 
+Stateful hooks maintain persistent data across multiple Cline sessions, enabling progressive learning and context building. The fundamental technique is storing structured data in JSON files that accumulate insights over time. This pattern is powerful for project-specific intelligence - hooks can detect patterns in task descriptions, track framework usage, and build a historical understanding of the project's architecture and conventions.
+
+The key advantage is that your hooks become smarter with every task. Initial tasks receive generic guidance, but after 10-20 tasks, the hooks have learned enough about your project to provide highly targeted suggestions.
+
 ### Project Knowledge Accumulation
 
-Build up knowledge about the project over time and use it to provide increasingly intelligent suggestions.
+This example implements an incremental learning system that:
+- Analyzes each task description for framework and pattern indicators
+- Maintains frequency counters for detected frameworks/patterns in per-project JSON files
+- Provides context based on historical usage patterns (sorted by frequency)
+- Suggests conventions appropriate for the current task type
+- Leverages project files (package.json) for additional insights
+
+The counter-based approach using `jq` allows simple frequency tracking - frameworks/patterns used most often appear first in context suggestions. The per-project directory structure (`~/.cline_knowledge/$(basename "$PWD")`) isolates learning between projects while persisting across Cline restarts.
 
 **File: `TaskStart`**
 ```bash
@@ -339,9 +372,15 @@ fi
 
 ## Performance Optimization Patterns
 
+Performance optimization in hooks focuses on preventing expensive operations from blocking Cline's workflow. The two key techniques are async processing (offloading work to background processes) and caching (avoiding redundant computation for identical inputs).
+
 ### Async Hook Processing
 
-Handle expensive operations without blocking Cline's execution.
+This pattern implements true background processing by creating a persistent worker process that consumes jobs from a queue directory. The critical insight is that hooks must return quickly - ideally within milliseconds - to avoid blocking Cline's tool execution flow.
+
+The job queue approach decouples the hook response from the actual work. The hook instantly acknowledges the operation by creating a job file, then returns. A separate background processor handles the expensive work (linting, metrics calculation) without impacting Cline's responsiveness.
+
+The `pgrep` check ensures only one background processor runs at a time across all Cline instances. The `nohup` wrapper allows the processor to survive terminal closure and continue processing jobs until the user logs out.
 
 **File: `PostToolUse` (Async Pattern)**
 ```bash
@@ -425,7 +464,11 @@ echo '{"cancel": false, "contextModification": "BACKGROUND_PROCESSING: Code anal
 
 ### Caching and Memoization
 
-Cache expensive computations to improve hook performance.
+Caching eliminates redundant computation by storing results indexed by input. This pattern uses content-based hashing (SHA256) to generate cache keys - identical file contents produce identical hashes, enabling cache hits even across different tasks or sessions.
+
+The strategy implements a simple time-based expiration (60 minutes) using file modification time. This balances cache effectiveness with freshness - lint rules might change, dependencies might update, so cached results shouldn't persist indefinitely.
+
+The critical performance benefit comes from expensive operations like ESLint validation, which can take 500ms-2s on large files. With caching, subsequent writes of identical content return instantly. The truncated hash (16 characters) prevents excessively long filenames while maintaining extremely low collision probability (2^64 possibilities).
 
 **File: `PreToolUse` (With Caching)**
 ```bash
@@ -448,29 +491,39 @@ cache_dir="$HOME/.cline_cache"
 mkdir -p "$cache_dir"
 
 # Generate cache key from content hash
+# SHA256 ensures identical content always produces the same hash
+# This enables cache hits even if the same code is written to different file paths
 content_hash=$(echo -n "$content" | sha256sum | cut -d' ' -f1)
 cache_key="validation_${content_hash:0:16}"
 cache_file="$cache_dir/$cache_key"
 
 # Check cache first
+# -mmin -60 checks if file was modified within last 60 minutes
+# This provides time-based cache expiration - after 60 minutes, validation re-runs
 if [[ -f "$cache_file" ]] && [[ $(find "$cache_file" -mmin -60) ]]; then
-  # Cache hit - use cached result
+  # Cache hit - return cached result instantly without re-running validation
+  # This transforms a 500ms-2s operation into <1ms
   cached_result=$(cat "$cache_file")
   echo "$cached_result"
   exit 0
 fi
 
 # Cache miss - perform validation
+# Default to passing validation if no issues found
 validation_result='{"cancel": false}'
 
 # Perform expensive validation only if not cached
+# Using temp file allows ESLint to run without modifying the actual workspace
 if [[ "$file_path" =~ \.(ts|tsx|js|jsx)$ ]] && command -v eslint > /dev/null; then
   temp_file=$(mktemp)
   echo "$content" > "$temp_file"
   
+  # Run ESLint and capture results
+  # || echo "[]" ensures the hook doesn't fail if ESLint encounters an error
   lint_output=$(eslint "$temp_file" --format json 2>/dev/null || echo "[]")
   error_count=$(echo "$lint_output" | jq '.[0].errorCount // 0' 2>/dev/null || echo "0")
   
+  # Block the write if linting errors are found
   if (( error_count > 0 )); then
     validation_result='{"cancel": true, "errorMessage": "ESLint validation failed. Check code quality."}'
   fi
@@ -478,10 +531,13 @@ if [[ "$file_path" =~ \.(ts|tsx|js|jsx)$ ]] && command -v eslint > /dev/null; th
   rm -f "$temp_file"
 fi
 
-# Cache the result
+# Cache the result for future writes of identical content
+# Even failed validations are cached - if the content is bad, it stays bad
 echo "$validation_result" > "$cache_file"
 
 # Cleanup old cache files (keep only files from last 24 hours)
+# -mtime +1 finds files older than 24 hours
+# This prevents unbounded cache growth while maintaining reasonable hit rates
 find "$cache_dir" -name "validation_*" -mtime +1 -delete 2>/dev/null || true
 
 echo "$validation_result"
@@ -489,9 +545,17 @@ echo "$validation_result"
 
 ## Conditional Logic Patterns
 
+Conditional logic in hooks enables adaptive behavior based on context. Rather than applying the same rules universally, hooks can adjust their behavior based on user preferences, time of day, project configuration, Git branch context, and other environmental factors.
+
 ### Context-Aware Decision Making
 
-Make intelligent decisions based on project context, user history, and environmental factors.
+This pattern demonstrates multi-layered decision making that considers multiple context sources:
+- **User preferences**: Stored per-user settings for strictness levels and notification preferences
+- **Time-based logic**: Different behavior during business hours vs. off-hours
+- **Project configuration**: Project-specific overrides via `.cline-project-config.json`
+- **Git context**: Branch-aware suggestions (stricter on main, focused on hotfix branches)
+
+The hierarchical approach allows project settings to override user defaults, enabling team-wide standards while respecting individual preferences. The strictness level system (`strict`, `medium`, `permissive`) provides coarse-grained control, while notification preferences offer fine-grained tuning.
 
 **File: `PreToolUse` (Context-Aware)**
 ```bash
@@ -503,11 +567,13 @@ user_id=$(echo "$input" | jq -r '.userId')
 task_id=$(echo "$input" | jq -r '.taskId')
 
 # Load user preferences and history
+# Per-user storage allows individual developers to have different validation levels
 prefs_dir="$HOME/.cline_user_prefs"
 mkdir -p "$prefs_dir"
 user_prefs="$prefs_dir/${user_id}_preferences.json"
 
 # Initialize user preferences if needed
+# These defaults provide sensible starting points that users can customize
 if [[ ! -f "$user_prefs" ]]; then
   echo '{
     "strictness_level": "medium",
@@ -522,19 +588,24 @@ if [[ ! -f "$user_prefs" ]]; then
 fi
 
 # Load current preferences
+# The // operator provides defaults if fields are missing or null
 strictness=$(jq -r '.strictness_level // "medium"' "$user_prefs")
 security_alerts=$(jq -r '.notification_preferences.security_alerts // true' "$user_prefs")
 style_suggestions=$(jq -r '.notification_preferences.style_suggestions // false' "$user_prefs")
 
 # Adapt behavior based on user preferences
+# Case statement allows clean handling of different strictness levels
 case "$strictness" in
   "strict")
     # Strict mode - block more operations, provide detailed feedback
+    # This mode is useful for production code or when following strict standards
     if [[ "$tool_name" == "write_to_file" ]]; then
       file_path=$(echo "$input" | jq -r '.preToolUse.parameters.path // empty')
       content=$(echo "$input" | jq -r '.preToolUse.parameters.content // empty')
       
       # In strict mode, require documentation for new functions
+      # Regex matches both traditional functions and arrow functions
+      # Negative lookahead (?!...) ensures JSDoc /** */ is NOT present
       if echo "$content" | grep -q "function\|const.*=.*=>" && ! echo "$content" | grep -q "\/\*\*"; then
         echo '{"cancel": true, "errorMessage": "Strict mode: All functions must have JSDoc documentation."}'
         exit 0
@@ -544,6 +615,7 @@ case "$strictness" in
     
   "permissive")
     # Permissive mode - minimal blocking, focus on critical issues only
+    # Early exit if user has disabled security alerts
     if [[ "$security_alerts" == "false" ]]; then
       echo '{"cancel": false}'
       exit 0
@@ -552,9 +624,12 @@ case "$strictness" in
 esac
 
 # Time-based logic
+# Different rules during off-hours (before 6 AM or after 6 PM)
+# This accommodates late-night coding sessions where speed > style
 current_hour=$(date +%H)
 if (( current_hour >= 18 || current_hour <= 6 )); then
   # After hours - be less intrusive
+  # Reduce style noise when developers are working outside business hours
   if [[ "$style_suggestions" == "true" ]]; then
     # Override style suggestions during off-hours
     echo '{"cancel": false, "contextModification": "AFTER_HOURS: Style suggestions reduced during off-hours. Focus on functionality."}'
@@ -566,8 +641,11 @@ fi
 context_suggestions=""
 
 # Check for project-specific configuration files
+# This allows teams to enforce project-wide standards regardless of user preferences
+# .cline-project-config.json would be committed to version control
 if [[ -f ".cline-project-config.json" ]]; then
   project_strictness=$(jq -r '.validation.strictness // "inherit"' .cline-project-config.json 2>/dev/null)
+  # "inherit" means use user's personal preference
   if [[ "$project_strictness" != "inherit" && "$project_strictness" != "null" ]]; then
     strictness="$project_strictness"
     context_suggestions+="PROJECT_CONFIG: Using project-specific validation level: $project_strictness. "
@@ -575,17 +653,21 @@ if [[ -f ".cline-project-config.json" ]]; then
 fi
 
 # Git context awareness
+# Different suggestions based on current branch type
 if git rev-parse --git-dir > /dev/null 2>&1; then
   current_branch=$(git branch --show-current 2>/dev/null)
   
+  # Main/master branches - extra cautious recommendations
   if [[ "$current_branch" == "main" || "$current_branch" == "master" ]]; then
     context_suggestions+="GIT_CONTEXT: Working on main branch - extra caution recommended. "
+  # Hotfix branches - encourage minimal, focused changes
   elif [[ "$current_branch" =~ ^hotfix/ ]]; then
     context_suggestions+="GIT_CONTEXT: Hotfix branch detected - focus on minimal, targeted changes. "
   fi
 fi
 
 # Build final response
+# Combine all context sources into a single coherent message
 if [[ -n "$context_suggestions" ]]; then
   jq -n --arg ctx "$context_suggestions" '{"cancel": false, "contextModification": $ctx}'
 else
@@ -595,30 +677,45 @@ fi
 
 ## Error Recovery and Resilience
 
+Hook failures should never block Cline's operation. This pattern implements graceful degradation through health tracking - after repeated failures, the hook automatically enters "degraded mode" where it stops attempting complex operations and simply passes operations through.
+
 ### Self-Healing Hook System
 
-Implement automatic recovery from hook failures and graceful degradation.
+This pattern implements automatic failure detection and recovery through:
+- **Error trapping**: All potential failure points are wrapped with fallbacks
+- **Health tracking**: Persistent monitoring of success/failure rates across sessions
+- **Degraded mode**: Automatic disabling after threshold failures (3 consecutive)
+- **Automatic recovery**: Resetting to normal mode upon first success
+
+The threshold-based approach (3 consecutive failures) distinguishes between occasional issues and systematic problems. The health file persists across Cline sessions, so degraded mode survives restarts - hooks won't repeatedly fail on every startup if there's a configuration issue.
 
 **File: `PostToolUse` (Resilient)**
 ```bash
 #!/usr/bin/env bash
 
 # Trap errors and ensure graceful failure
+# set -o pipefail ensures pipeline failures are caught
+# trap ensures ANY error results in graceful passthrough, never blocking Cline
 set -o pipefail
 trap 'echo "{\"cancel\": false}" >&2; exit 0' ERR
 
 input=$(cat)
 
 # Validate input JSON
+# Malformed input should not crash the hook - just pass through
+# The 2>/dev/null suppresses error messages that would clutter output
 if ! echo "$input" | jq empty 2>/dev/null; then
   echo '{"cancel": false}'
   exit 0
 fi
 
+# Extract tool information with safe defaults
+# The // operator provides fallback values if fields are missing
 tool_name=$(echo "$input" | jq -r '.postToolUse.toolName // "unknown"')
 success=$(echo "$input" | jq -r '.postToolUse.success // "false"')
 
 # Health check directory
+# 2>/dev/null || { ... } provides fallback if directory creation fails
 health_dir="$HOME/.cline_hook_health"
 mkdir -p "$health_dir" 2>/dev/null || {
   echo '{"cancel": false}'
@@ -628,6 +725,8 @@ mkdir -p "$health_dir" 2>/dev/null || {
 health_file="$health_dir/hook_health.json"
 
 # Initialize health tracking
+# Tracks both lifetime failures and consecutive failures to distinguish
+# between occasional hiccups and systemic problems
 if [[ ! -f "$health_file" ]]; then
   echo '{
     "last_success": null,
@@ -643,6 +742,8 @@ fi
 # Update health status
 if [[ "$success" == "true" ]]; then
   # Reset failure counters on success
+  # A single success immediately exits degraded mode
+  # This allows hooks to self-heal after fixes (e.g., installing missing dependencies)
   jq '. + {
     "last_success": now,
     "consecutive_failures": 0,
@@ -650,6 +751,8 @@ if [[ "$success" == "true" ]]; then
   }' "$health_file" > "${health_file}.tmp" 2>/dev/null && mv "${health_file}.tmp" "$health_file" 2>/dev/null || true
 else
   # Increment failure counters
+  # Both lifetime and consecutive failures are tracked
+  # || true ensures script continues even if jq fails
   jq '. + {
     "failure_count": (.failure_count + 1),
     "consecutive_failures": (.consecutive_failures + 1)
@@ -657,15 +760,22 @@ else
 fi
 
 # Check if we should enter degraded mode
+# 3 consecutive failures triggers degraded mode
+# This threshold balances between tolerance and responsiveness
 consecutive_failures=$(jq -r '.consecutive_failures // 0' "$health_file" 2>/dev/null || echo "0")
 
 if (( consecutive_failures >= 3 )); then
   # Enable degraded mode
+  # The hook will now pass through all operations without processing
+  # This prevents repeated failures from blocking the user's workflow
   jq '. + {"degraded_mode": true}' "$health_file" > "${health_file}.tmp" 2>/dev/null && mv "${health_file}.tmp" "$health_file" 2>/dev/null || true
   
+  # Notify user of degraded mode
+  # This context appears in Cline's chat to explain reduced functionality
   context="HOOK_HEALTH: Operating in degraded mode due to repeated failures. Hook functionality is reduced to prevent blocking operations."
   jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}' 2>/dev/null || echo '{"cancel": false}'
 else
+  # Normal operation - no notification needed
   echo '{"cancel": false}'
 fi
 ```
