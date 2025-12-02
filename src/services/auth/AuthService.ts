@@ -327,6 +327,12 @@ export class AuthService {
 		}
 
 		try {
+			// If a refresh is already in progress, wait for it to complete
+			if (this._refreshPromise) {
+				Logger.info("Token refresh already in progress, waiting for completion")
+				await this._refreshPromise
+			}
+
 			this._clineAuthInfo = await this.retrieveAuthInfo()
 			if (this._clineAuthInfo) {
 				this._authenticated = true
