@@ -72,12 +72,17 @@ const freeModels = [
 	{
 		id: "x-ai/grok-code-fast-1",
 		description: "Fast inference with strong coding performance",
-		label: "FAST",
+		label: "FREE",
 	},
 	{
 		id: "minimax/minimax-m2",
 		description: "Open source model with solid performance",
-		label: "OSS",
+		label: "FREE",
+	},
+	{
+		id: "stealth/microwave",
+		description: "A stealth model for agentic coding tasks",
+		label: "FREE",
 	},
 ]
 
@@ -90,7 +95,10 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
-	const [activeTab, setActiveTab] = useState<"recommended" | "free">("recommended")
+	const [activeTab, setActiveTab] = useState<"recommended" | "free">(() => {
+		const currentModelId = modeFields.openRouterModelId || openRouterDefaultModelId
+		return freeModels.some((m) => m.id === currentModelId) ? "free" : "recommended"
+	})
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
@@ -292,7 +300,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 		currentMode === "plan" ? apiConfiguration?.geminiPlanModeThinkingLevel : apiConfiguration?.geminiActModeThinkingLevel
 
 	return (
-		<div style={{ width: "100%" }}>
+		<div style={{ width: "100%", paddingBottom: 2 }}>
 			<style>
 				{`
 				.model-item-highlight {
