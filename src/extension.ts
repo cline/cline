@@ -33,6 +33,7 @@ import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { workspaceResolver } from "./core/workspace"
 import { focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMsg } from "./hosts/vscode/commit-message-generator"
+import { disposeCommentReviewController } from "./hosts/vscode/review/CommentReviewController"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { ExtensionRegistryInfo } from "./registry"
@@ -485,6 +486,9 @@ export async function deactivate() {
 
 	// Clean up hook discovery cache
 	HookDiscoveryCache.getInstance().dispose()
+
+	// Clean up comment review controller
+	disposeCommentReviewController()
 
 	clearOnboardingModelsCache()
 
