@@ -295,6 +295,10 @@ const StyledMarkdown = styled.div<{ compact?: boolean }>`
 			text-decoration: underline;
 		}
 	}
+
+	hr {
+		margin: 13px 0;
+	}
 `
 
 const PreWithCopyButton = ({ children, ...preProps }: React.HTMLAttributes<HTMLPreElement>) => {
