@@ -43,7 +43,7 @@ const BASE_SLASH_COMMANDS: SlashCommand[] = [
 const VSCODE_ONLY_COMMANDS: SlashCommand[] = [
 	{
 		name: "explain-changes",
-		description: "Explain code changes between git refs with AI-generated comments",
+		description: "Explain code changes between git refs (PRs, commits, branches, etc.)",
 		section: "default",
 	},
 ]
