@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 
 interface UseMenuAnnouncementOptions<T> {
 	/** The list of items in the menu */
@@ -14,8 +14,6 @@ interface UseMenuAnnouncementOptions<T> {
 interface UseMenuAnnouncementResult {
 	/** The current announcement text for screen readers */
 	announcement: string
-	/** Announce a selection was made */
-	announceSelection: (label: string) => void
 }
 
 /**
@@ -41,12 +39,7 @@ export function useMenuAnnouncement<T>({
 		}
 	}, [selectedIndex, items, getItemLabel, isItemSelectable])
 
-	const announceSelection = useCallback((label: string) => {
-		setAnnouncement(`Selected ${label}`)
-	}, [])
-
 	return {
 		announcement,
-		announceSelection,
 	}
 }

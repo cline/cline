@@ -202,7 +202,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	}
 
 	// Screen reader announcements
-	const { announcement, announceSelection } = useMenuAnnouncement({
+	const { announcement } = useMenuAnnouncement({
 		items: filteredOptions,
 		selectedIndex,
 		getItemLabel: getOptionLabel,
@@ -213,13 +213,11 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	const handleSelect = useCallback(
 		(option: ContextMenuQueryItem) => {
 			if (isOptionSelectable(option)) {
-				const label = getOptionLabel(option)
-				announceSelection(label)
 				const mentionValue = option.label?.includes(":") ? option.label : option.value
 				onSelect(option.type, mentionValue)
 			}
 		},
-		[onSelect, getOptionLabel, announceSelection],
+		[onSelect],
 	)
 
 	return (

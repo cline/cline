@@ -45,7 +45,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 		return `${command.name}${description}`
 	}, [])
 
-	const { announcement, announceSelection } = useMenuAnnouncement({
+	const { announcement } = useMenuAnnouncement({
 		items: filteredCommands,
 		selectedIndex,
 		getItemLabel: getCommandLabel,
@@ -53,10 +53,9 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 
 	const handleClick = useCallback(
 		(command: SlashCommand) => {
-			announceSelection(`${command.name} command`)
 			onSelect(command)
 		},
-		[onSelect, announceSelection],
+		[onSelect],
 	)
 
 	useEffect(() => {
