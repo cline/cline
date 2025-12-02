@@ -2012,15 +2012,6 @@ export const ChatRowContent = memo(
 									ref={contentRef}
 									textToCopy={question}>
 									<Markdown markdown={question} />
-									<OptionsButtons
-										inputValue={inputValue}
-										isActive={
-											(isLast && lastModifiedMessage?.ask === "followup") ||
-											(!selected && options && options.length > 0)
-										}
-										options={options}
-										selected={selected}
-									/>
 									{quoteButtonState.visible && (
 										<QuoteButton
 											left={quoteButtonState.left}
@@ -2031,6 +2022,15 @@ export const ChatRowContent = memo(
 										/>
 									)}
 								</WithCopyButton>
+								<OptionsButtons
+									inputValue={inputValue}
+									isActive={
+										(isLast && lastModifiedMessage?.ask === "followup") ||
+										(!selected && options && options.length > 0)
+									}
+									options={options}
+									selected={selected}
+								/>
 							</div>
 						)
 					case "new_task":
@@ -2098,12 +2098,23 @@ export const ChatRowContent = memo(
 							response = message.text
 						}
 						return (
-							<WithCopyButton
-								onMouseUp={handleMouseUp}
-								position="bottom-right"
-								ref={contentRef}
-								textToCopy={response}>
-								<Markdown markdown={response} />
+							<>
+								<WithCopyButton
+									onMouseUp={handleMouseUp}
+									position="bottom-right"
+									ref={contentRef}
+									textToCopy={response}>
+									<Markdown markdown={response} />
+									{quoteButtonState.visible && (
+										<QuoteButton
+											left={quoteButtonState.left}
+											onClick={() => {
+												handleQuoteClick()
+											}}
+											top={quoteButtonState.top}
+										/>
+									)}
+								</WithCopyButton>
 								<OptionsButtons
 									inputValue={inputValue}
 									isActive={
@@ -2113,16 +2124,7 @@ export const ChatRowContent = memo(
 									options={options}
 									selected={selected}
 								/>
-								{quoteButtonState.visible && (
-									<QuoteButton
-										left={quoteButtonState.left}
-										onClick={() => {
-											handleQuoteClick()
-										}}
-										top={quoteButtonState.top}
-									/>
-								)}
-							</WithCopyButton>
+							</>
 						)
 					}
 					default:

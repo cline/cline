@@ -1,9 +1,7 @@
-import { StringRequest } from "@shared/proto/cline/common"
 import React, { useEffect, useRef, useState } from "react"
 import { useClickAway } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useAutoApproveActions } from "@/hooks/useAutoApproveActions"
-import { UiServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import AutoApproveMenuItem from "./AutoApproveMenuItem"
 import { ActionMetadata } from "./types"
@@ -21,21 +19,10 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVis
 	const { navigateToSettings } = useExtensionState()
 	const { isChecked, updateAction } = useAutoApproveActions()
 
-	const handleNotificationsLinkClick = async (e: React.MouseEvent) => {
+	const handleNotificationsLinkClick = (e: React.MouseEvent) => {
 		e.preventDefault()
 		e.stopPropagation()
-
-		// Navigate to settings
-		navigateToSettings()
-
-		// Scroll to general section
-		setTimeout(async () => {
-			try {
-				await UiServiceClient.scrollToSettings(StringRequest.create({ value: "general" }))
-			} catch (error) {
-				console.error("Error scrolling to general settings:", error)
-			}
-		}, 300)
+		navigateToSettings("general")
 	}
 
 	const modalRef = useRef<HTMLDivElement>(null)

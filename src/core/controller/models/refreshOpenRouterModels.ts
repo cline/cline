@@ -8,6 +8,7 @@ import { StateManager } from "@/core/storage/StateManager"
 import {
 	ANTHROPIC_MAX_THINKING_BUDGET,
 	CLAUDE_SONNET_1M_TIERS,
+	clineMicrowaveModelInfo,
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 } from "@/shared/api"
@@ -265,8 +266,21 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
  * Stealth models are models that are compatible with the OpenRouter API but not listed on the OpenRouter website or API.
  */
 const CLINE_STEALTH_MODELS: Record<string, ModelInfo> = {
+	"stealth/microwave": {
+		maxTokens: clineMicrowaveModelInfo.maxTokens ?? 0,
+		contextWindow: clineMicrowaveModelInfo.contextWindow ?? 0,
+		supportsImages: clineMicrowaveModelInfo.supportsImages ?? false,
+		supportsPromptCache: clineMicrowaveModelInfo.supportsPromptCache ?? false,
+		inputPrice: clineMicrowaveModelInfo.inputPrice ?? 0,
+		outputPrice: clineMicrowaveModelInfo.outputPrice ?? 0,
+		cacheWritesPrice: clineMicrowaveModelInfo.cacheWritesPrice ?? 0,
+		cacheReadsPrice: clineMicrowaveModelInfo.cacheReadsPrice ?? 0,
+		description: clineMicrowaveModelInfo.description ?? "",
+		thinkingConfig: clineMicrowaveModelInfo.thinkingConfig ?? undefined,
+		supportsGlobalEndpoint: clineMicrowaveModelInfo.supportsGlobalEndpoint ?? undefined,
+		tiers: clineMicrowaveModelInfo.tiers,
+	},
 	// Add more stealth models here as needed
-	// Right now this list is empty as the latest stealth model was removed
 }
 
 export function appendClineStealthModels(currentModels: Record<string, ModelInfo>): Record<string, ModelInfo> {
