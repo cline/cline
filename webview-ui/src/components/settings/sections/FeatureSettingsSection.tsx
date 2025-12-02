@@ -405,10 +405,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							}}>
 							Enable Native Tool Call
 						</VSCodeCheckbox>
-						<p className="text-xs">
-							<span className="text-[var(--vscode-errorForeground)]">Experimental: </span>{" "}
-							<span className="text-description">Allows Cline to call tools through the native API.</span>
-						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
 						<Tooltip>
