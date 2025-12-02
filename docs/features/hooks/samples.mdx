@@ -23,13 +23,19 @@ Perfect for getting started with hooks. These examples demonstrate core concepts
 
 ### 1. Project Type Detection
 
-**What it teaches:** Basic `TaskStart` hook usage, file system checks, and context injection.
-**When to use:** When you want Cline to understand your project type and adjust its behavior accordingly.
-
 **Hook:** `TaskStart`
 
 ```bash
 #!/usr/bin/env bash
+# Project Type Detection Hook
+# 
+# Overview: Automatically detects project type at task start and injects relevant
+# coding standards and best practices into the AI context. This helps Cline understand
+# your project structure and apply appropriate conventions from the beginning.
+#
+# Demonstrates: Basic hook input/output, file system checks, conditional logic,
+# and context injection to guide AI behavior.
+
 input=$(cat)
 
 # Read basic JSON structure and detect project type
@@ -68,13 +74,19 @@ fi
 
 ### 2. File Extension Validator
 
-**What it teaches:** `PreToolUse` hook basics, parameter extraction, and operation blocking.
-**When to use:** When you want to enforce coding standards and prevent common mistakes.
-
 **Hook:** `PreToolUse`
 
 ```bash
 #!/usr/bin/env bash
+# File Extension Validator Hook
+#
+# Overview: Enforces TypeScript file extensions in TypeScript projects by blocking
+# creation of .js and .jsx files. This prevents common mistakes where developers
+# accidentally create JavaScript files when they should be using TypeScript.
+#
+# Demonstrates: PreToolUse blocking, parameter extraction, conditional validation,
+# and providing clear error messages to guide users toward correct file extensions.
+
 input=$(cat)
 
 # Extract tool information
@@ -124,13 +136,19 @@ echo '{"cancel": false}'
 
 ### 3. Basic Performance Monitor
 
-**What it teaches:** `PostToolUse` hook usage, performance tracking, and logging.
-**When to use:** When you want to monitor and optimize Cline's performance.
-
 **Hook:** `PostToolUse`
 
 ```bash
 #!/usr/bin/env bash
+# Basic Performance Monitor Hook
+#
+# Overview: Monitors tool execution times and logs operations that exceed a 3-second
+# threshold. This helps identify performance bottlenecks and provides feedback to
+# users about system resource issues that may be slowing down Cline's operations.
+#
+# Demonstrates: PostToolUse hook usage, arithmetic operations in bash, simple file
+# logging, and conditional context injection based on performance metrics.
+
 input=$(cat)
 
 # Extract performance information
@@ -166,13 +184,19 @@ These examples demonstrate more advanced concepts including external tool integr
 
 ### 4. Code Quality with Linting
 
-**What it teaches:** Advanced `PreToolUse` usage, external tool integration, temporary file handling, and comprehensive error reporting.
-**When to use:** When you want to enforce code quality standards and integrate with existing linting tools.
-
 **Hook:** `PreToolUse`
 
 ```bash
 #!/usr/bin/env bash
+# Code Quality Linting Hook
+#
+# Overview: Integrates ESLint and Flake8 to enforce code quality standards before
+# files are written. Blocks file creation if linting errors are detected, ensuring
+# all code meets quality standards. Supports TypeScript, JavaScript, and Python files.
+#
+# Demonstrates: External tool integration, temporary file handling, regex pattern
+# matching, and comprehensive error reporting with actionable feedback.
+
 input=$(cat)
 
 tool_name=$(echo "$input" | jq -r '.preToolUse.toolName')
@@ -241,13 +265,19 @@ fi
 
 ### 5. Security Scanner
 
-**What it teaches:** Pattern matching arrays, file path validation, and security-focused blocking.
-**When to use:** When you need to prevent accidental exposure of credentials and sensitive data.
-
 **Hook:** `PreToolUse`
 
 ```bash
 #!/usr/bin/env bash
+# Security Scanner Hook
+#
+# Overview: Scans file content for hardcoded secrets (API keys, tokens, passwords)
+# before files are written. Blocks creation of files containing secrets except in
+# safe locations like .env.example files or documentation, preventing credential leaks.
+#
+# Demonstrates: Pattern matching with regex arrays, file path exception handling,
+# security-focused validation, and clear user guidance in error messages.
+
 input=$(cat)
 
 tool_name=$(echo "$input" | jq -r '.preToolUse.toolName')
@@ -315,13 +345,19 @@ fi
 
 ### 6. Git Workflow Assistant
 
-**What it teaches:** `PostToolUse` hooks, git integration, branch analysis, and contextual suggestions.
-**When to use:** When you want to guide users toward better git practices and branch management.
-
 **Hook:** `PostToolUse`
 
 ```bash
 #!/usr/bin/env bash
+# Git Workflow Assistant Hook
+#
+# Overview: Analyzes file modifications and provides intelligent git workflow suggestions
+# based on file types and current branch. Encourages best practices like feature branches
+# for components and test branches for test files, with actionable git commands.
+#
+# Demonstrates: Git integration, branch analysis, file path pattern matching, and
+# contextual suggestions to guide users toward better git practices.
+
 input=$(cat)
 
 tool_name=$(echo "$input" | jq -r '.postToolUse.toolName')
@@ -375,13 +411,19 @@ These examples showcase sophisticated patterns including external integrations, 
 
 ### 7. Comprehensive Task Lifecycle Manager
 
-**What it teaches:** Complex `TaskComplete` hook usage, structured logging, report generation, and webhook integrations.
-**When to use:** For enterprise environments requiring detailed task tracking and reporting.
-
 **Hook:** `TaskComplete`
 
 ```bash
 #!/usr/bin/env bash
+# Comprehensive Task Lifecycle Manager Hook
+#
+# Overview: Tracks task completions by generating detailed markdown reports with
+# workspace information and git state, and optionally sends webhook notifications
+# to external systems. Perfect for enterprise environments requiring audit trails.
+#
+# Demonstrates: Complex data extraction, structured report generation, markdown
+# heredocs, asynchronous webhook notifications, and robust error handling.
+
 input=$(cat)
 
 # Extract task metadata using proper API field paths
@@ -466,13 +508,19 @@ jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
 
 ### 8. Intelligent User Input Enhancer  
 
-**What it teaches:** `UserPromptSubmit` usage, prompt analysis, context injection, and safety validation.
-**When to use:** To provide intelligent assistance and safety guards for user interactions.
-
 **Hook:** `UserPromptSubmit`
 
 ```bash
 #!/usr/bin/env bash
+# Intelligent User Input Enhancer Hook
+#
+# Overview: Analyzes user prompts to detect potentially harmful commands, logs user
+# activity for analytics, and intelligently injects project and git context based on
+# prompt keywords. Provides safety guards while enhancing AI responses with relevant context.
+#
+# Demonstrates: UserPromptSubmit hook usage, multi-pattern safety validation, intelligent
+# context detection from prompts, structured JSON logging, and dynamic suggestion generation.
+
 input=$(cat)
 
 user_prompt=$(echo "$input" | jq -r '.userPromptSubmit.prompt')
@@ -556,13 +604,19 @@ fi
 
 ### 9. Multi-Service Integration Hub
 
-**What it teaches:** Advanced external integrations, service orchestration, and complex workflow automation.
-**When to use:** For enterprise environments requiring integration with multiple external services.
-
 **Hook:** `PostToolUse`
 
 ```bash
 #!/usr/bin/env bash
+# Multi-Service Integration Hub Hook
+#
+# Overview: Detects file modifications by type (dependencies, CI/CD, frontend, backend, tests)
+# and sends asynchronous webhook notifications to multiple external services like Slack and
+# CI/CD systems. Enables seamless integration of Cline operations into enterprise workflows.
+#
+# Demonstrates: Advanced pattern matching with associative arrays, multi-service webhook
+# orchestration, asynchronous background processing, and enterprise notification patterns.
+
 input=$(cat)
 
 tool_name=$(echo "$input" | jq -r '.postToolUse.toolName')

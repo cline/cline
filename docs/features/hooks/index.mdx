@@ -61,6 +61,10 @@ Multi-workspace setups show hooks from all your open workspaces, making it easy 
 <Step title="Create Your First Hook">
 Use the intuitive interface to create hooks:
 
+<Frame>
+  <img src="/assets/hooks/hooks-empty-state.png" alt="Empty hooks interface showing New hook... dropdowns for both Global Hooks and workspace-specific hooks before any hooks are created" />
+</Frame>
+
 1. **Choose your location**: Decide between Global Hooks or workspace-specific hooks
 2. **Select hook type**: Click the **"New hook..."** dropdown in your chosen location
 3. **Pick a hook type**: Choose from available options like:
@@ -83,6 +87,14 @@ Use the intuitive interface to create hooks:
 **Example starter script:**
 ```bash
 #!/usr/bin/env bash
+# Hook Input Inspection Script
+#
+# Overview: A minimal starter script that demonstrates the fundamental mechanics of hooks:
+# reading JSON input from stdin and using jq to inspect the data structure. Perfect for
+# understanding how hook data flows before building more complex validation logic.
+#
+# Demonstrates: Basic input reading with stdin, jq usage for JSON parsing and inspection,
+# and the foundation pattern that all hooks build upon.
 
 # Store piped input into a variable
 input=$(cat)

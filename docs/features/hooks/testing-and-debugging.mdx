@@ -247,7 +247,14 @@ Create hooks with built-in debugging capabilities.
 
 ```bash
 #!/usr/bin/env bash
-# Debug-enabled hook template
+# Debug-Enabled Hook Template
+#
+# Overview: A comprehensive hook template with built-in debugging capabilities that can
+# be toggled via environment variables. Includes error handling, detailed logging, and
+# proper input validation - perfect as a starting point for production hooks.
+#
+# Demonstrates: Environment-based debug toggling, stderr logging patterns, error trapping,
+# JSON validation, graceful error handling, and structured debug output.
 
 # Enable debug mode via environment variable
 DEBUG=${CLINE_HOOK_DEBUG:-false}

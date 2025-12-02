@@ -25,6 +25,15 @@ The state directory approach allows hooks to maintain context across Cline resta
 **File: `PreToolUse`**
 ```bash
 #!/usr/bin/env bash
+# Multi-Stage Validation Pipeline - Pre-validation Hook
+#
+# Overview: First stage of a two-part validation system that records warnings and
+# concerns during pre-validation, then correlates them with actual outcomes in the
+# post-validation stage. Enables intelligent feedback based on complete operation flow.
+#
+# Demonstrates: Stateful validation with persistent storage, JSON-based state management,
+# warning detection patterns, and preparation for post-execution correlation analysis.
+
 input=$(cat)
 
 tool_name=$(echo "$input" | jq -r '.preToolUse.toolName')
@@ -94,6 +103,15 @@ fi
 **File: `PostToolUse`**
 ```bash
 #!/usr/bin/env bash
+# Multi-Stage Validation Pipeline - Post-validation Hook
+#
+# Overview: Second stage that correlates pre-validation warnings with actual operation
+# outcomes. Provides intelligent feedback by analyzing whether concerns materialized,
+# offers recovery suggestions for failures, and tracks complete operation history.
+#
+# Demonstrates: State correlation across hook executions, outcome-based conditional logic,
+# failure recovery patterns, performance monitoring, and audit trail creation with cleanup.
+
 input=$(cat)
 
 tool_name=$(echo "$input" | jq -r '.postToolUse.toolName')
