@@ -53,6 +53,13 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 		setIsPaused(true) // Pause auto-rotation when user manually navigates
 	}
 
+	// Reset currentIndex when banners change to prevent out-of-bounds access
+	React.useEffect(() => {
+		if (currentIndex >= banners.length && banners.length > 0) {
+			setCurrentIndex(0)
+		}
+	}, [banners.length, currentIndex])
+
 	// Auto-rotation effect
 	React.useEffect(() => {
 		// Only auto-rotate if there's more than one banner and not paused
@@ -73,6 +80,11 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 	}, [banners.length, isPaused, currentIndex])
 
 	const currentBanner = banners[currentIndex]
+
+	// Safety check: if currentBanner is undefined (shouldn't happen with above effect, but just in case)
+	if (!currentBanner) {
+		return null
+	}
 
 	return (
 		<div

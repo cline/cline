@@ -83,32 +83,15 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 
 	const handleCloseWhatsNewModal = useCallback(() => {
 		setShowWhatsNewModal(false)
+		// Call hideAnnouncement to persist dismissal (same as old banner behavior)
+		hideAnnouncement()
 		// Trigger fade-in animation after modal closes
 		setTimeout(() => setShowContent(true), 100)
-	}, [])
+	}, [hideAnnouncement])
 
 	// Build array of active banners for carousel
 	const activeBanners = useMemo((): BannerData[] => {
 		const banners: BannerData[] = []
-
-		// Show "What's New" announcement FIRST if it exists
-		if (showAnnouncement) {
-			banners.push({
-				id: "announcement",
-				icon: <span>🎉</span>,
-				title: `What's New in v${version}`,
-				description: (
-					<>
-						<strong>MiniMax-M2</strong> free, <strong>Gemini 3 Pro</strong> and <strong>Opus 4.5</strong> with SOTA
-						performance, plus bug fixes and new features.{" "}
-						<VSCodeLink href="https://github.com/cline/cline/blob/main/CHANGELOG.md" style={{ display: "inline" }}>
-							View changelog
-						</VSCodeLink>
-					</>
-				),
-				onClose: hideAnnouncement,
-			})
-		}
 
 		if (shouldShowInfoBanner) {
 			banners.push({
@@ -223,11 +206,8 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 		return banners
 	}, [
 		shouldShowInfoBanner,
-		showAnnouncement,
 		shouldShowNewModelBanner,
 		shouldShowCliBanner,
-		hideAnnouncement,
-		version,
 		clineUser,
 		openRouterModels,
 		setShowChatModelSelector,

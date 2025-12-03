@@ -2,6 +2,7 @@ import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { XIcon } from "lucide-react"
 import React from "react"
 import { Button } from "@/components/ui/button"
+import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../settings/OpenRouterModelPicker"
 
 interface WhatsNewModalProps {
@@ -15,32 +16,43 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 		return null
 	}
 
+	const isVscode = PLATFORM_CONFIG.type === PlatformType.VSCODE
+
 	const handleBackdropClick = (e: React.MouseEvent) => {
 		if (e.target === e.currentTarget) {
 			onClose()
 		}
 	}
 
-	const handleAllUpdates = () => {
-		window.open("https://github.com/cline/cline/blob/main/CHANGELOG.md", "_blank")
-		onClose()
+	const handleContentClick = (e: React.MouseEvent) => {
+		// Allow links (a tags) to propagate so they work properly
+		if (e.target instanceof HTMLElement && e.target.tagName === "A") {
+			return
+		}
+		// Stop propagation for other clicks to prevent closing modal
+		e.stopPropagation()
 	}
 
 	return (
 		<div
-			className="fixed inset-0 bg-black/50 flex items-center justify-center"
+			className="fixed inset-0 bg-black/80 flex justify-center items-start"
 			onClick={handleBackdropClick}
-			style={{ zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 100 }}>
+			style={{ zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 100, paddingTop: "calc(15vh + 60px)" }}>
 			<div
 				className="relative bg-(--vscode-editor-background) rounded-sm border border-(--vscode-panel-border) shadow-lg max-w-md w-full mx-4"
-				onClick={(e) => e.stopPropagation()}
-				style={{ maxWidth: "500px" }}>
+				onClick={handleContentClick}
+				style={{ maxWidth: "420px", height: "fit-content" }}>
 				{/* Close button */}
 				<Button
-					className="absolute top-4 right-4 z-10"
+					className="absolute top-3 right-3 z-10"
 					onClick={onClose}
 					size="icon"
-					style={{ width: "32px", height: "32px" }}
+					style={{
+						width: "29px",
+						height: "29px",
+						borderRadius: "50%",
+						backgroundColor: "rgba(0, 0, 0, 0.3)",
+					}}
 					variant="icon">
 					<XIcon style={{ width: "18px", height: "18px" }} />
 				</Button>
@@ -49,22 +61,17 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 				<div
 					className="w-full rounded-t-sm overflow-hidden"
 					style={{
-						height: "240px",
-						background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-					}}>
-					<div className="flex items-center justify-center h-full">
-						<div
-							style={{
-								fontSize: "120px",
-								opacity: 0.9,
-							}}>
-							🎉
-						</div>
-					</div>
-				</div>
+						height: "160px",
+						backgroundImage:
+							"url('https://cline.ghost.io/content/images/2025/12/u9318423161_from_autumn_to_winter_interpreted_in_nature_in_th_621d4b5d-74bb-4757-8afc-8095d4fafcc4_1.png')",
+						backgroundSize: "cover",
+						backgroundPosition: "center",
+						backgroundRepeat: "no-repeat",
+					}}
+				/>
 
 				{/* Content area */}
-				<div className="p-6 pr-12">
+				<div className="p-5 pr-10">
 					{/* Badge */}
 					<div className="mb-3">
 						<span
@@ -78,26 +85,42 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					</div>
 
 					{/* Title */}
-					<h2 className="text-xl font-semibold mb-3" style={{ color: "var(--vscode-editor-foreground)" }}>
-						What's New in v{version}
+					<h2 className="text-lg font-semibold mb-3" style={{ color: "var(--vscode-editor-foreground)" }}>
+						🎉 New in v{version}
 					</h2>
 
 					{/* Description */}
-					<p className="text-base mb-6" style={{ color: "var(--vscode-descriptionForeground)" }}>
-						<strong>MiniMax-M2</strong> free, <strong>Gemini 3 Pro</strong> and <strong>Opus 4.5</strong> with SOTA
-						performance, plus bug fixes and new features.{" "}
-						<VSCodeLink href="https://github.com/cline/cline/blob/main/CHANGELOG.md" style={{ display: "inline" }}>
-							View changelog
-						</VSCodeLink>
-					</p>
+					<ul className="text-sm mb-5 pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
+						{isVscode && (
+							<>
+								<li className="mb-2">
+									New{" "}
+									<VSCodeLink
+										href="https://docs.cline.bot/features/explain-changes"
+										style={{ display: "inline" }}>
+										Explain Changes
+									</VSCodeLink>{" "}
+									button when Cline completes a task to help review code with inline chat. You can reply to
+									comments, or send the chat as context back to Cline.
+								</li>
+								<li className="mb-2">
+									Use the new{" "}
+									<VSCodeLink
+										href="https://docs.cline.bot/features/slash-commands/explain-changes"
+										style={{ display: "inline" }}>
+										/explain-changes
+									</VSCodeLink>{" "}
+									slash command to explain the changes in branches, commits, etc. (Try asking Cline to explain a
+									PR you need to review!)
+								</li>
+							</>
+						)}
+					</ul>
 
-					{/* Action buttons */}
+					{/* Action button */}
 					<div className="flex gap-3">
-						<VSCodeButton appearance="primary" onClick={onClose} style={{ flex: 1 }}>
-							Try Now
-						</VSCodeButton>
-						<VSCodeButton appearance="secondary" onClick={handleAllUpdates} style={{ flex: 1 }}>
-							All Updates
+						<VSCodeButton appearance="secondary" onClick={onClose}>
+							Dismiss
 						</VSCodeButton>
 					</div>
 				</div>
