@@ -22,7 +22,7 @@ These hooks intercept and validate tool operations before and after they execute
 
 #### `PreToolUse`
 
-Runs before any tool executes. Use it to block invalid operations, validate parameters, and enforce project policies before changes happen.
+Triggered immediately before Cline uses any tool (see the [Cline Tools Reference Guide](/cline-tools) for all available tools). Use it to block invalid operations, validate parameters, and enforce project policies before changes happen.
 
 **Input Fields:**
 ```json
@@ -60,7 +60,7 @@ echo '{"cancel": false}'
 
 #### `PostToolUse`
 
-Runs after a tool completes. Use it to learn from results, track performance metrics, and build project knowledge based on operations performed.
+Triggered immediately after Cline uses any tool (see the [Cline Tools Reference Guide](/cline-tools) for all available tools). Use it to learn from results, track performance metrics, and build project knowledge based on operations performed.
 
 **Input Fields:**
 ```json
@@ -104,7 +104,7 @@ These hooks monitor and enhance user communication with Cline. Use them to valid
 
 #### `UserPromptSubmit`
 
-Runs when a user sends a message to Cline. Use it to validate input, inject context based on the prompt, and track interaction patterns.
+Triggered when the user enters text into the prompt box and presses enter to start a new task, continue a completed task, or resume a cancelled task. Use it to validate input, inject context based on the prompt, and track interaction patterns.
 
 **Input Fields:**
 ```json
@@ -150,7 +150,7 @@ These hooks monitor and respond to task state changes from start to finish. Use 
 
 #### `TaskStart`
 
-Runs when a new task begins. Use it to detect project type, initialize tracking, and inject initial context that shapes how Cline approaches the work.
+Triggered once at the beginning of a new task. Use it to detect project type, initialize tracking, and inject initial context that shapes how Cline approaches the work.
 
 **Input Fields:**
 ```json
@@ -202,7 +202,7 @@ fi
 
 #### `TaskResume`
 
-Runs when a task resumes after interruption. Use it to restore state, refresh context, and log resumption for analytics or external system notifications.
+Triggered when the user resumes a task that has been cancelled or aborted. Use it to restore state, refresh context, and log resumption for analytics or external system notifications.
 
 **Input Fields:**
 ```json
@@ -229,7 +229,7 @@ Runs when a task resumes after interruption. Use it to restore state, refresh co
 
 #### `TaskCancel`
 
-Runs when a task is cancelled. Use it to cleanup resources, log cancellation details, and notify external systems about interrupted work.
+Triggered when the user cancels a task or aborts a hook execution. Use it to cleanup resources, log cancellation details, and notify external systems about interrupted work.
 
 **Input Fields:**
 ```json
@@ -251,7 +251,7 @@ Runs when a task is cancelled. Use it to cleanup resources, log cancellation det
 
 #### `TaskComplete`
 
-Runs when a task completes successfully. Use it to track completion metrics, generate reports, log task outcomes, and trigger completion workflows.
+Triggered when Cline finishes its work and successfully executes the `attempt_completion` tool to finalize the task output. Use it to track completion metrics, generate reports, log task outcomes, and trigger completion workflows.
 
 **Input Fields:**
 ```json
@@ -361,11 +361,15 @@ Cline will parse only the final JSON object from stdout.
 
 ### Error Handling
 
-If your hook script:
-- Exits with non-zero status: The action is blocked
-- Outputs invalid JSON: The action is blocked  
-- Times out: The action is blocked
-- Outputs no JSON: The action proceeds
+Hook execution errors don't prevent task execution - only returning `"cancel": true` can halt a task. All other errors are treated as hook failures, not reasons to abort the task.
+
+**Hook Status Display:**
+
+- **Completed** (grey): Hook executed successfully, regardless of whether it returned `"cancel": false` or no JSON output
+- **Failed** (red): Hook exited with non-zero status, output invalid JSON, or timed out. The UI displays the error details (e.g., exit code number)
+- **Aborted** (red): Hook returned `"cancel": true`, halting the task. User must manually resume the task to continue
+
+**Important:** Even when a hook fails (non-zero exit, invalid JSON, timeout), Cline continues with the task. Only `"cancel": true` stops execution.
 
 ### Context Modification Timing
 
@@ -380,7 +384,7 @@ This means:
 - **PreToolUse hooks**: Use for blocking bad actions + injecting context for next decision
 - **PostToolUse hooks**: Use for learning from completed actions
 
-### String Escaping in JSON
+### Helpful Tip: String Escaping in JSON
 
 When your hook needs to include strings containing unescaped quote characters (`"`) in JSON output, use jq's `--arg` flag for proper escaping:
 
@@ -406,11 +410,13 @@ The `--arg` flag automatically escapes special characters, preventing JSON parsi
 
 ### Execution Context
 
-Hooks run with the same permissions as VS Code and have access to:
-- All workspace files and directories
-- Environment variables
+Hooks are executable scripts that run with the same permissions as VS Code. They have unrestricted access to:
+- The entire filesystem (any file the user can access)
+- All environment variables
 - System commands and tools
-- Network access
+- Network resources
+
+Hooks can perform any operation the user could perform in a terminal, including reading and writing files outside the workspace, making network requests, and executing system commands.
 
 ### Security Considerations
 
@@ -420,10 +426,7 @@ Hooks run with the same permissions as VS Code. They can access all workspace fi
 
 ### Performance Guidelines
 
-- **Keep hooks fast**: Aim for sub-100ms execution time
-- **Avoid blocking operations**: Network calls, heavy computations
-- **Use async patterns**: For expensive operations, trigger background processes
-- **Cache when possible**: Store results to avoid re-computation
+Hooks have a 30 second timeout. As long as your hook completes within this time, it can perform any operations needed, including network calls or heavy computations.
 
 ### Hook Discovery
 
