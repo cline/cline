@@ -70,11 +70,6 @@ export const VARIANT_CONFIGS = {
 	 */
 	[ModelFamily.GLM]: glmConfig,
 	/**
-	 * Grok variant - Optimized for xAI Grok models
-	 * Configured for advanced agentic coding capabilities
-	 */
-	[ModelFamily.GROK]: grokConfig,
-	/**
 	 * Hermes variant - Optimized for Hermes-4 model
 	 * Configured for advanced agentic coding capabilities
 	 */
