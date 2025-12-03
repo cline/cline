@@ -19,7 +19,7 @@ export class SharedUriHandler {
 		const queryString = parsedUrl.search.slice(1) // Remove leading '?'
 		const query = new URLSearchParams(queryString.replace(/\+/g, "%2B"))
 
-		Logger.info(
+		Logger.log(
 			"SharedUriHandler: Processing URI:" +
 				JSON.stringify({
 					path: path,
@@ -58,7 +58,7 @@ export class SharedUriHandler {
 				case "/auth": {
 					const provider = query.get("provider")
 
-					Logger.info(`SharedUriHandler - Auth callback received for ${provider} - ${path}`)
+					Logger.log(`SharedUriHandler - Auth callback received for ${provider} - ${path}`)
 
 					const token = query.get("refreshToken") || query.get("idToken") || query.get("code")
 					if (token) {

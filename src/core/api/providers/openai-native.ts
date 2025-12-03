@@ -222,8 +222,6 @@ export class OpenAiNativeHandler implements ApiHandler {
 				strict: tool.function.strict ?? true, // Responses API defaults to strict mode
 			}))
 
-		Logger.debug("OpenAI Responses Input: " + JSON.stringify(input))
-
 		// const lastAssistantMessage = [...messages].reverse().find((msg) => msg.role === "assistant" && msg.id)
 		// const previous_response_id = lastAssistantMessage?.id
 
@@ -242,8 +240,6 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 		// Process the response stream
 		for await (const chunk of stream) {
-			Logger.debug("OpenAI Responses Chunk: " + JSON.stringify(chunk))
-
 			// Handle different event types from Responses API
 			if (chunk.type === "response.output_item.added") {
 				const item = chunk.item

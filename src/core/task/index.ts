@@ -96,7 +96,6 @@ import {
 } from "@/shared/messages/content"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
-import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
@@ -1525,11 +1524,7 @@ export class Task {
 
 		const subAgentStartTime = isSubagent ? performance.now() : 0
 
-		Logger.info("IS_TEST: " + isInTestMode())
-
 		// Force subagents to use background terminal (hidden execution)
-
-		Logger.info("Executing command in terminal: " + command)
 
 		let terminalManager: TerminalManager
 		if (isSubagent) {
@@ -1878,7 +1873,6 @@ export class Task {
 			if (typeof process.terminate === "function") {
 				try {
 					await process.terminate()
-					Logger.info(`Terminated background command: ${command}`)
 				} catch (error) {
 					Logger.error(`Error terminating background command: ${command}`, error)
 				}
@@ -2911,7 +2905,7 @@ export class Task {
 
 					// present content to user - we don't want the stream to break if present fails, so we catch errors here
 					await this.presentAssistantMessage().catch((error) =>
-						Logger.debug("[Task] Failed to present message: " + error),
+						Logger.error("[Task] Failed to present message: " + error),
 					)
 
 					if (this.taskState.abort) {

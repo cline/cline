@@ -47,7 +47,7 @@ export class TelemetryProviderFactory {
 			providers.push(new NoOpTelemetryProvider())
 		}
 
-		Logger.info("TelemetryProviderFactory: Created providers - " + providers.map((p) => p.constructor.name).join(", "))
+		Logger.log("TelemetryProviderFactory: Created providers - " + providers.map((p) => p.constructor.name).join(", "))
 		return providers
 	}
 
@@ -71,7 +71,7 @@ export class TelemetryProviderFactory {
 				if (meterProvider || loggerProvider) {
 					return await new OpenTelemetryTelemetryProvider().initialize()
 				}
-				Logger.info("TelemetryProviderFactory: OpenTelemetry providers not available")
+				Logger.log("TelemetryProviderFactory: OpenTelemetry providers not available")
 				return new NoOpTelemetryProvider()
 			}
 			case "no-op":
@@ -116,10 +116,10 @@ export class NoOpTelemetryProvider implements ITelemetryProvider {
 		Logger.log(`[NoOpTelemetryProvider] REQUIRED ${_event}: ${JSON.stringify(_properties)}`)
 	}
 	identifyUser(_userInfo: any, _properties?: TelemetryProperties): void {
-		Logger.info(`[NoOpTelemetryProvider] identifyUser - ${JSON.stringify(_userInfo)} - ${JSON.stringify(_properties)}`)
+		Logger.log(`[NoOpTelemetryProvider] identifyUser - ${JSON.stringify(_userInfo)} - ${JSON.stringify(_properties)}`)
 	}
 	setOptIn(_optIn: boolean): void {
-		Logger.info(`[NoOpTelemetryProvider] setOptIn(${_optIn})`)
+		Logger.log(`[NoOpTelemetryProvider] setOptIn(${_optIn})`)
 		this.isOptIn = _optIn
 	}
 	isEnabled(): boolean {
@@ -160,6 +160,6 @@ export class NoOpTelemetryProvider implements ITelemetryProvider {
 		// no-op
 	}
 	async dispose(): Promise<void> {
-		Logger.info(`[NoOpTelemetryProvider] Disposing (optIn=${this.isOptIn})`)
+		Logger.log(`[NoOpTelemetryProvider] Disposing (optIn=${this.isOptIn})`)
 	}
 }

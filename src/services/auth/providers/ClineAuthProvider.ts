@@ -96,7 +96,6 @@ export class ClineAuthProvider implements IAuthProvider {
 			const storedAuthDataString = controller.stateManager.getSecretKey("cline:clineAccountId")
 
 			if (!storedAuthDataString) {
-				Logger.debug("No stored authentication data found")
 				// Reset retry count when there's no stored auth
 				this.refreshRetryCount = 0
 				this.lastRefreshAttempt = 0
@@ -128,9 +127,9 @@ export class ClineAuthProvider implements IAuthProvider {
 				const now = Date.now()
 				const timeSinceLastAttempt = now - this.lastRefreshAttempt
 				if (timeSinceLastAttempt < this.RETRY_DELAY_MS && this.refreshRetryCount > 0) {
-					Logger.debug(
-						`Waiting ${Math.ceil((this.RETRY_DELAY_MS - timeSinceLastAttempt) / 1000)}s before retry attempt ${this.refreshRetryCount + 1}/${this.MAX_REFRESH_RETRIES}`,
-					)
+					// Logger.debug(
+					// 	`Waiting ${Math.ceil((this.RETRY_DELAY_MS - timeSinceLastAttempt) / 1000)}s before retry attempt ${this.refreshRetryCount + 1}/${this.MAX_REFRESH_RETRIES}`,
+					// )
 					return null
 				}
 
@@ -146,9 +145,6 @@ export class ClineAuthProvider implements IAuthProvider {
 				// Try to refresh the token using the refresh token
 				this.refreshRetryCount++
 				this.lastRefreshAttempt = now
-				Logger.debug(
-					`Token expired or expiring soon, attempting refresh (attempt ${this.refreshRetryCount}/${this.MAX_REFRESH_RETRIES}). API Base URL: ${this.config.apiBaseUrl}`,
-				)
 
 				try {
 					const authInfo = await this.refreshToken(storedAuthData.refreshToken)
@@ -160,7 +156,6 @@ export class ClineAuthProvider implements IAuthProvider {
 					// Reset retry count on success
 					this.refreshRetryCount = 0
 					this.lastRefreshAttempt = 0
-					Logger.debug("Token refresh successful")
 					return authInfo || null
 				} catch (refreshError) {
 					Logger.error(

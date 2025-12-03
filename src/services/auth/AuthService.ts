@@ -155,7 +155,6 @@ export class AuthService {
 			if (await provider.shouldRefreshIdToken(clineAccountAuthToken, this._clineAuthInfo.expiresAt)) {
 				// If a refresh is already in progress, wait for it to complete
 				if (this._refreshPromise) {
-					Logger.info("Token refresh already in progress, waiting for completion")
 					await this._refreshPromise
 					// After waiting, return the updated token
 					clineAccountAuthToken = this._clineAuthInfo?.idToken
