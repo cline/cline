@@ -20,7 +20,7 @@ Each hook receives base fields in addition to its specific data: `clineVersion`,
 
 These hooks intercept and validate tool operations before and after they execute. Use them to enforce policies, track changes, and learn from operations.
 
-#### PreToolUse
+#### `PreToolUse`
 
 Runs before any tool executes. Use it to block invalid operations, validate parameters, and enforce project policies before changes happen.
 
@@ -58,7 +58,7 @@ fi
 echo '{"cancel": false}'
 ```
 
-#### PostToolUse
+#### `PostToolUse`
 
 Runs after a tool completes. Use it to learn from results, track performance metrics, and build project knowledge based on operations performed.
 
@@ -102,7 +102,7 @@ fi
 
 These hooks monitor and enhance user communication with Cline. Use them to validate input, inject context, and track interaction patterns.
 
-#### UserPromptSubmit
+#### `UserPromptSubmit`
 
 Runs when a user sends a message to Cline. Use it to validate input, inject context based on the prompt, and track interaction patterns.
 
@@ -148,7 +148,7 @@ fi
 
 These hooks monitor and respond to task state changes from start to finish. Use them to track progress, restore state, and trigger workflows.
 
-#### TaskStart
+#### `TaskStart`
 
 Runs when a new task begins. Use it to detect project type, initialize tracking, and inject initial context that shapes how Cline approaches the work.
 
@@ -200,7 +200,7 @@ else
 fi
 ```
 
-#### TaskResume
+#### `TaskResume`
 
 Runs when a task resumes after interruption. Use it to restore state, refresh context, and log resumption for analytics or external system notifications.
 
@@ -227,7 +227,7 @@ Runs when a task resumes after interruption. Use it to restore state, refresh co
 }
 ```
 
-#### TaskCancel
+#### `TaskCancel`
 
 Runs when a task is cancelled. Use it to cleanup resources, log cancellation details, and notify external systems about interrupted work.
 
@@ -249,7 +249,7 @@ Runs when a task is cancelled. Use it to cleanup resources, log cancellation det
 }
 ```
 
-#### TaskComplete
+#### `TaskComplete`
 
 Runs when a task completes successfully. Use it to track completion metrics, generate reports, log task outcomes, and trigger completion workflows.
 
