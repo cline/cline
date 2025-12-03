@@ -318,8 +318,6 @@ export class OcaHandler implements ApiHandler {
 		for await (const chunk of stream) {
 			Logger.debug("OCA Responses Chunk: " + JSON.stringify(chunk))
 
-			console.log("Chunk: ", chunk)
-
 			// Handle different event types from Responses API
 			if (chunk.type === "response.output_item.added") {
 				const item = chunk.item
