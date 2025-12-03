@@ -16,7 +16,7 @@ The hook names below are the exact file names you need to create. For example, t
 
 Each hook receives base fields in addition to its specific data: `clineVersion`, `hookName`, `timestamp`, `taskId`, `workspaceRoots`, `userId`.
 
-### Tool Execution
+### Tool Execution Hooks
 
 These hooks intercept and validate tool operations before and after they execute. Use them to enforce policies, track changes, and learn from operations.
 
@@ -98,7 +98,7 @@ else
 fi
 ```
 
-### User Interaction
+### User Interaction Hooks
 
 These hooks monitor and enhance user communication with Cline. Use them to validate input, inject context, and track interaction patterns.
 
@@ -144,7 +144,7 @@ else
 fi
 ```
 
-### Task Lifecycle
+### Task Lifecycle Hooks
 
 These hooks monitor and respond to task state changes from start to finish. Use them to track progress, restore state, and trigger workflows.
 
@@ -291,7 +291,7 @@ context="TASK_COMPLETED: Task $task_id finished successfully. Completion logged.
 jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
 ```
 
-### System Events
+### System Events Hooks
 
 These hooks monitor internal Cline operations and system-level events. Use them to track context usage, log system behavior, and analyze performance patterns.
 
