@@ -144,9 +144,7 @@
 								"pages": [
 									"features/hooks/index",
 									"features/hooks/hook-reference",
-									"features/hooks/samples",
-									"features/hooks/advanced-patterns",
-									"features/hooks/testing-and-debugging"
+									"features/hooks/samples"
 								]
 							},
 							"features/multiroot-workspace",
