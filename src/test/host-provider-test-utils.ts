@@ -1,4 +1,9 @@
-import { DiffViewProviderCreator, HostProvider, WebviewProviderCreator } from "@/hosts/host-provider"
+import {
+	CommentReviewControllerCreator,
+	DiffViewProviderCreator,
+	HostProvider,
+	WebviewProviderCreator,
+} from "@/hosts/host-provider"
 import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
 
@@ -11,6 +16,7 @@ import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-gr
 export function setVscodeHostProviderMock(options?: {
 	webviewProviderCreator?: WebviewProviderCreator
 	diffViewProviderCreator?: DiffViewProviderCreator
+	commentReviewControllerCreator?: CommentReviewControllerCreator
 	hostBridgeClient?: HostBridgeClientProvider
 	logToChannel?: (message: string) => void
 	getCallbackUri?: () => Promise<string>
@@ -22,6 +28,7 @@ export function setVscodeHostProviderMock(options?: {
 	HostProvider.initialize(
 		options?.webviewProviderCreator ?? ((() => {}) as WebviewProviderCreator),
 		options?.diffViewProviderCreator ?? ((() => {}) as DiffViewProviderCreator),
+		options?.commentReviewControllerCreator ?? ((() => {}) as CommentReviewControllerCreator),
 		options?.hostBridgeClient ?? vscodeHostBridgeClient,
 		options?.logToChannel ?? ((_) => {}),
 		options?.getCallbackUri ?? (async () => "http://example.com:1234/"),

@@ -3,11 +3,12 @@ import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
+import { telemetryService } from "@services/telemetry"
 import { findLastIndex } from "@shared/array"
 import { COMPLETION_RESULT_CHANGES_FLAG } from "@shared/ExtensionMessage"
-import { telemetryService } from "@/services/telemetry"
-import { ClineDefaultTool } from "@/shared/tools"
+import { ClineDefaultTool } from "@shared/tools"
 import type { ToolResponse } from "../../index"
+import { buildUserFeedbackContent } from "../../utils/buildUserFeedbackContent"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
@@ -172,6 +173,21 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 
 		await config.callbacks.say("user_feedback", text ?? "", images, completionFiles)
 
+		// Run UserPromptSubmit hook when user provides post-completion feedback
+		let hookContextModification: string | undefined
+		if (text || (images && images.length > 0) || (completionFiles && completionFiles.length > 0)) {
+			const userContentForHook = await buildUserFeedbackContent(text, images, completionFiles)
+
+			const hookResult = await config.callbacks.runUserPromptSubmitHook(userContentForHook, "feedback")
+
+			if (hookResult.cancel === true) {
+				return formatResponse.toolDenied()
+			}
+
+			// Capture hook context modification to add to tool results
+			hookContextModification = hookResult.contextModification
+		}
+
 		const toolResults: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = []
 		if (commandResult) {
 			if (typeof commandResult === "string") {
@@ -195,6 +211,14 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 					text: `<feedback>\n${text}\n</feedback>`,
 				},
 			)
+		}
+
+		// Add hook context modification if provided
+		if (hookContextModification) {
+			toolResults.push({
+				type: "text" as const,
+				text: `<hook_context source="UserPromptSubmit">\n${hookContextModification}\n</hook_context>`,
+			})
 		}
 
 		const fileContentString = completionFiles?.length ? await processFilesIntoText(completionFiles) : ""

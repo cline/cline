@@ -66,6 +66,7 @@ enum ClineSay {
   INFO = 26;
   TASK_PROGRESS = 27;
   ERROR_RETRY = 28;
+  GENERATE_EXPLANATION = 29;
 }
 
 // Enum for ClineSayTool tool types

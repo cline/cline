@@ -28,6 +28,8 @@ service StateService {
   rpc updateInfoBannerVersion(Int64Request) returns (Empty);
   rpc updateModelBannerVersion(Int64Request) returns (Empty);
   rpc updateCliBannerVersion(Int64Request) returns (Empty);
+  rpc dismissBanner(StringRequest) returns (Empty);
+  rpc trackBannerEvent(TrackBannerEventRequest) returns (Empty);
   rpc installClineCli(EmptyRequest) returns (Empty);
   rpc checkCliInstallation(EmptyRequest) returns (Boolean);
   rpc getProcessInfo(EmptyRequest) returns (ProcessInfo);
@@ -403,4 +405,9 @@ message OnboardingModel {
   string badge = 5;
   string group = 6;
   OpenRouterModelInfo info = 7;
+}
+
+message TrackBannerEventRequest {
+  string banner_id = 1;
+  string event_type = 2;
 }

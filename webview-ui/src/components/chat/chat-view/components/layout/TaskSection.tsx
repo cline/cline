@@ -1,7 +1,7 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
 import React from "react"
 import TaskHeader from "@/components/chat/task-header/TaskHeader"
-import { MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
+import { MessageHandlers } from "../../types/chatTypes"
 
 interface TaskSectionProps {
 	task: ClineMessage
@@ -18,7 +18,6 @@ interface TaskSectionProps {
 		supportsImages: boolean
 	}
 	messageHandlers: MessageHandlers
-	scrollBehavior: ScrollBehavior
 	lastProgressMessageText?: string
 }
 
@@ -32,7 +31,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({
 	lastApiReqTotalTokens,
 	selectedModelInfo,
 	messageHandlers,
-	scrollBehavior,
 	lastProgressMessageText,
 }) => {
 	return (
@@ -43,7 +41,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({
 			lastApiReqTotalTokens={lastApiReqTotalTokens}
 			lastProgressMessageText={lastProgressMessageText}
 			onClose={messageHandlers.handleTaskCloseButtonClick}
-			onScrollToMessage={scrollBehavior.scrollToMessage}
 			onSendMessage={messageHandlers.handleSendMessage}
 			task={task}
 			tokensIn={apiMetrics.totalTokensIn}

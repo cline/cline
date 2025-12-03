@@ -123,10 +123,12 @@ export class GeminiHandler implements ApiHandler {
 		// When ThinkingLevel is defineded, thinking budget cannot be zero
 		// and only level is used to control thinking behavior.
 		let thinkingLevel: ThinkingLevel | undefined
-		if (this.options.thinkingLevel === "low") {
-			thinkingLevel = ThinkingLevel.LOW
-		} else if (this.options.thinkingLevel === "high") {
+		if (this.options.thinkingLevel === "high") {
 			thinkingLevel = ThinkingLevel.HIGH
+		} else if (this.options.thinkingLevel === "low" || modelId.includes("gemini-3-pro")) {
+			// Thinking level is required for Gemini 3 Pro models.
+			// Set it to LOW by default if not specified but is required.
+			thinkingLevel = ThinkingLevel.LOW
 		}
 
 		// Set up base generation config
@@ -146,7 +148,7 @@ export class GeminiHandler implements ApiHandler {
 			// Turn on dynamic thinking:
 			// thinkingBudget: -1
 			// Turn on fixed thinking budget:
-			thinkingBudget: thinkingLevel ? undefined : thinkingBudget,
+			thinkingBudget: thinkingLevel ? undefined : thinkingBudget, // Use budget only if thinkingLevel is not set
 			thinkingLevel,
 			includeThoughts: thinkingBudget > 0 || !!thinkingLevel,
 		}

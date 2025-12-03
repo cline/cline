@@ -44,31 +44,49 @@ export interface OpenRouterModelPickerProps {
 	currentMode: Mode
 }
 
-// Featured models for Cline provider
-const featuredModels = [
+// Featured models for Cline provider organized by tabs
+const recommendedModels = [
 	{
 		id: "anthropic/claude-sonnet-4.5",
-		description: "Recommended for agentic coding in Cline",
-		label: "Best",
+		description: "Best balance of speed, cost, and quality",
+		label: "BEST",
 	},
 	{
 		id: "anthropic/claude-opus-4.5",
-		description: "SOTA performance on coding at 3x lower cost than Opus 4.1",
-		label: "New",
+		description: "State-of-the-art for complex coding",
+		label: "NEW",
+	},
+	{
+		id: "openai/gpt-5.1",
+		description: "OpenAI's latest with strong coding abilities",
+		label: "HOT",
 	},
 	{
 		id: "google/gemini-3-pro-preview",
-		description: "Google's latest reasoning model with 1M context window",
-		label: "Trending",
-	},
-	{
-		id: "x-ai/grok-code-fast-1",
-		description: "Advanced model with 262K context for complex coding",
-		label: "Free",
-		isFree: true,
+		description: "1M context window for large codebases",
+		label: "1M CTX",
 	},
 ]
-const FREE_CLINE_MODELS = featuredModels.filter((m) => m.isFree)
+
+const freeModels = [
+	{
+		id: "x-ai/grok-code-fast-1",
+		description: "Fast inference with strong coding performance",
+		label: "FREE",
+	},
+	{
+		id: "minimax/minimax-m2",
+		description: "Open source model with solid performance",
+		label: "FREE",
+	},
+	{
+		id: "stealth/microwave",
+		description: "A stealth model for agentic coding tasks",
+		label: "FREE",
+	},
+]
+
+const FREE_CLINE_MODELS = freeModels.map((m) => m.id)
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode }) => {
 	const { handleModeFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
@@ -77,6 +95,10 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
+	const [activeTab, setActiveTab] = useState<"recommended" | "free">(() => {
+		const currentModelId = modeFields.openRouterModelId || openRouterDefaultModelId
+		return freeModels.some((m) => m.id === currentModelId) ? "free" : "recommended"
+	})
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
@@ -103,7 +125,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 		const selected = normalizeApiConfiguration(apiConfiguration, currentMode)
 		const isCline = selected.selectedProvider === "cline"
 		// Makes sure "Free" featured models have $0 pricing for Cline provider
-		if (isCline && FREE_CLINE_MODELS.some((fm) => fm.id === selected.selectedModelId)) {
+		if (isCline && FREE_CLINE_MODELS.includes(selected.selectedModelId)) {
 			return {
 				...selected,
 				selectedModelInfo: {
@@ -278,7 +300,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 		currentMode === "plan" ? apiConfiguration?.geminiPlanModeThinkingLevel : apiConfiguration?.geminiActModeThinkingLevel
 
 	return (
-		<div style={{ width: "100%" }}>
+		<div style={{ width: "100%", paddingBottom: 2 }}>
 			<style>
 				{`
 				.model-item-highlight {
@@ -293,21 +315,49 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 				</label>
 
 				{modeFields.apiProvider === "cline" && (
-					<div style={{ marginBottom: "6px", marginTop: 4 }}>
-						{featuredModels.map((model) => (
-							<FeaturedModelCard
-								description={model.description}
-								isSelected={selectedModelId === model.id}
-								key={model.id}
-								label={model.label}
-								modelId={model.id}
-								onClick={() => {
-									handleModelChange(model.id)
-									setIsDropdownVisible(false)
-								}}
-							/>
-						))}
-					</div>
+					<>
+						{/* Tabs */}
+						<TabsContainer style={{ marginTop: 4 }}>
+							<Tab active={activeTab === "recommended"} onClick={() => setActiveTab("recommended")}>
+								Recommended
+							</Tab>
+							<Tab active={activeTab === "free"} onClick={() => setActiveTab("free")}>
+								Free
+							</Tab>
+						</TabsContainer>
+
+						{/* Model Cards */}
+						<div style={{ marginBottom: "6px" }}>
+							{activeTab === "recommended" &&
+								recommendedModels.map((model) => (
+									<FeaturedModelCard
+										description={model.description}
+										isSelected={selectedModelId === model.id}
+										key={model.id}
+										label={model.label}
+										modelId={model.id}
+										onClick={() => {
+											handleModelChange(model.id)
+											setIsDropdownVisible(false)
+										}}
+									/>
+								))}
+							{activeTab === "free" &&
+								freeModels.map((model) => (
+									<FeaturedModelCard
+										description={model.description}
+										isSelected={selectedModelId === model.id}
+										key={model.id}
+										label={model.label}
+										modelId={model.id}
+										onClick={() => {
+											handleModelChange(model.id)
+											setIsDropdownVisible(false)
+										}}
+									/>
+								))}
+						</div>
+					</>
 				)}
 
 				<DropdownWrapper ref={dropdownRef}>
@@ -501,5 +551,28 @@ const DropdownItem = styled.div<{ isSelected: boolean }>`
 
 	&:hover {
 		background-color: var(--vscode-list-activeSelectionBackground);
+	}
+`
+
+// Tabs
+
+const TabsContainer = styled.div`
+	display: flex;
+	gap: 0;
+	margin-bottom: 12px;
+	border-bottom: 1px solid #333;
+`
+
+const Tab = styled.div<{ active: boolean }>`
+	padding: 8px 16px;
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: 500;
+	color: ${({ active }) => (active ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
+	border-bottom: 2px solid ${({ active }) => (active ? "var(--vscode-textLink-foreground)" : "transparent")};
+	transition: all 0.15s ease;
+
+	&:hover {
+		color: var(--vscode-foreground);
 	}
 `

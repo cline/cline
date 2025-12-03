@@ -50,6 +50,7 @@ export const config = createVariant(ModelFamily.GLM)
 		ClineDefaultTool.PLAN_MODE,
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
+		ClineDefaultTool.GENERATE_EXPLANATION,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.GLM,

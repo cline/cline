@@ -51,7 +51,7 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_test1",
 								titleMd: "Test Banner",
@@ -87,7 +87,7 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_cached",
 								titleMd: "Cached Banner",
@@ -132,7 +132,7 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_expired",
 								titleMd: "Expired",
@@ -157,7 +157,7 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_future",
 								titleMd: "Future",
@@ -182,7 +182,7 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_active",
 								titleMd: "Active",
@@ -223,7 +223,7 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_openai",
 								titleMd: "OpenAI Users",
@@ -261,7 +261,7 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_openai",
 								titleMd: "OpenAI Users",
@@ -298,7 +298,7 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_multi",
 								titleMd: "Multiple Providers",
@@ -325,14 +325,14 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_all",
 								titleMd: "All Users",
 								bodyMd: "For everyone",
 								severity: "info" as const,
 								placement: "top" as const,
-								rulesJson: JSON.stringify({ audience: "all" } as BannerRules),
+								rulesJson: JSON.stringify({ audience: ["all"] } as BannerRules),
 							},
 						],
 					},
@@ -357,14 +357,14 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_admin",
 								titleMd: "Team Admins",
 								bodyMd: "For team admins only",
 								severity: "info" as const,
 								placement: "top" as const,
-								rulesJson: JSON.stringify({ audience: "team admin only" } as BannerRules),
+								rulesJson: JSON.stringify({ audience: ["team_admin_only"] } as BannerRules),
 							},
 						],
 					},
@@ -389,14 +389,14 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_admin",
 								titleMd: "Team Admins",
 								bodyMd: "For team admins only",
 								severity: "info" as const,
 								placement: "top" as const,
-								rulesJson: JSON.stringify({ audience: "team admin only" } as BannerRules),
+								rulesJson: JSON.stringify({ audience: ["team_admin_only"] } as BannerRules),
 							},
 						],
 					},
@@ -421,14 +421,14 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_admin",
 								titleMd: "Team Admins",
 								bodyMd: "For team admins only",
 								severity: "info" as const,
 								placement: "top" as const,
-								rulesJson: JSON.stringify({ audience: "team admin only" } as BannerRules),
+								rulesJson: JSON.stringify({ audience: ["team_admin_only"] } as BannerRules),
 							},
 						],
 					},
@@ -452,14 +452,14 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_team",
 								titleMd: "Team Members",
 								bodyMd: "For team members",
 								severity: "info" as const,
 								placement: "top" as const,
-								rulesJson: JSON.stringify({ audience: "team members" } as BannerRules),
+								rulesJson: JSON.stringify({ audience: ["team_members"] } as BannerRules),
 							},
 						],
 					},
@@ -484,14 +484,14 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_team",
 								titleMd: "Team Members",
 								bodyMd: "For team members",
 								severity: "info" as const,
 								placement: "top" as const,
-								rulesJson: JSON.stringify({ audience: "team members" } as BannerRules),
+								rulesJson: JSON.stringify({ audience: ["team_members"] } as BannerRules),
 							},
 						],
 					},
@@ -515,14 +515,14 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_personal",
 								titleMd: "Personal Users",
 								bodyMd: "For personal users",
 								severity: "info" as const,
 								placement: "top" as const,
-								rulesJson: JSON.stringify({ audience: "personal only" } as BannerRules),
+								rulesJson: JSON.stringify({ audience: ["personal_only"] } as BannerRules),
 							},
 						],
 					},
@@ -547,14 +547,14 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_personal",
 								titleMd: "Personal Users",
 								bodyMd: "For personal users",
 								severity: "info" as const,
 								placement: "top" as const,
-								rulesJson: JSON.stringify({ audience: "personal only" } as BannerRules),
+								rulesJson: JSON.stringify({ audience: ["personal_only"] } as BannerRules),
 							},
 						],
 					},
@@ -573,7 +573,7 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_malformed",
 								titleMd: "Malformed",
@@ -597,7 +597,7 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_norules",
 								titleMd: "No Rules",
@@ -624,7 +624,7 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_test",
 								titleMd: "Test",

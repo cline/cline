@@ -87,6 +87,11 @@ export interface ITelemetryProvider {
 	getSettings(): TelemetrySettings
 
 	/**
+	 * Returns the name of the telemetry provider.
+	 */
+	name(): string
+
+	/**
 	 * Record a counter metric (cumulative value that only increases)
 	 * Providers that don't support metrics may implement this as a no-op.
 	 * @param name Metric name (e.g., "cline.tokens.input")

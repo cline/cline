@@ -1,0 +1,195 @@
+---
+title: "Task History Recovery Guide"
+sidebarTitle: "Task History Recovery"
+description: "How to recover and reconstruct your Cline task history"
+---
+
+Sometimes when you update Cline or when certain settings change, you might lose access to your previous tasks. This guide will help you recover and reconstruct your Cline task history, so you can regain access to your important conversations and work.
+
+<Tip>
+	Most cases are solved by running the built-in recovery command.
+</Tip>
+
+## Quick Recovery
+
+<Steps>
+	<Step title="Open Command Palette">
+		Press `Cmd/Ctrl + Shift + P` to open the Command Palette.
+	</Step>
+	<Step title="Run the recovery command">
+		Type **"Cline: Reconstruct Task History"** and select it.
+	</Step>
+	<Step title="Confirm the action">
+		A confirmation prompt will appear. Click **Yes** to proceed.
+	</Step>
+	<Step title="Wait for reconstruction">
+		Cline will scan your task folders and rebuild the history index.
+	</Step>
+	<Step title="Verify recovery">
+		Check your history panel to confirm your tasks have been restored.
+	</Step>
+</Steps>
+
+## Where Cline Stores Data
+
+### Storage Paths
+
+<Tabs>
+	<Tab title="VS Code">
+		```bash
+		# macOS
+		~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/
+		# Windows
+		%APPDATA%\Code\User\globalStorage\saoudrizwan.claude-dev\
+		# Linux
+		~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/
+		```
+	</Tab>
+	<Tab title="JetBrains">
+		```bash
+		# macOS
+		~/Library/Application Support/JetBrains/<IDE>/globalStorage/saoudrizwan.claude-dev/
+		# Windows
+		%APPDATA%\JetBrains\<IDE>\globalStorage\saoudrizwan.claude-dev\
+		# Linux
+		~/.config/JetBrains/<IDE>/globalStorage/saoudrizwan.claude-dev/
+		```
+	</Tab>
+</Tabs>
+
+For VS Code Insiders, replace `Code` with `Code - Insiders`. For JetBrains IDEs, replace `<IDE>` with your specific IDE name (e.g., `IntelliJIdea2023.3`, `PyCharm2023.3`, `WebStorm2023.3`).
+
+### Directory Structure
+
+```
+saoudrizwan.claude-dev/
+├── state/
+│   ├── taskHistory.json          # Main history index
+│   └── taskHistory.backup.*.json # Backups
+├── tasks/
+│   └── <task-id>/                # Individual task data
+│       ├── api_conversation_history.json
+│       ├── ui_messages.json
+│       └── task_metadata.json
+└── checkpoints/
+    └── <workspace-hash>/         # Per-workspace checkpoint storage
+        └── .git/                 # Shadow Git repository for snapshots
+```
+
+The `taskHistory.json` file is just an index. The actual conversation data lives in individual task folders under `tasks/`.
+
+## Using the Recovery Command
+
+The recovery command scans all task folders and rebuilds the history index from scratch.
+
+What it does:
+
+1. Backs up your current `taskHistory.json`
+2. Scans the `tasks/` directory
+3. Reads conversation data from each task folder
+4. Recalculates token usage and costs
+5. Creates a new `taskHistory.json`
+
+```mermaid
+graph LR
+    A[Backup current] --> B[Scan tasks/]
+    B --> C[Read each task]
+    C --> D[Rebuild index]
+    D --> E[Done]
+```
+
+<Warning>
+	The recovery command rebuilds the index by reading data from existing task folders. If the `tasks/` directory or individual task folders have been permanently deleted, the associated data cannot be recovered.
+</Warning>
+
+## Manual Recovery
+
+### Restoring from Backup
+
+Cline creates backups automatically. Find them in the `state/` folder:
+
+<Tabs>
+	<Tab title="VS Code">
+		```bash
+		# macOS/Linux
+		cd ~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/state/
+		ls taskHistory.backup.*.json
+
+		# Pick the most recent one and restore it
+		cp taskHistory.backup.1234567890.json taskHistory.json
+		```
+	</Tab>
+	<Tab title="JetBrains">
+		```bash
+		# macOS
+		cd ~/Library/Application\ Support/JetBrains/<IDE>/globalStorage/saoudrizwan.claude-dev/state/
+		ls taskHistory.backup.*.json
+
+		# Pick the most recent one and restore it
+		cp taskHistory.backup.1234567890.json taskHistory.json
+		```
+	</Tab>
+</Tabs>
+
+### Migrating to a New Machine
+
+Switching to a new computer? You can bring all your Cline conversations with you. The process is the same whether you're using VS Code or a JetBrains IDE.
+
+<Steps>
+	<Step title="Locate and copy your Cline data">
+		On your **old machine**, find the `saoudrizwan.claude-dev` folder using the [storage paths above](#storage-paths) and copy the entire folder.
+	</Step>
+	<Step title="Set up your new machine">
+		On your **new machine**, install your IDE (VS Code or JetBrains) and the Cline extension.
+	</Step>
+	<Step title="Close your IDE">
+		Make sure your IDE is completely closed before proceeding.
+	</Step>
+	<Step title="Transfer your data">
+		Paste the `saoudrizwan.claude-dev` folder to the same storage path on your new machine.
+	</Step>
+	<Step title="Launch and verify">
+		Open your IDE. Your task history should now appear in Cline.
+	</Step>
+</Steps>
+
+<Info>
+	The data format is the same across operating systems—cross-platform migration (e.g., Windows → macOS) works without any additional steps.
+</Info>
+
+## Common Problems
+
+Here are some common issues and their solutions:
+
+### History empty after VS Code update
+Run **"Cline: Reconstruct Task History"** from the command palette. If that doesn't work, check if there's a backup file to restore.
+
+### History lost after reinstalling VS Code
+VS Code usually keeps extension data when uninstalled. Simply reinstall Cline and run the recovery command.
+
+### "No tasks found" error
+This occurs when the `tasks/` folder is empty or missing. Common causes:
+
+- VS Code data was completely cleared
+- You're looking at the wrong VS Code installation (standard vs Insiders)
+- The folder was manually deleted
+
+Check the correct storage path for your IDE and verify the folder exists.
+
+### Recovery runs but some tasks missing
+Corrupted task folders get skipped during recovery. The command will show how many tasks were recovered vs skipped. Check the error messages for details about which tasks couldn't be restored.
+
+## Need Additional Help?
+
+If you need assistance, you can:
+
+1. **Open a GitHub issue** at [cline/cline](https://github.com/cline/cline/issues)
+2. **Ask for help on our Discord server** - join our community for faster support
+
+When reporting an issue, please include:
+
+- Your OS and IDE (VS Code or JetBrains IDE name/version)
+- Cline version
+- What happened before the data loss
+- Any error messages
+- **Task export data**: Include the relevant JSON files from the affected task folder (e.g., `api_conversation_history.json`, `ui_messages.json`, `task_metadata.json`) to help us understand what went wrong

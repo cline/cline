@@ -2,8 +2,11 @@ import { ClineMessage } from "@shared/ExtensionMessage"
 import debounce from "debounce"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
-import { VirtuosoHandle } from "react-virtuoso"
+import { ListRange, VirtuosoHandle } from "react-virtuoso"
 import { ScrollBehavior } from "../types/chatTypes"
+
+// Height of the sticky user message header (padding + content)
+const STICKY_HEADER_HEIGHT = 32
 
 /**
  * Custom hook for managing scroll behavior
@@ -22,6 +25,8 @@ export function useScrollBehavior(
 	setIsAtBottom: React.Dispatch<React.SetStateAction<boolean>>
 	pendingScrollToMessage: number | null
 	setPendingScrollToMessage: React.Dispatch<React.SetStateAction<number | null>>
+	scrolledPastUserMessage: ClineMessage | null
+	handleRangeChanged: (range: ListRange) => void
 } {
 	// Refs
 	const virtuosoRef = useRef<VirtuosoHandle>(null)
@@ -32,6 +37,102 @@ export function useScrollBehavior(
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const [isAtBottom, setIsAtBottom] = useState(false)
 	const [pendingScrollToMessage, setPendingScrollToMessage] = useState<number | null>(null)
+	const [scrolledPastUserMessage, setScrolledPastUserMessage] = useState<ClineMessage | null>(null)
+
+	// Find all user feedback messages
+	const userFeedbackMessages = useMemo(() => {
+		return visibleMessages.filter((msg) => msg.say === "user_feedback")
+	}, [visibleMessages])
+
+	// Track scroll position to detect which user message has been scrolled past
+	// Shows the most recent user message that's above the current viewport
+	const checkScrolledPastUserMessage = useCallback(() => {
+		const scrollContainer = scrollContainerRef.current
+		if (!scrollContainer || userFeedbackMessages.length === 0) {
+			setScrolledPastUserMessage(null)
+			return
+		}
+
+		const containerRect = scrollContainer.getBoundingClientRect()
+
+		// Find the most recent (last in order) user message that's been scrolled past
+		// We iterate from the end to find the latest one that's above the viewport
+		let mostRecentScrolledPast: ClineMessage | null = null
+
+		// Track if we've found any visible message element in the DOM
+		// This helps us determine if missing elements are above or below viewport
+		let foundAnyVisibleElement = false
+
+		for (let i = userFeedbackMessages.length - 1; i >= 0; i--) {
+			const msg = userFeedbackMessages[i]
+			const messageElement = scrollContainer.querySelector(`[data-message-ts="${msg.ts}"]`) as HTMLElement
+
+			if (messageElement) {
+				foundAnyVisibleElement = true
+				const messageRect = messageElement.getBoundingClientRect()
+				// Message is scrolled past if its bottom edge is above (or near) the container's top
+				// Add a small threshold so the pin appears slightly before message fully scrolls out
+				const threshold = 10
+				if (messageRect.bottom < containerRect.top + threshold) {
+					mostRecentScrolledPast = msg
+					break // Found the most recent one that's scrolled past
+				}
+			} else {
+				// Element not in DOM - it's virtualized out
+				// Only consider it scrolled past if we've already found a visible element after it
+				// (meaning this missing element is above the viewport, not below)
+				if (foundAnyVisibleElement) {
+					mostRecentScrolledPast = msg
+					break
+				}
+				// If we haven't found any visible elements yet, this message might be
+				// below the viewport, so continue looking for visible elements
+			}
+		}
+
+		setScrolledPastUserMessage(mostRecentScrolledPast)
+	}, [userFeedbackMessages])
+
+	// Use scroll event listener - attach to the scrollable element inside the container
+	useEffect(() => {
+		const scrollContainer = scrollContainerRef.current
+		if (!scrollContainer) {
+			return
+		}
+
+		// The scrollable element is the Virtuoso scroller or a child with overflow
+		const findScrollableElement = () => {
+			// Try finding the Virtuoso scroller
+			const virtuosoScroller = scrollContainer.querySelector('[data-virtuoso-scroller="true"]') as HTMLElement
+			if (virtuosoScroller) {
+				return virtuosoScroller
+			}
+			// Fallback to the first child with scrollable class
+			const scrollable = scrollContainer.querySelector(".scrollable") as HTMLElement
+			return scrollable || scrollContainer
+		}
+
+		const scrollableElement = findScrollableElement()
+
+		const handleScroll = () => {
+			checkScrolledPastUserMessage()
+		}
+
+		scrollableElement.addEventListener("scroll", handleScroll, { passive: true })
+
+		// Also check on mount and when dependencies change
+		checkScrolledPastUserMessage()
+
+		return () => {
+			scrollableElement.removeEventListener("scroll", handleScroll)
+		}
+	}, [checkScrolledPastUserMessage])
+
+	// Handler for when visible range changes in Virtuoso (kept for compatibility but not used for sticky)
+	const handleRangeChanged = useCallback((_range: ListRange) => {
+		// Range changed callback - we now use scroll position instead
+		// but keep this for potential future use
+	}, [])
 	const scrollToBottomSmooth = useMemo(
 		() =>
 			debounce(
@@ -92,13 +193,20 @@ export function useScrollBehavior(
 			if (groupIndex !== -1) {
 				setPendingScrollToMessage(null)
 				disableAutoScrollRef.current = true
+
+				// Check if this is the first user feedback message (no sticky header would show when scrolling to it)
+				const isFirstUserMessage =
+					groupIndex === 0 || !visibleMessages.slice(0, visibleIndex).some((msg) => msg.say === "user_feedback")
+
+				const stickyHeaderOffset = isFirstUserMessage ? 0 : STICKY_HEADER_HEIGHT
+
+				// Use scrollToIndex with offset - Virtuoso handles this more reliably than manual scrollTo
 				requestAnimationFrame(() => {
-					requestAnimationFrame(() => {
-						virtuosoRef.current?.scrollToIndex({
-							index: groupIndex,
-							align: "start",
-							behavior: "smooth",
-						})
+					virtuosoRef.current?.scrollToIndex({
+						index: groupIndex,
+						align: "start",
+						behavior: "smooth",
+						offset: -stickyHeaderOffset,
 					})
 				})
 			}
@@ -223,5 +331,7 @@ export function useScrollBehavior(
 		setIsAtBottom,
 		pendingScrollToMessage,
 		setPendingScrollToMessage,
+		scrolledPastUserMessage,
+		handleRangeChanged,
 	}
 }

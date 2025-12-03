@@ -50,6 +50,9 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 			console.log(`[OTEL] Provider initialized - Logger: ${loggerReady}, Meter: ${meterReady}`)
 		}
 	}
+	name(): string {
+		return "OpenTelemetryProvider"
+	}
 
 	public async initialize(): Promise<OpenTelemetryTelemetryProvider> {
 		// Listen for host telemetry changes

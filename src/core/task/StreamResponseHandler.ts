@@ -311,6 +311,10 @@ class ReasoningHandler {
 			return null
 		}
 
+		if (!this.pendingReasoning.summary.length && !this.pendingReasoning.content) {
+			return null
+		}
+
 		// Ensure signature is set if it's hidden in the summary / reasoning details
 		// to ensure it's always accessible at the top level by each provider.
 		if (!this.pendingReasoning.signature && this.pendingReasoning.summary.length) {

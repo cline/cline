@@ -15,6 +15,30 @@ Cline creates a checkpoint after each tool use (file edits, commands, etc.). The
 
 For example, if you're working on a feature and Cline makes multiple file changes, each change creates a checkpoint. This means you can review each modification and, if needed, roll back to any point without affecting your main Git repository.
 
+## Enabling or Disabling Checkpoints
+
+Checkpoints are enabled by default in Cline. To toggle this feature:
+
+1. Open the Cline settings by clicking the gear icon in the Cline panel
+2. Go to "Feature Settings"
+3. Toggle the **"Enable Checkpoints"** checkbox on or off
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/checkpoints.gif"
+		alt="Checkpoints toggle in settings"
+	/>
+</Frame>
+
+### When to Disable Checkpoints
+
+While checkpoints provide valuable safety nets, you might want to disable them in certain situations:
+
+-   **Large repositories**: If you're working with very large codebases, checkpoints may use additional storage space
+-   **Performance concerns**: On systems with limited resources, disabling checkpoints can slightly improve performance
+-   **Simple tasks**: For quick, low-risk operations where rollback isn't needed
+
+
 ## Viewing Changes & Restoring
 
 After each tool use, you can:

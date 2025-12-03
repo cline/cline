@@ -40,6 +40,8 @@ service TaskService {
   rpc executeQuickWin(ExecuteQuickWinRequest) returns (Empty);
   // Deletes all task history
   rpc deleteAllTaskHistory(EmptyRequest) returns (DeleteAllTaskHistoryCount);
+  // Explains changes with AI and adds inline comments to the diff view
+  rpc explainChanges(ExplainChangesRequest) returns (Empty);
 }
 
 // Request message for creating a new task
@@ -122,4 +124,11 @@ message ExecuteQuickWinRequest {
 // Results returned when deleting all task history
 message DeleteAllTaskHistoryCount {
   int32 tasks_deleted = 1;
+}
+
+// Request for explaining changes with AI
+message ExplainChangesRequest {
+  Metadata metadata = 1;
+  // Timestamp of the completion message to explain changes for
+  int64 message_ts = 2;
 }

@@ -1,13 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { ClineMessageMetricsInfo, ClineMessageModelInfo } from "./metrics"
 
-type ClinePromptInputContent = string
+export type ClinePromptInputContent = string
 
-type ClineMessageRole = "user" | "assistant"
-
-export interface ClineMessageModelInfo {
-	modelId: string
-	providerId: string
-}
+export type ClineMessageRole = "user" | "assistant"
 
 export interface ClineReasoningDetailParam {
 	type: "reasoning.text" | string
@@ -29,7 +25,7 @@ export const REASONING_DETAILS_PROVIDERS = ["cline", "openrouter"]
  * This ensures backward compatibility where the messages were stored in Anthropic format with additional
  * fields unknown to Anthropic SDK.
  */
-export interface ClineTextContentBlock extends Anthropic.TextBlockParam {
+export interface ClineTextContentBlock extends Anthropic.TextBlockParam, ClineSharedMessageParam {
 	// reasoning_details only exists for providers listed in REASONING_DETAILS_PROVIDERS
 	reasoning_details?: ClineReasoningDetailParam[]
 	// Thought Signature associates with Gemini
@@ -97,6 +93,11 @@ export interface ClineStorageMessage extends Anthropic.MessageParam {
 	 * MUST be removed before sending message to any LLM provider.
 	 */
 	modelInfo?: ClineMessageModelInfo
+	/**
+	 * LLM operational and performance metrics for this message
+	 * Includes token counts, costs.
+	 */
+	metrics?: ClineMessageMetricsInfo
 }
 
 /**

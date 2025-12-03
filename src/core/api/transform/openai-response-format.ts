@@ -90,22 +90,31 @@ export function convertToOpenAIResponsesInput(messages: ClineStorageMessage[]): 
 			for (const part of m.content) {
 				switch (part.type) {
 					case "thinking":
-						// Include reasoning item if it has a call_id, even if thinking is empty
-						// This is required because the API expects reasoning items to be paired with
-						// their corresponding function_calls, and will error if a function_call
-						// references a reasoning item that wasn't sent
-						if (part.call_id && part.call_id.length > 0) {
+						// Only include reasoning item if it has actual content (thinking text or summary)
+						// Empty reasoning items cause API errors: "Item 'rs_...' of type 'reasoning' was provided without its required following item"
+						const hasThinkingContent = part.thinking && part.thinking.trim().length > 0
+						const hasSummaryContent = part.summary && Array.isArray(part.summary) && part.summary.length > 0
+
+						if (part.call_id && part.call_id.length > 0 && (hasThinkingContent || hasSummaryContent)) {
+							// Use summary if available, otherwise use thinking text
+							let summary: any[] = []
+							if (hasSummaryContent) {
+								// part.summary is already in the correct format from OpenAI Responses API
+								summary = part.summary as any[]
+							} else if (hasThinkingContent) {
+								// Convert thinking text to summary format
+								summary = [
+									{
+										type: "summary_text",
+										text: part.thinking,
+									},
+								]
+							}
+
 							assistantItems.push({
 								id: part.call_id,
 								type: "reasoning",
-								summary: part.thinking
-									? [
-											{
-												type: "summary_text",
-												text: part.thinking,
-											},
-										]
-									: [],
+								summary,
 							} as ResponseReasoningItem)
 						}
 						break
@@ -126,20 +135,34 @@ export function convertToOpenAIResponsesInput(messages: ClineStorageMessage[]): 
 						}
 						break
 					case "text":
-						assistantItems.push({
+						// Message ID goes at the message level, not in the content
+						// The reasoning item and message can have different IDs - they just need to be adjacent
+						const messageItem: any = {
 							type: "message",
 							role: "assistant",
 							content: [{ type: "output_text", text: part.text }],
-						})
+						}
+						// Set message-level id if available
+						if (part.call_id) {
+							messageItem.id = part.call_id
+						}
+						assistantItems.push(messageItem)
 						break
 					case "image":
-						assistantItems.push({
+						// Message ID goes at the message level, not in the content
+						const imageItem: any = {
 							type: "message",
 							role: "assistant",
 							content: [{ type: "output_text", text: `[image:${part.source.media_type}]` }],
-						})
+						}
+						// Set message-level id if available (though images typically don't have call_id)
+						if (part.call_id) {
+							imageItem.id = part.call_id
+						}
+						assistantItems.push(imageItem)
 						break
 					case "tool_use": {
+						// Function calls use call_id, not related to reasoning item ID
 						const call_id = part.call_id || part.id
 						if (part.call_id) {
 							toolUseIdToCallId.set(part.id, part.call_id)
@@ -152,22 +175,6 @@ export function convertToOpenAIResponsesInput(messages: ClineStorageMessage[]): 
 							arguments: JSON.stringify(part.input ?? {}),
 						})
 						break
-					}
-				}
-			}
-
-			// Ensure every reasoning item is followed by a message or function_call
-			for (let i = 0; i < assistantItems.length; i++) {
-				const item = assistantItems[i]
-				if (item.type === "reasoning") {
-					const nextItem = assistantItems[i + 1]
-					if (!nextItem || (nextItem.type !== "message" && nextItem.type !== "function_call")) {
-						// Insert a placeholder message immediately after this reasoning item
-						assistantItems.splice(i + 1, 0, {
-							type: "message",
-							role: "assistant",
-							content: [{ type: "output_text", text: "" }],
-						})
 					}
 				}
 			}

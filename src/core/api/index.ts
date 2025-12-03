@@ -61,6 +61,7 @@ export interface ApiHandlerModel {
 export interface ApiProviderInfo {
 	providerId: string
 	model: ApiHandlerModel
+	mode: Mode
 	customPrompt?: string // "compact"
 	autoCondenseThreshold?: number // 0-1 range
 }
