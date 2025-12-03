@@ -6,6 +6,7 @@ import {
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 } from "@shared/api"
+import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import OpenAI from "openai"
 import { ChatCompletionTool } from "openai/resources/chat/completions"
 import { convertToOpenAiMessages } from "./openai-format"
@@ -44,6 +45,7 @@ export async function createOpenRouterStream(
 		case "anthropic/claude-sonnet-4.5":
 		case "anthropic/claude-4.5-sonnet": // OpenRouter accidentally included this in model list for a brief moment, and users may be using this model id. And to support prompt caching, we need to add it here.
 		case "anthropic/claude-sonnet-4":
+		case "anthropic/claude-opus-4.5":
 		case "anthropic/claude-opus-4.1":
 		case "anthropic/claude-opus-4":
 		case "anthropic/claude-3.7-sonnet":
@@ -107,6 +109,7 @@ export async function createOpenRouterStream(
 		case "anthropic/claude-sonnet-4.5":
 		case "anthropic/claude-4.5-sonnet":
 		case "anthropic/claude-sonnet-4":
+		case "anthropic/claude-opus-4.5":
 		case "anthropic/claude-opus-4.1":
 		case "anthropic/claude-opus-4":
 		case "anthropic/claude-3.7-sonnet":
@@ -151,6 +154,7 @@ export async function createOpenRouterStream(
 		case "anthropic/claude-sonnet-4.5":
 		case "anthropic/claude-4.5-sonnet":
 		case "anthropic/claude-sonnet-4":
+		case "anthropic/claude-opus-4.5":
 		case "anthropic/claude-opus-4.1":
 		case "anthropic/claude-opus-4":
 		case "anthropic/claude-3.7-sonnet":
@@ -183,6 +187,9 @@ export async function createOpenRouterStream(
 		openRouterProviderSorting = undefined
 	}
 
+	// Skip reasoning for models that don't support it (e.g., microwave, grok-4)
+	const includeReasoning = !shouldSkipReasoningForModel(model.id)
+
 	// @ts-ignore-next-line
 	const stream = await client.chat.completions.create({
 		model: model.id,
@@ -192,7 +199,7 @@ export async function createOpenRouterStream(
 		messages: openAiMessages,
 		stream: true,
 		stream_options: { include_usage: true },
-		include_reasoning: true,
+		include_reasoning: includeReasoning,
 		...(model.id.startsWith("openai/o") ? { reasoning_effort: reasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),
 		...(openRouterProviderSorting && !providerPreferences ? { provider: { sort: openRouterProviderSorting } } : {}),
