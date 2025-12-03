@@ -17,7 +17,7 @@ interface TaskReconstructionResult {
 /**
  * Reconstructs task history from existing task folders
  */
-export async function reconstructTaskHistory(): Promise<void> {
+export async function reconstructTaskHistory() {
 	try {
 		// Show confirmation dialog using HostProvider
 		const proceed = await HostProvider.window.showMessage({
@@ -55,6 +55,8 @@ export async function reconstructTaskHistory(): Promise<void> {
 				message: `Task history successfully reconstructed! Found and restored ${result.reconstructedTasks} tasks.`,
 			})
 		}
+
+		return result
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
 		HostProvider.window.showMessage({
@@ -62,6 +64,7 @@ export async function reconstructTaskHistory(): Promise<void> {
 			message: `Failed to reconstruct task history: ${errorMessage}`,
 		})
 	}
+	return null
 }
 
 async function performTaskHistoryReconstruction(): Promise<TaskReconstructionResult> {

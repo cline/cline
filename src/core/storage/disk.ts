@@ -12,6 +12,7 @@ import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { McpMarketplaceCatalog } from "@/shared/mcp"
+import { reconstructTaskHistory } from "../commands/reconstructTaskHistory"
 import { StateManager } from "./StateManager"
 
 /**
@@ -292,13 +293,24 @@ export async function taskHistoryStateFileExists(): Promise<boolean> {
 	return fileExistsAtPath(filePath)
 }
 
-export async function readTaskHistoryFromState(): Promise<HistoryItem[]> {
+export async function readTaskHistoryFromState(attemptedReconstruction = false): Promise<HistoryItem[]> {
 	try {
 		const filePath = await getTaskHistoryStateFilePath()
 		if (await fileExistsAtPath(filePath)) {
-			const contents = await fs.readFile(filePath, "utf8")
-
-			return JSON.parse(contents)
+			try {
+				const contents = await fs.readFile(filePath, "utf8")
+				return JSON.parse(contents)
+			} catch (parseError) {
+				if (attemptedReconstruction) {
+					// Avoid infinite loop - reconstruction already attempted
+					throw new Error(
+						"Failed to parse task history JSON after reconstruction attempt. The file may be corrupted beyond repair.",
+					)
+				}
+				console.error("[Disk] Failed to parse task history JSON, attempting reconstruction:", parseError)
+				await reconstructTaskHistory()
+				return await readTaskHistoryFromState(true)
+			}
 		}
 		return []
 	} catch (error) {
