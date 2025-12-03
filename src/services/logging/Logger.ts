@@ -2,7 +2,7 @@ import * as fs from "fs"
 import * as path from "path"
 import { ErrorService } from "../error"
 import { getVSCodeLogsDir } from "./constants"
-import { formatLogMessageTimestamp } from "./timestamp"
+import { formatLogFilenameTimestamp, formatLogMessageTimestamp } from "./timestamp"
 
 /**
  * Simple logging utility for the extension's backend code.
@@ -38,7 +38,7 @@ export class Logger {
 				fs.mkdirSync(logsDir, { recursive: true })
 			}
 
-			const timestamp = new Date().toISOString().replace(/T/, "-").replace(/\..+/, "").replace(/:/g, "-")
+			const timestamp = formatLogFilenameTimestamp()
 			const pid = process.pid
 			const logFileName = `cline-vscode-${timestamp}-${pid}.log`
 
