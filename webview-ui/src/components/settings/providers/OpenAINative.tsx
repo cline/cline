@@ -37,8 +37,8 @@ export const OpenAINativeProvider = ({ showModelOptions, isPopup, currentMode }:
 			/>
 
 			<BaseUrlField
-				initialValue={apiConfiguration?.openAiBaseUrl || ""}
-				onChange={(value) => handleFieldChange("openAiBaseUrl", value)}
+				initialValue={apiConfiguration?.openAiNativeBaseUrl || ""}
+				onChange={(value) => handleFieldChange("openAiNativeBaseUrl", value)}
 				placeholder="Default: https://api.openai.com"
 			/>
 

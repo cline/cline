@@ -96,6 +96,8 @@ func setSimpleField(settings *cline.Settings, key, value string) error {
 		settings.RequestyBaseUrl = strPtr(value)
 	case "open_ai_base_url":
 		settings.OpenAiBaseUrl = strPtr(value)
+	case "open_ai_native_base_url":
+		settings.openAiNativeBaseUrl = strPtr(value)
 	case "ollama_base_url":
 		settings.OllamaBaseUrl = strPtr(value)
 	case "ollama_api_options_ctx_num":
