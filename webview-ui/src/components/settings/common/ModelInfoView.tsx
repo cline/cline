@@ -1,6 +1,5 @@
 import { geminiModels, ModelInfo } from "@shared/api"
 import { Fragment } from "react"
-import { ModelDescriptionMarkdown } from "../ModelDescriptionMarkdown"
 import {
 	formatPrice,
 	formatTokenLimit,
@@ -147,9 +146,6 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 	// --- End Output Price Logic ---
 
 	const infoItems = [
-		modelInfo.description && (
-			<ModelDescriptionMarkdown isPopup={isPopup} key="description" markdown={modelInfo.description} />
-		),
 		<ModelInfoSupportsItem
 			doesNotSupportLabel="Does not support images"
 			isSupported={supportsImages(modelInfo)}
