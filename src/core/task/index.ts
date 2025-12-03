@@ -65,8 +65,8 @@ import {
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import { CLINE_MCP_TOOL_IDENTIFIER } from "@shared/mcp"
+import { USER_CONTENT_TAGS } from "@shared/messages/constants"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
-import type { Mode } from "@shared/storage/types"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import { isClaude4PlusModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
@@ -93,7 +93,7 @@ import {
 	ClineTextContentBlock,
 	ClineToolResponseContent,
 	ClineUserContent,
-} from "@/shared/messages/content"
+} from "@/shared/messages"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
 import { isInTestMode } from "../../services/test/TestMode"
@@ -107,6 +107,8 @@ import { StreamResponseHandler } from "./StreamResponseHandler"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { detectAvailableCliTools, extractProviderDomainFromUrl, updateApiReqMsg } from "./utils"
+import { buildUserFeedbackContent } from "./utils/buildUserFeedbackContent"
+
 export type ToolResponse = ClineToolResponseContent
 
 type TaskParams = {
@@ -550,6 +552,7 @@ export class Task {
 			this.setActiveHookExecution.bind(this),
 			this.clearActiveHookExecution.bind(this),
 			this.getActiveHookExecution.bind(this),
+			this.runUserPromptSubmitHook.bind(this),
 		)
 	}
 
@@ -711,6 +714,7 @@ export class Task {
 		const modelInfo: ClineMessageModelInfo = {
 			providerId: providerInfo.providerId,
 			modelId: providerInfo.model.id,
+			mode: providerInfo.mode,
 		}
 
 		if (partial !== undefined) {
@@ -857,19 +861,10 @@ export class Task {
 		}
 
 		const { executeHook } = await import("../hooks/hook-executor")
+		const { extractUserPromptFromContent } = await import("./utils/extractUserPromptFromContent")
 
-		// Serialize UserContent to string for the hook
-		const promptText = userContent
-			.map((block) => {
-				if (block.type === "text") {
-					return block.text
-				}
-				if (block.type === "image") {
-					return "[IMAGE]"
-				}
-				return ""
-			})
-			.join("\n\n")
+		// Extract clean user prompt from content, stripping system wrappers and metadata
+		const promptText = extractUserPromptFromContent(userContent)
 
 		const userPromptResult = await executeHook({
 			hookName: "UserPromptSubmit",
@@ -1267,8 +1262,11 @@ export class Task {
 			})
 		}
 
-		// Run UserPromptSubmit hook for task resumption AFTER all content is assembled
-		const userPromptHookResult = await this.runUserPromptSubmitHook(newUserContent, "resume")
+		// Run UserPromptSubmit hook for task resumption with ONLY the new user feedback
+		// (not the entire conversation context that includes previous messages)
+		const userFeedbackContent = await buildUserFeedbackContent(responseText, responseImages, responseFiles)
+
+		const userPromptHookResult = await this.runUserPromptSubmitHook(userFeedbackContent, "resume")
 
 		// Defensive check: Verify task wasn't aborted during hook execution (handles async cancellation)
 		if (this.taskState.abort) {
@@ -1994,7 +1992,7 @@ export class Task {
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
 		const providerId = (mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
 		const customPrompt = this.stateManager.getGlobalSettingsKey("customPrompt")
-		return { model, providerId, customPrompt }
+		return { model, providerId, customPrompt, mode }
 	}
 
 	private getApiRequestIdSafe(): string | undefined {
@@ -2448,20 +2446,17 @@ export class Task {
 		this.taskState.apiRequestsSinceLastTodoUpdate++
 
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
-		const { model, providerId, customPrompt } = this.getCurrentProviderInfo()
+		const { model, providerId, customPrompt, mode } = this.getCurrentProviderInfo()
 		if (providerId && model.id) {
 			try {
-				await this.modelContextTracker.recordModelUsage(
-					providerId,
-					model.id,
-					this.stateManager.getGlobalSettingsKey("mode"),
-				)
+				await this.modelContextTracker.recordModelUsage(providerId, model.id, mode)
 			} catch {}
 		}
 
-		const modelInfo = {
+		const modelInfo: ClineMessageModelInfo = {
 			modelId: model.id,
 			providerId: providerId,
+			mode: mode,
 		}
 
 		if (this.taskState.consecutiveMistakeCount >= this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")) {
@@ -2698,10 +2693,7 @@ export class Task {
 			content: userContent,
 		})
 
-		const modeSetting = this.stateManager.getGlobalSettingsKey("mode")
-		const currentMode: Mode = modeSetting === "act" ? "act" : "plan"
-
-		telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "user", currentMode)
+		telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "user", modelInfo.mode)
 
 		// Capture task initialization timing telemetry for the first API request
 		if (isFirstRequest) {
@@ -2724,11 +2716,7 @@ export class Task {
 		await this.postStateToWebview()
 
 		try {
-			let cacheWriteTokens = 0
-			let cacheReadTokens = 0
-			let inputTokens = 0
-			let outputTokens = 0
-			let totalCost: number | undefined
+			const taskMetrics = { cacheWriteTokens: 0, cacheReadTokens: 0, inputTokens: 0, outputTokens: 0, totalCost: 0 }
 
 			const abortStream = async (cancelReason: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
 				if (this.diffViewProvider.isEditing) {
@@ -2744,6 +2732,20 @@ export class Task {
 					console.log("updating partial message", lastMessage)
 					// await this.saveClineMessagesAndUpdateHistory()
 				}
+				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
+				await updateApiReqMsg({
+					messageStateHandler: this.messageStateHandler,
+					lastApiReqIndex,
+					inputTokens: taskMetrics.inputTokens,
+					outputTokens: taskMetrics.outputTokens,
+					cacheWriteTokens: taskMetrics.cacheWriteTokens,
+					cacheReadTokens: taskMetrics.cacheReadTokens,
+					totalCost: taskMetrics.totalCost,
+					api: this.api,
+					cancelReason,
+					streamingFailedMessage,
+				})
+				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
 				// Let assistant know their response was interrupted for when task is resumed
 				await this.messageStateHandler.addToApiConversationHistory({
@@ -2760,35 +2762,29 @@ export class Task {
 								}]`,
 						},
 					],
+					modelInfo,
+					metrics: {
+						tokens: {
+							prompt: taskMetrics.inputTokens,
+							completion: taskMetrics.outputTokens,
+							cached: (taskMetrics.cacheWriteTokens ?? 0) + (taskMetrics.cacheReadTokens ?? 0),
+						},
+						cost: taskMetrics.totalCost,
+					},
 				})
-
-				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
-				await updateApiReqMsg({
-					messageStateHandler: this.messageStateHandler,
-					lastApiReqIndex,
-					inputTokens,
-					outputTokens,
-					cacheWriteTokens,
-					cacheReadTokens,
-					totalCost,
-					api: this.api,
-					cancelReason,
-					streamingFailedMessage,
-				})
-				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
 				telemetryService.captureConversationTurnEvent(
 					this.ulid,
 					providerId,
 					modelInfo.modelId,
 					"assistant",
-					currentMode,
+					modelInfo.mode,
 					{
-						tokensIn: inputTokens,
-						tokensOut: outputTokens,
-						cacheWriteTokens,
-						cacheReadTokens,
-						totalCost,
+						tokensIn: taskMetrics.inputTokens,
+						tokensOut: taskMetrics.outputTokens,
+						cacheWriteTokens: taskMetrics.cacheWriteTokens,
+						cacheReadTokens: taskMetrics.cacheReadTokens,
+						totalCost: taskMetrics.totalCost,
 					},
 					this.useNativeToolCalls, // For assistant turn only.
 				)
@@ -2828,11 +2824,11 @@ export class Task {
 						case "usage":
 							this.streamHandler.setRequestId(chunk.id)
 							didReceiveUsageChunk = true
-							inputTokens += chunk.inputTokens
-							outputTokens += chunk.outputTokens
-							cacheWriteTokens += chunk.cacheWriteTokens ?? 0
-							cacheReadTokens += chunk.cacheReadTokens ?? 0
-							totalCost = chunk.totalCost
+							taskMetrics.inputTokens += chunk.inputTokens
+							taskMetrics.outputTokens += chunk.outputTokens
+							taskMetrics.cacheWriteTokens += chunk.cacheWriteTokens ?? 0
+							taskMetrics.cacheReadTokens += chunk.cacheReadTokens ?? 0
+							taskMetrics.totalCost = chunk.totalCost ?? taskMetrics.totalCost
 							break
 						case "reasoning": {
 							// Process the reasoning delta through the handler
@@ -2998,11 +2994,11 @@ export class Task {
 			if (!didReceiveUsageChunk) {
 				this.api.getApiStreamUsage?.().then(async (apiStreamUsage) => {
 					if (apiStreamUsage) {
-						inputTokens += apiStreamUsage.inputTokens
-						outputTokens += apiStreamUsage.outputTokens
-						cacheWriteTokens += apiStreamUsage.cacheWriteTokens ?? 0
-						cacheReadTokens += apiStreamUsage.cacheReadTokens ?? 0
-						totalCost = apiStreamUsage.totalCost
+						taskMetrics.inputTokens += apiStreamUsage.inputTokens
+						taskMetrics.outputTokens += apiStreamUsage.outputTokens
+						taskMetrics.cacheWriteTokens += apiStreamUsage.cacheWriteTokens ?? 0
+						taskMetrics.cacheReadTokens += apiStreamUsage.cacheReadTokens ?? 0
+						taskMetrics.totalCost = apiStreamUsage.totalCost ?? taskMetrics.totalCost
 					}
 				})
 			}
@@ -3011,12 +3007,12 @@ export class Task {
 			await updateApiReqMsg({
 				messageStateHandler: this.messageStateHandler,
 				lastApiReqIndex,
-				inputTokens,
-				outputTokens,
-				cacheWriteTokens,
-				cacheReadTokens,
+				inputTokens: taskMetrics.inputTokens,
+				outputTokens: taskMetrics.outputTokens,
+				cacheWriteTokens: taskMetrics.cacheWriteTokens,
+				cacheReadTokens: taskMetrics.cacheReadTokens,
 				api: this.api,
-				totalCost,
+				totalCost: taskMetrics.totalCost,
 			})
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 			await this.postStateToWebview()
@@ -3026,39 +3022,21 @@ export class Task {
 				throw new Error("Cline instance aborted")
 			}
 
-			this.taskState.didCompleteReadingStream = true
-
-			// set any blocks to be complete to allow presentAssistantMessage to finish and set userMessageContentReady to true
-			// (could be a text block that had no subsequent tool uses, or a text block at the very end, or an invalid tool use, etc. whatever the case, presentAssistantMessage relies on these blocks either to be completed or the user to reject a block in order to proceed and eventually set userMessageContentReady to true)
-			const partialBlocks = this.taskState.assistantMessageContent.filter((block) => block.partial)
-			partialBlocks.forEach((block) => {
-				block.partial = false
-			})
-			// in case there are native tool calls pending
-			const partialToolBlocks = toolUseHandler.getPartialToolUsesAsContent()?.map((block) => ({ ...block, partial: false }))
-			this.processNativeToolCalls(assistantTextOnly, partialToolBlocks)
-
-			if (partialBlocks.length > 0) {
-				await this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
-			}
-
-			// now add to apiconversationhistory
-			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
-			let didEndLoop = false
-			if (assistantMessage.length > 0 || this.useNativeToolCalls) {
-				const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+			// Stored the assistant API response immediately after the stream finishes in the same turn
+			const assistantHasContent = assistantMessage.length > 0 || this.useNativeToolCalls
+			if (assistantHasContent) {
 				telemetryService.captureConversationTurnEvent(
 					this.ulid,
 					providerId,
 					model.id,
 					"assistant",
-					currentMode,
+					modelInfo.mode,
 					{
-						tokensIn: inputTokens,
-						tokensOut: outputTokens,
-						cacheWriteTokens,
-						cacheReadTokens,
-						totalCost,
+						tokensIn: taskMetrics.inputTokens,
+						tokensOut: taskMetrics.outputTokens,
+						cacheWriteTokens: taskMetrics.cacheWriteTokens,
+						cacheReadTokens: taskMetrics.cacheReadTokens,
+						totalCost: taskMetrics.totalCost,
 					},
 					this.useNativeToolCalls,
 				)
@@ -3111,9 +3089,38 @@ export class Task {
 						content: assistantContent,
 						modelInfo,
 						id: requestId,
+						metrics: {
+							tokens: {
+								prompt: taskMetrics.inputTokens,
+								completion: taskMetrics.outputTokens,
+								cached: (taskMetrics.cacheWriteTokens ?? 0) + (taskMetrics.cacheReadTokens ?? 0),
+							},
+							cost: taskMetrics.totalCost,
+						},
 					})
 				}
+			}
 
+			this.taskState.didCompleteReadingStream = true
+
+			// set any blocks to be complete to allow presentAssistantMessage to finish and set userMessageContentReady to true
+			// (could be a text block that had no subsequent tool uses, or a text block at the very end, or an invalid tool use, etc. whatever the case, presentAssistantMessage relies on these blocks either to be completed or the user to reject a block in order to proceed and eventually set userMessageContentReady to true)
+			const partialBlocks = this.taskState.assistantMessageContent.filter((block) => block.partial)
+			partialBlocks.forEach((block) => {
+				block.partial = false
+			})
+			// in case there are native tool calls pending
+			const partialToolBlocks = toolUseHandler.getPartialToolUsesAsContent()?.map((block) => ({ ...block, partial: false }))
+			this.processNativeToolCalls(assistantTextOnly, partialToolBlocks)
+
+			if (partialBlocks.length > 0) {
+				await this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
+			}
+
+			// now add to apiconversationhistory
+			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
+			let didEndLoop = false
+			if (assistantHasContent) {
 				// NOTE: this comment is here for future reference - this was a workaround for userMessageContent not getting set to true. It was due to it not recursively calling for partial blocks when didRejectTool, so it would get stuck waiting for a partial block to complete before it could continue.
 				// in case the content blocks finished
 				// it may be the api stream finished after the last parsed content block was executed, so  we are able to detect out of bounds and set userMessageContentReady to true (note you should not call presentAssistantMessage since if the last block is completed it will be presented again)
@@ -3171,6 +3178,14 @@ export class Task {
 					],
 					modelInfo,
 					id: this.streamHandler.requestId,
+					metrics: {
+						tokens: {
+							prompt: taskMetrics.inputTokens,
+							completion: taskMetrics.outputTokens,
+							cached: (taskMetrics.cacheWriteTokens ?? 0) + (taskMetrics.cacheReadTokens ?? 0),
+						},
+						cost: taskMetrics.totalCost,
+					},
 				})
 
 				let response: ClineAskResponse
@@ -3243,9 +3258,6 @@ export class Task {
 		const providerInfo = this.getCurrentProviderInfo()
 		const cwd = this.cwd
 		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.controller, cwd)
-
-		// Define user-generated content tags once
-		const USER_CONTENT_TAGS = ["<feedback>", "<answer>", "<task>", "<user_message>"] as const
 
 		const hasUserContentTag = (text: string): boolean => {
 			return USER_CONTENT_TAGS.some((tag) => text.includes(tag))

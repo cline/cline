@@ -33,6 +33,10 @@ import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { workspaceResolver } from "./core/workspace"
 import { focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMsg } from "./hosts/vscode/commit-message-generator"
+import {
+	disposeVscodeCommentReviewController,
+	getVscodeCommentReviewController,
+} from "./hosts/vscode/review/VscodeCommentReviewController"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { ExtensionRegistryInfo } from "./registry"
@@ -428,6 +432,7 @@ function setupHostProvider(context: ExtensionContext) {
 
 	const createWebview = () => new VscodeWebviewProvider(context)
 	const createDiffView = () => new VscodeDiffViewProvider()
+	const createCommentReview = () => getVscodeCommentReviewController()
 	const outputChannel = vscode.window.createOutputChannel("Cline")
 	context.subscriptions.push(outputChannel)
 
@@ -435,6 +440,7 @@ function setupHostProvider(context: ExtensionContext) {
 	HostProvider.initialize(
 		createWebview,
 		createDiffView,
+		createCommentReview,
 		vscodeHostBridgeClient,
 		outputChannel.appendLine,
 		getCallbackUrl,
@@ -485,6 +491,9 @@ export async function deactivate() {
 
 	// Clean up hook discovery cache
 	HookDiscoveryCache.getInstance().dispose()
+
+	// Clean up comment review controller
+	disposeVscodeCommentReviewController()
 
 	clearOnboardingModelsCache()
 

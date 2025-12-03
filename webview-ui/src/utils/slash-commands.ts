@@ -1,10 +1,12 @@
+import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
+
 export interface SlashCommand {
 	name: string
 	description?: string
 	section?: "default" | "custom"
 }
 
-export const DEFAULT_SLASH_COMMANDS: SlashCommand[] = [
+const BASE_SLASH_COMMANDS: SlashCommand[] = [
 	{
 		name: "newtask",
 		description: "Create a new task with context from the current task",
@@ -36,6 +38,18 @@ export const DEFAULT_SLASH_COMMANDS: SlashCommand[] = [
 		section: "default",
 	},
 ]
+
+// VS Code-only slash commands
+const VSCODE_ONLY_COMMANDS: SlashCommand[] = [
+	{
+		name: "explain-changes",
+		description: "Explain code changes between git refs (PRs, commits, branches, etc.)",
+		section: "default",
+	},
+]
+
+export const DEFAULT_SLASH_COMMANDS: SlashCommand[] =
+	PLATFORM_CONFIG.type === PlatformType.VSCODE ? [...BASE_SLASH_COMMANDS, ...VSCODE_ONLY_COMMANDS] : BASE_SLASH_COMMANDS
 
 export function getWorkflowCommands(
 	localWorkflowToggles: Record<string, boolean>,
