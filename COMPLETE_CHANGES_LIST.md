@@ -1,14 +1,14 @@
-# BCline v3.39.2 - Complete Changes & Fixes List
+# BCline v3.39.1 - Complete Changes & Fixes List
 
-**Build:** bcline-3.39.2-with-fixes.vsix
+**Build:** bcline-3.39.1-with-fixes.vsix
 **Date:** December 2, 2025
-**Base:** Cline v3.39.2 (upstream)
+**Base:** Cline v3.39.1 (upstream)
 
 ---
 
 ## 📋 COMPLETE List of ALL Your Changes
 
-This build includes **EVERYTHING** from all your previous branches merged into the latest Cline v3.39.2:
+This build includes **EVERYTHING** from all your previous branches merged into the latest Cline v3.39.1:
 
 ---
 
@@ -156,14 +156,14 @@ This build includes **EVERYTHING** from all your previous branches merged into t
 
 ---
 
-## 🔄 Upstream Cline v3.39.2 Features (All Included)
+## 🔄 Upstream Cline v3.39.1 Features (All Included)
 
-Your build also includes ALL official Cline v3.39.2 features:
+Your build also includes ALL official Cline v3.39.1 features:
 
-### From Upstream v3.39.2:
+### From Upstream v3.39.1:
 - ✅ Enable ModelInfoView in OpenRouterModelPicker (#7817)
 - ✅ Changesets package name fix (#7822)
-- ✅ All v3.39.2 bug fixes and improvements
+- ✅ All v3.39.1 bug fixes and improvements
 
 ### From Upstream v3.39.0:
 - ✅ Standalone cwd fix (#7781)
@@ -254,7 +254,7 @@ Commits Included: 15+ (your custom work)
 - **CLI:** Yolo mode and message queue enhancements
 
 ### Combined with Upstream:
-- **Base Version:** Cline v3.39.2 (latest)
+- **Base Version:** Cline v3.39.1 (latest)
 - **Total Commits:** 30+ (15 custom + 15 upstream)
 - **Development Time:** Multiple sessions over weeks
 - **Lines of Code:** ~12,800 changes
@@ -265,7 +265,7 @@ Commits Included: 15+ (your custom work)
 
 All changes verified present in build:
 - ✅ Compiled in `dist/extension.js` (Dec 2, 17:40)
-- ✅ Version 3.39.2 in package.json
+- ✅ Version 3.39.1 in package.json
 - ✅ All source files included
 - ✅ VSIX package complete (30.67 MB)
 
@@ -274,7 +274,7 @@ All changes verified present in build:
 ## 📝 Documentation
 
 Full documentation available:
-- ✅ [BCLINE-3.39.2-CHANGELOG.md](./BCLINE-3.39.2-CHANGELOG.md)
+- ✅ [BCLINE-3.39.1-CHANGELOG.md](./BCLINE-3.39.1-CHANGELOG.md)
 - ✅ [INSTALLATION_VERIFICATION.md](./INSTALLATION_VERIFICATION.md)
 - ✅ [FIXABLE_BUGS_TOP_10.md](./FIXABLE_BUGS_TOP_10.md)
 - ✅ [FIXABLE_BUGS_BATCH_2.md](./FIXABLE_BUGS_BATCH_2.md)
@@ -284,12 +284,12 @@ Full documentation available:
 
 ## 🎉 Summary
 
-**Your BCline v3.39.2 build includes:**
+**Your BCline v3.39.1 build includes:**
 
 ✅ **ALL 6 bug fixes from today's work**
 ✅ **ALL 5 bug fixes from previous sessions**
 ✅ **ALL 8 new features you developed**
-✅ **ALL upstream Cline v3.39.2 features**
+✅ **ALL upstream Cline v3.39.1 features**
 ✅ **Fully tested and verified**
 
 **Total Value:**

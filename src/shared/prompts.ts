@@ -6,9 +6,9 @@ export enum ModelFamily {
 	NATIVE_GPT_5_1 = "gpt-5-1-native", // Uses native tool calling
 	GEMINI = "gemini",
 	GEMINI_3 = "gemini3", // Uses native tool calling
+	GROK = "grok", // xAI Grok models with optimized tool calling
 	QWEN = "qwen",
 	GLM = "glm",
-	GROK = "grok",
 	HERMES = "hermes",
 	MICROWAVE = "microwave",
 	NEXT_GEN = "next-gen",

@@ -1,9 +1,9 @@
-# BCline v3.39.2 - Installation & Verification Guide
+# BCline v3.39.1 - Installation & Verification Guide
 
 **Build Date:** December 2, 2025, 5:41 PM
-**VSIX File:** `bcline-3.39.2-with-fixes.vsix`
+**VSIX File:** `bcline-3.39.1-with-fixes.vsix`
 **Size:** 31 MB (30.67 MB packaged, 3,704 files)
-**Version:** 3.39.2
+**Version:** 3.39.1
 
 ---
 
@@ -46,7 +46,7 @@ I've verified that ALL 6 bug fixes are included in the compiled VSIX:
 ## 📦 VSIX Package Details
 
 ```
-File: bcline-3.39.2-with-fixes.vsix
+File: bcline-3.39.1-with-fixes.vsix
 Location: c:\Users\bob43\Downloads\Bcline\
 Size: 30.67 MB
 Files: 3,704 files
@@ -54,7 +54,7 @@ Build Date: Dec 2, 2025 17:41
 
 Main Components:
 ✅ extension/dist/extension.js (19 MB) - Built Dec 2 17:40
-✅ extension/package.json - Version 3.39.2
+✅ extension/package.json - Version 3.39.1
 ✅ All tree-sitter parsers included
 ✅ All webview assets included
 ```
@@ -65,7 +65,7 @@ Main Components:
 
 ### 1. Locate the VSIX
 ```
-c:\Users\bob43\Downloads\Bcline\bcline-3.39.2-with-fixes.vsix
+c:\Users\bob43\Downloads\Bcline\bcline-3.39.1-with-fixes.vsix
 ```
 
 ### 2. Install in VSCode
@@ -73,13 +73,13 @@ c:\Users\bob43\Downloads\Bcline\bcline-3.39.2-with-fixes.vsix
 2. Press `Ctrl+Shift+X` (Extensions)
 3. Click "..." menu (top-right)
 4. Select "Install from VSIX..."
-5. Browse to and select `bcline-3.39.2-with-fixes.vsix`
+5. Browse to and select `bcline-3.39.1-with-fixes.vsix`
 6. Click "Install"
 7. Click "Reload" when prompted
 
 ### 3. Verify Installation
 - Open Cline sidebar
-- Check version shows: **3.39.2**
+- Check version shows: **3.39.1**
 - Your API keys and settings should be preserved
 
 ---
@@ -132,7 +132,7 @@ cline -o "echo test task completed"
 
 ---
 
-## 📊 What's Different from Official Cline 3.39.2
+## 📊 What's Different from Official Cline 3.39.1
 
 ### Your Custom Build Includes:
 
@@ -152,21 +152,21 @@ cline -o "echo test task completed"
 - Ollama cancellation fixes
 - Export with cost/token data
 
-**All Official 3.39.2 Features:**
-- Everything from upstream Cline v3.39.2
+**All Official 3.39.1 Features:**
+- Everything from upstream Cline v3.39.1
 - Full feature parity
 
 ---
 
 ## 🔄 Git Repository Status
 
-### Branch: bcline-3.39.2-with-fixes
+### Branch: bcline-3.39.1-with-fixes
 ```
 Status: ✅ Pushed to fork
-URL: https://github.com/bob10042/Bcline/tree/bcline-3.39.2-with-fixes
+URL: https://github.com/bob10042/Bcline/tree/bcline-3.39.1-with-fixes
 
 Commits:
-c25021fbb7 - Release: BCline v3.39.2 with 6 critical bug fixes
+c25021fbb7 - Release: BCline v3.39.1 with 6 critical bug fixes
 559efcba9b - Merge branch 'fix/batch-2-bugs'
 a937a21de5 - Merge branch 'fix/top-5-operational-bugs'
 ccae9901c0 - Fix: AWS Bedrock empty tool description bug (#7696)
@@ -190,7 +190,7 @@ Changed: ~12,000 lines
 
 ## 📝 Build Verification Checklist
 
-- ✅ Version number: 3.39.2
+- ✅ Version number: 3.39.1
 - ✅ Build date: Dec 2, 2025 17:40
 - ✅ All 6 bug fixes present in compiled code
 - ✅ Package size: 30.67 MB (normal)
@@ -202,7 +202,7 @@ Changed: ~12,000 lines
 
 ## 🔗 Documentation References
 
-- **Full Changelog:** [BCLINE-3.39.2-CHANGELOG.md](./BCLINE-3.39.2-CHANGELOG.md)
+- **Full Changelog:** [BCLINE-3.39.1-CHANGELOG.md](./BCLINE-3.39.1-CHANGELOG.md)
 - **Bug Analysis (Batch 1):** [FIXABLE_BUGS_TOP_10.md](./FIXABLE_BUGS_TOP_10.md)
 - **Bug Analysis (Batch 2):** [FIXABLE_BUGS_BATCH_2.md](./FIXABLE_BUGS_BATCH_2.md)
 - **Upstream:** https://github.com/cline/cline
@@ -233,7 +233,7 @@ Changed: ~12,000 lines
 
 **VSIX Build:**
 ```bash
-File: bcline-3.39.2-with-fixes.vsix
+File: bcline-3.39.1-with-fixes.vsix
 SHA256: (calculate if needed)
 Build Tool: @vscode/vsce
 Build Time: Dec 2, 2025 17:41:33
@@ -250,6 +250,6 @@ Status: READY FOR INSTALLATION
 
 ---
 
-**🎉 Your BCline v3.39.2 extension is ready to install! 🎉**
+**🎉 Your BCline v3.39.1 extension is ready to install! 🎉**
 
 All fixes verified and included. Install with confidence!

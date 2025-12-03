@@ -324,6 +324,11 @@ const UNIQUE_ERROR_TOOL_NAME = "_cline_error_unknown_function_"
 
 // Convert OpenAI response to Anthropic format
 export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.ChatCompletion): Anthropic.Messages.Message {
+	// Check if choices array is not empty
+	if (!completion.choices || completion.choices.length === 0) {
+		throw new Error("OpenAI completion response has no choices")
+	}
+
 	const openAiMessage = completion.choices[0].message
 	const anthropicMessage: Anthropic.Messages.Message = {
 		id: completion.id,

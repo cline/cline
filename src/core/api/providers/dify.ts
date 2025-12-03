@@ -72,15 +72,12 @@ interface DifyConversationResponse {
 }
 
 export class DifyHandler implements ApiHandler {
-	private options: DifyHandlerOptions
 	private baseUrl: string
 	private apiKey: string
 	private conversationId: string | null = null
-	private currentTaskId: string | null = null
 	private abortController: AbortController | null = null
 
 	constructor(options: DifyHandlerOptions) {
-		this.options = options
 		this.apiKey = options.difyApiKey || ""
 		this.baseUrl = options.difyBaseUrl || ""
 
@@ -102,6 +99,9 @@ export class DifyHandler implements ApiHandler {
 			systemPromptLength: systemPrompt?.length || 0,
 			messagesCount: messages?.length || 0,
 		})
+
+		// Create abort controller for this request
+		this.abortController = new AbortController()
 
 		// Convert messages to Dify format
 		const query = this.convertMessagesToQuery(systemPrompt, messages)
@@ -127,9 +127,12 @@ export class DifyHandler implements ApiHandler {
 					"Content-Type": "application/json",
 				},
 				body: JSON.stringify(requestBody),
+				signal: this.abortController.signal,
 			})
 		} catch (error: any) {
 			console.error("[DIFY DEBUG] Network error during fetch:", error)
+			// Clean up abort controller
+			this.abortController = null
 			const cause = error.cause ? ` | Cause: ${error.cause}` : ""
 			throw new Error(`Dify API network error: ${error.message}${cause}`)
 		}
@@ -342,7 +345,7 @@ export class DifyHandler implements ApiHandler {
 								}
 								hasYieldedContent = true
 							}
-						} catch (e) {
+						} catch (_e) {
 							// Not JSON, continue
 							console.log("[DIFY DEBUG] Line is not direct JSON, continuing")
 						}
@@ -381,6 +384,8 @@ export class DifyHandler implements ApiHandler {
 		} finally {
 			reader.releaseLock()
 			console.log("[DIFY DEBUG] Stream reader released")
+			// Clean up abort controller
+			this.abortController = null
 		}
 	}
 
@@ -418,6 +423,17 @@ export class DifyHandler implements ApiHandler {
 				outputPrice: 0,
 				description: "Dify workflow - model selection is configured in your Dify application",
 			},
+		}
+	}
+
+	/**
+	 * Cancels the current Dify request if one is in progress
+	 */
+	public abortCurrentRequest(): void {
+		if (this.abortController) {
+			console.log("Aborting current Dify request...")
+			this.abortController.abort()
+			this.abortController = null
 		}
 	}
 

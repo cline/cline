@@ -395,7 +395,6 @@
 		"publish:marketplace": "vsce publish --allow-package-secrets sendgrid && ovsx publish",
 		"publish:marketplace:prerelease": "vsce publish --allow-package-secrets sendgrid --pre-release && ovsx publish --pre-release",
 		"publish:marketplace:nightly": "node ./scripts/publish-nightly.mjs",
-		"prepare": "husky",
 		"changeset": "changeset",
 		"version-packages": "changeset version",
 		"docs": "cd docs && npm run dev",

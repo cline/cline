@@ -9,15 +9,15 @@ import { EnvironmentContextTracker } from "@core/context/context-tracking/Enviro
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { ModelContextTracker } from "@core/context/context-tracking/ModelContextTracker"
 import {
-	getGlobalClineRules,
-	getLocalClineRules,
-	refreshClineRulesToggles,
+    getGlobalClineRules,
+    getLocalClineRules,
+    refreshClineRulesToggles,
 } from "@core/context/instructions/user-instructions/cline-rules"
 import {
-	getLocalAgentsRules,
-	getLocalCursorRules,
-	getLocalWindsurfRules,
-	refreshExternalRulesToggles,
+    getLocalAgentsRules,
+    getLocalCursorRules,
+    getLocalWindsurfRules,
+    refreshExternalRulesToggles,
 } from "@core/context/instructions/user-instructions/external-rules"
 import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
@@ -26,11 +26,11 @@ import { summarizeTask } from "@core/prompts/contextManagement"
 import { formatResponse } from "@core/prompts/responses"
 import { parseSlashCommands } from "@core/slash-commands"
 import {
-	ensureRulesDirectoryExists,
-	ensureTaskDirectoryExists,
-	GlobalFileNames,
-	getSavedApiConversationHistory,
-	getSavedClineMessages,
+    ensureRulesDirectoryExists,
+    ensureTaskDirectoryExists,
+    GlobalFileNames,
+    getSavedApiConversationHistory,
+    getSavedClineMessages,
 } from "@core/storage/disk"
 import { releaseTaskLock } from "@core/task/TaskLockUtils"
 import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
@@ -55,12 +55,12 @@ import { findLast, findLastIndex } from "@shared/array"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import {
-	ClineApiReqCancelReason,
-	ClineApiReqInfo,
-	ClineAsk,
-	ClineMessage,
-	ClineSay,
-	COMMAND_CANCEL_TOKEN,
+    ClineApiReqCancelReason,
+    ClineApiReqInfo,
+    ClineAsk,
+    ClineMessage,
+    ClineSay,
+    COMMAND_CANCEL_TOKEN,
 } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
@@ -85,14 +85,14 @@ import { isSubagentCommand, transformClineCommand } from "@/integrations/cli-sub
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
 import {
-	ClineAssistantContent,
-	ClineContent,
-	ClineImageContentBlock,
-	ClineMessageModelInfo,
-	ClineStorageMessage,
-	ClineTextContentBlock,
-	ClineToolResponseContent,
-	ClineUserContent,
+    ClineAssistantContent,
+    ClineContent,
+    ClineImageContentBlock,
+    ClineMessageModelInfo,
+    ClineStorageMessage,
+    ClineTextContentBlock,
+    ClineToolResponseContent,
+    ClineUserContent,
 } from "@/shared/messages"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
@@ -553,6 +553,8 @@ export class Task {
 			this.clearActiveHookExecution.bind(this),
 			this.getActiveHookExecution.bind(this),
 			this.runUserPromptSubmitHook.bind(this),
+			// Task completion callback for message queue system
+			this.controller.onTaskComplete,
 		)
 	}
 
@@ -1312,6 +1314,22 @@ export class Task {
 			if (didEndLoop) {
 				// For now a task never 'completes'. This will only happen if the user hits max requests and denies resetting the count.
 				//this.say("task_completed", `Task completed. Total API usage cost: ${totalCost}`)
+
+				// Notify completion callback for message queue system
+				const fs = require("fs")
+				const logPath = require("path").join(process.cwd(), "task-completion-debug.log")
+				fs.appendFileSync(logPath, `\n[${new Date().toISOString()}] didEndLoop - Task ending\n`)
+				fs.appendFileSync(
+					logPath,
+					`[${new Date().toISOString()}] onTaskComplete exists: ${!!this.controller.onTaskComplete}\n`,
+				)
+
+				if (this.controller.onTaskComplete) {
+					fs.appendFileSync(logPath, `[${new Date().toISOString()}] Calling onTaskComplete\n`)
+					this.controller.onTaskComplete("Task completed successfully")
+					fs.appendFileSync(logPath, `[${new Date().toISOString()}] onTaskComplete called\n`)
+				}
+
 				break
 			} else {
 				// this.say(
@@ -3515,7 +3533,10 @@ export class Task {
 			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
 				interval: 100,
 				timeout: 15_000,
-			}).catch(() => {})
+			}).catch((err) => {
+				// Timeout waiting for terminals to cool down - continuing anyway
+				console.warn("[Task] Timeout waiting for terminals to finish (15s), continuing...", err.message)
+			})
 		}
 
 		this.taskState.didEditFile = false // reset, this lets us know when to wait for saved files to update terminals

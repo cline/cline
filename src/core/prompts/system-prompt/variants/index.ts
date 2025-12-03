@@ -56,6 +56,11 @@ export const VARIANT_CONFIGS = {
 	 */
 	[ModelFamily.GEMINI_3]: Gemini3Config,
 	/**
+	 * Grok variant - Optimized for xAI Grok models
+	 * Enhanced tool calling instructions and explicit file operation guidelines
+	 */
+	[ModelFamily.GROK]: grokConfig,
+	/**
 	 * Next-gen variant with native tool support.
 	 */
 	[ModelFamily.NATIVE_NEXT_GEN]: NativeNextGenVariantConfig,
