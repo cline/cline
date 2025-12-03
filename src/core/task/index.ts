@@ -77,7 +77,6 @@ import Mutex from "p-mutex"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
-import * as vscode from "vscode"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
@@ -1971,21 +1970,6 @@ export class Task {
 		}
 	}
 
-	/**
-	 * Migrates the disableBrowserTool setting from VSCode configuration to browserSettings
-	 */
-	private async migrateDisableBrowserToolSetting(): Promise<void> {
-		const config = vscode.workspace.getConfiguration("cline")
-		const disableBrowserTool = config.get<boolean>("disableBrowserTool")
-
-		if (disableBrowserTool !== undefined) {
-			const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
-			browserSettings.disableToolUse = disableBrowserTool
-			// Remove from VSCode configuration
-			await config.update("disableBrowserTool", undefined, true)
-		}
-	}
-
 	private getCurrentProviderInfo(): ApiProviderInfo {
 		const model = this.api.getModel()
 		const apiConfig = this.stateManager.getApiConfiguration()
@@ -2031,7 +2015,6 @@ export class Task {
 
 		const providerInfo = this.getCurrentProviderInfo()
 		const ide = (await HostProvider.env.getHostVersion({})).platform || "Unknown"
-		await this.migrateDisableBrowserToolSetting()
 		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
 		const disableBrowserTool = browserSettings.disableToolUse ?? false
 		// cline browser tool uses image recognition for navigation (requires model image support).
