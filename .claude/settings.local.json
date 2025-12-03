@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(git cherry-pick:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(ls:*)",
+      "Bash(npm run package:*)",
+      "Bash(npm run check-types:*)",
+      "Bash(npm config set:*)",
+      "Bash(node --version:*)",
+      "Bash(bash:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

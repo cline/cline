@@ -202,6 +202,8 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 					case "openai/gpt-5-nano":
 						modelInfo.maxTokens = 8_192 // 128000 breaks context window truncation
 						modelInfo.contextWindow = 272_000 // openrouter reports 400k but the input limit is actually 400k-128k
+						modelInfo.supportsPromptCache = true
+						// OpenAI cache pricing will be handled by the fallback logic below
 						break
 					case "x-ai/grok-code-fast-1":
 						modelInfo.supportsPromptCache = true
@@ -216,6 +218,12 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 								// openrouter charges no cache write pricing for openAI models
 							}
 						} else if (rawModel.id.startsWith("google/")) {
+							modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
+							if (modelInfo.cacheReadsPrice) {
+								modelInfo.supportsPromptCache = true
+								modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write)
+							}
+						} else if (rawModel.id.startsWith("x-ai/")) {
 							modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
 							if (modelInfo.cacheReadsPrice) {
 								modelInfo.supportsPromptCache = true

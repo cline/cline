@@ -8,6 +8,7 @@ export enum ModelFamily {
 	GEMINI_3 = "gemini3", // Uses native tool calling
 	QWEN = "qwen",
 	GLM = "glm",
+	GROK = "grok",
 	HERMES = "hermes",
 	MICROWAVE = "microwave",
 	NEXT_GEN = "next-gen",

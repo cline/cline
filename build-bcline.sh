@@ -41,8 +41,11 @@ check_prerequisites() {
     NODE_VERSION=$(node --version)
     echo "Node.js version: $NODE_VERSION"
 
-    if [[ ! "$NODE_VERSION" =~ v20\. ]]; then
-        print_error "Node.js v20.x required, found $NODE_VERSION"
+    # Extract major version number
+    NODE_MAJOR=$(echo "$NODE_VERSION" | sed 's/v\([0-9]*\).*/\1/')
+    
+    if [ "$NODE_MAJOR" -lt 20 ]; then
+        print_error "Node.js v20 or higher required, found $NODE_VERSION"
         exit 1
     fi
 
