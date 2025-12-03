@@ -6,26 +6,6 @@ description: "Decide between SaaS and Self-Hosted configuration for your Cline E
 
 Choose the right configuration approach for your organization. Most teams start with SaaS for quick deployment, while enterprises with complex requirements opt for self-hosted infrastructure.
 
-## Quick Decision Guide
-
-<Steps>
-<Step title="Do you have existing cloud infrastructure (AWS/GCP)?">
-**Yes** → Self-Hosted gives you deep integration with your existing environment
-
-**No** → SaaS requires no infrastructure and is ready in minutes
-</Step>
-
-<Step title="How quickly do you need to deploy?">
-**Within hours** → SaaS Configuration (5-10 minutes setup)
-
-**Can wait days/weeks** → Self-Hosted Configuration (full infrastructure deployment)
-</Step>
-</Steps>
-
-<Tip>
-**Rule of thumb:** Teams under 50 developers typically choose SaaS. Enterprises with 50+ developers and complex security requirements choose Self-Hosted.
-</Tip>
-
 ## Configuration Paths
 
 <CardGroup cols={2}>
@@ -66,47 +46,39 @@ Choose the right configuration approach for your organization. Most teams start 
 
 ## Detailed Comparison
 
-<AccordionGroup>
-  <Accordion title="Feature Comparison" icon="table">
-    | Feature | SaaS | Self-Hosted |
-    |---------|------|-------------|
-    | **Setup Time** | 5-10 min | Hours to days |
-    | **Configuration** | Web UI | YAML + Helm/Kubernetes |
-    | **Infrastructure** | None required | Full AWS/GCP/K8s |
-    | **VPC Endpoints** | Basic | Full private connectivity |
-    | **Multi-Account** | ❌ | ✅ |
-    | **IAM** | Standard RBAC roles | Standard RBAC roles |
-    | **Compliance** | Standard | Custom frameworks |
-    | **GitOps** | ❌ | ✅ |
-    | **Maintenance** | Managed by Cline | Self-managed |
-    | **Updates** | Automatic (extension) | Automatic (extension) + Infrastructure control |
-  </Accordion>
-  
-  <Accordion title="Security & Compliance" icon="shield">
-    | Capability | SaaS | Self-Hosted |
-    |------------|------|-------------|
-    | **Network Encryption** | HTTPS/TLS | HTTPS/TLS |
-    | **Network** | Public internet | Private VPC endpoints |
-    | **Access Control** | Standard RBAC | Standard RBAC |
-    | **Audit Logs** | OpenTelemetry traces | OpenTelemetry traces + Infrastructure logs |
-    | **Data Residency** | Cline-managed deployment | Customer-controlled deployment |
-  </Accordion>
-  
-  <Accordion title="Cost Structure" icon="dollar-sign">
-    **SaaS Configuration:**
-    - Cline Enterprise subscription (fixed)
-    - AI provider costs (usage-based)
-    - No infrastructure overhead
-    - **Total Cost:** Predictable and simple
-    
-    **Self-Hosted Configuration:**
-    - Cline Enterprise subscription (fixed)
-    - AI provider costs (usage-based)
-    - Infrastructure costs (Kubernetes, networking, storage)
-    - DevOps personnel
-    - **Total Cost:** Variable based on scale and architecture
-  </Accordion>
-</AccordionGroup>
+### Feature Comparison
+
+| Feature | SaaS | Self-Hosted |
+|---------|------|-------------|
+| **Configuration** | Web UI | YAML + Helm/Kubernetes |
+| **Infrastructure** | None required | Full AWS/GCP/K8s |
+| **VPC Endpoints** | Basic | Full private connectivity |
+| **Multi-Account** | ❌ | ✅ |
+| **IAM** | Standard RBAC roles | Standard RBAC roles |
+| **Compliance** | Standard | Custom frameworks |
+| **GitOps** | ❌ | ✅ |
+| **Maintenance** | Managed by Cline | Self-managed |
+| **Updates** | Automatic (extension) | Automatic (extension) + Infrastructure control |
+
+### Security & Compliance
+
+| Capability | SaaS | Self-Hosted |
+|------------|------|-------------|
+| **Network Encryption** | HTTPS/TLS | HTTPS/TLS |
+| **Network** | Public internet | Private VPC endpoints |
+| **Access Control** | Standard RBAC | Standard RBAC |
+| **Audit Logs** | OpenTelemetry traces | OpenTelemetry traces + Infrastructure logs |
+| **Data Residency** | Cline-managed deployment | Customer-controlled deployment |
+
+### Cost Structure
+
+| Cost Category | SaaS | Self-Hosted |
+|---------------|------|-------------|
+| **Cline Subscription** | Fixed enterprise fee | Fixed enterprise fee |
+| **Inference Provider Costs** | Usage-based | Usage-based |
+| **Infrastructure** | ✅ None required | Kubernetes, networking, storage |
+| **Personnel** | ✅ None required | DevOps team needed |
+| **Total Cost Profile** | Predictable and simple | Variable based on scale |
 
 ## Migration Path
 
@@ -129,5 +101,5 @@ Most organizations start with SaaS configuration for quick deployment, then migr
 ## Need Help Deciding?
 
 - [**Contact Cline Enterprise Sales**](https://cline.bot/contact-sales) for a consultation on your specific requirements
-- **Start with SaaS** if unsure - it's lower risk and you can always migrate later
-- **Consult your cloud team** if you have existing infrastructure that could benefit from self-hosted deployment
+- [**Start with SaaS**](/enterprise-solutions/configuration/remote-configuration/overview) if unsure - it's lower risk and you can always migrate later
+- [**Review Self-Hosted Requirements**](/enterprise-solutions/configuration/infrastructure-configuration/overview) if you have existing infrastructure that could benefit from self-hosted deployment

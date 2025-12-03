@@ -301,6 +301,13 @@
 								]
 							},
 							{
+								"group": "Control Other Cline Features",
+								"pages": [
+									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/yolo-mode",
+									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/telemetry"
+								]
+							},
+							{
 								"group": "Monitoring",
 								"pages": [
 									"enterprise-solutions/monitoring/overview",

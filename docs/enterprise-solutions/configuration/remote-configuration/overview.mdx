@@ -1,7 +1,7 @@
 ---
 title: "SaaS Provider Configuration"
 sidebarTitle: "Overview"
-description: "Configure AI providers through the Cline hosted admin console for centralized organization management"
+description: "Configure inference providers through the Cline hosted admin console for centralized organization management"
 ---
 
 <Warning>
@@ -12,7 +12,7 @@ This section is for teams using **Cline's hosted service** at [app.cline.bot](ht
 **Need self-hosted infrastructure?** See [Self-Hosted Configuration](/enterprise-solutions/configuration/infrastructure-configuration/overview) for VPC endpoints, multi-account AWS, compliance frameworks, and deep infrastructure control including YAML configs, Kubernetes/Helm deployments, and advanced security features.
 </Warning>
 
-SaaS Provider Configuration allows administrators to centrally configure AI providers for their entire organization through the Cline hosted admin console. This approach ensures consistent provider access, security policies, and cost management across all team members without requiring individual developer setup or infrastructure deployment.
+SaaS Provider Configuration allows administrators to centrally configure inference providers for their entire organization through the Cline hosted admin console. This approach ensures consistent provider access, security policies, and cost management across all team members without requiring individual developer setup or infrastructure deployment.
 
 ## How Remote Configuration Works
 
@@ -28,7 +28,7 @@ Remote configuration operates through Cline's hosted service at [app.cline.bot](
   </Card>
   
   <Card title="Simplified Onboarding" icon="user-plus">
-    New team members get instant access to AI providers without complex individual configuration.
+    New team members get instant access to inference providers without complex individual configuration.
   </Card>
   
   <Card title="Consistent Experience" icon="users">
@@ -38,27 +38,14 @@ Remote configuration operates through Cline's hosted service at [app.cline.bot](
 
 ## Supported Providers
 
-Cline supports remote configuration for the following AI providers:
+Cline supports remote configuration for the following inference providers:
 
-### **Cline**
-- **Use Case**: Organizations using Cline's native provider with centralized API key management
-- **Configuration**: API provider selection, model access
-- **Member Setup**: No individual API keys needed - fully managed by organization
-
-### **Amazon Bedrock**
-- **Use Case**: Organizations using AWS infrastructure
-- **Configuration**: Region selection, VPC endpoints, cross-region inference, prompt caching
-- **Member Setup**: AWS credential configuration in VS Code
-
-### **LiteLLM**
-- **Use Case**: Organizations requiring multi-model access through a unified proxy
-- **Configuration**: Proxy endpoint, authentication, model routing
-- **Member Setup**: API key or endpoint configuration in VS Code (or centralized with Master Key)
-
-### **Google Vertex AI**
-- **Use Case**: Organizations using Google Cloud Platform
-- **Configuration**: Project ID, region selection, model access
-- **Member Setup**: Service account or credential configuration in VS Code
+| Provider | Use Case | Configuration | Member Setup |
+|----------|----------|---------------|--------------|
+| **Cline** | Organizations using Cline's native provider with centralized API key management | API provider selection, model access | No individual API keys needed - fully managed by organization |
+| **Amazon Bedrock** | Organizations using AWS infrastructure | Region selection, VPC endpoints, cross-region inference, prompt caching | AWS credential configuration in VS Code |
+| **LiteLLM** | Organizations requiring multi-model access through a unified proxy | Proxy endpoint, authentication, model routing | API key or endpoint configuration in VS Code (or centralized with Master Key) |
+| **Google Vertex AI** | Organizations using Google Cloud Platform | Project ID, region selection, model access | Service account or credential configuration in VS Code |
 
 ## SaaS vs. Self-Hosted Configuration
 
@@ -77,7 +64,7 @@ The typical remote configuration process follows these steps:
 
 <Steps>
 <Step title="Administrator Setup">
-Access the Cline admin console and configure the desired AI provider with organization-wide settings.
+Access the Cline admin console and configure the desired inference provider with organization-wide settings.
 </Step>
 
 <Step title="Automatic Distribution">
@@ -89,7 +76,7 @@ Team members add their individual credentials (API keys, AWS profiles, etc.) to 
 </Step>
 
 <Step title="Immediate Access">
-Once credentials are configured, members can immediately start using the AI provider through Cline.
+Once credentials are configured, members can immediately start using the inference provider through Cline.
 </Step>
 </Steps>
 
@@ -104,16 +91,16 @@ Once credentials are configured, members can immediately start using the AI prov
 - **Simplified Setup**: No need to research provider configuration options
 - **Consistent Experience**: Same models and features available to everyone
 - **Quick Onboarding**: Get started immediately with pre-configured providers
-- **Focus on Development**: Spend time coding instead of configuring AI providers
+- **Focus on Development**: Spend time coding instead of configuring inference providers
 
 ## Getting Started
 
 To get started with provider remote configuration:
 
-1. **Choose Your Provider**: Select the AI provider that best fits your organization's needs and existing infrastructure
+1. **Choose Your Provider**: Select the inference provider that best fits your organization's needs and existing infrastructure
 2. **Admin Configuration**: Follow the provider-specific admin configuration guide
 3. **Member Onboarding**: Have team members complete the provider-specific member configuration
-4. **Start Developing**: Begin using Cline with centrally managed AI provider access
+4. **Start Developing**: Begin using Cline with centrally managed inference provider access
 
 Select your provider below to begin the configuration process:
 
