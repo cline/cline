@@ -277,6 +277,8 @@ export interface OcaModelInfo extends OpenAiCompatibleModelInfo {
 	surveyId?: string
 	banner?: string
 	surveyContent?: string
+	supportsChatApi?: boolean
+	supportsResponsesApi?: boolean
 }
 
 export const CLAUDE_SONNET_1M_SUFFIX = ":1m"

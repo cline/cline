@@ -381,6 +381,10 @@ message OcaModelInfo {
   string model_name = 17;
   // The API format used by this model
   optional ApiFormat api_format = 18;
+  // Supports responses api?
+  optional bool supports_responses_api = 19;
+  // Supports chat completions api?
+  optional bool supports_chat_api = 20;
 }
 
 // Aggregated OCA model catalog keyed by model identifier

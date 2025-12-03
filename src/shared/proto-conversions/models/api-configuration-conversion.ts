@@ -108,6 +108,8 @@ function convertOcaModelInfoToProtoOcaModelInfo(info: OcaModelInfo | undefined):
 		surveyId: info.surveyId,
 		banner: info.banner,
 		modelName: info.modelName,
+		supportsChatApi: info.supportsChatApi,
+		supportsResponsesApi: info.supportsResponsesApi,
 	}
 }
 
@@ -131,6 +133,8 @@ function convertProtoOcaModelInfoToOcaModelInfo(info: ProtoOcaModelInfo | undefi
 		surveyId: info.surveyId,
 		banner: info.banner,
 		modelName: info.modelName,
+		supportsChatApi: info.supportsChatApi,
+		supportsResponsesApi: info.supportsResponsesApi,
 	}
 }
 

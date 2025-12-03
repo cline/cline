@@ -3,7 +3,12 @@ import { OcaCompatibleModelInfo, OcaModelInfo } from "@shared/proto/cline/models
 import axios from "axios"
 import { HostProvider } from "@/hosts/host-provider"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
-import { DEFAULT_EXTERNAL_OCA_BASE_URL, DEFAULT_INTERNAL_OCA_BASE_URL } from "@/services/auth/oca/utils/constants"
+import {
+	CHAT_COMPLETIONS_API,
+	DEFAULT_EXTERNAL_OCA_BASE_URL,
+	DEFAULT_INTERNAL_OCA_BASE_URL,
+	RESPONSES_API,
+} from "@/services/auth/oca/utils/constants"
 import { createOcaHeaders } from "@/services/auth/oca/utils/utils"
 import { Logger } from "@/services/logging/Logger"
 import { getAxiosSettings } from "@/shared/net"
@@ -50,6 +55,7 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 			}
 			for (const model of response.data.data) {
 				const modelId = model.litellm_params?.model
+				console.log("Model: ", modelId, "Supported list: ", model.model_info.supported_api_list)
 				if (typeof modelId !== "string" || !modelId) {
 					continue
 				}
@@ -57,6 +63,7 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 					defaultModelId = modelId
 				}
 				const modelInfo = model.model_info
+				const supportedApiList = modelInfo.supported_api_list ?? [CHAT_COMPLETIONS_API]
 				models[modelId] = OcaModelInfo.create({
 					maxTokens: model.litellm_params?.max_tokens || -1,
 					contextWindow: modelInfo.context_window,
@@ -73,6 +80,8 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 					temperature: modelInfo.temperature || 0,
 					banner: modelInfo.banner,
 					modelName: modelId,
+					supportsChatApi: supportedApiList.includes(CHAT_COMPLETIONS_API),
+					supportsResponsesApi: supportedApiList.includes(RESPONSES_API),
 				})
 			}
 			console.log("OCA models fetched", models)
