@@ -200,7 +200,7 @@ export async function saveClineMessages(taskId: string, uiMessages: ClineMessage
 export async function collectEnvironmentMetadata(): Promise<Omit<EnvironmentMetadataEntry, "ts">> {
 	try {
 		const hostVersion = await HostProvider.env.getHostVersion({})
-
+		
 		return {
 			os_name: os.platform(),
 			os_version: os.release(),
@@ -297,8 +297,12 @@ export async function readTaskHistoryFromState(): Promise<HistoryItem[]> {
 		const filePath = await getTaskHistoryStateFilePath()
 		if (await fileExistsAtPath(filePath)) {
 			const contents = await fs.readFile(filePath, "utf8")
-
-			return JSON.parse(contents)
+			try {
+				return JSON.parse(contents)
+			} catch (error) {
+				console.error("[Disk] Failed to parse task history:", error)
+				return []
+			}
 		}
 		return []
 	} catch (error) {
