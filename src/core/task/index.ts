@@ -2811,6 +2811,7 @@ export class Task {
 			const { toolUseHandler, reasonsHandler } = this.streamHandler.getHandlers()
 			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
 
+			let assistantMessageId = ""
 			let assistantMessage = "" // For UI display (includes XML)
 			let assistantTextOnly = "" // For API history (text only, no tool XML)
 			let assistantTextSignature: string | undefined
@@ -2888,6 +2889,9 @@ export class Task {
 							}
 							if (chunk.signature) {
 								assistantTextSignature = chunk.signature
+							}
+							if (chunk.id) {
+								assistantMessageId = chunk.id
 							}
 							assistantMessage += chunk.text
 							assistantTextOnly += chunk.text // Accumulate text separately
@@ -3068,6 +3072,7 @@ export class Task {
 						// reasoning_details only exists for cline/openrouter providers
 						reasoning_details: thinkingBlock?.summary as any[],
 						signature: assistantTextSignature,
+						call_id: assistantMessageId,
 					})
 				}
 
