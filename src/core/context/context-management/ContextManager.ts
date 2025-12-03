@@ -731,15 +731,17 @@ export class ContextManager {
 	private getPossibleDuplicateFileReads(
 		apiMessages: Anthropic.Messages.MessageParam[],
 		startFromIndex: number,
-	): [Map<string, [number, number, string, string][]>, Map<number, string[]>] {
-		// fileReadIndices: { fileName => [outerIndex, EditType, searchText, replaceText] }
+	): [Map<string, [number, number, string, string, number][]>, Map<number, string[]>] {
+		// fileReadIndices: { fileName => [outerIndex, EditType, searchText, replaceText, innerIndex] }
 		// messageFilePaths: { outerIndex => [fileRead1, fileRead2, ..] }
 		// searchText in fileReadIndices is only required for file mention file-reads since there can be more than one file in the text
 		// searchText will be the empty string "" in the case that it's not required, for non-file mentions
 		// messageFilePaths is only used for file mentions as there can be multiple files read in the same text chunk
 
 		// for all text blocks per file, has info for updating the block
-		const fileReadIndices = new Map<string, [number, number, string, string][]>()
+		// originally our messages were formatted where the innerIndex was consistently at index=1, but that is no longer the case
+		// which is why we now need to support both an outerIndex and innerIndex in this mapping
+		const fileReadIndices = new Map<string, [number, number, string, string, number][]>()
 
 		// for file mention text blocks, track all the unique files read
 		const messageFilePaths = new Map<number, string[]>()
@@ -787,19 +789,36 @@ export class ContextManager {
 			if (message.role === "user" && Array.isArray(message.content) && message.content.length > 0) {
 				const firstBlock = message.content[0]
 				if (firstBlock.type === "text") {
-					const matchTup = this.parsePotentialToolCall(firstBlock.text)
+					const result = this.parseToolCallWithFormat(firstBlock.text)
 					let foundNormalFileRead = false
-					if (matchTup) {
-						if (matchTup[0] === "read_file") {
-							this.handleReadFileToolCall(i, matchTup[1], fileReadIndices)
+					if (result) {
+						const [toolName, filePath, contentBlockIndex, headerText] = result
+
+						if (toolName === "read_file") {
+							this.handleReadFileToolCall(i, filePath, fileReadIndices, contentBlockIndex, headerText)
 							foundNormalFileRead = true
-						} else if (matchTup[0] === "replace_in_file" || matchTup[0] === "write_to_file") {
-							if (message.content.length > 1) {
+						} else if (toolName === "replace_in_file" || toolName === "write_to_file") {
+							// old format has the file contents in index=1 whereas the new format has it in index=0
+							// in either case we need to extract the correct contents
+							let blockText: string | undefined
+							if (contentBlockIndex == 0) {
+								blockText = firstBlock.text
+							} else if (contentBlockIndex == 1 && message.content.length > 1) {
 								const secondBlock = message.content[1]
 								if (secondBlock.type === "text") {
-									this.handlePotentialFileChangeToolCalls(i, matchTup[1], secondBlock.text, fileReadIndices)
-									foundNormalFileRead = true
+									blockText = secondBlock.text
 								}
+							}
+
+							if (blockText) {
+								this.handlePotentialFileChangeToolCalls(
+									i,
+									filePath,
+									blockText,
+									fileReadIndices,
+									contentBlockIndex,
+								)
+								foundNormalFileRead = true
 							}
 						}
 					}
@@ -835,7 +854,7 @@ export class ContextManager {
 	private handlePotentialFileMentionCalls(
 		i: number,
 		secondBlockText: string,
-		fileReadIndices: Map<string, [number, number, string, string][]>,
+		fileReadIndices: Map<string, [number, number, string, string, number][]>,
 		thisExistingFileReads: string[],
 	): [boolean, string[]] {
 		const pattern = /<file_content path="([^"]*)">([\s\S]*?)<\/file_content>/g
@@ -859,7 +878,8 @@ export class ContextManager {
 				const replacementText = `<file_content path="${filePath}">${formatResponse.duplicateFileReadNotice()}</file_content>`
 
 				const indices = fileReadIndices.get(filePath) || []
-				indices.push([i, EditType.FILE_MENTION, entireMatch, replacementText])
+				// file mentions are always assumed to be at block index 1
+				indices.push([i, EditType.FILE_MENTION, entireMatch, replacementText, 1])
 				fileReadIndices.set(filePath, indices)
 			}
 		}
@@ -868,16 +888,26 @@ export class ContextManager {
 	}
 
 	/**
-	 * parses specific tool call formats, returns null if no acceptable format is found
+	 * Parses tool call formats and returns null if no acceptable format is found
+	 * Supports older version (content in separate block), and newer (content in same block)
+	 * Returns [toolName, filePath, contentBlockIndex, headerText]
 	 */
-	private parsePotentialToolCall(text: string): [string, string] | null {
-		const match = text.match(/^\[([^\s]+) for '([^']+)'\] Result:$/)
+	private parseToolCallWithFormat(text: string): [string, string, number, string] | null {
+		const match = text.match(/^\[([^\s]+) for '([^']+)'\] Result:/)
 
 		if (!match) {
 			return null
 		}
 
-		return [match[1], match[2]]
+		const headerLength = match[0].length
+		let contentBlockIndex = 1
+		if (text.length > headerLength) {
+			// newer format: content follows header in this block (index 0)
+			// in the older format the content is in the following block (index 1)
+			contentBlockIndex = 0
+		}
+
+		return [match[1], match[2], contentBlockIndex, match[0]]
 	}
 
 	/**
@@ -886,10 +916,28 @@ export class ContextManager {
 	private handleReadFileToolCall(
 		i: number,
 		filePath: string,
-		fileReadIndices: Map<string, [number, number, string, string][]>,
+		fileReadIndices: Map<string, [number, number, string, string, number][]>,
+		contentBlockIndex: number,
+		headerText: string,
 	) {
 		const indices = fileReadIndices.get(filePath) || []
-		indices.push([i, EditType.READ_FILE_TOOL, "", formatResponse.duplicateFileReadNotice()])
+
+		if (contentBlockIndex == 1) {
+			// the original tool call format
+			indices.push([i, EditType.READ_FILE_TOOL, "", formatResponse.duplicateFileReadNotice(), contentBlockIndex])
+		} else {
+			// the new tool call format (index=0)
+			// in the new format the tool call output for read_file is appended to the tool call header with a newline separator
+			// this means we need to extract just the header and append the duplicateFileReadNotice to it with the separator
+			indices.push([
+				i,
+				EditType.READ_FILE_TOOL,
+				"",
+				headerText + "\n" + formatResponse.duplicateFileReadNotice(),
+				contentBlockIndex,
+			])
+		}
+
 		fileReadIndices.set(filePath, indices)
 	}
 
@@ -899,16 +947,17 @@ export class ContextManager {
 	private handlePotentialFileChangeToolCalls(
 		i: number,
 		filePath: string,
-		secondBlockText: string,
-		fileReadIndices: Map<string, [number, number, string, string][]>,
+		blockText: string,
+		fileReadIndices: Map<string, [number, number, string, string, number][]>,
+		contentBlockIndex: number,
 	) {
 		const pattern = /(<final_file_content path="[^"]*">)[\s\S]*?(<\/final_file_content>)/
 
 		// check if this exists in the text, it won't exist if the user rejects the file change for example
-		if (pattern.test(secondBlockText)) {
-			const replacementText = secondBlockText.replace(pattern, `$1 ${formatResponse.duplicateFileReadNotice()} $2`)
+		if (pattern.test(blockText)) {
+			const replacementText = blockText.replace(pattern, `$1 ${formatResponse.duplicateFileReadNotice()} $2`)
 			const indices = fileReadIndices.get(filePath) || []
-			indices.push([i, EditType.ALTER_FILE_TOOL, "", replacementText])
+			indices.push([i, EditType.ALTER_FILE_TOOL, "", replacementText, contentBlockIndex])
 			fileReadIndices.set(filePath, indices)
 		}
 	}
@@ -918,7 +967,7 @@ export class ContextManager {
 	 * returns the outer index of messages we alter, to count number of changes
 	 */
 	private applyFileReadContextHistoryUpdates(
-		fileReadIndices: Map<string, [number, number, string, string][]>,
+		fileReadIndices: Map<string, [number, number, string, string, number][]>,
 		messageFilePaths: Map<number, string[]>,
 		apiMessages: Anthropic.Messages.MessageParam[],
 		timestamp: number,
@@ -936,6 +985,7 @@ export class ContextManager {
 					const messageType = indices[i][1] // EditType value
 					const searchText = indices[i][2] // search text (for file mentions, else empty string)
 					const messageString = indices[i][3] // what we will replace the string with
+					const innerIndex = indices[i][4] // inner block index where we are making the change
 
 					didUpdate = true
 					updatedMessageIndices.add(messageIndex)
@@ -996,8 +1046,7 @@ export class ContextManager {
 							innerMap = innerTuple[1]
 						}
 
-						// block index for file reads from read_file, write_to_file, replace_in_file tools is 1
-						const blockIndex = 1
+						const blockIndex = innerIndex
 
 						const updates = innerMap.get(blockIndex) || []
 

@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.39.2]
+- Fix for microwave model and thinking settings
+
 ## [3.39.1]
 - Fix Openrouter and Cline Provider model info
 
