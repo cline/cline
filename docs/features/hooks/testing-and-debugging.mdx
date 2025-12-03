@@ -1,0 +1,829 @@
+---
+title: "Testing & Debugging"
+sidebarTitle: "Testing & Debugging"
+description: "Hook testing strategies, debugging techniques, and development best practices"
+---
+
+This page provides comprehensive guidance for testing, debugging, and developing robust hooks. It covers testing methodologies, common troubleshooting scenarios, performance optimization, and development best practices.
+
+## Hook Testing Strategies
+
+### Unit Testing Hooks
+
+Test hooks in isolation by providing controlled input and verifying expected output.
+
+**Basic Test Framework:**
+```bash
+#!/usr/bin/env bash
+# test-hook.sh - Simple hook testing framework
+
+HOOK_NAME="$1"
+TEST_DATA="$2"
+EXPECTED_RESULT="$3"
+
+if [[ -z "$HOOK_NAME" || -z "$TEST_DATA" ]]; then
+  echo "Usage: $0 <hook-name> <test-data-file> [expected-result]"
+  exit 1
+fi
+
+# Ensure hook exists and is executable
+if [[ ! -x ".clinerules/hooks/$HOOK_NAME" ]]; then
+  echo "ERROR: Hook $HOOK_NAME not found or not executable"
+  exit 1
+fi
+
+# Run the hook with test data
+echo "Testing hook: $HOOK_NAME"
+echo "Input data: $TEST_DATA"
+echo "---"
+
+result=$(cat "$TEST_DATA" | ".clinerules/hooks/$HOOK_NAME" 2>&1)
+exit_code=$?
+
+echo "Output:"
+echo "$result"
+echo "Exit code: $exit_code"
+
+# Validate JSON output
+if ! echo "$result" | jq empty 2>/dev/null; then
+  echo "ERROR: Hook output is not valid JSON"
+  exit 1
+fi
+
+# Check expected result if provided
+if [[ -n "$EXPECTED_RESULT" ]]; then
+  cancel_value=$(echo "$result" | jq -r '.cancel // false')
+  if [[ "$cancel_value" != "$EXPECTED_RESULT" ]]; then
+    echo "ERROR: Expected cancel=$EXPECTED_RESULT, got cancel=$cancel_value"
+    exit 1
+  fi
+fi
+
+echo "✅ Test passed"
+```
+
+**Test Data Examples:**
+
+**File: `test-data/pretooluse-write-js.json`**
+```json
+{
+  "clineVersion": "1.0.0",
+  "hookName": "PreToolUse",
+  "timestamp": "2024-01-01T12:00:00Z",
+  "taskId": "test-task-001",
+  "workspaceRoots": ["/test/workspace"],
+  "userId": "test-user",
+  "preToolUse": {
+    "toolName": "write_to_file",
+    "parameters": {
+      "path": "src/component.js",
+      "content": "const Component = () => <div>Hello</div>;"
+    }
+  }
+}
+```
+
+**File: `test-data/posttooluse-success.json`**
+```json
+{
+  "clineVersion": "1.0.0",
+  "hookName": "PostToolUse",
+  "timestamp": "2024-01-01T12:00:00Z",
+  "taskId": "test-task-001",
+  "workspaceRoots": ["/test/workspace"],
+  "userId": "test-user",
+  "postToolUse": {
+    "toolName": "write_to_file",
+    "parameters": {
+      "path": "src/component.tsx",
+      "content": "const Component = () => <div>Hello</div>;"
+    },
+    "result": "File created successfully",
+    "success": true,
+    "executionTimeMs": 150
+  }
+}
+```
+
+**Running Tests:**
+```bash
+# Test that TypeScript hook blocks JS files
+./test-hook.sh PreToolUse test-data/pretooluse-write-js.json true
+
+# Test that successful operations don't get cancelled
+./test-hook.sh PostToolUse test-data/posttooluse-success.json false
+
+# Create test suite
+for test_file in test-data/*.json; do
+  echo "Running test: $test_file"
+  ./test-hook.sh PreToolUse "$test_file"
+  echo "---"
+done
+```
+
+### Integration Testing
+
+Test hooks in realistic scenarios with actual Cline operations.
+
+**Integration Test Setup:**
+```bash
+#!/usr/bin/env bash
+# integration-test.sh
+
+# Create test workspace
+test_workspace="/tmp/cline-hook-test-$(date +%s)"
+mkdir -p "$test_workspace"
+cd "$test_workspace"
+
+# Setup test environment
+echo '{"name": "test-project", "dependencies": {"react": "^18.0.0"}}' > package.json
+echo '{"compilerOptions": {"strict": true}}' > tsconfig.json
+
+# Copy hooks to test workspace
+mkdir -p .clinerules/hooks
+cp /path/to/your/hooks/* .clinerules/hooks/
+chmod +x .clinerules/hooks/*
+
+# Simulate Cline operations
+echo "Testing file creation blocking..."
+
+# This should be blocked by TypeScript hooks
+test_input='{
+  "clineVersion": "1.0.0",
+  "hookName": "PreToolUse", 
+  "timestamp": "'$(date -Iseconds)'",
+  "taskId": "integration-test",
+  "workspaceRoots": ["'$test_workspace'"],
+  "userId": "integration-test-user",
+  "preToolUse": {
+    "toolName": "write_to_file",
+    "parameters": {
+      "path": "src/Component.js",
+      "content": "export const Component = () => <div>Test</div>;"
+    }
+  }
+}'
+
+result=$(echo "$test_input" | .clinerules/hooks/PreToolUse 2>&1)
+echo "Result: $result"
+
+if echo "$result" | jq -e '.cancel == true' > /dev/null; then
+  echo "✅ Integration test passed - JS file correctly blocked"
+else
+  echo "❌ Integration test failed - JS file should have been blocked"
+fi
+
+# Cleanup
+cd /
+rm -rf "$test_workspace"
+```
+
+### Performance Testing
+
+Measure hook execution time and identify performance bottlenecks.
+
+**Performance Test Script:**
+```bash
+#!/usr/bin/env bash
+# perf-test.sh
+
+HOOK_NAME="$1"
+TEST_DATA="$2"
+ITERATIONS="${3:-100}"
+
+if [[ -z "$HOOK_NAME" || -z "$TEST_DATA" ]]; then
+  echo "Usage: $0 <hook-name> <test-data-file> [iterations]"
+  exit 1
+fi
+
+echo "Performance testing hook: $HOOK_NAME"
+echo "Iterations: $ITERATIONS"
+echo "---"
+
+total_time=0
+max_time=0
+min_time=999999
+
+for i in $(seq 1 $ITERATIONS); do
+  start_time=$(date +%s%N)
+  cat "$TEST_DATA" | ".clinerules/hooks/$HOOK_NAME" > /dev/null 2>&1
+  end_time=$(date +%s%N)
+  
+  execution_time=$(( (end_time - start_time) / 1000000 )) # Convert to milliseconds
+  total_time=$(( total_time + execution_time ))
+  
+  if (( execution_time > max_time )); then
+    max_time=$execution_time
+  fi
+  
+  if (( execution_time < min_time )); then
+    min_time=$execution_time
+  fi
+done
+
+average_time=$(( total_time / ITERATIONS ))
+
+echo "Results:"
+echo "  Average: ${average_time}ms"
+echo "  Min: ${min_time}ms" 
+echo "  Max: ${max_time}ms"
+echo "  Total: ${total_time}ms"
+
+# Performance thresholds
+if (( average_time > 100 )); then
+  echo "⚠️  WARNING: Hook is slower than recommended (>100ms average)"
+elif (( average_time > 50 )); then
+  echo "ℹ️  INFO: Hook is approaching slow threshold (>50ms average)"
+else
+  echo "✅ Hook performance is good (<50ms average)"
+fi
+```
+
+## Debugging Techniques
+
+### Debug Mode Hook Template
+
+Create hooks with built-in debugging capabilities.
+
+```bash
+#!/usr/bin/env bash
+# Debug-Enabled Hook Template
+#
+# Overview: A comprehensive hook template with built-in debugging capabilities that can
+# be toggled via environment variables. Includes error handling, detailed logging, and
+# proper input validation - perfect as a starting point for production hooks.
+#
+# Demonstrates: Environment-based debug toggling, stderr logging patterns, error trapping,
+# JSON validation, graceful error handling, and structured debug output.
+
+# Enable debug mode via environment variable
+DEBUG=${CLINE_HOOK_DEBUG:-false}
+HOOK_NAME="PreToolUse"
+
+# Debug logging function
+debug_log() {
+  if [[ "$DEBUG" == "true" ]]; then
+    echo "[DEBUG $HOOK_NAME $(date)] $1" >&2
+  fi
+}
+
+# Error handling with debugging
+error_handler() {
+  local exit_code=$?
+  debug_log "Hook failed with exit code $exit_code"
+  echo '{"cancel": false}' 
+  exit 0
+}
+trap error_handler ERR
+
+debug_log "Hook starting"
+
+# Read and validate input
+input=$(cat)
+debug_log "Input received: ${#input} characters"
+
+if ! echo "$input" | jq empty 2>/dev/null; then
+  debug_log "ERROR: Invalid JSON input"
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+# Extract common fields with debugging
+tool_name=$(echo "$input" | jq -r '.preToolUse.toolName // "unknown"')
+user_id=$(echo "$input" | jq -r '.userId // "unknown"')
+task_id=$(echo "$input" | jq -r '.taskId // "unknown"')
+
+debug_log "Processing: tool=$tool_name, user=$user_id, task=$task_id"
+
+# Your hook logic here...
+debug_log "Hook logic completed"
+
+# Return result
+result='{"cancel": false}'
+debug_log "Returning: $result"
+echo "$result"
+```
+
+**Enable debugging:**
+```bash
+export CLINE_HOOK_DEBUG=true
+# Now all debug-enabled hooks will log detailed information
+```
+
+### Hook Execution Tracing
+
+Trace hook execution flow to understand behavior.
+
+**Trace Script:**
+```bash
+#!/usr/bin/env bash
+# trace-hooks.sh - Monitor hook execution
+
+TRACE_DIR="$HOME/.cline_hook_traces"
+mkdir -p "$TRACE_DIR"
+
+# Wrap existing hooks with tracing
+for hook in .clinerules/hooks/*; do
+  if [[ -f "$hook" && -x "$hook" ]]; then
+    hook_name=$(basename "$hook")
+    
+    # Backup original hook
+    mv "$hook" "${hook}.original"
+    
+    # Create tracing wrapper
+    cat > "$hook" << EOF
+#!/usr/bin/env bash
+# Auto-generated tracing wrapper for $hook_name
+
+TRACE_FILE="$TRACE_DIR/${hook_name}_trace.log"
+ORIGINAL_HOOK="\${0}.original"
+
+# Log start
+echo "[\$(date -Iseconds)] START $hook_name" >> "\$TRACE_FILE"
+
+# Capture input
+input=\$(cat)
+echo "[\$(date -Iseconds)] INPUT: \$input" >> "\$TRACE_FILE"
+
+# Execute original hook
+result=\$(echo "\$input" | "\$ORIGINAL_HOOK" 2>&1)
+exit_code=\$?
+
+# Log result
+echo "[\$(date -Iseconds)] OUTPUT: \$result" >> "\$TRACE_FILE"
+echo "[\$(date -Iseconds)] EXIT: \$exit_code" >> "\$TRACE_FILE"
+echo "[\$(date -Iseconds)] END $hook_name" >> "\$TRACE_FILE"
+echo "" >> "\$TRACE_FILE"
+
+# Return result
+echo "\$result"
+exit \$exit_code
+EOF
+    
+    chmod +x "$hook"
+  fi
+done
+
+echo "Tracing enabled for all hooks. Traces will be saved to $TRACE_DIR"
+```
+
+**View traces:**
+```bash
+# View all traces
+tail -f ~/.cline_hook_traces/*.log
+
+# View specific hook traces
+grep "PreToolUse" ~/.cline_hook_traces/PreToolUse_trace.log
+
+# Analyze hook timing
+grep -E "(START|END)" ~/.cline_hook_traces/*.log | 
+  awk '{print $1, $2, $3}' | 
+  sort
+```
+
+### Interactive Hook Debugging
+
+Debug hooks interactively during development.
+
+**Interactive Debugger:**
+```bash
+#!/usr/bin/env bash
+# debug-hook-interactive.sh
+
+HOOK_NAME="$1"
+
+if [[ -z "$HOOK_NAME" ]]; then
+  echo "Usage: $0 <hook-name>"
+  exit 1
+fi
+
+echo "Interactive Hook Debugger"
+echo "Hook: $HOOK_NAME"
+echo "Enter JSON input (Ctrl+D when done):"
+
+# Read multi-line input
+input=$(cat)
+
+echo "---"
+echo "Input received:"
+echo "$input" | jq .
+
+echo "---"
+echo "Executing hook..."
+
+# Create temporary script to debug the hook
+debug_script=$(mktemp)
+cat > "$debug_script" << 'EOF'
+#!/usr/bin/env bash
+set -x  # Enable command tracing
+
+# Your hook code here - copy from actual hook
+input=$(cat)
+
+# Add breakpoints by uncommenting:
+# read -p "Press Enter to continue..."
+
+# Continue with hook logic...
+EOF
+
+chmod +x "$debug_script"
+
+# Run with input
+echo "$input" | "$debug_script"
+
+# Cleanup
+rm "$debug_script"
+```
+
+## Common Troubleshooting Scenarios
+
+### Hook Not Running
+
+**Symptoms:** Hook appears to be ignored, no output in logs.
+
+**Troubleshooting Steps:**
+
+1. **Check Hook Installation:**
+```bash
+# Verify hook file exists and is executable
+ls -la .clinerules/hooks/
+# Should show executable permissions (x flag)
+
+# Make hook executable if needed
+chmod +x .clinerules/hooks/HookName
+```
+
+2. **Verify Cline Settings:**
+```bash
+# Check if hooks are enabled in Cline settings
+# Open Cline -> Settings -> Features -> Enable Hooks (must be checked)
+```
+
+3. **Check Hook Syntax:**
+```bash
+# Test hook syntax manually
+echo '{"test": "data"}' | .clinerules/hooks/HookName
+# Should return valid JSON, not error messages
+```
+
+4. **Examine VSCode Output:**
+```bash
+# Check VSCode Output panel:
+# View -> Output -> Select "Cline" from dropdown
+# Look for hook-related error messages
+```
+
+5. **Hook Location Verification:**
+```bash
+# Verify hook is in correct location
+find . -name "HookName" -type f 2>/dev/null
+# Should find hooks in .clinerules/hooks/ or ~/Documents/Cline/Rules/Hooks/
+```
+
+### Hook Timing Out
+
+**Symptoms:** Hook execution takes too long, operations get blocked.
+
+**Troubleshooting:**
+
+1. **Identify Performance Issues:**
+```bash
+#!/usr/bin/env bash
+# Quick performance check
+time (echo '{"test": "input"}' | .clinerules/hooks/HookName)
+# Should complete in under 1 second
+```
+
+2. **Common Performance Fixes:**
+```bash
+#!/usr/bin/env bash
+# Avoid expensive operations in hooks
+
+# BAD - Network calls in main execution path
+curl -s "https://api.example.com/validate" --max-time 30
+
+# GOOD - Background processing
+curl -s "https://api.example.com/validate" --max-time 5 > /dev/null 2>&1 &
+
+# BAD - Heavy file processing
+find / -name "*.js" -exec eslint {} \;
+
+# GOOD - Process only relevant files
+find . -maxdepth 3 -name "*.js" -exec eslint {} \;
+```
+
+3. **Optimize Common Operations:**
+```bash
+#!/usr/bin/env bash
+# Cache expensive computations
+cache_file="/tmp/hook_cache_$(echo -n "$input" | md5sum | cut -d' ' -f1)"
+
+if [[ -f "$cache_file" ]] && [[ $(find "$cache_file" -mmin -10) ]]; then
+  # Use cached result
+  cat "$cache_file"
+  exit 0
+fi
+
+# Compute result and cache it
+result=$(expensive_operation)
+echo "$result" | tee "$cache_file"
+```
+
+### Context Not Affecting Behavior
+
+**Symptoms:** Context modifications don't influence AI behavior.
+
+**Understanding Context Timing:**
+
+Context injection affects **future** decisions, not current ones. When a hook runs:
+
+1. The AI has already decided what to do
+2. The hook can block or allow it  
+3. Any context gets added to the conversation
+4. The **next** AI request sees that context
+
+**Effective Context Strategies:**
+
+```bash
+#!/usr/bin/env bash
+# EFFECTIVE: PreToolUse for immediate blocking + context for next decision
+if [[ "$tool_name" == "write_to_file" && "$file_path" == *.js ]]; then
+  # Block immediately
+  echo '{"cancel": true, "errorMessage": "Use .ts files instead of .js"}'
+  exit 0
+fi
+
+# Add context for next decision
+context="CODING_STANDARDS: This project uses TypeScript. Always create .ts/.tsx files."
+jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
+```
+
+**Context Best Practices:**
+
+1. **Use Clear Prefixes:**
+```bash
+# Good - categorized context
+"SECURITY: Detected potential API key in code"
+"PERFORMANCE: Large file operations detected" 
+"CODING_STANDARDS: Use functional components"
+
+# Bad - unclear context
+"This might be a problem"
+"Consider changing this"
+```
+
+2. **Be Specific and Actionable:**
+```bash
+# Good - specific guidance
+"VALIDATION: Use TypeScript interfaces for component props: interface Props { title: string; count: number; }"
+
+# Bad - vague guidance  
+"Use proper types"
+```
+
+3. **Check Context Size:**
+```bash
+context="Your context string here"
+if [[ ${#context} -gt 50000 ]]; then
+  echo "WARNING: Context too large, may be truncated" >&2
+  context="${context:0:50000}..."
+fi
+```
+
+### Handling Strings with Quotes in JSON Payloads
+
+**Problem:** Hook fails when context contains unescaped quotes.
+
+**Solution:** Use `jq --arg` for proper escaping:
+
+```bash
+#!/usr/bin/env bash
+# When $output contains unescaped quote characters (")...
+output='{"config": "value with "quotes""}'
+
+# WRONG - Will break JSON parsing
+echo '{"cancel": false, "contextModification": "OUTPUT: '"$output"'"}'
+
+# CORRECT - Use jq --arg for automatic escaping
+jq -n --arg ctx "OUTPUT: $output" '{"cancel": false, "contextModification": $ctx}'
+
+# Result:
+# {
+#     "cancel": false,
+#     "contextModification": "OUTPUT: {\"config\": \"value with \\\"quotes\\\"\"}"
+# }
+```
+
+**Complex Escaping Examples:**
+```bash
+#!/usr/bin/env bash
+# Handle multiple variables with special characters
+error_msg='Error: File "config.json" contains "invalid" syntax'
+file_path='/path/with spaces/and "quotes"/file.txt'
+suggestion='Use JSON.stringify() for "safe" output'
+
+# Combine multiple escaped arguments
+jq -n \
+  --arg error "$error_msg" \
+  --arg path "$file_path" \
+  --arg suggest "$suggestion" \
+  '{
+    cancel: true,
+    errorMessage: $error,
+    contextModification: ("FILE_ERROR: " + $path + " - " + $suggest)
+  }'
+```
+
+## Development Best Practices
+
+### Hook Development Workflow
+
+**1. Start with Simple Templates:**
+```bash
+#!/usr/bin/env bash
+# Basic hook template
+input=$(cat)
+
+# Validate input
+if ! echo "$input" | jq empty 2>/dev/null; then
+  echo '{"cancel": false}'
+  exit 0
+fi
+
+# Extract fields
+tool_name=$(echo "$input" | jq -r '.preToolUse.toolName // "unknown"')
+
+# Your logic here...
+
+# Always return valid JSON
+echo '{"cancel": false}'
+```
+
+**2. Add Error Handling:**
+```bash
+#!/usr/bin/env bash
+# Robust error handling
+set -o pipefail
+
+error_handler() {
+  echo '{"cancel": false}' >&2
+  exit 0
+}
+trap error_handler ERR
+
+# Your hook logic...
+```
+
+**3. Test Early and Often:**
+```bash
+# Create test data for your hook
+mkdir -p test-data
+echo '{"clineVersion": "1.0.0", ...}' > test-data/basic-test.json
+
+# Test your hook
+cat test-data/basic-test.json | .clinerules/hooks/YourHook
+```
+
+### Security Best Practices
+
+**1. Validate All Input:**
+```bash
+#!/usr/bin/env bash
+# Always validate JSON input
+input=$(cat)
+if ! echo "$input" | jq empty 2>/dev/null; then
+  exit 0
+fi
+
+# Validate required fields exist
+if ! echo "$input" | jq -e '.taskId' >/dev/null; then
+  exit 0
+fi
+```
+
+**2. Sanitize File Paths:**
+```bash
+#!/usr/bin/env bash
+file_path=$(echo "$input" | jq -r '.preToolUse.parameters.path // ""')
+
+# Prevent directory traversal
+if [[ "$file_path" == *".."* ]]; then
+  echo '{"cancel": true, "errorMessage": "Invalid file path"}'
+  exit 0
+fi
+
+# Ensure path is within workspace
+if [[ "$file_path" =~ ^/ ]]; then
+  echo '{"cancel": true, "errorMessage": "Absolute paths not allowed"}'
+  exit 0
+fi
+```
+
+**3. Limit Resource Usage:**
+```bash
+#!/usr/bin/env bash
+# Set resource limits
+ulimit -t 10  # 10 second CPU limit
+ulimit -v 104857600  # 100MB memory limit
+
+# Limit file operations
+max_files=100
+file_count=$(find . -name "*.js" | wc -l)
+if (( file_count > max_files )); then
+  exit 0  # Skip processing for large projects
+fi
+```
+
+### Performance Optimization
+
+**1. Cache Expensive Operations:**
+```bash
+#!/usr/bin/env bash
+# Content-based caching
+content=$(echo "$input" | jq -r '.preToolUse.parameters.content // ""')
+cache_key=$(echo -n "$content" | sha256sum | cut -d' ' -f1)
+cache_file="$HOME/.cline_cache/lint_${cache_key:0:16}"
+
+if [[ -f "$cache_file" ]] && [[ $(find "$cache_file" -mmin -30) ]]; then
+  cat "$cache_file"
+  exit 0
+fi
+
+# Perform expensive operation
+result=$(expensive_lint_operation)
+echo "$result" | tee "$cache_file"
+```
+
+**2. Use Background Processing:**
+```bash
+#!/usr/bin/env bash
+# Queue expensive work for background processing
+if [[ "$tool_name" == "write_to_file" ]]; then
+  # Queue for background analysis
+  echo "$input" >> "$HOME/.cline_queue/analysis.queue"
+  
+  # Start background processor if needed
+  pgrep -f "cline_background" > /dev/null || start_background_processor &
+fi
+
+# Return immediately
+echo '{"cancel": false}'
+```
+
+**3. Profile Hook Performance:**
+```bash
+#!/usr/bin/env bash
+# Built-in performance monitoring
+start_time=$(date +%s%N)
+
+# Your hook logic here...
+
+end_time=$(date +%s%N)
+execution_time=$(( (end_time - start_time) / 1000000 ))
+
+# Log slow operations
+if (( execution_time > 100 )); then
+  echo "SLOW_HOOK: $(basename "$0") took ${execution_time}ms" >> "$HOME/.cline_perf.log"
+fi
+```
+
+### Maintenance and Monitoring
+
+**Hook Health Monitoring:**
+```bash
+#!/usr/bin/env bash
+# monitor-hooks.sh - Check hook health
+
+echo "Hook Health Report - $(date)"
+echo "=================================="
+
+for hook in .clinerules/hooks/*; do
+  if [[ -f "$hook" && -x "$hook" ]]; then
+    hook_name=$(basename "$hook")
+    
+    # Test basic functionality
+    test_result=$(echo '{}' | "$hook" 2>&1)
+    exit_code=$?
+    
+    if [[ $exit_code -eq 0 ]] && echo "$test_result" | jq empty 2>/dev/null; then
+      echo "✅ $hook_name - OK"
+    else
+      echo "❌ $hook_name - FAILED (exit: $exit_code)"
+      echo "   Error: $test_result"
+    fi
+  fi
+done
+
+# Check for abandoned trace/cache files
+echo ""
+echo "Cleanup Recommendations:"
+find ~/.cline_* -type f -mtime +7 2>/dev/null | head -5 | while read file; do
+  echo "  Consider removing old file: $file"
+done
+```
+
+This comprehensive testing and debugging guide provides the tools and techniques needed to develop robust, reliable hooks. Remember to start simple, test thoroughly, and incrementally add complexity as you become more comfortable with the hook system.
+
+<Warning>
+Always test hooks thoroughly in a development environment before deploying them to production workflows. Faulty hooks can block important operations and disrupt your development process.
+</Warning>
