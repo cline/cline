@@ -5,8 +5,8 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite",
-		"build": "tsc -b && vite build",
-		"build:test": "tsc -b && vite build -- --dev-build",
+		"build": "tsc --noEmit && vite build",
+		"build:test": "tsc --noEmit && vite build -- --dev-build",
 		"preview": "vite preview",
 		"lint": "biome lint --changed --no-errors-on-unmatched",
 		"test": "vitest run",
@@ -76,8 +76,8 @@
 		"jsdom": "^26.0.0",
 		"storybook": "^9.1.6",
 		"tailwindcss": "^4.1.13",
-		"typescript": "^5.7.3",
-		"vite": "^7.1.11",
+		"typescript": "^5.4.5",
+		"vite": "^5.4.11",
 		"vitest": "^3.0.5"
 	},
 	"optionalDependencies": {
