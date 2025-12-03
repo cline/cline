@@ -595,6 +595,16 @@ export const bedrockModels = {
 		cacheWritesPrice: 18.75,
 		cacheReadsPrice: 1.5,
 	},
+
+	"amazon.nova-2-lite-v1:0": {
+		maxTokens: 65536,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 2.5,
+	},
 	"amazon.nova-premier-v1:0": {
 		maxTokens: 10_000,
 		contextWindow: 1_000_000,
