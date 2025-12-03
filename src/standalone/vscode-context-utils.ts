@@ -68,7 +68,9 @@ export class EventEmitter<T> {
 	}
 
 	fire(data: T): void {
-		this.listeners.forEach((listener) => listener(data))
+		this.listeners.forEach((listener) => {
+			listener(data)
+		})
 	}
 }
 
@@ -107,7 +109,11 @@ export class JsonKeyValueStore<T> {
 		}
 	}
 	private save(): void {
-		fs.writeFileSync(this.filePath, JSON.stringify(Object.fromEntries(this.data), null, 2))
+		// Write with restrictive permissions (0600) for security - only owner can read/write
+		// Fixes #7778: secrets.json should not be world-readable
+		fs.writeFileSync(this.filePath, JSON.stringify(Object.fromEntries(this.data), null, 2), {
+			mode: 0o600,
+		})
 	}
 }
 

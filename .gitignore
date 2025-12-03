@@ -35,3 +35,52 @@ webview-ui/src/services/grpc-client.ts
 
 # E2E Tests
 test-results
+
+# Test files and scripts from testing sessions
+*.txt
+Send-ClineMessage.ps1
+Test-ClineMessaging.ps1
+send-program.ps1
+auto-demo*.py
+auto-demo*.txt
+bidirectional-test.txt
+binary_search.py
+build.log
+cli-*.py
+cli-*.txt
+cline-message-listener.js
+completion-test.txt
+debug-test.txt
+demo.txt
+example-program.py
+feature-test.py
+final-*.py
+final-*.txt
+interactive-demo.py
+large-test-file.py
+log-test.txt
+quick-test.py
+random_set.py
+test-*.py
+test-*.txt
+test-*.ps1
+venv/
+.message-queue/
+
+# Documentation files from testing
+CLI_INTEGRATION_GUIDE.md
+ECOMMERCE_ISSUE_RESOLUTION_PLAN.md
+FEATURE_SUMMARY.md
+FINAL_TEST_REPORT.md
+MAINTENANCE_GUIDE.md
+MESSAGING_SYSTEM_GUIDE.md
+QUICK_START_GUIDE.md
+RELEASE_NOTES_3.38.3.md
+UPSTREAM_UPDATES.md
+
+# Testing scripts directory
+scripts/auto-rebuild.sh
+scripts/verify-features.sh
+
+# New component (keep this one - it's real code)
+!webview-ui/src/components/chat/task-header/buttons/ExportMetricsButton.tsx

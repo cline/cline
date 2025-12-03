@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { getEnvironmentColor } from "@/utils/environmentColors"
 import CopyTaskButton from "./buttons/CopyTaskButton"
 import DeleteTaskButton from "./buttons/DeleteTaskButton"
+import ExportMetricsButton from "./buttons/ExportMetricsButton"
 import NewTaskButton from "./buttons/NewTaskButton"
 import OpenDiskConversationHistoryButton from "./buttons/OpenDiskConversationHistoryButton"
 import { CheckpointError } from "./CheckpointError"
@@ -132,6 +133,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						{isTaskExpanded && (
 							<div className="mt-1 flex justify-end cursor-pointer opacity-80 gap-2 mx-2">
 								<CopyTaskButton className={BUTTON_CLASS} taskText={task.text} />
+								<ExportMetricsButton className={BUTTON_CLASS} />
 								<DeleteTaskButton
 									className={BUTTON_CLASS}
 									taskId={currentTaskItem?.id}
