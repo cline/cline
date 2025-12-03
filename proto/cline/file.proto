@@ -16,6 +16,18 @@ service FileService {
   // Opens a file in the editor
   rpc openFile(StringRequest) returns (Empty);
 
+  // Opens the current log file in the editor
+  rpc openLogFile(EmptyRequest) returns (Empty);
+
+  // Opens the logs folder in the OS file manager
+  rpc openLogsFolder(EmptyRequest) returns (Empty);
+
+  // Get the total size of VS Code logs folder
+  rpc getLogsSize(EmptyRequest) returns (Int64);
+
+  // Clear all log files from VS Code logs folder
+  rpc clearLogs(EmptyRequest) returns (Empty);
+
   // Opens an image in the system viewer
   rpc openImage(StringRequest) returns (Empty);
 
