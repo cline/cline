@@ -59,7 +59,9 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		this.telemetrySettings.level = await this.getTelemetryLevel()
 		return this
 	}
-
+	name(): string {
+		return "PostHogTelemetryProvider"
+	}
 	public log(event: string, properties?: TelemetryProperties): void {
 		if (!this.isEnabled() || this.telemetrySettings.level === "off") {
 			return

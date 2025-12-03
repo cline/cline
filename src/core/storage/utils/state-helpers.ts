@@ -277,6 +277,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		>("lastDismissedModelBannerVersion")
 		const lastDismissedCliBannerVersion =
 			context.globalState.get<GlobalStateAndSettings["lastDismissedCliBannerVersion"]>("lastDismissedCliBannerVersion")
+		const dismissedBanners = context.globalState.get<GlobalStateAndSettings["dismissedBanners"]>("dismissedBanners")
 		const qwenCodeOauthPath = context.globalState.get<GlobalStateAndSettings["qwenCodeOauthPath"]>("qwenCodeOauthPath")
 		const customPrompt = context.globalState.get<GlobalStateAndSettings["customPrompt"]>("customPrompt")
 		const autoCondenseThreshold =
@@ -677,7 +678,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			lastDismissedInfoBannerVersion: lastDismissedInfoBannerVersion ?? 0,
 			lastDismissedModelBannerVersion: lastDismissedModelBannerVersion ?? 0,
 			lastDismissedCliBannerVersion: lastDismissedCliBannerVersion ?? 0,
-			nativeToolCallEnabled: nativeToolCallEnabled ?? false,
+			dismissedBanners: dismissedBanners || [],
+			nativeToolCallEnabled: nativeToolCallEnabled ?? true,
 			// Multi-root workspace support
 			workspaceRoots,
 			primaryRootIndex: primaryRootIndex ?? 0,

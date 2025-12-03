@@ -6,6 +6,7 @@ import type { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
 import { getAxiosSettings } from "@/shared/net"
 import { AuthService } from "../auth/AuthService"
+import { getDistinctId } from "../logging/distinctId"
 import { Logger } from "../logging/Logger"
 
 /**
@@ -86,8 +87,14 @@ export class BannerService {
 			}
 
 			// Fetch from API
-			const url = new URL("/banners/v1/messages", this._baseUrl).toString()
-			Logger.log(`BannerService: Fetching banners from ${url}`)
+			let url: string
+			try {
+				url = new URL("/banners/v1/messages", this._baseUrl).toString()
+				Logger.log(`BannerService: Fetching banners from ${url}`)
+			} catch (urlError) {
+				console.error("Error constructing URL:", urlError)
+				throw urlError
+			}
 
 			const response = await axios.get<BannersResponse>(url, {
 				timeout: 10000, // 10 second timeout
@@ -97,12 +104,12 @@ export class BannerService {
 				...getAxiosSettings(),
 			})
 
-			if (!response.data?.data?.banners) {
-				Logger.log("BannerService: Invalid response format")
+			if (!response.data?.data || !Array.isArray(response.data.data.items)) {
+				Logger.log("BannerService: Invalid response format - items array is missing or malformed")
 				return []
 			}
 
-			const allBanners = response.data.data.banners
+			const allBanners = response.data.data.items
 			Logger.log(`BannerService: Received ${allBanners.length} banners from API`)
 
 			// Filter banners based on rules evaluation
@@ -134,8 +141,6 @@ export class BannerService {
 	private async evaluateBannerRules(banner: Banner): Promise<boolean> {
 		try {
 			// Check date range first (active_from and active_to)
-			// The API response should already check this and only
-			// return active time window banners, here is to ensure.
 			if (!this.isWithinActiveDateRange(banner)) {
 				Logger.log(`BannerService: Banner ${banner.id} filtered out - outside active date range`)
 				return false
@@ -198,6 +203,11 @@ export class BannerService {
 							return !!apiConfiguration?.cerebrasApiKey
 						case "groq":
 							return !!apiConfiguration?.groqApiKey
+						case "cline":
+							return (
+								apiConfiguration?.planModeApiProvider === "cline" ||
+								apiConfiguration?.actModeApiProvider === "cline"
+							)
 						default:
 							return false
 					}
@@ -220,41 +230,31 @@ export class BannerService {
 				}
 			}
 
-			// Check audience segment
-			if (rules.audience && this._controller) {
-				switch (rules.audience) {
-					case "all":
-						// Show to all users
-						Logger.log(`BannerService: Banner ${banner.id} targets all users`)
-						break
+			if (rules.audience && rules.audience.length > 0 && this._controller) {
+				const matchesAnyAudience = rules.audience.some((audienceType) => {
+					switch (audienceType) {
+						case "all":
+							return true
 
-					case "team admin only":
-						// Show only to team admins
-						const isTeamAdmin = this.isUserTeamAdmin()
-						if (!isTeamAdmin) {
-							Logger.log(`BannerService: Banner ${banner.id} filtered out - user is not a team admin`)
-							return false
-						}
-						break
+						case "team_admin_only":
+							const isTeamAdmin = this.isUserTeamAdmin()
+							return isTeamAdmin
 
-					case "team members":
-						// Show only to users who are part of a team (have organizations)
-						const hasOrganizations = this.hasOrganizations()
-						if (!hasOrganizations) {
-							Logger.log(`BannerService: Banner ${banner.id} filtered out - user is not a team member`)
-							return false
-						}
-						break
+						case "team_members":
+							const hasOrganizations = this.hasOrganizations()
+							return hasOrganizations
 
-					case "personal only":
-						// Show only to users who have NO enterprise/organization account
-						// (Enterprise users also have a personal account by default, but this targets only non-enterprise users)
-						const hasOrgs = this.hasOrganizations()
-						if (hasOrgs) {
-							Logger.log(`BannerService: Banner ${banner.id} filtered out - user has enterprise account`)
+						case "personal_only":
+							const hasOrgs = this.hasOrganizations()
+							return !hasOrgs
+
+						default:
 							return false
-						}
-						break
+					}
+				})
+
+				if (!matchesAnyAudience) {
+					return false
 				}
 			}
 
@@ -296,13 +296,13 @@ export class BannerService {
 
 	/**
 	 * Gets the current IDE type
-	 * @returns IDE type (vscode, jetbrains, or unknown)
+	 * @returns IDE type (vscode, jetbrains, cli, or unknown)
 	 */
 	private async getIdeType(): Promise<string> {
 		try {
 			const hostVersion = await HostProvider.env.getHostVersion({})
 
-			// Use clineType field which contains values like "VSCode Extension", "Cline for JetBrains", etc.
+			// Use clineType field which contains values like "VSCode Extension", "Cline for JetBrains", "CLI", etc.
 			const clineType = hostVersion.clineType?.toLowerCase() || ""
 
 			if (clineType.includes("vscode")) {
@@ -310,6 +310,9 @@ export class BannerService {
 			}
 			if (clineType.includes("jetbrains")) {
 				return "jetbrains"
+			}
+			if (clineType.includes("cli")) {
+				return "cli"
 			}
 
 			return "unknown"
@@ -446,5 +449,115 @@ export class BannerService {
 		this._cachedBanners = []
 		this._lastFetchTime = 0
 		Logger.log("BannerService: Cache cleared")
+	}
+
+	/**
+	 * Sends a banner event to the telemetry endpoint
+	 * @param bannerId The ID of the banner
+	 * @param eventType The type of event (now we only support dismiss, in the future we might want to support seen, click...)
+	 */
+	public async sendBannerEvent(bannerId: string, eventType: "dismiss"): Promise<void> {
+		try {
+			const url = new URL("/banners/v1/events", this._baseUrl).toString()
+
+			// Get IDE type for surface
+			const ideType = await this.getIdeType()
+			let surface: string
+			if (ideType === "cli") {
+				surface = "cli"
+			} else if (ideType === "jetbrains") {
+				surface = "jetbrains"
+			} else {
+				surface = "vscode"
+			}
+
+			const instanceId = this.getInstanceDistinctId()
+
+			const payload = {
+				banner_id: bannerId,
+				instance_id: instanceId,
+				surface,
+				event_type: eventType,
+			}
+
+			await axios.post(url, payload, {
+				timeout: 10000,
+				headers: {
+					"Content-Type": "application/json",
+				},
+				...getAxiosSettings(),
+			})
+
+			Logger.log(`BannerService: Sent ${eventType} event for banner ${bannerId}`)
+		} catch (error) {
+			Logger.error(`BannerService: Error sending banner event`, error)
+		}
+	}
+
+	/**
+	 * Marks a banner as dismissed and stores it in state
+	 * @param bannerId The ID of the banner to dismiss
+	 */
+	public async dismissBanner(bannerId: string): Promise<void> {
+		try {
+			const dismissedBanners = this._controller.stateManager.getGlobalStateKey("dismissedBanners") || []
+
+			if (dismissedBanners.some((b) => b.bannerId === bannerId)) {
+				Logger.log(`BannerService: Banner ${bannerId} already dismissed`)
+				return
+			}
+			const newDismissal = {
+				bannerId,
+				dismissedAt: Date.now(),
+			}
+
+			this._controller.stateManager.setGlobalState("dismissedBanners", [...dismissedBanners, newDismissal])
+
+			await this.sendBannerEvent(bannerId, "dismiss")
+
+			this.clearCache()
+
+			Logger.log(`BannerService: Banner ${bannerId} dismissed`)
+		} catch (error) {
+			Logger.error(`BannerService: Error dismissing banner`, error)
+		}
+	}
+
+	/**
+	 * Checks if a banner has been dismissed by the user
+	 * @param bannerId The ID of the banner to check
+	 * @returns true if the banner has been dismissed
+	 */
+	public isBannerDismissed(bannerId: string): boolean {
+		try {
+			const dismissedBanners = this._controller.stateManager.getGlobalStateKey("dismissedBanners") || []
+			return dismissedBanners.some((b) => b.bannerId === bannerId)
+		} catch (error) {
+			Logger.error(`BannerService: Error checking if banner is dismissed`, error)
+			return false
+		}
+	}
+
+	/**
+	 * Gets banners that haven't been dismissed by the user
+	 * @param forceRefresh If true, bypasses cache and fetches fresh data
+	 * @returns Array of non-dismissed banners
+	 */
+	public async getNonDismissedBanners(forceRefresh = false): Promise<Banner[]> {
+		const allBanners = await this.fetchActiveBanners(forceRefresh)
+		return allBanners.filter((banner) => !this.isBannerDismissed(banner.id))
+	}
+
+	/**
+	 * Gets the distinct ID for the current user
+	 * @returns distinct ID string
+	 */
+	private getInstanceDistinctId(): string {
+		try {
+			return getDistinctId()
+		} catch (error) {
+			Logger.error("BannerService: Error getting distinct ID", error)
+			return "unknown"
+		}
 	}
 }
