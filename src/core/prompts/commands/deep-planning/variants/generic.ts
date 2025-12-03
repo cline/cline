@@ -20,7 +20,7 @@ export function createGenericVariant(): DeepPlanningVariant {
  * Generates the deep-planning template with shell-specific commands
  */
 function generateTemplate(): string {
-	const detectedShell = getShell()
+	const detectedShell = getShell()?.path
 
 	// FIXME: detectedShell returns a non-string value on some Windows machines
 	let isPowerShell = false

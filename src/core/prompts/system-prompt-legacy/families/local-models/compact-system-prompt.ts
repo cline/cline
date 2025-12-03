@@ -139,7 +139,7 @@ Include options/trade-offs when helpful, ask if plan matches, then add the exact
 
 ## SYSTEM INFO
 OS: ${osName()}
-Shell: ${getShell()}
+Shell: ${getShell()?.path}
 Home: ${os.homedir().toPosix()}
 CWD: ${cwd.toPosix()}`
 }

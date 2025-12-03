@@ -147,7 +147,12 @@ function getMacShellFromVSCode(): TerminalProfileConfig | null {
 	}
 
 	const profile = profiles[defaultProfileName]
-	return profile || null
+
+	if (!profile?.path) {
+		return null
+	}
+
+	return profile
 }
 
 /** Attempts to retrieve a shell config from VS Code config on Linux. */
@@ -158,7 +163,12 @@ function getLinuxShellFromVSCode(): TerminalProfileConfig | null {
 	}
 
 	const profile = profiles[defaultProfileName]
-	return profile || null
+
+	if (!profile?.path) {
+		return null
+	}
+
+	return profile
 }
 
 // -----------------------------------------------------

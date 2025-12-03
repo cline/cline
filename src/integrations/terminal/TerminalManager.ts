@@ -380,7 +380,7 @@ export class TerminalManager {
 		this.defaultTerminalProfile = profileId
 
 		// Get the shell path for the new profile
-		const newShellPath = profileId !== "default" ? getShellForProfile(profileId).path : undefined
+		const newShellPath = getShellForProfile(profileId)?.path
 
 		// Handle terminal management for the profile change
 		const result = this.handleTerminalProfileChange(newShellPath)

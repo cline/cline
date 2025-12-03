@@ -823,7 +823,7 @@ RULES
 SYSTEM INFORMATION
 
 Operating System: ${osName()}
-Default Shell: ${getShell()}
+Default Shell: ${getShell()?.path}
 Home Directory: ${os.homedir().toPosix()}
 Current Working Directory: ${cwd.toPosix()}
 
