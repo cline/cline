@@ -162,7 +162,7 @@ func PromptForSapAiCoreConfigWithValidation(existing *SapAiCoreConfig, flags sap
 					return "SAP BTP service key 'clientsecret' field"
 				}()).
 				Placeholder(func() string {
-					if flags.HasClientID {
+					if flags.HasSecret {
 						return "•••••• (leave empty to keep existing)"
 					}
 					return "e.g., your-secret"
