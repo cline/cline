@@ -26,13 +26,15 @@ export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel): boolea
 
 /**
  * Determines if reasoning content should be skipped for a given model
- * Currently skips reasoning for Grok-4 models since they only display "thinking" without useful information
+ * Currently skips reasoning for:
+ * - Grok-4 models since they only display "thinking" without useful information
+ * - Microwave models since they don't support reasoning_details field
  */
 export function shouldSkipReasoningForModel(modelId?: string): boolean {
 	if (!modelId) {
 		return false
 	}
-	return modelId.includes("grok-4")
+	return modelId.includes("grok-4") || modelId.includes("microwave")
 }
 
 export function isAnthropicModelId(modelId: string): modelId is AnthropicModelId {
@@ -109,9 +111,19 @@ export function isNextGenOpenSourceModelFamily(id: string): boolean {
 	return ["kimi-k2"].some((substring) => modelId.includes(substring))
 }
 
+export function isMicrowaveModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("microwave")
+}
+
 export function isGemini3ModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return modelId.includes("gemini3") || modelId.includes("gemini-3")
+}
+
+function isDeepSeek32ModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("deepseek") && modelId.includes("3.2")
 }
 
 export function isNextGenModelFamily(id: string): boolean {
@@ -123,7 +135,8 @@ export function isNextGenModelFamily(id: string): boolean {
 		isGPT5ModelFamily(modelId) ||
 		isMinimaxModelFamily(modelId) ||
 		isGemini3ModelFamily(modelId) ||
-		isNextGenOpenSourceModelFamily(modelId)
+		isNextGenOpenSourceModelFamily(modelId) ||
+		isDeepSeek32ModelFamily(modelId)
 	)
 }
 

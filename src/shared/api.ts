@@ -236,6 +236,7 @@ export interface ModelInfo {
 	contextWindow?: number
 	supportsImages?: boolean
 	supportsPromptCache: boolean // this value is hardcoded for now
+	supportsReasoning?: boolean // Whether the model supports reasoning/thinking mode
 	inputPrice?: number // Keep for non-tiered input models
 	outputPrice?: number // Keep for non-tiered output models
 	thinkingConfig?: {
@@ -362,6 +363,16 @@ export const anthropicModels = {
 		cacheReadsPrice: 0.3,
 		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
+	"claude-opus-4-5-20251101": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+	},
 	"claude-opus-4-1-20250805": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -465,6 +476,11 @@ export const claudeCodeModels = {
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
+	"claude-opus-4-5-20251101": {
+		...anthropicModels["claude-opus-4-5-20251101"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
 	"claude-opus-4-1-20250805": {
 		...anthropicModels["claude-opus-4-1-20250805"],
 		supportsImages: false,
@@ -547,6 +563,17 @@ export const bedrockModels = {
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
 		tiers: CLAUDE_SONNET_1M_TIERS,
+	},
+	"anthropic.claude-opus-4-5-20251101-v1:0": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
 	},
 	"anthropic.claude-opus-4-20250514-v1:0": {
 		maxTokens: 8192,
@@ -742,6 +769,18 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 		"Claude Sonnet 4.5 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
 }
 
+// Cline custom model - Microwave
+export const clineMicrowaveModelInfo: ModelInfo = {
+	contextWindow: 256000,
+	supportsImages: false,
+	supportsPromptCache: false,
+	inputPrice: 0,
+	outputPrice: 0,
+	cacheReadsPrice: 0,
+	cacheWritesPrice: 0,
+	description: "A stealth model for agentic coding tasks",
+}
+
 export const OPENROUTER_PROVIDER_PREFERENCES: Record<string, { order: string[]; allow_fallbacks: boolean }> = {
 	// Exacto Providers
 	"moonshotai/kimi-k2:exacto": {
@@ -877,6 +916,16 @@ export const vertexModels = {
 		outputPrice: 5.0,
 		cacheWritesPrice: 1.25,
 		cacheReadsPrice: 0.1,
+	},
+	"claude-opus-4-5@20251101": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
 	},
 	"claude-opus-4-1@20250805": {
 		maxTokens: 8192,
@@ -2627,6 +2676,46 @@ export const askSageModels = {
 	"google-gemini-2.5-pro": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"google-claude-45-sonnet": {
+		maxTokens: 64000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"google-claude-4-opus": {
+		maxTokens: 32000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gpt-5": {
+		maxTokens: 65536,
+		contextWindow: 2_097_152,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gpt-5-mini": {
+		maxTokens: 32768,
+		contextWindow: 1_048_576,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gpt-5-nano": {
+		maxTokens: 16384,
+		contextWindow: 262_144,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -2822,6 +2911,33 @@ export const nebiusDefaultModelId = "Qwen/Qwen2.5-32B-Instruct-fast" satisfies N
 export type XAIModelId = keyof typeof xaiModels
 export const xaiDefaultModelId: XAIModelId = "grok-4"
 export const xaiModels = {
+	"grok-4-1-fast-reasoning": {
+		contextWindow: 2_000_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.2,
+		cacheReadsPrice: 0.05,
+		outputPrice: 0.5,
+		description: "xAI's Grok 4.1 Reasoning Fast - multimodal model with 2M context.",
+	},
+	"grok-4-1-fast-non-reasoning": {
+		contextWindow: 2_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.2,
+		cacheReadsPrice: 0.05,
+		outputPrice: 0.5,
+		description: "xAI's Grok 4.1 Non-Reasoning Fast - multimodal model with 2M context.",
+	},
+	"grok-code-fast-1": {
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.2,
+		cacheReadsPrice: 0.02,
+		outputPrice: 1.5,
+		description: "xAI's Grok Coding model.",
+	},
 	"grok-4-fast-reasoning": {
 		maxTokens: 30000,
 		contextWindow: 2000000,
@@ -3110,7 +3226,7 @@ export const cerebrasModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
-		description: "Intelligent general purpose model with 2,000 tokens/s",
+		description: "Intelligent general purpose model with 1,000 tokens/s",
 	},
 	"gpt-oss-120b": {
 		maxTokens: 65536,
@@ -3147,15 +3263,6 @@ export const cerebrasModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 		description: "SOTA coding performance with ~2500 tokens/s",
-	},
-	"qwen-3-235b-a22b-thinking-2507": {
-		maxTokens: 32000,
-		contextWindow: 65000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description: "SOTA performance with ~1500 tokens/s",
 	},
 } as const satisfies Record<string, ModelInfo>
 
