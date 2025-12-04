@@ -1,12 +1,10 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
-import { StringRequest } from "@shared/proto/cline/common"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { useCallback, useLayoutEffect, useMemo, useState } from "react"
 import Thumbnails from "@/components/common/Thumbnails"
 import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
-import { UiServiceClient } from "@/services/grpc-client"
 import { getEnvironmentColor } from "@/utils/environmentColors"
 import CopyTaskButton from "./buttons/CopyTaskButton"
 import DeleteTaskButton from "./buttons/DeleteTaskButton"
@@ -29,7 +27,6 @@ interface TaskHeaderProps {
 	lastApiReqTotalTokens?: number
 	lastProgressMessageText?: string
 	onClose: () => void
-	onScrollToMessage?: (messageIndex: number) => void
 	onSendMessage?: (command: string, files: string[], images: string[]) => void
 }
 
@@ -45,14 +42,12 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	lastApiReqTotalTokens,
 	lastProgressMessageText,
 	onClose,
-	onScrollToMessage,
 	onSendMessage,
 }) => {
 	const {
 		apiConfiguration,
 		currentTaskItem,
 		checkpointManagerErrorMessage,
-		clineMessages,
 		navigateToSettings,
 		mode,
 		expandTaskHeader: isTaskExpanded,
@@ -106,20 +101,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const toggleTaskExpanded = useCallback(() => setIsTaskExpanded(!isTaskExpanded), [setIsTaskExpanded, isTaskExpanded])
 
 	const handleCheckpointSettingsClick = useCallback(() => {
-		navigateToSettings()
-		setTimeout(async () => {
-			try {
-				await UiServiceClient.scrollToSettings(StringRequest.create({ value: "features" }))
-			} catch (error) {
-				console.error("Error scrolling to checkpoint settings:", error)
-			}
-		}, 300)
+		navigateToSettings("features")
 	}, [navigateToSettings])
 
 	const environmentBorderColor = getEnvironmentColor(environment, "border")
 
 	return (
-		<div className={"p-2 flex flex-col gap-1.5"}>
+		<div className="pt-2 pb-2 pl-[15px] pr-[14px] flex flex-col gap-2">
 			{/* Display Checkpoint Error */}
 			<CheckpointError
 				checkpointManagerErrorMessage={checkpointManagerErrorMessage}
@@ -159,7 +147,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					<div className="flex items-center select-none grow min-w-0 gap-1 justify-between">
 						{!isTaskExpanded && (
 							<div className="whitespace-nowrap overflow-hidden text-ellipsis grow min-w-0">
-								<span className="ph-no-capture text-base">{highlightText(task.text, false)}</span>
+								<span className="ph-no-capture text-base">{highlightedText}</span>
 							</div>
 						)}
 					</div>

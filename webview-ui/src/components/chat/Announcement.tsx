@@ -1,10 +1,15 @@
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { XIcon } from "lucide-react"
-import { CSSProperties, memo } from "react"
+import { CSSProperties, memo, useState } from "react"
 import { useMount } from "react-use"
 import { Button } from "@/components/ui/button"
+import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
+import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { AccountServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
+import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 
 interface AnnouncementProps {
 	version: string
@@ -19,7 +24,7 @@ const containerStyle: CSSProperties = {
 	position: "relative",
 	flexShrink: 0,
 }
-const h4TitleStyle: CSSProperties = { margin: "0 0 8px", fontWeight: "bold" }
+const h2TitleStyle: CSSProperties = { margin: "0 0 8px", fontWeight: "bold" }
 const ulStyle: CSSProperties = { margin: "0 0 8px", paddingLeft: "12px", listStyleType: "disc" }
 const _accountIconStyle: CSSProperties = { fontSize: 11 }
 const hrStyle: CSSProperties = {
@@ -38,9 +43,40 @@ Patch releases (3.19.1 → 3.19.2) will not trigger new announcements.
 */
 const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	const minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
-	const { refreshOpenRouterModels } = useExtensionState()
+	const { clineUser } = useClineAuth()
+	const { openRouterModels, setShowChatModelSelector, refreshOpenRouterModels } = useExtensionState()
+	const user = clineUser || undefined
+	const { handleFieldsChange } = useApiConfigurationHandlers()
+
+	const [didClickMicrowaveButton, setDidClickMicrowaveButton] = useState(false)
 	// Need to get latest model list in case user hits shortcut button to set model
 	useMount(refreshOpenRouterModels)
+
+	const setMicrowave = () => {
+		const modelId = "stealth/microwave"
+		// set both plan and act modes to use code-supernova-1-million
+		handleFieldsChange({
+			planModeOpenRouterModelId: modelId,
+			actModeOpenRouterModelId: modelId,
+			planModeOpenRouterModelInfo: openRouterModels[modelId],
+			actModeOpenRouterModelInfo: openRouterModels[modelId],
+			planModeApiProvider: "cline",
+			actModeApiProvider: "cline",
+		})
+
+		setTimeout(() => {
+			setDidClickMicrowaveButton(true)
+			setShowChatModelSelector(true)
+		}, 10)
+	}
+
+	const handleShowAccount = () => {
+		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
+			console.error("Failed to get login URL:", err),
+		)
+	}
+
+	const isVscode = PLATFORM_CONFIG.type === PlatformType.VSCODE
 
 	return (
 		<div style={containerStyle}>
@@ -52,21 +88,62 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				variant="icon">
 				<XIcon />
 			</Button>
-			<h4 style={h4TitleStyle}>
-				🎉{"  "}New in v{minorVersion}
-			</h4>
+			<h2 style={h2TitleStyle}>
+				🎉{"  "}New in v{version}
+			</h2>
 			<ul style={ulStyle}>
+				{isVscode && (
+					<>
+						<li>
+							New{" "}
+							<VSCodeLink href="https://docs.cline.bot/features/explain-changes" style={linkStyle}>
+								Explain Changes
+							</VSCodeLink>{" "}
+							button when Cline completes a task to help review code with inline chat. You can reply to comments, or
+							send the chat as context back to Cline.
+						</li>
+						<li>
+							Use the new{" "}
+							<VSCodeLink href="https://docs.cline.bot/features/slash-commands/explain-changes" style={linkStyle}>
+								/explain-changes
+							</VSCodeLink>{" "}
+							slash command to explain the changes in branches, commits, etc. (Try asking Cline to explain a PR you
+							need to review!)
+						</li>
+					</>
+				)}
 				<li>
-					<strong>MiniMax-M2</strong> is currently free to use in Cline!
-				</li>
-				<li>
-					<strong>Gemini 3 Pro Preview</strong> is now available with SOTA reasoning and coding capabilities.
-				</li>
-				<li>
-					<strong>AquaVoice's Avalon</strong> model scores 97.3% accuracy on AISpeak and now powers voice-to-text
-					dictation.
+					New <code>microwave</code> stealth model, free for a limited time!
+					<br />
+					{user ? (
+						<div style={{ display: "flex", gap: "8px", flexWrap: "wrap", margin: "5px 0" }}>
+							{!didClickMicrowaveButton && (
+								<VSCodeButton
+									appearance="primary"
+									onClick={setMicrowave}
+									style={{ transform: "scale(0.85)", transformOrigin: "left center" }}>
+									Try stealth/microwave
+								</VSCodeButton>
+							)}
+						</div>
+					) : (
+						<VSCodeButton
+							appearance="primary"
+							onClick={handleShowAccount}
+							style={{ margin: "5px 0", transform: "scale(0.85)", transformOrigin: "left center" }}>
+							Sign Up with Cline
+						</VSCodeButton>
+					)}
 				</li>
 			</ul>
+			{isVscode && (
+				<p style={{ margin: "0" }}>
+					See a{" "}
+					<VSCodeLink href="https://x.com/sdrzn/status/1995840893816111246" style={linkStyle}>
+						demo of "Explain Changes"
+					</VSCodeLink>
+				</p>
+			)}
 			<div style={hrStyle} />
 			<p style={linkContainerStyle}>
 				Join us on{" "}
