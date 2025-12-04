@@ -145,17 +145,12 @@ export function convertToOpenAiMessages(
 				const thinkingBlock = []
 				if (nonToolMessages.length > 0) {
 					nonToolMessages.forEach((part) => {
-						// @ts-expect-error-next-line
-						if (part.type === "text" && part.reasoning_details) {
-							// @ts-expect-error-next-line
-							if (Array.isArray(part.reasoning_details)) {
-								// @ts-expect-error-next-line
-								reasoningDetails.push(...part.reasoning_details)
+						if (part.type === "text" && (part as any).reasoning_details) {
+							if (Array.isArray((part as any).reasoning_details)) {
+								reasoningDetails.push(...(part as any).reasoning_details)
 							} else {
-								// @ts-expect-error-next-line
-								reasoningDetails.push(part.reasoning_details)
+								reasoningDetails.push((part as any).reasoning_details)
 							}
-							// @ts-expect-error-next-line
 							// delete part.reasoning_details
 						}
 						if (part.type === "thinking" && part.thinking) {
@@ -205,7 +200,7 @@ export function convertToOpenAiMessages(
 					content: finalContent,
 					// Cannot be an empty array. API expects an array with minimum length 1, and will respond with an error if it's empty
 					tool_calls: tool_calls?.length > 0 ? tool_calls : undefined,
-					// @ts-expect-error-next-line
+					// @ts-expect-error
 					reasoning_details: reasoningDetails.length > 0 ? consolidateReasoningDetails(reasoningDetails) : undefined,
 				})
 			}
