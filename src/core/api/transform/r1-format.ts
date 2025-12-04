@@ -38,7 +38,7 @@ export function addReasoningContent(
 				const thinking = msg.content
 					.filter((p): p is ClineAssistantThinkingBlock => p.type === "thinking")
 					.map((p) => p.thinking)
-					.join("")
+					.join("\n")
 				if (thinking) {
 					thinkingByIndex.set(assistantIdx, thinking)
 				}
