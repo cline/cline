@@ -364,8 +364,8 @@
 		{
 			"source": "/features/hooks/real-world-examples",
 			"destination": "/features/hooks/samples"
-    },
-    {
+		},
+		{
 			"source": "/enterprise-solutions/configure-AWS-Bedrock-Admin",
 			"destination": "/enterprise-solutions/provider-remote-config/aws-bedrock/admin-configuration"
 		},
