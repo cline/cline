@@ -1,16 +1,40 @@
 # Changelog
 
+## 3.40.0
+
+### Minor Changes
+
+- c312c4a: This minor change adds new models and image support for rleated models, adds fetching of model info from API, updates tool handling, and adds retrieval usage stats for individual messages and a user's monthly token usage.
+
+### Patch Changes
+
+- dd52a4a: Added apply_patch to auto approve, strict mode, and minor prompting adjustment
+- 68b93fc: Fix highlighted text flashing when task header is collapsed.
+- 3eac9b0: Add sts client userAgentAppId
+- 1332d1d: Add X-Cerebras-3rd-Party-Integration header to Cerebras API requests.
+- 0b7ea86: Added microwave family system prompt configuration
+- ab5796f: removing tooltips from auto approve menu
+- b1d15d4: fix: Standalone, ensure cwd is the install dir to find resources reliably
+- e62fbf6: Fixed a bug where terminal commands with double quotes are broken when "Terminal Execution Mode" is set to "Background Exec"
+- 1826d98: Slash commands can now be typed anywhere in a message, not just at the beginning. This matches the behavior of @ mentions for a more flexible input experience.
+- 0b0e8c3: Adds bottom padding to the last message to fix last response text getting cut off by auto approve settings bar.
+- b0bd0e3: Add task history recovery documentation with storage paths, recovery command usage, and troubleshooting guide.
+- 326c9c9: Adds default thinking level for Gemini 3 Pro models in Gemini provider
+
 ## [3.39.2]
+
 - Fix for microwave model and thinking settings
 
 ## [3.39.1]
+
 - Fix Openrouter and Cline Provider model info
 
 ## [3.39.0]
+
 - Add Explain Changes feature
 - Add microwave Stealth model
-- Add Tabbed Model Picker with Recommended and Free tabs 
-- Add support to View remote rules and workflows in the editor 
+- Add Tabbed Model Picker with Recommended and Free tabs
+- Add support to View remote rules and workflows in the editor
 - Enable NTC (Native Tool Calling) by default
 - Bug fixes and improvements for LiteLLM provider
 
@@ -34,18 +58,20 @@
 ## [3.38.1]
 
 ### Fixed
+
 - Fixed handling of 'signature' field in sanitizeAnthropicContentBlock to properly preserve it when thinking is enabled, as required by Anthropic's API.
 
 ## [3.38.0]
 
 ### Added
+
 - Gemini 3 Pro Preview model
 - AquaVoice Avalon model for voice-to-text dictation
 
 ### Fixed
+
 - Automatic context truncation when AWS Bedrock token usage rate limits are exceeded
 - Removed new_task tool from system prompts, updated slash command prompts, and added helper function for native tool calling validation
-
 
 ## [3.37.1]
 
