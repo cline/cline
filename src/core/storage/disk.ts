@@ -294,34 +294,36 @@ export async function taskHistoryStateFileExists(): Promise<boolean> {
 	return fileExistsAtPath(filePath)
 }
 
-export async function readTaskHistoryFromState(attemptedReconstruction = false): Promise<HistoryItem[]> {
+export async function readTaskHistoryFromState(): Promise<HistoryItem[]> {
 	try {
 		const filePath = await getTaskHistoryStateFilePath()
-		if (await fileExistsAtPath(filePath)) {
-			try {
-				const contents = await fs.readFile(filePath, "utf8")
-				try {
-					return JSON.parse(contents)
-				} catch (parseError) {
-					// Only reconstruction on parse errors
-					if (attemptedReconstruction) {
-						telemetryService.captureExtensionStorageError(parseError, "attemptedReconstruction failed")
-						throw new Error("Failed to parse task history JSON after reconstruction attempt...")
-					}
-					telemetryService.captureExtensionStorageError(parseError, "readTaskHistoryFromState parse error")
-					await reconstructTaskHistory(false)
-					return await readTaskHistoryFromState(true)
-				}
-			} catch (readError) {
-				// Handle file system errors separately
-				telemetryService.captureExtensionStorageError(readError, "readTaskHistoryFromState readFile error")
-				throw readError
-			}
+		if (!(await fileExistsAtPath(filePath))) {
+			return []
 		}
-		return []
+
+		const contents = await fs.readFile(filePath, "utf8")
+
+		try {
+			return JSON.parse(contents)
+		} catch (parseError) {
+			telemetryService.captureExtensionStorageError(parseError, "parseError_attemptingRecovery")
+
+			const result = await reconstructTaskHistory(false)
+			if (result && result.reconstructedTasks > 0) {
+				// Read the reconstructed file
+				const newContents = await fs.readFile(filePath, "utf8")
+				return JSON.parse(newContents)
+			}
+
+			// Recovery failed, all we can do is return an empty array or throw an error, thus preventing the app from starting up
+			// This will wipe out the taskHistory
+			return []
+		}
 	} catch (error) {
+		// File system or other errors
 		telemetryService.captureExtensionStorageError(error, "readTaskHistoryFromState")
-		throw error
+		console.error("[Disk] Failed to read task history:", error)
+		return []
 	}
 }
 
