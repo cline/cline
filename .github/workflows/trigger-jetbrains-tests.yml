@@ -1,6 +1,6 @@
 name: Trigger Jetbrains Plugin <-> Cline Tests
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened]
 permissions:
   contents: read
