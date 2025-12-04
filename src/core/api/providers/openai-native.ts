@@ -63,6 +63,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ChatCompletionTool[]): ApiStream {
+		// Responses API requires tool format to be set to OPENAI_RESPONSES with native tools calling enabled
 		if (tools?.length && this.getModel()?.info?.apiFormat === ApiFormat.OPENAI_RESPONSES) {
 			yield* this.createResponseStream(systemPrompt, messages, tools)
 		} else {
@@ -403,10 +404,6 @@ export class OpenAiNativeHandler implements ApiHandler {
 		if (modelId && modelId in openAiNativeModels) {
 			const id = modelId as OpenAiNativeModelId
 			const info: ModelInfo = { ...openAiNativeModels[id] }
-			// Ensure model is compatible with feature flags
-			if (info.apiFormat === ApiFormat.OPENAI_RESPONSES) {
-				info.apiFormat = undefined
-			}
 			return { id, info }
 		}
 		return {

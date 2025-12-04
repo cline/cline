@@ -24,13 +24,11 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 		}
 		const providerInfo = context.providerInfo
 		const modelId = providerInfo.model.id
-
-		// gpt-5-chat models do not support native tool use
 		return (
 			isGPT5ModelFamily(modelId) &&
 			// Exclude gpt-5.1 models except for codex variants
 			(modelId.includes("codex") || !isGPT51Model(modelId)) &&
-			!isGPT51Model(modelId) &&
+			// gpt-5-chat models do not support native tool use
 			!modelId.includes("chat") &&
 			isNextGenModelProvider(providerInfo)
 		)
