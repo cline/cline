@@ -56,6 +56,44 @@ export class ContextManager {
 	}
 
 	/**
+	 * Extracts text from a content block, handling both regular text blocks and tool_result wrappers.
+	 * For tool_result blocks, extracts text from content[0] (native tool calling format).
+	 * @returns The text content, or null if no text could be extracted
+	 */
+	private getTextFromBlock(block: Anthropic.Messages.ContentBlockParam): string | null {
+		if (block.type === "text") {
+			return block.text
+		}
+		if (block.type === "tool_result" && Array.isArray(block.content)) {
+			const inner = block.content[0]
+			if (inner && "type" in inner && inner.type === "text") {
+				return inner.text
+			}
+		}
+		return null
+	}
+
+	/**
+	 * Sets text in a content block, handling both regular text blocks and tool_result wrappers.
+	 * For tool_result blocks, sets text in content[0] (native tool calling format).
+	 * @returns true if text was set successfully, false otherwise
+	 */
+	private setTextInBlock(block: Anthropic.Messages.ContentBlockParam, text: string): boolean {
+		if (block.type === "text") {
+			block.text = text
+			return true
+		}
+		if (block.type === "tool_result" && Array.isArray(block.content)) {
+			const inner = block.content[0]
+			if (inner && "type" in inner && inner.type === "text") {
+				inner.text = text
+				return true
+			}
+		}
+		return false
+	}
+
+	/**
 	 * public function for loading contextHistoryUpdates from disk, if it exists
 	 */
 	async initializeContextHistory(taskDirectory: string) {
@@ -490,8 +528,8 @@ export class ContextManager {
 
 					if (Array.isArray(message.content)) {
 						const block = message.content[blockIndex]
-						if (block && block.type === "text") {
-							block.text = latestChange[2][0]
+						if (block) {
+							this.setTextInBlock(block, latestChange[2][0])
 						}
 					}
 				}
@@ -788,21 +826,28 @@ export class ContextManager {
 			const message = apiMessages[i]
 			if (message.role === "user" && Array.isArray(message.content) && message.content.length > 0) {
 				const firstBlock = message.content[0]
-				if (firstBlock.type === "text") {
-					const result = this.parseToolCallWithFormat(firstBlock.text)
+				// Extract text from either a direct text block or from inside a tool_result wrapper (native tool calling)
+				const firstBlockText = this.getTextFromBlock(firstBlock)
+
+				if (firstBlockText) {
+					const result = this.parseToolCallWithFormat(firstBlockText)
 					let foundNormalFileRead = false
 					if (result) {
 						const [toolName, filePath, contentBlockIndex, headerText] = result
 
 						if (toolName === "read_file") {
+							// For native tool calling format, we assume contentBlockIndex=0 which is what happens naturally
 							this.handleReadFileToolCall(i, filePath, fileReadIndices, contentBlockIndex, headerText)
 							foundNormalFileRead = true
 						} else if (toolName === "replace_in_file" || toolName === "write_to_file") {
-							// old format has the file contents in index=1 whereas the new format has it in index=0
-							// in either case we need to extract the correct contents
+							// For native tool calling format, the content is assumed to always in the same block (index=0 inside tool_result)
+							// For the XML format, the old format has the file contents in index=1 whereas the new format has it in index=0
 							let blockText: string | undefined
-							if (contentBlockIndex == 0) {
-								blockText = firstBlock.text
+							if (firstBlock.type === "tool_result") {
+								blockText = firstBlockText
+							} else if (contentBlockIndex == 0) {
+								// remaining cases are for type="text"
+								blockText = firstBlockText
 							} else if (contentBlockIndex == 1 && message.content.length > 1) {
 								const secondBlock = message.content[1]
 								if (secondBlock.type === "text") {
@@ -825,18 +870,20 @@ export class ContextManager {
 
 					// file mentions can happen in most other user message blocks
 					if (!foundNormalFileRead) {
-						// Search over indices up to 0-2 for file mentions
-						// Only search index N if there's at least one more element after it
+						// search over indices 0-2 inclusive for file mentions
+						// this is a heuristic to catch most occurrences without looping over all inner indices
 						for (const candidateIndex of [0, 1, 2]) {
-							if (message.content.length <= candidateIndex + 1) {
+							if (candidateIndex >= message.content.length) {
 								break
 							}
 
 							const block = message.content[candidateIndex]
-							if (block.type === "text") {
+							// Extract text from either a direct text block or from inside a tool_result wrapper
+							const blockText = this.getTextFromBlock(block)
+							if (blockText) {
 								const [hasFileRead, filePaths] = this.handlePotentialFileMentionCalls(
 									i,
-									block.text,
+									blockText,
 									fileReadIndices,
 									thisExistingFileReads, // file reads we've already replaced in this text in the latest version of this updated text
 									candidateIndex,
@@ -1019,9 +1066,12 @@ export class ContextManager {
 							// can assume that this content will exist, otherwise it would not have been in fileReadIndices
 							const messageContent = apiMessages[messageIndex]?.content
 							if (!baseText && Array.isArray(messageContent) && messageContent.length > innerIndex) {
+								// contentBlock can either be the type="text" dict or type="tool_result" dict which has its own content array
+								// but we currently assume the content we will overwrite is at index=0 in this content array
 								const contentBlock = messageContent[innerIndex]
-								if (contentBlock.type === "text") {
-									baseText = contentBlock.text
+								const extractedText = this.getTextFromBlock(contentBlock)
+								if (extractedText) {
+									baseText = extractedText
 								}
 							}
 
@@ -1128,7 +1178,9 @@ export class ContextManager {
 					// looping over inner indices of messages
 					const block = message.content[blockIndex]
 
-					if (block.type === "text" && block.text) {
+					// Extract text from either a direct text block or from inside a tool_result wrapper (native tool calling)
+					const blockText = this.getTextFromBlock(block)
+					if (blockText) {
 						// true if we just altered it, or it was altered before
 						if (hasExistingAlterations) {
 							const innerTuple = this.contextHistoryUpdates.get(i)
@@ -1144,7 +1196,7 @@ export class ContextManager {
 									if (updates.length > 1) {
 										originalTextLength = updates[updates.length - 2][2][0].length // handles case if we have multiple updates for same text block
 									} else {
-										originalTextLength = block.text.length
+										originalTextLength = blockText.length
 									}
 
 									const newTextLength = latestUpdate[2][0].length // replacement text
@@ -1157,11 +1209,11 @@ export class ContextManager {
 								}
 							} else {
 								// reach here if there was one inner index with an update, but now we are at a different index, so updates is not defined
-								totalCharCount += block.text.length
+								totalCharCount += blockText.length
 							}
 						} else {
 							// reach here if there's no alterations for this outer index, meaning each inner index won't have any changes either
-							totalCharCount += block.text.length
+							totalCharCount += blockText.length
 						}
 					} else if (block.type === "image" && block.source) {
 						if (block.source.type === "base64" && block.source.data) {
