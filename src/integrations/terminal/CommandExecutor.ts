@@ -7,8 +7,8 @@ import { TerminalHangStage, telemetryService } from "@services/telemetry"
 import { ClineToolResponseContent } from "@shared/messages"
 
 import { BackgroundCommandTracker } from "./BackgroundCommandTracker"
-import { TerminalManager } from "./TerminalManager"
-import { TerminalProcessResultPromise } from "./TerminalProcess"
+import { TerminalManager } from "./vscode/TerminalManager"
+import { TerminalProcessResultPromise } from "./vscode/TerminalProcess"
 
 /**
  * Callbacks for CommandExecutor to interact with Task state
