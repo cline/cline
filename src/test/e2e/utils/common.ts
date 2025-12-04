@@ -46,12 +46,10 @@ export async function cleanChatView(sidebar: Page): Promise<Page> {
 		await sidebar.getByRole("button", { name: "Close banner and enable" }).click()
 	}
 
-	// Verify the release banner is visible for new installs and can be closed.
-	const releaseBanner = sidebar.getByRole("heading", {
-		name: /^🎉 New in v\d/,
-	})
-	if (await releaseBanner.isVisible()) {
-		await sidebar.getByTestId("close-button").locator("span").first().click()
+	// Dismiss the "What's New" modal if visible
+	const whatsNewModal = sidebar.getByRole("dialog")
+	if (await whatsNewModal.isVisible()) {
+		await sidebar.getByTestId("close-whats-new-modal").click()
 	}
 
 	return sidebar

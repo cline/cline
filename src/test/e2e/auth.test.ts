@@ -49,11 +49,13 @@ e2e("Views - can set up API keys and navigate to Settings from Chat", async ({ s
 	const chatInputBox = sidebar.getByTestId("chat-input")
 	await expect(chatInputBox).toBeVisible()
 
-	// Verify the release banner is visible for new installs and can be closed.
-	const releaseBanner = sidebar.getByRole("heading", {
+	// Verify the "What's New" modal is visible for new installs and can be closed.
+	const whatsNewModal = sidebar.getByRole("dialog")
+	await expect(whatsNewModal).toBeVisible()
+	const modalTitle = sidebar.getByRole("heading", {
 		name: /^🎉 New in v\d/,
 	})
-	await expect(releaseBanner).toBeVisible()
-	await sidebar.getByTestId("close-announcement-button").click()
-	await expect(releaseBanner).not.toBeVisible()
+	await expect(modalTitle).toBeVisible()
+	await sidebar.getByTestId("close-whats-new-modal").click()
+	await expect(whatsNewModal).not.toBeVisible()
 })

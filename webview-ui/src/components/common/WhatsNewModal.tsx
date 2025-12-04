@@ -223,7 +223,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 
 					{/* Action button */}
 					<div className="flex gap-3">
-						<VSCodeButton appearance="secondary" onClick={onClose}>
+						<VSCodeButton appearance="secondary" data-testid="close-whats-new-modal" onClick={onClose}>
 							Dismiss
 						</VSCodeButton>
 					</div>
