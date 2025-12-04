@@ -2915,6 +2915,7 @@ export class Task {
 					)
 
 					if (this.taskState.abort) {
+						this.api.abort?.()
 						if (!this.taskState.abandoned) {
 							// only need to gracefully abort if this instance isn't abandoned (sometimes openrouter stream hangs, in which case this would affect future instances of cline)
 							await abortStream("user_cancelled")
