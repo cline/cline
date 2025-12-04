@@ -42,7 +42,7 @@ import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
-import { DetachedProcessManager } from "@integrations/terminal/DetachedProcessManager"
+import { BackgroundCommandTracker } from "@integrations/terminal/BackgroundCommandTracker"
 import { TerminalManager } from "@integrations/terminal/TerminalManager"
 import { TerminalProcessResultPromise } from "@integrations/terminal/TerminalProcess"
 import { BrowserSession } from "@services/browser/BrowserSession"
@@ -247,8 +247,10 @@ export class Task {
 	// Task Locking (Sqlite)
 	private taskLockAcquired: boolean
 
-	// Detached process manager for "Proceed while running" commands (only used in backgroundExec mode)
-	private detachedProcessManager?: DetachedProcessManager
+	// Background command tracker for "Proceed while running" commands (only used in backgroundExec mode)
+	// Tracks commands that continue running after user clicks "Proceed While Running" in standalone/CLI mode.
+	// Logs output to temp files and implements timeout protection.
+	private backgroundCommandTracker?: BackgroundCommandTracker
 
 	constructor(params: TaskParams) {
 		const {
@@ -285,7 +287,7 @@ export class Task {
 		this.cancelTask = cancelTask
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
 		this.taskLockAcquired = taskLockAcquired
-		this.detachedProcessManager = new DetachedProcessManager()
+		this.backgroundCommandTracker = new BackgroundCommandTracker()
 
 		// TODO(ae) this is a hack to replace the terminal manager for standalone,
 		// until we have proper host bridge support for terminal execution. The
@@ -1470,7 +1472,7 @@ export class Task {
 
 			// PHASE 7: Clean up resources
 			this.terminalManager.disposeAll()
-			this.detachedProcessManager?.dispose()
+			this.backgroundCommandTracker?.dispose()
 			this.urlContentFetcher.closeBrowser()
 			await this.browserSession.dispose()
 			this.clineIgnoreController.dispose()
@@ -1693,11 +1695,11 @@ export class Task {
 				}
 			} else {
 				// After "Proceed While Running":
-				// - For backgroundExec mode: DON'T stream to UI (DetachedProcessManager handles logging to file)
+				// - For backgroundExec mode: DON'T stream to UI (BackgroundCommandTracker handles logging to file)
 				if (this.terminalExecutionMode !== "backgroundExec") {
 					this.say("command_output", line)
 				}
-				// In backgroundExec mode, output is captured by DetachedProcessManager and written to log file
+				// In backgroundExec mode, output is captured by BackgroundCommandTracker and written to log file
 			}
 		})
 
@@ -1775,7 +1777,7 @@ export class Task {
 					// If raceResult === "completed", process finished normally - continue to end of function
 				} catch (error) {
 					if (error.message === "COMMAND_TIMEOUT") {
-						// Handle timeout the same way as "Proceed While Running" - register with DetachedProcessManager
+						// Handle timeout the same way as "Proceed While Running" - register with BackgroundCommandTracker
 						didContinue = true
 						return await this.handleProceedWhileRunning(
 							process,
@@ -1798,7 +1800,7 @@ export class Task {
 					// This section handles the "backgroundExec" terminal execution mode.
 					// It waits for whichever comes first: (1) process completion, or (2) the user clicking "Proceed While Running".
 					// If the user clicks "Proceed", we trigger process.continue() to let the command finish in the background.
-					// If a DetachedProcessManager exists, we track the process and output log file.
+					// If a BackgroundCommandTracker exists, we track the process and output log file.
 					// Any output captured so far is shown, and a message about the background execution is returned (and sent to the UI if a log file exists).
 
 					const raceResult = await Promise.race([process.then(() => "completed" as const), proceedPromise])
@@ -1907,9 +1909,9 @@ export class Task {
 		completionTimer: NodeJS.Timeout | null,
 		terminalManager: TerminalManager,
 	): Promise<[boolean, string]> {
-		let detachedProcess: { logFilePath: string } | undefined
-		if (this.terminalExecutionMode === "backgroundExec" && this.detachedProcessManager) {
-			detachedProcess = this.detachedProcessManager.addProcess(process, command)
+		let trackedCommand: { logFilePath: string } | undefined
+		if (this.terminalExecutionMode === "backgroundExec" && this.backgroundCommandTracker) {
+			trackedCommand = this.backgroundCommandTracker.trackCommand(process, command)
 		}
 
 		process.continue()
@@ -1926,8 +1928,8 @@ export class Task {
 		}
 
 		// Send a message to the UI with the log file path (only in backgroundExec mode)
-		if (this.terminalExecutionMode === "backgroundExec" && detachedProcess) {
-			await this.say("command_output", `\n📋 Output is being logged to: ${detachedProcess.logFilePath}`)
+		if (this.terminalExecutionMode === "backgroundExec" && trackedCommand) {
+			await this.say("command_output", `\n📋 Output is being logged to: ${trackedCommand.logFilePath}`)
 		}
 
 		await setTimeoutPromise(50)
@@ -1935,7 +1937,7 @@ export class Task {
 
 		// Build response message
 		const logMsg =
-			this.terminalExecutionMode === "backgroundExec" && detachedProcess ? `Log file: ${detachedProcess.logFilePath}\n` : ""
+			this.terminalExecutionMode === "backgroundExec" && trackedCommand ? `Log file: ${trackedCommand.logFilePath}\n` : ""
 		const outputMsg = result.length > 0 ? `Output so far:\n${result}` : ""
 
 		return [false, `Command is running in the background. You can proceed with other tasks.\n${logMsg}${outputMsg}`]
@@ -3580,8 +3582,10 @@ export class Task {
 
 		// In backgroundExec mode with running detached processes, skip the terminal wait entirely
 		// since those processes are intentionally running in the background after "Proceed While Running"
-		const hasRunningDetachedProcesses = this.detachedProcessManager?.getAllProcesses().some((p) => p.status === "running")
-		const shouldSkipTerminalWait = this.terminalExecutionMode === "backgroundExec" && hasRunningDetachedProcesses
+		const hasRunningBackgroundCommands = this.backgroundCommandTracker
+			?.getAllCommands()
+			.some((cmd) => cmd.status === "running")
+		const shouldSkipTerminalWait = this.terminalExecutionMode === "backgroundExec" && hasRunningBackgroundCommands
 
 		// let terminalWasBusy = false
 		if (busyTerminals.length > 0 && !shouldSkipTerminalWait) {
@@ -3635,12 +3639,12 @@ export class Task {
 			details += terminalDetails
 		}
 
-		// Add detached processes summary section (commands that user clicked "Proceed while running")
+		// Add background command summary section (commands that user clicked "Proceed while running")
 		// Only available in backgroundExec mode
-		if (this.detachedProcessManager) {
-			const detachedSummary = this.detachedProcessManager.getSummary()
-			if (detachedSummary) {
-				details += "\n\n" + detachedSummary
+		if (this.backgroundCommandTracker) {
+			const backgroundSummary = this.backgroundCommandTracker.getSummary()
+			if (backgroundSummary) {
+				details += "\n\n" + backgroundSummary
 			}
 		}
 

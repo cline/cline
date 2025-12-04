@@ -3,10 +3,31 @@ import * as os from "os"
 import * as path from "path"
 import { TerminalProcess } from "./TerminalProcess"
 
-// 10 minute hard timeout for detached processes
+/**
+ * BackgroundCommandTracker - Standalone Mode Only
+ *
+ * Tracks commands that continue running after the user clicks "Proceed While Running".
+ * This is only used in standalone/CLI mode (backgroundExec execution mode).
+ *
+ * Key responsibilities:
+ * - Log command output to temp files for later retrieval
+ * - Track command status (running, completed, error, timed_out)
+ * - Implement 10-minute hard timeout to prevent zombie processes
+ * - Provide summary for environment details
+ *
+ * NOT used in VSCode extension mode - only standalone/CLI.
+ *
+ * @see README.md in this directory for architecture overview
+ */
+
+// 10 minute hard timeout for background commands
 const HARD_TIMEOUT_MS = 10 * 60 * 1000
 
-export interface DetachedProcess {
+/**
+ * Represents a command that is running in the background after the user
+ * clicked "Proceed While Running".
+ */
+export interface BackgroundCommand {
 	id: string
 	command: string
 	startTime: number
@@ -16,23 +37,23 @@ export interface DetachedProcess {
 	exitCode?: number
 }
 
-export class DetachedProcessManager {
-	private processes: Map<string, DetachedProcess> = new Map()
+export class BackgroundCommandTracker {
+	private commands: Map<string, BackgroundCommand> = new Map()
 	private logStreams: Map<string, fs.WriteStream> = new Map()
 	private timeouts: Map<string, NodeJS.Timeout> = new Map()
 
 	/**
-	 * Add a process to be tracked as detached.
+	 * Track a command that will continue running in the background.
 	 * Creates a log file and pipes output to it.
 	 * Sets up a 10-minute hard timeout to prevent zombie processes.
 	 */
-	addProcess(process: TerminalProcess, command: string): DetachedProcess {
-		console.log("[DEBUG DetachedProcessManager.addProcess] Called with command:", command)
-		const id = `detached-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+	trackCommand(process: TerminalProcess, command: string): BackgroundCommand {
+		console.log("[DEBUG BackgroundCommandTracker.trackCommand] Called with command:", command)
+		const id = `background-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 		const logFilePath = path.join(os.tmpdir(), `cline-${id}.log`)
-		console.log("[DEBUG DetachedProcessManager.addProcess] Created id:", id, "logFilePath:", logFilePath)
+		console.log("[DEBUG BackgroundCommandTracker.trackCommand] Created id:", id, "logFilePath:", logFilePath)
 
-		const detached: DetachedProcess = {
+		const backgroundCommand: BackgroundCommand = {
 			id,
 			command,
 			startTime: Date.now(),
@@ -47,15 +68,15 @@ export class DetachedProcessManager {
 
 		// Pipe process output to log file
 		process.on("line", (line: string) => {
-			detached.lineCount++
+			backgroundCommand.lineCount++
 			logStream.write(line + "\n")
 		})
 
 		// Set up 10-minute hard timeout to prevent zombie processes
 		const timeoutId = setTimeout(() => {
-			if (detached.status === "running") {
-				console.log(`[DetachedProcessManager] Hard timeout reached for process ${id}, terminating...`)
-				detached.status = "timed_out"
+			if (backgroundCommand.status === "running") {
+				console.log(`[BackgroundCommandTracker] Hard timeout reached for command ${id}, terminating...`)
+				backgroundCommand.status = "timed_out"
 				logStream.write("\n[TIMEOUT] Process killed after 10 minutes\n")
 				logStream.end()
 
@@ -75,7 +96,7 @@ export class DetachedProcessManager {
 				clearTimeout(timeout)
 				this.timeouts.delete(id)
 			}
-			detached.status = "completed"
+			backgroundCommand.status = "completed"
 			logStream.end()
 		})
 
@@ -86,46 +107,46 @@ export class DetachedProcessManager {
 				clearTimeout(timeout)
 				this.timeouts.delete(id)
 			}
-			detached.status = "error"
+			backgroundCommand.status = "error"
 			// Try to extract exit code from error message if available
 			const exitCodeMatch = error.message.match(/exit code (\d+)/)
 			if (exitCodeMatch) {
-				detached.exitCode = parseInt(exitCodeMatch[1], 10)
+				backgroundCommand.exitCode = parseInt(exitCodeMatch[1], 10)
 			}
 			logStream.end()
 		})
 
-		this.processes.set(id, detached)
-		return detached
+		this.commands.set(id, backgroundCommand)
+		return backgroundCommand
 	}
 
 	/**
-	 * Get a specific detached process by ID.
+	 * Get a specific background command by ID.
 	 */
-	getProcess(id: string): DetachedProcess | undefined {
-		return this.processes.get(id)
+	getCommand(id: string): BackgroundCommand | undefined {
+		return this.commands.get(id)
 	}
 
 	/**
-	 * Get all detached processes.
+	 * Get all tracked background commands.
 	 */
-	getAllProcesses(): DetachedProcess[] {
-		return Array.from(this.processes.values())
+	getAllCommands(): BackgroundCommand[] {
+		return Array.from(this.commands.values())
 	}
 
 	/**
 	 * Get a summary string for getEnvironmentDetails().
 	 */
 	getSummary(): string {
-		const running = this.getAllProcesses().filter((p) => p.status === "running")
+		const running = this.getAllCommands().filter((c) => c.status === "running")
 		if (running.length === 0) {
 			return ""
 		}
 
-		const lines = [`# Detached Processes (${running.length} running)`]
-		for (const p of running) {
-			const duration = Math.round((Date.now() - p.startTime) / 1000 / 60)
-			lines.push(`- ${p.command} (running ${duration}m, ${p.lineCount} lines, log: ${p.logFilePath})`)
+		const lines = [`# Background Commands (${running.length} running)`]
+		for (const c of running) {
+			const duration = Math.round((Date.now() - c.startTime) / 1000 / 60)
+			lines.push(`- ${c.command} (running ${duration}m, ${c.lineCount} lines, log: ${c.logFilePath})`)
 		}
 		return lines.join("\n")
 	}
@@ -146,12 +167,12 @@ export class DetachedProcessManager {
 			try {
 				logStream.end()
 			} catch (error) {
-				console.error(`[DetachedProcessManager] Error closing log stream for ${id}:`, error)
+				console.error(`[BackgroundCommandTracker] Error closing log stream for ${id}:`, error)
 			}
 		}
 		this.logStreams.clear()
 
-		// Clear process tracking
-		this.processes.clear()
+		// Clear command tracking
+		this.commands.clear()
 	}
 }
