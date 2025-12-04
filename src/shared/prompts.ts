@@ -9,6 +9,7 @@ export enum ModelFamily {
 	QWEN = "qwen",
 	GLM = "glm",
 	HERMES = "hermes",
+	MICROWAVE = "microwave",
 	NEXT_GEN = "next-gen",
 	GENERIC = "generic",
 	XS = "xs",

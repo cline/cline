@@ -56,6 +56,7 @@ export interface GlobalState {
 	nativeToolCallEnabled: boolean
 	remoteRulesToggles: ClineRulesToggles
 	remoteWorkflowToggles: ClineRulesToggles
+	dismissedBanners: Array<{ bannerId: string; dismissedAt: number }>
 }
 
 export interface Settings {
