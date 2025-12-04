@@ -4,6 +4,8 @@ export const E2E_REGISTERED_MOCK_ENDPOINTS = {
 			"/generation",
 			"/organizations/{orgId}/balance",
 			"/organizations/{orgId}/members/{memberId}/usages",
+			"/organizations/{orgId}/api-keys",
+			"/organizations/{orgId}/remote-config",
 			"/users/me",
 			"/users/{userId}/balance",
 			"/users/{userId}/usages",

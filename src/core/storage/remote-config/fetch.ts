@@ -105,6 +105,70 @@ async function fetchRemoteConfigForOrganization(organizationId: string): Promise
 }
 
 /**
+ * Fetches API keys for a specific organization from the API.
+ *
+ * @param organizationId The organization ID to fetch API keys for
+ * @returns Record of API keys (e.g., { litellm: "key" }) or undefined if fetch fails
+ */
+async function fetchApiKeysForOrganization(organizationId: string): Promise<Record<string, string> | undefined> {
+	const authService = AuthService.getInstance()
+
+	try {
+		// Get authentication token
+		const authToken = await authService.getAuthToken()
+		if (!authToken) {
+			throw new Error("No Cline account auth token found")
+		}
+
+		// Construct URL by replacing {id} with organizationId
+		const endpoint = CLINE_API_ENDPOINT.API_KEYS.replace("{id}", organizationId)
+		const url = new URL(endpoint, ClineEnv.config().apiBaseUrl).toString()
+
+		// Make authenticated request
+		const requestConfig: AxiosRequestConfig = {
+			headers: {
+				Authorization: `Bearer ${authToken}`,
+				"Content-Type": "application/json",
+			},
+			...getAxiosSettings(),
+		}
+
+		const response: AxiosResponse<{
+			data?: Record<string, string>
+			error: string
+			success: boolean
+		}> = await axios.request({
+			url,
+			method: "GET",
+			...requestConfig,
+		})
+
+		// Validate response status
+		const status = response.status
+		if (status < 200 || status >= 300) {
+			throw new Error(`Request to ${endpoint} failed with status ${status}`)
+		}
+
+		// Validate response structure
+		if (!response.data || !response.data.success) {
+			throw new Error(`API error: ${response.data?.error || "Unknown error"}`)
+		}
+
+		// Extract API keys
+		const apiKeys = response.data.data
+		if (!apiKeys) {
+			console.warn(`No API keys returned from ${endpoint}`)
+			return undefined
+		}
+
+		return apiKeys
+	} catch (error) {
+		console.error(`Failed to fetch API keys for organization ${organizationId}:`, error)
+		return undefined
+	}
+}
+
+/**
  * Scans all user organizations to find the first one with an enabled remote configuration.
  *
  * @returns Object containing the organization ID and config, or undefined if none found
@@ -160,6 +224,17 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 		const currentActiveOrgId = authService.getActiveOrganizationId()
 		if (currentActiveOrgId !== organizationId) {
 			await controller.accountService.switchAccount(organizationId)
+		}
+
+		// Fetch and store API keys for configured providers
+		const hasConfiguredProviders = config.providerSettings && Object.keys(config.providerSettings).length > 0
+		if (hasConfiguredProviders) {
+			const apiKeys = await fetchApiKeysForOrganization(organizationId)
+			if (apiKeys) {
+				if (config.providerSettings?.LiteLLM && apiKeys.litellm) {
+					controller.stateManager.setSecret("liteLlmApiKey", apiKeys.litellm)
+				}
+			}
 		}
 
 		// Cache and apply the remote config
