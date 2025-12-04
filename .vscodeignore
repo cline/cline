@@ -1,79 +1,134 @@
-# Default
+# Development files
 .vscode/**
 .vscode-test/**
-out/
-dist-standalone/
-node_modules/
-src/**
-standalone/**
-.gitignore
-.yarnrc
-esbuild.js
-vsc-extension-quickstart.md
-tsconfig*.json
-**/.eslintrc.json
-**/*.map
-**/*.ts
-**/.vscode-test.*
-eslint-rules/**
 .github/**
-.husky/**
-.env
-
-# cli
+.changeset/**
+src/**
+!src/shared/**
+scripts/**
+tests/**
+evals/**
 cli/**
+standalone/**
+testing-platform/**
+proto/**
+docs/**
 
-# Custom
-**/demo.gif
-.nvmrc
-.gitattributes
-.prettierignore
-.husky/
-.github/
-eslint-rules/
-old_docs/
-evals/
-.changie.yaml
-.codespellrc
-.mocharc.json
-buf.yaml
-.changeset/
-.clinerules/
+# Build files
+*.ts
+!*.d.ts
+**/*.map
+**/tsconfig*.json
+**/.eslintrc.json
+esbuild.mjs
+.vscode-test.mjs
+playwright.config.ts
 
-# Include specific file needed for Background Exec mode
-!standalone/runtime-files/vscode/enhanced-terminal.js
+# Dependencies (not needed - extension is bundled)
+node_modules/**
+webview-ui/node_modules/**
+package-lock.json
+webview-ui/package-lock.json
 
-# Ignore all webview-ui files except the build directory (https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/frameworks/hello-world-react-cra/.vscodeignore)
+# Exclude unbundled source (keep only dist/)
+dist-standalone/**
+
+# Webview source (built version is included)
 webview-ui/src/**
-webview-ui/public/**
-webview-ui/index.html
-webview-ui/README.md
+webview-ui/.storybook/**
+webview-ui/vite.config.ts
+webview-ui/tailwind.config.mjs
+webview-ui/tsconfig*.json
+webview-ui/components.json
 webview-ui/package.json
 webview-ui/package-lock.json
-webview-ui/node_modules/**
-**/.gitignore
+webview-ui/.gitignore
 
-# Ignore docs
-docs/**
-old_docs/**
+# Config files
+.gitignore
+.yarnrc
+.nvmrc
+.mocharc.json
+.nycrc.unit.json
+knip.json
+biome.jsonc
+buf.yaml
+go.work
+go.work.sum
 
-# Fix issue where codicons don't get packaged (https://github.com/microsoft/vscode-extension-samples/issues/692)
-!node_modules/@vscode/codicons/dist/codicon.css
-!node_modules/@vscode/codicons/dist/codicon.ttf
+# Documentation (except required)
+*.md
+!README.md
+!CHANGELOG.md
 
-# Include default themes JSON files used in getTheme
-!src/integrations/theme/default-themes/**
+# Logs and scripts
+*.log
+*.sh
+*.ps1
+check-*.ps1
+build*.sh
+rebuild*.sh
 
-# Include icons
-!assets/icons/**
+# Build artifacts not needed
+builds/**
+out/**
+.nyc_output/**
+coverage/**
 
-# Ignore E2E build files
-e2e-build.mjs
-e2e.vsix
-test-results/
+# Test and development files (causing bloat)
+*.py
+*.txt
+*.js
+!dist/**/*.js
+*.lnk
+test-*.py
+test-*.txt
+test-*.js
+*-test.py
+*-test.txt
+*-test.js
+*demo*.py
+*demo*.txt
+interactive*.py
+message_*.py
+cline-message-*.js
+large-test-file.py
+binary_search.py
+random_set.py
+example-program.py
+feature-test.py
+quick-test.py
+special_chars_test.txt
+cli-*.py
+cli-*.txt
+Test-*.ps1
+Test-*.js
+Send-*.ps1
+auto-demo*.py
+auto-demo*.txt
+bidirectional-test.txt
+completion-test.txt
+debug-test.txt
+final-test.txt
+log-test.txt
+Network*.lnk
 
-# Ignore Storybook files
-**/*.stories.tsx
-*storybook.log
-storybook-static
-**/StorybookDecorator.tsx
+# More development artifacts
+.claude/**
+temp_test/**
+test-cli-project/**
+test-error-detection-project/**
+test-results/**
+venv/**
+code_diff_tests/**
+.pytest_cache/**
+
+# Large demo file (18MB+ - remove for smaller VSIX)
+assets/docs/demo.gif
+**/demo.gif
+
+# Message queue temp files
+.message-queue/**
+
+# Husky hooks (not needed in extension)
+.husky/**

@@ -2942,7 +2942,7 @@ export const xaiModels = {
 		maxTokens: 30000,
 		contextWindow: 2000000,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 0.2,
 		cacheReadsPrice: 0.05,
 		outputPrice: 0.5,

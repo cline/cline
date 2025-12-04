@@ -1,3 +1,4 @@
+import { getEnvironmentVariablesForDefaultProfile } from "@utils/shell"
 import * as vscode from "vscode"
 
 export interface TerminalInfo {
@@ -12,6 +13,8 @@ export interface TerminalInfo {
 		resolve: () => void
 		reject: (error: Error) => void
 	}
+	hasShellIntegration?: boolean
+	shellIntegrationChecked?: boolean
 }
 
 // Although vscode.window.terminals provides a list of all open terminals, there's no way to know whether they're busy or not (exitStatus does not provide useful information for most commands). In order to prevent creating too many terminals, we need to keep track of terminals through the life of the extension, as well as session specific terminals for the life of a task (to get latest unretrieved output).
@@ -21,12 +24,18 @@ export class TerminalRegistry {
 	private static nextTerminalId = 1
 
 	static createTerminal(cwd?: string | vscode.Uri | undefined, shellPath?: string): TerminalInfo {
+		// Get environment variables from VSCode terminal profile
+		// Fixes #7793: VSCode Terminal Profile environment variables are not respected
+		const profileEnv = getEnvironmentVariablesForDefaultProfile()
+
 		const terminalOptions: vscode.TerminalOptions = {
 			cwd,
 			name: "Cline",
 			iconPath: new vscode.ThemeIcon("cline-icon"),
 			env: {
 				CLINE_ACTIVE: "true",
+				// Merge in profile environment variables
+				...profileEnv,
 			},
 		}
 

@@ -99,6 +99,7 @@ export class TerminalManager {
 	private terminalOutputLineLimit: number = 500
 	private subagentTerminalOutputLineLimit: number = 2000
 	private defaultTerminalProfile: string = "default"
+	private shellIntegrationWarningShown: boolean = false
 
 	constructor() {
 		let disposable: vscode.Disposable | undefined
@@ -156,6 +157,53 @@ export class TerminalManager {
 		return arePathsEqual(currentCwd, targetCwd)
 	}
 
+	/**
+	 * Checks if the terminal has shell integration support and shows a warning if needed
+	 */
+	private async checkShellIntegrationSupport(terminalInfo: TerminalInfo): Promise<void> {
+		// Only check once per terminal
+		if (terminalInfo.shellIntegrationChecked) {
+			return
+		}
+
+		terminalInfo.shellIntegrationChecked = true
+		const hasIntegration = !!terminalInfo.terminal.shellIntegration
+		terminalInfo.hasShellIntegration = hasIntegration
+
+		// Show warning only once per session and only on Windows
+		if (!hasIntegration && !this.shellIntegrationWarningShown && process.platform === "win32") {
+			this.shellIntegrationWarningShown = true
+
+			const shellPath = terminalInfo.shellPath || "unknown"
+			const isLegacyPowerShell =
+				shellPath.toLowerCase().includes("windowspowershell") || shellPath.toLowerCase().includes("powershell.exe")
+			const isCmd = shellPath.toLowerCase().includes("cmd.exe")
+
+			if (isLegacyPowerShell || isCmd) {
+				const message = isLegacyPowerShell
+					? "Windows PowerShell 5.x doesn't support VSCode shell integration. For better terminal performance, consider upgrading to PowerShell 7+."
+					: "Command Prompt doesn't support VSCode shell integration. For better terminal performance, consider using PowerShell 7+ or Git Bash."
+
+				const response = await vscode.window.showWarningMessage(
+					message,
+					"Learn More",
+					"Switch to PowerShell 7+",
+					"Dismiss",
+				)
+
+				if (response === "Learn More") {
+					vscode.env.openExternal(vscode.Uri.parse("https://code.visualstudio.com/docs/terminal/shell-integration"))
+				} else if (response === "Switch to PowerShell 7+") {
+					// Guide user to change terminal profile
+					vscode.window.showInformationMessage(
+						'To switch: Open Settings → Search "Terminal Profile Windows" → Select "PowerShell (pwsh)" or install PowerShell 7+ from https://aka.ms/powershell',
+						"Open Settings",
+					)
+				}
+			}
+		}
+	}
+
 	runCommand(terminalInfo: TerminalInfo, command: string): TerminalProcessResultPromise {
 		console.log(`[TerminalManager] Running command on terminal ${terminalInfo.id}: "${command}"`)
 		console.log(`[TerminalManager] Terminal ${terminalInfo.id} busy state before: ${terminalInfo.busy}`)
@@ -171,8 +219,10 @@ export class TerminalManager {
 		})
 
 		// if shell integration is not available, remove terminal so it does not get reused as it may be running a long-running process
-		process.once("no_shell_integration", () => {
+		process.once("no_shell_integration", async () => {
 			console.log(`no_shell_integration received for terminal ${terminalInfo.id}`)
+			// Check and show warning about shell integration
+			await this.checkShellIntegrationSupport(terminalInfo)
 			// Remove the terminal so we can't reuse it (in case it's running a long-running process)
 			TerminalRegistry.removeTerminal(terminalInfo.id)
 			this.terminalIds.delete(terminalInfo.id)
@@ -192,7 +242,7 @@ export class TerminalManager {
 		// if shell integration is already active, run the command immediately
 		if (terminalInfo.terminal.shellIntegration) {
 			process.waitForShellIntegration = false
-			process.run(terminalInfo.terminal, command)
+			process.run(terminalInfo.terminal, command, terminalInfo.shellPath)
 		} else {
 			// docs recommend waiting 3s for shell integration to activate
 			console.log(
@@ -210,13 +260,15 @@ export class TerminalManager {
 					console.warn(
 						`[TerminalManager Test] Shell integration timed out or failed for terminal ${terminalInfo.id}: ${err.message}`,
 					)
+					// Check and show warning about shell integration
+					this.checkShellIntegrationSupport(terminalInfo)
 				})
 				.finally(() => {
 					console.log(`[TerminalManager Test] Proceeding with command execution for terminal ${terminalInfo.id}.`)
 					const existingProcess = this.processes.get(terminalInfo.id)
 					if (existingProcess && existingProcess.waitForShellIntegration) {
 						existingProcess.waitForShellIntegration = false
-						existingProcess.run(terminalInfo.terminal, command)
+						existingProcess.run(terminalInfo.terminal, command, terminalInfo.shellPath)
 					}
 				})
 		}
@@ -335,7 +387,9 @@ export class TerminalManager {
 		// }
 		this.terminalIds.clear()
 		this.processes.clear()
-		this.disposables.forEach((disposable) => disposable.dispose())
+		for (const disposable of this.disposables) {
+			disposable.dispose()
+		}
 		this.disposables = []
 	}
 

@@ -145,17 +145,17 @@ export function convertToOpenAiMessages(
 				const thinkingBlock = []
 				if (nonToolMessages.length > 0) {
 					nonToolMessages.forEach((part) => {
-						// @ts-ignore-next-line
+						// @ts-expect-error-next-line
 						if (part.type === "text" && part.reasoning_details) {
-							// @ts-ignore-next-line
+							// @ts-expect-error-next-line
 							if (Array.isArray(part.reasoning_details)) {
-								// @ts-ignore-next-line
+								// @ts-expect-error-next-line
 								reasoningDetails.push(...part.reasoning_details)
 							} else {
-								// @ts-ignore-next-line
+								// @ts-expect-error-next-line
 								reasoningDetails.push(part.reasoning_details)
 							}
-							// @ts-ignore-next-line
+							// @ts-expect-error-next-line
 							// delete part.reasoning_details
 						}
 						if (part.type === "thinking" && part.thinking) {
@@ -205,7 +205,7 @@ export function convertToOpenAiMessages(
 					content: finalContent,
 					// Cannot be an empty array. API expects an array with minimum length 1, and will respond with an error if it's empty
 					tool_calls: tool_calls?.length > 0 ? tool_calls : undefined,
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					reasoning_details: reasoningDetails.length > 0 ? consolidateReasoningDetails(reasoningDetails) : undefined,
 				})
 			}
@@ -324,6 +324,11 @@ const UNIQUE_ERROR_TOOL_NAME = "_cline_error_unknown_function_"
 
 // Convert OpenAI response to Anthropic format
 export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.ChatCompletion): Anthropic.Messages.Message {
+	// Check if choices array is not empty
+	if (!completion.choices || completion.choices.length === 0) {
+		throw new Error("OpenAI completion response has no choices")
+	}
+
 	const openAiMessage = completion.choices[0].message
 	const anthropicMessage: Anthropic.Messages.Message = {
 		id: completion.id,
