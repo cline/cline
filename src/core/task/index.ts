@@ -45,7 +45,6 @@ import { showSystemNotification } from "@integrations/notifications"
 import { BackgroundCommandTracker } from "@integrations/terminal/BackgroundCommandTracker"
 import { CommandExecutor, CommandExecutorCallbacks, CommandExecutorConfig } from "@integrations/terminal/CommandExecutor"
 import { TerminalManager } from "@integrations/terminal/TerminalManager"
-import { TerminalProcessResultPromise } from "@integrations/terminal/TerminalProcess"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { featureFlagsService } from "@services/feature-flags"
@@ -212,13 +211,6 @@ export class Task {
 	private streamHandler: StreamResponseHandler
 
 	private terminalExecutionMode: "vscodeTerminal" | "backgroundExec"
-	private activeBackgroundCommand?: {
-		process: TerminalProcessResultPromise & {
-			terminate?: () => void
-		}
-		command: string
-		outputLines: string[]
-	}
 
 	// Metadata tracking
 	private fileContextTracker: FileContextTracker
@@ -1386,7 +1378,7 @@ export class Task {
 		}
 
 		// Run if there's active background command (work happening now)
-		if (this.activeBackgroundCommand) {
+		if (this.commandExecutor.hasActiveBackgroundCommand()) {
 			return true
 		}
 
@@ -1440,9 +1432,9 @@ export class Task {
 				}
 			}
 
-			if (this.activeBackgroundCommand) {
+			if (this.commandExecutor.hasActiveBackgroundCommand()) {
 				try {
-					await this.cancelBackgroundCommand()
+					await this.commandExecutor.cancelBackgroundCommand()
 				} catch (error) {
 					Logger.error("Failed to cancel background command during task abort", error)
 				}
@@ -1544,70 +1536,12 @@ export class Task {
 		return this.commandExecutor.execute(command, timeoutSeconds)
 	}
 
+	/**
+	 * Cancel a background command that is running in the background
+	 * @returns true if a command was cancelled, false if no command was running
+	 */
 	public async cancelBackgroundCommand(): Promise<boolean> {
-		if (this.terminalExecutionMode !== "backgroundExec" || !this.activeBackgroundCommand) {
-			return false
-		}
-
-		const { process, command, outputLines } = this.activeBackgroundCommand
-		this.activeBackgroundCommand = undefined
-		this.controller.updateBackgroundCommandState(false, this.taskId)
-
-		try {
-			// Try to terminate the process if the method exists
-			if (typeof process.terminate === "function") {
-				try {
-					await process.terminate()
-					Logger.info(`Terminated background command: ${command}`)
-				} catch (error) {
-					Logger.error(`Error terminating background command: ${command}`, error)
-				}
-			}
-
-			// Ensure any pending operations complete
-			if (typeof process.continue === "function") {
-				try {
-					process.continue()
-				} catch (error) {
-					Logger.error(`Error continuing background command: ${command}`, error)
-				}
-			}
-
-			// Mark the command message as completed in the UI
-			const clineMessages = this.messageStateHandler.getClineMessages()
-			const lastCommandIndex = findLastIndex(clineMessages, (m) => m.ask === "command" || m.say === "command")
-			if (lastCommandIndex !== -1) {
-				await this.messageStateHandler.updateClineMessage(lastCommandIndex, {
-					commandCompleted: true,
-				})
-			}
-
-			// Process the captured output to include in the cancellation message
-			const processedOutput = this.terminalManager.processOutput(outputLines, undefined, false)
-
-			// Add cancellation information to the API conversation history
-			// This ensures the agent knows the command was cancelled in the next request
-			let cancellationMessage = `Command "${command}" was cancelled by the user.`
-			if (processedOutput.length > 0) {
-				cancellationMessage += `\n\nOutput captured before cancellation:\n${processedOutput}`
-			}
-
-			this.taskState.userMessageContent.push({
-				type: "text",
-				text: cancellationMessage,
-			})
-
-			return true
-		} catch (error) {
-			Logger.error("Error in cancelBackgroundCommand", error)
-			return false
-		} finally {
-			try {
-				await this.say("command_output", "Command execution has been cancelled.")
-			} catch (error) {
-				Logger.error("Failed to send cancellation notification", error)
-			}
-		}
+		return this.commandExecutor.cancelBackgroundCommand()
 	}
 
 	/**
