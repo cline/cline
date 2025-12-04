@@ -2,12 +2,7 @@
 
 ## 3.40.0
 
-### Minor Changes
-
 - c312c4a: This minor change adds new models and image support for rleated models, adds fetching of model info from API, updates tool handling, and adds retrieval usage stats for individual messages and a user's monthly token usage.
-
-### Patch Changes
-
 - dd52a4a: Added apply_patch to auto approve, strict mode, and minor prompting adjustment
 - 68b93fc: Fix highlighted text flashing when task header is collapsed.
 - 3eac9b0: Add sts client userAgentAppId
