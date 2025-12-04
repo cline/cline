@@ -5,6 +5,7 @@ import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/r
 import { Logger } from "@/services/logging/Logger"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
+import { ApiFormat } from "@/shared/proto/cline/models"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -61,13 +62,9 @@ export class OpenAiNativeHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(
-		systemPrompt: string,
-		messages: ClineStorageMessage[],
-		tools?: ChatCompletionTool[],
-		useResponseFormat = false,
-	): ApiStream {
-		if (useResponseFormat) {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ChatCompletionTool[]): ApiStream {
+		// Responses API requires tool format to be set to OPENAI_RESPONSES with native tools calling enabled
+		if (tools?.length && this.getModel()?.info?.apiFormat === ApiFormat.OPENAI_RESPONSES) {
 			yield* this.createResponseStream(systemPrompt, messages, tools)
 		} else {
 			yield* this.createCompletionStream(systemPrompt, messages, tools)
@@ -406,7 +403,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in openAiNativeModels) {
 			const id = modelId as OpenAiNativeModelId
-			return { id, info: openAiNativeModels[id] }
+			const info: ModelInfo = { ...openAiNativeModels[id] }
+			return { id, info }
 		}
 		return {
 			id: openAiNativeDefaultModelId,
