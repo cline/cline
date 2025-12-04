@@ -2,19 +2,15 @@
 
 ## 3.40.0
 
-- c312c4a: This minor change adds new models and image support for rleated models, adds fetching of model info from API, updates tool handling, and adds retrieval usage stats for individual messages and a user's monthly token usage.
-- dd52a4a: Added apply_patch to auto approve, strict mode, and minor prompting adjustment
-- 68b93fc: Fix highlighted text flashing when task header is collapsed.
-- 3eac9b0: Add sts client userAgentAppId
-- 1332d1d: Add X-Cerebras-3rd-Party-Integration header to Cerebras API requests.
-- 0b7ea86: Added microwave family system prompt configuration
-- ab5796f: removing tooltips from auto approve menu
-- b1d15d4: fix: Standalone, ensure cwd is the install dir to find resources reliably
-- e62fbf6: Fixed a bug where terminal commands with double quotes are broken when "Terminal Execution Mode" is set to "Background Exec"
-- 1826d98: Slash commands can now be typed anywhere in a message, not just at the beginning. This matches the behavior of @ mentions for a more flexible input experience.
-- 0b0e8c3: Adds bottom padding to the last message to fix last response text getting cut off by auto approve settings bar.
-- b0bd0e3: Add task history recovery documentation with storage paths, recovery command usage, and troubleshooting guide.
-- 326c9c9: Adds default thinking level for Gemini 3 Pro models in Gemini provider
+- Fix highlighted text flashing when task header is collapsed
+- Add X-Cerebras-3rd-Party-Integration header to Cerebras API requests
+- Add microwave family system prompt configuration
+- Remove tooltips from auto approve menu
+- Fix Standalone, ensure cwd is the install dir to find resources reliably
+- Fix a bug where terminal commands with double quotes are broken when "Terminal Execution Mode" is set to "Background Exec"
+- Add support for slash commands anywhere in a message, not just at the beginning. This matches the behavior of @ mentions for a more flexible input experience.
+- Add bottom padding to the last message to fix last response text getting cut off by auto approve settings bar.
+- Add default thinking level for Gemini 3 Pro models in Gemini provider
 
 ## [3.39.2]
 
