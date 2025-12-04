@@ -8,7 +8,7 @@ import { GPT_5_TEMPLATE_OVERRIDES } from "./template"
 
 // Type-safe variant configuration using the builder pattern
 export const config = createVariant(ModelFamily.NATIVE_GPT_5)
-	.description("Prompt tailored to GPT-5 with native tool use support")
+	.description("Prompt tailored to GPT-5 with native tool use support with less strict rules than GPT-5.1 variant")
 	.version(1)
 	.tags("gpt", "gpt-5", "advanced", "production", "native_tools")
 	.labels({
@@ -28,6 +28,8 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 		// gpt-5-chat models do not support native tool use
 		return (
 			isGPT5ModelFamily(modelId) &&
+			// Exclude gpt-5.1 models except for codex variants
+			(modelId.includes("codex") || !isGPT51Model(modelId)) &&
 			!isGPT51Model(modelId) &&
 			!modelId.includes("chat") &&
 			isNextGenModelProvider(providerInfo)

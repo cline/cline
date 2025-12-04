@@ -103,6 +103,7 @@ message OpenRouterModelInfo {
   optional string name = 13;
   optional double temperature = 14;
   optional bool supports_reasoning = 15;
+  optional ApiFormat api_format = 16;
 }
 
 // Shared response message for model information
@@ -377,6 +378,8 @@ message OcaModelInfo {
   optional string banner = 16;
   // Canonical model identifier as reported by OCA
   string model_name = 17;
+    // The API format used by this model
+  optional ApiFormat api_format = 18;
 }
 
 // Aggregated OCA model catalog keyed by model identifier
@@ -431,6 +434,14 @@ enum ApiProvider {
   NOUSRESEARCH = 39;
 }
 
+enum ApiFormat {
+  ANTHROPIC_CHAT = 0;
+  GEMINI_CHAT = 1;
+  OPENAI_CHAT = 2;
+  R1_CHAT = 3;
+  OPENAI_RESPONSES = 4;
+}
+
 // Model info for OpenAI-compatible models
 message OpenAiCompatibleModelInfo {
   optional int64 max_tokens = 1;
@@ -447,6 +458,7 @@ message OpenAiCompatibleModelInfo {
   repeated ModelTier tiers = 12;
   optional double temperature = 13;
   optional bool is_r1_format_required = 14;
+  optional ApiFormat api_format = 15;
 }
 
 // Model info for LiteLLM models
@@ -464,6 +476,7 @@ message LiteLLMModelInfo {
   optional string description = 11;
   repeated ModelTier tiers = 12;
   optional double temperature = 13;
+  optional ApiFormat api_format = 14;
 }
 
 // Main ApiConfiguration message
