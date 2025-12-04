@@ -32,6 +32,10 @@ export const window = {
 	showErrorMessage: (_message: string) => Promise.resolve(),
 	showWarningMessage: (_message: string) => Promise.resolve(),
 	showInformationMessage: (_message: string) => Promise.resolve(),
+	createTextEditorDecorationType: (_options: any) => ({
+		key: "mock-decoration-type",
+		dispose: () => {},
+	}),
 }
 
 export const commands = {

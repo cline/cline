@@ -1,7 +1,7 @@
 import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
 import type { Mode } from "@shared/storage/types"
-import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import type React from "react"
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
@@ -12,6 +12,7 @@ import { StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { ContextWindowSwitcher } from "./common/ContextWindowSwitcher"
 import { ModelInfoView } from "./common/ModelInfoView"
+import { DropdownContainer } from "./common/ModelSelector"
 import FeaturedModelCard from "./FeaturedModelCard"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
@@ -43,34 +44,61 @@ export interface OpenRouterModelPickerProps {
 	currentMode: Mode
 }
 
-// Featured models for Cline provider
-const featuredModels = [
+// Featured models for Cline provider organized by tabs
+const recommendedModels = [
 	{
 		id: "anthropic/claude-sonnet-4.5",
-		description: "Recommended for agentic coding in Cline",
-		label: "Best",
+		description: "Best balance of speed, cost, and quality",
+		label: "BEST",
 	},
 	{
-		id: "z-ai/glm-4.6:exacto",
-		description: "Fast open-source model with improved performance in Cline",
-		label: "Trending",
+		id: "anthropic/claude-opus-4.5",
+		description: "State-of-the-art for complex coding",
+		label: "NEW",
 	},
 	{
-		id: "x-ai/grok-code-fast-1",
-		description: "Advanced model with 262K context for complex coding",
-		label: "Free",
-		isFree: true,
+		id: "openai/gpt-5.1",
+		description: "OpenAI's latest with strong coding abilities",
+		label: "HOT",
+	},
+	{
+		id: "google/gemini-3-pro-preview",
+		description: "1M context window for large codebases",
+		label: "1M CTX",
 	},
 ]
-const FREE_CLINE_MODELS = featuredModels.filter((m) => m.isFree)
+
+const freeModels = [
+	{
+		id: "x-ai/grok-code-fast-1",
+		description: "Fast inference with strong coding performance",
+		label: "FREE",
+	},
+	{
+		id: "minimax/minimax-m2",
+		description: "Open source model with solid performance",
+		label: "FREE",
+	},
+	{
+		id: "stealth/microwave",
+		description: "A stealth model for agentic coding tasks",
+		label: "FREE",
+	},
+]
+
+const FREE_CLINE_MODELS = freeModels.map((m) => m.id)
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode }) => {
-	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { handleModeFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds, openRouterModels, refreshOpenRouterModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
+	const [activeTab, setActiveTab] = useState<"recommended" | "free">(() => {
+		const currentModelId = modeFields.openRouterModelId || openRouterDefaultModelId
+		return freeModels.some((m) => m.id === currentModelId) ? "free" : "recommended"
+	})
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
@@ -97,7 +125,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 		const selected = normalizeApiConfiguration(apiConfiguration, currentMode)
 		const isCline = selected.selectedProvider === "cline"
 		// Makes sure "Free" featured models have $0 pricing for Cline provider
-		if (isCline && FREE_CLINE_MODELS.some((fm) => fm.id === selected.selectedModelId)) {
+		if (isCline && FREE_CLINE_MODELS.includes(selected.selectedModelId)) {
 			return {
 				...selected,
 				selectedModelInfo: {
@@ -147,7 +175,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 				return !id.includes(":free")
 			})
 		}
-		// For OpenRouter provider: exclude Cline-specific models
+		// For OpenRouter and Vercel AI Gateway providers: exclude Cline-specific models
 		return unfilteredModelIds.filter((id) => !id.startsWith("cline/"))
 	}, [openRouterModels, modeFields.apiProvider])
 
@@ -257,14 +285,22 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 			selectedModelId?.toLowerCase().includes("claude-sonnet-4") ||
 			selectedModelId?.toLowerCase().includes("claude-opus-4.1") ||
 			selectedModelId?.toLowerCase().includes("claude-opus-4") ||
+			selectedModelId?.toLowerCase().includes("claude-opus-4.5") ||
 			selectedModelId?.toLowerCase().includes("claude-3-7-sonnet") ||
 			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet") ||
 			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet:thinking")
 		)
 	}, [selectedModelId])
 
+	const showThinkingLevel = useMemo(() => {
+		return selectedModelId?.toLowerCase().includes("gemini") && selectedModelId?.includes("3")
+	}, [selectedModelId])
+
+	const geminiThinkingLevel =
+		currentMode === "plan" ? apiConfiguration?.geminiPlanModeThinkingLevel : apiConfiguration?.geminiActModeThinkingLevel
+
 	return (
-		<div style={{ width: "100%" }}>
+		<div style={{ width: "100%", paddingBottom: 2 }}>
 			<style>
 				{`
 				.model-item-highlight {
@@ -279,21 +315,49 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 				</label>
 
 				{modeFields.apiProvider === "cline" && (
-					<div style={{ marginBottom: "6px", marginTop: 4 }}>
-						{featuredModels.map((model) => (
-							<FeaturedModelCard
-								description={model.description}
-								isSelected={selectedModelId === model.id}
-								key={model.id}
-								label={model.label}
-								modelId={model.id}
-								onClick={() => {
-									handleModelChange(model.id)
-									setIsDropdownVisible(false)
-								}}
-							/>
-						))}
-					</div>
+					<>
+						{/* Tabs */}
+						<TabsContainer style={{ marginTop: 4 }}>
+							<Tab active={activeTab === "recommended"} onClick={() => setActiveTab("recommended")}>
+								Recommended
+							</Tab>
+							<Tab active={activeTab === "free"} onClick={() => setActiveTab("free")}>
+								Free
+							</Tab>
+						</TabsContainer>
+
+						{/* Model Cards */}
+						<div style={{ marginBottom: "6px" }}>
+							{activeTab === "recommended" &&
+								recommendedModels.map((model) => (
+									<FeaturedModelCard
+										description={model.description}
+										isSelected={selectedModelId === model.id}
+										key={model.id}
+										label={model.label}
+										modelId={model.id}
+										onClick={() => {
+											handleModelChange(model.id)
+											setIsDropdownVisible(false)
+										}}
+									/>
+								))}
+							{activeTab === "free" &&
+								freeModels.map((model) => (
+									<FeaturedModelCard
+										description={model.description}
+										isSelected={selectedModelId === model.id}
+										key={model.id}
+										label={model.label}
+										modelId={model.id}
+										onClick={() => {
+											handleModelChange(model.id)
+											setIsDropdownVisible(false)
+										}}
+									/>
+								))}
+						</div>
+					</>
 				)}
 
 				<DropdownWrapper ref={dropdownRef}>
@@ -387,7 +451,29 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 
 			{hasInfo ? (
 				<>
-					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
+					{showBudgetSlider && !showThinkingLevel && <ThinkingBudgetSlider currentMode={currentMode} />}
+
+					{showThinkingLevel && (
+						<DropdownContainer className="dropdown-container" zIndex={1}>
+							<label htmlFor="thinking-level">
+								<span className="font-medium">Thinking Level</span>
+							</label>
+							<VSCodeDropdown
+								className="w-full"
+								id="thinking-level"
+								onChange={(e: any) =>
+									handleModeFieldChange(
+										{ plan: "geminiPlanModeThinkingLevel", act: "geminiActModeThinkingLevel" },
+										e.target.value,
+										currentMode,
+									)
+								}
+								value={geminiThinkingLevel || "high"}>
+								<VSCodeOption value="low">Low</VSCodeOption>
+								<VSCodeOption value="high">High</VSCodeOption>
+							</VSCodeDropdown>
+						</DropdownContainer>
+					)}
 
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
@@ -423,7 +509,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 						anthropic/claude-sonnet-4.5.
 					</VSCodeLink>
 					You can also try searching "free" for no-cost options currently available. OpenRouter presets can be used by
-					entering <strong>@preset/your-preset-name</strong>.
+					entering @preset/your-preset-name
 				</p>
 			)}
 		</div>
@@ -465,5 +551,28 @@ const DropdownItem = styled.div<{ isSelected: boolean }>`
 
 	&:hover {
 		background-color: var(--vscode-list-activeSelectionBackground);
+	}
+`
+
+// Tabs
+
+const TabsContainer = styled.div`
+	display: flex;
+	gap: 0;
+	margin-bottom: 12px;
+	border-bottom: 1px solid #333;
+`
+
+const Tab = styled.div<{ active: boolean }>`
+	padding: 8px 16px;
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: 500;
+	color: ${({ active }) => (active ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
+	border-bottom: 2px solid ${({ active }) => (active ? "var(--vscode-textLink-foreground)" : "transparent")};
+	transition: all 0.15s ease;
+
+	&:hover {
+		color: var(--vscode-foreground);
 	}
 `

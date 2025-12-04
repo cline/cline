@@ -258,7 +258,17 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 		}
 
 		// Serialize input to JSON
-		const inputJson = JSON.stringify(HookInput.toJSON(input))
+		// NOTE: Proto3 by default omits empty strings (default values) from toJSON()
+		// To ensure hooks receive consistent data (e.g., {"prompt": ""} instead of {}),
+		// we manually construct the JSON object and explicitly include empty string fields
+		const jsonObj = HookInput.toJSON(input) as Record<string, any>
+
+		// Ensure empty prompt strings are preserved in UserPromptSubmit data
+		if (jsonObj.userPromptSubmit && jsonObj.userPromptSubmit.prompt === undefined) {
+			jsonObj.userPromptSubmit.prompt = ""
+		}
+
+		const inputJson = JSON.stringify(jsonObj)
 
 		// Create HookProcess for execution with streaming
 		const hookProcess = new HookProcess(this.scriptPath, HOOK_EXECUTION_TIMEOUT_MS, this.abortSignal)
@@ -308,10 +318,49 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 					return output
 				} catch (parseError) {
 					// Try to extract JSON from stdout (it might have debug output before/after)
-					const jsonMatch = stdout.match(/\{[\s\S]*\}/)
-					if (jsonMatch) {
+					// Scan from the end to find the last complete JSON object
+					// This handles cases where hooks output debug info before the actual JSON response
+
+					const lines = stdout.split("\n")
+					let jsonCandidate = ""
+					let braceCount = 0
+					let startCollecting = false
+
+					// Scan from the end to find the last complete JSON object
+					for (let i = lines.length - 1; i >= 0; i--) {
+						const line = lines[i].trimEnd()
+
+						// Count braces to track JSON object boundaries
+						for (let j = line.length - 1; j >= 0; j--) {
+							if (line[j] === "}") {
+								braceCount++
+								if (!startCollecting) {
+									startCollecting = true
+								}
+							} else if (line[j] === "{") {
+								braceCount--
+							}
+						}
+
+						if (startCollecting) {
+							jsonCandidate = line + "\n" + jsonCandidate
+						}
+
+						// If we've closed all braces, we have a complete JSON object
+						if (startCollecting && braceCount === 0) {
+							break
+						}
+					}
+
+					if (jsonCandidate.trim()) {
 						try {
-							const outputData = JSON.parse(jsonMatch[0])
+							// Trim everything before the first opening bracket
+							const trimmedCandidate = jsonCandidate.trim()
+							const firstBraceIndex = trimmedCandidate.indexOf("{")
+							const cleanedJson =
+								firstBraceIndex !== -1 ? trimmedCandidate.slice(firstBraceIndex) : trimmedCandidate
+
+							const outputData = JSON.parse(cleanedJson)
 
 							// Validate structure
 							const validation = validateHookOutput(outputData)

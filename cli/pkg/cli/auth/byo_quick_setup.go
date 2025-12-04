@@ -28,7 +28,7 @@ func QuickSetupFromFlags(ctx context.Context, provider, apiKey, modelID, baseURL
 	}
 
 	// Create task manager for state operations
-	manager, err := task.NewManagerForDefault(ctx)
+	manager, err := createTaskManager(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create task manager: %w", err)
 	}
@@ -73,6 +73,12 @@ func QuickSetupFromFlags(ctx context.Context, provider, apiKey, modelID, baseURL
 		if global.Config.Verbose {
 			fmt.Printf("[DEBUG] Warning: failed to mark welcome view as completed: %v\n", err)
 		}
+	}
+
+	// Flush pending state changes to disk immediately
+	// This ensures all configuration changes are persisted before the instance terminates
+	if _, err := manager.GetClient().State.FlushPendingState(ctx, &cline.EmptyRequest{}); err != nil {
+		return fmt.Errorf("failed to flush pending state: %w", err)
 	}
 
 	// Success message
@@ -170,6 +176,7 @@ func validateQuickSetupProvider(providerID string) (cline.ApiProvider, error) {
 		cline.ApiProvider_XAI:           true,
 		cline.ApiProvider_CEREBRAS:      true,
 		cline.ApiProvider_OLLAMA:        true,
+		cline.ApiProvider_NOUSRESEARCH:  true,
 	}
 
 	if !supportedProviders[provider] {

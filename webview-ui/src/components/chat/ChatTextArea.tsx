@@ -45,6 +45,7 @@ import {
 	type SlashCommand,
 	shouldShowSlashCommandsMenu,
 	slashCommandDeleteRegex,
+	slashCommandRegexGlobal,
 	validateSlashCommand,
 } from "@/utils/slash-commands"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
@@ -267,6 +268,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			platform,
 			localWorkflowToggles,
 			globalWorkflowToggles,
+			remoteWorkflowToggles,
+			remoteConfigSettings,
 			showChatModelSelector: showModelSelector,
 			setShowChatModelSelector: setShowModelSelector,
 			dictationSettings,
@@ -482,7 +485,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setSlashCommandsQuery("")
 
 				if (textAreaRef.current) {
-					const { newValue, commandIndex } = insertSlashCommand(textAreaRef.current.value, command.name, queryLength)
+					const { newValue, commandIndex } = insertSlashCommand(
+						textAreaRef.current.value,
+						command.name,
+						queryLength,
+						cursorPosition,
+					)
 					const newCursorPosition = newValue.indexOf(" ", commandIndex + 1 + command.name.length) + 1
 
 					setInputValue(newValue)
@@ -497,7 +505,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}, 0)
 				}
 			},
-			[setInputValue, slashCommandsQuery],
+			[setInputValue, slashCommandsQuery, cursorPosition],
 		)
 		const handleKeyDown = useCallback(
 			(event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -517,6 +525,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								slashCommandsQuery,
 								localWorkflowToggles,
 								globalWorkflowToggles,
+								remoteWorkflowToggles,
+								remoteConfigSettings?.remoteGlobalWorkflows,
 							)
 
 							if (allCommands.length === 0) {
@@ -535,7 +545,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 					if ((event.key === "Enter" || event.key === "Tab") && selectedSlashCommandsIndex !== -1) {
 						event.preventDefault()
-						const commands = getMatchingSlashCommands(slashCommandsQuery, localWorkflowToggles, globalWorkflowToggles)
+						const commands = getMatchingSlashCommands(
+							slashCommandsQuery,
+							localWorkflowToggles,
+							globalWorkflowToggles,
+							remoteWorkflowToggles,
+							remoteConfigSettings?.remoteGlobalWorkflows,
+						)
 						if (commands.length > 0) {
 							handleSlashCommandsSelect(commands[selectedSlashCommandsIndex])
 						}
@@ -750,7 +766,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setShowContextMenu(showMenu)
 
 				if (showSlashCommandsMenu) {
-					const slashIndex = newValue.indexOf("/")
+					// Find the slash nearest to cursor (before cursor position)
+					const beforeCursor = newValue.slice(0, newCursorPosition)
+					const slashIndex = beforeCursor.lastIndexOf("/")
 					const query = newValue.slice(slashIndex + 1, newCursorPosition)
 					setSlashCommandsQuery(query)
 					setSelectedSlashCommandsIndex(0)
@@ -973,30 +991,38 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				// highlight @mentions
 				.replace(mentionRegexGlobal, '<mark class="mention-context-textarea-highlight">$&</mark>')
 
-			// check for highlighting /slash-commands
-			if (/^\s*\//.test(processedText)) {
-				const slashIndex = processedText.indexOf("/")
+			// Highlight only the FIRST valid /slash-command in the text
+			// Only one slash command is processed per message, so we only highlight the first one
+			slashCommandRegexGlobal.lastIndex = 0
+			let hasHighlightedSlashCommand = false
+			processedText = processedText.replace(slashCommandRegexGlobal, (match, prefix, command) => {
+				// Only highlight the first valid slash command
+				if (hasHighlightedSlashCommand) {
+					return match
+				}
 
-				// end of command is end of text or first whitespace
-				const spaceIndex = processedText.indexOf(" ", slashIndex)
-				const endIndex = spaceIndex > -1 ? spaceIndex : processedText.length
-
-				// extract and validate the exact command text
-				const commandText = processedText.substring(slashIndex + 1, endIndex)
-				const isValidCommand = validateSlashCommand(commandText, localWorkflowToggles, globalWorkflowToggles)
+				// Extract just the command name (without the slash)
+				const commandName = command.substring(1)
+				const isValidCommand = validateSlashCommand(
+					commandName,
+					localWorkflowToggles,
+					globalWorkflowToggles,
+					remoteWorkflowToggles,
+					remoteConfigSettings?.remoteGlobalWorkflows,
+				)
 
 				if (isValidCommand) {
-					const fullCommand = processedText.substring(slashIndex, endIndex) // includes slash
-
-					const highlighted = `<mark class="mention-context-textarea-highlight">${fullCommand}</mark>`
-					processedText = processedText.substring(0, slashIndex) + highlighted + processedText.substring(endIndex)
+					hasHighlightedSlashCommand = true
+					// Keep the prefix (whitespace or empty) and wrap the command in highlight
+					return `${prefix}<mark class="mention-context-textarea-highlight">${command}</mark>`
 				}
-			}
+				return match
+			})
 
 			highlightLayerRef.current.innerHTML = processedText
 			highlightLayerRef.current.scrollTop = textAreaRef.current.scrollTop
 			highlightLayerRef.current.scrollLeft = textAreaRef.current.scrollLeft
-		}, [localWorkflowToggles, globalWorkflowToggles])
+		}, [localWorkflowToggles, globalWorkflowToggles, remoteWorkflowToggles, remoteConfigSettings])
 
 		useLayoutEffect(() => {
 			updateHighlights()
@@ -1484,6 +1510,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								onMouseDown={handleMenuMouseDown}
 								onSelect={handleSlashCommandsSelect}
 								query={slashCommandsQuery}
+								remoteWorkflows={remoteConfigSettings?.remoteGlobalWorkflows}
+								remoteWorkflowToggles={remoteWorkflowToggles}
 								selectedIndex={selectedSlashCommandsIndex}
 								setSelectedIndex={setSelectedSlashCommandsIndex}
 							/>
@@ -1528,7 +1556,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							borderRight: isTextAreaFocused || isVoiceRecording ? 0 : undefined,
 							borderTop: isTextAreaFocused || isVoiceRecording ? 0 : undefined,
 							borderBottom: isTextAreaFocused || isVoiceRecording ? 0 : undefined,
-							padding: `9px 28px ${9 + thumbnailsHeight}px 9px`,
+							padding: `9px ${dictationSettings?.dictationEnabled ? "48" : "28"}px ${9 + thumbnailsHeight}px 9px`,
 						}}
 					/>
 					<DynamicTextArea

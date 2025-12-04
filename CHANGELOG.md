@@ -1,6 +1,126 @@
 # Changelog
 
-## 3.35.0
+## [3.40.0]
+
+- Fix highlighted text flashing when task header is collapsed
+- Add X-Cerebras-3rd-Party-Integration header to Cerebras API requests
+- Add microwave family system prompt configuration
+- Remove tooltips from auto approve menu
+- Fix Standalone, ensure cwd is the install dir to find resources reliably
+- Fix a bug where terminal commands with double quotes are broken when "Terminal Execution Mode" is set to "Background Exec"
+- Add support for slash commands anywhere in a message, not just at the beginning. This matches the behavior of @ mentions for a more flexible input experience.
+- Add bottom padding to the last message to fix last response text getting cut off by auto approve settings bar.
+- Add default thinking level for Gemini 3 Pro models in Gemini provider
+
+## [3.39.2]
+
+- Fix for microwave model and thinking settings
+
+## [3.39.1]
+
+- Fix Openrouter and Cline Provider model info
+
+## [3.39.0]
+
+- Add Explain Changes feature
+- Add microwave Stealth model
+- Add Tabbed Model Picker with Recommended and Free tabs
+- Add support to View remote rules and workflows in the editor
+- Enable NTC (Native Tool Calling) by default
+- Bug fixes and improvements for LiteLLM provider
+
+## [3.38.3]
+
+- Task export feature now opens the task directory, allowing easy access to the full task files
+- Add Grok 4.1 and Grok Code to XAI provider
+- Enabled native tool calling for Baseten and Kimi K2 models
+- Add thinking level to Gemini 3.0 Pro preview
+- Expanded Hooks functionality
+- Removed Task Timeline from Task Header
+- Bug fix for slash commands
+- Bug fixes for Vertex provider
+- Bug fixes for thinking/reasoning issues across multiple providers when using native tool calling
+- Bug fixes for terminal usage on Windows devices
+
+## [3.38.2]
+
+- Add Claude Opus 4.5
+
+## [3.38.1]
+
+### Fixed
+
+- Fixed handling of 'signature' field in sanitizeAnthropicContentBlock to properly preserve it when thinking is enabled, as required by Anthropic's API.
+
+## [3.38.0]
+
+### Added
+
+- Gemini 3 Pro Preview model
+- AquaVoice Avalon model for voice-to-text dictation
+
+### Fixed
+
+- Automatic context truncation when AWS Bedrock token usage rate limits are exceeded
+- Removed new_task tool from system prompts, updated slash command prompts, and added helper function for native tool calling validation
+
+## [3.37.1]
+
+- Comprehensive changes to better support GPT 5.1 - System prompt, tools, deep-planning, focus chain, etc.
+- Add AGENTS.md support
+- feat(models): Add free minimax/mimax-m2 model to the model picker
+
+## [3.37.0]
+
+### Added
+
+- GPT-5.1 with model-specific prompting: tailored system prompts, tool usage, focus chain, and deep-planning optimizations
+- Nous Research provider with Hermes 4 model family and custom system prompts
+- Switched to Aqua Voice's Avalon model in speech to text transcription
+- Added Linux support for speech to text
+- Model-family breakouts for deep-planning prompting, laying groundwork for enhanced slash commands
+- Expanded HTTP proxy support throughout the codebase
+- Improved focus chain prompting for frontier models (Anthropic, OpenAI, Gemini, xAI)
+
+### Fixed
+
+- Duplicate tool results prevention through existence checking
+- XML entity escaping in model content processor
+- Commit message generation in command palette
+- OpenAI Compatible provider temperature parameter type conversion
+
+## Documentation
+
+- Added missing proto generation step in CONTRIBUTING.md
+- New `npm run dev` script for streamlined terminal workflow (fixes #7335)
+
+## [3.36.1]
+
+- fix: remove native tool calling support from Gemini and XAI provider due to invalid tool names issues
+- fix: disable native tool callings for grok code models
+- Add MCP tool usage to GLM
+- Removes reasoning_details content field from Anthropic providers
+
+## [3.36.0]
+
+- Add: Hooks allow you to inject custom logic into Cline's workflow
+- Add: new provider AIhubmix
+- Add: Use http_proxy, https_proxy and no_proxy in JetBrains
+- Fix: Oca Token Refresh logic
+- Fix: issues where assistant message with empty content is added to conversation history
+- Fix: bug where the checkbox shows in the model selector dropdown
+- Fix: Switch from defaultUserAgentProvider to customUserAgent for Bedrock
+- Fix: support for `<think>` tags for better compatibility with open-source models
+- Fix: refinements to the GLM-4.6 system prompt
+
+## [3.35.1]
+
+- Add: Hicap API integration as provider
+- Fix: enable Add Header button in OpenAICompatibleProvider UI
+- Fix: Remove orphaned tool_results after truncation and empty content field issues in native tool call
+- Fix: render model description in markdown
+
+## [3.35.0]
 
 - Add native tool calling support with configurable setting.
 - Auto-approve is now always-on with a redesigned expanding menu. Settings simplified and notifications moved to General Settings.

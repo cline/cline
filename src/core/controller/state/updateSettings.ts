@@ -74,11 +74,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("enableCheckpointsSetting", request.enableCheckpointsSetting)
 		}
 
-		// Update MCP marketplace setting
-		if (request.mcpMarketplaceEnabled !== undefined) {
-			controller.stateManager.setGlobalState("mcpMarketplaceEnabled", request.mcpMarketplaceEnabled)
-		}
-
 		// Update MCP responses collapsed setting
 		if (request.mcpResponsesCollapsed !== undefined) {
 			controller.stateManager.setGlobalState("mcpResponsesCollapsed", request.mcpResponsesCollapsed)
@@ -358,6 +353,14 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		if (request.nativeToolCallEnabled !== undefined) {
 			controller.stateManager.setGlobalState("nativeToolCallEnabled", !!request.nativeToolCallEnabled)
+			if (controller.task) {
+				telemetryService.captureFeatureToggle(
+					controller.task.ulid,
+					"native-tool-call",
+					request.nativeToolCallEnabled,
+					controller.task.api.getModel().id,
+				)
+			}
 		}
 
 		// Post updated state to webview

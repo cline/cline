@@ -52,6 +52,10 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		ocaApiKey,
 		ocaRefreshToken,
 		minimaxApiKey,
+		hicapApiKey,
+		aihubmixApiKey,
+		mcpOAuthSecrets,
+		nousResearchApiKey,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
 		context.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
@@ -92,6 +96,10 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("ocaApiKey") as Promise<string | undefined>,
 		context.secrets.get("ocaRefreshToken") as Promise<string | undefined>,
 		context.secrets.get("minimaxApiKey") as Promise<Secrets["minimaxApiKey"]>,
+		context.secrets.get("hicapApiKey") as Promise<Secrets["hicapApiKey"]>,
+		context.secrets.get("aihubmixApiKey") as Promise<Secrets["aihubmixApiKey"]>,
+		context.secrets.get("mcpOAuthSecrets") as Promise<Secrets["mcpOAuthSecrets"]>,
+		context.secrets.get("nousResearchApiKey") as Promise<Secrets["nousResearchApiKey"]>,
 	])
 
 	return {
@@ -134,6 +142,10 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		ocaApiKey,
 		ocaRefreshToken,
 		minimaxApiKey,
+		hicapApiKey,
+		aihubmixApiKey,
+		mcpOAuthSecrets,
+		nousResearchApiKey,
 	}
 }
 
@@ -141,12 +153,14 @@ export async function readWorkspaceStateFromDisk(context: ExtensionContext): Pro
 	const localClineRulesToggles = context.workspaceState.get("localClineRulesToggles") as ClineRulesToggles | undefined
 	const localWindsurfRulesToggles = context.workspaceState.get("localWindsurfRulesToggles") as ClineRulesToggles | undefined
 	const localCursorRulesToggles = context.workspaceState.get("localCursorRulesToggles") as ClineRulesToggles | undefined
+	const localAgentsRulesToggles = context.workspaceState.get("localAgentsRulesToggles") as ClineRulesToggles | undefined
 	const localWorkflowToggles = context.workspaceState.get("workflowToggles") as ClineRulesToggles | undefined
 
 	return {
 		localClineRulesToggles: localClineRulesToggles || {},
 		localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 		localCursorRulesToggles: localCursorRulesToggles || {},
+		localAgentsRulesToggles: localAgentsRulesToggles || {},
 		workflowToggles: localWorkflowToggles || {},
 	}
 }
@@ -158,6 +172,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["strictPlanModeEnabled"]>("strictPlanModeEnabled")
 		const yoloModeToggled = context.globalState.get<GlobalStateAndSettings["yoloModeToggled"]>("yoloModeToggled")
 		const useAutoCondense = context.globalState.get<GlobalStateAndSettings["useAutoCondense"]>("useAutoCondense")
+		const clineWebToolsEnabled =
+			context.globalState.get<GlobalStateAndSettings["clineWebToolsEnabled"]>("clineWebToolsEnabled")
 		const isNewUser = context.globalState.get<GlobalStateAndSettings["isNewUser"]>("isNewUser")
 		const welcomeViewCompleted =
 			context.globalState.get<GlobalStateAndSettings["welcomeViewCompleted"]>("welcomeViewCompleted")
@@ -258,11 +274,15 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		>("lastDismissedModelBannerVersion")
 		const lastDismissedCliBannerVersion =
 			context.globalState.get<GlobalStateAndSettings["lastDismissedCliBannerVersion"]>("lastDismissedCliBannerVersion")
+		const dismissedBanners = context.globalState.get<GlobalStateAndSettings["dismissedBanners"]>("dismissedBanners")
 		const qwenCodeOauthPath = context.globalState.get<GlobalStateAndSettings["qwenCodeOauthPath"]>("qwenCodeOauthPath")
 		const customPrompt = context.globalState.get<GlobalStateAndSettings["customPrompt"]>("customPrompt")
 		const autoCondenseThreshold =
 			context.globalState.get<GlobalStateAndSettings["autoCondenseThreshold"]>("autoCondenseThreshold") // number from 0 to 1
 		const hooksEnabled = context.globalState.get<GlobalStateAndSettings["hooksEnabled"]>("hooksEnabled")
+		const hicapModelId = context.globalState.get<GlobalStateAndSettings["hicapModelId"]>("hicapModelId")
+		const aihubmixBaseUrl = context.globalState.get<GlobalStateAndSettings["aihubmixBaseUrl"]>("aihubmixBaseUrl")
+		const aihubmixAppCode = context.globalState.get<GlobalStateAndSettings["aihubmixAppCode"]>("aihubmixAppCode")
 
 		// OpenTelemetry configuration
 		const openTelemetryEnabled =
@@ -306,6 +326,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const planModeApiModelId = context.globalState.get<GlobalStateAndSettings["planModeApiModelId"]>("planModeApiModelId")
 		const planModeThinkingBudgetTokens =
 			context.globalState.get<GlobalStateAndSettings["planModeThinkingBudgetTokens"]>("planModeThinkingBudgetTokens")
+		const geminiPlanModeThinkingLevel =
+			context.globalState.get<GlobalStateAndSettings["geminiPlanModeThinkingLevel"]>("geminiPlanModeThinkingLevel")
 		const planModeReasoningEffort =
 			context.globalState.get<GlobalStateAndSettings["planModeReasoningEffort"]>("planModeReasoningEffort")
 		const planModeVsCodeLmModelSelector =
@@ -360,18 +382,25 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["planModeBasetenModelId"]>("planModeBasetenModelId")
 		const planModeBasetenModelInfo =
 			context.globalState.get<GlobalStateAndSettings["planModeBasetenModelInfo"]>("planModeBasetenModelInfo")
-		const planModeVercelAiGatewayModelId =
-			context.globalState.get<GlobalStateAndSettings["planModeVercelAiGatewayModelId"]>("planModeVercelAiGatewayModelId")
-		const planModeVercelAiGatewayModelInfo = context.globalState.get<
-			GlobalStateAndSettings["planModeVercelAiGatewayModelInfo"]
-		>("planModeVercelAiGatewayModelInfo")
 		const planModeOcaModelId = context.globalState.get("planModeOcaModelId") as string | undefined
 		const planModeOcaModelInfo = context.globalState.get("planModeOcaModelInfo") as OcaModelInfo | undefined
+		const planModeHicapModelId =
+			context.globalState.get<GlobalStateAndSettings["planModeHicapModelId"]>("planModeHicapModelId")
+		const planModeHicapModelInfo =
+			context.globalState.get<GlobalStateAndSettings["planModeHicapModelInfo"]>("planModeHicapModelInfo")
+		const planModeAihubmixModelId =
+			context.globalState.get<GlobalStateAndSettings["planModeAihubmixModelId"]>("planModeAihubmixModelId")
+		const planModeAihubmixModelInfo =
+			context.globalState.get<GlobalStateAndSettings["planModeAihubmixModelInfo"]>("planModeAihubmixModelInfo")
+		const planModeNousResearchModelId =
+			context.globalState.get<GlobalStateAndSettings["planModeNousResearchModelId"]>("planModeNousResearchModelId")
 		// Act mode configurations
 		const actModeApiProvider = context.globalState.get<GlobalStateAndSettings["actModeApiProvider"]>("actModeApiProvider")
 		const actModeApiModelId = context.globalState.get<GlobalStateAndSettings["actModeApiModelId"]>("actModeApiModelId")
 		const actModeThinkingBudgetTokens =
 			context.globalState.get<GlobalStateAndSettings["actModeThinkingBudgetTokens"]>("actModeThinkingBudgetTokens")
+		const geminiActModeThinkingLevel =
+			context.globalState.get<GlobalStateAndSettings["geminiActModeThinkingLevel"]>("geminiActModeThinkingLevel")
 		const actModeReasoningEffort =
 			context.globalState.get<GlobalStateAndSettings["actModeReasoningEffort"]>("actModeReasoningEffort")
 		const actModeVsCodeLmModelSelector =
@@ -426,15 +455,19 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["actModeBasetenModelId"]>("actModeBasetenModelId")
 		const actModeBasetenModelInfo =
 			context.globalState.get<GlobalStateAndSettings["actModeBasetenModelInfo"]>("actModeBasetenModelInfo")
-		const actModeVercelAiGatewayModelId =
-			context.globalState.get<GlobalStateAndSettings["actModeVercelAiGatewayModelId"]>("actModeVercelAiGatewayModelId")
-		const actModeVercelAiGatewayModelInfo = context.globalState.get<
-			GlobalStateAndSettings["actModeVercelAiGatewayModelInfo"]
-		>("actModeVercelAiGatewayModelInfo")
 		const actModeOcaModelId = context.globalState.get("actModeOcaModelId") as string | undefined
 		const actModeOcaModelInfo = context.globalState.get("actModeOcaModelInfo") as OcaModelInfo | undefined
+		const actModeNousResearchModelId =
+			context.globalState.get<GlobalStateAndSettings["actModeNousResearchModelId"]>("actModeNousResearchModelId")
 		const sapAiCoreUseOrchestrationMode =
 			context.globalState.get<GlobalStateAndSettings["sapAiCoreUseOrchestrationMode"]>("sapAiCoreUseOrchestrationMode")
+		const actModeHicapModelId = context.globalState.get<GlobalStateAndSettings["actModeHicapModelId"]>("actModeHicapModelId")
+		const actModeHicapModelInfo =
+			context.globalState.get<GlobalStateAndSettings["actModeHicapModelInfo"]>("actModeHicapModelInfo")
+		const actModeAihubmixModelId =
+			context.globalState.get<GlobalStateAndSettings["actModeAihubmixModelId"]>("actModeAihubmixModelId")
+		const actModeAihubmixModelInfo =
+			context.globalState.get<GlobalStateAndSettings["actModeAihubmixModelInfo"]>("actModeAihubmixModelInfo")
 
 		let apiProvider: ApiProvider
 		if (planModeApiProvider) {
@@ -471,6 +504,9 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const multiRootEnabled = context.globalState.get<GlobalStateAndSettings["multiRootEnabled"]>("multiRootEnabled")
 		const nativeToolCallEnabled =
 			context.globalState.get<GlobalStateAndSettings["nativeToolCallEnabled"]>("nativeToolCallEnabled")
+		const remoteRulesToggles = context.globalState.get<GlobalStateAndSettings["remoteRulesToggles"]>("remoteRulesToggles")
+		const remoteWorkflowToggles =
+			context.globalState.get<GlobalStateAndSettings["remoteWorkflowToggles"]>("remoteWorkflowToggles")
 
 		return {
 			// api configuration fields
@@ -514,7 +550,9 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			ocaBaseUrl,
 			minimaxApiLine,
 			ocaMode: ocaMode || "internal",
-
+			hicapModelId,
+			aihubmixBaseUrl,
+			aihubmixAppCode,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -547,10 +585,14 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeHuaweiCloudMaasModelInfo,
 			planModeBasetenModelId,
 			planModeBasetenModelInfo,
-			planModeVercelAiGatewayModelId,
-			planModeVercelAiGatewayModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
+			planModeHicapModelId,
+			planModeHicapModelInfo,
+			planModeAihubmixModelId,
+			planModeAihubmixModelInfo,
+			planModeNousResearchModelId,
+			geminiPlanModeThinkingLevel,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -581,10 +623,14 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeHuaweiCloudMaasModelInfo,
 			actModeBasetenModelId,
 			actModeBasetenModelInfo,
-			actModeVercelAiGatewayModelId,
-			actModeVercelAiGatewayModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
+			actModeHicapModelId,
+			actModeHicapModelInfo,
+			actModeAihubmixModelId,
+			actModeAihubmixModelInfo,
+			actModeNousResearchModelId,
+			geminiActModeThinkingLevel,
 
 			// Other global fields
 			focusChainSettings: focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,
@@ -592,6 +638,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			strictPlanModeEnabled: strictPlanModeEnabled ?? true,
 			yoloModeToggled: yoloModeToggled ?? false,
 			useAutoCondense: useAutoCondense ?? false,
+			clineWebToolsEnabled: clineWebToolsEnabled ?? true,
 			isNewUser: isNewUser ?? true,
 			welcomeViewCompleted,
 			lastShownAnnouncementId,
@@ -626,7 +673,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			lastDismissedInfoBannerVersion: lastDismissedInfoBannerVersion ?? 0,
 			lastDismissedModelBannerVersion: lastDismissedModelBannerVersion ?? 0,
 			lastDismissedCliBannerVersion: lastDismissedCliBannerVersion ?? 0,
-			nativeToolCallEnabled: nativeToolCallEnabled ?? false,
+			dismissedBanners: dismissedBanners || [],
+			nativeToolCallEnabled: nativeToolCallEnabled ?? true,
 			// Multi-root workspace support
 			workspaceRoots,
 			primaryRootIndex: primaryRootIndex ?? 0,
@@ -649,6 +697,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			openTelemetryLogBatchSize: openTelemetryLogBatchSize ?? 512,
 			openTelemetryLogBatchTimeout: openTelemetryLogBatchTimeout ?? 5000,
 			openTelemetryLogMaxQueueSize: openTelemetryLogMaxQueueSize ?? 2048,
+			remoteRulesToggles: remoteRulesToggles || {},
+			remoteWorkflowToggles: remoteWorkflowToggles || {},
 		}
 	} catch (error) {
 		console.error("[StateHelpers] Failed to read global state:", error)
@@ -704,6 +754,10 @@ export async function resetGlobalState(controller: Controller) {
 		"ocaApiKey",
 		"ocaRefreshToken",
 		"minimaxApiKey",
+		"hicapApiKey",
+		"aihubmixApiKey",
+		"mcpOAuthSecrets",
+		"nousResearchApiKey",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
 	await controller.stateManager.reInitialize()

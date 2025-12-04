@@ -33,6 +33,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		hooksEnabled,
 		remoteConfigSettings,
 		subagentsEnabled,
+		nativeToolCallSetting,
 	} = useExtensionState()
 
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
@@ -177,33 +178,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						<p className="text-xs text-(--vscode-descriptionForeground)">
 							Enables extension to save checkpoints of workspace throughout the task. Uses git under the hood which
 							may not work well with large workspaces.
-						</p>
-					</div>
-					<div style={{ marginTop: 10 }}>
-						<Tooltip>
-							<TooltipTrigger>
-								<div className="flex items-center gap-2">
-									<VSCodeCheckbox
-										checked={mcpMarketplaceEnabled}
-										disabled={remoteConfigSettings?.mcpMarketplaceEnabled !== undefined}
-										onChange={(e: any) => {
-											const checked = e.target.checked === true
-											updateSetting("mcpMarketplaceEnabled", checked)
-										}}>
-										Enable MCP Marketplace
-									</VSCodeCheckbox>
-									{remoteConfigSettings?.mcpMarketplaceEnabled !== undefined && (
-										<i className="codicon codicon-lock text-description text-sm" />
-									)}
-								</div>
-							</TooltipTrigger>
-							<TooltipContent hidden={remoteConfigSettings?.mcpMarketplaceEnabled === undefined}>
-								This setting is managed by your organization's remote configuration
-							</TooltipContent>
-						</Tooltip>
-
-						<p className="text-xs text-description">
-							Enables the MCP Marketplace tab for discovering and installing MCP servers.
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
@@ -355,6 +329,20 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</a>
 						</p>
 					</div>
+					<div className="mt-2.5">
+						<VSCodeCheckbox
+							checked={nativeToolCallSetting}
+							onChange={(e) => {
+								const enabled = (e?.target as HTMLInputElement).checked
+								updateSetting("nativeToolCallEnabled", enabled)
+							}}>
+							Enable Native Tool Call
+						</VSCodeCheckbox>
+						<p className="text-xs text-(--vscode-descriptionForeground)">
+							Uses the model's native tool calling API instead of XML-based tool parsing. This will improve
+							performance for supported models.
+						</p>
+					</div>
 					{multiRootSetting.featureFlag && (
 						<div className="mt-2.5">
 							<VSCodeCheckbox
@@ -371,32 +359,30 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</p>
 						</div>
 					)}
-					{hooksEnabled?.featureFlag && (
-						<div className="mt-2.5">
-							<VSCodeCheckbox
-								checked={hooksEnabled.user}
-								disabled={!isMacOSOrLinux()}
-								onChange={(e: any) => {
-									const checked = e.target.checked === true
-									updateSetting("hooksEnabled", checked)
-								}}>
-								Enable Hooks
-							</VSCodeCheckbox>
-							{!isMacOSOrLinux() ? (
-								<p className="text-xs mt-1" style={{ color: "var(--vscode-inputValidation-warningForeground)" }}>
-									Hooks are not yet supported on Windows. This feature is currently available on macOS and Linux
-									only.
-								</p>
-							) : (
-								<p className="text-xs">
-									<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
-									<span className="text-description">
-										Allows execution of hooks from .clinerules/hooks/ directory.
-									</span>
-								</p>
-							)}
-						</div>
-					)}
+					<div className="mt-2.5">
+						<VSCodeCheckbox
+							checked={hooksEnabled?.user}
+							disabled={!isMacOSOrLinux()}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								updateSetting("hooksEnabled", checked)
+							}}>
+							Enable Hooks
+						</VSCodeCheckbox>
+						{!isMacOSOrLinux() ? (
+							<p className="text-xs mt-1" style={{ color: "var(--vscode-inputValidation-warningForeground)" }}>
+								Hooks are not yet supported on Windows. This feature is currently available on macOS and Linux
+								only.
+							</p>
+						) : (
+							<p className="text-xs">
+								<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
+								<span className="text-description">
+									Allows execution of hooks from .clinerules/hooks/ directory.
+								</span>
+							</p>
+						)}
+					</div>
 					<div style={{ marginTop: 10 }}>
 						<Tooltip>
 							<TooltipTrigger asChild>

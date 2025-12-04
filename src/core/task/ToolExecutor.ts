@@ -4,9 +4,9 @@ import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
-import { featureFlagsService } from "@services/feature-flags"
 import { McpHub } from "@services/mcp/McpHub"
 import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
+import { ClineContent } from "@shared/messages/content"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
@@ -21,12 +21,14 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { AutoApprove } from "./tools/autoApprove"
 import { AccessMcpResourceHandler } from "./tools/handlers/AccessMcpResourceHandler"
+import { ActModeRespondHandler } from "./tools/handlers/ActModeRespondHandler"
 import { ApplyPatchHandler } from "./tools/handlers/ApplyPatchHandler"
 import { AskFollowupQuestionToolHandler } from "./tools/handlers/AskFollowupQuestionToolHandler"
 import { AttemptCompletionHandler } from "./tools/handlers/AttemptCompletionHandler"
 import { BrowserToolHandler } from "./tools/handlers/BrowserToolHandler"
 import { CondenseHandler } from "./tools/handlers/CondenseHandler"
 import { ExecuteCommandToolHandler } from "./tools/handlers/ExecuteCommandToolHandler"
+import { GenerateExplanationToolHandler } from "./tools/handlers/GenerateExplanationToolHandler"
 import { ListCodeDefinitionNamesToolHandler } from "./tools/handlers/ListCodeDefinitionNamesToolHandler"
 import { ListFilesToolHandler } from "./tools/handlers/ListFilesToolHandler"
 import { LoadMcpDocumentationHandler } from "./tools/handlers/LoadMcpDocumentationHandler"
@@ -82,6 +84,7 @@ export class ToolExecutor {
 		private cwd: string,
 		private taskId: string,
 		private ulid: string,
+		private vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec",
 
 		// Workspace Management
 		private workspaceManager: WorkspaceRootManager | undefined,
@@ -112,11 +115,16 @@ export class ToolExecutor {
 		private doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>,
 		private updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>,
 		private switchToActMode: () => Promise<boolean>,
+		private cancelTask: () => Promise<void>,
 
 		// Atomic hook state helpers from Task
 		private setActiveHookExecution: (hookExecution: NonNullable<typeof taskState.activeHookExecution>) => Promise<void>,
 		private clearActiveHookExecution: () => Promise<void>,
 		private getActiveHookExecution: () => Promise<typeof taskState.activeHookExecution>,
+		private runUserPromptSubmitHook: (
+			userContent: ClineContent[],
+			context: "initial_task" | "resume" | "feedback",
+		) => Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }>,
 	) {
 		this.autoApprover = new AutoApprove(this.stateManager)
 
@@ -135,6 +143,7 @@ export class ToolExecutor {
 			mode: this.stateManager.getGlobalSettingsKey("mode"),
 			strictPlanModeEnabled: this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled"),
 			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
+			vscodeTerminalExecutionMode: this.vscodeTerminalExecutionMode,
 			cwd: this.cwd,
 			workspaceManager: this.workspaceManager,
 			isMultiRootEnabled: this.isMultiRootEnabled,
@@ -161,7 +170,7 @@ export class ToolExecutor {
 				saveCheckpoint: this.saveCheckpoint,
 				postStateToWebview: async () => {},
 				reinitExistingTaskFromId: async () => {},
-				cancelTask: async () => {},
+				cancelTask: this.cancelTask,
 				updateTaskHistory: async (_: any) => [],
 				executeCommandTool: this.executeCommandTool,
 				doesLatestTaskCompletionHaveNewChanges: this.doesLatestTaskCompletionHaveNewChanges,
@@ -172,6 +181,10 @@ export class ToolExecutor {
 				shouldAutoApproveToolWithPath: this.shouldAutoApproveToolWithPath.bind(this),
 				applyLatestBrowserSettings: this.applyLatestBrowserSettings.bind(this),
 				switchToActMode: this.switchToActMode,
+				setActiveHookExecution: this.setActiveHookExecution,
+				clearActiveHookExecution: this.clearActiveHookExecution,
+				getActiveHookExecution: this.getActiveHookExecution,
+				runUserPromptSubmitHook: this.runUserPromptSubmitHook,
 			},
 			coordinator: this.coordinator,
 		}
@@ -207,12 +220,14 @@ export class ToolExecutor {
 		this.coordinator.register(new AccessMcpResourceHandler())
 		this.coordinator.register(new LoadMcpDocumentationHandler())
 		this.coordinator.register(new PlanModeRespondHandler())
+		this.coordinator.register(new ActModeRespondHandler())
 		this.coordinator.register(new NewTaskHandler())
 		this.coordinator.register(new AttemptCompletionHandler())
 		this.coordinator.register(new CondenseHandler())
 		this.coordinator.register(new SummarizeTaskHandler(validator))
 		this.coordinator.register(new ReportBugHandler())
 		this.coordinator.register(new ApplyPatchHandler(validator))
+		this.coordinator.register(new GenerateExplanationToolHandler())
 	}
 
 	/**
@@ -287,6 +302,7 @@ export class ToolExecutor {
 		ClineDefaultTool.FILE_NEW,
 		ClineDefaultTool.FILE_EDIT,
 		ClineDefaultTool.NEW_RULE,
+		ClineDefaultTool.APPLY_PATCH,
 	]
 
 	/**
@@ -430,10 +446,12 @@ export class ToolExecutor {
 			content = typeMatch[2] ? [typeMatch[2], ...remainingLines].join("\n") : remainingLines.join("\n")
 		}
 
-		this.taskState.userMessageContent.push({
-			type: "text",
+		const hookContextBlock = {
+			type: "text" as const,
 			text: `<hook_context source="${source}" type="${contextType}">\n${content}\n</hook_context>`,
-		})
+		}
+
+		this.taskState.userMessageContent.push(hookContextBlock)
 	}
 
 	/**
@@ -457,7 +475,6 @@ export class ToolExecutor {
 
 		const executionTimeMs = Date.now() - executionStartTime
 
-		console.log(`[HOOK-UI] PostToolUse executing for tool: ${block.name}`)
 		const postToolResult = await executeHook({
 			hookName: "PostToolUse",
 			hookInput: {
@@ -524,14 +541,15 @@ export class ToolExecutor {
 	 * Handle complete block execution.
 	 *
 	 * This is the main execution flow for a tool:
-	 * 1. Run PreToolUse hooks (if enabled) - can block execution
-	 * 2. Execute the actual tool
-	 * 3. Run PostToolUse hooks (if enabled) - cannot block, only observe
-	 * 4. Add hook context modifications to the conversation
-	 * 5. Update focus chain tracking
+	 * 1. Execute the actual tool (tool handlers now run PreToolUse hooks post-approval)
+	 * 2. Run PostToolUse hooks (if enabled) - cannot block, only observe
+	 * 3. Add hook context modifications to the conversation
+	 * 4. Update focus chain tracking
 	 *
-	 * Hooks are executed with streaming output to provide real-time feedback.
-	 * PreToolUse hooks can prevent tool execution by returning shouldContinue: false.
+	 * Note: PreToolUse hooks are now executed by individual tool handlers after approval
+	 * and before the actual tool operation. This provides better UX as approval dialogs
+	 * appear immediately without hook execution delay.
+	 *
 	 * PostToolUse hooks are for observation/logging only and cannot block.
 	 *
 	 * @param block The complete tool use block with all parameters
@@ -543,104 +561,11 @@ export class ToolExecutor {
 			return
 		}
 
-		// Check if hooks are enabled (both feature flag and user setting must be true)
-		const featureFlagEnabled = featureFlagsService.getHooksEnabled()
-		const userEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
-		const hooksEnabled = featureFlagEnabled && userEnabled
+		// Check if hooks are enabled via user setting
+		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 
 		// Track if we need to cancel after hooks complete
 		let shouldCancelAfterHook = false
-
-		// ============================================================
-		// PHASE 1: Run PreToolUse hook (OUTSIDE try-catch-finally)
-		// This allows early return on cancellation without triggering finally block
-		// ============================================================
-		if (hooksEnabled) {
-			const { executeHook } = await import("../hooks/hook-executor")
-
-			// Build pending tool info for display
-			const pendingToolInfo: any = {
-				tool: block.name,
-			}
-
-			// Add relevant parameters for display based on tool type
-			if (block.params.path) {
-				pendingToolInfo.path = block.params.path
-			}
-			if (block.params.command) {
-				pendingToolInfo.command = block.params.command
-			}
-			if (block.params.content && typeof block.params.content === "string") {
-				pendingToolInfo.content = block.params.content.slice(0, 200)
-			}
-			if (block.params.diff && typeof block.params.diff === "string") {
-				pendingToolInfo.diff = block.params.diff.slice(0, 200)
-			}
-			if (block.params.regex) {
-				pendingToolInfo.regex = block.params.regex
-			}
-			if (block.params.url) {
-				pendingToolInfo.url = block.params.url
-			}
-			// For MCP operations, show tool/resource identifiers
-			if (block.params.tool_name) {
-				pendingToolInfo.mcpTool = block.params.tool_name
-			}
-			if (block.params.server_name) {
-				pendingToolInfo.mcpServer = block.params.server_name
-			}
-			if (block.params.uri) {
-				pendingToolInfo.resourceUri = block.params.uri
-			}
-
-			console.log(`[HOOK-UI] PreToolUse executing for tool: ${block.name}`)
-			const preToolResult = await executeHook({
-				hookName: "PreToolUse",
-				hookInput: {
-					preToolUse: {
-						toolName: block.name,
-						parameters: block.params,
-					},
-				},
-				isCancellable: true,
-				say: this.say,
-				setActiveHookExecution: this.setActiveHookExecution,
-				clearActiveHookExecution: this.clearActiveHookExecution,
-				messageStateHandler: this.messageStateHandler,
-				taskId: this.taskId,
-				hooksEnabled,
-				toolName: block.name,
-				pendingToolInfo,
-			})
-
-			// Handle cancellation from hook
-			if (preToolResult.cancel === true) {
-				// Trigger task cancellation (same as clicking cancel button)
-				await config.callbacks.cancelTask()
-				// Early return - never enters try-catch-finally, so PostToolUse won't run
-				return
-			}
-
-			// If task was aborted (e.g., via cancel button during hook), stop execution
-			if (this.taskState.abort) {
-				shouldCancelAfterHook = true
-			}
-
-			// Add context modification to the conversation if provided by the hook
-			if (preToolResult.contextModification) {
-				this.addHookContextToConversation(preToolResult.contextModification, "PreToolUse")
-			}
-		}
-
-		// ============================================================
-		// PHASE 2: Execute tool with PostToolUse hook in finally block
-		// This only runs if PreToolUse didn't cancel above
-		// ============================================================
-
-		// Check abort again before tool execution (could have been set by PreToolUse hook)
-		if (this.taskState.abort) {
-			return
-		}
 
 		let executionSuccess = true
 		let toolResult: any = null

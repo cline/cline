@@ -116,6 +116,7 @@ export const mockProviderInfo = {
 			supportsPromptCache: false,
 		},
 	},
+	mode: "act" as const,
 }
 
 const makeMockProviderInfo = (modelId: string, providerId: string = "test") => ({
@@ -211,6 +212,18 @@ describe("Prompt System Integration Tests", () => {
 			contextVariations,
 		},
 		{
+			modelGroup: ModelFamily.HERMES,
+			modelIds: ["hermes-4"],
+			providerId: "test",
+			contextVariations,
+		},
+		{
+			modelGroup: ModelFamily.MICROWAVE,
+			modelIds: ["microwave"],
+			providerId: "cline",
+			contextVariations,
+		},
+		{
 			modelGroup: ModelFamily.NEXT_GEN,
 			modelIds: ["claude-sonnet-4"],
 			providerId: "anthropic",
@@ -232,6 +245,24 @@ describe("Prompt System Integration Tests", () => {
 			modelGroup: ModelFamily.GPT_5,
 			modelIds: ["gpt-5"],
 			providerId: "openai",
+			contextVariations,
+		},
+		{
+			modelGroup: ModelFamily.NATIVE_GPT_5,
+			modelIds: ["gpt-5-codex"],
+			providerId: "openai",
+			contextVariations,
+		},
+		{
+			modelGroup: ModelFamily.NATIVE_GPT_5_1,
+			modelIds: ["gpt-5-1"],
+			providerId: "openai",
+			contextVariations,
+		},
+		{
+			modelGroup: ModelFamily.GEMINI_3,
+			modelIds: ["gemini-3"],
+			providerId: "vertex",
 			contextVariations,
 		},
 	]
@@ -257,7 +288,11 @@ describe("Prompt System Integration Tests", () => {
 							...baseContext,
 							providerInfo: makeMockProviderInfo(modelId, providerId),
 							isTesting: true,
-							enableNativeToolCalls: modelGroup === ModelFamily.NATIVE_NEXT_GEN,
+							enableNativeToolCalls:
+								modelGroup === ModelFamily.NATIVE_NEXT_GEN ||
+								modelGroup === ModelFamily.NATIVE_GPT_5 ||
+								modelGroup === ModelFamily.NATIVE_GPT_5_1 ||
+								modelGroup === ModelFamily.GEMINI_3,
 						}
 						it(`should generate consistent prompt for ${providerId}/${modelId} with ${contextName} context`, async function () {
 							this.timeout(30000) // Allow more time for prompt generation
@@ -299,10 +334,9 @@ describe("Prompt System Integration Tests", () => {
 														`This is a new test case. Run with --update-snapshots to create the initial snapshot.`,
 												),
 											)
-										} else {
-											// Re-throw comparison errors
-											throw error
 										}
+										// Re-throw comparison errors
+										throw error
 									}
 								}
 							} catch (error) {
@@ -390,14 +424,8 @@ describe("Prompt System Integration Tests", () => {
 			this.timeout(30000)
 
 			const invalidContext = {} as SystemPromptContext
-
-			try {
-				const prompt = await getSystemPrompt(invalidContext)
-				expect(prompt).to.be.a("string")
-			} catch (error) {
-				// Error is acceptable for invalid context
-				expect(error).to.be.instanceOf(Error)
-			}
+			const { systemPrompt } = await getSystemPrompt(invalidContext)
+			expect(systemPrompt).to.be.a("string")
 		})
 
 		it("should handle undefined context properties", async function () {

@@ -27,8 +27,8 @@ describe("Telemetry system is abstracted and can easily switch between providers
 	})
 	const MOCK_USER_INFO = {
 		id: "test-user-123",
-		email: "test@example.com",
 		displayName: "Test User",
+		email: "test@example.com",
 		createdAt: new Date().toISOString(),
 		organizations: [],
 	}
@@ -193,7 +193,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			noOpTelemetryService.identifyAccount(MOCK_USER_INFO)
 			noOpTelemetryService.captureTaskCompleted("task-789")
 			noOpTelemetryService.captureModelSelected("gpt-4", "openai", "task-789")
-			noOpTelemetryService.captureToolUsage("task-789", "write_to_file", "gpt-4", false, true)
+			noOpTelemetryService.captureToolUsage("task-789", "write_to_file", "gpt-4", "openai", false, true)
 
 			// Test provider methods directly
 			noOpProvider.log("test_event", { test: "property" })

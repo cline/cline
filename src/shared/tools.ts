@@ -21,6 +21,7 @@ export enum ClineDefaultTool {
 	MCP_DOCS = "load_mcp_documentation",
 	NEW_TASK = "new_task",
 	PLAN_MODE = "plan_mode_respond",
+	ACT_MODE = "act_mode_respond",
 	TODO = "focus_chain",
 	WEB_FETCH = "web_fetch",
 	CONDENSE = "condense",
@@ -28,6 +29,7 @@ export enum ClineDefaultTool {
 	REPORT_BUG = "report_bug",
 	NEW_RULE = "new_rule",
 	APPLY_PATCH = "apply_patch",
+	GENERATE_EXPLANATION = "generate_explanation",
 }
 
 // Array of all tool names for compatibility
