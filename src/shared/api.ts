@@ -2517,6 +2517,14 @@ export const mistralModels = {
 		inputPrice: 0.1,
 		outputPrice: 0.3,
 	},
+	"mistral-large-latest": {
+		maxTokens: 256_000,
+		contextWindow: 256_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.5,
+		outputPrice: 1.5,
+	},
 	"mistral-medium-latest": {
 		maxTokens: 128_000,
 		contextWindow: 128_000,
