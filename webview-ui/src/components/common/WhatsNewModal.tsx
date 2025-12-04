@@ -1,9 +1,15 @@
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { XIcon } from "lucide-react"
-import React from "react"
+import React, { useState } from "react"
+import { useMount } from "react-use"
 import { Button } from "@/components/ui/button"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
+import { useClineAuth } from "@/context/ClineAuthContext"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { AccountServiceClient } from "@/services/grpc-client"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../settings/OpenRouterModelPicker"
+import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 
 interface WhatsNewModalProps {
 	open: boolean
@@ -17,11 +23,42 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 	}
 
 	const isVscode = PLATFORM_CONFIG.type === PlatformType.VSCODE
+	const { clineUser } = useClineAuth()
+	const { openRouterModels, setShowChatModelSelector, refreshOpenRouterModels } = useExtensionState()
+	const user = clineUser || undefined
+	const { handleFieldsChange } = useApiConfigurationHandlers()
+
+	const [didClickMicrowaveButton, setDidClickMicrowaveButton] = useState(false)
+	// Need to get latest model list in case user hits shortcut button to set model
+	useMount(refreshOpenRouterModels)
 
 	const handleBackdropClick = (e: React.MouseEvent) => {
 		if (e.target === e.currentTarget) {
 			onClose()
 		}
+	}
+
+	const setMicrowave = () => {
+		const modelId = "stealth/microwave"
+		handleFieldsChange({
+			planModeOpenRouterModelId: modelId,
+			actModeOpenRouterModelId: modelId,
+			planModeOpenRouterModelInfo: openRouterModels[modelId],
+			actModeOpenRouterModelInfo: openRouterModels[modelId],
+			planModeApiProvider: "cline",
+			actModeApiProvider: "cline",
+		})
+
+		setTimeout(() => {
+			setDidClickMicrowaveButton(true)
+			setShowChatModelSelector(true)
+		}, 10)
+	}
+
+	const handleShowAccount = () => {
+		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
+			console.error("Failed to get login URL:", err),
+		)
 	}
 
 	return (
@@ -30,7 +67,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 			onClick={handleBackdropClick}
 			style={{ zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 100, paddingTop: "calc(15vh + 60px)" }}>
 			<div
-				className="relative bg-(--vscode-editor-background) rounded-sm border border-(--vscode-panel-border) shadow-lg max-w-md w-full mx-4"
+				className="relative bg-code rounded-sm shadow-lg max-w-md w-full mx-4"
 				style={{ maxWidth: "420px", height: "fit-content" }}>
 				{/* Close button */}
 				<Button
@@ -80,7 +117,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					</h2>
 
 					{/* Description */}
-					<ul className="text-sm mb-5 pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
+					<ul className="text-sm mb-3 pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						{isVscode && (
 							<>
 								<li className="mb-2">
@@ -105,7 +142,66 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 								</li>
 							</>
 						)}
+						<li className="mb-2">
+							New <code>microwave</code> stealth model, free for a limited time!
+							<br />
+							{user ? (
+								<div className="flex gap-2 flex-wrap my-1.5">
+									{!didClickMicrowaveButton && (
+										<VSCodeButton
+											appearance="primary"
+											onClick={setMicrowave}
+											style={{ transform: "scale(0.85)", transformOrigin: "left center" }}>
+											Try stealth/microwave
+										</VSCodeButton>
+									)}
+								</div>
+							) : (
+								<VSCodeButton
+									appearance="primary"
+									onClick={handleShowAccount}
+									style={{ margin: "5px 0", transform: "scale(0.85)", transformOrigin: "left center" }}>
+									Sign Up with Cline
+								</VSCodeButton>
+							)}
+						</li>
 					</ul>
+
+					{/* Demo link */}
+					{isVscode && (
+						<p className="text-sm mb-3" style={{ color: "var(--vscode-descriptionForeground)" }}>
+							See a{" "}
+							<VSCodeLink href="https://x.com/sdrzn/status/1995840893816111246" style={{ display: "inline" }}>
+								demo of "Explain Changes"
+							</VSCodeLink>
+						</p>
+					)}
+
+					{/* Divider */}
+					<div
+						className="mb-3"
+						style={{
+							height: "1px",
+							backgroundColor: "var(--vscode-descriptionForeground)",
+							opacity: 0.1,
+						}}
+					/>
+
+					{/* Social links */}
+					<p className="text-sm mb-5" style={{ color: "var(--vscode-descriptionForeground)" }}>
+						Join us on{" "}
+						<VSCodeLink href="https://x.com/cline" style={{ display: "inline" }}>
+							X,
+						</VSCodeLink>{" "}
+						<VSCodeLink href="https://discord.gg/cline" style={{ display: "inline" }}>
+							discord,
+						</VSCodeLink>{" "}
+						or{" "}
+						<VSCodeLink href="https://www.reddit.com/r/cline/" style={{ display: "inline" }}>
+							r/cline
+						</VSCodeLink>{" "}
+						for more updates!
+					</p>
 
 					{/* Action button */}
 					<div className="flex gap-3">

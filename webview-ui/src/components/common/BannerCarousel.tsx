@@ -1,4 +1,3 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -118,13 +117,13 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 					{currentBanner.actions && currentBanner.actions.length > 0 && (
 						<div className="flex gap-3 mt-4">
 							{currentBanner.actions.map((action, idx) => (
-								<VSCodeButton
-									appearance={action.variant === "secondary" ? "secondary" : "primary"}
+								<Button
 									disabled={action.disabled}
 									key={idx}
-									onClick={action.onClick}>
+									onClick={action.onClick}
+									variant={action.variant === "secondary" ? "secondary" : "default"}>
 									{action.label}
-								</VSCodeButton>
+								</Button>
 							))}
 						</div>
 					)}

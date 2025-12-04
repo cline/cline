@@ -35,7 +35,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	// Track if we've shown the "What's New" modal this session
 	const [hasShownWhatsNewModal, setHasShownWhatsNewModal] = useState(false)
 	const [showWhatsNewModal, setShowWhatsNewModal] = useState(false)
-	const [showContent, setShowContent] = useState(true) // Default to true, hide only when modal shows
 
 	const shouldShowInfoBanner = lastDismissedInfoBannerVersion < CURRENT_INFO_BANNER_VERSION
 	const shouldShowNewModelBanner = lastDismissedModelBannerVersion < CURRENT_MODEL_BANNER_VERSION
@@ -58,21 +57,10 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 		}
 	}, [showAnnouncement, hasShownWhatsNewModal])
 
-	// Control content visibility based on modal state
-	useEffect(() => {
-		if (showWhatsNewModal) {
-			setShowContent(false) // Hide content when modal is open
-		} else {
-			setShowContent(true) // Show content when modal is closed
-		}
-	}, [showWhatsNewModal])
-
 	const handleCloseWhatsNewModal = useCallback(() => {
 		setShowWhatsNewModal(false)
 		// Call hideAnnouncement to persist dismissal (same as old banner behavior)
 		hideAnnouncement()
-		// Trigger fade-in animation after modal closes
-		setTimeout(() => setShowContent(true), 100)
 	}, [hideAnnouncement])
 
 	// Build array of active banners for carousel
@@ -225,7 +213,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 			<WhatsNewModal onClose={handleCloseWhatsNewModal} open={showWhatsNewModal} version={version} />
 			<div className="overflow-y-auto flex flex-col pb-2.5">
 				<HomeHeader shouldShowQuickWins={shouldShowQuickWins} />
-				{showContent && (
+				{!showWhatsNewModal && (
 					<>
 						<div className="fade-in-cards">
 							<BannerCarousel banners={activeBanners} />
