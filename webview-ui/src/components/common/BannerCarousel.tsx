@@ -1,5 +1,5 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { ChevronLeft, ChevronRight, XIcon } from "lucide-react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
 
@@ -16,7 +16,6 @@ export interface BannerData {
 	title: string
 	description: string | React.ReactNode
 	actions?: BannerAction[]
-	onClose: () => void
 }
 
 interface BannerCarouselProps {
@@ -95,14 +94,9 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 					backgroundColor: "color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 65%, transparent)",
 					borderRadius: "4px",
 				}}>
-				{/* Close button */}
-				<Button className="absolute top-4 right-4 z-10" onClick={currentBanner.onClose} size="icon" variant="icon">
-					<XIcon style={{ width: "18px", height: "16px" }} />
-				</Button>
-
 				{/* Card content with fixed height and fade transition */}
 				<div
-					className="px-4 pt-4 pb-3 pr-8"
+					className="px-4 pt-4 pb-3"
 					style={{
 						height: "144px",
 						overflow: "hidden",

@@ -1,4 +1,4 @@
-import { EmptyRequest, Int64Request } from "@shared/proto/index.cline"
+import { EmptyRequest } from "@shared/proto/index.cline"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { Megaphone, Terminal } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
@@ -35,7 +35,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	// Track if we've shown the "What's New" modal this session
 	const [hasShownWhatsNewModal, setHasShownWhatsNewModal] = useState(false)
 	const [showWhatsNewModal, setShowWhatsNewModal] = useState(false)
-	const [showContent, setShowContent] = useState(false)
+	const [showContent, setShowContent] = useState(true) // Default to true, hide only when modal shows
 
 	const shouldShowInfoBanner = lastDismissedInfoBannerVersion < CURRENT_INFO_BANNER_VERSION
 	const shouldShowNewModelBanner = lastDismissedModelBannerVersion < CURRENT_MODEL_BANNER_VERSION
@@ -49,20 +49,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	const { clineUser } = useClineAuth()
 	const { openRouterModels, setShowChatModelSelector, navigateToSettings, subagentsEnabled } = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
-
-	const handleCloseInfoBanner = useCallback(() => {
-		StateServiceClient.updateInfoBannerVersion({ value: CURRENT_INFO_BANNER_VERSION }).catch(console.error)
-	}, [])
-
-	const handleCloseModelBanner = useCallback(() => {
-		StateServiceClient.updateModelBannerVersion(Int64Request.create({ value: CURRENT_MODEL_BANNER_VERSION })).catch(
-			console.error,
-		)
-	}, [])
-
-	const handleCloseCliBanner = useCallback(() => {
-		StateServiceClient.updateCliBannerVersion(Int64Request.create({ value: CURRENT_CLI_BANNER_VERSION })).catch(console.error)
-	}, [])
 
 	// Show modal when there's a new announcement and we haven't shown it this session
 	useEffect(() => {
@@ -111,7 +97,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 						</VSCodeLink>
 					</>
 				),
-				onClose: handleCloseInfoBanner,
 			})
 		}
 
@@ -127,7 +112,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 					actModeApiProvider: "cline",
 				})
 				setTimeout(() => setShowChatModelSelector(true), 10)
-				setTimeout(handleCloseModelBanner, 50)
 			}
 
 			const handleShowAccount = () => {
@@ -148,7 +132,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 						variant: "primary",
 					},
 				],
-				onClose: handleCloseModelBanner,
 			})
 		}
 
@@ -200,7 +183,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 							{ label: "Install CLI", onClick: handleInstallCli, variant: "primary" },
 							{ label: "Subagents (Windows coming soon)", onClick: () => {}, variant: "secondary", disabled: true },
 						],
-				onClose: handleCloseCliBanner,
 			})
 		}
 
@@ -215,9 +197,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 		handleFieldsChange,
 		navigateToSettings,
 		subagentsEnabled,
-		handleCloseInfoBanner,
-		handleCloseModelBanner,
-		handleCloseCliBanner,
 	])
 
 	return (

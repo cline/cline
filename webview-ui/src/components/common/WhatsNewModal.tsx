@@ -24,15 +24,6 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 		}
 	}
 
-	const handleContentClick = (e: React.MouseEvent) => {
-		// Allow links (a tags) to propagate so they work properly
-		if (e.target instanceof HTMLElement && e.target.tagName === "A") {
-			return
-		}
-		// Stop propagation for other clicks to prevent closing modal
-		e.stopPropagation()
-	}
-
 	return (
 		<div
 			className="fixed inset-0 bg-black/80 flex justify-center items-start"
@@ -40,7 +31,6 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 			style={{ zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 100, paddingTop: "calc(15vh + 60px)" }}>
 			<div
 				className="relative bg-(--vscode-editor-background) rounded-sm border border-(--vscode-panel-border) shadow-lg max-w-md w-full mx-4"
-				onClick={handleContentClick}
 				style={{ maxWidth: "420px", height: "fit-content" }}>
 				{/* Close button */}
 				<Button
