@@ -871,7 +871,7 @@ export class ContextManager {
 					// file mentions can happen in most other user message blocks
 					if (!foundNormalFileRead) {
 						// search over indices 0-2 inclusive for file mentions
-						// this is a heuristic to catch most occurences without looping over all inner indices
+						// this is a heuristic to catch most occurrences without looping over all inner indices
 						for (const candidateIndex of [0, 1, 2]) {
 							if (candidateIndex >= message.content.length) {
 								break
