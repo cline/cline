@@ -12,7 +12,7 @@ export type DeepSeekReasonerMessage = OpenAI.Chat.ChatCompletionMessageParam & {
 /**
  * Adds reasoning_content to OpenAI messages for DeepSeek Reasoner.
  * Per DeepSeek API: reasoning_content should be passed back during tool calling in the same turn,
- * and cleared when starting a new turn.
+ * and omitted when starting a new turn.
  */
 export function addReasoningContent(
 	openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[],
