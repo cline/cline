@@ -85,7 +85,14 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 	}
 
 	return (
-		<div className="mx-4 mb-4 mt-9" onMouseEnter={() => setIsPaused(true)} onMouseLeave={() => setIsPaused(false)}>
+		<div
+			aria-label="Announcements"
+			aria-live="polite"
+			aria-roledescription="carousel"
+			className="mx-4 mb-4 mt-9"
+			onMouseEnter={() => setIsPaused(true)}
+			onMouseLeave={() => setIsPaused(false)}
+			role="region">
 			{/* Card container with unified styling */}
 			<div
 				className="relative"
@@ -144,6 +151,7 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 						{/* Navigation arrows */}
 						<div className="flex -mr-3">
 							<Button
+								aria-label="Previous banner"
 								onClick={handlePrevious}
 								size="icon"
 								style={{
@@ -156,6 +164,7 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 								<ChevronLeft style={{ width: "18px", height: "18px" }} />
 							</Button>
 							<Button
+								aria-label="Next banner"
 								onClick={handleNext}
 								size="icon"
 								style={{

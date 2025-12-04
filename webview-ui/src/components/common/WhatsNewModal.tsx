@@ -38,6 +38,17 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 		}
 	}
 
+	// Handle escape key to close modal
+	React.useEffect(() => {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key === "Escape" && open) {
+				onClose()
+			}
+		}
+		window.addEventListener("keydown", handleKeyDown)
+		return () => window.removeEventListener("keydown", handleKeyDown)
+	}, [open, onClose])
+
 	const setMicrowave = () => {
 		const modelId = "stealth/microwave"
 		handleFieldsChange({
@@ -63,14 +74,18 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 
 	return (
 		<div
+			aria-modal="true"
 			className="fixed inset-0 bg-black/80 flex justify-center items-start"
 			onClick={handleBackdropClick}
+			role="dialog"
 			style={{ zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 100, paddingTop: "calc(15vh + 60px)" }}>
 			<div
+				aria-labelledby="whats-new-title"
 				className="relative bg-code rounded-sm shadow-lg max-w-md w-full mx-4"
 				style={{ maxWidth: "420px", height: "fit-content" }}>
 				{/* Close button */}
 				<Button
+					aria-label="Close"
 					className="absolute top-3 right-3 z-10"
 					onClick={onClose}
 					size="icon"
@@ -112,7 +127,10 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					</div>
 
 					{/* Title */}
-					<h2 className="text-lg font-semibold mb-3" style={{ color: "var(--vscode-editor-foreground)" }}>
+					<h2
+						className="text-lg font-semibold mb-3"
+						id="whats-new-title"
+						style={{ color: "var(--vscode-editor-foreground)" }}>
 						🎉 New in v{version}
 					</h2>
 
