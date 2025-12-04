@@ -320,10 +320,9 @@ export async function readTaskHistoryFromState(): Promise<HistoryItem[]> {
 			return []
 		}
 	} catch (error) {
-		// File system or other errors
+		// Filesystem or other errors - throw them for the caller to handle
 		telemetryService.captureExtensionStorageError(error, "readTaskHistoryFromState")
-		console.error("[Disk] Failed to read task history:", error)
-		return []
+		throw error
 	}
 }
 
