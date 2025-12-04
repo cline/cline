@@ -104,8 +104,9 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 						editor visible while you chat with Cline, making it easier to navigate your codebase and see changes in
 						real-time.{" "}
 						<VSCodeLink
+							className="cursor-pointer"
 							href="https://docs.cline.bot/features/customization/opening-cline-in-sidebar"
-							style={{ display: "inline", cursor: "pointer" }}>
+							style={{ display: "inline" }}>
 							See how →
 						</VSCodeLink>
 					</>

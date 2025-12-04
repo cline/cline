@@ -87,11 +87,7 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 	}
 
 	return (
-		<div
-			className="mx-4 mb-4"
-			onMouseEnter={() => setIsPaused(true)}
-			onMouseLeave={() => setIsPaused(false)}
-			style={{ marginTop: "36px" }}>
+		<div className="mx-4 mb-4 mt-9" onMouseEnter={() => setIsPaused(true)} onMouseLeave={() => setIsPaused(false)}>
 			{/* Card container with unified styling */}
 			<div
 				className="relative"
@@ -153,7 +149,7 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 						</div>
 
 						{/* Navigation arrows */}
-						<div className="flex" style={{ marginRight: "-12px" }}>
+						<div className="flex -mr-3">
 							<Button
 								onClick={handlePrevious}
 								size="icon"
