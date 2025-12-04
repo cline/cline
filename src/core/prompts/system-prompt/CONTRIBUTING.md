@@ -1,6 +1,6 @@
 # Contributing to System Prompts and Model Configuration
 
-This guide explains how to add new model families and configure custom system prompts for Mode Labs contributors.
+This guide explains how to add new model families and configure custom system prompts for contributors from model labs / providers.
 
 > **⚡ Key Principle: Fallback to GENERIC**
 >
