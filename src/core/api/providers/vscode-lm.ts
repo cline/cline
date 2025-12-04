@@ -1,5 +1,5 @@
 import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
-import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vscodeSelectorUtils"
+import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { calculateApiCostAnthropic } from "@utils/cost"
 import * as vscode from "vscode"
 import { ClineStorageMessage } from "@/shared/messages/content"

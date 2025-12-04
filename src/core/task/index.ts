@@ -42,7 +42,7 @@ import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
-import { CommandExecutor, CommandExecutorCallbacks, CommandExecutorConfig } from "@integrations/terminal/CommandExecutor"
+import { CommandExecutor, CommandExecutorCallbacks, FullCommandExecutorConfig } from "@integrations/terminal/CommandExecutor"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { featureFlagsService } from "@services/feature-flags"
@@ -514,7 +514,7 @@ export class Task {
 		}
 
 		// Initialize command executor with config and callbacks
-		const commandExecutorConfig: CommandExecutorConfig = {
+		const commandExecutorConfig: FullCommandExecutorConfig = {
 			cwd: this.cwd,
 			terminalExecutionMode: this.terminalExecutionMode,
 			terminalManager: this.terminalManager,
@@ -526,6 +526,15 @@ export class Task {
 
 		const commandExecutorCallbacks: CommandExecutorCallbacks = {
 			say: this.say.bind(this) as CommandExecutorCallbacks["say"],
+			ask: async (type: string, text?: string, partial?: boolean) => {
+				const result = await this.ask(type as ClineAsk, text, partial)
+				return {
+					response: result.response,
+					text: result.text,
+					images: result.images,
+					files: result.files,
+				}
+			},
 			updateBackgroundCommandState: (isRunning: boolean) =>
 				this.controller.updateBackgroundCommandState(isRunning, this.taskId),
 			updateClineMessage: async (index: number, updates: { commandCompleted?: boolean }) => {
