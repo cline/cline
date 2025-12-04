@@ -6,7 +6,7 @@ import { Logger } from "@services/logging/Logger"
 import { TerminalHangStage, telemetryService } from "@services/telemetry"
 import { ClineToolResponseContent } from "@shared/messages"
 
-import { BackgroundCommandTracker } from "./BackgroundCommandTracker"
+import { BackgroundCommandTracker } from "./backgroundCommand/BackgroundCommandTracker"
 import { TerminalManager } from "./vscode/TerminalManager"
 import { TerminalProcessResultPromise } from "./vscode/TerminalProcess"
 
