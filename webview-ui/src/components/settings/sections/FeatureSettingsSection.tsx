@@ -181,33 +181,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
-						<Tooltip>
-							<TooltipTrigger>
-								<div className="flex items-center gap-2">
-									<VSCodeCheckbox
-										checked={mcpMarketplaceEnabled}
-										disabled={remoteConfigSettings?.mcpMarketplaceEnabled !== undefined}
-										onChange={(e: any) => {
-											const checked = e.target.checked === true
-											updateSetting("mcpMarketplaceEnabled", checked)
-										}}>
-										Enable MCP Marketplace
-									</VSCodeCheckbox>
-									{remoteConfigSettings?.mcpMarketplaceEnabled !== undefined && (
-										<i className="codicon codicon-lock text-description text-sm" />
-									)}
-								</div>
-							</TooltipTrigger>
-							<TooltipContent hidden={remoteConfigSettings?.mcpMarketplaceEnabled === undefined}>
-								This setting is managed by your organization's remote configuration
-							</TooltipContent>
-						</Tooltip>
-
-						<p className="text-xs text-description">
-							Enables the MCP Marketplace tab for discovering and installing MCP servers.
-						</p>
-					</div>
-					<div style={{ marginTop: 10 }}>
 						<label
 							className="block text-sm font-medium text-(--vscode-foreground) mb-1"
 							htmlFor="mcp-display-mode-dropdown">
