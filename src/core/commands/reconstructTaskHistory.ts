@@ -16,8 +16,10 @@ interface TaskReconstructionResult {
 
 /**
  * Reconstructs task history from existing task folders
+ * @param isManuallyCalled Whether the function was called manually by the user through command palette
+ * @returns Reconstruction result or null if cancelled
  */
-export async function reconstructTaskHistory(): Promise<TaskReconstructionResult | null> {
+export async function reconstructTaskHistory(isManuallyCalled = true): Promise<TaskReconstructionResult | null> {
 	try {
 		// Show confirmation dialog using HostProvider
 		const proceed = await HostProvider.window.showMessage({
@@ -33,36 +35,42 @@ export async function reconstructTaskHistory(): Promise<TaskReconstructionResult
 			return null
 		}
 
-		// Show initial progress message
-		HostProvider.window.showMessage({
-			type: ShowMessageType.INFORMATION,
-			message: "Reconstructing task history...",
-		})
+		if (isManuallyCalled) {
+			// Show initial progress message
+			HostProvider.window.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "Reconstructing task history...",
+			})
+		}
 
 		const result = await performTaskHistoryReconstruction()
 
 		// Show results
-		if (result.errors.length > 0) {
-			const errorMessage = `Reconstruction completed with warnings:\n- Reconstructed: ${result.reconstructedTasks} tasks\n- Skipped: ${result.skippedTasks} tasks\n- Errors: ${result.errors.length}\n\nFirst few errors:\n${result.errors.slice(0, 3).join("\n")}`
+		if (isManuallyCalled) {
+			if (result.errors.length > 0) {
+				const errorMessage = `Reconstruction completed with warnings:\n- Reconstructed: ${result.reconstructedTasks} tasks\n- Skipped: ${result.skippedTasks} tasks\n- Errors: ${result.errors.length}\n\nFirst few errors:\n${result.errors.slice(0, 3).join("\n")}`
 
-			HostProvider.window.showMessage({
-				type: ShowMessageType.WARNING,
-				message: errorMessage,
-			})
-		} else {
-			HostProvider.window.showMessage({
-				type: ShowMessageType.INFORMATION,
-				message: `Task history successfully reconstructed! Found and restored ${result.reconstructedTasks} tasks.`,
-			})
+				HostProvider.window.showMessage({
+					type: ShowMessageType.WARNING,
+					message: errorMessage,
+				})
+			} else {
+				HostProvider.window.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message: `Task history successfully reconstructed! Found and restored ${result.reconstructedTasks} tasks.`,
+				})
+			}
 		}
 
 		return result
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
-		HostProvider.window.showMessage({
-			type: ShowMessageType.ERROR,
-			message: `Failed to reconstruct task history: ${errorMessage}`,
-		})
+		if (isManuallyCalled) {
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: `Failed to reconstruct task history: ${errorMessage}`,
+			})
+		}
 		return null
 	}
 }

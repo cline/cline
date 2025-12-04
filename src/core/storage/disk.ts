@@ -309,7 +309,7 @@ export async function readTaskHistoryFromState(attemptedReconstruction = false):
 						throw new Error("Failed to parse task history JSON after reconstruction attempt...")
 					}
 					telemetryService.captureExtensionStorageError(parseError, "readTaskHistoryFromState parse error")
-					await reconstructTaskHistory()
+					await reconstructTaskHistory(false)
 					return await readTaskHistoryFromState(true)
 				}
 			} catch (readError) {
