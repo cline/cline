@@ -197,4 +197,371 @@ describe("ContextManager", () => {
 			expect((content[0] as Anthropic.Messages.TextBlockParam).text).to.equal("Additional user text")
 		})
 	})
+
+	describe("applyFileReadContextHistoryUpdates", () => {
+		let contextManager: ContextManager
+
+		beforeEach(() => {
+			contextManager = new ContextManager()
+		})
+
+		it("should return early when fileReadIndices is empty", () => {
+			const fileReadIndices = new Map<string, [number, number, string, string, number][]>()
+			const messageFilePaths = new Map<number, string[]>()
+			const apiMessages: Anthropic.Messages.MessageParam[] = []
+			const timestamp = Date.now()
+
+			const [didUpdate, updatedIndices] = (contextManager as any).applyFileReadContextHistoryUpdates(
+				fileReadIndices,
+				messageFilePaths,
+				apiMessages,
+				timestamp,
+			)
+
+			expect(didUpdate).to.be.false
+			expect(updatedIndices.size).to.equal(0)
+		})
+
+		it("should not update when file has only one occurrence", () => {
+			const fileReadIndices = new Map<string, [number, number, string, string, number][]>()
+			fileReadIndices.set("test.ts", [[3, 2, "", "replacement text", 0]])
+
+			const messageFilePaths = new Map<number, string[]>()
+			const apiMessages: Anthropic.Messages.MessageParam[] = []
+			const timestamp = Date.now()
+
+			const [didUpdate, updatedIndices] = (contextManager as any).applyFileReadContextHistoryUpdates(
+				fileReadIndices,
+				messageFilePaths,
+				apiMessages,
+				timestamp,
+			)
+
+			expect(didUpdate).to.be.false
+			expect(updatedIndices.size).to.equal(0)
+		})
+
+		it("should update all but the last occurrence of duplicate file reads", () => {
+			const fileReadIndices = new Map<string, [number, number, string, string, number][]>()
+			// messageIndex, messageType (READ_FILE_TOOL=2), searchText, replaceText, innerIndex
+			fileReadIndices.set("test.ts", [
+				[3, 2, "", "[read_file for 'test.ts'] Result:\nDuplicate file read...", 0],
+				[5, 2, "", "[read_file for 'test.ts'] Result:\nDuplicate file read...", 0],
+				[7, 2, "", "[read_file for 'test.ts'] Result:\nKeep this one", 0],
+			])
+
+			const messageFilePaths = new Map<number, string[]>()
+			const apiMessages: Anthropic.Messages.MessageParam[] = []
+			const timestamp = Date.now()
+
+			const [didUpdate, updatedIndices] = (contextManager as any).applyFileReadContextHistoryUpdates(
+				fileReadIndices,
+				messageFilePaths,
+				apiMessages,
+				timestamp,
+			)
+
+			expect(didUpdate).to.be.true
+			expect(updatedIndices.size).to.equal(2)
+			expect(updatedIndices.has(3)).to.be.true
+			expect(updatedIndices.has(5)).to.be.true
+			expect(updatedIndices.has(7)).to.be.false // Last occurrence should not be updated
+		})
+
+		it("should handle FILE_MENTION type correctly with multiple files in same text", () => {
+			const fileReadIndices = new Map<string, [number, number, string, string, number][]>()
+			// FILE_MENTION = 4
+			fileReadIndices.set("file1.ts", [
+				[
+					3,
+					4,
+					'<file_content path="file1.ts">content1</file_content>',
+					'<file_content path="file1.ts">Duplicate file read...</file_content>',
+					0,
+				],
+				[
+					5,
+					4,
+					'<file_content path="file1.ts">content2</file_content>',
+					'<file_content path="file1.ts">Keep this</file_content>',
+					0,
+				],
+			])
+			fileReadIndices.set("file2.ts", [
+				[
+					3,
+					4,
+					'<file_content path="file2.ts">content3</file_content>',
+					'<file_content path="file2.ts">Duplicate file read...</file_content>',
+					0,
+				],
+				[
+					6,
+					4,
+					'<file_content path="file2.ts">content4</file_content>',
+					'<file_content path="file2.ts">Keep this</file_content>',
+					0,
+				],
+			])
+
+			const messageFilePaths = new Map<number, string[]>()
+			messageFilePaths.set(3, ["file1.ts", "file2.ts"])
+
+			const apiMessages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: "Initial" },
+				{ role: "assistant", content: "Response" },
+				{ role: "user", content: "Message" },
+				{
+					role: "user",
+					content: [
+						{
+							type: "text",
+							text: '<file_content path="file1.ts">content1</file_content>\n<file_content path="file2.ts">content3</file_content>',
+						},
+					],
+				},
+			]
+			const timestamp = Date.now()
+
+			const [didUpdate, updatedIndices] = (contextManager as any).applyFileReadContextHistoryUpdates(
+				fileReadIndices,
+				messageFilePaths,
+				apiMessages,
+				timestamp,
+			)
+
+			expect(didUpdate).to.be.true
+			expect(updatedIndices.size).to.equal(1)
+			expect(updatedIndices.has(3)).to.be.true
+		})
+
+		it("should handle ALTER_FILE_TOOL type correctly", () => {
+			const fileReadIndices = new Map<string, [number, number, string, string, number][]>()
+			// ALTER_FILE_TOOL = 3
+			fileReadIndices.set("test.ts", [
+				[3, 3, "", "replacement text 1", 0],
+				[5, 3, "", "replacement text 2", 0],
+			])
+
+			const messageFilePaths = new Map<number, string[]>()
+			const apiMessages: Anthropic.Messages.MessageParam[] = []
+			const timestamp = Date.now()
+
+			const [didUpdate, updatedIndices] = (contextManager as any).applyFileReadContextHistoryUpdates(
+				fileReadIndices,
+				messageFilePaths,
+				apiMessages,
+				timestamp,
+			)
+
+			expect(didUpdate).to.be.true
+			expect(updatedIndices.size).to.equal(1)
+			expect(updatedIndices.has(3)).to.be.true
+			expect(updatedIndices.has(5)).to.be.false
+		})
+
+		it("should handle native tool calling format (tool_result blocks)", () => {
+			const fileReadIndices = new Map<string, [number, number, string, string, number][]>()
+			fileReadIndices.set("test.ts", [
+				[3, 2, "", "[read_file for 'test.ts'] Result:\nDuplicate...", 0],
+				[5, 2, "", "[read_file for 'test.ts'] Result:\nKeep this", 0],
+			])
+
+			const messageFilePaths = new Map<number, string[]>()
+			const apiMessages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: "Initial" },
+				{ role: "assistant", content: "Response" },
+				{ role: "user", content: "Message" },
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "tool_123",
+							content: [{ type: "text", text: "[read_file for 'test.ts'] Result:\noriginal content" }],
+						},
+					],
+				},
+			]
+			const timestamp = Date.now()
+
+			const [didUpdate, updatedIndices] = (contextManager as any).applyFileReadContextHistoryUpdates(
+				fileReadIndices,
+				messageFilePaths,
+				apiMessages,
+				timestamp,
+			)
+
+			expect(didUpdate).to.be.true
+			expect(updatedIndices.size).to.equal(1)
+			expect(updatedIndices.has(3)).to.be.true
+		})
+	})
+
+	describe("helper methods for applyFileReadContextHistoryUpdates", () => {
+		let contextManager: ContextManager
+
+		beforeEach(() => {
+			contextManager = new ContextManager()
+		})
+
+		it("getBaseTextForFileMention should get text from existing updates", () => {
+			const messageIndex = 3
+			const innerIndex = 0
+			const apiMessages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: "Initial" },
+				{ role: "assistant", content: "Response" },
+				{ role: "user", content: "Message" },
+				{ role: "user", content: [{ type: "text", text: "original text" }] },
+			]
+
+			// Manually set up context history updates
+			const timestamp = Date.now()
+			const innerMap = new Map<number, any[]>()
+			innerMap.set(innerIndex, [[timestamp, "text", ["updated text"], []]])
+			;(contextManager as any).contextHistoryUpdates.set(messageIndex, [4, innerMap])
+
+			const result = (contextManager as any).getBaseTextForFileMention(messageIndex, innerIndex, apiMessages)
+
+			expect(result).to.equal("updated text")
+		})
+
+		it("getBaseTextForFileMention should fallback to original message content", () => {
+			const messageIndex = 3
+			const innerIndex = 0
+			const apiMessages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: "Initial" },
+				{ role: "assistant", content: "Response" },
+				{ role: "user", content: "Message" },
+				{ role: "user", content: [{ type: "text", text: "original text" }] },
+			]
+
+			const result = (contextManager as any).getBaseTextForFileMention(messageIndex, innerIndex, apiMessages)
+
+			expect(result).to.equal("original text")
+		})
+
+		it("getBaseTextForFileMention should handle tool_result blocks", () => {
+			const messageIndex = 3
+			const innerIndex = 0
+			const apiMessages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: "Initial" },
+				{ role: "assistant", content: "Response" },
+				{ role: "user", content: "Message" },
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "tool_123",
+							content: [{ type: "text", text: "tool result text" }],
+						},
+					],
+				},
+			]
+
+			const result = (contextManager as any).getBaseTextForFileMention(messageIndex, innerIndex, apiMessages)
+
+			expect(result).to.equal("tool result text")
+		})
+
+		it("getPreviouslyReplacedFiles should return empty array when no updates exist", () => {
+			const messageIndex = 3
+			const innerIndex = 0
+
+			const result = (contextManager as any).getPreviouslyReplacedFiles(messageIndex, innerIndex)
+
+			expect(result).to.deep.equal([])
+		})
+
+		it("getPreviouslyReplacedFiles should return previously replaced files", () => {
+			const messageIndex = 3
+			const innerIndex = 0
+			const timestamp = Date.now()
+
+			// Manually set up context history updates with metadata
+			const innerMap = new Map<number, any[]>()
+			innerMap.set(innerIndex, [
+				[
+					timestamp,
+					"text",
+					["updated text"],
+					[
+						["file1.ts", "file2.ts"],
+						["file1.ts", "file2.ts", "file3.ts"],
+					],
+				],
+			])
+			;(contextManager as any).contextHistoryUpdates.set(messageIndex, [4, innerMap])
+
+			const result = (contextManager as any).getPreviouslyReplacedFiles(messageIndex, innerIndex)
+
+			expect(result).to.deep.equal(["file1.ts", "file2.ts"])
+		})
+
+		it("addContextUpdate should create new entry when none exists", () => {
+			const messageIndex = 3
+			const messageType = 2 // READ_FILE_TOOL
+			const innerIndex = 0
+			const timestamp = Date.now()
+			const messageString = "replacement text"
+
+			;(contextManager as any).addContextUpdate(messageIndex, messageType, innerIndex, timestamp, messageString)
+
+			const contextHistory = (contextManager as any).contextHistoryUpdates
+			expect(contextHistory.has(messageIndex)).to.be.true
+
+			const [storedType, innerMap] = contextHistory.get(messageIndex)
+			expect(storedType).to.equal(messageType)
+			expect(innerMap.has(innerIndex)).to.be.true
+
+			const updates = innerMap.get(innerIndex)
+			expect(updates).to.have.lengthOf(1)
+			expect(updates[0]).to.deep.equal([timestamp, "text", [messageString], []])
+		})
+
+		it("addContextUpdate should append to existing updates", () => {
+			const messageIndex = 3
+			const messageType = 2
+			const innerIndex = 0
+			const timestamp1 = Date.now()
+			const timestamp2 = timestamp1 + 1000
+
+			;(contextManager as any).addContextUpdate(messageIndex, messageType, innerIndex, timestamp1, "first update")
+			;(contextManager as any).addContextUpdate(messageIndex, messageType, innerIndex, timestamp2, "second update")
+
+			const contextHistory = (contextManager as any).contextHistoryUpdates
+			const [, innerMap] = contextHistory.get(messageIndex)
+			const updates = innerMap.get(innerIndex)
+
+			expect(updates).to.have.lengthOf(2)
+			expect(updates[1]).to.deep.equal([timestamp2, "text", ["second update"], []])
+		})
+
+		it("getOrCreateInnerMap should return existing map", () => {
+			const messageIndex = 3
+			const messageType = 2
+			const innerMap = new Map<number, any[]>()
+			;(contextManager as any).contextHistoryUpdates.set(messageIndex, [messageType, innerMap])
+
+			const result = (contextManager as any).getOrCreateInnerMap(messageIndex, messageType)
+
+			expect(result).to.equal(innerMap)
+		})
+
+		it("getOrCreateInnerMap should create new map when none exists", () => {
+			const messageIndex = 3
+			const messageType = 2
+
+			const result = (contextManager as any).getOrCreateInnerMap(messageIndex, messageType)
+
+			expect(result).to.be.instanceOf(Map)
+			const contextHistory = (contextManager as any).contextHistoryUpdates
+			expect(contextHistory.has(messageIndex)).to.be.true
+
+			const [storedType, storedMap] = contextHistory.get(messageIndex)
+			expect(storedType).to.equal(messageType)
+			expect(storedMap).to.equal(result)
+		})
+	})
 })
