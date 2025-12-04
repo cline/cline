@@ -11,6 +11,7 @@ import os from "os"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
+import { telemetryService } from "@/services/telemetry"
 import { McpMarketplaceCatalog } from "@/shared/mcp"
 import { reconstructTaskHistory } from "../commands/reconstructTaskHistory"
 import { StateManager } from "./StateManager"
@@ -302,19 +303,20 @@ export async function readTaskHistoryFromState(attemptedReconstruction = false):
 				return JSON.parse(contents)
 			} catch (parseError) {
 				if (attemptedReconstruction) {
+					telemetryService.captureExtensionStorageError(parseError, "attemptedReconstruction failed")
 					// Avoid infinite loop - reconstruction already attempted
 					throw new Error(
 						"Failed to parse task history JSON after reconstruction attempt. The file may be corrupted beyond repair.",
 					)
 				}
-				console.error("[Disk] Failed to parse task history JSON, attempting reconstruction:", parseError)
+				telemetryService.captureExtensionStorageError(parseError, "attemptedReconstruction")
 				await reconstructTaskHistory()
 				return await readTaskHistoryFromState(true)
 			}
 		}
 		return []
 	} catch (error) {
-		console.error("[Disk] Failed to read task history:", error)
+		telemetryService.captureExtensionStorageError(error, "readTaskHistoryFromState")
 		throw error
 	}
 }
