@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.40.0
+## [3.40.0]
 
 - Fix highlighted text flashing when task header is collapsed
 - Add X-Cerebras-3rd-Party-Integration header to Cerebras API requests
