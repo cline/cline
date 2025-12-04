@@ -16,6 +16,7 @@ export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 		"openai-native",
 		"baseten",
 		"vercel-ai-gateway",
+		"deepseek",
 	].some((id) => providerId === id)
 }
 
@@ -121,6 +122,11 @@ export function isGemini3ModelFamily(id: string): boolean {
 	return modelId.includes("gemini3") || modelId.includes("gemini-3")
 }
 
+export function isDeepSeekModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("deepseek")
+}
+
 export function isNextGenModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return (
@@ -130,7 +136,8 @@ export function isNextGenModelFamily(id: string): boolean {
 		isGPT5ModelFamily(modelId) ||
 		isMinimaxModelFamily(modelId) ||
 		isGemini3ModelFamily(modelId) ||
-		isNextGenOpenSourceModelFamily(modelId)
+		isNextGenOpenSourceModelFamily(modelId) ||
+		isDeepSeekModelFamily(modelId)
 	)
 }
 
