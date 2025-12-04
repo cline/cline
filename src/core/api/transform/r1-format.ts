@@ -19,6 +19,8 @@ export function addReasoningContent(
 	originalMessages: ClineStorageMessage[],
 ): DeepSeekReasonerMessage[] {
 	// Find last user message index (start of current turn)
+	// If no user message exists (lastUserIndex = -1), all messages are in the "current turn",
+	// so reasoning_content will be added to all assistant messages. This is intentional.
 	let lastUserIndex = -1
 	for (let i = openAiMessages.length - 1; i >= 0; i--) {
 		if (openAiMessages[i].role === "user") {
