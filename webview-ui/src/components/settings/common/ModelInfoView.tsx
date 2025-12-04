@@ -132,7 +132,7 @@ const formatCompactPrice = (price: number | undefined): string => {
 	if (price < 1) {
 		return `$${price.toFixed(2)}/M`
 	}
-	return `$${Math.round(price)}/M`
+	return `$${price % 1 === 0 ? price : price.toFixed(2)}/M`
 }
 
 /**
