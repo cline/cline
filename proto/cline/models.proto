@@ -378,7 +378,7 @@ message OcaModelInfo {
   optional string banner = 16;
   // Canonical model identifier as reported by OCA
   string model_name = 17;
-    // The API format used by this model
+  // The API format used by this model
   optional ApiFormat api_format = 18;
 }
 
