@@ -23,6 +23,7 @@ export async function createOpenRouterStream(
 	openRouterProviderSorting?: string,
 	tools?: Array<ChatCompletionTool>,
 	geminiThinkingLevel?: string,
+	abortSignal?: AbortSignal,
 ) {
 	// Convert Anthropic messages to OpenAI format
 	let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -209,6 +210,7 @@ export async function createOpenRouterStream(
 		...(model.id.includes("gemini") && geminiThinkingLevel
 			? { thinking_config: { thinking_level: geminiThinkingLevel, include_thoughts: true } }
 			: {}),
+		signal: abortSignal,
 	})
 
 	return stream

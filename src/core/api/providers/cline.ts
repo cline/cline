@@ -38,6 +38,7 @@ export class ClineHandler implements ApiHandler {
 	private readonly _baseUrl = ClineEnv.config().apiBaseUrl
 	lastGenerationId?: string
 	private lastRequestId?: string
+	private abortController?: AbortController
 
 	constructor(options: ClineHandlerOptions) {
 		this.options = options
@@ -101,7 +102,7 @@ export class ClineHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		try {
 			const client = await this.ensureClient()
-
+			this.abortController = new AbortController()
 			this.lastGenerationId = undefined
 			this.lastRequestId = undefined
 
@@ -117,6 +118,7 @@ export class ClineHandler implements ApiHandler {
 				this.options.openRouterProviderSorting,
 				tools,
 				this.options.geminiThinkingLevel,
+				this.abortController.signal,
 			)
 
 			const toolCallProcessor = new ToolCallProcessor()
@@ -269,6 +271,12 @@ export class ClineHandler implements ApiHandler {
 	// Expose the last HTTP request ID captured from response headers (X-Request-ID)
 	getLastRequestId(): string | undefined {
 		return this.lastRequestId
+	}
+
+	abort(): void {
+		this.abortController?.abort()
+		this.abortController = undefined
+		Logger.log("ClineHandler: Aborted ongoing request")
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
