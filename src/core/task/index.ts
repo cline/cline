@@ -2104,10 +2104,7 @@ export class Task {
 			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
 			maxConsecutiveMistakes: this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes"),
 		})
-		// Set the MiniMax model’s nativeToolCallEnabled to true by default.
-		if (isMinimaxModelFamily(this.api.getModel().id)) {
-			this.stateManager.setGlobalState("nativeToolCallEnabled", true)
-		}
+
 		const promptContext: SystemPromptContext = {
 			cwd: this.cwd,
 			ide,
