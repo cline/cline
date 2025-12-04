@@ -50,12 +50,11 @@ e2e("Views - can set up API keys and navigate to Settings from Chat", async ({ s
 	await expect(chatInputBox).toBeVisible()
 
 	// Verify the "What's New" modal is visible for new installs and can be closed.
-	const whatsNewModal = sidebar.getByRole("dialog")
-	await expect(whatsNewModal).toBeVisible()
 	const modalTitle = sidebar.getByRole("heading", {
 		name: /^🎉 New in v\d/,
 	})
 	await expect(modalTitle).toBeVisible()
-	await sidebar.getByTestId("close-whats-new-modal").click()
-	await expect(whatsNewModal).not.toBeVisible()
+	const dismissButton = sidebar.getByTestId("close-whats-new-modal")
+	await dismissButton.click({ force: true })
+	await expect(modalTitle).not.toBeVisible()
 })

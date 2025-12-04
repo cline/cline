@@ -46,10 +46,14 @@ export async function cleanChatView(sidebar: Page): Promise<Page> {
 		await sidebar.getByRole("button", { name: "Close banner and enable" }).click()
 	}
 
-	// Dismiss the "What's New" modal if visible
-	const whatsNewModal = sidebar.getByRole("dialog")
-	if (await whatsNewModal.isVisible()) {
-		await sidebar.getByTestId("close-whats-new-modal").click()
+	// Dismiss the "What's New" modal if visible (use testid to avoid strict mode violation with VSCode notifications)
+	const whatsNewModalDismiss = sidebar.getByTestId("close-whats-new-modal")
+	try {
+		if (await whatsNewModalDismiss.isVisible({ timeout: 1000 })) {
+			await whatsNewModalDismiss.click({ force: true })
+		}
+	} catch (e) {
+		// Modal not present, continue
 	}
 
 	return sidebar
