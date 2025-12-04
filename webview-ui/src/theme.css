@@ -47,6 +47,7 @@
 	--color-toolbar-default: var(--vscode-toolbar-background);
 	--color-toolbar-hover: var(--vscode-toolbar-hoverBackground);
 	--color-error: var(--vscode-errorForeground);
+	--color-error-icon: var(--vscode-problemsErrorIcon-foreground);
 	--color-description: var(--vscode-descriptionForeground);
 	--color-success: var(--vscode-charts-green);
 	--color-warning: var(--vscode-charts-yellow);

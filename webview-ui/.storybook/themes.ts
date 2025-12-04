@@ -61,6 +61,7 @@ const mockVSCodeDarkTheme = {
 	"--vscode-panel-border": "#454545",
 	"--vscode-icon-foreground": "#CCCCCC",
 	"--popover-foreground": "#D4D4D4",
+	"--vscode-problemsErrorIcon-foreground": "#be1100",
 }
 
 const mockVSCodeLightTheme = {
