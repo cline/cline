@@ -327,12 +327,6 @@ export class AuthService {
 		}
 
 		try {
-			// If a refresh is already in progress, wait for it to complete
-			if (this._refreshPromise) {
-				Logger.info("Token refresh already in progress, waiting for completion")
-				await this._refreshPromise
-			}
-
 			this._clineAuthInfo = await this.retrieveAuthInfo()
 			if (this._clineAuthInfo) {
 				this._authenticated = true
@@ -355,6 +349,12 @@ export class AuthService {
 	private async retrieveAuthInfo(): Promise<ClineAuthInfo | null> {
 		if (!this._provider) {
 			throw new Error("Auth provider is not set")
+		}
+
+		// If a refresh is already in progress, wait for it to complete
+		if (this._refreshPromise) {
+			Logger.info("Token refresh already in progress, waiting for completion")
+			await this._refreshPromise
 		}
 
 		return this._provider.retrieveClineAuthInfo(this._controller)
