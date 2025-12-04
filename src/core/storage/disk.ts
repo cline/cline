@@ -300,18 +300,22 @@ export async function readTaskHistoryFromState(attemptedReconstruction = false):
 		if (await fileExistsAtPath(filePath)) {
 			try {
 				const contents = await fs.readFile(filePath, "utf8")
-				return JSON.parse(contents)
-			} catch (parseError) {
-				if (attemptedReconstruction) {
-					telemetryService.captureExtensionStorageError(parseError, "attemptedReconstruction failed")
-					// Avoid infinite loop - reconstruction already attempted
-					throw new Error(
-						"Failed to parse task history JSON after reconstruction attempt. The file may be corrupted beyond repair.",
-					)
+				try {
+					return JSON.parse(contents)
+				} catch (parseError) {
+					// Only reconstruction on parse errors
+					if (attemptedReconstruction) {
+						telemetryService.captureExtensionStorageError(parseError, "attemptedReconstruction failed")
+						throw new Error("Failed to parse task history JSON after reconstruction attempt...")
+					}
+					telemetryService.captureExtensionStorageError(parseError, "readTaskHistoryFromState parse error")
+					await reconstructTaskHistory()
+					return await readTaskHistoryFromState(true)
 				}
-				telemetryService.captureExtensionStorageError(parseError, "attemptedReconstruction")
-				await reconstructTaskHistory()
-				return await readTaskHistoryFromState(true)
+			} catch (readError) {
+				// Handle file system errors separately
+				telemetryService.captureExtensionStorageError(readError, "readTaskHistoryFromState readFile error")
+				throw readError
 			}
 		}
 		return []

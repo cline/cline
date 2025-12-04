@@ -17,7 +17,7 @@ interface TaskReconstructionResult {
 /**
  * Reconstructs task history from existing task folders
  */
-export async function reconstructTaskHistory() {
+export async function reconstructTaskHistory(): Promise<TaskReconstructionResult | null> {
 	try {
 		// Show confirmation dialog using HostProvider
 		const proceed = await HostProvider.window.showMessage({
@@ -30,7 +30,7 @@ export async function reconstructTaskHistory() {
 		})
 
 		if (proceed?.selectedOption !== "Yes, Reconstruct") {
-			return
+			return null
 		}
 
 		// Show initial progress message
@@ -63,8 +63,8 @@ export async function reconstructTaskHistory() {
 			type: ShowMessageType.ERROR,
 			message: `Failed to reconstruct task history: ${errorMessage}`,
 		})
+		return null
 	}
-	return null
 }
 
 async function performTaskHistoryReconstruction(): Promise<TaskReconstructionResult> {
