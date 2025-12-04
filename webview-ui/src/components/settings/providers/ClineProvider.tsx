@@ -1,5 +1,4 @@
 import { Mode } from "@shared/storage/types"
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { ClineAccountInfoCard } from "../ClineAccountInfoCard"
 import OpenRouterModelPicker from "../OpenRouterModelPicker"
 
@@ -21,13 +20,6 @@ export const ClineProvider = ({ showModelOptions, isPopup, currentMode }: ClineP
 			{/* Cline Account Info Card */}
 			<div style={{ marginBottom: 14, marginTop: 4 }}>
 				<ClineAccountInfoCard />
-			</div>
-
-			{/* View Billing & Usage Link */}
-			<div style={{ marginBottom: 12 }}>
-				<VSCodeLink href="https://openrouter.ai/activity" style={{ fontSize: "12px" }}>
-					View Billing & Usage
-				</VSCodeLink>
 			</div>
 
 			{showModelOptions && (
