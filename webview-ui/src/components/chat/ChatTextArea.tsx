@@ -279,6 +279,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
 		const [isVoiceRecording, setIsVoiceRecording] = useState(false)
+		const [isWebSpeechListening, setIsWebSpeechListening] = useState(false)
+		const [webSpeechInterimText, setWebSpeechInterimText] = useState("")
 		const [showSlashCommandsMenu, setShowSlashCommandsMenu] = useState(false)
 		const [selectedSlashCommandsIndex, setSelectedSlashCommandsIndex] = useState(0)
 		const [slashCommandsQuery, setSlashCommandsQuery] = useState("")
@@ -1633,9 +1635,20 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}}
 						value={inputValue}
 					/>
-					{!inputValue && selectedImages.length === 0 && selectedFiles.length === 0 && (
+					{!inputValue && selectedImages.length === 0 && selectedFiles.length === 0 && !isWebSpeechListening && (
 						<div className="text-xs absolute bottom-5 left-6.5 right-16 text-(--vscode-input-placeholderForeground)/50 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-1">
 							Type @ for context, / for slash commands & workflows, hold shift to drag in files/images
+						</div>
+					)}
+					{/* Web Speech interim text indicator */}
+					{isWebSpeechListening && webSpeechInterimText && (
+						<div className="text-xs absolute bottom-5 left-6.5 right-16 text-(--vscode-charts-green) whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-1 animate-pulse">
+							🎤 {webSpeechInterimText}
+						</div>
+					)}
+					{isWebSpeechListening && !webSpeechInterimText && (
+						<div className="text-xs absolute bottom-5 left-6.5 right-16 text-(--vscode-charts-green) whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-1 animate-pulse">
+							🎤 Listening... speak now
 						</div>
 					)}
 					{(selectedImages.length > 0 || selectedFiles.length > 0) && (
@@ -1659,9 +1672,35 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						className="absolute flex items-end bottom-4.5 right-5 z-10 h-8 text-xs"
 						style={{ height: textAreaBaseHeight }}>
 						<div className="flex flex-row items-center">
+							{/* Web Speech API - Real-time voice input (works without Cline account) */}
+							<WebSpeechRecorder
+								disabled={sendingDisabled || isVoiceRecording}
+								language={dictationSettings?.dictationLanguage || "en-US"}
+								onRecordingStateChange={setIsWebSpeechListening}
+								onTranscription={(text, isFinal) => {
+									if (isFinal) {
+										// Final transcript - append to input
+										const currentValue = inputValue.replace(/\s*\[.*?\]$/, "") // Remove any interim text
+										const newValue = currentValue + (currentValue ? " " : "") + text
+										setInputValue(newValue)
+										setWebSpeechInterimText("")
+										// Focus the textarea and move cursor to end
+										setTimeout(() => {
+											if (textAreaRef.current) {
+												textAreaRef.current.focus()
+												const length = newValue.length
+												textAreaRef.current.setSelectionRange(length, length)
+											}
+										}, 0)
+									} else {
+										// Interim transcript - show as preview
+										setWebSpeechInterimText(text)
+									}
+								}}
+							/>
 							{dictationSettings?.dictationEnabled === true && dictationSettings?.featureEnabled && (
 								<VoiceRecorder
-									disabled={sendingDisabled}
+									disabled={sendingDisabled || isWebSpeechListening}
 									isAuthenticated={!!clineUser?.uid}
 									language={dictationSettings?.dictationLanguage || "en"}
 									onProcessingStateChange={(isProcessing, message) => {
@@ -1696,7 +1735,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									}}
 								/>
 							)}
-							{!isVoiceRecording && (
+							{!isVoiceRecording && !isWebSpeechListening && (
 								<div
 									className={cn(
 										"input-icon-button",
