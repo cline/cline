@@ -33,12 +33,15 @@ LAST_TAG=$(git tag --sort=-v:refname | head -1)
 git log ${LAST_TAG}..HEAD --oneline --format="%h %s (%an)"
 ```
 
-Also get the commit messages already on the tag (to identify previously cherry-picked commits):
+Also get the commit messages already on the tag (to identify previously cherry-picked commits). Note: Run these as separate commands to avoid shell parsing issues with parentheses in author names:
 
 ```bash
 LAST_TAG=$(git tag --sort=-v:refname | head -1)
 PREV_TAG=$(git tag --sort=-v:refname | head -2 | tail -1)
-git log ${PREV_TAG}..${LAST_TAG} --oneline --format="%s"
+```
+
+```bash
+git log $PREV_TAG..$LAST_TAG --oneline --format="%s"
 ```
 
 **Present the list** to the user in a numbered format with commit hash, subject, and author. For any commits whose subject line already appears in the tag's history (previously cherry-picked in an earlier hotfix) or are "Release Notes" commits, add `(already in previous hotfix)` or `(release notes - skip)` after them so the user knows to skip those.
@@ -66,7 +69,7 @@ echo "Last release: $LAST_TAG"
 cat package.json | grep '"version"'
 ```
 
-For hotfixes, typically increment the patch version (e.g., 3.40.0 -> 3.40.1).
+Hotfixes always increment the patch version (e.g., 3.40.0 -> 3.40.1, or 3.40.1 -> 3.40.2).
 
 **Ask the user to confirm the new version number.**
 
@@ -95,21 +98,17 @@ On the main branch, create a commit that updates:
 
    Each changeset file in `.changeset/` corresponds to a PR. Read them to identify which ones belong to the commits you're hotfixing, then delete those files.
 
-Then run install to update lockfile:
+**Skip running `npm run install:all`** - the automation handles outdated lockfiles.
 
-```bash
-npm run install:all
-```
-
-Commit with message format: `v{VERSION} Release Notes`
+Commit with message format: `v{VERSION} Release Notes (hotfix)`
 
 In the commit body, mention:
 - This is for a hotfix release
 - List the cherry-picked commits that will be included
 
 ```bash
-git add CHANGELOG.md package.json package-lock.json .changeset/
-git commit -m "v3.40.1 Release Notes
+git add CHANGELOG.md package.json .changeset/
+git commit -m "v3.40.1 Release Notes (hotfix)
 
 Hotfix release including:
 - <commit1-hash>: <description>
@@ -168,12 +167,20 @@ Return to main branch:
 git checkout main
 ```
 
+**Copy the tag to clipboard** so the user can paste it into the GitHub Actions UI:
+
+```bash
+echo "v{VERSION}" | pbcopy
+```
+
 Present a final summary:
 - New version: v{VERSION}
 - Tag pushed: yes
 - Commits included: (list them)
+- Tag copied to clipboard: yes
 
-Remind the user to manually trigger the publish release GitHub Action on the new tag via GitHub's website UI.
+Remind the user to manually trigger the publish release GitHub Action at:
+https://github.com/cline/cline/actions/workflows/publish.yml
 
 ## Important Notes
 
