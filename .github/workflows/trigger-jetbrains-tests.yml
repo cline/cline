@@ -37,6 +37,9 @@ jobs:
           echo "pr_title=$PR_TITLE_JSON" >> $GITHUB_OUTPUT
 
       - name: Trigger IntelliJ Plugin Integration Test
+        env:
+          BRANCH_NAME: ${{ steps.sanitize.outputs.branch_name }}
+          PR_TITLE: ${{ steps.sanitize.outputs.pr_title }}
         run: |
           curl -X POST \
             -H "Authorization: Bearer ${{ steps.app-token.outputs.token }}" \
@@ -49,10 +52,10 @@ jobs:
             "event_type": "cline-pr-check",
             "client_payload": {
               "pr_number": "${{ github.event.number }}",
-              "branch_name": ${{ steps.sanitize.outputs.branch_name }},
+              "branch_name": $BRANCH_NAME,
               "action": "${{ github.event.action }}",
               "sha": "${{ github.event.pull_request.head.sha }}",
-              "pr_title": ${{ steps.sanitize.outputs.pr_title }},
+              "pr_title": $PR_TITLE,
               "pr_url": "${{ github.event.pull_request.html_url }}"
             }
           }
