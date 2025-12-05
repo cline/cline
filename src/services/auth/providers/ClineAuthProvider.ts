@@ -114,7 +114,7 @@ export class ClineAuthProvider implements IAuthProvider {
 			event: "extension_logging_user_out",
 			properties: {
 				reason,
-				timeSinceStarted,
+				time_since_started: timeSinceStarted,
 				session_id: tokenData.sid,
 				user_id: tokenData.external_id,
 			},
