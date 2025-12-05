@@ -107,6 +107,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 					stream: true,
 					stream_options: { include_usage: true },
 					reasoning_effort: (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium",
+					...(model.info.temperature !== undefined && { temperature: model.info.temperature }),
 				})
 
 				for await (const chunk of stream) {
@@ -132,11 +133,11 @@ export class OpenAiNativeHandler implements ApiHandler {
 			case "gpt-5.1": {
 				const stream = await client.chat.completions.create({
 					model: model.id,
-					temperature: 1,
 					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 					stream: true,
 					stream_options: { include_usage: true },
 					reasoning_effort: (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium",
+					...(model.info.temperature !== undefined && { temperature: model.info.temperature }),
 					...getOpenAIToolParams(tools),
 				})
 
@@ -168,10 +169,10 @@ export class OpenAiNativeHandler implements ApiHandler {
 				const stream = await client.chat.completions.create({
 					model: model.id,
 					// max_completion_tokens: this.getModel().info.maxTokens,
-					temperature: 0,
 					messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 					stream: true,
 					stream_options: { include_usage: true },
+					...(model.info.temperature !== undefined && { temperature: model.info.temperature }),
 					...getOpenAIToolParams(tools),
 				})
 
