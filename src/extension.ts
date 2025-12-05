@@ -43,6 +43,7 @@ import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { ExtensionRegistryInfo } from "./registry"
 import { AuthService } from "./services/auth/AuthService"
 import { LogoutReason } from "./services/auth/types"
+import { registerChatParticipants } from "./services/ChatParticipants"
 import { telemetryService } from "./services/telemetry"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
@@ -88,6 +89,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	const webview = (await initialize(context)) as VscodeWebviewProvider
 
 	Logger.log("Cline extension activated")
+
+	// Register Chat Participants (@claude, @codex, @cline)
+	registerChatParticipants(context)
 
 	// Initialize Message Queue Service for external CLI communication
 	const workspaceFolders = vscode.workspace.workspaceFolders

@@ -5,7 +5,7 @@
 	"version": "3.40.0",
 	"icon": "assets/icons/icon.png",
 	"engines": {
-		"vscode": "^1.84.0"
+		"vscode": "^1.93.0"
 	},
 	"enabledApiProposals": [
 		"speech"
@@ -45,10 +45,36 @@
 	"activationEvents": [
 		"onLanguage",
 		"onStartupFinished",
-		"workspaceContains:evals.env"
+		"workspaceContains:evals.env",
+		"onChatParticipant:bcline.claude",
+		"onChatParticipant:bcline.codex",
+		"onChatParticipant:bcline.cline"
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
+		"chatParticipants": [
+			{
+				"id": "bcline.claude",
+				"name": "claude",
+				"fullName": "Claude CLI (Opus 4.5)",
+				"description": "Talk directly to Claude CLI - Anthropic's most intelligent model",
+				"isSticky": true
+			},
+			{
+				"id": "bcline.codex",
+				"name": "codex",
+				"fullName": "Codex CLI (GPT-5.1)",
+				"description": "Talk directly to Codex CLI - OpenAI's advanced coding agent",
+				"isSticky": true
+			},
+			{
+				"id": "bcline.cline",
+				"name": "cline",
+				"fullName": "Cline Agent",
+				"description": "Send tasks to Cline autonomous coding agent",
+				"isSticky": true
+			}
+		],
 		"icons": {
 			"cline-icon": {
 				"description": "cline",
@@ -440,7 +466,7 @@
 		"@types/should": "^11.2.0",
 		"@types/sinon": "^17.0.4",
 		"@types/turndown": "^5.0.5",
-		"@types/vscode": "1.84.0",
+		"@types/vscode": "^1.93.0",
 		"@vscode/test-cli": "^0.0.10",
 		"@vscode/test-electron": "^2.5.2",
 		"@vscode/vsce": "^3.6.0",
