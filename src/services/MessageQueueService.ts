@@ -184,6 +184,16 @@ export class MessageQueueService {
 			else if (message.content === "auto-approve-all" || message.content === "yolo-mode") {
 				responseContent = await this.handleAutoApproveAll()
 			}
+			// Handle Claude CLI commands: "claude:prompt" sends to Claude CLI
+			else if (message.content.startsWith("claude:")) {
+				const prompt = message.content.substring("claude:".length).trim()
+				responseContent = await this.handleClaudeCli(prompt)
+			}
+			// Handle Claude CLI with auto-approve: "claude-yolo:prompt"
+			else if (message.content.startsWith("claude-yolo:")) {
+				const prompt = message.content.substring("claude-yolo:".length).trim()
+				responseContent = await this.handleClaudeCli(prompt, true)
+			}
 			// Handle other special commands here...
 			else {
 				// Default: Call the message handler if registered
@@ -349,6 +359,36 @@ export class MessageQueueService {
 		} catch (error) {
 			this.log(`❌ Error enabling auto-approve-all: ${error}`)
 			return `Error enabling auto-approve-all: ${error}`
+		}
+	}
+
+	/**
+	 * Handle Claude CLI commands - sends prompts to Claude CLI and returns response
+	 * @param prompt The prompt to send to Claude CLI
+	 * @param bypassPermissions Whether to run with --permission-mode bypassPermissions
+	 */
+	private async handleClaudeCli(prompt: string, bypassPermissions: boolean = false): Promise<string> {
+		if (!prompt) {
+			return `Error: No prompt provided. Use format: claude:your prompt here`
+		}
+
+		try {
+			const { execSync } = require("child_process")
+			const permissionFlag = bypassPermissions ? "--permission-mode bypassPermissions " : ""
+			const command = `claude ${permissionFlag}-p "${prompt.replace(/"/g, '\\"')}\n"`
+
+			this.log(`🤖 Sending to Claude CLI: ${prompt}`)
+			const result = execSync(command, {
+				encoding: "utf8",
+				timeout: 120000, // 2 minute timeout
+				cwd: process.cwd(),
+			})
+
+			this.log(`✅ Claude CLI response received`)
+			return `Claude CLI: ${result.trim()}`
+		} catch (error: any) {
+			this.log(`❌ Error calling Claude CLI: ${error.message}`)
+			return `Error calling Claude CLI: ${error.message}`
 		}
 	}
 

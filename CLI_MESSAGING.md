@@ -1,6 +1,6 @@
 # BCline CLI Messaging System
 
-A bidirectional file-based messaging system that enables external processes (like GitHub Copilot) to communicate with BCline.
+A bidirectional file-based messaging system that enables external processes (like GitHub Copilot) to communicate with BCline and Claude CLI.
 
 ## Overview
 
@@ -8,6 +8,26 @@ The messaging system uses file-based communication through the `.message-queue/`
 - `inbox/` - Messages TO Cline
 - `responses/` - Responses FROM Cline  
 - `outbox/` - Notifications FROM Cline
+
+## Architecture
+
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────┐     ┌─────────────┐
+│ GitHub Copilot  │────▶│ Send-ClineMessage│────▶│   BCline    │────▶│ Claude CLI  │
+│  (Voice Input)  │     │     .ps1         │     │ Extension   │     │  (Opus 4.5) │
+└─────────────────┘     └──────────────────┘     └─────────────┘     └─────────────┘
+        │                                               │
+        │                                               ▼
+        │                                      ┌─────────────────┐
+        └─────────────────────────────────────▶│ MessageQueue    │
+                                               │ Service.ts      │
+                                               └─────────────────┘
+```
+
+**Three AI Channels:**
+1. **Copilot** - Voice/chat in VS Code (Claude Opus 4.5 Preview)
+2. **Cline** - Via `Send-ClineMessage.ps1` (OpenRouter models)
+3. **Claude CLI** - Via `claude:` prefix (Claude Opus 4.5)
 
 ## Quick Start
 
@@ -21,6 +41,11 @@ The messaging system uses file-based communication through the `.message-queue/`
 .\Send-ClineMessage.ps1 -Message "What is 2 + 2?" -Wait -Timeout 60
 ```
 
+### Send to Claude CLI (via Cline):
+```powershell
+.\Send-ClineMessage.ps1 -Message "claude:Explain recursion in simple terms"
+```
+
 ## CLI Scripts
 
 | Script | Description |
@@ -31,8 +56,9 @@ The messaging system uses file-based communication through the `.message-queue/`
 
 ## Special Commands
 
-These commands are handled directly by the MessageQueueService without starting a Cline task:
+These commands are handled directly by the MessageQueueService:
 
+### Cline Commands
 | Command | Description |
 |---------|-------------|
 | `set-model:<model-id>` | Switch the OpenRouter model (e.g., `set-model:anthropic/claude-sonnet-4`) |
@@ -44,9 +70,15 @@ These commands are handled directly by the MessageQueueService without starting 
 | `auto-approve-all` | Enable FULL auto-approval (read, edit, commands, browser, MCP) |
 | `yolo-mode` | Alias for auto-approve-all |
 
+### Claude CLI Commands
+| Command | Description |
+|---------|-------------|
+| `claude:<prompt>` | Send prompt to Claude CLI and return response |
+| `claude-yolo:<prompt>` | Send prompt to Claude CLI with auto-approve (bypassPermissions) |
+
 ## Examples
 
-### Switch to Claude Sonnet 4:
+### Switch Cline to Claude Sonnet 4:
 ```powershell
 .\Send-ClineMessage.ps1 -Message "set-model:anthropic/claude-sonnet-4"
 ```
@@ -66,13 +98,33 @@ Usage Report | Model: anthropic/claude-sonnet-4 | Tokens In: 18,502 | Tokens Out
 .\Send-ClineMessage.ps1 -Message "auto-approve-all"
 ```
 
-### Use with GitHub Copilot
+### Send to Claude CLI:
+```powershell
+.\Send-ClineMessage.ps1 -Message "claude:What is the capital of France?" -Wait -Timeout 30
+```
 
-You can pipe voice commands through Copilot to Cline:
-1. Use voice input in Copilot
-2. Copilot runs `Send-ClineMessage.ps1` 
-3. Cline receives and executes the task
-4. Response is returned to Copilot
+### Send to Claude CLI with auto-approve:
+```powershell
+.\Send-ClineMessage.ps1 -Message "claude-yolo:Create a file called hello.py that prints Hello World"
+```
+
+## Voice Workflow (Copilot → Cline → Claude CLI)
+
+With this system, you can use voice input through GitHub Copilot to orchestrate multiple AI agents:
+
+1. **Speak to Copilot** (using voice input)
+2. **Copilot runs commands** via `Send-ClineMessage.ps1`
+3. **Cline receives and processes** the message
+4. **Claude CLI executes** if using `claude:` prefix
+5. **Response flows back** through the chain
+
+Example voice command:
+> "Send to Claude: explain how async await works in JavaScript"
+
+Copilot translates this to:
+```powershell
+.\Send-ClineMessage.ps1 -Message "claude:explain how async await works in JavaScript" -Wait
+```
 
 ## Message Format
 
@@ -89,19 +141,19 @@ Messages are JSON files with this structure:
 }
 ```
 
-## Architecture
+## Claude CLI Direct Usage
 
-```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────┐
-│ GitHub Copilot  │────▶│ Send-ClineMessage│────▶│   BCline    │
-│  (Voice Input)  │     │     .ps1         │     │ Extension   │
-└─────────────────┘     └──────────────────┘     └─────────────┘
-                                                        │
-                                                        ▼
-                                               ┌─────────────────┐
-                                               │ MessageQueue    │
-                                               │ Service.ts      │
-                                               └─────────────────┘
+You can also use Claude CLI directly from terminal:
+
+```powershell
+# Simple prompt
+claude -p "Your prompt here`n"
+
+# With auto-approve
+claude --permission-mode bypassPermissions -p "Create a file...`n"
+
+# Check version
+claude --version
 ```
 
 ## Requirements
@@ -109,3 +161,4 @@ Messages are JSON files with this structure:
 - PowerShell 5.1+ or PowerShell Core 7+
 - BCline VS Code extension v3.40.0+
 - VS Code with the extension loaded
+- Claude CLI (`npm install -g @anthropic-ai/claude-code`) for claude: commands
