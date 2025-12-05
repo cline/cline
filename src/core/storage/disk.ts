@@ -11,7 +11,9 @@ import os from "os"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
+import { telemetryService } from "@/services/telemetry"
 import { McpMarketplaceCatalog } from "@/shared/mcp"
+import { reconstructTaskHistory } from "../commands/reconstructTaskHistory"
 import { StateManager } from "./StateManager"
 
 /**
@@ -295,14 +297,31 @@ export async function taskHistoryStateFileExists(): Promise<boolean> {
 export async function readTaskHistoryFromState(): Promise<HistoryItem[]> {
 	try {
 		const filePath = await getTaskHistoryStateFilePath()
-		if (await fileExistsAtPath(filePath)) {
-			const contents = await fs.readFile(filePath, "utf8")
-
-			return JSON.parse(contents)
+		if (!(await fileExistsAtPath(filePath))) {
+			return []
 		}
-		return []
+
+		const contents = await fs.readFile(filePath, "utf8")
+
+		try {
+			return JSON.parse(contents)
+		} catch (parseError) {
+			telemetryService.captureExtensionStorageError(parseError, "parseError_attemptingRecovery")
+
+			const result = await reconstructTaskHistory(false)
+			if (result && result.reconstructedTasks > 0) {
+				// Read the reconstructed file
+				const newContents = await fs.readFile(filePath, "utf8")
+				return JSON.parse(newContents)
+			}
+
+			// Recovery failed, all we can do is return an empty array or throw an error, thus preventing the app from starting up
+			// This will wipe out the taskHistory
+			return []
+		}
 	} catch (error) {
-		console.error("[Disk] Failed to read task history:", error)
+		// Filesystem or other errors - throw them for the caller to handle
+		telemetryService.captureExtensionStorageError(error, "readTaskHistoryFromState")
 		throw error
 	}
 }

@@ -46,7 +46,6 @@ import { TerminalManager } from "@integrations/terminal/TerminalManager"
 import { TerminalProcessResultPromise } from "@integrations/terminal/TerminalProcess"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
-import { featureFlagsService } from "@services/feature-flags"
 import { listFiles } from "@services/glob/list-files"
 import { Logger } from "@services/logging/Logger"
 import { McpHub } from "@services/mcp/McpHub"
@@ -2139,14 +2138,7 @@ export class Task {
 		}
 
 		// Response API requires native tool calls to be enabled
-		const useResponseApi = this.useNativeToolCalls && featureFlagsService.isResponseApiEnabled()
-
-		const stream = this.api.createMessage(
-			systemPrompt,
-			contextManagementMetadata.truncatedConversationHistory,
-			tools,
-			useResponseApi,
-		)
+		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory, tools)
 
 		const iterator = stream[Symbol.asyncIterator]()
 
@@ -2915,6 +2907,7 @@ export class Task {
 					)
 
 					if (this.taskState.abort) {
+						this.api.abort?.()
 						if (!this.taskState.abandoned) {
 							// only need to gracefully abort if this instance isn't abandoned (sometimes openrouter stream hangs, in which case this would affect future instances of cline)
 							await abortStream("user_cancelled")
