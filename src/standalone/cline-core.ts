@@ -1,6 +1,3 @@
-// Re-export StandaloneTerminalManager for vscode-impls.js to use
-export { StandaloneTerminalManager } from "@shared/terminal"
-
 import { ExternalCommentReviewController } from "@hosts/external/ExternalCommentReviewController"
 import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvider"
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"

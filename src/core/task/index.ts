@@ -283,18 +283,18 @@ export class Task {
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
 		this.taskLockAcquired = taskLockAcquired
 
-		// TODO(ae) this is a hack to replace the terminal manager for standalone,
-		// until we have proper host bridge support for terminal execution. The
-		// standaloneTerminalManager is defined in the vscode-impls and injected
-		// during compilation of the standalone manager only, so this variable only
-		// exists in that case
+		// Determine terminal manager based on environment:
+		// - Standalone mode (CLI/JetBrains): Always use StandaloneTerminalManager
+		// - VSCode with backgroundExec mode: Use StandaloneTerminalManager
+		// - VSCode with vscodeTerminal mode: Use TerminalManager (VSCode's terminal API)
+		const isStandalone = process.env.IS_STANDALONE === "true"
 
-		// First check if we're in standalone mode (original automatic detection)
-		if ((global as any).standaloneTerminalManager) {
-			this.terminalManager = (global as any).standaloneTerminalManager
+		if (isStandalone) {
+			// Standalone mode (CLI/JetBrains) - always use StandaloneTerminalManager
+			this.terminalManager = new StandaloneTerminalManager()
 			this.terminalExecutionMode = "backgroundExec"
 		} else {
-			// Not in standalone mode, use the configured mode (default to vscodeTerminal)
+			// VSCode mode - use the configured terminal execution mode
 			const terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
 			this.terminalExecutionMode = terminalExecutionMode
 
