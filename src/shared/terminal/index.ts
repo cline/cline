@@ -19,6 +19,11 @@
  * ```
  */
 
+export { StandaloneTerminal } from "./StandaloneTerminal"
+export { StandaloneTerminalManager } from "./StandaloneTerminalManager"
+// Export standalone implementations
+export { StandaloneTerminalProcess } from "./StandaloneTerminalProcess"
+export { StandaloneTerminalRegistry } from "./StandaloneTerminalRegistry"
 // Export all types
 export type {
 	ITerminal,
@@ -28,9 +33,3 @@ export type {
 	TerminalInfo,
 	TerminalProcessResultPromise,
 } from "./types"
-
-// Standalone implementations will be exported here after conversion:
-// export { StandaloneTerminalProcess } from "./StandaloneTerminalProcess"
-// export { StandaloneTerminal } from "./StandaloneTerminal"
-// export { StandaloneTerminalRegistry } from "./StandaloneTerminalRegistry"
-// export { StandaloneTerminalManager } from "./StandaloneTerminalManager"
