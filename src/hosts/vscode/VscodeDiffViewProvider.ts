@@ -49,14 +49,14 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 					arePathsEqual(tab.input.modified.fsPath, uri.fsPath),
 			)
 
+		// Always open in beside column to avoid hiding the user's current work
+		const viewColumn = vscode.ViewColumn.Beside
+
 		if (diffTab && diffTab.input instanceof vscode.TabInputTextDiff) {
 			// Use already open diff editor.
-			// NOTE: To open the diff as a truly "silent" background tab without switching the visible tab,
-			// we would need to open it in a different editor group/column (e.g., viewColumn: vscode.ViewColumn.Beside).
-			// Within the same editor group, the new tab always becomes the visible tab - preserveFocus only
-			// prevents keyboard focus from moving, not the tab from becoming active/visible.
 			this.activeDiffEditor = await vscode.window.showTextDocument(diffTab.input.modified, {
 				preserveFocus: true,
+				viewColumn,
 			})
 		} else {
 			// Open new diff editor.
@@ -75,10 +75,6 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 					}
 				})
 
-				// NOTE: To open the diff as a truly "silent" background tab without switching the visible tab,
-				// we would need to open it in a different editor group/column by adding viewColumn: vscode.ViewColumn.Beside
-				// to the options below. Within the same editor group, the new tab always becomes the visible tab -
-				// preserveFocus only prevents keyboard focus from moving, not the tab from becoming active/visible.
 				vscode.commands.executeCommand(
 					"vscode.diff",
 					vscode.Uri.from({
@@ -90,6 +86,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 					`${fileName}: ${fileExists ? "Original ↔ Cline's Changes" : "New File"} (Editable)`,
 					{
 						preserveFocus: true,
+						viewColumn,
 					},
 				)
 				// This may happen on very slow machines ie project idx
