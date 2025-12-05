@@ -208,7 +208,7 @@ export class ClineAuthProvider implements IAuthProvider {
 				)
 
 				try {
-					const authInfo = await this.refreshToken(storedAuthData.refreshToken)
+					const authInfo = await this.refreshToken(storedAuthData.refreshToken, storedAuthData)
 					const newAuthInfoString = JSON.stringify(authInfo)
 					if (newAuthInfoString !== storedAuthDataString) {
 						controller.stateManager.setSecret("clineAccountId", undefined) // cleanup old key
@@ -274,14 +274,14 @@ export class ClineAuthProvider implements IAuthProvider {
 	 * @param refreshToken - The refresh token.
 	 * @returns {Promise<ClineAuthInfo>} The new access token and user info.
 	 */
-	async refreshToken(refreshToken: string): Promise<ClineAuthInfo> {
+	async refreshToken(refreshToken: string, storedData: ClineAuthInfo): Promise<ClineAuthInfo> {
 		try {
 			const endpoint = new URL(CLINE_API_ENDPOINT.REFRESH_TOKEN, this.config.apiBaseUrl)
 			const response = await fetch(endpoint.toString(), {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					refreshToken,
+					refreshToken: storedData.refreshToken,
 					grantType: "refresh_token",
 				}),
 			})
@@ -313,7 +313,7 @@ export class ClineAuthProvider implements IAuthProvider {
 				refreshToken: data.data.refreshToken || refreshToken,
 				userInfo,
 				provider: this.name,
-				startedAt: Date.now(),
+				startedAt: storedData.startedAt || Date.now(),
 			}
 		} catch (error: any) {
 			// Network errors (ECONNREFUSED, timeout, etc)
