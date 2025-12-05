@@ -122,9 +122,14 @@ export function isGemini3ModelFamily(id: string): boolean {
 	return modelId.includes("gemini3") || modelId.includes("gemini-3")
 }
 
-export function isDeepSeekModelFamily(id: string): boolean {
+function isDeepSeek32ModelFamily(id: string): boolean {
 	const modelId = normalize(id)
-	return modelId.includes("deepseek")
+	return modelId.includes("deepseek") && modelId.includes("3.2")
+}
+
+export function isDeepSeekNativeModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("deepseek-chat") || modelId.includes("deepseek-reasoner")
 }
 
 export function isNextGenModelFamily(id: string): boolean {
@@ -137,7 +142,8 @@ export function isNextGenModelFamily(id: string): boolean {
 		isMinimaxModelFamily(modelId) ||
 		isGemini3ModelFamily(modelId) ||
 		isNextGenOpenSourceModelFamily(modelId) ||
-		isDeepSeekModelFamily(modelId)
+		isDeepSeek32ModelFamily(modelId) ||
+    isDeepSeekNativeModelFamily(modelId)
 	)
 }
 
