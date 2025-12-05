@@ -231,8 +231,11 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 		if (hasConfiguredProviders) {
 			const apiKeys = await fetchApiKeysForOrganization(organizationId)
 			if (apiKeys) {
-				if (config.providerSettings?.LiteLLM && apiKeys.litellm) {
-					controller.stateManager.setSecret("liteLlmApiKey", apiKeys.litellm)
+				if (config.providerSettings?.LiteLLM) {
+					const litellmKey = apiKeys.litellm || apiKeys.LiteLLM
+					if (litellmKey) {
+						controller.stateManager.setSecret("liteLlmApiKey", litellmKey)
+					}
 				}
 			}
 		}
