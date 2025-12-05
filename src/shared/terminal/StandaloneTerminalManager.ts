@@ -78,8 +78,6 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	 * @returns A promise-like object that emits events and resolves on completion
 	 */
 	runCommand(terminalInfo: TerminalInfo, command: string): TerminalProcessResultPromise {
-		console.log(`[StandaloneTerminalManager] Running command on terminal ${terminalInfo.id}: ${command}`)
-
 		terminalInfo.busy = true
 		terminalInfo.lastCommand = command
 
@@ -88,7 +86,6 @@ export class StandaloneTerminalManager implements ITerminalManager {
 
 		process.once("completed", () => {
 			terminalInfo.busy = false
-			console.log(`[StandaloneTerminalManager] Command completed on terminal ${terminalInfo.id}`)
 		})
 
 		process.once("error", (error: Error) => {
@@ -127,7 +124,6 @@ export class StandaloneTerminalManager implements ITerminalManager {
 
 		if (matchingTerminal) {
 			this.terminalIds.add(matchingTerminal.id)
-			console.log(`[StandaloneTerminalManager] Reusing terminal ${matchingTerminal.id}`)
 			return matchingTerminal
 		}
 
@@ -153,7 +149,6 @@ export class StandaloneTerminalManager implements ITerminalManager {
 			name: `Cline Terminal ${this.registry.size + 1}`,
 		})
 		this.terminalIds.add(newTerminalInfo.id)
-		console.log(`[StandaloneTerminalManager] Created new terminal ${newTerminalInfo.id}`)
 		return newTerminalInfo
 	}
 
@@ -231,8 +226,6 @@ export class StandaloneTerminalManager implements ITerminalManager {
 		}
 
 		this.registry.clear()
-
-		console.log(`[StandaloneTerminalManager] Disposed all terminals`)
 	}
 
 	/**
@@ -241,7 +234,6 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	 */
 	setShellIntegrationTimeout(timeout: number): void {
 		this.shellIntegrationTimeout = timeout
-		console.log(`[StandaloneTerminalManager] Set shell integration timeout to ${timeout}ms`)
 	}
 
 	/**
@@ -250,7 +242,6 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	 */
 	setTerminalReuseEnabled(enabled: boolean): void {
 		this.terminalReuseEnabled = enabled
-		console.log(`[StandaloneTerminalManager] Set terminal reuse enabled to ${enabled}`)
 	}
 
 	/**
@@ -259,7 +250,6 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	 */
 	setTerminalOutputLineLimit(limit: number): void {
 		this.terminalOutputLineLimit = limit
-		console.log(`[StandaloneTerminalManager] Set terminal output line limit to ${limit}`)
 	}
 
 	/**
@@ -268,7 +258,6 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	 */
 	setSubagentTerminalOutputLineLimit(limit: number): void {
 		this.subagentTerminalOutputLineLimit = limit
-		console.log(`[StandaloneTerminalManager] Set subagent terminal output line limit to ${limit}`)
 	}
 
 	/**
@@ -279,7 +268,6 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	setDefaultTerminalProfile(profile: string): { closedCount: number; busyTerminals: TerminalInfo[] } {
 		const previousProfile = this.defaultTerminalProfile
 		this.defaultTerminalProfile = profile
-		console.log(`[StandaloneTerminalManager] Set default terminal profile to ${profile}`)
 
 		// If profile changed, handle terminal cleanup like TerminalManager does
 		if (previousProfile !== profile) {
