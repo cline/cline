@@ -20,7 +20,6 @@ interface FeatureSettingsSectionProps {
 const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionProps) => {
 	const {
 		enableCheckpointsSetting,
-		mcpMarketplaceEnabled,
 		mcpDisplayMode,
 		mcpResponsesCollapsed,
 		openaiReasoningEffort,
