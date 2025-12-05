@@ -65,6 +65,5 @@ jobs:
         run: |
           echo "Triggered IntelliJ Plugin integration test for:"
           echo "  PR #${{ github.event.number }}"
-          echo "  Branch: ${{ github.head_ref }}"
           echo "  Action: ${{ github.event.action }}"
           echo "  SHA: ${{ github.event.pull_request.head.sha }}"
