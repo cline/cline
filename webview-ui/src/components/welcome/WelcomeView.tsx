@@ -58,7 +58,7 @@ const WelcomeView = memo(() => {
 					Sonnet.
 				</p>
 
-				<VSCodeButton appearance="primary" className="w-full mt-1" onClick={handleLogin}>
+				<VSCodeButton appearance="primary" className="w-full mt-1" disabled={isLoading} onClick={handleLogin}>
 					Get Started for Free
 					{isLoading && (
 						<span className="ml-1 animate-spin">
