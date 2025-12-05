@@ -23,7 +23,11 @@
 			"Bash(npm run build:*)",
 			"Bash(npm run build:webview:*)",
 			"Bash(npx @vscode/vsce package:*)",
-			"Bash(git commit:*)"
+			"Bash(git commit:*)",
+			"Bash(npx tsc:*)",
+			"Bash(node test-message-queue.js:*)",
+			"Bash(xargs:*)",
+			"Bash(node:*)"
 		],
 		"deny": [],
 		"ask": []

@@ -7,6 +7,10 @@
 
 import * as fs from "fs"
 import * as path from "path"
+import type { Controller } from "@/core/controller"
+import { combineApiRequests } from "@/shared/combineApiRequests"
+import { combineCommandSequences } from "@/shared/combineCommandSequences"
+import { getApiMetrics } from "@/shared/getApiMetrics"
 
 interface Message {
 	id: string
@@ -31,6 +35,7 @@ export class MessageQueueService {
 	private enabled: boolean = true
 	private onMessageCallback: ((message: Message) => Promise<string | void>) | null = null
 	private logMessages: string[] = []
+	private controller: Controller | null = null
 
 	private constructor(workspaceRoot: string) {
 		this.queueDir = path.join(workspaceRoot, ".message-queue")
@@ -67,6 +72,14 @@ export class MessageQueueService {
 				this.log(`Created directory: ${dir}`)
 			}
 		})
+	}
+
+	/**
+	 * Set the controller reference for model switching
+	 */
+	public setController(controller: Controller): void {
+		this.controller = controller
+		this.log("Controller reference set")
 	}
 
 	/**
@@ -151,15 +164,38 @@ export class MessageQueueService {
 			this.log(`   Type: ${message.type}`)
 			this.log(`   Content: ${message.content}`)
 
-			// Call the message handler if registered
-			let responseContent: string | void = `Cline received your message: "${message.content}"`
+			// Check for special commands
+			let responseContent: string | void
 
-			if (this.onMessageCallback) {
-				try {
-					responseContent = await this.onMessageCallback(message)
-				} catch (error) {
-					this.log(`Error in message handler: ${error}`)
-					responseContent = `Error processing message: ${error}`
+			// Handle model switching command: "set-model:provider/model-name"
+			if (message.content.startsWith("set-model:")) {
+				const modelId = message.content.substring("set-model:".length).trim()
+				responseContent = await this.handleModelSwitch(modelId)
+			}
+			// Handle usage/cost query: "get-usage"
+			else if (message.content === "get-usage" || message.content === "get-tokens" || message.content === "get-cost") {
+				responseContent = await this.handleGetUsage()
+			}
+			// Handle enable-all-commands: enables auto-approval for ALL terminal commands (including PowerShell)
+			else if (message.content === "enable-all-commands" || message.content === "yolo-commands") {
+				responseContent = await this.handleEnableAllCommands()
+			}
+			// Handle auto-approve-all: enables all auto-approval settings
+			else if (message.content === "auto-approve-all" || message.content === "yolo-mode") {
+				responseContent = await this.handleAutoApproveAll()
+			}
+			// Handle other special commands here...
+			else {
+				// Default: Call the message handler if registered
+				responseContent = `Cline received your message: "${message.content}"`
+
+				if (this.onMessageCallback) {
+					try {
+						responseContent = await this.onMessageCallback(message)
+					} catch (error) {
+						this.log(`Error in message handler: ${error}`)
+						responseContent = `Error processing message: ${error}`
+					}
 				}
 			}
 
@@ -173,6 +209,146 @@ export class MessageQueueService {
 			this.log(`✅ Message processed and cleaned up`)
 		} catch (error) {
 			this.log(`❌ Error processing message ${path.basename(filePath)}: ${error}`)
+		}
+	}
+
+	/**
+	 * Handle model switching command
+	 * @param modelId The OpenRouter model ID (e.g., "anthropic/claude-3.5-sonnet")
+	 */
+	private async handleModelSwitch(modelId: string): Promise<string> {
+		if (!this.controller) {
+			this.log(`❌ Cannot switch model: Controller not set`)
+			return `Error: Controller not initialized. Cannot switch model.`
+		}
+
+		if (!modelId) {
+			return `Error: No model ID provided. Use format: set-model:provider/model-name`
+		}
+
+		try {
+			const currentConfig = this.controller.stateManager.getApiConfiguration()
+
+			// Update the configuration with new model ID for both plan and act modes
+			this.controller.stateManager.setApiConfiguration({
+				...currentConfig,
+				planModeOpenRouterModelId: modelId,
+				actModeOpenRouterModelId: modelId,
+			})
+
+			this.log(`✅ Model switched to: ${modelId}`)
+			return `Model changed to: ${modelId}`
+		} catch (error) {
+			this.log(`❌ Error switching model: ${error}`)
+			return `Error switching model: ${error}`
+		}
+	}
+
+	/**
+	 * Handle get-usage command - returns token usage and cost for current task
+	 */
+	private async handleGetUsage(): Promise<string> {
+		if (!this.controller) {
+			return `Error: Controller not initialized. Cannot get usage.`
+		}
+
+		try {
+			const task = this.controller.task
+			if (!task) {
+				return `No active task. Usage: Tokens In: 0, Tokens Out: 0, Cost: $0.00`
+			}
+
+			const clineMessages = task.messageStateHandler.getClineMessages()
+			const combinedMessages = combineApiRequests(combineCommandSequences(clineMessages.slice(1)))
+			const apiMetrics = getApiMetrics(combinedMessages)
+
+			const currentModel = this.controller.stateManager.getApiConfiguration()
+			const modelId = currentModel.planModeOpenRouterModelId || currentModel.actModeOpenRouterModelId || "unknown"
+
+			const usage = {
+				model: modelId,
+				tokensIn: apiMetrics.totalTokensIn,
+				tokensOut: apiMetrics.totalTokensOut,
+				cacheWrites: apiMetrics.totalCacheWrites || 0,
+				cacheReads: apiMetrics.totalCacheReads || 0,
+				totalCost: apiMetrics.totalCost,
+			}
+
+			this.log(`📊 Usage report: ${JSON.stringify(usage)}`)
+			return `Usage Report | Model: ${usage.model} | Tokens In: ${usage.tokensIn.toLocaleString()} | Tokens Out: ${usage.tokensOut.toLocaleString()} | Cache: W${usage.cacheWrites}/R${usage.cacheReads} | Cost: $${usage.totalCost.toFixed(4)}`
+		} catch (error) {
+			this.log(`❌ Error getting usage: ${error}`)
+			return `Error getting usage: ${error}`
+		}
+	}
+
+	/**
+	 * Handle enable-all-commands - enables auto-approval for ALL terminal commands
+	 * This allows PowerShell scripts and other "risky" commands to run without approval
+	 */
+	private async handleEnableAllCommands(): Promise<string> {
+		if (!this.controller) {
+			return `Error: Controller not initialized. Cannot update settings.`
+		}
+
+		try {
+			const currentSettings = this.controller.stateManager.getGlobalSettingsKey("autoApprovalSettings")
+			const updatedSettings = {
+				...currentSettings,
+				version: (currentSettings.version || 1) + 1,
+				enabled: true,
+				actions: {
+					...currentSettings.actions,
+					executeSafeCommands: true,
+					executeAllCommands: true,
+				},
+			}
+
+			this.controller.stateManager.setGlobalState("autoApprovalSettings", updatedSettings)
+			await this.controller.postStateToWebview()
+
+			this.log(`✅ Enabled auto-approval for ALL commands (including PowerShell)`)
+			return `All commands auto-approval ENABLED. PowerShell scripts will now execute without prompts.`
+		} catch (error) {
+			this.log(`❌ Error enabling all commands: ${error}`)
+			return `Error enabling all commands: ${error}`
+		}
+	}
+
+	/**
+	 * Handle auto-approve-all - enables ALL auto-approval settings (full YOLO mode)
+	 */
+	private async handleAutoApproveAll(): Promise<string> {
+		if (!this.controller) {
+			return `Error: Controller not initialized. Cannot update settings.`
+		}
+
+		try {
+			const currentSettings = this.controller.stateManager.getGlobalSettingsKey("autoApprovalSettings")
+			const updatedSettings = {
+				...currentSettings,
+				version: (currentSettings.version || 1) + 1,
+				enabled: true,
+				actions: {
+					readFiles: true,
+					readFilesExternally: true,
+					editFiles: true,
+					editFilesExternally: true,
+					executeSafeCommands: true,
+					executeAllCommands: true,
+					useBrowser: true,
+					useMcp: true,
+				},
+			}
+
+			this.controller.stateManager.setGlobalState("autoApprovalSettings", updatedSettings)
+			await this.controller.postStateToWebview()
+
+			this.log(`✅ Enabled FULL auto-approval (YOLO mode)`)
+			return `FULL auto-approval ENABLED. All actions will be auto-approved: read, edit, commands, browser, MCP.`
+		} catch (error) {
+			this.log(`❌ Error enabling auto-approve-all: ${error}`)
+			return `Error enabling auto-approve-all: ${error}`
 		}
 	}
 

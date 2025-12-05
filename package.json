@@ -7,6 +7,9 @@
 	"engines": {
 		"vscode": "^1.84.0"
 	},
+	"enabledApiProposals": [
+		"speech"
+	],
 	"author": {
 		"name": "Cline Bot Inc."
 	},
@@ -180,6 +183,12 @@
 				"category": "Cline"
 			},
 			{
+				"command": "cline.voiceInput",
+				"title": "Voice Input",
+				"category": "Cline",
+				"icon": "$(mic)"
+			},
+			{
 				"command": "cline.generateGitCommitMessage",
 				"title": "Generate Commit Message with Cline",
 				"category": "Cline",
@@ -249,6 +258,13 @@
 				"win": "ctrl+'",
 				"linux": "ctrl+'",
 				"when": "!editorHasSelection"
+			},
+			{
+				"command": "cline.voiceInput",
+				"key": "cmd+shift+v",
+				"mac": "cmd+shift+v",
+				"win": "ctrl+shift+v",
+				"linux": "ctrl+shift+v"
 			}
 		],
 		"menus": {

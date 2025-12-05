@@ -95,6 +95,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		const workspaceRoot = workspaceFolders[0].uri.fsPath
 		const messageQueue = MessageQueueService.getInstance(workspaceRoot)
 
+		// Set controller reference for model switching
+		messageQueue.setController(webview.controller)
+
 		// Track current message ID for completion notifications
 		let currentMessageId: string | null = null
 
@@ -438,6 +441,47 @@ export async function activate(context: vscode.ExtensionContext) {
 			// Send focus event
 			sendFocusChatInputEvent()
 			telemetryService.captureButtonClick("command_focusChatInput", webview.controller?.task?.ulid)
+		}),
+	)
+
+	// Register the voiceInput command handler
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.VoiceInput, async () => {
+			const webview = WebviewProvider.getInstance() as VscodeWebviewProvider
+
+			// Check if VS Code Speech extension is installed
+			const speechExtension = vscode.extensions.getExtension("ms-vscode.vscode-speech")
+			if (!speechExtension) {
+				const action = await vscode.window.showInformationMessage(
+					"Voice input works best with the VS Code Speech extension installed.",
+					"Install Extension",
+					"Continue Anyway",
+				)
+				if (action === "Install Extension") {
+					await vscode.commands.executeCommand("workbench.extensions.installExtension", "ms-vscode.vscode-speech")
+					return
+				}
+			}
+
+			// Open VS Code's input box with speech support hint
+			const result = await vscode.window.showInputBox({
+				prompt: "🎤 Speak or type your message (Ctrl+Alt+V for voice)",
+				placeHolder: "Say something or type here...",
+				title: "Cline Voice Input",
+				ignoreFocusOut: true,
+			})
+
+			if (result !== undefined && result.trim()) {
+				// Show the webview
+				const webviewView = webview.getWebview()
+				if (webviewView) {
+					webviewView.show()
+				}
+
+				// Send the text to the chat input
+				await sendAddToInputEvent(result)
+				telemetryService.captureButtonClick("command_voiceInput", webview.controller?.task?.ulid)
+			}
 		}),
 	)
 

@@ -927,7 +927,7 @@ export class Controller {
 		// Set feature flag in dictation settings based on platform
 		const updatedDictationSettings = {
 			...dictationSettings,
-			featureEnabled: process.platform === "darwin" || process.platform === "linux", // Enable dictation on macOS and Linux
+			featureEnabled: true,
 		}
 
 		return {
