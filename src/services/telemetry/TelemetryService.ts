@@ -58,7 +58,7 @@ export type TelemetryMetadata = {
 	 * all use the same extension or plugin.
 	 */
 	cline_type: string
-	/** The name of the host IDE or environment e.g. VSCode, Cursor, IntelliJ Professional Editon, etc. */
+	/** The name of the host IDE or environment e.g. VSCode, Cursor, IntelliJ Professional Edition, etc. */
 	platform: string
 	/** The version of the host environment */
 	platform_version: string
