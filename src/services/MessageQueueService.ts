@@ -92,6 +92,9 @@ export class MessageQueueService {
 		this.log("Message handler registered")
 	}
 
+	private simpleQueueInterval: NodeJS.Timeout | null = null
+	private simpleQueueFile: string = ""
+
 	/**
 	 * Start watching for incoming messages
 	 */
@@ -119,6 +122,9 @@ export class MessageQueueService {
 			}
 		})
 
+		// Also start the simple text file queue watcher
+		this.startSimpleQueueWatcher()
+
 		this.log("Message watcher started")
 		// Notification shown via console log
 	}
@@ -132,6 +138,234 @@ export class MessageQueueService {
 			this.watcher = null
 			this.log("Message watcher stopped")
 		}
+		this.stopSimpleQueueWatcher()
+	}
+
+	/**
+	 * Start the simple text file queue watcher (polls copilot-to-cline.txt)
+	 */
+	private startSimpleQueueWatcher(): void {
+		if (this.simpleQueueInterval) {
+			return // Already running
+		}
+
+		this.simpleQueueFile = path.join(this.queueDir, "copilot-to-cline.txt")
+		const responseFile = path.join(this.queueDir, "cline-to-copilot.txt")
+
+		this.log(`Starting simple queue watcher: ${this.simpleQueueFile}`)
+
+		// Poll every 2 seconds for messages
+		this.simpleQueueInterval = setInterval(async () => {
+			try {
+				if (fs.existsSync(this.simpleQueueFile)) {
+					const content = fs.readFileSync(this.simpleQueueFile, "utf8").trim()
+					if (content) {
+						this.log(`📨 Simple queue message: ${content}`)
+
+						// Clear the file immediately to prevent re-processing
+						fs.writeFileSync(this.simpleQueueFile, "")
+
+						// Process the message
+						const response = await this.processSimpleMessage(content)
+
+						// Write response
+						if (response) {
+							fs.writeFileSync(responseFile, response)
+							this.log(`📤 Response written to cline-to-copilot.txt`)
+						}
+					}
+				}
+			} catch (error) {
+				// Silently ignore errors (file might be locked, etc.)
+			}
+		}, 2000)
+
+		this.log("Simple queue watcher started (2s polling)")
+	}
+
+	/**
+	 * Stop the simple text file queue watcher
+	 */
+	private stopSimpleQueueWatcher(): void {
+		if (this.simpleQueueInterval) {
+			clearInterval(this.simpleQueueInterval)
+			this.simpleQueueInterval = null
+			this.log("Simple queue watcher stopped")
+		}
+	}
+
+	/**
+	 * Process a simple text message (from copilot-to-cline.txt)
+	 */
+	private async processSimpleMessage(content: string): Promise<string> {
+		// Handle pipeline orchestration: "pipeline: claude->codex->gemini: prompt"
+		if (content.startsWith("pipeline:")) {
+			return await this.handlePipeline(content.substring("pipeline:".length).trim())
+		}
+		// Handle parallel execution: "parallel: claude+codex+gemini: prompt"
+		if (content.startsWith("parallel:")) {
+			return await this.handleParallel(content.substring("parallel:".length).trim())
+		}
+		// Handle CLI routing prefixes
+		if (content.startsWith("claude:")) {
+			const prompt = content.substring("claude:".length).trim()
+			return await this.handleClaudeCli(prompt, true)
+		}
+		if (content.startsWith("codex:")) {
+			const prompt = content.substring("codex:".length).trim()
+			return await this.handleCodexCli(prompt, true)
+		}
+		if (content.startsWith("gemini:")) {
+			const prompt = content.substring("gemini:".length).trim()
+			return await this.handleGeminiCli(prompt, true)
+		}
+		if (content === "auto-approve-all" || content === "yolo-mode") {
+			return await this.handleAutoApproveAll()
+		}
+		if (content === "get-usage") {
+			return await this.handleGetUsage()
+		}
+		if (content.startsWith("set-model:")) {
+			const modelId = content.substring("set-model:".length).trim()
+			return await this.handleModelSwitch(modelId)
+		}
+
+		// Default: echo back that message was received
+		// If there's a message handler, call it
+		if (this.onMessageCallback) {
+			const fakeMessage: Message = {
+				id: this.generateId(),
+				from: "copilot",
+				to: "cline",
+				timestamp: new Date().toISOString(),
+				type: "command",
+				content: content,
+				metadata: {},
+			}
+			const result = await this.onMessageCallback(fakeMessage)
+			return result || `Cline received: ${content}`
+		}
+
+		return `Cline received: ${content}`
+	}
+
+	/**
+	 * Handle pipeline orchestration - chain multiple agents sequentially
+	 * Format: "claude->codex->gemini: initial prompt"
+	 * Each agent receives the previous agent's output as context
+	 */
+	private async handlePipeline(content: string): Promise<string> {
+		// Parse: "claude->codex->gemini: prompt"
+		const colonIndex = content.indexOf(":")
+		if (colonIndex === -1) {
+			return "Error: Pipeline format is 'pipeline: agent1->agent2: prompt'"
+		}
+
+		const agentChain = content.substring(0, colonIndex).trim()
+		const initialPrompt = content.substring(colonIndex + 1).trim()
+		const agents = agentChain.split("->").map((a) => a.trim().toLowerCase())
+
+		if (agents.length < 2) {
+			return "Error: Pipeline needs at least 2 agents (e.g., claude->codex)"
+		}
+
+		this.log(`🔗 Starting pipeline: ${agents.join(" → ")}`)
+		this.log(`📝 Initial prompt: ${initialPrompt}`)
+
+		let currentOutput = initialPrompt
+		const results: string[] = []
+
+		for (let i = 0; i < agents.length; i++) {
+			const agent = agents[i]
+			const isFirst = i === 0
+			const prompt = isFirst
+				? currentOutput
+				: `Previous agent output:\n${currentOutput}\n\nContinue with this task or improve upon it.`
+
+			this.log(`🤖 Step ${i + 1}/${agents.length}: Running ${agent}...`)
+
+			let result: string
+			try {
+				switch (agent) {
+					case "claude":
+						result = await this.handleClaudeCli(prompt, true)
+						break
+					case "codex":
+						result = await this.handleCodexCli(prompt, true)
+						break
+					case "gemini":
+						result = await this.handleGeminiCli(prompt, true)
+						break
+					default:
+						result = `Error: Unknown agent '${agent}'. Use claude, codex, or gemini.`
+				}
+			} catch (error: any) {
+				result = `Error in ${agent}: ${error.message}`
+			}
+
+			results.push(`=== ${agent.toUpperCase()} ===\n${result}`)
+			currentOutput = result
+			this.log(`✅ ${agent} completed`)
+		}
+
+		const finalOutput = `🔗 PIPELINE COMPLETE (${agents.join(" → ")})\n\n${results.join("\n\n")}`
+		this.log(`🏁 Pipeline finished`)
+		return finalOutput
+	}
+
+	/**
+	 * Handle parallel execution - run multiple agents simultaneously
+	 * Format: "claude+codex+gemini: prompt"
+	 * All agents receive the same prompt and results are aggregated
+	 */
+	private async handleParallel(content: string): Promise<string> {
+		// Parse: "claude+codex+gemini: prompt"
+		const colonIndex = content.indexOf(":")
+		if (colonIndex === -1) {
+			return "Error: Parallel format is 'parallel: agent1+agent2: prompt'"
+		}
+
+		const agentList = content.substring(0, colonIndex).trim()
+		const prompt = content.substring(colonIndex + 1).trim()
+		const agents = agentList.split("+").map((a) => a.trim().toLowerCase())
+
+		if (agents.length < 2) {
+			return "Error: Parallel needs at least 2 agents (e.g., claude+codex)"
+		}
+
+		this.log(`⚡ Starting parallel execution: ${agents.join(" + ")}`)
+		this.log(`📝 Prompt: ${prompt}`)
+
+		// Run all agents in parallel
+		const promises = agents.map(async (agent) => {
+			try {
+				let result: string
+				switch (agent) {
+					case "claude":
+						result = await this.handleClaudeCli(prompt, true)
+						break
+					case "codex":
+						result = await this.handleCodexCli(prompt, true)
+						break
+					case "gemini":
+						result = await this.handleGeminiCli(prompt, true)
+						break
+					default:
+						result = `Error: Unknown agent '${agent}'`
+				}
+				return { agent, result, success: true }
+			} catch (error: any) {
+				return { agent, result: error.message, success: false }
+			}
+		})
+
+		const results = await Promise.all(promises)
+
+		const output = results.map((r) => `=== ${r.agent.toUpperCase()} ${r.success ? "✅" : "❌"} ===\n${r.result}`).join("\n\n")
+
+		const finalOutput = `⚡ PARALLEL COMPLETE (${agents.join(" + ")})\n\n${output}`
+		this.log(`🏁 Parallel execution finished`)
+		return finalOutput
 	}
 
 	/**
@@ -463,11 +697,11 @@ export class MessageQueueService {
 
 		try {
 			const { execSync } = require("child_process")
-			// Use --yolo for auto-approve mode, otherwise default
-			const yoloFlag = yolo ? "--yolo " : ""
-			const command = `gemini ${yoloFlag}"${prompt.replace(/"/g, '\\"')}"`
+			// Use Gemini 2.5 Pro model with --yolo for auto-approve mode
+			const yoloFlag = yolo ? "-y " : ""
+			const command = `gemini -m gemini-2.5-pro ${yoloFlag}"${prompt.replace(/"/g, '\\"')}"`
 
-			this.log(`💎 Sending to Gemini CLI: ${prompt}`)
+			this.log(`💎 Sending to Gemini CLI (2.5 Pro): ${prompt}`)
 			const result = execSync(command, {
 				encoding: "utf8",
 				timeout: 180000, // 3 minute timeout
