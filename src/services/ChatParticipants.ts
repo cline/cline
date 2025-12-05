@@ -198,6 +198,75 @@ async function handleClineRequest(
 }
 
 /**
+ * Handler for @gemini chat participant
+ * Routes messages to Gemini CLI (Google)
+ */
+async function handleGeminiRequest(
+	request: vscode.ChatRequest,
+	_context: vscode.ChatContext,
+	stream: vscode.ChatResponseStream,
+	_token: vscode.CancellationToken,
+): Promise<vscode.ChatResult> {
+	const prompt = request.prompt.trim()
+
+	if (!prompt) {
+		stream.markdown("Please provide a prompt for Gemini CLI.")
+		return { metadata: { command: "gemini" } }
+	}
+
+	stream.markdown(`💎 **Gemini CLI** processing...\n\n`)
+	stream.progress("Executing Gemini CLI...")
+
+	try {
+		// Check for YOLO mode (auto-approve)
+		const isYolo = prompt.toLowerCase().startsWith("yolo:")
+		const actualPrompt = isYolo ? prompt.substring(5).trim() : prompt
+
+		// Escape the prompt for shell
+		const escapedPrompt = actualPrompt.replace(/"/g, '\\"').replace(/`/g, "\\`")
+
+		// Build command - YOLO mode or default
+		const yoloFlag = isYolo ? "--yolo " : ""
+		const command = `gemini ${yoloFlag}"${escapedPrompt}"`
+
+		Logger.log(`[ChatParticipant] Executing Gemini CLI: ${command}`)
+
+		const workspaceRoot = await getWorkspaceRoot()
+		const { stdout, stderr } = await execAsync(command, {
+			cwd: workspaceRoot,
+			timeout: 300000, // 5 minute timeout
+			maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+		})
+
+		// Clean up the response
+		const cleanOutput = (stdout || "")
+			.split("\n")
+			.filter((line: string) => !line.includes("Loaded cached credentials"))
+			.join("\n")
+			.trim()
+
+		if (stderr && !cleanOutput) {
+			stream.markdown(`⚠️ **Error:**\n\`\`\`\n${stderr}\n\`\`\``)
+		} else {
+			stream.markdown(cleanOutput || "No response from Gemini CLI.")
+		}
+
+		return { metadata: { command: "gemini", success: true } }
+	} catch (error: any) {
+		const errorMessage = error.message || String(error)
+		stream.markdown(`❌ **Gemini CLI Error:**\n\`\`\`\n${errorMessage}\n\`\`\``)
+
+		if (errorMessage.includes("command not found") || errorMessage.includes("not recognized")) {
+			stream.markdown(
+				`\n\n💡 **Tip:** Install Gemini CLI with:\n\`\`\`bash\nnpm install -g @anthropic-ai/claude-code\n\`\`\``,
+			)
+		}
+
+		return { metadata: { command: "gemini", success: false, error: errorMessage } }
+	}
+}
+
+/**
  * Register all chat participants
  */
 export function registerChatParticipants(context: vscode.ExtensionContext): void {
@@ -220,6 +289,12 @@ export function registerChatParticipants(context: vscode.ExtensionContext): void
 	clineParticipant.iconPath = vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "icon.png")
 	context.subscriptions.push(clineParticipant)
 	Logger.log("[ChatParticipants] Registered @cline")
+
+	// Register @gemini participant
+	const geminiParticipant = vscode.chat.createChatParticipant("bcline.gemini", handleGeminiRequest)
+	geminiParticipant.iconPath = vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "gemini.png")
+	context.subscriptions.push(geminiParticipant)
+	Logger.log("[ChatParticipants] Registered @gemini")
 
 	Logger.log("[ChatParticipants] All chat participants registered successfully")
 }

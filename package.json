@@ -48,7 +48,8 @@
 		"workspaceContains:evals.env",
 		"onChatParticipant:bcline.claude",
 		"onChatParticipant:bcline.codex",
-		"onChatParticipant:bcline.cline"
+		"onChatParticipant:bcline.cline",
+		"onChatParticipant:bcline.gemini"
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
@@ -72,6 +73,13 @@
 				"name": "cline",
 				"fullName": "Cline Agent",
 				"description": "Send tasks to Cline autonomous coding agent",
+				"isSticky": true
+			},
+			{
+				"id": "bcline.gemini",
+				"name": "gemini",
+				"fullName": "Gemini CLI",
+				"description": "Talk directly to Google Gemini CLI",
 				"isSticky": true
 			}
 		],

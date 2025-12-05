@@ -204,6 +204,16 @@ export class MessageQueueService {
 				const prompt = message.content.substring("codex-yolo:".length).trim()
 				responseContent = await this.handleCodexCli(prompt, true)
 			}
+			// Handle Gemini CLI commands: "gemini:prompt" sends to Gemini CLI
+			else if (message.content.startsWith("gemini:")) {
+				const prompt = message.content.substring("gemini:".length).trim()
+				responseContent = await this.handleGeminiCli(prompt)
+			}
+			// Handle Gemini CLI with YOLO mode: "gemini-yolo:prompt"
+			else if (message.content.startsWith("gemini-yolo:")) {
+				const prompt = message.content.substring("gemini-yolo:".length).trim()
+				responseContent = await this.handleGeminiCli(prompt, true)
+			}
 			// Handle other special commands here...
 			else {
 				// Default: Call the message handler if registered
@@ -440,6 +450,44 @@ export class MessageQueueService {
 		} catch (error: any) {
 			this.log(`❌ Error calling Codex CLI: ${error.message}`)
 			return `Error calling Codex CLI: ${error.message}`
+		}
+	}
+
+	/**
+	 * Handle Gemini CLI commands - sends prompts to Google Gemini CLI and returns response
+	 * @param prompt The prompt to send to Gemini CLI
+	 * @param yolo Whether to run with --yolo flag (auto-approve all)
+	 */
+	private async handleGeminiCli(prompt: string, yolo: boolean = false): Promise<string> {
+		if (!prompt) {
+			return `Error: No prompt provided. Use format: gemini:your prompt here`
+		}
+
+		try {
+			const { execSync } = require("child_process")
+			// Use --yolo for auto-approve mode, otherwise default
+			const yoloFlag = yolo ? "--yolo " : ""
+			const command = `gemini ${yoloFlag}"${prompt.replace(/"/g, '\\"')}"`
+
+			this.log(`💎 Sending to Gemini CLI: ${prompt}`)
+			const result = execSync(command, {
+				encoding: "utf8",
+				timeout: 180000, // 3 minute timeout
+				cwd: process.cwd(),
+			})
+
+			// Clean up the response (remove "Loaded cached credentials." line if present)
+			const cleanResponse = result
+				.split("\n")
+				.filter((line: string) => !line.includes("Loaded cached credentials"))
+				.join("\n")
+				.trim()
+
+			this.log(`✅ Gemini CLI response received`)
+			return `Gemini CLI: ${cleanResponse}`
+		} catch (error: any) {
+			this.log(`❌ Error calling Gemini CLI: ${error.message}`)
+			return `Error calling Gemini CLI: ${error.message}`
 		}
 	}
 
