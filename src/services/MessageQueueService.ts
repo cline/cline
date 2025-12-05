@@ -31,6 +31,7 @@ export class MessageQueueService {
 	private inboxDir: string
 	private outboxDir: string
 	private responsesDir: string
+	private workspaceRoot: string
 	private watcher: fs.FSWatcher | null = null
 	private enabled: boolean = true
 	private onMessageCallback: ((message: Message) => Promise<string | void>) | null = null
@@ -38,6 +39,7 @@ export class MessageQueueService {
 	private controller: Controller | null = null
 
 	private constructor(workspaceRoot: string) {
+		this.workspaceRoot = workspaceRoot
 		this.queueDir = path.join(workspaceRoot, ".message-queue")
 		this.inboxDir = path.join(this.queueDir, "inbox")
 		this.outboxDir = path.join(this.queueDir, "outbox")
@@ -184,34 +186,19 @@ export class MessageQueueService {
 			else if (message.content === "auto-approve-all" || message.content === "yolo-mode") {
 				responseContent = await this.handleAutoApproveAll()
 			}
-			// Handle Claude CLI commands: "claude:prompt" sends to Claude CLI
+			// Handle Claude CLI commands: "claude:prompt" - all tools enabled, auto-approve
 			else if (message.content.startsWith("claude:")) {
 				const prompt = message.content.substring("claude:".length).trim()
-				responseContent = await this.handleClaudeCli(prompt)
-			}
-			// Handle Claude CLI with auto-approve: "claude-yolo:prompt"
-			else if (message.content.startsWith("claude-yolo:")) {
-				const prompt = message.content.substring("claude-yolo:".length).trim()
 				responseContent = await this.handleClaudeCli(prompt, true)
 			}
-			// Handle Codex CLI commands: "codex:prompt" sends to Codex CLI
+			// Handle Codex CLI commands: "codex:prompt" - full auto mode
 			else if (message.content.startsWith("codex:")) {
 				const prompt = message.content.substring("codex:".length).trim()
-				responseContent = await this.handleCodexCli(prompt)
-			}
-			// Handle Codex CLI with full-auto: "codex-yolo:prompt"
-			else if (message.content.startsWith("codex-yolo:")) {
-				const prompt = message.content.substring("codex-yolo:".length).trim()
 				responseContent = await this.handleCodexCli(prompt, true)
 			}
-			// Handle Gemini CLI commands: "gemini:prompt" sends to Gemini CLI
+			// Handle Gemini CLI commands: "gemini:prompt" - yolo mode enabled
 			else if (message.content.startsWith("gemini:")) {
 				const prompt = message.content.substring("gemini:".length).trim()
-				responseContent = await this.handleGeminiCli(prompt)
-			}
-			// Handle Gemini CLI with YOLO mode: "gemini-yolo:prompt"
-			else if (message.content.startsWith("gemini-yolo:")) {
-				const prompt = message.content.substring("gemini-yolo:".length).trim()
 				responseContent = await this.handleGeminiCli(prompt, true)
 			}
 			// Handle other special commands here...
@@ -386,22 +373,33 @@ export class MessageQueueService {
 	 * Handle Claude CLI commands - sends prompts to Claude CLI and returns response
 	 * @param prompt The prompt to send to Claude CLI
 	 * @param bypassPermissions Whether to run with --permission-mode bypassPermissions
+	 * @param allowedTools Array of tools to grant (e.g., ["WebSearch", "Read", "Edit", "Bash"])
 	 */
-	private async handleClaudeCli(prompt: string, bypassPermissions: boolean = false): Promise<string> {
+	private async handleClaudeCli(
+		prompt: string,
+		bypassPermissions: boolean = false,
+		allowedTools: string[] = [],
+	): Promise<string> {
 		if (!prompt) {
 			return `Error: No prompt provided. Use format: claude:your prompt here`
 		}
 
 		try {
 			const { execSync } = require("child_process")
-			const permissionFlag = bypassPermissions ? "--permission-mode bypassPermissions " : ""
-			const command = `claude ${permissionFlag}-p "${prompt.replace(/"/g, '\\"')}\n"`
+			let flags = ""
+			if (bypassPermissions) {
+				flags = "--permission-mode bypassPermissions "
+			} else if (allowedTools.length > 0) {
+				// Grant specific tools using --allowedTools flag
+				flags = `--allowedTools ${allowedTools.join(",")} `
+			}
+			const command = `claude ${flags}-p "${prompt.replace(/"/g, '\\"')}\n"`
 
 			this.log(`🤖 Sending to Claude CLI: ${prompt}`)
 			const result = execSync(command, {
 				encoding: "utf8",
 				timeout: 120000, // 2 minute timeout
-				cwd: process.cwd(),
+				cwd: this.workspaceRoot,
 			})
 
 			this.log(`✅ Claude CLI response received`)
@@ -433,7 +431,7 @@ export class MessageQueueService {
 			const result = execSync(command, {
 				encoding: "utf8",
 				timeout: 180000, // 3 minute timeout (Codex can be slow)
-				cwd: process.cwd(),
+				cwd: this.workspaceRoot,
 			})
 
 			// Extract just the response (after "codex" line)
@@ -473,7 +471,7 @@ export class MessageQueueService {
 			const result = execSync(command, {
 				encoding: "utf8",
 				timeout: 180000, // 3 minute timeout
-				cwd: process.cwd(),
+				cwd: this.workspaceRoot,
 			})
 
 			// Clean up the response (remove "Loaded cached credentials." line if present)
