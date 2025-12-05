@@ -25,8 +25,6 @@ export const ClineAccountInfoCard = () => {
 		navigateToAccount()
 	}
 
-	console.log({ isAuthLoading: isLoading })
-
 	return (
 		<div className="max-w-[600px]">
 			{user ? (
