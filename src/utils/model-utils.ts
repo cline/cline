@@ -143,7 +143,7 @@ export function isNextGenModelFamily(id: string): boolean {
 		isGemini3ModelFamily(modelId) ||
 		isNextGenOpenSourceModelFamily(modelId) ||
 		isDeepSeek32ModelFamily(modelId) ||
-    isDeepSeekNativeModelFamily(modelId)
+		isDeepSeekNativeModelFamily(modelId)
 	)
 }
 
