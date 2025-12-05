@@ -1,6 +1,6 @@
 # BCline CLI Messaging System
 
-A bidirectional file-based messaging system that enables external processes (like GitHub Copilot) to communicate with BCline and Claude CLI.
+A bidirectional file-based messaging system that enables external processes (like GitHub Copilot) to communicate with BCline, Claude CLI, and Codex CLI.
 
 ## Overview
 
@@ -16,18 +16,20 @@ The messaging system uses file-based communication through the `.message-queue/`
 │ GitHub Copilot  │────▶│ Send-ClineMessage│────▶│   BCline    │────▶│ Claude CLI  │
 │  (Voice Input)  │     │     .ps1         │     │ Extension   │     │  (Opus 4.5) │
 └─────────────────┘     └──────────────────┘     └─────────────┘     └─────────────┘
-        │                                               │
-        │                                               ▼
-        │                                      ┌─────────────────┐
-        └─────────────────────────────────────▶│ MessageQueue    │
-                                               │ Service.ts      │
-                                               └─────────────────┘
+        │                                               │                   
+        │                                               ├──────────────────────────┐
+        │                                               ▼                          ▼
+        │                                      ┌─────────────────┐      ┌─────────────────┐
+        └─────────────────────────────────────▶│ MessageQueue    │      │   Codex CLI     │
+                                               │ Service.ts      │      │  (GPT-5.1)      │
+                                               └─────────────────┘      └─────────────────┘
 ```
 
-**Three AI Channels:**
+**Four AI Channels:**
 1. **Copilot** - Voice/chat in VS Code (Claude Opus 4.5 Preview)
 2. **Cline** - Via `Send-ClineMessage.ps1` (OpenRouter models)
 3. **Claude CLI** - Via `claude:` prefix (Claude Opus 4.5)
+4. **Codex CLI** - Via `codex:` prefix (GPT-5.1 Codex)
 
 ## Quick Start
 
@@ -44,6 +46,11 @@ The messaging system uses file-based communication through the `.message-queue/`
 ### Send to Claude CLI (via Cline):
 ```powershell
 .\Send-ClineMessage.ps1 -Message "claude:Explain recursion in simple terms"
+```
+
+### Send to Codex CLI (via Cline):
+```powershell
+.\Send-ClineMessage.ps1 -Message "codex:Create a binary search function in Python"
 ```
 
 ## CLI Scripts
@@ -75,6 +82,12 @@ These commands are handled directly by the MessageQueueService:
 |---------|-------------|
 | `claude:<prompt>` | Send prompt to Claude CLI and return response |
 | `claude-yolo:<prompt>` | Send prompt to Claude CLI with auto-approve (bypassPermissions) |
+
+### Codex CLI Commands
+| Command | Description |
+|---------|-------------|
+| `codex:<prompt>` | Send prompt to Codex CLI (GPT-5.1) in read-only mode |
+| `codex-yolo:<prompt>` | Send prompt to Codex CLI with FULL agent mode (bypasses all approvals and sandbox) |
 
 ## Examples
 
@@ -108,7 +121,17 @@ Usage Report | Model: anthropic/claude-sonnet-4 | Tokens In: 18,502 | Tokens Out
 .\Send-ClineMessage.ps1 -Message "claude-yolo:Create a file called hello.py that prints Hello World"
 ```
 
-## Voice Workflow (Copilot → Cline → Claude CLI)
+### Send to Codex CLI (GPT-5.1):
+```powershell
+.\Send-ClineMessage.ps1 -Message "codex:Explain how async/await works in JavaScript" -Wait -Timeout 60
+```
+
+### Send to Codex CLI with full-auto:
+```powershell
+.\Send-ClineMessage.ps1 -Message "codex-yolo:Create a REST API server in Node.js"
+```
+
+## Voice Workflow (Copilot → Cline → Claude CLI / Codex CLI)
 
 With this system, you can use voice input through GitHub Copilot to orchestrate multiple AI agents:
 

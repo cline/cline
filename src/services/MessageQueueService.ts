@@ -194,6 +194,16 @@ export class MessageQueueService {
 				const prompt = message.content.substring("claude-yolo:".length).trim()
 				responseContent = await this.handleClaudeCli(prompt, true)
 			}
+			// Handle Codex CLI commands: "codex:prompt" sends to Codex CLI
+			else if (message.content.startsWith("codex:")) {
+				const prompt = message.content.substring("codex:".length).trim()
+				responseContent = await this.handleCodexCli(prompt)
+			}
+			// Handle Codex CLI with full-auto: "codex-yolo:prompt"
+			else if (message.content.startsWith("codex-yolo:")) {
+				const prompt = message.content.substring("codex-yolo:".length).trim()
+				responseContent = await this.handleCodexCli(prompt, true)
+			}
 			// Handle other special commands here...
 			else {
 				// Default: Call the message handler if registered
@@ -389,6 +399,46 @@ export class MessageQueueService {
 		} catch (error: any) {
 			this.log(`❌ Error calling Claude CLI: ${error.message}`)
 			return `Error calling Claude CLI: ${error.message}`
+		}
+	}
+
+	/**
+	 * Handle Codex CLI commands - sends prompts to OpenAI Codex CLI and returns response
+	 * @param prompt The prompt to send to Codex CLI
+	 * @param fullAuto Whether to run with --full-auto flag
+	 */
+	private async handleCodexCli(prompt: string, fullAuto: boolean = false): Promise<string> {
+		if (!prompt) {
+			return `Error: No prompt provided. Use format: codex:your prompt here`
+		}
+
+		try {
+			const { execSync } = require("child_process")
+			// Use dangerously-bypass for full agent mode, otherwise just exec
+			const autoFlag = fullAuto ? "--dangerously-bypass-approvals-and-sandbox " : ""
+			const command = `codex exec ${autoFlag}"${prompt.replace(/"/g, '\\"')}"`
+
+			this.log(`🤖 Sending to Codex CLI: ${prompt}`)
+			const result = execSync(command, {
+				encoding: "utf8",
+				timeout: 180000, // 3 minute timeout (Codex can be slow)
+				cwd: process.cwd(),
+			})
+
+			// Extract just the response (after "codex" line)
+			const lines = result.split("\n")
+			const codexIndex = lines.findIndex((line: string) => line.trim() === "codex")
+			const responseLines = codexIndex >= 0 ? lines.slice(codexIndex + 1) : lines
+			const cleanResponse = responseLines
+				.filter((line: string) => !line.startsWith("tokens used") && line.trim() !== "")
+				.join("\n")
+				.trim()
+
+			this.log(`✅ Codex CLI response received`)
+			return `Codex CLI: ${cleanResponse}`
+		} catch (error: any) {
+			this.log(`❌ Error calling Codex CLI: ${error.message}`)
+			return `Error calling Codex CLI: ${error.message}`
 		}
 	}
 
