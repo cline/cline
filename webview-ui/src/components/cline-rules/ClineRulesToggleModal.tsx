@@ -62,8 +62,7 @@ const ClineRulesToggleModal: React.FC = () => {
 
 	// Auto-switch to rules tab if hooks become disabled while viewing hooks tab
 	useEffect(() => {
-		const areHooksEnabled = hooksEnabled?.user
-		if (currentView === "hooks" && !areHooksEnabled) {
+		if (currentView === "hooks" && !hooksEnabled) {
 			setCurrentView("rules")
 		}
 	}, [currentView, hooksEnabled])
@@ -415,7 +414,7 @@ const ClineRulesToggleModal: React.FC = () => {
 								<TabButton isActive={currentView === "workflows"} onClick={() => setCurrentView("workflows")}>
 									Workflows
 								</TabButton>
-								{hooksEnabled?.user && (
+								{hooksEnabled && (
 									<TabButton isActive={currentView === "hooks"} onClick={() => setCurrentView("hooks")}>
 										Hooks
 									</TabButton>
