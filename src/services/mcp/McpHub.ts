@@ -82,6 +82,17 @@ export class McpHub {
 	 */
 	private static mcpServerKeys = new Map<string, string>()
 
+	/**
+	 * Set of transient server names (registered dynamically, not persisted to file)
+	 */
+	private transientServers = new Set<string>()
+
+	/**
+	 * Map of transient server configurations (in-memory only, not persisted to file)
+	 * Stores the full configuration including autoApprove settings
+	 */
+	private transientServerConfigs = new Map<string, McpServerConfig>()
+
 	// Store notifications for display in chat
 	private pendingNotifications: Array<{
 		serverName: string
@@ -665,11 +676,19 @@ export class McpHub {
 				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
 			})
 
-			// Get autoApprove settings
-			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
-			const content = await fs.readFile(settingsPath, "utf-8")
-			const config = JSON.parse(content)
-			const autoApproveConfig = config.mcpServers[serverName]?.autoApprove || []
+			// Get autoApprove settings (check transient servers first)
+			let autoApproveConfig: string[] = []
+			if (this.transientServers.has(serverName)) {
+				// Get from in-memory transient config
+				const transientConfig = this.transientServerConfigs.get(serverName)
+				autoApproveConfig = transientConfig?.autoApprove || []
+			} else {
+				// Get from persistent config file
+			        const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+				const content = await fs.readFile(settingsPath, "utf-8")
+				const config = JSON.parse(content)
+				autoApproveConfig = config.mcpServers[serverName]?.autoApprove || []
+			}
 
 			// Mark tools as always allowed based on settings
 			const tools = (response?.tools || []).map((tool) => ({
@@ -770,6 +789,9 @@ export class McpHub {
 				Logger.error(`Failed to close transport for ${name}:`, error)
 			}
 			this.connections = this.connections.filter((conn) => conn.server.name !== name)
+			// Clean up transient server tracking
+			this.transientServers.delete(name)
+			this.transientServerConfigs.delete(name)
 		}
 	}
 
@@ -793,9 +815,9 @@ export class McpHub {
 		const currentNames = new Set(this.connections.map((conn) => conn.server.name))
 		const newNames = new Set(Object.keys(newServers))
 
-		// Delete removed servers
+		// Delete removed servers (but preserve transient servers)
 		for (const name of currentNames) {
-			if (!newNames.has(name)) {
+			if (!newNames.has(name) && !this.transientServers.has(name)) {
 				await this.deleteConnection(name)
 				Logger.log(`Deleted MCP server: ${name}`)
 			}
@@ -859,9 +881,9 @@ export class McpHub {
 		// Track if any connection-level changes occurred (excludes Cline-specific settings)
 		let connectionChangesOccurred = false
 
-		// Delete removed servers
+		// Delete removed servers (but preserve transient servers)
 		for (const name of currentNames) {
-			if (!newNames.has(name)) {
+			if (!newNames.has(name) && !this.transientServers.has(name)) {
 				await this.clearOAuthForConnection(name) // Clear OAuth data first
 				await this.deleteConnection(name) // Then delete connection
 				Logger.log(`Deleted MCP server: ${name}`)
@@ -1282,6 +1304,51 @@ export class McpHub {
 		// Set flag to prevent file watcher from triggering during our update
 		this.isUpdatingClineSettings = true
 		try {
+			// Check if this is a transient server
+			if (this.transientServers.has(serverName)) {
+				// Handle transient server - update in-memory config only
+				const transientConfig = this.transientServerConfigs.get(serverName)
+				if (!transientConfig) {
+					throw new Error(`Transient server "${serverName}" configuration not found`)
+				}
+
+				// Initialize autoApprove if it doesn't exist
+				if (!transientConfig.autoApprove) {
+					transientConfig.autoApprove = []
+				}
+
+				const autoApprove = transientConfig.autoApprove
+				for (const toolName of toolNames) {
+					const toolIndex = autoApprove.indexOf(toolName)
+
+					if (shouldAllow && toolIndex === -1) {
+						// Add tool to autoApprove list
+						autoApprove.push(toolName)
+					} else if (!shouldAllow && toolIndex !== -1) {
+						// Remove tool from autoApprove list
+						autoApprove.splice(toolIndex, 1)
+					}
+				}
+
+				// Update the tools list to reflect the change in memory
+				const connection = this.connections.find((conn) => conn.server.name === serverName)
+				if (connection && connection.server.tools) {
+					connection.server.tools = connection.server.tools.map((tool) => ({
+						...tool,
+						autoApprove: autoApprove.includes(tool.name),
+					}))
+				}
+
+				// Return sorted servers (include both persistent and transient)
+				const settings = await this.readAndValidateMcpSettingsFile()
+				if (!settings) {
+					throw new Error("Failed to read MCP settings")
+				}
+				const allServerNames = [...Object.keys(settings.mcpServers), ...Array.from(this.transientServers)]
+				return this.getSortedMcpServers(allServerNames)
+			}
+
+			// Handle persistent server - read from and write to file
 			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
@@ -1335,6 +1402,45 @@ export class McpHub {
 		// Set flag to prevent file watcher from triggering during our update
 		this.isUpdatingClineSettings = true
 		try {
+			// Check if this is a transient server
+			if (this.transientServers.has(serverName)) {
+				// Handle transient server - update in-memory config only
+				const transientConfig = this.transientServerConfigs.get(serverName)
+				if (!transientConfig) {
+					throw new Error(`Transient server "${serverName}" configuration not found`)
+				}
+
+				// Initialize autoApprove if it doesn't exist
+				if (!transientConfig.autoApprove) {
+					transientConfig.autoApprove = []
+				}
+
+				const autoApprove = transientConfig.autoApprove
+				for (const toolName of toolNames) {
+					const toolIndex = autoApprove.indexOf(toolName)
+
+					if (shouldAllow && toolIndex === -1) {
+						// Add tool to autoApprove list
+						autoApprove.push(toolName)
+					} else if (!shouldAllow && toolIndex !== -1) {
+						// Remove tool from autoApprove list
+						autoApprove.splice(toolIndex, 1)
+					}
+				}
+
+				// Update the tools list to reflect the change in memory
+				const connection = this.connections.find((conn) => conn.server.name === serverName)
+				if (connection && connection.server.tools) {
+					connection.server.tools = connection.server.tools.map((tool) => ({
+						...tool,
+						autoApprove: autoApprove.includes(tool.name),
+					}))
+					await this.notifyWebviewOfServerChanges()
+				}
+				return
+			}
+
+			// Handle persistent server - read from and write to file
 			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
@@ -1623,6 +1729,140 @@ export class McpHub {
 
 		// Restart connection to complete setup with authenticated transport
 		await this.restartConnection(connection.server.name)
+	}
+
+	/**
+	 * Register an MCP server dynamically at runtime.
+	 * This method allows VSCode extensions to register MCP servers programmatically
+	 * without requiring manual JSON configuration.
+	 *
+	 * @param config - The MCP server configuration object containing:
+	 *   - serverName: Unique name for the MCP server
+	 *   - For stdio transport: command, args, env, cwd
+	 *   - For sse/streamableHttp transport: url, headers
+	 *   - Optional: disabled, autoApprove, timeout, transportType
+	 * @returns Promise<McpServer[]> - Array of all registered MCP servers after registration
+	 * @throws Error if validation fails or server already exists
+	 * @note Servers registered via this method are transient and NOT saved to the settings file
+	 */
+	public async registerMcpServerDynamically(config: {
+		serverName: string
+		command?: string
+		args?: string[]
+		env?: Record<string, string>
+		cwd?: string
+		url?: string
+		headers?: Record<string, string>
+		transportType?: "stdio" | "sse" | "streamableHttp"
+		disabled?: boolean
+		autoApprove?: string[]
+		timeout?: number
+	}): Promise<McpServer[]> {
+		try {
+			const { serverName, ...serverConfig } = config
+
+			if (!serverName || typeof serverName !== "string" || serverName.trim() === "") {
+				throw new Error("Server name is required and must be a non-empty string")
+			}
+
+			const settings = await this.readAndValidateMcpSettingsFile()
+			if (!settings) {
+				throw new Error("Failed to read MCP settings")
+			}
+
+			// Check if server already exists
+			if (settings.mcpServers[serverName]) {
+				throw new Error(`An MCP server with the name "${serverName}" already exists`)
+			}
+
+			// Determine the transport type and validate config
+			let normalizedConfig: any = {
+				disabled: serverConfig.disabled ?? false,
+				autoApprove: serverConfig.autoApprove ?? [],
+				timeout: serverConfig.timeout,
+			}
+
+			// Handle stdio transport
+			if (serverConfig.command) {
+				normalizedConfig = {
+					...normalizedConfig,
+					type: "stdio",
+					command: serverConfig.command,
+					args: serverConfig.args,
+					env: serverConfig.env,
+					cwd: serverConfig.cwd,
+				}
+			}
+			// Handle SSE/HTTP transport
+			else if (serverConfig.url) {
+				// Validate URL format
+				const urlValidation = z.string().url().safeParse(serverConfig.url)
+				if (!urlValidation.success) {
+					throw new Error(`Invalid server URL: ${serverConfig.url}. Please provide a valid URL.`)
+				}
+
+				// Use explicit transportType or default to streamableHttp
+				const transportType = serverConfig.transportType === "sse" ? "sse" : "streamableHttp"
+				normalizedConfig = {
+					...normalizedConfig,
+					type: transportType,
+					url: serverConfig.url,
+					headers: serverConfig.headers,
+				}
+			} else {
+				throw new Error(
+					"Invalid MCP server configuration: must provide either 'command' (for stdio) or 'url' (for sse/streamableHttp)",
+				)
+			}
+
+			// Validate the config against the schema
+			const parsedConfig = ServerConfigSchema.parse(normalizedConfig)
+
+			// Transient mode: only connect without saving to file
+			// All servers registered via this method are transient
+			this.transientServers.add(serverName)
+			this.transientServerConfigs.set(serverName, parsedConfig)
+			await this.connectToServer(serverName, parsedConfig, "rpc")
+
+			Logger.log(`Registered transient MCP server: ${serverName}`)
+
+			// Return all servers (including this new transient one)
+			const allServerNames = [...Object.keys(settings.mcpServers), serverName]
+			return this.getSortedMcpServers(allServerNames)
+		} catch (error) {
+			Logger.error("Failed to register MCP server dynamically:", error)
+			throw error
+		}
+	}
+
+	/**
+	 * Unregister a transient MCP server.
+	 * This method allows extensions to clean up their dynamically registered servers.
+	 *
+	 * @param serverName - The name of the transient server to unregister
+	 * @returns Promise<McpServer[]> - Array of all registered MCP servers after unregistration
+	 * @throws Error if the server is not transient or does not exist
+	 */
+	public async unregisterMcpServerDynamically(serverName: string): Promise<McpServer[]> {
+		try {
+			if (!this.transientServers.has(serverName)) {
+				throw new Error(`Server "${serverName}" is not a transient server or does not exist`)
+			}
+
+			await this.deleteConnection(serverName)
+			Logger.log(`Unregistered transient MCP server: ${serverName}`)
+
+			const settings = await this.readAndValidateMcpSettingsFile()
+			if (!settings) {
+				throw new Error("Failed to read MCP settings")
+			}
+
+			const allServerNames = Object.keys(settings.mcpServers)
+			return this.getSortedMcpServers(allServerNames)
+		} catch (error) {
+			Logger.error("Failed to unregister MCP server dynamically:", error)
+			throw error
+		}
 	}
 
 	async dispose(): Promise<void> {
