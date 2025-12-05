@@ -162,9 +162,19 @@ export class Controller {
 			this.startRemoteConfigTimer()
 		})
 
+		// Create McpHub with custom settings directory if MCP_SETTINGS_PATH is set (CLI mode)
+		const mcpSettingsPathOverride = process.env.MCP_SETTINGS_PATH
+		const getSettingsDirectory = mcpSettingsPathOverride
+			? async () => path.dirname(mcpSettingsPathOverride)
+			: () => ensureSettingsDirectoryExists()
+
+		if (mcpSettingsPathOverride) {
+			console.log(`[Controller] Using custom MCP settings path: ${mcpSettingsPathOverride}`)
+		}
+
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
-			() => ensureSettingsDirectoryExists(),
+			getSettingsDirectory,
 			ExtensionRegistryInfo.version,
 			telemetryService,
 		)

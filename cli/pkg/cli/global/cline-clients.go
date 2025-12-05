@@ -408,15 +408,15 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 		// This handles the case where we're running from cli/bin/cline
 		devClineCorePath := path.Join(binDir, "..", "..", "dist-standalone", "cline-core.js")
 		devInstallDir := path.Join(binDir, "..", "..", "dist-standalone")
-		
+
 		if Config.Verbose {
 			fmt.Printf("Primary location not found, trying development path: %s\n", devClineCorePath)
 		}
-		
+
 		if _, err := os.Stat(devClineCorePath); os.IsNotExist(err) {
 			return nil, fmt.Errorf("cline-core.js not found at '%s' or '%s'. Please ensure you're running from the correct location or reinstall with 'npm install -g cline'", clineCorePath, devClineCorePath)
 		}
-		
+
 		finalClineCorePath = devClineCorePath
 		finalInstallDir = devInstallDir
 		if Config.Verbose {
@@ -475,15 +475,28 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 	realNodeModules := path.Join(finalInstallDir, "node_modules")
 	fakeNodeModules := path.Join(finalInstallDir, "fake_node_modules")
 	nodePath := fmt.Sprintf("%s%c%s", realNodeModules, os.PathListSeparator, fakeNodeModules)
-	
+
 	env = append(env,
 		fmt.Sprintf("NODE_PATH=%s", nodePath),
 		"GRPC_TRACE=all",
 		"GRPC_VERBOSITY=DEBUG",
 		"NODE_ENV=development",
 	)
+
+	mcpConfigPath := filepath.Join(Config.ConfigPath, "data", "settings", common.DEFAULT_CLINE_MCP_SETTINGS_FILE)
+	if _, err := os.Stat(mcpConfigPath); os.IsNotExist(err) {
+		if Config.Verbose {
+			fmt.Printf("MCP settings file not found at: %s. Continuing with no MCP config...\n", mcpConfigPath)
+		}
+	} else {
+		if Config.Verbose {
+			fmt.Printf("MCP settings file found at: %s. Setting MCP_SETTINGS_PATH env variable...\n", mcpConfigPath)
+		}
+		env = append(env, fmt.Sprintf("MCP_SETTINGS_PATH=%s", mcpConfigPath))
+	}
+
 	cmd.Env = env
-	
+
 	if Config.Verbose {
 		fmt.Printf("NODE_PATH set to: %s\n", nodePath)
 	}

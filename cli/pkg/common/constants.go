@@ -4,3 +4,5 @@ package common
 const SETTINGS_SUBFOLDER = "data"
 
 const DEFAULT_CLINE_CORE_PORT = 50052
+
+const DEFAULT_CLINE_MCP_SETTINGS_FILE = "cline_mcp_settings.json"
