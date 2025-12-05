@@ -137,6 +137,21 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		}
 	}
 
+	// Map Vertex provider settings
+	const vertexSettings = remoteConfig.providerSettings?.Vertex
+	if (vertexSettings) {
+		transformed.planModeApiProvider = "vertex"
+		transformed.actModeApiProvider = "vertex"
+		providers.push("vertex")
+
+		if (vertexSettings.vertexProjectId !== undefined) {
+			transformed.vertexProjectId = vertexSettings.vertexProjectId
+		}
+		if (vertexSettings.vertexRegion !== undefined) {
+			transformed.vertexRegion = vertexSettings.vertexRegion
+		}
+	}
+
 	// This line needs to stay here, it is order dependent on the above code checking the configured providers
 	if (providers.length > 0) {
 		transformed.remoteConfiguredProviders = providers
