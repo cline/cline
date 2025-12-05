@@ -23,7 +23,9 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		const tabs = vscode.window.tabGroups.all
 			.flatMap((tg) => tg.tabs)
 			.filter((tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, this.absolutePath))
+
 		for (const tab of tabs) {
+			const isInDiffViewScheme = tab.input instanceof vscode.TabInputText && tab.input.uri.scheme === DIFF_VIEW_URI_SCHEME
 			if (!tab.isDirty) {
 				try {
 					await vscode.window.tabGroups.close(tab)
@@ -31,7 +33,9 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 					console.warn("Tab close retry failed:", error.message)
 				}
 			}
-			this.documentWasOpen = true
+			if (isInDiffViewScheme) {
+				this.documentWasOpen = true
+			}
 		}
 
 		const uri = vscode.Uri.file(this.absolutePath)
@@ -47,6 +51,10 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 
 		if (diffTab && diffTab.input instanceof vscode.TabInputTextDiff) {
 			// Use already open diff editor.
+			// NOTE: To open the diff as a truly "silent" background tab without switching the visible tab,
+			// we would need to open it in a different editor group/column (e.g., viewColumn: vscode.ViewColumn.Beside).
+			// Within the same editor group, the new tab always becomes the visible tab - preserveFocus only
+			// prevents keyboard focus from moving, not the tab from becoming active/visible.
 			this.activeDiffEditor = await vscode.window.showTextDocument(diffTab.input.modified, {
 				preserveFocus: true,
 			})
@@ -67,6 +75,10 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 					}
 				})
 
+				// NOTE: To open the diff as a truly "silent" background tab without switching the visible tab,
+				// we would need to open it in a different editor group/column by adding viewColumn: vscode.ViewColumn.Beside
+				// to the options below. Within the same editor group, the new tab always becomes the visible tab -
+				// preserveFocus only prevents keyboard focus from moving, not the tab from becoming active/visible.
 				vscode.commands.executeCommand(
 					"vscode.diff",
 					vscode.Uri.from({
@@ -87,7 +99,6 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 				}, 10_000)
 			})
 		}
-
 		this.fadedOverlayController = new DecorationController("fadedOverlay", this.activeDiffEditor)
 		this.activeLineController = new DecorationController("activeLine", this.activeDiffEditor)
 		// Apply faded overlay to all lines initially
