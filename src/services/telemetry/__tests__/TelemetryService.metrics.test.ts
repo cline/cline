@@ -63,6 +63,7 @@ class FakeProvider implements ITelemetryProvider {
 function createTelemetryService(provider: FakeProvider): TelemetryService {
 	return new TelemetryService([provider], {
 		extension_version: "test",
+		cline_type: "cline-unit-tests",
 		platform: "test-platform",
 		platform_version: "1.0.0",
 		os_type: "darwin",
