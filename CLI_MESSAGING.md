@@ -182,6 +182,44 @@ claude --version
 ## Requirements
 
 - PowerShell 5.1+ or PowerShell Core 7+
-- BCline VS Code extension v3.40.0+
+- BCline VS Code extension v3.40.4+
 - VS Code with the extension loaded
 - Claude CLI (`npm install -g @anthropic-ai/claude-code`) for claude: commands
+- Codex CLI (`npm install -g @openai/codex`) for codex: commands
+
+## Chat Participants (@agents)
+
+BCline registers persistent chat participants in GitHub Copilot Chat:
+
+| Agent | Usage | Description |
+|-------|-------|-------------|
+| `@claude` | `@claude <prompt>` | Routes to Claude CLI (Opus 4.5) |
+| `@codex` | `@codex <prompt>` | Routes to Codex CLI (GPT-5.1) |
+| `@cline` | `@cline <task>` | Sends task to Cline agent |
+
+### YOLO Mode in Chat Participants
+Add `yolo:` prefix to your prompt for unrestricted mode:
+- `@claude yolo:delete all test files` - skips permission checks
+- `@codex yolo:rewrite the entire API` - bypasses sandbox
+
+These agents persist across VS Code restarts and appear in the Copilot Chat autocomplete.
+
+## Communication Paths
+
+### Path 1: Direct (2-way)
+```
+You → Copilot → Claude CLI or Codex CLI
+```
+Copilot runs CLI commands directly.
+
+### Path 2: Via Cline (3-way)
+```
+You → Copilot → Cline → Claude CLI or Codex CLI
+```
+Messages tracked in `.message-queue/` with full logging.
+
+### Path 3: Chat Participants
+```
+You → @claude/@codex/@cline → Target Agent
+```
+Persistent agents in Copilot Chat UI.
