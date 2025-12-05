@@ -53,7 +53,7 @@ export type TelemetryMetadata = {
 	 */
 	extension_version: string
 	/**
-	 * The type of cline distribtion, e.g VSCode Extension, JetBrains Plugin or CLI. This
+	 * The type of cline distribution, e.g VSCode Extension, JetBrains Plugin or CLI. This
 	 * is different than the `platform` because there are many variants of VSCode and JetBrains but they
 	 * all use the same extension or plugin.
 	 */
