@@ -3807,6 +3807,17 @@ export const basetenModels = {
 		cacheReadsPrice: 0,
 		description: "Extremely capable general-purpose LLM with hybrid reasoning capabilities and advanced tool calling",
 	},
+	"deepseek-ai/DeepSeek-V3.2": {
+		maxTokens: 131_072,
+		contextWindow: 163_840,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 0.45,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "DeepSeek's hybrid reasoning model with efficient long context scaling with GPT-5 level performance",
+	},
 	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
 		maxTokens: 262_144,
 		contextWindow: 262_144,
