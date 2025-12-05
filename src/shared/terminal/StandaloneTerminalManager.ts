@@ -195,7 +195,11 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	 * @returns Processed output string
 	 */
 	processOutput(outputLines: string[], overrideLimit?: number, isSubagentCommand?: boolean): string {
-		const limit = isSubagentCommand && overrideLimit ? overrideLimit : this.terminalOutputLineLimit
+		const limit = isSubagentCommand
+			? overrideLimit !== undefined
+				? overrideLimit
+				: this.subagentTerminalOutputLineLimit
+			: this.terminalOutputLineLimit
 		if (outputLines.length > limit) {
 			const halfLimit = Math.floor(limit / 2)
 			const start = outputLines.slice(0, halfLimit)
