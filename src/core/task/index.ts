@@ -66,6 +66,7 @@ import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@sha
 import { CLINE_MCP_TOOL_IDENTIFIER } from "@shared/mcp"
 import { USER_CONTENT_TAGS } from "@shared/messages/constants"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
+import { StandaloneTerminalManager } from "@shared/terminal"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import { isClaude4PlusModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
@@ -135,12 +136,6 @@ type TaskParams = {
 }
 
 export class Task {
-	// Constants
-	private static readonly STANDALONE_TERMINAL_MODULE_PATH = path.join(
-		__dirname,
-		"../standalone/runtime-files/vscode/enhanced-terminal.js",
-	)
-
 	// Core task variables
 	readonly taskId: string
 	readonly ulid: string
@@ -200,7 +195,7 @@ export class Task {
 
 	// Service handlers
 	api: ApiHandler
-	terminalManager: TerminalManager
+	terminalManager: TerminalManager | StandaloneTerminalManager
 	private urlContentFetcher: UrlContentFetcher
 	browserSession: BrowserSession
 	contextManager: ContextManager
@@ -304,19 +299,7 @@ export class Task {
 			this.terminalExecutionMode = terminalExecutionMode
 
 			if (terminalExecutionMode === "backgroundExec") {
-				try {
-					const { StandaloneTerminalManager } = require(Task.STANDALONE_TERMINAL_MODULE_PATH) as {
-						StandaloneTerminalManager?: new () => TerminalManager
-					}
-					if (StandaloneTerminalManager) {
-						this.terminalManager = new StandaloneTerminalManager()
-					} else {
-						this.terminalManager = new TerminalManager()
-					}
-				} catch (error) {
-					console.error("[DEBUG] Failed to load standalone terminal manager", error)
-					this.terminalManager = new TerminalManager()
-				}
+				this.terminalManager = new StandaloneTerminalManager()
 			} else {
 				this.terminalManager = new TerminalManager()
 			}
@@ -1528,26 +1511,11 @@ export class Task {
 
 		Logger.info("Executing command in terminal: " + command)
 
-		let terminalManager: TerminalManager
+		let terminalManager: TerminalManager | StandaloneTerminalManager
 		if (isSubagent) {
 			// Create a background TerminalManager for CLI subagents
-			try {
-				const { StandaloneTerminalManager } = require(Task.STANDALONE_TERMINAL_MODULE_PATH) as {
-					StandaloneTerminalManager?: new () => TerminalManager
-				}
-				if (StandaloneTerminalManager) {
-					terminalManager = new StandaloneTerminalManager()
-				} else {
-					terminalManager = new TerminalManager()
-				}
-			} catch (error) {
-				console.error("[DEBUG] Failed to load standalone terminal manager for subagent", error)
-				terminalManager = new TerminalManager()
-			}
-			terminalManager.setShellIntegrationTimeout(this.terminalManager["shellIntegrationTimeout"] || 4000)
-			terminalManager.setTerminalReuseEnabled(this.terminalManager["terminalReuseEnabled"] ?? true)
-			terminalManager.setTerminalOutputLineLimit(this.terminalManager["terminalOutputLineLimit"] || 500)
-			terminalManager.setSubagentTerminalOutputLineLimit(this.terminalManager["subagentTerminalOutputLineLimit"] || 2000)
+			// Use the same settings as the main terminal manager
+			terminalManager = new StandaloneTerminalManager()
 		} else {
 			// Use the configured terminal manager for regular commands
 			terminalManager = this.terminalManager
@@ -1555,7 +1523,9 @@ export class Task {
 
 		const terminalInfo = await terminalManager.getOrCreateTerminal(this.cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
-		const process = terminalManager.runCommand(terminalInfo, command)
+		// Use `as any` to handle type incompatibility between VSCode's Thenable and Promise
+		// Both TerminalInfo types have the same runtime structure, the difference is purely TypeScript
+		const process = terminalManager.runCommand(terminalInfo as any, command)
 
 		// Track command execution for both terminal modes
 		this.controller.updateBackgroundCommandState(true, this.taskId)
@@ -1776,7 +1746,7 @@ export class Task {
 
 					// Process any output we captured before timeout
 					await setTimeoutPromise(50)
-					const result = this.terminalManager.processOutput(outputLines, undefined, false)
+					const result = terminalManager.processOutput(outputLines, undefined, isSubagent)
 
 					if (error.message === "COMMAND_TIMEOUT") {
 						return [
@@ -1808,11 +1778,7 @@ export class Task {
 			await setTimeoutPromise(50)
 		}
 
-		const result = terminalManager.processOutput(
-			outputLines,
-			isSubagent ? terminalManager["subagentTerminalOutputLineLimit"] : undefined,
-			isSubagent,
-		)
+		const result = terminalManager.processOutput(outputLines, undefined, isSubagent)
 
 		if (didCancelViaUi) {
 			return [
@@ -1900,7 +1866,7 @@ export class Task {
 			}
 
 			// Process the captured output to include in the cancellation message
-			const processedOutput = this.terminalManager.processOutput(outputLines, undefined, false)
+			const processedOutput = this.terminalManager.processOutput(outputLines, undefined, isSubagentCommand(command))
 
 			// Add cancellation information to the API conversation history
 			// This ensures the agent knows the command was cancelled in the next request

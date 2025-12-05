@@ -274,9 +274,107 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	/**
 	 * Set the default terminal profile.
 	 * @param profile The profile identifier
+	 * @returns Object with information about closed terminals and remaining busy terminals
 	 */
-	setDefaultTerminalProfile(profile: string): void {
+	setDefaultTerminalProfile(profile: string): { closedCount: number; busyTerminals: TerminalInfo[] } {
+		const previousProfile = this.defaultTerminalProfile
 		this.defaultTerminalProfile = profile
 		console.log(`[StandaloneTerminalManager] Set default terminal profile to ${profile}`)
+
+		// If profile changed, handle terminal cleanup like TerminalManager does
+		if (previousProfile !== profile) {
+			return this.handleTerminalProfileChange(profile)
+		}
+
+		return { closedCount: 0, busyTerminals: [] }
+	}
+
+	// Additional methods required for TerminalManager compatibility
+
+	/** Disposables array (for VSCode compatibility) */
+	disposables: any[] = []
+
+	/**
+	 * Find a TerminalInfo by its terminal instance.
+	 * @param terminal The terminal instance to find
+	 * @returns The terminal info or undefined
+	 */
+	findTerminalInfoByTerminal(terminal: any): TerminalInfo | undefined {
+		const terminals = this.registry.getAllTerminals()
+		return terminals.find((t) => t.terminal === terminal)
+	}
+
+	/**
+	 * Check if a terminal's CWD matches its expected pending change.
+	 * @param terminalInfo The terminal info to check
+	 * @returns Whether the CWD matches
+	 */
+	isCwdMatchingExpected(terminalInfo: TerminalInfo): boolean {
+		if (!(terminalInfo as any).pendingCwdChange) {
+			return false
+		}
+		const currentCwd = (terminalInfo.terminal as any)._cwd
+		const targetCwd = (terminalInfo as any).pendingCwdChange
+		return currentCwd === targetCwd
+	}
+
+	/**
+	 * Filter terminals based on a provided criteria function.
+	 * @param filterFn Function that accepts TerminalInfo and returns boolean
+	 * @returns Array of terminals that match the criteria
+	 */
+	filterTerminals(filterFn: (terminal: TerminalInfo) => boolean): TerminalInfo[] {
+		const terminals = this.registry.getAllTerminals()
+		return terminals.filter(filterFn)
+	}
+
+	/**
+	 * Close terminals that match the provided criteria.
+	 * @param filterFn Function that accepts TerminalInfo and returns boolean for terminals to close
+	 * @param force If true, closes even busy terminals
+	 * @returns Number of terminals closed
+	 */
+	closeTerminals(filterFn: (terminal: TerminalInfo) => boolean, force: boolean = false): number {
+		const terminalsToClose = this.filterTerminals(filterFn)
+		let closedCount = 0
+
+		for (const terminalInfo of terminalsToClose) {
+			if (terminalInfo.busy && !force) {
+				continue
+			}
+
+			this.terminalIds.delete(terminalInfo.id)
+			this.processes.delete(terminalInfo.id)
+			terminalInfo.terminal.dispose()
+			this.registry.removeTerminal(terminalInfo.id)
+			closedCount++
+		}
+
+		return closedCount
+	}
+
+	/**
+	 * Handle terminal management when the terminal profile changes.
+	 * @param newShellPath New shell path to use
+	 * @returns Object with information about closed terminals and remaining busy terminals
+	 */
+	handleTerminalProfileChange(newShellPath: string | undefined): {
+		closedCount: number
+		busyTerminals: TerminalInfo[]
+	} {
+		const closedCount = this.closeTerminals(
+			(terminal) => !terminal.busy && (terminal as any).shellPath !== newShellPath,
+			false,
+		)
+		const busyTerminals = this.filterTerminals((terminal) => terminal.busy && (terminal as any).shellPath !== newShellPath)
+		return { closedCount, busyTerminals }
+	}
+
+	/**
+	 * Force closure of all terminals (including busy ones).
+	 * @returns Number of terminals closed
+	 */
+	closeAllTerminals(): number {
+		return this.closeTerminals(() => true, true)
 	}
 }
