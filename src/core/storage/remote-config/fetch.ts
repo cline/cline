@@ -4,10 +4,27 @@ import { getAxiosSettings } from "@/shared/net"
 import { ClineEnv } from "../../../config"
 import { AuthService } from "../../../services/auth/AuthService"
 import { CLINE_API_ENDPOINT } from "../../../shared/cline/api"
-import { RemoteConfig, RemoteConfigSchema } from "../../../shared/remote-config/schema"
+import { APIKeySchema, type APIKeySettings, RemoteConfig, RemoteConfigSchema } from "../../../shared/remote-config/schema"
 import { deleteRemoteConfigFromCache, readRemoteConfigFromCache, writeRemoteConfigToCache } from "../disk"
 import { StateManager } from "../StateManager"
 import { applyRemoteConfig } from "./utils"
+
+/**
+ * Parses API keys from a JSON string response
+ * @param value The JSON string containing API keys
+ * @returns Parsed API key settings object
+ */
+function parseApiKeys(value: string): APIKeySettings {
+	try {
+		if (!value) {
+			return {}
+		}
+		return APIKeySchema.parse(JSON.parse(value))
+	} catch (err) {
+		console.error(`Failed to parse providers api keys`, err)
+		return {}
+	}
+}
 
 /**
  * Fetches remote configuration for a specific organization from the API.
@@ -110,7 +127,7 @@ async function fetchRemoteConfigForOrganization(organizationId: string): Promise
  * @param organizationId The organization ID to fetch API keys for
  * @returns Record of API keys (e.g., { litellm: "key" }) or undefined if fetch fails
  */
-async function fetchApiKeysForOrganization(organizationId: string): Promise<Record<string, string> | undefined> {
+async function fetchApiKeysForOrganization(organizationId: string): Promise<APIKeySettings> {
 	const authService = AuthService.getInstance()
 
 	try {
@@ -134,7 +151,7 @@ async function fetchApiKeysForOrganization(organizationId: string): Promise<Reco
 		}
 
 		const response: AxiosResponse<{
-			data?: Record<string, string>
+			data?: string
 			error: string
 			success: boolean
 		}> = await axios.request({
@@ -154,17 +171,17 @@ async function fetchApiKeysForOrganization(organizationId: string): Promise<Reco
 			throw new Error(`API error: ${response.data?.error || "Unknown error"}`)
 		}
 
-		// Extract API keys
-		const apiKeys = response.data.data
-		if (!apiKeys) {
+		// Extract and parse API keys from string response
+		const apiKeysString = response.data.data
+		if (!apiKeysString) {
 			console.warn(`No API keys returned from ${endpoint}`)
-			return undefined
+			return {}
 		}
 
-		return apiKeys
+		return parseApiKeys(apiKeysString)
 	} catch (error) {
 		console.error(`Failed to fetch API keys for organization ${organizationId}:`, error)
-		return undefined
+		return {}
 	}
 }
 
@@ -230,13 +247,8 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 		const hasConfiguredProviders = config.providerSettings && Object.keys(config.providerSettings).length > 0
 		if (hasConfiguredProviders) {
 			const apiKeys = await fetchApiKeysForOrganization(organizationId)
-			if (apiKeys) {
-				if (config.providerSettings?.LiteLLM) {
-					const litellmKey = apiKeys.litellm || apiKeys.LiteLLM
-					if (litellmKey) {
-						controller.stateManager.setSecret("liteLlmApiKey", litellmKey)
-					}
-				}
+			if (config.providerSettings?.LiteLLM && apiKeys.litellm) {
+				controller.stateManager.setSecret("liteLlmApiKey", apiKeys.litellm)
 			}
 		}
 
