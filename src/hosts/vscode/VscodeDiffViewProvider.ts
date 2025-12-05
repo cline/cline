@@ -49,12 +49,10 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 			// Use already open diff editor.
 			this.activeDiffEditor = await vscode.window.showTextDocument(diffTab.input.modified, {
 				preserveFocus: true,
-				viewColumn: vscode.ViewColumn.Beside,
 			})
 		} else {
 			// Open new diff editor.
 			// Always use preserveFocus: true to avoid stealing focus from the user's current editor.
-			// Use viewColumn: Beside to open in a new column so it doesn't replace the user's current file.
 			// We use onDidChangeVisibleTextEditors to detect when the diff editor becomes visible,
 			// since onDidChangeActiveTextEditor won't fire when preserveFocus is true.
 			this.activeDiffEditor = await new Promise<vscode.TextEditor>((resolve, reject) => {
@@ -80,7 +78,6 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 					`${fileName}: ${fileExists ? "Original ↔ Cline's Changes" : "New File"} (Editable)`,
 					{
 						preserveFocus: true,
-						viewColumn: vscode.ViewColumn.Beside,
 					},
 				)
 				// This may happen on very slow machines ie project idx
