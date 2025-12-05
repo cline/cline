@@ -32,6 +32,7 @@ enum ClineAsk {
   CONDENSE = 13;
   REPORT_BUG = 14;
   SUMMARIZE_TASK = 15;
+  ACT_MODE_RESPOND = 16;
 }
 
 // Enum for ClineSay types
@@ -65,6 +66,7 @@ enum ClineSay {
   INFO = 26;
   TASK_PROGRESS = 27;
   ERROR_RETRY = 28;
+  GENERATE_EXPLANATION = 29;
 }
 
 // Enum for ClineSayTool tool types
@@ -184,6 +186,11 @@ message ClineApiReqInfo {
   ApiReqRetryStatus retry_status = 9;
 }
 
+message ClineModelInfo {
+  string provider_id = 1;
+  string model_id = 2;
+}
+
 // Main ClineMessage type
 message ClineMessage {
   int64 ts = 1;
@@ -210,6 +217,7 @@ message ClineMessage {
   ClineAskQuestion ask_question = 20;
   ClineAskNewTask ask_new_task = 21;
   ClineApiReqInfo api_req_info = 22;
+  ClineModelInfo model_info = 23;
 }
 
 // UiService provides methods for managing UI interactions

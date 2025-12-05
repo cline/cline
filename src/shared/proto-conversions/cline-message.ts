@@ -11,6 +11,7 @@ function convertClineAskToProtoEnum(ask: AppClineAsk | undefined): ClineAsk | un
 	const mapping: Record<AppClineAsk, ClineAsk> = {
 		followup: ClineAsk.FOLLOWUP,
 		plan_mode_respond: ClineAsk.PLAN_MODE_RESPOND,
+		act_mode_respond: ClineAsk.ACT_MODE_RESPOND,
 		command: ClineAsk.COMMAND,
 		command_output: ClineAsk.COMMAND_OUTPUT,
 		completion_result: ClineAsk.COMPLETION_RESULT,
@@ -44,6 +45,7 @@ function convertProtoEnumToClineAsk(ask: ClineAsk): AppClineAsk | undefined {
 	const mapping: Record<Exclude<ClineAsk, ClineAsk.UNRECOGNIZED>, AppClineAsk> = {
 		[ClineAsk.FOLLOWUP]: "followup",
 		[ClineAsk.PLAN_MODE_RESPOND]: "plan_mode_respond",
+		[ClineAsk.ACT_MODE_RESPOND]: "act_mode_respond",
 		[ClineAsk.COMMAND]: "command",
 		[ClineAsk.COMMAND_OUTPUT]: "command_output",
 		[ClineAsk.COMPLETION_RESULT]: "completion_result",
@@ -102,6 +104,7 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		error_retry: ClineSay.ERROR_RETRY,
 		hook: ClineSay.INFO,
 		hook_output: ClineSay.COMMAND_OUTPUT_SAY,
+		generate_explanation: ClineSay.GENERATE_EXPLANATION,
 	}
 
 	const result = mapping[say]
@@ -148,6 +151,7 @@ function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 		[ClineSay.INFO]: "info",
 		[ClineSay.TASK_PROGRESS]: "task_progress",
 		[ClineSay.ERROR_RETRY]: "error_retry",
+		[ClineSay.GENERATE_EXPLANATION]: "generate_explanation",
 	}
 
 	return mapping[say]
@@ -200,6 +204,7 @@ export function convertClineMessageToProto(message: AppClineMessage): ProtoCline
 		askQuestion: undefined,
 		askNewTask: undefined,
 		apiReqInfo: undefined,
+		modelInfo: message.modelInfo ?? undefined,
 	}
 
 	return protoMessage

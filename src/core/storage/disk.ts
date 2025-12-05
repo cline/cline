@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
+import { EnvironmentMetadataEntry, TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
 import { execa } from "@packages/execa"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
@@ -10,8 +10,34 @@ import fs from "fs/promises"
 import os from "os"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
+import { ExtensionRegistryInfo } from "@/registry"
+import { telemetryService } from "@/services/telemetry"
 import { McpMarketplaceCatalog } from "@/shared/mcp"
+import { reconstructTaskHistory } from "../commands/reconstructTaskHistory"
 import { StateManager } from "./StateManager"
+
+/**
+ * Atomically write data to a file using temp file + rename pattern.
+ * This prevents readers from seeing partial/incomplete data by writing to a temporary
+ * file first, then renaming it to the target location. The rename operation is atomic
+ * in most cases on modern systems, though behavior may vary across platforms and filesystems.
+ *
+ * @param filePath - The target file path
+ * @param data - The data to write
+ */
+async function atomicWriteFile(filePath: string, data: string): Promise<void> {
+	const tmpPath = `${filePath}.tmp.${Date.now()}.${Math.random().toString(36).substring(7)}.json`
+	try {
+		// Write to temporary file first
+		await fs.writeFile(tmpPath, data, "utf8")
+		// Rename temp file to target (atomic in most cases)
+		await fs.rename(tmpPath, filePath)
+	} catch (error) {
+		// Clean up temp file if it exists
+		fs.unlink(tmpPath).catch(() => {})
+		throw error
+	}
+}
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -29,6 +55,7 @@ export const GlobalFileNames = {
 	cursorRulesDir: ".cursor/rules",
 	cursorRulesFile: ".cursorrules",
 	windsurfRules: ".windsurfrules",
+	agentsRulesFile: "AGENTS.md",
 	taskMetadata: "task_metadata.json",
 	mcpMarketplaceCatalog: "mcp_marketplace_catalog.json",
 	remoteConfig: (orgId: string) => `remote_config_${orgId}.json`,
@@ -134,7 +161,7 @@ export async function getSavedApiConversationHistory(taskId: string): Promise<An
 export async function saveApiConversationHistory(taskId: string, apiConversationHistory: Anthropic.MessageParam[]) {
 	try {
 		const filePath = path.join(await ensureTaskDirectoryExists(taskId), GlobalFileNames.apiConversationHistory)
-		await fs.writeFile(filePath, JSON.stringify(apiConversationHistory))
+		await atomicWriteFile(filePath, JSON.stringify(apiConversationHistory))
 	} catch (error) {
 		// in the off chance this fails, we don't want to stop the task
 		console.error("Failed to save API conversation history:", error)
@@ -161,9 +188,40 @@ export async function saveClineMessages(taskId: string, uiMessages: ClineMessage
 	try {
 		const taskDir = await ensureTaskDirectoryExists(taskId)
 		const filePath = path.join(taskDir, GlobalFileNames.uiMessages)
-		await fs.writeFile(filePath, JSON.stringify(uiMessages))
+		await atomicWriteFile(filePath, JSON.stringify(uiMessages))
 	} catch (error) {
 		console.error("Failed to save ui messages:", error)
+	}
+}
+
+/**
+ * Collects environment metadata for the current system and host.
+ * This information is used for debugging and task portability.
+ * Returns metadata without timestamp - timestamp is added by EnvironmentContextTracker.
+ */
+export async function collectEnvironmentMetadata(): Promise<Omit<EnvironmentMetadataEntry, "ts">> {
+	try {
+		const hostVersion = await HostProvider.env.getHostVersion({})
+
+		return {
+			os_name: os.platform(),
+			os_version: os.release(),
+			os_arch: os.arch(),
+			host_name: hostVersion.platform || "Unknown",
+			host_version: hostVersion.version || "Unknown",
+			cline_version: ExtensionRegistryInfo.version,
+		}
+	} catch (error) {
+		console.error("Failed to collect environment metadata:", error)
+		// Return fallback values if collection fails
+		return {
+			os_name: os.platform(),
+			os_version: os.release(),
+			os_arch: os.arch(),
+			host_name: "Unknown",
+			host_version: "Unknown",
+			cline_version: "Unknown",
+		}
 	}
 }
 
@@ -176,7 +234,7 @@ export async function getTaskMetadata(taskId: string): Promise<TaskMetadata> {
 	} catch (error) {
 		console.error("Failed to read task metadata:", error)
 	}
-	return { files_in_context: [], model_usage: [] }
+	return { files_in_context: [], model_usage: [], environment_history: [] }
 }
 
 export async function saveTaskMetadata(taskId: string, metadata: TaskMetadata) {
@@ -236,21 +294,33 @@ export async function taskHistoryStateFileExists(): Promise<boolean> {
 	return fileExistsAtPath(filePath)
 }
 
-export async function readTaskHistoryFromState(): Promise<HistoryItem[]> {
+export async function readTaskHistoryFromState(attemptedReconstruction = false): Promise<HistoryItem[]> {
 	try {
 		const filePath = await getTaskHistoryStateFilePath()
 		if (await fileExistsAtPath(filePath)) {
-			const contents = await fs.readFile(filePath, "utf8")
 			try {
-				return JSON.parse(contents)
-			} catch (error) {
-				console.error("[Disk] Failed to parse task history:", error)
-				return []
+				const contents = await fs.readFile(filePath, "utf8")
+				try {
+					return JSON.parse(contents)
+				} catch (parseError) {
+					// Only reconstruction on parse errors
+					if (attemptedReconstruction) {
+						telemetryService.captureExtensionStorageError(parseError, "attemptedReconstruction failed")
+						throw new Error("Failed to parse task history JSON after reconstruction attempt...")
+					}
+					telemetryService.captureExtensionStorageError(parseError, "readTaskHistoryFromState parse error")
+					await reconstructTaskHistory(false)
+					return await readTaskHistoryFromState(true)
+				}
+			} catch (readError) {
+				// Handle file system errors separately
+				telemetryService.captureExtensionStorageError(readError, "readTaskHistoryFromState readFile error")
+				throw readError
 			}
 		}
 		return []
 	} catch (error) {
-		console.error("[Disk] Failed to read task history:", error)
+		telemetryService.captureExtensionStorageError(error, "readTaskHistoryFromState")
 		throw error
 	}
 }
@@ -258,8 +328,7 @@ export async function readTaskHistoryFromState(): Promise<HistoryItem[]> {
 export async function writeTaskHistoryToState(items: HistoryItem[]): Promise<void> {
 	try {
 		const filePath = await getTaskHistoryStateFilePath()
-		// Always create the file; if items is empty, write [] to ensure presence on first startup
-		await fs.writeFile(filePath, JSON.stringify(items))
+		await atomicWriteFile(filePath, JSON.stringify(items))
 	} catch (error) {
 		console.error("[Disk] Failed to write task history:", error)
 		throw error

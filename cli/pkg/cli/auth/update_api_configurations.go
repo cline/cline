@@ -171,6 +171,15 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 			ActModeProviderSpecificModelIDField:  "actModeHicapModelId",
 		}, nil
 
+	case cline.ApiProvider_NOUSRESEARCH:
+		return ProviderFields{
+			APIKeyField:                          "nousResearchApiKey",
+			PlanModeModelIDField:                 "planModeApiModelId",
+			ActModeModelIDField:                  "actModeApiModelId",
+			PlanModeProviderSpecificModelIDField: "planModeNousResearchModelId",
+			ActModeProviderSpecificModelIDField:  "actModeNousResearchModelId",
+		}, nil
+
 	default:
 		return ProviderFields{}, fmt.Errorf("unsupported provider: %v", provider)
 	}
@@ -288,6 +297,8 @@ func setAPIKeyField(apiConfig *cline.ModelsApiConfiguration, fieldName string, v
 		apiConfig.OcaApiKey = value
 	case "hicapApiKey":
 		apiConfig.HicapApiKey = value
+	case "nousResearchApiKey":
+		apiConfig.NousResearchApiKey = value
 	}
 }
 
@@ -312,6 +323,9 @@ func setProviderSpecificModelID(apiConfig *cline.ModelsApiConfiguration, fieldNa
 	case "planModeHicapModelId":
 		apiConfig.PlanModeHicapModelId = value
 		apiConfig.ActModeHicapModelId = value
+	case "planModeNousResearchModelId":
+		apiConfig.PlanModeNousResearchModelId = value
+		apiConfig.ActModeNousResearchModelId = value
 	}
 }
 

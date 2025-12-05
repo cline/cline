@@ -63,7 +63,9 @@ describe("PromptRegistry", () => {
 				{ id: "gpt-5", provider: "cline", expected: ModelFamily.NATIVE_GPT_5, useNativeTools: true },
 				{ id: "gpt-5", provider: "openai-native", expected: ModelFamily.NATIVE_GPT_5, useNativeTools: true },
 				{ id: "gpt-5", provider: "cline", expected: ModelFamily.GPT_5, useNativeTools: false },
+				{ id: "gpt-5-1", provider: "openai-native", expected: ModelFamily.NATIVE_GPT_5_1, useNativeTools: true },
 				{ id: "openai/gpt-5", expected: ModelFamily.NEXT_GEN },
+				{ id: "gemini3", provider: "vertex", expected: ModelFamily.GEMINI_3, useNativeTools: true },
 				{ id: "unknown-model", expected: ModelFamily.GENERIC },
 			]
 

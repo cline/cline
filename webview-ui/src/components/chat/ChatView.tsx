@@ -1,6 +1,7 @@
 import { findLast } from "@shared/array"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
+import { combineErrorRetryMessages } from "@shared/combineErrorRetryMessages"
 import { combineHookSequences } from "@shared/combineHookSequences"
 import type { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics } from "@shared/getApiMetrics"
@@ -62,9 +63,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const modifiedMessages = useMemo(() => {
 		const slicedMessages = messages.slice(1)
 		// Only combine hook sequences if hooks are enabled (both user setting and feature flag)
-		const areHooksEnabled = hooksEnabled?.user && hooksEnabled?.featureFlag
+		const areHooksEnabled = hooksEnabled?.user
 		const withHooks = areHooksEnabled ? combineHookSequences(slicedMessages) : slicedMessages
-		return combineApiRequests(combineCommandSequences(withHooks))
+		return combineErrorRetryMessages(combineApiRequests(combineCommandSequences(withHooks)))
 	}, [messages, hooksEnabled])
 	// has to be after api_req_finished are all reduced into api_req_started messages
 	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
@@ -345,7 +346,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						lastApiReqTotalTokens={lastApiReqTotalTokens}
 						lastProgressMessageText={lastProgressMessageText}
 						messageHandlers={messageHandlers}
-						scrollBehavior={scrollBehavior}
 						selectedModelInfo={{
 							supportsPromptCache: selectedModelInfo.supportsPromptCache,
 							supportsImages: selectedModelInfo.supportsImages || false,

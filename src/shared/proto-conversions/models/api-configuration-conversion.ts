@@ -313,6 +313,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.MINIMAX
 		case "hicap":
 			return ProtoApiProvider.HICAP
+		case "nousResearch":
+			return ProtoApiProvider.NOUSRESEARCH
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -399,6 +401,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "aihubmix"
 		case ProtoApiProvider.MINIMAX:
 			return "minimax"
+		case ProtoApiProvider.NOUSRESEARCH:
+			return "nousResearch"
 		default:
 			return "anthropic"
 	}
@@ -483,6 +487,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		ocaBaseUrl: config.ocaBaseUrl,
 		minimaxApiKey: config.minimaxApiKey,
 		minimaxApiLine: config.minimaxApiLine,
+		nousResearchApiKey: config.nousResearchApiKey,
 		ocaMode: config.ocaMode,
 		aihubmixApiKey: config.aihubmixApiKey,
 		aihubmixBaseUrl: config.aihubmixBaseUrl,
@@ -494,6 +499,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeApiProvider: config.planModeApiProvider ? convertApiProviderToProto(config.planModeApiProvider) : undefined,
 		planModeApiModelId: config.planModeApiModelId,
 		planModeThinkingBudgetTokens: config.planModeThinkingBudgetTokens,
+		geminiPlanModeThinkingLevel: config.geminiPlanModeThinkingLevel,
 		planModeReasoningEffort: config.planModeReasoningEffort,
 		planModeVsCodeLmModelSelector: config.planModeVsCodeLmModelSelector,
 		planModeAwsBedrockCustomSelected: config.planModeAwsBedrockCustomSelected,
@@ -526,11 +532,13 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeAihubmixModelInfo: convertOpenAiCompatibleModelInfoToProto(config.planModeAihubmixModelInfo),
 		planModeHicapModelId: config.planModeHicapModelId,
 		planModeHicapModelInfo: convertModelInfoToProtoOpenRouter(config.planModeHicapModelInfo),
+		planModeNousResearchModelId: config.planModeNousResearchModelId,
 
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider ? convertApiProviderToProto(config.actModeApiProvider) : undefined,
 		actModeApiModelId: config.actModeApiModelId,
 		actModeThinkingBudgetTokens: config.actModeThinkingBudgetTokens,
+		geminiActModeThinkingLevel: config.geminiActModeThinkingLevel,
 		actModeReasoningEffort: config.actModeReasoningEffort,
 		actModeVsCodeLmModelSelector: config.actModeVsCodeLmModelSelector,
 		actModeAwsBedrockCustomSelected: config.actModeAwsBedrockCustomSelected,
@@ -563,6 +571,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeAihubmixModelInfo: convertOpenAiCompatibleModelInfoToProto(config.actModeAihubmixModelInfo),
 		actModeHicapModelId: config.actModeHicapModelId,
 		actModeHicapModelInfo: convertModelInfoToProtoOpenRouter(config.actModeHicapModelInfo),
+		actModeNousResearchModelId: config.actModeNousResearchModelId,
 	}
 }
 
@@ -651,6 +660,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		minimaxApiLine: protoConfig.minimaxApiLine,
 		hicapApiKey: protoConfig.hicapApiKey,
 		hicapModelId: protoConfig.hicapModelId,
+		nousResearchApiKey: protoConfig.nousResearchApiKey,
 
 		// Plan mode configurations
 		planModeApiProvider:
@@ -659,6 +669,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 				: undefined,
 		planModeApiModelId: protoConfig.planModeApiModelId,
 		planModeThinkingBudgetTokens: protoConfig.planModeThinkingBudgetTokens,
+		geminiPlanModeThinkingLevel: protoConfig.geminiPlanModeThinkingLevel,
 		planModeReasoningEffort: protoConfig.planModeReasoningEffort,
 		planModeVsCodeLmModelSelector: protoConfig.planModeVsCodeLmModelSelector,
 		planModeAwsBedrockCustomSelected: protoConfig.planModeAwsBedrockCustomSelected,
@@ -691,12 +702,14 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeAihubmixModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.planModeAihubmixModelInfo),
 		planModeHicapModelId: protoConfig.planModeHicapModelId,
 		planModeHicapModelInfo: convertProtoToModelInfo(protoConfig.planModeHicapModelInfo),
+		planModeNousResearchModelId: protoConfig.planModeNousResearchModelId,
 
 		// Act mode configurations
 		actModeApiProvider:
 			protoConfig.actModeApiProvider !== undefined ? convertProtoToApiProvider(protoConfig.actModeApiProvider) : undefined,
 		actModeApiModelId: protoConfig.actModeApiModelId,
 		actModeThinkingBudgetTokens: protoConfig.actModeThinkingBudgetTokens,
+		geminiActModeThinkingLevel: protoConfig.geminiActModeThinkingLevel,
 		actModeReasoningEffort: protoConfig.actModeReasoningEffort,
 		actModeVsCodeLmModelSelector: protoConfig.actModeVsCodeLmModelSelector,
 		actModeAwsBedrockCustomSelected: protoConfig.actModeAwsBedrockCustomSelected,
@@ -729,5 +742,6 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeAihubmixModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.actModeAihubmixModelInfo),
 		actModeHicapModelId: protoConfig.actModeHicapModelId,
 		actModeHicapModelInfo: convertProtoToModelInfo(protoConfig.actModeHicapModelInfo),
+		actModeNousResearchModelId: protoConfig.actModeNousResearchModelId,
 	}
 }

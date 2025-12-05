@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/task"
@@ -85,10 +84,11 @@ func QuickSetupFromFlags(ctx context.Context, provider, apiKey, modelID, baseURL
 		}
 	}
 
-	// WORKAROUND: Wait for debounced state persistence to complete
-	// Fixes `cline auth` issue when ran in docker environments
-	// TODO: implement better solution w/ changes in StateManager
-	time.Sleep(600 * time.Millisecond)
+	// Flush pending state changes to disk immediately
+	// This ensures all configuration changes are persisted before the instance terminates
+	if _, err := manager.GetClient().State.FlushPendingState(ctx, &cline.EmptyRequest{}); err != nil {
+		return fmt.Errorf("failed to flush pending state: %w", err)
+	}
 
 	// Success message
 	fmt.Printf("\n✓ Successfully configured %s provider\n", GetProviderDisplayName(providerEnum))
@@ -199,6 +199,7 @@ func validateQuickSetupProvider(providerID string) (cline.ApiProvider, error) {
 		cline.ApiProvider_XAI:           true,
 		cline.ApiProvider_CEREBRAS:      true,
 		cline.ApiProvider_OLLAMA:        true,
+		cline.ApiProvider_NOUSRESEARCH:  true,
 	}
 
 	if !supportedProviders[provider] {

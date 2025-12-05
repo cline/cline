@@ -5,6 +5,7 @@ import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
 import path from "path"
+import { getAxiosSettings } from "@/shared/net"
 import { Controller } from ".."
 
 /**
@@ -33,6 +34,7 @@ export async function refreshHicapModels(controller: Controller, _request: Empty
 			headers: {
 				"api-key": hicapApiKey,
 			},
+			...getAxiosSettings(),
 		})
 
 		if (response.data?.data) {

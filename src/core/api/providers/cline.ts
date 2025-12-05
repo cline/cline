@@ -1,4 +1,3 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
@@ -8,7 +7,9 @@ import { ClineEnv } from "@/config"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
 import { buildClineExtraHeaders } from "@/services/EnvUtils"
+import { Logger } from "@/services/logging/Logger"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
+import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch, getAxiosSettings } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
@@ -26,6 +27,7 @@ interface ClineHandlerOptions extends CommonApiHandlerOptions {
 	openRouterModelId?: string
 	openRouterModelInfo?: ModelInfo
 	clineAccountId?: string
+	geminiThinkingLevel?: string
 }
 
 export class ClineHandler implements ApiHandler {
@@ -96,7 +98,7 @@ export class ClineHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: OpenAITool[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		try {
 			const client = await this.ensureClient()
 
@@ -114,11 +116,13 @@ export class ClineHandler implements ApiHandler {
 				this.options.thinkingBudgetTokens,
 				this.options.openRouterProviderSorting,
 				tools,
+				this.options.geminiThinkingLevel,
 			)
 
 			const toolCallProcessor = new ToolCallProcessor()
 
 			for await (const chunk of stream) {
+				Logger.debug("ClineHandler chunk:" + JSON.stringify(chunk))
 				// openrouter returns an error object instead of the openai sdk throwing an error
 				if ("error" in chunk) {
 					const error = chunk.error as OpenRouterErrorResponse["error"]
@@ -149,6 +153,7 @@ export class ClineHandler implements ApiHandler {
 				}
 
 				const delta = choice?.delta
+
 				if (delta?.content) {
 					yield {
 						type: "text",
@@ -165,8 +170,7 @@ export class ClineHandler implements ApiHandler {
 				if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
 					yield {
 						type: "reasoning",
-						// @ts-ignore-next-line
-						reasoning: delta.reasoning,
+						reasoning: typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning),
 					}
 				}
 
@@ -181,12 +185,13 @@ export class ClineHandler implements ApiHandler {
 					"reasoning_details" in delta &&
 					delta.reasoning_details &&
 					// @ts-ignore-next-line
-					delta.reasoning_details.length && // exists and non-0
+					delta?.reasoning_details?.length && // exists and non-0
 					!shouldSkipReasoningForModel(this.options.openRouterModelId)
 				) {
 					yield {
-						type: "reasoning_details",
-						reasoning_details: delta.reasoning_details,
+						type: "reasoning",
+						reasoning: "",
+						details: delta.reasoning_details,
 					}
 				}
 
@@ -194,7 +199,7 @@ export class ClineHandler implements ApiHandler {
 					// @ts-ignore-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 
-					if (this.getModel().id === "x-ai/grok-code-fast-1") {
+					if (["x-ai/grok-code-fast-1", "minimax/minimax-m2", "stealth/microwave"].includes(this.getModel().id)) {
 						totalCost = 0
 					}
 
