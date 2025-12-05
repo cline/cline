@@ -1,7 +1,8 @@
 console.log("Loading stub impls...")
 
 const { createStub } = require("./stub-utils")
-const { StandaloneTerminalManager } = require("./enhanced-terminal")
+// Import StandaloneTerminalManager from the bundled cline-core.js (TypeScript version)
+const { StandaloneTerminalManager } = require("./cline-core.js")
 
 // Import the base vscode object from stubs
 const vscode = require("./vscode-stubs.js")
