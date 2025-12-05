@@ -34,27 +34,3 @@ export const toggleNotifications = async (_page: Page) => {
 	await _page.keyboard.press("Enter")
 	return _page
 }
-
-export async function cleanChatView(sidebar: Page): Promise<Page> {
-	const signUpBtn = sidebar.getByRole("button", { name: "Login to Cline" })
-	if (await signUpBtn.isVisible()) {
-		await signUpBtn.click({ delay: 50 })
-	}
-	// Verify the help improve banner is visible and can be closed.
-	const helpBanner = sidebar.getByText("Help Improve Cline")
-	if (await helpBanner.isVisible()) {
-		await sidebar.getByRole("button", { name: "Close banner and enable" }).click()
-	}
-
-	// Dismiss the "What's New" modal if visible (use testid to avoid strict mode violation with VSCode notifications)
-	const whatsNewModalDismiss = sidebar.getByTestId("close-whats-new-modal")
-	try {
-		if (await whatsNewModalDismiss.isVisible({ timeout: 1000 })) {
-			await whatsNewModalDismiss.click({ force: true })
-		}
-	} catch (e) {
-		// Modal not present, continue
-	}
-
-	return sidebar
-}
