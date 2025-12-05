@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.40.1]
+
+- Fix cost calculation display for Anthropic API requests
+
 ## [3.40.0]
 
 - Fix highlighted text flashing when task header is collapsed
