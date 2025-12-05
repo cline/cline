@@ -1,11 +1,12 @@
+import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ModelsServiceClient } from "@/services/grpc-client"
 import { ClineAccountInfoCard } from "../ClineAccountInfoCard"
 import { DropdownContainer } from "../common/ModelSelector"
 import OpenRouterModelPicker, { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../OpenRouterModelPicker"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
  * Props for the ClineProvider component
@@ -21,7 +22,6 @@ interface ClineProviderProps {
  */
 export const ClineProvider = ({ showModelOptions, isPopup, currentMode }: ClineProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
 
 	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
 
@@ -37,11 +37,20 @@ export const ClineProvider = ({ showModelOptions, isPopup, currentMode }: ClineP
 					{/* Provider Sorting Options */}
 					<VSCodeCheckbox
 						checked={providerSortingSelected}
-						onChange={(e: any) => {
+						onChange={async (e: any) => {
 							const isChecked = e.target.checked === true
 							setProviderSortingSelected(isChecked)
 							if (!isChecked) {
-								handleFieldChange("openRouterProviderSorting", "")
+								await ModelsServiceClient.updateApiConfiguration(
+									UpdateApiConfigurationRequestNew.create({
+										updates: {
+											options: {
+												openRouterProviderSorting: "",
+											},
+										},
+										updateMask: ["options.openRouterProviderSorting"],
+									}),
+								)
 							}
 						}}
 						style={{ marginTop: -10 }}>
@@ -52,8 +61,17 @@ export const ClineProvider = ({ showModelOptions, isPopup, currentMode }: ClineP
 						<div style={{ marginBottom: -6 }}>
 							<DropdownContainer className="dropdown-container" zIndex={OPENROUTER_MODEL_PICKER_Z_INDEX + 1}>
 								<VSCodeDropdown
-									onChange={(e: any) => {
-										handleFieldChange("openRouterProviderSorting", e.target.value)
+									onChange={async (e: any) => {
+										await ModelsServiceClient.updateApiConfiguration(
+											UpdateApiConfigurationRequestNew.create({
+												updates: {
+													options: {
+														openRouterProviderSorting: e.target.value,
+													},
+												},
+												updateMask: ["options.openRouterProviderSorting"],
+											}),
+										)
 									}}
 									style={{ width: "100%", marginTop: 3 }}
 									value={apiConfiguration?.openRouterProviderSorting}>

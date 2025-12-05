@@ -1,8 +1,9 @@
+import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ModelsServiceClient } from "@/services/grpc-client"
 import BasetenModelPicker from "../BasetenModelPicker"
 import { ApiKeyField } from "../common/ApiKeyField"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
  * Props for the BasetenProvider component
@@ -18,13 +19,23 @@ interface BasetenProviderProps {
  */
 export const BasetenProvider = ({ showModelOptions, isPopup, currentMode }: BasetenProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
 
 	return (
 		<div>
 			<ApiKeyField
 				initialValue={apiConfiguration?.basetenApiKey || ""}
-				onChange={(value) => handleFieldChange("basetenApiKey", value)}
+				onChange={async (value) => {
+					await ModelsServiceClient.updateApiConfiguration(
+						UpdateApiConfigurationRequestNew.create({
+							updates: {
+								secrets: {
+									basetenApiKey: value,
+								},
+							},
+							updateMask: ["secrets.basetenApiKey"],
+						}),
+					)
+				}}
 				providerName="Baseten"
 				signupUrl="https://app.baseten.co/settings/api_keys"
 			/>

@@ -321,7 +321,7 @@ message ApiConfiguration {
 message UpdateApiConfigurationRequestNew {
   Metadata metadata = 1;
   ApiConfiguration updates = 2;
-
+  
   // Required field mask specifying which fields to update.
   // Field paths use dot notation with camelCase field names:
   // - "options.ulid" (for options fields)
