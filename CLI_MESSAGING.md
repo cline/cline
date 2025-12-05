@@ -147,6 +147,46 @@ With this system, you can use voice input through GitHub Copilot to orchestrate 
 4. **Claude CLI executes** if using `claude:` prefix
 5. **Response flows back** through the chain
 
+## ⚠️ Auto-Approval Setup (IMPORTANT)
+
+Before sending tasks to Cline via the messaging system, **enable auto-approval** to prevent tasks from getting stuck waiting for manual approval:
+
+### Enable Auto-Approval (Required for Automation)
+```powershell
+# Run this FIRST before sending any automated tasks
+.\Send-ClineMessage.ps1 -Message "auto-approve-all"
+```
+
+This enables:
+- ✅ Read files
+- ✅ Edit files  
+- ✅ Execute all terminal commands
+- ✅ Browser access
+- ✅ MCP tools
+
+### Why This Matters
+- Without auto-approval, Cline will wait for manual "Approve" clicks in the UI
+- Tasks sent via messaging will appear stuck/unresponsive
+- The `auto-approve-all` command must be sent after each VS Code restart
+
+### Recommended Startup Sequence
+```powershell
+# 1. Enable auto-approval first
+.\Send-ClineMessage.ps1 -Message "auto-approve-all"
+
+# 2. Set your preferred model
+.\Send-ClineMessage.ps1 -Message "set-model:openai/gpt-5.1-codex-max"
+
+# 3. Now send tasks - they will execute without waiting for approval
+.\Send-ClineMessage.ps1 -Message "Create a Python hello world script"
+```
+
+### CLI Auto-Approval
+All CLI agents run in auto-approve mode by default:
+- `claude:` - Uses `--permission-mode bypassPermissions`
+- `codex:` - Uses `--dangerously-bypass-approvals-and-sandbox`
+- `gemini:` - Uses `--yolo` flag
+
 Example voice command:
 > "Send to Claude: explain how async await works in JavaScript"
 
@@ -239,3 +279,67 @@ Send a regular message without prefix - Cline processes with its AI model.
 You → @claude/@codex/@gemini/@cline → Target Agent
 ```
 Persistent agents in Copilot Chat UI.
+
+## Troubleshooting
+
+### Task Appears Stuck / No Response
+
+**Symptoms:**
+- "Task started" response but no completion
+- Cline panel shows pending approval
+- No file created after task
+
+**Solution:**
+```powershell
+# Enable auto-approval
+.\Send-ClineMessage.ps1 -Message "auto-approve-all"
+# Then retry your task
+```
+
+### API Sluggish / Slow Response
+
+**Possible Causes:**
+1. **OpenRouter API latency** - External provider issue, nothing to fix
+2. **Model overloaded** - Try switching models:
+   ```powershell
+   .\Send-ClineMessage.ps1 -Message "set-model:anthropic/claude-sonnet-4"
+   ```
+3. **Complex task** - Break into smaller steps
+
+### Python Command Not Found (Windows)
+
+**Symptoms:** Cline runs `python` but it fails
+
+**Solution:** Windows uses `py` launcher, not `python`. The AI should detect this automatically. If not, the task still succeeds - only the execution test fails.
+
+### CLI Commands Fail
+
+**Claude CLI:**
+```powershell
+# Verify installation
+claude --version
+# Test directly
+claude -p "Say hello"
+```
+
+**Codex CLI:**
+```powershell
+# Verify installation
+codex --version
+# Test directly
+codex exec -s read-only "Say hello"
+```
+
+**Gemini CLI:**
+```powershell
+# Verify installation
+gemini --version
+# Test directly  
+gemini "Say hello"
+```
+
+### Files Created in Wrong Directory (Gemini 3-way)
+
+**Fixed in v3.40.7:** Gemini CLI now uses workspace directory for file operations.
+
+If still occurring, update to latest BCline version.
