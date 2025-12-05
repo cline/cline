@@ -125,6 +125,18 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		providers.push("cline")
 	}
 
+	// Map LiteLLM provider settings
+	const liteLlmSettings = remoteConfig.providerSettings?.LiteLLM
+	if (liteLlmSettings) {
+		transformed.planModeApiProvider = "litellm"
+		transformed.actModeApiProvider = "litellm"
+		providers.push("litellm")
+
+		if (liteLlmSettings.baseUrl !== undefined) {
+			transformed.liteLlmBaseUrl = liteLlmSettings.baseUrl
+		}
+	}
+
 	// This line needs to stay here, it is order dependent on the above code checking the configured providers
 	if (providers.length > 0) {
 		transformed.remoteConfiguredProviders = providers
