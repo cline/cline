@@ -224,8 +224,8 @@ export abstract class DiffViewProvider {
 		}
 	}
 
-	async showFile(absolutePath: string): Promise<void> {
-		await openFile(absolutePath, true)
+	async showFile(absolutePath: string, preserveFocus: boolean = false): Promise<void> {
+		await openFile(absolutePath, preserveFocus)
 	}
 
 	/**
@@ -268,7 +268,11 @@ export abstract class DiffViewProvider {
 		// get text after save in case there is any auto-formatting done by the editor
 		const postSaveContent = (await this.getDocumentText()) || ""
 
-		await this.showFile(this.absolutePath)
+		// Only show the file if it was already open before we started editing
+		// This avoids forcing the user back to a file they may have navigated away from
+		if (this.documentWasOpen) {
+			await this.showFile(this.absolutePath, true)
+		}
 		await this.closeAllDiffViews()
 
 		const newProblems = await this.getNewDiagnosticProblems()
