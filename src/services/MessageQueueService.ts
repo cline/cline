@@ -414,9 +414,10 @@ export class MessageQueueService {
 
 		try {
 			const { execSync } = require("child_process")
-			// Use dangerously-bypass for full agent mode, otherwise just exec
-			const autoFlag = fullAuto ? "--dangerously-bypass-approvals-and-sandbox " : ""
-			const command = `codex exec ${autoFlag}"${prompt.replace(/"/g, '\\"')}"`
+			// Use dangerously-bypass for full agent mode, otherwise read-only sandbox
+			// Always skip git repo check since we may be in non-git directories
+			const modeFlag = fullAuto ? "--dangerously-bypass-approvals-and-sandbox" : "-s read-only"
+			const command = `codex exec ${modeFlag} --skip-git-repo-check "${prompt.replace(/"/g, '\\"')}"`
 
 			this.log(`🤖 Sending to Codex CLI: ${prompt}`)
 			const result = execSync(command, {

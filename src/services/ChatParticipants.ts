@@ -115,8 +115,12 @@ async function handleCodexRequest(
 		// Escape the prompt for shell
 		const escapedPrompt = actualPrompt.replace(/"/g, '\\"').replace(/`/g, "\\`")
 
-		// Build command - full agent mode or read-only
-		const modeFlag = isYolo ? "--dangerously-bypass-approvals-and-sandbox" : "--approval-mode full-auto"
+		// Build command - exec mode for non-interactive, with appropriate sandbox
+		// YOLO: dangerous bypass, Normal: read-only sandbox
+		// Always skip git repo check since we may be in non-git directories
+		const modeFlag = isYolo
+			? "exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check"
+			: "exec -s read-only --skip-git-repo-check"
 		const command = `codex ${modeFlag} "${escapedPrompt}"`
 
 		Logger.log(`[ChatParticipant] Executing Codex CLI: ${command}`)
