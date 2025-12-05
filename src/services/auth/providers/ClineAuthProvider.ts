@@ -107,7 +107,7 @@ export class ClineAuthProvider implements IAuthProvider {
 		Logger.error(reason)
 
 		const startedAt = storedAuthData?.startedAt
-		const timeSinceStarted = (startedAt || 0) - Date.now()
+		const timeSinceStarted = Date.now() - (startedAt || 0)
 
 		const tokenData = this.extractTokenData(storedAuthData)
 		telemetryService.capture({
