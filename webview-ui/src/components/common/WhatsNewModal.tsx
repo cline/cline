@@ -80,6 +80,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 			role="dialog"
 			style={{ zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 100, paddingTop: "calc(15vh + 60px)" }}>
 			<div
+				aria-describedby="whats-new-description"
 				aria-labelledby="whats-new-title"
 				className="relative bg-code rounded-sm shadow-lg max-w-md w-full mx-4"
 				style={{ maxWidth: "420px", height: "fit-content" }}>
@@ -113,7 +114,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 				/>
 
 				{/* Content area */}
-				<div className="p-5 pr-10">
+				<div className="p-5 pr-10" id="whats-new-description">
 					{/* Badge */}
 					<div className="mb-3">
 						<span
