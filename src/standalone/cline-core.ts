@@ -31,6 +31,9 @@ async function main() {
 		process.exit(0)
 	}
 
+	// Resource loading assumes cwd is the installation directory
+	process.chdir(__dirname)
+
 	// Initialize context with optional custom directory from CLI
 	const { extensionContext, DATA_DIR, EXTENSION_DIR } = initializeContext(args.config)
 

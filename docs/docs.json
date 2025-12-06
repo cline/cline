@@ -139,7 +139,14 @@
 							"features/editing-messages",
 							"features/explain-changes",
 							"features/focus-chain",
-							"features/hooks",
+							{
+								"group": "Hooks",
+								"pages": [
+									"features/hooks/index",
+									"features/hooks/hook-reference",
+									"features/hooks/samples"
+								]
+							},
 							"features/multiroot-workspace",
 							"features/plan-and-act",
 							{
@@ -353,6 +360,10 @@
 		{
 			"source": "/cline-cli/samples",
 			"destination": "/cline-cli/samples/overview"
+		},
+		{
+			"source": "/features/hooks/real-world-examples",
+			"destination": "/features/hooks/samples"
 		},
 		{
 			"source": "/enterprise-solutions/configure-AWS-Bedrock-Admin",

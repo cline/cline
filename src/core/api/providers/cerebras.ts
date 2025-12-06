@@ -33,6 +33,9 @@ export class CerebrasHandler implements ApiHandler {
 					apiKey: cleanApiKey,
 					timeout: 30000, // 30 second timeout
 					fetch, // Use configured fetch with proxy support
+					defaultHeaders: {
+						"X-Cerebras-3rd-Party-Integration": "cline",
+					},
 				})
 			} catch (error) {
 				throw new Error(`Error creating Cerebras client: ${error.message}`)

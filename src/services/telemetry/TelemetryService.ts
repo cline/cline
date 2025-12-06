@@ -125,6 +125,7 @@ export class TelemetryService {
 			OPT_OUT: "user.opt_out",
 			TELEMETRY_ENABLED: "user.telemetry_enabled",
 			EXTENSION_ACTIVATED: "user.extension_activated",
+			EXTENSION_STORAGE_ERROR: "user.extension_storage_error",
 			AUTH_STARTED: "user.auth_started",
 			AUTH_SUCCEEDED: "user.auth_succeeded",
 			AUTH_FAILED: "user.auth_failed",
@@ -442,6 +443,20 @@ export class TelemetryService {
 
 	public captureExtensionActivated() {
 		this.captureToProviders(TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED, {}, false)
+	}
+
+	public captureExtensionStorageError(errorMessage: string, eventName: string) {
+		// Truncate error message to prevent excessive data
+		this.capture({
+			event: TelemetryService.EVENTS.USER.EXTENSION_STORAGE_ERROR,
+			properties: {
+				error:
+					errorMessage.length > MAX_ERROR_MESSAGE_LENGTH
+						? errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH) + "..."
+						: errorMessage,
+				eventName,
+			},
+		})
 	}
 
 	/**

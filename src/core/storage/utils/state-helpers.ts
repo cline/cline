@@ -499,6 +499,16 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planActSeparateModelsSetting = false
 		}
 
+		// Read task history from disk
+		// Note: If this throws (e.g., filesystem I/O error), StateManager initialization will fail
+		// and the extension will not start. This is intentional to prevent data loss - better to
+		// fail visibly than silently wipe history. The readTaskHistoryFromState function handles:
+		// - File doesn't exist → returns []
+		// - Parse errors → attempts reconstruction, returns [] only if reconstruction fails
+		// - I/O errors → throws (caught here, causing initialization to fail)
+
+		// So, any errors thrown here are true IO errors, which should be exceptionally rare.
+		// The state manager tries once more to start on any failure. So if there is truly an I/O error happening twice that is not due to the file not existing or being corrupted, then something is truly wrong and it is correct to not start the application.
 		const taskHistory = await readTaskHistoryFromState()
 
 		// Multi-root workspace support
