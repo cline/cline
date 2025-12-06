@@ -51,6 +51,7 @@ export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ClineTool[], useResponseApi?: boolean): ApiStream
 	getModel(): ApiHandlerModel
 	getApiStreamUsage?(): Promise<ApiStreamUsageChunk | undefined>
+	abort?(): void
 }
 
 export interface ApiHandlerModel {

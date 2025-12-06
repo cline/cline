@@ -154,7 +154,7 @@ const ModelSelectorTooltip = styled.div<ModelSelectorTooltipProps>`
 	right: 15px;
 	background: ${CODE_BLOCK_BG_COLOR};
 	border: 1px solid var(--vscode-editorGroup-border);
-	padding: 12px;
+	padding: 12px 12px 18px 12px;
 	border-radius: 3px;
 	z-index: 1000;
 	max-height: calc(100vh - 100px);

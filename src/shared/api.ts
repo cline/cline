@@ -1,4 +1,5 @@
 import type { LanguageModelChatSelector } from "../core/api/providers/types"
+import { ApiFormat } from "./proto/cline/models"
 
 export type ApiProvider =
 	| "anthropic"
@@ -258,6 +259,7 @@ export interface ModelInfo {
 		cacheReadsPrice?: number
 	}[]
 	temperature?: number
+	apiFormat?: ApiFormat // The API format used by this model
 }
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
@@ -1449,44 +1451,8 @@ export const geminiModels = {
 // OpenAI Native
 // https://openai.com/api/pricing/
 export type OpenAiNativeModelId = keyof typeof openAiNativeModels
-export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-5-2025-08-07"
+export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-5.1-2025-11-13"
 export const openAiNativeModels = {
-	"gpt-5-2025-08-07": {
-		maxTokens: 8_192, // 128000 breaks context window truncation
-		contextWindow: 272000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 1.25,
-		outputPrice: 10.0,
-		cacheReadsPrice: 0.125,
-	},
-	"gpt-5-mini-2025-08-07": {
-		maxTokens: 8_192,
-		contextWindow: 272000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 0.25,
-		outputPrice: 2.0,
-		cacheReadsPrice: 0.025,
-	},
-	"gpt-5-nano-2025-08-07": {
-		maxTokens: 8_192,
-		contextWindow: 272000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 0.05,
-		outputPrice: 0.4,
-		cacheReadsPrice: 0.005,
-	},
-	"gpt-5-chat-latest": {
-		maxTokens: 8_192,
-		contextWindow: 400000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 1.25,
-		outputPrice: 10,
-		cacheReadsPrice: 0.125,
-	},
 	"gpt-5.1-2025-11-13": {
 		maxTokens: 8_192,
 		contextWindow: 272000,
@@ -1495,15 +1461,28 @@ export const openAiNativeModels = {
 		inputPrice: 1.25,
 		outputPrice: 10.0,
 		cacheReadsPrice: 0.125,
+		temperature: 1,
 	},
 	"gpt-5.1": {
-		maxTokens: 8_192,
+		maxTokens: 8_192, // 128000 breaks context window truncation
 		contextWindow: 272000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 1.25,
 		outputPrice: 10.0,
 		cacheReadsPrice: 0.125,
+		temperature: 1,
+	},
+	"gpt-5.1-codex": {
+		maxTokens: 8_192, // 128000 breaks context window truncation
+		contextWindow: 400000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10.0,
+		cacheReadsPrice: 0.125,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		temperature: 1,
 	},
 	"gpt-5.1-chat-latest": {
 		maxTokens: 8_192,
@@ -1513,6 +1492,58 @@ export const openAiNativeModels = {
 		inputPrice: 1.25,
 		outputPrice: 10,
 		cacheReadsPrice: 0.125,
+		temperature: 1,
+	},
+	"gpt-5-2025-08-07": {
+		maxTokens: 8_192, // 128000 breaks context window truncation
+		contextWindow: 272000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10.0,
+		cacheReadsPrice: 0.125,
+		temperature: 1,
+	},
+	"gpt-5-codex": {
+		maxTokens: 8_192, // 128000 breaks context window truncation
+		contextWindow: 400000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10.0,
+		cacheReadsPrice: 0.125,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		temperature: 1,
+	},
+	"gpt-5-mini-2025-08-07": {
+		maxTokens: 8_192,
+		contextWindow: 272000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.25,
+		outputPrice: 2.0,
+		cacheReadsPrice: 0.025,
+		temperature: 1,
+	},
+	"gpt-5-nano-2025-08-07": {
+		maxTokens: 8_192,
+		contextWindow: 272000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.05,
+		outputPrice: 0.4,
+		cacheReadsPrice: 0.005,
+		temperature: 1,
+	},
+	"gpt-5-chat-latest": {
+		maxTokens: 8_192,
+		contextWindow: 400000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10,
+		cacheReadsPrice: 0.125,
+		temperature: 1,
 	},
 	o3: {
 		maxTokens: 100_000,
@@ -1540,6 +1571,7 @@ export const openAiNativeModels = {
 		inputPrice: 2,
 		outputPrice: 8,
 		cacheReadsPrice: 0.5,
+		temperature: 0,
 	},
 	"gpt-4.1-mini": {
 		maxTokens: 32_768,
@@ -1549,6 +1581,7 @@ export const openAiNativeModels = {
 		inputPrice: 0.4,
 		outputPrice: 1.6,
 		cacheReadsPrice: 0.1,
+		temperature: 0,
 	},
 	"gpt-4.1-nano": {
 		maxTokens: 32_768,
@@ -1558,6 +1591,7 @@ export const openAiNativeModels = {
 		inputPrice: 0.1,
 		outputPrice: 0.4,
 		cacheReadsPrice: 0.025,
+		temperature: 0,
 	},
 	"o3-mini": {
 		maxTokens: 100_000,
@@ -1604,6 +1638,7 @@ export const openAiNativeModels = {
 		inputPrice: 2.5,
 		outputPrice: 10,
 		cacheReadsPrice: 1.25,
+		temperature: 0,
 	},
 	"gpt-4o-mini": {
 		maxTokens: 16_384,
@@ -1613,6 +1648,7 @@ export const openAiNativeModels = {
 		inputPrice: 0.15,
 		outputPrice: 0.6,
 		cacheReadsPrice: 0.075,
+		temperature: 0,
 	},
 	"chatgpt-4o-latest": {
 		maxTokens: 16_384,
@@ -1621,6 +1657,7 @@ export const openAiNativeModels = {
 		supportsPromptCache: false,
 		inputPrice: 5,
 		outputPrice: 15,
+		temperature: 0,
 	},
 } as const satisfies Record<string, OpenAiCompatibleModelInfo>
 
@@ -3784,6 +3821,17 @@ export const basetenModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
 		description: "Extremely capable general-purpose LLM with hybrid reasoning capabilities and advanced tool calling",
+	},
+	"deepseek-ai/DeepSeek-V3.2": {
+		maxTokens: 131_072,
+		contextWindow: 163_840,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 0.45,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "DeepSeek's hybrid reasoning model with efficient long context scaling with GPT-5 level performance",
 	},
 	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
 		maxTokens: 262_144,
