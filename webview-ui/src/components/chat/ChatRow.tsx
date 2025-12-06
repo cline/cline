@@ -11,7 +11,7 @@ import {
 import { BooleanRequest, Int64Request, StringRequest } from "@shared/proto/cline/common"
 import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
-import { FoldVerticalIcon } from "lucide-react"
+import { FoldVerticalIcon, Loader2Icon, ScanSearchIcon } from "lucide-react"
 import React, { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import styled from "styled-components"
@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
+import { Button } from "../ui/button"
 import { ErrorBlockTitle } from "./ErrorBlockTitle"
 import ErrorRow from "./ErrorRow"
 import HookMessage from "./HookMessage"
@@ -724,6 +725,30 @@ export const ChatRowContent = memo(
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
+						</>
+					)
+				case "searchAgent":
+					return (
+						<>
+							<div style={headerStyle}>
+								{tool.content ? (
+									<ScanSearchIcon className="size-2" />
+								) : (
+									<Loader2Icon className="size-2 animate-spin" />
+								)}
+								{tool.operationIsLocatedInWorkspace === false &&
+									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
+								<span className="font-bold">Cline wants to ask search agent:</span>
+							</div>
+							<Button
+								className="bg-code-block-background text-description border border-editor-group-border rounded-xs overflow-hidden w-full flex flex-col justify-start items-start text-left"
+								onClick={handleToggle}
+								variant="ghost">
+								<span className="w-full break-words whitespace-normal text-left">{tool.filePattern} </span>
+								<div className="w-full flex flex-col gap-1 text-left">
+									{isExpanded && tool.content?.split("\n")?.map((line) => <div className="w-full">{line}</div>)}
+								</div>
+							</Button>
 						</>
 					)
 				case "searchFiles":
