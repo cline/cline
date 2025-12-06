@@ -42,7 +42,6 @@ import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
-import { TerminalManager } from "@integrations/terminal/TerminalManager"
 import { TerminalProcessResultPromise } from "@integrations/terminal/TerminalProcess"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
@@ -66,7 +65,7 @@ import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@sha
 import { CLINE_MCP_TOOL_IDENTIFIER } from "@shared/mcp"
 import { USER_CONTENT_TAGS } from "@shared/messages/constants"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
-import { StandaloneTerminalManager } from "@shared/terminal"
+import { ITerminalManager } from "@shared/terminal/types"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import { isClaude4PlusModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
@@ -195,7 +194,7 @@ export class Task {
 
 	// Service handlers
 	api: ApiHandler
-	terminalManager: TerminalManager | StandaloneTerminalManager
+	terminalManager: ITerminalManager
 	private urlContentFetcher: UrlContentFetcher
 	browserSession: BrowserSession
 	contextManager: ContextManager
@@ -283,26 +282,20 @@ export class Task {
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
 		this.taskLockAcquired = taskLockAcquired
 
-		// Determine terminal manager based on environment:
-		// - Standalone mode (CLI/JetBrains): Always use StandaloneTerminalManager
-		// - VSCode with backgroundExec mode: Use StandaloneTerminalManager
-		// - VSCode with vscodeTerminal mode: Use TerminalManager (VSCode's terminal API)
-		const isStandalone = process.env.IS_STANDALONE === "true"
+		// Determine terminal execution mode and create appropriate terminal manager
+		this.terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
 
-		if (isStandalone) {
-			// Standalone mode (CLI/JetBrains) - always use StandaloneTerminalManager
+		// When backgroundExec mode is selected, use StandaloneTerminalManager for hidden execution
+		// Otherwise, use the HostProvider's terminal manager (VSCode terminal in VSCode, standalone in CLI)
+		if (this.terminalExecutionMode === "backgroundExec") {
+			// Import StandaloneTerminalManager for background execution
+			const { StandaloneTerminalManager } = require("@shared/terminal/StandaloneTerminalManager")
 			this.terminalManager = new StandaloneTerminalManager()
-			this.terminalExecutionMode = "backgroundExec"
+			Logger.info(`[Task ${taskId}] Using StandaloneTerminalManager for backgroundExec mode`)
 		} else {
-			// VSCode mode - use the configured terminal execution mode
-			const terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
-			this.terminalExecutionMode = terminalExecutionMode
-
-			if (terminalExecutionMode === "backgroundExec") {
-				this.terminalManager = new StandaloneTerminalManager()
-			} else {
-				this.terminalManager = new TerminalManager()
-			}
+			// Use the host-provided terminal manager (VSCode terminal in VSCode environment)
+			this.terminalManager = HostProvider.get().createTerminalManager()
+			Logger.info(`[Task ${taskId}] Using HostProvider terminal manager for vscodeTerminal mode`)
 		}
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
@@ -1511,13 +1504,16 @@ export class Task {
 
 		Logger.info("Executing command in terminal: " + command)
 
-		let terminalManager: TerminalManager | StandaloneTerminalManager
-		if (isSubagent) {
-			// Create a background TerminalManager for CLI subagents
-			// Use the same settings as the main terminal manager
+		let terminalManager: ITerminalManager
+		if (isSubagent || this.terminalExecutionMode === "backgroundExec") {
+			// Use StandaloneTerminalManager for hidden background execution (subagents and backgroundExec mode)
+			const { StandaloneTerminalManager } = require("@shared/terminal/StandaloneTerminalManager")
 			terminalManager = new StandaloneTerminalManager()
+			Logger.info(
+				`[Task ${this.taskId}] Using StandaloneTerminalManager for ${isSubagent ? "subagent" : "backgroundExec"} command: ${command}`,
+			)
 		} else {
-			// Use the configured terminal manager for regular commands
+			// Use the configured terminal manager for regular commands (VSCode terminal)
 			terminalManager = this.terminalManager
 		}
 
