@@ -39,6 +39,7 @@ import {
 } from "./hosts/vscode/review/VscodeCommentReviewController"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
+import { TerminalManager } from "./integrations/terminal/TerminalManager"
 import { ExtensionRegistryInfo } from "./registry"
 import { AuthService } from "./services/auth/AuthService"
 import { LogoutReason } from "./services/auth/types"
@@ -433,6 +434,7 @@ function setupHostProvider(context: ExtensionContext) {
 	const createWebview = () => new VscodeWebviewProvider(context)
 	const createDiffView = () => new VscodeDiffViewProvider()
 	const createCommentReview = () => getVscodeCommentReviewController()
+	const createTerminalManager = () => new TerminalManager()
 	const outputChannel = vscode.window.createOutputChannel("Cline")
 	context.subscriptions.push(outputChannel)
 
@@ -441,6 +443,7 @@ function setupHostProvider(context: ExtensionContext) {
 		createWebview,
 		createDiffView,
 		createCommentReview,
+		createTerminalManager,
 		vscodeHostBridgeClient,
 		outputChannel.appendLine,
 		getCallbackUrl,

@@ -10,6 +10,7 @@ import { WebviewProvider } from "@/core/webview"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
+import { StandaloneTerminalManager } from "@/shared/terminal"
 import { HOSTBRIDGE_PORT, waitForHostBridgeReady } from "./hostbridge-client"
 import { setLockManager } from "./lock-manager"
 import { PROTOBUS_PORT, startProtobusService } from "./protobus-service"
@@ -104,6 +105,7 @@ function setupHostProvider(extensionContext: any, extensionDir: string, dataDir:
 		return new ExternalDiffViewProvider()
 	}
 	const createCommentReview = () => new ExternalCommentReviewController()
+	const createTerminalManager = () => new StandaloneTerminalManager()
 	const getCallbackUrl = (): Promise<string> => {
 		return AuthHandler.getInstance().getCallbackUrl()
 	}
@@ -114,6 +116,7 @@ function setupHostProvider(extensionContext: any, extensionDir: string, dataDir:
 		createWebview,
 		createDiffView,
 		createCommentReview,
+		createTerminalManager,
 		new ExternalHostBridgeClientManager(),
 		log,
 		getCallbackUrl,
