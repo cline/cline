@@ -110,6 +110,8 @@ export async function updateApiConfigurationProto(
 			actModeAihubmixModelInfo: protoApiConfiguration.actModeAihubmixModelInfo
 				? fromProtobufOpenAiCompatibleModelInfo(protoApiConfiguration.actModeAihubmixModelInfo)
 				: undefined,
+			geminiPlanModeThinkingLevel: protoApiConfiguration.geminiPlanModeThinkingLevel,
+			geminiActModeThinkingLevel: protoApiConfiguration.geminiActModeThinkingLevel,
 		}
 
 		// Update the API configuration in storage

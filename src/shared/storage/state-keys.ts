@@ -56,6 +56,7 @@ export interface GlobalState {
 	nativeToolCallEnabled: boolean
 	remoteRulesToggles: ClineRulesToggles
 	remoteWorkflowToggles: ClineRulesToggles
+	dismissedBanners: Array<{ bannerId: string; dismissedAt: number }>
 }
 
 export interface Settings {
@@ -132,6 +133,7 @@ export interface Settings {
 	planModeApiProvider: ApiProvider
 	planModeApiModelId: string | undefined
 	planModeThinkingBudgetTokens: number | undefined
+	geminiPlanModeThinkingLevel: string | undefined
 	planModeReasoningEffort: string | undefined
 	planModeVsCodeLmModelSelector: LanguageModelChatSelector | undefined
 	planModeAwsBedrockCustomSelected: boolean | undefined
@@ -169,6 +171,7 @@ export interface Settings {
 	actModeApiProvider: ApiProvider
 	actModeApiModelId: string | undefined
 	actModeThinkingBudgetTokens: number | undefined
+	geminiActModeThinkingLevel: string | undefined
 	actModeReasoningEffort: string | undefined
 	actModeVsCodeLmModelSelector: LanguageModelChatSelector | undefined
 	actModeAwsBedrockCustomSelected: boolean | undefined

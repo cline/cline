@@ -312,13 +312,12 @@ namespace Gemini {
 	}
 
 	/**
-	 * Prepare Gemini request payload with thinking configuration and implicit caching support
+	 * Prepare Gemini request payload with implicit caching support
 	 */
 	export function prepareRequestPayload(
 		systemPrompt: string,
 		messages: ClineStorageMessage[],
 		model: { id: SapAiCoreModelId; info: ModelInfo },
-		thinkingBudgetTokens?: number,
 	): any {
 		const contents = messages.map(convertAnthropicMessageToGemini)
 
@@ -337,17 +336,15 @@ namespace Gemini {
 			},
 		}
 
-		// Add thinking config if the model supports it and budget is provided
-		const thinkingBudget = thinkingBudgetTokens ?? 0
-		const _maxBudget = model.info.thinkingConfig?.maxBudget ?? 0
-
-		if (thinkingBudget > 0 && model.info.thinkingConfig) {
-			// Add thinking configuration to the payload
-			;(payload as any).thinkingConfig = {
-				thinkingBudget: thinkingBudget,
-				includeThoughts: true,
-			}
-		}
+		// Note: SAP AI Core's Gemini deployment doesn't support thinkingConfig yet
+		// Commenting out until support is added
+		// const thinkingBudget = thinkingBudgetTokens ?? 0
+		// if (thinkingBudget > 0 && model.info.thinkingConfig) {
+		// 	;(payload as any).thinkingConfig = {
+		// 		thinkingBudget: thinkingBudget,
+		// 		includeThoughts: true,
+		// 	}
+		// }
 
 		return payload
 	}
@@ -361,6 +358,21 @@ export class SapAiCoreHandler implements ApiHandler {
 
 	constructor(options: SapAiCoreHandlerOptions) {
 		this.options = options
+	}
+
+	/**
+	 * Converts a chunk from the stream to a UTF-8 string
+	 * Handles Buffer, string, and byte array formats
+	 */
+	private chunkToString(chunk: any): string {
+		if (Buffer.isBuffer(chunk)) {
+			return chunk.toString("utf-8")
+		} else if (typeof chunk === "string") {
+			return chunk
+		} else {
+			// Handle comma-separated byte values or other array-like formats
+			return Buffer.from(chunk).toString("utf-8")
+		}
 	}
 
 	private validateCredentials(): void {
@@ -585,6 +597,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			"o4-mini",
 		]
 
+		const perplexityModels = ["sonar-pro", "sonar"]
 		const geminiModels = ["gemini-2.5-flash", "gemini-2.5-pro"]
 
 		let url: string
@@ -597,10 +610,12 @@ export class SapAiCoreHandler implements ApiHandler {
 			const formattedMessages = Bedrock.formatMessagesForConverseAPI(messages)
 
 			// Get message indices for caching
-			const userMsgIndices = messages.reduce(
-				(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
-				[] as number[],
-			)
+			const userMsgIndices = messages.reduce((acc, msg, index) => {
+				if (msg.role === "user") {
+					acc.push(index)
+				}
+				return acc
+			}, [] as number[])
 			const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 			const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 
@@ -673,9 +688,26 @@ export class SapAiCoreHandler implements ApiHandler {
 				delete payload.stream
 				delete payload.stream_options
 			}
+		} else if (perplexityModels.includes(model.id)) {
+			const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+				{ role: "system", content: systemPrompt },
+				...convertToOpenAiMessages(messages),
+			]
+
+			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/chat/completions`
+			payload = {
+				stream: true,
+				messages: openAiMessages,
+				temperature: 0.0,
+				frequency_penalty: 0,
+				presence_penalty: 0,
+				stop: null,
+				model: model.id,
+				stream_options: { include_usage: true },
+			}
 		} else if (geminiModels.includes(model.id)) {
 			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/models/${model.id}:streamGenerateContent`
-			payload = Gemini.prepareRequestPayload(systemPrompt, messages, model, this.options.thinkingBudgetTokens)
+			payload = Gemini.prepareRequestPayload(systemPrompt, messages, model)
 		} else {
 			throw new Error(`Unsupported model: ${model.id}`)
 		}
@@ -715,7 +747,7 @@ export class SapAiCoreHandler implements ApiHandler {
 						outputTokens: response.data.usage.completion_tokens,
 					}
 				}
-			} else if (openAIModels.includes(model.id)) {
+			} else if (openAIModels.includes(model.id) || perplexityModels.includes(model.id)) {
 				yield* this.streamCompletionGPT(response.data, model)
 			} else if (
 				model.id === "anthropic--claude-4.5-sonnet" ||
@@ -729,18 +761,54 @@ export class SapAiCoreHandler implements ApiHandler {
 			} else {
 				yield* this.streamCompletion(response.data, model)
 			}
-		} catch (error) {
+		} catch (error: any) {
 			if (error.response) {
 				// The request was made and the server responded with a status code
 				// that falls out of the range of 2xx
 				console.error("Error status:", error.response.status)
-				console.error("Error data:", error.response.data)
 				console.error("Error headers:", error.response.headers)
 
-				if (error.response.status === 404) {
-					console.error("404 Error reason:", error.response.data)
-					throw new Error(`404 Not Found: ${error.response.data}`)
+				// Handle error data - need to read stream if responseType was 'stream'
+				let errorMessage = "Unknown error"
+				if (error.response.data) {
+					try {
+						// If it's a stream, read it
+						if (
+							typeof error.response.data.on === "function" ||
+							typeof error.response.data[Symbol.asyncIterator] === "function"
+						) {
+							const chunks: Buffer[] = []
+							for await (const chunk of error.response.data) {
+								chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+							}
+							const fullData = Buffer.concat(chunks).toString("utf-8")
+							errorMessage = fullData
+							try {
+								// Try to parse as JSON for better formatting
+								const jsonError = JSON.parse(fullData)
+								errorMessage = JSON.stringify(jsonError, null, 2)
+							} catch {
+								// Keep as plain text if not JSON
+							}
+						} else if (typeof error.response.data === "string") {
+							errorMessage = error.response.data
+						} else if (typeof error.response.data === "object") {
+							errorMessage = JSON.stringify(error.response.data, null, 2)
+						}
+						console.error("Error data:", errorMessage)
+					} catch (e) {
+						console.error("Failed to read error data:", e)
+						console.error("Raw error data:", error.response.data)
+					}
 				}
+
+				if (error.response.status === 404) {
+					throw new Error(`404 Not Found: ${errorMessage}`)
+				} else if (error.response.status === 400) {
+					throw new Error(`400 Bad Request: ${errorMessage}`)
+				}
+
+				throw new Error(`HTTP ${error.response.status}: ${errorMessage}`)
 			} else if (error.request) {
 				// The request was made but no response was received
 				console.error("Error request:", error.request)
@@ -750,8 +818,6 @@ export class SapAiCoreHandler implements ApiHandler {
 				console.error("Error message:", error.message)
 				throw new Error(`Error setting up request: ${error.message}`)
 			}
-
-			throw new Error("Failed to create message")
 		}
 	}
 
@@ -763,7 +829,8 @@ export class SapAiCoreHandler implements ApiHandler {
 
 		try {
 			for await (const chunk of stream) {
-				const lines = chunk.toString().split("\n").filter(Boolean)
+				const chunkStr = this.chunkToString(chunk)
+				const lines = chunkStr.split("\n").filter(Boolean)
 				for (const line of lines) {
 					if (line.startsWith("data: ")) {
 						const jsonData = line.slice(6)
@@ -822,7 +889,8 @@ export class SapAiCoreHandler implements ApiHandler {
 		try {
 			// Iterate over the stream and process each chunk
 			for await (const chunk of stream) {
-				const lines = chunk.toString().split("\n").filter(Boolean)
+				const chunkStr = this.chunkToString(chunk)
+				const lines = chunkStr.split("\n").filter(Boolean)
 
 				for (const line of lines) {
 					if (line.startsWith("data: ")) {
@@ -895,7 +963,8 @@ export class SapAiCoreHandler implements ApiHandler {
 
 		try {
 			for await (const chunk of stream) {
-				const lines = chunk.toString().split("\n").filter(Boolean)
+				const chunkStr = this.chunkToString(chunk)
+				const lines = chunkStr.split("\n").filter(Boolean)
 				for (const line of lines) {
 					if (line.trim() === "data: [DONE]") {
 						// End of stream, yield final usage
@@ -967,7 +1036,8 @@ export class SapAiCoreHandler implements ApiHandler {
 
 		try {
 			for await (const chunk of stream) {
-				const lines = chunk.toString().split("\n").filter(Boolean)
+				const chunkStr = this.chunkToString(chunk)
+				const lines = chunkStr.split("\n").filter(Boolean)
 				for (const line of lines) {
 					if (line.startsWith("data: ")) {
 						const jsonData = line.slice(6)

@@ -104,6 +104,7 @@ interface CachePointContentBlock {
 
 // Define provider options type based on AWS SDK patterns
 interface ProviderChainOptions {
+	clientConfig?: { userAgentAppId?: string }
 	ignoreCache?: boolean
 	profile?: string
 }
@@ -211,7 +212,12 @@ export class AwsBedrockHandler implements ApiHandler {
 		sessionToken?: string
 	}> {
 		// Configure provider options
-		const providerOptions: ProviderChainOptions = {}
+		const providerOptions: ProviderChainOptions = {
+			clientConfig: {
+				// set the inner sts client userAgentAppId
+				userAgentAppId: `cline#${ExtensionRegistryInfo.version}`,
+			},
+		}
 		const useProfile =
 			(this.options.awsAuthentication === undefined && this.options.awsUseProfile) ||
 			this.options.awsAuthentication === "profile"
@@ -680,11 +686,7 @@ export class AwsBedrockHandler implements ApiHandler {
 				}
 			}
 		} catch (error) {
-			console.error("Error processing Converse API response:", error)
-			yield {
-				type: "text",
-				text: `[ERROR] Failed to process response: ${error instanceof Error ? error.message : String(error)}`,
-			}
+			throw error
 		}
 	}
 
@@ -703,9 +705,20 @@ export class AwsBedrockHandler implements ApiHandler {
 				text: `[ERROR] Model stream error: ${chunk.modelStreamErrorException.message}`,
 			}
 		} else if (chunk.validationException) {
+			// Check if this is a context window error - if so, throw it
+			// so the retry mechanism can handle truncation
+			const message = chunk.validationException.message || ""
+			const isContextError = /input.*too long|context.*exceed|maximum.*token|input length.*max.*tokens/i.test(message)
+
+			if (isContextError) {
+				// Throw as exception so context management can handle it
+				throw chunk.validationException
+			}
+
+			// Otherwise yield as error text
 			yield {
 				type: "text",
-				text: `[ERROR] Validation error: ${chunk.validationException.message}`,
+				text: `[ERROR] Validation error: ${message}`,
 			}
 		} else if (chunk.throttlingException) {
 			yield {

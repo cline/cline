@@ -92,7 +92,6 @@ func (m *Manager) ListSettings(ctx context.Context) error {
 		"telemetrySetting",
 		"planActSeparateModelsSetting",
 		"enableCheckpointsSetting",
-		"mcpMarketplaceEnabled",
 		"shellIntegrationTimeout",
 		"terminalReuseEnabled",
 		"mcpResponsesCollapsed",

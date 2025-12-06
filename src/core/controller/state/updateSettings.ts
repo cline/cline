@@ -74,11 +74,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("enableCheckpointsSetting", request.enableCheckpointsSetting)
 		}
 
-		// Update MCP marketplace setting
-		if (request.mcpMarketplaceEnabled !== undefined) {
-			controller.stateManager.setGlobalState("mcpMarketplaceEnabled", request.mcpMarketplaceEnabled)
-		}
-
 		// Update MCP responses collapsed setting
 		if (request.mcpResponsesCollapsed !== undefined) {
 			controller.stateManager.setGlobalState("mcpResponsesCollapsed", request.mcpResponsesCollapsed)

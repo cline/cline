@@ -1,4 +1,5 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import { StateManager } from "@core/storage/StateManager"
 import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
@@ -20,6 +21,7 @@ interface OpenRouterHandlerOptions extends CommonApiHandlerOptions {
 	openRouterProviderSorting?: string
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
+	geminiThinkingLevel?: string
 }
 
 export class OpenRouterHandler implements ApiHandler {
@@ -67,6 +69,7 @@ export class OpenRouterHandler implements ApiHandler {
 			this.options.thinkingBudgetTokens,
 			this.options.openRouterProviderSorting,
 			tools,
+			this.options.geminiThinkingLevel,
 		)
 
 		let didOutputUsage: boolean = false
@@ -214,9 +217,11 @@ export class OpenRouterHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
+		const modelId = this.options.openRouterModelId || openRouterDefaultModelId
+		const cachedModelInfo = StateManager.get().getModelInfo("openRouter", modelId)
 		return {
-			id: this.options.openRouterModelId || openRouterDefaultModelId,
-			info: this.options.openRouterModelInfo || openRouterDefaultModelInfo,
+			id: modelId,
+			info: cachedModelInfo || openRouterDefaultModelInfo,
 		}
 	}
 }

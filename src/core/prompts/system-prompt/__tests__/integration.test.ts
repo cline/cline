@@ -116,6 +116,7 @@ export const mockProviderInfo = {
 			supportsPromptCache: false,
 		},
 	},
+	mode: "act" as const,
 }
 
 const makeMockProviderInfo = (modelId: string, providerId: string = "test") => ({
@@ -217,6 +218,12 @@ describe("Prompt System Integration Tests", () => {
 			contextVariations,
 		},
 		{
+			modelGroup: ModelFamily.MICROWAVE,
+			modelIds: ["microwave"],
+			providerId: "cline",
+			contextVariations,
+		},
+		{
 			modelGroup: ModelFamily.NEXT_GEN,
 			modelIds: ["claude-sonnet-4"],
 			providerId: "anthropic",
@@ -252,6 +259,12 @@ describe("Prompt System Integration Tests", () => {
 			providerId: "openai",
 			contextVariations,
 		},
+		{
+			modelGroup: ModelFamily.GEMINI_3,
+			modelIds: ["gemini-3"],
+			providerId: "vertex",
+			contextVariations,
+		},
 	]
 
 	// Generate snapshots for all model/context combinations
@@ -278,7 +291,8 @@ describe("Prompt System Integration Tests", () => {
 							enableNativeToolCalls:
 								modelGroup === ModelFamily.NATIVE_NEXT_GEN ||
 								modelGroup === ModelFamily.NATIVE_GPT_5 ||
-								modelGroup === ModelFamily.NATIVE_GPT_5_1,
+								modelGroup === ModelFamily.NATIVE_GPT_5_1 ||
+								modelGroup === ModelFamily.GEMINI_3,
 						}
 						it(`should generate consistent prompt for ${providerId}/${modelId} with ${contextName} context`, async function () {
 							this.timeout(30000) // Allow more time for prompt generation
