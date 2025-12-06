@@ -175,6 +175,7 @@ export interface ApiHandlerOptions {
 	planModeOcaModelInfo?: OcaModelInfo
 	planModeAihubmixModelId?: string
 	planModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
+	planModeIoIntelligenceModelInfo?: ModelInfo
 	planModeHicapModelId?: string
 	planModeHicapModelInfo?: ModelInfo
 	planModeNousResearchModelId?: string
@@ -215,6 +216,7 @@ export interface ApiHandlerOptions {
 	actModeOcaModelInfo?: OcaModelInfo
 	actModeAihubmixModelId?: string
 	actModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
+	actModeIoIntelligenceModelInfo?: ModelInfo
 	actModeHicapModelId?: string
 	actModeHicapModelInfo?: ModelInfo
 	actModeNousResearchModelId?: string

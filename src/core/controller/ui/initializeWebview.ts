@@ -205,6 +205,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 
 		// Fetch IO Intelligence models automatically (no API key required)
 		refreshIoIntelligenceModels(controller, {
+			metadata: undefined,
 			apiKey: "",
 			baseUrl: "",
 		})

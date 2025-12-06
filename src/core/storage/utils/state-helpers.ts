@@ -397,6 +397,9 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["planModeAihubmixModelId"]>("planModeAihubmixModelId")
 		const planModeAihubmixModelInfo =
 			context.globalState.get<GlobalStateAndSettings["planModeAihubmixModelInfo"]>("planModeAihubmixModelInfo")
+		const planModeIoIntelligenceModelInfo = context.globalState.get<
+			GlobalStateAndSettings["planModeIoIntelligenceModelInfo"]
+		>("planModeIoIntelligenceModelInfo")
 		const planModeNousResearchModelId =
 			context.globalState.get<GlobalStateAndSettings["planModeNousResearchModelId"]>("planModeNousResearchModelId")
 		// Act mode configurations
@@ -473,6 +476,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["actModeAihubmixModelId"]>("actModeAihubmixModelId")
 		const actModeAihubmixModelInfo =
 			context.globalState.get<GlobalStateAndSettings["actModeAihubmixModelInfo"]>("actModeAihubmixModelInfo")
+		const actModeIoIntelligenceModelInfo =
+			context.globalState.get<GlobalStateAndSettings["actModeIoIntelligenceModelInfo"]>("actModeIoIntelligenceModelInfo")
 
 		let apiProvider: ApiProvider
 		if (planModeApiProvider) {
@@ -597,6 +602,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeHicapModelInfo,
 			planModeAihubmixModelId,
 			planModeAihubmixModelInfo,
+			planModeIoIntelligenceModelInfo,
 			planModeNousResearchModelId,
 			geminiPlanModeThinkingLevel,
 			// Act mode configurations
@@ -635,6 +641,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeHicapModelInfo,
 			actModeAihubmixModelId,
 			actModeAihubmixModelInfo,
+			actModeIoIntelligenceModelInfo,
 			actModeNousResearchModelId,
 			geminiActModeThinkingLevel,
 
