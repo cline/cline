@@ -77,8 +77,7 @@ func RenderField(key string, value interface{}, censor bool) error {
 	case "mode", "telemetrySetting", "preferredLanguage", "customPrompt",
 		"defaultTerminalProfile", "mcpDisplayMode", "openaiReasoningEffort",
 		"planActSeparateModelsSetting", "enableCheckpointsSetting",
-		"mcpMarketplaceEnabled", "terminalReuseEnabled",
-		"mcpResponsesCollapsed", "strictPlanModeEnabled",
+		"terminalReuseEnabled", "mcpResponsesCollapsed", "strictPlanModeEnabled",
 		"useAutoCondense", "yoloModeToggled", "shellIntegrationTimeout",
 		"terminalOutputLineLimit", "autoCondenseThreshold":
 		fmt.Printf("%s: %s\n", camelToKebab(key), formatValue(value, key, censor))

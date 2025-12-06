@@ -1,6 +1,7 @@
 import { type ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { type Config, type Message, Ollama } from "ollama"
 import { ClineStorageMessage } from "@/shared/messages/content"
+import { fetch } from "@/shared/net"
 import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOllamaMessages } from "../transform/ollama-format"
@@ -30,6 +31,7 @@ export class OllamaHandler implements ApiHandler {
 			try {
 				const clientOptions: Partial<Config> = {
 					host: this.options.ollamaBaseUrl,
+					fetch,
 				}
 
 				// Add API key if provided (for Ollama cloud or authenticated instances)
@@ -118,5 +120,9 @@ export class OllamaHandler implements ApiHandler {
 				contextWindow: Number(this.options.ollamaApiOptionsCtxNum),
 			},
 		}
+	}
+
+	abort(): void {
+		this.client?.abort()
 	}
 }

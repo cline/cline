@@ -34,6 +34,7 @@ import * as path from "path"
 import ReconnectingEventSource from "reconnecting-eventsource"
 import { z } from "zod"
 import { HostProvider } from "@/hosts/host-provider"
+import { fetch } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { getServerAuthHash } from "@/utils/mcpAuth"
 import { TelemetryService } from "../telemetry/TelemetryService"
@@ -109,9 +110,10 @@ export class McpHub {
 				return existingKey
 			}
 		}
-		// Generate a 118 bytes unique ID for the server
+		// Generate a short 6-character unique ID for the server
 		// Add c prefix to ensure it starts with a letter (for compatibility with Gemini)
-		const uid = "c" + nanoid()
+		// Only use the first 5 characters of nanoid to keep it short
+		const uid = "c" + nanoid(5)
 		McpHub.mcpServerKeys.set(uid, server)
 		return uid
 	}

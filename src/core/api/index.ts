@@ -1,6 +1,6 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiConfiguration, ModelInfo, QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { ClineStorageMessage } from "@/shared/messages/content"
 import { ClineTool } from "@/shared/tools"
 import { AIhubmixHandler } from "./providers/aihubmix"
 import { AnthropicHandler } from "./providers/anthropic"
@@ -47,11 +47,11 @@ import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
 export type CommonApiHandlerOptions = {
 	onRetryAttempt?: ApiConfiguration["onRetryAttempt"]
 }
-
 export interface ApiHandler {
-	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: ClineTool[]): ApiStream
+	createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ClineTool[], useResponseApi?: boolean): ApiStream
 	getModel(): ApiHandlerModel
 	getApiStreamUsage?(): Promise<ApiStreamUsageChunk | undefined>
+	abort?(): void
 }
 
 export interface ApiHandlerModel {
@@ -62,6 +62,7 @@ export interface ApiHandlerModel {
 export interface ApiProviderInfo {
 	providerId: string
 	model: ApiHandlerModel
+	mode: Mode
 	customPrompt?: string // "compact"
 	autoCondenseThreshold?: number // 0-1 range
 }
@@ -95,6 +96,7 @@ function createHandlerForProvider(
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				geminiThinkingLevel: mode === "plan" ? options.geminiPlanModeThinkingLevel : options.geminiActModeThinkingLevel,
 			})
 		case "bedrock":
 			return new AwsBedrockHandler({
@@ -129,6 +131,7 @@ function createHandlerForProvider(
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 				geminiApiKey: options.geminiApiKey,
 				geminiBaseUrl: options.geminiBaseUrl,
+				thinkingLevel: mode === "plan" ? options.geminiPlanModeThinkingLevel : options.geminiActModeThinkingLevel,
 				ulid: options.ulid,
 			})
 		case "openai":
@@ -167,6 +170,7 @@ function createHandlerForProvider(
 				geminiBaseUrl: options.geminiBaseUrl,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				thinkingLevel: mode === "plan" ? options.geminiPlanModeThinkingLevel : options.geminiActModeThinkingLevel,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 				ulid: options.ulid,
 			})
@@ -251,6 +255,7 @@ function createHandlerForProvider(
 				openRouterProviderSorting: options.openRouterProviderSorting,
 				openRouterModelId: mode === "plan" ? options.planModeOpenRouterModelId : options.actModeOpenRouterModelId,
 				openRouterModelInfo: mode === "plan" ? options.planModeOpenRouterModelInfo : options.actModeOpenRouterModelInfo,
+				geminiThinkingLevel: mode === "plan" ? options.geminiPlanModeThinkingLevel : options.geminiActModeThinkingLevel,
 			})
 		case "litellm":
 			return new LiteLlmHandler({
