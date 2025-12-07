@@ -17,19 +17,20 @@ The messaging system uses file-based communication through the `.message-queue/`
 │  (Voice Input)  │     │     .ps1         │     │ Extension   │     │  (Opus 4.5) │
 └─────────────────┘     └──────────────────┘     └─────────────┘     └─────────────┘
         │                                               │                   
-        │                                               ├──────────────────────────┐
-        │                                               ▼                          ▼
-        │                                      ┌─────────────────┐      ┌─────────────────┐
-        └─────────────────────────────────────▶│ MessageQueue    │      │   Codex CLI     │
-                                               │ Service.ts      │      │  (GPT-5.1)      │
-                                               └─────────────────┘      └─────────────────┘
+        │                                               ├───────────────────┐
+        │                                               ▼                   ▼
+        │                                      ┌─────────────────┐ ┌─────────────────┐
+        └─────────────────────────────────────▶│   Codex CLI     │ │   Gemini CLI    │
+                                               │  (GPT-5.1 Max)  │ │   (Google)      │
+                                               └─────────────────┘ └─────────────────┘
 ```
 
-**Four AI Channels:**
+**Five AI Channels:**
 1. **Copilot** - Voice/chat in VS Code (Claude Opus 4.5 Preview)
 2. **Cline** - Via `Send-ClineMessage.ps1` (OpenRouter models)
 3. **Claude CLI** - Via `claude:` prefix (Claude Opus 4.5)
-4. **Codex CLI** - Via `codex:` prefix (GPT-5.1 Codex)
+4. **Codex CLI** - Via `codex:` prefix (GPT-5.1-codex-max)
+5. **Gemini CLI** - Via `gemini:` prefix (Google Gemini)
 
 ## Quick Start
 
@@ -228,11 +229,16 @@ claude --version
 ## Requirements
 
 - PowerShell 5.1+ or PowerShell Core 7+
-- BCline VS Code extension v3.40.5+
+- BCline VS Code extension v3.40.1+
 - VS Code with the extension loaded
-- Claude CLI (`npm install -g @anthropic-ai/claude-code`) for claude: commands
-- Codex CLI (`npm install -g @openai/codex`) for codex: commands
-- Gemini CLI (`npm install -g @anthropic-ai/claude-code`) for gemini: commands
+- Claude CLI v2.0.60+ (`npm install -g @anthropic-ai/claude-code`) for claude: commands
+- Codex CLI v0.65.0+ (`npm install -g @openai/codex`) for codex: commands
+- Gemini CLI v0.19.4+ (`npm install -g gemini-cli`) for gemini: commands
+
+### Update CLI Agents
+```powershell
+npm update -g @anthropic-ai/claude-code @openai/codex
+```
 
 ## Chat Participants (@agents)
 
@@ -340,6 +346,22 @@ gemini "Say hello"
 
 ### Files Created in Wrong Directory (Gemini 3-way)
 
-**Fixed in v3.40.7:** Gemini CLI now uses workspace directory for file operations.
+**Fixed in v3.40.1:** Gemini CLI now uses workspace directory for file operations.
 
 If still occurring, update to latest BCline version.
+
+## Bug Fixes (v3.40.1)
+
+| Issue | Description | Status |
+|-------|-------------|--------|
+| #7590 | execute_command now validates exit codes and reports failures | ✅ Fixed |
+| #7902 | LiteLLM Provider Context Window Bar now displays correctly | ✅ Fixed |
+| #7876 | Thinking blocks now have proper newline display (whiteSpace pre-wrap) | ✅ Fixed |
+
+## Version History
+
+| Version | Date | Changes |
+|---------|------|---------|
+| 3.40.1 | 2025-12-06 | Merged upstream v3.40.1, bug fixes #7590/#7902/#7876, updated CLI agents |
+| 3.40.0 | 2025-12-05 | Agent orchestration, Gemini CLI, 4 chat participants, voice input |
+| 3.39.2 | 2025-12-04 | MessageQueueService, Claude/Codex CLI integration |

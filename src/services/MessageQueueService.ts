@@ -34,7 +34,7 @@ export class MessageQueueService {
 	private workspaceRoot: string
 	private watcher: fs.FSWatcher | null = null
 	private enabled: boolean = true
-	private onMessageCallback: ((message: Message) => Promise<string | void>) | null = null
+	private onMessageCallback: ((message: Message) => Promise<string | undefined>) | null = null
 	private logMessages: string[] = []
 	private controller: Controller | null = null
 
@@ -87,7 +87,7 @@ export class MessageQueueService {
 	/**
 	 * Set the callback function that will handle incoming messages
 	 */
-	public setMessageHandler(handler: (message: Message) => Promise<string | void>): void {
+	public setMessageHandler(handler: (message: Message) => Promise<string | undefined>): void {
 		this.onMessageCallback = handler
 		this.log("Message handler registered")
 	}
@@ -175,7 +175,7 @@ export class MessageQueueService {
 						}
 					}
 				}
-			} catch (error) {
+			} catch (_error) {
 				// Silently ignore errors (file might be locked, etc.)
 			}
 		}, 2000)
@@ -401,7 +401,7 @@ export class MessageQueueService {
 			this.log(`   Content: ${message.content}`)
 
 			// Check for special commands
-			let responseContent: string | void
+			let responseContent: string | undefined
 
 			// Handle model switching command: "set-model:provider/model-name"
 			if (message.content.startsWith("set-model:")) {
@@ -797,7 +797,9 @@ export class MessageQueueService {
 		const dirs = [this.inboxDir, this.outboxDir, this.responsesDir]
 
 		dirs.forEach((dir) => {
-			if (!fs.existsSync(dir)) return
+			if (!fs.existsSync(dir)) {
+				return
+			}
 
 			const files = fs.readdirSync(dir)
 			let cleaned = 0
@@ -810,7 +812,7 @@ export class MessageQueueService {
 						fs.unlinkSync(filePath)
 						cleaned++
 					}
-				} catch (error) {
+				} catch (_error) {
 					// Ignore errors on individual files
 				}
 			})
