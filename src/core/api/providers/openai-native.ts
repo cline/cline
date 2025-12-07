@@ -64,7 +64,10 @@ export class OpenAiNativeHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ChatCompletionTool[]): ApiStream {
 		// Responses API requires tool format to be set to OPENAI_RESPONSES with native tools calling enabled
-		if (tools?.length && this.getModel()?.info?.apiFormat === ApiFormat.OPENAI_RESPONSES) {
+		if (this.getModel()?.info?.apiFormat === ApiFormat.OPENAI_RESPONSES) {
+			if (!tools?.length) {
+				throw new Error("Native Tool Call must be enabled in your setting for OpenAI Responses API")
+			}
 			yield* this.createResponseStream(systemPrompt, messages, tools)
 		} else {
 			yield* this.createCompletionStream(systemPrompt, messages, tools)
@@ -156,7 +159,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 	private async *createResponseStream(
 		systemPrompt: string,
 		messages: ClineStorageMessage[],
-		tools?: ChatCompletionTool[],
+		tools: ChatCompletionTool[],
 	): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
