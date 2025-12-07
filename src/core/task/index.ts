@@ -99,6 +99,7 @@ import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
+import { executeHook } from "../hooks/hook-executor"
 import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
@@ -835,7 +836,6 @@ export class Task {
 			return {}
 		}
 
-		const { executeHook } = await import("../hooks/hook-executor")
 		const { extractUserPromptFromContent } = await import("./utils/extractUserPromptFromContent")
 
 		// Extract clean user prompt from content, stripping system wrappers and metadata
@@ -918,8 +918,6 @@ export class Task {
 		// Add TaskStart hook context to the conversation if provided
 		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 		if (hooksEnabled) {
-			const { executeHook } = await import("../hooks/hook-executor")
-
 			const taskStartResult = await executeHook({
 				hookName: "TaskStart",
 				hookInput: {
@@ -1068,8 +1066,6 @@ export class Task {
 		// Run TaskResume hook AFTER user clicks resume button
 		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 		if (hooksEnabled) {
-			const { executeHook } = await import("../hooks/hook-executor")
-
 			const clineMessages = this.messageStateHandler.getClineMessages()
 			const taskResumeResult = await executeHook({
 				hookName: "TaskResume",
@@ -1396,6 +1392,25 @@ export class Task {
 			const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 			if (hooksEnabled && shouldRunTaskCancelHook) {
 				try {
+					await executeHook({
+						hookName: "TaskCancel",
+						hookInput: {
+							taskCancel: {
+								taskMetadata: {
+									taskId: this.taskId,
+									ulid: this.ulid,
+									completionStatus: this.taskState.abandoned ? "abandoned" : "cancelled",
+								},
+							},
+						},
+						isCancellable: false, // TaskCancel is NOT cancellable
+						say: this.say.bind(this),
+						// No setActiveHookExecution or clearActiveHookExecution for non-cancellable hooks
+						messageStateHandler: this.messageStateHandler,
+						taskId: this.taskId,
+						hooksEnabled,
+					})
+
 					// TaskCancel completed successfully
 					// Present resume button after successful TaskCancel hook
 					const lastClineMessage = this.messageStateHandler
