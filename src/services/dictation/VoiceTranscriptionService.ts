@@ -103,13 +103,18 @@ export class VoiceTranscriptionService {
 	async transcribeAudio(audioBase64: string, language?: string): Promise<{ text?: string; error?: string }> {
 		try {
 			Logger.info("Transcribing audio with Cline transcription service...")
+			Logger.info(`Audio base64 length: ${audioBase64.length} characters`)
 
 			// Check if using organization account for telemetry
 			const userInfo = await this.clineAccountService.fetchMe()
+			Logger.info(`User info fetched: ${userInfo ? "yes" : "no"}, uid: ${userInfo?.id ?? "none"}`)
 			const activeOrg = userInfo?.organizations?.find((org) => org.active)
 			const isOrgAccount = !!activeOrg
 
 			const result = await this.clineAccountService.transcribeAudio(audioBase64, language)
+			Logger.info(
+				`Transcription result: text length=${result.text?.length ?? 0}, text="${result.text?.substring(0, 100) ?? ""}"`,
+			)
 
 			Logger.info("Transcription successful")
 
