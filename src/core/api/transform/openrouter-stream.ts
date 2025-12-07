@@ -192,12 +192,8 @@ export async function createOpenRouterStream(
 			}
 			break
 		default:
-			if (
-				thinkingBudgetTokens &&
-				model.info?.thinkingConfig &&
-				thinkingBudgetTokens > 0 &&
-				!(model.id.includes("gemini") && geminiThinkingLevel)
-			) {
+			// Don't set reasoning for Gemini models - they use thinking_config instead
+			if (thinkingBudgetTokens && model.info?.thinkingConfig && thinkingBudgetTokens > 0 && !model.id.includes("gemini")) {
 				temperature = undefined // extended thinking does not support non-1 temperature
 				reasoning = { max_tokens: thinkingBudgetTokens }
 				break
@@ -228,8 +224,16 @@ export async function createOpenRouterStream(
 		...(providerPreferences ? { provider: providerPreferences } : {}),
 		...(isClaudeSonnet1m ? { provider: { order: ["anthropic", "google-vertex/global"], allow_fallbacks: false } } : {}),
 		...getOpenAIToolParams(tools),
-		...(model.id.includes("gemini") && geminiThinkingLevel
-			? { thinking_config: { thinking_level: geminiThinkingLevel, include_thoughts: true } }
+		...(model.id.includes("gemini") && (geminiThinkingLevel || (thinkingBudgetTokens && thinkingBudgetTokens > 0))
+			? {
+					thinking_config: {
+						// Use thinking_level if specified, otherwise default to "low" for gemini-3-pro models
+						thinking_level: geminiThinkingLevel || (model.id.includes("gemini-3") ? "low" : undefined),
+						// Only set thinking_budget if thinking_level is NOT set (mutually exclusive per Gemini API)
+						...(geminiThinkingLevel ? {} : { thinking_budget: thinkingBudgetTokens }),
+						include_thoughts: true,
+					},
+				}
 			: {}),
 	})
 
