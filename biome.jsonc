@@ -70,7 +70,8 @@
 				"noControlCharactersInRegex": "off",
 				"noShadowRestrictedNames": "off",
 				"noArrayIndexKey": "info",
-				"noAssignInExpressions": "info"
+				"noAssignInExpressions": "info",
+				"useIterableCallbackReturn": "off"
 			},
 			"complexity": {
 				"noUselessConstructor": "off",
@@ -109,6 +110,12 @@
 		"formatter": {
 			"trailingCommas": "none",
 			"expand": "always"
+		}
+	},
+	"css": {
+		"parser": {
+			"cssModules": true,
+			"tailwindDirectives": true
 		}
 	},
 	"files": {
