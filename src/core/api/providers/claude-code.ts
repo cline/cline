@@ -175,11 +175,10 @@ export class ClaudeCodeHandler implements ApiHandler {
 			}
 
 			// Keep backward compatibility with older Claude CLI versions that don't support --include-partial-messages
+			// Also extract tool_use blocks which are ONLY available in the assistant chunk (not in stream events)
+			// NOTE: Stream events only support text, thinking, and redacted_thinking content types.
+			// Tool use blocks MUST be extracted from the assistant chunk regardless of streaming mode.
 			if (chunk.type === "assistant" && "message" in chunk) {
-				if (didReceiveStreamEvents) {
-					continue
-				}
-
 				const message = chunk.message
 
 				if (message.stop_reason !== null) {
@@ -210,25 +209,35 @@ export class ClaudeCodeHandler implements ApiHandler {
 				for (const content of message.content) {
 					switch (content.type) {
 						case "text":
-							yield {
-								type: "text",
-								text: content.text,
+							// Skip text if already streamed via stream_event to avoid duplicates
+							if (!didReceiveStreamEvents) {
+								yield {
+									type: "text",
+									text: content.text,
+								}
 							}
 							break
 						case "thinking":
-							yield {
-								type: "reasoning",
-								reasoning: content.thinking || "",
+							// Skip thinking if already streamed via stream_event to avoid duplicates
+							if (!didReceiveStreamEvents) {
+								yield {
+									type: "reasoning",
+									reasoning: content.thinking || "",
+								}
 							}
 							break
 						case "redacted_thinking":
-							yield {
-								type: "reasoning",
-								reasoning: "[Redacted thinking block]",
+							// Skip redacted_thinking if already streamed via stream_event to avoid duplicates
+							if (!didReceiveStreamEvents) {
+								yield {
+									type: "reasoning",
+									reasoning: "[Redacted thinking block]",
+								}
 							}
 							break
 						case "tool_use":
-							// Yield tool_use blocks to the streaming pipeline for proper tool execution
+							// ALWAYS yield tool_use blocks - they are NOT available in stream events!
+							// Stream events only contain text, thinking, and redacted_thinking deltas.
 							yield {
 								type: "tool_calls",
 								tool_call: {
@@ -244,14 +253,18 @@ export class ClaudeCodeHandler implements ApiHandler {
 					}
 				}
 
-				// According to Anthropic's API documentation:
-				// https://docs.anthropic.com/en/api/messages#usage-object
-				// The `input_tokens` field already includes both `cache_read_input_tokens` and `cache_creation_input_tokens`.
-				// Therefore, we should not add cache tokens to the input_tokens count again, as this would result in double-counting.
-				usage.inputTokens = message.usage?.input_tokens ?? 0
-				usage.outputTokens = message.usage?.output_tokens ?? 0
-				usage.cacheReadTokens = message.usage?.cache_read_input_tokens ?? 0
-				usage.cacheWriteTokens = message.usage?.cache_creation_input_tokens ?? 0
+				// Only update usage from assistant chunk if we didn't get it from stream events
+				// (to avoid overwriting with potentially stale data)
+				if (!didReceiveStreamEvents) {
+					// According to Anthropic's API documentation:
+					// https://docs.anthropic.com/en/api/messages#usage-object
+					// The `input_tokens` field already includes both `cache_read_input_tokens` and `cache_creation_input_tokens`.
+					// Therefore, we should not add cache tokens to the input_tokens count again, as this would result in double-counting.
+					usage.inputTokens = message.usage?.input_tokens ?? 0
+					usage.outputTokens = message.usage?.output_tokens ?? 0
+					usage.cacheReadTokens = message.usage?.cache_read_input_tokens ?? 0
+					usage.cacheWriteTokens = message.usage?.cache_creation_input_tokens ?? 0
+				}
 
 				continue
 			}

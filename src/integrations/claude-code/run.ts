@@ -105,6 +105,15 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 			})
 		}
 
+		if (processState.stderrLogs.includes("unknown option '--include-partial-messages'")) {
+			throw new Error(
+				`The Claude Code executable is outdated and does not support streaming mode. Please update to the latest version using: npm update -g @anthropic-ai/claude-code`,
+				{
+					cause: err,
+				},
+			)
+		}
+
 		if (err instanceof Error) {
 			if (err.message.includes("ENOENT")) {
 				throw new Error(

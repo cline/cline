@@ -71,16 +71,37 @@ type MessageStartEvent = {
 	}
 }
 
+/**
+ * ContentBlockStartEvent contains one of three different content block types:
+ * - "text": Regular text content (uses `text` property)
+ * - "thinking": Extended thinking content (uses `thinking` and optional `signature` properties)
+ * - "redacted_thinking": Redacted thinking content (uses `data` and `signature` properties)
+ *
+ * Note: `tool_use` blocks are NOT included in stream events - they only appear in the final
+ * `assistant` chunk message. This is why tool calls must be extracted from the assistant
+ * chunk even when streaming is enabled.
+ */
 type ContentBlockStartEvent = {
 	type: "content_block_start"
 	index: number
-	content_block: {
-		type: "text" | "thinking" | "redacted_thinking"
-		text?: string
-		thinking?: string
-		data?: string
-		signature?: string
-	}
+	content_block: TextContentBlock | ThinkingContentBlock | RedactedThinkingContentBlock
+}
+
+type TextContentBlock = {
+	type: "text"
+	text?: string
+}
+
+type ThinkingContentBlock = {
+	type: "thinking"
+	thinking?: string
+	signature?: string
+}
+
+type RedactedThinkingContentBlock = {
+	type: "redacted_thinking"
+	data?: string
+	signature?: string
 }
 
 type ContentBlockDeltaEvent = {
