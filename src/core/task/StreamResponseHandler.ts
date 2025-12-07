@@ -24,7 +24,8 @@ interface ToolUseDeltaBlock {
 	id?: string
 	type?: string
 	name?: string
-	input?: string
+	// Input can be a string (streaming providers) or an already-parsed object (Claude Code)
+	input?: string | Record<string, unknown>
 	signature?: string
 }
 
@@ -108,12 +109,22 @@ class ToolUseHandler {
 			pending.signature = delta.signature
 		}
 
-		if (delta.input) {
-			pending.input += delta.input
-			try {
-				pending.jsonParser?.write(delta.input)
-			} catch {
-				// Expected during streaming - JSONParser may not have complete JSON yet
+		if (delta.input !== undefined && delta.input !== null) {
+			// Handle both string (streaming) and object (non-streaming, e.g., Claude Code) inputs
+			// For Claude Code, the input comes as an already-parsed object, not as a string stream
+			if (typeof delta.input === "object") {
+				// Input is already parsed (from providers like Claude Code)
+				// Store it directly as parsedInput, no need to accumulate or parse JSON
+				pending.parsedInput = delta.input
+				pending.input = JSON.stringify(delta.input)
+			} else {
+				// Input is a string (streaming providers like Anthropic, OpenAI)
+				pending.input += delta.input
+				try {
+					pending.jsonParser?.write(delta.input)
+				} catch {
+					// Expected during streaming - JSONParser may not have complete JSON yet
+				}
 			}
 		}
 	}
