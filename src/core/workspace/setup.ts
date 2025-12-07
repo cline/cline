@@ -26,7 +26,7 @@ export async function setupWorkspaceManager({
 }): Promise<WorkspaceRootManager> {
 	const cwd = await getCwd(getDesktopDir())
 	const startTime = performance.now()
-	const multiRootEnabled = isMultiRootEnabled(stateManager)
+	const multiRootEnabled = isMultiRootEnabled()
 	try {
 		let manager: WorkspaceRootManager
 		// Multi-root mode condition - requires both feature flag and user setting to be enabled
