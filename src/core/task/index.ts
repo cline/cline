@@ -42,11 +42,9 @@ import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
-import { TerminalManager } from "@integrations/terminal/TerminalManager"
 import { TerminalProcessResultPromise } from "@integrations/terminal/TerminalProcess"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
-import { featureFlagsService } from "@services/feature-flags"
 import { listFiles } from "@services/glob/list-files"
 import { Logger } from "@services/logging/Logger"
 import { McpHub } from "@services/mcp/McpHub"
@@ -67,7 +65,7 @@ import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@sha
 import { CLINE_MCP_TOOL_IDENTIFIER } from "@shared/mcp"
 import { USER_CONTENT_TAGS } from "@shared/messages/constants"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
-import type { Mode } from "@shared/storage/types"
+import { ITerminalManager } from "@shared/terminal/types"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import { isClaude4PlusModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
@@ -95,7 +93,7 @@ import {
 	ClineTextContentBlock,
 	ClineToolResponseContent,
 	ClineUserContent,
-} from "@/shared/messages/content"
+} from "@/shared/messages"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
 import { isInTestMode } from "../../services/test/TestMode"
@@ -138,12 +136,6 @@ type TaskParams = {
 }
 
 export class Task {
-	// Constants
-	private static readonly STANDALONE_TERMINAL_MODULE_PATH = path.join(
-		__dirname,
-		"../standalone/runtime-files/vscode/enhanced-terminal.js",
-	)
-
 	// Core task variables
 	readonly taskId: string
 	readonly ulid: string
@@ -203,7 +195,7 @@ export class Task {
 
 	// Service handlers
 	api: ApiHandler
-	terminalManager: TerminalManager
+	terminalManager: ITerminalManager
 	private urlContentFetcher: UrlContentFetcher
 	browserSession: BrowserSession
 	contextManager: ContextManager
@@ -291,38 +283,20 @@ export class Task {
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
 		this.taskLockAcquired = taskLockAcquired
 
-		// TODO(ae) this is a hack to replace the terminal manager for standalone,
-		// until we have proper host bridge support for terminal execution. The
-		// standaloneTerminalManager is defined in the vscode-impls and injected
-		// during compilation of the standalone manager only, so this variable only
-		// exists in that case
+		// Determine terminal execution mode and create appropriate terminal manager
+		this.terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
 
-		// First check if we're in standalone mode (original automatic detection)
-		if ((global as any).standaloneTerminalManager) {
-			this.terminalManager = (global as any).standaloneTerminalManager
-			this.terminalExecutionMode = "backgroundExec"
+		// When backgroundExec mode is selected, use StandaloneTerminalManager for hidden execution
+		// Otherwise, use the HostProvider's terminal manager (VSCode terminal in VSCode, standalone in CLI)
+		if (this.terminalExecutionMode === "backgroundExec") {
+			// Import StandaloneTerminalManager for background execution
+			const { StandaloneTerminalManager } = require("@shared/terminal/StandaloneTerminalManager")
+			this.terminalManager = new StandaloneTerminalManager()
+			Logger.info(`[Task ${taskId}] Using StandaloneTerminalManager for backgroundExec mode`)
 		} else {
-			// Not in standalone mode, use the configured mode (default to vscodeTerminal)
-			const terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
-			this.terminalExecutionMode = terminalExecutionMode
-
-			if (terminalExecutionMode === "backgroundExec") {
-				try {
-					const { StandaloneTerminalManager } = require(Task.STANDALONE_TERMINAL_MODULE_PATH) as {
-						StandaloneTerminalManager?: new () => TerminalManager
-					}
-					if (StandaloneTerminalManager) {
-						this.terminalManager = new StandaloneTerminalManager()
-					} else {
-						this.terminalManager = new TerminalManager()
-					}
-				} catch (error) {
-					console.error("[DEBUG] Failed to load standalone terminal manager", error)
-					this.terminalManager = new TerminalManager()
-				}
-			} else {
-				this.terminalManager = new TerminalManager()
-			}
+			// Use the host-provided terminal manager (VSCode terminal in VSCode environment)
+			this.terminalManager = HostProvider.get().createTerminalManager()
+			Logger.info(`[Task ${taskId}] Using HostProvider terminal manager for vscodeTerminal mode`)
 		}
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
@@ -716,6 +690,7 @@ export class Task {
 		const modelInfo: ClineMessageModelInfo = {
 			providerId: providerInfo.providerId,
 			modelId: providerInfo.model.id,
+			mode: providerInfo.mode,
 		}
 
 		if (partial !== undefined) {
@@ -1532,34 +1507,24 @@ export class Task {
 
 		Logger.info("Executing command in terminal: " + command)
 
-		let terminalManager: TerminalManager
-		if (isSubagent) {
-			// Create a background TerminalManager for CLI subagents
-			try {
-				const { StandaloneTerminalManager } = require(Task.STANDALONE_TERMINAL_MODULE_PATH) as {
-					StandaloneTerminalManager?: new () => TerminalManager
-				}
-				if (StandaloneTerminalManager) {
-					terminalManager = new StandaloneTerminalManager()
-				} else {
-					terminalManager = new TerminalManager()
-				}
-			} catch (error) {
-				console.error("[DEBUG] Failed to load standalone terminal manager for subagent", error)
-				terminalManager = new TerminalManager()
-			}
-			terminalManager.setShellIntegrationTimeout(this.terminalManager["shellIntegrationTimeout"] || 4000)
-			terminalManager.setTerminalReuseEnabled(this.terminalManager["terminalReuseEnabled"] ?? true)
-			terminalManager.setTerminalOutputLineLimit(this.terminalManager["terminalOutputLineLimit"] || 500)
-			terminalManager.setSubagentTerminalOutputLineLimit(this.terminalManager["subagentTerminalOutputLineLimit"] || 2000)
+		let terminalManager: ITerminalManager
+		if (isSubagent || this.terminalExecutionMode === "backgroundExec") {
+			// Use StandaloneTerminalManager for hidden background execution (subagents and backgroundExec mode)
+			const { StandaloneTerminalManager } = require("@shared/terminal/StandaloneTerminalManager")
+			terminalManager = new StandaloneTerminalManager()
+			Logger.info(
+				`[Task ${this.taskId}] Using StandaloneTerminalManager for ${isSubagent ? "subagent" : "backgroundExec"} command: ${command}`,
+			)
 		} else {
-			// Use the configured terminal manager for regular commands
+			// Use the configured terminal manager for regular commands (VSCode terminal)
 			terminalManager = this.terminalManager
 		}
 
 		const terminalInfo = await terminalManager.getOrCreateTerminal(this.cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
-		const process = terminalManager.runCommand(terminalInfo, command)
+		// Use `as any` to handle type incompatibility between VSCode's Thenable and Promise
+		// Both TerminalInfo types have the same runtime structure, the difference is purely TypeScript
+		const process = terminalManager.runCommand(terminalInfo as any, command)
 
 		// Track command execution for both terminal modes
 		this.controller.updateBackgroundCommandState(true, this.taskId)
@@ -1780,7 +1745,7 @@ export class Task {
 
 					// Process any output we captured before timeout
 					await setTimeoutPromise(50)
-					const result = this.terminalManager.processOutput(outputLines, undefined, false)
+					const result = terminalManager.processOutput(outputLines, undefined, isSubagent)
 
 					if (error.message === "COMMAND_TIMEOUT") {
 						return [
@@ -1812,11 +1777,7 @@ export class Task {
 			await setTimeoutPromise(50)
 		}
 
-		const result = terminalManager.processOutput(
-			outputLines,
-			isSubagent ? terminalManager["subagentTerminalOutputLineLimit"] : undefined,
-			isSubagent,
-		)
+		const result = terminalManager.processOutput(outputLines, undefined, isSubagent)
 
 		if (didCancelViaUi) {
 			return [
@@ -1904,7 +1865,7 @@ export class Task {
 			}
 
 			// Process the captured output to include in the cancellation message
-			const processedOutput = this.terminalManager.processOutput(outputLines, undefined, false)
+			const processedOutput = this.terminalManager.processOutput(outputLines, undefined, isSubagentCommand(command))
 
 			// Add cancellation information to the API conversation history
 			// This ensures the agent knows the command was cancelled in the next request
@@ -1995,7 +1956,7 @@ export class Task {
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
 		const providerId = (mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
 		const customPrompt = this.stateManager.getGlobalSettingsKey("customPrompt")
-		return { model, providerId, customPrompt }
+		return { model, providerId, customPrompt, mode }
 	}
 
 	private getApiRequestIdSafe(): string | undefined {
@@ -2141,20 +2102,13 @@ export class Task {
 			// saves task history item which we use to keep track of conversation history deleted range
 		}
 
+        getLaminarService().startSpan("llm", {
+            name: "llm_call",
+            spanType: "LLM",
+            input: [{ role: "system", content: systemPrompt }, ...contextManagementMetadata.truncatedConversationHistory],
+        })
 		// Response API requires native tool calls to be enabled
-		const useResponseApi = this.useNativeToolCalls && featureFlagsService.isResponseApiEnabled()
-
-		getLaminarService().startSpan("llm", {
-			name: "llm_call",
-			spanType: "LLM",
-			input: [{ role: "system", content: systemPrompt }, ...contextManagementMetadata.truncatedConversationHistory],
-		})
-		const stream = this.api.createMessage(
-			systemPrompt,
-			contextManagementMetadata.truncatedConversationHistory,
-			tools,
-			useResponseApi,
-		)
+		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory, tools)
 
 		const iterator = stream[Symbol.asyncIterator]()
 
@@ -2455,20 +2409,17 @@ export class Task {
 		this.taskState.apiRequestsSinceLastTodoUpdate++
 
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
-		const { model, providerId, customPrompt } = this.getCurrentProviderInfo()
+		const { model, providerId, customPrompt, mode } = this.getCurrentProviderInfo()
 		if (providerId && model.id) {
 			try {
-				await this.modelContextTracker.recordModelUsage(
-					providerId,
-					model.id,
-					this.stateManager.getGlobalSettingsKey("mode"),
-				)
+				await this.modelContextTracker.recordModelUsage(providerId, model.id, mode)
 			} catch {}
 		}
 
-		const modelInfo = {
+		const modelInfo: ClineMessageModelInfo = {
 			modelId: model.id,
 			providerId: providerId,
+			mode: mode,
 		}
 
 		if (this.taskState.consecutiveMistakeCount >= this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")) {
@@ -2705,10 +2656,7 @@ export class Task {
 			content: userContent,
 		})
 
-		const modeSetting = this.stateManager.getGlobalSettingsKey("mode")
-		const currentMode: Mode = modeSetting === "act" ? "act" : "plan"
-
-		telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "user", currentMode)
+		telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "user", modelInfo.mode)
 
 		// Capture task initialization timing telemetry for the first API request
 		if (isFirstRequest) {
@@ -2731,11 +2679,13 @@ export class Task {
 		await this.postStateToWebview()
 
 		try {
-			let cacheWriteTokens = 0
-			let cacheReadTokens = 0
-			let inputTokens = 0
-			let outputTokens = 0
-			let totalCost: number | undefined
+			const taskMetrics: {
+				cacheWriteTokens: number
+				cacheReadTokens: number
+				inputTokens: number
+				outputTokens: number
+				totalCost: number | undefined
+			} = { cacheWriteTokens: 0, cacheReadTokens: 0, inputTokens: 0, outputTokens: 0, totalCost: undefined }
 
 			const abortStream = async (cancelReason: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
 				if (this.diffViewProvider.isEditing) {
@@ -2751,6 +2701,20 @@ export class Task {
 					console.log("updating partial message", lastMessage)
 					// await this.saveClineMessagesAndUpdateHistory()
 				}
+				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
+				await updateApiReqMsg({
+					messageStateHandler: this.messageStateHandler,
+					lastApiReqIndex,
+					inputTokens: taskMetrics.inputTokens,
+					outputTokens: taskMetrics.outputTokens,
+					cacheWriteTokens: taskMetrics.cacheWriteTokens,
+					cacheReadTokens: taskMetrics.cacheReadTokens,
+					totalCost: taskMetrics.totalCost,
+					api: this.api,
+					cancelReason,
+					streamingFailedMessage,
+				})
+				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
 				// Let assistant know their response was interrupted for when task is resumed
 				await this.messageStateHandler.addToApiConversationHistory({
@@ -2767,35 +2731,29 @@ export class Task {
 								}]`,
 						},
 					],
+					modelInfo,
+					metrics: {
+						tokens: {
+							prompt: taskMetrics.inputTokens,
+							completion: taskMetrics.outputTokens,
+							cached: (taskMetrics.cacheWriteTokens ?? 0) + (taskMetrics.cacheReadTokens ?? 0),
+						},
+						cost: taskMetrics.totalCost,
+					},
 				})
-
-				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
-				await updateApiReqMsg({
-					messageStateHandler: this.messageStateHandler,
-					lastApiReqIndex,
-					inputTokens,
-					outputTokens,
-					cacheWriteTokens,
-					cacheReadTokens,
-					totalCost,
-					api: this.api,
-					cancelReason,
-					streamingFailedMessage,
-				})
-				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
 				telemetryService.captureConversationTurnEvent(
 					this.ulid,
 					providerId,
 					modelInfo.modelId,
 					"assistant",
-					currentMode,
+					modelInfo.mode,
 					{
-						tokensIn: inputTokens,
-						tokensOut: outputTokens,
-						cacheWriteTokens,
-						cacheReadTokens,
-						totalCost,
+						tokensIn: taskMetrics.inputTokens,
+						tokensOut: taskMetrics.outputTokens,
+						cacheWriteTokens: taskMetrics.cacheWriteTokens,
+						cacheReadTokens: taskMetrics.cacheReadTokens,
+						totalCost: taskMetrics.totalCost,
 					},
 					this.useNativeToolCalls, // For assistant turn only.
 				)
@@ -2822,6 +2780,7 @@ export class Task {
 			const { toolUseHandler, reasonsHandler } = this.streamHandler.getHandlers()
 			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
 
+			let assistantMessageId = ""
 			let assistantMessage = "" // For UI display (includes XML)
 			let assistantTextOnly = "" // For API history (text only, no tool XML)
 			let assistantTextSignature: string | undefined
@@ -2835,11 +2794,11 @@ export class Task {
 						case "usage":
 							this.streamHandler.setRequestId(chunk.id)
 							didReceiveUsageChunk = true
-							inputTokens += chunk.inputTokens
-							outputTokens += chunk.outputTokens
-							cacheWriteTokens += chunk.cacheWriteTokens ?? 0
-							cacheReadTokens += chunk.cacheReadTokens ?? 0
-							totalCost = chunk.totalCost
+							taskMetrics.inputTokens += chunk.inputTokens
+							taskMetrics.outputTokens += chunk.outputTokens
+							taskMetrics.cacheWriteTokens += chunk.cacheWriteTokens ?? 0
+							taskMetrics.cacheReadTokens += chunk.cacheReadTokens ?? 0
+							taskMetrics.totalCost = chunk.totalCost ?? taskMetrics.totalCost
 							break
 						case "reasoning": {
 							// Process the reasoning delta through the handler
@@ -2900,6 +2859,9 @@ export class Task {
 							if (chunk.signature) {
 								assistantTextSignature = chunk.signature
 							}
+							if (chunk.id) {
+								assistantMessageId = chunk.id
+							}
 							assistantMessage += chunk.text
 							assistantTextOnly += chunk.text // Accumulate text separately
 							// parse raw assistant message into content blocks
@@ -2922,6 +2884,7 @@ export class Task {
 					)
 
 					if (this.taskState.abort) {
+						this.api.abort?.()
 						if (!this.taskState.abandoned) {
 							getLaminarService().endSpan("llm")
 							// only need to gracefully abort if this instance isn't abandoned (sometimes openrouter stream hangs, in which case this would affect future instances of cline)
@@ -3006,11 +2969,11 @@ export class Task {
 			if (!didReceiveUsageChunk) {
 				this.api.getApiStreamUsage?.().then(async (apiStreamUsage) => {
 					if (apiStreamUsage) {
-						inputTokens += apiStreamUsage.inputTokens
-						outputTokens += apiStreamUsage.outputTokens
-						cacheWriteTokens += apiStreamUsage.cacheWriteTokens ?? 0
-						cacheReadTokens += apiStreamUsage.cacheReadTokens ?? 0
-						totalCost = apiStreamUsage.totalCost
+						taskMetrics.inputTokens += apiStreamUsage.inputTokens
+						taskMetrics.outputTokens += apiStreamUsage.outputTokens
+						taskMetrics.cacheWriteTokens += apiStreamUsage.cacheWriteTokens ?? 0
+						taskMetrics.cacheReadTokens += apiStreamUsage.cacheReadTokens ?? 0
+						taskMetrics.totalCost = apiStreamUsage.totalCost ?? taskMetrics.totalCost
 					}
 				})
 			}
@@ -3019,12 +2982,12 @@ export class Task {
 			await updateApiReqMsg({
 				messageStateHandler: this.messageStateHandler,
 				lastApiReqIndex,
-				inputTokens,
-				outputTokens,
-				cacheWriteTokens,
-				cacheReadTokens,
+				inputTokens: taskMetrics.inputTokens,
+				outputTokens: taskMetrics.outputTokens,
+				cacheWriteTokens: taskMetrics.cacheWriteTokens,
+				cacheReadTokens: taskMetrics.cacheReadTokens,
 				api: this.api,
-				totalCost,
+				totalCost: taskMetrics.totalCost,
 			})
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 			await this.postStateToWebview()
@@ -3035,39 +2998,21 @@ export class Task {
 				throw new Error("Cline instance aborted")
 			}
 
-			this.taskState.didCompleteReadingStream = true
-
-			// set any blocks to be complete to allow presentAssistantMessage to finish and set userMessageContentReady to true
-			// (could be a text block that had no subsequent tool uses, or a text block at the very end, or an invalid tool use, etc. whatever the case, presentAssistantMessage relies on these blocks either to be completed or the user to reject a block in order to proceed and eventually set userMessageContentReady to true)
-			const partialBlocks = this.taskState.assistantMessageContent.filter((block) => block.partial)
-			partialBlocks.forEach((block) => {
-				block.partial = false
-			})
-			// in case there are native tool calls pending
-			const partialToolBlocks = toolUseHandler.getPartialToolUsesAsContent()?.map((block) => ({ ...block, partial: false }))
-			this.processNativeToolCalls(assistantTextOnly, partialToolBlocks)
-
-			if (partialBlocks.length > 0) {
-				await this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
-			}
-
-			// now add to apiconversationhistory
-			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
-			let didEndLoop = false
-			if (assistantMessage.length > 0 || this.useNativeToolCalls) {
-				const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+			// Stored the assistant API response immediately after the stream finishes in the same turn
+			const assistantHasContent = assistantMessage.length > 0 || this.useNativeToolCalls
+			if (assistantHasContent) {
 				telemetryService.captureConversationTurnEvent(
 					this.ulid,
 					providerId,
 					model.id,
 					"assistant",
-					currentMode,
+					modelInfo.mode,
 					{
-						tokensIn: inputTokens,
-						tokensOut: outputTokens,
-						cacheWriteTokens,
-						cacheReadTokens,
-						totalCost,
+						tokensIn: taskMetrics.inputTokens,
+						tokensOut: taskMetrics.outputTokens,
+						cacheWriteTokens: taskMetrics.cacheWriteTokens,
+						cacheReadTokens: taskMetrics.cacheReadTokens,
+						totalCost: taskMetrics.totalCost,
 					},
 					this.useNativeToolCalls,
 				)
@@ -3099,6 +3044,7 @@ export class Task {
 						// reasoning_details only exists for cline/openrouter providers
 						reasoning_details: thinkingBlock?.summary as any[],
 						signature: assistantTextSignature,
+						call_id: assistantMessageId,
 					})
 				}
 
@@ -3114,13 +3060,13 @@ export class Task {
 				}
 
 				getLaminarService().addLlmAttributesToSpan("llm", {
-					inputTokens,
-					outputTokens,
-					totalCost: totalCost ?? 0,
+					inputTokens: taskMetrics.inputTokens,
+					outputTokens: taskMetrics.outputTokens,
+					totalCost: taskMetrics.totalCost ?? 0,
 					modelId: model.id,
 					providerId,
-					cacheWriteTokens,
-					cacheReadTokens,
+					cacheWriteTokens: taskMetrics.cacheWriteTokens,
+					cacheReadTokens: taskMetrics.cacheReadTokens,
 				})
 				getLaminarService().addAttributesToSpan("llm", {
 					"lmnr.span.output": JSON.stringify([{ role: "assistant", content: assistantMessage }]),
@@ -3133,9 +3079,38 @@ export class Task {
 						content: assistantContent,
 						modelInfo,
 						id: requestId,
+						metrics: {
+							tokens: {
+								prompt: taskMetrics.inputTokens,
+								completion: taskMetrics.outputTokens,
+								cached: (taskMetrics.cacheWriteTokens ?? 0) + (taskMetrics.cacheReadTokens ?? 0),
+							},
+							cost: taskMetrics.totalCost,
+						},
 					})
 				}
+			}
 
+			this.taskState.didCompleteReadingStream = true
+
+			// set any blocks to be complete to allow presentAssistantMessage to finish and set userMessageContentReady to true
+			// (could be a text block that had no subsequent tool uses, or a text block at the very end, or an invalid tool use, etc. whatever the case, presentAssistantMessage relies on these blocks either to be completed or the user to reject a block in order to proceed and eventually set userMessageContentReady to true)
+			const partialBlocks = this.taskState.assistantMessageContent.filter((block) => block.partial)
+			partialBlocks.forEach((block) => {
+				block.partial = false
+			})
+			// in case there are native tool calls pending
+			const partialToolBlocks = toolUseHandler.getPartialToolUsesAsContent()?.map((block) => ({ ...block, partial: false }))
+			this.processNativeToolCalls(assistantTextOnly, partialToolBlocks)
+
+			if (partialBlocks.length > 0) {
+				await this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
+			}
+
+			// now add to apiconversationhistory
+			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
+			let didEndLoop = false
+			if (assistantHasContent) {
 				// NOTE: this comment is here for future reference - this was a workaround for userMessageContent not getting set to true. It was due to it not recursively calling for partial blocks when didRejectTool, so it would get stuck waiting for a partial block to complete before it could continue.
 				// in case the content blocks finished
 				// it may be the api stream finished after the last parsed content block was executed, so  we are able to detect out of bounds and set userMessageContentReady to true (note you should not call presentAssistantMessage since if the last block is completed it will be presented again)
@@ -3203,6 +3178,14 @@ export class Task {
 					],
 					modelInfo,
 					id: this.streamHandler.requestId,
+					metrics: {
+						tokens: {
+							prompt: taskMetrics.inputTokens,
+							completion: taskMetrics.outputTokens,
+							cached: (taskMetrics.cacheWriteTokens ?? 0) + (taskMetrics.cacheReadTokens ?? 0),
+						},
+						cost: taskMetrics.totalCost,
+					},
 				})
 
 				let response: ClineAskResponse

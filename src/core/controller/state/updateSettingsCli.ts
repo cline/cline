@@ -11,7 +11,6 @@ import { Settings } from "@shared/storage/state-keys"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { ClineEnv } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
-import { TerminalInfo } from "@/integrations/terminal/TerminalRegistry"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { telemetryService } from "../../../services/telemetry"
@@ -215,7 +214,7 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				controller.stateManager.setGlobalState("defaultTerminalProfile", profileId)
 
 				let closedCount = 0
-				let busyTerminals: TerminalInfo[] = []
+				let busyTerminalsCount = 0
 
 				// Update the terminal manager of the current task if it exists
 				if (controller.task) {
@@ -225,9 +224,10 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 					}
 
 					// Call the updated setDefaultTerminalProfile method that returns closed terminal info
-					const result = controller.task.terminalManager.setDefaultTerminalProfile(profileId)
+					// Use `as any` to handle type incompatibility between VSCode's TerminalInfo and standalone TerminalInfo
+					const result = controller.task.terminalManager.setDefaultTerminalProfile(profileId) as any
 					closedCount = result.closedCount
-					busyTerminals = result.busyTerminals
+					busyTerminalsCount = result.busyTerminals?.length ?? 0
 
 					// Show information message if terminals were closed
 					if (closedCount > 0) {
@@ -239,10 +239,10 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 					}
 
 					// Show warning if there are busy terminals that couldn't be closed
-					if (busyTerminals.length > 0) {
+					if (busyTerminalsCount > 0) {
 						const message =
-							`${busyTerminals.length} busy ${busyTerminals.length === 1 ? "terminal has" : "terminals have"} a different profile. ` +
-							`Close ${busyTerminals.length === 1 ? "it" : "them"} to use the new profile for all commands.`
+							`${busyTerminalsCount} busy ${busyTerminalsCount === 1 ? "terminal has" : "terminals have"} a different profile. ` +
+							`Close ${busyTerminalsCount === 1 ? "it" : "them"} to use the new profile for all commands.`
 						HostProvider.window.showMessage({
 							type: ShowMessageType.WARNING,
 							message,

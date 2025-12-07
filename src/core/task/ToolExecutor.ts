@@ -303,6 +303,7 @@ export class ToolExecutor {
 		ClineDefaultTool.FILE_NEW,
 		ClineDefaultTool.FILE_EDIT,
 		ClineDefaultTool.NEW_RULE,
+		ClineDefaultTool.APPLY_PATCH,
 	]
 
 	/**

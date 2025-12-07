@@ -11,6 +11,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { ContextWindowSwitcher } from "./common/ContextWindowSwitcher"
+import { ModelInfoView } from "./common/ModelInfoView"
 import { DropdownContainer } from "./common/ModelSelector"
 import FeaturedModelCard from "./FeaturedModelCard"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
@@ -41,6 +42,7 @@ const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: R
 export interface OpenRouterModelPickerProps {
 	isPopup?: boolean
 	currentMode: Mode
+	showProviderRouting?: boolean
 }
 
 // Featured models for Cline provider organized by tabs
@@ -87,8 +89,8 @@ const freeModels = [
 
 const FREE_CLINE_MODELS = freeModels.map((m) => m.id)
 
-const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode }) => {
-	const { handleModeFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
+const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode, showProviderRouting }) => {
+	const { handleModeFieldChange, handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds, openRouterModels, refreshOpenRouterModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
@@ -474,7 +476,14 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 						</DropdownContainer>
 					)}
 
-					{/* <ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} /> */}
+					<ModelInfoView
+						isPopup={isPopup}
+						modelInfo={selectedModelInfo}
+						onProviderSortingChange={(value) => handleFieldChange("openRouterProviderSorting", value)}
+						providerSorting={apiConfiguration?.openRouterProviderSorting}
+						selectedModelId={selectedModelId}
+						showProviderRouting={showProviderRouting}
+					/>
 				</>
 			) : isOpenRouterPreset ? (
 				<p

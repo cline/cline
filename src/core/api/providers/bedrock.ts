@@ -104,6 +104,7 @@ interface CachePointContentBlock {
 
 // Define provider options type based on AWS SDK patterns
 interface ProviderChainOptions {
+	clientConfig?: { userAgentAppId?: string }
 	ignoreCache?: boolean
 	profile?: string
 }
@@ -211,7 +212,12 @@ export class AwsBedrockHandler implements ApiHandler {
 		sessionToken?: string
 	}> {
 		// Configure provider options
-		const providerOptions: ProviderChainOptions = {}
+		const providerOptions: ProviderChainOptions = {
+			clientConfig: {
+				// set the inner sts client userAgentAppId
+				userAgentAppId: `cline#${ExtensionRegistryInfo.version}`,
+			},
+		}
 		const useProfile =
 			(this.options.awsAuthentication === undefined && this.options.awsUseProfile) ||
 			this.options.awsAuthentication === "profile"
