@@ -36,7 +36,7 @@ export async function createVercelAIGatewayStream(
 		openAiMessages[0] = {
 			role: "system",
 			content: systemPrompt,
-			// @ts-ignore-next-line
+			// @ts-expect-error-next-line
 			cache_control: { type: "ephemeral" },
 		}
 
@@ -51,7 +51,7 @@ export async function createVercelAIGatewayStream(
 				const lastTextPart = msg.content.filter((part) => part.type === "text").pop()
 
 				if (lastTextPart && lastTextPart.text && lastTextPart.text.length > 0) {
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					lastTextPart["cache_control"] = { type: "ephemeral" }
 				}
 			}
@@ -74,7 +74,7 @@ export async function createVercelAIGatewayStream(
 		reasoning = { max_tokens: thinkingBudgetTokens }
 	}
 
-	// @ts-ignore-next-line
+	// @ts-expect-error-next-line
 	const stream = await client.chat.completions.create({
 		model: model.id,
 		max_tokens: model.info.maxTokens,

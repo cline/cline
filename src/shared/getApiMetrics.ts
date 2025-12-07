@@ -68,8 +68,8 @@ export function getDetailedApiMetrics(messages: ClineMessage[]): DetailedApiMetr
 
 	let cumIn = 0
 	let cumOut = 0
-	let cumWrites = 0
-	let cumReads = 0
+	let _cumWrites = 0
+	let _cumReads = 0
 	let cumCost = 0
 	let reqIndex = 0
 
@@ -81,8 +81,8 @@ export function getDetailedApiMetrics(messages: ClineMessage[]): DetailedApiMetr
 
 				cumIn += tokensIn
 				cumOut += tokensOut
-				cumWrites += cacheWrites
-				cumReads += cacheReads
+				_cumWrites += cacheWrites
+				_cumReads += cacheReads
 				cumCost += cost
 
 				perReq.push({

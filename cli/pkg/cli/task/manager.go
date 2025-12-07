@@ -1022,6 +1022,14 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 				}
 			}
 
+		case msg.Say == string(types.SayTypeCompletionResult):
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !msg.Partial && !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
+			}
+
 		case msg.Ask == string(types.AskTypeCommandOutput):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {

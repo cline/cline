@@ -92,7 +92,9 @@ function normalize(obj: any, ignoreFields: string[] = [], parentPath = ""): any 
  */
 function pickDeep(actual: any, filter: any): any {
 	if (_.isArray(filter)) {
-		if (!_.isArray(actual)) return actual
+		if (!_.isArray(actual)) {
+			return actual
+		}
 
 		// Compare arrays element by element, picking only keys from filter
 		return filter.map((f, i) => pickDeep(actual[i], f))

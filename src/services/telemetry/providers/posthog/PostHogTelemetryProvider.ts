@@ -135,12 +135,14 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	 */
 	public recordCounter(
 		name: string,
-		value: number,
-		attributes?: TelemetryProperties,
+		_value: number,
+		_attributes?: TelemetryProperties,
 		_description?: string,
 		required = false,
 	): void {
-		if (!this.isEnabled() && !required) return
+		if (!this.isEnabled() && !required) {
+			return
+		}
 
 		// Convert metric to event format for PostHog
 		// Most counters don't need individual events - they're aggregated in OpenTelemetry
@@ -178,7 +180,9 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		_description?: string,
 		required = false,
 	): void {
-		if ((!this.isEnabled() && !required) || value === null) return
+		if ((!this.isEnabled() && !required) || value === null) {
+			return
+		}
 
 		// Convert gauge updates to state change events
 		if (name === "cline.workspace.active_roots") {

@@ -63,7 +63,9 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType, existingHoo
 	}
 
 	const handleCreateHook = async (hookName: string) => {
-		if (!hookName) return
+		if (!hookName) {
+			return
+		}
 
 		try {
 			await FileServiceClient.createHook(
@@ -113,7 +115,7 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType, existingHoo
 		}
 	}
 
-	const handleKeyDown = (e: React.KeyboardEvent) => {
+	const _handleKeyDown = (e: React.KeyboardEvent) => {
 		if (e.key === "Escape") {
 			setIsExpanded(false)
 			setFilename("")
@@ -121,113 +123,107 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType, existingHoo
 	}
 
 	return (
-		<>
+		<div
+			className={cn("mb-2.5 transition-all duration-300 ease-in-out", {
+				"opacity-100": isExpanded,
+				"opacity-70 hover:opacity-100": !isExpanded,
+			})}
+			onClick={() => !isExpanded && ruleType !== "hook" && setIsExpanded(true)}
+			ref={componentRef}>
 			<div
-				className={cn("mb-2.5 transition-all duration-300 ease-in-out", {
-					"opacity-100": isExpanded,
-					"opacity-70 hover:opacity-100": !isExpanded,
-				})}
-				onClick={() => !isExpanded && ruleType !== "hook" && setIsExpanded(true)}
-				ref={componentRef}>
-				<div
-					className={cn(
-						"flex items-center px-2 py-4 rounded bg-input-background transition-all duration-300 ease-in-out h-5",
-						{
-							"shadow-sm": isExpanded,
-						},
-					)}>
-					{ruleType === "hook" ? (
-						<>
-							<label className="sr-only" htmlFor="hook-type-select">
-								Select hook type to create
-							</label>
-							<span className="sr-only" id="hook-select-description">
-								Choose a hook type to create. Hooks execute at specific points in Cline's lifecycle. Available:{" "}
-								{availableHookTypes.map((h) => h.name).join(", ")}
-							</span>
-							<select
-								aria-describedby="hook-select-description"
-								aria-label="Select hook type to create"
-								className="flex-1 bg-input-background text-input-foreground border-0 outline-0 rounded focus:outline-none focus:ring-0 focus:border-transparent px-2 cursor-pointer"
-								disabled={availableHookTypes.length === 0}
-								id="hook-type-select"
-								onChange={(e) => {
-									if (e.target.value) {
-										handleCreateHook(e.target.value)
-										// Reset selection after creating
-										e.target.value = ""
-									}
-								}}
-								style={{
-									fontStyle: "italic",
-									appearance: "none",
-									backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23cccccc' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
-									backgroundRepeat: "no-repeat",
-									backgroundPosition: "right 8px center",
-									paddingRight: "24px",
-								}}
-								value="">
-								<option disabled value="">
-									{availableHookTypes.length === 0 ? "All hooks created" : "New hook..."}
+				className={cn(
+					"flex items-center px-2 py-4 rounded bg-input-background transition-all duration-300 ease-in-out h-5",
+					{
+						"shadow-sm": isExpanded,
+					},
+				)}>
+				{ruleType === "hook" ? (
+					<>
+						<label className="sr-only" htmlFor="hook-type-select">
+							Select hook type to create
+						</label>
+						<span className="sr-only" id="hook-select-description">
+							Choose a hook type to create. Hooks execute at specific points in Cline's lifecycle. Available:{" "}
+							{availableHookTypes.map((h) => h.name).join(", ")}
+						</span>
+						<select
+							aria-describedby="hook-select-description"
+							aria-label="Select hook type to create"
+							className="flex-1 bg-input-background text-input-foreground border-0 outline-0 rounded focus:outline-none focus:ring-0 focus:border-transparent px-2 cursor-pointer"
+							disabled={availableHookTypes.length === 0}
+							id="hook-type-select"
+							onChange={(e) => {
+								if (e.target.value) {
+									handleCreateHook(e.target.value)
+									// Reset selection after creating
+									e.target.value = ""
+								}
+							}}
+							style={{
+								fontStyle: "italic",
+								appearance: "none",
+								backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23cccccc' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+								backgroundRepeat: "no-repeat",
+								backgroundPosition: "right 8px center",
+								paddingRight: "24px",
+							}}
+							value="">
+							<option disabled value="">
+								{availableHookTypes.length === 0 ? "All hooks created" : "New hook..."}
+							</option>
+							{availableHookTypes.map((hook) => (
+								<option key={hook.name} title={hook.description} value={hook.name}>
+									{hook.name}
 								</option>
-								{availableHookTypes.map((hook) => (
-									<option key={hook.name} title={hook.description} value={hook.name}>
-										{hook.name}
-									</option>
-								))}
-							</select>
-						</>
-					) : (
-						<form className="flex flex-1 items-center" onSubmit={handleSubmit}>
-							<input
-								className={cn(
-									"flex-1 bg-input-background text-input-foreground border-0 outline-0 rounded focus:outline-none focus:ring-0 focus:border-transparent",
-									{
-										italic: !isExpanded,
-									},
-								)}
-								onChange={(e) => setFilename(e.target.value)}
-								placeholder={
-									isExpanded
-										? ruleType === "workflow"
-											? "workflow-name (.md, .txt, or no extension)"
-											: "rule-name (.md, .txt, or no extension)"
-										: ruleType === "workflow"
-											? "New workflow file..."
-											: "New rule file..."
-								}
-								ref={inputRef}
-								type="text"
-								value={isExpanded ? filename : ""}
-							/>
+							))}
+						</select>
+					</>
+				) : (
+					<form className="flex flex-1 items-center" onSubmit={handleSubmit}>
+						<input
+							className={cn(
+								"flex-1 bg-input-background text-input-foreground border-0 outline-0 rounded focus:outline-none focus:ring-0 focus:border-transparent",
+								{
+									italic: !isExpanded,
+								},
+							)}
+							onChange={(e) => setFilename(e.target.value)}
+							placeholder={
+								isExpanded
+									? ruleType === "workflow"
+										? "workflow-name (.md, .txt, or no extension)"
+										: "rule-name (.md, .txt, or no extension)"
+									: ruleType === "workflow"
+										? "New workflow file..."
+										: "New rule file..."
+							}
+							ref={inputRef}
+							type="text"
+							value={isExpanded ? filename : ""}
+						/>
 
-							<Button
-								aria-label={
-									isExpanded
-										? "Create file"
-										: ruleType === "workflow"
-											? "New workflow file..."
-											: "New rule file..."
+						<Button
+							aria-label={
+								isExpanded ? "Create file" : ruleType === "workflow" ? "New workflow file..." : "New rule file..."
+							}
+							className="mx-0.5"
+							onClick={(e) => {
+								e.stopPropagation()
+								if (!isExpanded) {
+									setIsExpanded(true)
 								}
-								className="mx-0.5"
-								onClick={(e) => {
-									e.stopPropagation()
-									if (!isExpanded) {
-										setIsExpanded(true)
-									}
-								}}
-								size="icon"
-								title={isExpanded ? "Create file" : "New file"}
-								type={isExpanded ? "submit" : "button"}
-								variant="icon">
-								<PlusIcon />
-							</Button>
-						</form>
-					)}
-				</div>
-				{isExpanded && error && <div className="text-error text-xs mt-1 ml-2">{error}</div>}
+							}}
+							size="icon"
+							title={isExpanded ? "Create file" : "New file"}
+							type={isExpanded ? "submit" : "button"}
+							variant="icon">
+							<PlusIcon />
+						</Button>
+					</form>
+				)}
 			</div>
-		</>
+			{isExpanded && error && <div className="text-error text-xs mt-1 ml-2">{error}</div>}
+		</div>
 	)
 }
 

@@ -7,7 +7,7 @@ import { getLatestTerminalOutput } from "./get-latest-output"
 export interface TerminalProcessEvents {
 	line: [line: string]
 	continue: []
-	completed: []
+	completed: [exitCode?: number | null]
 	error: [error: Error]
 	no_shell_integration: []
 }
@@ -18,6 +18,7 @@ const PROCESS_HOT_TIMEOUT_COMPILING = 15_000
 
 export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	waitForShellIntegration: boolean = true
+	exitCode: number | null = null
 	private isListening: boolean = true
 	private buffer: string = ""
 	private fullOutput: string = ""
@@ -135,6 +136,9 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			let didEmitEmptyLine = false
 
 			for await (let data of stream) {
+				const rawData = data
+				this.captureExitCode(rawData)
+
 				// 1. Process chunk and remove artifacts
 				if (isFirstChunk) {
 					/*
@@ -154,7 +158,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					/* ddateb15026-6a64-40db-b21f-2a621a9830f0]633;CTue Sep 17 06:37:04 EDT 2024 % ]633;D;0]633;P;Cwd=/Users/saoud/Repositories/test */
 					// Gets output between ]633;C (command start) and ]633;D (command end)
 					const outputBetweenSequences = this.removeLastLineArtifacts(
-						data.match(/\]633;C([\s\S]*?)\]633;D/)?.[1] || "",
+						rawData.match(/\]633;C([\s\S]*?)\]633;D/)?.[1] || "",
 					).trim()
 
 					// Once we've retrieved any potential output between sequences, we can remove everything up to end of the last sequence
@@ -208,6 +212,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 						clearTimeout(this.hotTimer)
 					}
 					this.isHot = false
+					this.exitCode = this.exitCode ?? 130
 					break
 				}
 
@@ -299,7 +304,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			}
 			this.isHot = false
 
-			this.emit("completed")
+			this.emit("completed", this.exitCode)
 			this.emit("continue")
 		} else {
 			// no shell integration detected, we'll fallback to running the command and capturing the terminal's output after some time
@@ -322,7 +327,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			}
 			// For terminals without shell integration, we can't know when the command completes
 			// So we'll just emit the continue event after a delay
-			this.emit("completed")
+			this.emit("completed", this.exitCode)
 			this.emit("continue")
 			this.emit("no_shell_integration")
 			// setTimeout(() => {
@@ -382,6 +387,24 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			lines[lines.length - 1] = lastLine.replace(/[%$#>]\s*$/, "")
 		}
 		return lines.join("\n").trimEnd()
+	}
+
+	private captureExitCode(chunk: string) {
+		const exitCodeMatches = [...chunk.matchAll(/\]633;D;?(-?\d+)?/g)]
+		if (exitCodeMatches.length === 0) {
+			return
+		}
+
+		const [, exitCodeString] = exitCodeMatches[exitCodeMatches.length - 1]
+		if (exitCodeString === undefined) {
+			this.exitCode = 0 // No explicit code means success per VS Code shell integration docs
+			return
+		}
+
+		const parsed = Number.parseInt(exitCodeString, 10)
+		if (!Number.isNaN(parsed)) {
+			this.exitCode = parsed
+		}
 	}
 }
 

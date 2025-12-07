@@ -42,7 +42,7 @@ The latestAnnouncementId is now automatically generated from the extension's pac
 Patch releases (3.19.1 → 3.19.2) will not trigger new announcements.
 */
 const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
-	const minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
+	const _minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
 	const { clineUser } = useClineAuth()
 	const { openRouterModels, setShowChatModelSelector, refreshOpenRouterModels } = useExtensionState()
 	const user = clineUser || undefined

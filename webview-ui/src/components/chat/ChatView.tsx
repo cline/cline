@@ -64,7 +64,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		const slicedMessages = messages.slice(1)
 		// Only combine hook sequences if hooks are enabled (both user setting and feature flag)
 		const areHooksEnabled = hooksEnabled?.user
-		const withHooks = areHooksEnabled ? combineHookSequences(slicedMessages) : slicedMessages
+		// When hooks are disabled, filter out hook and hook_output messages entirely
+		// so that historical tasks created with hooks still show their content properly
+		const withHooks = areHooksEnabled
+			? combineHookSequences(slicedMessages)
+			: slicedMessages.filter((msg) => msg.say !== "hook" && msg.say !== "hook_output")
 		return combineErrorRetryMessages(combineApiRequests(combineCommandSequences(withHooks)))
 	}, [messages, hooksEnabled])
 	// has to be after api_req_finished are all reduced into api_req_started messages

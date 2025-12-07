@@ -53,11 +53,7 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 				</p>
 			</div>
 
-			{showModelOptions && (
-				<>
-					<OpenRouterModelPicker currentMode={currentMode} isPopup={isPopup} />
-				</>
-			)}
+			{showModelOptions && <OpenRouterModelPicker currentMode={currentMode} isPopup={isPopup} />}
 		</div>
 	)
 }

@@ -157,4 +157,8 @@ export class OllamaHandler implements ApiHandler {
 			},
 		}
 	}
+
+	abort(): void {
+		this.client?.abort()
+	}
 }
