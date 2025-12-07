@@ -26,7 +26,7 @@ function checkGoInstallation() {
 	try {
 		execSync("go version", { stdio: "pipe" })
 		return true
-	} catch (error) {
+	} catch (_error) {
 		return false
 	}
 }
@@ -36,12 +36,12 @@ function checkGoTool(toolName) {
 	try {
 		execSync(`which ${toolName}`, { stdio: "pipe" })
 		return true
-	} catch (error) {
+	} catch (_error) {
 		// On Windows, 'which' might not be available, try 'where'
 		try {
 			execSync(`where ${toolName}`, { stdio: "pipe" })
 			return true
-		} catch (windowsError) {
+		} catch (_windowsError) {
 			return false
 		}
 	}
@@ -91,7 +91,7 @@ function checkToolsInPath() {
 		try {
 			goPath = execSync("go env GOPATH", { encoding: "utf8" }).trim()
 			goBin = execSync("go env GOBIN", { encoding: "utf8" }).trim()
-		} catch (error) {
+		} catch (_error) {
 			console.log(chalk.red("Could not determine Go paths. Please check your Go installation."))
 			process.exit(1)
 		}
