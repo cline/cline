@@ -506,10 +506,21 @@ export class McpHub {
 				console.error(`[MCP Debug] Error setting notification handlers for ${name}:`, error)
 			}
 
-			// Initial fetch of tools and resources
+			// Initial fetch of tools and resources based on server capabilities
+			// Only request resources if the server declared resources capability during initialization
+			const serverCapabilities = client.getServerCapabilities?.() || {}
+
+			// Always fetch tools (most servers support tools)
 			connection.server.tools = await this.fetchToolsList(name)
-			connection.server.resources = await this.fetchResourcesList(name)
-			connection.server.resourceTemplates = await this.fetchResourceTemplatesList(name)
+
+			// Only fetch resources if server declares resources capability
+			if (serverCapabilities.resources) {
+				connection.server.resources = await this.fetchResourcesList(name)
+				connection.server.resourceTemplates = await this.fetchResourceTemplatesList(name)
+			} else {
+				connection.server.resources = []
+				connection.server.resourceTemplates = []
+			}
 		} catch (error) {
 			// Update status with error
 			const connection = this.findConnection(name, source)
