@@ -113,6 +113,7 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 	case cline.ApiProvider_OPENAI_NATIVE:
 		return ProviderFields{
 			APIKeyField:          "openAiNativeApiKey",
+			BaseURLField:         "openAiNativeBaseUrl",
 			PlanModeModelIDField: "planModeApiModelId",
 			ActModeModelIDField:  "actModeApiModelId",
 		}, nil
@@ -490,6 +491,8 @@ func setBaseURLField(apiConfig *cline.ModelsApiConfiguration, fieldName string, 
 		apiConfig.OllamaBaseUrl = value
 	case "openAiBaseUrl":
 		apiConfig.OpenAiBaseUrl = value
+	case "openAiNativeBaseUrl":
+		apiConfig.OpenAiNativeBaseUrl = value
 	case "geminiBaseUrl":
 		apiConfig.GeminiBaseUrl = value
 	case "liteLlmBaseUrl":

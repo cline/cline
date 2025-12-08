@@ -191,6 +191,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const vertexProjectId = context.globalState.get<GlobalStateAndSettings["vertexProjectId"]>("vertexProjectId")
 		const vertexRegion = context.globalState.get<GlobalStateAndSettings["vertexRegion"]>("vertexRegion")
 		const openAiBaseUrl = context.globalState.get<GlobalStateAndSettings["openAiBaseUrl"]>("openAiBaseUrl")
+		const openAiNativeBaseUrl = context.globalState.get<GlobalStateAndSettings["openAiNativeBaseUrl"]>("openAiNativeBaseUrl")
 		const requestyBaseUrl = context.globalState.get<GlobalStateAndSettings["requestyBaseUrl"]>("requestyBaseUrl")
 		const openAiHeaders = context.globalState.get<GlobalStateAndSettings["openAiHeaders"]>("openAiHeaders")
 		const ollamaBaseUrl = context.globalState.get<GlobalStateAndSettings["ollamaBaseUrl"]>("ollamaBaseUrl")
@@ -532,6 +533,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			vertexProjectId,
 			vertexRegion,
 			openAiBaseUrl,
+			openAiNativeBaseUrl,
 			requestyBaseUrl,
 			openAiHeaders: openAiHeaders || {},
 			ollamaBaseUrl,

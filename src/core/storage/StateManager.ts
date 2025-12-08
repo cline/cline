@@ -511,6 +511,7 @@ export class StateManager {
 			anthropicBaseUrl,
 			geminiApiKey,
 			geminiBaseUrl,
+			openAiNativeBaseUrl,
 			openAiNativeApiKey,
 			deepSeekApiKey,
 			requestyApiKey,
@@ -737,6 +738,7 @@ export class StateManager {
 			requestyBaseUrl,
 			openAiBaseUrl,
 			openAiHeaders,
+			openAiNativeBaseUrl,
 			ollamaBaseUrl,
 			ollamaApiOptionsCtxNum,
 			lmStudioBaseUrl,
@@ -1150,6 +1152,10 @@ export class StateManager {
 				this.remoteConfigCache["openAiBaseUrl"] ||
 				this.taskStateCache["openAiBaseUrl"] ||
 				this.globalStateCache["openAiBaseUrl"],
+			openAiNativeBaseUrl:
+				this.remoteConfigCache["openAiNativeBaseUrl"] ||
+				this.taskStateCache["openAiNativeBaseUrl"] ||
+				this.globalStateCache["openAiNativeBaseUrl"],
 			openAiHeaders:
 				this.remoteConfigCache["openAiHeaders"] ||
 				this.taskStateCache["openAiHeaders"] ||

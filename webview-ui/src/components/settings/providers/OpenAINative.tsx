@@ -2,6 +2,7 @@ import { openAiNativeModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
+import { BaseUrlField } from "../common/BaseUrlField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
@@ -33,6 +34,12 @@ export const OpenAINativeProvider = ({ showModelOptions, isPopup, currentMode }:
 				onChange={(value) => handleFieldChange("openAiNativeApiKey", value)}
 				providerName="OpenAI"
 				signupUrl="https://platform.openai.com/api-keys"
+			/>
+
+			<BaseUrlField
+				initialValue={apiConfiguration?.openAiNativeBaseUrl || ""}
+				onChange={(value) => handleFieldChange("openAiNativeBaseUrl", value)}
+				placeholder="Default: https://api.openai.com"
 			/>
 
 			{showModelOptions && (
