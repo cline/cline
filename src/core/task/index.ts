@@ -83,6 +83,7 @@ import { TerminalProcessResultPromise } from "@/hosts/vscode/terminal/VscodeTerm
 import { isSubagentCommand, transformClineCommand } from "@/integrations/cli-subagents/subagent_command"
 import { StandaloneTerminalManager } from "@/integrations/terminal"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
+import { getLaminarService } from "@/services/laminar"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
 import {
 	ClineAssistantContent,
@@ -1274,6 +1275,7 @@ export class Task {
 		let nextUserContent = userContent
 		let includeFileDetails = true
 		while (!this.taskState.abort) {
+			getLaminarService().startSpan("cline.task.step", { name: `cline.task.step`, sessionId: this.taskId, input: userContent }, true)
 			const didEndLoop = await this.recursivelyMakeClineRequests(nextUserContent, includeFileDetails)
 			includeFileDetails = false // we only need file details the first time
 
@@ -1313,6 +1315,7 @@ export class Task {
 			return true
 		}
 
+		getLaminarService().endSpan("cline.task.step")
 		// Run if the API is currently streaming (work happening now)
 		if (this.taskState.isStreaming) {
 			return true
@@ -2113,6 +2116,11 @@ export class Task {
 			// saves task history item which we use to keep track of conversation history deleted range
 		}
 
+        getLaminarService().startSpan("llm", {
+            name: "llm_call",
+            spanType: "LLM",
+            input: [{ role: "system", content: systemPrompt }, ...contextManagementMetadata.truncatedConversationHistory],
+        })
 		// Response API requires native tool calls to be enabled
 		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory, tools)
 
@@ -2125,6 +2133,7 @@ export class Task {
 			yield firstChunk.value
 			this.taskState.isWaitingForFirstChunk = false
 		} catch (error) {
+			getLaminarService().recordExceptionOnSpan("llm", error)
 			const isContextWindowExceededError = checkContextWindowExceededError(error)
 			const { model, providerId } = this.getCurrentProviderInfo()
 			const clineError = ErrorService.get().toClineError(error, model.id, providerId)
@@ -2891,6 +2900,7 @@ export class Task {
 					if (this.taskState.abort) {
 						this.api.abort?.()
 						if (!this.taskState.abandoned) {
+							getLaminarService().endSpan("llm")
 							// only need to gracefully abort if this instance isn't abandoned (sometimes openrouter stream hangs, in which case this would affect future instances of cline)
 							await abortStream("user_cancelled")
 						}
@@ -2913,7 +2923,7 @@ export class Task {
 					}
 				}
 			} catch (error) {
-				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
+				getLaminarService().recordExceptionOnSpan("llm", error)
 				if (!this.taskState.abandoned) {
 					const clineError = ErrorService.get().toClineError(error, this.api.getModel().id)
 					const errorMessage = clineError.serialize()
@@ -2996,8 +3006,9 @@ export class Task {
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 			await this.postStateToWebview()
 
-			// need to call here in case the stream was aborted
 			if (this.taskState.abort) {
+				getLaminarService().recordExceptionOnSpan("cline.task.step", new Error("Cline instance aborted"))
+				getLaminarService().endSpan("cline.task.step")
 				throw new Error("Cline instance aborted")
 			}
 
@@ -3062,6 +3073,19 @@ export class Task {
 					assistantContent.push(...toolUseBlocks)
 				}
 
+				getLaminarService().addLlmAttributesToSpan("llm", {
+					inputTokens: taskMetrics.inputTokens,
+					outputTokens: taskMetrics.outputTokens,
+					totalCost: taskMetrics.totalCost ?? 0,
+					modelId: model.id,
+					providerId,
+					cacheWriteTokens: taskMetrics.cacheWriteTokens,
+					cacheReadTokens: taskMetrics.cacheReadTokens,
+				})
+				getLaminarService().addAttributesToSpan("llm", {
+					"lmnr.span.output": JSON.stringify([{ role: "assistant", content: assistantMessage }]),
+				})
+				getLaminarService().endSpan("llm")
 				// Append the assistant's content to the API conversation history only if there's content
 				if (assistantContent.length > 0) {
 					await this.messageStateHandler.addToApiConversationHistory({
@@ -3110,6 +3134,16 @@ export class Task {
 				// }
 
 				await pWaitFor(() => this.taskState.userMessageContentReady)
+
+				getLaminarService().startSpan(
+					"cline.task.step",
+					{
+						name: "cline.task.step",
+						sessionId: this.taskId,
+						input: this.taskState.userMessageContent,
+					},
+					true,
+				)
 
 				// if the model did not tool use, then we need to tell it to either use a tool or attempt_completion
 				const didToolUse = this.taskState.assistantMessageContent.some((block) => block.type === "tool_use")

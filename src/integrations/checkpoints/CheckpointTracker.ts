@@ -3,6 +3,7 @@ import fs from "fs/promises"
 import * as path from "path"
 import simpleGit from "simple-git"
 import type { FolderLockWithRetryResult } from "@/core/locks/types"
+import { observeDecorator } from "@/services/laminar"
 import { telemetryService } from "@/services/telemetry"
 import { GitOperations } from "./CheckpointGitOperations"
 import { releaseCheckpointLock, tryAcquireCheckpointLockWithRetry } from "./CheckpointLockUtils"
@@ -207,6 +208,7 @@ class CheckpointTracker {
 	 * - Initialize simple-git
 	 * - Stage or commit files
 	 */
+	@observeDecorator({ name: "CheckpointTracker.commit" })
 	public async commit(): Promise<string | undefined> {
 		let lockAcquired: boolean = false
 

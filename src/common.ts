@@ -11,6 +11,7 @@ import { Logger } from "./services/logging/Logger"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
 import { HostProvider } from "@/hosts/host-provider"
+import { LaminarService, getLaminarService } from "@/services/laminar"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
 import { StateManager } from "./core/storage/StateManager"
 import { ExtensionRegistryInfo } from "./registry"
@@ -49,6 +50,9 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	// Setup the external services
 	await ErrorService.initialize()
 	await featureFlagsService.poll()
+
+	// Initialize Laminar tracing
+	await LaminarService.getInstance().initialize()
 
 	// Migrate custom instructions to global Cline rules (one-time cleanup)
 	await migrateCustomInstructionsToGlobalRules(context)
@@ -133,6 +137,7 @@ export async function tearDown(): Promise<void> {
 	audioRecordingService.cleanup()
 
 	PostHogClientProvider.getInstance().dispose()
+	await getLaminarService().dispose()
 	telemetryService.dispose()
 	ErrorService.get().dispose()
 	featureFlagsService.dispose()

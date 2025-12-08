@@ -5,6 +5,7 @@ import { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { setWelcomeViewCompleted } from "@/core/controller/state/setWelcomeViewCompleted"
 import { HostProvider } from "@/hosts/host-provider"
+import { getLaminarService } from "@/services/laminar"
 import { telemetryService } from "@/services/telemetry"
 import { openExternal } from "@/utils/env"
 import { AuthInvalidTokenError, AuthNetworkError } from "../error/ClineError"
@@ -428,6 +429,7 @@ export class AuthService {
 		// Identify the user in telemetry if available
 		if (this._clineAuthInfo?.userInfo?.id) {
 			telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
+			getLaminarService().setUserId(this._clineAuthInfo?.userInfo?.id)
 			// Poll feature flags immediately for authenticated users to ensure cache is populated
 			await featureFlagsService.poll(this._clineAuthInfo?.userInfo?.id)
 		} else {

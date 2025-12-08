@@ -10,6 +10,7 @@ import { ClineContent } from "@shared/messages/content"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
+import { getLaminarService } from "@/services/laminar"
 import { modelDoesntSupportWebp } from "@/utils/model-utils"
 import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
@@ -373,13 +374,20 @@ export class ToolExecutor {
 				return true
 			}
 
+			getLaminarService().startSpan("tool", {
+				name: block.name,
+				spanType: "TOOL",
+				input: block,
+			})
 			// Handle complete blocks
 			await this.handleCompleteBlock(block, config)
 			await this.saveCheckpoint()
+			getLaminarService().endSpan("tool")
 			return true
 		} catch (error) {
 			await this.handleError(`executing ${block.name}`, error as Error, block)
 			await this.saveCheckpoint()
+			getLaminarService().endSpan("tool")
 			return true
 		}
 	}
