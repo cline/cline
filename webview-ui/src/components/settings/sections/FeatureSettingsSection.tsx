@@ -329,19 +329,21 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</a>
 						</p>
 					</div>
-					<div style={{ marginTop: 10 }}>
-						<VSCodeCheckbox
-							checked={clineWebToolsEnabled}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								updateSetting("clineWebToolsEnabled", checked)
-							}}>
-							Enable Cline Web Tools
-						</VSCodeCheckbox>
-						<p className="text-xs text-(--vscode-descriptionForeground)">
-							Enables websearch and webfetch tools while using the Cline provider.
-						</p>
-					</div>
+					{clineWebToolsEnabled?.featureFlag && (
+						<div style={{ marginTop: 10 }}>
+							<VSCodeCheckbox
+								checked={clineWebToolsEnabled?.user}
+								onChange={(e: any) => {
+									const checked = e.target.checked === true
+									updateSetting("clineWebToolsEnabled", checked)
+								}}>
+								Enable Cline Web Tools
+							</VSCodeCheckbox>
+							<p className="text-xs text-(--vscode-descriptionForeground)">
+								Enables websearch and webfetch tools while using the Cline provider.
+							</p>
+						</div>
+					)}
 					<div className="mt-2.5">
 						<VSCodeCheckbox
 							checked={nativeToolCallSetting}

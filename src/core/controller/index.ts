@@ -870,7 +870,6 @@ export class Controller {
 		const strictPlanModeEnabled = this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled")
 		const yoloModeToggled = this.stateManager.getGlobalSettingsKey("yoloModeToggled")
 		const useAutoCondense = this.stateManager.getGlobalSettingsKey("useAutoCondense")
-		const clineWebToolsEnabled = this.stateManager.getGlobalSettingsKey("clineWebToolsEnabled")
 		const userInfo = this.stateManager.getGlobalStateKey("userInfo")
 		const mcpMarketplaceEnabled = this.stateManager.getGlobalStateKey("mcpMarketplaceEnabled")
 		const mcpDisplayMode = this.stateManager.getGlobalStateKey("mcpDisplayMode")
@@ -946,7 +945,6 @@ export class Controller {
 			strictPlanModeEnabled,
 			yoloModeToggled,
 			useAutoCondense,
-			clineWebToolsEnabled,
 			userInfo,
 			mcpMarketplaceEnabled,
 			mcpDisplayMode,
@@ -994,6 +992,10 @@ export class Controller {
 			hooksEnabled: {
 				user: this.stateManager.getGlobalStateKey("hooksEnabled"),
 				featureFlag: featureFlagsService.getHooksEnabled(),
+			},
+			clineWebToolsEnabled: {
+				user: this.stateManager.getGlobalSettingsKey("clineWebToolsEnabled"),
+				featureFlag: featureFlagsService.getWebtoolsEnabled(),
 			},
 			lastDismissedInfoBannerVersion,
 			lastDismissedModelBannerVersion,
