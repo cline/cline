@@ -11,7 +11,8 @@ const alertVariants = cva(
 			variant: {
 				default: "bg-banner-background text-banner-foreground border-foreground/20",
 				warning: "bg-warning/50 border-foreground/20 [&>svg]:text-warning-foreground",
-				danger: "bg-input-error-background text-input-error-foreground border-foreground/20 [&>svg]:text-input-error-foreground",
+				danger: "bg-input-error-background text-foreground border-foreground/20 [&>svg]:text-input-error-foreground",
+				cline: "bg-cline/20 text-fg-cline border-cline [&>svg]:text-fg-cline",
 			},
 		},
 		defaultVariants: {
@@ -22,8 +23,9 @@ const alertVariants = cva(
 
 const Alert = React.forwardRef<
 	HTMLDivElement,
-	React.HTMLAttributes<HTMLDivElement> & VariantProps<typeof alertVariants> & { isDismissible?: boolean; title?: string }
->(({ className, variant, children, isDismissible = true, title, ...props }, ref) => {
+	React.HTMLAttributes<HTMLDivElement> &
+		VariantProps<typeof alertVariants> & { isDismissible?: boolean; title?: string; icon?: React.ReactNode }
+>(({ className, variant, children, isDismissible = true, title, icon, ...props }, ref) => {
 	const [dismissed, setDismissed] = React.useState(false)
 	if (dismissed) {
 		return null
@@ -33,7 +35,7 @@ const Alert = React.forwardRef<
 		<div className={cn(alertVariants({ variant }), className)} ref={ref} role="alert" {...props}>
 			<div className="flex items-center justify-between w-full">
 				<AlertTitle className="flex gap-1 w-full">
-					<AlertTriangleIcon className="shrink-0 size-2 mr-1" />
+					<span className="mr-1 shrink-0">{icon ?? <AlertTriangleIcon className="size-2" />}</span>
 					{title}
 				</AlertTitle>
 				{isDismissible && (

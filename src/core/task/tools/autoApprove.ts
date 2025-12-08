@@ -55,6 +55,7 @@ export class AutoApprove {
 
 				case ClineDefaultTool.BROWSER:
 				case ClineDefaultTool.WEB_FETCH:
+				case ClineDefaultTool.WEB_SEARCH:
 				case ClineDefaultTool.MCP_ACCESS:
 				case ClineDefaultTool.MCP_USE:
 					return true
@@ -82,6 +83,7 @@ export class AutoApprove {
 			case ClineDefaultTool.BROWSER:
 				return autoApprovalSettings.actions.useBrowser
 			case ClineDefaultTool.WEB_FETCH:
+			case ClineDefaultTool.WEB_SEARCH:
 				return autoApprovalSettings.actions.useBrowser
 			case ClineDefaultTool.MCP_ACCESS:
 			case ClineDefaultTool.MCP_USE:

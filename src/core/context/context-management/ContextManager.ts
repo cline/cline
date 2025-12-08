@@ -845,10 +845,10 @@ export class ContextManager {
 							let blockText: string | undefined
 							if (firstBlock.type === "tool_result") {
 								blockText = firstBlockText
-							} else if (contentBlockIndex == 0) {
+							} else if (contentBlockIndex === 0) {
 								// remaining cases are for type="text"
 								blockText = firstBlockText
-							} else if (contentBlockIndex == 1 && message.content.length > 1) {
+							} else if (contentBlockIndex === 1 && message.content.length > 1) {
 								const secondBlock = message.content[1]
 								if (secondBlock.type === "text") {
 									blockText = secondBlock.text
@@ -978,7 +978,7 @@ export class ContextManager {
 	) {
 		const indices = fileReadIndices.get(filePath) || []
 
-		if (contentBlockIndex == 1) {
+		if (contentBlockIndex === 1) {
 			// the original tool call format
 			indices.push([i, EditType.READ_FILE_TOOL, "", formatResponse.duplicateFileReadNotice(), contentBlockIndex])
 		} else {
