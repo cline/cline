@@ -242,6 +242,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		backgroundCommandTaskId: undefined,
 		lastDismissedCliBannerVersion: 0,
 		subagentsEnabled: false,
+		activeBanners: [],
 
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],
@@ -730,6 +731,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		remoteWorkflowToggles: state.remoteWorkflowToggles || {},
 		enableCheckpointsSetting: state.enableCheckpointsSetting,
 		currentFocusChainChecklist: state.currentFocusChainChecklist,
+		activeBanners: state.activeBanners || [],
 
 		// Navigation functions
 		navigateToMcp,
