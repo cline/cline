@@ -128,6 +128,7 @@ export interface Settings {
 	hooksEnabled: boolean
 	subagentsEnabled: boolean
 	hicapModelId: string | undefined
+	a2aAgentCardUrl: string | undefined
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
@@ -267,6 +268,7 @@ export interface Secrets {
 	aihubmixApiKey: string | undefined
 	mcpOAuthSecrets: string | undefined
 	nousResearchApiKey: string | undefined
+	a2aAuthToken: string | undefined
 }
 
 export interface LocalState {
