@@ -1,3 +1,4 @@
+import { telemetryService } from "../../services/telemetry"
 import { getAllHooksDirs } from "../storage/disk"
 import { HookFactory, Hooks } from "./hook-factory"
 
@@ -56,8 +57,8 @@ export class HookDiscoveryCache {
 	// Directories we've tried to watch (even if watcher creation failed)
 	private watchedDirs = new Set<string>()
 
-	// Currently scanning (to prevent concurrent scans)
-	private scanning = new Set<HookName>()
+	// Currently scanning promises (to prevent concurrent scans)
+	private scanningPromises = new Map<HookName, Promise<string[]>>()
 
 	// For disposal
 	private context: ExtensionContext | null = null
@@ -105,60 +106,95 @@ export class HookDiscoveryCache {
 		this.log(`Getting hooks for ${hookName}`)
 
 		const cached = this.cache.get(hookName)
-		if (cached) {
+		const cacheHit = cached !== undefined
+
+		let scripts: string[]
+		let initiatedScan = false // Track if this caller initiated the scan
+
+		if (cacheHit) {
 			this.log(`Cache hit for ${hookName}: ${cached.scriptPaths.length} scripts`)
-			return cached.scriptPaths
+			scripts = cached.scriptPaths
+		} else {
+			this.log(`Cache miss for ${hookName}, scanning...`)
+
+			// Check if scan is already in progress
+			const existingPromise = this.scanningPromises.get(hookName)
+			if (existingPromise) {
+				// Another caller is already scanning, reuse their promise
+				this.log(`Reusing existing scan for ${hookName}`)
+				scripts = await existingPromise
+			} else {
+				// This caller initiates the scan
+				initiatedScan = true
+				scripts = await this.scan(hookName)
+			}
 		}
 
-		this.log(`Cache miss for ${hookName}, scanning...`)
-		return this.scan(hookName)
+		// Only report telemetry if:
+		// 1. It was a cache hit, OR
+		// 2. This caller initiated the scan (not reusing another caller's promise)
+		if (cacheHit || initiatedScan) {
+			telemetryService.safeCapture(
+				() => telemetryService.captureHookCacheAccess(hookName, cacheHit),
+				"HookDiscoveryCache.get",
+			)
+		}
+
+		return scripts
 	}
 
 	/**
 	 * Scan for hook scripts and cache the result
 	 */
 	private async scan(hookName: HookName): Promise<string[]> {
-		// Prevent concurrent scans of the same hook
-		if (this.scanning.has(hookName)) {
-			this.log(`Already scanning ${hookName}, waiting...`)
-			await new Promise((resolve) => setTimeout(resolve, 50))
-			return this.get(hookName)
+		// Check if a scan is already in progress for this hook
+		const existingPromise = this.scanningPromises.get(hookName)
+		if (existingPromise) {
+			this.log(`Already scanning ${hookName}, waiting for existing scan...`)
+			return existingPromise
 		}
 
-		this.scanning.add(hookName)
+		// Create a new scan promise
+		const scanPromise = (async () => {
+			try {
+				// Get all current hooks directories
+				const hooksDirs = await getAllHooksDirs()
+				this.log(`Scanning ${hooksDirs.length} directories for ${hookName}`)
 
-		try {
-			// Get all current hooks directories
-			const hooksDirs = await getAllHooksDirs()
-			this.log(`Scanning ${hooksDirs.length} directories for ${hookName}`)
+				// Ensure watchers are set up for each directory (lazy initialization)
+				for (const dir of hooksDirs) {
+					this.ensureWatcher(dir)
+				}
 
-			// Ensure watchers are set up for each directory (lazy initialization)
-			for (const dir of hooksDirs) {
-				this.ensureWatcher(dir)
+				// Scan each directory for this hook
+				const scriptPromises = hooksDirs.map((dir) => HookFactory.findHookInHooksDir(hookName, dir))
+
+				const results = await Promise.all(scriptPromises)
+				const scripts = results.filter((path): path is string => path !== undefined)
+
+				this.log(`Found ${scripts.length} scripts for ${hookName}`)
+
+				// Cache the result
+				this.cache.set(hookName, {
+					scriptPaths: scripts,
+					timestamp: Date.now(),
+				})
+
+				return scripts
+			} catch (error) {
+				console.error(`Error scanning for ${hookName} hooks:`, error)
+				// Return empty array on error - don't break the whole system
+				return []
+			} finally {
+				// Remove from scanning promises map
+				this.scanningPromises.delete(hookName)
 			}
+		})()
 
-			// Scan each directory for this hook
-			const scriptPromises = hooksDirs.map((dir) => HookFactory.findHookInHooksDir(hookName, dir))
+		// Store the promise so concurrent calls can await it
+		this.scanningPromises.set(hookName, scanPromise)
 
-			const results = await Promise.all(scriptPromises)
-			const scripts = results.filter((path): path is string => path !== undefined)
-
-			this.log(`Found ${scripts.length} scripts for ${hookName}`)
-
-			// Cache the result
-			this.cache.set(hookName, {
-				scriptPaths: scripts,
-				timestamp: Date.now(),
-			})
-
-			return scripts
-		} catch (error) {
-			console.error(`Error scanning for ${hookName} hooks:`, error)
-			// Return empty array on error - don't break the whole system
-			return []
-		} finally {
-			this.scanning.delete(hookName)
-		}
+		return scanPromise
 	}
 
 	/**
