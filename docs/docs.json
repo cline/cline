@@ -278,12 +278,12 @@
 						"pages": [
 							"enterprise-solutions/overview",
 							"enterprise-solutions/onboarding",
-						"enterprise-solutions/team-management/managing-members",
+							"enterprise-solutions/team-management/managing-members",
 							"enterprise-solutions/configuration/choosing-your-deployment",
-						{
-							"group": "SaaS Provider Configuration",
-							"pages": [
-								"enterprise-solutions/configuration/remote-configuration/overview",
+							{
+								"group": "SaaS Provider Configuration",
+								"pages": [
+									"enterprise-solutions/configuration/remote-configuration/overview",
 									{
 										"group": "AWS Bedrock",
 										"pages": [
@@ -310,20 +310,15 @@
 							{
 								"group": "Control Other Cline Features",
 								"pages": [
-									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/yolo-mode",
-									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/telemetry"
+									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/yolo-mode"
 								]
 							},
 							{
 								"group": "Monitoring",
 								"pages": [
 									"enterprise-solutions/monitoring/overview",
-									{
-										"group": "OpenTelemetry",
-										"pages": [
-											"enterprise-solutions/monitoring/opentelemetry"
-										]
-									}
+									"enterprise-solutions/monitoring/telemetry",
+									"enterprise-solutions/monitoring/opentelemetry"
 								]
 							}
 						]
