@@ -19,6 +19,7 @@ export const CLINE_ONBOARDING_MODELS: OnboardingModel[] = [
 			inputPrice: 0,
 			outputPrice: 0,
 			tiers: [],
+			maxTokens: 4096,
 		},
 	},
 	{
@@ -35,6 +36,7 @@ export const CLINE_ONBOARDING_MODELS: OnboardingModel[] = [
 			inputPrice: 3.0,
 			outputPrice: 15.0,
 			tiers: [],
+			maxTokens: 4096,
 		},
 	},
 	{
@@ -51,6 +53,7 @@ export const CLINE_ONBOARDING_MODELS: OnboardingModel[] = [
 			inputPrice: 4.0,
 			outputPrice: 18.0,
 			tiers: [],
+			maxTokens: 2048,
 		},
 	},
 	{
@@ -67,6 +70,7 @@ export const CLINE_ONBOARDING_MODELS: OnboardingModel[] = [
 			inputPrice: 1.25,
 			outputPrice: 10.0,
 			tiers: [],
+			maxTokens: 4096,
 		},
 	},
 	{
@@ -83,6 +87,7 @@ export const CLINE_ONBOARDING_MODELS: OnboardingModel[] = [
 			inputPrice: 1.25,
 			outputPrice: 10.0,
 			tiers: [],
+			maxTokens: 4096,
 		},
 	},
 	{
@@ -99,6 +104,7 @@ export const CLINE_ONBOARDING_MODELS: OnboardingModel[] = [
 			inputPrice: 0.6,
 			outputPrice: 2.5,
 			tiers: [],
+			maxTokens: 4096,
 		},
 	},
 	{
@@ -115,6 +121,7 @@ export const CLINE_ONBOARDING_MODELS: OnboardingModel[] = [
 			inputPrice: 0,
 			outputPrice: 0,
 			tiers: [],
+			maxTokens: 4096,
 		},
 	},
 ]

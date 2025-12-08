@@ -854,6 +854,19 @@ export class Controller {
 		await sendStateUpdate(state)
 	}
 
+	async getVSCodeConfig(): Promise<{ constructorOrigin?: string; constructorSessionToken?: string }> {
+		try {
+			const vsCodeConfig = {
+				constructorOrigin: process.env.RESEARCH_API_SERVER,
+				constructorSessionToken: process.env.RESEARCH_SDK_TOKEN,
+			}
+			return vsCodeConfig
+		} catch (error) {
+			console.error("Failed to get VS Code config:", error)
+			return {}
+		}
+	}
+
 	async getStateToPostToWebview(): Promise<ExtensionState> {
 		// Get API configuration from cache for immediate access
 		const onboardingModels = getClineOnboardingModels()

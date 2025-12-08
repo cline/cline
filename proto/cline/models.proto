@@ -49,6 +49,10 @@ service ModelsService {
   rpc refreshOcaModels(StringRequest) returns (OcaCompatibleModelInfo);
   // Fetches available models from AIhubmix
   rpc getAihubmixModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Fetches available models from Constructory
+  rpc getConstructoryModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Fetches all licensies
+  rpc getConstructoryLicensedFeatures(EmptyRequest) returns (StringArray);
 }
 
 // List of VS Code LM models
@@ -88,7 +92,7 @@ message ModelTier {
 
 // For OpenRouterCompatibleModelInfo structure in OpenRouterModels
 message OpenRouterModelInfo {
-  optional int64 max_tokens = 1;
+  int64 max_tokens = 1;
   optional int64 context_window = 2;
   optional bool supports_images = 3;
   bool supports_prompt_cache = 4;
@@ -429,6 +433,7 @@ enum ApiProvider {
   HICAP = 37;
   AIHUBMIX = 38;
   NOUSRESEARCH = 39;
+  CONSTRUCTORY = 40;
 }
 
 // Model info for OpenAI-compatible models
@@ -636,4 +641,32 @@ message ModelsApiConfiguration {
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 236;
   optional string act_mode_nous_research_model_id = 237;
   optional string gemini_act_mode_thinking_level = 238;
+}
+
+// Ollama
+message OllamaModelRequest {
+  Metadata metadata = 1;
+  string base_url = 2;
+  string api_key = 3;
+}
+
+// LM Studio
+message LmStudioModelRequest {
+  Metadata metadata = 1;
+  string base_url = 2;
+  string api_key = 3;
+}
+
+// LiteLLM
+message LiteLlmModelRequest {
+  Metadata metadata = 1;
+  string base_url = 2;
+  string api_key = 3;
+}
+
+// Fireworks
+message FireworksModelRequest {
+  Metadata metadata = 1;
+  string base_url = 2;
+  string api_key = 3;
 }

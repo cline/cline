@@ -50,7 +50,7 @@ function convertModelInfoToProtoOpenRouter(info: ModelInfo | undefined): OpenRou
 	}
 
 	return {
-		maxTokens: info.maxTokens,
+		maxTokens: info.maxTokens ?? 0,
 		contextWindow: info.contextWindow,
 		supportsImages: info.supportsImages,
 		supportsPromptCache: info.supportsPromptCache ?? false,
@@ -315,6 +315,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.HICAP
 		case "nousResearch":
 			return ProtoApiProvider.NOUSRESEARCH
+		case "constructory":
+			return ProtoApiProvider.CONSTRUCTORY
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -403,6 +405,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "minimax"
 		case ProtoApiProvider.NOUSRESEARCH:
 			return "nousResearch"
+		case ProtoApiProvider.CONSTRUCTORY:
+			return "constructory"
 		default:
 			return "anthropic"
 	}

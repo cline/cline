@@ -892,6 +892,7 @@ function getProviderDisplayName(providerId) {
 		baseten: "Baseten",
 		"vercel-ai-gateway": "Vercel AI Gateway",
 		zai: "Z AI",
+		constructory: "Constructory",
 	}
 
 	return displayNames[providerId] || providerId.charAt(0).toUpperCase() + providerId.slice(1)

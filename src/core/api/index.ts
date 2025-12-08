@@ -10,6 +10,7 @@ import { AwsBedrockHandler } from "./providers/bedrock"
 import { CerebrasHandler } from "./providers/cerebras"
 import { ClaudeCodeHandler } from "./providers/claude-code"
 import { ClineHandler } from "./providers/cline"
+import { ConstructoryHandler } from "./providers/constructory"
 import { DeepSeekHandler } from "./providers/deepseek"
 import { DifyHandler } from "./providers/dify"
 import { DoubaoHandler } from "./providers/doubao"
@@ -426,6 +427,12 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				nousResearchApiKey: options.nousResearchApiKey,
 				apiModelId: mode === "plan" ? options.planModeNousResearchModelId : options.actModeNousResearchModelId,
+			})
+		case "constructory":
+			return new ConstructoryHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				ulid: options.ulid,
 			})
 		default:
 			return new AnthropicHandler({

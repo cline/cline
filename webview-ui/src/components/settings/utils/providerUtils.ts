@@ -85,7 +85,7 @@ export function normalizeApiConfiguration(
 	currentMode: Mode,
 	liteLlmModels?: Record<string, ModelInfo>,
 ): NormalizedApiConfig {
-	const provider =
+	const provider: ApiProvider =
 		(currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "anthropic"
 
 	const modelId = currentMode === "plan" ? apiConfiguration?.planModeApiModelId : apiConfiguration?.actModeApiModelId
@@ -393,6 +393,12 @@ export function normalizeApiConfiguration(
 					nousResearchModelId && nousResearchModelId in nousResearchModels
 						? nousResearchModels[nousResearchModelId as keyof typeof nousResearchModels]
 						: nousResearchModels[nousResearchDefaultModelId],
+			}
+		case "constructory":
+			return {
+				selectedProvider: provider,
+				selectedModelId: modelId || "",
+				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)

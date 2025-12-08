@@ -2,7 +2,7 @@ import { access, constants, mkdir } from "fs/promises"
 import os from "os"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
-import { getCwd, getDesktopDir } from "@/utils/path"
+import { arePathsEqual, getCwd, getDesktopDir } from "@/utils/path"
 
 /**
  * Gets the path to the shadow Git repository in globalStorage.
@@ -56,15 +56,18 @@ export async function validateWorkspacePath(workspacePath: string): Promise<void
 	const documentsPath = path.join(homedir, "Documents")
 	const downloadsPath = path.join(homedir, "Downloads")
 
-	switch (workspacePath) {
-		case homedir:
-			throw new Error("Cannot use checkpoints in home directory")
-		case desktopPath:
-			throw new Error("Cannot use checkpoints in Desktop directory")
-		case documentsPath:
-			throw new Error("Cannot use checkpoints in Documents directory")
-		case downloadsPath:
-			throw new Error("Cannot use checkpoints in Downloads directory")
+	// Use arePathsEqual for proper path comparison with normalization
+	if (arePathsEqual(workspacePath, homedir)) {
+		throw new Error("Cannot use checkpoints in home directory")
+	}
+	if (arePathsEqual(workspacePath, desktopPath)) {
+		throw new Error("Cannot use checkpoints in Desktop directory")
+	}
+	if (arePathsEqual(workspacePath, documentsPath)) {
+		throw new Error("Cannot use checkpoints in Documents directory")
+	}
+	if (arePathsEqual(workspacePath, downloadsPath)) {
+		throw new Error("Cannot use checkpoints in Downloads directory")
 	}
 }
 

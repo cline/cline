@@ -27,5 +27,11 @@
 		"source.removeUnused.biome": "always",
 		"source.removeUnusedImports": "always",
 		"source.organizeImports.biome": "always"
-	}
+	},
+	// Minimal terminal configuration for Cursor
+	"terminal.integrated.automationProfile.osx": null,
+	"terminal.integrated.env.osx": {
+		"PATH": "/Users/nikitakauryha/.nvm/versions/node/v22.16.0/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+	},
+	"terminal.integrated.inheritEnv": true
 }

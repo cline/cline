@@ -41,6 +41,7 @@ export type ApiProvider =
 	| "minimax"
 	| "hicap"
 	| "nousResearch"
+	| "constructory"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic

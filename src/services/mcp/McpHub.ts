@@ -42,6 +42,29 @@ import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { McpOAuthManager } from "./McpOAuthManager"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
 import { McpConnection, McpServerConfig, Transport } from "./types"
+
+/**
+ * Substitutes environment variables in header values.
+ * Supports ${VAR_NAME} and $VAR_NAME syntax.
+ * @param headers Headers object with potentially environment variable references
+ * @returns Headers with environment variables substituted
+ */
+function substituteEnvironmentVariables(headers: Record<string, string> | undefined): Record<string, string> | undefined {
+	if (!headers) {
+		return undefined
+	}
+
+	const substituted: Record<string, string> = {}
+	for (const [key, value] of Object.entries(headers)) {
+		// Replace ${VAR_NAME} and $VAR_NAME patterns with environment variable values
+		substituted[key] = value.replace(/\$\{([^}]+)\}|\$([A-Z_][A-Z0-9_]*)/g, (match, braced, unbraced) => {
+			const varName = braced || unbraced
+			return process.env[varName] ?? match
+		})
+	}
+	return substituted
+}
+
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
 	private getSettingsDirectoryPath: () => Promise<string>
@@ -319,7 +342,7 @@ export class McpHub {
 					const sseOptions = {
 						authProvider,
 						requestInit: {
-							headers: config.headers,
+							headers: substituteEnvironmentVariables(config.headers),
 						},
 					}
 					const reconnectingEventSourceOptions = {
@@ -367,7 +390,7 @@ export class McpHub {
 					transport = new StreamableHTTPClientTransport(new URL(config.url), {
 						authProvider,
 						requestInit: {
-							headers: config.headers ?? undefined,
+							headers: substituteEnvironmentVariables(config.headers),
 						},
 					})
 					transport.onerror = async (error) => {

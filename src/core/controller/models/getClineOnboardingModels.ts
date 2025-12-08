@@ -40,6 +40,7 @@ function mergeModelWithOverride(baseModel: OnboardingModel | undefined, override
 		...overrideInfo,
 		supportsPromptCache: overrideInfo?.supportsPromptCache ?? baseInfo?.supportsPromptCache ?? false,
 		tiers: overrideInfo?.tiers ?? baseInfo?.tiers ?? [],
+		maxTokens: overrideInfo?.maxTokens ?? baseInfo?.maxTokens ?? 0,
 	}
 
 	// Return merged model, using base as foundation if available

@@ -152,7 +152,7 @@ const ModelSelection = ({
 								// Convert ModelInfo to OpenRouterModelInfo for OnboardingModel
 								const modelInfo: OpenRouterModelInfo = {
 									name: info.name,
-									maxTokens: info.maxTokens,
+									maxTokens: info.maxTokens ?? 0,
 									contextWindow: info.contextWindow,
 									supportsImages: info.supportsImages,
 									supportsPromptCache: info.supportsPromptCache,

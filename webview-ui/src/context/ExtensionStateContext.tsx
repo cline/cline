@@ -7,7 +7,7 @@ import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 import type { UserInfo } from "@shared/proto/cline/account"
-import { EmptyRequest } from "@shared/proto/cline/common"
+import { EmptyRequest, StringArray } from "@shared/proto/cline/common"
 import type { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
 import { OnboardingModelGroup, type TerminalProfile } from "@shared/proto/cline/state"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
@@ -36,8 +36,11 @@ export interface ExtensionStateContextType extends ExtensionState {
 	onboardingModels: OnboardingModelGroup | undefined
 	openRouterModels: Record<string, ModelInfo>
 	hicapModels: Record<string, ModelInfo>
+	constructoryModels: Record<string, ModelInfo>
+	constructoryModelsError: string | undefined
 	liteLlmModels: Record<string, ModelInfo>
 	openAiModels: string[]
+	licensedFeatures: string[]
 	requestyModels: Record<string, ModelInfo>
 	groqModels: Record<string, ModelInfo>
 	basetenModels: Record<string, ModelInfo>
@@ -89,7 +92,9 @@ export interface ExtensionStateContextType extends ExtensionState {
 	// Refresh functions
 	refreshOpenRouterModels: () => void
 	refreshHicapModels: () => void
+	refreshConstructoryModels: () => void
 	refreshLiteLlmModels: () => void
+	getLicensedFeatures: () => void
 	setUserInfo: (userInfo?: UserInfo) => void
 
 	// Navigation state setters
@@ -261,11 +266,14 @@ export const ExtensionStateContextProvider: React.FC<{
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
 	const [hicapModels, setHicapModels] = useState<Record<string, ModelInfo>>({})
+	const [constructoryModels, setConstructoryModels] = useState<Record<string, ModelInfo>>({})
+	const [constructoryModelsError, setConstructoryModelsError] = useState<string | undefined>(undefined)
 	const [liteLlmModels, setLiteLlmModels] = useState<Record<string, ModelInfo>>({})
 	const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
 	const [availableTerminalProfiles, setAvailableTerminalProfiles] = useState<TerminalProfile[]>([])
 
 	const [openAiModels, _setOpenAiModels] = useState<string[]>([])
+	const [licensedFeatures, setLicensedFeatures] = useState<string[]>([])
 	const [requestyModels, setRequestyModels] = useState<Record<string, ModelInfo>>({
 		[requestyDefaultModelId]: requestyDefaultModelInfo,
 	})
@@ -685,6 +693,26 @@ export const ExtensionStateContextProvider: React.FC<{
 			.catch((error: Error) => console.error("Failed to refresh Hicap models:", error))
 	}, [])
 
+	const refreshConstructoryModels = useCallback(() => {
+		ModelsServiceClient.getConstructoryModels(EmptyRequest.create({}))
+			.then((response: OpenRouterCompatibleModelInfo) => {
+				const models = response.models
+				setConstructoryModels({
+					...models,
+				})
+				setConstructoryModelsError(undefined)
+			})
+			.catch((error: Error) => setConstructoryModelsError(error.message))
+	}, [])
+
+	const getLicensedFeatures = useCallback(() => {
+		ModelsServiceClient.getConstructoryLicensedFeatures(EmptyRequest.create({}))
+			.then((response: StringArray) => {
+				setLicensedFeatures(response?.values || [])
+			})
+			.catch((error: Error) => console.error("Failed to get licensed features:", error))
+	}, [])
+
 	const refreshLiteLlmModels = useCallback(() => {
 		ModelsServiceClient.refreshLiteLlmModelsRpc(EmptyRequest.create({}))
 			.then((response: OpenRouterCompatibleModelInfo) => {
@@ -701,8 +729,10 @@ export const ExtensionStateContextProvider: React.FC<{
 		onboardingModels,
 		openRouterModels,
 		hicapModels,
+		constructoryModels,
 		liteLlmModels,
 		openAiModels,
+		licensedFeatures,
 		requestyModels,
 		groqModels: groqModelsState,
 		basetenModels: basetenModelsState,
@@ -810,6 +840,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		setTotalTasksSize,
 		refreshOpenRouterModels,
 		refreshHicapModels,
+		refreshConstructoryModels,
+		getLicensedFeatures,
+		constructoryModelsError,
 		refreshLiteLlmModels,
 		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),

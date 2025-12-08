@@ -1,6 +1,10 @@
 {
 	"list": [
 		{
+			"value": "constructory",
+			"label": "Constructory"
+		},
+		{
 			"value": "cline",
 			"label": "Cline"
 		},
