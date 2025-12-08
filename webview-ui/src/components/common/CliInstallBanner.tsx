@@ -8,7 +8,7 @@ import { StateServiceClient } from "@/services/grpc-client"
 import { isMacOSOrLinux } from "@/utils/platformUtils"
 import { getAsVar, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
 
-export const CURRENT_CLI_BANNER_VERSION = 6
+export const CURRENT_CLI_BANNER_VERSION = 1
 
 export const CliInstallBanner: React.FC = () => {
 	const { navigateToSettings, subagentsEnabled } = useExtensionState()
