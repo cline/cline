@@ -188,6 +188,10 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
  */
 export async function fetchRemoteConfig(controller: Controller) {
 	try {
+		await controller.authService.refreshUserInfo().catch((err) => {
+			console.debug("User info refresh failed (using cached data):", err)
+		})
+
 		await ensureUserInOrgWithRemoteConfig(controller)
 	} catch (error) {
 		console.error("Failed to fetch remote config", error)

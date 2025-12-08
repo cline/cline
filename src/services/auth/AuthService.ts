@@ -346,6 +346,32 @@ export class AuthService {
 		}
 	}
 
+	/**
+	 * Forces a refresh of the user info from the API, even if the token is still valid.
+	 * This is useful when user data (like organization membership) may have changed on the backend.
+	 * @returns Promise that resolves when the refresh is complete
+	 */
+	async refreshUserInfo(): Promise<void> {
+		if (!this._provider) {
+			throw new Error("Auth provider is not set")
+		}
+
+		if (!this._clineAuthInfo) {
+			console.warn("Cannot refresh user info: not authenticated")
+			return
+		}
+
+		try {
+			const updatedAuthInfo = await this._provider.fetchAndUpdateUserInfo(this._controller, this._clineAuthInfo)
+			if (updatedAuthInfo) {
+				this._clineAuthInfo = updatedAuthInfo
+				await this.sendAuthStatusUpdate()
+			}
+		} catch (error) {
+			console.error("Error refreshing user info:", error)
+		}
+	}
+
 	private async retrieveAuthInfo(): Promise<ClineAuthInfo | null> {
 		if (!this._provider) {
 			throw new Error("Auth provider is not set")

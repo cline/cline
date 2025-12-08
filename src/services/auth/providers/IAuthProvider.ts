@@ -10,4 +10,5 @@ export interface IAuthProvider {
 	refreshToken(refreshToken: string): Promise<Partial<ClineAuthInfo>>
 	getAuthRequest(callbackUrl: string): Promise<string>
 	signIn(controller: Controller, authorizationCode: string, provider: string): Promise<ClineAuthInfo | null>
+	fetchAndUpdateUserInfo(controller: Controller, currentAuthInfo: ClineAuthInfo): Promise<ClineAuthInfo | null>
 }

@@ -370,6 +370,40 @@ export class ClineAuthProvider implements IAuthProvider {
 		}
 	}
 
+	/**
+	 * Fetches fresh user info from the API and updates the stored auth info.
+	 * This is useful when user data (like organization membership) may have changed on the backend.
+	 * @param controller - The controller instance to access stored secrets.
+	 * @param currentAuthInfo - The current auth info with a valid access token.
+	 * @returns {Promise<ClineAuthInfo | null>} Updated auth info or null if failed.
+	 */
+	async fetchAndUpdateUserInfo(controller: Controller, currentAuthInfo: ClineAuthInfo): Promise<ClineAuthInfo | null> {
+		try {
+			const userResponse = await axios.get(`${ClineEnv.config().apiBaseUrl}/api/v1/users/me`, {
+				headers: {
+					Authorization: `Bearer workos:${currentAuthInfo.idToken}`,
+				},
+				...getAxiosSettings(),
+			})
+
+			const freshUserInfo: ClineAccountUserInfo = userResponse.data.data
+
+			const updatedAuthInfo: ClineAuthInfo = {
+				...currentAuthInfo,
+				userInfo: freshUserInfo,
+			}
+
+			const updatedAuthInfoString = JSON.stringify(updatedAuthInfo)
+			controller.stateManager.setSecret("cline:clineAccountId", updatedAuthInfoString)
+
+			Logger.debug("User info refreshed successfully")
+			return updatedAuthInfo
+		} catch (error) {
+			Logger.error("Error fetching and updating user info:", error)
+			return null
+		}
+	}
+
 	private async fetchRemoteUserInfo(tokenData: ClineAuthApiTokenExchangeResponse["data"]): Promise<ClineAccountUserInfo> {
 		try {
 			const userResponse = await axios.get(`${ClineEnv.config().apiBaseUrl}/api/v1/users/me`, {
