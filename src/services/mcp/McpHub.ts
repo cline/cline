@@ -1771,7 +1771,7 @@ export class McpHub {
 			}
 
 			// Check if server already exists
-			if (settings.mcpServers[serverName]) {
+			if (settings.mcpServers[serverName] || this.transientServers.has(serverName)) {
 				throw new Error(`An MCP server with the name "${serverName}" already exists`)
 			}
 
