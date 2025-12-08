@@ -3,8 +3,8 @@ import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import "should"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
-import { TerminalProcess } from "./TerminalProcess"
-import { TerminalRegistry } from "./TerminalRegistry"
+import { VscodeTerminalProcess } from "./VscodeTerminalProcess"
+import { TerminalRegistry } from "./VscodeTerminalRegistry"
 
 declare module "vscode" {
 	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L7442
@@ -31,14 +31,14 @@ function createMockStream(lines: string[] = ["test-command", "line1", "line2", "
 }
 
 describe("TerminalProcess (Integration Tests)", () => {
-	let process: TerminalProcess
+	let process: VscodeTerminalProcess
 	let sandbox: sinon.SinonSandbox
 	let createdTerminals: vscode.Terminal[] = []
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox({ useFakeTimers: true })
 		setVscodeHostProviderMock()
-		process = new TerminalProcess()
+		process = new VscodeTerminalProcess()
 	})
 
 	afterEach(() => {
