@@ -4,13 +4,6 @@ sidebarTitle: "Overview"
 description: "Configure inference providers through the Cline hosted admin console for centralized organization management"
 ---
 
-<Warning>
-**SaaS Configuration Path**
-
-This section is for teams using **Cline's hosted service** at [app.cline.bot](https://app.cline.bot). Configuration is done through a web-based admin console with simple dropdown menus and settings.
-
-**Need self-hosted infrastructure?** See [Self-Hosted Configuration](/enterprise-solutions/configuration/infrastructure-configuration/overview) for VPC endpoints, multi-account AWS, compliance frameworks, and deep infrastructure control including YAML configs, Kubernetes/Helm deployments, and advanced security features.
-</Warning>
 
 SaaS Provider Configuration allows administrators to centrally configure inference providers for their entire organization through the Cline hosted admin console. This approach ensures consistent provider access, security policies, and cost management across all team members without requiring individual developer setup or infrastructure deployment.
 
@@ -47,16 +40,6 @@ Cline supports remote configuration for the following inference providers:
 | **LiteLLM** | Organizations requiring multi-model access through a unified proxy | Proxy endpoint, authentication, model routing | API key or endpoint configuration in VS Code (or centralized with Master Key) |
 | **Google Vertex AI** | Organizations using Google Cloud Platform | Project ID, region selection, model access | Service account or credential configuration in VS Code |
 
-## SaaS vs. Self-Hosted Configuration
-
-<Note>
-**Understanding the Difference**
-
-- **SaaS Provider Configuration** (this section): Simple cloud-based setup via app.cline.bot admin console - no infrastructure required
-- **Self-Hosted Configuration**: Deep infrastructure setup with VPC, multi-account, compliance features, YAML configs, and Kubernetes deployment
-
-Choose SaaS configuration for quick organizational setup. Choose self-hosted configuration for complex security, compliance, and multi-environment requirements.
-</Note>
 
 ## Configuration Process
 

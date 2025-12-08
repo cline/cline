@@ -279,7 +279,6 @@
 							"enterprise-solutions/overview",
 							"enterprise-solutions/onboarding",
 							"enterprise-solutions/team-management/managing-members",
-							"enterprise-solutions/configuration/choosing-your-deployment",
 							{
 								"group": "SaaS Provider Configuration",
 								"pages": [

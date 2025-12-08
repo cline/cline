@@ -151,17 +151,6 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-us-central-0.grafan
 export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic YOUR_BASE64_CREDENTIALS"
 ```
 
-### Self-Hosted OpenTelemetry Collector
-
-If you're running your own OpenTelemetry Collector:
-
-```bash
-export OTEL_TELEMETRY_ENABLED=1
-export OTEL_METRICS_EXPORTER=otlp
-export OTEL_LOGS_EXPORTER=otlp
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
-export OTEL_EXPORTER_OTLP_INSECURE=true
-```
 
 ## Testing Configuration
 
