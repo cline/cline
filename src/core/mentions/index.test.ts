@@ -8,7 +8,7 @@ import * as isBinaryFileModule from "isbinaryfile"
 import * as path from "path"
 import * as sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
-import * as terminalModule from "@/integrations/terminal/vscode/get-latest-output"
+import * as terminalModule from "@/hosts/vscode/terminal/get-latest-output"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import { parseMentions } from "."
 

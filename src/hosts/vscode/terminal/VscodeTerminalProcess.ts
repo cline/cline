@@ -1,8 +1,8 @@
 import { TerminalOutputFailureReason, telemetryService } from "@services/telemetry"
 import { EventEmitter } from "events"
 import * as vscode from "vscode"
-import { getLatestTerminalOutput } from "@/integrations/terminal/vscode/get-latest-output"
-import { stripAnsi } from "./ansiUtils"
+import { stripAnsi } from "@/hosts/vscode/terminal/ansiUtils"
+import { getLatestTerminalOutput } from "@/hosts/vscode/terminal/get-latest-output"
 
 export interface TerminalProcessEvents {
 	line: [line: string]
