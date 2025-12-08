@@ -23,6 +23,7 @@ const SHELL_PATHS = {
 
 interface MacTerminalProfile {
 	path?: string
+	env?: Record<string, string>
 }
 
 type MacTerminalProfiles = Record<string, MacTerminalProfile>
@@ -30,15 +31,22 @@ type MacTerminalProfiles = Record<string, MacTerminalProfile>
 interface WindowsTerminalProfile {
 	path?: string
 	source?: "PowerShell" | "WSL"
+	env?: Record<string, string>
 }
 
 type WindowsTerminalProfiles = Record<string, WindowsTerminalProfile>
 
 interface LinuxTerminalProfile {
 	path?: string
+	env?: Record<string, string>
 }
 
 type LinuxTerminalProfiles = Record<string, LinuxTerminalProfile>
+
+interface TerminalProfileConfig {
+	path?: string
+	env?: Record<string, string>
+}
 
 // -----------------------------------------------------
 // 1) VS Code Terminal Configuration Helpers
@@ -81,8 +89,8 @@ function getLinuxTerminalConfig() {
 // 2) Platform-Specific VS Code Shell Retrieval
 // -----------------------------------------------------
 
-/** Attempts to retrieve a shell path from VS Code config on Windows. */
-function getWindowsShellFromVSCode(): string | null {
+/** Attempts to retrieve a shell config from VS Code config on Windows. */
+function getWindowsShellFromVSCode(): TerminalProfileConfig | null {
 	const { defaultProfileName, profiles } = getWindowsTerminalConfig()
 	if (!defaultProfileName) {
 		return null
@@ -96,49 +104,71 @@ function getWindowsShellFromVSCode(): string | null {
 	if (defaultProfileName.toLowerCase().includes("powershell")) {
 		if (profile?.path) {
 			// If there's an explicit PowerShell path, return that
-			return profile.path
+			return profile
 		} else if (profile?.source === "PowerShell") {
 			// If the profile is sourced from PowerShell, assume the newest
-			return SHELL_PATHS.POWERSHELL_7
+			return {
+				path: SHELL_PATHS.POWERSHELL_7,
+				env: profile?.env,
+			}
 		}
 		// Otherwise, assume legacy Windows PowerShell
-		return SHELL_PATHS.POWERSHELL_LEGACY
+		return {
+			path: SHELL_PATHS.POWERSHELL_LEGACY,
+			env: profile?.env,
+		}
 	}
 
 	// If there's a specific path, return that immediately
 	if (profile?.path) {
-		return profile.path
+		return profile
 	}
 
 	// If the profile indicates WSL
 	if (profile?.source === "WSL" || defaultProfileName.toLowerCase().includes("wsl")) {
-		return SHELL_PATHS.WSL_BASH
+		return {
+			path: SHELL_PATHS.WSL_BASH,
+			env: profile?.env,
+		}
 	}
 
 	// If nothing special detected, we assume cmd
-	return SHELL_PATHS.CMD
+	return {
+		path: SHELL_PATHS.CMD,
+		env: profile?.env,
+	}
 }
 
-/** Attempts to retrieve a shell path from VS Code config on macOS. */
-function getMacShellFromVSCode(): string | null {
+/** Attempts to retrieve a shell config from VS Code config on macOS. */
+function getMacShellFromVSCode(): TerminalProfileConfig | null {
 	const { defaultProfileName, profiles } = getMacTerminalConfig()
 	if (!defaultProfileName) {
 		return null
 	}
 
 	const profile = profiles[defaultProfileName]
-	return profile?.path || null
+
+	if (!profile?.path) {
+		return null
+	}
+
+	return profile
 }
 
-/** Attempts to retrieve a shell path from VS Code config on Linux. */
-function getLinuxShellFromVSCode(): string | null {
+/** Attempts to retrieve a shell config from VS Code config on Linux. */
+function getLinuxShellFromVSCode(): TerminalProfileConfig | null {
 	const { defaultProfileName, profiles } = getLinuxTerminalConfig()
 	if (!defaultProfileName) {
 		return null
 	}
 
 	const profile = profiles[defaultProfileName]
-	return profile?.path || null
+
+	if (!profile?.path) {
+		return null
+	}
+
+	return profile
 }
 
 // -----------------------------------------------------
@@ -272,8 +302,8 @@ export function getAvailableTerminalProfiles(): TerminalProfile[] {
 	return profiles
 }
 
-/** Gets the shell path for a specific terminal profile */
-export function getShellForProfile(profileId: string): string {
+/** Gets the shell config for a specific terminal profile */
+export function getShellForProfile(profileId: string): TerminalProfileConfig {
 	// If it's the default profile, use the existing getShell() logic
 	if (profileId === "default") {
 		return getShell()
@@ -284,7 +314,7 @@ export function getShellForProfile(profileId: string): string {
 	const profile = profiles.find((p) => p.id === profileId)
 
 	if (profile?.path) {
-		return profile.path
+		return profile
 	}
 
 	// Fallback to default shell if profile not found
@@ -295,7 +325,7 @@ export function getShellForProfile(profileId: string): string {
 // 5) Publicly Exposed Shell Getter
 // -----------------------------------------------------
 
-export function getShell(): string {
+export function getShell(): TerminalProfileConfig {
 	// 1. Check VS Code config first.
 	if (process.platform === "win32") {
 		// Special logic for Windows
@@ -320,21 +350,21 @@ export function getShell(): string {
 	// 2. If no shell from VS Code, try userInfo()
 	const userInfoShell = getShellFromUserInfo()
 	if (userInfoShell) {
-		return userInfoShell
+		return { path: userInfoShell }
 	}
 
 	// 3. If still nothing, try environment variable
 	const envShell = getShellFromEnv()
 	if (envShell) {
-		return envShell
+		return { path: envShell }
 	}
 
 	// 4. Finally, fall back to a default
 	if (process.platform === "win32") {
 		// On Windows, if we got here, we have no config, no COMSPEC, and one very messed up operating system.
 		// Use CMD as a last resort
-		return SHELL_PATHS.CMD
+		return { path: SHELL_PATHS.CMD }
 	}
 	// On macOS/Linux, fallback to a POSIX shell - This is the behavior of our old shell detection method.
-	return SHELL_PATHS.FALLBACK
+	return { path: SHELL_PATHS.FALLBACK }
 }

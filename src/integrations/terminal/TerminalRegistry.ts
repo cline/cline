@@ -20,12 +20,17 @@ export class TerminalRegistry {
 	private static terminals: TerminalInfo[] = []
 	private static nextTerminalId = 1
 
-	static createTerminal(cwd?: string | vscode.Uri | undefined, shellPath?: string): TerminalInfo {
+	static createTerminal(
+		cwd?: string | vscode.Uri | undefined,
+		shellPath?: string,
+		profileEnv?: Record<string, string>,
+	): TerminalInfo {
 		const terminalOptions: vscode.TerminalOptions = {
 			cwd,
 			name: "Cline",
 			iconPath: new vscode.ThemeIcon("cline-icon"),
 			env: {
+				...profileEnv,
 				CLINE_ACTIVE: "true",
 			},
 		}

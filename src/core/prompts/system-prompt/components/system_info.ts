@@ -30,7 +30,7 @@ export async function getSystemEnv(context: SystemPromptContext, isTesting = fal
 		: {
 				os: osName(),
 				ide: context.ide,
-				shell: getShell(),
+				shell: getShell()?.path,
 				homeDir: osModule.homedir(),
 				workingDir: currentWorkDir,
 				workspaces: workspaces,

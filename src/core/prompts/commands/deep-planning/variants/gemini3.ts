@@ -29,7 +29,7 @@ export function createGemini3Variant(): DeepPlanningVariant {
  * @param enableNativeToolCalls Whether native tool calling is enabled
  */
 export function generateGemini3Template(focusChainEnabled: boolean, enableNativeToolCalls: boolean): string {
-	const detectedShell = getShell()
+	const detectedShell = getShell()?.path
 
 	let isPowerShell = false
 	try {

@@ -234,8 +234,8 @@ export class TerminalManager implements ITerminalManager {
 
 	async getOrCreateTerminal(cwd: string): Promise<ITerminalInfo> {
 		const terminals = TerminalRegistry.getAllTerminals()
-		const expectedShellPath =
-			this.defaultTerminalProfile !== "default" ? getShellForProfile(this.defaultTerminalProfile) : undefined
+		const expectedShellConfig = getShellForProfile(this.defaultTerminalProfile)
+		const expectedShellPath = expectedShellConfig?.path
 
 		// Find available terminal from our pool first (created for this task)
 		console.log(`[TerminalManager] Looking for terminal in cwd: ${cwd}`)
@@ -315,7 +315,7 @@ export class TerminalManager implements ITerminalManager {
 		}
 
 		// If all terminals are busy or don't match shell profile, create a new one with the configured shell
-		const newTerminalInfo = TerminalRegistry.createTerminal(cwd, expectedShellPath)
+		const newTerminalInfo = TerminalRegistry.createTerminal(cwd, expectedShellPath, expectedShellConfig?.env)
 		this.terminalIds.add(newTerminalInfo.id)
 		// Cast to ITerminalInfo for interface compatibility
 		return newTerminalInfo as unknown as ITerminalInfo
@@ -392,7 +392,7 @@ export class TerminalManager implements ITerminalManager {
 		this.defaultTerminalProfile = profileId
 
 		// Get the shell path for the new profile
-		const newShellPath = profileId !== "default" ? getShellForProfile(profileId) : undefined
+		const newShellPath = getShellForProfile(profileId)?.path
 
 		// Handle terminal management for the profile change
 		const result = this.handleTerminalProfileChange(newShellPath)
