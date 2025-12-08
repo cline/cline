@@ -187,6 +187,9 @@ export class GeminiHandler implements ApiHandler {
 			})
 
 			let isFirstSdkChunk = true
+			// Track the latest thinking signature for use with function calls
+			// Gemini 3 requires thought_signature to be preserved in function call parts (#7974)
+			let latestThinkingSignature: string | undefined
 			for await (const chunk of result) {
 				if (isFirstSdkChunk) {
 					sdkFirstChunkTime = Date.now()
@@ -197,6 +200,12 @@ export class GeminiHandler implements ApiHandler {
 				// Handle thinking content from Gemini's response
 				const parts = chunk?.candidates?.[0]?.content?.parts || []
 				for (const part of parts) {
+					// Track thought signature from any part (thinking or otherwise)
+					// This ensures we capture the signature even if it's only on the thinking part
+					if (part.thoughtSignature) {
+						latestThinkingSignature = part.thoughtSignature
+					}
+
 					if (part.thought && part.text) {
 						yield {
 							type: "reasoning",
@@ -216,6 +225,10 @@ export class GeminiHandler implements ApiHandler {
 						const functionCall = part.functionCall
 						const args = Object.entries(functionCall.args || {}).filter(([_key, val]) => !!val)
 						if (functionCall.args && args.length > 0) {
+							// Use the part's signature if available, otherwise fall back to the
+							// latest thinking signature. This handles cases where Gemini 3 puts
+							// the signature on the thinking part but not on the function call part
+							const signature = part.thoughtSignature ?? latestThinkingSignature
 							yield {
 								type: "tool_calls",
 								id: chunk.responseId,
@@ -226,7 +239,7 @@ export class GeminiHandler implements ApiHandler {
 										arguments: JSON.stringify(functionCall.args),
 									},
 								},
-								signature: part.thoughtSignature,
+								signature,
 							}
 						}
 					}
