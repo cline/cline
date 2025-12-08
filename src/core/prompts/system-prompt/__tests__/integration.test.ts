@@ -132,6 +132,7 @@ const baseContext: SystemPromptContext = {
 	cwd: "/test/project",
 	ide: "TestIde",
 	supportsBrowserUse: true,
+	clineWebToolsEnabled: true,
 	mcpHub: {
 		getServers: () => [
 			{
