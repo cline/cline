@@ -162,6 +162,25 @@ Usage:
 <text>Text to type (optional)</text>
 </browser_action>
 
+## web_fetch
+Description: Fetches content from a specified URL and analyzes it using your prompt
+- Takes a URL and analysis prompt as input
+- Fetches the URL content and processes based on your prompt
+- Use this tool when you need to retrieve and analyze web content
+- IMPORTANT: If an MCP-provided web fetch tool is available, prefer using that tool instead of this one, as it may have fewer restrictions.
+- The URL must be a fully-formed valid URL
+- The prompt must be at least 2 characters
+- HTTP URLs will be automatically upgraded to HTTPS
+- This tool is read-only and does not modify any files
+Parameters:
+- url: (required) The URL to fetch content from
+- prompt: (required) The prompt to use for analyzing the webpage content
+Usage:
+<web_fetch>
+<url>https://example.com/docs</url>
+<prompt>Summarize the main points and key takeaways</prompt>
+</web_fetch>
+
 ## use_mcp_tool
 Description: Request to use a tool provided by a connected MCP server. Each MCP server can provide multiple tools with different capabilities. Tools have defined input schemas that specify required and optional parameters.
 Parameters:
