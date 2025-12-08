@@ -25,7 +25,7 @@ export const REASONING_DETAILS_PROVIDERS = ["cline", "openrouter"]
  * This ensures backward compatibility where the messages were stored in Anthropic format with additional
  * fields unknown to Anthropic SDK.
  */
-export interface ClineTextContentBlock extends Anthropic.TextBlockParam {
+export interface ClineTextContentBlock extends Anthropic.TextBlockParam, ClineSharedMessageParam {
 	// reasoning_details only exists for providers listed in REASONING_DETAILS_PROVIDERS
 	reasoning_details?: ClineReasoningDetailParam[]
 	// Thought Signature associates with Gemini

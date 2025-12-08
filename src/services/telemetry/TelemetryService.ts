@@ -125,6 +125,7 @@ export class TelemetryService {
 			OPT_OUT: "user.opt_out",
 			TELEMETRY_ENABLED: "user.telemetry_enabled",
 			EXTENSION_ACTIVATED: "user.extension_activated",
+			EXTENSION_STORAGE_ERROR: "user.extension_storage_error",
 			AUTH_STARTED: "user.auth_started",
 			AUTH_SUCCEEDED: "user.auth_succeeded",
 			AUTH_FAILED: "user.auth_failed",
@@ -224,6 +225,8 @@ export class TelemetryService {
 			AUTO_CONDENSE_TOGGLED: "task.auto_condense_toggled",
 			// Tracks when yolo mode setting is toggled on/off
 			YOLO_MODE_TOGGLED: "task.yolo_mode_toggled",
+			// Tracks when Cline web tools setting is toggled on/off
+			CLINE_WEB_TOOLS_TOGGLED: "task.cline_web_tools_toggled",
 			// Tracks task initialization timing
 			INITIALIZATION: "task.initialization",
 			// Terminal execution telemetry events
@@ -442,6 +445,20 @@ export class TelemetryService {
 
 	public captureExtensionActivated() {
 		this.captureToProviders(TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED, {}, false)
+	}
+
+	public captureExtensionStorageError(errorMessage: string, eventName: string) {
+		// Truncate error message to prevent excessive data
+		this.capture({
+			event: TelemetryService.EVENTS.USER.EXTENSION_STORAGE_ERROR,
+			properties: {
+				error:
+					errorMessage.length > MAX_ERROR_MESSAGE_LENGTH
+						? errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH) + "..."
+						: errorMessage,
+				eventName,
+			},
+		})
 	}
 
 	/**
@@ -1482,6 +1499,21 @@ export class TelemetryService {
 	public captureYoloModeToggle(ulid: string, enabled: boolean) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.YOLO_MODE_TOGGLED,
+			properties: {
+				ulid,
+				enabled,
+			},
+		})
+	}
+
+	/**
+	 * Records when Cline web tools are enabled/disabled by the user
+	 * @param ulid Unique identifier for the task
+	 * @param enabled Whether Cline web tools are enabled (true) or disabled (false)
+	 */
+	public captureClineWebToolsToggle(ulid: string, enabled: boolean) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.CLINE_WEB_TOOLS_TOGGLED,
 			properties: {
 				ulid,
 				enabled,
