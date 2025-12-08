@@ -1,7 +1,7 @@
 import * as fs from "fs"
 import * as os from "os"
 import * as path from "path"
-import { TerminalProcess } from "../vscode/TerminalProcess"
+import { TerminalProcessResultPromise } from "../types"
 
 /**
  * BackgroundCommandTracker - Standalone Mode Only
@@ -47,7 +47,12 @@ export class BackgroundCommandTracker {
 	 * Creates a log file and pipes output to it.
 	 * Sets up a 10-minute hard timeout to prevent zombie processes.
 	 */
-	trackCommand(process: TerminalProcess, command: string): BackgroundCommand {
+	trackCommand(
+		process: TerminalProcessResultPromise & {
+			terminate?: () => void
+		},
+		command: string,
+	): BackgroundCommand {
 		console.log("[DEBUG BackgroundCommandTracker.trackCommand] Called with command:", command)
 		const id = `background-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 		const logFilePath = path.join(os.tmpdir(), `cline-${id}.log`)
@@ -157,7 +162,7 @@ export class BackgroundCommandTracker {
 	 */
 	dispose(): void {
 		// Clear all timeouts
-		for (const [id, timeout] of this.timeouts) {
+		for (const [_id, timeout] of this.timeouts) {
 			clearTimeout(timeout)
 		}
 		this.timeouts.clear()

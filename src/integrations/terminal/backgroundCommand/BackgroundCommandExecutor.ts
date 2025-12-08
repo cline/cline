@@ -6,10 +6,10 @@ import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } f
 import { COMMAND_CANCEL_TOKEN } from "@shared/ExtensionMessage"
 import { ClineToolResponseContent } from "@shared/messages"
 import { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
-import { TerminalProcessResultPromise } from "@/hosts/vscode/terminal/VscodeTerminalProcess"
 import { ActiveBackgroundCommand, CommandExecutorCallbacks, CommandExecutorConfig, ICommandExecutor } from "../ICommandExecutor"
+import { StandaloneTerminalManager } from "../StandaloneTerminalManager"
+import { TerminalProcessResultPromise } from "../types"
 import { BackgroundCommandTracker } from "./BackgroundCommandTracker"
-
 /**
  * Background/Standalone-specific configuration for command executor
  */
@@ -43,7 +43,7 @@ const COMPLETION_TIMEOUT_MS = 6000 // 6 seconds
  * Used when terminalExecutionMode === "backgroundExec" OR for subagent commands
  */
 export class BackgroundCommandExecutor implements ICommandExecutor {
-	private terminalManager: TerminalManager
+	private terminalManager: StandaloneTerminalManager
 	private backgroundCommandTracker: BackgroundCommandTracker | undefined
 	private cwd: string
 	private ulid: string
@@ -68,14 +68,13 @@ export class BackgroundCommandExecutor implements ICommandExecutor {
 		// This is the key difference from VscodeCommandExecutor - we use detached processes
 		try {
 			const { StandaloneTerminalManager } = require(config.standaloneTerminalModulePath) as {
-				StandaloneTerminalManager: new () => TerminalManager
+				StandaloneTerminalManager: new () => StandaloneTerminalManager
 			}
 			this.terminalManager = new StandaloneTerminalManager()
 			Logger.info("BackgroundCommandExecutor: Using StandaloneTerminalManager")
 		} catch (error) {
-			// Fallback to regular TerminalManager if loading fails
-			Logger.error("BackgroundCommandExecutor: Failed to load StandaloneTerminalManager, using fallback", error)
-			this.terminalManager = config.terminalManager
+			Logger.error("BackgroundCommandExecutor: Failed to load StandaloneTerminalManager", error)
+			throw error
 		}
 
 		// Copy settings from the provided terminalManager to ensure consistency

@@ -4,15 +4,14 @@ import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { Logger } from "@services/logging/Logger"
 import { TerminalHangStage, telemetryService } from "@services/telemetry"
 import { ClineToolResponseContent } from "@shared/messages"
-
+import { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { ActiveBackgroundCommand, CommandExecutorCallbacks, CommandExecutorConfig, ICommandExecutor } from "../ICommandExecutor"
-import { TerminalManager } from "./TerminalManager"
 
 /**
  * VSCode-specific configuration for command executor
  */
 export interface VscodeCommandExecutorConfig extends CommandExecutorConfig {
-	terminalManager: TerminalManager
+	terminalManager: VscodeTerminalManager
 }
 
 // Chunked terminal output buffering constants
@@ -38,7 +37,7 @@ const COMPLETION_TIMEOUT_MS = 6000 // 6 seconds
  * Used when terminalExecutionMode === "vscodeTerminal"
  */
 export class VscodeCommandExecutor implements ICommandExecutor {
-	private terminalManager: TerminalManager
+	private terminalManager: VscodeTerminalManager
 	private cwd: string
 	private ulid: string
 	private callbacks: CommandExecutorCallbacks
@@ -60,7 +59,7 @@ export class VscodeCommandExecutor implements ICommandExecutor {
 	 * @param timeoutSeconds Optional timeout in seconds (not used in VSCode mode - commands run to completion)
 	 * @returns [userRejected, result] tuple
 	 */
-	async execute(command: string, timeoutSeconds: number | undefined): Promise<[boolean, ClineToolResponseContent]> {
+	async execute(command: string): Promise<[boolean, ClineToolResponseContent]> {
 		Logger.info("Executing command in VSCode terminal: " + command)
 
 		const terminalInfo = await this.terminalManager.getOrCreateTerminal(this.cwd)

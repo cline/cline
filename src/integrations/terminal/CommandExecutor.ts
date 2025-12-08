@@ -107,7 +107,7 @@ export class CommandExecutor implements ICommandExecutor {
 
 		// Regular commands use the configured executor
 		if (this.vscodeExecutor) {
-			return this.vscodeExecutor.execute(command, timeoutSeconds)
+			return this.vscodeExecutor.execute(command)
 		}
 		return this.backgroundExecutor.execute(command, timeoutSeconds)
 	}

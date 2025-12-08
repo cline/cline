@@ -45,6 +45,7 @@ import { showSystemNotification } from "@integrations/notifications"
 import { ITerminalManager } from "@integrations/terminal/types"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import { featureFlagsService } from "@services/feature-flags"
 import { listFiles } from "@services/glob/list-files"
 import { Logger } from "@services/logging/Logger"
 import { McpHub } from "@services/mcp/McpHub"
@@ -72,11 +73,11 @@ import * as vscode from "vscode"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
-
+import { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { StandaloneTerminalManager } from "@/integrations/terminal"
-
 import { BackgroundCommandTracker } from "@/integrations/terminal/backgroundCommand/BackgroundCommandTracker"
-import { VscodeCommandExecutor } from "@/integrations/terminal/vscode/VscodeCommandExecutor"
+import { CommandExecutor, FullCommandExecutorConfig } from "@/integrations/terminal/CommandExecutor"
+import { CommandExecutorCallbacks } from "@/integrations/terminal/ICommandExecutor"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
 import { telemetryService } from "@/services/telemetry"
 import {
@@ -241,7 +242,7 @@ export class Task {
 	private backgroundCommandTracker?: BackgroundCommandTracker
 
 	// Command executor for running shell commands (extracted from executeCommandTool)
-	private commandExecutor!: VscodeCommandExecutor
+	private commandExecutor!: CommandExecutor
 
 	constructor(params: TaskParams) {
 		const {
@@ -495,9 +496,9 @@ export class Task {
 		const commandExecutorConfig: FullCommandExecutorConfig = {
 			cwd: this.cwd,
 			terminalExecutionMode: this.terminalExecutionMode,
-			terminalManager: this.terminalManager,
+			terminalManager: this.terminalManager as VscodeTerminalManager,
 			backgroundCommandTracker: this.backgroundCommandTracker,
-			standaloneTerminalModulePath: Task.STANDALONE_TERMINAL_MODULE_PATH,
+			standaloneTerminalModulePath: "@/integrations/terminal/StandaloneTerminalManager",
 			taskId: this.taskId,
 			ulid: this.ulid,
 		}
