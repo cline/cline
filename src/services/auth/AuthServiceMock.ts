@@ -146,4 +146,17 @@ export class AuthServiceMock extends AuthService {
 			return
 		}
 	}
+
+	override async refreshUserInfo(): Promise<void> {
+		if (!this._clineAuthInfo) {
+			console.warn("Cannot refresh user info: not authenticated")
+			return
+		}
+
+		try {
+			await this.sendAuthStatusUpdate()
+		} catch (error) {
+			console.error("Error refreshing user info (mock):", error)
+		}
+	}
 }
