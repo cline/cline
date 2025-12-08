@@ -661,6 +661,11 @@ export async function cleanupMcpMarketplaceCatalogFromGlobalState(context: vscod
 }
 
 /**
+ * Legacy type definition for the old ClineFeatureSetting structure
+ */
+type LegacyHooksEnabled = { user?: boolean; featureFlag?: boolean }
+
+/**
  * Migrates hooksEnabled from ClineFeatureSetting {user: boolean, featureFlag: boolean} to boolean
  */
 export async function migrateHooksEnabledToBoolean(context: vscode.ExtensionContext) {
@@ -671,8 +676,8 @@ export async function migrateHooksEnabledToBoolean(context: vscode.ExtensionCont
 		if (hooksEnabled !== undefined && typeof hooksEnabled === "object" && hooksEnabled !== null) {
 			console.log("Migrating hooksEnabled from ClineFeatureSetting to boolean...")
 
-			// Cast to any to access the 'user' property safely
-			const legacySetting = hooksEnabled as any
+			// Cast to the legacy type to access properties safely
+			const legacySetting = hooksEnabled as LegacyHooksEnabled
 
 			// Extract the boolean value from the 'user' field
 			const booleanValue = legacySetting.user === true
