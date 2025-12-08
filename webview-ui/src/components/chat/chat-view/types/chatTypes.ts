@@ -3,7 +3,7 @@
  */
 
 import { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
-import { VirtuosoHandle } from "react-virtuoso"
+import { ListRange, VirtuosoHandle } from "react-virtuoso"
 import { ButtonActionType } from "../shared/buttonConfig"
 
 /**
@@ -90,6 +90,8 @@ export interface ScrollBehavior {
 	setIsAtBottom: React.Dispatch<React.SetStateAction<boolean>>
 	pendingScrollToMessage: number | null
 	setPendingScrollToMessage: React.Dispatch<React.SetStateAction<number | null>>
+	scrolledPastUserMessage: ClineMessage | null
+	handleRangeChanged: (range: ListRange) => void
 }
 
 /**

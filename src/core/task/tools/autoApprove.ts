@@ -49,6 +49,7 @@ export class AutoApprove {
 				case ClineDefaultTool.NEW_RULE:
 				case ClineDefaultTool.FILE_NEW:
 				case ClineDefaultTool.FILE_EDIT:
+				case ClineDefaultTool.APPLY_PATCH:
 				case ClineDefaultTool.BASH:
 					return [true, true]
 
@@ -72,6 +73,7 @@ export class AutoApprove {
 			case ClineDefaultTool.NEW_RULE:
 			case ClineDefaultTool.FILE_NEW:
 			case ClineDefaultTool.FILE_EDIT:
+			case ClineDefaultTool.APPLY_PATCH:
 				return [autoApprovalSettings.actions.editFiles, autoApprovalSettings.actions.editFilesExternally ?? false]
 			case ClineDefaultTool.BASH:
 				return [

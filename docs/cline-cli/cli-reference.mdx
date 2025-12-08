@@ -254,6 +254,19 @@ COMMANDS
        cline c l
               List all configuration variables and their values.
 
+   Context Window Configuration
+       For local model providers, you can configure the context window size:
+
+       Ollama
+              cline config s ollama-api-options-ctx-num=32768
+
+       LM Studio
+              cline config s lm-studio-max-tokens=32768
+
+       For other providers (Anthropic, OpenRouter, etc.), the context window
+       is defined per model in the model metadata and is not user-settable.
+       Cline uses each model's built-in context limits automatically.
+
 TASK SETTINGS
        Task settings are persisted in the ~/.cline/x/tasks directory.  When
        resuming a task with cline task open, task settings are automatically

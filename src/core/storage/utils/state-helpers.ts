@@ -274,6 +274,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		>("lastDismissedModelBannerVersion")
 		const lastDismissedCliBannerVersion =
 			context.globalState.get<GlobalStateAndSettings["lastDismissedCliBannerVersion"]>("lastDismissedCliBannerVersion")
+		const dismissedBanners = context.globalState.get<GlobalStateAndSettings["dismissedBanners"]>("dismissedBanners")
 		const qwenCodeOauthPath = context.globalState.get<GlobalStateAndSettings["qwenCodeOauthPath"]>("qwenCodeOauthPath")
 		const customPrompt = context.globalState.get<GlobalStateAndSettings["customPrompt"]>("customPrompt")
 		const autoCondenseThreshold =
@@ -325,6 +326,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const planModeApiModelId = context.globalState.get<GlobalStateAndSettings["planModeApiModelId"]>("planModeApiModelId")
 		const planModeThinkingBudgetTokens =
 			context.globalState.get<GlobalStateAndSettings["planModeThinkingBudgetTokens"]>("planModeThinkingBudgetTokens")
+		const geminiPlanModeThinkingLevel =
+			context.globalState.get<GlobalStateAndSettings["geminiPlanModeThinkingLevel"]>("geminiPlanModeThinkingLevel")
 		const planModeReasoningEffort =
 			context.globalState.get<GlobalStateAndSettings["planModeReasoningEffort"]>("planModeReasoningEffort")
 		const planModeVsCodeLmModelSelector =
@@ -396,6 +399,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const actModeApiModelId = context.globalState.get<GlobalStateAndSettings["actModeApiModelId"]>("actModeApiModelId")
 		const actModeThinkingBudgetTokens =
 			context.globalState.get<GlobalStateAndSettings["actModeThinkingBudgetTokens"]>("actModeThinkingBudgetTokens")
+		const geminiActModeThinkingLevel =
+			context.globalState.get<GlobalStateAndSettings["geminiActModeThinkingLevel"]>("geminiActModeThinkingLevel")
 		const actModeReasoningEffort =
 			context.globalState.get<GlobalStateAndSettings["actModeReasoningEffort"]>("actModeReasoningEffort")
 		const actModeVsCodeLmModelSelector =
@@ -484,6 +489,16 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planActSeparateModelsSetting = false
 		}
 
+		// Read task history from disk
+		// Note: If this throws (e.g., filesystem I/O error), StateManager initialization will fail
+		// and the extension will not start. This is intentional to prevent data loss - better to
+		// fail visibly than silently wipe history. The readTaskHistoryFromState function handles:
+		// - File doesn't exist → returns []
+		// - Parse errors → attempts reconstruction, returns [] only if reconstruction fails
+		// - I/O errors → throws (caught here, causing initialization to fail)
+
+		// So, any errors thrown here are true IO errors, which should be exceptionally rare.
+		// The state manager tries once more to start on any failure. So if there is truly an I/O error happening twice that is not due to the file not existing or being corrupted, then something is truly wrong and it is correct to not start the application.
 		const taskHistory = await readTaskHistoryFromState()
 
 		// Multi-root workspace support
@@ -587,6 +602,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeAihubmixModelId,
 			planModeAihubmixModelInfo,
 			planModeNousResearchModelId,
+			geminiPlanModeThinkingLevel,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -624,6 +640,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeAihubmixModelId,
 			actModeAihubmixModelInfo,
 			actModeNousResearchModelId,
+			geminiActModeThinkingLevel,
 
 			// Other global fields
 			focusChainSettings: focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,
@@ -666,7 +683,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			lastDismissedInfoBannerVersion: lastDismissedInfoBannerVersion ?? 0,
 			lastDismissedModelBannerVersion: lastDismissedModelBannerVersion ?? 0,
 			lastDismissedCliBannerVersion: lastDismissedCliBannerVersion ?? 0,
-			nativeToolCallEnabled: nativeToolCallEnabled ?? false,
+			dismissedBanners: dismissedBanners || [],
+			nativeToolCallEnabled: nativeToolCallEnabled ?? true,
 			// Multi-root workspace support
 			workspaceRoots,
 			primaryRootIndex: primaryRootIndex ?? 0,

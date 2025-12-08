@@ -36,6 +36,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	onboardingModels: OnboardingModelGroup | undefined
 	openRouterModels: Record<string, ModelInfo>
 	hicapModels: Record<string, ModelInfo>
+	liteLlmModels: Record<string, ModelInfo>
 	openAiModels: string[]
 	requestyModels: Record<string, ModelInfo>
 	groqModels: Record<string, ModelInfo>
@@ -53,6 +54,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	hooksEnabled?: ClineFeatureSetting
 	mcpTab?: McpViewTab
 	showSettings: boolean
+	settingsTargetSection?: string
 	showHistory: boolean
 	showAccount: boolean
 	showAnnouncement: boolean
@@ -87,6 +89,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	// Refresh functions
 	refreshOpenRouterModels: () => void
 	refreshHicapModels: () => void
+	refreshLiteLlmModels: () => void
 	setUserInfo: (userInfo?: UserInfo) => void
 
 	// Navigation state setters
@@ -95,7 +98,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 	// Navigation functions
 	navigateToMcp: (tab?: McpViewTab) => void
-	navigateToSettings: () => void
+	navigateToSettings: (targetSection?: string) => void
 	navigateToHistory: () => void
 	navigateToAccount: () => void
 	navigateToChat: () => void
@@ -121,6 +124,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [showMcp, setShowMcp] = useState(false)
 	const [mcpTab, setMcpTab] = useState<McpViewTab | undefined>(undefined)
 	const [showSettings, setShowSettings] = useState(false)
+	const [settingsTargetSection, setSettingsTargetSection] = useState<string | undefined>(undefined)
 	const [showHistory, setShowHistory] = useState(false)
 	const [showAccount, setShowAccount] = useState(false)
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
@@ -133,7 +137,10 @@ export const ExtensionStateContextProvider: React.FC<{
 	}, [setShowMcp, setMcpTab])
 
 	// Hide functions
-	const hideSettings = useCallback(() => setShowSettings(false), [setShowSettings])
+	const hideSettings = useCallback(() => {
+		setShowSettings(false)
+		setSettingsTargetSection(undefined)
+	}, [])
 	const hideHistory = useCallback(() => setShowHistory(false), [setShowHistory])
 	const hideAccount = useCallback(() => setShowAccount(false), [setShowAccount])
 	const hideAnnouncement = useCallback(() => setShowAnnouncement(false), [setShowAnnouncement])
@@ -153,12 +160,16 @@ export const ExtensionStateContextProvider: React.FC<{
 		[setShowMcp, setMcpTab, setShowSettings, setShowHistory, setShowAccount],
 	)
 
-	const navigateToSettings = useCallback(() => {
-		setShowHistory(false)
-		closeMcpView()
-		setShowAccount(false)
-		setShowSettings(true)
-	}, [setShowSettings, setShowHistory, closeMcpView, setShowAccount])
+	const navigateToSettings = useCallback(
+		(targetSection?: string) => {
+			setShowHistory(false)
+			closeMcpView()
+			setShowAccount(false)
+			setSettingsTargetSection(targetSection)
+			setShowSettings(true)
+		},
+		[closeMcpView],
+	)
 
 	const navigateToHistory = useCallback(() => {
 		setShowSettings(false)
@@ -222,6 +233,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		yoloModeToggled: false,
 		customPrompt: undefined,
 		useAutoCondense: false,
+		clineWebToolsEnabled: { user: true, featureFlag: false },
 		autoCondenseThreshold: undefined,
 		favoritedModelIds: [],
 		lastDismissedInfoBannerVersion: 0,
@@ -238,7 +250,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		isMultiRootWorkspace: false,
 		multiRootSetting: { user: false, featureFlag: false },
 		hooksEnabled: { user: false, featureFlag: false },
-		nativeToolCallSetting: { user: false, featureFlag: false },
+		nativeToolCallSetting: false,
 	})
 	const [expandTaskHeader, setExpandTaskHeader] = useState(true)
 	const [didHydrateState, setDidHydrateState] = useState(false)
@@ -250,6 +262,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
 	const [hicapModels, setHicapModels] = useState<Record<string, ModelInfo>>({})
+	const [liteLlmModels, setLiteLlmModels] = useState<Record<string, ModelInfo>>({})
 	const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
 	const [availableTerminalProfiles, setAvailableTerminalProfiles] = useState<TerminalProfile[]>([])
 
@@ -280,6 +293,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const partialMessageUnsubscribeRef = useRef<(() => void) | null>(null)
 	const mcpMarketplaceUnsubscribeRef = useRef<(() => void) | null>(null)
 	const openRouterModelsUnsubscribeRef = useRef<(() => void) | null>(null)
+	const liteLlmModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 	const workspaceUpdatesUnsubscribeRef = useRef<(() => void) | null>(null)
 	const relinquishControlUnsubscribeRef = useRef<(() => void) | null>(null)
 
@@ -508,6 +522,20 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
+		// Subscribe to LiteLLM models updates
+		liteLlmModelsUnsubscribeRef.current = ModelsServiceClient.subscribeToLiteLlmModels(EmptyRequest.create({}), {
+			onResponse: (response: OpenRouterCompatibleModelInfo) => {
+				const models = fromProtobufModels(response.models)
+				setLiteLlmModels(models)
+			},
+			onError: (error) => {
+				console.error("Error in LiteLLM models subscription:", error)
+			},
+			onComplete: () => {
+				console.log("LiteLLM models subscription completed")
+			},
+		})
+
 		// Initialize webview using gRPC
 		UiServiceClient.initializeWebview(EmptyRequest.create({}))
 			.then(() => {
@@ -608,6 +636,10 @@ export const ExtensionStateContextProvider: React.FC<{
 				openRouterModelsUnsubscribeRef.current()
 				openRouterModelsUnsubscribeRef.current = null
 			}
+			if (liteLlmModelsUnsubscribeRef.current) {
+				liteLlmModelsUnsubscribeRef.current()
+				liteLlmModelsUnsubscribeRef.current = null
+			}
 			if (workspaceUpdatesUnsubscribeRef.current) {
 				workspaceUpdatesUnsubscribeRef.current()
 				workspaceUpdatesUnsubscribeRef.current = null
@@ -654,6 +686,15 @@ export const ExtensionStateContextProvider: React.FC<{
 			.catch((error: Error) => console.error("Failed to refresh Hicap models:", error))
 	}, [])
 
+	const refreshLiteLlmModels = useCallback(() => {
+		ModelsServiceClient.refreshLiteLlmModelsRpc(EmptyRequest.create({}))
+			.then((response: OpenRouterCompatibleModelInfo) => {
+				const models = fromProtobufModels(response.models)
+				setLiteLlmModels(models)
+			})
+			.catch((error: Error) => console.error("Failed to refresh LiteLLM models:", error))
+	}, [])
+
 	const contextValue: ExtensionStateContextType = {
 		...state,
 		didHydrateState,
@@ -661,6 +702,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		onboardingModels,
 		openRouterModels,
 		hicapModels,
+		liteLlmModels,
 		openAiModels,
 		requestyModels,
 		groqModels: groqModelsState,
@@ -673,6 +715,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		showMcp,
 		mcpTab,
 		showSettings,
+		settingsTargetSection,
 		showHistory,
 		showAccount,
 		showAnnouncement,
@@ -768,6 +811,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setTotalTasksSize,
 		refreshOpenRouterModels,
 		refreshHicapModels,
+		refreshLiteLlmModels,
 		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
 		expandTaskHeader,

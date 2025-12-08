@@ -1,7 +1,7 @@
-import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { McpServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { McpServiceClient } from "@/services/grpc-client"
 import ServersToggleList from "./ServersToggleList"
 
 const ConfigureServersView = () => {
@@ -48,21 +48,7 @@ const ConfigureServersView = () => {
 				</VSCodeButton>
 
 				<div style={{ textAlign: "center" }}>
-					<VSCodeLink
-						onClick={() => {
-							// First open the settings panel using direct navigation
-							navigateToSettings()
-
-							// After a short delay, send a message to scroll to browser settings
-							setTimeout(async () => {
-								try {
-									await UiServiceClient.scrollToSettings(StringRequest.create({ value: "features" }))
-								} catch (error) {
-									console.error("Error scrolling to mcp settings:", error)
-								}
-							}, 300)
-						}}
-						style={{ fontSize: "12px" }}>
+					<VSCodeLink onClick={() => navigateToSettings("features")} style={{ fontSize: "12px" }}>
 						Advanced MCP Settings
 					</VSCodeLink>
 				</div>

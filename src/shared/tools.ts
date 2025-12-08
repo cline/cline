@@ -30,6 +30,7 @@ export enum ClineDefaultTool {
 	REPORT_BUG = "report_bug",
 	NEW_RULE = "new_rule",
 	APPLY_PATCH = "apply_patch",
+	GENERATE_EXPLANATION = "generate_explanation",
 }
 
 // Array of all tool names for compatibility
