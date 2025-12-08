@@ -1,9 +1,11 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
-import React from "react"
+import React, { useMemo } from "react"
 import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
 import ChatRow from "@/components/chat/ChatRow"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { MessageHandlers } from "../../types/chatTypes"
+import { findReasoningForApiReq, isTextMessagePendingToolCall } from "../../utils/messageUtils"
 
 interface MessageRendererProps {
 	index: number
@@ -34,6 +36,24 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	inputValue,
 	messageHandlers,
 }) => {
+	const { mode, clineMessages } = useExtensionState()
+
+	// Get reasoning content and response status for api_req_started messages
+	const reasoningData = useMemo(() => {
+		if (!Array.isArray(messageOrGroup) && messageOrGroup.say === "api_req_started") {
+			return findReasoningForApiReq(messageOrGroup.ts, clineMessages)
+		}
+		return { reasoning: undefined, responseStarted: false }
+	}, [messageOrGroup, clineMessages])
+
+	// Check if a text message is waiting for tool call completion
+	const isRequestInProgress = useMemo(() => {
+		if (!Array.isArray(messageOrGroup) && messageOrGroup.say === "text") {
+			return isTextMessagePendingToolCall(messageOrGroup.ts, clineMessages)
+		}
+		return false
+	}, [messageOrGroup, clineMessages])
+
 	// Browser session group
 	if (Array.isArray(messageOrGroup)) {
 		return (
@@ -67,13 +87,17 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 				inputValue={inputValue}
 				isExpanded={expandedRows[messageOrGroup.ts] || false}
 				isLast={isLast}
+				isRequestInProgress={isRequestInProgress}
 				key={messageOrGroup.ts}
 				lastModifiedMessage={modifiedMessages.at(-1)}
 				message={messageOrGroup}
+				mode={mode}
 				onCancelCommand={() => messageHandlers.executeButtonAction("cancel")}
 				onHeightChange={onHeightChange}
 				onSetQuote={onSetQuote}
 				onToggleExpand={onToggleExpand}
+				reasoningContent={reasoningData.reasoning}
+				responseStarted={reasoningData.responseStarted}
 				sendMessageFromChatRow={messageHandlers.handleSendMessage}
 			/>
 		</div>

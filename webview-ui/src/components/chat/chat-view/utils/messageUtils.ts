@@ -17,7 +17,7 @@ export function processMessages(messages: ClineMessage[]): ClineMessage[] {
  * Filter messages that should be visible in the chat
  */
 export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] {
-	return messages.filter((message) => {
+	return messages.filter((message, index) => {
 		switch (message.ask) {
 			case "completion_result":
 				// don't show a chat row for a completion_result ask without text. This specific type of message only occurs if cline wants to execute a command as part of its completion result, in which case we interject the completion_result tool with the execute_command tool.
@@ -35,7 +35,24 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 			case "api_req_retried": // this message is used to update the latest api_req_started that the request was retried
 			case "deleted_api_reqs": // aggregated api_req metrics from deleted messages
 			case "task_progress": // task progress messages are displayed in TaskHeader, not in main chat
+			case "reasoning": // reasoning is displayed inline in the api_req_started row
 				return false
+			case "api_req_started":
+				// Hide completed API requests - their cost will show on checkpoint line
+				if (message.text) {
+					try {
+						const info = JSON.parse(message.text)
+						if (info.cost != null) return false // completed, hide it
+					} catch {
+						// keep visible if can't parse
+					}
+				}
+				// Also hide in-progress requests if response content has started
+				// (thinking block will have collapsed, nothing left to show)
+				if (hasResponseStarted(index, messages)) {
+					return false
+				}
+				break
 			case "text":
 				// Sometimes cline returns an empty text message, we don't want to render these. (We also use a say text for user messages, so in case they just sent images we still render that)
 				if ((message.text ?? "") === "" && (message.images?.length ?? 0) === 0) {
@@ -47,6 +64,23 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 		}
 		return true
 	})
+}
+
+/**
+ * Check if response content has started after an api_req_started message.
+ * Returns true if there are text/tool/command messages before the next api_req_started.
+ */
+function hasResponseStarted(apiReqIndex: number, messages: ClineMessage[]): boolean {
+	for (let i = apiReqIndex + 1; i < messages.length; i++) {
+		const msg = messages[i]
+		// Stop at next api_req_started
+		if (msg.say === "api_req_started") break
+		// Response content found
+		if (msg.say === "text" || msg.say === "tool" || msg.ask === "tool" || msg.ask === "command" || msg.say === "command") {
+			return true
+		}
+	}
+	return false
 }
 
 /**
@@ -150,4 +184,94 @@ export function getTaskMessage(messages: ClineMessage[]): ClineMessage | undefin
  */
 export function shouldShowScrollButton(disableAutoScroll: boolean, isAtBottom: boolean): boolean {
 	return disableAutoScroll && !isAtBottom
+}
+
+/**
+ * Find reasoning content associated with an api_req_started message.
+ * Also returns whether response content (non-reasoning) has started.
+ */
+export function findReasoningForApiReq(
+	apiReqTs: number,
+	allMessages: ClineMessage[],
+): { reasoning: string | undefined; responseStarted: boolean } {
+	const apiReqIndex = allMessages.findIndex((m) => m.ts === apiReqTs && m.say === "api_req_started")
+	if (apiReqIndex === -1) return { reasoning: undefined, responseStarted: false }
+
+	// Collect reasoning and check if response content has started
+	const reasoningParts: string[] = []
+	let responseStarted = false
+
+	for (let i = apiReqIndex + 1; i < allMessages.length; i++) {
+		const msg = allMessages[i]
+		// Stop at next api_req_started
+		if (msg.say === "api_req_started") break
+		// Collect reasoning content
+		if (msg.say === "reasoning" && msg.text) {
+			reasoningParts.push(msg.text)
+		}
+		// Check if non-reasoning response content has started (text, tool calls, etc.)
+		if (msg.say === "text" || msg.say === "tool" || msg.ask === "tool" || msg.ask === "command" || msg.say === "command") {
+			responseStarted = true
+		}
+	}
+
+	return {
+		reasoning: reasoningParts.length > 0 ? reasoningParts.join(" ") : undefined,
+		responseStarted,
+	}
+}
+
+/**
+ * Find the API request info for a checkpoint message.
+ * Looks backwards from the checkpoint to find the preceding api_req_started.
+ * Returns cost and request content.
+ */
+export function findApiReqInfoForCheckpoint(
+	checkpointTs: number,
+	allMessages: ClineMessage[],
+): { cost: number | undefined; request: string | undefined } {
+	const checkpointIndex = allMessages.findIndex((m) => m.ts === checkpointTs && m.say === "checkpoint_created")
+	if (checkpointIndex === -1) return { cost: undefined, request: undefined }
+
+	// Look backwards for the most recent api_req_started
+	for (let i = checkpointIndex - 1; i >= 0; i--) {
+		const msg = allMessages[i]
+		if (msg.say === "api_req_started" && msg.text) {
+			try {
+				const info = JSON.parse(msg.text)
+				return {
+					cost: info.cost,
+					request: info.request,
+				}
+			} catch {
+				return { cost: undefined, request: undefined }
+			}
+		}
+	}
+	return { cost: undefined, request: undefined }
+}
+
+/**
+ * Check if a text message's associated API request is still in progress.
+ * Returns true if there's no cost yet on the parent api_req_started.
+ */
+export function isTextMessagePendingToolCall(textTs: number, allMessages: ClineMessage[]): boolean {
+	// Find the api_req_started that precedes this text message
+	const textIndex = allMessages.findIndex((m) => m.ts === textTs)
+	if (textIndex === -1) return false
+
+	// Look backwards for the most recent api_req_started
+	for (let i = textIndex - 1; i >= 0; i--) {
+		const msg = allMessages[i]
+		if (msg.say === "api_req_started" && msg.text) {
+			try {
+				const info = JSON.parse(msg.text)
+				// If no cost, the request is still in progress
+				return info.cost == null
+			} catch {
+				return false
+			}
+		}
+	}
+	return false
 }
