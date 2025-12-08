@@ -56,6 +56,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		aihubmixApiKey,
 		mcpOAuthSecrets,
 		nousResearchApiKey,
+		poolsideApiKey,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
 		context.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
@@ -100,6 +101,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("aihubmixApiKey") as Promise<Secrets["aihubmixApiKey"]>,
 		context.secrets.get("mcpOAuthSecrets") as Promise<Secrets["mcpOAuthSecrets"]>,
 		context.secrets.get("nousResearchApiKey") as Promise<Secrets["nousResearchApiKey"]>,
+		context.secrets.get("poolsideApiKey") as Promise<Secrets["poolsideApiKey"]>,
 	])
 
 	return {
@@ -146,6 +148,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		aihubmixApiKey,
 		mcpOAuthSecrets,
 		nousResearchApiKey,
+		poolsideApiKey,
 	}
 }
 
@@ -283,6 +286,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const hicapModelId = context.globalState.get<GlobalStateAndSettings["hicapModelId"]>("hicapModelId")
 		const aihubmixBaseUrl = context.globalState.get<GlobalStateAndSettings["aihubmixBaseUrl"]>("aihubmixBaseUrl")
 		const aihubmixAppCode = context.globalState.get<GlobalStateAndSettings["aihubmixAppCode"]>("aihubmixAppCode")
+		const poolsideBaseUrl = context.globalState.get<GlobalStateAndSettings["poolsideBaseUrl"]>("poolsideBaseUrl")
 
 		// OpenTelemetry configuration
 		const openTelemetryEnabled =
@@ -394,7 +398,10 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["planModeAihubmixModelInfo"]>("planModeAihubmixModelInfo")
 		const planModeNousResearchModelId =
 			context.globalState.get<GlobalStateAndSettings["planModeNousResearchModelId"]>("planModeNousResearchModelId")
-		// Act mode configurations
+		const planModePoolsideModelId =
+			context.globalState.get<GlobalStateAndSettings["planModePoolsideModelId"]>("planModePoolsideModelId")
+		const planModePoolsideModelInfo =
+			context.globalState.get<GlobalStateAndSettings["planModePoolsideModelInfo"]>("planModePoolsideModelInfo")
 		const actModeApiProvider = context.globalState.get<GlobalStateAndSettings["actModeApiProvider"]>("actModeApiProvider")
 		const actModeApiModelId = context.globalState.get<GlobalStateAndSettings["actModeApiModelId"]>("actModeApiModelId")
 		const actModeThinkingBudgetTokens =
@@ -468,6 +475,10 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["actModeAihubmixModelId"]>("actModeAihubmixModelId")
 		const actModeAihubmixModelInfo =
 			context.globalState.get<GlobalStateAndSettings["actModeAihubmixModelInfo"]>("actModeAihubmixModelInfo")
+		const actModePoolsideModelId =
+			context.globalState.get<GlobalStateAndSettings["actModePoolsideModelId"]>("actModePoolsideModelId")
+		const actModePoolsideModelInfo =
+			context.globalState.get<GlobalStateAndSettings["actModePoolsideModelInfo"]>("actModePoolsideModelInfo")
 
 		let apiProvider: ApiProvider
 		if (planModeApiProvider) {
@@ -563,6 +574,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			hicapModelId,
 			aihubmixBaseUrl,
 			aihubmixAppCode,
+			poolsideBaseUrl,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -603,6 +615,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeAihubmixModelInfo,
 			planModeNousResearchModelId,
 			geminiPlanModeThinkingLevel,
+			planModePoolsideModelId,
+			planModePoolsideModelInfo,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -641,6 +655,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeAihubmixModelInfo,
 			actModeNousResearchModelId,
 			geminiActModeThinkingLevel,
+			actModePoolsideModelId,
+			actModePoolsideModelInfo,
 
 			// Other global fields
 			focusChainSettings: focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,
@@ -768,6 +784,7 @@ export async function resetGlobalState(controller: Controller) {
 		"aihubmixApiKey",
 		"mcpOAuthSecrets",
 		"nousResearchApiKey",
+		"poolsideApiKey",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
 	await controller.stateManager.reInitialize()
