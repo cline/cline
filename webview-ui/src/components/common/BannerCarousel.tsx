@@ -105,15 +105,16 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 					backgroundColor: "color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 65%, transparent)",
 					borderRadius: "4px",
 				}}>
-				{/* Dismiss button */}
-				{currentBanner.onDismiss && (
+				{/* Dismiss button - only show on last card, dismisses ALL banners */}
+				{safeCurrentIndex === banners.length - 1 && currentBanner.onDismiss && (
 					<Button
-						aria-label="Dismiss banner"
+						aria-label="Dismiss all banners"
 						className="absolute top-2 right-2 z-10"
 						data-testid="banner-dismiss-button"
 						onClick={(e) => {
 							e.stopPropagation()
-							currentBanner.onDismiss?.()
+							// Dismiss ALL banners, not just the current one
+							banners.forEach((banner) => banner.onDismiss?.())
 						}}
 						size="icon"
 						variant="icon">
@@ -133,7 +134,10 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 					{/* Title with optional icon */}
 					<h3
 						className="font-semibold mb-3 flex items-center gap-2"
-						style={{ fontSize: "16px", paddingRight: currentBanner.onDismiss ? "24px" : "0" }}>
+						style={{
+							fontSize: "16px",
+							paddingRight: safeCurrentIndex === banners.length - 1 && currentBanner.onDismiss ? "24px" : "0",
+						}}>
 						{currentBanner.icon}
 						{currentBanner.title}
 					</h3>
