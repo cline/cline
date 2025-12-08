@@ -270,6 +270,10 @@ export interface ModelInfo {
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	temperature?: number
 	isR1FormatRequired?: boolean
+	systemRole?: "developer" | "system"
+	supportsReasoningEffort?: boolean
+	supportsTools?: boolean
+	supportsStreaming?: boolean
 }
 
 export interface OcaModelInfo extends OpenAiCompatibleModelInfo {
@@ -632,6 +636,18 @@ export const bedrockModels = {
 		outputPrice: 0.24,
 		// cacheWritesPrice: 0.24, // not written
 		cacheReadsPrice: 0.015,
+	},
+	"amazon.nova-2-lite-v1:0": {
+		maxTokens: 5000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+
+		supportsPromptCache: true,
+		inputPrice: 0.3,
+		outputPrice: 2.5,
+		// cacheWritesPrice: 2.5, // not written
+		cacheReadsPrice: 0.075,
+		supportsGlobalEndpoint: true,
 	},
 	"amazon.nova-micro-v1:0": {
 		maxTokens: 5000,
@@ -1467,6 +1483,8 @@ export const openAiNativeModels = {
 		outputPrice: 10.0,
 		cacheReadsPrice: 0.125,
 		temperature: 1,
+		systemRole: "developer",
+		supportsReasoningEffort: true,
 	},
 	"gpt-5.1": {
 		maxTokens: 8_192, // 128000 breaks context window truncation
@@ -1477,6 +1495,8 @@ export const openAiNativeModels = {
 		outputPrice: 10.0,
 		cacheReadsPrice: 0.125,
 		temperature: 1,
+		systemRole: "developer",
+		supportsReasoningEffort: true,
 	},
 	"gpt-5.1-codex": {
 		maxTokens: 8_192, // 128000 breaks context window truncation
@@ -1488,6 +1508,8 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.125,
 		apiFormat: ApiFormat.OPENAI_RESPONSES,
 		temperature: 1,
+		systemRole: "developer",
+		supportsReasoningEffort: true,
 	},
 	"gpt-5.1-chat-latest": {
 		maxTokens: 8_192,
@@ -1498,6 +1520,8 @@ export const openAiNativeModels = {
 		outputPrice: 10,
 		cacheReadsPrice: 0.125,
 		temperature: 1,
+		systemRole: "developer",
+		supportsReasoningEffort: true,
 	},
 	"gpt-5-2025-08-07": {
 		maxTokens: 8_192, // 128000 breaks context window truncation
@@ -1508,6 +1532,8 @@ export const openAiNativeModels = {
 		outputPrice: 10.0,
 		cacheReadsPrice: 0.125,
 		temperature: 1,
+		systemRole: "developer",
+		supportsReasoningEffort: true,
 	},
 	"gpt-5-codex": {
 		maxTokens: 8_192, // 128000 breaks context window truncation
@@ -1519,6 +1545,8 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.125,
 		apiFormat: ApiFormat.OPENAI_RESPONSES,
 		temperature: 1,
+		systemRole: "developer",
+		supportsReasoningEffort: true,
 	},
 	"gpt-5-mini-2025-08-07": {
 		maxTokens: 8_192,
@@ -1529,6 +1557,8 @@ export const openAiNativeModels = {
 		outputPrice: 2.0,
 		cacheReadsPrice: 0.025,
 		temperature: 1,
+		systemRole: "developer",
+		supportsReasoningEffort: true,
 	},
 	"gpt-5-nano-2025-08-07": {
 		maxTokens: 8_192,
@@ -1539,6 +1569,8 @@ export const openAiNativeModels = {
 		outputPrice: 0.4,
 		cacheReadsPrice: 0.005,
 		temperature: 1,
+		systemRole: "developer",
+		supportsReasoningEffort: true,
 	},
 	"gpt-5-chat-latest": {
 		maxTokens: 8_192,
@@ -1549,6 +1581,8 @@ export const openAiNativeModels = {
 		outputPrice: 10,
 		cacheReadsPrice: 0.125,
 		temperature: 1,
+		systemRole: "developer",
+		supportsReasoningEffort: true,
 	},
 	o3: {
 		maxTokens: 100_000,
@@ -1558,6 +1592,9 @@ export const openAiNativeModels = {
 		inputPrice: 2.0,
 		outputPrice: 8.0,
 		cacheReadsPrice: 0.5,
+		systemRole: "developer",
+		supportsReasoningEffort: true,
+		supportsTools: false,
 	},
 	"o4-mini": {
 		maxTokens: 100_000,
@@ -1567,6 +1604,9 @@ export const openAiNativeModels = {
 		inputPrice: 1.1,
 		outputPrice: 4.4,
 		cacheReadsPrice: 0.275,
+		systemRole: "developer",
+		supportsReasoningEffort: true,
+		supportsTools: false,
 	},
 	"gpt-4.1": {
 		maxTokens: 32_768,
@@ -1606,6 +1646,9 @@ export const openAiNativeModels = {
 		inputPrice: 1.1,
 		outputPrice: 4.4,
 		cacheReadsPrice: 0.55,
+		systemRole: "developer",
+		supportsReasoningEffort: true,
+		supportsTools: false,
 	},
 	// don't support tool use yet
 	o1: {
@@ -1616,6 +1659,7 @@ export const openAiNativeModels = {
 		inputPrice: 15,
 		outputPrice: 60,
 		cacheReadsPrice: 7.5,
+		supportsStreaming: false,
 	},
 	"o1-preview": {
 		maxTokens: 32_768,
@@ -1625,6 +1669,7 @@ export const openAiNativeModels = {
 		inputPrice: 15,
 		outputPrice: 60,
 		cacheReadsPrice: 7.5,
+		supportsStreaming: false,
 	},
 	"o1-mini": {
 		maxTokens: 65_536,
@@ -1634,6 +1679,7 @@ export const openAiNativeModels = {
 		inputPrice: 1.1,
 		outputPrice: 4.4,
 		cacheReadsPrice: 0.55,
+		supportsStreaming: false,
 	},
 	"gpt-4o": {
 		maxTokens: 4_096,
