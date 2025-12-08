@@ -435,7 +435,8 @@ function createHandlerForProvider(
 				ioIntelligenceApiKey: options.ioIntelligenceApiKey,
 				ioIntelligenceBaseUrl: options.ioIntelligenceBaseUrl,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
-				openAiModelInfo: mode === "plan" ? options.planModeOpenAiModelInfo : options.actModeOpenAiModelInfo,
+				openAiModelInfo:
+					mode === "plan" ? options.planModeIoIntelligenceModelInfo : options.actModeIoIntelligenceModelInfo,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
 			})
 		default:
