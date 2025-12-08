@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { PlatformType } from "@/config/platform.config"
 import { usePlatform } from "@/context/PlatformContext"
 import { StateServiceClient } from "@/services/grpc-client"
-export const CURRENT_INFO_BANNER_VERSION = 1
+export const CURRENT_INFO_BANNER_VERSION = 6
 export const InfoBanner: React.FC = () => {
 	const handleClose = useCallback((e: React.MouseEvent) => {
 		e.preventDefault()

@@ -9,7 +9,7 @@ import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client
 import { getAsVar, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 
-export const CURRENT_MODEL_BANNER_VERSION = 3
+export const CURRENT_MODEL_BANNER_VERSION = 7
 
 export const NewModelBanner: React.FC = () => {
 	const { clineUser } = useClineAuth()

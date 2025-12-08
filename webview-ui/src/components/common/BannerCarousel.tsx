@@ -1,5 +1,5 @@
-import { ChevronLeft, ChevronRight } from "lucide-react"
-import React, { useState } from "react"
+import { ChevronLeft, ChevronRight, XIcon } from "lucide-react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 
 interface BannerAction {
@@ -15,6 +15,7 @@ export interface BannerData {
 	title: string
 	description: string | React.ReactNode
 	actions?: BannerAction[]
+	onDismiss?: () => void
 }
 
 interface BannerCarouselProps {
@@ -25,49 +26,47 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 	const [currentIndex, setCurrentIndex] = useState(0)
 	const [isPaused, setIsPaused] = useState(false)
 	const [isTransitioning, setIsTransitioning] = useState(false)
-	const autoPlayIntervalRef = React.useRef<NodeJS.Timeout | null>(null)
+	const autoPlayIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
-	if (banners.length === 0) {
-		return null
-	}
+	// Compute a safe index that's always within bounds
+	const safeCurrentIndex = banners.length === 0 ? 0 : Math.min(currentIndex, banners.length - 1)
 
-	const transitionToIndex = (newIndex: number) => {
+	const transitionToIndex = useCallback((newIndex: number) => {
 		setIsTransitioning(true)
 		setTimeout(() => {
 			setCurrentIndex(newIndex)
 			setIsTransitioning(false)
 		}, 200) // Match half of transition duration
-	}
+	}, [])
 
-	const handlePrevious = () => {
+	const handlePrevious = useCallback(() => {
 		const newIndex = currentIndex === 0 ? banners.length - 1 : currentIndex - 1
 		transitionToIndex(newIndex)
 		setIsPaused(true) // Pause auto-rotation when user manually navigates
-	}
+	}, [currentIndex, banners.length, transitionToIndex])
 
-	const handleNext = () => {
+	const handleNext = useCallback(() => {
 		const newIndex = currentIndex === banners.length - 1 ? 0 : currentIndex + 1
 		transitionToIndex(newIndex)
 		setIsPaused(true) // Pause auto-rotation when user manually navigates
-	}
+	}, [currentIndex, banners.length, transitionToIndex])
 
 	// Reset currentIndex when banners change to prevent out-of-bounds access
-	React.useEffect(() => {
+	useEffect(() => {
 		if (currentIndex >= banners.length && banners.length > 0) {
-			setCurrentIndex(0)
+			setCurrentIndex(banners.length - 1)
 		}
 	}, [banners.length, currentIndex])
 
 	// Auto-rotation effect
-	React.useEffect(() => {
+	useEffect(() => {
 		// Only auto-rotate if there's more than one banner and not paused
 		if (banners.length <= 1 || isPaused) {
 			return
 		}
 
 		autoPlayIntervalRef.current = setInterval(() => {
-			const newIndex = (currentIndex + 1) % banners.length
-			transitionToIndex(newIndex)
+			setCurrentIndex((prevIndex) => (prevIndex + 1) % banners.length)
 		}, 5000) // Rotate every 5 seconds
 
 		return () => {
@@ -75,11 +74,17 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 				clearInterval(autoPlayIntervalRef.current)
 			}
 		}
-	}, [banners.length, isPaused, currentIndex])
+	}, [banners.length, isPaused])
 
-	const currentBanner = banners[currentIndex]
+	// Early return AFTER all hooks have been called
+	if (banners.length === 0) {
+		return null
+	}
 
-	// Safety check: if currentBanner is undefined (shouldn't happen with above effect, but just in case)
+	// Use the safe index to get the current banner
+	const currentBanner = banners[safeCurrentIndex]
+
+	// Safety check: if currentBanner is undefined (shouldn't happen with above logic, but just in case)
 	if (!currentBanner) {
 		return null
 	}
@@ -100,6 +105,22 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 					backgroundColor: "color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 65%, transparent)",
 					borderRadius: "4px",
 				}}>
+				{/* Dismiss button */}
+				{currentBanner.onDismiss && (
+					<Button
+						aria-label="Dismiss banner"
+						className="absolute top-2 right-2 z-10"
+						data-testid="banner-dismiss-button"
+						onClick={(e) => {
+							e.stopPropagation()
+							currentBanner.onDismiss?.()
+						}}
+						size="icon"
+						variant="icon">
+						<XIcon className="w-4 h-4" />
+					</Button>
+				)}
+
 				{/* Card content with fixed height and fade transition */}
 				<div
 					className="px-4 pt-4 pb-3"
@@ -110,7 +131,9 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 						transition: "opacity 0.4s ease-in-out",
 					}}>
 					{/* Title with optional icon */}
-					<h3 className="font-semibold mb-3 flex items-center gap-2" style={{ fontSize: "16px" }}>
+					<h3
+						className="font-semibold mb-3 flex items-center gap-2"
+						style={{ fontSize: "16px", paddingRight: currentBanner.onDismiss ? "24px" : "0" }}>
 						{currentBanner.icon}
 						{currentBanner.title}
 					</h3>
@@ -145,7 +168,7 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 						}}>
 						{/* Page indicator */}
 						<div className="text-base font-medium" style={{ color: "var(--vscode-descriptionForeground)" }}>
-							{currentIndex + 1}/{banners.length}
+							{safeCurrentIndex + 1}/{banners.length}
 						</div>
 
 						{/* Navigation arrows */}
