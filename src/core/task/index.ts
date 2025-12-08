@@ -76,10 +76,9 @@ import { HostProvider } from "@/hosts/host-provider"
 import { StandaloneTerminalManager } from "@/integrations/terminal"
 
 import { BackgroundCommandTracker } from "@/integrations/terminal/backgroundCommand/BackgroundCommandTracker"
+import { VscodeCommandExecutor } from "@/integrations/terminal/vscode/VscodeCommandExecutor"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
 import { telemetryService } from "@/services/telemetry"
-
-
 import {
 	ClineAssistantContent,
 	ClineContent,
@@ -242,7 +241,7 @@ export class Task {
 	private backgroundCommandTracker?: BackgroundCommandTracker
 
 	// Command executor for running shell commands (extracted from executeCommandTool)
-	private commandExecutor!: CommandExecutor
+	private commandExecutor!: VscodeCommandExecutor
 
 	constructor(params: TaskParams) {
 		const {

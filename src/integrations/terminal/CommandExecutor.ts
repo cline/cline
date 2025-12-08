@@ -1,10 +1,9 @@
 import { isSubagentCommand, transformClineCommand } from "@integrations/cli-subagents/subagent_command"
 import { ClineToolResponseContent } from "@shared/messages"
-
+import { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { BackgroundCommandExecutor, BackgroundCommandExecutorConfig } from "./backgroundCommand/BackgroundCommandExecutor"
 import { BackgroundCommandTracker } from "./backgroundCommand/BackgroundCommandTracker"
 import { ActiveBackgroundCommand, CommandExecutorCallbacks, CommandExecutorConfig, ICommandExecutor } from "./ICommandExecutor"
-import { TerminalManager } from "./vscode/TerminalManager"
 import { VscodeCommandExecutor, VscodeCommandExecutorConfig } from "./vscode/VscodeCommandExecutor"
 
 /**
@@ -12,7 +11,7 @@ import { VscodeCommandExecutor, VscodeCommandExecutorConfig } from "./vscode/Vsc
  * Includes all fields needed by both VSCode and Background executors
  */
 export interface FullCommandExecutorConfig extends CommandExecutorConfig {
-	terminalManager: TerminalManager
+	terminalManager: VscodeTerminalManager
 	backgroundCommandTracker: BackgroundCommandTracker | undefined
 }
 

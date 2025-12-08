@@ -5,17 +5,16 @@ import { Logger } from "@services/logging/Logger"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@services/telemetry"
 import { COMMAND_CANCEL_TOKEN } from "@shared/ExtensionMessage"
 import { ClineToolResponseContent } from "@shared/messages"
-
+import { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
+import { TerminalProcessResultPromise } from "@/hosts/vscode/terminal/VscodeTerminalProcess"
 import { ActiveBackgroundCommand, CommandExecutorCallbacks, CommandExecutorConfig, ICommandExecutor } from "../ICommandExecutor"
-import { TerminalManager } from "../vscode/TerminalManager"
-import { TerminalProcessResultPromise } from "../vscode/TerminalProcess"
 import { BackgroundCommandTracker } from "./BackgroundCommandTracker"
 
 /**
  * Background/Standalone-specific configuration for command executor
  */
 export interface BackgroundCommandExecutorConfig extends CommandExecutorConfig {
-	terminalManager: TerminalManager
+	terminalManager: VscodeTerminalManager
 	backgroundCommandTracker: BackgroundCommandTracker | undefined
 	standaloneTerminalModulePath: string
 }
