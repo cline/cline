@@ -14,7 +14,7 @@ e2e.describe("Diff Editor", () => {
 			await inputbox.fill("[diff.test.ts] Hello, Cline!")
 			await expect(inputbox).toHaveValue("[diff.test.ts] Hello, Cline!")
 			await sidebar.getByTestId("send-button").click()
-			await expect(inputbox).toHaveValue("")
+			await expect(inputbox).toHaveValue("", { timeout: 3000 })
 
 			// Loading State initially
 			await expect(sidebar.getByText("API Request...")).toBeVisible({ timeout: 10000 })
