@@ -60,7 +60,6 @@ export class CommandExecutor implements ICommandExecutor {
 			cwd: config.cwd,
 			taskId: config.taskId,
 			ulid: config.ulid,
-			standaloneTerminalModulePath: config.standaloneTerminalModulePath,
 		}
 		this.backgroundExecutor = new BackgroundCommandExecutor(backgroundConfig, callbacks)
 
@@ -72,7 +71,6 @@ export class CommandExecutor implements ICommandExecutor {
 				cwd: config.cwd,
 				taskId: config.taskId,
 				ulid: config.ulid,
-				standaloneTerminalModulePath: config.standaloneTerminalModulePath,
 			}
 			this.vscodeExecutor = new VscodeCommandExecutor(vscodeConfig, callbacks)
 		}

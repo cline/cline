@@ -87,5 +87,4 @@ export interface CommandExecutorConfig {
 	cwd: string
 	taskId: string
 	ulid: string
-	standaloneTerminalModulePath: string
 }

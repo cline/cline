@@ -498,7 +498,6 @@ export class Task {
 			terminalExecutionMode: this.terminalExecutionMode,
 			terminalManager: this.terminalManager as VscodeTerminalManager,
 			backgroundCommandTracker: this.backgroundCommandTracker,
-			standaloneTerminalModulePath: "@/integrations/terminal/StandaloneTerminalManager",
 			taskId: this.taskId,
 			ulid: this.ulid,
 		}
