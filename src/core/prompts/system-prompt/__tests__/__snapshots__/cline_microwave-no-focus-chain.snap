@@ -181,6 +181,27 @@ Usage:
 <prompt>Summarize the main points and key takeaways</prompt>
 </web_fetch>
 
+## web_search
+Description: Performs a web search and returns relevant results
+- Takes a search query as input and returns search results with titles and URLs
+- Optionally filter results by allowed or blocked domains
+- Use this tool when you need to search the web for information
+- IMPORTANT: If an MCP-provided web search tool is available, prefer using that tool instead of this one, as it may have fewer restrictions.
+- The query must be at least 2 characters
+- You may provide either allowed_domains OR blocked_domains, but NOT both
+- Domains should be provided as a JSON array of strings
+- This tool is read-only and does not modify any files
+Parameters:
+- query: (required) The search query to use
+- allowed_domains: (optional) JSON array of domains to restrict results to
+- blocked_domains: (optional) JSON array of domains to exclude from results
+Usage:
+<web_search>
+<query>latest developments in AI</query>
+<allowed_domains>["example.com", "github.com"]</allowed_domains>
+<blocked_domains>["ads.com", "spam.com"]</blocked_domains>
+</web_search>
+
 ## use_mcp_tool
 Description: Request to use a tool provided by a connected MCP server. Each MCP server can provide multiple tools with different capabilities. Tools have defined input schemas that specify required and optional parameters.
 Parameters:
