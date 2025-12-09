@@ -66,7 +66,7 @@ import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@sha
 import { CLINE_MCP_TOOL_IDENTIFIER } from "@shared/mcp"
 import { USER_CONTENT_TAGS } from "@shared/messages/constants"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
-import { ClineDefaultTool } from "@shared/tools"
+import { ClineDefaultTool, READ_ONLY_TOOLS } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import { isClaude4PlusModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
@@ -2434,9 +2434,13 @@ export class Task {
 				break
 			}
 			case "tool_use":
+				// If we have a pending initial commit, we must block unsafe tools until it finishes.
+				// Safe tools (read-only) can run in parallel.
 				if (this.initialCheckpointCommitPromise) {
-					await this.initialCheckpointCommitPromise
-					this.initialCheckpointCommitPromise = undefined
+					if (!READ_ONLY_TOOLS.includes(block.name as any)) {
+						await this.initialCheckpointCommitPromise
+						this.initialCheckpointCommitPromise = undefined
+					}
 				}
 				await this.toolExecutor.executeTool(block)
 				break
