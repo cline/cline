@@ -2,10 +2,11 @@ import { ClineMessage } from "@shared/ExtensionMessage"
 import React, { useMemo } from "react"
 import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
 import ChatRow from "@/components/chat/ChatRow"
+import ToolGroupRow from "@/components/chat/ToolGroupRow"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { MessageHandlers } from "../../types/chatTypes"
-import { findReasoningForApiReq, isTextMessagePendingToolCall } from "../../utils/messageUtils"
+import { findReasoningForApiReq, isTextMessagePendingToolCall, isToolGroup, isToolGroupFinalized } from "../../utils/messageUtils"
 
 interface MessageRendererProps {
 	index: number
@@ -54,8 +55,22 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 		return false
 	}, [messageOrGroup, clineMessages])
 
-	// Browser session group
+	// Handle grouped messages (arrays)
 	if (Array.isArray(messageOrGroup)) {
+		// Tool group (low-stakes tools like read, search, list)
+		if (isToolGroup(messageOrGroup)) {
+			return (
+				<ToolGroupRow
+					isFinalized={isToolGroupFinalized(messageOrGroup)}
+					isLast={index === groupedMessages.length - 1}
+					key={messageOrGroup[0]?.ts}
+					messages={messageOrGroup}
+					onHeightChange={onHeightChange}
+				/>
+			)
+		}
+
+		// Browser session group
 		return (
 			<BrowserSessionRow
 				expandedRows={expandedRows}

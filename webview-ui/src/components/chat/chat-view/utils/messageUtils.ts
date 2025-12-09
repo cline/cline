@@ -4,7 +4,82 @@
 
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
-import { ClineMessage, ClineSayBrowserAction } from "@shared/ExtensionMessage"
+import { ClineMessage, ClineSayBrowserAction, ClineSayTool } from "@shared/ExtensionMessage"
+
+/**
+ * Low-stakes tool types that should be grouped/collapsed
+ */
+const LOW_STAKES_TOOLS = new Set([
+	"readFile",
+	"listFilesTopLevel",
+	"listFilesRecursive",
+	"listCodeDefinitionNames",
+	"searchFiles",
+])
+
+/**
+ * High-stakes tool types that finalize a low-stakes tool group
+ */
+const HIGH_STAKES_TOOLS = new Set(["editedExistingFile", "newFileCreated", "fileDeleted", "appliedDiff", "execute_command"])
+
+/**
+ * Check if a tool message is a low-stakes tool that should be grouped
+ */
+export function isLowStakesTool(message: ClineMessage): boolean {
+	if (message.say !== "tool" && message.ask !== "tool") {
+		return false
+	}
+	try {
+		const tool = JSON.parse(message.text || "{}") as ClineSayTool
+		return LOW_STAKES_TOOLS.has(tool.tool)
+	} catch {
+		return false
+	}
+}
+
+/**
+ * Check if a message is a high-stakes tool that should finalize a low-stakes group.
+ * This includes tool messages and command asks.
+ */
+export function isHighStakesTool(message: ClineMessage): boolean {
+	// Command asks are high-stakes
+	if (message.ask === "command" || message.say === "command") {
+		return true
+	}
+
+	// Check tool messages
+	if (message.say !== "tool" && message.ask !== "tool") {
+		return false
+	}
+	try {
+		const tool = JSON.parse(message.text || "{}") as ClineSayTool
+		return HIGH_STAKES_TOOLS.has(tool.tool)
+	} catch {
+		return false
+	}
+}
+
+/**
+ * Check if a message group is a tool group (vs browser session group)
+ */
+export function isToolGroup(messageOrGroup: ClineMessage | ClineMessage[]): boolean {
+	if (!Array.isArray(messageOrGroup)) {
+		return false
+	}
+	if (messageOrGroup.length === 0) {
+		return false
+	}
+	// Tool groups have a _isToolGroup marker set during grouping
+	return (messageOrGroup as any)._isToolGroup === true
+}
+
+/**
+ * Check if a tool group is finalized (followed by non-low-stakes content).
+ * Finalized groups should be collapsed; non-finalized show individual items.
+ */
+export function isToolGroupFinalized(group: ClineMessage[]): boolean {
+	return (group as any)._isFinalized === true
+}
 
 /**
  * Combine API requests and command sequences in messages
@@ -42,7 +117,9 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 				if (message.text) {
 					try {
 						const info = JSON.parse(message.text)
-						if (info.cost != null) return false // completed, hide it
+						if (info.cost != null) {
+							return false // completed, hide it
+						}
 					} catch {
 						// keep visible if can't parse
 					}
@@ -74,7 +151,9 @@ function hasResponseStarted(apiReqIndex: number, messages: ClineMessage[]): bool
 	for (let i = apiReqIndex + 1; i < messages.length; i++) {
 		const msg = messages[i]
 		// Stop at next api_req_started
-		if (msg.say === "api_req_started") break
+		if (msg.say === "api_req_started") {
+			break
+		}
 		// Response content found
 		if (msg.say === "text" || msg.say === "tool" || msg.ask === "tool" || msg.ask === "command" || msg.say === "command") {
 			return true
@@ -195,7 +274,9 @@ export function findReasoningForApiReq(
 	allMessages: ClineMessage[],
 ): { reasoning: string | undefined; responseStarted: boolean } {
 	const apiReqIndex = allMessages.findIndex((m) => m.ts === apiReqTs && m.say === "api_req_started")
-	if (apiReqIndex === -1) return { reasoning: undefined, responseStarted: false }
+	if (apiReqIndex === -1) {
+		return { reasoning: undefined, responseStarted: false }
+	}
 
 	// Collect reasoning and check if response content has started
 	const reasoningParts: string[] = []
@@ -204,7 +285,9 @@ export function findReasoningForApiReq(
 	for (let i = apiReqIndex + 1; i < allMessages.length; i++) {
 		const msg = allMessages[i]
 		// Stop at next api_req_started
-		if (msg.say === "api_req_started") break
+		if (msg.say === "api_req_started") {
+			break
+		}
 		// Collect reasoning content
 		if (msg.say === "reasoning" && msg.text) {
 			reasoningParts.push(msg.text)
@@ -231,7 +314,9 @@ export function findApiReqInfoForCheckpoint(
 	allMessages: ClineMessage[],
 ): { cost: number | undefined; request: string | undefined } {
 	const checkpointIndex = allMessages.findIndex((m) => m.ts === checkpointTs && m.say === "checkpoint_created")
-	if (checkpointIndex === -1) return { cost: undefined, request: undefined }
+	if (checkpointIndex === -1) {
+		return { cost: undefined, request: undefined }
+	}
 
 	// Look backwards for the most recent api_req_started
 	for (let i = checkpointIndex - 1; i >= 0; i--) {
@@ -258,7 +343,9 @@ export function findApiReqInfoForCheckpoint(
 export function isTextMessagePendingToolCall(textTs: number, allMessages: ClineMessage[]): boolean {
 	// Find the api_req_started that precedes this text message
 	const textIndex = allMessages.findIndex((m) => m.ts === textTs)
-	if (textIndex === -1) return false
+	if (textIndex === -1) {
+		return false
+	}
 
 	// Look backwards for the most recent api_req_started
 	for (let i = textIndex - 1; i >= 0; i--) {
@@ -274,4 +361,74 @@ export function isTextMessagePendingToolCall(textTs: number, allMessages: ClineM
 		}
 	}
 	return false
+}
+
+/**
+ * Group consecutive low-stakes tool messages into arrays.
+ * Also absorbs checkpoint_created messages that follow low-stakes tools.
+ * Should be called after groupMessages to further group tool calls.
+ *
+ * Groups are marked with:
+ * - _isToolGroup: true (always)
+ * - _isFinalized: true only if followed by a HIGH-STAKES tool (edit, write, command)
+ *   NOT finalized by text/thinking - only by actual tool actions
+ *   (finalized groups show collapsed; non-finalized show individual items during streaming)
+ */
+export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessage[])[]): (ClineMessage | ClineMessage[])[] {
+	const result: (ClineMessage | ClineMessage[])[] = []
+	let currentToolGroup: ClineMessage[] = []
+
+	const endToolGroup = (isFinalized: boolean) => {
+		if (currentToolGroup.length > 0) {
+			// Mark the array as a tool group for identification
+			const toolGroup = [...currentToolGroup] as ClineMessage[] & { _isToolGroup: boolean; _isFinalized: boolean }
+			toolGroup._isToolGroup = true
+			toolGroup._isFinalized = isFinalized
+			result.push(toolGroup)
+			currentToolGroup = []
+		}
+	}
+
+	groupedMessages.forEach((messageOrGroup) => {
+		// If it's already a group (browser session), just add it
+		if (Array.isArray(messageOrGroup)) {
+			// Browser sessions finalize the preceding tool group
+			endToolGroup(true)
+			result.push(messageOrGroup)
+			return
+		}
+
+		// Check if this is a low-stakes tool message
+		if (isLowStakesTool(messageOrGroup)) {
+			currentToolGroup.push(messageOrGroup)
+		}
+		// Absorb checkpoint messages that follow low-stakes tools into the group
+		else if (messageOrGroup.say === "checkpoint_created" && currentToolGroup.length > 0) {
+			// Only add ONE checkpoint per group (the last one)
+			// Remove any existing checkpoint in the group first
+			const existingCheckpointIndex = currentToolGroup.findIndex((m) => m.say === "checkpoint_created")
+			if (existingCheckpointIndex >= 0) {
+				currentToolGroup.splice(existingCheckpointIndex, 1)
+			}
+			currentToolGroup.push(messageOrGroup)
+		}
+		// HIGH-STAKES tool: finalize the current tool group
+		else if (isHighStakesTool(messageOrGroup)) {
+			endToolGroup(true)
+			result.push(messageOrGroup)
+		}
+		// Everything else (text, thinking, etc): DON'T finalize, just add normally
+		// The tool group stays open waiting for more reads or a high-stakes tool
+		else {
+			// End the group but NOT finalized - it will continue to show expanded
+			endToolGroup(false)
+			result.push(messageOrGroup)
+		}
+	})
+
+	// Handle case where tool group is at the end of messages
+	// This is NOT finalized - still streaming, show individual items
+	endToolGroup(false)
+
+	return result
 }
