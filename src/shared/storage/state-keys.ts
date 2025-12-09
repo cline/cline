@@ -243,6 +243,7 @@ export interface Secrets {
 	doubaoApiKey: string | undefined
 	mistralApiKey: string | undefined
 	liteLlmApiKey: string | undefined
+	remoteLiteLlmApiKey: string | undefined
 	authNonce: string | undefined
 	asksageApiKey: string | undefined
 	xaiApiKey: string | undefined
