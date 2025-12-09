@@ -10,7 +10,7 @@ import {
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
 import { BooleanRequest, Int64Request, StringRequest } from "@shared/proto/cline/common"
-import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import { FoldVerticalIcon } from "lucide-react"
 import React, { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -27,13 +27,11 @@ import CodeBlock, {
 } from "@/components/common/CodeBlock"
 import { WithCopyButton } from "@/components/common/CopyButton"
 import MarkdownBlock from "@/components/common/MarkdownBlock"
-import SuccessButton from "@/components/common/SuccessButton"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { cn } from "@/lib/utils"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
@@ -134,16 +132,19 @@ const CommandOutput = memo(
 		isOutputFullyExpanded,
 		onToggle,
 		isContainerExpanded,
+		borderColor = "var(--vscode-editorGroup-border)",
 	}: {
 		output: string
 		isOutputFullyExpanded: boolean
 		onToggle: () => void
 		isContainerExpanded: boolean
+		borderColor?: string
 	}) => {
 		const outputLines = output.split("\n")
 		const lineCount = outputLines.length
 		const shouldAutoShow = lineCount <= 5
 		const outputRef = useRef<HTMLDivElement>(null)
+		const [isHandleHovered, setIsHandleHovered] = useState(false)
 
 		// Auto-scroll to bottom when output changes (only when showing limited output)
 		useEffect(() => {
@@ -194,15 +195,11 @@ const CommandOutput = memo(
 				{lineCount > 5 && (
 					<div
 						onClick={onToggle}
-						onMouseEnter={(e) => {
-							e.currentTarget.style.opacity = "0.8"
-						}}
-						onMouseLeave={(e) => {
-							e.currentTarget.style.opacity = "1"
-						}}
+						onMouseEnter={() => setIsHandleHovered(true)}
+						onMouseLeave={() => setIsHandleHovered(false)}
 						style={{
 							position: "absolute",
-							bottom: "-10px",
+							bottom: "-8px",
 							left: "50%",
 							transform: "translateX(-50%)",
 							display: "flex",
@@ -210,16 +207,84 @@ const CommandOutput = memo(
 							alignItems: "center",
 							padding: "1px 14px",
 							cursor: "pointer",
-							backgroundColor: "var(--vscode-descriptionForeground)",
-							borderRadius: "3px 3px 6px 6px",
-							transition: "opacity 0.1s ease",
-							border: "1px solid rgba(0, 0, 0, 0.1)",
+							backgroundColor: borderColor,
+							borderRadius: "2px",
+							border: "none",
 						}}>
 						<span
 							className={`codicon codicon-triangle-${isOutputFullyExpanded ? "up" : "down"}`}
 							style={{
 								fontSize: "11px",
-								color: "var(--vscode-editor-background)",
+								color: "#000000",
+							}}
+						/>
+					</div>
+				)}
+			</div>
+		)
+	},
+)
+
+const CompletionOutput = memo(
+	({
+		text,
+		isOutputFullyExpanded,
+		onToggle,
+		borderColor = successColor,
+	}: {
+		text: string
+		isOutputFullyExpanded: boolean
+		onToggle: () => void
+		borderColor?: string
+	}) => {
+		const outputLines = text.split("\n")
+		const lineCount = outputLines.length
+		const shouldAutoShow = lineCount <= 5
+
+		return (
+			<div
+				style={{
+					width: "100%",
+					position: "relative",
+					paddingBottom: lineCount > 5 ? "16px" : "0",
+					overflow: "visible",
+					borderTop: "1px solid rgba(255,255,255,.07)",
+					borderBottomLeftRadius: "6px",
+					borderBottomRightRadius: "6px",
+					backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
+				}}>
+				<div
+					style={{
+						maxHeight: shouldAutoShow ? "none" : isOutputFullyExpanded ? "400px" : "150px",
+						overflowY: shouldAutoShow ? "visible" : "auto",
+						scrollBehavior: "smooth",
+						padding: "12px",
+					}}>
+					<Markdown markdown={text} />
+				</div>
+				{/* Show notch only if there's more than 5 lines */}
+				{lineCount > 5 && (
+					<div
+						onClick={onToggle}
+						style={{
+							position: "absolute",
+							bottom: "-8px",
+							left: "50%",
+							transform: "translateX(-50%)",
+							display: "flex",
+							justifyContent: "center",
+							alignItems: "center",
+							padding: "1px 14px",
+							cursor: "pointer",
+							backgroundColor: borderColor,
+							borderRadius: "2px",
+							border: "none",
+						}}>
+						<span
+							className={`codicon codicon-triangle-${isOutputFullyExpanded ? "up" : "down"}`}
+							style={{
+								fontSize: "11px",
+								color: "#000000",
 							}}
 						/>
 					</div>
@@ -279,6 +344,9 @@ export const ChatRowContent = memo(
 		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode } = useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [explainChangesDisabled, setExplainChangesDisabled] = useState(false)
+		const [viewChangesHovered, setViewChangesHovered] = useState(false)
+		const [explainChangesHovered, setExplainChangesHovered] = useState(false)
+		const [completionContainerHovered, setCompletionContainerHovered] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
 			top: 0,
@@ -290,6 +358,8 @@ export const ChatRowContent = memo(
 		// Command output expansion state (for all messages, but only used by command messages)
 		const [isOutputFullyExpanded, setIsOutputFullyExpanded] = useState(false)
 		const prevCommandExecutingRef = useRef<boolean>(false)
+		// Completion output expansion state
+		const [isCompletionOutputExpanded, setIsCompletionOutputExpanded] = useState(false)
 		const [cost, apiReqCancelReason, apiReqStreamingFailedMessage, retryStatus] = useMemo(() => {
 			if (message.text != null && message.say === "api_req_started") {
 				const info: ClineApiReqInfo = JSON.parse(message.text)
@@ -1290,58 +1360,10 @@ export const ChatRowContent = memo(
 					case "api_req_started":
 						return (
 							<>
-								<div
-									onClick={handleToggle}
-									style={{
-										...headerStyle,
-										marginBottom:
-											(cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage ? 10 : 0,
-										justifyContent: "space-between",
-										cursor: "pointer",
-										userSelect: "none",
-										WebkitUserSelect: "none",
-										MozUserSelect: "none",
-										msUserSelect: "none",
-									}}>
-									<div
-										style={{
-											display: "flex",
-											alignItems: "center",
-											gap: "10px",
-										}}>
+								{title && (
+									<div style={headerStyle}>
 										{icon}
 										{title}
-										{/* Need to render this every time since it affects height of row by 2px */}
-										<VSCodeBadge
-											className={cn("text-sm", {
-												"opacity-100": cost != null && cost > 0,
-												"opacity-0": cost == null || cost <= 0,
-											})}
-											style={{
-												opacity: cost != null && cost > 0 ? 1 : 0,
-											}}>
-											{cost != null && Number(cost || 0) > 0 ? `$${Number(cost || 0).toFixed(4)}` : ""}
-										</VSCodeBadge>
-									</div>
-									<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
-								</div>
-								{((cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage) && (
-									<ErrorRow
-										apiReqStreamingFailedMessage={apiReqStreamingFailedMessage}
-										apiRequestFailedMessage={apiRequestFailedMessage}
-										errorType="error"
-										message={message}
-									/>
-								)}
-
-								{isExpanded && (
-									<div style={{ marginTop: "10px" }}>
-										<CodeAccordian
-											code={JSON.parse(message.text || "{}").request}
-											isExpanded={true}
-											language="markdown"
-											onToggleExpand={handleToggle}
-										/>
 									</div>
 								)}
 							</>
@@ -1629,45 +1651,86 @@ export const ChatRowContent = memo(
 						return (
 							<>
 								<div
+									onMouseEnter={() => setCompletionContainerHovered(true)}
+									onMouseLeave={() => setCompletionContainerHovered(false)}
 									style={{
-										...headerStyle,
-										marginBottom: "10px",
+										borderRadius: 6,
+										border: `1px solid ${completionContainerHovered ? successColor : "var(--vscode-editorGroup-border)"}`,
+										overflow: "visible",
+										backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
+										transition: "border-color 0.2s ease",
 									}}>
-									{icon}
-									{title}
-									{/* <TaskFeedbackButtons
-										isFromHistory={
-											!isLast ||
-											lastModifiedMessage?.ask === "resume_completed_task" ||
-											lastModifiedMessage?.ask === "resume_task"
-										}
-										messageTs={message.ts}
+									<div
 										style={{
-											marginLeft: "auto",
-										}}
-									/> */}
+											display: "flex",
+											alignItems: "center",
+											justifyContent: "space-between",
+											padding: "8px 10px",
+											backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
+											borderTopLeftRadius: "6px",
+											borderTopRightRadius: "6px",
+											borderBottomLeftRadius: 0,
+											borderBottomRightRadius: 0,
+										}}>
+										<div
+											style={{
+												display: "flex",
+												alignItems: "center",
+												gap: "8px",
+												flex: 1,
+												minWidth: 0,
+											}}>
+											<div
+												style={{
+													width: "8px",
+													height: "8px",
+													borderRadius: "50%",
+													backgroundColor: successColor,
+													flexShrink: 0,
+												}}
+											/>
+											<span
+												style={{
+													color: successColor,
+													fontWeight: 500,
+													fontSize: "13px",
+													flexShrink: 0,
+												}}>
+												Task Completed
+											</span>
+										</div>
+										<button
+											onClick={() => {
+												navigator.clipboard.writeText(text || "")
+											}}
+											onMouseEnter={(e) => {
+												e.currentTarget.style.opacity = "1"
+											}}
+											onMouseLeave={(e) => {
+												e.currentTarget.style.opacity = "0.6"
+											}}
+											style={{
+												background: "transparent",
+												border: "none",
+												padding: "4px",
+												cursor: "pointer",
+												display: "flex",
+												alignItems: "center",
+												opacity: 0.6,
+											}}>
+											<span className="codicon codicon-copy" style={{ fontSize: "14px" }}></span>
+										</button>
+									</div>
+									<CompletionOutput
+										borderColor={successColor}
+										isOutputFullyExpanded={isCompletionOutputExpanded}
+										onToggle={() => setIsCompletionOutputExpanded(!isCompletionOutputExpanded)}
+										text={text || ""}
+									/>
 								</div>
-								<WithCopyButton
-									onMouseUp={handleMouseUp}
-									position="bottom-right"
-									ref={contentRef}
-									style={{
-										color: "var(--vscode-charts-green)",
-										paddingTop: 10,
-									}}
-									textToCopy={text}>
-									<Markdown markdown={text} />
-									{quoteButtonState.visible && (
-										<QuoteButton
-											left={quoteButtonState.left}
-											onClick={handleQuoteClick}
-											top={quoteButtonState.top}
-										/>
-									)}
-								</WithCopyButton>
 								{message.partial !== true && hasChanges && (
-									<div style={{ paddingTop: 17, display: "flex", flexDirection: "column", gap: 8 }}>
-										<SuccessButton
+									<div style={{ paddingTop: 17, display: "flex", flexDirection: "row", gap: 8 }}>
+										<button
 											disabled={seeNewChangesDisabled}
 											onClick={() => {
 												setSeeNewChangesDisabled(true)
@@ -1679,15 +1742,28 @@ export const ChatRowContent = memo(
 													console.error("Failed to show task completion view changes:", err),
 												)
 											}}
+											onMouseEnter={() => setViewChangesHovered(true)}
+											onMouseLeave={() => setViewChangesHovered(false)}
 											style={{
 												cursor: seeNewChangesDisabled ? "wait" : "pointer",
-												width: "100%",
+												flex: 1,
+												background: CHAT_ROW_EXPANDED_BG_COLOR,
+												border: `1px solid ${viewChangesHovered ? successColor : "var(--vscode-editorGroup-border)"}`,
+												color: successColor,
+												borderRadius: "2px",
+												padding: "8px 12px",
+												fontSize: "13px",
+												fontFamily: "inherit",
+												display: "flex",
+												alignItems: "center",
+												justifyContent: "center",
+												transition: "border-color 0.2s ease",
 											}}>
 											<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
 											View Changes
-										</SuccessButton>
+										</button>
 										{PLATFORM_CONFIG.type === PlatformType.VSCODE && (
-											<SuccessButton
+											<button
 												disabled={explainChangesDisabled}
 												onClick={() => {
 													setExplainChangesDisabled(true)
@@ -1699,15 +1775,26 @@ export const ChatRowContent = memo(
 														setExplainChangesDisabled(false)
 													})
 												}}
+												onMouseEnter={() => setExplainChangesHovered(true)}
+												onMouseLeave={() => setExplainChangesHovered(false)}
 												style={{
 													cursor: explainChangesDisabled ? "wait" : "pointer",
-													width: "100%",
-													backgroundColor: "var(--vscode-button-secondaryBackground)",
-													borderColor: "var(--vscode-button-secondaryBackground)",
+													flex: 1,
+													background: CHAT_ROW_EXPANDED_BG_COLOR,
+													border: `1px solid ${explainChangesHovered ? successColor : "var(--vscode-editorGroup-border)"}`,
+													color: successColor,
+													borderRadius: "2px",
+													padding: "8px 12px",
+													fontSize: "13px",
+													fontFamily: "inherit",
+													display: "flex",
+													alignItems: "center",
+													justifyContent: "center",
+													transition: "border-color 0.2s ease",
 												}}>
 												<i className="codicon codicon-comment-discussion" style={{ marginRight: 6 }} />
 												{explainChangesDisabled ? "Explaining..." : "Explain Changes"}
-											</SuccessButton>
+											</button>
 										)}
 									</div>
 								)}
@@ -1935,45 +2022,96 @@ export const ChatRowContent = memo(
 								<div>
 									<div
 										style={{
-											...headerStyle,
-											marginBottom: "10px",
+											borderRadius: 6,
+											border: `1px solid ${successColor}`,
+											overflow: "visible",
+											backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
+											transition: "all 0.3s ease-in-out",
 										}}>
-										{icon}
-										{title}
-										<TaskFeedbackButtons
-											isFromHistory={
-												!isLast ||
-												lastModifiedMessage?.ask === "resume_completed_task" ||
-												lastModifiedMessage?.ask === "resume_task"
-											}
-											messageTs={message.ts}
+										<div
 											style={{
-												marginLeft: "auto",
-											}}
+												display: "flex",
+												alignItems: "center",
+												justifyContent: "space-between",
+												padding: "8px 10px",
+												backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
+												borderTopLeftRadius: "6px",
+												borderTopRightRadius: "6px",
+												borderBottomLeftRadius: 0,
+												borderBottomRightRadius: 0,
+											}}>
+											<div
+												style={{
+													display: "flex",
+													alignItems: "center",
+													gap: "8px",
+													flex: 1,
+													minWidth: 0,
+												}}>
+												<div
+													style={{
+														width: "8px",
+														height: "8px",
+														borderRadius: "50%",
+														backgroundColor: successColor,
+														flexShrink: 0,
+													}}
+												/>
+												<span
+													style={{
+														color: successColor,
+														fontWeight: 500,
+														fontSize: "13px",
+														flexShrink: 0,
+													}}>
+													Task Completed
+												</span>
+											</div>
+											<div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+												<button
+													onClick={() => {
+														navigator.clipboard.writeText(text || "")
+													}}
+													onMouseEnter={(e) => {
+														e.currentTarget.style.opacity = "1"
+													}}
+													onMouseLeave={(e) => {
+														e.currentTarget.style.opacity = "0.6"
+													}}
+													style={{
+														background: "transparent",
+														border: "none",
+														padding: "4px",
+														cursor: "pointer",
+														display: "flex",
+														alignItems: "center",
+														opacity: 0.6,
+													}}>
+													<span className="codicon codicon-copy" style={{ fontSize: "14px" }}></span>
+												</button>
+												<TaskFeedbackButtons
+													isFromHistory={
+														!isLast ||
+														lastModifiedMessage?.ask === "resume_completed_task" ||
+														lastModifiedMessage?.ask === "resume_task"
+													}
+													messageTs={message.ts}
+													style={{
+														flexShrink: 0,
+													}}
+												/>
+											</div>
+										</div>
+										<CompletionOutput
+											borderColor={successColor}
+											isOutputFullyExpanded={isCompletionOutputExpanded}
+											onToggle={() => setIsCompletionOutputExpanded(!isCompletionOutputExpanded)}
+											text={text || ""}
 										/>
 									</div>
-									<WithCopyButton
-										onMouseUp={handleMouseUp}
-										position="bottom-right"
-										ref={contentRef}
-										style={{
-											color: "var(--vscode-charts-green)",
-											paddingTop: 10,
-										}}
-										textToCopy={text}>
-										<Markdown markdown={text} />
-										{quoteButtonState.visible && (
-											<QuoteButton
-												left={quoteButtonState.left}
-												onClick={handleQuoteClick}
-												top={quoteButtonState.top}
-											/>
-										)}
-									</WithCopyButton>
 									{message.partial !== true && hasChanges && (
-										<div style={{ marginTop: 15, display: "flex", flexDirection: "column", gap: 8 }}>
-											<SuccessButton
-												appearance="secondary"
+										<div style={{ marginTop: 15, display: "flex", flexDirection: "row", gap: 8 }}>
+											<button
 												disabled={seeNewChangesDisabled}
 												onClick={() => {
 													setSeeNewChangesDisabled(true)
@@ -1984,19 +2122,29 @@ export const ChatRowContent = memo(
 													).catch((err) =>
 														console.error("Failed to show task completion view changes:", err),
 													)
+												}}
+												onMouseEnter={() => setViewChangesHovered(true)}
+												onMouseLeave={() => setViewChangesHovered(false)}
+												style={{
+													cursor: seeNewChangesDisabled ? "wait" : "pointer",
+													flex: 1,
+													background: CHAT_ROW_EXPANDED_BG_COLOR,
+													border: `1px solid ${viewChangesHovered ? successColor : "var(--vscode-editorGroup-border)"}`,
+													color: successColor,
+													borderRadius: "2px",
+													padding: "8px 12px",
+													fontSize: "13px",
+													fontFamily: "inherit",
+													display: "flex",
+													alignItems: "center",
+													justifyContent: "center",
+													transition: "border-color 0.2s ease",
 												}}>
-												<i
-													className="codicon codicon-new-file"
-													style={{
-														marginRight: 6,
-														cursor: seeNewChangesDisabled ? "wait" : "pointer",
-													}}
-												/>
+												<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
 												View Changes
-											</SuccessButton>
+											</button>
 											{PLATFORM_CONFIG.type === PlatformType.VSCODE && (
-												<SuccessButton
-													appearance="secondary"
+												<button
 													disabled={explainChangesDisabled}
 													onClick={() => {
 														setExplainChangesDisabled(true)
@@ -2007,16 +2155,30 @@ export const ChatRowContent = memo(
 															console.error("Failed to explain changes:", err)
 															setExplainChangesDisabled(false)
 														})
+													}}
+													onMouseEnter={() => setExplainChangesHovered(true)}
+													onMouseLeave={() => setExplainChangesHovered(false)}
+													style={{
+														cursor: explainChangesDisabled ? "wait" : "pointer",
+														flex: 1,
+														background: CHAT_ROW_EXPANDED_BG_COLOR,
+														border: `1px solid ${explainChangesHovered ? successColor : "var(--vscode-editorGroup-border)"}`,
+														color: successColor,
+														borderRadius: "2px",
+														padding: "8px 12px",
+														fontSize: "13px",
+														fontFamily: "inherit",
+														display: "flex",
+														alignItems: "center",
+														justifyContent: "center",
+														transition: "border-color 0.2s ease",
 													}}>
 													<i
 														className="codicon codicon-comment-discussion"
-														style={{
-															marginRight: 6,
-															cursor: explainChangesDisabled ? "wait" : "pointer",
-														}}
+														style={{ marginRight: 6 }}
 													/>
 													{explainChangesDisabled ? "Explaining..." : "Explain Changes"}
-												</SuccessButton>
+												</button>
 											)}
 										</div>
 									)}
