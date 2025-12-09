@@ -75,6 +75,9 @@ export async function updateApiConfigurationProto(
 			planModeAihubmixModelInfo: protoApiConfiguration.planModeAihubmixModelInfo
 				? fromProtobufOpenAiCompatibleModelInfo(protoApiConfiguration.planModeAihubmixModelInfo)
 				: undefined,
+			planModeIoIntelligenceModelInfo: protoApiConfiguration.planModeIoIntelligenceModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.planModeIoIntelligenceModelInfo)
+				: undefined,
 
 			// Act Mode
 			actModeOpenRouterModelInfo: protoApiConfiguration.actModeOpenRouterModelInfo
@@ -109,6 +112,9 @@ export async function updateApiConfigurationProto(
 				: undefined,
 			actModeAihubmixModelInfo: protoApiConfiguration.actModeAihubmixModelInfo
 				? fromProtobufOpenAiCompatibleModelInfo(protoApiConfiguration.actModeAihubmixModelInfo)
+				: undefined,
+			actModeIoIntelligenceModelInfo: protoApiConfiguration.actModeIoIntelligenceModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.actModeIoIntelligenceModelInfo)
 				: undefined,
 			geminiPlanModeThinkingLevel: protoApiConfiguration.geminiPlanModeThinkingLevel,
 			geminiActModeThinkingLevel: protoApiConfiguration.geminiActModeThinkingLevel,
