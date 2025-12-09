@@ -64,6 +64,7 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				telemetrySetting,
 				yoloModeToggled,
 				useAutoCondense,
+				clineWebToolsEnabled,
 				focusChainSettings,
 				browserSettings,
 				defaultTerminalProfile,
@@ -156,6 +157,14 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 					)
 				}
 				controller.stateManager.setGlobalState("useAutoCondense", useAutoCondense)
+			}
+
+			// Update Cline web tools setting (requires telemetry)
+			if (clineWebToolsEnabled !== undefined) {
+				if (controller.task) {
+					telemetryService.captureClineWebToolsToggle(controller.task.ulid, clineWebToolsEnabled)
+				}
+				controller.stateManager.setGlobalState("clineWebToolsEnabled", clineWebToolsEnabled)
 			}
 
 			// Update focus chain settings (requires telemetry on state change)

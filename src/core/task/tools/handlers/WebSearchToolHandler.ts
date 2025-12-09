@@ -6,6 +6,7 @@ import { AuthService } from "@/services/auth/AuthService"
 import { buildClineExtraHeaders } from "@/services/EnvUtils"
 import { featureFlagsService } from "@/services/feature-flags"
 import { telemetryService } from "@/services/telemetry"
+import { parsePartialArrayString } from "@/shared/array"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
 import { getAxiosSettings } from "@/shared/net"
 import { ToolUse } from "../../../assistant-message"
@@ -17,20 +18,20 @@ import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
-export class WebFetchToolHandler implements IFullyManagedTool {
-	readonly name = ClineDefaultTool.WEB_FETCH
+export class WebSearchToolHandler implements IFullyManagedTool {
+	readonly name = ClineDefaultTool.WEB_SEARCH
 
 	getDescription(block: ToolUse): string {
-		return `[${block.name} for '${block.params.url}']`
+		return `[${block.name} for '${block.params.query}']`
 	}
 
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
-		const url = block.params.url || ""
+		const query = block.params.query || ""
 		const sharedMessageProps: ClineSayTool = {
-			tool: "webFetch",
-			path: uiHelpers.removeClosingTag(block, "url", url),
-			content: `Fetching URL: ${uiHelpers.removeClosingTag(block, "url", url)}`,
-			operationIsLocatedInWorkspace: false, // web_fetch is always external
+			tool: "webSearch",
+			path: uiHelpers.removeClosingTag(block, "query", query),
+			content: `Searching for: ${uiHelpers.removeClosingTag(block, "query", query)}`,
+			operationIsLocatedInWorkspace: false, // web_search is always external
 		} satisfies ClineSayTool
 
 		const partialMessage = JSON.stringify(sharedMessageProps)
@@ -43,8 +44,9 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
 		try {
-			const url: string | undefined = block.params.url
-			const prompt: string | undefined = block.params.prompt
+			const query: string | undefined = block.params.query
+			const allowedDomainsRaw: string | undefined = block.params.allowed_domains
+			const blockedDomainsRaw: string | undefined = block.params.blocked_domains
 
 			// Extract provider information for telemetry
 			const apiConfig = config.services.stateManager.getApiConfiguration()
@@ -59,21 +61,27 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 			}
 
 			// Validate required parameters
-			if (!url) {
+			if (!query) {
 				config.taskState.consecutiveMistakeCount++
-				return await config.callbacks.sayAndCreateMissingParamError(this.name, "url")
-			}
-			if (!prompt) {
-				config.taskState.consecutiveMistakeCount++
-				return await config.callbacks.sayAndCreateMissingParamError(this.name, "prompt")
+				return await config.callbacks.sayAndCreateMissingParamError(this.name, "query")
 			}
 			config.taskState.consecutiveMistakeCount = 0
 
+			// Parse domain arrays
+			const allowedDomains = parsePartialArrayString(allowedDomainsRaw || "[]")
+			const blockedDomains = parsePartialArrayString(blockedDomainsRaw || "[]")
+
+			// Validate mutual exclusivity
+			if (allowedDomains.length > 0 && blockedDomains.length > 0) {
+				config.taskState.consecutiveMistakeCount++
+				return formatResponse.toolError("Cannot specify both allowed_domains and blocked_domains")
+			}
+
 			// Create message for approval
 			const sharedMessageProps: ClineSayTool = {
-				tool: "webFetch",
-				path: url,
-				content: `Fetching URL: ${url}`,
+				tool: "webSearch",
+				path: query,
+				content: `Searching for: ${query}`,
 				operationIsLocatedInWorkspace: false,
 			}
 			const completeMessage = JSON.stringify(sharedMessageProps)
@@ -84,7 +92,7 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 				await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
 				telemetryService.captureToolUsage(
 					config.ulid,
-					"web_fetch",
+					"web_search",
 					config.api.getModel().id,
 					provider,
 					true,
@@ -95,7 +103,7 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 			} else {
 				// Manual approval flow
 				showNotificationForApproval(
-					`Cline wants to fetch content from ${url}`,
+					`Cline wants to search for: ${query}`,
 					config.autoApprovalSettings.enableNotifications,
 				)
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
@@ -139,7 +147,7 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 				throw error
 			}
 
-			// Execute the actual fetch
+			// Execute the actual search
 			const baseUrl = ClineEnv.config().apiBaseUrl
 			const authToken = await AuthService.getInstance().getAuthToken()
 
@@ -147,31 +155,52 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 				throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)
 			}
 
-			const response = await axios.post(
-				`${baseUrl}/api/v1/search/webfetch`,
-				{
-					Url: url,
-					Prompt: prompt,
+			const requestBody: {
+				query: string
+				allowed_domains?: string[]
+				blocked_domains?: string[]
+			} = {
+				query: query,
+			}
+
+			// Only include domain filters if they have values
+			if (allowedDomains.length > 0) {
+				requestBody.allowed_domains = allowedDomains
+			}
+			if (blockedDomains.length > 0) {
+				requestBody.blocked_domains = blockedDomains
+			}
+
+			const response = await axios.post(`${baseUrl}/api/v1/search/websearch`, requestBody, {
+				headers: {
+					Authorization: `Bearer ${authToken}`,
+					"Content-Type": "application/json",
+					"X-Task-ID": config.ulid || "",
+					...(await buildClineExtraHeaders()),
 				},
-				{
-					headers: {
-						Authorization: `Bearer ${authToken}`,
-						"Content-Type": "application/json",
-						"X-Task-ID": config.ulid || "",
-						...(await buildClineExtraHeaders()),
-					},
-					timeout: 15000,
-					...getAxiosSettings(),
-				},
-			)
+				timeout: 15000,
+				...getAxiosSettings(),
+			})
 
 			// Parse response
 			// Axios will throw on non-200 status, so no need to check fetchStatus
-			const result = response.data.data.result
+			const data = response.data.data
 
-			return formatResponse.toolResult(result)
+			// Format results for display
+			const results = data.results || []
+			const resultCount = results.length
+
+			let resultText = `Search completed (${resultCount} results found)`
+			if (results.length > 0) {
+				resultText += ":\n\n"
+				results.forEach((result: { title: string; url: string }, index: number) => {
+					resultText += `${index + 1}. ${result.title}\n   ${result.url}\n\n`
+				})
+			}
+
+			return formatResponse.toolResult(resultText)
 		} catch (error) {
-			return `Error fetching web content: ${(error as Error).message}`
+			return `Error performing web search: ${(error as Error).message}`
 		}
 	}
 }

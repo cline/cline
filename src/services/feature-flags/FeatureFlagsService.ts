@@ -95,6 +95,10 @@ export class FeatureFlagsService {
 		return this.getBooleanFlagEnabled(FeatureFlag.HOOKS)
 	}
 
+	public getWebtoolsEnabled(): boolean {
+		return this.getBooleanFlagEnabled(FeatureFlag.WEBTOOLS)
+	}
+
 	public getOnboardingOverrides() {
 		const payload = this.cache.get(FeatureFlag.ONBOARDING_MODELS)
 		// Check if payload is object

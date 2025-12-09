@@ -1,7 +1,7 @@
 import { WebviewProvider } from "@/core/webview"
 import { CommentReviewController } from "@/integrations/editor/CommentReviewController"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
-import { ITerminalManager } from "@/shared/terminal/types"
+import { ITerminalManager } from "@/integrations/terminal/types"
 import { HostBridgeClientProvider } from "./host-provider-types"
 /**
  * Singleton class that manages host-specific providers for dependency injection.

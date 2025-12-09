@@ -42,7 +42,7 @@ import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
-import { TerminalProcessResultPromise } from "@integrations/terminal/TerminalProcess"
+import { ITerminalManager } from "@integrations/terminal/types"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { listFiles } from "@services/glob/list-files"
@@ -65,7 +65,6 @@ import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@sha
 import { CLINE_MCP_TOOL_IDENTIFIER } from "@shared/mcp"
 import { USER_CONTENT_TAGS } from "@shared/messages/constants"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
-import { ITerminalManager } from "@shared/terminal/types"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import { isClaude4PlusModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
@@ -80,8 +79,11 @@ import * as vscode from "vscode"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
+import { TerminalProcessResultPromise } from "@/hosts/vscode/terminal/VscodeTerminalProcess"
 import { isSubagentCommand, transformClineCommand } from "@/integrations/cli-subagents/subagent_command"
+import { StandaloneTerminalManager } from "@/integrations/terminal"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
+import { featureFlagsService } from "@/services/feature-flags"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
 import {
 	ClineAssistantContent,
@@ -290,7 +292,6 @@ export class Task {
 		// Otherwise, use the HostProvider's terminal manager (VSCode terminal in VSCode, standalone in CLI)
 		if (this.terminalExecutionMode === "backgroundExec") {
 			// Import StandaloneTerminalManager for background execution
-			const { StandaloneTerminalManager } = require("@shared/terminal/StandaloneTerminalManager")
 			this.terminalManager = new StandaloneTerminalManager()
 			Logger.info(`[Task ${taskId}] Using StandaloneTerminalManager for backgroundExec mode`)
 		} else {
@@ -1531,7 +1532,6 @@ export class Task {
 		let terminalManager: ITerminalManager
 		if (isSubagent || this.terminalExecutionMode === "backgroundExec") {
 			// Use StandaloneTerminalManager for hidden background execution (subagents and backgroundExec mode)
-			const { StandaloneTerminalManager } = require("@shared/terminal/StandaloneTerminalManager")
 			terminalManager = new StandaloneTerminalManager()
 			Logger.info(
 				`[Task ${this.taskId}] Using StandaloneTerminalManager for ${isSubagent ? "subagent" : "backgroundExec"} command: ${command}`,
@@ -2096,7 +2096,8 @@ export class Task {
 			preferredLanguageInstructions,
 			browserSettings: this.stateManager.getGlobalSettingsKey("browserSettings"),
 			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
-			clineWebToolsEnabled: this.stateManager.getGlobalSettingsKey("clineWebToolsEnabled"),
+			clineWebToolsEnabled:
+				this.stateManager.getGlobalSettingsKey("clineWebToolsEnabled") && featureFlagsService.getWebtoolsEnabled(),
 			isMultiRootEnabled: multiRootEnabled,
 			workspaceRoots,
 			isSubagentsEnabledAndCliInstalled,

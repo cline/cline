@@ -6,9 +6,9 @@ import {
 	TerminalInfo as ITerminalInfo,
 	ITerminalManager,
 	TerminalProcessResultPromise as ITerminalProcessResultPromise,
-} from "@/shared/terminal/types"
-import { mergePromise, TerminalProcess } from "./TerminalProcess"
-import { TerminalInfo, TerminalRegistry } from "./TerminalRegistry"
+} from "@/integrations/terminal/types"
+import { mergePromise, VscodeTerminalProcess } from "./VscodeTerminalProcess"
+import { TerminalInfo, TerminalRegistry } from "./VscodeTerminalRegistry"
 
 /*
 TerminalManager:
@@ -95,9 +95,9 @@ declare module "vscode" {
 	}
 }
 
-export class TerminalManager implements ITerminalManager {
+export class VscodeTerminalManager implements ITerminalManager {
 	private terminalIds: Set<number> = new Set()
-	private processes: Map<number, TerminalProcess> = new Map()
+	private processes: Map<number, VscodeTerminalProcess> = new Map()
 	private disposables: vscode.Disposable[] = []
 	private shellIntegrationTimeout: number = 4000
 	private terminalReuseEnabled: boolean = true
@@ -170,7 +170,7 @@ export class TerminalManager implements ITerminalManager {
 
 		vscodeTerminalInfo.busy = true
 		vscodeTerminalInfo.lastCommand = command
-		const process = new TerminalProcess()
+		const process = new VscodeTerminalProcess()
 		this.processes.set(vscodeTerminalInfo.id, process)
 
 		process.once("completed", () => {
