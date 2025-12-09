@@ -1,8 +1,8 @@
 import { TerminalOutputFailureReason, telemetryService } from "@services/telemetry"
 import { EventEmitter } from "events"
 import * as vscode from "vscode"
+import { getLatestTerminalOutput } from "../../../integrations/terminal/get-latest-output"
 import { stripAnsi } from "./ansiUtils"
-import { getLatestTerminalOutput } from "./get-latest-output"
 
 export interface TerminalProcessEvents {
 	line: [line: string]
@@ -16,7 +16,7 @@ export interface TerminalProcessEvents {
 const PROCESS_HOT_TIMEOUT_NORMAL = 2_000
 const PROCESS_HOT_TIMEOUT_COMPILING = 15_000
 
-export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
+export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	waitForShellIntegration: boolean = true
 	private isListening: boolean = true
 	private buffer: string = ""
@@ -296,10 +296,10 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	}
 }
 
-export type TerminalProcessResultPromise = TerminalProcess & Promise<void>
+export type TerminalProcessResultPromise = VscodeTerminalProcess & Promise<void>
 
 // Similar to execa's ResultPromise, this lets us create a mixin of both a TerminalProcess and a Promise: https://github.com/sindresorhus/execa/blob/main/lib/methods/promise.js
-export function mergePromise(process: TerminalProcess, promise: Promise<void>): TerminalProcessResultPromise {
+export function mergePromise(process: VscodeTerminalProcess, promise: Promise<void>): TerminalProcessResultPromise {
 	const nativePromisePrototype = (async () => {})().constructor.prototype
 	const descriptors = ["then", "catch", "finally"].map(
 		(property) => [property, Reflect.getOwnPropertyDescriptor(nativePromisePrototype, property)] as const,

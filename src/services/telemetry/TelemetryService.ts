@@ -46,9 +46,19 @@ export enum TerminalHangStage {
 }
 
 export type TelemetryMetadata = {
-	/** The extension or cline-core version. */
+	/**
+	 * The extension or cline-core version. JetBrains and CLI have different
+	 * versioning than the VSCode Extension, but on those platforms this will be the _cline-core version_
+	 * which uses the same as the versioning as the VSCode extension.
+	 */
 	extension_version: string
-	/** The name of the host IDE or environment e.g. VSCode */
+	/**
+	 * The type of cline distribution, e.g VSCode Extension, JetBrains Plugin or CLI. This
+	 * is different than the `platform` because there are many variants of VSCode and JetBrains but they
+	 * all use the same extension or plugin.
+	 */
+	cline_type: string
+	/** The name of the host IDE or environment e.g. VSCode, Cursor, IntelliJ Professional Edition, etc. */
 	platform: string
 	/** The version of the host environment */
 	platform_version: string
@@ -225,6 +235,8 @@ export class TelemetryService {
 			AUTO_CONDENSE_TOGGLED: "task.auto_condense_toggled",
 			// Tracks when yolo mode setting is toggled on/off
 			YOLO_MODE_TOGGLED: "task.yolo_mode_toggled",
+			// Tracks when Cline web tools setting is toggled on/off
+			CLINE_WEB_TOOLS_TOGGLED: "task.cline_web_tools_toggled",
 			// Tracks task initialization timing
 			INITIALIZATION: "task.initialization",
 			// Terminal execution telemetry events
@@ -264,6 +276,7 @@ export class TelemetryService {
 			extension_version: extensionVersion,
 			platform: hostVersion.platform || "unknown",
 			platform_version: hostVersion.version || "unknown",
+			cline_type: hostVersion.clineType || "unknown",
 			os_type: os.platform(),
 			os_version: os.version(),
 			is_dev: process.env.IS_DEV,
@@ -1497,6 +1510,21 @@ export class TelemetryService {
 	public captureYoloModeToggle(ulid: string, enabled: boolean) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.YOLO_MODE_TOGGLED,
+			properties: {
+				ulid,
+				enabled,
+			},
+		})
+	}
+
+	/**
+	 * Records when Cline web tools are enabled/disabled by the user
+	 * @param ulid Unique identifier for the task
+	 * @param enabled Whether Cline web tools are enabled (true) or disabled (false)
+	 */
+	public captureClineWebToolsToggle(ulid: string, enabled: boolean) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.CLINE_WEB_TOOLS_TOGGLED,
 			properties: {
 				ulid,
 				enabled,

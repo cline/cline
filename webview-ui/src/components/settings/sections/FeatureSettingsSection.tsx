@@ -27,6 +27,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		yoloModeToggled,
 		dictationSettings,
 		useAutoCondense,
+		clineWebToolsEnabled,
 		focusChainSettings,
 		multiRootSetting,
 		hooksEnabled,
@@ -328,6 +329,21 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</a>
 						</p>
 					</div>
+					{clineWebToolsEnabled?.featureFlag && (
+						<div style={{ marginTop: 10 }}>
+							<VSCodeCheckbox
+								checked={clineWebToolsEnabled?.user}
+								onChange={(e: any) => {
+									const checked = e.target.checked === true
+									updateSetting("clineWebToolsEnabled", checked)
+								}}>
+								Enable Cline Web Tools
+							</VSCodeCheckbox>
+							<p className="text-xs text-(--vscode-descriptionForeground)">
+								Enables websearch and webfetch tools while using the Cline provider.
+							</p>
+						</div>
+					)}
 					<div className="mt-2.5">
 						<VSCodeCheckbox
 							checked={nativeToolCallSetting}
@@ -360,7 +376,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 					)}
 					<div className="mt-2.5">
 						<VSCodeCheckbox
-							checked={hooksEnabled?.user}
+							checked={hooksEnabled}
 							disabled={!isMacOSOrLinux()}
 							onChange={(e: any) => {
 								const checked = e.target.checked === true
