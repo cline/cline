@@ -7,8 +7,5 @@ export async function getOpenTabs(_: GetOpenTabsRequest): Promise<GetOpenTabsRes
 		.map((tab) => (tab.input as TabInputText)?.uri?.fsPath)
 		.filter(Boolean)
 
-	// Remove duplicates that can occur during tab transitions
-	const uniquePaths = [...new Set(openTabPaths)]
-
-	return GetOpenTabsResponse.create({ paths: uniquePaths })
+	return GetOpenTabsResponse.create({ paths: openTabPaths })
 }
