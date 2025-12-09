@@ -421,11 +421,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
 					const servers = await mcpHub.registerMcpServerDynamically(config)
 
-					HostProvider.window.showMessage({
-						type: ShowMessageType.INFORMATION,
-						message: `MCP server "${config.serverName}" registered successfully`,
-					})
-
 					telemetryService.captureButtonClick("command_registerMcpServer", webview.controller?.task?.ulid)
 
 					return { success: true, servers }
@@ -453,11 +448,6 @@ export async function activate(context: vscode.ExtensionContext) {
 				}
 
 				const servers = await mcpHub.unregisterMcpServerDynamically(serverName)
-
-				HostProvider.window.showMessage({
-					type: ShowMessageType.INFORMATION,
-					message: `MCP server "${serverName}" unregistered successfully`,
-				})
 
 				telemetryService.captureButtonClick("command_unregisterMcpServer", webview.controller?.task?.ulid)
 
