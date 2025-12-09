@@ -1,6 +1,6 @@
 import * as assert from "assert"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../providers/ITelemetryProvider"
-import { TelemetryService } from "../TelemetryService"
+import { TelemetryMetadata, TelemetryService } from "../TelemetryService"
 
 class FakeProvider implements ITelemetryProvider {
 	name(): string {
@@ -63,12 +63,13 @@ class FakeProvider implements ITelemetryProvider {
 function createTelemetryService(provider: FakeProvider): TelemetryService {
 	return new TelemetryService([provider], {
 		extension_version: "test",
+		cline_type: "cline-unit-tests",
 		platform: "test-platform",
 		platform_version: "1.0.0",
 		os_type: "darwin",
 		os_version: "24",
 		is_dev: "true",
-	})
+	} as TelemetryMetadata)
 }
 
 describe("TelemetryService metrics", () => {
