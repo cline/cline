@@ -2,7 +2,6 @@ import { geminiModels, ModelInfo } from "@shared/api"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import styled from "styled-components"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ModelDescriptionMarkdown } from "../ModelDescriptionMarkdown"
 import { formatPrice, hasThinkingBudget, supportsBrowserUse, supportsImages, supportsPromptCache } from "../utils/pricingUtils"
 
@@ -10,7 +9,8 @@ import { formatPrice, hasThinkingBudget, supportsBrowserUse, supportsImages, sup
 
 const InfoRow = styled.div`
 	display: flex;
-	gap: 16px;
+	column-gap: 16px;
+	row-gap: 4px;
 	font-size: 12px;
 	color: var(--vscode-foreground);
 	margin-top: 8px;
@@ -27,30 +27,6 @@ const InfoLabel = styled.span`
 
 const InfoValue = styled.span`
 	font-weight: 500;
-`
-
-const BadgesContainer = styled.div`
-	display: flex;
-	gap: 8px;
-	margin-top: 10px;
-	flex-wrap: wrap;
-`
-
-const CapabilityBadge = styled.span<{ $isEnabled: boolean }>`
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-	padding: 4px 10px;
-	font-size: 11px;
-	border-radius: 4px;
-	border: 1px solid var(--vscode-descriptionForeground);
-	color: ${({ $isEnabled }) => ($isEnabled ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
-	background: transparent;
-	opacity: ${({ $isEnabled }) => ($isEnabled ? 1 : 0.5)};
-`
-
-const BadgeIcon = styled.span`
-	font-size: 12px;
 `
 
 const CollapsibleHeader = styled.div`
@@ -224,9 +200,6 @@ export const ModelInfoView = ({
 	// Check if we have cache pricing to show in Advanced section
 	const hasCachePricing = modelInfo.supportsPromptCache && (modelInfo.cacheWritesPrice || modelInfo.cacheReadsPrice)
 
-	// Show Advanced section if we have cache pricing, tiers, or provider routing
-	const showAdvanced = hasCachePricing || hasTiers || showProviderRouting
-
 	return (
 		<div style={{ marginTop: 4 }}>
 			{/* Description */}
@@ -260,120 +233,99 @@ export const ModelInfoView = ({
 				)}
 			</InfoRow>
 
-			{/* Capability Badges */}
-			<BadgesContainer>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<CapabilityBadge $isEnabled={hasImages}>
-							<BadgeIcon className="codicon codicon-file-media" />
-							Images
-						</CapabilityBadge>
-					</TooltipTrigger>
-					<TooltipContent>Model can analyze images and screenshots</TooltipContent>
-				</Tooltip>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<CapabilityBadge $isEnabled={hasBrowser}>
-							<BadgeIcon className="codicon codicon-globe" />
-							Browser
-						</CapabilityBadge>
-					</TooltipTrigger>
-					<TooltipContent>Model can interact with web browsers</TooltipContent>
-				</Tooltip>
-				{!isGemini && (
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<CapabilityBadge $isEnabled={hasCaching}>
-								<BadgeIcon>$</BadgeIcon>
-								{hasCaching ? "Caching enabled" : "Caching"}
-							</CapabilityBadge>
-						</TooltipTrigger>
-						<TooltipContent>Prompt caching reduces costs by reusing previous context</TooltipContent>
-					</Tooltip>
-				)}
-			</BadgesContainer>
-
 			{/* Collapsible Advanced Section */}
-			{showAdvanced && (
-				<>
-					<CollapsibleHeader onClick={() => setAdvancedExpanded(!advancedExpanded)}>
-						<CollapsibleArrow $isExpanded={advancedExpanded}>▶</CollapsibleArrow>
-						Advanced
-					</CollapsibleHeader>
-					<CollapsibleContent $isExpanded={advancedExpanded}>
-						<AdvancedSection>
-							{/* Cache Pricing */}
-							{hasCachePricing && (
+			<CollapsibleHeader onClick={() => setAdvancedExpanded(!advancedExpanded)}>
+				<CollapsibleArrow $isExpanded={advancedExpanded}>▶</CollapsibleArrow>
+				Advanced
+			</CollapsibleHeader>
+			<CollapsibleContent $isExpanded={advancedExpanded}>
+				<AdvancedSection>
+					{/* Capabilities */}
+					<AdvancedRow>
+						<AdvancedLabel>Images</AdvancedLabel>
+						<AdvancedValue>{hasImages ? "Yes" : "No"}</AdvancedValue>
+					</AdvancedRow>
+					<AdvancedRow>
+						<AdvancedLabel>Browser</AdvancedLabel>
+						<AdvancedValue>{hasBrowser ? "Yes" : "No"}</AdvancedValue>
+					</AdvancedRow>
+					{!isGemini && (
+						<AdvancedRow>
+							<AdvancedLabel>Prompt Caching</AdvancedLabel>
+							<AdvancedValue>{hasCaching ? "Yes" : "No"}</AdvancedValue>
+						</AdvancedRow>
+					)}
+
+					{/* Cache Pricing */}
+					{hasCachePricing && (
+						<>
+							{modelInfo.cacheReadsPrice !== undefined && (
+								<AdvancedRow>
+									<AdvancedLabel>Cache Reads</AdvancedLabel>
+									<AdvancedValue>{formatCompactPrice(modelInfo.cacheReadsPrice)}</AdvancedValue>
+								</AdvancedRow>
+							)}
+							{modelInfo.cacheWritesPrice !== undefined && (
+								<AdvancedRow>
+									<AdvancedLabel>Cache Writes</AdvancedLabel>
+									<AdvancedValue>{formatCompactPrice(modelInfo.cacheWritesPrice)}</AdvancedValue>
+								</AdvancedRow>
+							)}
+						</>
+					)}
+
+					{/* Tiered Pricing */}
+					{hasTiers && (
+						<div style={{ marginTop: 8 }}>
+							<div style={{ fontWeight: 500, marginBottom: 4 }}>Tiered Pricing:</div>
+							{modelInfo.tiers && (
 								<>
-									{modelInfo.cacheReadsPrice !== undefined && (
-										<AdvancedRow>
-											<AdvancedLabel>Cache Reads</AdvancedLabel>
-											<AdvancedValue>{formatCompactPrice(modelInfo.cacheReadsPrice)}</AdvancedValue>
-										</AdvancedRow>
-									)}
-									{modelInfo.cacheWritesPrice !== undefined && (
-										<AdvancedRow>
-											<AdvancedLabel>Cache Writes</AdvancedLabel>
-											<AdvancedValue>{formatCompactPrice(modelInfo.cacheWritesPrice)}</AdvancedValue>
-										</AdvancedRow>
-									)}
+									<div>
+										<span style={{ fontWeight: 500 }}>Input:</span>
+										<br />
+										{formatTiers(modelInfo.tiers, "inputPrice")}
+									</div>
+									<div style={{ marginTop: 4 }}>
+										<span style={{ fontWeight: 500 }}>Output:</span>
+										<br />
+										{formatTiers(modelInfo.tiers, "outputPrice")}
+									</div>
 								</>
 							)}
+						</div>
+					)}
 
-							{/* Tiered Pricing */}
-							{hasTiers && (
-								<div style={{ marginTop: 8 }}>
-									<div style={{ fontWeight: 500, marginBottom: 4 }}>Tiered Pricing:</div>
-									{modelInfo.tiers && (
-										<>
-											<div>
-												<span style={{ fontWeight: 500 }}>Input:</span>
-												<br />
-												{formatTiers(modelInfo.tiers, "inputPrice")}
-											</div>
-											<div style={{ marginTop: 4 }}>
-												<span style={{ fontWeight: 500 }}>Output:</span>
-												<br />
-												{formatTiers(modelInfo.tiers, "outputPrice")}
-											</div>
-										</>
-									)}
-								</div>
-							)}
-
-							{/* Provider Routing */}
-							{showProviderRouting && onProviderSortingChange && (
-								<ProviderRoutingContainer>
-									<ProviderRoutingLabel>Provider Routing</ProviderRoutingLabel>
-									<VSCodeDropdown
-										onChange={(e: any) => onProviderSortingChange(e.target.value)}
-										style={{ width: "100%" }}
-										value={providerSorting || ""}>
-										<VSCodeOption value="">Default</VSCodeOption>
-										<VSCodeOption value="price">Price</VSCodeOption>
-										<VSCodeOption value="throughput">Throughput</VSCodeOption>
-										<VSCodeOption value="latency">Latency</VSCodeOption>
-									</VSCodeDropdown>
-									<p
-										style={{
-											fontSize: "11px",
-											marginTop: 4,
-											marginBottom: 0,
-											color: "var(--vscode-descriptionForeground)",
-										}}>
-										{!providerSorting &&
-											"Load balance across providers (AWS, Google Vertex, etc.), prioritizing price while considering uptime"}
-										{providerSorting === "price" && "Sort by price, prioritizing the lowest cost provider"}
-										{providerSorting === "throughput" &&
-											"Sort by throughput, prioritizing highest throughput (may increase cost)"}
-										{providerSorting === "latency" && "Sort by response time, prioritizing lowest latency"}
-									</p>
-								</ProviderRoutingContainer>
-							)}
-						</AdvancedSection>
-					</CollapsibleContent>
-				</>
-			)}
+					{/* Provider Routing */}
+					{showProviderRouting && onProviderSortingChange && (
+						<ProviderRoutingContainer>
+							<ProviderRoutingLabel>Provider Routing</ProviderRoutingLabel>
+							<VSCodeDropdown
+								onChange={(e: any) => onProviderSortingChange(e.target.value)}
+								style={{ width: "100%" }}
+								value={providerSorting || ""}>
+								<VSCodeOption value="">Default</VSCodeOption>
+								<VSCodeOption value="price">Price</VSCodeOption>
+								<VSCodeOption value="throughput">Throughput</VSCodeOption>
+								<VSCodeOption value="latency">Latency</VSCodeOption>
+							</VSCodeDropdown>
+							<p
+								style={{
+									fontSize: "11px",
+									marginTop: 4,
+									marginBottom: 0,
+									color: "var(--vscode-descriptionForeground)",
+								}}>
+								{!providerSorting &&
+									"Load balance across providers (AWS, Google Vertex, etc.), prioritizing price while considering uptime"}
+								{providerSorting === "price" && "Sort by price, prioritizing the lowest cost provider"}
+								{providerSorting === "throughput" &&
+									"Sort by throughput, prioritizing highest throughput (may increase cost)"}
+								{providerSorting === "latency" && "Sort by response time, prioritizing lowest latency"}
+							</p>
+						</ProviderRoutingContainer>
+					)}
+				</AdvancedSection>
+			</CollapsibleContent>
 		</div>
 	)
 }

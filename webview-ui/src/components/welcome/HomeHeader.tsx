@@ -22,7 +22,33 @@ const HomeHeader = ({ shouldShowQuickWins = false }: HomeHeaderProps) => {
 
 	return (
 		<div className="flex flex-col items-center mb-5">
-			<div className="my-7">
+			<style>
+				{`
+					@keyframes logo-pop-in {
+						0% {
+							opacity: 0;
+							transform: scale(0.8);
+						}
+						50% {
+							opacity: 1;
+							transform: scale(1.1);
+						}
+						65% {
+							transform: scale(0.9);
+						}
+						80% {
+							transform: scale(1.05);
+						}
+						100% {
+							transform: scale(1);
+						}
+					}
+					.logo-animate {
+						animation: logo-pop-in 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+					}
+				`}
+			</style>
+			<div className="my-7 logo-animate">
 				<ClineLogoVariable className="size-20" environment={environment} />
 			</div>
 			<div className="text-center flex items-center justify-center">

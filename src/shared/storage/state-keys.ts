@@ -49,7 +49,6 @@ export interface GlobalState {
 	workspaceRoots: WorkspaceRoot[] | undefined
 	primaryRootIndex: number
 	multiRootEnabled: boolean
-	hooksEnabled: boolean
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
 	lastDismissedCliBannerVersion: number
