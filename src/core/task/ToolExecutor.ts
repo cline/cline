@@ -40,6 +40,7 @@ import { SearchFilesToolHandler } from "./tools/handlers/SearchFilesToolHandler"
 import { SummarizeTaskHandler } from "./tools/handlers/SummarizeTaskHandler"
 import { UseMcpToolHandler } from "./tools/handlers/UseMcpToolHandler"
 import { WebFetchToolHandler } from "./tools/handlers/WebFetchToolHandler"
+import { WebSearchToolHandler } from "./tools/handlers/WebSearchToolHandler"
 import { WriteToFileToolHandler } from "./tools/handlers/WriteToFileToolHandler"
 import { IPartialBlockHandler, SharedToolHandler, ToolExecutorCoordinator } from "./tools/ToolExecutorCoordinator"
 import { ToolValidator } from "./tools/ToolValidator"
@@ -206,6 +207,7 @@ export class ToolExecutor {
 		this.coordinator.register(new BrowserToolHandler())
 		this.coordinator.register(new AskFollowupQuestionToolHandler())
 		this.coordinator.register(new WebFetchToolHandler())
+		this.coordinator.register(new WebSearchToolHandler())
 
 		// Register WriteToFileToolHandler for all three file tools with proper typing
 		const writeHandler = new WriteToFileToolHandler(validator)
