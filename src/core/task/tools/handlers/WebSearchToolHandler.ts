@@ -4,6 +4,7 @@ import axios from "axios"
 import { ClineEnv } from "@/config"
 import { AuthService } from "@/services/auth/AuthService"
 import { buildClineExtraHeaders } from "@/services/EnvUtils"
+import { featureFlagsService } from "@/services/feature-flags"
 import { telemetryService } from "@/services/telemetry"
 import { parsePartialArrayString } from "@/shared/array"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
@@ -52,9 +53,10 @@ export class WebSearchToolHandler implements IFullyManagedTool {
 			const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
 			const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
 
-			// Check if Cline web tools are enabled
+			// Check if Cline web tools are enabled (both user setting and feature flag)
 			const clineWebToolsEnabled = config.services.stateManager.getGlobalSettingsKey("clineWebToolsEnabled")
-			if (provider !== "cline" || !clineWebToolsEnabled) {
+			const featureFlagEnabled = featureFlagsService.getWebtoolsEnabled()
+			if (provider !== "cline" || !clineWebToolsEnabled || !featureFlagEnabled) {
 				return formatResponse.toolError("Cline web tools are currently disabled.")
 			}
 
