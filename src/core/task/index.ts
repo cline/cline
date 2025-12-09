@@ -204,6 +204,7 @@ export class Task {
 	contextManager: ContextManager
 	private diffViewProvider: DiffViewProvider
 	public checkpointManager?: ICheckpointManager
+	private initialCheckpointCommitPromise?: Promise<string | undefined>
 	private clineIgnoreController: ClineIgnoreController
 	private toolExecutor: ToolExecutor
 	/**
@@ -2433,6 +2434,10 @@ export class Task {
 				break
 			}
 			case "tool_use":
+				if (this.initialCheckpointCommitPromise) {
+					await this.initialCheckpointCommitPromise
+					this.initialCheckpointCommitPromise = undefined
+				}
 				await this.toolExecutor.executeTool(block)
 				break
 		}
@@ -2571,9 +2576,10 @@ export class Task {
 				(m) => m.say === "checkpoint_created",
 			)
 			if (lastCheckpointMessageIndex !== -1) {
-				this.checkpointManager
-					?.commit()
-					.then(async (commitHash) => {
+				const commitPromise = this.checkpointManager?.commit()
+				this.initialCheckpointCommitPromise = commitPromise
+				commitPromise
+					?.then(async (commitHash) => {
 						if (commitHash) {
 							await this.messageStateHandler.updateClineMessage(lastCheckpointMessageIndex, {
 								lastCheckpointHash: commitHash,
