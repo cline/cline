@@ -126,6 +126,23 @@ export class ClineAuthProvider implements IAuthProvider {
 		return null
 	}
 
+	private logFailedRefreshAttempt(response: Response, storedAuthData?: ClineAuthInfo) {
+		const startedAt = storedAuthData?.startedAt
+		const timeSinceStarted = Date.now() - (startedAt || 0)
+
+		const tokenData = this.extractTokenData(storedAuthData)
+		telemetryService.capture({
+			event: "extension_refresh_attempt_failed",
+			properties: {
+				status_code: response.status,
+				request_id: response.headers.get("x-request-id"),
+				session_id: tokenData.sid,
+				user_id: tokenData.external_id,
+				time_since_started: timeSinceStarted,
+			},
+		})
+	}
+
 	private extractTokenData(authInfo?: ClineAuthInfo): Partial<TokenData> {
 		if (!authInfo || !authInfo.idToken) {
 			return {}
@@ -287,6 +304,8 @@ export class ClineAuthProvider implements IAuthProvider {
 			})
 
 			if (!response.ok) {
+				this.logFailedRefreshAttempt(response, storedData)
+
 				// 400/401 = Invalid/expired token (permanent failure)
 				if (response.status === 400 || response.status === 401) {
 					const errorData = await response.json().catch(() => ({}))
