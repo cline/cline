@@ -3,6 +3,7 @@ import { executePreCompactHookWithCleanup, HookCancellationError } from "@core/h
 import { continuationPrompt } from "@core/prompts/contextManagement"
 import { formatResponse } from "@core/prompts/responses"
 import { ensureTaskDirectoryExists } from "@core/storage/disk"
+import { StateManager } from "@core/storage/StateManager"
 import { resolveWorkspacePath } from "@core/workspace"
 import { extractFileContent } from "@integrations/misc/extract-file-content"
 import { ClineSayTool } from "@shared/ExtensionMessage"
@@ -39,11 +40,11 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 			let hookContextModification: string | undefined
 
 			// Run PreCompact hook right before showing the condensing message
-			const hooksEnabled = config.services.stateManager.getGlobalSettingsKey("hooksEnabled")
+			const hooksEnabled = StateManager.get().getGlobalSettingsKey("hooksEnabled")
 			if (hooksEnabled) {
 				try {
 					// Determine compaction strategy
-					const useAutoCondense = config.services.stateManager.getGlobalSettingsKey("useAutoCondense")
+					const useAutoCondense = StateManager.get().getGlobalSettingsKey("useAutoCondense")
 					const strategy = useAutoCondense ? "auto-condense" : "standard-truncation-firstpair"
 
 					const apiHistory = config.messageState.getApiConversationHistory()

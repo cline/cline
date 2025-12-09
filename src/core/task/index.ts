@@ -1995,39 +1995,6 @@ export class Task {
 		return apiLike.getLastRequestId?.() ?? apiLike.lastGenerationId
 	}
 
-	/**
-	 * Execute PreCompact hook before context window truncation
-	 * @throws HookCancellationError if the hook cancels the operation
-	 */
-	private async executePreCompactHook(apiConversationHistory: ClineStorageMessage[]): Promise<void> {
-		// Calculate what the new deleted range will be
-		const deletedRange = this.calculatePreCompactDeletedRange(apiConversationHistory)
-
-		// Execute hook - throws HookCancellationError if cancelled
-		await executePreCompactHookWithCleanup({
-			taskId: this.taskId,
-			ulid: this.ulid,
-			apiConversationHistory,
-			conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
-			contextManager: this.contextManager,
-			clineMessages: this.messageStateHandler.getClineMessages(),
-			messageStateHandler: this.messageStateHandler,
-			compactionStrategy: "standard-truncation-lastquarter",
-			deletedRange,
-			say: this.say.bind(this),
-			setActiveHookExecution: async (hookExecution: HookExecution | undefined) => {
-				if (hookExecution) {
-					await this.setActiveHookExecution(hookExecution)
-				}
-			},
-			clearActiveHookExecution: this.clearActiveHookExecution.bind(this),
-			postStateToWebview: this.postStateToWebview.bind(this),
-			taskState: this.taskState,
-			cancelTask: this.cancelTask.bind(this),
-			hooksEnabled: true,
-		})
-	}
-
 	private async handleContextWindowExceededError(): Promise<void> {
 		const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 
@@ -2035,7 +2002,32 @@ export class Task {
 		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 		if (hooksEnabled) {
 			try {
-				await this.executePreCompactHook(apiConversationHistory)
+				// Calculate what the new deleted range will be
+				const deletedRange = this.calculatePreCompactDeletedRange(apiConversationHistory)
+
+				// Execute hook - throws HookCancellationError if cancelled
+				await executePreCompactHookWithCleanup({
+					taskId: this.taskId,
+					ulid: this.ulid,
+					apiConversationHistory,
+					conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
+					contextManager: this.contextManager,
+					clineMessages: this.messageStateHandler.getClineMessages(),
+					messageStateHandler: this.messageStateHandler,
+					compactionStrategy: "standard-truncation-lastquarter",
+					deletedRange,
+					say: this.say.bind(this),
+					setActiveHookExecution: async (hookExecution: HookExecution | undefined) => {
+						if (hookExecution) {
+							await this.setActiveHookExecution(hookExecution)
+						}
+					},
+					clearActiveHookExecution: this.clearActiveHookExecution.bind(this),
+					postStateToWebview: this.postStateToWebview.bind(this),
+					taskState: this.taskState,
+					cancelTask: this.cancelTask.bind(this),
+					hooksEnabled: true,
+				})
 			} catch (error) {
 				// If hook was cancelled, re-throw to stop compaction
 				if (error instanceof HookCancellationError) {

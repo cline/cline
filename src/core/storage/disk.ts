@@ -487,7 +487,7 @@ export async function writeConversationHistoryJson(
 	const tempFilePath = path.join(taskDir, tempFileName)
 
 	try {
-		await fs.writeFile(tempFilePath, JSON.stringify(apiConversationHistory, null, 2))
+		await atomicWriteFile(tempFilePath, JSON.stringify(apiConversationHistory, null, 2))
 		return tempFilePath
 	} catch (error) {
 		console.error("Failed to write conversation history JSON for hook:", error)
@@ -576,7 +576,7 @@ export async function writeConversationHistoryText(
 
 		fullContext += "=== END OF CONTEXT ===\n"
 
-		await fs.writeFile(tempFilePath, fullContext, "utf8")
+		await atomicWriteFile(tempFilePath, fullContext)
 		return tempFilePath
 	} catch (error) {
 		console.error("Failed to write conversation history text for hook:", error)
