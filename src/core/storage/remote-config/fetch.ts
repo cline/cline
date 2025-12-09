@@ -27,6 +27,65 @@ function parseApiKeys(value: string): APIKeySettings {
 }
 
 /**
+ * Helper function to make authenticated requests to the Cline API
+ * @param endpoint The API endpoint path (with {id} placeholder if needed)
+ * @param organizationId The organization ID to replace in the endpoint
+ * @returns The response data on success
+ * @throws Error if the request fails or returns an error
+ */
+async function makeAuthenticatedRequest<T>(endpoint: string, organizationId: string): Promise<T> {
+	const authService = AuthService.getInstance()
+
+	// Get authentication token
+	const authToken = await authService.getAuthToken()
+	if (!authToken) {
+		throw new Error("No Cline account auth token found")
+	}
+
+	// Construct URL by replacing {id} placeholder with organizationId
+	const apiEndpoint = endpoint.replace("{id}", organizationId)
+	const url = new URL(apiEndpoint, ClineEnv.config().apiBaseUrl).toString()
+
+	// Make authenticated request
+	const requestConfig: AxiosRequestConfig = {
+		headers: {
+			Authorization: `Bearer ${authToken}`,
+			"Content-Type": "application/json",
+		},
+		...getAxiosSettings(),
+	}
+
+	const response: AxiosResponse<{
+		data?: T
+		error: string
+		success: boolean
+	}> = await axios.request({
+		url,
+		method: "GET",
+		...requestConfig,
+	})
+
+	// Validate response status
+	const status = response.status
+	if (status < 200 || status >= 300) {
+		throw new Error(`Request to ${apiEndpoint} failed with status ${status}`)
+	}
+
+	// Validate response structure
+	if (!response.data || !response.data.success) {
+		throw new Error(`API error: ${response.data?.error || "Unknown error"}`)
+	}
+
+	// Extract and return data
+	const data = response.data.data
+	if (!data) {
+		throw new Error(`No data returned from ${apiEndpoint}`)
+	}
+
+	return data
+}
+
+/**
  * Fetches remote configuration for a specific organization from the API.
  * Falls back to cached config if the request fails.
  *
@@ -34,58 +93,12 @@ function parseApiKeys(value: string): APIKeySettings {
  * @returns RemoteConfig if enabled, undefined if disabled or not found
  */
 async function fetchRemoteConfigForOrganization(organizationId: string): Promise<RemoteConfig | undefined> {
-	const authService = AuthService.getInstance()
-
 	try {
-		// Get authentication token
-		const authToken = await authService.getAuthToken()
-		if (!authToken) {
-			throw new Error("No Cline account auth token found")
-		}
-
-		// Construct URL by replacing {id} placeholder with organizationId
-		const endpoint = CLINE_API_ENDPOINT.REMOTE_CONFIG.replace("{id}", organizationId)
-		const url = new URL(endpoint, ClineEnv.config().apiBaseUrl).toString()
-
-		// Make authenticated request
-		const requestConfig: AxiosRequestConfig = {
-			headers: {
-				Authorization: `Bearer ${authToken}`,
-				"Content-Type": "application/json",
-			},
-			...getAxiosSettings(),
-		}
-
-		const response: AxiosResponse<{
-			data?: { value: string; enabled: boolean }
-			error: string
-			success: boolean
-		}> = await axios.request({
-			url,
-			method: "GET",
-			...requestConfig,
-		})
-
-		// Validate response status
-		const status = response.status
-		if (status < 200 || status >= 300) {
-			throw new Error(`Request to ${endpoint} failed with status ${status}`)
-		}
-
-		// Validate response structure
-		if (response.statusText !== "No Content" && (!response.data || !response.data.data)) {
-			throw new Error(`Invalid response from ${endpoint} API`)
-		}
-
-		if (typeof response.data === "object" && !response.data.success) {
-			throw new Error(`API error: ${response.data.error}`)
-		}
-
-		// Extract and validate the config data
-		const configData = response.data.data
-		if (!configData) {
-			throw new Error(`No config data returned from ${endpoint}`)
-		}
+		// Fetch config data using helper
+		const configData = await makeAuthenticatedRequest<{ value: string; enabled: boolean }>(
+			CLINE_API_ENDPOINT.REMOTE_CONFIG,
+			organizationId,
+		)
 
 		// Check if config is enabled
 		if (!configData.enabled) {
@@ -128,56 +141,11 @@ async function fetchRemoteConfigForOrganization(organizationId: string): Promise
  * @returns Record of API keys (e.g., { litellm: "key" }) or undefined if fetch fails
  */
 async function fetchApiKeysForOrganization(organizationId: string): Promise<APIKeySettings> {
-	const authService = AuthService.getInstance()
-
 	try {
-		// Get authentication token
-		const authToken = await authService.getAuthToken()
-		if (!authToken) {
-			throw new Error("No Cline account auth token found")
-		}
+		// Fetch API keys string using helper
+		const apiKeysString = await makeAuthenticatedRequest<string>(CLINE_API_ENDPOINT.API_KEYS, organizationId)
 
-		// Construct URL by replacing {id} with organizationId
-		const endpoint = CLINE_API_ENDPOINT.API_KEYS.replace("{id}", organizationId)
-		const url = new URL(endpoint, ClineEnv.config().apiBaseUrl).toString()
-
-		// Make authenticated request
-		const requestConfig: AxiosRequestConfig = {
-			headers: {
-				Authorization: `Bearer ${authToken}`,
-				"Content-Type": "application/json",
-			},
-			...getAxiosSettings(),
-		}
-
-		const response: AxiosResponse<{
-			data?: string
-			error: string
-			success: boolean
-		}> = await axios.request({
-			url,
-			method: "GET",
-			...requestConfig,
-		})
-
-		// Validate response status
-		const status = response.status
-		if (status < 200 || status >= 300) {
-			throw new Error(`Request to ${endpoint} failed with status ${status}`)
-		}
-
-		// Validate response structure
-		if (!response.data || !response.data.success) {
-			throw new Error(`API error: ${response.data?.error || "Unknown error"}`)
-		}
-
-		// Extract and parse API keys from string response
-		const apiKeysString = response.data.data
-		if (!apiKeysString) {
-			console.warn(`No API keys returned from ${endpoint}`)
-			return {}
-		}
-
+		// Parse and return API keys
 		return parseApiKeys(apiKeysString)
 	} catch (error) {
 		console.error(`Failed to fetch API keys for organization ${organizationId}:`, error)
