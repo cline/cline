@@ -212,6 +212,7 @@ export interface Settings {
 	openTelemetryLogsExporter: string | undefined
 	openTelemetryOtlpProtocol: string
 	openTelemetryOtlpEndpoint: string
+	openTelemetryOtlpHeaders: Record<string, string> | undefined
 	openTelemetryOtlpMetricsProtocol: string | undefined
 	openTelemetryOtlpMetricsEndpoint: string | undefined
 	openTelemetryOtlpLogsProtocol: string | undefined

@@ -66,10 +66,9 @@ export class TelemetryProviderFactory {
 				return new NoOpTelemetryProvider()
 			}
 			case "opentelemetry": {
-				const meterProvider = OpenTelemetryClientProvider.getMeterProvider()
-				const loggerProvider = OpenTelemetryClientProvider.getLoggerProvider()
-				if (meterProvider || loggerProvider) {
-					return await new OpenTelemetryTelemetryProvider().initialize()
+				const client = new OpenTelemetryClientProvider()
+				if (client.meterProvider || client.loggerProvider) {
+					return await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider).initialize()
 				}
 				Logger.info("TelemetryProviderFactory: OpenTelemetry providers not available")
 				return new NoOpTelemetryProvider()

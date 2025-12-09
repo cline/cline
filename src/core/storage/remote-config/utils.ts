@@ -1,6 +1,10 @@
 import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
 import { RemoteConfig } from "@shared/remote-config/schema"
 import { RemoteConfigFields } from "@shared/storage/state-keys"
+import { getTelemetryService } from "@/services/telemetry"
+import { OpenTelemetryClientProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryClientProvider"
+import { OpenTelemetryTelemetryProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider"
+import { OpenTelemetryClientValidConfig, remoteConfigToOtelConfig } from "@/shared/services/config/otel-config"
 import { StateManager } from "../StateManager"
 
 /**
@@ -70,6 +74,9 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	}
 	if (remoteConfig.openTelemetryLogMaxQueueSize !== undefined) {
 		transformed.openTelemetryLogMaxQueueSize = remoteConfig.openTelemetryLogMaxQueueSize
+	}
+	if (remoteConfig.openTelemetryOtlpHeaders !== undefined) {
+		transformed.openTelemetryOtlpHeaders = remoteConfig.openTelemetryOtlpHeaders
 	}
 
 	// Map provider settings
@@ -172,7 +179,7 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
  * Applies remote config to the StateManager's remote config cache
  * @param remoteConfig The remote configuration object to apply
  */
-export function applyRemoteConfig(remoteConfig?: RemoteConfig): void {
+export async function applyRemoteConfig(remoteConfig?: RemoteConfig): Promise<void> {
 	const stateManager = StateManager.get()
 
 	// If no remote config provided, clear the cache and relevant state
@@ -203,5 +210,17 @@ export function applyRemoteConfig(remoteConfig?: RemoteConfig): void {
 	// Populate remote config cache with transformed values
 	for (const [key, value] of Object.entries(transformed)) {
 		stateManager.setRemoteConfigField(key as keyof RemoteConfigFields, value)
+	}
+
+	const otelConfig = remoteConfigToOtelConfig(transformed)
+	if (otelConfig.enabled) {
+		const telemetryService = await getTelemetryService()
+		const client = new OpenTelemetryClientProvider(otelConfig as OpenTelemetryClientValidConfig)
+
+		if (client.meterProvider || client.loggerProvider) {
+			telemetryService.addProvider(
+				await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider).initialize(),
+			)
+		}
 	}
 }

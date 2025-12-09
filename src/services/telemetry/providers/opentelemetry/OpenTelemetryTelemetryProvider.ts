@@ -1,12 +1,13 @@
 import { Meter } from "@opentelemetry/api"
 import type { Logger as OTELLogger } from "@opentelemetry/api-logs"
+import { LoggerProvider } from "@opentelemetry/sdk-logs"
+import { MeterProvider } from "@opentelemetry/sdk-metrics"
 import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { getDistinctId, setDistinctId } from "@/services/logging/distinctId"
 import { Setting } from "@/shared/proto/index.host"
 import type { ClineAccountUserInfo } from "../../../auth/AuthService"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../ITelemetryProvider"
-import { OpenTelemetryClientProvider } from "./OpenTelemetryClientProvider"
 
 /**
  * OpenTelemetry implementation of the telemetry provider interface.
@@ -23,17 +24,13 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	private gauges = new Map<string, ReturnType<Meter["createObservableGauge"]>>()
 	private gaugeValues = new Map<string, Map<string, { value: number; attributes?: TelemetryProperties }>>()
 
-	constructor() {
+	constructor(meterProvider: MeterProvider | null, loggerProvider: LoggerProvider | null) {
 		// Initialize telemetry settings
 		this.telemetrySettings = {
 			extensionEnabled: true,
 			hostEnabled: true,
 			level: "all",
 		}
-
-		// Get meter and logger from the shared client provider
-		const meterProvider = OpenTelemetryClientProvider.getMeterProvider()
-		const loggerProvider = OpenTelemetryClientProvider.getLoggerProvider()
 
 		if (meterProvider) {
 			this.meter = meterProvider.getMeter("cline")
