@@ -45,6 +45,7 @@ export async function getOrganizationCredits(
 						promptTokens: tx.promptTokens,
 						totalTokens: tx.totalTokens,
 						userId: tx.userId,
+						operation: tx.operation,
 					}),
 				) || [],
 		})
