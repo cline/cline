@@ -1,4 +1,4 @@
-import { EmptyRequest } from "@shared/proto/index.cline"
+import { EmptyRequest, Int64Request } from "@shared/proto/index.cline"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { Megaphone, Terminal } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
@@ -85,6 +85,9 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 						</VSCodeLink>
 					</>
 				),
+				onDismiss: () => {
+					StateServiceClient.updateInfoBannerVersion({ value: CURRENT_INFO_BANNER_VERSION }).catch(console.error)
+				},
 			})
 		}
 
@@ -120,6 +123,11 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 						variant: "primary",
 					},
 				],
+				onDismiss: () => {
+					StateServiceClient.updateModelBannerVersion(
+						Int64Request.create({ value: CURRENT_MODEL_BANNER_VERSION }),
+					).catch(console.error)
+				},
 			})
 		}
 
@@ -171,6 +179,11 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 							{ label: "Install CLI", onClick: handleInstallCli, variant: "primary" },
 							{ label: "Subagents (Windows coming soon)", onClick: () => {}, variant: "secondary", disabled: true },
 						],
+				onDismiss: () => {
+					StateServiceClient.updateCliBannerVersion(Int64Request.create({ value: CURRENT_CLI_BANNER_VERSION })).catch(
+						console.error,
+					)
+				},
 			})
 		}
 
