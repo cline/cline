@@ -914,6 +914,7 @@ export const vertexModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
+		supportsReasoning: true,
 	},
 	"claude-sonnet-4@20250514": {
 		maxTokens: 8192,
@@ -924,6 +925,7 @@ export const vertexModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
+		supportsReasoning: true,
 	},
 	"claude-haiku-4-5@20251001": {
 		maxTokens: 8192,
@@ -934,6 +936,7 @@ export const vertexModels = {
 		outputPrice: 5.0,
 		cacheWritesPrice: 1.25,
 		cacheReadsPrice: 0.1,
+		supportsReasoning: true,
 	},
 	"claude-opus-4-5@20251101": {
 		maxTokens: 8192,
@@ -944,6 +947,7 @@ export const vertexModels = {
 		outputPrice: 25.0,
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
+		supportsReasoning: true,
 	},
 	"claude-opus-4-1@20250805": {
 		maxTokens: 8192,
@@ -954,6 +958,7 @@ export const vertexModels = {
 		outputPrice: 75.0,
 		cacheWritesPrice: 18.75,
 		cacheReadsPrice: 1.5,
+		supportsReasoning: true,
 	},
 	"claude-opus-4@20250514": {
 		maxTokens: 8192,
@@ -964,6 +969,7 @@ export const vertexModels = {
 		outputPrice: 75.0,
 		cacheWritesPrice: 18.75,
 		cacheReadsPrice: 1.5,
+		supportsReasoning: true,
 	},
 	"claude-3-7-sonnet@20250219": {
 		maxTokens: 8192,
@@ -978,6 +984,7 @@ export const vertexModels = {
 			maxBudget: 64000,
 			outputPrice: 15.0,
 		},
+		supportsReasoning: true,
 	},
 	"claude-3-5-sonnet-v2@20241022": {
 		maxTokens: 8192,
@@ -2558,8 +2565,40 @@ export const doubaoModels = {
 // Mistral
 // https://docs.mistral.ai/getting-started/models/models_overview/
 export type MistralModelId = keyof typeof mistralModels
-export const mistralDefaultModelId: MistralModelId = "devstral-small-2505"
+export const mistralDefaultModelId: MistralModelId = "devstral-2512"
 export const mistralModels = {
+	"devstral-2512": {
+		maxTokens: 256_000,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"labs-devstral-small-2512": {
+		maxTokens: 256_000,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"mistral-large-2512": {
+		maxTokens: 256_000,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.5,
+		outputPrice: 1.5,
+	},
+	"ministral-14b-2512": {
+		maxTokens: 256_000,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.2,
+	},
 	"mistral-large-2411": {
 		maxTokens: 128_000,
 		contextWindow: 128_000,

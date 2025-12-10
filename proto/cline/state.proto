@@ -228,6 +228,7 @@ message Settings {
   optional string act_mode_aihubmix_model_id = 132;
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 133;
   optional bool cline_web_tools_enabled = 134;
+  optional bool hooks_enabled = 135;
 }
 
 message DictationSettings {

@@ -1100,7 +1100,7 @@ export class StateManager {
 			qwenApiKey: this.secretsCache["qwenApiKey"],
 			doubaoApiKey: this.secretsCache["doubaoApiKey"],
 			mistralApiKey: this.secretsCache["mistralApiKey"],
-			liteLlmApiKey: this.secretsCache["liteLlmApiKey"],
+			liteLlmApiKey: this.secretsCache["remoteLiteLlmApiKey"] || this.secretsCache["liteLlmApiKey"],
 			fireworksApiKey: this.secretsCache["fireworksApiKey"],
 			asksageApiKey: this.secretsCache["asksageApiKey"],
 			xaiApiKey: this.secretsCache["xaiApiKey"],
