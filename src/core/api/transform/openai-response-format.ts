@@ -215,7 +215,7 @@ export function convertToOpenAIResponsesInput(messages: ClineStorageMessage[]): 
 
 			// Flush any remaining user message content
 			if (messageContent.length > 0) {
-				allItems.push({ role: m.role, content: [...messageContent] })
+				allItems.push({ role: m.role, content: [messageContent[0]] })
 			}
 		}
 	}
