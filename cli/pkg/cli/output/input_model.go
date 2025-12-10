@@ -9,12 +9,13 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/cline/cli/pkg/cli/slash"
 )
 
 // InputType represents the type of input being collected
 type InputType int
 
-const INPUT_WIDTH = 46 
+const INPUT_WIDTH = 46
 
 const (
 	InputTypeMessage InputType = iota
@@ -24,11 +25,11 @@ const (
 
 // InputSubmitMsg is sent when the user submits input
 type InputSubmitMsg struct {
-	Value          string
-	InputType      InputType
-	Approved       bool // For approval type
-	NeedsFeedback  bool // For approval type
-	NoAskAgain     bool // For approval type - indicates "don't ask again" was selected
+	Value         string
+	InputType     InputType
+	Approved      bool // For approval type
+	NeedsFeedback bool // For approval type
+	NoAskAgain    bool // For approval type - indicates "don't ask again" was selected
 }
 
 // InputCancelMsg is sent when the user cancels input (Ctrl+C)
@@ -36,8 +37,8 @@ type InputCancelMsg struct{}
 
 // ChangeInputTypeMsg changes the current input type
 type ChangeInputTypeMsg struct {
-	InputType InputType
-	Title     string
+	InputType   InputType
+	Title       string
 	Placeholder string
 }
 
@@ -57,7 +58,7 @@ type InputModel struct {
 	placeholder string
 	currentMode string // "plan" or "act"
 	width       int
-	lastHeight  int    // Track height for cleanup on submit
+	lastHeight  int // Track height for cleanup on submit
 
 	// For approval type
 	approvalOptions []string
@@ -66,6 +67,12 @@ type InputModel struct {
 
 	// Styles (huh-inspired theme)
 	styles fieldStyles
+
+	// Slash command autocomplete
+	slashRegistry     *slash.Registry
+	completionMatches []slash.Command // Current completion matches
+	completionIndex   int             // Current position in matches (for cycling)
+	completionPrefix  string          // The prefix being completed (e.g., "/ne" -> matches "/newtask")
 }
 
 // fieldStyles holds the styling for the input field
@@ -115,12 +122,17 @@ func newFieldStyles() fieldStyles {
 
 // NewInputModel creates a new input model
 func NewInputModel(inputType InputType, title, placeholder, currentMode string) InputModel {
+	return NewInputModelWithRegistry(inputType, title, placeholder, currentMode, nil)
+}
+
+// NewInputModelWithRegistry creates a new input model with slash command autocomplete support
+func NewInputModelWithRegistry(inputType InputType, title, placeholder, currentMode string, registry *slash.Registry) InputModel {
 	ta := textarea.New()
 	ta.Placeholder = placeholder
 	ta.Focus()
 	ta.CharLimit = 0
 	ta.ShowLineNumbers = false
-	ta.Prompt = ""  // Remove prompt prefix (this is what adds the inner border!)
+	ta.Prompt = "" // Remove prompt prefix (this is what adds the inner border!)
 	ta.SetHeight(5)
 	// Don't set width here - let WindowSizeMsg handle it
 	ta.SetWidth(INPUT_WIDTH)
@@ -138,22 +150,23 @@ func NewInputModel(inputType InputType, title, placeholder, currentMode string) 
 		cursorColor = lipgloss.Color("39") // Blue for act
 	}
 
-	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()   // No cursor line highlighting
-	ta.FocusedStyle.EndOfBuffer = lipgloss.NewStyle()  // No end-of-buffer styling
+	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()  // No cursor line highlighting
+	ta.FocusedStyle.EndOfBuffer = lipgloss.NewStyle() // No end-of-buffer styling
 	ta.FocusedStyle.Placeholder = styles.placeholder
 	ta.FocusedStyle.Text = styles.textArea
-	ta.FocusedStyle.Prompt = lipgloss.NewStyle()       // No prompt styling
+	ta.FocusedStyle.Prompt = lipgloss.NewStyle() // No prompt styling
 	ta.Cursor.Style = lipgloss.NewStyle().Foreground(cursorColor)
 	ta.Cursor.TextStyle = styles.textArea
 
 	m := InputModel{
-		textarea:    ta,
-		inputType:   inputType,
-		title:       title,
-		placeholder: placeholder,
-		currentMode: currentMode,
-		width:       0, // Will be set by first WindowSizeMsg
-		styles:      styles,
+		textarea:      ta,
+		inputType:     inputType,
+		title:         title,
+		placeholder:   placeholder,
+		currentMode:   currentMode,
+		width:         0, // Will be set by first WindowSizeMsg
+		styles:        styles,
+		slashRegistry: registry,
 	}
 
 	// For approval type, set up options
@@ -217,13 +230,6 @@ func (m *InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	default:
-		// Forward all other messages to textarea (including blink ticks)
-		if !m.suspended && (m.inputType == InputTypeMessage || m.inputType == InputTypeFeedback) {
-			m.textarea, cmd = m.textarea.Update(msg)
-			return m, cmd
-		}
-
 	case tea.KeyMsg:
 		if m.suspended {
 			return m, nil
@@ -239,6 +245,17 @@ func (m *InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Open external editor (like huh does)
 				return m, m.openEditor()
 
+			case "tab":
+				// Handle slash command autocomplete
+				if m.slashRegistry != nil {
+					if handled := m.handleTabCompletion(); handled {
+						return m, nil
+					}
+				}
+				// If not handled, let textarea handle tab
+				m.textarea, cmd = m.textarea.Update(msg)
+				return m, cmd
+
 			case "enter":
 				// Intercept enter for submit (textarea handles alt+enter and ctrl+j for newlines)
 				return m.handleSubmit()
@@ -250,6 +267,8 @@ func (m *InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			// Pass all other keys to textarea (including alt+enter, ctrl+j for newlines)
+			// Clear completion state on any other key press
+			m.clearCompletionState()
 			m.textarea, cmd = m.textarea.Update(msg)
 			return m, cmd
 		}
@@ -275,6 +294,13 @@ func (m *InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			}
+		}
+
+	default:
+		// Forward all other messages to textarea (including blink ticks)
+		if !m.suspended && (m.inputType == InputTypeMessage || m.inputType == InputTypeFeedback) {
+			m.textarea, cmd = m.textarea.Update(msg)
+			return m, cmd
 		}
 	}
 
@@ -411,7 +437,7 @@ func (m *InputModel) Clone() *InputModel {
 	ta.ShowLineNumbers = false
 	ta.Prompt = ""
 	ta.SetHeight(5)
-	ta.SetWidth(INPUT_WIDTH) 
+	ta.SetWidth(INPUT_WIDTH)
 	ta.Focus()
 
 	// Configure keybindings
@@ -446,6 +472,7 @@ func (m *InputModel) Clone() *InputModel {
 		selectedOption:  m.selectedOption,
 		pendingApproval: m.pendingApproval, // Preserve approval decision
 		styles:          m.styles,
+		slashRegistry:   m.slashRegistry, // Preserve slash registry for autocomplete
 	}
 
 	return clone
@@ -494,4 +521,73 @@ func (m *InputModel) openEditor() tea.Cmd {
 
 		return editorFinishedMsg{content: content, err: err}
 	})
+}
+
+// handleTabCompletion handles tab key for slash command autocomplete
+// Returns true if completion was handled, false otherwise
+func (m *InputModel) handleTabCompletion() bool {
+	value := m.textarea.Value()
+
+	// Only complete if text starts with "/" and cursor is at the end of a word
+	// For simplicity, we complete the last word that starts with "/"
+	slashIdx := strings.LastIndex(value, "/")
+	if slashIdx == -1 {
+		return false
+	}
+
+	// Check if the slash is at the start of a word (preceded by space, newline, or at start)
+	if slashIdx > 0 {
+		prevChar := value[slashIdx-1]
+		if prevChar != ' ' && prevChar != '\n' && prevChar != '\t' {
+			return false
+		}
+	}
+
+	// Extract the prefix being typed (e.g., "/ne" from "/ne")
+	prefix := value[slashIdx+1:] // Everything after the "/"
+
+	// If there's a space after the slash command, don't complete
+	if strings.ContainsAny(prefix, " \n\t") {
+		return false
+	}
+
+	// Check if we're continuing a previous completion cycle
+	if m.completionPrefix == prefix && len(m.completionMatches) > 0 {
+		// Cycle to next match
+		m.completionIndex = (m.completionIndex + 1) % len(m.completionMatches)
+	} else {
+		// Start new completion
+		m.completionPrefix = prefix
+		m.completionMatches = m.slashRegistry.GetMatching(prefix)
+		m.completionIndex = 0
+
+		if len(m.completionMatches) == 0 {
+			return false
+		}
+	}
+
+	// Apply the completion
+	if len(m.completionMatches) > 0 {
+		selectedCmd := m.completionMatches[m.completionIndex]
+		// Replace from slash to end with the completed command
+		newValue := value[:slashIdx] + "/" + selectedCmd.Name
+		m.textarea.SetValue(newValue)
+		// Move cursor to end
+		m.textarea.CursorEnd()
+		return true
+	}
+
+	return false
+}
+
+// clearCompletionState clears the autocomplete state
+func (m *InputModel) clearCompletionState() {
+	m.completionMatches = nil
+	m.completionIndex = 0
+	m.completionPrefix = ""
+}
+
+// SetSlashRegistry sets the slash command registry for autocomplete
+func (m *InputModel) SetSlashRegistry(registry *slash.Registry) {
+	m.slashRegistry = registry
 }
