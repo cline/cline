@@ -28,7 +28,6 @@ service StateService {
   rpc updateInfoBannerVersion(Int64Request) returns (Empty);
   rpc updateModelBannerVersion(Int64Request) returns (Empty);
   rpc updateCliBannerVersion(Int64Request) returns (Empty);
-  rpc getActiveBanners(StringRequest) returns (String);
   rpc dismissBanner(StringRequest) returns (Empty);
   rpc trackBannerEvent(TrackBannerEventRequest) returns (Empty);
   rpc installClineCli(EmptyRequest) returns (Empty);

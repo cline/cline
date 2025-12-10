@@ -1,7 +1,6 @@
 /**
  * Tests for BannerService
  * Tests API fetching, caching, and client-side provider filtering
- * Note: Date range and audience filtering are now handled by the backend
  */
 
 import type { BannerRules } from "@shared/ClineBanner"

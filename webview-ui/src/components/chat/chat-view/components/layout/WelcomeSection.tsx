@@ -6,7 +6,6 @@ import BannerCarousel, { BannerData } from "@/components/common/BannerCarousel"
 import { CURRENT_CLI_BANNER_VERSION } from "@/components/common/CliInstallBanner"
 import { CURRENT_INFO_BANNER_VERSION } from "@/components/common/InfoBanner"
 import { CURRENT_MODEL_BANNER_VERSION } from "@/components/common/NewModelBanner"
-import { RemoteBannerManager } from "@/components/common/RemoteBannerManager"
 import WhatsNewModal from "@/components/common/WhatsNewModal"
 import HistoryPreview from "@/components/history/HistoryPreview"
 import { useApiConfigurationHandlers } from "@/components/settings/utils/useApiConfigurationHandlers"
@@ -230,7 +229,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 				{!showWhatsNewModal && (
 					<>
 						<div className="fade-in-cards">
-							<RemoteBannerManager />
 							<BannerCarousel banners={activeBanners} />
 						</div>
 						{!shouldShowQuickWins && taskHistory.length > 0 && (
