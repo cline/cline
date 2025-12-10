@@ -68,11 +68,8 @@ type InputModel struct {
 	// Styles (huh-inspired theme)
 	styles fieldStyles
 
-	// Slash command autocomplete
-	slashRegistry     *slash.Registry
-	completionMatches []slash.Command // Current completion matches
-	completionIndex   int             // Current position in matches (for cycling)
-	completionPrefix  string          // The prefix being completed (e.g., "/ne" -> matches "/newtask")
+	// Slash command autocomplete dropdown
+	completion CompletionModel
 }
 
 // fieldStyles holds the styling for the input field
@@ -159,14 +156,14 @@ func NewInputModelWithRegistry(inputType InputType, title, placeholder, currentM
 	ta.Cursor.TextStyle = styles.textArea
 
 	m := InputModel{
-		textarea:      ta,
-		inputType:     inputType,
-		title:         title,
-		placeholder:   placeholder,
-		currentMode:   currentMode,
-		width:         0, // Will be set by first WindowSizeMsg
-		styles:        styles,
-		slashRegistry: registry,
+		textarea:    ta,
+		inputType:   inputType,
+		title:       title,
+		placeholder: placeholder,
+		currentMode: currentMode,
+		width:       0, // Will be set by first WindowSizeMsg
+		styles:      styles,
+		completion:  NewCompletionModel(registry),
 	}
 
 	// For approval type, set up options
@@ -237,6 +234,31 @@ func (m *InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Handle keys for text input types (Message/Feedback)
 		if m.inputType == InputTypeMessage || m.inputType == InputTypeFeedback {
+			// When completion menu is visible, let it handle navigation keys first
+			if m.completion.Visible() {
+				// ctrl+c always cancels, even with dropdown open
+				if msg.String() == "ctrl+c" {
+					return m, func() tea.Msg { return InputCancelMsg{} }
+				}
+
+				var handled bool
+				m.completion, cmd, handled = m.completion.Update(msg)
+				if handled {
+					// Check if a completion was selected
+					if applied := m.completion.Apply(); applied != "" {
+						m.textarea.SetValue(applied)
+						m.textarea.CursorEnd()
+					}
+					return m, cmd
+				}
+
+				// Key not handled by completion - pass to textarea and update completion
+				m.textarea, cmd = m.textarea.Update(msg)
+				m.completion.CheckInput(m.textarea.Value())
+				return m, cmd
+			}
+
+			// Normal key handling when completion menu is NOT visible
 			switch msg.String() {
 			case "ctrl+c":
 				return m, func() tea.Msg { return InputCancelMsg{} }
@@ -246,13 +268,7 @@ func (m *InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.openEditor()
 
 			case "tab":
-				// Handle slash command autocomplete
-				if m.slashRegistry != nil {
-					if handled := m.handleTabCompletion(); handled {
-						return m, nil
-					}
-				}
-				// If not handled, let textarea handle tab
+				// Tab without dropdown visible - do nothing special
 				m.textarea, cmd = m.textarea.Update(msg)
 				return m, cmd
 
@@ -266,10 +282,9 @@ func (m *InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, cmd
 			}
 
-			// Pass all other keys to textarea (including alt+enter, ctrl+j for newlines)
-			// Clear completion state on any other key press
-			m.clearCompletionState()
+			// Pass all other keys to textarea, then check for slash completion
 			m.textarea, cmd = m.textarea.Update(msg)
+			m.completion.CheckInput(m.textarea.Value())
 			return m, cmd
 		}
 
@@ -391,6 +406,11 @@ func (m *InputModel) View() string {
 	case InputTypeMessage, InputTypeFeedback:
 		parts = append(parts, m.textarea.View())
 
+		// Render completion dropdown if visible
+		if m.completion.Visible() {
+			parts = append(parts, m.completion.View())
+		}
+
 	case InputTypeApproval:
 		var options []string
 		for i, option := range m.approvalOptions {
@@ -472,7 +492,7 @@ func (m *InputModel) Clone() *InputModel {
 		selectedOption:  m.selectedOption,
 		pendingApproval: m.pendingApproval, // Preserve approval decision
 		styles:          m.styles,
-		slashRegistry:   m.slashRegistry, // Preserve slash registry for autocomplete
+		completion:      NewCompletionModel(m.completion.registry), // Preserve registry, start fresh state
 	}
 
 	return clone
@@ -523,71 +543,7 @@ func (m *InputModel) openEditor() tea.Cmd {
 	})
 }
 
-// handleTabCompletion handles tab key for slash command autocomplete
-// Returns true if completion was handled, false otherwise
-func (m *InputModel) handleTabCompletion() bool {
-	value := m.textarea.Value()
-
-	// Only complete if text starts with "/" and cursor is at the end of a word
-	// For simplicity, we complete the last word that starts with "/"
-	slashIdx := strings.LastIndex(value, "/")
-	if slashIdx == -1 {
-		return false
-	}
-
-	// Check if the slash is at the start of a word (preceded by space, newline, or at start)
-	if slashIdx > 0 {
-		prevChar := value[slashIdx-1]
-		if prevChar != ' ' && prevChar != '\n' && prevChar != '\t' {
-			return false
-		}
-	}
-
-	// Extract the prefix being typed (e.g., "/ne" from "/ne")
-	prefix := value[slashIdx+1:] // Everything after the "/"
-
-	// If there's a space after the slash command, don't complete
-	if strings.ContainsAny(prefix, " \n\t") {
-		return false
-	}
-
-	// Check if we're continuing a previous completion cycle
-	if m.completionPrefix == prefix && len(m.completionMatches) > 0 {
-		// Cycle to next match
-		m.completionIndex = (m.completionIndex + 1) % len(m.completionMatches)
-	} else {
-		// Start new completion
-		m.completionPrefix = prefix
-		m.completionMatches = m.slashRegistry.GetMatching(prefix)
-		m.completionIndex = 0
-
-		if len(m.completionMatches) == 0 {
-			return false
-		}
-	}
-
-	// Apply the completion
-	if len(m.completionMatches) > 0 {
-		selectedCmd := m.completionMatches[m.completionIndex]
-		// Replace from slash to end with the completed command
-		newValue := value[:slashIdx] + "/" + selectedCmd.Name
-		m.textarea.SetValue(newValue)
-		// Move cursor to end
-		m.textarea.CursorEnd()
-		return true
-	}
-
-	return false
-}
-
-// clearCompletionState clears the autocomplete state
-func (m *InputModel) clearCompletionState() {
-	m.completionMatches = nil
-	m.completionIndex = 0
-	m.completionPrefix = ""
-}
-
 // SetSlashRegistry sets the slash command registry for autocomplete
 func (m *InputModel) SetSlashRegistry(registry *slash.Registry) {
-	m.slashRegistry = registry
+	m.completion.SetRegistry(registry)
 }
