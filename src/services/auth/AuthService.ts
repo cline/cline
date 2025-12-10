@@ -35,6 +35,7 @@ export interface ClineAuthInfo {
 	expiresAt?: number
 	userInfo: ClineAccountUserInfo
 	provider: string
+	startedAt?: number
 }
 
 export interface ClineAccountUserInfo {

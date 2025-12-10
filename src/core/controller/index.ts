@@ -989,14 +989,11 @@ export class Controller {
 				user: this.stateManager.getGlobalStateKey("multiRootEnabled"),
 				featureFlag: true, // Multi-root workspace is now always enabled
 			},
-			hooksEnabled: {
-				user: this.stateManager.getGlobalStateKey("hooksEnabled"),
-				featureFlag: featureFlagsService.getHooksEnabled(),
-			},
 			clineWebToolsEnabled: {
 				user: this.stateManager.getGlobalSettingsKey("clineWebToolsEnabled"),
 				featureFlag: featureFlagsService.getWebtoolsEnabled(),
 			},
+			hooksEnabled: this.stateManager.getGlobalSettingsKey("hooksEnabled"),
 			lastDismissedInfoBannerVersion,
 			lastDismissedModelBannerVersion,
 			remoteConfigSettings: this.stateManager.getRemoteConfigSettings(),
