@@ -210,11 +210,9 @@ export class ClineAuthProvider implements IAuthProvider {
 
 				// Check if we've exceeded max retries
 				if (this.refreshRetryCount >= this.MAX_REFRESH_RETRIES) {
-					return this.clearSession(
-						controller,
-						`Max refresh retries (${this.MAX_REFRESH_RETRIES}) exceeded. Clearing auth state.`,
-						storedAuthData,
-					)
+					Logger.error(`Max refresh retries (${this.MAX_REFRESH_RETRIES}) exceeded.`)
+					// Don't clear session - return stored data and let API request fail later
+					return storedAuthData
 				}
 
 				// Try to refresh the token using the refresh token
@@ -249,8 +247,9 @@ export class ClineAuthProvider implements IAuthProvider {
 						throw refreshError
 					}
 
-					// For network errors, return null and let retry logic handle it
-					return null
+					// For network errors, return stored data - let the API request fail later
+					// when the user actually tries to use Cline, not at startup
+					return storedAuthData
 				}
 			}
 
