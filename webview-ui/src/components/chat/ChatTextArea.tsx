@@ -42,13 +42,13 @@ import {
 	getMatchingSlashCommands,
 	insertSlashCommand,
 	removeSlashCommand,
-	type SlashCommand,
 	shouldShowSlashCommandsMenu,
 	slashCommandDeleteRegex,
 	slashCommandRegexGlobal,
 	validateSlashCommand,
 } from "@/utils/slash-commands"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
+import { type SlashCommand } from "../../../../src/core/controller/slash/slashCommands"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
 import ServersToggleModal from "./ServersToggleModal"
 import VoiceRecorder from "./VoiceRecorder"
