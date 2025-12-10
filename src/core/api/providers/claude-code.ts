@@ -121,7 +121,7 @@ export class ClaudeCodeHandler implements ApiHandler {
 									function: {
 										id: content.id,
 										name: content.name,
-										arguments: content.input,
+										arguments: JSON.stringify(content.input),
 									},
 								},
 							}

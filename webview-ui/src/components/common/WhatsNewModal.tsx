@@ -101,7 +101,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 				</Button>
 
 				{/* Featured image area */}
-				<div
+				{/* <div
 					className="w-full rounded-t-sm overflow-hidden"
 					style={{
 						height: "160px",
@@ -111,7 +111,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 						backgroundPosition: "center",
 						backgroundRepeat: "no-repeat",
 					}}
-				/>
+				/> */}
 
 				{/* Content area */}
 				<div className="p-5 pr-10" id="whats-new-description">
