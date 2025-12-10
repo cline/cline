@@ -20,6 +20,7 @@ import {
 	refreshExternalRulesToggles,
 } from "@core/context/instructions/user-instructions/external-rules"
 import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
+import { executePreCompactHookWithCleanup, HookCancellationError, HookExecution } from "@core/hooks/precompact-executor"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { parseMentions } from "@core/mentions"
 import { summarizeTask } from "@core/prompts/contextManagement"
@@ -42,8 +43,7 @@ import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
-import { TerminalManager } from "@integrations/terminal/TerminalManager"
-import { TerminalProcessResultPromise } from "@integrations/terminal/TerminalProcess"
+import { ITerminalManager } from "@integrations/terminal/types"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { listFiles } from "@services/glob/list-files"
@@ -66,7 +66,7 @@ import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@sha
 import { CLINE_MCP_TOOL_IDENTIFIER } from "@shared/mcp"
 import { USER_CONTENT_TAGS } from "@shared/messages/constants"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
-import { ClineDefaultTool } from "@shared/tools"
+import { ClineDefaultTool, READ_ONLY_TOOLS } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import { isClaude4PlusModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
@@ -80,8 +80,11 @@ import * as vscode from "vscode"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
+import { TerminalProcessResultPromise } from "@/hosts/vscode/terminal/VscodeTerminalProcess"
 import { isSubagentCommand, transformClineCommand } from "@/integrations/cli-subagents/subagent_command"
+import { StandaloneTerminalManager } from "@/integrations/terminal"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
+import { featureFlagsService } from "@/services/feature-flags"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
 import {
 	ClineAssistantContent,
@@ -99,6 +102,7 @@ import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
+import { executeHook } from "../hooks/hook-executor"
 import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
@@ -135,12 +139,6 @@ type TaskParams = {
 }
 
 export class Task {
-	// Constants
-	private static readonly STANDALONE_TERMINAL_MODULE_PATH = path.join(
-		__dirname,
-		"../standalone/runtime-files/vscode/enhanced-terminal.js",
-	)
-
 	// Core task variables
 	readonly taskId: string
 	readonly ulid: string
@@ -200,12 +198,13 @@ export class Task {
 
 	// Service handlers
 	api: ApiHandler
-	terminalManager: TerminalManager
+	terminalManager: ITerminalManager
 	private urlContentFetcher: UrlContentFetcher
 	browserSession: BrowserSession
 	contextManager: ContextManager
 	private diffViewProvider: DiffViewProvider
 	public checkpointManager?: ICheckpointManager
+	private initialCheckpointCommitPromise?: Promise<string | undefined>
 	private clineIgnoreController: ClineIgnoreController
 	private toolExecutor: ToolExecutor
 	/**
@@ -288,38 +287,19 @@ export class Task {
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
 		this.taskLockAcquired = taskLockAcquired
 
-		// TODO(ae) this is a hack to replace the terminal manager for standalone,
-		// until we have proper host bridge support for terminal execution. The
-		// standaloneTerminalManager is defined in the vscode-impls and injected
-		// during compilation of the standalone manager only, so this variable only
-		// exists in that case
+		// Determine terminal execution mode and create appropriate terminal manager
+		this.terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
 
-		// First check if we're in standalone mode (original automatic detection)
-		if ((global as any).standaloneTerminalManager) {
-			this.terminalManager = (global as any).standaloneTerminalManager
-			this.terminalExecutionMode = "backgroundExec"
+		// When backgroundExec mode is selected, use StandaloneTerminalManager for hidden execution
+		// Otherwise, use the HostProvider's terminal manager (VSCode terminal in VSCode, standalone in CLI)
+		if (this.terminalExecutionMode === "backgroundExec") {
+			// Import StandaloneTerminalManager for background execution
+			this.terminalManager = new StandaloneTerminalManager()
+			Logger.info(`[Task ${taskId}] Using StandaloneTerminalManager for backgroundExec mode`)
 		} else {
-			// Not in standalone mode, use the configured mode (default to vscodeTerminal)
-			const terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
-			this.terminalExecutionMode = terminalExecutionMode
-
-			if (terminalExecutionMode === "backgroundExec") {
-				try {
-					const { StandaloneTerminalManager } = require(Task.STANDALONE_TERMINAL_MODULE_PATH) as {
-						StandaloneTerminalManager?: new () => TerminalManager
-					}
-					if (StandaloneTerminalManager) {
-						this.terminalManager = new StandaloneTerminalManager()
-					} else {
-						this.terminalManager = new TerminalManager()
-					}
-				} catch (error) {
-					console.error("[DEBUG] Failed to load standalone terminal manager", error)
-					this.terminalManager = new TerminalManager()
-				}
-			} else {
-				this.terminalManager = new TerminalManager()
-			}
+			// Use the host-provided terminal manager (VSCode terminal in VSCode environment)
+			this.terminalManager = HostProvider.get().createTerminalManager()
+			Logger.info(`[Task ${taskId}] Using HostProvider terminal manager for vscodeTerminal mode`)
 		}
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
@@ -849,6 +829,21 @@ export class Task {
 		console.log(`[Task ${this.taskId}] ${hookName} hook cancelled (userInitiated: ${wasCancelled})`)
 	}
 
+	/**
+	 * Calculate the new deleted range for PreCompact hook
+	 * @param apiConversationHistory The full API conversation history
+	 * @returns Tuple with start and end indices for the deleted range
+	 */
+	private calculatePreCompactDeletedRange(apiConversationHistory: ClineStorageMessage[]): [number, number] {
+		const newDeletedRange = this.contextManager.getNextTruncationRange(
+			apiConversationHistory,
+			this.taskState.conversationHistoryDeletedRange,
+			"quarter", // Force aggressive truncation on error
+		)
+
+		return newDeletedRange || [0, 0]
+	}
+
 	private async runUserPromptSubmitHook(
 		userContent: ClineContent[],
 		_context: "initial_task" | "resume" | "feedback",
@@ -859,7 +854,6 @@ export class Task {
 			return {}
 		}
 
-		const { executeHook } = await import("../hooks/hook-executor")
 		const { extractUserPromptFromContent } = await import("./utils/extractUserPromptFromContent")
 
 		// Extract clean user prompt from content, stripping system wrappers and metadata
@@ -942,8 +936,6 @@ export class Task {
 		// Add TaskStart hook context to the conversation if provided
 		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 		if (hooksEnabled) {
-			const { executeHook } = await import("../hooks/hook-executor")
-
 			const taskStartResult = await executeHook({
 				hookName: "TaskStart",
 				hookInput: {
@@ -1092,8 +1084,6 @@ export class Task {
 		// Run TaskResume hook AFTER user clicks resume button
 		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 		if (hooksEnabled) {
-			const { executeHook } = await import("../hooks/hook-executor")
-
 			const clineMessages = this.messageStateHandler.getClineMessages()
 			const taskResumeResult = await executeHook({
 				hookName: "TaskResume",
@@ -1420,6 +1410,25 @@ export class Task {
 			const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 			if (hooksEnabled && shouldRunTaskCancelHook) {
 				try {
+					await executeHook({
+						hookName: "TaskCancel",
+						hookInput: {
+							taskCancel: {
+								taskMetadata: {
+									taskId: this.taskId,
+									ulid: this.ulid,
+									completionStatus: this.taskState.abandoned ? "abandoned" : "cancelled",
+								},
+							},
+						},
+						isCancellable: false, // TaskCancel is NOT cancellable
+						say: this.say.bind(this),
+						// No setActiveHookExecution or clearActiveHookExecution for non-cancellable hooks
+						messageStateHandler: this.messageStateHandler,
+						taskId: this.taskId,
+						hooksEnabled,
+					})
+
 					// TaskCancel completed successfully
 					// Present resume button after successful TaskCancel hook
 					const lastClineMessage = this.messageStateHandler
@@ -1528,34 +1537,23 @@ export class Task {
 
 		Logger.info("Executing command in terminal: " + command)
 
-		let terminalManager: TerminalManager
-		if (isSubagent) {
-			// Create a background TerminalManager for CLI subagents
-			try {
-				const { StandaloneTerminalManager } = require(Task.STANDALONE_TERMINAL_MODULE_PATH) as {
-					StandaloneTerminalManager?: new () => TerminalManager
-				}
-				if (StandaloneTerminalManager) {
-					terminalManager = new StandaloneTerminalManager()
-				} else {
-					terminalManager = new TerminalManager()
-				}
-			} catch (error) {
-				console.error("[DEBUG] Failed to load standalone terminal manager for subagent", error)
-				terminalManager = new TerminalManager()
-			}
-			terminalManager.setShellIntegrationTimeout(this.terminalManager["shellIntegrationTimeout"] || 4000)
-			terminalManager.setTerminalReuseEnabled(this.terminalManager["terminalReuseEnabled"] ?? true)
-			terminalManager.setTerminalOutputLineLimit(this.terminalManager["terminalOutputLineLimit"] || 500)
-			terminalManager.setSubagentTerminalOutputLineLimit(this.terminalManager["subagentTerminalOutputLineLimit"] || 2000)
+		let terminalManager: ITerminalManager
+		if (isSubagent || this.terminalExecutionMode === "backgroundExec") {
+			// Use StandaloneTerminalManager for hidden background execution (subagents and backgroundExec mode)
+			terminalManager = new StandaloneTerminalManager()
+			Logger.info(
+				`[Task ${this.taskId}] Using StandaloneTerminalManager for ${isSubagent ? "subagent" : "backgroundExec"} command: ${command}`,
+			)
 		} else {
-			// Use the configured terminal manager for regular commands
+			// Use the configured terminal manager for regular commands (VSCode terminal)
 			terminalManager = this.terminalManager
 		}
 
 		const terminalInfo = await terminalManager.getOrCreateTerminal(this.cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
-		const process = terminalManager.runCommand(terminalInfo, command)
+		// Use `as any` to handle type incompatibility between VSCode's Thenable and Promise
+		// Both TerminalInfo types have the same runtime structure, the difference is purely TypeScript
+		const process = terminalManager.runCommand(terminalInfo as any, command)
 
 		// Track command execution for both terminal modes
 		this.controller.updateBackgroundCommandState(true, this.taskId)
@@ -1776,7 +1774,7 @@ export class Task {
 
 					// Process any output we captured before timeout
 					await setTimeoutPromise(50)
-					const result = this.terminalManager.processOutput(outputLines, undefined, false)
+					const result = terminalManager.processOutput(outputLines, undefined, isSubagent)
 
 					if (error.message === "COMMAND_TIMEOUT") {
 						return [
@@ -1808,11 +1806,7 @@ export class Task {
 			await setTimeoutPromise(50)
 		}
 
-		const result = terminalManager.processOutput(
-			outputLines,
-			isSubagent ? terminalManager["subagentTerminalOutputLineLimit"] : undefined,
-			isSubagent,
-		)
+		const result = terminalManager.processOutput(outputLines, undefined, isSubagent)
 
 		if (didCancelViaUi) {
 			return [
@@ -1900,7 +1894,7 @@ export class Task {
 			}
 
 			// Process the captured output to include in the cancellation message
-			const processedOutput = this.terminalManager.processOutput(outputLines, undefined, false)
+			const processedOutput = this.terminalManager.processOutput(outputLines, undefined, isSubagentCommand(command))
 
 			// Add cancellation information to the API conversation history
 			// This ensures the agent knows the command was cancelled in the next request
@@ -2005,11 +1999,56 @@ export class Task {
 	private async handleContextWindowExceededError(): Promise<void> {
 		const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 
-		this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
+		// Run PreCompact hook before truncation
+		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
+		if (hooksEnabled) {
+			try {
+				// Calculate what the new deleted range will be
+				const deletedRange = this.calculatePreCompactDeletedRange(apiConversationHistory)
+
+				// Execute hook - throws HookCancellationError if cancelled
+				await executePreCompactHookWithCleanup({
+					taskId: this.taskId,
+					ulid: this.ulid,
+					apiConversationHistory,
+					conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
+					contextManager: this.contextManager,
+					clineMessages: this.messageStateHandler.getClineMessages(),
+					messageStateHandler: this.messageStateHandler,
+					compactionStrategy: "standard-truncation-lastquarter",
+					deletedRange,
+					say: this.say.bind(this),
+					setActiveHookExecution: async (hookExecution: HookExecution | undefined) => {
+						if (hookExecution) {
+							await this.setActiveHookExecution(hookExecution)
+						}
+					},
+					clearActiveHookExecution: this.clearActiveHookExecution.bind(this),
+					postStateToWebview: this.postStateToWebview.bind(this),
+					taskState: this.taskState,
+					cancelTask: this.cancelTask.bind(this),
+					hooksEnabled: true,
+				})
+			} catch (error) {
+				// If hook was cancelled, re-throw to stop compaction
+				if (error instanceof HookCancellationError) {
+					throw error
+				}
+
+				// Graceful degradation: Log error but continue with truncation
+				console.error("[PreCompact] Hook execution failed:", error)
+			}
+		}
+
+		// Proceed with standard truncation
+		const newDeletedRange = this.contextManager.getNextTruncationRange(
 			apiConversationHistory,
 			this.taskState.conversationHistoryDeletedRange,
 			"quarter", // Force aggressive truncation
 		)
+
+		this.taskState.conversationHistoryDeletedRange = newDeletedRange
+
 		await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 		await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
 			Date.now(),
@@ -2110,7 +2149,8 @@ export class Task {
 			preferredLanguageInstructions,
 			browserSettings: this.stateManager.getGlobalSettingsKey("browserSettings"),
 			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
-			clineWebToolsEnabled: this.stateManager.getGlobalSettingsKey("clineWebToolsEnabled"),
+			clineWebToolsEnabled:
+				this.stateManager.getGlobalSettingsKey("clineWebToolsEnabled") && featureFlagsService.getWebtoolsEnabled(),
 			isMultiRootEnabled: multiRootEnabled,
 			workspaceRoots,
 			isSubagentsEnabledAndCliInstalled,
@@ -2394,6 +2434,14 @@ export class Task {
 				break
 			}
 			case "tool_use":
+				// If we have a pending initial commit, we must block unsafe tools until it finishes.
+				// Safe tools (read-only) can run in parallel.
+				if (this.initialCheckpointCommitPromise) {
+					if (!READ_ONLY_TOOLS.includes(block.name as any)) {
+						await this.initialCheckpointCommitPromise
+						this.initialCheckpointCommitPromise = undefined
+					}
+				}
 				await this.toolExecutor.executeTool(block)
 				break
 		}
@@ -2532,9 +2580,10 @@ export class Task {
 				(m) => m.say === "checkpoint_created",
 			)
 			if (lastCheckpointMessageIndex !== -1) {
-				this.checkpointManager
-					?.commit()
-					.then(async (commitHash) => {
+				const commitPromise = this.checkpointManager?.commit()
+				this.initialCheckpointCommitPromise = commitPromise
+				commitPromise
+					?.then(async (commitHash) => {
 						if (commitHash) {
 							await this.messageStateHandler.updateClineMessage(lastCheckpointMessageIndex, {
 								lastCheckpointHash: commitHash,
@@ -2562,22 +2611,16 @@ export class Task {
 			// No explicit UI message here, error message will be in ExtensionState.
 		}
 
-		// Get content based on user input before running condense check.
-		// TODO: Extract commands to confirm if there are commands before loading full context.
+		// Determine if we should compact context window
+		// Note: We delay context loading until we know if we're compacting (performance optimization)
 		const useCompactPrompt = customPrompt === "compact" && isLocalModel(this.getCurrentProviderInfo())
-		let [parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(
-			userContent,
-			includeFileDetails,
-			useCompactPrompt,
-		)
-
-		// Separate logic when using the auto-condense context management vs the original context management methods
 		let shouldCompact = false
 		const useAutoCondense = this.stateManager.getGlobalSettingsKey("useAutoCondense")
+
 		if (useAutoCondense && isNextGenModelFamily(this.api.getModel().id)) {
-			// when we initially trigger the context cleanup, we will be increasing the context window size, so we need some state `currentlySummarizing`
-			// to store whether we have already started the context summarization flow, so we don't attempt to summarize again. additionally, immediately
-			// post summarizing we need to increment the conversationHistoryDeletedRange to mask out the summarization-trigger user & assistant response messaages
+			// When we initially trigger context cleanup, we increase the context window size, so we need state `currentlySummarizing`
+			// to track if we've already started the context summarization flow. After summarizing, we increment
+			// conversationHistoryDeletedRange to mask out the summarization-trigger user & assistant response messages
 			if (this.taskState.currentlySummarizing) {
 				this.taskState.currentlySummarizing = false
 
@@ -2603,20 +2646,15 @@ export class Task {
 					autoCondenseThreshold,
 				)
 
-				// There is an edge case where the summarize_task tool call completes but the user cancels the next request before it finishes
-				// this will result in this.taskState.currentlySummarizing being false, and we also failed to update the context window token
-				// estimate, which require a full new message to be completed along with gathering the latest usage block. A proxy for whether
-				// we just summarized would be to check the number of in-range messages, which itself has some extreme edge case (e.g. what if
-				// first+second user messages take up entire context-window, but in this case there's already an issue). TODO: Examine other
-				// approaches such as storing this.taskState.currentlySummarizing on disk in the clineMessages. This was intentionally not done
-				// for now to prevent additional disk from needing to be used.
-				// The worse case scenario is effectively cline summarizing a summary, which is bad UX, but doesn't break other logic.
+				// Edge case: summarize_task tool call completes but user cancels next request before it finishes.
+				// This results in currentlySummarizing being false, and we fail to update the context window token estimate.
+				// Check active message count to avoid summarizing a summary (bad UX but doesn't break logic).
 				if (shouldCompact && this.taskState.conversationHistoryDeletedRange) {
 					const apiHistory = this.messageStateHandler.getApiConversationHistory()
 					const activeMessageCount = apiHistory.length - this.taskState.conversationHistoryDeletedRange[1] - 1
 
-					// IMPORTANT - we didn't append this next user message yet so the last message in this array is an assistant message
-					// that's why we are comparing to an even number of messages (0, 2) rather than odd (1, 3)
+					// IMPORTANT: We haven't appended the next user message yet, so the last message is an assistant message.
+					// That's why we compare to even numbers (0, 2) rather than odd (1, 3).
 					if (activeMessageCount <= 2) {
 						shouldCompact = false
 					}
@@ -2633,14 +2671,27 @@ export class Task {
 					)
 				}
 			}
+		}
 
-			// when summarizing the context window, we do not want to inject updated to the context
-			if (shouldCompact) {
-				parsedUserContent = userContent
-				environmentDetails = ""
-				clinerulesError = false
-				this.taskState.lastAutoCompactTriggerIndex = previousApiReqIndex
-			}
+		// NOW load context based on compaction decision
+		// This optimization avoids expensive context loading when using summarize_task
+		let parsedUserContent: ClineContent[]
+		let environmentDetails: string
+		let clinerulesError: boolean
+
+		if (shouldCompact) {
+			// When compacting, skip full context loading (use summarize_task instead)
+			parsedUserContent = userContent
+			environmentDetails = ""
+			clinerulesError = false
+			this.taskState.lastAutoCompactTriggerIndex = previousApiReqIndex
+		} else {
+			// When NOT compacting, load full context with mentions parsing and slash commands
+			;[parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(
+				userContent,
+				includeFileDetails,
+				useCompactPrompt,
+			)
 		}
 
 		// error handling if the user uses the /newrule command & their .clinerules is a file, for file read operations didnt work properly

@@ -1,9 +1,8 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { memo, useState } from "react"
+import { memo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { TaskServiceClient } from "@/services/grpc-client"
-import { formatLargeNumber } from "@/utils/format"
 
 type HistoryPreviewProps = {
 	showHistoryView: () => void
@@ -11,31 +10,18 @@ type HistoryPreviewProps = {
 
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 	const { taskHistory } = useExtensionState()
-	const [isExpanded, setIsExpanded] = useState(true)
-
 	const handleHistorySelect = (id: string) => {
 		TaskServiceClient.showTaskWithId(StringRequest.create({ value: id })).catch((error) =>
 			console.error("Error showing task:", error),
 		)
 	}
 
-	const toggleExpanded = () => {
-		setIsExpanded(!isExpanded)
-	}
-
 	const formatDate = (timestamp: number) => {
 		const date = new Date(timestamp)
-		return date
-			?.toLocaleString("en-US", {
-				month: "long",
-				day: "numeric",
-				hour: "numeric",
-				minute: "2-digit",
-				hour12: true,
-			})
-			.replace(", ", " ")
-			.replace(" at", ",")
-			.toUpperCase()
+		return date?.toLocaleString("en-US", {
+			month: "short",
+			day: "numeric",
+		})
 	}
 
 	return (
@@ -47,40 +33,66 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 						border-radius: 4px;
 						position: relative;
 						overflow: hidden;
-						opacity: 0.8;
 						cursor: pointer;
-						margin-bottom: 12px;
+						margin-bottom: 8px;
+						padding: 10px 12px;
+						display: flex;
+						align-items: flex-start;
+						gap: 12px;
 					}
 					.history-preview-item:hover {
 						background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 100%, transparent);
-						opacity: 1;
 						pointer-events: auto;
 					}
-					.history-header {
-						cursor: pointer;
-						user-select: none;
+					.history-task-content {
+						flex: 1;
+						display: flex;
+						align-items: flex-start;
+						gap: 8px;
+						min-width: 0;
 					}
-					.history-header:hover {
-						opacity: 0.8;
+					.history-task-description {
+						flex: 1;
+						overflow: hidden;
+						display: -webkit-box;
+						-webkit-line-clamp: 2;
+						-webkit-box-orient: vertical;
+						color: var(--vscode-foreground);
+						font-size: var(--vscode-font-size);
+						line-height: 1.4;
+					}
+					.history-meta-stack {
+						display: flex;
+						flex-direction: column;
+						align-items: center;
+						gap: 4px;
+						flex-shrink: 0;
+					}
+					.history-date {
+						color: var(--vscode-descriptionForeground);
+						font-size: 0.85em;
+						white-space: nowrap;
+					}
+					.history-cost-chip {
+						background-color: var(--vscode-badge-background);
+						color: var(--vscode-badge-foreground);
+						padding: 2px 8px;
+						border-radius: 12px;
+						font-size: 0.85em;
+						font-weight: 500;
+						white-space: nowrap;
 					}
 				`}
 			</style>
 
 			<div
 				className="history-header"
-				onClick={toggleExpanded}
 				style={{
 					color: "var(--vscode-descriptionForeground)",
-					margin: "10px 20px 10px 20px",
+					margin: "10px 16px 10px 16px",
 					display: "flex",
 					alignItems: "center",
 				}}>
-				<span
-					className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}
-					style={{
-						marginRight: "4px",
-						transform: "scale(0.9)",
-					}}></span>
 				<span
 					className="codicon codicon-comment-discussion"
 					style={{
@@ -97,8 +109,8 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 				</span>
 			</div>
 
-			{isExpanded && (
-				<div className="px-5">
+			{
+				<div className="px-4">
 					{taskHistory.filter((item) => item.ts && item.task).length > 0 ? (
 						<>
 							{taskHistory
@@ -109,55 +121,24 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 										className="history-preview-item"
 										key={item.id}
 										onClick={() => handleHistorySelect(item.id)}>
-										<div style={{ padding: "12px" }}>
-											<div style={{ marginBottom: "8px" }}>
-												<span
-													style={{
-														color: "var(--vscode-descriptionForeground)",
-														fontWeight: 500,
-														fontSize: "0.85em",
-														textTransform: "uppercase",
-													}}>
-													{formatDate(item.ts)}
-												</span>
-											</div>
+										<div className="history-task-content">
 											{item.isFavorited && (
-												<div
+												<span
+													aria-label="Favorited"
+													className="codicon codicon-star-full"
 													style={{
-														position: "absolute",
-														top: "12px",
-														right: "12px",
 														color: "var(--vscode-button-background)",
-													}}>
-													<span aria-label="Favorited" className="codicon codicon-star-full" />
-												</div>
+														flexShrink: 0,
+													}}
+												/>
 											)}
-
-											<div
-												className="history-preview-task text-base text-description mb-2 overflow-hidden whitespace-pre-wrap wrap-anywhere"
-												id={`history-preview-task-${item.id}`}
-												style={{
-													display: "-webkit-box",
-													WebkitLineClamp: 3,
-													WebkitBoxOrient: "vertical",
-												}}>
-												<span className="ph-no-capture">{item.task}</span>
-											</div>
-											<div className="text-sm text-description">
-												<span className="mr-1">
-													Tokens: ↑{formatLargeNumber(item.tokensIn || 0)} ↓
-													{formatLargeNumber(item.tokensOut || 0)}
-												</span>
-												{!!item.cacheWrites && (
-													<span className="mr-1">
-														• Cache: +{formatLargeNumber(item.cacheWrites || 0)} →{" "}
-														{formatLargeNumber(item.cacheReads || 0)}
-													</span>
-												)}
-												{!!item.totalCost && (
-													<span className="mr-1">• API Cost: ${item.totalCost?.toFixed(4)}</span>
-												)}
-											</div>
+											<div className="history-task-description ph-no-capture">{item.task}</div>
+										</div>
+										<div className="history-meta-stack">
+											<span className="history-date">{formatDate(item.ts)}</span>
+											{item.totalCost != null && (
+												<span className="history-cost-chip">${item.totalCost.toFixed(2)}</span>
+											)}
 										</div>
 									</div>
 								))}
@@ -165,7 +146,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 								style={{
 									display: "flex",
 									alignItems: "center",
-									justifyContent: "center",
+									justifyContent: "flex-start",
 								}}>
 								<VSCodeButton
 									appearance="icon"
@@ -179,7 +160,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 											fontSize: "var(--vscode-font-size)",
 											color: "var(--vscode-descriptionForeground)",
 										}}>
-										View all history
+										View All
 									</div>
 								</VSCodeButton>
 							</div>
@@ -196,7 +177,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 						</div>
 					)}
 				</div>
-			)}
+			}
 		</div>
 	)
 }

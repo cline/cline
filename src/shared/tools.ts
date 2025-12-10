@@ -24,6 +24,7 @@ export enum ClineDefaultTool {
 	ACT_MODE = "act_mode_respond",
 	TODO = "focus_chain",
 	WEB_FETCH = "web_fetch",
+	WEB_SEARCH = "web_search",
 	CONDENSE = "condense",
 	SUMMARIZE_TASK = "summarize_task",
 	REPORT_BUG = "report_bug",
@@ -35,3 +36,17 @@ export enum ClineDefaultTool {
 // Array of all tool names for compatibility
 // Automatically generated from the enum values
 export const toolUseNames = Object.values(ClineDefaultTool) as ClineDefaultTool[]
+
+// Tools that are safe to run in parallel with the initial checkpoint commit
+// These are tools that do not modify the workspace state
+export const READ_ONLY_TOOLS = [
+	ClineDefaultTool.LIST_FILES,
+	ClineDefaultTool.FILE_READ,
+	ClineDefaultTool.SEARCH,
+	ClineDefaultTool.LIST_CODE_DEF,
+	ClineDefaultTool.BROWSER,
+	ClineDefaultTool.ASK,
+	ClineDefaultTool.ATTEMPT,
+	ClineDefaultTool.WEB_SEARCH,
+	ClineDefaultTool.WEB_FETCH,
+] as const
