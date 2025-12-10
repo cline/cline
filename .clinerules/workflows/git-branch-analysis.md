@@ -6,28 +6,14 @@ Analyze the current branch's changes against main to provide informed insights a
 ## Step 1: Gather Git Information
 <important>Do not return any text or conversation other than what is necessary to run these commands</important>
 
-**First, check the expected output size:**
-   ```shell
-   (git branch --show-current && echo "=== STATUS ===" && git status --porcelain | cat && echo "=== COMMIT MESSAGES ===" && git log main..HEAD --oneline | cat && echo "=== CHANGED FILES ===" && git diff main --name-only | cat && echo "=== FULL DIFF ===" && git diff main | cat) | wc -l
-   ```
+**Run the following command to get the latest changes (bash):**
+```bash
+B=$(for c in main master origin/main origin/master; do git rev-parse --verify -q "$c" >/dev/null && echo "$c" && break; done); B=${B:-HEAD}; r(){ git branch --show-current; printf "=== STATUS ===\n"; git status --porcelain | cat; printf "=== COMMIT MESSAGES ===\n"; git log "$B"..HEAD --oneline | cat; printf "=== CHANGED FILES ===\n"; git diff "$B" --name-only | cat; printf "=== FULL DIFF ===\n"; git diff "$B" | cat; }; L=$(r | wc -l); if [ "$L" -gt 500 ]; then r > cline-git-analysis.temp && echo "::OUTPUT_FILE=cline-git-analysis.temp"; else r; fi
+```
 
-**If the expected line count is greater than 500 lines, use the file-based approach:**
-   ```shell
-   git branch --show-current > cline-git-analysis.temp && echo "=== STATUS ===" >> cline-git-analysis.temp && git status --porcelain >> cline-git-analysis.temp && echo "=== COMMIT MESSAGES ===" >> cline-git-analysis.temp && git log main..HEAD --oneline >> cline-git-analysis.temp && echo "=== CHANGED FILES ===" >> cline-git-analysis.temp && git diff main --name-only >> cline-git-analysis.temp && echo "=== FULL DIFF ===" >> cline-git-analysis.temp && git diff main >> cline-git-analysis.temp
-   ```
-
-   Then, read the file using the read_file tool. After you have read the file but before you proceed with subsequent steps, delete it:
-   ```shell
-   rm cline-git-analysis.temp
-   ```
-
-**If the expected line count is 500 lines or fewer, use the direct approach:**
-   ```shell
-   git branch --show-current && echo "=== STATUS ===" && git status --porcelain | cat && echo "=== COMMIT MESSAGES ===" && git log main..HEAD --oneline | cat && echo "=== CHANGED FILES ===" && git diff main --name-only | cat && echo "=== FULL DIFF ===" && git diff main | cat
-   ```
-
-<important>If using the direct approach, pipe outputs through `cat` to avoid interactive terminals. If the user's shell is not bash/zsh, adjust the command and chaining
- syntax accordingly.</important>
+```powershell
+$B=$null;foreach($c in 'main','master','origin/main','origin/master'){git rev-parse --verify -q $c *> $null;if($LASTEXITCODE -eq 0){$B=$c;break}};if(-not $B){$B='HEAD'};function r([string]$b){git rev-parse --abbrev-ref HEAD; '=== STATUS ==='; git status --porcelain | cat; '=== COMMIT MESSAGES ==='; git log "$b"..HEAD --oneline | cat; '=== CHANGED FILES ==='; git diff "$b" --name-only | cat; '=== FULL DIFF ==='; git diff "$b" | cat};$out=r $B|Out-String;$lines=($out -split "`r?`n").Count;if($lines -gt 500){$out|Set-Content -NoNewline cline-git-analysis.temp; '::OUTPUT_FILE=cline-git-analysis.temp'}else{$out}
+```
 
 ## Step 2: Silent, Structured Analysis Phase
 - Analyze all git output without providing commentary or narration

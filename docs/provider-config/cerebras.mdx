@@ -1,0 +1,95 @@
+---
+title: "Cerebras"
+description: "Learn how to configure and use Cerebras's ultra-fast inference with Cline. Experience up to 2,600 tokens per second with wafer-scale chip architecture and real-time reasoning models."
+---
+
+Cerebras delivers the world's fastest AI inference through their revolutionary wafer-scale chip architecture. Unlike traditional GPUs that shuttle model weights from external memory, Cerebras stores entire models on-chip, eliminating bandwidth bottlenecks and achieving speeds up to 2,600 tokens per second—often 20x faster than GPUs.
+
+**Website:** [https://cloud.cerebras.ai/](https://cloud.cerebras.ai/)
+
+### Getting an API Key
+
+1.  **Sign Up/Sign In:** Go to [Cerebras Cloud](https://cloud.cerebras.ai/) and create an account or sign in.
+2.  **Navigate to API Keys:** Access the API keys section in your dashboard.
+3.  **Create a Key:** Generate a new API key. Give it a descriptive name (e.g., "Cline").
+4.  **Copy the Key:** Copy the API key immediately. Store it securely.
+
+### Supported Models
+
+Cline supports the following Cerebras models:
+
+-   `zai-glm-4.6` - Intelligent general purpose model with 1,500 tokens/s
+-   `qwen-3-235b-a22b-instruct-2507` - Advanced instruction-following model
+-   `qwen-3-235b-a22b-thinking-2507` - Reasoning model with step-by-step thinking
+-   `llama-3.3-70b` - Meta's Llama 3.3 model optimized for speed
+-   `qwen-3-32b` - Compact yet powerful model for general tasks
+
+### Configuration in Cline
+
+1.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
+2.  **Select Provider:** Choose "Cerebras" from the "API Provider" dropdown.
+3.  **Enter API Key:** Paste your Cerebras API key into the "Cerebras API Key" field.
+4.  **Select Model:** Choose your desired model from the "Model" dropdown.
+5.  **(Optional) Custom Base URL:** Most users won't need to adjust this setting.
+
+### Cerebras's Wafer-Scale Advantage
+
+Cerebras has fundamentally reimagined AI hardware architecture to solve the inference speed problem:
+
+#### Wafer-Scale Architecture
+Traditional GPUs use separate chips for compute and memory, forcing them to constantly shuttle model weights back and forth. Cerebras built the world's largest AI chip—a wafer-scale engine that stores entire models on-chip. No external memory, no bandwidth bottlenecks, no waiting.
+
+#### Revolutionary Speed
+- **Up to 2,600 tokens per second** - often 20x faster than GPUs
+- **Single-second reasoning** - what used to take minutes now happens instantly
+- **Real-time applications** - reasoning models become practical for interactive use
+- **No bandwidth limits** - entire models stored on-chip eliminate memory bottlenecks
+
+#### The Cerebras Scaling Law
+Cerebras discovered that **faster inference enables smarter AI**. Modern reasoning models generate thousands of tokens as "internal monologue" before answering. On traditional hardware, this takes too long for real-time use. Cerebras makes reasoning models fast enough for everyday applications.
+
+#### Quality Without Compromise
+Unlike other speed optimizations that sacrifice accuracy, Cerebras maintains full model quality while delivering unprecedented speed. You get the intelligence of frontier models with the responsiveness of lightweight ones.
+
+Learn more about Cerebras's technology in their blog posts:
+- [The Cerebras Scaling Law: Faster Inference Is Smarter AI](https://www.cerebras.ai/blog/the-cerebras-scaling-law-faster-inference-is-smarter-ai)
+- [Introducing Cerebras Code](https://www.cerebras.ai/blog/introducing-cerebras-code)
+
+### Cerebras Code Plans
+
+Cerebras offers specialized plans for developers:
+
+#### Code Pro ($50/month)
+- Access to Qwen3-Coder with fast, high-context completions
+- Up to 24 million tokens per day
+- Ideal for indie developers and weekend projects
+- 3-4 hours of uninterrupted coding per day
+
+#### Code Max ($200/month)
+- Heavy coding workflow support
+- Up to 120 million tokens per day
+- Perfect for full-time development and multi-agent systems
+- No weekly limits, no IDE lock-in
+
+### Special Features
+
+#### Free Tier
+The `qwen-3-coder-480b-free` model provides access to high-performance inference at no cost—unique among speed-focused providers.
+
+#### Real-Time Reasoning
+Reasoning models like `qwen-3-235b-a22b-thinking-2507` can complete complex multi-step reasoning in under a second, making them practical for interactive development workflows.
+
+#### Coding Specialization
+Qwen3-Coder models are specifically optimized for programming tasks, delivering performance comparable to Claude Sonnet 4 and GPT-4.1 in coding benchmarks.
+
+#### No IDE Lock-In
+Works with any OpenAI-compatible tool—Cursor, Continue.dev, Cline, or any other editor that supports OpenAI endpoints.
+
+### Tips and Notes
+
+-   **Speed Advantage:** Cerebras excels at making reasoning models practical for real-time use. Perfect for agentic workflows that require multiple LLM calls.
+-   **Free Tier:** Start with the free model to experience Cerebras speed before upgrading to paid plans.
+-   **Context Windows:** Models support context windows ranging from 64K to 128K tokens for including substantial code context.
+-   **Rate Limits:** Generous rate limits designed for development workflows. Check your dashboard for current limits.
+-   **Pricing:** Competitive pricing with significant speed advantages. Visit [Cerebras Cloud](https://cloud.cerebras.ai/) for current rates.
+-   **Real-Time Applications:** Ideal for applications where AI response time matters—code generation, debugging, and interactive development.

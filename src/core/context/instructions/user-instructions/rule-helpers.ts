@@ -1,10 +1,10 @@
-import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import { ensureRulesDirectoryExists, ensureWorkflowsDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "@core/storage/state"
-import * as path from "path"
-import fs from "fs/promises"
 import { ClineRulesToggles } from "@shared/cline-rules"
-import * as vscode from "vscode"
+import { GlobalInstructionsFile } from "@shared/remote-config/schema"
+import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
+import fs from "fs/promises"
+import * as path from "path"
+import { Controller } from "@/core/controller"
 
 /**
  * Recursively traverses directory and finds all files, including checking for optional whitelisted file extension
@@ -16,7 +16,7 @@ export async function readDirectoryRecursive(
 ): Promise<string[]> {
 	try {
 		const entries = await readDirectory(directoryPath, excludedPaths)
-		let results: string[] = []
+		const results: string[] = []
 		for (const entry of entries) {
 			if (allowedFileExtension !== "") {
 				const fileExtension = path.extname(entry)
@@ -103,6 +103,36 @@ export async function synchronizeRuleToggles(
 }
 
 /**
+ * Synchronizes remote rule toggles with current remote config
+ * Removes toggles for rules that no longer exist, adds defaults for new rules
+ */
+export function synchronizeRemoteRuleToggles(
+	remoteRules: GlobalInstructionsFile[],
+	currentToggles: ClineRulesToggles,
+): ClineRulesToggles {
+	const updatedToggles: ClineRulesToggles = {}
+
+	// Create set of current remote rule names
+	const existingRuleNames = new Set(remoteRules.map((rule) => rule.name))
+
+	// Keep toggles only for rules that still exist
+	for (const [ruleName, enabled] of Object.entries(currentToggles)) {
+		if (existingRuleNames.has(ruleName)) {
+			updatedToggles[ruleName] = enabled
+		}
+	}
+
+	// Add default toggles for new rules (default to enabled)
+	for (const rule of remoteRules) {
+		if (!(rule.name in updatedToggles)) {
+			updatedToggles[rule.name] = true
+		}
+	}
+
+	return updatedToggles
+}
+
+/**
  * Certain project rules have more than a single location where rules are allowed to be stored
  */
 export function combineRuleToggles(toggles1: ClineRulesToggles, toggles2: ClineRulesToggles): ClineRulesToggles {
@@ -149,18 +179,18 @@ export async function ensureLocalClineDirExists(clinerulePath: string, defaultRu
 				await fs.unlink(tempPath).catch(() => {}) // delete backup
 
 				return false // conversion successful with no errors
-			} catch (conversionError) {
+			} catch (_conversionError) {
 				// attempt to restore backup on conversion failure
 				try {
 					await fs.rm(clinerulePath, { recursive: true, force: true }).catch(() => {})
 					await fs.rename(tempPath, clinerulePath) // restore backup
-				} catch (restoreError) {}
+				} catch (_restoreError) {}
 				return true // in either case here we consider this an error
 			}
 		}
 		// exists and is a dir or doesn't exist, either of these cases we dont need to handle here
 		return false
-	} catch (error) {
+	} catch (_error) {
 		return true
 	}
 }
@@ -215,7 +245,7 @@ export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: s
 		await fs.writeFile(filePath, "", "utf8")
 
 		return { filePath, fileExists: false }
-	} catch (error) {
+	} catch (_error) {
 		return { filePath: null, fileExists: false }
 	}
 }
@@ -224,7 +254,7 @@ export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: s
  * Delete a rule file or workflow file
  */
 export async function deleteRuleFile(
-	context: vscode.ExtensionContext,
+	controller: Controller,
 	rulePath: string,
 	isGlobal: boolean,
 	type: string,
@@ -240,7 +270,7 @@ export async function deleteRuleFile(
 		}
 
 		// Delete the file from disk
-		await fs.unlink(rulePath)
+		await fs.rm(rulePath, { force: true })
 
 		// Get the filename for messages
 		const fileName = path.basename(rulePath)
@@ -248,31 +278,35 @@ export async function deleteRuleFile(
 		// Update the appropriate toggles
 		if (isGlobal) {
 			if (type === "workflow") {
-				const toggles = ((await getGlobalState(context, "globalWorkflowToggles")) as ClineRulesToggles) || {}
+				const toggles = controller.stateManager.getGlobalSettingsKey("globalWorkflowToggles")
 				delete toggles[rulePath]
-				await updateGlobalState(context, "globalWorkflowToggles", toggles)
+				controller.stateManager.setGlobalState("globalWorkflowToggles", toggles)
 			} else {
-				const toggles = ((await getGlobalState(context, "globalClineRulesToggles")) as ClineRulesToggles) || {}
+				const toggles = controller.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
 				delete toggles[rulePath]
-				await updateGlobalState(context, "globalClineRulesToggles", toggles)
+				controller.stateManager.setGlobalState("globalClineRulesToggles", toggles)
 			}
 		} else {
 			if (type === "workflow") {
-				const toggles = ((await getWorkspaceState(context, "workflowToggles")) as ClineRulesToggles) || {}
+				const toggles = controller.stateManager.getWorkspaceStateKey("workflowToggles")
 				delete toggles[rulePath]
-				await updateWorkspaceState(context, "workflowToggles", toggles)
+				controller.stateManager.setWorkspaceState("workflowToggles", toggles)
 			} else if (type === "cursor") {
-				const toggles = ((await getWorkspaceState(context, "localCursorRulesToggles")) as ClineRulesToggles) || {}
+				const toggles = controller.stateManager.getWorkspaceStateKey("localCursorRulesToggles")
 				delete toggles[rulePath]
-				await updateWorkspaceState(context, "localCursorRulesToggles", toggles)
+				controller.stateManager.setWorkspaceState("localCursorRulesToggles", toggles)
 			} else if (type === "windsurf") {
-				const toggles = ((await getWorkspaceState(context, "localWindsurfRulesToggles")) as ClineRulesToggles) || {}
+				const toggles = controller.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
 				delete toggles[rulePath]
-				await updateWorkspaceState(context, "localWindsurfRulesToggles", toggles)
+				controller.stateManager.setWorkspaceState("localWindsurfRulesToggles", toggles)
+			} else if (type === "agents") {
+				const toggles = controller.stateManager.getWorkspaceStateKey("localAgentsRulesToggles")
+				delete toggles[rulePath]
+				controller.stateManager.setWorkspaceState("localAgentsRulesToggles", toggles)
 			} else {
-				const toggles = ((await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles) || {}
+				const toggles = controller.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 				delete toggles[rulePath]
-				await updateWorkspaceState(context, "localClineRulesToggles", toggles)
+				controller.stateManager.setWorkspaceState("localClineRulesToggles", toggles)
 			}
 		}
 

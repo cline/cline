@@ -86,7 +86,7 @@ function Demo() {
 						</VSCodeButton>
 					</section>
 				</VSCodeTextField>
-				<span slot="end" className="codicon codicon-chevron-right"></span>
+				<span className="codicon codicon-chevron-right" slot="end"></span>
 
 				<span className="flex gap-3">
 					<VSCodeProgressRing />

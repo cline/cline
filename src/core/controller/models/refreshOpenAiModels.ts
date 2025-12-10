@@ -1,8 +1,9 @@
-import { Controller } from ".."
-import { OpenAiModelsRequest } from "../../../shared/proto/models"
-import { StringArray } from "../../../shared/proto/common"
-import axios from "axios"
+import { StringArray } from "@shared/proto/cline/common"
+import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import type { AxiosRequestConfig } from "axios"
+import axios from "axios"
+import { getAxiosSettings } from "@/shared/net"
+import { Controller } from ".."
 
 /**
  * Fetches available models from the OpenAI API
@@ -10,7 +11,7 @@ import type { AxiosRequestConfig } from "axios"
  * @param request Request containing the base URL and API key
  * @returns Array of model names
  */
-export async function refreshOpenAiModels(controller: Controller, request: OpenAiModelsRequest): Promise<StringArray> {
+export async function refreshOpenAiModels(_controller: Controller, request: OpenAiModelsRequest): Promise<StringArray> {
 	try {
 		if (!request.baseUrl) {
 			return StringArray.create({ values: [] })
@@ -25,7 +26,7 @@ export async function refreshOpenAiModels(controller: Controller, request: OpenA
 			config["headers"] = { Authorization: `Bearer ${request.apiKey}` }
 		}
 
-		const response = await axios.get(`${request.baseUrl}/models`, config)
+		const response = await axios.get(`${request.baseUrl}/models`, { ...config, ...getAxiosSettings() })
 		const modelsArray = response.data?.data?.map((model: any) => model.id) || []
 		const models = [...new Set<string>(modelsArray)]
 

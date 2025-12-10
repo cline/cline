@@ -1,10 +1,12 @@
-import { ApiConfiguration, askSageModels, askSageDefaultURL } from "@shared/api"
+import { askSageDefaultURL, askSageModels, ModelInfo } from "@shared/api"
+import { Mode } from "@shared/storage/types"
+import { useEffect, useState } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
-import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { ModelSelector } from "../common/ModelSelector"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -13,46 +15,92 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 interface AskSageProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The AskSage provider configuration component
  */
-export const AskSageProvider = ({ showModelOptions, isPopup }: AskSageProviderProps) => {
+export const AskSageProvider = ({ showModelOptions, isPopup, currentMode }: AskSageProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+	const [availableModels, setAvailableModels] = useState<Record<string, ModelInfo>>(askSageModels)
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+
+	useEffect(() => {
+		const fetchModels = async () => {
+			try {
+				const apiUrl = apiConfiguration?.asksageApiUrl || askSageDefaultURL
+				const response = await fetch(`${apiUrl}/get-models`)
+
+				if (!response.ok) {
+					console.error("Failed to fetch AskSage models, falling back to default list.")
+					setAvailableModels(askSageModels)
+					return
+				}
+
+				const data = await response.json()
+				const modelIds = data.response as string[]
+
+				if (Array.isArray(modelIds) && modelIds.length > 0) {
+					const filteredModels = Object.entries(askSageModels)
+						.filter(([id]) => modelIds.includes(id))
+						.reduce(
+							(acc, [id, info]) => {
+								acc[id] = info
+								return acc
+							},
+							{} as Record<string, ModelInfo>,
+						)
+					setAvailableModels(Object.keys(filteredModels).length > 0 ? filteredModels : askSageModels)
+				} else {
+					setAvailableModels(askSageModels)
+				}
+			} catch (error) {
+				console.error("Error fetching AskSage models:", error)
+				setAvailableModels(askSageModels)
+			}
+		}
+
+		fetchModels()
+	}, [apiConfiguration?.asksageApiUrl])
 
 	return (
 		<div>
 			<ApiKeyField
+				helpText="This key is stored locally and only used to make API requests from this extension."
 				initialValue={apiConfiguration?.asksageApiKey || ""}
 				onChange={(value) => handleFieldChange("asksageApiKey", value)}
 				providerName="AskSage"
-				helpText="This key is stored locally and only used to make API requests from this extension."
 			/>
 
 			<DebouncedTextField
 				initialValue={apiConfiguration?.asksageApiUrl || askSageDefaultURL}
 				onChange={(value) => handleFieldChange("asksageApiUrl", value)}
+				placeholder="Enter AskSage API URL..."
 				style={{ width: "100%" }}
-				type="url"
-				placeholder="Enter AskSage API URL...">
+				type="text">
 				<span style={{ fontWeight: 500 }}>AskSage API URL</span>
 			</DebouncedTextField>
 
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						models={askSageModels}
-						selectedModelId={selectedModelId}
-						onChange={(e) => handleFieldChange("apiModelId", e.target.value)}
 						label="Model"
+						models={availableModels}
+						onChange={(e) =>
+							handleModeFieldChange(
+								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								e.target.value,
+								currentMode,
+							)
+						}
+						selectedModelId={selectedModelId}
 					/>
 
-					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			)}
 		</div>

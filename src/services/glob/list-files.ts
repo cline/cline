@@ -1,7 +1,8 @@
+import { workspaceResolver } from "@core/workspace"
+import { arePathsEqual } from "@utils/path"
 import { globby, Options } from "globby"
 import * as os from "os"
 import * as path from "path"
-import { arePathsEqual } from "@utils/path"
 
 // Constants
 const DEFAULT_IGNORE_DIRECTORIES = [
@@ -18,7 +19,6 @@ const DEFAULT_IGNORE_DIRECTORIES = [
 	"tmp",
 	"temp",
 	"deps",
-	"pkg",
 	"Pods",
 ]
 
@@ -40,7 +40,7 @@ function isRestrictedPath(absolutePath: string): boolean {
 }
 
 function isTargetingHiddenDirectory(absolutePath: string): boolean {
-	const dirName = path.basename(absolutePath)
+	const dirName = workspaceResolver.getBasename(absolutePath, "Services.glob.isTargetingHiddenDirectory")
 	return dirName.startsWith(".")
 }
 
@@ -58,7 +58,8 @@ function buildIgnorePatterns(absolutePath: string): string[] {
 }
 
 export async function listFiles(dirPath: string, recursive: boolean, limit: number): Promise<[string[], boolean]> {
-	const absolutePath = path.resolve(dirPath)
+	const absolutePathResult = workspaceResolver.resolveWorkspacePath(dirPath, "", "Services.glob.listFiles")
+	const absolutePath = typeof absolutePathResult === "string" ? absolutePathResult : absolutePathResult.absolutePath
 
 	// Do not allow listing files in root or home directory
 	if (isRestrictedPath(absolutePath)) {
@@ -125,7 +126,7 @@ async function globbyLevelByLevel(limit: number, options?: Options) {
 	})
 	try {
 		return await Promise.race([globbingProcess(), timeoutPromise])
-	} catch (error) {
+	} catch (_error) {
 		console.warn("Globbing timed out, returning partial results")
 		return Array.from(results)
 	}

@@ -1,19 +1,19 @@
 import * as path from "path"
 import Parser from "web-tree-sitter"
 import {
-	javascriptQuery,
-	typescriptQuery,
-	pythonQuery,
-	rustQuery,
-	goQuery,
 	cppQuery,
 	cQuery,
 	csharpQuery,
-	rubyQuery,
+	goQuery,
 	javaQuery,
-	phpQuery,
-	swiftQuery,
+	javascriptQuery,
 	kotlinQuery,
+	phpQuery,
+	pythonQuery,
+	rubyQuery,
+	rustQuery,
+	swiftQuery,
+	typescriptQuery,
 } from "./queries"
 
 export interface LanguageParser {

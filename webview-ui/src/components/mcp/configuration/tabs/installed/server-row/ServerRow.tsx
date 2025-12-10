@@ -1,11 +1,12 @@
-import DangerButton from "@/components/common/DangerButton"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { McpServiceClient } from "@/services/grpc-client"
-import { getMcpServerDisplayName } from "@/utils/mcp"
 import { DEFAULT_MCP_TIMEOUT_SECONDS, McpServer } from "@shared/mcp"
+import { StringRequest } from "@shared/proto/cline/common"
+import {
+	McpServers,
+	ToggleMcpServerRequest,
+	ToggleToolAutoApproveRequest,
+	UpdateMcpTimeoutRequest,
+} from "@shared/proto/cline/mcp"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { StringRequest } from "@shared/proto/common"
-import { McpServers, ToggleMcpServerRequest, ToggleToolAutoApproveRequest, UpdateMcpTimeoutRequest } from "@shared/proto/mcp"
 import {
 	VSCodeButton,
 	VSCodeCheckbox,
@@ -15,9 +16,18 @@ import {
 	VSCodePanelTab,
 	VSCodePanelView,
 } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useState } from "react"
+import { RefreshCcwIcon, Trash2Icon } from "lucide-react"
+import { useState } from "react"
+import DangerButton from "@/components/common/DangerButton"
+import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { cn } from "@/lib/utils"
+import { McpServiceClient } from "@/services/grpc-client"
+import { getMcpServerDisplayName } from "@/utils/mcp"
 import McpResourceRow from "./McpResourceRow"
 import McpToolRow from "./McpToolRow"
+
 // constant JSX.Elements
 const TimeoutOptions = [
 	{ value: "30", label: "30 seconds" },
@@ -46,17 +56,6 @@ const ServerRow = ({
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isDeleting, setIsDeleting] = useState(false)
 	const [isRestarting, setIsRestarting] = useState(false)
-
-	const getStatusColor = useCallback((status: McpServer["status"]) => {
-		switch (status) {
-			case "connected":
-				return "var(--vscode-testing-iconPassed)"
-			case "connecting":
-				return "var(--vscode-charts-yellow)"
-			case "disconnected":
-				return "var(--vscode-testing-iconFailed)"
-		}
-	}, [])
 
 	const handleRowClick = () => {
 		if (!server.error && isExpandable) {
@@ -130,7 +129,9 @@ const ServerRow = ({
 	}
 
 	const handleAutoApproveChange = () => {
-		if (!server.name) return
+		if (!server.name) {
+			return
+		}
 
 		McpServiceClient.toggleToolAutoApprove(
 			ToggleToolAutoApproveRequest.create({
@@ -165,111 +166,54 @@ const ServerRow = ({
 	}
 
 	return (
-		<div style={{ marginBottom: "10px" }}>
-			<div
-				style={{
-					display: "flex",
-					alignItems: "center",
-					padding: "8px",
-					background: "var(--vscode-textCodeBlock-background)",
-
-					cursor: server.error ? "default" : isExpandable ? "pointer" : "default",
-					borderRadius: isExpanded || server.error ? "4px 4px 0 0" : "4px",
-					opacity: server.disabled ? 0.6 : 1,
-				}}
-				onClick={handleRowClick}>
+		<div className="mb-2.5">
+			<div className="flex bg-code-block-background p-2 gap-4 items-center" onClick={handleRowClick}>
 				{!server.error && isExpandable && (
-					<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`} style={{ marginRight: "8px" }} />
+					<span
+						className={cn("mr-2 codicon", {
+							"codicon-chevron-right": !isExpanded,
+							"codicon-chevron-down": isExpanded,
+						})}
+					/>
 				)}
-				<span
-					style={{
-						flex: 1,
-						overflow: "hidden",
-						wordBreak: "break-all",
-						whiteSpace: "normal",
-						display: "flex",
-						alignItems: "center",
-						marginRight: "4px",
-					}}>
+				<span className="flex-1 overflow-hidden break-all whitespace-normal flex items-center">
 					{getMcpServerDisplayName(server.name, mcpMarketplaceCatalog)}
 				</span>
 				{/* Collapsed view controls */}
 				{!server.error && (
-					<div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "8px" }}>
-						<VSCodeButton
-							appearance="icon"
-							title="Restart Server"
-							onClick={(e) => {
-								e.stopPropagation()
-								handleRestart()
-							}}
-							disabled={server.status === "connecting" || isRestarting}>
-							<span className="codicon codicon-sync"></span>
-						</VSCodeButton>
-						{hasTrashIcon && (
-							<VSCodeButton
-								appearance="icon"
-								title="Delete Server"
-								onClick={(e) => {
-									e.stopPropagation()
-									handleDelete()
-								}}
-								disabled={isDeleting}>
-								<span className="codicon codicon-trash"></span>
-							</VSCodeButton>
-						)}
-					</div>
+					<Button
+						disabled={server.status === "connecting" || isRestarting || server.disabled}
+						onClick={(e) => {
+							e.stopPropagation()
+							handleRestart()
+						}}
+						size="icon"
+						title="Restart Server"
+						variant="icon">
+						<RefreshCcwIcon />
+					</Button>
+				)}
+				{!server.error && hasTrashIcon && (
+					<Button
+						disabled={isDeleting}
+						onClick={(e) => {
+							e.stopPropagation()
+							handleDelete()
+						}}
+						size="icon"
+						title="Delete Server"
+						variant="icon">
+						<Trash2Icon />
+					</Button>
 				)}
 				{/* Toggle Switch */}
-				<div style={{ display: "flex", alignItems: "center", marginLeft: "8px" }} onClick={(e) => e.stopPropagation()}>
-					<div
-						role="switch"
-						aria-checked={!server.disabled}
-						tabIndex={0}
-						style={{
-							width: "20px",
-							height: "10px",
-							backgroundColor: server.disabled
-								? "var(--vscode-titleBar-inactiveForeground)"
-								: "var(--vscode-testing-iconPassed)",
-							borderRadius: "5px",
-							position: "relative",
-							cursor: "pointer",
-							transition: "background-color 0.2s",
-							opacity: server.disabled ? 0.5 : 0.9,
-						}}
-						onClick={() => {
-							handleToggleMcpServer()
-						}}
-						onKeyDown={(e) => {
-							if (e.key === "Enter" || e.key === " ") {
-								e.preventDefault()
-								handleToggleMcpServer()
-							}
-						}}>
-						<div
-							style={{
-								width: "6px",
-								height: "6px",
-								backgroundColor: "white",
-								border: "1px solid color-mix(in srgb, #666666 65%, transparent)",
-								borderRadius: "50%",
-								position: "absolute",
-								top: "1px",
-								left: server.disabled ? "2px" : "12px",
-								transition: "left 0.2s",
-							}}
-						/>
-					</div>
-				</div>
+				<Switch checked={!server.disabled} key={server.name} onClick={handleToggleMcpServer} />
 				<div
-					style={{
-						width: "8px",
-						height: "8px",
-						borderRadius: "50%",
-						background: getStatusColor(server.status),
-						marginLeft: "8px",
-					}}
+					className={cn("h-2 w-2 ml-0.5 rounded-full", {
+						"bg-success": server.status === "connected",
+						"bg-warning": server.status === "connecting",
+						"bg-error": server.status === "disconnected",
+					})}
 				/>
 			</div>
 
@@ -291,21 +235,36 @@ const ServerRow = ({
 						}}>
 						{server.error}
 					</div>
-					<VSCodeButton
-						appearance="secondary"
-						onClick={handleRestart}
-						disabled={server.status === "connecting"}
-						style={{
-							width: "calc(100% - 20px)",
-							margin: "0 10px 10px 10px",
-						}}>
-						{server.status === "connecting" || isRestarting ? "Retrying..." : "Retry Connection"}
-					</VSCodeButton>
+					{server.oauthRequired && server.oauthAuthStatus === "unauthenticated" ? (
+						<VSCodeButton
+							appearance="primary"
+							onClick={(e) => {
+								e.stopPropagation()
+								McpServiceClient.authenticateMcpServer(StringRequest.create({ value: server.name }))
+							}}
+							style={{
+								width: "calc(100% - 20px)",
+								margin: "0 10px 10px 10px",
+							}}>
+							Authenticate
+						</VSCodeButton>
+					) : (
+						<VSCodeButton
+							appearance="secondary"
+							disabled={server.status === "connecting"}
+							onClick={handleRestart}
+							style={{
+								width: "calc(100% - 20px)",
+								margin: "0 10px 10px 10px",
+							}}>
+							{server.status === "connecting" || isRestarting ? "Retrying..." : "Retry Connection"}
+						</VSCodeButton>
+					)}
 
 					<DangerButton
-						style={{ width: "calc(100% - 20px)", margin: "0 10px 10px 10px" }}
 						disabled={isDeleting}
-						onClick={handleDelete}>
+						onClick={handleDelete}
+						style={{ width: "calc(100% - 20px)", margin: "0 10px 10px 10px" }}>
 						{isDeleting ? "Deleting..." : "Delete Server"}
 					</DangerButton>
 				</div>
@@ -332,19 +291,20 @@ const ServerRow = ({
 											flexDirection: "column",
 											gap: "8px",
 											width: "100%",
+											paddingTop: "8px",
 										}}>
-										{server.tools.map((tool) => (
-											<McpToolRow key={tool.name} tool={tool} serverName={server.name} />
-										))}
-										{server.name && autoApprovalSettings.enabled && autoApprovalSettings.actions.useMcp && (
+										{server.name && autoApprovalSettings.actions.useMcp && (
 											<VSCodeCheckbox
-												style={{ marginBottom: -10 }}
 												checked={server.tools.every((tool) => tool.autoApprove)}
+												data-tool="all-tools"
 												onChange={handleAutoApproveChange}
-												data-tool="all-tools">
+												style={{ marginBottom: "4px", fontSize: "11px" }}>
 												Auto-approve all tools
 											</VSCodeCheckbox>
 										)}
+										{server.tools.map((tool) => (
+											<McpToolRow key={tool.name} serverName={server.name} tool={tool} />
+										))}
 									</div>
 								) : (
 									<div
@@ -366,11 +326,12 @@ const ServerRow = ({
 											flexDirection: "column",
 											gap: "8px",
 											width: "100%",
+											paddingTop: "8px",
 										}}>
 										{[...(server.resourceTemplates || []), ...(server.resources || [])].map((item) => (
 											<McpResourceRow
-												key={"uriTemplate" in item ? item.uriTemplate : item.uri}
 												item={item}
+												key={"uriTemplate" in item ? item.uriTemplate : item.uri}
 											/>
 										))}
 									</div>
@@ -388,14 +349,14 @@ const ServerRow = ({
 
 						<div style={{ margin: "10px 7px" }}>
 							<label style={{ display: "block", marginBottom: "4px", fontSize: "13px" }}>Request Timeout</label>
-							<VSCodeDropdown style={{ width: "100%" }} value={timeoutValue} onChange={handleTimeoutChange}>
+							<VSCodeDropdown onChange={handleTimeoutChange} style={{ width: "100%" }} value={timeoutValue}>
 								{TimeoutOptions}
 							</VSCodeDropdown>
 						</div>
 						<VSCodeButton
 							appearance="secondary"
-							onClick={handleRestart}
 							disabled={server.status === "connecting" || isRestarting}
+							onClick={handleRestart}
 							style={{
 								width: "calc(100% - 14px)",
 								margin: "0 7px 3px 7px",
@@ -404,9 +365,9 @@ const ServerRow = ({
 						</VSCodeButton>
 
 						<DangerButton
-							style={{ width: "calc(100% - 14px)", margin: "5px 7px 3px 7px" }}
 							disabled={isDeleting}
-							onClick={handleDelete}>
+							onClick={handleDelete}
+							style={{ width: "calc(100% - 14px)", margin: "5px 7px 3px 7px" }}>
 							{isDeleting ? "Deleting..." : "Delete Server"}
 						</DangerButton>
 					</div>

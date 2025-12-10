@@ -244,13 +244,60 @@ Recent macOS versions have stricter terminal permissions:
 
 ### Windows Issues
 
-#### PowerShell Execution Policy
+If you're using Windows and still experiencing issues with shell integration after trying the previous steps, it's recommended you use Git Bash (or PowerShell).
 
-If commands fail silently:
+### Git Bash
 
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
+Git Bash is a terminal emulator that provides a Unix-like command line experience on Windows. To use Git Bash, you need to:
+
+1. Download and run the Git for Windows installer from [https://git-scm.com/downloads/win](https://git-scm.com/downloads/win)
+2. Quit and re-open VSCode
+3. Press `Ctrl + Shift + P` to open the Command Palette
+4. Type "Terminal: Select Default Profile" and choose it
+5. Select "Git Bash"
+
+### PowerShell
+
+If you'd still like to use PowerShell, make sure you're using an updated version (at least v7+).
+  - Check your current PowerShell version by running: `$PSVersionTable.PSVersion`
+  - If your version is below 7, [update PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/whats-new/migrating-from-windows-powershell-51-to-powershell-7?view=powershell-7.4#installing-powershell-7).
+
+You may also need to adjust your PowerShell execution policy. By default, PowerShell restricts script execution for security reasons.
+
+#### Understanding PowerShell Execution Policies
+
+PowerShell uses execution policies to determine which scripts can run on your system. Here are the most common policies:
+
+- `Restricted`: No PowerShell scripts can run. This is the default setting.
+- `AllSigned`: All scripts, including local ones, must be signed by a trusted publisher.
+- `RemoteSigned`: Scripts created locally can run, but scripts downloaded from the internet must be signed.
+- `Unrestricted`: No restrictions. Any script can run, though you will be warned before running internet-downloaded scripts.
+
+For development work in VSCode, the `RemoteSigned` policy is generally recommended. It allows locally created scripts to run without restrictions while maintaining security for downloaded scripts. To learn more about PowerShell execution policies and understand the security implications of changing them, visit Microsoft's documentation: [About Execution Policies](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies).
+
+#### Steps to Change the Execution Policy
+
+1. Open PowerShell as an Administrator: Press `Win + X` and select "Windows PowerShell (Administrator)" or "Windows Terminal (Administrator)".
+
+2. Check Current Execution Policy by running this command:
+     ```powershell
+     Get-ExecutionPolicy
+     ```
+   - If the output is already `RemoteSigned`, `Unrestricted`, or `Bypass`, you likely don't need to change your execution policy. These policies should allow shell integration to work.
+   - If the output is `Restricted` or `AllSigned`, you may need to change your policy to enable shell integration.
+
+3. Change the Execution Policy by running the following command:
+     ```powershell
+     Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+     ```
+   - This sets the policy to `RemoteSigned` for the current user only, which is safer than changing it system-wide.
+
+4. Confirm the Change by typing `Y` and pressing Enter when prompted.
+
+5. Verify the Policy Change by running `Get-ExecutionPolicy` again to confirm the new setting.
+
+6. Restart VSCode and try the shell integration again.
+
 
 #### WSL Integration
 

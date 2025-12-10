@@ -1,14 +1,16 @@
+import type { Boolean, EmptyRequest } from "@shared/proto/cline/common"
 import { useEffect } from "react"
+import AccountView from "./components/account/AccountView"
 import ChatView from "./components/chat/ChatView"
 import HistoryView from "./components/history/HistoryView"
+import McpView from "./components/mcp/configuration/McpConfigurationView"
+import OnboardingView from "./components/onboarding/OnboardingView"
 import SettingsView from "./components/settings/SettingsView"
 import WelcomeView from "./components/welcome/WelcomeView"
-import AccountView from "./components/account/AccountView"
+import { useClineAuth } from "./context/ClineAuthContext"
 import { useExtensionState } from "./context/ExtensionStateContext"
-import { UiServiceClient } from "./services/grpc-client"
-import McpView from "./components/mcp/configuration/McpConfigurationView"
 import { Providers } from "./Providers"
-import { Boolean, EmptyRequest } from "@shared/proto/common"
+import { UiServiceClient } from "./services/grpc-client"
 
 const AppContent = () => {
 	const {
@@ -18,9 +20,11 @@ const AppContent = () => {
 		showMcp,
 		mcpTab,
 		showSettings,
+		settingsTargetSection,
 		showHistory,
 		showAccount,
 		showAnnouncement,
+		onboardingModels,
 		setShowAnnouncement,
 		setShouldShowAnnouncement,
 		closeMcpView,
@@ -30,6 +34,8 @@ const AppContent = () => {
 		hideAccount,
 		hideAnnouncement,
 	} = useExtensionState()
+
+	const { clineUser, organizations, activeOrganization } = useClineAuth()
 
 	useEffect(() => {
 		if (shouldShowAnnouncement) {
@@ -44,32 +50,37 @@ const AppContent = () => {
 					console.error("Failed to acknowledge announcement:", error)
 				})
 		}
-	}, [shouldShowAnnouncement])
+	}, [shouldShowAnnouncement, setShouldShowAnnouncement, setShowAnnouncement])
 
 	if (!didHydrateState) {
 		return null
 	}
 
+	if (showWelcome) {
+		return onboardingModels ? <OnboardingView onboardingModels={onboardingModels} /> : <WelcomeView />
+	}
+
 	return (
-		<>
-			{showWelcome ? (
-				<WelcomeView />
-			) : (
-				<>
-					{showSettings && <SettingsView onDone={hideSettings} />}
-					{showHistory && <HistoryView onDone={hideHistory} />}
-					{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
-					{showAccount && <AccountView onDone={hideAccount} />}
-					{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
-					<ChatView
-						showHistoryView={navigateToHistory}
-						isHidden={showSettings || showHistory || showMcp || showAccount}
-						showAnnouncement={showAnnouncement}
-						hideAnnouncement={hideAnnouncement}
-					/>
-				</>
+		<div className="flex h-screen w-full flex-col">
+			{showSettings && <SettingsView onDone={hideSettings} targetSection={settingsTargetSection} />}
+			{showHistory && <HistoryView onDone={hideHistory} />}
+			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
+			{showAccount && (
+				<AccountView
+					activeOrganization={activeOrganization}
+					clineUser={clineUser}
+					onDone={hideAccount}
+					organizations={organizations}
+				/>
 			)}
-		</>
+			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
+			<ChatView
+				hideAnnouncement={hideAnnouncement}
+				isHidden={showSettings || showHistory || showMcp || showAccount}
+				showAnnouncement={showAnnouncement}
+				showHistoryView={navigateToHistory}
+			/>
+		</div>
 	)
 }
 

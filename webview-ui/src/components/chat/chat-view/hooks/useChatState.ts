@@ -1,6 +1,6 @@
-import { useState, useMemo, useRef, useCallback } from "react"
-import { ClineMessage, ClineAsk } from "@shared/ExtensionMessage"
-import { ChatState, MessageHandlers } from "../types/chatTypes"
+import { ClineMessage } from "@shared/ExtensionMessage"
+import { useCallback, useMemo, useRef, useState } from "react"
+import { ChatState } from "../types/chatTypes"
 
 /**
  * Custom hook for managing chat state
@@ -19,7 +19,6 @@ export function useChatState(messages: ClineMessage[]): ChatState {
 	const [enableButtons, setEnableButtons] = useState<boolean>(false)
 	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>("Approve")
 	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>("Reject")
-	const [didClickCancel, setDidClickCancel] = useState(false)
 	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
 
 	// Refs
@@ -40,13 +39,8 @@ export function useChatState(messages: ClineMessage[]): ChatState {
 	const resetState = useCallback(() => {
 		setInputValue("")
 		setActiveQuote(null)
-		setSendingDisabled(false)
 		setSelectedImages([])
 		setSelectedFiles([])
-		setEnableButtons(false)
-		setPrimaryButtonText("Approve")
-		setSecondaryButtonText("Reject")
-		setDidClickCancel(false)
 	}, [])
 
 	// Handle focus change
@@ -74,8 +68,6 @@ export function useChatState(messages: ClineMessage[]): ChatState {
 		setPrimaryButtonText,
 		secondaryButtonText,
 		setSecondaryButtonText,
-		didClickCancel,
-		setDidClickCancel,
 		expandedRows,
 		setExpandedRows,
 

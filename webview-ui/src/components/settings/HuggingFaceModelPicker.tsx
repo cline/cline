@@ -1,0 +1,237 @@
+import { huggingFaceDefaultModelId, huggingFaceModels } from "@shared/api"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { Mode } from "@shared/storage/types"
+import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import Fuse from "fuse.js"
+import React, { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
+import { useMount } from "react-use"
+import { useExtensionState } from "../../context/ExtensionStateContext"
+import { ModelsServiceClient } from "../../services/grpc-client"
+import { highlight } from "../history/HistoryView"
+import { ModelInfoView } from "./common/ModelInfoView"
+import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
+import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
+
+export interface HuggingFaceModelPickerProps {
+	isPopup?: boolean
+	currentMode: Mode
+}
+
+const HuggingFaceModelPicker: React.FC<HuggingFaceModelPickerProps> = ({ isPopup, currentMode }) => {
+	const { apiConfiguration, huggingFaceModels: dynamicModels, setHuggingFaceModels } = useExtensionState()
+	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+	const [searchTerm, setSearchTerm] = useState(modeFields.huggingFaceModelId || huggingFaceDefaultModelId)
+	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
+	const [selectedIndex, setSelectedIndex] = useState(-1)
+	const dropdownRef = useRef<HTMLDivElement>(null)
+	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
+	const dropdownListRef = useRef<HTMLDivElement>(null)
+
+	const handleModelChange = (newModelId: string) => {
+		const allModels = { ...huggingFaceModels, ...dynamicModels }
+		const modelInfo = allModels[newModelId as keyof typeof allModels]
+
+		handleModeFieldsChange(
+			{
+				huggingFaceModelId: { plan: "planModeHuggingFaceModelId", act: "actModeHuggingFaceModelId" },
+				huggingFaceModelInfo: { plan: "planModeHuggingFaceModelInfo", act: "actModeHuggingFaceModelInfo" },
+			},
+			{
+				huggingFaceModelId: newModelId,
+				huggingFaceModelInfo: modelInfo,
+			},
+			currentMode,
+		)
+		setSearchTerm(newModelId)
+	}
+
+	const { selectedModelId, selectedModelInfo } = useMemo(() => {
+		return normalizeApiConfiguration(apiConfiguration, currentMode)
+	}, [apiConfiguration, currentMode])
+
+	useMount(() => {
+		ModelsServiceClient.refreshHuggingFaceModels(EmptyRequest.create({}))
+			.then((response) => {
+				setHuggingFaceModels({
+					[huggingFaceDefaultModelId]: huggingFaceModels[huggingFaceDefaultModelId],
+					...response.models,
+				})
+			})
+			.catch((err) => {
+				console.error("Failed to refresh Hugging Face models:", err)
+			})
+	})
+
+	// Sync external changes when the modelId changes
+	useEffect(() => {
+		const currentModelId = modeFields.huggingFaceModelId || huggingFaceDefaultModelId
+		setSearchTerm(currentModelId)
+	}, [modeFields.huggingFaceModelId])
+
+	useEffect(() => {
+		const handleClickOutside = (event: MouseEvent) => {
+			if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+				setIsDropdownVisible(false)
+			}
+		}
+
+		document.addEventListener("mousedown", handleClickOutside)
+		return () => {
+			document.removeEventListener("mousedown", handleClickOutside)
+		}
+	}, [])
+
+	const allModels = useMemo(() => {
+		return { ...huggingFaceModels, ...dynamicModels }
+	}, [dynamicModels])
+
+	const modelIds = useMemo(() => {
+		return Object.keys(allModels).sort((a, b) => a.localeCompare(b))
+	}, [allModels])
+
+	const searchableItems = useMemo(() => {
+		return modelIds.map((id) => ({
+			id,
+			html: id,
+		}))
+	}, [modelIds])
+
+	const fuse = useMemo(() => {
+		return new Fuse(searchableItems, {
+			keys: ["html"],
+			threshold: 0.6,
+			shouldSort: true,
+			isCaseSensitive: false,
+			ignoreLocation: false,
+			includeMatches: true,
+			minMatchCharLength: 1,
+		})
+	}, [searchableItems])
+
+	const modelSearchResults = useMemo(() => {
+		const results: { id: string; html: string }[] = searchTerm
+			? highlight(fuse.search(searchTerm), "model-item-highlight")
+			: searchableItems
+		return results
+	}, [searchTerm, fuse, searchableItems])
+
+	const handleKeyDown = (e: KeyboardEvent<HTMLElement>) => {
+		if (!isDropdownVisible) {
+			return
+		}
+
+		switch (e.key) {
+			case "ArrowDown":
+				e.preventDefault()
+				setSelectedIndex((prev) => (prev < modelSearchResults.length - 1 ? prev + 1 : 0))
+				break
+			case "ArrowUp":
+				e.preventDefault()
+				setSelectedIndex((prev) => (prev > 0 ? prev - 1 : modelSearchResults.length - 1))
+				break
+			case "Enter":
+				e.preventDefault()
+				if (selectedIndex >= 0 && selectedIndex < modelSearchResults.length) {
+					const selectedModelId = modelSearchResults[selectedIndex].id
+					handleModelChange(selectedModelId)
+					setIsDropdownVisible(false)
+				}
+				break
+			case "Escape":
+				e.preventDefault()
+				setIsDropdownVisible(false)
+				break
+		}
+	}
+
+	useEffect(() => {
+		if (selectedIndex >= 0 && itemRefs.current[selectedIndex] && dropdownListRef.current) {
+			const selectedItem = itemRefs.current[selectedIndex]
+			const dropdown = dropdownListRef.current
+			const itemOffsetTop = selectedItem.offsetTop
+			const itemHeight = selectedItem.offsetHeight
+			const dropdownScrollTop = dropdown.scrollTop
+			const dropdownHeight = dropdown.offsetHeight
+
+			if (itemOffsetTop < dropdownScrollTop) {
+				dropdown.scrollTop = itemOffsetTop
+			} else if (itemOffsetTop + itemHeight > dropdownScrollTop + dropdownHeight) {
+				dropdown.scrollTop = itemOffsetTop + itemHeight - dropdownHeight
+			}
+		}
+	}, [selectedIndex])
+
+	return (
+		<div className="w-full">
+			<div className="flex flex-col">
+				<label htmlFor="hf-model-search">
+					<span className="font-medium">Model</span>
+				</label>
+
+				<div className="relative w-full" ref={dropdownRef}>
+					<VSCodeTextField
+						className="w-full relative z-1000"
+						id="hf-model-search"
+						onFocus={() => setIsDropdownVisible(true)}
+						onInput={(e: any) => {
+							setSearchTerm(e.target.value)
+							setIsDropdownVisible(true)
+							setSelectedIndex(-1)
+						}}
+						onKeyDown={handleKeyDown}
+						placeholder="Search models..."
+						value={searchTerm}>
+						{searchTerm && (
+							<div
+								aria-label="Clear search"
+								className="input-icon-button codicon codicon-close"
+								onClick={() => {
+									setSearchTerm("")
+									setIsDropdownVisible(true)
+								}}
+								slot="end"
+								style={{
+									display: "flex",
+									justifyContent: "center",
+									alignItems: "center",
+									height: "100%",
+								}}
+							/>
+						)}
+					</VSCodeTextField>
+					{isDropdownVisible && (
+						<div
+							className={`absolute top-[calc(100%-3px)] left-0 w-[calc(100%-2px)] ${
+								isPopup ? "max-h-[90px]" : "max-h-[200px]"
+							} overflow-y-auto bg-(--vscode-dropdown-background) border border-(--vscode-list-activeSelectionBackground) z-999 rounded-b-[3px]`}
+							ref={dropdownListRef}>
+							{modelSearchResults.map((result, index) => (
+								<div
+									className={`p-[5px_10px] cursor-pointer break-all whitespace-normal ${
+										index === selectedIndex ? "bg-(--vscode-list-activeSelectionBackground)" : ""
+									} hover:bg-(--vscode-list-activeSelectionBackground)`}
+									key={result.id}
+									onClick={() => {
+										handleModelChange(result.id)
+										setIsDropdownVisible(false)
+									}}
+									onMouseEnter={() => setSelectedIndex(index)}
+									ref={(el: HTMLDivElement | null) => (itemRefs.current[index] = el)}>
+									<div
+										className="[&_.model-item-highlight]:bg-(--vscode-editor-findMatchHighlightBackground) [&_.model-item-highlight]:text-inherit"
+										dangerouslySetInnerHTML={{ __html: result.html }}
+									/>
+								</div>
+							))}
+						</div>
+					)}
+				</div>
+			</div>
+
+			<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+		</div>
+	)
+}
+
+export { HuggingFaceModelPicker }

@@ -1,6 +1,6 @@
-import React from "react"
-import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { McpDisplayMode } from "@shared/McpDisplayMode"
+import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import React from "react"
 
 interface McpDisplayModeDropdownProps {
 	value: McpDisplayMode
@@ -18,7 +18,7 @@ const McpDisplayModeDropdown: React.FC<McpDisplayModeDropdownProps> = ({ value, 
 	}
 
 	return (
-		<VSCodeDropdown id={id} value={value} onChange={handleChange} onClick={onClick} className={className} style={style}>
+		<VSCodeDropdown className={className} id={id} onChange={handleChange} onClick={onClick} style={style} value={value}>
 			<VSCodeOption value="plain">Plain Text</VSCodeOption>
 			<VSCodeOption value="rich">Rich Display</VSCodeOption>
 			<VSCodeOption value="markdown">Markdown</VSCodeOption>

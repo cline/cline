@@ -1,6 +1,4 @@
-import React, { HTMLAttributes, useCallback, forwardRef } from "react"
-
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import React, { forwardRef, HTMLAttributes, useCallback } from "react"
 
 type TabProps = HTMLAttributes<HTMLDivElement>
 
@@ -11,7 +9,7 @@ export const Tab = ({ className, children, ...props }: TabProps) => (
 )
 
 export const TabHeader = ({ className, children, ...props }: TabProps) => (
-	<div className={`px-5 py-2.5 border-b border-[var(--vscode-panel-border)] ${className}`} {...props}>
+	<div className={`px-5 py-2.5 border-b border-(--vscode-panel-border) ${className}`} {...props}>
 		{children}
 	</div>
 )
@@ -52,7 +50,7 @@ export const TabList = forwardRef<
 	)
 
 	return (
-		<div ref={ref} role="tablist" className={`flex ${className}`} {...props}>
+		<div className={`flex ${className}`} ref={ref} role="tablist" {...props}>
 			{React.Children.map(children, (child) => {
 				if (React.isValidElement(child)) {
 					// Make sure we're passing the correct props to the TabTrigger
@@ -78,13 +76,13 @@ export const TabTrigger = forwardRef<
 	// Ensure we're using the value prop correctly
 	return (
 		<button
+			aria-selected={isSelected}
+			className={`focus:outline-none ${className}`}
+			data-value={value}
+			onClick={onSelect}
 			ref={ref}
 			role="tab"
-			aria-selected={isSelected}
-			tabIndex={isSelected ? 0 : -1}
-			className={`focus:outline-none ${className}`}
-			onClick={onSelect}
-			data-value={value} // Add data-value attribute for debugging
+			tabIndex={isSelected ? 0 : -1} // Add data-value attribute for debugging
 			{...props}>
 			{children}
 		</button>

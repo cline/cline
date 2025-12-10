@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package cline;
+
+import "cline/common.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+service WebService {
+  rpc checkIsImageUrl(StringRequest) returns (IsImageUrl);
+  rpc fetchOpenGraphData(StringRequest) returns (OpenGraphData);
+  rpc openInBrowser(StringRequest) returns (Empty);
+}
+
+message IsImageUrl {
+  bool is_image = 1;
+  string url = 2;
+}
+
+message OpenGraphData {
+  string title = 1;
+  string description = 2;
+  string image = 3;
+  string url = 4;
+  string site_name = 5;
+  string type = 6;
+}

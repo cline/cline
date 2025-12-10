@@ -1,5 +1,5 @@
+import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { Controller } from ".."
-import { Empty, EmptyRequest } from "../../../shared/proto/common"
 
 /**
  * Clears the current task

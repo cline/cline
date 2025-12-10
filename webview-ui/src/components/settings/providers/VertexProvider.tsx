@@ -1,12 +1,14 @@
 import { vertexGlobalModels, vertexModels } from "@shared/api"
-import { VSCodeDropdown, VSCodeOption, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { DebouncedTextField } from "../common/DebouncedTextField"
-import { ModelSelector } from "../common/ModelSelector"
-import { ModelInfoView } from "../common/ModelInfoView"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { DropdownContainer, DROPDOWN_Z_INDEX } from "../ApiOptions"
-import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
+import VertexData from "@shared/providers/vertex.json"
+import { Mode } from "@shared/storage/types"
+import { VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { DROPDOWN_Z_INDEX, DropdownContainer } from "../ApiOptions"
+import { DebouncedTextField } from "../common/DebouncedTextField"
+import { ModelInfoView } from "../common/ModelInfoView"
+import { ModelSelector } from "../common/ModelSelector"
+import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
+import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -15,30 +17,40 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 interface VertexProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 // Vertex models that support thinking
 const SUPPORTED_THINKING_MODELS = [
+	"claude-haiku-4-5@20251001",
+	"claude-sonnet-4-5@20250929",
 	"claude-3-7-sonnet@20250219",
 	"claude-sonnet-4@20250514",
+	"claude-opus-4-5@20251101",
 	"claude-opus-4@20250514",
+	"claude-opus-4-1@20250805",
 	"gemini-2.5-flash",
 	"gemini-2.5-pro",
 	"gemini-2.5-flash-lite-preview-06-17",
 ]
 
+const REGIONS = VertexData.regions
+
 /**
  * The GCP Vertex AI provider configuration component
  */
-export const VertexProvider = ({ showModelOptions, isPopup }: VertexProviderProps) => {
+export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: VertexProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	// Determine which models to use based on region
 	const modelsToUse = apiConfiguration?.vertexRegion === "global" ? vertexGlobalModels : vertexModels
+
+	const geminiThinkingLevel =
+		currentMode === "plan" ? apiConfiguration?.geminiPlanModeThinkingLevel : apiConfiguration?.geminiActModeThinkingLevel
 
 	return (
 		<div
@@ -50,27 +62,26 @@ export const VertexProvider = ({ showModelOptions, isPopup }: VertexProviderProp
 			<DebouncedTextField
 				initialValue={apiConfiguration?.vertexProjectId || ""}
 				onChange={(value) => handleFieldChange("vertexProjectId", value)}
-				style={{ width: "100%" }}
-				placeholder="Enter Project ID...">
+				placeholder="Enter Project ID..."
+				style={{ width: "100%" }}>
 				<span style={{ fontWeight: 500 }}>Google Cloud Project ID</span>
 			</DebouncedTextField>
 
-			<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 1} className="dropdown-container">
+			<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 1}>
 				<label htmlFor="vertex-region-dropdown">
 					<span style={{ fontWeight: 500 }}>Google Cloud Region</span>
 				</label>
 				<VSCodeDropdown
 					id="vertex-region-dropdown"
-					value={apiConfiguration?.vertexRegion || ""}
+					onChange={(e: any) => handleFieldChange("vertexRegion", e.target.value)}
 					style={{ width: "100%" }}
-					onChange={(e: any) => handleFieldChange("vertexRegion", e.target.value)}>
+					value={apiConfiguration?.vertexRegion || ""}>
 					<VSCodeOption value="">Select a region...</VSCodeOption>
-					<VSCodeOption value="us-east5">us-east5</VSCodeOption>
-					<VSCodeOption value="us-central1">us-central1</VSCodeOption>
-					<VSCodeOption value="europe-west1">europe-west1</VSCodeOption>
-					<VSCodeOption value="europe-west4">europe-west4</VSCodeOption>
-					<VSCodeOption value="asia-southeast1">asia-southeast1</VSCodeOption>
-					<VSCodeOption value="global">global</VSCodeOption>
+					{REGIONS.map((region) => (
+						<VSCodeOption key={region} value={region}>
+							{region}
+						</VSCodeOption>
+					))}
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -96,18 +107,46 @@ export const VertexProvider = ({ showModelOptions, isPopup }: VertexProviderProp
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						models={modelsToUse}
-						selectedModelId={selectedModelId}
-						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
 						label="Model"
+						models={modelsToUse}
+						onChange={(e: any) =>
+							handleModeFieldChange(
+								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								e.target.value,
+								currentMode,
+							)
+						}
+						selectedModelId={selectedModelId}
 						zIndex={DROPDOWN_Z_INDEX - 2}
 					/>
 
 					{SUPPORTED_THINKING_MODELS.includes(selectedModelId) && (
-						<ThinkingBudgetSlider maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
+						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
 					)}
 
-					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+					{selectedModelInfo.thinkingConfig?.supportsThinkingLevel && (
+						<DropdownContainer className="dropdown-container" style={{ marginTop: "8px" }} zIndex={1}>
+							<label htmlFor="thinking-level">
+								<span style={{ fontWeight: 500 }}>Thinking Level</span>
+							</label>
+							<VSCodeDropdown
+								className="w-full"
+								id="thinking-level"
+								onChange={(e: any) =>
+									handleModeFieldChange(
+										{ plan: "geminiPlanModeThinkingLevel", act: "geminiActModeThinkingLevel" },
+										e.target.value,
+										currentMode,
+									)
+								}
+								value={geminiThinkingLevel || "high"}>
+								<VSCodeOption value="low">Low</VSCodeOption>
+								<VSCodeOption value="high">High</VSCodeOption>
+							</VSCodeDropdown>
+						</DropdownContainer>
+					)}
+
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			)}
 		</div>

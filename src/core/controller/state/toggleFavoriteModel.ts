@@ -1,7 +1,6 @@
-import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
+import { Empty, StringRequest } from "@shared/proto/cline/common"
+import { telemetryService } from "@/services/telemetry"
 import { Controller } from ".."
-import { Empty, StringRequest } from "../../../shared/proto/common"
-import { updateGlobalState } from "@/core/storage/state"
 
 /**
  * Toggles a model's favorite status
@@ -16,20 +15,15 @@ export async function toggleFavoriteModel(controller: Controller, request: Strin
 		}
 
 		const modelId = request.value
-		const { apiConfiguration } = await controller.getStateToPostToWebview()
 
-		if (!apiConfiguration) {
-			throw new Error("API configuration not found")
-		}
-
-		const favoritedModelIds = apiConfiguration.favoritedModelIds || []
+		const favoritedModelIds = controller.stateManager.getGlobalStateKey("favoritedModelIds")
 
 		// Toggle favorite status
 		const updatedFavorites = favoritedModelIds.includes(modelId)
 			? favoritedModelIds.filter((id) => id !== modelId)
 			: [...favoritedModelIds, modelId]
 
-		await updateGlobalState(controller.context, "favoritedModelIds", updatedFavorites)
+		controller.stateManager.setGlobalState("favoritedModelIds", updatedFavorites)
 
 		// Capture telemetry for model favorite toggle
 		const isFavorited = !favoritedModelIds.includes(modelId)

@@ -1,10 +1,10 @@
+import { Empty } from "@shared/proto/cline/common"
+import { ResetStateRequest } from "@shared/proto/cline/state"
+import { resetGlobalState, resetWorkspaceState } from "@/core/storage/utils/state-helpers"
+import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import { Controller } from ".."
-import { Empty } from "../../../shared/proto/common"
-import { ResetStateRequest } from "../../../shared/proto/state"
-import { resetGlobalState, resetWorkspaceState } from "../../../core/storage/state"
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
 
 /**
  * Resets the extension state to its defaults
@@ -15,21 +15,17 @@ import { getHostBridgeProvider } from "@/hosts/host-providers"
 export async function resetState(controller: Controller, request: ResetStateRequest): Promise<Empty> {
 	try {
 		if (request.global) {
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.INFORMATION,
-					message: "Resetting global state...",
-				}),
-			)
-			await resetGlobalState(controller.context)
+			HostProvider.window.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "Resetting global state...",
+			})
+			await resetGlobalState(controller)
 		} else {
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.INFORMATION,
-					message: "Resetting workspace state...",
-				}),
-			)
-			await resetWorkspaceState(controller.context)
+			HostProvider.window.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "Resetting workspace state...",
+			})
+			await resetWorkspaceState(controller)
 		}
 
 		if (controller.task) {
@@ -37,25 +33,21 @@ export async function resetState(controller: Controller, request: ResetStateRequ
 			controller.task = undefined
 		}
 
-		getHostBridgeProvider().windowClient.showMessage(
-			ShowMessageRequest.create({
-				type: ShowMessageType.INFORMATION,
-				message: "State reset",
-			}),
-		)
+		HostProvider.window.showMessage({
+			type: ShowMessageType.INFORMATION,
+			message: "State reset",
+		})
 		await controller.postStateToWebview()
 
-		await sendChatButtonClickedEvent(controller.id)
+		await sendChatButtonClickedEvent()
 
 		return Empty.create()
 	} catch (error) {
 		console.error("Error resetting state:", error)
-		getHostBridgeProvider().windowClient.showMessage(
-			ShowMessageRequest.create({
-				type: ShowMessageType.ERROR,
-				message: `Failed to reset state: ${error instanceof Error ? error.message : String(error)}`,
-			}),
-		)
+		HostProvider.window.showMessage({
+			type: ShowMessageType.ERROR,
+			message: `Failed to reset state: ${error instanceof Error ? error.message : String(error)}`,
+		})
 		throw error
 	}
 }

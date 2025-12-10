@@ -1,74 +1,93 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
-import "../../../src/shared/webview/types"
-import {
-	StateServiceClient,
-	ModelsServiceClient,
-	UiServiceClient,
-	FileServiceClient,
-	McpServiceClient,
-} from "../services/grpc-client"
-import { EmptyRequest, StringRequest } from "@shared/proto/common"
-import { UpdateSettingsRequest } from "@shared/proto/state"
-import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/ui"
-import { TerminalProfile } from "@shared/proto/state"
+import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
+import { findLastIndex } from "@shared/array"
+import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
+import { DEFAULT_DICTATION_SETTINGS, DictationSettings } from "@shared/DictationSettings"
+import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
+import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
+import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
+import type { UserInfo } from "@shared/proto/cline/account"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import type { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import { OnboardingModelGroup, type TerminalProfile } from "@shared/proto/cline/state"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
-import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
-import { DEFAULT_PLATFORM, ExtensionState } from "@shared/ExtensionMessage"
-import { findLastIndex } from "@shared/array"
+import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
+import type React from "react"
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
+import { Environment } from "../../../src/config"
 import {
-	ModelInfo,
+	basetenDefaultModelId,
+	basetenModels,
+	groqDefaultModelId,
+	groqModels,
+	type ModelInfo,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
 	requestyDefaultModelId,
 	requestyDefaultModelInfo,
 } from "../../../src/shared/api"
-import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
-import { convertTextMateToHljs } from "../utils/textMateToHljs"
-import { OpenRouterCompatibleModelInfo } from "@shared/proto/models"
-import { UserInfo } from "@shared/proto/account"
-import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
+import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
+import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
 
-interface ExtensionStateContextType extends ExtensionState {
+export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
-	theme: Record<string, string> | undefined
+	onboardingModels: OnboardingModelGroup | undefined
 	openRouterModels: Record<string, ModelInfo>
+	hicapModels: Record<string, ModelInfo>
+	liteLlmModels: Record<string, ModelInfo>
 	openAiModels: string[]
 	requestyModels: Record<string, ModelInfo>
+	groqModels: Record<string, ModelInfo>
+	basetenModels: Record<string, ModelInfo>
+	huggingFaceModels: Record<string, ModelInfo>
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
-	filePaths: string[]
 	totalTasksSize: number | null
+	lastDismissedCliBannerVersion: number
+
 	availableTerminalProfiles: TerminalProfile[]
 
 	// View state
 	showMcp: boolean
 	mcpTab?: McpViewTab
 	showSettings: boolean
+	settingsTargetSection?: string
 	showHistory: boolean
 	showAccount: boolean
 	showAnnouncement: boolean
+	showChatModelSelector: boolean
+	expandTaskHeader: boolean
 
 	// Setters
+	setDictationSettings: (value: DictationSettings) => void
 	setShowAnnouncement: (value: boolean) => void
+	setShowChatModelSelector: (value: boolean) => void
 	setShouldShowAnnouncement: (value: boolean) => void
-	setChatSettings: (value: ChatSettings) => void
 	setMcpServers: (value: McpServer[]) => void
 	setRequestyModels: (value: Record<string, ModelInfo>) => void
+	setGroqModels: (value: Record<string, ModelInfo>) => void
+	setBasetenModels: (value: Record<string, ModelInfo>) => void
+	setHuggingFaceModels: (value: Record<string, ModelInfo>) => void
 	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalCursorRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalWindsurfRulesToggles: (toggles: Record<string, boolean>) => void
+	setLocalAgentsRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setGlobalWorkflowToggles: (toggles: Record<string, boolean>) => void
+	setRemoteRulesToggles: (toggles: Record<string, boolean>) => void
+	setRemoteWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
 	setTotalTasksSize: (value: number | null) => void
+	setExpandTaskHeader: (value: boolean) => void
+	setShowWelcome: (value: boolean) => void
+	setOnboardingModels: (value: OnboardingModelGroup | undefined) => void
 
 	// Refresh functions
 	refreshOpenRouterModels: () => void
+	refreshHicapModels: () => void
+	refreshLiteLlmModels: () => void
 	setUserInfo: (userInfo?: UserInfo) => void
 
 	// Navigation state setters
@@ -77,7 +96,7 @@ interface ExtensionStateContextType extends ExtensionState {
 
 	// Navigation functions
 	navigateToMcp: (tab?: McpViewTab) => void
-	navigateToSettings: () => void
+	navigateToSettings: (targetSection?: string) => void
 	navigateToHistory: () => void
 	navigateToAccount: () => void
 	navigateToChat: () => void
@@ -87,27 +106,27 @@ interface ExtensionStateContextType extends ExtensionState {
 	hideHistory: () => void
 	hideAccount: () => void
 	hideAnnouncement: () => void
+	hideChatModelSelector: () => void
 	closeMcpView: () => void
 
 	// Event callbacks
 	onRelinquishControl: (callback: () => void) => () => void
 }
 
-const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
+export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
 
 export const ExtensionStateContextProvider: React.FC<{
 	children: React.ReactNode
 }> = ({ children }) => {
-	// Get the current webview provider type
-	const currentProviderType =
-		window.WEBVIEW_PROVIDER_TYPE === "sidebar" ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
 	// UI view state
 	const [showMcp, setShowMcp] = useState(false)
 	const [mcpTab, setMcpTab] = useState<McpViewTab | undefined>(undefined)
 	const [showSettings, setShowSettings] = useState(false)
+	const [settingsTargetSection, setSettingsTargetSection] = useState<string | undefined>(undefined)
 	const [showHistory, setShowHistory] = useState(false)
 	const [showAccount, setShowAccount] = useState(false)
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
+	const [showChatModelSelector, setShowChatModelSelector] = useState(false)
 
 	// Helper for MCP view
 	const closeMcpView = useCallback(() => {
@@ -116,10 +135,14 @@ export const ExtensionStateContextProvider: React.FC<{
 	}, [setShowMcp, setMcpTab])
 
 	// Hide functions
-	const hideSettings = useCallback(() => setShowSettings(false), [setShowSettings])
+	const hideSettings = useCallback(() => {
+		setShowSettings(false)
+		setSettingsTargetSection(undefined)
+	}, [])
 	const hideHistory = useCallback(() => setShowHistory(false), [setShowHistory])
 	const hideAccount = useCallback(() => setShowAccount(false), [setShowAccount])
 	const hideAnnouncement = useCallback(() => setShowAnnouncement(false), [setShowAnnouncement])
+	const hideChatModelSelector = useCallback(() => setShowChatModelSelector(false), [setShowChatModelSelector])
 
 	// Navigation functions
 	const navigateToMcp = useCallback(
@@ -135,12 +158,16 @@ export const ExtensionStateContextProvider: React.FC<{
 		[setShowMcp, setMcpTab, setShowSettings, setShowHistory, setShowAccount],
 	)
 
-	const navigateToSettings = useCallback(() => {
-		setShowHistory(false)
-		closeMcpView()
-		setShowAccount(false)
-		setShowSettings(true)
-	}, [setShowSettings, setShowHistory, closeMcpView, setShowAccount])
+	const navigateToSettings = useCallback(
+		(targetSection?: string) => {
+			setShowHistory(false)
+			closeMcpView()
+			setShowAccount(false)
+			setSettingsTargetSection(targetSection)
+			setShowSettings(true)
+		},
+		[closeMcpView],
+	)
 
 	const navigateToHistory = useCallback(() => {
 		setShowSettings(false)
@@ -170,8 +197,13 @@ export const ExtensionStateContextProvider: React.FC<{
 		shouldShowAnnouncement: false,
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
-		chatSettings: DEFAULT_CHAT_SETTINGS,
+		dictationSettings: DEFAULT_DICTATION_SETTINGS,
+		focusChainSettings: DEFAULT_FOCUS_CHAIN_SETTINGS,
+		preferredLanguage: "English",
+		openaiReasoningEffort: "medium",
+		mode: "act",
 		platform: DEFAULT_PLATFORM,
+		environment: Environment.production,
 		telemetrySetting: "unset",
 		distinctId: "",
 		planActSeparateModelsSetting: true,
@@ -181,30 +213,68 @@ export const ExtensionStateContextProvider: React.FC<{
 		localClineRulesToggles: {},
 		localCursorRulesToggles: {},
 		localWindsurfRulesToggles: {},
+		localAgentsRulesToggles: {},
 		localWorkflowToggles: {},
 		globalWorkflowToggles: {},
 		shellIntegrationTimeout: 4000,
 		terminalReuseEnabled: true,
+		vscodeTerminalExecutionMode: "vscodeTerminal",
 		terminalOutputLineLimit: 500,
+		maxConsecutiveMistakes: 3,
+		subagentTerminalOutputLineLimit: 2000,
 		defaultTerminalProfile: "default",
 		isNewUser: false,
 		welcomeViewCompleted: false,
+		onboardingModels: undefined,
 		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
+		strictPlanModeEnabled: false,
+		yoloModeToggled: false,
+		customPrompt: undefined,
+		useAutoCondense: false,
+		clineWebToolsEnabled: { user: true, featureFlag: false },
+		autoCondenseThreshold: undefined,
+		favoritedModelIds: [],
+		lastDismissedInfoBannerVersion: 0,
+		lastDismissedModelBannerVersion: 0,
+		remoteConfigSettings: {},
+		backgroundCommandRunning: false,
+		backgroundCommandTaskId: undefined,
+		lastDismissedCliBannerVersion: 0,
+		subagentsEnabled: false,
+
+		// NEW: Add workspace information with defaults
+		workspaceRoots: [],
+		primaryRootIndex: 0,
+		isMultiRootWorkspace: false,
+		multiRootSetting: { user: false, featureFlag: false },
+		hooksEnabled: false,
+		nativeToolCallSetting: false,
 	})
+	const [expandTaskHeader, setExpandTaskHeader] = useState(true)
 	const [didHydrateState, setDidHydrateState] = useState(false)
+
 	const [showWelcome, setShowWelcome] = useState(false)
-	const [theme, setTheme] = useState<Record<string, string>>()
-	const [filePaths, setFilePaths] = useState<string[]>([])
+	const [onboardingModels, setOnboardingModels] = useState<OnboardingModelGroup | undefined>(undefined)
+
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
+	const [hicapModels, setHicapModels] = useState<Record<string, ModelInfo>>({})
+	const [liteLlmModels, setLiteLlmModels] = useState<Record<string, ModelInfo>>({})
 	const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
 	const [availableTerminalProfiles, setAvailableTerminalProfiles] = useState<TerminalProfile[]>([])
 
-	const [openAiModels, setOpenAiModels] = useState<string[]>([])
+	const [openAiModels, _setOpenAiModels] = useState<string[]>([])
 	const [requestyModels, setRequestyModels] = useState<Record<string, ModelInfo>>({
 		[requestyDefaultModelId]: requestyDefaultModelInfo,
 	})
+	const [groqModelsState, setGroqModels] = useState<Record<string, ModelInfo>>({
+		[groqDefaultModelId]: groqModels[groqDefaultModelId],
+	})
+	const [basetenModelsState, setBasetenModels] = useState<Record<string, ModelInfo>>({
+		[basetenDefaultModelId]: basetenModels[basetenDefaultModelId],
+	})
+	const [huggingFaceModels, setHuggingFaceModels] = useState<Record<string, ModelInfo>>({})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [mcpMarketplaceCatalog, setMcpMarketplaceCatalog] = useState<McpMarketplaceCatalog>({ items: [] })
 
@@ -220,8 +290,8 @@ export const ExtensionStateContextProvider: React.FC<{
 	const settingsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const partialMessageUnsubscribeRef = useRef<(() => void) | null>(null)
 	const mcpMarketplaceUnsubscribeRef = useRef<(() => void) | null>(null)
-	const themeSubscriptionRef = useRef<(() => void) | null>(null)
 	const openRouterModelsUnsubscribeRef = useRef<(() => void) | null>(null)
+	const liteLlmModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 	const workspaceUpdatesUnsubscribeRef = useRef<(() => void) | null>(null)
 	const relinquishControlUnsubscribeRef = useRef<(() => void) | null>(null)
 
@@ -240,21 +310,23 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
-		// Use the already defined webview provider type
-		const webviewType = currentProviderType
-
 		// Set up state subscription
 		stateSubscriptionRef.current = StateServiceClient.subscribeToState(EmptyRequest.create({}), {
 			onResponse: (response) => {
 				if (response.stateJson) {
 					try {
 						const stateData = JSON.parse(response.stateJson) as ExtensionState
-						console.log("[DEBUG] parsed state JSON, updating state")
 						setState((prevState) => {
 							// Versioning logic for autoApprovalSettings
 							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
 							const currentVersion = prevState.autoApprovalSettings?.version ?? 1
 							const shouldUpdateAutoApproval = incomingVersion > currentVersion
+							// HACK: Preserve clineMessages if currentTaskItem is the same
+							if (stateData.currentTaskItem?.id === prevState.currentTaskItem?.id) {
+								stateData.clineMessages = stateData.clineMessages?.length
+									? stateData.clineMessages
+									: prevState.clineMessages
+							}
 
 							const newState = {
 								...stateData,
@@ -263,11 +335,16 @@ export const ExtensionStateContextProvider: React.FC<{
 									: prevState.autoApprovalSettings,
 							}
 
-							// Update welcome screen state based on API configuration
-							setShowWelcome(!newState.welcomeViewCompleted)
-							setDidHydrateState(true)
+							// Update welcome screen state based on API configuration if welcome view not in progress
+							if (!newState.welcomeViewCompleted && !showWelcome) {
+								setShowWelcome(true)
+								setOnboardingModels(newState.onboardingModels)
+							} else if (newState.welcomeViewCompleted) {
+								setShowWelcome(false)
+								setOnboardingModels(undefined)
+							}
 
-							console.log("[DEBUG] returning new state in ESC")
+							setDidHydrateState(true)
 
 							return newState
 						})
@@ -288,9 +365,7 @@ export const ExtensionStateContextProvider: React.FC<{
 
 		// Subscribe to MCP button clicked events with webview type
 		mcpButtonUnsubscribeRef.current = UiServiceClient.subscribeToMcpButtonClicked(
-			WebviewProviderTypeRequest.create({
-				providerType: webviewType,
-			}),
+			{},
 			{
 				onResponse: () => {
 					console.log("[DEBUG] Received mcpButtonClicked event from gRPC stream")
@@ -307,9 +382,7 @@ export const ExtensionStateContextProvider: React.FC<{
 
 		// Set up history button clicked subscription with webview type
 		historyButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToHistoryButtonClicked(
-			WebviewProviderTypeRequest.create({
-				providerType: webviewType,
-			}),
+			{},
 			{
 				onResponse: () => {
 					// When history button is clicked, navigate to history view
@@ -326,17 +399,20 @@ export const ExtensionStateContextProvider: React.FC<{
 		)
 
 		// Subscribe to chat button clicked events with webview type
-		chatButtonUnsubscribeRef.current = UiServiceClient.subscribeToChatButtonClicked(EmptyRequest.create({}), {
-			onResponse: () => {
-				// When chat button is clicked, navigate to chat
-				console.log("[DEBUG] Received chat button clicked event from gRPC stream")
-				navigateToChat()
+		chatButtonUnsubscribeRef.current = UiServiceClient.subscribeToChatButtonClicked(
+			{},
+			{
+				onResponse: () => {
+					// When chat button is clicked, navigate to chat
+					console.log("[DEBUG] Received chat button clicked event from gRPC stream")
+					navigateToChat()
+				},
+				onError: (error) => {
+					console.error("Error in chat button subscription:", error)
+				},
+				onComplete: () => {},
 			},
-			onError: (error) => {
-				console.error("Error in chat button subscription:", error)
-			},
-			onComplete: () => {},
-		})
+		)
 
 		// Subscribe to didBecomeVisible events
 		didBecomeVisibleUnsubscribeRef.current = UiServiceClient.subscribeToDidBecomeVisible(EmptyRequest.create({}), {
@@ -366,36 +442,19 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
-		// Subscribe to workspace file updates
-		workspaceUpdatesUnsubscribeRef.current = FileServiceClient.subscribeToWorkspaceUpdates(EmptyRequest.create({}), {
-			onResponse: (response) => {
-				console.log("[DEBUG] Received workspace update event from gRPC stream")
-				setFilePaths(response.values || [])
+		// Set up settings button clicked subscription
+		settingsButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToSettingsButtonClicked(EmptyRequest.create({}), {
+			onResponse: () => {
+				// When settings button is clicked, navigate to settings
+				navigateToSettings()
 			},
 			onError: (error) => {
-				console.error("Error in workspace updates subscription:", error)
+				console.error("Error in settings button clicked subscription:", error)
 			},
-			onComplete: () => {},
+			onComplete: () => {
+				console.log("Settings button clicked subscription completed")
+			},
 		})
-
-		// Set up settings button clicked subscription
-		settingsButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToSettingsButtonClicked(
-			WebviewProviderTypeRequest.create({
-				providerType: currentProviderType,
-			}),
-			{
-				onResponse: () => {
-					// When settings button is clicked, navigate to settings
-					navigateToSettings()
-				},
-				onError: (error) => {
-					console.error("Error in settings button clicked subscription:", error)
-				},
-				onComplete: () => {
-					console.log("Settings button clicked subscription completed")
-				},
-			},
-		)
 
 		// Subscribe to partial message events
 		partialMessageUnsubscribeRef.current = UiServiceClient.subscribeToPartialMessage(EmptyRequest.create({}), {
@@ -444,32 +503,10 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
-		// Subscribe to theme changes
-		themeSubscriptionRef.current = UiServiceClient.subscribeToTheme(EmptyRequest.create({}), {
-			onResponse: (response) => {
-				if (response.value) {
-					try {
-						const themeData = JSON.parse(response.value)
-						setTheme(convertTextMateToHljs(themeData))
-						console.log("[DEBUG] Received theme update from gRPC stream")
-					} catch (error) {
-						console.error("Error parsing theme data:", error)
-					}
-				}
-			},
-			onError: (error) => {
-				console.error("Error in theme subscription:", error)
-			},
-			onComplete: () => {
-				console.log("Theme subscription completed")
-			},
-		})
-
 		// Subscribe to OpenRouter models updates
 		openRouterModelsUnsubscribeRef.current = ModelsServiceClient.subscribeToOpenRouterModels(EmptyRequest.create({}), {
 			onResponse: (response: OpenRouterCompatibleModelInfo) => {
-				console.log("[DEBUG] Received OpenRouter models update from gRPC stream")
-				const models = response.models
+				const models = fromProtobufModels(response.models)
 				setOpenRouterModels({
 					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
 					...models,
@@ -480,6 +517,20 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 			onComplete: () => {
 				console.log("OpenRouter models subscription completed")
+			},
+		})
+
+		// Subscribe to LiteLLM models updates
+		liteLlmModelsUnsubscribeRef.current = ModelsServiceClient.subscribeToLiteLlmModels(EmptyRequest.create({}), {
+			onResponse: (response: OpenRouterCompatibleModelInfo) => {
+				const models = fromProtobufModels(response.models)
+				setLiteLlmModels(models)
+			},
+			onError: (error) => {
+				console.error("Error in LiteLLM models subscription:", error)
+			},
+			onComplete: () => {
+				console.log("LiteLLM models subscription completed")
 			},
 		})
 
@@ -520,7 +571,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		relinquishControlUnsubscribeRef.current = UiServiceClient.subscribeToRelinquishControl(EmptyRequest.create({}), {
 			onResponse: () => {
 				// Call all registered callbacks
-				relinquishControlCallbacks.current.forEach((callback) => callback())
+				relinquishControlCallbacks.current.forEach((callback) => {
+					callback()
+				})
 			},
 			onError: (error) => {
 				console.error("Error in relinquishControl subscription:", error)
@@ -529,10 +582,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		})
 
 		// Subscribe to focus chat input events
-		const clientId = (window as any).clineClientId
-		if (clientId) {
-			const request = StringRequest.create({ value: clientId })
-			focusChatInputUnsubscribeRef.current = UiServiceClient.subscribeToFocusChatInput(request, {
+		focusChatInputUnsubscribeRef.current = UiServiceClient.subscribeToFocusChatInput(
+			{},
+			{
 				onResponse: () => {
 					// Dispatch a local DOM event within this webview only
 					window.dispatchEvent(new CustomEvent("focusChatInput"))
@@ -541,10 +593,8 @@ export const ExtensionStateContextProvider: React.FC<{
 					console.error("Error in focusChatInput subscription:", error)
 				},
 				onComplete: () => {},
-			})
-		} else {
-			console.error("Client ID not found in window object")
-		}
+			},
+		)
 
 		// Clean up subscriptions when component unmounts
 		return () => {
@@ -580,13 +630,13 @@ export const ExtensionStateContextProvider: React.FC<{
 				mcpMarketplaceUnsubscribeRef.current()
 				mcpMarketplaceUnsubscribeRef.current = null
 			}
-			if (themeSubscriptionRef.current) {
-				themeSubscriptionRef.current()
-				themeSubscriptionRef.current = null
-			}
 			if (openRouterModelsUnsubscribeRef.current) {
 				openRouterModelsUnsubscribeRef.current()
 				openRouterModelsUnsubscribeRef.current = null
+			}
+			if (liteLlmModelsUnsubscribeRef.current) {
+				liteLlmModelsUnsubscribeRef.current()
+				liteLlmModelsUnsubscribeRef.current = null
 			}
 			if (workspaceUpdatesUnsubscribeRef.current) {
 				workspaceUpdatesUnsubscribeRef.current()
@@ -612,9 +662,9 @@ export const ExtensionStateContextProvider: React.FC<{
 	}, [])
 
 	const refreshOpenRouterModels = useCallback(() => {
-		ModelsServiceClient.refreshOpenRouterModels(EmptyRequest.create({}))
+		ModelsServiceClient.refreshOpenRouterModelsRpc(EmptyRequest.create({}))
 			.then((response: OpenRouterCompatibleModelInfo) => {
-				const models = response.models
+				const models = fromProtobufModels(response.models)
 				setOpenRouterModels({
 					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
 					...models,
@@ -623,32 +673,62 @@ export const ExtensionStateContextProvider: React.FC<{
 			.catch((error: Error) => console.error("Failed to refresh OpenRouter models:", error))
 	}, [])
 
+	const refreshHicapModels = useCallback(() => {
+		ModelsServiceClient.refreshHicapModels(EmptyRequest.create({}))
+			.then((response: OpenRouterCompatibleModelInfo) => {
+				const models = response.models
+				setHicapModels({
+					...models,
+				})
+			})
+			.catch((error: Error) => console.error("Failed to refresh Hicap models:", error))
+	}, [])
+
+	const refreshLiteLlmModels = useCallback(() => {
+		ModelsServiceClient.refreshLiteLlmModelsRpc(EmptyRequest.create({}))
+			.then((response: OpenRouterCompatibleModelInfo) => {
+				const models = fromProtobufModels(response.models)
+				setLiteLlmModels(models)
+			})
+			.catch((error: Error) => console.error("Failed to refresh LiteLLM models:", error))
+	}, [])
+
 	const contextValue: ExtensionStateContextType = {
 		...state,
 		didHydrateState,
 		showWelcome,
-		theme,
+		onboardingModels,
 		openRouterModels,
+		hicapModels,
+		liteLlmModels,
 		openAiModels,
 		requestyModels,
+		groqModels: groqModelsState,
+		basetenModels: basetenModelsState,
+		huggingFaceModels,
 		mcpServers,
 		mcpMarketplaceCatalog,
-		filePaths,
 		totalTasksSize,
 		availableTerminalProfiles,
 		showMcp,
 		mcpTab,
 		showSettings,
+		settingsTargetSection,
 		showHistory,
 		showAccount,
 		showAnnouncement,
+		showChatModelSelector,
 		globalClineRulesToggles: state.globalClineRulesToggles || {},
 		localClineRulesToggles: state.localClineRulesToggles || {},
 		localCursorRulesToggles: state.localCursorRulesToggles || {},
 		localWindsurfRulesToggles: state.localWindsurfRulesToggles || {},
+		localAgentsRulesToggles: state.localAgentsRulesToggles || {},
 		localWorkflowToggles: state.localWorkflowToggles || {},
 		globalWorkflowToggles: state.globalWorkflowToggles || {},
+		remoteRulesToggles: state.remoteRulesToggles || {},
+		remoteWorkflowToggles: state.remoteWorkflowToggles || {},
 		enableCheckpointsSetting: state.enableCheckpointsSetting,
+		currentFocusChainChecklist: state.currentFocusChainChecklist,
 
 		// Navigation functions
 		navigateToMcp,
@@ -663,6 +743,10 @@ export const ExtensionStateContextProvider: React.FC<{
 		hideAccount,
 		hideAnnouncement,
 		setShowAnnouncement,
+		hideChatModelSelector,
+		setShowWelcome,
+		setOnboardingModels,
+		setShowChatModelSelector,
 		setShouldShowAnnouncement: (value) =>
 			setState((prevState) => ({
 				...prevState,
@@ -670,41 +754,12 @@ export const ExtensionStateContextProvider: React.FC<{
 			})),
 		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
 		setRequestyModels: (models: Record<string, ModelInfo>) => setRequestyModels(models),
+		setGroqModels: (models: Record<string, ModelInfo>) => setGroqModels(models),
+		setBasetenModels: (models: Record<string, ModelInfo>) => setBasetenModels(models),
+		setHuggingFaceModels: (models: Record<string, ModelInfo>) => setHuggingFaceModels(models),
 		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
 		setShowMcp,
 		closeMcpView,
-		setChatSettings: async (value) => {
-			setState((prevState) => ({
-				...prevState,
-				chatSettings: value,
-			}))
-			try {
-				// Import the conversion functions
-				const { convertApiConfigurationToProtoApiConfiguration } = await import(
-					"@shared/proto-conversions/state/settings-conversion"
-				)
-				const { convertChatSettingsToProtoChatSettings } = await import(
-					"@shared/proto-conversions/state/chat-settings-conversion"
-				)
-
-				await StateServiceClient.updateSettings(
-					UpdateSettingsRequest.create({
-						chatSettings: convertChatSettingsToProtoChatSettings(value),
-						apiConfiguration: state.apiConfiguration
-							? convertApiConfigurationToProtoApiConfiguration(state.apiConfiguration)
-							: undefined,
-						telemetrySetting: state.telemetrySetting,
-						planActSeparateModelsSetting: state.planActSeparateModelsSetting,
-						enableCheckpointsSetting: state.enableCheckpointsSetting,
-						mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
-						mcpDisplayMode: state.mcpDisplayMode,
-						mcpResponsesCollapsed: state.mcpResponsesCollapsed,
-					}),
-				)
-			} catch (error) {
-				console.error("Failed to update chat settings:", error)
-			}
-		},
 		setGlobalClineRulesToggles: (toggles) =>
 			setState((prevState) => ({
 				...prevState,
@@ -725,6 +780,11 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				localWindsurfRulesToggles: toggles,
 			})),
+		setLocalAgentsRulesToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				localAgentsRulesToggles: toggles,
+			})),
 		setLocalWorkflowToggles: (toggles) =>
 			setState((prevState) => ({
 				...prevState,
@@ -735,11 +795,30 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				globalWorkflowToggles: toggles,
 			})),
+		setRemoteRulesToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				remoteRulesToggles: toggles,
+			})),
+		setRemoteWorkflowToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				remoteWorkflowToggles: toggles,
+			})),
 		setMcpTab,
 		setTotalTasksSize,
 		refreshOpenRouterModels,
+		refreshHicapModels,
+		refreshLiteLlmModels,
 		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
+		expandTaskHeader,
+		setExpandTaskHeader,
+		setDictationSettings: (value: DictationSettings) =>
+			setState((prevState) => ({
+				...prevState,
+				dictationSettings: value,
+			})),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

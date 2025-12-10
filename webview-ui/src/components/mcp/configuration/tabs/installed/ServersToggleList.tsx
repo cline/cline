@@ -23,11 +23,11 @@ const ServersToggleList = ({
 	return servers.length > 0 ? (
 		<div className={`flex flex-col ${gapClass}`}>
 			{servers.map((server) => (
-				<ServerRow key={server.name} server={server} isExpandable={isExpandable} hasTrashIcon={hasTrashIcon} />
+				<ServerRow hasTrashIcon={hasTrashIcon} isExpandable={isExpandable} key={server.name} server={server} />
 			))}
 		</div>
 	) : (
-		<div className="flex flex-col items-center gap-3 my-5 text-[var(--vscode-descriptionForeground)]">
+		<div className="flex flex-col items-center gap-3 my-5 text-(--vscode-descriptionForeground)">
 			No MCP servers installed
 		</div>
 	)

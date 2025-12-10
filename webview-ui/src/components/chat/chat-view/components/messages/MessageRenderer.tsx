@@ -1,7 +1,8 @@
-import React, { useCallback } from "react"
+import { ClineMessage } from "@shared/ExtensionMessage"
+import React from "react"
 import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
 import ChatRow from "@/components/chat/ChatRow"
-import { ClineMessage } from "@shared/ExtensionMessage"
+import { cn } from "@/lib/utils"
 import { MessageHandlers } from "../../types/chatTypes"
 
 interface MessageRendererProps {
@@ -37,14 +38,14 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	if (Array.isArray(messageOrGroup)) {
 		return (
 			<BrowserSessionRow
-				key={messageOrGroup[0]?.ts}
-				messages={messageOrGroup}
-				isLast={index === groupedMessages.length - 1}
-				lastModifiedMessage={modifiedMessages.at(-1)}
-				onHeightChange={onHeightChange}
 				expandedRows={expandedRows}
-				onToggleExpand={onToggleExpand}
+				isLast={index === groupedMessages.length - 1}
+				key={messageOrGroup[0]?.ts}
+				lastModifiedMessage={modifiedMessages.at(-1)}
+				messages={messageOrGroup}
+				onHeightChange={onHeightChange}
 				onSetQuote={onSetQuote}
+				onToggleExpand={onToggleExpand}
 			/>
 		)
 	}
@@ -57,18 +58,25 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 
 	// Regular message
 	return (
-		<ChatRow
-			key={messageOrGroup.ts}
-			message={messageOrGroup}
-			isExpanded={expandedRows[messageOrGroup.ts] || false}
-			onToggleExpand={onToggleExpand}
-			lastModifiedMessage={modifiedMessages.at(-1)}
-			isLast={isLast}
-			onHeightChange={onHeightChange}
-			inputValue={inputValue}
-			sendMessageFromChatRow={messageHandlers.handleSendMessage}
-			onSetQuote={onSetQuote}
-		/>
+		<div
+			className={cn({
+				"pb-2.5": isLast,
+			})}
+			data-message-ts={messageOrGroup.ts}>
+			<ChatRow
+				inputValue={inputValue}
+				isExpanded={expandedRows[messageOrGroup.ts] || false}
+				isLast={isLast}
+				key={messageOrGroup.ts}
+				lastModifiedMessage={modifiedMessages.at(-1)}
+				message={messageOrGroup}
+				onCancelCommand={() => messageHandlers.executeButtonAction("cancel")}
+				onHeightChange={onHeightChange}
+				onSetQuote={onSetQuote}
+				onToggleExpand={onToggleExpand}
+				sendMessageFromChatRow={messageHandlers.handleSendMessage}
+			/>
+		</div>
 	)
 }
 
@@ -88,16 +96,16 @@ export const createMessageRenderer = (
 ) => {
 	return (index: number, messageOrGroup: ClineMessage | ClineMessage[]) => (
 		<MessageRenderer
-			index={index}
-			messageOrGroup={messageOrGroup}
-			groupedMessages={groupedMessages}
-			modifiedMessages={modifiedMessages}
 			expandedRows={expandedRows}
-			onToggleExpand={onToggleExpand}
-			onHeightChange={onHeightChange}
-			onSetQuote={onSetQuote}
+			groupedMessages={groupedMessages}
+			index={index}
 			inputValue={inputValue}
 			messageHandlers={messageHandlers}
+			messageOrGroup={messageOrGroup}
+			modifiedMessages={modifiedMessages}
+			onHeightChange={onHeightChange}
+			onSetQuote={onSetQuote}
+			onToggleExpand={onToggleExpand}
 		/>
 	)
 }

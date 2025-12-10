@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package cline;
+
+import "cline/common.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+service BrowserService {
+  rpc getBrowserConnectionInfo(EmptyRequest) returns (BrowserConnectionInfo);
+  rpc testBrowserConnection(StringRequest) returns (BrowserConnection);
+  rpc discoverBrowser(EmptyRequest) returns (BrowserConnection);
+  rpc getDetectedChromePath(EmptyRequest) returns (ChromePath);
+  rpc relaunchChromeDebugMode(EmptyRequest) returns (String);
+}
+
+message BrowserConnectionInfo {
+  bool is_connected = 1;
+  bool is_remote = 2;
+  optional string host = 3;
+}
+
+message BrowserConnection {
+  bool success = 1;
+  string message = 2;
+  optional string endpoint = 3;
+}
+
+message ChromePath {
+  string path = 1;
+  bool is_bundled = 2;
+}
+
+message Viewport {
+  int32 width = 1;
+  int32 height = 2;
+}
+
+message BrowserSettings {
+  Viewport viewport = 1;
+  optional string remote_browser_host = 2;
+  optional bool remote_browser_enabled = 3;
+  optional string chrome_executable_path = 4;
+  optional bool disable_tool_use = 5;
+  optional string custom_args = 6;
+}
+
+message UpdateBrowserSettingsRequest {
+  Metadata metadata = 1;
+  Viewport viewport = 2;
+  optional string remote_browser_host = 3;
+  optional bool remote_browser_enabled = 4;
+  optional string chrome_executable_path = 5;
+  optional bool disable_tool_use = 6;
+  optional string custom_args = 7;
+}

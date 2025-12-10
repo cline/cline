@@ -219,6 +219,9 @@ EOF
 
 ## Basic PR Commands
 ```bash
+# Get current PR number
+gh pr view --json number -q .number
+
 # List open PRs
 gh pr list
 

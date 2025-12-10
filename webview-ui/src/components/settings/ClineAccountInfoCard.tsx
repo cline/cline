@@ -1,19 +1,24 @@
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { useState } from "react"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
-import { EmptyRequest } from "@shared/proto/common"
 
 export const ClineAccountInfoCard = () => {
 	const { clineUser } = useClineAuth()
-	const { apiConfiguration, navigateToAccount } = useExtensionState()
+	const { navigateToAccount } = useExtensionState()
+	const [isLoading, setIsLoading] = useState(false)
 
-	let user = apiConfiguration?.clineAccountId ? clineUser : undefined
+	const user = clineUser || undefined
 
 	const handleLogin = () => {
-		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
-			console.error("Failed to get login URL:", err),
-		)
+		setIsLoading(true)
+		AccountServiceClient.accountLoginClicked(EmptyRequest.create())
+			.catch((err) => console.error("Failed to get login URL:", err))
+			.finally(() => {
+				setIsLoading(false)
+			})
 	}
 
 	const handleShowAccount = () => {
@@ -28,8 +33,13 @@ export const ClineAccountInfoCard = () => {
 				</VSCodeButton>
 			) : (
 				<div>
-					<VSCodeButton onClick={handleLogin} className="mt-0">
+					<VSCodeButton className="mt-0" disabled={isLoading} onClick={handleLogin}>
 						Sign Up with Cline
+						{isLoading && (
+							<span className="ml-1 animate-spin">
+								<span className="codicon codicon-refresh"></span>
+							</span>
+						)}
 					</VSCodeButton>
 				</div>
 			)}

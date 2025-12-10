@@ -1,29 +1,41 @@
-import vscode from "vscode"
-import { EmptyRequest, String } from "../../shared/proto/common"
-import { AuthState, UserInfo } from "../../shared/proto/account"
-import { StreamingResponseHandler, getRequestRegistry } from "@/core/controller/grpc-handler"
-import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
+import { AuthState, UserInfo } from "@shared/proto/cline/account"
+import { type EmptyRequest, String } from "@shared/proto/cline/common"
+import { ClineEnv } from "@/config"
 import { Controller } from "@/core/controller"
-import { storeSecret } from "@/core/storage/state"
+import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
+import { setWelcomeViewCompleted } from "@/core/controller/state/setWelcomeViewCompleted"
+import { HostProvider } from "@/hosts/host-provider"
+import { telemetryService } from "@/services/telemetry"
+import { openExternal } from "@/utils/env"
+import { AuthInvalidTokenError, AuthNetworkError } from "../error/ClineError"
+import { featureFlagsService } from "../feature-flags"
+import { Logger } from "../logging/Logger"
+import { ClineAuthProvider } from "./providers/ClineAuthProvider"
+import { IAuthProvider } from "./providers/IAuthProvider"
+import { LogoutReason } from "./types"
 
-const DefaultClineAccountURI = "https://app.cline.bot/auth"
-// const DefaultClineAccountURI = "https://staging-app.cline.bot/auth"
-// const DefaultClineAccountURI = "http://localhost:3000/auth"
-let authProviders: any[] = []
-
-type ServiceConfig = {
+export type ServiceConfig = {
 	URI?: string
 	[key: string]: any
 }
 
-const availableAuthProviders = {
-	firebase: FirebaseAuthProvider,
-	// Add other providers here as needed
-}
-
 export interface ClineAuthInfo {
+	/**
+	 * accessToken
+	 */
 	idToken: string
+	/**
+	 * Short-lived refresh token
+	 */
+	refreshToken?: string
+	/**
+	 * Access token expiration time
+	 * When expired, the access token needs to be refreshed using the refresh token.
+	 */
+	expiresAt?: number
 	userInfo: ClineAccountUserInfo
+	provider: string
+	startedAt?: number
 }
 
 export interface ClineAccountUserInfo {
@@ -32,6 +44,14 @@ export interface ClineAccountUserInfo {
 	email: string
 	id: string
 	organizations: ClineAccountOrganization[]
+	/**
+	 * Cline app base URL, used for webview UI and other client-side operations
+	 */
+	appBaseUrl?: string
+	/**
+	 * WorkOS IDP ID if user logged in via SSO
+	 */
+	subject?: string
 }
 
 export interface ClineAccountOrganization {
@@ -42,143 +62,168 @@ export interface ClineAccountOrganization {
 	roles: string[]
 }
 
-// TODO: Add logic to handle multiple webviews getting auth updates.
-
 export class AuthService {
-	private static instance: AuthService | null = null
-	private _config: ServiceConfig
-	private _authenticated: boolean = false
-	private _clineAuthInfo: ClineAuthInfo | null = null
-	private _provider: { provider: FirebaseAuthProvider } | null = null
-	private _activeAuthStatusUpdateSubscriptions = new Set<[Controller, StreamingResponseHandler]>()
-	private _context: vscode.ExtensionContext
+	protected static instance: AuthService | null = null
+	protected _authenticated: boolean = false
+	protected _clineAuthInfo: ClineAuthInfo | null = null
+	protected _provider: IAuthProvider | null = null
+	protected _activeAuthStatusUpdateHandlers = new Set<StreamingResponseHandler<AuthState>>()
+	protected _handlerToController = new Map<StreamingResponseHandler<AuthState>, Controller>()
+	protected _controller: Controller
+	protected _refreshPromise: Promise<void> | null = null
 
 	/**
 	 * Creates an instance of AuthService.
-	 * @param config - Configuration for the service, including the URI for authentication.
-	 * @param authProvider - Optional authentication provider to use.
 	 * @param controller - Optional reference to the Controller instance.
 	 */
-	private constructor(context: vscode.ExtensionContext, config: ServiceConfig, authProvider?: any) {
-		const providerName = authProvider || "firebase"
-		this._config = Object.assign({ URI: DefaultClineAccountURI }, config)
-
-		// Fetch AuthProviders
-		// TODO:  Deliver this config from the backend securely
-		// ex.  https://app.cline.bot/api/v1/auth/providers
-
-		const authProvidersConfigs = [
-			{
-				name: "firebase",
-				config: {
-					apiKey: "AIzaSyC5rx59Xt8UgwdU3PCfzUF7vCwmp9-K2vk",
-					authDomain: "cline-prod.firebaseapp.com",
-					projectId: "cline-prod",
-					storageBucket: "cline-prod.firebasestorage.app",
-					messagingSenderId: "941048379330",
-					appId: "1:941048379330:web:45058eedeefc5cdfcc485b",
-				},
-				// Uncomment for staging environment
-				// config: {
-				// 	apiKey: "AIzaSyASSwkwX1kSO8vddjZkE5N19QU9cVQ0CIk",
-				// 	authDomain: "cline-staging.firebaseapp.com",
-				// 	projectId: "cline-staging",
-				// 	storageBucket: "cline-staging.firebasestorage.app",
-				// 	messagingSenderId: "853479478430",
-				// 	appId: "1:853479478430:web:2de0dba1c63c3262d4578f",
-				// },
-				// Uncomment for local development environment
-				// config: {
-				// 	apiKey: "AIzaSyASSwkwX1kSO8vddjZkE5N19QU9cVQ0CIk",
-				// 	authDomain: "cline-staging.firebaseapp.com",
-				// 	projectId: "cline-staging",
-				// 	storageBucket: "cline-staging.firebasestorage.app",
-				// 	messagingSenderId: "853479478430",
-				// 	appId: "1:853479478430:web:2de0dba1c63c3262d4578f",
-				// },
-				// config: {
-				// 	apiKey: "AIzaSyD8wtkd1I-EICuAg6xgAQpRdwYTvwxZG2w",
-				// 	authDomain: "cline-preview.firebaseapp.com",
-				// 	projectId: "cline-preview",
-				// }
-			},
-		]
-
-		// Merge authProviders with availableAuthProviders
-		authProviders = authProvidersConfigs.map((provider) => {
-			const providerName = provider.name
-			const ProviderClass = availableAuthProviders[providerName as keyof typeof availableAuthProviders]
-			if (!ProviderClass) {
-				throw new Error(`Auth provider "${providerName}" is not available`)
-			}
-			return {
-				name: providerName,
-				config: provider.config,
-				provider: new ProviderClass(provider.config),
-			}
-		})
-
-		this._setProvider(authProviders.find((authProvider) => authProvider.name === providerName).name)
-
-		this._context = context
+	protected constructor(controller: Controller) {
+		this._initProvider()
+		this._controller = controller
 	}
 
 	/**
 	 * Gets the singleton instance of AuthService.
-	 * @param config - Configuration for the service, including the URI for authentication.
-	 * @param authProvider - Optional authentication provider to use.
 	 * @param controller - Optional reference to the Controller instance.
 	 * @returns The singleton instance of AuthService.
 	 */
-	public static getInstance(context?: vscode.ExtensionContext, config?: ServiceConfig, authProvider?: any): AuthService {
+	public static getInstance(controller?: Controller): AuthService {
 		if (!AuthService.instance) {
-			if (!context) {
+			if (!controller) {
 				console.warn("Extension context was not provided to AuthService.getInstance, using default context")
-				context = {} as vscode.ExtensionContext
+				controller = {} as Controller
 			}
-			AuthService.instance = new AuthService(context, config || {}, authProvider)
+			if (process.env.E2E_TEST) {
+				// Use require instead of import to avoid circular dependency issues
+				// eslint-disable-next-line @typescript-eslint/no-var-requires
+				const { AuthServiceMock } = require("./AuthServiceMock")
+				AuthService.instance = AuthServiceMock.getInstance(controller)
+			} else {
+				AuthService.instance = new AuthService(controller)
+			}
 		}
-		if (context !== undefined) {
-			AuthService.instance.context = context
+		if (controller !== undefined && AuthService.instance) {
+			AuthService.instance.controller = controller
 		}
-		return AuthService.instance
+		return AuthService.instance!
 	}
 
-	set context(context: vscode.ExtensionContext) {
-		this._context = context
+	set controller(controller: Controller) {
+		this._controller = controller
 	}
 
-	get authProvider(): any {
-		return this._provider
-	}
-
-	set authProvider(providerName: string) {
-		this._setProvider(providerName)
-	}
-
+	/**
+	 * Returns the current authentication token with the appropriate prefix.
+	 * Refreshing it if necessary.
+	 */
 	async getAuthToken(): Promise<string | null> {
-		if (!this._clineAuthInfo) {
+		if (!this._provider) {
+			throw new Error("Auth provider is not set")
+		}
+
+		return this.internalGetAuthToken(this._provider)
+	}
+
+	/**
+	 * Gets the active organization ID from the authenticated user's info
+	 * @returns The active organization ID, or null if no active organization exists
+	 */
+	getActiveOrganizationId(): string | null {
+		if (!this._clineAuthInfo?.userInfo?.organizations) {
 			return null
 		}
-		const idToken = this._clineAuthInfo.idToken
-		const shouldRefreshIdToken = await this._provider?.provider.shouldRefreshIdToken(idToken)
-		if (shouldRefreshIdToken) {
-			// Retrieves the stored id token and refreshes it, then updates this._clineAuthInfo
-			await this.restoreRefreshTokenAndRetrieveAuthInfo()
-			if (!this._clineAuthInfo) {
-				return null
-			}
-		}
-		return this._clineAuthInfo.idToken
+		const activeOrg = this._clineAuthInfo.userInfo.organizations.find((org) => org.active)
+		return activeOrg?.organizationId ?? null
 	}
 
-	private _setProvider(providerName: string): void {
-		const providerConfig = authProviders.find((provider) => provider.name === providerName)
-		if (!providerConfig) {
-			throw new Error(`Auth provider "${providerName}" not found`)
-		}
+	/**
+	 * Gets all organizations from the authenticated user's info
+	 * @returns Array of organizations, or undefined if not available
+	 */
+	getUserOrganizations(): ClineAccountOrganization[] | undefined {
+		return this._clineAuthInfo?.userInfo?.organizations
+	}
 
-		this._provider = providerConfig
+	private async internalGetAuthToken(provider: IAuthProvider): Promise<string | null> {
+		try {
+			let clineAccountAuthToken = this._clineAuthInfo?.idToken
+			if (!this._clineAuthInfo || !clineAccountAuthToken || this._clineAuthInfo.provider !== provider.name) {
+				// Not authenticated
+				return null
+			}
+
+			// Check if token has expired
+
+			if (await provider.shouldRefreshIdToken(clineAccountAuthToken, this._clineAuthInfo.expiresAt)) {
+				// If a refresh is already in progress, wait for it to complete
+				if (this._refreshPromise) {
+					Logger.info("Token refresh already in progress, waiting for completion")
+					await this._refreshPromise
+					// After waiting, return the updated token
+					clineAccountAuthToken = this._clineAuthInfo?.idToken
+					return clineAccountAuthToken ? `workos:${clineAccountAuthToken}` : null
+				}
+
+				// Start a new refresh operation
+				this._refreshPromise = (async () => {
+					let authStatusChanged = false
+
+					try {
+						const updatedAuthInfo = await provider.retrieveClineAuthInfo(this._controller)
+						if (updatedAuthInfo) {
+							this._clineAuthInfo = updatedAuthInfo
+							this._authenticated = true
+							clineAccountAuthToken = updatedAuthInfo.idToken
+							authStatusChanged = true
+						}
+					} catch (error) {
+						// Only log out for permanent auth failures, not network issues
+						if (error instanceof AuthInvalidTokenError) {
+							Logger.error("Token is invalid or expired:", error)
+							this._clineAuthInfo = null
+							this._authenticated = false
+							telemetryService.captureAuthLoggedOut(this._provider?.name, LogoutReason.ERROR_RECOVERY)
+							authStatusChanged = true
+						} else if (error instanceof AuthNetworkError) {
+							Logger.error("Network error refreshing token", error)
+							// Keep existing auth info, will retry on next getAuthToken() call
+						} else {
+							throw error // Re-throw unexpected errors
+						}
+					} finally {
+						this._refreshPromise = null
+					}
+
+					// Defer auth status update to avoid infinite loop
+					if (authStatusChanged) {
+						setImmediate(() => {
+							this.sendAuthStatusUpdate().catch((error) => {
+								Logger.error("Error sending auth status update after token refresh:", error)
+							})
+						})
+					}
+				})()
+
+				await this._refreshPromise
+			}
+
+			return clineAccountAuthToken ? `workos:${clineAccountAuthToken}` : null
+		} catch (error) {
+			Logger.error("Error getting auth token:", error)
+			return null
+		}
+	}
+
+	protected _initProvider(): void {
+		// Only ClineAuthProvider is supported going forward
+		this._provider = new ClineAuthProvider()
+	}
+
+	/**
+	 * Gets the provider name for the current authentication
+	 * @returns The provider name (e.g., "cline", "firebase"), or null if not authenticated
+	 */
+	getProviderName(): string | null {
+		return this._clineAuthInfo?.provider ?? null
 	}
 
 	getInfo(): AuthState {
@@ -186,50 +231,57 @@ export class AuthService {
 		let user: any = null
 		if (this._clineAuthInfo && this._authenticated) {
 			const userInfo = this._clineAuthInfo.userInfo
+			this._clineAuthInfo.userInfo.appBaseUrl = ClineEnv.config()?.appBaseUrl
+
 			user = UserInfo.create({
 				// TODO: create proto for new user info type
 				uid: userInfo?.id,
 				displayName: userInfo?.displayName,
 				email: userInfo?.email,
 				photoUrl: undefined,
+				appBaseUrl: userInfo?.appBaseUrl,
 			})
 		}
 
 		return AuthState.create({
-			user: user,
+			user,
 		})
 	}
 
-	async createAuthRequest(): Promise<String> {
-		if (this._authenticated) {
+	async createAuthRequest(strict = false): Promise<String> {
+		// In strict mode, we do not open a new auth window if already authenticated
+		if (strict && this._authenticated) {
 			this.sendAuthStatusUpdate()
 			return String.create({ value: "Already authenticated" })
 		}
 
-		if (!this._config.URI) {
-			throw new Error("Authentication URI is not configured")
+		if (!this._provider) {
+			return String.create({
+				value: "Authentication provider is not configured",
+			})
 		}
 
-		const callbackUrl = `${vscode.env.uriScheme || "vscode"}://saoudrizwan.claude-dev/auth`
+		const callbackHost = await HostProvider.get().getCallbackUrl()
+		const callbackUrl = `${callbackHost}/auth`
 
-		// Use URL object for more graceful query construction
-		const authUrl = new URL(this._config.URI)
-		authUrl.searchParams.set("callback_url", callbackUrl)
-
+		const authUrl = await this._provider.getAuthRequest(callbackUrl)
 		const authUrlString = authUrl.toString()
 
-		await vscode.env.openExternal(vscode.Uri.parse(authUrlString))
+		await openExternal(authUrlString)
+		telemetryService.captureAuthStarted(this._provider.name)
 		return String.create({ value: authUrlString })
 	}
 
-	async handleDeauth(): Promise<void> {
+	async handleDeauth(reason: LogoutReason = LogoutReason.UNKNOWN): Promise<void> {
 		if (!this._provider) {
 			throw new Error("Auth provider is not set")
 		}
 
 		try {
+			telemetryService.captureAuthLoggedOut(this._provider.name, reason)
 			this._clineAuthInfo = null
 			this._authenticated = false
+			this.destroyTokens()
 			this.sendAuthStatusUpdate()
 		} catch (error) {
 			console.error("Error signing out:", error)
@@ -237,42 +289,46 @@ export class AuthService {
 		}
 	}
 
-	async handleAuthCallback(token: string, provider: string): Promise<void> {
+	async handleAuthCallback(authorizationCode: string, provider: string): Promise<void> {
 		if (!this._provider) {
 			throw new Error("Auth provider is not set")
 		}
 
 		try {
-			this._clineAuthInfo = await this._provider.provider.signIn(this._context, token, provider)
-			this._authenticated = true
+			this._clineAuthInfo = await this._provider.signIn(this._controller, authorizationCode, provider)
+			this._authenticated = this._clineAuthInfo?.idToken !== undefined
 
-			await this.sendAuthStatusUpdate()
-			// return this._clineAuthInfo
+			telemetryService.captureAuthSucceeded(this._provider.name)
+			await setWelcomeViewCompleted(this._controller, { value: true })
 		} catch (error) {
 			console.error("Error signing in with custom token:", error)
+			telemetryService.captureAuthFailed(this._provider.name)
 			throw error
+		} finally {
+			await this.sendAuthStatusUpdate()
 		}
 	}
 
 	/**
+	 * @deprecated Use handleDeauth() instead. Storage clearing is now handled consistently within the auth domain.
 	 * Clear the authentication token from the extension's storage.
 	 * This is typically called when the user logs out.
 	 */
 	async clearAuthToken(): Promise<void> {
-		await storeSecret(this._context, "clineAccountId", undefined)
+		this.destroyTokens()
 	}
 
 	/**
-	 * Restores the authentication token from the extension's storage.
+	 * Restores the authentication data from the extension's storage.
 	 * This is typically called when the extension is activated.
 	 */
 	async restoreRefreshTokenAndRetrieveAuthInfo(): Promise<void> {
-		if (!this._provider || !this._provider.provider) {
+		if (!this._provider) {
 			throw new Error("Auth provider is not set")
 		}
 
 		try {
-			this._clineAuthInfo = await this._provider.provider.retrieveClineAuthInfo(this._context)
+			this._clineAuthInfo = await this.retrieveAuthInfo()
 			if (this._clineAuthInfo) {
 				this._authenticated = true
 				await this.sendAuthStatusUpdate()
@@ -280,13 +336,29 @@ export class AuthService {
 				console.warn("No user found after restoring auth token")
 				this._authenticated = false
 				this._clineAuthInfo = null
+				telemetryService.captureAuthLoggedOut(this._provider?.name, LogoutReason.ERROR_RECOVERY)
 			}
 		} catch (error) {
 			console.error("Error restoring auth token:", error)
 			this._authenticated = false
 			this._clineAuthInfo = null
+			telemetryService.captureAuthLoggedOut(this._provider?.name, LogoutReason.ERROR_RECOVERY)
 			return
 		}
+	}
+
+	private async retrieveAuthInfo(): Promise<ClineAuthInfo | null> {
+		if (!this._provider) {
+			throw new Error("Auth provider is not set")
+		}
+
+		// If a refresh is already in progress, wait for it to complete
+		if (this._refreshPromise) {
+			Logger.info("Token refresh already in progress, waiting for completion")
+			await this._refreshPromise
+		}
+
+		return this._provider.retrieveClineAuthInfo(this._controller)
 	}
 
 	/**
@@ -298,17 +370,17 @@ export class AuthService {
 	 */
 	async subscribeToAuthStatusUpdate(
 		controller: Controller,
-		request: EmptyRequest,
-		responseStream: StreamingResponseHandler,
+		_request: EmptyRequest,
+		responseStream: StreamingResponseHandler<AuthState>,
 		requestId?: string,
 	): Promise<void> {
-		console.log("Subscribing to authStatusUpdate")
-
 		// Add this subscription to the active subscriptions
-		this._activeAuthStatusUpdateSubscriptions.add([controller, responseStream])
+		this._activeAuthStatusUpdateHandlers.add(responseStream)
+		this._handlerToController.set(responseStream, controller)
 		// Register cleanup when the connection is closed
 		const cleanup = () => {
-			this._activeAuthStatusUpdateSubscriptions.delete([controller, responseStream])
+			this._activeAuthStatusUpdateHandlers.delete(responseStream)
+			this._handlerToController.delete(responseStream)
 		}
 		// Register the cleanup function with the request registry if we have a requestId
 		if (requestId) {
@@ -321,7 +393,8 @@ export class AuthService {
 		} catch (error) {
 			console.error("Error sending initial auth status:", error)
 			// Remove the subscription if there was an error
-			this._activeAuthStatusUpdateSubscriptions.delete([controller, responseStream])
+			this._activeAuthStatusUpdateHandlers.delete(responseStream)
+			this._handlerToController.delete(responseStream)
 		}
 	}
 
@@ -329,27 +402,46 @@ export class AuthService {
 	 * Send an authStatusUpdate event to all active subscribers
 	 */
 	async sendAuthStatusUpdate(): Promise<void> {
-		// Send the event to all active subscribers
-		const promises = Array.from(this._activeAuthStatusUpdateSubscriptions).map(async ([controller, responseStream]) => {
-			try {
-				const authInfo: AuthState = this.getInfo()
+		// Compute once per broadcast
+		const authInfo: AuthState = this.getInfo()
+		const uniqueControllers = new Set<Controller>()
 
+		// Send the event to all active subscribers
+		const streamSends = Array.from(this._activeAuthStatusUpdateHandlers).map(async (responseStream) => {
+			const controller = this._handlerToController.get(responseStream)
+			if (controller) {
+				uniqueControllers.add(controller)
+			}
+			try {
 				await responseStream(
 					authInfo,
 					false, // Not the last message
 				)
-
-				// Update the state in the webview
-				if (controller) {
-					await controller.postStateToWebview()
-				}
 			} catch (error) {
 				console.error("Error sending authStatusUpdate event:", error)
 				// Remove the subscription if there was an error
-				this._activeAuthStatusUpdateSubscriptions.delete([controller, responseStream])
+				this._activeAuthStatusUpdateHandlers.delete(responseStream)
+				this._handlerToController.delete(responseStream)
 			}
 		})
 
-		await Promise.all(promises)
+		await Promise.all(streamSends)
+		// Identify the user in telemetry if available
+		if (this._clineAuthInfo?.userInfo?.id) {
+			telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
+			// Poll feature flags immediately for authenticated users to ensure cache is populated
+			await featureFlagsService.poll(this._clineAuthInfo?.userInfo?.id)
+		} else {
+			// Poll feature flags for unauthenticated state
+			await featureFlagsService.poll(undefined)
+		}
+
+		// Update state in webviews once per unique controller
+		await Promise.all(Array.from(uniqueControllers).map((c) => c.postStateToWebview()))
+	}
+
+	private destroyTokens() {
+		this._controller.stateManager.setSecret("clineAccountId", undefined)
+		this._controller.stateManager.setSecret("cline:clineAccountId", undefined)
 	}
 }

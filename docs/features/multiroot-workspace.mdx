@@ -1,0 +1,164 @@
+---
+title: "Multiroot Workspace Support"
+sidebarTitle: "Multiroot Workspace"
+---
+
+Cline's Multiroot feature works seamlessly with VSCode's multi-root workspaces, letting you manage multiple project folders in a single workspace.
+
+<Note>
+**Important:** Multi-root workspaces are currently an experimental feature and have the following limitations:
+- **Cline rules** only work in the first workspace folder
+- **Checkpoints** are automatically disabled with a warning message
+- Both features are restored when you return to a single-folder workspace
+</Note>
+
+## What is multiroot workspace support?
+
+Instead of being limited to one project folder, Cline can read files, write code, and run commands across all folders in your VSCode workspace. This is helpful when working with monorepos, microservices, or when you're working on related projects simultaneously.
+
+### How it works
+
+When you open multiple workspace folders in VSCode, Cline automatically:
+- Designates one folder as the **primary workspace** (typically the first folder added)
+- Tracks all workspace folders and their paths
+- Resolves file paths intelligently across workspaces
+- Displays workspace information in the environment details for each API request
+
+## Getting Started
+
+### Setting Up Multi-Root Workspaces
+
+1. **Add folders to your workspace:**
+   - Use `File > Add Folder to Workspace` in VSCode
+   - Or create a `.code-workspace` file with multiple folder paths
+   - Drag and drop folders to the File Explorer
+   - Select multiple folders when opening a new workspace
+
+2. **Start using Cline** - Cline will automatically detect all your workspace folders and interact with them as needed.
+
+For detailed instructions on setting up multi-root workspaces in VS Code, see [Microsoft's official guide](https://code.visualstudio.com/docs/editing/workspaces/multi-root-workspaces).
+
+### Technical behavior
+
+**Workspace detection**
+- Cline detects all workspace folders when a task starts
+- The first workspace folder becomes the primary workspace by default
+- Each workspace can have its own VCS (Git, SVN, etc.)
+
+**Path resolution**
+- Relative paths are resolved relative to the primary workspace
+- You can use workspace hints to target specific workspaces: `@workspaceName:path/to/file`
+- Cline attempts to intelligently determine which workspace a file belongs to
+
+**Command execution**
+- Commands execute in the appropriate workspace context
+- The working directory is set based on where files are being accessed
+
+## Working across workspaces
+
+### Referencing specific workspaces
+
+You can reference different workspaces naturally in your prompts:
+
+```
+"Read the package.json in my frontend folder and compare it with the backend dependencies"
+```
+
+```
+"Create a shared utility function and update both the client and server to use it"
+```
+
+```
+"Search for TODO comments across all my workspace folders"
+```
+
+### Workspace hints
+
+Use workspace hints to explicitly reference files in specific workspaces:
+
+```
+@frontend:src/App.tsx
+@backend:server.ts
+```
+
+This syntax helps Cline resolve ambiguity when multiple workspaces contain similarly named files.
+
+
+## Common use cases
+
+### Monorepo Development
+
+Perfect for when you have related projects in one repository:
+
+```
+my-app.code-workspace
+├── web/          (React frontend)
+├── api/          (Node.js backend)
+├── mobile/       (React Native)
+└── shared/       (Common utilities)
+```
+
+Ask Cline: *"Update the API endpoint in both web and mobile apps to match the new backend route"*
+
+### Microservices Architecture
+
+Manage multiple services from one workspace:
+
+```
+services.code-workspace
+├── user-service/
+├── payment-service/  
+├── notifications/
+└── infrastructure/
+```
+
+### Full-Stack Development
+
+Keep everything together while maintaining separation:
+
+```
+fullstack.code-workspace
+├── client/       (Frontend)
+├── server/       (Backend API)
+├── docs/         (Documentation)  
+└── deploy/       (Scripts & config)
+```
+
+
+### Auto-Approve Integration
+
+Multiroot workspaces work with [Auto Approve](/features/auto-approve):
+
+- Enable permissions for operations within workspace folders
+- Restrict auto-approve for files outside your workspace(s)
+- Configure different levels for different workspace folders
+
+### Cross-Workspace Operations
+
+Cline can complete tasks spanning multiple workspaces:
+
+- **Refactoring**: Update imports and references across projects
+- **Feature development**: Implement features requiring changes in multiple services  
+- **Documentation**: Generate docs referencing code from multiple folders
+- **Testing**: Build & run tests across all workspaces and analyze results
+
+When working with large multiroot workspaces, start in [Plan mode](/features/plan-and-act) to let Cline understand your project structure before making changes.
+
+## Best Practices
+
+### Organizing Your Workspaces
+
+1. **Group related projects** that often need coordinated changes
+2. **Use consistent folder structures** across workspaces when possible
+3. **Name folders clearly** so Cline can understand your project structure
+
+### Effective Prompting & Tips
+
+When working with multiroot workspaces, these approaches work best:
+
+- **Be specific** about which workspace when it matters: *"Update the user model in the backend workspace"*
+- **Reference relationships**: *"The frontend uses the API types from the shared workspace"*
+- **Describe cross-workspace operations**: *"This change needs to be reflected in both the web and mobile apps"*
+- **Scope your searches** when dealing with large codebases: *"Search for 'TODO' in just the frontend workspace"*
+- **Break down large tasks** into workspace-specific operations when possible
+- **Consider excluding large folders** like `node_modules` from your workspace search Scope

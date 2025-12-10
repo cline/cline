@@ -22,7 +22,7 @@ export interface RequestInfo {
 	/**
 	 * The streaming response handler for this request
 	 */
-	responseStream?: StreamingResponseHandler
+	responseStream?: StreamingResponseHandler<any>
 }
 
 /**
@@ -46,7 +46,7 @@ export class GrpcRequestRegistry {
 		requestId: string,
 		cleanup: () => void,
 		metadata?: any,
-		responseStream?: StreamingResponseHandler,
+		responseStream?: StreamingResponseHandler<any>,
 	): void {
 		this.activeRequests.set(requestId, {
 			cleanup,

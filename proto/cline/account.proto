@@ -1,0 +1,140 @@
+syntax = "proto3";
+
+package cline;
+
+import "cline/common.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+// Service for account-related operations
+service AccountService {
+  // Handles the user clicking the login link in the UI.
+  // Generates a secure nonce for state validation, stores it in secrets,
+  // and opens the authentication URL in the external browser.
+  rpc accountLoginClicked(EmptyRequest) returns (String);
+
+  // Handles the user clicking the logout button in the UI.
+  // Clears API keys and user state.
+  rpc accountLogoutClicked(EmptyRequest) returns (Empty);
+
+  // Subscribe to auth status update events (when authentication state changes)
+  rpc subscribeToAuthStatusUpdate(EmptyRequest) returns (stream AuthState);
+
+  // Handles authentication state changes from the Firebase context.
+  // Updates the user info in global state and returns the updated value.
+  rpc authStateChanged(AuthStateChangedRequest) returns (AuthState);
+
+  // Fetches all user credits data
+  // (balance, usage transactions, payment transactions)
+  rpc getUserCredits(EmptyRequest) returns (UserCreditsData);
+
+  rpc getOrganizationCredits(GetOrganizationCreditsRequest) returns (OrganizationCreditsData);
+
+  // Fetches all user organizations data
+  // Returns a list of UserOrganization objects
+  rpc getUserOrganizations(EmptyRequest) returns (UserOrganizationsResponse);
+
+  rpc setUserOrganization(UserOrganizationUpdateRequest) returns (Empty);
+
+  rpc openrouterAuthClicked(EmptyRequest) returns (Empty);
+
+  rpc requestyAuthClicked(StringRequest) returns (Empty);
+
+  // Returns a link the webview can use to redirect back to the user's IDE.
+  rpc getRedirectUrl(EmptyRequest) returns (String);
+}
+
+message AuthStateChangedRequest {
+  Metadata metadata = 1;
+  UserInfo user = 2;
+}
+
+message AuthState {
+  optional UserInfo user = 1;
+}
+
+// User's information
+message UserInfo {
+  string uid = 1;
+  optional string display_name = 2;
+  optional string email = 3;
+  optional string photo_url = 4;
+  optional string app_base_url = 5; // Cline app base URL
+}
+
+message UserOrganization {
+  bool active = 1;
+  string member_id = 2;
+  string name = 3;
+  string organization_id = 4;
+  repeated string roles = 5; // ["admin", "member", "owner"]
+}
+
+message UserOrganizationsResponse {
+  repeated UserOrganization organizations = 1;
+}
+
+message UserOrganizationUpdateRequest {
+  optional string organization_id = 1;
+}
+
+message UserCreditsData {
+  UserCreditsBalance balance = 1;
+  repeated UsageTransaction usage_transactions = 2;
+  repeated PaymentTransaction payment_transactions = 3;
+}
+
+message GetOrganizationCreditsRequest {
+  string organization_id = 1;
+}
+
+message OrganizationCreditsData {
+  UserCreditsBalance balance = 1;
+  string organization_id = 2;
+  repeated OrganizationUsageTransaction usage_transactions = 3;
+}
+
+message UserCreditsBalance {
+  double current_balance = 1;
+}
+
+message UsageTransaction {
+  string ai_inference_provider_name = 1;
+  string ai_model_name = 2;
+  string ai_model_type_name = 3;
+  int32 completion_tokens = 4;
+  double cost_usd = 5;
+  string created_at = 6;
+  double credits_used = 7;
+  string generation_id = 8;
+  string organization_id = 9;
+  int32 prompt_tokens = 10;
+  int32 total_tokens = 11;
+  string user_id = 12;
+  string operation = 13;
+}
+
+message PaymentTransaction {
+  string paid_at = 1;
+  string creator_id = 2;
+  int32 amount_cents = 3;
+  double credits = 4;
+}
+
+message OrganizationUsageTransaction {
+  string ai_inference_provider_name = 1;
+  string ai_model_name = 2;
+  string ai_model_type_name = 3;
+  int32 completion_tokens = 4;
+  double cost_usd = 5;
+  string created_at = 6;
+  double credits_used = 7;
+  string generation_id = 8;
+  string organization_id = 9;
+  int32 prompt_tokens = 10;
+  int32 total_tokens = 11;
+  string user_id = 12;
+  string operation = 13;
+}

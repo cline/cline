@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package cline;
+
+import "cline/common.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+// Service for running IDE commands, for example context menu actions,
+// commands, etc.
+// In contrast to the rest of the ProtoBus services, these are
+// intended to be called by the IDE directly instead of through the webview,
+// because they are triggered by interactions in the IDE.
+service CommandsService {
+  rpc addToCline(CommandContext) returns (Empty);
+  rpc fixWithCline(CommandContext) returns (Empty);
+  rpc explainWithCline(CommandContext) returns (Empty);
+  rpc improveWithCline(CommandContext) returns (Empty);
+}
+
+message CommandContext {
+  // The absolute path of the current file.
+  optional string file_path = 1;
+  // The selected source text.
+  optional string selected_text = 2;
+  // The language identifier for the current file.
+  optional string language = 3;
+  // Any diagnostic problems for the current file.
+  repeated cline.Diagnostic diagnostics = 4;
+}

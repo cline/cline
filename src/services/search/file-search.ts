@@ -1,20 +1,24 @@
-import * as vscode from "vscode"
-import * as path from "path"
-import * as fs from "fs"
+import type { WorkspaceRoot } from "@shared/multi-root/types"
 import * as childProcess from "child_process"
+import * as fs from "fs"
+import type { FzfResultItem } from "fzf"
+import * as path from "path"
 import * as readline from "readline"
-import { getBinPath } from "../ripgrep"
-import type { Fzf, FzfResultItem } from "fzf"
+import { WorkspaceRootManager } from "@/core/workspace"
+import { HostProvider } from "@/hosts/host-provider"
+import { GetOpenTabsRequest } from "@/shared/proto/host/window"
+import { getBinaryLocation } from "@/utils/fs"
 
 // Wrapper function for childProcess.spawn
 export type SpawnFunction = typeof childProcess.spawn
 export const getSpawnFunction = (): SpawnFunction => childProcess.spawn
 
 export async function executeRipgrepForFiles(
-	rgPath: string,
 	workspacePath: string,
 	limit: number = 5000,
 ): Promise<{ path: string; type: "file" | "folder"; label?: string }[]> {
+	const rgPath = await getBinaryLocation("rg")
+
 	return new Promise((resolve, reject) => {
 		// Arguments for ripgrep to list files, follow symlinks, include hidden, and exclude common directories
 		const args = [
@@ -65,7 +69,9 @@ export async function executeRipgrepForFiles(
 
 		// Capture any error output from ripgrep
 		let errorOutput = ""
-		rgProcess.stderr.on("data", (data) => (errorOutput += data.toString()))
+		rgProcess.stderr.on("data", (data) => {
+			errorOutput += data.toString()
+		})
 
 		// When ripgrep finishes or is closed
 		rl.on("close", () => {
@@ -90,46 +96,72 @@ export async function executeRipgrepForFiles(
 	})
 }
 
+// Get currently active/open files from VSCode tabs using hostbridge
+async function getActiveFiles(): Promise<Set<string>> {
+	const request = GetOpenTabsRequest.create({})
+	const response = await HostProvider.window.getOpenTabs(request)
+	return new Set(response.paths)
+}
+
 export async function searchWorkspaceFiles(
 	query: string,
 	workspacePath: string,
 	limit: number = 20,
-): Promise<{ path: string; type: "file" | "folder"; label?: string }[]> {
+	selectedType?: "file" | "folder",
+	workspaceName?: string,
+): Promise<{ path: string; type: "file" | "folder"; label?: string; workspaceName?: string }[]> {
 	try {
-		const rgPath = await getBinPath(vscode.env.appRoot)
+		// Get currently active files and convert to search format
+		const activeFilePaths = await getActiveFiles()
+		const activeFiles: { path: string; type: "file" | "folder"; label?: string }[] = []
 
-		if (!rgPath) {
-			throw new Error("Could not find ripgrep binary")
+		for (const filePath of activeFilePaths) {
+			if (filePath.startsWith(workspacePath + path.sep) || filePath.startsWith(workspacePath + "/")) {
+				const relativePath = path.relative(workspacePath, filePath)
+				const normalizedPath = relativePath.replace(/\\/g, "/")
+				activeFiles.push({
+					path: normalizedPath,
+					type: "file",
+					label: path.basename(normalizedPath),
+				})
+			}
 		}
 
 		// Get all files and directories
-		const allItems = await executeRipgrepForFiles(rgPath, workspacePath, 5000)
+		const allItems = await executeRipgrepForFiles(workspacePath, 5000)
 
-		// If no query, just return the top items
+		// Combine active files with all items, removing duplicates (like the old WorkspaceTracker)
+		const combinedItems = [...activeFiles]
+		for (const item of allItems) {
+			if (!activeFiles.some((activeFile) => activeFile.path === item.path)) {
+				combinedItems.push(item)
+			}
+		}
+
+		// If no query, return the combined items
 		if (!query.trim()) {
-			return allItems.slice(0, limit)
+			const addWorkspaceName = (items: typeof combinedItems) =>
+				workspaceName ? items.map((item) => ({ ...item, workspaceName })) : items
+
+			if (selectedType === "file") {
+				return addWorkspaceName(combinedItems.filter((item) => item.type === "file").slice(0, limit))
+			} else if (selectedType === "folder") {
+				return addWorkspaceName(combinedItems.filter((item) => item.type === "folder").slice(0, limit))
+			}
+			return addWorkspaceName(combinedItems.slice(0, limit))
 		}
 
 		// Match Scoring - Prioritize the label (filename) by including it twice in the search string
 		// Use multiple tiebreakers in order of importance: Match score, then length of match (shorter=better)
 		// Get more (2x) results than needed for filtering, we pick the top half after sorting
 		const fzfModule = await import("fzf")
-		const fzf = new fzfModule.Fzf(allItems, {
+		const fzf = new fzfModule.Fzf(combinedItems, {
 			selector: (item: { label?: string; path: string }) => `${item.label || ""} ${item.label || ""} ${item.path}`,
 			tiebreakers: [OrderbyMatchScore, fzfModule.byLengthAsc],
 			limit: limit * 2,
 		})
 
-		// The min threshold value will require some testing and tuning as the scores are exponential, and exaggerated
-		const MIN_SCORE_THRESHOLD = 100
-
-		// Filter results by score and map to original items
-		// Use exponential scaling for normalization
-		// This gives a more dramatic difference between good and bad matches
-		const filteredResults = fzf
-			.find(query)
-			.filter(({ score }: { score: number }) => Math.exp(score / 20) >= MIN_SCORE_THRESHOLD)
-			.slice(0, limit)
+		const filteredResults = fzf.find(query).slice(0, limit)
 
 		// Verify if the path exists and is actually a directory
 		const verifiedResultsPromises = filteredResults.map(
@@ -144,7 +176,7 @@ export async function searchWorkspaceFiles(
 					// Keep original type if path doesn't exist
 				}
 
-				return { ...item, type }
+				return workspaceName ? { ...item, type, workspaceName } : { ...item, type }
 			},
 		)
 
@@ -171,4 +203,90 @@ export const OrderbyMatchScore = (a: FzfResultItem<any>, b: FzfResultItem<any>) 
 	}
 
 	return countGaps(a.positions) - countGaps(b.positions)
+}
+
+/**
+ * Search for files across multiple workspace roots or a specific workspace
+ * Similar to searchWorkspaceFiles but supports multiroot workspaces
+ */
+export async function searchWorkspaceFilesMultiroot(
+	query: string,
+	workspaceManager: WorkspaceRootManager,
+	limit: number = 20,
+	selectedType?: "file" | "folder",
+	workspaceHint?: string,
+): Promise<{ path: string; type: "file" | "folder"; label?: string; workspaceName?: string }[]> {
+	try {
+		const workspaceRoots = workspaceManager?.getRoots?.() || []
+
+		if (workspaceRoots.length === 0) {
+			return []
+		}
+
+		let workspacesToSearch: WorkspaceRoot[] = []
+
+		// Search only the user-specified workspace (Ex input: @frontend:/query)
+		if (workspaceHint) {
+			const targetWorkspace = workspaceRoots.find((root: WorkspaceRoot) => root.name === workspaceHint)
+			if (targetWorkspace) {
+				workspacesToSearch = [targetWorkspace]
+			} else {
+				return []
+			}
+		} else {
+			// Search all workspaces if no hint provided
+			workspacesToSearch = workspaceRoots
+		}
+
+		// Execute parallel searches across workspaces
+		const searchPromises = workspacesToSearch.map(async (workspace) => {
+			try {
+				const results = await searchWorkspaceFiles(query, workspace.path, limit, selectedType, workspace.name)
+				return results
+			} catch (error) {
+				console.error(`[searchWorkspaceFilesMultiroot] Error searching workspace ${workspace.name}:`, error)
+				return []
+			}
+		})
+
+		// Wait for all searches to finish, fatten, add workspace prefixes if needed
+		const allResults = await Promise.all(searchPromises)
+		let flatResults = allResults.flat()
+		if (workspacesToSearch.length > 1) {
+			const pathCounts = new Map<string, number>()
+			for (const result of flatResults) {
+				pathCounts.set(result.path, (pathCounts.get(result.path) || 0) + 1)
+			}
+
+			flatResults = flatResults.map((result) => {
+				if (pathCounts.get(result.path)! > 1 && result.workspaceName) {
+					return {
+						...result,
+						label: `${result.workspaceName}:/${result.path}`,
+					}
+				}
+				return result
+			})
+		}
+
+		// Apply fuzzy matching across all results if needed
+		if (query.trim() && flatResults.length > limit) {
+			const fzfModule = await import("fzf")
+			const fzf = new fzfModule.Fzf(flatResults, {
+				selector: (item: { label?: string; path: string }) => `${item.label || ""} ${item.label || ""} ${item.path}`,
+				tiebreakers: [OrderbyMatchScore, fzfModule.byLengthAsc],
+			})
+			flatResults = fzf
+				.find(query)
+				.slice(0, limit)
+				.map((result) => result.item)
+		} else {
+			flatResults = flatResults.slice(0, limit)
+		}
+
+		return flatResults
+	} catch (error) {
+		console.error("[searchWorkspaceFilesMultiroot] Error in multiroot search:", error)
+		return []
+	}
 }

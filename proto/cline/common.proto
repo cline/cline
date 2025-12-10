@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+package cline;
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+message Metadata {}
+
+message EmptyRequest {}
+
+message Empty {}
+
+message StringRequest {
+  string value = 2;
+}
+
+message StringArrayRequest {
+  repeated string value = 2;
+}
+
+message String {
+  string value = 1;
+}
+
+message Int64Request {
+  int64 value = 2;
+}
+
+message Int64 {
+  int64 value = 1;
+}
+
+message BytesRequest {
+  bytes value = 2;
+}
+
+message Bytes {
+  bytes value = 1;
+}
+
+message BooleanRequest {
+  bool value = 2;
+}
+
+message Boolean {
+  bool value = 1;
+}
+
+// the same as Boolean, but avoiding name conflicts
+message BooleanResponse {
+  bool value = 1;
+}
+
+message StringArray {
+  repeated string values = 1;
+}
+
+message StringArrays {
+  repeated string values1 = 1;
+  repeated string values2 = 2;
+}
+
+message KeyValuePair {
+  string key = 1;
+  string value = 2;
+}
+
+message FileDiagnostics {
+  string file_path = 1;
+  repeated Diagnostic diagnostics = 2;
+}
+
+message Diagnostic {
+  string message = 1;
+  DiagnosticRange range = 2;
+  DiagnosticSeverity severity = 3;
+  optional string source = 4;
+}
+
+message DiagnosticRange {
+  DiagnosticPosition start = 1;
+  DiagnosticPosition end = 2;
+}
+
+message DiagnosticPosition {
+  int32 line = 1;
+  int32 character = 2;
+}
+
+enum DiagnosticSeverity {
+  DIAGNOSTIC_ERROR = 0;
+  DIAGNOSTIC_WARNING = 1;
+  DIAGNOSTIC_INFORMATION = 2;
+  DIAGNOSTIC_HINT = 3;
+}

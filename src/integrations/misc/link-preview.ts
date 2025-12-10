@@ -1,5 +1,6 @@
 import axios from "axios"
 import ogs from "open-graph-scraper"
+import { fetch, getAxiosSettings } from "@/shared/net"
 
 export interface OpenGraphData {
 	title?: string
@@ -27,6 +28,7 @@ export async function fetchOpenGraphData(url: string): Promise<OpenGraphData> {
 			fetchOptions: {
 				redirect: "follow", // Follow redirects
 			} as any,
+			fetch, // Use configured fetch with proxy support
 		}
 
 		const { result } = await ogs(options)
@@ -62,7 +64,7 @@ export async function fetchOpenGraphData(url: string): Promise<OpenGraphData> {
 			siteName: data.ogSiteName || new URL(url).hostname,
 			type: data.ogType,
 		}
-	} catch (error) {
+	} catch (_error) {
 		// Return basic information based on the URL
 		try {
 			const urlObj = new URL(url)
@@ -94,11 +96,12 @@ export async function detectImageUrl(url: string): Promise<boolean> {
 				"User-Agent": "Mozilla/5.0 (compatible; VSCodeExtension/1.0; +https://cline.bot)",
 			},
 			timeout: 3000,
+			...getAxiosSettings(),
 		})
 
 		const contentType = response.headers["content-type"]
 		return contentType && contentType.startsWith("image/")
-	} catch (error) {
+	} catch (_error) {
 		// If we can't determine, fall back to checking the file extension
 		return /\.(jpg|jpeg|png|gif|webp|bmp|svg|tiff|tif|avif)$/i.test(url)
 	}

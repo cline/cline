@@ -1,0 +1,280 @@
+syntax = "proto3";
+
+package cline;
+
+import "cline/common.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+// Service for file-related operations
+service FileService {
+  // Copies text to clipboard
+  rpc copyToClipboard(StringRequest) returns (Empty);
+
+  // Opens a file in the editor
+  rpc openFile(StringRequest) returns (Empty);
+
+  // Opens an image in the system viewer
+  rpc openImage(StringRequest) returns (Empty);
+
+  // Opens a mention (file, path, git commit, problem, terminal, or URL)
+  rpc openMention(StringRequest) returns (Empty);
+
+  // Deletes a rule file from either global or workspace rules directory
+  rpc deleteRuleFile(RuleFileRequest) returns (RuleFile);
+
+  // Creates a rule file from either global or workspace rules directory
+  rpc createRuleFile(RuleFileRequest) returns (RuleFile);
+
+  // Search git commits in the workspace
+  rpc searchCommits(StringRequest) returns (GitCommits);
+
+  // Select images and other files from the file system and returns as data URLs & paths respectively
+  rpc selectFiles(BooleanRequest) returns (StringArrays);
+
+  // Convert URIs to workspace-relative paths
+  rpc getRelativePaths(RelativePathsRequest) returns (RelativePaths);
+
+  // Search for files in the workspace with fuzzy matching
+  rpc searchFiles(FileSearchRequest) returns (FileSearchResults);
+
+  // Toggle a Cline rule (enable or disable)
+  rpc toggleClineRule(ToggleClineRuleRequest) returns (ToggleClineRules);
+
+  // Toggle a Cursor rule (enable or disable)
+  rpc toggleCursorRule(ToggleCursorRuleRequest) returns (ClineRulesToggles);
+
+  // Toggle a Windsurf rule (enable or disable)
+  rpc toggleWindsurfRule(ToggleWindsurfRuleRequest) returns (ClineRulesToggles);
+
+  // Toggle an Agents rule (enable or disable)
+  rpc toggleAgentsRule(ToggleAgentsRuleRequest) returns (ClineRulesToggles);
+
+  // Refreshes all rule toggles (Cline, External, and Workflows)
+  rpc refreshRules(EmptyRequest) returns (RefreshedRules);
+
+  // Opens a task's conversation history file on disk
+  rpc openDiskConversationHistory(StringRequest) returns (Empty);
+
+  // Toggles a workflow on or off
+  rpc toggleWorkflow(ToggleWorkflowRequest) returns (ClineRulesToggles);
+
+  // Check if file exists in the project
+  rpc ifFileExistsRelativePath(StringRequest) returns (BooleanResponse);
+
+  // Open a file in editor by a relative path
+  rpc openFileRelativePath(StringRequest) returns (Empty);
+
+  // Opens or creates a focus chain checklist markdown file for editing
+  rpc openFocusChainFile(StringRequest) returns (Empty);
+
+  // Refreshes all hook toggles (discovers hooks and their enabled state)
+  rpc refreshHooks(EmptyRequest) returns (HooksToggles);
+
+  // Toggles a hook on or off via chmod +x/-x
+  rpc toggleHook(ToggleHookRequest) returns (ToggleHookResponse);
+
+  // Creates a new hook from template
+  rpc createHook(CreateHookRequest) returns (CreateHookResponse);
+
+  // Deletes an existing hook file
+  rpc deleteHook(DeleteHookRequest) returns (DeleteHookResponse);
+}
+
+// Response for refreshRules operation
+message RefreshedRules {
+  ClineRulesToggles global_cline_rules_toggles = 1;
+  ClineRulesToggles local_cline_rules_toggles = 2;
+  ClineRulesToggles local_cursor_rules_toggles = 3;
+  ClineRulesToggles local_windsurf_rules_toggles = 4;
+  ClineRulesToggles local_agents_rules_toggles = 5;
+  ClineRulesToggles local_workflow_toggles = 6;
+  ClineRulesToggles global_workflow_toggles = 7;
+}
+
+// Request to toggle a Windsurf rule
+message ToggleWindsurfRuleRequest {
+  Metadata metadata = 1;
+  string rule_path = 2; // Path to the rule file
+  bool enabled = 3; // Whether to enable or disable the rule
+}
+
+// Request to toggle an Agents rule
+message ToggleAgentsRuleRequest {
+  Metadata metadata = 1;
+  string rule_path = 2; // Path to the rule file
+  bool enabled = 3; // Whether to enable or disable the rule
+}
+
+// Request to convert a list of URIs to relative paths
+message RelativePathsRequest {
+  Metadata metadata = 1;
+  repeated string uris = 2;
+}
+
+// Response containing the converted relative paths
+message RelativePaths {
+  repeated string paths = 1;
+}
+
+// Enum for file search type filtering
+enum FileSearchType {
+  FILE = 0;
+  FOLDER = 1;
+}
+
+// Request for file search operations
+message FileSearchRequest {
+  Metadata metadata = 1;
+  string query = 2; // Search query string
+  optional string mentions_request_id = 3; // Optional request ID for tracking requests
+  optional int32 limit = 4; // Optional limit for results (default: 20)
+  optional FileSearchType selected_type = 5; // Optional selected type filter
+  optional string workspace_hint = 6; // Optional workspace name to search in
+}
+
+// Result for file search operations
+message FileSearchResults {
+  repeated FileInfo results = 1; // Array of file/folder results
+  optional string mentions_request_id = 2; // Echo of the request ID for tracking
+}
+
+// File information structure for search results
+message FileInfo {
+  string path = 1; // Relative path from workspace root
+  string type = 2; // "file" or "folder"
+  optional string label = 3; // Display name (usually basename)
+  optional string workspace_name = 4; // Workspace this result came from
+}
+
+// Response for searchCommits
+message GitCommits {
+  repeated GitCommit commits = 1;
+}
+
+// Represents a Git commit
+message GitCommit {
+  string hash = 1;
+  string short_hash = 2;
+  string subject = 3;
+  string author = 4;
+  string date = 5;
+}
+
+// Unified request for all rule file operations
+message RuleFileRequest {
+  Metadata metadata = 1;
+  bool is_global = 2; // Common field for all operations
+  optional string rule_path = 3; // Path field for deleteRuleFile (optional)
+  optional string filename = 4; // Filename field for createRuleFile (optional)
+  optional string type = 5; // Type of the file to create (optional)
+}
+
+// Result for rule file operations with meaningful data only
+message RuleFile {
+  string file_path = 1; // Path to the rule file
+  string display_name = 2; // Filename for display purposes
+  bool already_exists = 3; // For createRuleFile, indicates if file already existed
+}
+
+// Enum for rule scope (local, global, or remote)
+enum RuleScope {
+  LOCAL = 0;
+  GLOBAL = 1;
+  REMOTE = 2;
+}
+
+// Request to toggle a Cline rule
+message ToggleClineRuleRequest {
+  Metadata metadata = 1;
+  RuleScope scope = 2; // Scope of the rule (local, global, or remote)
+  string rule_path = 3; // Path to the rule file
+  bool enabled = 4; // Whether to enable or disable the rule
+}
+
+// Maps from filepath to enabled/disabled status, matching app's ClineRulesToggles type
+message ClineRulesToggles {
+  map<string, bool> toggles = 1;
+}
+
+// Response for toggleClineRule operation
+message ToggleClineRules {
+  ClineRulesToggles global_cline_rules_toggles = 1;
+  ClineRulesToggles local_cline_rules_toggles = 2;
+  ClineRulesToggles remote_rules_toggles = 3;
+}
+
+// Request to toggle a Cursor rule
+message ToggleCursorRuleRequest {
+  Metadata metadata = 1;
+  string rule_path = 2; // Path to the rule file
+  bool enabled = 3; // Whether to enable or disable the rule
+}
+
+// Request to toggle a workflow on or off
+message ToggleWorkflowRequest {
+  Metadata metadata = 1;
+  string workflow_path = 2;
+  bool enabled = 3;
+  RuleScope scope = 4; // Scope of the workflow (local, global, or remote)
+}
+
+// Maps from hook name to enabled/disabled status
+message HookInfo {
+  string name = 1;
+  bool enabled = 2;
+  string absolute_path = 3;
+}
+
+message WorkspaceHooks {
+  string workspace_name = 1;
+  repeated HookInfo hooks = 2;
+}
+
+message HooksToggles {
+  repeated HookInfo global_hooks = 1;
+  repeated WorkspaceHooks workspace_hooks = 2;
+  bool is_windows = 3; // Whether the system is Windows (toggles disabled)
+}
+
+// Request to toggle a hook
+message ToggleHookRequest {
+  Metadata metadata = 1;
+  string hook_name = 2; // Name of the hook (e.g., "TaskStart")
+  bool is_global = 3; // Whether this is a global or workspace hook
+  bool enabled = 4; // Whether to enable (chmod +x) or disable (chmod -x)
+  optional string workspace_name = 5; // For multi-root workspaces, specifies which workspace
+}
+
+// Response for toggleHook operation
+message ToggleHookResponse {
+  HooksToggles hooks_toggles = 1;
+}
+
+// Request to create a hook
+message CreateHookRequest {
+  Metadata metadata = 1;
+  string hook_name = 2; // Name of the hook to create
+  bool is_global = 3; // Whether to create in global or workspace hooks directory
+  optional string workspace_name = 4; // For multi-root workspaces, specifies which workspace
+}
+
+// Response for createHook operation
+message CreateHookResponse {
+  HooksToggles hooks_toggles = 1;
+}
+
+// Request to delete a hook
+message DeleteHookRequest {
+  Metadata metadata = 1;
+  string hook_name = 2; // Name of the hook to delete
+  bool is_global = 3; // Whether this is a global or workspace hook
+  optional string workspace_name = 4; // For multi-root workspaces, specifies which workspace
+}
+
+// Response for deleteHook operation
+message DeleteHookResponse {
+  HooksToggles hooks_toggles = 1;
+}

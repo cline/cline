@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package cline;
+
+import "cline/common.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+// Service for account-related operations
+service OcaAccountService {
+  // Handles the user clicking the login link in the UI.
+  // Generates a secure nonce for state validation, stores it in secrets,
+  // and opens the authentication URL in the external browser.
+  rpc ocaAccountLoginClicked(EmptyRequest) returns (String);
+
+  // Handles the user clicking the logout button in the UI.
+  // Clears API keys and user state.
+  rpc ocaAccountLogoutClicked(EmptyRequest) returns (Empty);
+
+  // Subscribe to auth status update events (when authentication state changes)
+  rpc ocaSubscribeToAuthStatusUpdate(EmptyRequest) returns (stream OcaAuthState);
+}
+
+message OcaAuthState {
+  optional OcaUserInfo user = 1;
+  optional string api_key = 2;
+}
+
+// User's information
+message OcaUserInfo {
+  string uid = 1;
+  optional string display_name = 2;
+  optional string email = 3;
+}

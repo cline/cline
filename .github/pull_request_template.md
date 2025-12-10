@@ -2,15 +2,14 @@
 Thank you for contributing to Cline!
 
 ⚠️ Important: Before submitting this PR, please ensure you have:
-- Opened an issue and discussed your proposed changes with the community / contributors
-- Received approval from a core Cline contributor prior to proceeding with the implementation
-- Link the associated issue in the "Related Issue" section
+- For feature requests: Created a discussion in our Feature Requests discussions board https://github.com/cline/cline/discussions/categories/feature-requests and received approval from core maintainers before implementation
+- For all changes: Link the associated issue/discussion in the "Related Issue" section below
 
 Limited exceptions:
-Small bug fixes, typo corrections, minor wording improvements, or simple type fixes that don't change functionality may be submitted directly.
+Small bug fixes, typo corrections, minor wording improvements, or simple type fixes that don't change functionality may be submitted directly without prior discussion.
 
 Why this requirement?
-We deeply appreciate all community contributions - they are the core reason we're able to operate successfully and keep innovating! We welcome community input and want to make it as easy as possible for people to submit quality work. This process helps our core maintainers review new ideas faster and saves contributor time by ensuring you have the go-ahead before spending time on implementation.
+We deeply appreciate all community contributions - they are essential to Cline's success! To ensure the best use of everyone's time and maintain project direction, we use our Feature Requests discussions board to gauge community interest and validate feature ideas before implementation begins. This helps us focus development efforts on features that will benefit the most users.
 -->
 
 ### Related Issue

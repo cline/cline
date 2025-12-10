@@ -1,6 +1,6 @@
-import { Controller } from ".."
-import { EmptyRequest, Int64 } from "../../../shared/proto/common"
+import { EmptyRequest, Int64 } from "@shared/proto/cline/common"
 import { getTotalTasksSize as calculateTotalTasksSize } from "../../../utils/storage"
+import { Controller } from ".."
 
 /**
  * Gets the total size of all tasks including task data and checkpoints
@@ -8,7 +8,7 @@ import { getTotalTasksSize as calculateTotalTasksSize } from "../../../utils/sto
  * @param _request The empty request
  * @returns The total size as an Int64 value
  */
-export async function getTotalTasksSize(controller: Controller, _request: EmptyRequest): Promise<Int64> {
-	const totalSize = await calculateTotalTasksSize(controller.context.globalStorageUri.fsPath)
-	return Int64.create({ value: totalSize || 0 })
+export async function getTotalTasksSize(_controller: Controller, _request: EmptyRequest): Promise<Int64> {
+	const totalSize = await calculateTotalTasksSize()
+	return { value: totalSize || 0 }
 }

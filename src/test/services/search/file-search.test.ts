@@ -1,40 +1,41 @@
+import * as fileSearch from "@services/search/file-search"
+import * as childProcess from "child_process"
+import * as fs from "fs"
+import type { FzfResultItem } from "fzf"
 import { describe, it } from "mocha"
 import should from "should"
 import sinon from "sinon"
 import { Readable } from "stream"
-import type { FzfResultItem } from "fzf"
-import * as childProcess from "child_process"
-import * as vscode from "vscode"
-import * as fs from "fs"
-import * as fileSearch from "@services/search/file-search"
-import * as ripgrep from "@services/ripgrep"
+import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 
-describe("File Search", function () {
+describe("File Search", () => {
 	let sandbox: sinon.SinonSandbox
 	let spawnStub: sinon.SinonStub
 
-	beforeEach(function () {
+	beforeEach(() => {
 		sandbox = sinon.createSandbox()
 		spawnStub = sandbox.stub()
 
 		// Create a wrapper function that matches the signature of childProcess.spawn
-		const spawnWrapper: typeof childProcess.spawn = function (command, options) {
-			return spawnStub(command, options)
-		}
+		const spawnWrapper: typeof childProcess.spawn = (command, options) => spawnStub(command, options)
 
 		sandbox.stub(fileSearch, "getSpawnFunction").returns(spawnWrapper)
-		// Use replaceGetter instead of stub().value() for non-configurable properties
-		sandbox.replaceGetter(vscode.env, "appRoot", () => "mock/app/root")
 		sandbox.stub(fs.promises, "lstat").resolves({ isDirectory: () => false } as fs.Stats)
-		sandbox.stub(ripgrep, "getBinPath").resolves("mock/ripgrep/path")
+
+		// Mock fs.access to return true for both Unix and Windows ripgrep binary paths
+		const accessStub = sandbox.stub(fs.promises, "access")
+		accessStub.withArgs("/mock/path/rg").resolves()
+		accessStub.withArgs("/mock/path/rg.exe").resolves()
+
+		setVscodeHostProviderMock()
 	})
 
-	afterEach(function () {
+	afterEach(() => {
 		sandbox.restore()
 	})
 
-	describe("executeRipgrepForFiles", function () {
-		it("should correctly process and return file and folder results", async function () {
+	describe("executeRipgrepForFiles", () => {
+		it("should correctly process and return file and folder results", async () => {
 			const mockFiles = ["file1.txt", "folder1/file2.js", "folder1/subfolder/file3.py"]
 
 			// Create a proper mock for the child process
@@ -70,7 +71,7 @@ describe("File Search", function () {
 			// Create a new stub for executeRipgrepForFiles
 			sandbox.stub(fileSearch, "executeRipgrepForFiles").resolves(expectedResult)
 
-			const result = await fileSearch.executeRipgrepForFiles("mock/path", "/workspace", 5000)
+			const result = await fileSearch.executeRipgrepForFiles("/workspace", 5000)
 
 			should(result).be.an.Array()
 			// Don't assert on the exact length as it may vary
@@ -94,7 +95,7 @@ describe("File Search", function () {
 			])
 		})
 
-		it("should handle errors from ripgrep", async function () {
+		it("should handle errors from ripgrep", async () => {
 			const mockError = "Mock ripgrep error"
 
 			// Create proper mock streams for error case
@@ -122,14 +123,14 @@ describe("File Search", function () {
 				},
 			} as unknown as childProcess.ChildProcess)
 
-			await should(fileSearch.executeRipgrepForFiles("mock/path", "/workspace", 5000)).be.rejectedWith(
+			await should(fileSearch.executeRipgrepForFiles("/workspace", 5000)).be.rejectedWith(
 				`ripgrep process error: ${mockError}`,
 			)
 		})
 	})
 
-	describe("searchWorkspaceFiles", function () {
-		it("should return top N results for empty query", async function () {
+	describe("searchWorkspaceFiles", () => {
+		it("should return top N results for empty query", async () => {
 			const mockItems: { path: string; type: "file" | "folder"; label?: string }[] = [
 				{ path: "file1.txt", type: "file", label: "file1.txt" },
 				{ path: "folder1", type: "folder", label: "folder1" },
@@ -148,7 +149,7 @@ describe("File Search", function () {
 			should(result).deepEqual(mockItems.slice(0, 2))
 		})
 
-		it("should apply fuzzy matching for non-empty query", async function () {
+		it("should apply fuzzy matching for non-empty query", async () => {
 			const mockItems: { path: string; type: "file" | "folder"; label?: string }[] = [
 				{ path: "file1.txt", type: "file", label: "file1.txt" },
 				{ path: "folder1/important.js", type: "file", label: "important.js" },
@@ -160,14 +161,14 @@ describe("File Search", function () {
 				find: sinon.stub().returns([{ item: mockItems[1], score: 0 }]),
 			}
 			// Create a mock for the fzf module
-			const fzfModuleStub = {
+			const _fzfModuleStub = {
 				Fzf: sinon.stub().returns(fzfStub),
 				byLengthAsc: sinon.stub(),
 			}
 
 			// Use a more reliable approach to mock dynamic imports
 			// This replaces the actual implementation of searchWorkspaceFiles to avoid the dynamic import
-			sandbox.stub(fileSearch, "searchWorkspaceFiles").callsFake(async (query, workspacePath, limit) => {
+			sandbox.stub(fileSearch, "searchWorkspaceFiles").callsFake(async (query, _workspacePath, limit) => {
 				if (!query.trim()) {
 					return mockItems.slice(0, limit)
 				}
@@ -188,8 +189,8 @@ describe("File Search", function () {
 		})
 	})
 
-	describe("OrderbyMatchScore", function () {
-		it("should prioritize results with fewer gaps between matched characters", function () {
+	describe("OrderbyMatchScore", () => {
+		it("should prioritize results with fewer gaps between matched characters", () => {
 			const mockItemA: FzfResultItem<any> = { item: {}, positions: new Set([0, 1, 2, 5]), start: 0, end: 5, score: 0 }
 			const mockItemB: FzfResultItem<any> = { item: {}, positions: new Set([0, 2, 4, 6]), start: 0, end: 6, score: 0 }
 

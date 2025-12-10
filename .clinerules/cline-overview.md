@@ -716,7 +716,7 @@ The Controller class manages MCP servers through the McpHub service:
 class Controller {
   mcpHub?: McpHub
 
-  constructor(context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel, webviewProvider: WebviewProvider) {
+  constructor(context: vscode.ExtensionContext, webviewProvider: WebviewProvider) {
     this.mcpHub = new McpHub(this)
   }
 

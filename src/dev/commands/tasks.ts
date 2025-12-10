@@ -1,31 +1,71 @@
-import * as vscode from "vscode"
+import { Controller } from "@core/controller"
+import { ClineMessage } from "@shared/ExtensionMessage"
+import { HistoryItem } from "@shared/HistoryItem"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { Controller } from "@core/controller"
-import { HistoryItem } from "@shared/HistoryItem"
-import { ClineMessage } from "@shared/ExtensionMessage"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import * as vscode from "vscode"
+import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType } from "@/shared/proto/host/window"
 
 /**
  * Registers development-only commands for task manipulation.
  * These are only activated in development mode.
  */
-export function registerTaskCommands(context: vscode.ExtensionContext, controller: Controller): vscode.Disposable[] {
+export function registerTaskCommands(controller: Controller): vscode.Disposable[] {
 	return [
-		vscode.commands.registerCommand("cline.dev.createTestTasks", async () => {
-			const count = await vscode.window.showInputBox({
-				title: "Test Tasks",
-				prompt: "How many test tasks to create?",
-				value: "10",
-			})
+		vscode.commands.registerCommand("cline.dev.expireMcpOAuthTokens", async () => {
+			try {
+				const stateManager = controller.stateManager
+				const secretsJson = stateManager.getSecretKey("mcpOAuthSecrets")
 
-			if (!count) {
+				if (!secretsJson) {
+					vscode.window.showInformationMessage("No MCP OAuth secrets found - no servers are authenticated")
+					return
+				}
+
+				const secrets = JSON.parse(secretsJson)
+				let expiredCount = 0
+
+				// Set all tokens_saved_at to 2 hours ago (past expiration)
+				for (const hash in secrets) {
+					if (secrets[hash].tokens_saved_at) {
+						secrets[hash].tokens_saved_at = Date.now() - 2 * 60 * 60 * 1000 // 2 hours ago
+						expiredCount++
+						console.log(`[Dev] Expired tokens for hash: ${hash}`)
+					}
+				}
+
+				stateManager.setSecret("mcpOAuthSecrets", JSON.stringify(secrets))
+
+				const action = await vscode.window.showInformationMessage(
+					`Expired ${expiredCount} MCP OAuth token(s). Reload window to test token refresh flow.`,
+					"Reload Window",
+					"Cancel",
+				)
+
+				if (action === "Reload Window") {
+					vscode.commands.executeCommand("workbench.action.reloadWindow")
+				}
+			} catch (error) {
+				vscode.window.showErrorMessage(`Failed to expire tokens: ${error}`)
+				console.error("[Dev] Error expiring MCP OAuth tokens:", error)
+			}
+		}),
+		vscode.commands.registerCommand("cline.dev.createTestTasks", async () => {
+			const count = (
+				await HostProvider.window.showInputBox({
+					title: "Test Tasks",
+					prompt: "How many test tasks to create?",
+					value: "10",
+				})
+			).response
+
+			if (count === undefined) {
 				return
 			}
 
 			const tasksCount = parseInt(count)
-			const globalStoragePath = context.globalStorageUri.fsPath
+			const globalStoragePath = HostProvider.get().globalStorageFsPath
 			const tasksDir = path.join(globalStoragePath, "tasks")
 
 			vscode.window.withProgress(
@@ -99,12 +139,10 @@ export function registerTaskCommands(context: vscode.ExtensionContext, controlle
 					await controller.postStateToWebview()
 
 					const message = `Created ${tasksCount} test tasks`
-					getHostBridgeProvider().windowClient.showMessage(
-						ShowMessageRequest.create({
-							type: ShowMessageType.INFORMATION,
-							message,
-						}),
-					)
+					HostProvider.window.showMessage({
+						type: ShowMessageType.INFORMATION,
+						message,
+					})
 				},
 			)
 		}),

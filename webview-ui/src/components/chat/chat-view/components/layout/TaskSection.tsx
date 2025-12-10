@@ -1,7 +1,7 @@
+import { ClineMessage } from "@shared/ExtensionMessage"
 import React from "react"
 import TaskHeader from "@/components/chat/task-header/TaskHeader"
-import { ClineMessage } from "@shared/ExtensionMessage"
-import { MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
+import { MessageHandlers } from "../../types/chatTypes"
 
 interface TaskSectionProps {
 	task: ClineMessage
@@ -18,7 +18,7 @@ interface TaskSectionProps {
 		supportsImages: boolean
 	}
 	messageHandlers: MessageHandlers
-	scrollBehavior: ScrollBehavior
+	lastProgressMessageText?: string
 }
 
 /**
@@ -31,20 +31,21 @@ export const TaskSection: React.FC<TaskSectionProps> = ({
 	lastApiReqTotalTokens,
 	selectedModelInfo,
 	messageHandlers,
-	scrollBehavior,
+	lastProgressMessageText,
 }) => {
 	return (
 		<TaskHeader
+			cacheReads={apiMetrics.totalCacheReads}
+			cacheWrites={apiMetrics.totalCacheWrites}
+			doesModelSupportPromptCache={selectedModelInfo.supportsPromptCache}
+			lastApiReqTotalTokens={lastApiReqTotalTokens}
+			lastProgressMessageText={lastProgressMessageText}
+			onClose={messageHandlers.handleTaskCloseButtonClick}
+			onSendMessage={messageHandlers.handleSendMessage}
 			task={task}
 			tokensIn={apiMetrics.totalTokensIn}
 			tokensOut={apiMetrics.totalTokensOut}
-			doesModelSupportPromptCache={selectedModelInfo.supportsPromptCache}
-			cacheWrites={apiMetrics.totalCacheWrites}
-			cacheReads={apiMetrics.totalCacheReads}
 			totalCost={apiMetrics.totalCost}
-			lastApiReqTotalTokens={lastApiReqTotalTokens}
-			onClose={messageHandlers.handleTaskCloseButtonClick}
-			onScrollToMessage={scrollBehavior.scrollToMessage}
 		/>
 	)
 }

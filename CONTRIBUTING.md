@@ -14,14 +14,11 @@ Bug reports help make Cline better for everyone! Before creating a new issue, pl
 ## Before Contributing
 
 All contributions must begin with a GitHub Issue, unless the change is for small bug fixes, typo corrections, minor wording improvements, or simple type fixes that don't change functionality.
-
-- **Check existing issues**: Search [GitHub Issues](https://github.com/cline/cline/issues).
-- **Create an issue**: Use appropriate templates:
-    - **Contributions:** Use the "Contribution Request" template to propose what you'd like to work on.
-    - **Bugs:** "Bug Report" template for reporting issues.
-    - **Features:** "Detailed Feature Proposal" template for suggesting new features.
-- **Wait for approval**: A core Cline contributor must approve your contribution request before you start implementation.
-- **Claim issues**: Once approved, the issue will be assigned to you.
+**For features and contributions**:
+- First check the [Feature Requests discussions board](https://github.com/cline/cline/discussions/categories/feature-requests) for similar ideas
+- If your idea is new, create a new feature request  
+- Wait for approval from core maintainers before starting implementation
+- Once approved, feel free to begin working on a PR with the help of our community!
 
 **PRs without approved issues may be closed.**
 
@@ -49,7 +46,11 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
     ```bash
     npm run install:all
     ```
-4. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
+4. Generate Protocol Buffer files (required before first build):
+    ```bash
+    npm run protos
+    ```
+5. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
 
 
 
@@ -77,7 +78,6 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
 4. Testing
     - Run `npm run test` to run tests locally. 
     - Before submitting PR, run `npm run format:fix` to format your code
-    - Run `npm run test:ci` to run tests locally
 
 ### Extension
 
@@ -89,8 +89,10 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
 
 2. **Local Development**
     - Run `npm run install:all` to install dependencies
+    - Run `npm run protos` to generate Protocol Buffer files (required before first build)
     - Run `npm run test` to run tests locally
     - Run → Start Debugging or `>Debug: Select and Start Debugging` and wait for a new VS Code instance to open
+    - **Terminal Workflow**: Use `npm run dev` (generates protos + runs watch mode) or `npm run watch` (if protos already generated)
     - Before submitting PR, run `npm run format:fix` to format your code
 
 3. **Linux-specific Setup**
@@ -150,7 +152,7 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
     - Run `npm run lint` to check code style
     - Run `npm run format` to automatically format code
     - All PRs must pass CI checks which include both linting and formatting
-    - Address any ESLint warnings or errors before submitting
+    - Address any warnings or errors from linter before submitting
     - Follow TypeScript best practices and maintain type safety
 
 3. **Testing**
@@ -159,6 +161,36 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
     - Run `npm test` to ensure all tests pass
     - Update existing tests if your changes affect them
     - Include both unit tests and integration tests where appropriate
+
+    **End-to-End (E2E) Testing**
+    
+    Cline includes comprehensive E2E tests using Playwright that simulate real user interactions with the extension in VS Code:
+    
+    - **Running E2E tests:**
+      ```bash
+      npm run test:e2e        # Build and run all E2E tests
+      npm run e2e             # Run tests without rebuilding
+      npm run test:e2e -- --debug  # Run with interactive debugger
+      ```
+    
+    - **Writing E2E tests:**
+      - Tests are located in `src/test/e2e/`
+      - Use the `e2e` fixture for single-root workspace tests
+      - Use `e2eMultiRoot` fixture for multi-root workspace tests
+      - Follow existing patterns in `auth.test.ts`, `chat.test.ts`, `diff.test.ts`, and `editor.test.ts`
+      - See `src/test/e2e/README.md` for detailed documentation
+    
+    - **Debug mode features:**
+      - Interactive Playwright Inspector for step-by-step debugging
+      - Record new interactions and generate test code automatically
+      - Visual VS Code instance for manual testing
+      - Element inspection and selector validation
+    
+    - **Test environment:**
+      - Automated VS Code setup with Cline extension loaded
+      - Mock API server for backend testing
+      - Temporary workspaces with test fixtures
+      - Video recording for failed tests
 
 4. **Version Management with Changesets**
 

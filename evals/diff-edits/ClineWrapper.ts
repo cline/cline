@@ -1,11 +1,9 @@
 import { OpenRouterHandler } from "../../src/api/providers/openrouter"
-import { ApiHandlerOptions } from "../../src/shared/api"
+import { OpenAiNativeHandler } from "../../src/api/providers/openai-native"
 import { Anthropic } from "@anthropic-ai/sdk"
 
 import {
-	parseAssistantMessageV1,
 	parseAssistantMessageV2,
-	parseAssistantMessageV3,
 	AssistantMessageContent,
 } from "./parsing/parse-assistant-message-06-06-25" // "../../src/core/assistant-message"
 import { constructNewFileContent as constructNewFileContent_06_06_25 } from "./diff-apply/diff-06-06-25"
@@ -17,9 +15,7 @@ type ParseAssistantMessageFn = (message: string) => AssistantMessageContent[]
 type ConstructNewFileContentFn = (diff: string, original: string, strict: boolean) => Promise<string | any>
 
 const parsingFunctions: Record<string, ParseAssistantMessageFn> = {
-	parseAssistantMessageV1: parseAssistantMessageV1,
 	parseAssistantMessageV2: parseAssistantMessageV2,
-	parseAssistantMessageV3: parseAssistantMessageV3,
 }
 
 const diffEditingFunctions: Record<string, ConstructNewFileContentFn> = {
@@ -54,7 +50,7 @@ interface StreamResult {
  * Process the stream and return full response with timing data
  */
 async function processStream(
-	handler: OpenRouterHandler,
+	handler: OpenRouterHandler | OpenAiNativeHandler,
 	systemPrompt: string,
 	messages: Anthropic.Messages.MessageParam[],
 ): Promise<StreamResult> {
@@ -190,19 +186,7 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 			}
 		}
 
-		const options: ApiHandlerOptions = {
-			openRouterApiKey: apiKey,
-			openRouterModelId: modelId,
-			thinkingBudgetTokens: thinkingBudgetTokens,
-			openRouterModelInfo: {
-				maxTokens: 10_000,
-				contextWindow: 1_000_000,
-				supportsImages: true,
-				supportsPromptCache: true, // may need to turn this on
-				inputPrice: 0,
-				outputPrice: 0,
-			},
-		}
+		const provider = input.provider || "openrouter"
 
 		// Get the output of streaming output of this llm call
 		let streamResult: StreamResult
@@ -214,10 +198,34 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 				usage: { inputTokens: 0, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 0 },
 			}
 		} else {
-			// Live mode: existing API call logic
+			// Live mode: provider-specific API call logic
 			try {
-				const openRouterHandler = new OpenRouterHandler(options)
-				streamResult = await processStream(openRouterHandler, systemPrompt, messages)
+				let handler: OpenRouterHandler | OpenAiNativeHandler
+				
+				if (provider === "openai") {
+					const openAiOptions = {
+						openAiNativeApiKey: apiKey,
+						apiModelId: modelId,
+					}
+					handler = new OpenAiNativeHandler(openAiOptions)
+				} else {
+					const openRouterOptions = {
+						openRouterApiKey: apiKey,
+						openRouterModelId: modelId,
+						thinkingBudgetTokens: thinkingBudgetTokens,
+						openRouterModelInfo: {
+							maxTokens: 10_000,
+							contextWindow: 1_000_000,
+							supportsImages: true,
+							supportsPromptCache: true,
+							inputPrice: 0,
+							outputPrice: 0,
+						},
+					}
+					handler = new OpenRouterHandler(openRouterOptions)
+				}
+				
+				streamResult = await processStream(handler, systemPrompt, messages)
 			} catch (error: any) {
 				return {
 					success: false,

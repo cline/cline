@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as diff from "diff"
 import * as path from "path"
+import { Mode } from "@/shared/storage/types"
 import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/ClineIgnoreController"
 
 export const formatResponse = {
@@ -8,7 +9,11 @@ export const formatResponse = {
 		`[[NOTE] This file read has been removed to save space in the context window. Refer to the latest file read for the most up to date version of this file.]`,
 
 	contextTruncationNotice: () =>
-		`[NOTE] Some previous conversation history with the user has been removed to maintain optimal context window length. The initial user task and the most recent exchanges have been retained for continuity, while intermediate conversation history has been removed. Please keep this in mind as you continue assisting the user.`,
+		`[NOTE] Some previous conversation history with the user has been removed to maintain optimal context window length. The initial user task has been retained for continuity, while intermediate conversation history has been removed. Keep this in mind as you continue assisting the user. Pay special attention to the user's latest messages.`,
+
+	processFirstUserMessageForTruncation: () => {
+		return "[Continue assisting the user!]"
+	},
 
 	condense: () =>
 		`The user has accepted the condensed conversation summary you generated. This summary covers important details of the historical conversation with the user which has been truncated.\n<explicit_instructions type="condense_response">It's crucial that you respond by ONLY asking the user what you should work on next. You should NOT take any initiative or make any assumptions about continuing with work. For example you should NOT suggest file changes or attempt to read any files.\nWhen asking the user what you should work on next, you can reference information in the summary which was just generated. However, you should NOT reference information outside of what's contained in the summary for this response. Keep this response CONCISE.</explicit_instructions>`,
@@ -20,8 +25,10 @@ export const formatResponse = {
 	clineIgnoreError: (path: string) =>
 		`Access to ${path} is blocked by the .clineignore file settings. You must try to continue in the task without using this file, or ask the user to update the .clineignore file.`,
 
-	noToolsUsed: () =>
-		`[ERROR] You did not use a tool in your previous response! Please retry with a tool use.
+	noToolsUsed: (usingNativeToolCalls: boolean) =>
+		usingNativeToolCalls
+			? "[ERROR] You did not use a tool in your previous response! Please retry with a tool use."
+			: `[ERROR] You did not use a tool in your previous response! Please retry with a tool use.
 
 ${toolUseInstructionsReminder}
 
@@ -35,9 +42,6 @@ Otherwise, if you have not completed the task and do not need additional informa
 	tooManyMistakes: (feedback?: string) =>
 		`You seem to be having trouble proceeding. The user has provided the following feedback to help guide you:\n<feedback>\n${feedback}\n</feedback>`,
 
-	autoApprovalMaxReached: (feedback?: string) =>
-		`Auto-approval limit reached. The user has provided the following feedback to help guide you:\n<feedback>\n${feedback}\n</feedback>`,
-
 	missingToolParameterError: (paramName: string) =>
 		`Missing value for required parameter '${paramName}'. Please retry with complete response.\n\n${toolUseInstructionsReminder}`,
 
@@ -49,7 +53,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 		images?: string[],
 		fileString?: string,
 	): string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam> => {
-		let toolResultOutput = []
+		const toolResultOutput = []
 
 		if (!(images && images.length > 0) && !fileString) {
 			return text
@@ -147,7 +151,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 	},
 
 	taskResumption: (
-		mode: "plan" | "act",
+		mode: Mode,
 		agoText: string,
 		cwd: string,
 		wasRecent: boolean | 0 | undefined,
@@ -245,6 +249,9 @@ Otherwise, if you have not completed the task and do not need additional informa
 	cursorRulesLocalDirectoryInstructions: (cwd: string, content: string) =>
 		`# .cursor/rules\n\nThe following is provided by a root-level .cursor/rules directory where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${content}`,
 
+	agentsRulesLocalFileInstructions: (cwd: string, content: string) =>
+		`# AGENTS.md\n\nThe following is provided by AGENTS.md files found recursively throughout this working directory (${cwd.toPosix()}) where the user has specified instructions. Nested AGENTS.md will be combined below, and you should only apply the instructions for each AGENTS.md file that is directly applicable to the current task, i.e. if you are reading or writing to a file in that directory.\n\n${content}`,
+
 	fileContextWarning: (editedFiles: string[]): string => {
 		const fileCount = editedFiles.length
 		const fileVerb = fileCount === 1 ? "file has" : "files have"
@@ -279,21 +286,16 @@ const formatImagesIntoBlocks = (images?: string[]): Anthropic.ImageBlockParam[] 
 }
 
 const toolUseInstructionsReminder = `# Reminder: Instructions for Tool Use
-
 Tool uses are formatted using XML-style tags. The tool name is enclosed in opening and closing tags, and each parameter is similarly enclosed within its own set of tags. Here's the structure:
-
 <tool_name>
 <parameter1_name>value1</parameter1_name>
 <parameter2_name>value2</parameter2_name>
 ...
 </tool_name>
-
 For example:
-
 <attempt_completion>
 <result>
 I have completed the task...
 </result>
 </attempt_completion>
-
 Always adhere to this format for all tool uses to ensure proper parsing and execution.`

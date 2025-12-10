@@ -1,0 +1,69 @@
+name: Trigger Jetbrains Plugin <-> Cline Tests
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+permissions:
+  contents: read
+concurrency:
+  group: jetbrains-trigger-${{ github.event.number }}
+  cancel-in-progress: true
+
+jobs:
+  trigger-integration-test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: 1998650
+          private-key: ${{ secrets.CLINE_JETBRAINS_WORKFLOW_KEY }}
+          owner: cline
+          repositories: intellij-plugin
+
+      - name: Sanitize untrusted inputs
+        id: sanitize
+        env:
+          RAW_BRANCH_NAME: ${{ github.head_ref }}
+          RAW_PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          # Sanitize branch name for JSON
+          BRANCH_NAME_JSON=$(jq -n --arg b "$RAW_BRANCH_NAME" '$b')
+          echo "branch_name=$BRANCH_NAME_JSON" >> $GITHUB_OUTPUT
+          
+          # Sanitize PR title for JSON
+          PR_TITLE_JSON=$(jq -n --arg t "$RAW_PR_TITLE" '$t')
+          echo "pr_title=$PR_TITLE_JSON" >> $GITHUB_OUTPUT
+
+      - name: Trigger IntelliJ Plugin Integration Test
+        env:
+          BRANCH_NAME: ${{ steps.sanitize.outputs.branch_name }}
+          PR_TITLE: ${{ steps.sanitize.outputs.pr_title }}
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ steps.app-token.outputs.token }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "User-Agent: cline-pr-trigger" \
+            -H "Content-Type: application/json" \
+            https://api.github.com/repos/cline/intellij-plugin/dispatches \
+            -d @- <<EOF
+          {
+            "event_type": "cline-pr-check",
+            "client_payload": {
+              "pr_number": "${{ github.event.number }}",
+              "branch_name": $BRANCH_NAME,
+              "action": "${{ github.event.action }}",
+              "sha": "${{ github.event.pull_request.head.sha }}",
+              "pr_title": $PR_TITLE,
+              "pr_url": "${{ github.event.pull_request.html_url }}"
+            }
+          }
+          EOF
+
+      - name: Log trigger details
+        run: |
+          echo "Triggered IntelliJ Plugin integration test for:"
+          echo "  PR #${{ github.event.number }}"
+          echo "  Action: ${{ github.event.action }}"
+          echo "  SHA: ${{ github.event.pull_request.head.sha }}"

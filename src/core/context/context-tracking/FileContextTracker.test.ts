@@ -1,22 +1,24 @@
-import { describe, it, beforeEach, afterEach } from "mocha"
+import * as diskModule from "@core/storage/disk"
 import { expect } from "chai"
+import chokidar from "chokidar"
+import { afterEach, beforeEach, describe, it } from "mocha"
+import * as path from "path"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
-import * as path from "path"
+import { Controller } from "@/core/controller"
+import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
+import type { FileMetadataEntry, TaskMetadata } from "./ContextTrackerTypes"
 import { FileContextTracker } from "./FileContextTracker"
-import * as diskModule from "@core/storage/disk"
-import type { TaskMetadata, FileMetadataEntry } from "./ContextTrackerTypes"
-import type { DiffViewProviderCreator, WebviewProviderCreator } from "@/hosts/host-providers"
-import * as hostProviders from "@hosts/host-providers"
-import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
 
 describe("FileContextTracker", () => {
+	const filePath = "src/test-file.ts"
+	const taskId = "test-task-id"
+
 	let sandbox: sinon.SinonSandbox
-	let mockContext: vscode.ExtensionContext
-	let mockWorkspace: sinon.SinonStub
+	let _mockWorkspace: sinon.SinonStub
 	let mockFileSystemWatcher: any
+	let chokidarWatchStub: sinon.SinonStub
 	let tracker: FileContextTracker
-	let taskId: string
 	let mockTaskMetadata: TaskMetadata
 	let getTaskMetadataStub: sinon.SinonStub
 	let saveTaskMetadataStub: sinon.SinonStub
@@ -25,7 +27,7 @@ describe("FileContextTracker", () => {
 		sandbox = sinon.createSandbox()
 
 		// Mock vscode workspace
-		mockWorkspace = sandbox.stub(vscode.workspace, "workspaceFolders").value([
+		_mockWorkspace = sandbox.stub(vscode.workspace, "workspaceFolders").value([
 			{
 				uri: {
 					fsPath: "/mock/workspace",
@@ -33,35 +35,26 @@ describe("FileContextTracker", () => {
 			} as vscode.WorkspaceFolder,
 		])
 
-		// Mock file system watcher
+		// Mock chokidar file watcher
 		mockFileSystemWatcher = {
-			dispose: sandbox.stub(),
-			onDidChange: sandbox.stub().returns({ dispose: () => {} }),
+			close: sandbox.stub().resolves(),
+			on: sandbox.stub(),
 		}
+		// Return the watcher itself for chaining
+		mockFileSystemWatcher.on.returns(mockFileSystemWatcher)
 
-		// Use a function replacement instead of a direct stub
-		vscode.workspace.createFileSystemWatcher = function () {
-			return mockFileSystemWatcher
-		}
-
-		// Mock controller and context
-		mockContext = {
-			globalStorageUri: { fsPath: "/mock/storage" },
-		} as unknown as vscode.ExtensionContext
+		// Stub chokidar.watch to return our mock watcher
+		chokidarWatchStub = sandbox.stub(chokidar, "watch").returns(mockFileSystemWatcher as any)
 
 		// Mock disk module functions
-		mockTaskMetadata = { files_in_context: [], model_usage: [] }
+		mockTaskMetadata = { files_in_context: [], model_usage: [], environment_history: [] }
 		getTaskMetadataStub = sandbox.stub(diskModule, "getTaskMetadata").resolves(mockTaskMetadata)
 		saveTaskMetadataStub = sandbox.stub(diskModule, "saveTaskMetadata").resolves()
-		hostProviders.initializeHostProviders(
-			((_) => {}) as WebviewProviderCreator,
-			(() => {}) as DiffViewProviderCreator,
-			vscodeHostBridgeClient,
-		)
+
+		setVscodeHostProviderMock()
 
 		// Create tracker instance
-		taskId = "test-task-id"
-		tracker = new FileContextTracker(mockContext, taskId)
+		tracker = new FileContextTracker({} as Controller, taskId)
 	})
 
 	afterEach(() => {
@@ -69,18 +62,16 @@ describe("FileContextTracker", () => {
 	})
 
 	it("should add a record when a file is read by a tool", async () => {
-		const filePath = "src/test-file.ts"
-
 		await tracker.trackFileContext(filePath, "read_tool")
 
 		// Verify getTaskMetadata was called
 		expect(getTaskMetadataStub.calledOnce).to.be.true
-		expect(getTaskMetadataStub.firstCall.args[1]).to.equal(taskId)
+		expect(getTaskMetadataStub.firstCall.args[0]).to.equal(taskId)
 
 		// Verify saveTaskMetadata was called with the correct data
 		expect(saveTaskMetadataStub.calledOnce).to.be.true
 
-		const savedMetadata = saveTaskMetadataStub.firstCall.args[2]
+		const savedMetadata = saveTaskMetadataStub.firstCall.args[1]
 		expect(savedMetadata.files_in_context.length).to.equal(1)
 
 		const fileEntry = savedMetadata.files_in_context[0]
@@ -92,13 +83,11 @@ describe("FileContextTracker", () => {
 	})
 
 	it("should add a record when a file is edited by Cline", async () => {
-		const filePath = "src/test-file.ts"
-
 		await tracker.trackFileContext(filePath, "cline_edited")
 
 		// Verify saveTaskMetadata was called with the correct data
 		expect(saveTaskMetadataStub.calledOnce).to.be.true
-		const savedMetadata = saveTaskMetadataStub.firstCall.args[2]
+		const savedMetadata = saveTaskMetadataStub.firstCall.args[1]
 
 		// Check that we have at least one entry in files_in_context
 		expect(savedMetadata.files_in_context).to.be.an("array").that.is.not.empty
@@ -120,12 +109,10 @@ describe("FileContextTracker", () => {
 	})
 
 	it("should add a record when a file is mentioned", async () => {
-		const filePath = "src/test-file.ts"
-
 		await tracker.trackFileContext(filePath, "file_mentioned")
 
 		// Verify saveTaskMetadata was called with the correct data
-		const savedMetadata = saveTaskMetadataStub.firstCall.args[2]
+		const savedMetadata = saveTaskMetadataStub.firstCall.args[1]
 		const fileEntry = savedMetadata.files_in_context[0]
 
 		expect(fileEntry.path).to.equal(filePath)
@@ -136,12 +123,10 @@ describe("FileContextTracker", () => {
 	})
 
 	it("should add a record when a file is edited by the user", async () => {
-		const filePath = "src/test-file.ts"
-
 		await tracker.trackFileContext(filePath, "user_edited")
 
 		// Verify saveTaskMetadata was called with the correct data
-		const savedMetadata = saveTaskMetadataStub.firstCall.args[2]
+		const savedMetadata = saveTaskMetadataStub.firstCall.args[1]
 		const fileEntry = savedMetadata.files_in_context[0]
 
 		expect(fileEntry.path).to.equal(filePath)
@@ -155,8 +140,6 @@ describe("FileContextTracker", () => {
 	})
 
 	it("should mark existing entries as stale when adding a new entry for the same file", async () => {
-		const filePath = "src/test-file.ts"
-
 		// Add an initial entry
 		mockTaskMetadata.files_in_context = [
 			{
@@ -173,7 +156,7 @@ describe("FileContextTracker", () => {
 		await tracker.trackFileContext(filePath, "cline_edited")
 
 		// Verify the metadata now has two entries - one stale and one active
-		const savedMetadata = saveTaskMetadataStub.firstCall.args[2]
+		const savedMetadata = saveTaskMetadataStub.firstCall.args[1]
 		expect(savedMetadata.files_in_context.length).to.equal(2)
 
 		// First entry should be marked as stale
@@ -186,24 +169,16 @@ describe("FileContextTracker", () => {
 	})
 
 	it("should setup a file watcher for tracked files", async () => {
-		const filePath = "src/test-file.ts"
-
-		// Create a spy to track if createFileSystemWatcher was called
-		const createWatcherSpy = sinon.spy(vscode.workspace, "createFileSystemWatcher")
-
 		await tracker.trackFileContext(filePath, "read_tool")
 
-		// Verify createFileSystemWatcher was called
-		expect(createWatcherSpy.called).to.be.true
-		createWatcherSpy.restore()
+		// Verify chokidar.watch was called
+		expect(chokidarWatchStub.called).to.be.true
 
-		// Verify onDidChange was called to set up the change listener
-		expect(mockFileSystemWatcher.onDidChange.called).to.be.true
+		// Verify change listener was set up
+		expect(mockFileSystemWatcher.on.called).to.be.true
 	})
 
 	it("should track user edits when file watcher detects changes", async () => {
-		const filePath = "src/test-file.ts"
-
 		// First track the file to set up the watcher
 		await tracker.trackFileContext(filePath, "read_tool")
 
@@ -214,8 +189,8 @@ describe("FileContextTracker", () => {
 		// Create a spy on trackFileContext to verify it's called with the right parameters
 		const trackFileContextSpy = sandbox.spy(tracker, "trackFileContext")
 
-		// Get the callback that was registered with onDidChange
-		const callback = mockFileSystemWatcher.onDidChange.firstCall.args[0]
+		// Get the callback that was registered with chokidar "change" event
+		const callback = mockFileSystemWatcher.on.firstCall.args[1]
 
 		// Directly call the callback to simulate a file change event
 		callback(vscode.Uri.file(path.resolve("/mock/workspace", filePath)))
@@ -229,8 +204,6 @@ describe("FileContextTracker", () => {
 	})
 
 	it("should not track Cline edits as user edits", async () => {
-		const filePath = "src/test-file.ts"
-
 		// First track the file to set up the watcher
 		await tracker.trackFileContext(filePath, "read_tool")
 
@@ -244,8 +217,8 @@ describe("FileContextTracker", () => {
 		// Create a spy on trackFileContext to verify it's not called
 		const trackFileContextSpy = sandbox.spy(tracker, "trackFileContext")
 
-		// Get the callback that was registered with onDidChange
-		const callback = mockFileSystemWatcher.onDidChange.firstCall.args[0]
+		// Get the callback that was registered with chokidar "change" event
+		const callback = mockFileSystemWatcher.on.firstCall.args[1]
 
 		// Directly call the callback to simulate a file change event
 		callback(vscode.Uri.file(path.resolve("/mock/workspace", filePath)))
@@ -259,15 +232,13 @@ describe("FileContextTracker", () => {
 	})
 
 	it("should dispose file watchers when dispose is called", async () => {
-		const filePath = "src/test-file.ts"
-
 		// Track a file to set up the watcher
 		await tracker.trackFileContext(filePath, "read_tool")
 
 		// Call dispose
-		tracker.dispose()
+		await tracker.dispose()
 
-		// Verify the watcher was disposed
-		expect(mockFileSystemWatcher.dispose.called).to.be.true
+		// Verify the watcher was closed
+		expect(mockFileSystemWatcher.close.called).to.be.true
 	})
 })

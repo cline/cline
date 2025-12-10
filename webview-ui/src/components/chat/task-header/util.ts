@@ -1,5 +1,5 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
-import { COLOR_WHITE, COLOR_GRAY, COLOR_DARK_GRAY, COLOR_BEIGE, COLOR_BLUE, COLOR_PURPLE, COLOR_GREEN } from "../colors"
+import { COLOR_BEIGE, COLOR_BLUE, COLOR_DARK_GRAY, COLOR_GRAY, COLOR_GREEN, COLOR_PURPLE, COLOR_WHITE } from "../colors"
 
 /**
  *
@@ -29,12 +29,16 @@ export const getColor = (message: ClineMessage): string => {
 							toolData.tool === "searchFiles"
 						) {
 							return COLOR_BEIGE // Beige for file read operations
-						} else if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
+						} else if (
+							toolData.tool === "editedExistingFile" ||
+							toolData.tool === "newFileCreated" ||
+							toolData.tool === "deletedFile"
+						) {
 							return COLOR_BLUE // Blue for file edit/create operations
-						} else if (toolData.tool === "webFetch") {
-							return COLOR_PURPLE // Purple for web fetch operations
+						} else if (toolData.tool === "webFetch" || toolData.tool === "webSearch") {
+							return COLOR_PURPLE // Purple for web fetch/search operations
 						}
-					} catch (e) {
+					} catch (_e) {
 						// JSON parse error here
 					}
 				}
@@ -69,12 +73,16 @@ export const getColor = (message: ClineMessage): string => {
 							toolData.tool === "searchFiles"
 						) {
 							return COLOR_BEIGE // Beige for file read operations
-						} else if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
+						} else if (
+							toolData.tool === "editedExistingFile" ||
+							toolData.tool === "newFileCreated" ||
+							toolData.tool === "deletedFile"
+						) {
 							return COLOR_BLUE // Blue for file edit/create operations
-						} else if (toolData.tool === "webFetch") {
-							return COLOR_PURPLE // Purple for web fetch operations
+						} else if (toolData.tool === "webFetch" || toolData.tool === "webSearch") {
+							return COLOR_PURPLE // Purple for web fetch/search operations
 						}
-					} catch (e) {
+					} catch (_e) {
 						// JSON parse error here
 					}
 				}

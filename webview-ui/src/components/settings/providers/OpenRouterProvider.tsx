@@ -1,14 +1,12 @@
-import { ApiConfiguration } from "@shared/api"
-import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { DebouncedTextField } from "../common/DebouncedTextField"
-import { DropdownContainer } from "../common/ModelSelector"
-import { useState } from "react"
-import { getOpenRouterAuthUrl } from "../utils/providerUtils"
-import { useOpenRouterKeyInfo } from "../../ui/hooks/useOpenRouterKeyInfo"
-import VSCodeButtonLink from "../../common/VSCodeButtonLink"
-import OpenRouterModelPicker, { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../OpenRouterModelPicker"
-import { formatPrice } from "../utils/pricingUtils"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { Mode } from "@shared/storage/types"
+import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { AccountServiceClient } from "@/services/grpc-client"
+import { useOpenRouterKeyInfo } from "../../ui/hooks/useOpenRouterKeyInfo"
+import { DebouncedTextField } from "../common/DebouncedTextField"
+import OpenRouterModelPicker from "../OpenRouterModelPicker"
+import { formatPrice } from "../utils/pricingUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -33,7 +31,6 @@ const OpenRouterBalanceDisplay = ({ apiKey }: { apiKey: string }) => {
 	return (
 		<VSCodeLink
 			href="https://openrouter.ai/settings/keys"
-			title={`Remaining balance: ${formattedBalance}\nLimit: ${formatPrice(keyInfo.limit)}\nUsage: ${formatPrice(keyInfo.usage)}`}
 			style={{
 				fontSize: "12px",
 				color: "var(--vscode-foreground)",
@@ -41,7 +38,8 @@ const OpenRouterBalanceDisplay = ({ apiKey }: { apiKey: string }) => {
 				fontWeight: 500,
 				paddingLeft: 4,
 				cursor: "pointer",
-			}}>
+			}}
+			title={`Remaining balance: ${formattedBalance}\nLimit: ${formatPrice(keyInfo.limit)}\nUsage: ${formatPrice(keyInfo.usage)}`}>
 			Balance: {formattedBalance}
 		</VSCodeLink>
 	)
@@ -53,17 +51,15 @@ const OpenRouterBalanceDisplay = ({ apiKey }: { apiKey: string }) => {
 interface OpenRouterProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
-	uriScheme?: string
+	currentMode: Mode
 }
 
 /**
  * The OpenRouter provider configuration component
  */
-export const OpenRouterProvider = ({ showModelOptions, isPopup, uriScheme }: OpenRouterProviderProps) => {
+export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: OpenRouterProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
-
-	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
 
 	return (
 		<div>
@@ -71,9 +67,9 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, uriScheme }: Ope
 				<DebouncedTextField
 					initialValue={apiConfiguration?.openRouterApiKey || ""}
 					onChange={(value) => handleFieldChange("openRouterApiKey", value)}
+					placeholder="Enter API Key..."
 					style={{ width: "100%" }}
-					type="password"
-					placeholder="Enter API Key...">
+					type="password">
 					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
 						<span style={{ fontWeight: 500 }}>OpenRouter API Key</span>
 						{apiConfiguration?.openRouterApiKey && (
@@ -82,12 +78,18 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, uriScheme }: Ope
 					</div>
 				</DebouncedTextField>
 				{!apiConfiguration?.openRouterApiKey && (
-					<VSCodeButtonLink
-						href={getOpenRouterAuthUrl(uriScheme)}
-						style={{ margin: "5px 0 0 0" }}
-						appearance="secondary">
+					<VSCodeButton
+						appearance="secondary"
+						onClick={async () => {
+							try {
+								await AccountServiceClient.openrouterAuthClicked(EmptyRequest.create())
+							} catch (error) {
+								console.error("Failed to open OpenRouter auth:", error)
+							}
+						}}
+						style={{ margin: "5px 0 0 0" }}>
 						Get OpenRouter API Key
-					</VSCodeButtonLink>
+					</VSCodeButton>
 				)}
 				<p
 					style={{
@@ -101,48 +103,7 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, uriScheme }: Ope
 
 			{showModelOptions && (
 				<>
-					<VSCodeCheckbox
-						style={{ marginTop: -10 }}
-						checked={providerSortingSelected}
-						onChange={(e: any) => {
-							const isChecked = e.target.checked === true
-							setProviderSortingSelected(isChecked)
-							if (!isChecked) {
-								handleFieldChange("openRouterProviderSorting", "")
-							}
-						}}>
-						Sort underlying provider routing
-					</VSCodeCheckbox>
-
-					{providerSortingSelected && (
-						<div style={{ marginBottom: -6 }}>
-							<DropdownContainer className="dropdown-container" zIndex={OPENROUTER_MODEL_PICKER_Z_INDEX + 1}>
-								<VSCodeDropdown
-									style={{ width: "100%", marginTop: 3 }}
-									value={apiConfiguration?.openRouterProviderSorting}
-									onChange={(e: any) => {
-										handleFieldChange("openRouterProviderSorting", e.target.value)
-									}}>
-									<VSCodeOption value="">Default</VSCodeOption>
-									<VSCodeOption value="price">Price</VSCodeOption>
-									<VSCodeOption value="throughput">Throughput</VSCodeOption>
-									<VSCodeOption value="latency">Latency</VSCodeOption>
-								</VSCodeDropdown>
-							</DropdownContainer>
-							<p style={{ fontSize: "12px", marginTop: 3, color: "var(--vscode-descriptionForeground)" }}>
-								{!apiConfiguration?.openRouterProviderSorting &&
-									"Default behavior is to load balance requests across providers (like AWS, Google Vertex, Anthropic), prioritizing price while considering provider uptime"}
-								{apiConfiguration?.openRouterProviderSorting === "price" &&
-									"Sort providers by price, prioritizing the lowest cost provider"}
-								{apiConfiguration?.openRouterProviderSorting === "throughput" &&
-									"Sort providers by throughput, prioritizing the provider with the highest throughput (may increase cost)"}
-								{apiConfiguration?.openRouterProviderSorting === "latency" &&
-									"Sort providers by response time, prioritizing the provider with the lowest latency"}
-							</p>
-						</div>
-					)}
-
-					<OpenRouterModelPicker isPopup={isPopup} />
+					<OpenRouterModelPicker currentMode={currentMode} isPopup={isPopup} showProviderRouting={true} />
 				</>
 			)}
 		</div>

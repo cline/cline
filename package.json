@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.19.4",
+	"version": "3.40.1",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -46,6 +46,15 @@
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
+		"icons": {
+			"cline-icon": {
+				"description": "cline",
+				"default": {
+					"fontPath": "assets/icons/cline-bot.woff",
+					"fontCharacter": "\\e900"
+				}
+			}
+		},
 		"walkthroughs": [
 			{
 				"id": "ClineWalkthrough",
@@ -102,15 +111,8 @@
 			"activitybar": [
 				{
 					"id": "claude-dev-ActivityBar",
-					"title": "Cline (⌘+')",
-					"icon": "assets/icons/icon.svg",
-					"when": "isMac"
-				},
-				{
-					"id": "claude-dev-ActivityBar",
-					"title": "Cline (Ctrl+')",
-					"icon": "assets/icons/icon.svg",
-					"when": "!isMac"
+					"title": "Cline",
+					"icon": "assets/icons/icon.svg"
 				}
 			]
 		},
@@ -119,7 +121,8 @@
 				{
 					"type": "webview",
 					"id": "claude-dev.SidebarProvider",
-					"name": ""
+					"name": "",
+					"icon": "assets/icons/icon.svg"
 				}
 			]
 		},
@@ -140,11 +143,6 @@
 				"icon": "$(history)"
 			},
 			{
-				"command": "cline.popoutButtonClicked",
-				"title": "Open in Editor",
-				"icon": "$(link-external)"
-			},
-			{
 				"command": "cline.accountButtonClicked",
 				"title": "Account",
 				"icon": "$(account)"
@@ -155,13 +153,14 @@
 				"icon": "$(settings-gear)"
 			},
 			{
-				"command": "cline.openInNewTab",
-				"title": "Open In New Tab",
-				"category": "Cline"
-			},
-			{
 				"command": "cline.dev.createTestTasks",
 				"title": "Create Test Tasks",
+				"category": "Cline",
+				"when": "cline.isDevMode"
+			},
+			{
+				"command": "cline.dev.expireMcpOAuthTokens",
+				"title": "Expire MCP OAuth Tokens (for testing)",
 				"category": "Cline",
 				"when": "cline.isDevMode"
 			},
@@ -184,7 +183,13 @@
 				"command": "cline.generateGitCommitMessage",
 				"title": "Generate Commit Message with Cline",
 				"category": "Cline",
-				"icon": "$(robot)"
+				"icon": "$(cline-icon)"
+			},
+			{
+				"command": "cline.abortGitCommitMessage",
+				"title": "Generate Commit Message with Cline - Stop",
+				"category": "Cline",
+				"icon": "$(debug-stop)"
 			},
 			{
 				"command": "cline.explainCode",
@@ -200,9 +205,31 @@
 				"command": "cline.openWalkthrough",
 				"title": "Open Walkthrough",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.reconstructTaskHistory",
+				"title": "Reconstruct Task History",
+				"category": "Cline"
+			},
+			{
+				"command": "cline.reviewComment.reply",
+				"title": "Reply",
+				"category": "Cline",
+				"enablement": "!commentIsEmpty"
+			},
+			{
+				"command": "cline.reviewComment.addToChat",
+				"title": "Add to Cline Chat",
+				"category": "Cline",
+				"icon": "$(link-external)"
 			}
 		],
 		"keybindings": [
+			{
+				"command": "editor.action.submitComment",
+				"key": "enter",
+				"when": "commentEditorFocused && commentController == cline-ai-review && !commentIsEmpty"
+			},
 			{
 				"command": "cline.addToChat",
 				"key": "cmd+'",
@@ -213,7 +240,7 @@
 			},
 			{
 				"command": "cline.generateGitCommitMessage",
-				"when": "scmProvider == git"
+				"when": "config.git.enabled && scmProvider == git"
 			},
 			{
 				"command": "cline.focusChatInput",
@@ -242,11 +269,6 @@
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.popoutButtonClicked",
-					"group": "navigation@4",
-					"when": "view == claude-dev.SidebarProvider"
-				},
-				{
 					"command": "cline.accountButtonClicked",
 					"group": "navigation@5",
 					"when": "view == claude-dev.SidebarProvider"
@@ -255,38 +277,6 @@
 					"command": "cline.settingsButtonClicked",
 					"group": "navigation@6",
 					"when": "view == claude-dev.SidebarProvider"
-				}
-			],
-			"editor/title": [
-				{
-					"command": "cline.plusButtonClicked",
-					"group": "navigation@1",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
-				},
-				{
-					"command": "cline.mcpButtonClicked",
-					"group": "navigation@2",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
-				},
-				{
-					"command": "cline.historyButtonClicked",
-					"group": "navigation@3",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
-				},
-				{
-					"command": "cline.popoutButtonClicked",
-					"group": "navigation@4",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
-				},
-				{
-					"command": "cline.accountButtonClicked",
-					"group": "navigation@5",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
-				},
-				{
-					"command": "cline.settingsButtonClicked",
-					"group": "navigation@6",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
 				}
 			],
 			"editor/context": [
@@ -306,13 +296,40 @@
 				{
 					"command": "cline.generateGitCommitMessage",
 					"group": "navigation",
-					"when": "scmProvider == git"
+					"when": "config.git.enabled && scmProvider == git && !cline.isGeneratingCommit"
+				},
+				{
+					"command": "cline.abortGitCommitMessage",
+					"group": "navigation",
+					"when": "config.git.enabled && scmProvider == git && cline.isGeneratingCommit"
 				}
 			],
 			"commandPalette": [
 				{
 					"command": "cline.generateGitCommitMessage",
-					"when": "scmProvider == git"
+					"when": "config.git.enabled && !cline.isGeneratingCommit"
+				},
+				{
+					"command": "cline.abortGitCommitMessage",
+					"when": "config.git.enabled && cline.isGeneratingCommit"
+				},
+				{
+					"command": "cline.reviewComment.reply",
+					"when": "false"
+				}
+			],
+			"comments/commentThread/context": [
+				{
+					"command": "cline.reviewComment.reply",
+					"group": "inline",
+					"when": "commentController == cline-ai-review"
+				}
+			],
+			"comments/commentThread/title": [
+				{
+					"command": "cline.reviewComment.addToChat",
+					"group": "inline",
+					"when": "commentController == cline-ai-review"
 				}
 			]
 		},
@@ -323,50 +340,79 @@
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run package",
-		"compile": "npm run check-types && npm run lint && node esbuild.js",
-		"compile-standalone": "npm run check-types && npm run lint && node esbuild.js --standalone",
+		"compile": "npm run check-types && npm run lint && node esbuild.mjs",
+		"compile-standalone": "npm run check-types && npm run lint && node esbuild.mjs --standalone",
+		"compile-standalone-npm": "npm run protos && npm run protos-go && npm run check-types && npm run lint && node esbuild.mjs --standalone",
+		"compile-cli": "scripts/build-cli.sh",
+		"compile-cli-all-platforms": "scripts/build-cli-all-platforms.sh",
+		"compile-cli-man-page": "pandoc cli/man/cline.1.md -s -t man -o cli/man/cline.1",
+		"build:npm": "scripts/build-npm-package.sh",
+		"test:install": "bash scripts/test-install.sh",
+		"dev:cli:watch": "node scripts/dev-cli-watch.mjs",
 		"postcompile-standalone": "node scripts/package-standalone.mjs",
+		"postcompile-standalone-npm": "node scripts/package-standalone.mjs --target=npm",
+		"dev": "npm run protos && npm run watch",
 		"watch": "npm-run-all -p watch:*",
-		"watch:esbuild": "node esbuild.js --watch",
+		"watch:esbuild": "node esbuild.mjs --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-		"package": "npm run check-types && npm run build:webview && npm run lint && node esbuild.js --production",
-		"protos": "node scripts/build-proto.mjs && node scripts/generate-server-setup.mjs && node scripts/generate-host-bridge-client.mjs",
-		"postprotos": "prettier src/shared/proto src/core/controller src/hosts/ webview-ui/src/services src/generated --write --log-level warn",
-		"clean": "rimraf dist dist-standalone webview-ui/build src/generated out/",
+		"package": "npm run check-types && npm run build:webview && npm run lint && node esbuild.mjs --production",
+		"protos": "node scripts/build-proto.mjs",
+		"protos-go": "node scripts/build-go-proto.mjs",
+		"protos-python": "node scripts/build-python-proto.mjs",
+		"cli-providers": "node scripts/cli-providers.mjs",
+		"download-ripgrep": "node scripts/download-ripgrep.mjs",
+		"postprotos": "biome format src/shared/proto src/core/controller src/hosts/ webview-ui/src/services src/generated --write --no-errors-on-unmatched",
+		"clean:build": "rimraf dist dist-standalone webview-ui/build src/generated out/",
+		"clean:deps": "rimraf node_modules webview-ui/node_modules",
+		"clean:all": "npm run clean:build && npm run clean:deps",
 		"compile-tests": "node ./scripts/build-tests.js",
 		"watch-tests": "tsc -p . -w --outDir out",
 		"check-types": "npm run protos && npx tsc --noEmit && cd webview-ui && npx tsc -b --noEmit",
-		"lint": "eslint src --ext ts && eslint webview-ui/src --ext ts && buf lint && cd webview-ui && npm run lint",
-		"format": "prettier . --check",
-		"format:fix": "prettier . --write",
+		"lint": "biome lint --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error && npm run lint:proto",
+		"lint:proto": "bash ./scripts/proto-lint.sh",
+		"format": "biome format --changed --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error",
+		"format:fix": "biome check --changed --no-errors-on-unmatched --files-ignore-unknown=true --write",
+		"fix:all": "biome check --no-errors-on-unmatched --files-ignore-unknown=true --write --diagnostic-level=error --unsafe",
+		"ci:check-all": "npm-run-all -p check-types lint format",
+		"ci:build": "npm run protos && npm run build:webview && node esbuild.mjs && npm run compile-tests",
 		"pretest": "npm run compile && npm run compile-tests && npm run compile-standalone && npm run lint",
 		"test": "npm-run-all test:unit test:integration",
-		"test:ci": "node scripts/test-ci.js",
 		"test:integration": "vscode-test",
-		"test:unit": "TS_NODE_PROJECT='./tsconfig.unit-test.json' mocha",
+		"test:unit": "cross-env TS_NODE_PROJECT=./tsconfig.unit-test.json mocha # Use `UPDATE_SNAPSHOTS=true npm run test:unit` to rebuild prompt snapshots",
 		"test:coverage": "vscode-test --coverage",
+		"test:sca-server": "npx tsx watch scripts/test-standalone-core-api-server.ts",
+		"test:tp-orchestrator": "npx tsx scripts/testing-platform-orchestrator.ts",
+		"e2e": "playwright test -c playwright.config.ts",
+		"test:e2e:build": "vsce package --allow-package-secrets sendgrid --out dist/e2e.vsix",
+		"test:e2e": "playwright install && npm run test:e2e:build && node src/test/e2e/utils/build.mjs && playwright test",
+		"test:e2e:optimal": "npm run test:e2e:build && node src/test/e2e/utils/build.mjs && playwright test",
+		"test:e2e:ui": "npx tsx scripts/interactive-playwright.ts",
 		"install:all": "npm install && cd webview-ui && npm install",
 		"dev:webview": "cd webview-ui && npm run dev",
 		"build:webview": "cd webview-ui && npm run build",
 		"test:webview": "cd webview-ui && npm run test",
-		"publish:marketplace": "vsce publish && ovsx publish",
-		"publish:marketplace:prerelease": "vsce publish --pre-release && ovsx publish --pre-release",
+		"publish:marketplace": "vsce publish --allow-package-secrets sendgrid && ovsx publish",
+		"publish:marketplace:prerelease": "vsce publish --allow-package-secrets sendgrid --pre-release && ovsx publish --pre-release",
+		"publish:marketplace:nightly": "node ./scripts/publish-nightly.mjs",
 		"prepare": "husky",
 		"changeset": "changeset",
 		"version-packages": "changeset version",
-		"docs": "cd docs && mintlify dev",
-		"docs:check-links": "cd docs && mintlify broken-links",
-		"docs:rename-file": "cd docs && mintlify rename",
-		"report-issue": "node scripts/report-issue.js"
+		"docs": "cd docs && npm run dev",
+		"docs:check-links": "cd docs && npm run check",
+		"docs:rename-file": "cd docs && npm run rename",
+		"report-issue": "node scripts/report-issue.js",
+		"storybook": "cd webview-ui && npm run storybook"
 	},
 	"lint-staged": {
 		"*": [
-			"prettier --write --ignore-unknown --log-level=log"
+			"biome check --write --staged --no-errors-on-unmatched --files-ignore-unknown=true"
 		]
 	},
 	"devDependencies": {
+		"@biomejs/biome": "^2.1.4",
 		"@bufbuild/buf": "^1.54.0",
 		"@changesets/cli": "^2.27.12",
+		"@types/better-sqlite3": "^7.6.13",
 		"@types/chai": "^5.0.1",
 		"@types/clone-deep": "^4.0.4",
 		"@types/diff": "^5.2.1",
@@ -378,29 +424,28 @@
 		"@types/should": "^11.2.0",
 		"@types/sinon": "^17.0.4",
 		"@types/turndown": "^5.0.5",
-		"@types/vscode": "^1.84.0",
-		"@typescript-eslint/eslint-plugin": "^7.14.1",
-		"@typescript-eslint/parser": "^7.18.0",
-		"@typescript-eslint/utils": "^8.33.0",
+		"@types/vscode": "1.84.0",
 		"@vscode/test-cli": "^0.0.10",
-		"@vscode/test-electron": "^2.4.1",
+		"@vscode/test-electron": "^2.5.2",
+		"@vscode/vsce": "^3.6.0",
+		"c8": "^10.1.3",
 		"chai": "^4.3.10",
-		"chalk": "^5.3.0",
+		"chalk": "5.6.2",
+		"cross-env": "^10.1.0",
 		"esbuild": "^0.25.0",
-		"eslint": "^8.57.0",
-		"eslint-plugin-eslint-rules": "file:eslint-rules",
 		"grpc-tools": "^1.13.0",
 		"husky": "^9.1.7",
 		"lint-staged": "^16.1.0",
 		"minimatch": "^3.0.3",
-		"mintlify": "^4.0.515",
 		"npm-run-all": "^4.1.5",
-		"prettier": "^3.3.3",
+		"nyc": "^17.1.0",
+		"prebuild-install": "^7.1.3",
 		"protoc-gen-ts": "^0.8.7",
 		"proxyquire": "^2.1.3",
 		"rimraf": "^6.0.1",
 		"should": "^13.2.3",
 		"sinon": "^19.0.2",
+		"tree-kill": "^1.2.2",
 		"ts-node": "^10.9.2",
 		"ts-proto": "^2.6.1",
 		"tsconfig-paths": "^4.2.0",
@@ -409,27 +454,45 @@
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.37.0",
 		"@anthropic-ai/vertex-sdk": "^0.6.4",
-		"@aws-sdk/client-bedrock-runtime": "^3.840.0",
-		"@aws-sdk/credential-providers": "^3.840.0",
+		"@aws-sdk/client-bedrock-runtime": "^3.922.0",
+		"@aws-sdk/credential-providers": "^3.922.0",
 		"@bufbuild/protobuf": "^2.2.5",
 		"@cerebras/cerebras_cloud_sdk": "^1.35.0",
 		"@google-cloud/vertexai": "^1.9.3",
-		"@google/genai": "1.0.0",
+		"@google/genai": "^1.30.0",
 		"@grpc/grpc-js": "^1.9.15",
 		"@grpc/reflection": "^1.0.4",
 		"@mistralai/mistralai": "^1.5.0",
 		"@modelcontextprotocol/sdk": "^1.11.1",
-		"@opentelemetry/api": "^1.4.1",
-		"@opentelemetry/exporter-trace-otlp-http": "^0.39.1",
+		"@opentelemetry/api": "^1.9.0",
+		"@opentelemetry/core": "^2.1.0",
+		"@opentelemetry/exporter-logs-otlp-grpc": "^0.56.0",
+		"@opentelemetry/exporter-logs-otlp-http": "^0.56.0",
+		"@opentelemetry/exporter-logs-otlp-proto": "^0.56.0",
+		"@opentelemetry/exporter-metrics-otlp-grpc": "^0.56.0",
+		"@opentelemetry/exporter-metrics-otlp-http": "^0.56.0",
+		"@opentelemetry/exporter-metrics-otlp-proto": "^0.56.0",
+		"@opentelemetry/exporter-prometheus": "^0.56.0",
+		"@opentelemetry/exporter-trace-otlp-http": "^0.56.0",
+		"@opentelemetry/instrumentation": "^0.205.0",
+		"@opentelemetry/instrumentation-http": "^0.205.0",
 		"@opentelemetry/resources": "^1.30.1",
-		"@opentelemetry/sdk-node": "^0.39.1",
+		"@opentelemetry/sdk-logs": "^0.56.0",
+		"@opentelemetry/sdk-metrics": "^1.30.1",
+		"@opentelemetry/sdk-node": "^0.56.0",
+		"@opentelemetry/sdk-trace-base": "^2.1.0",
 		"@opentelemetry/sdk-trace-node": "^1.30.1",
-		"@opentelemetry/semantic-conventions": "^1.30.0",
-		"@sentry/browser": "^9.12.0",
+		"@opentelemetry/semantic-conventions": "^1.37.0",
+		"@playwright/test": "^1.55.1",
+		"@sap-ai-sdk/ai-api": "^2.1.0",
+		"@sap-ai-sdk/orchestration": "^2.1.0",
 		"@streamparser/json": "^0.0.22",
+		"@tailwindcss/vite": "^4.1.14",
+		"@types/uuid": "^10.0.0",
 		"@vscode/codicons": "^0.0.36",
 		"archiver": "^7.0.1",
-		"axios": "^1.8.2",
+		"axios": "^1.12.0",
+		"better-sqlite3": "^12.4.1",
 		"cheerio": "^1.0.0",
 		"chokidar": "^4.0.1",
 		"chrome-launcher": "^1.1.2",
@@ -439,7 +502,6 @@
 		"exceljs": "^4.4.0",
 		"execa": "^9.5.2",
 		"fast-deep-equal": "^3.1.3",
-		"firebase": "^11.2.0",
 		"fzf": "^0.5.2",
 		"get-folder-size": "^5.0.0",
 		"globby": "^14.0.2",
@@ -449,30 +511,76 @@
 		"image-size": "^2.0.2",
 		"isbinaryfile": "^5.0.2",
 		"jschardet": "^3.1.4",
-		"jwt-decode": "^4.0.0",
-		"mammoth": "^1.8.0",
-		"monaco-vscode-textmate-theme-converter": "^0.1.7",
+		"mammoth": "^1.11.0",
+		"nanoid": "^5.1.6",
 		"nice-grpc": "^2.1.12",
+		"node-machine-id": "^1.1.12",
 		"ollama": "^0.5.13",
 		"open": "^10.1.2",
 		"open-graph-scraper": "^6.9.0",
-		"openai": "^4.83.0",
+		"openai": "^6.9.0",
 		"os-name": "^6.0.0",
+		"p-mutex": "^1.0.0",
 		"p-timeout": "^6.1.4",
 		"p-wait-for": "^5.0.2",
 		"pdf-parse": "^1.1.1",
-		"posthog-node": "^4.8.1",
+		"posthog-node": "^5.8.0",
 		"puppeteer-chromium-resolver": "^23.0.0",
 		"puppeteer-core": "^23.4.0",
 		"reconnecting-eventsource": "^1.6.4",
 		"serialize-error": "^11.0.3",
 		"simple-git": "^3.27.0",
-		"strip-ansi": "^7.1.0",
+		"strip-ansi": "^7.1.2",
+		"tailwindcss": "^4.1.14",
 		"tree-sitter-wasms": "^0.1.11",
 		"ts-morph": "^25.0.1",
 		"turndown": "^7.2.0",
+		"ulid": "^2.4.0",
+		"undici": "^7.16.0",
+		"uuid": "^11.1.0",
 		"vscode-uri": "^3.1.0",
 		"web-tree-sitter": "^0.22.6",
 		"zod": "^3.24.2"
+	},
+	"overrides": {
+		"tar-fs": ">=3.1.1",
+		"tar": "^7.5.2",
+		"vite": "^7.1.11",
+		"js-yaml": "^4.1.1"
+	},
+	"c8": {
+		"reporter": [
+			"lcov",
+			"html"
+		],
+		"exclude": [
+			"**/testing-platform/**",
+			"**/webview-ui/**",
+			"**/.vscode-test/**",
+			"**/node_modules/**",
+			"node_modules",
+			"**/dist-standalone/src/**",
+			"**/dist-standalone/vsce-extension/https:/**",
+			"**/dist-standalone/vsce-extension/**",
+			"**/dist-standalone/https:/**",
+			"**/dist-standalone/LIB/src/**",
+			"**/dist-standalone/pdfjs-dist/**",
+			"**/*.d.ts",
+			"**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs}",
+			"**/__tests__/**",
+			"**/test/**",
+			"**/tests/**",
+			"**/.nyc_output/**",
+			"**/tests-results/**",
+			"src/test/**",
+			"**/src/xml/**",
+			"**/standalone/**",
+			"**/src/generated/**",
+			"**/evals/cli/dist/**",
+			"**/evals/cli/src/**",
+			"dist"
+		],
+		"all": true,
+		"exclude-after-remap": true
 	}
 }

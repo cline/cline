@@ -1,11 +1,10 @@
-import path from "path"
+import { Empty, StringArrayRequest } from "@shared/proto/cline/common"
 import fs from "fs/promises"
-import { Controller } from ".."
-import { Empty, StringArrayRequest } from "../../../shared/proto/common"
-import { TaskMethodHandler } from "./index"
+import path from "path"
+import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import { fileExistsAtPath } from "../../../utils/fs"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { Controller } from ".."
 
 /**
  * Deletes tasks with the specified IDs
@@ -14,10 +13,7 @@ import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
  * @returns Empty response
  * @throws Error if operation fails
  */
-export const deleteTasksWithIds: TaskMethodHandler = async (
-	controller: Controller,
-	request: StringArrayRequest,
-): Promise<Empty> => {
+export async function deleteTasksWithIds(controller: Controller, request: StringArrayRequest): Promise<Empty> {
 	if (!request.value || request.value.length === 0) {
 		throw new Error("Missing task IDs")
 	}
@@ -28,15 +24,13 @@ export const deleteTasksWithIds: TaskMethodHandler = async (
 			? "Are you sure you want to delete this task? This action cannot be undone."
 			: `Are you sure you want to delete these ${taskCount} tasks? This action cannot be undone.`
 
-	const userChoice = await getHostBridgeProvider().windowClient.showMessage(
-		ShowMessageRequest.create({
-			type: ShowMessageType.WARNING,
-			message,
-			options: { modal: true, items: ["Delete"] },
-		}),
-	)
+	const userChoice = await HostProvider.window.showMessage({
+		type: ShowMessageType.WARNING,
+		message,
+		options: { modal: true, items: ["Delete"] },
+	})
 
-	if (userChoice === undefined) {
+	if (userChoice.selectedOption !== "Delete") {
 		return Empty.create()
 	}
 
@@ -53,8 +47,6 @@ export const deleteTasksWithIds: TaskMethodHandler = async (
  * @param id The task ID to delete
  */
 async function deleteTaskWithId(controller: Controller, id: string): Promise<void> {
-	console.info("deleteTaskWithId: ", id)
-
 	try {
 		// Clear current task if it matches the ID being deleted
 		if (id === controller.task?.taskId) {
@@ -76,10 +68,7 @@ async function deleteTaskWithId(controller: Controller, id: string): Promise<voi
 			contextHistoryFilePath,
 			taskMetadataFilePath,
 		]) {
-			const fileExists = await fileExistsAtPath(filePath)
-			if (fileExists) {
-				await fs.unlink(filePath)
-			}
+			await fs.rm(filePath, { force: true })
 		}
 
 		// Remove empty task directory
@@ -91,8 +80,8 @@ async function deleteTaskWithId(controller: Controller, id: string): Promise<voi
 
 		// If no tasks remain, clean up everything
 		if (updatedTaskHistory.length === 0) {
-			const taskDirPath = path.join(controller.context.globalStorageUri.fsPath, "tasks")
-			const checkpointsDirPath = path.join(controller.context.globalStorageUri.fsPath, "checkpoints")
+			const taskDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks")
+			const checkpointsDirPath = path.join(HostProvider.get().globalStorageFsPath, "checkpoints")
 
 			if (await fileExistsAtPath(taskDirPath)) {
 				await fs.rm(taskDirPath, { recursive: true, force: true })

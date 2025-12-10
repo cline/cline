@@ -1,9 +1,8 @@
+import { StringRequest } from "@shared/proto/cline/common"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { memo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { TaskServiceClient } from "@/services/grpc-client"
-import { formatLargeNumber } from "@/utils/format"
-import { StringRequest } from "@shared/proto/common"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { memo, useState } from "react"
 
 type HistoryPreviewProps = {
 	showHistoryView: () => void
@@ -11,47 +10,107 @@ type HistoryPreviewProps = {
 
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 	const { taskHistory } = useExtensionState()
-	const [isExpanded, setIsExpanded] = useState(true)
-
 	const handleHistorySelect = (id: string) => {
 		TaskServiceClient.showTaskWithId(StringRequest.create({ value: id })).catch((error) =>
 			console.error("Error showing task:", error),
 		)
 	}
 
-	const toggleExpanded = () => {
-		setIsExpanded(!isExpanded)
-	}
-
 	const formatDate = (timestamp: number) => {
 		const date = new Date(timestamp)
-		return date
-			?.toLocaleString("en-US", {
-				month: "long",
-				day: "numeric",
-				hour: "numeric",
-				minute: "2-digit",
-				hour12: true,
-			})
-			.replace(", ", " ")
-			.replace(" at", ",")
-			.toUpperCase()
+		return date?.toLocaleString("en-US", {
+			month: "short",
+			day: "numeric",
+		})
 	}
 
 	return (
-		<div className="flex-shrink-0">
+		<div style={{ flexShrink: 0 }}>
+			<style>
+				{`
+					.history-preview-item {
+						background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 65%, transparent);
+						border-radius: 4px;
+						position: relative;
+						overflow: hidden;
+						cursor: pointer;
+						margin-bottom: 8px;
+						padding: 10px 12px;
+						display: flex;
+						align-items: flex-start;
+						gap: 12px;
+					}
+					.history-preview-item:hover {
+						background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 100%, transparent);
+						pointer-events: auto;
+					}
+					.history-task-content {
+						flex: 1;
+						display: flex;
+						align-items: flex-start;
+						gap: 8px;
+						min-width: 0;
+					}
+					.history-task-description {
+						flex: 1;
+						overflow: hidden;
+						display: -webkit-box;
+						-webkit-line-clamp: 2;
+						-webkit-box-orient: vertical;
+						color: var(--vscode-foreground);
+						font-size: var(--vscode-font-size);
+						line-height: 1.4;
+					}
+					.history-meta-stack {
+						display: flex;
+						flex-direction: column;
+						align-items: center;
+						gap: 4px;
+						flex-shrink: 0;
+					}
+					.history-date {
+						color: var(--vscode-descriptionForeground);
+						font-size: 0.85em;
+						white-space: nowrap;
+					}
+					.history-cost-chip {
+						background-color: var(--vscode-badge-background);
+						color: var(--vscode-badge-foreground);
+						padding: 2px 8px;
+						border-radius: 12px;
+						font-size: 0.85em;
+						font-weight: 500;
+						white-space: nowrap;
+					}
+				`}
+			</style>
+
 			<div
-				className="flex items-center gap-2 mx-5 my-2 cursor-pointer select-none text-[var(--vscode-descriptionForeground)] hover:opacity-80 transition-all duration-200 rounded-lg px-2 py-1 hover:bg-[var(--vscode-toolbar-hoverBackground)]"
-				onClick={toggleExpanded}>
+				className="history-header"
+				style={{
+					color: "var(--vscode-descriptionForeground)",
+					margin: "10px 16px 10px 16px",
+					display: "flex",
+					alignItems: "center",
+				}}>
 				<span
-					className={`codicon codicon-chevron-${isExpanded ? "down" : "right"} scale-90 transition-transform duration-200`}
-				/>
-				<span className="codicon codicon-comment-discussion scale-90" />
-				<span className="font-medium text-xs uppercase tracking-wide">Recent Tasks</span>
+					className="codicon codicon-comment-discussion"
+					style={{
+						marginRight: "4px",
+						transform: "scale(0.9)",
+					}}></span>
+				<span
+					style={{
+						fontWeight: 500,
+						fontSize: "0.85em",
+						textTransform: "uppercase",
+					}}>
+					Recent Tasks
+				</span>
 			</div>
 
-			{isExpanded && (
-				<div className="px-5 space-y-3">
+			{
+				<div className="px-4">
 					{taskHistory.filter((item) => item.ts && item.task).length > 0 ? (
 						<>
 							{taskHistory
@@ -59,107 +118,66 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 								.slice(0, 3)
 								.map((item) => (
 									<div
+										className="history-preview-item"
 										key={item.id}
-										className="relative rounded-xl p-3 cursor-pointer overflow-hidden transition-all duration-150 ease-out hover:scale-[1.02] hover:shadow-xl group hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_50%,transparent)] hover:border-[color-mix(in_srgb,var(--vscode-panel-border)_80%,transparent)]"
-										style={{
-											backgroundColor:
-												"color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 30%, transparent)",
-											border: "1px solid color-mix(in srgb, var(--vscode-panel-border) 50%, transparent)",
-											backdropFilter: "blur(8px)",
-										}}
 										onClick={() => handleHistorySelect(item.id)}>
-										{/* Subtle gradient overlay for extra depth */}
-										<div
-											className="absolute inset-0 transition-all duration-150 rounded-xl opacity-0 group-hover:opacity-100"
-											style={{
-												background:
-													"linear-gradient(135deg, color-mix(in srgb, var(--vscode-button-background) 5%, transparent) 0%, color-mix(in srgb, var(--vscode-focusBorder) 3%, transparent) 100%)",
-											}}
-										/>
-
-										{item.isFavorited && (
-											<div
-												className="absolute top-3 right-3 z-20 drop-shadow-sm"
-												style={{ color: "var(--vscode-button-background)" }}>
-												<span className="codicon codicon-star-full" aria-label="Favorited" />
-											</div>
-										)}
-
-										<div className="relative z-10">
-											<div className="mb-2">
-												<span className="text-[var(--vscode-descriptionForeground)] font-medium text-xs uppercase tracking-wider opacity-80">
-													{formatDate(item.ts)}
-												</span>
-											</div>
-
-											<div
-												id={`history-preview-task-${item.id}`}
-												className="text-[var(--vscode-descriptionForeground)] mb-2 line-clamp-3 whitespace-pre-wrap break-words"
-												style={{ fontSize: "var(--vscode-font-size)" }}>
-												<span className="ph-no-capture">{item.task}</span>
-											</div>
-
-											<div className="text-xs text-[var(--vscode-descriptionForeground)] opacity-75 space-x-1">
-												<span>
-													Tokens: ↑{formatLargeNumber(item.tokensIn || 0)} ↓
-													{formatLargeNumber(item.tokensOut || 0)}
-												</span>
-												{!!item.cacheWrites && (
-													<>
-														<span
-															style={{
-																color: "color-mix(in srgb, var(--vscode-descriptionForeground) 40%, transparent)",
-															}}>
-															•
-														</span>
-														<span>
-															Cache: +{formatLargeNumber(item.cacheWrites || 0)} →{" "}
-															{formatLargeNumber(item.cacheReads || 0)}
-														</span>
-													</>
-												)}
-												{!!item.totalCost && (
-													<>
-														<span
-															style={{
-																color: "color-mix(in srgb, var(--vscode-descriptionForeground) 40%, transparent)",
-															}}>
-															•
-														</span>
-														<span>API Cost: ${item.totalCost?.toFixed(4)}</span>
-													</>
-												)}
-											</div>
+										<div className="history-task-content">
+											{item.isFavorited && (
+												<span
+													aria-label="Favorited"
+													className="codicon codicon-star-full"
+													style={{
+														color: "var(--vscode-button-background)",
+														flexShrink: 0,
+													}}
+												/>
+											)}
+											<div className="history-task-description ph-no-capture">{item.task}</div>
+										</div>
+										<div className="history-meta-stack">
+											<span className="history-date">{formatDate(item.ts)}</span>
+											{item.totalCost != null && (
+												<span className="history-cost-chip">${item.totalCost.toFixed(2)}</span>
+											)}
 										</div>
 									</div>
 								))}
-							<div className="flex items-center justify-center pt-2">
-								<button
+							<div
+								style={{
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "flex-start",
+								}}>
+								<VSCodeButton
+									appearance="icon"
+									aria-label="View all history"
 									onClick={() => showHistoryView()}
-									className="cursor-pointer text-center transition-all duration-150 hover:opacity-80 flex items-center gap-1 bg-transparent border-none outline-none focus:outline-none"
 									style={{
-										color: "var(--vscode-descriptionForeground)",
-										fontSize: "var(--vscode-font-size)",
+										opacity: 0.9,
 									}}>
-									<span className="codicon codicon-history scale-90"></span>
-									<span className="font-medium">View all history</span>
-								</button>
+									<div
+										style={{
+											fontSize: "var(--vscode-font-size)",
+											color: "var(--vscode-descriptionForeground)",
+										}}>
+										View All
+									</div>
+								</VSCodeButton>
 							</div>
 						</>
 					) : (
 						<div
-							className="text-center text-[var(--vscode-descriptionForeground)] py-4 rounded-xl"
 							style={{
+								textAlign: "center",
+								color: "var(--vscode-descriptionForeground)",
 								fontSize: "var(--vscode-font-size)",
-								backgroundColor: "color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 20%, transparent)",
-								border: "1px solid color-mix(in srgb, var(--vscode-panel-border) 30%, transparent)",
-								backdropFilter: "blur(8px)",
+								padding: "10px 0",
 							}}>
 							No recent tasks
 						</div>
 					)}
 				</div>
-			)}
+			}
 		</div>
 	)
 }

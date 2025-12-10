@@ -1,6 +1,5 @@
-import { StateServiceClient } from "@/services/grpc-client"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import { convertAutoApprovalSettingsToProto } from "@shared/proto-conversions/models/auto-approval-settings-conversion"
+import { StateServiceClient } from "@/services/grpc-client"
 
 /**
  * Updates auto approval settings using the gRPC/Protobus client
@@ -9,8 +8,7 @@ import { convertAutoApprovalSettingsToProto } from "@shared/proto-conversions/mo
  */
 export async function updateAutoApproveSettings(settings: AutoApprovalSettings) {
 	try {
-		const protoSettings = convertAutoApprovalSettingsToProto(settings)
-		await StateServiceClient.updateAutoApprovalSettings(protoSettings)
+		await StateServiceClient.updateAutoApprovalSettings({ metadata: {}, ...settings })
 	} catch (error) {
 		console.error("Failed to update auto approval settings:", error)
 		throw error

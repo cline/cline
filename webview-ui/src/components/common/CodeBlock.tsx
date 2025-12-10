@@ -3,15 +3,21 @@ import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import styled from "styled-components"
 import { visit } from "unist-util-visit"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import "./codeblock-parser.css"
 
 export const CODE_BLOCK_BG_COLOR = "var(--vscode-editor-background, --vscode-sideBar-background, rgb(30 30 30))"
+
+export const TERMINAL_CODE_BLOCK_BG_COLOR = "var(--vscode-editor-background, --vscode-sideBar-background, rgb(30 30 30))"
+
+// Theme-aware background colors for expanded/collapsed states
+export const CHAT_ROW_EXPANDED_BG_COLOR = "var(--vscode-editor-background)"
+export const CHAT_ROW_COLLAPSED_BG_COLOR = "var(--vscode-sideBar-background)"
 
 /*
 overflowX: auto + inner div with padding results in an issue where the top/left/bottom padding renders but the right padding inside does not count as overflow as the width of the element is not exceeded. Once the inner div is outside the boundaries of the parent it counts as overflow.
 https://stackoverflow.com/questions/60778406/why-is-padding-right-clipped-with-overflowscroll/77292459#77292459
 this fixes the issue of right padding clipped off 
-“ideal” size in a given axis when given infinite available space--allows the syntax highlighter to grow to largest possible width including its padding
+"ideal" size in a given axis when given infinite available space--allows the syntax highlighter to grow to largest possible width including its padding
 minWidth: "max-content",
 */
 
@@ -100,7 +106,7 @@ const StyledPre = styled.pre<{ theme: any }>`
 
 	${(props) =>
 		Object.keys(props.theme)
-			.map((key, index) => {
+			.map((key, _index) => {
 				return `
       & ${key} {
         color: ${props.theme[key]};
@@ -111,7 +117,6 @@ const StyledPre = styled.pre<{ theme: any }>`
 `
 
 const CodeBlock = memo(({ source, forceWrap = false }: CodeBlockProps) => {
-	const { theme } = useExtensionState()
 	const [reactContent, setMarkdownSource] = useRemark({
 		remarkPlugins: [
 			() => {
@@ -135,14 +140,14 @@ const CodeBlock = memo(({ source, forceWrap = false }: CodeBlockProps) => {
 		],
 		rehypeReactOptions: {
 			components: {
-				pre: ({ node, ...preProps }: any) => <StyledPre {...preProps} theme={theme} />,
+				pre: ({ node, ...preProps }: any) => <StyledPre {...preProps} />,
 			},
 		},
 	})
 
 	useEffect(() => {
 		setMarkdownSource(source || "")
-	}, [source, setMarkdownSource, theme])
+	}, [source, setMarkdownSource])
 
 	return (
 		<div
@@ -151,7 +156,7 @@ const CodeBlock = memo(({ source, forceWrap = false }: CodeBlockProps) => {
 				maxHeight: forceWrap ? "none" : "100%",
 				backgroundColor: CODE_BLOCK_BG_COLOR,
 			}}>
-			<StyledMarkdown className="ph-no-capture" forceWrap={forceWrap}>
+			<StyledMarkdown className="ph-no-capture markdown" forceWrap={forceWrap}>
 				{reactContent}
 			</StyledMarkdown>
 		</div>

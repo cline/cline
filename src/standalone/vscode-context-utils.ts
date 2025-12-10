@@ -1,6 +1,6 @@
 import * as fs from "fs"
+import type { EnvironmentVariableMutator, EnvironmentVariableMutatorOptions, EnvironmentVariableScope } from "vscode"
 import * as vscode from "vscode"
-import type { EnvironmentVariableMutatorOptions, EnvironmentVariableMutator, EnvironmentVariableScope } from "vscode"
 export class SecretStore implements vscode.SecretStorage {
 	private data: JsonKeyValueStore<string>
 	private readonly _onDidChange = new EventEmitter<vscode.SecretStorageChangeEvent>()
@@ -107,7 +107,8 @@ export class JsonKeyValueStore<T> {
 		}
 	}
 	private save(): void {
-		fs.writeFileSync(this.filePath, JSON.stringify(Object.fromEntries(this.data), null, 2))
+		// Use mode 0o600 to restrict file permissions to owner read/write only (fixes #7778)
+		fs.writeFileSync(this.filePath, JSON.stringify(Object.fromEntries(this.data), null, 2), { mode: 0o600 })
 	}
 }
 

@@ -1,8 +1,9 @@
-import { Controller } from ".."
-import { EmptyRequest } from "../../../shared/proto/common"
-import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "../../../shared/proto/models"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import axios from "axios"
-import { getSecret } from "@core/storage/state"
+import { toRequestyServiceUrl } from "@/shared/clients/requesty"
+import { getAxiosSettings } from "@/shared/net"
+import { Controller } from ".."
 
 /**
  * Refreshes the Requesty models and returns the updated model list
@@ -18,13 +19,22 @@ export async function refreshRequestyModels(controller: Controller, _: EmptyRequ
 		return undefined
 	}
 
-	let models: Record<string, OpenRouterModelInfo> = {}
+	const models: Record<string, OpenRouterModelInfo> = {}
 	try {
-		const apiKey = await getSecret(controller.context, "requestyApiKey")
+		const apiKey = controller.stateManager.getSecretKey("requestyApiKey")
+		const baseUrl = controller.stateManager.getGlobalSettingsKey("requestyBaseUrl")
+
+		const resolvedUrl = toRequestyServiceUrl(baseUrl)
+		const url = resolvedUrl != null ? new URL(`${resolvedUrl.pathname}/models`, resolvedUrl).toString() : undefined
+
+		if (url == null) {
+			throw new Error("URL is not valid.")
+		}
+
 		const headers = {
 			Authorization: `Bearer ${apiKey}`,
 		}
-		const response = await axios.get("https://router.requesty.ai/v1/models", { headers })
+		const response = await axios.get(url, { headers, ...getAxiosSettings() })
 		if (response.data?.data) {
 			for (const model of response.data.data) {
 				const modelInfo: OpenRouterModelInfo = OpenRouterModelInfo.create({

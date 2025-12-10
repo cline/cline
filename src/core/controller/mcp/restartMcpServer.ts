@@ -1,7 +1,7 @@
-import { McpServers } from "@shared/proto/mcp"
-import type { Controller } from "../index"
+import { StringRequest } from "@shared/proto/cline/common"
+import { McpServers } from "@shared/proto/cline/mcp"
 import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { StringRequest } from "@/shared/proto/common"
+import type { Controller } from "../index"
 
 /**
  * Restarts an MCP server connection

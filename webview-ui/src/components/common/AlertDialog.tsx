@@ -1,6 +1,6 @@
-import React, { ReactNode } from "react"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { AlertTriangle } from "lucide-react"
+import React, { ReactNode } from "react"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../settings/OpenRouterModelPicker"
 
 interface AlertDialogProps {
@@ -10,7 +10,9 @@ interface AlertDialogProps {
 }
 
 export function AlertDialog({ open, onOpenChange, children }: AlertDialogProps) {
-	if (!open) return null
+	if (!open) {
+		return null
+	}
 
 	// Close the dialog when clicking on the backdrop
 	const handleBackdropClick = (e: React.MouseEvent) => {
@@ -35,7 +37,7 @@ export function AlertDialogContent({ className, children, ...props }: React.HTML
 			className={`fixed top-[50%] left-[50%] grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] ${className}`}
 			onClick={(e) => e.stopPropagation()}
 			{...props}>
-			<div className="bg-[var(--vscode-editor-background)] rounded-sm gap-3 border border-[var(--vscode-panel-border)] p-6 shadow-lg sm:max-w-lg">
+			<div className="bg-(--vscode-editor-background) rounded-sm gap-3 border border-(--vscode-panel-border) p-6 shadow-lg sm:max-w-lg">
 				{children}
 			</div>
 		</div>
@@ -53,14 +55,14 @@ export function AlertDialogFooter({ className, ...props }: React.HTMLAttributes<
 export function AlertDialogTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
 	return (
 		<h2
-			className={`text-base font-medium text-[var(--vscode-editor-foreground)] flex items-center gap-2 text-left ${className}`}
+			className={`text-base font-medium text-(--vscode-editor-foreground) flex items-center gap-2 text-left ${className}`}
 			{...props}
 		/>
 	)
 }
 
 export function AlertDialogDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
-	return <p className={`text-[var(--vscode-descriptionForeground)] text-sm text-left ${className}`} {...props} />
+	return <p className={`text-(--vscode-descriptionForeground) text-sm text-left ${className}`} {...props} />
 }
 
 export function AlertDialogAction({ className, ...props }: React.ComponentProps<typeof VSCodeButton>) {
@@ -95,11 +97,11 @@ export function UnsavedChangesDialog({
 	showSaveOption?: boolean
 }) {
 	return (
-		<AlertDialog open={open} onOpenChange={onOpenChange}>
+		<AlertDialog onOpenChange={onOpenChange} open={open}>
 			<AlertDialogContent>
 				<AlertDialogHeader>
 					<AlertDialogTitle>
-						<AlertTriangle className="w-5 h-5 text-[var(--vscode-errorForeground)]" />
+						<AlertTriangle className="w-5 h-5 text-(--vscode-errorForeground)" />
 						{title}
 					</AlertDialogTitle>
 					<AlertDialogDescription>{description}</AlertDialogDescription>
@@ -107,7 +109,7 @@ export function UnsavedChangesDialog({
 				<AlertDialogFooter>
 					<AlertDialogCancel onClick={onCancel}>Cancel</AlertDialogCancel>
 					{showSaveOption && onSave && <AlertDialogAction onClick={onSave}>{saveText}</AlertDialogAction>}
-					<AlertDialogAction onClick={onConfirm} appearance={showSaveOption ? "secondary" : "primary"}>
+					<AlertDialogAction appearance={showSaveOption ? "secondary" : "primary"} onClick={onConfirm}>
 						{confirmText}
 					</AlertDialogAction>
 				</AlertDialogFooter>

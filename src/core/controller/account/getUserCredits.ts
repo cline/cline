@@ -1,6 +1,6 @@
+import { UserCreditsData } from "@shared/proto/cline/account"
+import type { EmptyRequest } from "@shared/proto/cline/common"
 import type { Controller } from "../index"
-import type { EmptyRequest } from "@shared/proto/common"
-import { UserCreditsData } from "@shared/proto/account"
 
 /**
  * Handles fetching all user credits data (balance, usage, payments)
@@ -8,7 +8,7 @@ import { UserCreditsData } from "@shared/proto/account"
  * @param request Empty request
  * @returns User credits data response
  */
-export async function getUserCredits(controller: Controller, request: EmptyRequest): Promise<UserCreditsData> {
+export async function getUserCredits(controller: Controller, _request: EmptyRequest): Promise<UserCreditsData> {
 	try {
 		if (!controller.accountService) {
 			throw new Error("Account service not available")
@@ -20,6 +20,11 @@ export async function getUserCredits(controller: Controller, request: EmptyReque
 			controller.accountService.fetchUsageTransactionsRPC(),
 			controller.accountService.fetchPaymentTransactionsRPC(),
 		])
+
+		// If either call fails (returns undefined), throw an error
+		if (balance === undefined) {
+			throw new Error("Failed to fetch user credits data")
+		}
 
 		return UserCreditsData.create({
 			balance: balance ? { currentBalance: balance.balance / 100 } : { currentBalance: 0 },

@@ -1,10 +1,9 @@
 import { deleteRuleFile as deleteRuleFileImpl } from "@core/context/instructions/user-instructions/rule-helpers"
-import { RuleFile, RuleFileRequest } from "@shared/proto/file"
-import * as path from "path"
+import { getWorkspaceBasename } from "@core/workspace"
+import { RuleFile, RuleFileRequest } from "@shared/proto/cline/file"
+import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import { Controller } from ".."
-import { FileMethodHandler } from "./index"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
-import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 
 /**
  * Deletes a rule file from either global or workspace rules directory
@@ -13,7 +12,7 @@ import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
  * @returns Result with file path and display name
  * @throws Error if operation fails
  */
-export const deleteRuleFile: FileMethodHandler = async (controller: Controller, request: RuleFileRequest): Promise<RuleFile> => {
+export async function deleteRuleFile(controller: Controller, request: RuleFileRequest): Promise<RuleFile> {
 	if (
 		typeof request.isGlobal !== "boolean" ||
 		typeof request.rulePath !== "string" ||
@@ -29,7 +28,7 @@ export const deleteRuleFile: FileMethodHandler = async (controller: Controller, 
 		throw new Error("Missing or invalid parameters")
 	}
 
-	const result = await deleteRuleFileImpl(controller.context, request.rulePath, request.isGlobal, request.type)
+	const result = await deleteRuleFileImpl(controller, request.rulePath, request.isGlobal, request.type)
 
 	if (!result.success) {
 		throw new Error(result.message || "Failed to delete rule file")
@@ -41,17 +40,15 @@ export const deleteRuleFile: FileMethodHandler = async (controller: Controller, 
 	//await refreshWorkflowToggles(controller.context, cwd)
 	await controller.postStateToWebview()
 
-	const fileName = path.basename(request.rulePath)
+	const fileName = getWorkspaceBasename(request.rulePath, "Controller.deleteRuleFile")
 
 	const fileTypeName = request.type === "workflow" ? "workflow" : "rule"
 
 	const message = `${fileTypeName} file "${fileName}" deleted successfully`
-	getHostBridgeProvider().windowClient.showMessage(
-		ShowMessageRequest.create({
-			type: ShowMessageType.INFORMATION,
-			message,
-		}),
-	)
+	HostProvider.window.showMessage({
+		type: ShowMessageType.INFORMATION,
+		message,
+	})
 
 	return RuleFile.create({
 		filePath: request.rulePath,

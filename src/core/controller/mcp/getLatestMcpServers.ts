@@ -1,7 +1,7 @@
-import type { Empty } from "@shared/proto/common"
-import { McpServers } from "@shared/proto/mcp"
-import type { Controller } from "../index"
+import type { Empty } from "@shared/proto/cline/common"
+import { McpServers } from "@shared/proto/cline/mcp"
 import { convertMcpServersToProtoMcpServers } from "@/shared/proto-conversions/mcp/mcp-server-conversion"
+import type { Controller } from "../index"
 
 /**
  * RPC handler for getting the latest MCP servers

@@ -1,31 +1,12 @@
+import { ApiHandler } from "@core/api"
+import { execSync } from "child_process"
 import { showSystemNotification } from "@/integrations/notifications"
 import { ClineApiReqCancelReason, ClineApiReqInfo } from "@/shared/ExtensionMessage"
-import { serializeError } from "serialize-error"
-import { MessageStateHandler } from "./message-state"
 import { calculateApiCostAnthropic } from "@/utils/cost"
-import { ApiHandler } from "@/api"
+import { MessageStateHandler } from "./message-state"
 
-export function formatErrorWithStatusCode(error: any): string {
-	const { statusCode, message } = extractErrorDetails(error)
-
-	// Only prepend the statusCode if it's not already part of the message
-	return statusCode && !message.includes(statusCode.toString()) ? `${statusCode} - ${message}` : message
-}
-
-export function extractErrorDetails(error: any): { message: string; statusCode?: number; requestId?: string } {
-	const statusCode = error.status || error.statusCode || (error.response && error.response?.status)
-	const message = error.message ?? JSON.stringify(serializeError(error), null, 2)
-	const requestId = error.request_id || error.response?.request_id || undefined
-
-	return { message, statusCode, requestId }
-}
-
-export const showNotificationForApprovalIfAutoApprovalEnabled = (
-	message: string,
-	autoApprovalSettingsEnabled: boolean,
-	notificationsEnabled: boolean,
-) => {
-	if (autoApprovalSettingsEnabled && notificationsEnabled) {
+export const showNotificationForApproval = (message: string, notificationsEnabled: boolean) => {
+	if (notificationsEnabled) {
 		showSystemNotification({
 			subtitle: "Approval Required",
 			message,
@@ -74,4 +55,93 @@ export const updateApiReqMsg = async (params: UpdateApiReqMsgParams) => {
 			streamingFailedMessage: params.streamingFailedMessage,
 		} satisfies ClineApiReqInfo),
 	})
+}
+
+/**
+ * Common CLI tools that developers frequently use
+ */
+const CLI_TOOLS = [
+	"gh",
+	"git",
+	"docker",
+	"podman",
+	"kubectl",
+	"aws",
+	"gcloud",
+	"az",
+	"terraform",
+	"pulumi",
+	"npm",
+	"yarn",
+	"pnpm",
+	"pip",
+	"cargo",
+	"go",
+	"curl",
+	"jq",
+	"make",
+	"cmake",
+	"python",
+	"node",
+	"psql",
+	"mysql",
+	"redis-cli",
+	"sqlite3",
+	"mongosh",
+	"code",
+	"grep",
+	"sed",
+	"awk",
+	"brew",
+	"apt",
+	"yum",
+	"gradle",
+	"mvn",
+	"bundle",
+	"dotnet",
+	"helm",
+	"ansible",
+	"wget",
+]
+
+/**
+ * Detect which CLI tools are available in the system PATH
+ * Uses 'which' command on Unix-like systems and 'where' on Windows
+ */
+export async function detectAvailableCliTools(): Promise<string[]> {
+	const availableCommands: string[] = []
+	const isWindows = process.platform === "win32"
+	const checkCommand = isWindows ? "where" : "which"
+
+	for (const command of CLI_TOOLS) {
+		try {
+			// Use execSync to check if the command exists
+			execSync(`${checkCommand} ${command}`, {
+				stdio: "ignore", // Don't output to console
+				timeout: 1000, // 1 second timeout to avoid hanging
+			})
+			availableCommands.push(command)
+		} catch (error) {
+			// Command not found, skip it
+		}
+	}
+
+	return availableCommands
+}
+
+/**
+ * Extracts the domain from a provider URL string
+ * @param url The URL to extract domain from
+ * @returns The domain/hostname or undefined if invalid
+ */
+export function extractProviderDomainFromUrl(url: string | undefined): string | undefined {
+	if (!url) {
+		return undefined
+	}
+	try {
+		const urlObj = new URL(url)
+		return urlObj.hostname
+	} catch {
+		return undefined
+	}
 }

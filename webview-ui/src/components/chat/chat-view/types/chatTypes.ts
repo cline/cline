@@ -2,8 +2,9 @@
  * Shared types and interfaces for the chat view components
  */
 
-import { ClineMessage, ClineAsk } from "@shared/ExtensionMessage"
-import { VirtuosoHandle } from "react-virtuoso"
+import { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
+import { ListRange, VirtuosoHandle } from "react-virtuoso"
+import { ButtonActionType } from "../shared/buttonConfig"
 
 /**
  * Main ChatView component props
@@ -38,8 +39,6 @@ export interface ChatState {
 	setPrimaryButtonText: React.Dispatch<React.SetStateAction<string | undefined>>
 	secondaryButtonText: string | undefined
 	setSecondaryButtonText: React.Dispatch<React.SetStateAction<string | undefined>>
-	didClickCancel: boolean
-	setDidClickCancel: React.Dispatch<React.SetStateAction<boolean>>
 	expandedRows: Record<number, boolean>
 	setExpandedRows: React.Dispatch<React.SetStateAction<Record<number, boolean>>>
 
@@ -67,9 +66,8 @@ export interface ChatState {
  * Message handlers interface
  */
 export interface MessageHandlers {
+	executeButtonAction: (action: ButtonActionType, text?: string, images?: string[], files?: string[]) => Promise<void>
 	handleSendMessage: (text: string, images: string[], files: string[]) => Promise<void>
-	handlePrimaryButtonClick: (text?: string, images?: string[], files?: string[]) => Promise<void>
-	handleSecondaryButtonClick: (text?: string, images?: string[], files?: string[]) => Promise<void>
 	handleTaskCloseButtonClick: () => void
 	startNewTask: () => Promise<void>
 }
@@ -92,6 +90,8 @@ export interface ScrollBehavior {
 	setIsAtBottom: React.Dispatch<React.SetStateAction<boolean>>
 	pendingScrollToMessage: number | null
 	setPendingScrollToMessage: React.Dispatch<React.SetStateAction<number | null>>
+	scrolledPastUserMessage: ClineMessage | null
+	handleRangeChanged: (range: ListRange) => void
 }
 
 /**

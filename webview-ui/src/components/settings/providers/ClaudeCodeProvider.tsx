@@ -1,12 +1,13 @@
 import { claudeCodeModels } from "@shared/api"
+import { Mode } from "@shared/storage/types"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DebouncedTextField } from "../common/DebouncedTextField"
-import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { ModelSelector } from "../common/ModelSelector"
+import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { SUPPORTED_ANTHROPIC_THINKING_MODELS } from "./AnthropicProvider"
-import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 
 /**
  * Props for the ClaudeCodeProvider component
@@ -14,26 +15,27 @@ import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 interface ClaudeCodeProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
+	currentMode: Mode
 }
 
 /**
  * The Claude Code provider configuration component
  */
-export const ClaudeCodeProvider = ({ showModelOptions, isPopup }: ClaudeCodeProviderProps) => {
+export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: ClaudeCodeProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	return (
 		<div>
 			<DebouncedTextField
 				initialValue={apiConfiguration?.claudeCodePath || ""}
 				onChange={(value) => handleFieldChange("claudeCodePath", value)}
+				placeholder="Default: claude"
 				style={{ width: "100%", marginTop: 3 }}
-				type="text"
-				placeholder="Default: claude">
+				type="text">
 				<span style={{ fontWeight: 500 }}>Claude Code CLI Path</span>
 			</DebouncedTextField>
 
@@ -49,17 +51,35 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup }: ClaudeCodeProv
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						models={claudeCodeModels}
-						selectedModelId={selectedModelId}
-						onChange={(e: any) => handleFieldChange("apiModelId", e.target.value)}
 						label="Model"
+						models={claudeCodeModels}
+						onChange={(e: any) =>
+							handleModeFieldChange(
+								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+								e.target.value,
+								currentMode,
+							)
+						}
+						selectedModelId={selectedModelId}
 					/>
 
-					{SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) && (
-						<ThinkingBudgetSlider maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
+					{(selectedModelId === "sonnet" || selectedModelId === "opus") && (
+						<p
+							style={{
+								fontSize: "12px",
+								marginBottom: 2,
+								marginTop: 2,
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+							Use the latest version of {selectedModelId} by default.
+						</p>
 					)}
 
-					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+					{SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) && (
+						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
+					)}
+
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			)}
 		</div>

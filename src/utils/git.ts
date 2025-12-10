@@ -16,7 +16,7 @@ async function checkGitRepo(cwd: string): Promise<boolean> {
 	try {
 		await execAsync("git rev-parse --git-dir", { cwd })
 		return true
-	} catch (error) {
+	} catch (_error) {
 		return false
 	}
 }
@@ -25,7 +25,7 @@ async function checkGitInstalled(): Promise<boolean> {
 	try {
 		await execAsync("git --version")
 		return true
-	} catch (error) {
+	} catch (_error) {
 		return false
 	}
 }
@@ -34,7 +34,7 @@ async function checkGitRepoHasCommits(cwd: string): Promise<boolean> {
 	try {
 		await execAsync("git rev-parse HEAD", { cwd })
 		return true
-	} catch (error) {
+	} catch (_error) {
 		return false
 	}
 }
@@ -185,6 +185,42 @@ export async function getWorkingState(cwd: string): Promise<string> {
 	}
 }
 
+export async function getGitDiff(cwd: string, stagedOnly = false): Promise<string> {
+	try {
+		const isInstalled = await checkGitInstalled()
+		if (!isInstalled) {
+			throw new Error("Git is not installed")
+		}
+
+		const isRepo = await checkGitRepo(cwd)
+		if (!isRepo) {
+			throw new Error("Not a git repository")
+		}
+
+		let diff = ""
+		let command = "git --no-pager diff --staged --diff-filter=d"
+		if (await checkGitRepoHasCommits(cwd)) {
+			// Only run git diff if there are commits
+			const { stdout: staged } = await execAsync(command, { cwd })
+			diff = staged.trim()
+		}
+
+		if (!stagedOnly && !diff) {
+			command = "git --no-pager diff HEAD --diff-filter=d"
+			const { stdout: unstaged } = await execAsync(command, { cwd })
+			diff = unstaged.trim()
+		}
+
+		if (!diff) {
+			throw new Error("No changes in workspace for commit message")
+		}
+
+		return truncateOutput(`'${command}' Output:\n\n${diff}`.trim())
+	} catch (error) {
+		throw error
+	}
+}
+
 export async function getGitRemoteUrls(cwd: string): Promise<string[]> {
 	try {
 		const isInstalled = await checkGitInstalled()
@@ -221,6 +257,26 @@ export async function getGitRemoteUrls(cwd: string): Promise<string[]> {
 	}
 }
 
+export async function getLatestGitCommitHash(cwd: string): Promise<string | null> {
+	try {
+		const isInstalled = await checkGitInstalled()
+		if (!isInstalled) {
+			return null
+		}
+
+		const isRepo = await checkGitRepo(cwd)
+		if (!isRepo) {
+			return null
+		}
+
+		const { stdout } = await execAsync("git rev-parse HEAD", { cwd })
+		return stdout.trim() || null
+	} catch (error) {
+		console.error("Error getting latest git commit hash:", error)
+		return null
+	}
+}
+
 function truncateOutput(content: string): string {
 	if (!GIT_OUTPUT_LINE_LIMIT) {
 		return content
@@ -238,4 +294,16 @@ function truncateOutput(content: string): string {
 		`\n[...${lines.length - GIT_OUTPUT_LINE_LIMIT} lines omitted...]\n`,
 		...lines.slice(-afterLimit),
 	].join("\n")
+}
+
+// NEW: Additional functions for Stage 3 multi-workspace support
+// These are the ONLY new additions needed for workspace detection
+
+/**
+ * Check if a directory is a Git repository (Stage 3 requirement)
+ * @param dirPath - The directory path to check
+ * @returns True if it's a Git repository
+ */
+export async function isGitRepository(dirPath: string): Promise<boolean> {
+	return await checkGitRepo(dirPath)
 }

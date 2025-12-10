@@ -1,9 +1,9 @@
+import type { EmptyRequest } from "@shared/proto/cline/common"
+import { Empty } from "@shared/proto/cline/common"
 import { AuthService } from "@/services/auth/AuthService"
-import { Empty } from "../../../shared/proto/common"
-import type { EmptyRequest } from "../../../shared/proto/common"
+import { LogoutReason } from "@/services/auth/types"
 import type { Controller } from "../index"
 
-const authService = AuthService.getInstance()
 /**
  * Handles the account logout action
  * @param controller The controller instance
@@ -12,6 +12,6 @@ const authService = AuthService.getInstance()
  */
 export async function accountLogoutClicked(controller: Controller, _request: EmptyRequest): Promise<Empty> {
 	await controller.handleSignOut()
-	await authService.handleDeauth()
+	await AuthService.getInstance().handleDeauth(LogoutReason.USER_INITIATED)
 	return Empty.create({})
 }

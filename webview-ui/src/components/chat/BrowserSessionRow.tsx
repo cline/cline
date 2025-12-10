@@ -1,17 +1,17 @@
-import { BrowserSettingsMenu } from "@/components/browser/BrowserSettingsMenu"
-import { ChatRowContent, ProgressIndicator } from "@/components/chat/ChatRow"
-import { CheckpointControls } from "@/components/common/CheckpointControls"
-import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { FileServiceClient } from "@/services/grpc-client"
 import { BROWSER_VIEWPORT_PRESETS } from "@shared/BrowserSettings"
 import { BrowserAction, BrowserActionResult, ClineMessage, ClineSayBrowserAction } from "@shared/ExtensionMessage"
-import { StringRequest } from "@shared/proto/common"
+import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import React, { CSSProperties, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import styled from "styled-components"
+import { BrowserSettingsMenu } from "@/components/browser/BrowserSettingsMenu"
+import { ChatRowContent, ProgressIndicator } from "@/components/chat/ChatRow"
+import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { cn } from "@/lib/utils"
+import { FileServiceClient } from "@/services/grpc-client"
 
 interface BrowserSessionRowProps {
 	messages: ClineMessage[]
@@ -40,13 +40,6 @@ const urlBarContainerStyle: CSSProperties = {
 	display: "flex",
 	alignItems: "center",
 	gap: "4px",
-}
-const urlTextStyle: CSSProperties = {
-	textOverflow: "ellipsis",
-	overflow: "hidden",
-	whiteSpace: "nowrap",
-	width: "100%",
-	textAlign: "center",
 }
 const imgScreenshotStyle: CSSProperties = {
 	position: "absolute",
@@ -198,7 +191,8 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				message.say === "api_req_started" ||
 				message.say === "text" ||
 				message.say === "reasoning" ||
-				message.say === "browser_action"
+				message.say === "browser_action" ||
+				message.say === "error_retry"
 			) {
 				// These messages lead to the next result, so they should always go in nextActionMessages
 				nextActionMessages.push(message)
@@ -293,13 +287,13 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 		<div>
 			{currentPage?.nextAction?.messages.map((message) => (
 				<BrowserSessionRowContent
-					key={message.ts}
-					message={message}
 					expandedRows={props.expandedRows}
-					onToggleExpand={props.onToggleExpand}
-					lastModifiedMessage={props.lastModifiedMessage}
 					isLast={props.isLast}
+					key={message.ts}
+					lastModifiedMessage={props.lastModifiedMessage}
+					message={message}
 					onSetQuote={props.onSetQuote}
+					onToggleExpand={props.onToggleExpand}
 					setMaxActionHeight={setMaxActionHeight}
 				/>
 			))}
@@ -320,7 +314,9 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 
 	// Track latest click coordinate
 	const latestClickPosition = useMemo(() => {
-		if (!isBrowsing) return undefined
+		if (!isBrowsing) {
+			return undefined
+		}
 
 		// Look through current page's next actions for the latest browser_action
 		const actions = currentPage?.nextAction?.messages || []
@@ -344,7 +340,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	// 	shouldShowCheckpoints = lastModifiedMessage?.ask === "resume_completed_task" || lastModifiedMessage?.ask === "resume_task"
 	// }
 
-	const shouldShowSettings = useMemo(() => {
+	const _shouldShowSettings = useMemo(() => {
 		const lastMessage = messages[messages.length - 1]
 		return lastMessage?.ask === "browser_action_launch" || lastMessage?.say === "browser_action_launch"
 	}, [messages])
@@ -363,7 +359,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					<span className="codicon codicon-inspect" style={browserIconStyle}></span>
 				)}
 				<span style={approveTextStyle}>
-					<>{isAutoApproved ? "Cline is using the browser:" : "Cline wants to use the browser:"}</>
+					{isAutoApproved ? "Cline is using the browser:" : "Cline wants to use the browser:"}
 				</span>
 			</div>
 			<div
@@ -379,17 +375,15 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				{/* URL Bar */}
 				<div style={urlBarContainerStyle}>
 					<div
-						style={{
-							flex: 1,
-							backgroundColor: "var(--vscode-input-background)",
-							border: "1px solid var(--vscode-input-border)",
-							borderRadius: "4px",
-							padding: "3px 5px",
-							minWidth: 0,
-							color: displayState.url ? "var(--vscode-input-foreground)" : "var(--vscode-descriptionForeground)",
-							fontSize: "12px",
-						}}>
-						<div style={urlTextStyle}>{displayState.url || "http"}</div>
+						className={cn(
+							"flex bg-input-background border border-input-border rounded-sm px-1 py-0.5 min-w-0 text-description w-full justify-center",
+							{
+								"text-input-foreground": !!displayState.url,
+							},
+						)}>
+						<span className="text-xs text-ellipsis overflow-hidden whitespace-nowrap">
+							{displayState.url || "http"}
+						</span>
 					</div>
 					<BrowserSettingsMenu />
 				</div>
@@ -404,14 +398,14 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					}}>
 					{displayState.screenshot ? (
 						<img
-							src={displayState.screenshot}
 							alt="Browser screenshot"
-							style={imgScreenshotStyle}
 							onClick={() =>
 								FileServiceClient.openImage(StringRequest.create({ value: displayState.screenshot })).catch(
 									(err) => console.error("Failed to open image:", err),
 								)
 							}
+							src={displayState.screenshot}
+							style={imgScreenshotStyle}
 						/>
 					) : (
 						<div style={noScreenshotContainerStyle}>
@@ -525,7 +519,7 @@ const BrowserSessionRowContent = memo(
 						<span style={browserSessionStartedTextStyle}>Browser Session Started</span>
 					</div>
 					<div style={codeBlockContainerStyle}>
-						<CodeBlock source={`${"```"}shell\n${message.text}\n${"```"}`} forceWrap={true} />
+						<CodeBlock forceWrap={true} source={`${"```"}shell\n${message.text}\n${"```"}`} />
 					</div>
 				</>
 			)
@@ -537,15 +531,16 @@ const BrowserSessionRowContent = memo(
 					case "api_req_started":
 					case "text":
 					case "reasoning":
+					case "error_retry":
 						return (
 							<div style={chatRowContentContainerStyle}>
 								<ChatRowContent
-									message={message}
 									isExpanded={expandedRows[message.ts] ?? false}
-									onToggleExpand={handleToggle}
-									lastModifiedMessage={lastModifiedMessage}
 									isLast={isLast}
+									lastModifiedMessage={lastModifiedMessage}
+									message={message}
 									onSetQuote={onSetQuote}
+									onToggleExpand={handleToggle}
 								/>
 							</div>
 						)
@@ -614,13 +609,13 @@ const BrowserCursor: React.FC<{ style?: CSSProperties }> = ({ style }) => {
 
 	return (
 		<img
+			alt="cursor"
 			src={cursorBase64}
 			style={{
 				width: "17px",
 				height: "22px",
 				...style,
 			}}
-			alt="cursor"
 		/>
 	)
 }
@@ -628,10 +623,6 @@ const BrowserCursor: React.FC<{ style?: CSSProperties }> = ({ style }) => {
 const BrowserSessionRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
 	position: relative;
-
-	&:hover ${CheckpointControls} {
-		opacity: 1;
-	}
 `
 
 export default BrowserSessionRow

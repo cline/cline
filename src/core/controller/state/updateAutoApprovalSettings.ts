@@ -1,8 +1,6 @@
+import { Empty } from "@shared/proto/cline/common"
+import { AutoApprovalSettingsRequest } from "@shared/proto/cline/state"
 import { Controller } from ".."
-import { AutoApprovalSettingsRequest } from "../../../shared/proto/state"
-import { Empty } from "../../../shared/proto/common"
-import { convertProtoToAutoApprovalSettings } from "../../../shared/proto-conversions/models/auto-approval-settings-conversion"
-import { updateGlobalState } from "../../../core/storage/state"
 
 /**
  * Updates the auto approval settings
@@ -17,13 +15,20 @@ export async function updateAutoApprovalSettings(controller: Controller, request
 
 	// Only update if incoming version is higher
 	if (incomingVersion > currentVersion) {
-		const settings = convertProtoToAutoApprovalSettings(request)
-
-		await updateGlobalState(controller.context, "autoApprovalSettings", settings)
-
-		if (controller.task) {
-			controller.task.updateAutoApprovalSettings(settings)
+		// Merge with current settings to preserve unspecified fields
+		const settings = {
+			...currentSettings,
+			...(request.version !== undefined && { version: request.version }),
+			...(request.enableNotifications !== undefined && { enableNotifications: request.enableNotifications }),
+			actions: {
+				...currentSettings.actions,
+				...(request.actions
+					? Object.fromEntries(Object.entries(request.actions).filter(([_, v]) => v !== undefined))
+					: {}),
+			},
 		}
+
+		controller.stateManager.setGlobalState("autoApprovalSettings", settings)
 
 		await controller.postStateToWebview()
 	}

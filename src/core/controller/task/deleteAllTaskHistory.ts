@@ -1,11 +1,10 @@
-import path from "path"
+import { DeleteAllTaskHistoryCount } from "@shared/proto/cline/task"
 import fs from "fs/promises"
-import { Controller } from ".."
-import { DeleteAllTaskHistoryCount } from "../../../shared/proto/task"
-import { getGlobalState, updateGlobalState } from "../../storage/state"
-import { fileExistsAtPath } from "../../../utils/fs"
+import path from "path"
+import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
-import { getHostBridgeProvider } from "@/hosts/host-providers"
+import { fileExistsAtPath } from "../../../utils/fs"
+import { Controller } from ".."
 
 /**
  * Deletes all task history, with an option to preserve favorites
@@ -19,11 +18,11 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 		await controller.clearTask()
 
 		// Get existing task history
-		const taskHistory = ((await getGlobalState(controller.context, "taskHistory")) as any[]) || []
+		const taskHistory = controller.stateManager.getGlobalStateKey("taskHistory")
 		const totalTasks = taskHistory.length
 
 		const userChoice = (
-			await getHostBridgeProvider().windowClient.showMessage(
+			await HostProvider.window.showMessage(
 				ShowMessageRequest.create({
 					type: ShowMessageType.WARNING,
 					message: "What would you like to delete?",
@@ -33,7 +32,7 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 					},
 				}),
 			)
-		)?.selectedOption
+		).selectedOption
 
 		// Default VS Code Cancel button returns `undefined` - don't delete anything
 		if (userChoice === undefined) {
@@ -48,11 +47,11 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 
 			// If there are favorited tasks, update state
 			if (favoritedTasks.length > 0) {
-				await updateGlobalState(controller.context, "taskHistory", favoritedTasks)
+				controller.stateManager.setGlobalState("taskHistory", favoritedTasks)
 
 				// Delete non-favorited task directories
 				const preserveTaskIds = favoritedTasks.map((task) => task.id)
-				await cleanupTaskFiles(controller, preserveTaskIds)
+				await cleanupTaskFiles(preserveTaskIds)
 
 				// Update webview
 				try {
@@ -67,17 +66,15 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 			} else {
 				// No favorited tasks found - show warning and ask user what to do
 				const answer = (
-					await getHostBridgeProvider().windowClient.showMessage(
-						ShowMessageRequest.create({
-							type: ShowMessageType.WARNING,
-							message: "No favorited tasks found. Would you like to delete all tasks anyway?",
-							options: {
-								modal: true,
-								items: ["Delete All Tasks"],
-							},
-						}),
-					)
-				)?.selectedOption
+					await HostProvider.window.showMessage({
+						type: ShowMessageType.WARNING,
+						message: "No favorited tasks found. Would you like to delete all tasks anyway?",
+						options: {
+							modal: true,
+							items: ["Delete All Tasks"],
+						},
+					})
+				).selectedOption
 
 				// User cancelled - don't delete anything
 				if (answer === undefined) {
@@ -90,27 +87,25 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 		}
 
 		// Delete everything (not preserving favorites)
-		await updateGlobalState(controller.context, "taskHistory", undefined)
+		controller.stateManager.setGlobalState("taskHistory", [])
 
 		try {
 			// Remove all contents of tasks directory
-			const taskDirPath = path.join(controller.context.globalStorageUri.fsPath, "tasks")
+			const taskDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks")
 			if (await fileExistsAtPath(taskDirPath)) {
 				await fs.rm(taskDirPath, { recursive: true, force: true })
 			}
 
 			// Remove checkpoints directory contents
-			const checkpointsDirPath = path.join(controller.context.globalStorageUri.fsPath, "checkpoints")
+			const checkpointsDirPath = path.join(HostProvider.get().globalStorageFsPath, "checkpoints")
 			if (await fileExistsAtPath(checkpointsDirPath)) {
 				await fs.rm(checkpointsDirPath, { recursive: true, force: true })
 			}
 		} catch (error) {
-			getHostBridgeProvider().windowClient.showMessage(
-				ShowMessageRequest.create({
-					type: ShowMessageType.ERROR,
-					message: `Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`,
-				}),
-			)
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: `Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`,
+			})
 		}
 
 		// Update webview
@@ -132,8 +127,8 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 /**
  * Helper function to cleanup task files while preserving specified tasks
  */
-async function cleanupTaskFiles(controller: Controller, preserveTaskIds: string[]) {
-	const taskDirPath = path.join(controller.context.globalStorageUri.fsPath, "tasks")
+async function cleanupTaskFiles(preserveTaskIds: string[]) {
+	const taskDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks")
 
 	try {
 		if (await fileExistsAtPath(taskDirPath)) {
@@ -143,7 +138,11 @@ async function cleanupTaskFiles(controller: Controller, preserveTaskIds: string[
 			// Delete only non-preserved task directories
 			for (const dir of taskDirs) {
 				if (!preserveTaskIds.includes(dir)) {
-					await fs.rm(path.join(taskDirPath, dir), { recursive: true, force: true })
+					// Task dir path is not workspace specific
+					await fs.rm(path.join(taskDirPath, dir), {
+						recursive: true,
+						force: true,
+					})
 				}
 			}
 		}

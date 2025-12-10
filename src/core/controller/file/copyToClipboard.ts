@@ -1,7 +1,6 @@
-import * as vscode from "vscode"
-import { Controller } from ".."
-import { Empty, StringRequest } from "../../../shared/proto/common"
+import { Empty, StringRequest } from "@shared/proto/cline/common"
 import { writeTextToClipboard } from "@/utils/env"
+import { Controller } from ".."
 
 /**
  * Copies text to the system clipboard
@@ -9,7 +8,7 @@ import { writeTextToClipboard } from "@/utils/env"
  * @param request The request containing the text to copy
  * @returns Empty response
  */
-export async function copyToClipboard(controller: Controller, request: StringRequest): Promise<Empty> {
+export async function copyToClipboard(_controller: Controller, request: StringRequest): Promise<Empty> {
 	try {
 		if (request.value) {
 			await writeTextToClipboard(request.value)
