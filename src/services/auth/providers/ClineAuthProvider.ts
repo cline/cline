@@ -1,12 +1,15 @@
 import axios from "axios"
+import { type JwtPayload } from "jwt-decode"
 import { ClineEnv, EnvironmentConfig } from "@/config"
 import { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
 import { AuthInvalidTokenError, AuthNetworkError } from "@/services/error/ClineError"
 import { Logger } from "@/services/logging/Logger"
+import { telemetryService } from "@/services/telemetry"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { fetch, getAxiosSettings } from "@/shared/net"
 import { type ClineAccountUserInfo, type ClineAuthInfo } from "../AuthService"
+import { parseJwtPayload } from "../oca/utils/utils"
 import { IAuthProvider } from "./IAuthProvider"
 
 interface ClineAuthApiUser {
@@ -41,6 +44,11 @@ interface ClineAuthResponseData {
 	 * User information associated with the token
 	 */
 	userInfo: ClineAuthApiUser
+}
+
+type TokenData = JwtPayload & {
+	sid?: string
+	external_id?: string
 }
 
 export interface ClineAuthApiTokenExchangeResponse {
@@ -86,6 +94,66 @@ export class ClineAuthProvider implements IAuthProvider {
 	}
 
 	/**
+	 * Returns the time in seconds until token expiry
+	 */
+	private timeUntilExpiry(_refreshToken: string, expiresAt?: number): number {
+		const currentTime = Date.now() / 1000
+		const expirationTime = expiresAt || 0
+
+		return expirationTime - currentTime
+	}
+
+	private clearSession(controller: Controller, reason: string, storedAuthData?: ClineAuthInfo) {
+		Logger.error(reason)
+
+		const startedAt = storedAuthData?.startedAt
+		const timeSinceStarted = Date.now() - (startedAt || 0)
+
+		const tokenData = this.extractTokenData(storedAuthData)
+		telemetryService.capture({
+			event: "extension_logging_user_out",
+			properties: {
+				reason,
+				time_since_started: timeSinceStarted,
+				session_id: tokenData.sid,
+				user_id: tokenData.external_id,
+			},
+		})
+
+		controller.stateManager.setSecret("cline:clineAccountId", undefined)
+		this.refreshRetryCount = 0
+		this.lastRefreshAttempt = 0
+		return null
+	}
+
+	private logFailedRefreshAttempt(response: Response, storedAuthData?: ClineAuthInfo) {
+		const startedAt = storedAuthData?.startedAt
+		const timeSinceStarted = Date.now() - (startedAt || 0)
+
+		const tokenData = this.extractTokenData(storedAuthData)
+		telemetryService.capture({
+			event: "extension_refresh_attempt_failed",
+			properties: {
+				status_code: response.status,
+				request_id: response.headers.get("x-request-id"),
+				session_id: tokenData.sid,
+				user_id: tokenData.external_id,
+				time_since_started: timeSinceStarted,
+			},
+		})
+	}
+
+	private extractTokenData(authInfo?: ClineAuthInfo): Partial<TokenData> {
+		if (!authInfo || !authInfo.idToken) {
+			return {}
+		}
+
+		const idToken = authInfo.idToken
+
+		return parseJwtPayload<TokenData>(idToken) || {}
+	}
+
+	/**
 	 * Retrieves Cline auth info using the stored access token.
 	 * @param controller - The controller instance to access stored secrets.
 	 * @returns {Promise<ClineAuthInfo | null>} A promise that resolves with the auth info or null.
@@ -109,21 +177,27 @@ export class ClineAuthProvider implements IAuthProvider {
 				storedAuthData = JSON.parse(storedAuthDataString)
 			} catch (e) {
 				Logger.error("Failed to parse stored auth data:", e)
-				controller.stateManager.setSecret("cline:clineAccountId", undefined)
-				this.refreshRetryCount = 0
-				this.lastRefreshAttempt = 0
-				return null
+				return this.clearSession(controller, "Failed to parse stored auth data")
 			}
 
 			if (!storedAuthData.refreshToken || !storedAuthData?.idToken) {
-				Logger.error("No refresh token or ID token found in store")
-				controller.stateManager.setSecret("cline:clineAccountId", undefined)
-				this.refreshRetryCount = 0
-				this.lastRefreshAttempt = 0
-				return null
+				return this.clearSession(controller, "No refresh token or ID token found in store", storedAuthData)
 			}
 
 			if (await this.shouldRefreshIdToken(storedAuthData.refreshToken, storedAuthData.expiresAt)) {
+				// If the token hasn't expired yet,
+				// and it failed the first refresh attempt
+				// with something other than invalid token
+				// continue with the request
+				if (
+					this.refreshRetryCount > 0 &&
+					this.timeUntilExpiry(storedAuthData.refreshToken, storedAuthData.expiresAt) > 30
+				) {
+					this.refreshRetryCount = 0
+					this.lastRefreshAttempt = 0
+					return storedAuthData
+				}
+
 				// Check if we need to wait before retrying
 				const now = Date.now()
 				const timeSinceLastAttempt = now - this.lastRefreshAttempt
@@ -136,11 +210,9 @@ export class ClineAuthProvider implements IAuthProvider {
 
 				// Check if we've exceeded max retries
 				if (this.refreshRetryCount >= this.MAX_REFRESH_RETRIES) {
-					Logger.error(`Max refresh retries (${this.MAX_REFRESH_RETRIES}) exceeded. Clearing auth state.`)
-					controller.stateManager.setSecret("cline:clineAccountId", undefined)
-					this.refreshRetryCount = 0
-					this.lastRefreshAttempt = 0
-					return null
+					Logger.error(`Max refresh retries (${this.MAX_REFRESH_RETRIES}) exceeded.`)
+					// Don't clear session - return stored data and let API request fail later
+					return storedAuthData
 				}
 
 				// Try to refresh the token using the refresh token
@@ -151,7 +223,7 @@ export class ClineAuthProvider implements IAuthProvider {
 				)
 
 				try {
-					const authInfo = await this.refreshToken(storedAuthData.refreshToken)
+					const authInfo = await this.refreshToken(storedAuthData.refreshToken, storedAuthData)
 					const newAuthInfoString = JSON.stringify(authInfo)
 					if (newAuthInfoString !== storedAuthDataString) {
 						controller.stateManager.setSecret("clineAccountId", undefined) // cleanup old key
@@ -170,15 +242,14 @@ export class ClineAuthProvider implements IAuthProvider {
 
 					// If it's an invalid token error, clear immediately and don't retry
 					if (refreshError instanceof AuthInvalidTokenError) {
-						Logger.error("Invalid or expired refresh token. Clearing auth state.")
-						controller.stateManager.setSecret("cline:clineAccountId", undefined)
-						this.refreshRetryCount = 0
-						this.lastRefreshAttempt = 0
+						this.clearSession(controller, "Invalid or expired refresh token. Clearing auth state.", storedAuthData)
+
 						throw refreshError
 					}
 
-					// For network errors, return null and let retry logic handle it
-					return null
+					// For network errors, return stored data - let the API request fail later
+					// when the user actually tries to use Cline, not at startup
+					return storedAuthData
 				}
 			}
 
@@ -219,19 +290,21 @@ export class ClineAuthProvider implements IAuthProvider {
 	 * @param refreshToken - The refresh token.
 	 * @returns {Promise<ClineAuthInfo>} The new access token and user info.
 	 */
-	async refreshToken(refreshToken: string): Promise<ClineAuthInfo> {
+	async refreshToken(refreshToken: string, storedData: ClineAuthInfo): Promise<ClineAuthInfo> {
 		try {
 			const endpoint = new URL(CLINE_API_ENDPOINT.REFRESH_TOKEN, this.config.apiBaseUrl)
 			const response = await fetch(endpoint.toString(), {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					refreshToken,
+					refreshToken: storedData.refreshToken,
 					grantType: "refresh_token",
 				}),
 			})
 
 			if (!response.ok) {
+				this.logFailedRefreshAttempt(response, storedData)
+
 				// 400/401 = Invalid/expired token (permanent failure)
 				if (response.status === 400 || response.status === 401) {
 					const errorData = await response.json().catch(() => ({}))
@@ -258,6 +331,7 @@ export class ClineAuthProvider implements IAuthProvider {
 				refreshToken: data.data.refreshToken || refreshToken,
 				userInfo,
 				provider: this.name,
+				startedAt: storedData.startedAt || Date.now(),
 			}
 		} catch (error: any) {
 			// Network errors (ECONNREFUSED, timeout, etc)
@@ -359,6 +433,7 @@ export class ClineAuthProvider implements IAuthProvider {
 				userInfo,
 				expiresAt: new Date(tokenData.expiresAt).getTime() / 1000, // "2025-09-17T04:32:24.842636548Z"
 				provider: this.name,
+				startedAt: Date.now(),
 			}
 
 			controller.stateManager.setSecret("cline:clineAccountId", JSON.stringify(clineAuthInfo))

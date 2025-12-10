@@ -376,7 +376,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 					)}
 					<div className="mt-2.5">
 						<VSCodeCheckbox
-							checked={hooksEnabled?.user}
+							checked={hooksEnabled}
 							disabled={!isMacOSOrLinux()}
 							onChange={(e: any) => {
 								const checked = e.target.checked === true
