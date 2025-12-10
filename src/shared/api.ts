@@ -2568,13 +2568,29 @@ export const mistralModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
-	"devstral-small-latest": {
+	"labs-devstral-small-2512": {
 		maxTokens: 256_000,
 		contextWindow: 256_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
+	},
+	"mistral-large-2512": {
+		maxTokens: 256_000,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.5,
+		outputPrice: 1.5,
+	},
+	"ministral-14b-2512": {
+		maxTokens: 256_000,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.2,
 	},
 	"mistral-large-2411": {
 		maxTokens: 128_000,
