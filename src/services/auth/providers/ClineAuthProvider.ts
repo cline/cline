@@ -8,7 +8,7 @@ import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { fetch, getAxiosSettings } from "@/shared/net"
-import { AUTH_ERRORS, type ClineAccountUserInfo, type ClineAuthInfo, InternalAuthState } from "../AuthService"
+import { type ClineAccountUserInfo, type ClineAuthInfo, InternalAuthState } from "../AuthService"
 import { parseJwtPayload } from "../oca/utils/utils"
 import { IAuthProvider } from "./IAuthProvider"
 
@@ -224,10 +224,17 @@ export class ClineAuthProvider implements IAuthProvider {
 
 				// Check if we've exceeded max retries
 				if (this.refreshRetryCount >= this.MAX_REFRESH_RETRIES) {
+					const waitTime = this.MAX_REFRESH_RETRIES * 3
+					setTimeout(() => {
+						this.refreshRetryCount = 0
+						this.lastRefreshAttempt = 0
+					}, waitTime)
+
 					return {
 						authenticated: true,
 						loading: false,
-						error: AUTH_ERRORS.MAX_RETRIES_EXCEEDED,
+						error: "Failed several retries. Waiting before retrying again.",
+						nextRetryAt: Date.now() + waitTime,
 					}
 				}
 
@@ -272,7 +279,7 @@ export class ClineAuthProvider implements IAuthProvider {
 					// when the user actually tries to use Cline, not at startup
 					return {
 						authenticated: true,
-						error: AUTH_ERRORS.REFRESH_FAILED,
+						error: "Unknown network error.",
 						loading: true,
 						nextRetryAt: Date.now() + this.RETRY_DELAY_MS,
 					}
@@ -319,7 +326,7 @@ export class ClineAuthProvider implements IAuthProvider {
 			return {
 				authenticated: true,
 				loading: false,
-				error: AUTH_ERRORS.REFRESH_FAILED,
+				error: "Unexpected error.",
 				nextRetryAt: Date.now() + this.RETRY_DELAY_MS,
 			}
 		}

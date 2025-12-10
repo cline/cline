@@ -10,6 +10,6 @@ import type { Controller } from "../index"
  * @returns Empty response
  */
 export async function fetchAuth(_: Controller, _request: EmptyRequest): Promise<Empty> {
-	await AuthService.getInstance().retryRestore()
+	await AuthService.getInstance().restoreRefreshTokenAndRetrieveAuthInfo()
 	return Empty.create({})
 }

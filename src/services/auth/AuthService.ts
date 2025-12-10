@@ -38,12 +38,6 @@ export interface ClineAuthInfo {
 	startedAt?: number
 }
 
-export const AUTH_ERRORS = {
-	MAX_RETRIES_EXCEEDED: "max_retries_exceeded",
-	REFRESH_FAILED: "refresh_failed",
-	UKNOWN_ERROR: "unknown_error",
-}
-
 export interface InternalAuthState extends Omit<AuthState, "user"> {
 	authInfo?: ClineAuthInfo
 }
@@ -346,23 +340,15 @@ export class AuthService {
 
 		try {
 			this.authState = await this.retrieveAuthInfo()
-			await this.sendAuthStatusUpdate()
 		} catch (error) {
 			console.error("Error restoring auth token:", error)
 			this.authState = {
 				loading: false,
 				authenticated: false,
-				error: AUTH_ERRORS.UKNOWN_ERROR,
+				error: "Unknown error.",
 			}
-			return
-		}
-	}
-
-	async retryRestore() {
-		await this.restoreRefreshTokenAndRetrieveAuthInfo()
-
-		if (!this.authState.authInfo && this.authState.authenticated) {
-			throw new Error(this.authState.error || "Failed to fetch session.")
+		} finally {
+			await this.sendAuthStatusUpdate().catch(console.error)
 		}
 	}
 

@@ -20,7 +20,6 @@ export function ClineAuthStatus({ authButtonText = "Sign in to Cline" }: ClineAu
 	const { isAuthenticated, isLoading, error, nextRetryAt } = useClineAuth()
 	const { isLoginLoading, handleSignIn } = useClineSignIn()
 	const [isFetching, setIsFetching] = useState(false)
-	const [retryError, setRetryError] = useState<string | null>(null)
 	const [secondsUntilNextRetry, setSecondsUntilNextRetry] = useState<number | null>(null)
 
 	useEffect(() => {
@@ -58,9 +57,6 @@ export function ClineAuthStatus({ authButtonText = "Sign in to Cline" }: ClineAu
 				AccountServiceClient.fetchAuth(EmptyRequest.create())
 					.catch((err) => {
 						console.error("Failed to fetch auth:", err)
-						if (err instanceof Error) {
-							setRetryError(err.message)
-						}
 					})
 					.finally(() => {
 						setIsFetching(false)
@@ -70,12 +66,11 @@ export function ClineAuthStatus({ authButtonText = "Sign in to Cline" }: ClineAu
 			}
 		}
 
-		console.log({ isLoading, error, retryError, secondsUntilNextRetry })
 		return (
 			<div className="flex flex-col gap-2 w-full">
-				{retryError ? (
+				{error ? (
 					<span>
-						{retryError} {secondsUntilNextRetry && `Please retry in ${secondsUntilNextRetry} seconds.`}
+						{error} {secondsUntilNextRetry && `Please retry in ${secondsUntilNextRetry} seconds.`}
 					</span>
 				) : (
 					isLoading && <span>We're fetching your information. Please wait or force a retry.</span>
