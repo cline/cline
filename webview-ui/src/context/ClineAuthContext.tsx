@@ -18,6 +18,10 @@ export interface ClineAuthContextType {
 	clineUser: ClineUser | null
 	organizations: UserOrganization[] | null
 	activeOrganization: UserOrganization | null
+	isAuthenticated: boolean
+	isLoading: boolean
+	error: string | null
+	nextRetryAt: number | null
 }
 
 export const ClineAuthContext = createContext<ClineAuthContextType | undefined>(undefined)
@@ -25,6 +29,10 @@ export const ClineAuthContext = createContext<ClineAuthContextType | undefined>(
 export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 	const [user, setUser] = useState<ClineUser | null>(null)
 	const [userOrganizations, setUserOrganizations] = useState<UserOrganization[] | null>(null)
+	const [isLoading, setIsLoading] = useState(false)
+	const [error, setError] = useState<string | null>(null)
+	const [isAuthenticated, setIsAuthenticated] = useState(false)
+	const [nextRetryAt, setNextRetryAt] = useState<number | null>(null)
 
 	const getUserOrganizations = useCallback(async () => {
 		try {
@@ -48,10 +56,14 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	// Handle auth status update events
 	useEffect(() => {
 		const cancelSubscription = AccountServiceClient.subscribeToAuthStatusUpdate(EmptyRequest.create(), {
-			onResponse: async (response: any) => {
+			onResponse: async (response) => {
 				if (!response?.user?.uid) {
 					setUser(null)
 				}
+				setIsAuthenticated(!!response.authenticated)
+				setIsLoading(!!response.loading)
+				setError(response.error || null)
+				setNextRetryAt(response.nextRetryAt || null)
 				if (response?.user && user?.uid !== response.user.uid) {
 					setUser(response.user)
 					// Once we have a new user, fetch organizations that
@@ -80,6 +92,10 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				clineUser: user,
 				organizations: userOrganizations,
 				activeOrganization,
+				error,
+				isAuthenticated,
+				isLoading,
+				nextRetryAt,
 			}}>
 			{children}
 		</ClineAuthContext.Provider>

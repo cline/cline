@@ -38,6 +38,16 @@ export interface ClineAuthInfo {
 	startedAt?: number
 }
 
+export const AUTH_ERRORS = {
+	MAX_RETRIES_EXCEEDED: "max_retries_exceeded",
+	REFRESH_FAILED: "refresh_failed",
+	UKNOWN_ERROR: "unknown_error",
+}
+
+export interface InternalAuthState extends Omit<AuthState, "user"> {
+	authInfo?: ClineAuthInfo
+}
+
 export interface ClineAccountUserInfo {
 	createdAt: string
 	displayName: string
@@ -64,9 +74,11 @@ export interface ClineAccountOrganization {
 
 export class AuthService {
 	protected static instance: AuthService | null = null
-	protected _authenticated: boolean = false
-	protected _clineAuthInfo: ClineAuthInfo | null = null
-	protected _provider: IAuthProvider | null = null
+	protected provider: IAuthProvider | null = null
+	protected authState: InternalAuthState = {
+		authenticated: false,
+		loading: true,
+	}
 	protected _activeAuthStatusUpdateHandlers = new Set<StreamingResponseHandler<AuthState>>()
 	protected _handlerToController = new Map<StreamingResponseHandler<AuthState>, Controller>()
 	protected _controller: Controller
@@ -116,11 +128,11 @@ export class AuthService {
 	 * Refreshing it if necessary.
 	 */
 	async getAuthToken(): Promise<string | null> {
-		if (!this._provider) {
+		if (!this.provider) {
 			throw new Error("Auth provider is not set")
 		}
 
-		return this.internalGetAuthToken(this._provider)
+		return this.internalGetAuthToken(this.provider)
 	}
 
 	/**
@@ -128,10 +140,10 @@ export class AuthService {
 	 * @returns The active organization ID, or null if no active organization exists
 	 */
 	getActiveOrganizationId(): string | null {
-		if (!this._clineAuthInfo?.userInfo?.organizations) {
+		if (!this.authState?.authInfo?.userInfo?.organizations) {
 			return null
 		}
-		const activeOrg = this._clineAuthInfo.userInfo.organizations.find((org) => org.active)
+		const activeOrg = this.authState.authInfo?.userInfo.organizations.find((org) => org.active)
 		return activeOrg?.organizationId ?? null
 	}
 
@@ -140,26 +152,26 @@ export class AuthService {
 	 * @returns Array of organizations, or undefined if not available
 	 */
 	getUserOrganizations(): ClineAccountOrganization[] | undefined {
-		return this._clineAuthInfo?.userInfo?.organizations
+		return this.authState?.authInfo?.userInfo?.organizations
 	}
 
 	private async internalGetAuthToken(provider: IAuthProvider): Promise<string | null> {
 		try {
-			let clineAccountAuthToken = this._clineAuthInfo?.idToken
-			if (!this._clineAuthInfo || !clineAccountAuthToken || this._clineAuthInfo.provider !== provider.name) {
+			let clineAccountAuthToken = this.authState?.authInfo?.idToken
+			if (!this.authState || !clineAccountAuthToken || this.authState?.authInfo?.provider !== provider.name) {
 				// Not authenticated
 				return null
 			}
 
 			// Check if token has expired
 
-			if (await provider.shouldRefreshIdToken(clineAccountAuthToken, this._clineAuthInfo.expiresAt)) {
+			if (await provider.shouldRefreshIdToken(clineAccountAuthToken, this.authState.authInfo.expiresAt)) {
 				// If a refresh is already in progress, wait for it to complete
 				if (this._refreshPromise) {
 					Logger.info("Token refresh already in progress, waiting for completion")
 					await this._refreshPromise
 					// After waiting, return the updated token
-					clineAccountAuthToken = this._clineAuthInfo?.idToken
+					clineAccountAuthToken = this.authState?.authInfo?.idToken
 					return clineAccountAuthToken ? `workos:${clineAccountAuthToken}` : null
 				}
 
@@ -170,18 +182,19 @@ export class AuthService {
 					try {
 						const updatedAuthInfo = await provider.retrieveClineAuthInfo(this._controller)
 						if (updatedAuthInfo) {
-							this._clineAuthInfo = updatedAuthInfo
-							this._authenticated = true
-							clineAccountAuthToken = updatedAuthInfo.idToken
+							this.authState = updatedAuthInfo
+							clineAccountAuthToken = updatedAuthInfo.authInfo?.idToken
 							authStatusChanged = true
 						}
 					} catch (error) {
 						// Only log out for permanent auth failures, not network issues
 						if (error instanceof AuthInvalidTokenError) {
 							Logger.error("Token is invalid or expired:", error)
-							this._clineAuthInfo = null
-							this._authenticated = false
-							telemetryService.captureAuthLoggedOut(this._provider?.name, LogoutReason.ERROR_RECOVERY)
+							this.authState = {
+								authenticated: false,
+								loading: false,
+							}
+							telemetryService.captureAuthLoggedOut(this.provider?.name, LogoutReason.ERROR_RECOVERY)
 							authStatusChanged = true
 						} else if (error instanceof AuthNetworkError) {
 							Logger.error("Network error refreshing token", error)
@@ -215,7 +228,7 @@ export class AuthService {
 
 	protected _initProvider(): void {
 		// Only ClineAuthProvider is supported going forward
-		this._provider = new ClineAuthProvider()
+		this.provider = new ClineAuthProvider()
 	}
 
 	/**
@@ -223,15 +236,15 @@ export class AuthService {
 	 * @returns The provider name (e.g., "cline", "firebase"), or null if not authenticated
 	 */
 	getProviderName(): string | null {
-		return this._clineAuthInfo?.provider ?? null
+		return this.authState?.authInfo?.provider ?? null
 	}
 
 	getInfo(): AuthState {
 		// TODO: this logic should be cleaner, but this will determine the authentication state for the webview -- if a user object is returned then the webview assumes authenticated, otherwise it assumes logged out (we previously returned a UserInfo object with empty fields, and this represented a broken logged in state)
 		let user: any = null
-		if (this._clineAuthInfo && this._authenticated) {
-			const userInfo = this._clineAuthInfo.userInfo
-			this._clineAuthInfo.userInfo.appBaseUrl = ClineEnv.config()?.appBaseUrl
+		if (this.authState.authInfo) {
+			const userInfo = this.authState.authInfo?.userInfo
+			this.authState.authInfo.userInfo.appBaseUrl = ClineEnv.config()?.appBaseUrl
 
 			user = UserInfo.create({
 				// TODO: create proto for new user info type
@@ -245,17 +258,21 @@ export class AuthService {
 
 		return AuthState.create({
 			user,
+			loading: this.authState.loading,
+			authenticated: this.authState.authenticated,
+			error: this.authState.error,
+			nextRetryAt: this.authState.nextRetryAt,
 		})
 	}
 
 	async createAuthRequest(strict = false): Promise<String> {
 		// In strict mode, we do not open a new auth window if already authenticated
-		if (strict && this._authenticated) {
+		if (strict) {
 			this.sendAuthStatusUpdate()
 			return String.create({ value: "Already authenticated" })
 		}
 
-		if (!this._provider) {
+		if (!this.provider) {
 			return String.create({
 				value: "Authentication provider is not configured",
 			})
@@ -264,23 +281,25 @@ export class AuthService {
 		const callbackHost = await HostProvider.get().getCallbackUrl()
 		const callbackUrl = `${callbackHost}/auth`
 
-		const authUrl = await this._provider.getAuthRequest(callbackUrl)
+		const authUrl = await this.provider.getAuthRequest(callbackUrl)
 		const authUrlString = authUrl.toString()
 
 		await openExternal(authUrlString)
-		telemetryService.captureAuthStarted(this._provider.name)
+		telemetryService.captureAuthStarted(this.provider.name)
 		return String.create({ value: authUrlString })
 	}
 
 	async handleDeauth(reason: LogoutReason = LogoutReason.UNKNOWN): Promise<void> {
-		if (!this._provider) {
+		if (!this.provider) {
 			throw new Error("Auth provider is not set")
 		}
 
 		try {
-			telemetryService.captureAuthLoggedOut(this._provider.name, reason)
-			this._clineAuthInfo = null
-			this._authenticated = false
+			telemetryService.captureAuthLoggedOut(this.provider.name, reason)
+			this.authState = {
+				authenticated: false,
+				loading: false,
+			}
 			this.destroyTokens()
 			this.sendAuthStatusUpdate()
 		} catch (error) {
@@ -290,19 +309,17 @@ export class AuthService {
 	}
 
 	async handleAuthCallback(authorizationCode: string, provider: string): Promise<void> {
-		if (!this._provider) {
+		if (!this.provider) {
 			throw new Error("Auth provider is not set")
 		}
 
 		try {
-			this._clineAuthInfo = await this._provider.signIn(this._controller, authorizationCode, provider)
-			this._authenticated = this._clineAuthInfo?.idToken !== undefined
-
-			telemetryService.captureAuthSucceeded(this._provider.name)
+			this.authState = await this.provider.signIn(this._controller, authorizationCode, provider)
+			telemetryService.captureAuthSucceeded(this.provider.name)
 			await setWelcomeViewCompleted(this._controller, { value: true })
 		} catch (error) {
 			console.error("Error signing in with custom token:", error)
-			telemetryService.captureAuthFailed(this._provider.name)
+			telemetryService.captureAuthFailed(this.provider.name)
 			throw error
 		} finally {
 			await this.sendAuthStatusUpdate()
@@ -323,32 +340,34 @@ export class AuthService {
 	 * This is typically called when the extension is activated.
 	 */
 	async restoreRefreshTokenAndRetrieveAuthInfo(): Promise<void> {
-		if (!this._provider) {
+		if (!this.provider) {
 			throw new Error("Auth provider is not set")
 		}
 
 		try {
-			this._clineAuthInfo = await this.retrieveAuthInfo()
-			if (this._clineAuthInfo) {
-				this._authenticated = true
-				await this.sendAuthStatusUpdate()
-			} else {
-				console.warn("No user found after restoring auth token")
-				this._authenticated = false
-				this._clineAuthInfo = null
-				telemetryService.captureAuthLoggedOut(this._provider?.name, LogoutReason.ERROR_RECOVERY)
-			}
+			this.authState = await this.retrieveAuthInfo()
+			await this.sendAuthStatusUpdate()
 		} catch (error) {
 			console.error("Error restoring auth token:", error)
-			this._authenticated = false
-			this._clineAuthInfo = null
-			telemetryService.captureAuthLoggedOut(this._provider?.name, LogoutReason.ERROR_RECOVERY)
+			this.authState = {
+				loading: false,
+				authenticated: false,
+				error: AUTH_ERRORS.UKNOWN_ERROR,
+			}
 			return
 		}
 	}
 
-	private async retrieveAuthInfo(): Promise<ClineAuthInfo | null> {
-		if (!this._provider) {
+	async retryRestore() {
+		await this.restoreRefreshTokenAndRetrieveAuthInfo()
+
+		if (!this.authState.authInfo && this.authState.authenticated) {
+			throw new Error(this.authState.error || "Failed to fetch session.")
+		}
+	}
+
+	private async retrieveAuthInfo(): Promise<InternalAuthState> {
+		if (!this.provider) {
 			throw new Error("Auth provider is not set")
 		}
 
@@ -358,7 +377,7 @@ export class AuthService {
 			await this._refreshPromise
 		}
 
-		return this._provider.retrieveClineAuthInfo(this._controller)
+		return this.provider.retrieveClineAuthInfo(this._controller)
 	}
 
 	/**
@@ -427,10 +446,11 @@ export class AuthService {
 
 		await Promise.all(streamSends)
 		// Identify the user in telemetry if available
-		if (this._clineAuthInfo?.userInfo?.id) {
-			telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
+		const userInfo = this.authState.authInfo?.userInfo
+		if (userInfo?.id) {
+			telemetryService.identifyAccount(userInfo)
 			// Poll feature flags immediately for authenticated users to ensure cache is populated
-			await featureFlagsService.poll(this._clineAuthInfo?.userInfo?.id)
+			await featureFlagsService.poll(userInfo.id)
 		} else {
 			// Poll feature flags for unauthenticated state
 			await featureFlagsService.poll(undefined)

@@ -19,6 +19,8 @@ service AccountService {
   // Clears API keys and user state.
   rpc accountLogoutClicked(EmptyRequest) returns (Empty);
 
+  rpc fetchAuth(EmptyRequest) returns (Empty);
+
   // Subscribe to auth status update events (when authentication state changes)
   rpc subscribeToAuthStatusUpdate(EmptyRequest) returns (stream AuthState);
 
@@ -53,6 +55,10 @@ message AuthStateChangedRequest {
 
 message AuthState {
   optional UserInfo user = 1;
+  bool authenticated = 2;
+  bool loading = 3;
+  optional int64 next_retry_at = 4;
+  optional string error = 5;
 }
 
 // User's information

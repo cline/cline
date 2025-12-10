@@ -8,7 +8,7 @@ import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { fetch, getAxiosSettings } from "@/shared/net"
-import { type ClineAccountUserInfo, type ClineAuthInfo } from "../AuthService"
+import { AUTH_ERRORS, type ClineAccountUserInfo, type ClineAuthInfo, InternalAuthState } from "../AuthService"
 import { parseJwtPayload } from "../oca/utils/utils"
 import { IAuthProvider } from "./IAuthProvider"
 
@@ -123,7 +123,10 @@ export class ClineAuthProvider implements IAuthProvider {
 		controller.stateManager.setSecret("cline:clineAccountId", undefined)
 		this.refreshRetryCount = 0
 		this.lastRefreshAttempt = 0
-		return null
+		return {
+			authenticated: false,
+			loading: false,
+		}
 	}
 
 	private logFailedRefreshAttempt(response: Response, storedAuthData?: ClineAuthInfo) {
@@ -158,7 +161,7 @@ export class ClineAuthProvider implements IAuthProvider {
 	 * @param controller - The controller instance to access stored secrets.
 	 * @returns {Promise<ClineAuthInfo | null>} A promise that resolves with the auth info or null.
 	 */
-	async retrieveClineAuthInfo(controller: Controller): Promise<ClineAuthInfo | null> {
+	async retrieveClineAuthInfo(controller: Controller): Promise<InternalAuthState> {
 		try {
 			// Get the stored auth data from secure storage
 			const storedAuthDataString = controller.stateManager.getSecretKey("cline:clineAccountId")
@@ -168,7 +171,10 @@ export class ClineAuthProvider implements IAuthProvider {
 				// Reset retry count when there's no stored auth
 				this.refreshRetryCount = 0
 				this.lastRefreshAttempt = 0
-				return null
+				return {
+					authenticated: false,
+					loading: false,
+				}
 			}
 
 			// Parse the stored auth data
@@ -195,7 +201,11 @@ export class ClineAuthProvider implements IAuthProvider {
 				) {
 					this.refreshRetryCount = 0
 					this.lastRefreshAttempt = 0
-					return storedAuthData
+					return {
+						authInfo: storedAuthData,
+						authenticated: true,
+						loading: false,
+					}
 				}
 
 				// Check if we need to wait before retrying
@@ -205,14 +215,20 @@ export class ClineAuthProvider implements IAuthProvider {
 					Logger.debug(
 						`Waiting ${Math.ceil((this.RETRY_DELAY_MS - timeSinceLastAttempt) / 1000)}s before retry attempt ${this.refreshRetryCount + 1}/${this.MAX_REFRESH_RETRIES}`,
 					)
-					return null
+					return {
+						authenticated: true,
+						loading: true,
+						nextRetryAt: Date.now() + this.RETRY_DELAY_MS - timeSinceLastAttempt,
+					}
 				}
 
 				// Check if we've exceeded max retries
 				if (this.refreshRetryCount >= this.MAX_REFRESH_RETRIES) {
-					Logger.error(`Max refresh retries (${this.MAX_REFRESH_RETRIES}) exceeded.`)
-					// Don't clear session - return stored data and let API request fail later
-					return storedAuthData
+					return {
+						authenticated: true,
+						loading: false,
+						error: AUTH_ERRORS.MAX_RETRIES_EXCEEDED,
+					}
 				}
 
 				// Try to refresh the token using the refresh token
@@ -233,7 +249,12 @@ export class ClineAuthProvider implements IAuthProvider {
 					this.refreshRetryCount = 0
 					this.lastRefreshAttempt = 0
 					Logger.debug("Token refresh successful")
-					return authInfo || null
+
+					return {
+						authInfo: authInfo,
+						authenticated: true,
+						loading: false,
+					}
 				} catch (refreshError) {
 					Logger.error(
 						`Token refresh failed (attempt ${this.refreshRetryCount}/${this.MAX_REFRESH_RETRIES}):`,
@@ -249,7 +270,12 @@ export class ClineAuthProvider implements IAuthProvider {
 
 					// For network errors, return stored data - let the API request fail later
 					// when the user actually tries to use Cline, not at startup
-					return storedAuthData
+					return {
+						authenticated: true,
+						error: AUTH_ERRORS.REFRESH_FAILED,
+						loading: true,
+						nextRetryAt: Date.now() + this.RETRY_DELAY_MS,
+					}
 				}
 			}
 
@@ -259,7 +285,11 @@ export class ClineAuthProvider implements IAuthProvider {
 
 			// Is the token valid?
 			if (storedAuthData.idToken && storedAuthData.refreshToken && storedAuthData.userInfo.id) {
-				return storedAuthData
+				return {
+					authInfo: storedAuthData,
+					authenticated: true,
+					loading: false,
+				}
 			}
 
 			// Verify the token structure
@@ -273,7 +303,12 @@ export class ClineAuthProvider implements IAuthProvider {
 			if (payload.external_id) {
 				storedAuthData.userInfo.id = payload.external_id
 			}
-			return storedAuthData
+
+			return {
+				authInfo: storedAuthData,
+				authenticated: true,
+				loading: false,
+			}
 		} catch (error) {
 			Logger.error("Authentication failed with stored credential:", error)
 			// Reset retry count on unexpected errors
@@ -281,7 +316,12 @@ export class ClineAuthProvider implements IAuthProvider {
 				this.refreshRetryCount = 0
 				this.lastRefreshAttempt = 0
 			}
-			return null
+			return {
+				authenticated: true,
+				loading: false,
+				error: AUTH_ERRORS.REFRESH_FAILED,
+				nextRetryAt: Date.now() + this.RETRY_DELAY_MS,
+			}
 		}
 	}
 
@@ -387,7 +427,7 @@ export class ClineAuthProvider implements IAuthProvider {
 		}
 	}
 
-	async signIn(controller: Controller, authorizationCode: string, provider: string): Promise<ClineAuthInfo | null> {
+	async signIn(controller: Controller, authorizationCode: string, provider: string): Promise<InternalAuthState> {
 		try {
 			// Get the callback URL that was used during the initial auth request
 			const callbackHost = await HostProvider.get().getCallbackUrl()
@@ -438,7 +478,11 @@ export class ClineAuthProvider implements IAuthProvider {
 
 			controller.stateManager.setSecret("cline:clineAccountId", JSON.stringify(clineAuthInfo))
 
-			return clineAuthInfo
+			return {
+				authInfo: clineAuthInfo,
+				authenticated: true,
+				loading: false,
+			}
 		} catch (error) {
 			Logger.error("Error handling auth callback:", error)
 			throw error
