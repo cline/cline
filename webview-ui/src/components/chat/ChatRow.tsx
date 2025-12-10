@@ -145,7 +145,6 @@ const CommandOutput = memo(
 		const lineCount = outputLines.length
 		const shouldAutoShow = lineCount <= 5
 		const outputRef = useRef<HTMLDivElement>(null)
-		const [isHandleHovered, setIsHandleHovered] = useState(false)
 
 		// Auto-scroll to bottom when output changes (only when showing limited output)
 		useEffect(() => {
@@ -196,8 +195,6 @@ const CommandOutput = memo(
 				{lineCount > 5 && (
 					<div
 						onClick={onToggle}
-						onMouseEnter={() => setIsHandleHovered(true)}
-						onMouseLeave={() => setIsHandleHovered(false)}
 						style={{
 							position: "absolute",
 							bottom: "-8px",
