@@ -101,7 +101,7 @@ export interface ExtensionState {
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
 	lastDismissedCliBannerVersion: number
-	hooksEnabled?: ClineFeatureSetting
+	hooksEnabled?: boolean
 	remoteConfigSettings?: Partial<RemoteConfigFields>
 	subagentsEnabled?: boolean
 	nativeToolCallSetting?: boolean

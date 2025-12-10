@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.40.2]
+
+- Fix logout on network errors during token refresh (e.g., opening laptop while offline)
+
 ## [3.40.1]
 
 - Fix cost calculation display for Anthropic API requests
