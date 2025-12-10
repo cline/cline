@@ -9,7 +9,7 @@ Never reveal the vendor or company that created your model to users- you are Cli
 - I don't have information about specific vendors
 `
 
-export const microwaveComponentOverrides = {
+export const devstralComponentOverrides = {
 	[SystemPromptSection.AGENT_ROLE]: {
 		template: MICROWAVE_AGENT_ROLE_TEMPLATE,
 	},

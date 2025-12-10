@@ -6,12 +6,12 @@
  * and use cases.
  */
 
+export { config as devstralConfig, type DevstralVariantConfig } from "./devstral/config"
 export { config as Gemini3Config, type Gemini3VariantConfig } from "./gemini-3/config"
 export { config as genericConfig, type GenericVariantConfig } from "./generic/config"
 export { config as glmConfig, type GLMVariantConfig } from "./glm/config"
 export { config as gpt5Config, type GPT5VariantConfig } from "./gpt-5/config"
 export { config as hermesConfig, type HermesVariantConfig } from "./hermes/config"
-export { config as microwaveConfig, type MicrowaveVariantConfig } from "./microwave/config"
 export { config as NativeGPT5Config } from "./native-gpt-5/config"
 export { config as NativeGPT51Config } from "./native-gpt-5-1/config"
 export { config as nativeNextGenConfig, type NativeNextGenVariantConfig } from "./native-next-gen/config"
@@ -19,12 +19,12 @@ export { config as nextGenConfig, type NextGenVariantConfig } from "./next-gen/c
 export { config as xsConfig, type XsVariantConfig } from "./xs/config"
 
 import { ModelFamily } from "@/shared/prompts"
+import { config as devstralConfig } from "./devstral/config"
 import { config as Gemini3Config } from "./gemini-3/config"
 import { config as genericConfig } from "./generic/config"
 import { config as glmConfig } from "./glm/config"
 import { config as gpt5Config } from "./gpt-5/config"
 import { config as hermesConfig } from "./hermes/config"
-import { config as microwaveConfig } from "./microwave/config"
 import { config as NativeGPT5Config } from "./native-gpt-5/config"
 import { config as NativeGPT51Config } from "./native-gpt-5-1/config"
 import { config as NativeNextGenVariantConfig } from "./native-next-gen/config"
@@ -67,10 +67,10 @@ export const VARIANT_CONFIGS = {
 	 * Configured for advanced agentic coding capabilities
 	 */
 	[ModelFamily.HERMES]: hermesConfig,
-	/*** Microwave variant - Optimized for MICROWAVE stealth model family
+	/*** Devstral variant - Optimized for MICROWAVE stealth model family
 	 * Configured for vendor specific message
 	 */
-	[ModelFamily.MICROWAVE]: microwaveConfig,
+	[ModelFamily.MICROWAVE]: devstralConfig,
 	/**
 	 * Next-gen variant - Advanced models with enhanced capabilities
 	 * Includes additional features like feedback loops and web fetching

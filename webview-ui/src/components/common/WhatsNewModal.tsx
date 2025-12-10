@@ -28,7 +28,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 	const user = clineUser || undefined
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
-	const [didClickMicrowaveButton, setDidClickMicrowaveButton] = useState(false)
+	const [didClickDevstralButton, setDidClickDevstralButton] = useState(false)
 	// Need to get latest model list in case user hits shortcut button to set model
 	useMount(refreshOpenRouterModels)
 
@@ -49,8 +49,8 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 		return () => window.removeEventListener("keydown", handleKeyDown)
 	}, [open, onClose])
 
-	const setMicrowave = () => {
-		const modelId = "stealth/microwave"
+	const setDevstral = () => {
+		const modelId = "mistralai/devstral-2512"
 		handleFieldsChange({
 			planModeOpenRouterModelId: modelId,
 			actModeOpenRouterModelId: modelId,
@@ -61,7 +61,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 		})
 
 		setTimeout(() => {
-			setDidClickMicrowaveButton(true)
+			setDidClickDevstralButton(true)
 			setShowChatModelSelector(true)
 		}, 10)
 	}
@@ -161,29 +161,6 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 								</li>
 							</>
 						)}
-						<li className="mb-2">
-							New <code>microwave</code> stealth model, free for a limited time!
-							<br />
-							{user ? (
-								<div className="flex gap-2 flex-wrap my-1.5">
-									{!didClickMicrowaveButton && (
-										<VSCodeButton
-											appearance="primary"
-											onClick={setMicrowave}
-											style={{ transform: "scale(0.85)", transformOrigin: "left center" }}>
-											Try stealth/microwave
-										</VSCodeButton>
-									)}
-								</div>
-							) : (
-								<VSCodeButton
-									appearance="primary"
-									onClick={handleShowAccount}
-									style={{ margin: "5px 0", transform: "scale(0.85)", transformOrigin: "left center" }}>
-									Sign Up with Cline
-								</VSCodeButton>
-							)}
-						</li>
 					</ul>
 
 					{/* Demo link */}
