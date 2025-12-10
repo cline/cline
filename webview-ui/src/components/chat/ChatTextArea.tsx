@@ -104,142 +104,142 @@ const PLAN_MODE_COLOR = "var(--vscode-activityWarningBadge-background)"
 const ACT_MODE_COLOR = "var(--vscode-focusBorder)"
 
 const SwitchContainer = styled.div<{ disabled: boolean }>`
-  display: flex;
-  align-items: center;
-  background-color: transparent;
-  border: 1px solid var(--vscode-input-border);
-  border-radius: 12px;
-  overflow: hidden;
-  cursor: ${(props) => (props.disabled ? "not-allowed" : "pointer")};
-  opacity: ${(props) => (props.disabled ? 0.5 : 1)};
-  transform: scale(1);
-  transform-origin: right center;
-  margin-left: 0;
-  user-select: none; // Prevent text selection
+	display: flex;
+	align-items: center;
+	background-color: transparent;
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 12px;
+	overflow: hidden;
+	cursor: ${(props) => (props.disabled ? "not-allowed" : "pointer")};
+	opacity: ${(props) => (props.disabled ? 0.5 : 1)};
+	transform: scale(1);
+	transform-origin: right center;
+	margin-left: 0;
+	user-select: none; // Prevent text selection
 `
 
 const Slider = styled.div.withConfig({
 	shouldForwardProp: (prop) => !["isAct", "isPlan"].includes(prop),
 })<{ isAct: boolean; isPlan?: boolean }>`
-  position: absolute;
-  height: 100%;
-  width: 50%;
-  background-color: ${(props) => (props.isPlan ? PLAN_MODE_COLOR : ACT_MODE_COLOR)};
-  transition: transform 0.2s ease;
-  transform: translateX(${(props) => (props.isAct ? "100%" : "0%")});
+	position: absolute;
+	height: 100%;
+	width: 50%;
+	background-color: ${(props) => (props.isPlan ? PLAN_MODE_COLOR : ACT_MODE_COLOR)};
+	transition: transform 0.2s ease;
+	transform: translateX(${(props) => (props.isAct ? "100%" : "0%")});
 `
 
 const ButtonGroup = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: 1;
-  min-width: 0;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex: 1;
+	min-width: 0;
 `
 
 const ButtonContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 10px;
-  white-space: nowrap;
-  min-width: 0;
-  width: 100%;
+	display: flex;
+	align-items: center;
+	gap: 3px;
+	font-size: 10px;
+	white-space: nowrap;
+	min-width: 0;
+	width: 100%;
 `
 
 const ModelSelectorTooltip = styled.div<ModelSelectorTooltipProps>`
-  position: fixed;
-  bottom: calc(100% + 9px);
-  left: 15px;
-  right: 15px;
-  background: ${CODE_BLOCK_BG_COLOR};
-  border: 1px solid var(--vscode-editorGroup-border);
-  padding: 12px 12px 18px 12px;
-  border-radius: 3px;
-  z-index: 1000;
-  max-height: calc(100vh - 100px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
+	position: fixed;
+	bottom: calc(100% + 9px);
+	left: 15px;
+	right: 15px;
+	background: ${CODE_BLOCK_BG_COLOR};
+	border: 1px solid var(--vscode-editorGroup-border);
+	padding: 12px 12px 18px 12px;
+	border-radius: 3px;
+	z-index: 1000;
+	max-height: calc(100vh - 100px);
+	overflow-y: auto;
+	overscroll-behavior: contain;
 
-  // Add invisible padding for hover zone
-  &::before {
-    content: "";
-    position: fixed;
-    bottom: ${(props) => `calc(100vh - ${props.menuPosition}px - 2px)`};
-    left: 0;
-    right: 0;
-    height: 8px;
-  }
+	// Add invisible padding for hover zone
+	&::before {
+		content: "";
+		position: fixed;
+		bottom: ${(props) => `calc(100vh - ${props.menuPosition}px - 2px)`};
+		left: 0;
+		right: 0;
+		height: 8px;
+	}
 
-  // Arrow pointing down
-  &::after {
-    content: "";
-    position: fixed;
-    bottom: ${(props) => `calc(100vh - ${props.menuPosition}px)`};
-    right: ${(props) => props.arrowPosition}px;
-    width: 10px;
-    height: 10px;
-    background: ${CODE_BLOCK_BG_COLOR};
-    border-right: 1px solid var(--vscode-editorGroup-border);
-    border-bottom: 1px solid var(--vscode-editorGroup-border);
-    transform: rotate(45deg);
-    z-index: -1;
-  }
+	// Arrow pointing down
+	&::after {
+		content: "";
+		position: fixed;
+		bottom: ${(props) => `calc(100vh - ${props.menuPosition}px)`};
+		right: ${(props) => props.arrowPosition}px;
+		width: 10px;
+		height: 10px;
+		background: ${CODE_BLOCK_BG_COLOR};
+		border-right: 1px solid var(--vscode-editorGroup-border);
+		border-bottom: 1px solid var(--vscode-editorGroup-border);
+		transform: rotate(45deg);
+		z-index: -1;
+	}
 `
 
 const ModelContainer = styled.div`
-  position: relative;
-  display: flex;
-  flex: 1;
-  min-width: 0;
+	position: relative;
+	display: flex;
+	flex: 1;
+	min-width: 0;
 `
 
 const ModelButtonWrapper = styled.div`
-  display: inline-flex; // Make it shrink to content
-  min-width: 0; // Allow shrinking
-  max-width: 100%; // Don't overflow parent
+	display: inline-flex; // Make it shrink to content
+	min-width: 0; // Allow shrinking
+	max-width: 100%; // Don't overflow parent
 `
 
 const ModelDisplayButton = styled.a<{ isActive?: boolean; disabled?: boolean }>`
-  padding: 0px 0px;
-  height: 20px;
-  width: 100%;
-  min-width: 0;
-  cursor: ${(props) => (props.disabled ? "not-allowed" : "pointer")};
-  text-decoration: ${(props) => (props.isActive ? "underline" : "none")};
-  color: ${(props) => (props.isActive ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
-  display: flex;
-  align-items: center;
-  font-size: 10px;
-  outline: none;
-  user-select: none;
-  opacity: ${(props) => (props.disabled ? 0.5 : 1)};
-  pointer-events: ${(props) => (props.disabled ? "none" : "auto")};
+	padding: 0px 0px;
+	height: 20px;
+	width: 100%;
+	min-width: 0;
+	cursor: ${(props) => (props.disabled ? "not-allowed" : "pointer")};
+	text-decoration: ${(props) => (props.isActive ? "underline" : "none")};
+	color: ${(props) => (props.isActive ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
+	display: flex;
+	align-items: center;
+	font-size: 10px;
+	outline: none;
+	user-select: none;
+	opacity: ${(props) => (props.disabled ? 0.5 : 1)};
+	pointer-events: ${(props) => (props.disabled ? "none" : "auto")};
 
-  &:hover,
-  &:focus {
-    color: ${(props) => (props.disabled ? "var(--vscode-descriptionForeground)" : "var(--vscode-foreground)")};
-    text-decoration: ${(props) => (props.disabled ? "none" : "underline")};
-    outline: none;
-  }
+	&:hover,
+	&:focus {
+		color: ${(props) => (props.disabled ? "var(--vscode-descriptionForeground)" : "var(--vscode-foreground)")};
+		text-decoration: ${(props) => (props.disabled ? "none" : "underline")};
+		outline: none;
+	}
 
-  &:active {
-    color: ${(props) => (props.disabled ? "var(--vscode-descriptionForeground)" : "var(--vscode-foreground)")};
-    text-decoration: ${(props) => (props.disabled ? "none" : "underline")};
-    outline: none;
-  }
+	&:active {
+		color: ${(props) => (props.disabled ? "var(--vscode-descriptionForeground)" : "var(--vscode-foreground)")};
+		text-decoration: ${(props) => (props.disabled ? "none" : "underline")};
+		outline: none;
+	}
 
-  &:focus-visible {
-    outline: none;
-  }
+	&:focus-visible {
+		outline: none;
+	}
 `
 
 const ModelButtonContent = styled.div`
-  width: 100%;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+	width: 100%;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 `
 
 const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
@@ -1187,11 +1187,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				case "openai":
 					return `openai-compat:${selectedModelId}`
 				case "vscode-lm":
-					return `vscode-lm:${
-						vsCodeLmModelSelector
-							? `${vsCodeLmModelSelector.vendor ?? ""}/${vsCodeLmModelSelector.family ?? ""}`
-							: unknownModel
-					}`
+					return `vscode-lm:${vsCodeLmModelSelector ? `${vsCodeLmModelSelector.vendor ?? ""}/${vsCodeLmModelSelector.family ?? ""}` : unknownModel}`
 				case "together":
 					return `${selectedProvider}:${togetherModelId}`
 				case "lmstudio":
@@ -1812,11 +1808,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							className="text-xs px-2 flex flex-col gap-1"
 							hidden={shownTooltipMode === null}
 							side="top">
-							{`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${
-								shownTooltipMode === "act"
-									? "complete the task immediately"
-									: "gather information to architect a plan"
-							}`}
+							{`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
 							<p className="text-description/80 text-xs mb-0">
 								Toggle w/ <kbd className="text-muted-foreground mx-1">{togglePlanActKeys}</kbd>
 							</p>
