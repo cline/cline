@@ -18,6 +18,7 @@ import { useSize } from "react-use"
 import styled from "styled-components"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
+import "./ChatRow.css"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
 import { CheckpointControls } from "@/components/common/CheckpointControls"
 import CodeBlock, {
@@ -174,9 +175,9 @@ const CommandOutput = memo(
 					paddingBottom: lineCount > 5 ? "16px" : "0",
 					overflow: "visible",
 					borderTop: "1px solid rgba(255,255,255,.07)",
-					backgroundColor: TERMINAL_CODE_BLOCK_BG_COLOR,
 					borderBottomLeftRadius: "6px",
 					borderBottomRightRadius: "6px",
+					backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
 				}}>
 				<div
 					ref={outputRef}
@@ -246,7 +247,7 @@ const CompletionOutput = memo(
 				style={{
 					width: "100%",
 					position: "relative",
-					paddingBottom: lineCount > 5 ? "16px" : "0",
+					paddingBottom: lineCount > 5 ? "8px" : "0",
 					overflow: "visible",
 					borderTop: "1px solid rgba(255,255,255,.07)",
 					borderBottomLeftRadius: "6px",
@@ -254,6 +255,7 @@ const CompletionOutput = memo(
 					backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
 				}}>
 				<div
+					className="completion-output-content"
 					style={{
 						maxHeight: shouldAutoShow ? "none" : isOutputFullyExpanded ? "400px" : "150px",
 						overflowY: shouldAutoShow ? "visible" : "auto",
