@@ -10,9 +10,10 @@ import {
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
 import { BooleanRequest, Int64Request, StringRequest } from "@shared/proto/cline/common"
+import { Mode } from "@shared/storage/types"
 import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
-import { FoldVerticalIcon } from "lucide-react"
+import { Brain, FoldVerticalIcon } from "lucide-react"
 import React, { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import styled from "styled-components"
@@ -37,6 +38,7 @@ import { cn } from "@/lib/utils"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
+import { findApiReqInfoForCheckpoint } from "./chat-view/utils/messageUtils"
 import { ErrorBlockTitle } from "./ErrorBlockTitle"
 import ErrorRow from "./ErrorRow"
 import HookMessage from "./HookMessage"
@@ -51,7 +53,16 @@ const errorColor = "var(--vscode-errorForeground)"
 const successColor = "var(--vscode-charts-green)"
 const _cancelledColor = "var(--vscode-descriptionForeground)"
 
+// Shared keyframes for cursor blink animation
+const cursorBlinkKeyframes = `
+	@keyframes cursorBlink {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0; }
+	}
+`
+
 const ChatRowContainer = styled.div`
+	${cursorBlinkKeyframes}
 	padding: 10px 6px 10px 15px;
 	position: relative;
 
@@ -87,6 +98,10 @@ interface ChatRowProps {
 	sendMessageFromChatRow?: (text: string, images: string[], files: string[]) => void
 	onSetQuote: (text: string) => void
 	onCancelCommand?: () => void
+	mode?: Mode
+	reasoningContent?: string
+	responseStarted?: boolean
+	isRequestInProgress?: boolean
 }
 
 interface QuoteButtonState {
@@ -113,7 +128,115 @@ export const ProgressIndicator = () => (
 	</div>
 )
 
-const Markdown = memo(({ markdown }: { markdown?: string }) => {
+const BlinkingCursorSpan = styled.span`
+	display: inline-block;
+	width: 2px;
+	height: 1em;
+	background-color: currentColor;
+	margin-left: 2px;
+	vertical-align: text-bottom;
+	animation: cursorBlink 1s ease-in-out infinite;
+`
+
+const BlinkingCursor = () => <BlinkingCursorSpan />
+
+const TypewriterText = memo(({ text }: { text: string }) => {
+	const [displayedLength, setDisplayedLength] = useState(0)
+
+	useEffect(() => {
+		setDisplayedLength(0)
+		const interval = setInterval(() => {
+			setDisplayedLength((prev) => {
+				if (prev >= text.length) {
+					clearInterval(interval)
+					return prev
+				}
+				return prev + 1
+			})
+		}, 30)
+
+		return () => clearInterval(interval)
+	}, [text])
+
+	return (
+		<>
+			{text.slice(0, displayedLength)}
+			<BlinkingCursor />
+		</>
+	)
+})
+
+const ThinkingBlockContainer = styled.div<{ $isVisible: boolean }>`
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	max-height: ${(props) => (props.$isVisible ? "150px" : "0")};
+	opacity: ${(props) => (props.$isVisible ? 1 : 0)};
+	overflow: hidden;
+	transition: max-height 250ms cubic-bezier(0.4, 0, 0.2, 1), opacity 150ms ease-out;
+	width: 100%;
+	min-width: 0;
+`
+
+const ThinkingBlockScroll = styled.div`
+	max-height: 150px;
+	overflow-y: auto;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.5;
+	white-space: pre-wrap;
+	word-break: break-word;
+	flex: 1;
+	scrollbar-width: none;
+	-ms-overflow-style: none;
+	&::-webkit-scrollbar {
+		display: none;
+	}
+`
+
+// State type for api_req_started rendering
+type ApiReqState = "pre" | "thinking" | "error" | "final"
+
+const ThinkingBlock = memo(({ reasoningContent, isVisible }: { reasoningContent?: string; isVisible: boolean }) => {
+	const scrollRef = useRef<HTMLDivElement>(null)
+	const [shouldRender, setShouldRender] = useState(isVisible)
+
+	useEffect(() => {
+		if (scrollRef.current && isVisible) {
+			scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+		}
+	}, [reasoningContent, isVisible])
+
+	useEffect(() => {
+		if (isVisible) {
+			setShouldRender(true)
+		} else {
+			const timer = setTimeout(() => setShouldRender(false), 250)
+			return () => clearTimeout(timer)
+		}
+	}, [isVisible])
+
+	if (!shouldRender) return null
+
+	return (
+		<ThinkingBlockContainer $isVisible={isVisible}>
+			<Brain
+				size={14}
+				style={{
+					color: "var(--vscode-descriptionForeground)",
+					opacity: 0.7,
+					flexShrink: 0,
+					marginTop: 2,
+				}}
+			/>
+			<ThinkingBlockScroll ref={scrollRef}>
+				{reasoningContent}
+				{isVisible && <BlinkingCursor />}
+			</ThinkingBlockScroll>
+		</ThinkingBlockContainer>
+	)
+})
+
+const Markdown = memo(({ markdown, showCursor }: { markdown?: string; showCursor?: boolean }) => {
 	return (
 		<div
 			style={{
@@ -123,7 +246,7 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 				marginTop: -15,
 				overflow: "hidden", // contain child margins so that parent diff matches height of children
 			}}>
-			<MarkdownBlock markdown={markdown} />
+			<MarkdownBlock markdown={markdown} showCursor={showCursor} />
 		</div>
 	)
 })
@@ -275,8 +398,13 @@ export const ChatRowContent = memo(
 		sendMessageFromChatRow,
 		onSetQuote,
 		onCancelCommand,
+		mode,
+		reasoningContent,
+		responseStarted,
+		isRequestInProgress,
 	}: ChatRowContentProps) => {
-		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode } = useExtensionState()
+		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode, clineMessages } =
+			useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [explainChangesDisabled, setExplainChangesDisabled] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
@@ -1287,45 +1415,35 @@ export const ChatRowContent = memo(
 		switch (message.type) {
 			case "say":
 				switch (message.say) {
-					case "api_req_started":
+					case "api_req_started": {
+						// Derive explicit state
+						const hasError = !!(apiRequestFailedMessage || apiReqStreamingFailedMessage)
+						const hasCost = cost != null
+						const hasReasoning = !!reasoningContent
+
+						const apiReqState: ApiReqState = hasError
+							? "error"
+							: hasCost
+								? "final"
+								: hasReasoning
+									? "thinking"
+									: "pre"
+
+						const showThinkingBlock = apiReqState === "thinking" && !responseStarted
+
 						return (
 							<>
-								<div
-									onClick={handleToggle}
-									style={{
-										...headerStyle,
-										marginBottom:
-											(cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage ? 10 : 0,
-										justifyContent: "space-between",
-										cursor: "pointer",
-										userSelect: "none",
-										WebkitUserSelect: "none",
-										MozUserSelect: "none",
-										msUserSelect: "none",
-									}}>
-									<div
-										style={{
-											display: "flex",
-											alignItems: "center",
-											gap: "10px",
-										}}>
-										{icon}
-										{title}
-										{/* Need to render this every time since it affects height of row by 2px */}
-										<VSCodeBadge
-											className={cn("text-sm", {
-												"opacity-100": cost != null && cost > 0,
-												"opacity-0": cost == null || cost <= 0,
-											})}
-											style={{
-												opacity: cost != null && cost > 0 ? 1 : 0,
-											}}>
-											{cost != null && Number(cost || 0) > 0 ? `$${Number(cost || 0).toFixed(4)}` : ""}
-										</VSCodeBadge>
+								{apiReqState === "pre" && (
+									<div style={{ color: "var(--vscode-descriptionForeground)" }}>
+										<TypewriterText text={mode === "plan" ? "Planning..." : "Acting..."} />
 									</div>
-									<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
-								</div>
-								{((cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage) && (
+								)}
+
+								{(showThinkingBlock || hasReasoning) && (
+									<ThinkingBlock isVisible={showThinkingBlock} reasoningContent={reasoningContent} />
+								)}
+
+								{apiReqState === "error" && (
 									<ErrorRow
 										apiReqStreamingFailedMessage={apiReqStreamingFailedMessage}
 										apiRequestFailedMessage={apiRequestFailedMessage}
@@ -1334,8 +1452,63 @@ export const ChatRowContent = memo(
 									/>
 								)}
 
-								{isExpanded && (
+								{apiReqState === "final" && (
+									<div
+										onClick={handleToggle}
+										style={{
+											...headerStyle,
+											marginBottom:
+												(cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage
+													? 10
+													: 0,
+											justifyContent: "space-between",
+											cursor: "pointer",
+											userSelect: "none",
+											WebkitUserSelect: "none",
+											MozUserSelect: "none",
+											msUserSelect: "none",
+										}}>
+										<div
+											style={{
+												display: "flex",
+												alignItems: "center",
+												gap: "10px",
+											}}>
+											{icon}
+											{title}
+											<VSCodeBadge
+												className={cn("text-sm", {
+													"opacity-100": cost != null && cost > 0,
+													"opacity-0": cost == null || cost <= 0,
+												})}
+												style={{
+													opacity: cost != null && cost > 0 ? 1 : 0,
+												}}>
+												{cost != null && Number(cost || 0) > 0 ? `$${Number(cost || 0).toFixed(4)}` : ""}
+											</VSCodeBadge>
+										</div>
+										<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
+									</div>
+								)}
+
+								{isExpanded && apiReqState === "final" && (
 									<div style={{ marginTop: "10px" }}>
+										{reasoningContent && (
+											<div
+												style={{
+													color: "var(--vscode-descriptionForeground)",
+													fontStyle: "italic",
+													lineHeight: 1.5,
+													whiteSpace: "pre-wrap",
+													wordBreak: "break-word",
+													marginBottom: "10px",
+													padding: "8px",
+													backgroundColor: CODE_BLOCK_BG_COLOR,
+													borderRadius: "3px",
+												}}>
+												{reasoningContent}
+											</div>
+										)}
 										<CodeAccordian
 											code={JSON.parse(message.text || "{}").request}
 											isExpanded={true}
@@ -1346,6 +1519,7 @@ export const ChatRowContent = memo(
 								)}
 							</>
 						)
+					}
 					case "api_req_finished":
 						return null // we should never see this message type
 					case "mcp_server_response":
@@ -1387,7 +1561,7 @@ export const ChatRowContent = memo(
 								position="bottom-right"
 								ref={contentRef}
 								textToCopy={message.text}>
-								<Markdown markdown={message.text} />
+								<Markdown markdown={message.text} showCursor={isRequestInProgress} />
 								{quoteButtonState.visible && (
 									<QuoteButton
 										left={quoteButtonState.left}
@@ -1489,7 +1663,14 @@ export const ChatRowContent = memo(
 					case "clineignore_error":
 						return <ErrorRow errorType="clineignore_error" message={message} />
 					case "checkpoint_created":
-						return <CheckmarkControl isCheckpointCheckedOut={message.isCheckpointCheckedOut} messageTs={message.ts} />
+						const apiReqInfo = findApiReqInfoForCheckpoint(message.ts, clineMessages)
+						return (
+							<CheckmarkControl
+								apiReqInfo={apiReqInfo}
+								isCheckpointCheckedOut={message.isCheckpointCheckedOut}
+								messageTs={message.ts}
+							/>
+						)
 					case "load_mcp_documentation":
 						return (
 							<div
