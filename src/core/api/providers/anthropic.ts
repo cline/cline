@@ -56,10 +56,7 @@ export class AnthropicHandler implements ApiHandler {
 
 		// Tools are available only when native tools are enabled.
 		const nativeToolsOn = tools?.length && tools?.length > 0
-		const reasoningOn = !!(
-			(modelId.includes("3-7") || modelId.includes("4-") || modelId.includes("4-5")) &&
-			budget_tokens !== 0
-		)
+		const reasoningOn = (model.info.supportsReasoning ?? false) && budget_tokens !== 0
 
 		if (model.info.supportsPromptCache) {
 			const anthropicMessages = sanitizeAnthropicMessages(messages, true)
