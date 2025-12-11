@@ -20,35 +20,18 @@ import { Logger } from "@services/logging/Logger"
 import { telemetryService } from "@services/telemetry"
 import { ClineToolResponseContent } from "@shared/messages"
 import { orchestrateCommandExecution } from "./CommandOrchestrator"
-import { ActiveBackgroundCommand, CommandExecutorCallbacks } from "./ICommandExecutor"
 import { StandaloneTerminalManager } from "./standalone/StandaloneTerminalManager"
-import { ITerminalManager, TerminalProcessResultPromise } from "./types"
-
-/**
- * Configuration for CommandExecutor
- */
-export interface CommandExecutorConfig {
-	/** Working directory for command execution */
-	cwd: string
-	/** Task ID for tracking */
-	taskId: string
-	/** Unique task identifier */
-	ulid: string
-	/** Terminal execution mode */
-	terminalExecutionMode: "vscodeTerminal" | "backgroundExec"
-	/** The primary terminal manager (VSCode or Standalone) */
-	terminalManager: ITerminalManager
-}
+import {
+	ActiveBackgroundCommand,
+	CommandExecutorCallbacks,
+	CommandExecutorConfig,
+	ITerminalManager,
+	TerminalProcessResultPromise,
+} from "./types"
 
 // Re-export types for convenience
-export type { CommandExecutorCallbacks } from "./ICommandExecutor"
+export type { CommandExecutorCallbacks, CommandExecutorConfig, FullCommandExecutorConfig } from "./types"
 
-/**
- * CommandExecutor - Unified command executor for all terminal modes.
- *
- * Uses the shared CommandOrchestrator for common logic and delegates
- * process management to the appropriate TerminalManager.
- */
 /**
  * Tracker for shell integration warnings to determine when to show background terminal suggestion
  */
@@ -57,6 +40,12 @@ interface ShellIntegrationWarningTracker {
 	lastSuggestionShown?: number
 }
 
+/**
+ * CommandExecutor - Unified command executor for all terminal modes.
+ *
+ * Uses the shared CommandOrchestrator for common logic and delegates
+ * process management to the appropriate TerminalManager.
+ */
 export class CommandExecutor {
 	private cwd: string
 	private taskId: string
@@ -328,6 +317,3 @@ export class CommandExecutor {
 		return -1
 	}
 }
-
-// Re-export config type with full name for backwards compatibility
-export type FullCommandExecutorConfig = CommandExecutorConfig

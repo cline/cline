@@ -20,11 +20,9 @@
  */
 
 // Export unified command executor
-export type { CommandExecutorConfig, FullCommandExecutorConfig } from "./CommandExecutor"
 export { CommandExecutor } from "./CommandExecutor"
 
 // Export command orchestrator (shared logic)
-export type { OrchestrationOptions, OrchestrationResult } from "./CommandOrchestrator"
 export {
 	BUFFER_STUCK_TIMEOUT_MS,
 	CHUNK_BYTE_SIZE,
@@ -35,12 +33,6 @@ export {
 	orchestrateCommandExecution,
 } from "./CommandOrchestrator"
 
-// Export interfaces and types
-export type {
-	ActiveBackgroundCommand,
-	CommandExecutorCallbacks,
-} from "./ICommandExecutor"
-
 // Export terminal process interface
 export type { ITerminalProcess, TerminalProcessEvents } from "./ITerminalProcess"
 
@@ -50,11 +42,21 @@ export { StandaloneTerminalManager } from "./standalone/StandaloneTerminalManage
 export { StandaloneTerminalProcess } from "./standalone/StandaloneTerminalProcess"
 export { StandaloneTerminalRegistry } from "./standalone/StandaloneTerminalRegistry"
 
-// Export shared types
+// Export all types from types.ts
 export type {
+	// Command Executor types
+	ActiveBackgroundCommand,
+	AskResponse,
+	CommandExecutorCallbacks,
+	CommandExecutorConfig,
+	FullCommandExecutorConfig,
+	// Terminal types
 	ITerminal,
 	ITerminalManager,
 	ITerminalProcessResult,
+	// Command Orchestrator types
+	OrchestrationOptions,
+	OrchestrationResult,
 	StandaloneTerminalOptions,
 	TerminalInfo,
 	TerminalProcessResultPromise,

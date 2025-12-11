@@ -19,9 +19,13 @@ import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { Logger } from "@services/logging/Logger"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@services/telemetry"
 import { COMMAND_CANCEL_TOKEN } from "@shared/ExtensionMessage"
-import { ClineToolResponseContent } from "@shared/messages"
-import type { CommandExecutorCallbacks } from "./ICommandExecutor"
-import type { ITerminalManager, TerminalProcessResultPromise } from "./types"
+import type {
+	CommandExecutorCallbacks,
+	ITerminalManager,
+	OrchestrationOptions,
+	OrchestrationResult,
+	TerminalProcessResultPromise,
+} from "./types"
 
 // Chunked terminal output buffering constants
 export const CHUNK_LINE_COUNT = 20
@@ -30,33 +34,8 @@ export const CHUNK_DEBOUNCE_MS = 100
 export const BUFFER_STUCK_TIMEOUT_MS = 6000 // 6 seconds
 export const COMPLETION_TIMEOUT_MS = 6000 // 6 seconds
 
-/**
- * Options for command orchestration
- */
-export interface OrchestrationOptions {
-	/** The command being executed */
-	command: string
-	/** Optional timeout in seconds */
-	timeoutSeconds?: number
-	/** Callback to track output lines for background command tracking */
-	onOutputLine?: (line: string) => void
-	/** Whether to show shell integration warning with suggestion */
-	showShellIntegrationSuggestion?: boolean
-}
-
-/**
- * Result of command orchestration
- */
-export interface OrchestrationResult {
-	/** Whether the user rejected/cancelled the command */
-	userRejected: boolean
-	/** The result content to return */
-	result: ClineToolResponseContent
-	/** Whether the command completed */
-	completed: boolean
-	/** All output lines captured */
-	outputLines: string[]
-}
+// Re-export types for convenience
+export type { OrchestrationOptions, OrchestrationResult } from "./types"
 
 /**
  * Orchestrate command execution with shared logic for buffering, user interaction, and result formatting.
