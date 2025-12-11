@@ -199,6 +199,14 @@ export class Controller {
 		console.error("Controller disposed")
 	}
 
+	getPreviousUserRequest(): string | undefined {
+		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
+		if (taskHistory && taskHistory.length > 1) {
+			return taskHistory[taskHistory.length - 2].task
+		}
+		return undefined
+	}
+
 	// Auth methods
 	async handleSignOut() {
 		try {
