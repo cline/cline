@@ -1,22 +1,22 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
-import { isMicrowaveModelFamily } from "@/utils/model-utils"
+import { isDevstralModelFamily } from "@/utils/model-utils"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
 import { validateVariant } from "../variant-validator"
-import { MICROWAVE_AGENT_ROLE_TEMPLATE } from "./overrides"
+import { DEVSTRAL_AGENT_ROLE_TEMPLATE } from "./overrides"
 import { baseTemplate } from "./template"
 
-export const config = createVariant(ModelFamily.MICROWAVE)
-	.description("Baseline prompt for Microwave stealth family models")
+export const config = createVariant(ModelFamily.DEVSTRAL)
+	.description("Baseline prompt for Devstral family models")
 	.version(1)
-	.tags("microwave", "stable")
+	.tags("devstral", "stable")
 	.labels({
 		stable: 1,
 		production: 1,
 	})
 	.matcher((context) => {
-		return isMicrowaveModelFamily(context.providerInfo.model.id)
+		return isDevstralModelFamily(context.providerInfo.model.id)
 	})
 	.template(baseTemplate)
 	.components(
@@ -53,24 +53,24 @@ export const config = createVariant(ModelFamily.MICROWAVE)
 		ClineDefaultTool.TODO,
 	)
 	.placeholders({
-		MODEL_FAMILY: "microwave",
+		MODEL_FAMILY: "devstral",
 	})
 	.config({})
 	.overrideComponent(SystemPromptSection.AGENT_ROLE, {
-		template: MICROWAVE_AGENT_ROLE_TEMPLATE,
+		template: DEVSTRAL_AGENT_ROLE_TEMPLATE,
 	})
 	.build()
 
 // Compile-time validation
-const validationResult = validateVariant({ ...config, id: "microwave" }, { strict: true })
+const validationResult = validateVariant({ ...config, id: "devstral" }, { strict: true })
 if (!validationResult.isValid) {
-	console.error("Microwave variant configuration validation failed:", validationResult.errors)
-	throw new Error(`Invalid Microwave variant configuration: ${validationResult.errors.join(", ")}`)
+	console.error("Devstral variant configuration validation failed:", validationResult.errors)
+	throw new Error(`Invalid Devstral variant configuration: ${validationResult.errors.join(", ")}`)
 }
 
 if (validationResult.warnings.length > 0) {
-	console.warn("Microwave variant configuration warnings:", validationResult.warnings)
+	console.warn("Devstral variant configuration warnings:", validationResult.warnings)
 }
 
 // Export type information for better IDE support
-export type MicrowaveVariantConfig = typeof config
+export type DevstralVariantConfig = typeof config

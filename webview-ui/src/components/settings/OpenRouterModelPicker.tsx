@@ -46,7 +46,7 @@ export interface OpenRouterModelPickerProps {
 }
 
 // Featured models for Cline provider organized by tabs
-const recommendedModels = [
+export const recommendedModels = [
 	{
 		id: "anthropic/claude-sonnet-4.5",
 		description: "Best balance of speed, cost, and quality",
@@ -55,12 +55,12 @@ const recommendedModels = [
 	{
 		id: "anthropic/claude-opus-4.5",
 		description: "State-of-the-art for complex coding",
-		label: "NEW",
+		label: "HOT",
 	},
 	{
-		id: "openai/gpt-5.1",
+		id: "openai/gpt-5.2",
 		description: "OpenAI's latest with strong coding abilities",
-		label: "HOT",
+		label: "NEW",
 	},
 	{
 		id: "google/gemini-3-pro-preview",
@@ -69,7 +69,7 @@ const recommendedModels = [
 	},
 ]
 
-const freeModels = [
+export const freeModels = [
 	{
 		id: "x-ai/grok-code-fast-1",
 		description: "Fast inference with strong coding performance",
@@ -81,8 +81,8 @@ const freeModels = [
 		label: "FREE",
 	},
 	{
-		id: "stealth/microwave",
-		description: "A stealth model for agentic coding tasks",
+		id: "mistralai/devstral-2512",
+		description: "Mistral's latest model with strong coding abilities",
 		label: "FREE",
 	},
 ]

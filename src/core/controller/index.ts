@@ -81,12 +81,6 @@ export class Controller {
 	// Flag to prevent duplicate cancellations from spam clicking
 	private cancelInProgress = false
 
-	// Shell integration warning tracker
-	private shellIntegrationWarningTracker: {
-		timestamps: number[]
-		lastSuggestionShown?: number
-	} = { timestamps: [] }
-
 	// Timer for periodic remote config fetching
 	private remoteConfigTimer?: NodeJS.Timeout
 
@@ -513,38 +507,6 @@ export class Controller {
 		if (!didCancel) {
 			this.updateBackgroundCommandState(false)
 		}
-	}
-
-	/**
-	 * Check if we should show the background terminal suggestion based on shell integration warning frequency
-	 * @returns true if we should show the suggestion, false otherwise
-	 */
-	shouldShowBackgroundTerminalSuggestion(): boolean {
-		const oneHourAgo = Date.now() - 60 * 60 * 1000
-
-		// Clean old timestamps (older than 1 hour)
-		this.shellIntegrationWarningTracker.timestamps = this.shellIntegrationWarningTracker.timestamps.filter(
-			(ts) => ts > oneHourAgo,
-		)
-
-		// Add current warning
-		this.shellIntegrationWarningTracker.timestamps.push(Date.now())
-
-		// Check if we've shown suggestion recently (within last hour)
-		if (
-			this.shellIntegrationWarningTracker.lastSuggestionShown &&
-			Date.now() - this.shellIntegrationWarningTracker.lastSuggestionShown < 60 * 60 * 1000
-		) {
-			return false
-		}
-
-		// Show suggestion if 3+ warnings in last hour
-		if (this.shellIntegrationWarningTracker.timestamps.length >= 3) {
-			this.shellIntegrationWarningTracker.lastSuggestionShown = Date.now()
-			return true
-		}
-
-		return false
 	}
 
 	async handleAuthCallback(customToken: string, provider: string | null = null) {
@@ -1000,6 +962,7 @@ export class Controller {
 			lastDismissedCliBannerVersion,
 			subagentsEnabled,
 			nativeToolCallSetting: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
+			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
 		}
 	}
 
