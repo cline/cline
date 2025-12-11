@@ -81,8 +81,8 @@ export const freeModels = [
 		label: "FREE",
 	},
 	{
-		id: "stealth/microwave",
-		description: "A stealth model for agentic coding tasks",
+		id: "mistralai/devstral-2512",
+		description: "Mistral's latest model with strong coding abilities",
 		label: "FREE",
 	},
 ]
