@@ -63,7 +63,6 @@ import {
 } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
-import { CLINE_MCP_TOOL_IDENTIFIER } from "@shared/mcp"
 import { USER_CONTENT_TAGS } from "@shared/messages/constants"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { ClineDefaultTool, READ_ONLY_TOOLS } from "@shared/tools"
@@ -2932,14 +2931,9 @@ export class Task {
 								chunk.tool_call.call_id,
 							)
 							// Extract and store tool_use_id for creating proper ToolResultBlockParam
-							if (chunk.tool_call.function?.id && chunk.tool_call.function?.name) {
-								this.taskState.toolUseIdMap.set(chunk.tool_call.function.name, chunk.tool_call.function.id)
-
-								// For MCP tools, also store the mapping with the transformed name
-								// since getPartialToolUsesAsContent() will transform the name to "use_mcp_tool"
-								if (chunk.tool_call.function.name.includes(CLINE_MCP_TOOL_IDENTIFIER)) {
-									this.taskState.toolUseIdMap.set(ClineDefaultTool.MCP_USE, chunk.tool_call.function.id)
-								}
+							// Use call_id as key to support multiple calls to the same tool
+							if (chunk.tool_call.function?.id && chunk.tool_call.call_id) {
+								this.taskState.toolUseIdMap.set(chunk.tool_call.call_id, chunk.tool_call.function.id)
 							}
 
 							this.processNativeToolCalls(assistantTextOnly, toolUseHandler.getPartialToolUsesAsContent())
