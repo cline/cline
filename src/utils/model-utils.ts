@@ -77,6 +77,11 @@ export function isGPT51Model(id: string): boolean {
 	return modelId.includes("gpt-5.1") || modelId.includes("gpt-5-1")
 }
 
+export function isGPT52Model(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("gpt-5.2") || modelId.includes("gpt-5-2")
+}
+
 export function isGLMModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return (
