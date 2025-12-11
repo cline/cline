@@ -71,7 +71,7 @@ export class AuthService {
 	protected provider: IAuthProvider | null = null
 	protected authState: InternalAuthState = {
 		authenticated: false,
-		pending: true,
+		pending: false,
 	}
 	protected _activeAuthStatusUpdateHandlers = new Set<StreamingResponseHandler<AuthState>>()
 	protected _handlerToController = new Map<StreamingResponseHandler<AuthState>, Controller>()
