@@ -429,7 +429,7 @@
 		"pretest": "npm run compile && npm run compile-tests && npm run compile-standalone && npm run lint",
 		"test": "npm-run-all test:unit test:integration",
 		"test:integration": "vscode-test",
-		"test:unit": "cross-env TS_NODE_PROJECT=./tsconfig.unit-test.json mocha # Use `UPDATE_SNAPSHOTS=true npm run test:unit` to rebuild prompt snapshots",
+		"test:unit": "cross-env TS_NODE_PROJECT=./tsconfig.unit-test.json mocha --require ts-node/register 'src/**/*.test.ts' # Use `UPDATE_SNAPSHOTS=true npm run test:unit` to rebuild prompt snapshots",
 		"test:coverage": "vscode-test --coverage",
 		"test:sca-server": "npx tsx watch scripts/test-standalone-core-api-server.ts",
 		"test:tp-orchestrator": "npx tsx scripts/testing-platform-orchestrator.ts",
