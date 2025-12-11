@@ -644,10 +644,13 @@ export class MessageQueueService {
 			})
 
 			this.log(`✅ Claude CLI response received`)
-			return `Claude CLI: ${result.trim()}`
+			// Write completion signal file for easy polling
+			this.writeCompletionSignal("claude", "success", result.trim())
+			return `Task completed: Claude CLI finished - ${result.trim().substring(0, 200)}${result.trim().length > 200 ? "..." : ""}`
 		} catch (error: any) {
 			this.log(`❌ Error calling Claude CLI: ${error.message}`)
-			return `Error calling Claude CLI: ${error.message}`
+			this.writeCompletionSignal("claude", "error", error.message)
+			return `Task completed: Claude CLI error - ${error.message}`
 		}
 	}
 
@@ -685,10 +688,13 @@ export class MessageQueueService {
 				.trim()
 
 			this.log(`✅ Codex CLI response received`)
-			return `Codex CLI: ${cleanResponse}`
+			// Write completion signal file for easy polling
+			this.writeCompletionSignal("codex", "success", cleanResponse)
+			return `Task completed: Codex CLI finished - ${cleanResponse.substring(0, 200)}${cleanResponse.length > 200 ? "..." : ""}`
 		} catch (error: any) {
 			this.log(`❌ Error calling Codex CLI: ${error.message}`)
-			return `Error calling Codex CLI: ${error.message}`
+			this.writeCompletionSignal("codex", "error", error.message)
+			return `Task completed: Codex CLI error - ${error.message}`
 		}
 	}
 
@@ -723,10 +729,32 @@ export class MessageQueueService {
 				.trim()
 
 			this.log(`✅ Gemini CLI response received`)
-			return `Gemini CLI: ${cleanResponse}`
+			// Write completion signal file for easy polling
+			this.writeCompletionSignal("gemini", "success", cleanResponse)
+			return `Task completed: Gemini CLI finished - ${cleanResponse.substring(0, 200)}${cleanResponse.length > 200 ? "..." : ""}`
 		} catch (error: any) {
 			this.log(`❌ Error calling Gemini CLI: ${error.message}`)
-			return `Error calling Gemini CLI: ${error.message}`
+			this.writeCompletionSignal("gemini", "error", error.message)
+			return `Task completed: Gemini CLI error - ${error.message}`
+		}
+	}
+
+	/**
+	 * Write a completion signal file for easy polling by external processes
+	 */
+	private writeCompletionSignal(source: string, status: "success" | "error", message: string): void {
+		try {
+			const signalFile = path.join(this.queueDir, "last-completion.json")
+			const signal = {
+				timestamp: new Date().toISOString(),
+				source,
+				status,
+				message: message.substring(0, 500),
+			}
+			fs.writeFileSync(signalFile, JSON.stringify(signal, null, 2))
+			this.log(`📝 Wrote completion signal: ${source} ${status}`)
+		} catch (error) {
+			this.log(`⚠️ Failed to write completion signal: ${error}`)
 		}
 	}
 
@@ -783,6 +811,8 @@ export class MessageQueueService {
 	 */
 	public sendTaskCompletion(originalMessageId: string, result: string): void {
 		this.sendResponse(originalMessageId, `Task completed: ${result}`)
+		// Also write completion signal for easy polling
+		this.writeCompletionSignal("cline", "success", result)
 	}
 
 	/**
