@@ -1,7 +1,7 @@
 import type { ApiProviderInfo } from "@/core/api"
 import { getDeepPlanningPrompt } from "./commands/deep-planning"
 
-export const newTaskToolResponse = () => {
+export const newTaskToolResponse = (willUseNativeTools: boolean) => {
 	const xmlExample = `
 Example:
 <new_task>
@@ -34,7 +34,7 @@ Example:
 
 	return `<explicit_instructions type="new_task">
 The user has explicitly asked you to help them create a new task with preloaded context, which you will generate. The user may have provided instructions or additional information for you to consider when summarizing existing work and creating the context for the new task.
-Irrespective of whether additional information or instructions are given, you are ONLY allowed to respond to this message by calling the new_task tool.
+Irrespective of whether additional information or instructions are given, you are ONLY allowed to respond to this message by calling the new_task tool.${willUseNativeTools ? " You MUST call the new_task tool EVEN if it's not in your existing toolset." : ""}
 
 The new_task tool is defined below:
 
