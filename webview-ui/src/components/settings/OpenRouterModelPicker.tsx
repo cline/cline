@@ -46,7 +46,7 @@ export interface OpenRouterModelPickerProps {
 }
 
 // Featured models for Cline provider organized by tabs
-const recommendedModels = [
+export const recommendedModels = [
 	{
 		id: "anthropic/claude-sonnet-4.5",
 		description: "Best balance of speed, cost, and quality",
@@ -69,7 +69,7 @@ const recommendedModels = [
 	},
 ]
 
-const freeModels = [
+export const freeModels = [
 	{
 		id: "x-ai/grok-code-fast-1",
 		description: "Fast inference with strong coding performance",

@@ -11,14 +11,14 @@ import { AtSignIcon, PlusIcon } from "lucide-react"
 import type React from "react"
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
-import { useClickAway, useWindowSize } from "react-use"
+import { useWindowSize } from "react-use"
 import styled from "styled-components"
 import ContextMenu from "@/components/chat/ContextMenu"
 import { CHAT_CONSTANTS } from "@/components/chat/chat-view/constants"
+import ModelPickerModal from "@/components/chat/ModelPickerModal"
 import SlashCommandMenu from "@/components/chat/SlashCommandMenu"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import Thumbnails from "@/components/common/Thumbnails"
-import ApiOptions from "@/components/settings/ApiOptions"
 import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useClineAuth } from "@/context/ClineAuthContext"
@@ -1142,25 +1142,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			updateHighlights()
 		}, [inputValue, handleInputChange, updateHighlights])
 
-		// Use an effect to detect menu close
-		useEffect(() => {
-			if (prevShowModelSelector.current && !showModelSelector) {
-				// Menu was just closed
-				submitApiConfig()
-			}
-			prevShowModelSelector.current = showModelSelector
-		}, [showModelSelector, submitApiConfig])
-
-		// Remove the handleApiConfigSubmit callback
-		// Update click handler to just toggle the menu
 		const handleModelButtonClick = () => {
 			setShowModelSelector(!showModelSelector)
 		}
-
-		// Update click away handler to just close menu
-		useClickAway(modelSelectorRef, () => {
-			setShowModelSelector(false)
-		})
 
 		// Get model display name
 		const modelDisplayName = useMemo(() => {
@@ -1762,33 +1746,22 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							<ClineRulesToggleModal />
 
 							<ModelContainer ref={modelSelectorRef}>
-								<ModelButtonWrapper ref={buttonRef}>
-									<ModelDisplayButton
-										disabled={false}
-										isActive={showModelSelector}
-										onClick={handleModelButtonClick}
-										role="button"
-										tabIndex={0}
-										title="Select Model / API Provider">
-										<ModelButtonContent className="text-xs">{modelDisplayName}</ModelButtonContent>
-									</ModelDisplayButton>
-								</ModelButtonWrapper>
-								{showModelSelector && (
-									<ModelSelectorTooltip
-										arrowPosition={arrowPosition}
-										menuPosition={menuPosition}
-										style={{
-											bottom: `calc(100vh - ${menuPosition}px + 6px)`,
-										}}>
-										<ApiOptions
-											apiErrorMessage={undefined}
-											currentMode={mode}
-											isPopup={true}
-											modelIdErrorMessage={undefined}
-											showModelOptions={true}
-										/>
-									</ModelSelectorTooltip>
-								)}
+								<ModelPickerModal
+									currentMode={mode}
+									isOpen={showModelSelector}
+									onOpenChange={setShowModelSelector}>
+									<ModelButtonWrapper ref={buttonRef}>
+										<ModelDisplayButton
+											disabled={false}
+											isActive={showModelSelector}
+											onClick={handleModelButtonClick}
+											role="button"
+											tabIndex={0}
+											title="Select Model / API Provider">
+											<ModelButtonContent className="text-xs">{modelDisplayName}</ModelButtonContent>
+										</ModelDisplayButton>
+									</ModelButtonWrapper>
+								</ModelPickerModal>
 							</ModelContainer>
 						</ButtonGroup>
 					</div>
