@@ -129,6 +129,7 @@ export interface Settings {
 	aihubmixAppCode: string | undefined
 	hooksEnabled: boolean
 	subagentsEnabled: boolean
+	enhancedNotebookInteractionEnabled: boolean
 	enableParallelToolCalling: boolean
 	backgroundEditEnabled: boolean
 
