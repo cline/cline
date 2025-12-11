@@ -781,12 +781,23 @@ export class Task {
 	}
 
 	async sayAndCreateMissingParamError(toolName: ClineDefaultTool, paramName: string, relPath?: string) {
+		const maxRetries = 3
+		// Treat missing required tool parameters as consecutive mistakes to prevent infinite retry loops.
+		this.taskState.consecutiveMistakeCount++
+		const attempt = this.taskState.consecutiveMistakeCount
+		const retrySuffix =
+			attempt >= maxRetries
+				? `Retry limit reached (${attempt}/${maxRetries}). Aborting task.`
+				: `Retrying (${attempt}/${maxRetries})...`
 		await this.say(
 			"error",
 			`Cline tried to use ${toolName}${
 				relPath ? ` for '${relPath.toPosix()}'` : ""
-			} without value for required parameter '${paramName}'. Retrying...`,
+			} without value for required parameter '${paramName}'. ${retrySuffix}`,
 		)
+		if (attempt >= maxRetries) {
+			await this.cancelTask()
+		}
 		return formatResponse.toolError(formatResponse.missingToolParameterError(paramName))
 	}
 
