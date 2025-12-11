@@ -14,6 +14,7 @@ import (
 	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/handlers"
+	"github.com/cline/cli/pkg/cli/slash"
 	"github.com/cline/cli/pkg/cli/types"
 	"github.com/cline/grpc-go/client"
 	"github.com/cline/grpc-go/cline"
@@ -36,6 +37,7 @@ type Manager struct {
 	systemRenderer   *display.SystemMessageRenderer
 	streamingDisplay *display.StreamingDisplay
 	handlerRegistry  *handlers.HandlerRegistry
+	slashRegistry    *slash.Registry
 	isStreamingMode  bool
 	isInteractive    bool
 	currentMode      string // "plan" or "act"
@@ -63,6 +65,7 @@ func NewManager(client *client.ClineClient) *Manager {
 		systemRenderer:   systemRenderer,
 		streamingDisplay: streamingDisplay,
 		handlerRegistry:  registry,
+		slashRegistry:    slash.NewRegistry(),
 		currentMode:      "plan", // Default mode
 	}
 }
@@ -76,6 +79,10 @@ func NewManagerForAddress(ctx context.Context, address string) (*Manager, error)
 
 	manager := NewManager(client)
 	manager.clientAddress = address
+
+	// Fetch slash commands from backend (non-blocking, errors are logged)
+	manager.fetchSlashCommands(ctx)
+
 	return manager, nil
 }
 
@@ -93,7 +100,23 @@ func NewManagerForDefault(ctx context.Context) (*Manager, error) {
 		manager.clientAddress = global.Clients.GetRegistry().GetDefaultInstance()
 	}
 
+	// Fetch slash commands from backend (non-blocking, errors are logged)
+	manager.fetchSlashCommands(ctx)
+
 	return manager, nil
+}
+
+// fetchSlashCommands fetches available slash commands from the backend
+// This is non-blocking and errors are logged but don't prevent manager creation
+func (m *Manager) fetchSlashCommands(ctx context.Context) {
+	if err := m.slashRegistry.FetchFromBackend(ctx, m.client); err != nil {
+		if global.Config.Verbose {
+			m.renderer.RenderDebug("Failed to fetch slash commands: %v", err)
+		}
+		// Non-fatal: CLI-local commands are still available
+	} else if global.Config.Verbose {
+		m.renderer.RenderDebug("Loaded %d slash commands", len(m.slashRegistry.GetCommands()))
+	}
 }
 
 // SwitchToInstance switches the manager to use a different Cline instance
@@ -1261,6 +1284,11 @@ func (m *Manager) GetCurrentMode() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.currentMode
+}
+
+// GetSlashRegistry returns the slash command registry
+func (m *Manager) GetSlashRegistry() *slash.Registry {
+	return m.slashRegistry
 }
 
 // extractModeFromState extracts the current mode from state JSON
