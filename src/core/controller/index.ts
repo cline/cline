@@ -1000,6 +1000,7 @@ export class Controller {
 			lastDismissedCliBannerVersion,
 			subagentsEnabled,
 			nativeToolCallSetting: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
+			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
 		}
 	}
 

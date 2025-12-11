@@ -371,6 +371,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			}
 		}
 
+		if (request.enableParallelToolCalling !== undefined) {
+			controller.stateManager.setGlobalState("enableParallelToolCalling", !!request.enableParallelToolCalling)
+		}
+
 		// Post updated state to webview
 		await controller.postStateToWebview()
 
