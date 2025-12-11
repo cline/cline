@@ -29,6 +29,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	const [didClickDevstralButton, setDidClickDevstralButton] = useState(false)
+	const [didClickGPT52Button, setDidClickGPT52Button] = useState(false)
 	// Need to get latest model list in case user hits shortcut button to set model
 	useMount(refreshOpenRouterModels)
 
@@ -62,6 +63,23 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 
 		setTimeout(() => {
 			setDidClickDevstralButton(true)
+			setShowChatModelSelector(true)
+		}, 10)
+	}
+
+	const setGPT52 = () => {
+		const modelId = "openai/gpt-5.2"
+		handleFieldsChange({
+			planModeOpenRouterModelId: modelId,
+			actModeOpenRouterModelId: modelId,
+			planModeOpenRouterModelInfo: openRouterModels[modelId],
+			actModeOpenRouterModelInfo: openRouterModels[modelId],
+			planModeApiProvider: "cline",
+			actModeApiProvider: "cline",
+		})
+
+		setTimeout(() => {
+			setDidClickGPT52Button(true)
 			setShowChatModelSelector(true)
 		}, 10)
 	}
@@ -138,40 +156,65 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					{/* Description */}
 					<ul className="text-sm mb-3 pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						{isVscode && (
-							<>
-								<li className="mb-2">
-									New{" "}
-									<VSCodeLink
-										href="https://docs.cline.bot/features/explain-changes"
-										style={{ display: "inline" }}>
-										Explain Changes
-									</VSCodeLink>{" "}
-									button when Cline completes a task to help review code with inline chat. You can reply to
-									comments, or send the chat as context back to Cline.
-								</li>
-								<li className="mb-2">
-									Use the new{" "}
-									<VSCodeLink
-										href="https://docs.cline.bot/features/slash-commands/explain-changes"
-										style={{ display: "inline" }}>
-										/explain-changes
-									</VSCodeLink>{" "}
-									slash command to explain the changes in branches, commits, etc. (Try asking Cline to explain a
-									PR you need to review!)
-								</li>
-							</>
+							<li className="mb-2">
+								Use the new{" "}
+								<VSCodeLink
+									href="https://docs.cline.bot/features/slash-commands/explain-changes"
+									style={{ display: "inline" }}>
+									/explain-changes
+								</VSCodeLink>{" "}
+								slash command to explain the changes in branches, commits, etc. (Try asking Cline to explain a PR
+								you need to review!)
+							</li>
 						)}
+						<li className="mb-2">
+							New <strong>OpenAI GPT-5.2</strong> model available!
+							<br />
+							{user ? (
+								<div className="flex gap-2 flex-wrap my-1.5">
+									{!didClickGPT52Button && (
+										<VSCodeButton
+											appearance="primary"
+											onClick={setGPT52}
+											style={{ transform: "scale(0.85)", transformOrigin: "left center" }}>
+											Try GPT-5.2
+										</VSCodeButton>
+									)}
+								</div>
+							) : (
+								<VSCodeButton
+									appearance="primary"
+									onClick={handleShowAccount}
+									style={{ margin: "5px 0", transform: "scale(0.85)", transformOrigin: "left center" }}>
+									Sign Up with Cline
+								</VSCodeButton>
+							)}
+						</li>
+						<li className="mb-2">
+							Mistral's <strong>Devstral-2512</strong> (formerly stealth model "Microwave"), free for a limited
+							time!
+							<br />
+							{user ? (
+								<div className="flex gap-2 flex-wrap my-1.5">
+									{!didClickDevstralButton && (
+										<VSCodeButton
+											appearance="primary"
+											onClick={setDevstral}
+											style={{ transform: "scale(0.85)", transformOrigin: "left center" }}>
+											Try Devstral-2512
+										</VSCodeButton>
+									)}
+								</div>
+							) : (
+								<VSCodeButton
+									appearance="primary"
+									onClick={handleShowAccount}
+									style={{ margin: "5px 0", transform: "scale(0.85)", transformOrigin: "left center" }}>
+									Sign Up with Cline
+								</VSCodeButton>
+							)}
+						</li>
 					</ul>
-
-					{/* Demo link */}
-					{isVscode && (
-						<p className="text-sm mb-3" style={{ color: "var(--vscode-descriptionForeground)" }}>
-							See a{" "}
-							<VSCodeLink href="https://x.com/sdrzn/status/1995840893816111246" style={{ display: "inline" }}>
-								demo of "Explain Changes"
-							</VSCodeLink>
-						</p>
-					)}
 
 					{/* Divider */}
 					<div
@@ -184,7 +227,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					/>
 
 					{/* Social links */}
-					<p className="text-sm mb-5" style={{ color: "var(--vscode-descriptionForeground)" }}>
+					{/* <p className="text-sm mb-5" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						Join us on{" "}
 						<VSCodeLink href="https://x.com/cline" style={{ display: "inline" }}>
 							X,
@@ -197,7 +240,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 							r/cline
 						</VSCodeLink>{" "}
 						for more updates!
-					</p>
+					</p> */}
 
 					{/* Action button */}
 					<div className="flex gap-3">
