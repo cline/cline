@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
 import { GlobalFileNames } from "@core/storage/disk"
@@ -29,7 +30,6 @@ import { secondsToMs } from "@utils/time"
 import chokidar, { FSWatcher } from "chokidar"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
-import { nanoid } from "nanoid"
 import * as path from "path"
 import ReconnectingEventSource from "reconnecting-eventsource"
 import { z } from "zod"
@@ -110,10 +110,10 @@ export class McpHub {
 				return existingKey
 			}
 		}
-		// Generate a short 6-character unique ID for the server
+		// Generate a deterministic 6-character ID for the server using a crypto hash
 		// Add c prefix to ensure it starts with a letter (for compatibility with Gemini)
-		// Only use the first 5 characters of nanoid to keep it short
-		const uid = "c" + nanoid(5)
+		const hash = createHash("sha256").update(server).digest("hex")
+		const uid = "c" + hash.slice(0, 5)
 		McpHub.mcpServerKeys.set(uid, server)
 		return uid
 	}
@@ -506,10 +506,21 @@ export class McpHub {
 				console.error(`[MCP Debug] Error setting notification handlers for ${name}:`, error)
 			}
 
-			// Initial fetch of tools and resources
+			// Initial fetch of tools and resources based on server capabilities
+			// Only request resources if the server declared resources capability during initialization
+			const serverCapabilities = client.getServerCapabilities?.() || {}
+
+			// Always fetch tools (most servers support tools)
 			connection.server.tools = await this.fetchToolsList(name)
-			connection.server.resources = await this.fetchResourcesList(name)
-			connection.server.resourceTemplates = await this.fetchResourceTemplatesList(name)
+
+			// Only fetch resources if server declares resources capability
+			if (serverCapabilities.resources) {
+				connection.server.resources = await this.fetchResourcesList(name)
+				connection.server.resourceTemplates = await this.fetchResourceTemplatesList(name)
+			} else {
+				connection.server.resources = []
+				connection.server.resourceTemplates = []
+			}
 		} catch (error) {
 			// Update status with error
 			const connection = this.findConnection(name, source)

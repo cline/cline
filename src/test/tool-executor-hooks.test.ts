@@ -109,7 +109,7 @@ describe("Tool Executor Hooks", () => {
 			const testHandler = createTestHandler()
 
 			// Test that cancellable hooks can use setActiveHookExecution
-			let setHookCalled = false
+			let _setHookCalled = false
 			const result = await executeHook({
 				hookName: "PreToolUse",
 				hookInput: {
@@ -121,7 +121,7 @@ describe("Tool Executor Hooks", () => {
 				isCancellable: true,
 				say: async () => Date.now(),
 				setActiveHookExecution: async () => {
-					setHookCalled = true
+					_setHookCalled = true
 				},
 				clearActiveHookExecution: async () => {},
 				messageStateHandler: testHandler,

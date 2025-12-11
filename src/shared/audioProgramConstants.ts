@@ -58,9 +58,9 @@ export const AUDIO_PROGRAM_CONFIG = {
 		],
 		getArgs: (outputFile: string) => [
 			"-f",
-			"wasapi",
+			"dshow",
 			"-i",
-			"audio=default",
+			"audio=@device_cm_{33D9A762-90C8-11D0-BD43-00A0C911CE86}\\wave_{58A910C5-169A-4B24-B0AF-825CA28E18E8}",
 			"-c:a",
 			"libopus",
 			"-b:a",

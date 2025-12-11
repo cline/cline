@@ -619,7 +619,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 				// Safari does not support InputEvent.isComposing (always false), so we need to fallback to keyCode === 229 for it
 				const isComposing = isSafari ? event.nativeEvent.keyCode === 229 : (event.nativeEvent?.isComposing ?? false)
-				if (event.key === "Enter" && !event.shiftKey && !isComposing) {
+				// Ctrl+Enter (or Cmd+Enter on Mac) sends the prompt
+				// Plain Enter creates a newline (fixes #7969)
+				if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !isComposing) {
 					event.preventDefault()
 
 					if (!sendingDisabled) {
@@ -1645,7 +1647,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						<div className="flex flex-row items-center">
 							{dictationSettings?.dictationEnabled === true && dictationSettings?.featureEnabled && (
 								<VoiceRecorder
-									disabled={sendingDisabled}
+									disabled={false}
 									isAuthenticated={!!clineUser?.uid}
 									language={dictationSettings?.dictationLanguage || "en"}
 									onProcessingStateChange={(isProcessing, message) => {

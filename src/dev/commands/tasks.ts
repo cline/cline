@@ -64,7 +64,7 @@ export function registerTaskCommands(controller: Controller): vscode.Disposable[
 				return
 			}
 
-			const tasksCount = parseInt(count)
+			const tasksCount = parseInt(count, 10)
 			const globalStoragePath = HostProvider.get().globalStorageFsPath
 			const tasksDir = path.join(globalStoragePath, "tasks")
 

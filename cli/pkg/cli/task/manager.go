@@ -280,8 +280,8 @@ func (m *Manager) CheckSendEnabled(ctx context.Context) error {
 
 	// Error types which we allow sending on
 	errorTypes := []string{
-		string(types.AskTypeAPIReqFailed),        // "api_req_failed"
-		string(types.AskTypeMistakeLimitReached), // "mistake_limit_reached"
+		string(types.AskTypeAPIReqFailed),           // "api_req_failed"
+		string(types.AskTypeMistakeLimitReached),    // "mistake_limit_reached"
 	}
 
 	isError := false
@@ -753,21 +753,7 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 }
 
 // FollowConversationUntilCompletion streams conversation updates until task completion
-func (m *Manager) FollowConversationUntilCompletion(ctx context.Context, opts FollowOptions) error {
-	// Check if there's an active task before entering follow mode
-	// Skip this check if we just created a task (to avoid race condition where task isn't active yet)
-	if !opts.SkipActiveTaskCheck {
-		err := m.CheckSendEnabled(ctx)
-		if err != nil {
-			if errors.Is(err, ErrNoActiveTask) {
-				fmt.Println("No task is currently running.")
-				return nil
-			}
-			// For other errors (like task busy), we can still enter follow mode
-			// as the user may want to observe the task
-		}
-	}
-
+func (m *Manager) FollowConversationUntilCompletion(ctx context.Context) error {
 	// Enable streaming mode
 	m.mu.Lock()
 	m.isStreamingMode = true
@@ -899,6 +885,35 @@ func (m *Manager) processStateUpdateJsonMode(stateUpdate *cline.State, coordinat
 		if shouldDisplay {
 			coordinator.CompleteTurn(i + 1) // Mark the message as complete as soon as we print it
 			m.displayMessage(msg, false, false, i)
+
+			// Fixes #7788: CLI -o (oneshot/yolo mode) hangs waiting for approval
+			// Auto-approve if yolo mode is enabled and this is an approval-required ask
+			if msg.Type == types.MessageTypeAsk && m.isYoloModeEnabled(stateUpdate.StateJson) {
+				approvalTypes := []string{
+					string(types.AskTypeTool),
+					string(types.AskTypeCommand),
+					string(types.AskTypeBrowserActionLaunch),
+					string(types.AskTypeUseMcpServer),
+				}
+
+				for _, approvalType := range approvalTypes {
+					if msg.Ask == approvalType {
+						if global.Config.Verbose {
+							m.renderer.RenderDebug("[Yolo Mode] Auto-approving request...")
+						}
+
+						// Send approval in background to avoid blocking the stream
+						go func() {
+							if err := m.SendMessage(context.Background(), "", nil, nil, "true"); err != nil {
+								if global.Config.Verbose {
+									m.renderer.RenderDebug("Failed to auto-approve: %v", err)
+								}
+							}
+						}()
+						break
+					}
+				}
+			}
 		} else {
 			break
 		}
@@ -1065,6 +1080,37 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 			if !msg.Partial && !coordinator.IsProcessedInCurrentTurn(msgKey) {
 				m.displayMessage(msg, false, false, i)
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
+
+				// Fixes #7788: CLI -o (oneshot/yolo mode) hangs waiting for approval
+				// Auto-approve if yolo mode is enabled and this is an approval-required ask
+				if m.isYoloModeEnabled(stateUpdate.StateJson) {
+					approvalTypes := []string{
+						string(types.AskTypeTool),
+						string(types.AskTypeCommand),
+						string(types.AskTypeBrowserActionLaunch),
+						string(types.AskTypeUseMcpServer),
+					}
+
+					for _, approvalType := range approvalTypes {
+						if msg.Ask == approvalType {
+							if global.Config.Verbose {
+								m.renderer.RenderDebug("[Yolo Mode] Auto-approving request...")
+							} else {
+								fmt.Println("\n[Yolo Mode] Auto-approving request...")
+							}
+
+							// Send approval in background to avoid blocking the stream
+							go func() {
+								if err := m.SendMessage(context.Background(), "", nil, nil, "true"); err != nil {
+									if global.Config.Verbose {
+										m.renderer.RenderDebug("Failed to auto-approve: %v", err)
+									}
+								}
+							}()
+							break
+						}
+					}
+				}
 			}
 		}
 	}
@@ -1239,6 +1285,21 @@ func (m *Manager) extractMessagesFromState(stateJson string) ([]*types.ClineMess
 	return types.ExtractMessagesFromStateJSON(stateJson)
 }
 
+// isYoloModeEnabled checks if yolo mode is enabled in the state
+// Fixes #7788: CLI -o needs to detect yolo mode from state
+func (m *Manager) isYoloModeEnabled(stateJson string) bool {
+	var state map[string]interface{}
+	if err := json.Unmarshal([]byte(stateJson), &state); err != nil {
+		return false
+	}
+
+	if yoloMode, ok := state["yoloModeToggled"].(bool); ok {
+		return yoloMode
+	}
+
+	return false
+}
+
 // GetState returns the current conversation state
 func (m *Manager) GetState() *types.ConversationState {
 	return m.state
@@ -1288,7 +1349,7 @@ func (m *Manager) updateMode(stateJson string) {
 // UpdateTaskAutoApprovalAction enables a specific auto-approval action for the current task
 func (m *Manager) UpdateTaskAutoApprovalAction(ctx context.Context, actionKey string) error {
 	boolPtr := func(b bool) *bool { return &b }
-
+	
 	settings := &cline.Settings{
 		AutoApprovalSettings: &cline.AutoApprovalSettings{
 			Actions: &cline.AutoApprovalActions{},
@@ -1297,7 +1358,7 @@ func (m *Manager) UpdateTaskAutoApprovalAction(ctx context.Context, actionKey st
 
 	// Set the specific action to true based on actionKey
 	truePtr := boolPtr(true)
-
+	
 	switch actionKey {
 	case "read_files":
 		settings.AutoApprovalSettings.Actions.ReadFiles = truePtr

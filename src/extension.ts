@@ -12,6 +12,7 @@ import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeTo
 import { WebviewProvider } from "./core/webview"
 import { createClineAPI } from "./exports"
 import { Logger } from "./services/logging/Logger"
+import { MessageQueueService } from "./services/MessageQueueService"
 import { cleanupTestMode, initializeTestMode } from "./services/test/TestMode"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
@@ -43,6 +44,7 @@ import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { ExtensionRegistryInfo } from "./registry"
 import { AuthService } from "./services/auth/AuthService"
 import { LogoutReason } from "./services/auth/types"
+import { registerChatParticipants } from "./services/ChatParticipants"
 import { telemetryService } from "./services/telemetry"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
@@ -88,6 +90,75 @@ export async function activate(context: vscode.ExtensionContext) {
 	const webview = (await initialize(context)) as VscodeWebviewProvider
 
 	Logger.log("Cline extension activated")
+
+	// Register Chat Participants (@claude, @codex, @cline)
+	registerChatParticipants(context)
+
+	// Initialize Message Queue Service for external CLI communication
+	const workspaceFolders = vscode.workspace.workspaceFolders
+	if (workspaceFolders && workspaceFolders.length > 0) {
+		const workspaceRoot = workspaceFolders[0].uri.fsPath
+		const messageQueue = MessageQueueService.getInstance(workspaceRoot)
+
+		// Set controller reference for model switching
+		messageQueue.setController(webview.controller)
+
+		// Track current message ID for completion notifications
+		let currentMessageId: string | null = null
+
+		// Set up message handler to process incoming commands
+		messageQueue.setMessageHandler(async (message) => {
+			Logger.log(`Message Queue: Received command from ${message.from}: ${message.content}`)
+
+			try {
+				// Store message ID for completion notification
+				currentMessageId = message.id
+
+				// Create and execute a new task (like typing and pressing Enter)
+				await webview.controller.handleTaskCreation(message.content)
+
+				// Return acknowledgment
+				return `Task started: "${message.content}"`
+			} catch (error) {
+				Logger.log(`Message Queue: Error processing message: ${error}`)
+				currentMessageId = null
+				return `Error: ${error}`
+			}
+		})
+
+		// Set up task completion handler
+		webview.controller.onTaskComplete = (result: string) => {
+			console.log("[Extension] onTaskComplete called with result:", result, "currentMessageId:", currentMessageId)
+			if (currentMessageId) {
+				console.log("[Extension] Sending task completion to message queue")
+				messageQueue.sendTaskCompletion(currentMessageId, result)
+				currentMessageId = null
+			} else {
+				console.log("[Extension] No currentMessageId, skipping completion notification")
+			}
+		}
+
+		// Start watching for messages
+		messageQueue.startWatching()
+
+		// Set up periodic cleanup (every 30 minutes)
+		const cleanupInterval = setInterval(
+			() => {
+				messageQueue.cleanupOldMessages()
+			},
+			30 * 60 * 1000,
+		)
+
+		// Add to disposables
+		context.subscriptions.push({
+			dispose: () => {
+				clearInterval(cleanupInterval)
+				messageQueue.dispose()
+			},
+		})
+
+		Logger.log("Message Queue Service initialized and watching for external commands")
+	}
 
 	const testModeWatchers = await initializeTestMode(webview)
 	// Initialize test mode and add disposables to context
@@ -375,6 +446,47 @@ export async function activate(context: vscode.ExtensionContext) {
 			// Send focus event
 			sendFocusChatInputEvent()
 			telemetryService.captureButtonClick("command_focusChatInput", webview.controller?.task?.ulid)
+		}),
+	)
+
+	// Register the voiceInput command handler
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.VoiceInput, async () => {
+			const webview = WebviewProvider.getInstance() as VscodeWebviewProvider
+
+			// Check if VS Code Speech extension is installed
+			const speechExtension = vscode.extensions.getExtension("ms-vscode.vscode-speech")
+			if (!speechExtension) {
+				const action = await vscode.window.showInformationMessage(
+					"Voice input works best with the VS Code Speech extension installed.",
+					"Install Extension",
+					"Continue Anyway",
+				)
+				if (action === "Install Extension") {
+					await vscode.commands.executeCommand("workbench.extensions.installExtension", "ms-vscode.vscode-speech")
+					return
+				}
+			}
+
+			// Open VS Code's input box with speech support hint
+			const result = await vscode.window.showInputBox({
+				prompt: "🎤 Speak or type your message (Ctrl+Alt+V for voice)",
+				placeHolder: "Say something or type here...",
+				title: "Cline Voice Input",
+				ignoreFocusOut: true,
+			})
+
+			if (result !== undefined && result.trim()) {
+				// Show the webview
+				const webviewView = webview.getWebview()
+				if (webviewView) {
+					webviewView.show()
+				}
+
+				// Send the text to the chat input
+				await sendAddToInputEvent(result)
+				telemetryService.captureButtonClick("command_voiceInput", webview.controller?.task?.ulid)
+			}
 		}),
 	)
 

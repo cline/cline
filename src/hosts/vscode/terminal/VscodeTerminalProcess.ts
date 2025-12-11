@@ -7,7 +7,7 @@ import { stripAnsi } from "./ansiUtils"
 export interface TerminalProcessEvents {
 	line: [line: string]
 	continue: []
-	completed: []
+	completed: [exitCode?: number | null]
 	error: [error: Error]
 	no_shell_integration: []
 }
@@ -18,6 +18,7 @@ const PROCESS_HOT_TIMEOUT_COMPILING = 15_000
 
 export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	waitForShellIntegration: boolean = true
+	exitCode: number | null = null
 	private isListening: boolean = true
 	private buffer: string = ""
 	private fullOutput: string = ""
@@ -25,13 +26,99 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	isHot: boolean = false
 	private hotTimer: NodeJS.Timeout | null = null
 
-	async run(terminal: vscode.Terminal, command: string) {
+	/**
+	 * Determines appropriate timeout based on command type
+	 */
+	private getCommandTimeout(command: string): number {
+		// Quick commands that typically complete in < 1 second
+		const quickCommands = [
+			"echo",
+			"pwd",
+			"cd",
+			"ls",
+			"dir",
+			"git status",
+			"git branch",
+			"node -v",
+			"npm -v",
+			"python --version",
+			"which",
+			"where",
+		]
+
+		// Medium commands that typically complete in 1-5 seconds
+		const mediumCommands = ["git log", "git diff", "find", "grep", "cat", "type"]
+
+		// Long-running commands that need more time
+		const longCommands = ["npm install", "npm test", "npm run", "build", "compile", "test", "pytest", "mvn", "gradle"]
+
+		const lowerCommand = command.toLowerCase().trim()
+
+		// Check for quick commands
+		if (quickCommands.some((cmd) => lowerCommand.startsWith(cmd))) {
+			return 1500 // 1.5 seconds
+		}
+
+		// Check for medium commands
+		if (mediumCommands.some((cmd) => lowerCommand.includes(cmd))) {
+			return 3000 // 3 seconds (current default)
+		}
+
+		// Check for long commands
+		if (longCommands.some((cmd) => lowerCommand.includes(cmd))) {
+			return 10000 // 10 seconds
+		}
+
+		// Default timeout for unknown commands
+		return 3000
+	}
+
+	async run(terminal: vscode.Terminal, command: string, shellPath?: string) {
+		/**
+		 * Cleans terminal output based on shell type
+		 */
+		const cleanTerminalOutput = (output: string, shellPath?: string): string => {
+			if (!output || !shellPath) {
+				return output
+			}
+
+			const lowerShellPath = shellPath.toLowerCase()
+			let cleaned = output
+
+			// Windows PowerShell 5.x specific cleaning
+			if (lowerShellPath.includes("windowspowershell") || lowerShellPath.includes("powershell.exe")) {
+				// Remove PowerShell prompts like "PS C:\Users\Name>"
+				cleaned = cleaned.replace(/^PS\s+[A-Za-z]:[^\n>]*>\s*/gm, "")
+				// Remove continuation prompts ">> "
+				cleaned = cleaned.replace(/^>>\s*/gm, "")
+			}
+
+			// Command Prompt specific cleaning
+			if (lowerShellPath.includes("cmd.exe")) {
+				// Remove cmd prompts like "C:\Users\Name>"
+				cleaned = cleaned.replace(/^[A-Za-z]:[^\n>]*>\s*/gm, "")
+			}
+
+			// Git Bash specific cleaning
+			if (lowerShellPath.includes("git") && lowerShellPath.includes("bash")) {
+				// Remove bash prompts like "user@machine MINGW64 /c/path"
+				cleaned = cleaned.replace(/^[^\n$]*\$\s*/gm, "")
+			}
+
+			// Remove command echo (the command itself appearing in output)
+			const commandEscaped = command.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+			cleaned = cleaned.replace(new RegExp(`^${commandEscaped}\\s*[\\r\\n]*`, "m"), "")
+
+			return cleaned.trim()
+		}
+
 		// When command does not produce any output, we can assume the shell integration API failed and as a fallback return the current terminal contents
-		const returnCurrentTerminalContents = async () => {
+		const returnCurrentTerminalContents = async (shellPath?: string) => {
 			try {
 				const terminalSnapshot = await getLatestTerminalOutput()
 				if (terminalSnapshot && terminalSnapshot.trim()) {
-					const fallbackMessage = `The command's output could not be captured due to some technical issue, however it has been executed successfully. Here's the current terminal's content to help you get the command's output:\n\n${terminalSnapshot}`
+					const cleaned = cleanTerminalOutput(terminalSnapshot, shellPath)
+					const fallbackMessage = `The command's output could not be captured due to some technical issue, however it has been executed successfully. Here's the current terminal's content to help you get the command's output:\n\n${cleaned}`
 					this.emit("line", fallbackMessage)
 				}
 			} catch (error) {
@@ -49,6 +136,9 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			let didEmitEmptyLine = false
 
 			for await (let data of stream) {
+				const rawData = data
+				this.captureExitCode(rawData)
+
 				// 1. Process chunk and remove artifacts
 				if (isFirstChunk) {
 					/*
@@ -68,7 +158,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					/* ddateb15026-6a64-40db-b21f-2a621a9830f0]633;CTue Sep 17 06:37:04 EDT 2024 % ]633;D;0]633;P;Cwd=/Users/saoud/Repositories/test */
 					// Gets output between ]633;C (command start) and ]633;D (command end)
 					const outputBetweenSequences = this.removeLastLineArtifacts(
-						data.match(/\]633;C([\s\S]*?)\]633;D/)?.[1] || "",
+						rawData.match(/\]633;C([\s\S]*?)\]633;D/)?.[1] || "",
 					).trim()
 
 					// Once we've retrieved any potential output between sequences, we can remove everything up to end of the last sequence
@@ -122,6 +212,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> {
 						clearTimeout(this.hotTimer)
 					}
 					this.isHot = false
+					this.exitCode = this.exitCode ?? 130
 					break
 				}
 
@@ -193,7 +284,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			if (!this.fullOutput.trim()) {
 				// No output captured via shell integration, trying fallback
 				telemetryService.captureTerminalOutputFailure(TerminalOutputFailureReason.TIMEOUT)
-				await returnCurrentTerminalContents()
+				await returnCurrentTerminalContents(shellPath)
 				// Check if fallback worked
 				const terminalSnapshot = await getLatestTerminalOutput()
 				if (terminalSnapshot && terminalSnapshot.trim()) {
@@ -213,18 +304,20 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			}
 			this.isHot = false
 
-			this.emit("completed")
+			this.emit("completed", this.exitCode)
 			this.emit("continue")
 		} else {
 			// no shell integration detected, we'll fallback to running the command and capturing the terminal's output after some time
 			telemetryService.captureTerminalOutputFailure(TerminalOutputFailureReason.NO_SHELL_INTEGRATION)
 			terminal.sendText(command, true)
 
-			// wait 3 seconds for the command to run
-			await new Promise((resolve) => setTimeout(resolve, 3000))
+			// wait for appropriate timeout based on command type
+			const timeout = this.getCommandTimeout(command)
+			console.log(`[TerminalProcess] No shell integration - using ${timeout}ms timeout for command: ${command}`)
+			await new Promise((resolve) => setTimeout(resolve, timeout))
 
 			// For terminals without shell integration, also try to capture terminal content
-			await returnCurrentTerminalContents()
+			await returnCurrentTerminalContents(shellPath)
 			// Check if clipboard fallback worked
 			const terminalSnapshot = await getLatestTerminalOutput()
 			if (terminalSnapshot && terminalSnapshot.trim()) {
@@ -234,7 +327,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			}
 			// For terminals without shell integration, we can't know when the command completes
 			// So we'll just emit the continue event after a delay
-			this.emit("completed")
+			this.emit("completed", this.exitCode)
 			this.emit("continue")
 			this.emit("no_shell_integration")
 			// setTimeout(() => {
@@ -247,8 +340,8 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	// Inspired by https://github.com/sindresorhus/execa/blob/main/lib/transform/split.js
 	private emitIfEol(chunk: string) {
 		this.buffer += chunk
-		let lineEndIndex: number
-		while ((lineEndIndex = this.buffer.indexOf("\n")) !== -1) {
+		let lineEndIndex: number = this.buffer.indexOf("\n")
+		while (lineEndIndex !== -1) {
 			const line = this.buffer.slice(0, lineEndIndex).trimEnd() // removes trailing \r
 			// Remove \r if present (for Windows-style line endings)
 			// if (line.endsWith("\r")) {
@@ -256,6 +349,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			// }
 			this.emit("line", line)
 			this.buffer = this.buffer.slice(lineEndIndex + 1)
+			lineEndIndex = this.buffer.indexOf("\n")
 		}
 	}
 
@@ -293,6 +387,24 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			lines[lines.length - 1] = lastLine.replace(/[%$#>]\s*$/, "")
 		}
 		return lines.join("\n").trimEnd()
+	}
+
+	private captureExitCode(chunk: string) {
+		const exitCodeMatches = [...chunk.matchAll(/\]633;D;?(-?\d+)?/g)]
+		if (exitCodeMatches.length === 0) {
+			return
+		}
+
+		const [, exitCodeString] = exitCodeMatches[exitCodeMatches.length - 1]
+		if (exitCodeString === undefined) {
+			this.exitCode = 0 // No explicit code means success per VS Code shell integration docs
+			return
+		}
+
+		const parsed = Number.parseInt(exitCodeString, 10)
+		if (!Number.isNaN(parsed)) {
+			this.exitCode = parsed
+		}
 	}
 }
 

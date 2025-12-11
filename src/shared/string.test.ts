@@ -232,10 +232,10 @@ describe("preserveEscaping", () => {
 
 	describe("Multiple escape types", () => {
 		it("should preserve multiple escape types from original", () => {
-			const original = "\`code\` with \'single\' and \"double\""
+			const original = "`code` with 'single' and \"double\""
 			const newText = "`test` with 'foo' and \"bar\""
 			const result = preserveEscaping(original, newText)
-			result.should.equal("\`test\` with \'foo\' and \"bar\"")
+			result.should.equal("`test` with 'foo' and \"bar\"")
 		})
 
 		it("should handle text with only some escape types", () => {

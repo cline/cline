@@ -139,7 +139,7 @@ export class OpenRouterHandler implements ApiHandler {
 			if (
 				"reasoning_details" in delta &&
 				delta.reasoning_details &&
-				// @ts-ignore-next-line
+				// @ts-expect-error-next-line
 				delta.reasoning_details.length && // exists and non-0
 				!shouldSkipReasoningForModel(this.options.openRouterModelId)
 			) {
@@ -157,7 +157,7 @@ export class OpenRouterHandler implements ApiHandler {
 					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
 					inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
 					outputTokens: chunk.usage.completion_tokens || 0,
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					totalCost: (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0),
 				}
 				didOutputUsage = true
@@ -175,23 +175,47 @@ export class OpenRouterHandler implements ApiHandler {
 
 	async getApiStreamUsage(): Promise<ApiStreamUsageChunk | undefined> {
 		if (this.lastGenerationId) {
-			await setTimeoutPromise(500) // FIXME: necessary delay to ensure generation endpoint is ready
-			try {
-				const generationIterator = this.fetchGenerationDetails(this.lastGenerationId)
-				const generation = (await generationIterator.next()).value
-				// console.log("OpenRouter generation details:", generation)
-				return {
-					type: "usage",
-					cacheWriteTokens: 0,
-					cacheReadTokens: generation?.native_tokens_cached || 0,
-					// openrouter generation endpoint fails often
-					inputTokens: (generation?.native_tokens_prompt || 0) - (generation?.native_tokens_cached || 0),
-					outputTokens: generation?.native_tokens_completion || 0,
-					totalCost: generation?.total_cost || 0,
+			// OpenRouter's generation endpoint has eventual consistency - it may not be immediately available
+			// Use retry logic with exponential backoff instead of hardcoded delay
+			const maxRetries = 3
+			const initialDelay = 100 // Start with 100ms
+
+			for (let attempt = 0; attempt < maxRetries; attempt++) {
+				try {
+					// Wait with exponential backoff: 100ms, 200ms, 400ms
+					if (attempt > 0) {
+						const delay = initialDelay * 2 ** (attempt - 1)
+						console.log(
+							`[OpenRouter] Retrying generation details fetch (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`,
+						)
+						await setTimeoutPromise(delay)
+					}
+
+					const generationIterator = this.fetchGenerationDetails(this.lastGenerationId)
+					const generation = (await generationIterator.next()).value
+
+					// If we got valid data, return it
+					if (generation) {
+						if (attempt > 0) {
+							console.log(`[OpenRouter] Successfully fetched generation details on attempt ${attempt + 1}`)
+						}
+						return {
+							type: "usage",
+							cacheWriteTokens: 0,
+							cacheReadTokens: generation?.native_tokens_cached || 0,
+							// openrouter generation endpoint fails often
+							inputTokens: (generation?.native_tokens_prompt || 0) - (generation?.native_tokens_cached || 0),
+							outputTokens: generation?.native_tokens_completion || 0,
+							totalCost: generation?.total_cost || 0,
+						}
+					}
+				} catch (error) {
+					// On last attempt, log the error
+					if (attempt === maxRetries - 1) {
+						console.error("Error fetching OpenRouter generation details after all retries:", error)
+					}
+					// Continue to next retry attempt
 				}
-			} catch (error) {
-				// ignore if fails
-				console.error("Error fetching OpenRouter generation details:", error)
 			}
 		}
 		return undefined

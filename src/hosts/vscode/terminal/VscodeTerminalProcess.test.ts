@@ -6,17 +6,7 @@ import * as vscode from "vscode"
 import { VscodeTerminalProcess } from "./VscodeTerminalProcess"
 import { TerminalRegistry } from "./VscodeTerminalRegistry"
 
-declare module "vscode" {
-	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L7442
-	interface Terminal {
-		shellIntegration?: {
-			cwd?: vscode.Uri
-			executeCommand?: (command: string) => {
-				read: () => AsyncIterable<string>
-			}
-		}
-	}
-}
+// Note: shellIntegration is now part of @types/vscode@1.93+ as TerminalShellIntegration
 
 // Create a mock stream for simulating terminal output - this is only used for tests
 // that need controlled output which can't be guaranteed with real terminals

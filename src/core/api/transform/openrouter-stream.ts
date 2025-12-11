@@ -65,13 +65,35 @@ export async function createOpenRouterStream(
 		case "anthropic/claude-3-haiku:beta":
 		case "anthropic/claude-3-opus":
 		case "anthropic/claude-3-opus:beta":
+		// XAI Grok models with prompt caching support (all variants)
+		case "x-ai/grok-4":
+		case "x-ai/grok-4-fast":
+		case "x-ai/grok-4-fast-reasoning":
+		case "x-ai/grok-4.1-fast":
+		case "x-ai/grok-4.1-fast:free":
+		case "x-ai/grok-3":
+		case "x-ai/grok-3-beta":
+		case "x-ai/grok-3-mini":
+		case "x-ai/grok-3-mini-beta":
+		case "x-ai/grok-code-fast-1":
+		// OpenAI GPT models with prompt caching support
+		case "openai/gpt-4o":
+		case "openai/gpt-4o-2024-11-20":
+		case "openai/gpt-4o-2024-08-06":
+		case "openai/gpt-4o-2024-05-13":
+		case "openai/gpt-4o-mini":
+		case "openai/gpt-4o-mini-2024-07-18":
+		case "openai/o1":
+		case "openai/o1-preview":
+		case "openai/o1-mini":
+		case "openai/chatgpt-4o-latest":
 			openAiMessages[0] = {
 				role: "system",
 				content: [
 					{
 						type: "text",
 						text: systemPrompt,
-						// @ts-ignore-next-line
+						// @ts-expect-error-next-line
 						cache_control: { type: "ephemeral" },
 					},
 				],
@@ -91,7 +113,7 @@ export async function createOpenRouterStream(
 						lastTextPart = { type: "text", text: "..." }
 						msg.content.push(lastTextPart)
 					}
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					lastTextPart["cache_control"] = { type: "ephemeral" }
 				}
 			})
@@ -170,12 +192,8 @@ export async function createOpenRouterStream(
 			}
 			break
 		default:
-			if (
-				thinkingBudgetTokens &&
-				model.info?.thinkingConfig &&
-				thinkingBudgetTokens > 0 &&
-				!(model.id.includes("gemini") && geminiThinkingLevel)
-			) {
+			// Don't set reasoning for Gemini models - they use thinking_config instead
+			if (thinkingBudgetTokens && model.info?.thinkingConfig && thinkingBudgetTokens > 0 && !model.id.includes("gemini")) {
 				temperature = undefined // extended thinking does not support non-1 temperature
 				reasoning = { max_tokens: thinkingBudgetTokens }
 				break
@@ -190,7 +208,7 @@ export async function createOpenRouterStream(
 	// Skip reasoning for models that don't support it (e.g., devstral, grok-4)
 	const includeReasoning = !shouldSkipReasoningForModel(model.id)
 
-	// @ts-ignore-next-line
+	// @ts-expect-error-next-line
 	const stream = await client.chat.completions.create({
 		model: model.id,
 		max_tokens: maxTokens,
@@ -206,8 +224,16 @@ export async function createOpenRouterStream(
 		...(providerPreferences ? { provider: providerPreferences } : {}),
 		...(isClaudeSonnet1m ? { provider: { order: ["anthropic", "google-vertex/global"], allow_fallbacks: false } } : {}),
 		...getOpenAIToolParams(tools),
-		...(model.id.includes("gemini") && geminiThinkingLevel
-			? { thinking_config: { thinking_level: geminiThinkingLevel, include_thoughts: true } }
+		...(model.id.includes("gemini") && (geminiThinkingLevel || (thinkingBudgetTokens && thinkingBudgetTokens > 0))
+			? {
+					thinking_config: {
+						// Use thinking_level if specified, otherwise default to "low" for gemini-3-pro models
+						thinking_level: geminiThinkingLevel || (model.id.includes("gemini-3") ? "low" : undefined),
+						// Only set thinking_budget if thinking_level is NOT set (mutually exclusive per Gemini API)
+						...(geminiThinkingLevel ? {} : { thinking_budget: thinkingBudgetTokens }),
+						include_thoughts: true,
+					},
+				}
 			: {}),
 	})
 

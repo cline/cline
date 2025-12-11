@@ -6,7 +6,7 @@ import type { Controller } from "../index"
  * Flush all pending state changes immediately to disk
  * Bypasses the debounced persistence and forces immediate writes
  */
-export async function flushPendingState(controller: Controller, request: EmptyRequest): Promise<Empty> {
+export async function flushPendingState(controller: Controller, _request: EmptyRequest): Promise<Empty> {
 	try {
 		await controller.stateManager.flushPendingState()
 		return Empty.create({})

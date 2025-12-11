@@ -209,7 +209,7 @@ During Act Mode, focus on efficient execution:
 3. Use tools directly - save explanations for the attempt_completion summary
 4. Test each feature after implementation to verify it works correctly${context.yoloModeToggled !== true ? "\n5. Verify with the user that the feature works as expected before using attempt_completion\n6. Use attempt_completion when confirmed complete, including your summary within the tool call itself" : "\n5. Use attempt_completion when the task is done, including your summary within the tool call itself"}`
 
-const GEMINI_3_UPDATING_TASK_PROGRESS_TEMPLATE = (context: SystemPromptContext) => `UPDATING TASK PROGRESS
+const GEMINI_3_UPDATING_TASK_PROGRESS_TEMPLATE = (_context: SystemPromptContext) => `UPDATING TASK PROGRESS
 
 You can track and communicate your progress on the overall task using the task_progress parameter supported by every tool call. Using task_progress ensures you remain on task, and stay focused on completing the user's objective. This parameter can be used in any mode, and with any tool call.
 

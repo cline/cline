@@ -130,6 +130,9 @@ export interface TaskCallbacks {
 		userContent: ClineContent[],
 		context: "initial_task" | "resume" | "feedback",
 	) => Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }>
+
+	// Task completion callback for message queue system
+	onTaskComplete?: (result: string) => void
 }
 
 /**

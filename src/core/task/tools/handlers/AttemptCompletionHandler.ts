@@ -119,6 +119,23 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 				await config.callbacks.saveCheckpoint(true, completionMessageTs)
 				await addNewChangesFlagToLastCompletionResultMessage()
 				telemetryService.captureTaskCompleted(config.ulid)
+
+				// Notify external listeners (message queue system)
+				const fs = require("fs")
+				const path = require("path")
+				const logPath = path.join(process.cwd(), "attempt-completion-debug.log")
+				fs.appendFileSync(logPath, `\n[${new Date().toISOString()}] Task completed (with command path)\n`)
+				fs.appendFileSync(logPath, `[${new Date().toISOString()}] Result: ${result}\n`)
+				fs.appendFileSync(
+					logPath,
+					`[${new Date().toISOString()}] onTaskComplete exists: ${!!config.callbacks.onTaskComplete}\n`,
+				)
+
+				if (config.callbacks.onTaskComplete) {
+					fs.appendFileSync(logPath, `[${new Date().toISOString()}] Calling onTaskComplete\n`)
+					config.callbacks.onTaskComplete(result)
+					fs.appendFileSync(logPath, `[${new Date().toISOString()}] onTaskComplete called successfully\n`)
+				}
 			} else {
 				// we already sent a command message, meaning the complete completion message has also been sent
 				await config.callbacks.saveCheckpoint(true)
@@ -149,6 +166,23 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 			await config.callbacks.saveCheckpoint(true, completionMessageTs)
 			await addNewChangesFlagToLastCompletionResultMessage()
 			telemetryService.captureTaskCompleted(config.ulid)
+
+			// Notify external listeners (message queue system)
+			const fs = require("fs")
+			const path = require("path")
+			const logPath = path.join(process.cwd(), "attempt-completion-debug.log")
+			fs.appendFileSync(logPath, `\n[${new Date().toISOString()}] Task completed (no command path)\n`)
+			fs.appendFileSync(logPath, `[${new Date().toISOString()}] Result: ${result}\n`)
+			fs.appendFileSync(
+				logPath,
+				`[${new Date().toISOString()}] onTaskComplete exists: ${!!config.callbacks.onTaskComplete}\n`,
+			)
+
+			if (config.callbacks.onTaskComplete) {
+				fs.appendFileSync(logPath, `[${new Date().toISOString()}] Calling onTaskComplete\n`)
+				config.callbacks.onTaskComplete(result)
+				fs.appendFileSync(logPath, `[${new Date().toISOString()}] onTaskComplete called successfully\n`)
+			}
 		}
 
 		// we already sent completion_result says, an empty string asks relinquishes control over button and field

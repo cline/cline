@@ -74,26 +74,9 @@ with older VSCode versions. Users on older versions will automatically fall back
 for terminal command execution.
 Interestingly, some environments like Cursor enable these APIs even without the latest VSCode engine.
 This approach allows us to leverage advanced features when available while ensuring broad compatibility.
+
+Note: shellIntegration is now part of @types/vscode@1.93+ as TerminalShellIntegration
 */
-declare module "vscode" {
-	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L7442
-	interface Terminal {
-		shellIntegration?: {
-			cwd?: vscode.Uri
-			executeCommand?: (command: string) => {
-				read: () => AsyncIterable<string>
-			}
-		}
-	}
-	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L10794
-	interface Window {
-		onDidStartTerminalShellExecution?: (
-			listener: (e: any) => any,
-			thisArgs?: any,
-			disposables?: vscode.Disposable[],
-		) => vscode.Disposable
-	}
-}
 
 export class VscodeTerminalManager implements ITerminalManager {
 	private terminalIds: Set<number> = new Set()
@@ -104,11 +87,14 @@ export class VscodeTerminalManager implements ITerminalManager {
 	private terminalOutputLineLimit: number = 500
 	private subagentTerminalOutputLineLimit: number = 2000
 	private defaultTerminalProfile: string = "default"
+	private shellIntegrationWarningShown: boolean = false
 
 	constructor() {
 		let disposable: vscode.Disposable | undefined
 		try {
-			disposable = (vscode.window as vscode.Window).onDidStartTerminalShellExecution?.(async (e) => {
+			// Use type assertion to access proposed API that may not be in stable types
+			const windowWithProposed = vscode.window as any
+			disposable = windowWithProposed.onDidStartTerminalShellExecution?.(async (e: any) => {
 				// Creating a read stream here results in a more consistent output. This is most obvious when running the `date` command.
 				e?.execution?.read()
 			})
@@ -161,6 +147,53 @@ export class VscodeTerminalManager implements ITerminalManager {
 		return arePathsEqual(currentCwd, targetCwd)
 	}
 
+	/**
+	 * Checks if the terminal has shell integration support and shows a warning if needed
+	 */
+	private async checkShellIntegrationSupport(terminalInfo: TerminalInfo): Promise<void> {
+		// Only check once per terminal
+		if (terminalInfo.shellIntegrationChecked) {
+			return
+		}
+
+		terminalInfo.shellIntegrationChecked = true
+		const hasIntegration = !!terminalInfo.terminal.shellIntegration
+		terminalInfo.hasShellIntegration = hasIntegration
+
+		// Show warning only once per session and only on Windows
+		if (!hasIntegration && !this.shellIntegrationWarningShown && process.platform === "win32") {
+			this.shellIntegrationWarningShown = true
+
+			const shellPath = terminalInfo.shellPath || "unknown"
+			const isLegacyPowerShell =
+				shellPath.toLowerCase().includes("windowspowershell") || shellPath.toLowerCase().includes("powershell.exe")
+			const isCmd = shellPath.toLowerCase().includes("cmd.exe")
+
+			if (isLegacyPowerShell || isCmd) {
+				const message = isLegacyPowerShell
+					? "Windows PowerShell 5.x doesn't support VSCode shell integration. For better terminal performance, consider upgrading to PowerShell 7+."
+					: "Command Prompt doesn't support VSCode shell integration. For better terminal performance, consider using PowerShell 7+ or Git Bash."
+
+				const response = await vscode.window.showWarningMessage(
+					message,
+					"Learn More",
+					"Switch to PowerShell 7+",
+					"Dismiss",
+				)
+
+				if (response === "Learn More") {
+					vscode.env.openExternal(vscode.Uri.parse("https://code.visualstudio.com/docs/terminal/shell-integration"))
+				} else if (response === "Switch to PowerShell 7+") {
+					// Guide user to change terminal profile
+					vscode.window.showInformationMessage(
+						'To switch: Open Settings → Search "Terminal Profile Windows" → Select "PowerShell (pwsh)" or install PowerShell 7+ from https://aka.ms/powershell',
+						"Open Settings",
+					)
+				}
+			}
+		}
+	}
+
 	runCommand(terminalInfo: ITerminalInfo, command: string): ITerminalProcessResultPromise {
 		// Cast to VSCode-specific TerminalInfo for internal use
 		// Using unknown as intermediate cast due to structural differences between ITerminal and vscode.Terminal
@@ -179,8 +212,10 @@ export class VscodeTerminalManager implements ITerminalManager {
 		})
 
 		// if shell integration is not available, remove terminal so it does not get reused as it may be running a long-running process
-		process.once("no_shell_integration", () => {
+		process.once("no_shell_integration", async () => {
 			console.log(`no_shell_integration received for terminal ${vscodeTerminalInfo.id}`)
+			// Check and show warning about shell integration
+			await this.checkShellIntegrationSupport(vscodeTerminalInfo)
 			// Remove the terminal so we can't reuse it (in case it's running a long-running process)
 			TerminalRegistry.removeTerminal(vscodeTerminalInfo.id)
 			this.terminalIds.delete(vscodeTerminalInfo.id)
@@ -200,7 +235,7 @@ export class VscodeTerminalManager implements ITerminalManager {
 		// if shell integration is already active, run the command immediately
 		if (vscodeTerminalInfo.terminal.shellIntegration) {
 			process.waitForShellIntegration = false
-			process.run(vscodeTerminalInfo.terminal, command)
+			process.run(vscodeTerminalInfo.terminal, command, vscodeTerminalInfo.shellPath)
 		} else {
 			// docs recommend waiting 3s for shell integration to activate
 			console.log(
@@ -218,13 +253,15 @@ export class VscodeTerminalManager implements ITerminalManager {
 					console.warn(
 						`[TerminalManager Test] Shell integration timed out or failed for terminal ${vscodeTerminalInfo.id}: ${err.message}`,
 					)
+					// Check and show warning about shell integration
+					this.checkShellIntegrationSupport(vscodeTerminalInfo)
 				})
 				.finally(() => {
 					console.log(`[TerminalManager Test] Proceeding with command execution for terminal ${vscodeTerminalInfo.id}.`)
 					const existingProcess = this.processes.get(vscodeTerminalInfo.id)
 					if (existingProcess && existingProcess.waitForShellIntegration) {
 						existingProcess.waitForShellIntegration = false
-						existingProcess.run(vscodeTerminalInfo.terminal, command)
+						existingProcess.run(vscodeTerminalInfo.terminal, command, vscodeTerminalInfo.shellPath)
 					}
 				})
 		}
@@ -347,7 +384,9 @@ export class VscodeTerminalManager implements ITerminalManager {
 		// }
 		this.terminalIds.clear()
 		this.processes.clear()
-		this.disposables.forEach((disposable) => disposable.dispose())
+		for (const disposable of this.disposables) {
+			disposable.dispose()
+		}
 		this.disposables = []
 	}
 

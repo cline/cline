@@ -5,8 +5,11 @@
 	"version": "3.41.0",
 	"icon": "assets/icons/icon.png",
 	"engines": {
-		"vscode": "^1.84.0"
+		"vscode": "^1.93.0"
 	},
+	"enabledApiProposals": [
+		"speech"
+	],
 	"author": {
 		"name": "Cline Bot Inc."
 	},
@@ -42,10 +45,44 @@
 	"activationEvents": [
 		"onLanguage",
 		"onStartupFinished",
-		"workspaceContains:evals.env"
+		"workspaceContains:evals.env",
+		"onChatParticipant:bcline.claude",
+		"onChatParticipant:bcline.codex",
+		"onChatParticipant:bcline.cline",
+		"onChatParticipant:bcline.gemini"
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
+		"chatParticipants": [
+			{
+				"id": "bcline.claude",
+				"name": "claude",
+				"fullName": "Claude CLI (Opus 4.5)",
+				"description": "Talk directly to Claude CLI - Anthropic's most intelligent model",
+				"isSticky": true
+			},
+			{
+				"id": "bcline.codex",
+				"name": "codex",
+				"fullName": "Codex CLI (GPT-5.1)",
+				"description": "Talk directly to Codex CLI - OpenAI's advanced coding agent",
+				"isSticky": true
+			},
+			{
+				"id": "bcline.cline",
+				"name": "cline",
+				"fullName": "Cline Agent",
+				"description": "Send tasks to Cline autonomous coding agent",
+				"isSticky": true
+			},
+			{
+				"id": "bcline.gemini",
+				"name": "gemini",
+				"fullName": "Gemini CLI",
+				"description": "Talk directly to Google Gemini CLI",
+				"isSticky": true
+			}
+		],
 		"icons": {
 			"cline-icon": {
 				"description": "cline",
@@ -180,6 +217,12 @@
 				"category": "Cline"
 			},
 			{
+				"command": "cline.voiceInput",
+				"title": "Voice Input",
+				"category": "Cline",
+				"icon": "$(mic)"
+			},
+			{
 				"command": "cline.generateGitCommitMessage",
 				"title": "Generate Commit Message with Cline",
 				"category": "Cline",
@@ -249,6 +292,13 @@
 				"win": "ctrl+'",
 				"linux": "ctrl+'",
 				"when": "!editorHasSelection"
+			},
+			{
+				"command": "cline.voiceInput",
+				"key": "cmd+shift+v",
+				"mac": "cmd+shift+v",
+				"win": "ctrl+shift+v",
+				"linux": "ctrl+shift+v"
 			}
 		],
 		"menus": {
@@ -339,10 +389,10 @@
 		}
 	},
 	"scripts": {
-		"vscode:prepublish": "npm run package",
-		"compile": "npm run check-types && npm run lint && node esbuild.mjs",
-		"compile-standalone": "npm run check-types && npm run lint && node esbuild.mjs --standalone",
-		"compile-standalone-npm": "npm run protos && npm run protos-go && npm run check-types && npm run lint && node esbuild.mjs --standalone",
+		"vscode:prepublish": "npm run build:webview && node esbuild.mjs --production",
+		"compile": "npm run check-types && npm run lint && npm run build:webview && node esbuild.mjs",
+		"compile-standalone": "npm run check-types && npm run lint && npm run build:webview && node esbuild.mjs --standalone",
+		"compile-standalone-npm": "npm run protos && npm run protos-go && npm run check-types && npm run lint && npm run build:webview && node esbuild.mjs --standalone",
 		"compile-cli": "scripts/build-cli.sh",
 		"compile-cli-all-platforms": "scripts/build-cli-all-platforms.sh",
 		"compile-cli-man-page": "pandoc cli/man/cline.1.md -s -t man -o cli/man/cline.1",
@@ -355,7 +405,8 @@
 		"watch": "npm-run-all -p watch:*",
 		"watch:esbuild": "node esbuild.mjs --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-		"package": "npm run check-types && npm run build:webview && npm run lint && node esbuild.mjs --production",
+		"package": "npm run check-types-no-webview && npm run lint && npm run build:webview && node esbuild.mjs --production",
+		"check-types-no-webview": "npm run protos && npx tsc --noEmit",
 		"protos": "node scripts/build-proto.mjs",
 		"protos-go": "node scripts/build-go-proto.mjs",
 		"protos-python": "node scripts/build-python-proto.mjs",
@@ -367,7 +418,7 @@
 		"clean:all": "npm run clean:build && npm run clean:deps",
 		"compile-tests": "node ./scripts/build-tests.js",
 		"watch-tests": "tsc -p . -w --outDir out",
-		"check-types": "npm run protos && npx tsc --noEmit && cd webview-ui && npx tsc -b --noEmit",
+		"check-types": "npm run protos && npx tsc --noEmit && cd webview-ui && npx tsc --noEmit",
 		"lint": "biome lint --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error && npm run lint:proto",
 		"lint:proto": "bash ./scripts/proto-lint.sh",
 		"format": "biome format --changed --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error",
@@ -394,7 +445,6 @@
 		"publish:marketplace": "vsce publish --allow-package-secrets sendgrid && ovsx publish",
 		"publish:marketplace:prerelease": "vsce publish --allow-package-secrets sendgrid --pre-release && ovsx publish --pre-release",
 		"publish:marketplace:nightly": "node ./scripts/publish-nightly.mjs",
-		"prepare": "husky",
 		"changeset": "changeset",
 		"version-packages": "changeset version",
 		"docs": "cd docs && npm run dev",
@@ -424,7 +474,7 @@
 		"@types/should": "^11.2.0",
 		"@types/sinon": "^17.0.4",
 		"@types/turndown": "^5.0.5",
-		"@types/vscode": "1.84.0",
+		"@types/vscode": "^1.93.0",
 		"@vscode/test-cli": "^0.0.10",
 		"@vscode/test-electron": "^2.5.2",
 		"@vscode/vsce": "^3.6.0",
@@ -432,8 +482,8 @@
 		"chai": "^4.3.10",
 		"chalk": "5.6.2",
 		"cross-env": "^10.1.0",
-		"esbuild": "^0.25.0",
-		"grpc-tools": "^1.13.0",
+		"esbuild": "^0.25.12",
+		"grpc-tools": "^1.13.1",
 		"husky": "^9.1.7",
 		"lint-staged": "^16.1.0",
 		"minimatch": "^3.0.3",
@@ -449,6 +499,7 @@
 		"ts-node": "^10.9.2",
 		"ts-proto": "^2.6.1",
 		"tsconfig-paths": "^4.2.0",
+		"tsx": "^4.21.0",
 		"typescript": "^5.4.5"
 	},
 	"dependencies": {
@@ -532,7 +583,7 @@
 		"simple-git": "^3.27.0",
 		"strip-ansi": "^7.1.2",
 		"tailwindcss": "^4.1.14",
-		"tree-sitter-wasms": "^0.1.11",
+		"tree-sitter-wasms": "^0.1.13",
 		"ts-morph": "^25.0.1",
 		"turndown": "^7.2.0",
 		"ulid": "^2.4.0",

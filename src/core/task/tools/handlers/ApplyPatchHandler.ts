@@ -79,7 +79,10 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			this.initializeHelpers(config)
 
 			// Preview the first file being edited
-			await this.previewPatchStream(rawInput, uiHelpers).catch(() => {})
+			await this.previewPatchStream(rawInput, uiHelpers).catch((err) => {
+				// Preview failed - not critical, will retry when full content arrives
+				console.debug("[ApplyPatchHandler] Preview stream failed:", err.message)
+			})
 		} catch {
 			// Wait for more data if parsing fails
 		}

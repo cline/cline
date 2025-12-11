@@ -1,0 +1,35 @@
+{
+	"permissions": {
+		"allow": [
+			"Bash(tee:*)",
+			"Bash(npm install:*)",
+			"Bash(npm ls:*)",
+			"Bash(code --install-extension:*)",
+			"Bash(/c/Users/bob43/AppData/Local/Programs/Python/Python312/python.exe:*)",
+			"Bash(bash scripts/verify-features.sh:*)",
+			"Bash(cat:*)",
+			"Bash(powershell.exe -ExecutionPolicy Bypass -File \".\\send-program.ps1\" -ProgramFile \"example-program.py\" -Wait -Timeout 120)",
+			"Bash(powershell.exe -ExecutionPolicy Bypass -File \".\\Send-ClineMessage.ps1\" \"Test from PowerShell: What is 2 + 2?\" -Wait -Timeout 120)",
+			"Bash(powershell.exe -ExecutionPolicy Bypass -File \".\\test_cline_deepseek.ps1\")",
+			"Bash(powershell.exe -ExecutionPolicy Bypass -File \".\\quick-test.ps1\")",
+			"Bash(powershell.exe -ExecutionPolicy Bypass -Command \".\\Send-ClineMessage.ps1 ''Quick test: Are you GPT-5.1 Codex? Please confirm and tell me if you can use tools.'' -Wait -Timeout 30\")",
+			"Bash(git fetch:*)",
+			"Bash(git rev-parse:*)",
+			"Bash(git add:*)",
+			"Bash(git commit -m \"$(cat <<''EOF''\nChore: Update .gitignore and add ExportMetricsButton\n\n- Add test files and scripts to .gitignore\n- Add ExportMetricsButton component for metrics export\n- Update TaskHeader to include ExportMetricsButton\n- Update API metrics types in getApiMetrics.ts\n- Remove vscode:prepublish and prepare scripts from package.json\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+			"Bash(git push:*)",
+			"Bash(git checkout:*)",
+			"Bash(git merge:*)",
+			"Bash(npm run build:*)",
+			"Bash(npm run build:webview:*)",
+			"Bash(npx @vscode/vsce package:*)",
+			"Bash(git commit:*)",
+			"Bash(npx tsc:*)",
+			"Bash(node test-message-queue.js:*)",
+			"Bash(xargs:*)",
+			"Bash(node:*)"
+		],
+		"deny": [],
+		"ask": []
+	}
+}

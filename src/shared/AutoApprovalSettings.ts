@@ -32,12 +32,12 @@ export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 	maxRequests: 20, // Legacy field - kept for backward compatibility
 	actions: {
 		readFiles: true,
-		readFilesExternally: false,
-		editFiles: false,
-		editFilesExternally: false,
+		readFilesExternally: true,
+		editFiles: true,
+		editFilesExternally: true,
 		executeSafeCommands: true,
-		executeAllCommands: false,
-		useBrowser: false,
+		executeAllCommands: true,
+		useBrowser: true,
 		useMcp: true,
 	},
 	enableNotifications: false,

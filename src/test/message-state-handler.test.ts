@@ -115,7 +115,7 @@ describe("MessageStateHandler Mutex Protection", () => {
 		// CRITICAL ASSERTION: Each message should have a valid conversationHistoryIndex
 		// With proper mutex protection, these indices should be set correctly
 		// even though the operations ran concurrently
-		finalMessages.forEach((msg, idx) => {
+		finalMessages.forEach((msg, _idx) => {
 			should.exist(msg.conversationHistoryIndex)
 			msg.conversationHistoryIndex!.should.be.a.Number()
 			msg.conversationHistoryIndex!.should.be.greaterThanOrEqual(0)
