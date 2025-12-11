@@ -30,6 +30,7 @@ const OPENROUTER_MODEL_PROVIDERS: ApiProvider[] = ["cline", "openrouter", "verce
 
 import { freeModels, recommendedModels } from "@/components/settings/OpenRouterModelPicker"
 import { SUPPORTED_ANTHROPIC_THINKING_MODELS } from "@/components/settings/providers/AnthropicProvider"
+import { SUPPORTED_BEDROCK_THINKING_MODELS } from "@/components/settings/providers/BedrockProvider"
 import {
 	getModelsForProvider,
 	getModeSpecificFields,
@@ -92,11 +93,12 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 
 	// Check if model supports thinking
 	const supportsThinking = useMemo(() => {
-		// Check SUPPORTED_ANTHROPIC_THINKING_MODELS for anthropic/claude-code providers
 		if (selectedProvider === "anthropic" || selectedProvider === "claude-code") {
 			return SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId)
 		}
-		// Fall back to model info flags for other providers
+		if (selectedProvider === "bedrock") {
+			return SUPPORTED_BEDROCK_THINKING_MODELS.includes(selectedModelId)
+		}
 		return selectedModelInfo?.supportsReasoning || !!selectedModelInfo?.thinkingConfig
 	}, [selectedProvider, selectedModelId, selectedModelInfo])
 

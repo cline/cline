@@ -144,6 +144,7 @@ export function getModelsForProvider(
 		case "vercel-ai-gateway":
 		case "oca":
 		case "aihubmix":
+		case "together":
 		default:
 			return undefined
 	}
