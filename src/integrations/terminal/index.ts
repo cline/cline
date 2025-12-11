@@ -8,7 +8,7 @@
  *
  * @example
  * ```typescript
- * import { StandaloneTerminalManager, ITerminalManager } from "@shared/terminal"
+ * import { StandaloneTerminalManager, ITerminalManager } from "@integrations/terminal"
  *
  * const manager: ITerminalManager = new StandaloneTerminalManager()
  * const terminalInfo = await manager.getOrCreateTerminal("/path/to/cwd")
@@ -19,17 +19,46 @@
  * ```
  */
 
-export { StandaloneTerminal } from "./StandaloneTerminal"
-export { StandaloneTerminalManager } from "./StandaloneTerminalManager"
-// Export standalone implementations
-export { StandaloneTerminalProcess } from "./StandaloneTerminalProcess"
-export { StandaloneTerminalRegistry } from "./StandaloneTerminalRegistry"
-// Export all types
+// Export unified command executor
+export { CommandExecutor } from "./CommandExecutor"
+
+// Export command orchestrator (shared logic)
+export {
+	BUFFER_STUCK_TIMEOUT_MS,
+	CHUNK_BYTE_SIZE,
+	CHUNK_DEBOUNCE_MS,
+	CHUNK_LINE_COUNT,
+	COMPLETION_TIMEOUT_MS,
+	findLastIndex,
+	orchestrateCommandExecution,
+} from "./CommandOrchestrator"
+
+// Export terminal process interface
+
+// Export standalone terminal implementations
+export { StandaloneTerminal } from "./standalone/StandaloneTerminal"
+export { StandaloneTerminalManager } from "./standalone/StandaloneTerminalManager"
+export { StandaloneTerminalProcess } from "./standalone/StandaloneTerminalProcess"
+export { StandaloneTerminalRegistry } from "./standalone/StandaloneTerminalRegistry"
+
+// Export all types from types.ts
 export type {
+	// Command Executor types
+	ActiveBackgroundCommand,
+	AskResponse,
+	CommandExecutorCallbacks,
+	CommandExecutorConfig,
+	FullCommandExecutorConfig,
+	// Terminal types
 	ITerminal,
 	ITerminalManager,
+	ITerminalProcess,
 	ITerminalProcessResult,
+	// Command Orchestrator types
+	OrchestrationOptions,
+	OrchestrationResult,
 	StandaloneTerminalOptions,
 	TerminalInfo,
+	TerminalProcessEvents,
 	TerminalProcessResultPromise,
 } from "./types"
