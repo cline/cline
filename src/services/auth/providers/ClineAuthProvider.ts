@@ -225,7 +225,7 @@ export class ClineAuthProvider implements IAuthProvider {
 
 				// Check if we've exceeded max retries
 				if (this.refreshRetryCount >= this.MAX_REFRESH_RETRIES) {
-					const waitTime = this.MAX_REFRESH_RETRIES * 3
+					const waitTime = this.RETRY_DELAY_MS * 3
 					setTimeout(() => {
 						this.refreshRetryCount = 0
 						this.lastRefreshAttempt = 0
@@ -234,7 +234,7 @@ export class ClineAuthProvider implements IAuthProvider {
 					return {
 						authenticated: true,
 						pending: false,
-						error: "Failed several retries. Waiting before retrying again.",
+						error: "Failed to fetch user information. Waiting before retrying again.",
 						nextRetryAt: now + waitTime,
 					}
 				}

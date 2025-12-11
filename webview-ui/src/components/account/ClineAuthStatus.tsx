@@ -70,7 +70,10 @@ export function ClineAuthStatus({ authButtonText = "Sign in to Cline" }: ClineAu
 			<div className="flex flex-col gap-2 w-full">
 				{error ? (
 					<span>
-						{error} {secondsUntilNextRetry && `Please retry in ${secondsUntilNextRetry} seconds.`}
+						{error}{" "}
+						{secondsUntilNextRetry &&
+							secondsUntilNextRetry > 0 &&
+							`Please retry in ${secondsUntilNextRetry} seconds.`}
 					</span>
 				) : (
 					isPending && <span>Your information is pending. Please retry.</span>
