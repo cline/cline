@@ -125,7 +125,7 @@ export class ClineAuthProvider implements IAuthProvider {
 		this.lastRefreshAttempt = 0
 		return {
 			authenticated: false,
-			loading: false,
+			pending: false,
 		}
 	}
 
@@ -173,7 +173,7 @@ export class ClineAuthProvider implements IAuthProvider {
 				this.lastRefreshAttempt = 0
 				return {
 					authenticated: false,
-					loading: false,
+					pending: false,
 				}
 			}
 
@@ -204,7 +204,7 @@ export class ClineAuthProvider implements IAuthProvider {
 					return {
 						authInfo: storedAuthData,
 						authenticated: true,
-						loading: false,
+						pending: false,
 					}
 				}
 
@@ -217,7 +217,7 @@ export class ClineAuthProvider implements IAuthProvider {
 					)
 					return {
 						authenticated: true,
-						loading: true,
+						pending: true,
 						nextRetryAt: Date.now() + this.RETRY_DELAY_MS - timeSinceLastAttempt,
 					}
 				}
@@ -232,7 +232,7 @@ export class ClineAuthProvider implements IAuthProvider {
 
 					return {
 						authenticated: true,
-						loading: false,
+						pending: false,
 						error: "Failed several retries. Waiting before retrying again.",
 						nextRetryAt: Date.now() + waitTime,
 					}
@@ -260,7 +260,7 @@ export class ClineAuthProvider implements IAuthProvider {
 					return {
 						authInfo: authInfo,
 						authenticated: true,
-						loading: false,
+						pending: false,
 					}
 				} catch (refreshError) {
 					Logger.error(
@@ -280,7 +280,7 @@ export class ClineAuthProvider implements IAuthProvider {
 					return {
 						authenticated: true,
 						error: "Unknown network error.",
-						loading: true,
+						pending: true,
 						nextRetryAt: Date.now() + this.RETRY_DELAY_MS,
 					}
 				}
@@ -295,7 +295,7 @@ export class ClineAuthProvider implements IAuthProvider {
 				return {
 					authInfo: storedAuthData,
 					authenticated: true,
-					loading: false,
+					pending: false,
 				}
 			}
 
@@ -314,7 +314,7 @@ export class ClineAuthProvider implements IAuthProvider {
 			return {
 				authInfo: storedAuthData,
 				authenticated: true,
-				loading: false,
+				pending: false,
 			}
 		} catch (error) {
 			Logger.error("Authentication failed with stored credential:", error)
@@ -325,7 +325,7 @@ export class ClineAuthProvider implements IAuthProvider {
 			}
 			return {
 				authenticated: true,
-				loading: false,
+				pending: false,
 				error: "Unexpected error.",
 				nextRetryAt: Date.now() + this.RETRY_DELAY_MS,
 			}
@@ -488,7 +488,7 @@ export class ClineAuthProvider implements IAuthProvider {
 			return {
 				authInfo: clineAuthInfo,
 				authenticated: true,
-				loading: false,
+				pending: false,
 			}
 		} catch (error) {
 			Logger.error("Error handling auth callback:", error)

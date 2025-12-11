@@ -56,7 +56,7 @@ message AuthStateChangedRequest {
 message AuthState {
   optional UserInfo user = 1;
   bool authenticated = 2;
-  bool loading = 3;
+  bool pending = 3;
   optional int64 next_retry_at = 4;
   optional string error = 5;
 }

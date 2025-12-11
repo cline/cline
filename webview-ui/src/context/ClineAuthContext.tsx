@@ -19,7 +19,7 @@ export interface ClineAuthContextType {
 	organizations: UserOrganization[] | null
 	activeOrganization: UserOrganization | null
 	isAuthenticated: boolean
-	isLoading: boolean
+	isPending: boolean
 	error: string | null
 	nextRetryAt: number | null
 }
@@ -29,7 +29,7 @@ export const ClineAuthContext = createContext<ClineAuthContextType | undefined>(
 export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 	const [user, setUser] = useState<ClineUser | null>(null)
 	const [userOrganizations, setUserOrganizations] = useState<UserOrganization[] | null>(null)
-	const [isLoading, setIsLoading] = useState(false)
+	const [isPending, setIsPending] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 	const [isAuthenticated, setIsAuthenticated] = useState(false)
 	const [nextRetryAt, setNextRetryAt] = useState<number | null>(null)
@@ -61,7 +61,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 					setUser(null)
 				}
 				setIsAuthenticated(!!response.authenticated)
-				setIsLoading(!!response.loading)
+				setIsPending(!!response.pending)
 				setError(response.error || null)
 				setNextRetryAt(response.nextRetryAt || null)
 				if (response?.user && user?.uid !== response.user.uid) {
@@ -94,7 +94,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				activeOrganization,
 				error,
 				isAuthenticated,
-				isLoading,
+				isPending,
 				nextRetryAt,
 			}}>
 			{children}

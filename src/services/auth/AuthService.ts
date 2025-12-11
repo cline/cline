@@ -71,7 +71,7 @@ export class AuthService {
 	protected provider: IAuthProvider | null = null
 	protected authState: InternalAuthState = {
 		authenticated: false,
-		loading: true,
+		pending: true,
 	}
 	protected _activeAuthStatusUpdateHandlers = new Set<StreamingResponseHandler<AuthState>>()
 	protected _handlerToController = new Map<StreamingResponseHandler<AuthState>, Controller>()
@@ -186,7 +186,7 @@ export class AuthService {
 							Logger.error("Token is invalid or expired:", error)
 							this.authState = {
 								authenticated: false,
-								loading: false,
+								pending: false,
 							}
 							telemetryService.captureAuthLoggedOut(this.provider?.name, LogoutReason.ERROR_RECOVERY)
 							authStatusChanged = true
@@ -252,7 +252,7 @@ export class AuthService {
 
 		return AuthState.create({
 			user,
-			loading: this.authState.loading,
+			pending: this.authState.pending,
 			authenticated: this.authState.authenticated,
 			error: this.authState.error,
 			nextRetryAt: this.authState.nextRetryAt,
@@ -292,7 +292,7 @@ export class AuthService {
 			telemetryService.captureAuthLoggedOut(this.provider.name, reason)
 			this.authState = {
 				authenticated: false,
-				loading: false,
+				pending: false,
 			}
 			this.destroyTokens()
 			this.sendAuthStatusUpdate()
@@ -343,7 +343,7 @@ export class AuthService {
 		} catch (error) {
 			console.error("Error restoring auth token:", error)
 			this.authState = {
-				loading: false,
+				pending: false,
 				authenticated: false,
 				error: "Unknown error.",
 			}

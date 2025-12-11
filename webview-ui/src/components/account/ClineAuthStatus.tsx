@@ -17,7 +17,7 @@ type ClineAuthStatusProps = {
 }
 
 export function ClineAuthStatus({ authButtonText = "Sign in to Cline" }: ClineAuthStatusProps) {
-	const { isAuthenticated, isLoading, error, nextRetryAt } = useClineAuth()
+	const { isAuthenticated, isPending, error, nextRetryAt } = useClineAuth()
 	const { isLoginLoading, handleSignIn } = useClineSignIn()
 	const [isFetching, setIsFetching] = useState(false)
 	const [secondsUntilNextRetry, setSecondsUntilNextRetry] = useState<number | null>(null)
@@ -42,14 +42,14 @@ export function ClineAuthStatus({ authButtonText = "Sign in to Cline" }: ClineAu
 		}
 	}, [nextRetryAt])
 
-	const hasValidAuthSession = isAuthenticated && !error && !isLoading
+	const hasValidAuthSession = isAuthenticated && !error && !isPending
 
 	/* The user is signed in or not using cline provider */
 	if (hasValidAuthSession) {
 		return null
 	}
 
-	if (error || isLoading) {
+	if (error || isPending) {
 		const onFetchAuth = () => {
 			try {
 				setIsFetching(true)
@@ -73,7 +73,7 @@ export function ClineAuthStatus({ authButtonText = "Sign in to Cline" }: ClineAu
 						{error} {secondsUntilNextRetry && `Please retry in ${secondsUntilNextRetry} seconds.`}
 					</span>
 				) : (
-					isLoading && <span>We're fetching your information. Please wait or force a retry.</span>
+					isPending && <span>Your information is pending. Please retry.</span>
 				)}
 
 				<div className="flex gap-4 w-full">
