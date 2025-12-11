@@ -1,9 +1,10 @@
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
+import type { McpServer } from "@shared/mcp"
 
 export interface SlashCommand {
 	name: string
 	description?: string
-	section?: "default" | "custom"
+	section?: "default" | "custom" | "mcp"
 }
 
 const BASE_SLASH_COMMANDS: SlashCommand[] = [
@@ -114,14 +115,39 @@ export function getWorkflowCommands(
 	return workflows
 }
 
+/**
+ * Gets MCP prompt commands from connected MCP servers
+ * Format: mcp:<server-name>:<prompt-name>
+ */
+export function getMcpPromptCommands(mcpServers: McpServer[] = []): SlashCommand[] {
+	const commands: SlashCommand[] = []
+
+	for (const server of mcpServers) {
+		if (server.status !== "connected" || !server.prompts) {
+			continue
+		}
+
+		for (const prompt of server.prompts) {
+			commands.push({
+				name: `mcp:${server.name}:${prompt.name}`,
+				description: prompt.description || prompt.title || `MCP prompt from ${server.name}`,
+				section: "mcp",
+			})
+		}
+	}
+
+	return commands
+}
+
 // Regex for detecting slash commands in text
 // Must be at start of string OR preceded by whitespace to avoid matching URLs/paths
 // e.g., matches "/newtask" or "text /newtask" but not "http://example.com/newtask"
-export const slashCommandRegex = /(^|\s)(\/[a-zA-Z0-9_.-]+)(?=\s|$)/
+// Note: Colons are allowed to support MCP prompt commands like /mcp:server:prompt
+export const slashCommandRegex = /(^|\s)(\/[a-zA-Z0-9_.:@-]+)(?=\s|$)/
 export const slashCommandRegexGlobal = new RegExp(slashCommandRegex.source, "g")
 // Regex for detecting a slash command at the end of text (for deletion)
 // Must be at start OR preceded by whitespace, captures the whole command including slash
-export const slashCommandDeleteRegex = /(^|\s)(\/[a-zA-Z0-9_.-]+)$/
+export const slashCommandDeleteRegex = /(^|\s)(\/[a-zA-Z0-9_.:@-]+)$/
 
 /**
  * Removes a slash command at the cursor position
@@ -198,6 +224,7 @@ export function getMatchingSlashCommands(
 	globalWorkflowToggles: Record<string, boolean> = {},
 	remoteWorkflowToggles?: Record<string, boolean>,
 	remoteWorkflows?: any[],
+	mcpServers: McpServer[] = [],
 ): SlashCommand[] {
 	const workflowCommands = getWorkflowCommands(
 		localWorkflowToggles,
@@ -205,7 +232,8 @@ export function getMatchingSlashCommands(
 		remoteWorkflowToggles,
 		remoteWorkflows,
 	)
-	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands]
+	const mcpPromptCommands = getMcpPromptCommands(mcpServers)
+	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands, ...mcpPromptCommands]
 
 	if (!query) {
 		return allCommands
@@ -248,6 +276,7 @@ export function validateSlashCommand(
 	globalWorkflowToggles: Record<string, boolean> = {},
 	remoteWorkflowToggles?: Record<string, boolean>,
 	remoteWorkflows?: any[],
+	mcpServers: McpServer[] = [],
 ): "full" | "partial" | null {
 	if (!command) {
 		return null
@@ -259,7 +288,8 @@ export function validateSlashCommand(
 		remoteWorkflowToggles,
 		remoteWorkflows,
 	)
-	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands]
+	const mcpPromptCommands = getMcpPromptCommands(mcpServers)
+	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands, ...mcpPromptCommands]
 
 	// case sensitive matching
 	const exactMatch = allCommands.some((cmd) => cmd.name === command)

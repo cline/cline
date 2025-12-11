@@ -11,6 +11,8 @@ import {
 	ListResourcesResultSchema,
 	ListResourceTemplatesResultSchema,
 	ListToolsResultSchema,
+	ListPromptsResultSchema,
+	GetPromptResultSchema,
 	ReadResourceResultSchema,
 } from "@modelcontextprotocol/sdk/types.js"
 import {
@@ -21,6 +23,8 @@ import {
 	McpServer,
 	McpTool,
 	McpToolCallResponse,
+	McpPrompt,
+	McpPromptResponse,
 	MIN_MCP_TIMEOUT_SECONDS,
 } from "@shared/mcp"
 import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
@@ -506,10 +510,11 @@ export class McpHub {
 				console.error(`[MCP Debug] Error setting notification handlers for ${name}:`, error)
 			}
 
-			// Initial fetch of tools and resources
+			// Initial fetch of tools, resources, and prompts
 			connection.server.tools = await this.fetchToolsList(name)
 			connection.server.resources = await this.fetchResourcesList(name)
 			connection.server.resourceTemplates = await this.fetchResourceTemplatesList(name)
+			connection.server.prompts = await this.fetchPromptsList(name)
 		} catch (error) {
 			// Update status with error
 			const connection = this.findConnection(name, source)
@@ -601,6 +606,39 @@ export class McpHub {
 			return response?.resourceTemplates || []
 		} catch (_error) {
 			// console.error(`Failed to fetch resource templates for ${serverName}:`, error)
+			return []
+		}
+	}
+
+	private async fetchPromptsList(serverName: string): Promise<McpPrompt[]> {
+		try {
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+
+			// Disabled servers don't have clients, so return empty prompts list
+			if (!connection || connection.server.disabled || !connection.client) {
+				return []
+			}
+
+			const response = await connection.client.request(
+				{ method: "prompts/list" },
+				ListPromptsResultSchema,
+				{
+					timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				},
+			)
+
+			return (response?.prompts || []).map((prompt) => ({
+				name: prompt.name,
+				title: prompt.title,
+				description: prompt.description,
+				arguments: prompt.arguments?.map((arg) => ({
+					name: arg.name,
+					description: arg.description,
+					required: arg.required,
+				})),
+			}))
+		} catch (_error) {
+			// console.error(`Failed to fetch prompts for ${serverName}:`, error)
 			return []
 		}
 	}
@@ -926,6 +964,42 @@ export class McpHub {
 			},
 			ReadResourceResultSchema,
 		)
+	}
+
+	async getPrompt(
+		serverName: string,
+		promptName: string,
+		promptArguments?: Record<string, string>,
+	): Promise<McpPromptResponse> {
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
+		if (!connection) {
+			throw new Error(`No connection found for server: ${serverName}`)
+		}
+		if (connection.server.disabled) {
+			throw new Error(`Server "${serverName}" is disabled`)
+		}
+
+		const response = await connection.client.request(
+			{
+				method: "prompts/get",
+				params: {
+					name: promptName,
+					arguments: promptArguments,
+				},
+			},
+			GetPromptResultSchema,
+			{
+				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+			},
+		)
+
+		return {
+			description: response.description,
+			messages: response.messages.map((msg) => ({
+				role: msg.role,
+				content: msg.content as McpPromptResponse["messages"][0]["content"],
+			})),
+		}
 	}
 
 	async callTool(

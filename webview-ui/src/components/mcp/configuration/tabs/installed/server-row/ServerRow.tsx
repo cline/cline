@@ -25,6 +25,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { McpServiceClient } from "@/services/grpc-client"
 import { getMcpServerDisplayName } from "@/utils/mcp"
+import McpPromptRow from "./McpPromptRow"
 import McpResourceRow from "./McpResourceRow"
 import McpToolRow from "./McpToolRow"
 
@@ -282,6 +283,7 @@ const ServerRow = ({
 							<VSCodePanelTab id="resources">
 								Resources ({[...(server.resourceTemplates || []), ...(server.resources || [])].length || 0})
 							</VSCodePanelTab>
+							<VSCodePanelTab id="prompts">Prompts ({server.prompts?.length || 0})</VSCodePanelTab>
 
 							<VSCodePanelView id="tools-view">
 								{server.tools && server.tools.length > 0 ? (
@@ -342,6 +344,31 @@ const ServerRow = ({
 											color: "var(--vscode-descriptionForeground)",
 										}}>
 										No resources found
+									</div>
+								)}
+							</VSCodePanelView>
+
+							<VSCodePanelView id="prompts-view">
+								{server.prompts && server.prompts.length > 0 ? (
+									<div
+										style={{
+											display: "flex",
+											flexDirection: "column",
+											gap: "8px",
+											width: "100%",
+											paddingTop: "8px",
+										}}>
+										{server.prompts.map((prompt) => (
+											<McpPromptRow key={prompt.name} prompt={prompt} serverName={server.name} />
+										))}
+									</div>
+								) : (
+									<div
+										style={{
+											padding: "10px 0",
+											color: "var(--vscode-descriptionForeground)",
+										}}>
+										No prompts found
 									</div>
 								)}
 							</VSCodePanelView>
