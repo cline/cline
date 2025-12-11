@@ -127,6 +127,7 @@ export interface Settings {
 	hooksEnabled: boolean
 	subagentsEnabled: boolean
 	enhancedNotebookInteractionEnabled: boolean
+	enableParallelToolCalling: boolean
 	hicapModelId: string | undefined
 
 	// Plan mode configurations

@@ -689,6 +689,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			hooksEnabled: getHooksEnabledSafe(hooksEnabled),
 			subagentsEnabled: subagentsEnabled ?? false,
 			enhancedNotebookInteractionEnabled: enhancedNotebookInteractionEnabled ?? false,
+			enableParallelToolCalling: enableParallelToolCalling ?? false,
 			lastDismissedInfoBannerVersion: lastDismissedInfoBannerVersion ?? 0,
 			lastDismissedModelBannerVersion: lastDismissedModelBannerVersion ?? 0,
 			lastDismissedCliBannerVersion: lastDismissedCliBannerVersion ?? 0,
