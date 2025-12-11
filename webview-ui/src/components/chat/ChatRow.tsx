@@ -165,6 +165,57 @@ const CommandOutput = memo(
 			return null
 		}
 
+		// Check if output contains a log file path indicator
+		const logFilePathMatch = output.match(/📋 Output is being logged to: ([^\n]+)/)
+		const logFilePath = logFilePathMatch ? logFilePathMatch[1].trim() : null
+
+		// Render output with clickable log file path
+		const renderOutput = () => {
+			if (!logFilePath) {
+				return <CodeBlock forceWrap={true} source={`${"```"}shell\n${output}\n${"```"}`} />
+			}
+
+			// Split output into parts: before log path, log path line, after log path
+			const logPathLineStart = output.indexOf("📋 Output is being logged to:")
+			const logPathLineEnd = output.indexOf("\n", logPathLineStart)
+			const beforeLogPath = output.substring(0, logPathLineStart)
+			const afterLogPath = logPathLineEnd !== -1 ? output.substring(logPathLineEnd) : ""
+
+			return (
+				<>
+					{beforeLogPath && <CodeBlock forceWrap={true} source={`${"```"}shell\n${beforeLogPath}\n${"```"}`} />}
+					<div
+						style={{
+							padding: "8px 12px",
+							display: "flex",
+							alignItems: "center",
+							gap: "8px",
+							backgroundColor: "rgba(0, 122, 204, 0.1)",
+							borderRadius: "4px",
+							margin: "4px 8px",
+						}}>
+						<span style={{ fontSize: "14px" }}>📋</span>
+						<span style={{ color: "var(--vscode-foreground)", opacity: 0.9 }}>Output is being logged to: </span>
+						<span
+							onClick={() => {
+								FileServiceClient.openFile(StringRequest.create({ value: logFilePath })).catch((err) =>
+									console.error("Failed to open log file:", err),
+								)
+							}}
+							style={{
+								color: "var(--vscode-textLink-foreground)",
+								textDecoration: "underline",
+								cursor: "pointer",
+								wordBreak: "break-all",
+							}}>
+							{logFilePath}
+						</span>
+					</div>
+					{afterLogPath && <CodeBlock forceWrap={true} source={`${"```"}shell\n${afterLogPath}\n${"```"}`} />}
+				</>
+			)
+		}
+
 		return (
 			<div
 				style={{
@@ -186,9 +237,7 @@ const CommandOutput = memo(
 						scrollBehavior: "smooth",
 						backgroundColor: TERMINAL_CODE_BLOCK_BG_COLOR,
 					}}>
-					<div style={{ backgroundColor: TERMINAL_CODE_BLOCK_BG_COLOR }}>
-						<CodeBlock forceWrap={true} source={`${"```"}shell\n${output}\n${"```"}`} />
-					</div>
+					<div style={{ backgroundColor: TERMINAL_CODE_BLOCK_BG_COLOR }}>{renderOutput()}</div>
 				</div>
 				{/* Show notch only if there's more than 5 lines */}
 				{lineCount > 5 && (
