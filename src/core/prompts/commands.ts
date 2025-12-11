@@ -1,10 +1,8 @@
 import type { ApiProviderInfo } from "@/core/api"
 import { getDeepPlanningPrompt } from "./commands/deep-planning"
 
-export const newTaskToolResponse = (enableNativeToolCalls?: boolean) => {
-	const xmlExample = enableNativeToolCalls
-		? ""
-		: `
+export const newTaskToolResponse = () => {
+	const xmlExample = `
 Example:
 <new_task>
 <context>1. Current Work:
