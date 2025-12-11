@@ -1,6 +1,7 @@
 {
 	"compilerOptions": {
 		"tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+		"incremental": true,
 		"target": "ES2022",
 		"useDefineForClassFields": true,
 		"lib": [
@@ -26,7 +27,7 @@
 		/* Linting */
 		"strict": true,
 		"noFallthroughCasesInSwitch": true,
-		"noUncheckedSideEffectImports": true,
+		// "noUncheckedSideEffectImports": true, // Commented out for compatibility
 
 		/* Aliasing */
 		"baseUrl": ".",

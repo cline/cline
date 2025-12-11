@@ -4,8 +4,17 @@ set -eu
 npm run protos
 npm run protos-go
 
+# Explicitly ensure Go modules are tidy and downloaded after protos-go
+cd cli
+go mod tidy
+go mod download
+cd ..
+
+npm run compile-standalone
+
 mkdir -p dist-standalone/extension
 cp package.json dist-standalone/extension
+cp dist-standalone/cline-core.js dist-standalone/cline-core.js
 
 # Extract version information for ldflags
 CORE_VERSION=$(node -p "require('./package.json').version")

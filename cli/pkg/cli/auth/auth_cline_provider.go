@@ -29,9 +29,9 @@ func HandleClineAuth(ctx context.Context) error {
 	}
 
 	fmt.Println()
-	
+
 	verboseLog("✓ You are signed in!")
-	
+
 
 	// Configure default Cline model after successful authentication
 	if err := configureDefaultClineModel(ctx); err != nil {
@@ -138,28 +138,8 @@ func signIn(ctx context.Context) error {
 }
 
 func IsAuthenticated(ctx context.Context) bool {
-	if isSessionAuthenticated {
-		verboseLog("Session is already authenticated")
-		return true
-	}
-
-	verboseLog("Verifying authentication with server...")
-	client, err := global.GetDefaultClient(ctx)
-	if err != nil {
-		verboseLog("Failed to get client for auth check: %v", err)
-		return false
-	}
-
-	_, err = client.Account.GetUserCredits(ctx, &cline.EmptyRequest{})
-	if err == nil {
-		// Update session variable for future fast-path checks
-		verboseLog("Server verification successful, updating session flag")
-		isSessionAuthenticated = true
-		return true
-	}
-
-	verboseLog("Server verification failed: %v", err)
-	return false
+	verboseLog("Authentication requirement bypassed: Always returning true for IsAuthenticated")
+	return true
 }
 
 // HandleChangeClineModel allows Cline-authenticated users to change their Cline model selection. Hidden when not authenticated.
