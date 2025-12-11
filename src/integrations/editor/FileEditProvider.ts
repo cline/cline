@@ -113,4 +113,9 @@ export class FileEditProvider extends DiffViewProvider {
 		// Clean up the in-memory document content
 		this.documentContent = undefined
 	}
+
+	protected async switchToSpecializedEditor(): Promise<void> {
+		// No-op: File-system-only provider doesn't support visual specialized editors
+		// All operations are performed directly on the file system
+	}
 }

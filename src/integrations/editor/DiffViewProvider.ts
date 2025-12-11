@@ -23,6 +23,7 @@ export abstract class DiffViewProvider {
 	protected fileEncoding: string = "utf8"
 	private streamedLines: string[] = []
 	private newContent?: string
+	public enhancedNotebookInteractionEnabled: boolean = true
 
 	constructor() {}
 
@@ -150,6 +151,15 @@ export abstract class DiffViewProvider {
 	 */
 	protected abstract resetDiffView(): Promise<void>
 
+	/**
+	 * Switches to a specialized editor for specific file types after final content is available.
+	 * Called automatically by the `update` method when `isFinal` is true.
+	 *
+	 * For example, switches to Jupyter notebook editor for .ipynb files to provide
+	 * enhanced editing experience with proper notebook cell rendering.
+	 */
+	protected abstract switchToSpecializedEditor(): Promise<void>
+
 	async update(
 		accumulatedContent: string,
 		isFinal: boolean,
@@ -221,6 +231,9 @@ export abstract class DiffViewProvider {
 					accumulatedContent += "\n"
 				}
 			}
+
+			// Switch to specialized editor for specific file types (e.g., Jupyter for .ipynb)
+			await this.switchToSpecializedEditor()
 		}
 	}
 
@@ -246,6 +259,24 @@ export abstract class DiffViewProvider {
 		currentLine: number | undefined,
 	): Promise<void>
 
+	/**
+	 * Checks if the current file is a Jupyter notebook file.
+	 *
+	 * @returns true if the file has .ipynb extension
+	 */
+	protected isNotebookFile(): boolean {
+		return this.relPath?.toLowerCase().endsWith(".ipynb") ?? false
+	}
+
+	/**
+	 * Updates the enhanced notebook interaction setting.
+	 *
+	 * @param enabled Whether enhanced notebook interaction is enabled
+	 */
+	public setEnhancedNotebookInteractionEnabled(enabled: boolean): void {
+		this.enhancedNotebookInteractionEnabled = enabled
+	}
+
 	async saveChanges(): Promise<{
 		newProblemsMessage: string | undefined
 		userEdits: string | undefined
@@ -268,7 +299,12 @@ export abstract class DiffViewProvider {
 		// get text after save in case there is any auto-formatting done by the editor
 		const postSaveContent = (await this.getDocumentText()) || ""
 
-		await this.showFile(this.absolutePath)
+		// we need to open notebook files with Notebook editor if available.
+		// Currently, HostProvider opens it with Text editor. Not opening
+		// notebook files until we fix that.
+		if (!this.isNotebookFile()) {
+			await this.showFile(this.absolutePath)
+		}
 		await this.closeAllDiffViews()
 
 		const newProblems = await this.getNewDiagnosticProblems()

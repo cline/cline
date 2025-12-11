@@ -44,7 +44,25 @@ const generic: ClineToolSpec = {
      * Each line must be complete. Never truncate lines mid-way through as this can cause matching failures.
   4. Special operations:
      * To move code: Use two SEARCH/REPLACE blocks (one to delete from original + one to insert at new location)
-     * To delete code: Use empty REPLACE section`,
+     * To delete code: Use empty REPLACE section
+  {{#if enhancedNotebookInteractionEnabled}}
+  5. For Jupyter Notebook (.ipynb) files:
+     * Match the exact JSON structure including quotes, commas, and \\n characters
+     * Each line in "source" array (except last) must end with "\\n"
+     * Each source line is a separate JSON string in the array
+     * Example SEARCH block for notebook:
+       ------- SEARCH
+         "source": [
+           "x = 10\\n",
+           "print(x)"
+         ]
+       =======
+         "source": [
+           "x = 100\\n",
+           "print(x)"
+         ]
+       +++++++ REPLACE
+  {{/if}}`,
 			usage: "Search and replace blocks here",
 		},
 		TASK_PROGRESS_PARAMETER,
@@ -89,7 +107,25 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 	 * Each line must be complete. Never truncate lines mid-way through as this can cause matching failures.
   4. Special operations:
 	 * To move code: Use two SEARCH/REPLACE blocks (one to delete from original + one to insert at new location)
-	 * To delete code: Use empty REPLACE section`,
+	 * To delete code: Use empty REPLACE section
+  {{#if enhancedNotebookInteractionEnabled}}
+  5. For Jupyter Notebook (.ipynb) files:
+	 * Match the exact JSON structure including quotes, commas, and \\n characters
+	 * Each line in "source" array (except last) must end with "\\n"
+	 * Each source line is a separate JSON string in the array
+	 * Example SEARCH block for notebook:
+	   ------- SEARCH
+		 "source": [
+		   "x = 10\\n",
+		   "print(x)"
+		 ]
+	   =======
+		 "source": [
+		   "x = 100\\n",
+		   "print(x)"
+		 ]
+	   +++++++ REPLACE
+  {{/if}}`,
 		},
 		TASK_PROGRESS_PARAMETER,
 	],

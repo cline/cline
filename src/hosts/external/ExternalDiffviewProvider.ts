@@ -90,4 +90,9 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 	protected override async resetDiffView(): Promise<void> {
 		this.activeDiffEditorId = undefined
 	}
+
+	protected async switchToSpecializedEditor(): Promise<void> {
+		// For external diff view provider, we don't have specialized editor support yet
+		return
+	}
 }

@@ -34,6 +34,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		skillsEnabled,
 		remoteConfigSettings,
 		subagentsEnabled,
+		enhancedNotebookInteractionEnabled,
 		nativeToolCallSetting,
 		enableParallelToolCalling,
 		backgroundEditEnabled,
@@ -170,6 +171,24 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 					)}
 
 					<div>
+						<VSCodeCheckbox
+							checked={enhancedNotebookInteractionEnabled}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								updateSetting("enhancedNotebookInteractionEnabled", checked)
+							}}>
+							<span className="font-semibold">Enhanced Notebook Interaction</span>
+						</VSCodeCheckbox>
+						<p className="text-xs mt-1 mb-0">
+							<span className="text-description">
+								Enables advanced Jupyter Notebook (.ipynb) support with cell-level context awareness. When
+								enabled, Cline can read and edit notebook cells while preserving the JSON structure. Includes
+								special commands for generating, explaining, and improving notebook cells.
+							</span>
+						</p>
+					</div>
+
+					<div style={{ marginTop: 10 }}>
 						<VSCodeCheckbox
 							checked={enableCheckpointsSetting}
 							onChange={(e: any) => {

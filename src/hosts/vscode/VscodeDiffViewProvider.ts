@@ -2,6 +2,7 @@ import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import * as path from "path"
 import * as vscode from "vscode"
 import { DecorationController } from "@/hosts/vscode/DecorationController"
+import { Logger } from "@/services/logging/Logger"
 import { arePathsEqual } from "@/utils/path"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
@@ -11,6 +12,10 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 
 	private fadedOverlayController?: DecorationController
 	private activeLineController?: DecorationController
+
+	// Temporary file management for notebook diff views
+	private tempModifiedUri?: vscode.Uri
+	private tempFileWatcher?: vscode.FileSystemWatcher
 
 	override async openDiffEditor(): Promise<void> {
 		if (!this.absolutePath) {
@@ -96,6 +101,12 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		if (!this.activeDiffEditor || !this.activeDiffEditor.document) {
 			throw new Error("User closed text editor, unable to edit file...")
 		}
+
+		// For notebook files, add basic logging (full temp file sync can be added later)
+		if (this.isNotebookFile()) {
+			Logger.log("Replacing text in notebook file - basic implementation")
+		}
+
 		// Place cursor at the beginning of the diff editor to keep it out of the way of the stream animation
 		const beginningOfDocument = new vscode.Position(0, 0)
 		this.activeDiffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)
@@ -170,11 +181,68 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		return true
 	}
 
+	protected override async switchToSpecializedEditor(): Promise<void> {
+		if (!this.isNotebookFile() || !this.activeDiffEditor || !this.absolutePath) {
+			Logger.log(
+				`switchToSpecializedEditor: Early return - isNotebook: ${this.isNotebookFile()}, hasActiveDiffEditor: ${!!this.activeDiffEditor}, hasAbsolutePath: ${!!this.absolutePath}`,
+			)
+			return
+		}
+
+		// Check if enhanced notebook interaction is enabled
+		Logger.log(`switchToSpecializedEditor: Enhanced notebook interaction enabled: ${this.enhancedNotebookInteractionEnabled}`)
+		if (!this.enhancedNotebookInteractionEnabled) {
+			Logger.log("switchToSpecializedEditor: Enhanced notebook interaction is disabled, skipping notebook diff view")
+			return
+		}
+
+		try {
+			const uri = vscode.Uri.file(this.absolutePath)
+			const fileName = path.basename(uri.fsPath)
+
+			Logger.log(`Attempting to create notebook diff view for file: ${fileName}`)
+
+			// Check if Jupyter extension is available
+			const jupyterExtension = vscode.extensions.getExtension("ms-toolsai.jupyter")
+			if (!jupyterExtension) {
+				Logger.log("Jupyter extension not found, cannot create notebook diff view")
+				return
+			}
+
+			if (!jupyterExtension.isActive) {
+				Logger.log("Jupyter extension not active, activating...")
+				await jupyterExtension.activate()
+			}
+
+			// For now, just log that we would create a notebook diff view
+			// The full implementation with temporary files can be added later
+			Logger.log("Notebook diff view creation would happen here - basic implementation")
+		} catch (error) {
+			Logger.error("Failed to create notebook diff view, continuing with text editor:", error)
+			// Text editor remains active - no changes needed
+		}
+	}
+
 	protected async closeAllDiffViews(): Promise<void> {
-		// Close all the cline diff views.
+		// Close all the cline diff views (both text and notebook diff views).
 		const tabs = vscode.window.tabGroups.all
 			.flatMap((tg) => tg.tabs)
-			.filter((tab) => tab.input instanceof vscode.TabInputTextDiff && tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME)
+			.filter((tab) => {
+				// Regular Cline text diff views
+				if (tab.input instanceof vscode.TabInputTextDiff && tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME) {
+					return true
+				}
+
+				// Notebook diff views created by createNotebookDiffView()
+				if (
+					tab.input instanceof vscode.TabInputNotebookDiff &&
+					tab.input?.modified?.fsPath?.includes("cline-modified-")
+				) {
+					return true
+				}
+
+				return false
+			})
 		for (const tab of tabs) {
 			// trying to close dirty views results in save popup
 			if (!tab.isDirty) {
@@ -188,8 +256,34 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 	}
 
 	protected override async resetDiffView(): Promise<void> {
+		// Clean up temporary files and listeners (basic cleanup for now)
+		await this.cleanupTempFiles()
+
 		this.activeDiffEditor = undefined
 		this.fadedOverlayController = undefined
 		this.activeLineController = undefined
+	}
+
+	/**
+	 * Clean up temporary files and watchers (basic implementation)
+	 */
+	private async cleanupTempFiles(): Promise<void> {
+		// Dispose file watcher first
+		if (this.tempFileWatcher) {
+			this.tempFileWatcher.dispose()
+			this.tempFileWatcher = undefined
+		}
+
+		// Clean up temporary file
+		if (this.tempModifiedUri) {
+			try {
+				await vscode.workspace.fs.delete(this.tempModifiedUri)
+				Logger.log(`Cleaned up temporary file: ${this.tempModifiedUri.fsPath}`)
+			} catch (error) {
+				// Log but don't throw - cleanup should be non-blocking
+				Logger.log(`Failed to cleanup temporary file: ${error}`)
+			}
+			this.tempModifiedUri = undefined
+		}
 	}
 }

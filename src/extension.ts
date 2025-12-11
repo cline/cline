@@ -383,6 +383,106 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	// Register Jupyter Notebook command handlers
+	context.subscriptions.push(
+		vscode.commands.registerCommand(
+			commands.JupyterGenerateCell,
+			async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
+				const activeNotebook = vscode.window.activeNotebookEditor
+				if (!activeNotebook) {
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: "No active Jupyter notebook found. Please open a .ipynb file first.",
+					})
+					return
+				}
+
+				// Get user prompt using custom input dialog
+				const userPrompt = await showJupyterPromptInput(
+					"Generate Notebook Cell",
+					"Enter your prompt for generating notebook cell (press Enter to confirm & Esc to cancel)",
+				)
+
+				if (!userPrompt) {
+					return // User cancelled the input
+				}
+
+				// Create context with cells and user prompt
+				const notebookContext = `User prompt: ${userPrompt}\n\nInsert a new Jupyter notebook cell above or below the current cell based on user prompt. \n\n Special considerations for using replace_in_file on *.ipynb files:
+										\n * Jupyter notebook files are JSON format with specific structure for source code cells
+										\n * Source code in cells is stored as JSON string arrays ending with explicit \\n characters and commas
+										\n * Always match the exact JSON format including quotes, commas, and escaped newlines. `
+				const context = await getContextForCommand(range, diagnostics)
+				if (!context) {
+					return
+				}
+
+				await addToCline(context.controller, context.commandContext, notebookContext)
+			},
+		),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(
+			commands.JupyterExplainCell,
+			async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
+				const activeNotebook = vscode.window.activeNotebookEditor
+				if (!activeNotebook) {
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: "No active Jupyter notebook found. Please open a .ipynb file first.",
+					})
+					return
+				}
+
+				const context = await getContextForCommand(range, diagnostics)
+				if (!context) {
+					return
+				}
+
+				await explainWithCline(context.controller, context.commandContext)
+			},
+		),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(
+			commands.JupyterImproveCell,
+			async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
+				const activeNotebook = vscode.window.activeNotebookEditor
+				if (!activeNotebook) {
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: "No active Jupyter notebook found. Please open a .ipynb file first.",
+					})
+					return
+				}
+
+				// Get user prompt using custom input dialog
+				const userPrompt = await showJupyterPromptInput(
+					"Improve Notebook Cell",
+					"Enter your prompt for improving the current notebook cell (press Enter to confirm & Esc to cancel)",
+				)
+
+				if (!userPrompt) {
+					return // User cancelled the input
+				}
+
+				// Create context with cells and user prompt
+				const notebookContext = `Here is the User prompt: ${userPrompt} \n\n Special considerations for using replace_in_file on *.ipynb files:
+										\n * Jupyter notebook files are JSON format with specific structure for source code cells
+										\n * Source code in cells is stored as JSON string arrays ending with explicit \\n characters and commas
+										\n * Always match the exact JSON format including quotes, commas, and escaped newlines. `
+				const context = await getContextForCommand(range, diagnostics)
+				if (!context) {
+					return
+				}
+
+				await improveWithCline(context.controller, context.commandContext, notebookContext)
+			},
+		),
+	)
+
 	// Register the openWalkthrough command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.Walkthrough, async () => {
@@ -431,6 +531,52 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	return createClineAPI(webview.controller)
+}
+
+async function showJupyterPromptInput(title: string, placeholder: string): Promise<string | undefined> {
+	return new Promise((resolve) => {
+		const quickPick = vscode.window.createQuickPick()
+		quickPick.title = title
+		quickPick.placeholder = placeholder
+		quickPick.ignoreFocusOut = true
+
+		// Allow free text input
+		quickPick.canSelectMany = false
+
+		let userInput = ""
+
+		quickPick.onDidChangeValue((value) => {
+			userInput = value
+			// Update items to show the current input
+			if (value) {
+				quickPick.items = [
+					{
+						label: "$(check) Use this prompt",
+						detail: value,
+						alwaysShow: true,
+					},
+				]
+			} else {
+				quickPick.items = []
+			}
+		})
+
+		quickPick.onDidAccept(() => {
+			if (userInput) {
+				resolve(userInput)
+				quickPick.hide()
+			}
+		})
+
+		quickPick.onDidHide(() => {
+			if (!userInput) {
+				resolve(undefined)
+			}
+			quickPick.dispose()
+		})
+
+		quickPick.show()
+	})
 }
 
 function setupHostProvider(context: ExtensionContext) {
