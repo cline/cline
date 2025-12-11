@@ -123,3 +123,41 @@ const isGenerating = explanationInfo.status === "generating" && !wasCancelled
 **See also:** `BrowserSessionRow.tsx` uses similar pattern with `isLastApiReqInterrupted` and `isLastMessageResume`.
 
 **Backend side:** When streaming is cancelled, clean up properly (close tabs, clear comments, etc.) by checking `taskState.abort` after the streaming function returns.
+
+## BCline Messaging System (Cross-Directory Trigger)
+
+When Copilot is working in a different directory, the messaging system can be activated using a global trigger.
+
+**Trigger command (from any directory):**
+```powershell
+bcline
+# or
+bcline-activate
+```
+
+**This loads these global commands:**
+- `Send-Cline "message"` - Send to Cline
+- `Send-Claude "prompt"` - Send to Claude CLI
+- `Send-Codex "prompt"` - Send to Codex CLI
+- `Send-Gemini "prompt"` - Send to Gemini CLI
+- `Cline-AutoApprove` - Enable auto-approvals
+- `Cline-SetModel "model"` - Switch OpenRouter model
+- `Cline-Usage` - Get token usage
+
+**Short aliases:** `sc`, `scl`, `scx`, `sgm`
+
+**Key files:**
+- `scripts/Invoke-BclineMessaging.ps1` - Main module with all functions
+- `scripts/BCLINE_MESSAGING_CONTEXT.md` - Full documentation
+- `Send-ClineMessage.ps1` - Low-level message sender
+- `CLI_MESSAGING.md` - Complete system documentation
+
+**Setup (add to PowerShell profile):**
+```powershell
+. "C:\Users\bob43\Downloads\Bcline\scripts\Invoke-BclineMessaging.ps1"
+```
+
+**If BCline path changes:**
+```powershell
+Set-BclineRoot "C:\new\path\to\Bcline"
+```
