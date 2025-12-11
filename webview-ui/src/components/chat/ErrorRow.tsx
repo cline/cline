@@ -1,9 +1,9 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
 import CreditLimitError from "@/components/chat/CreditLimitError"
-import { useClineAuth } from "@/context/ClineAuthContext"
+import { useClineAuth, useClineSignIn } from "@/context/ClineAuthContext"
 import { ClineError, ClineErrorType } from "../../../../src/services/error/ClineError"
-import { ClineAuthStatus } from "../account/ClineAuthStatus"
 
 const _errorColor = "var(--vscode-errorForeground)"
 
@@ -14,21 +14,10 @@ interface ErrorRowProps {
 	apiReqStreamingFailedMessage?: string
 }
 
-function AuthStatus({ isClineProvider }: { isClineProvider: boolean }) {
-	const { isAuthenticated, error } = useClineAuth()
-
-	const hasValidAuthSession = isAuthenticated && !error
-
-	/* The user is signed in or not using cline provider */
-	if (!isClineProvider || hasValidAuthSession) {
-		return <span className="mb-4 text-description">(Click "Retry" below)</span>
-	}
-
-	return <ClineAuthStatus authButtonText="Sign in to Cline" />
-}
-
 const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStreamingFailedMessage }: ErrorRowProps) => {
 	const rawApiError = apiRequestFailedMessage || apiReqStreamingFailedMessage
+	const { clineUser } = useClineAuth()
+	const { isLoginLoading, handleSignIn } = useClineSignIn()
 
 	const renderErrorContent = () => {
 		switch (errorType) {
@@ -95,7 +84,19 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 
 							{/* Display Login button for non-logged in users using the Cline provider */}
 							<div>
-								<AuthStatus isClineProvider={isClineProvider} />
+								{/* The user is signed in or not using cline provider */}
+								{isClineProvider && !clineUser ? (
+									<VSCodeButton className="w-full mb-4" disabled={isLoginLoading} onClick={handleSignIn}>
+										Sign in to Cline
+										{isLoginLoading && (
+											<span className="ml-1 animate-spin">
+												<span className="codicon codicon-refresh"></span>
+											</span>
+										)}
+									</VSCodeButton>
+								) : (
+									<span className="mb-4 text-description">(Click "Retry" below)</span>
+								)}
 							</div>
 						</p>
 					)
