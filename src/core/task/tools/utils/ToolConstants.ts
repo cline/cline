@@ -17,6 +17,7 @@ export const TASK_CONFIG_KEYS = [
 	"strictPlanModeEnabled",
 	"yoloModeToggled",
 	"vscodeTerminalExecutionMode",
+	"enableParallelToolCalling",
 	"context",
 	"taskState",
 	"messageState",

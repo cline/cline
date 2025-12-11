@@ -21,7 +21,6 @@ export class ToolResultUtils {
 		userMessageContent: any[],
 		toolDescription: (block: ToolUse) => string,
 		_api: ApiHandler,
-		markToolAsUsed: () => void,
 		coordinator?: ToolExecutorCoordinator,
 		toolUseIdMap?: Map<string, string>,
 	): void {
@@ -64,8 +63,6 @@ export class ToolResultUtils {
 				userMessageContent.push(ToolResultUtils.createToolResultBlock(content, toolUseId, block.call_id))
 			}
 		}
-		// once a tool result has been collected, ignore all other tool uses since we should only ever present one tool result per message
-		markToolAsUsed()
 	}
 
 	private static createToolResultBlock(content: ToolResponse, id?: string, call_id?: string) {

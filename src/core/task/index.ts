@@ -802,6 +802,17 @@ export class Task {
 		return this.checkpointManager?.saveCheckpoint(isAttemptCompletionMessage, completionMessageTs) ?? Promise.resolve()
 	}
 
+	/**
+	 * Check if parallel tool calling is enabled.
+	 * Parallel tool calling is enabled if:
+	 * 1. User has enabled it in settings, OR
+	 * 2. The current model is GPT-5 (which handles parallel tools well)
+	 */
+	private isParallelToolCallingEnabled(): boolean {
+		const modelId = this.api.getModel().id
+		return this.stateManager.getGlobalSettingsKey("enableParallelToolCalling") || isGPT5ModelFamily(modelId)
+	}
+
 	private async switchToActModeCallback(): Promise<boolean> {
 		return await this.controller.toggleActModeForYoloMode()
 	}
@@ -2370,7 +2381,8 @@ export class Task {
 		const block = cloneDeep(this.taskState.assistantMessageContent[this.taskState.currentStreamingContentIndex]) // need to create copy bc while stream is updating the array, it could be updating the reference block properties too
 		switch (block.type) {
 			case "text": {
-				if (this.taskState.didRejectTool || this.taskState.didAlreadyUseTool) {
+				// Skip text rendering if tool was rejected, or if a tool was already used and parallel calling is disabled
+				if (this.taskState.didRejectTool || (!this.isParallelToolCallingEnabled() && this.taskState.didAlreadyUseTool)) {
 					break
 				}
 				let content = block.content
@@ -2452,7 +2464,12 @@ export class Task {
 		*/
 		this.taskState.presentAssistantMessageLocked = false // this needs to be placed here, if not then calling this.presentAssistantMessage below would fail (sometimes) since it's locked
 		// NOTE: when tool is rejected, iterator stream is interrupted and it waits for userMessageContentReady to be true. Future calls to present will skip execution since didRejectTool and iterate until contentIndex is set to message length and it sets userMessageContentReady to true itself (instead of preemptively doing it in iterator)
-		if (!block.partial || this.taskState.didRejectTool || this.taskState.didAlreadyUseTool) {
+		// Also advance when a tool was used and parallel calling is disabled
+		if (
+			!block.partial ||
+			this.taskState.didRejectTool ||
+			(!this.isParallelToolCallingEnabled() && this.taskState.didAlreadyUseTool)
+		) {
 			// block is finished streaming and executing
 			if (this.taskState.currentStreamingContentIndex === this.taskState.assistantMessageContent.length - 1) {
 				// its okay that we increment if !didCompleteReadingStream, it'll just return bc out of bounds and as streaming continues it will call presentAssistantMessage if a new block is ready. if streaming is finished then we set userMessageContentReady to true when out of bounds. This gracefully allows the stream to continue on and all potential content blocks be presented.
@@ -2979,9 +2996,10 @@ export class Task {
 						break
 					}
 
+					// Interrupt stream if a tool was used and parallel calling is disabled
 					// PREV: we need to let the request finish for openrouter to get generation details
 					// UPDATE: it's better UX to interrupt the request at the cost of the api cost not being retrieved
-					if (this.taskState.didAlreadyUseTool) {
+					if (!this.isParallelToolCallingEnabled() && this.taskState.didAlreadyUseTool) {
 						assistantMessage +=
 							"\n\n[Response interrupted by a tool use result. Only one tool may be used at a time and should be placed at the end of the message.]"
 						break
@@ -3185,6 +3203,9 @@ export class Task {
 				// }
 
 				await pWaitFor(() => this.taskState.userMessageContentReady)
+
+				// Save checkpoint after all tools in this response have finished executing
+				await this.checkpointManager?.saveCheckpoint()
 
 				// if the model did not tool use, then we need to tell it to either use a tool or attempt_completion
 				const didToolUse = this.taskState.assistantMessageContent.some((block) => block.type === "tool_use")
