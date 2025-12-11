@@ -76,7 +76,7 @@ export function ClineAuthStatus({ authButtonText = "Sign in to Cline" }: ClineAu
 							`Please retry in ${secondsUntilNextRetry} seconds.`}
 					</span>
 				) : (
-					isPending && <span>Your information is pending. Please retry.</span>
+					isPending && <span>Pending fetching your information, retry to sign in</span>
 				)}
 
 				<div className="flex gap-4 w-full">
