@@ -1,5 +1,4 @@
 import { buildApiHandler } from "@core/api"
-
 import { Empty } from "@shared/proto/cline/common"
 import {
 	PlanActMode,
@@ -10,6 +9,7 @@ import {
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
+import * as vscode from "vscode"
 import { ClineEnv } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
@@ -357,6 +357,20 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				telemetryService.captureSubagentToggle(isEnabled)
 			}
 			controller.stateManager.setGlobalState("subagentsEnabled", !!request.subagentsEnabled)
+		}
+
+		// Update enhanced notebook interaction setting
+		if (request.enhancedNotebookInteractionEnabled !== undefined) {
+			if (controller.task) {
+				controller.task.updateEnhancedNotebookInteractionEnabled(request.enhancedNotebookInteractionEnabled)
+			}
+			controller.stateManager.setGlobalState(
+				"enhancedNotebookInteractionEnabled",
+				request.enhancedNotebookInteractionEnabled,
+			)
+			// Also update VS Code configuration to keep them in sync
+			const config = vscode.workspace.getConfiguration("cline")
+			await config.update("enhancedNotebookInteractionEnabled", request.enhancedNotebookInteractionEnabled, true)
 		}
 
 		if (request.nativeToolCallEnabled !== undefined) {

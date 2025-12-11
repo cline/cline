@@ -126,6 +126,7 @@ export interface Settings {
 	aihubmixAppCode: string | undefined
 	hooksEnabled: boolean
 	subagentsEnabled: boolean
+	enhancedNotebookInteractionEnabled: boolean
 	hicapModelId: string | undefined
 
 	// Plan mode configurations
