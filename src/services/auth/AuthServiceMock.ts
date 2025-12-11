@@ -119,6 +119,8 @@ export class AuthServiceMock extends AuthService {
 
 	override async handleAuthCallback(_token: string, _provider: string): Promise<void> {
 		try {
+			this.authState.authenticated = true
+			this.authState.pending = false
 			await setWelcomeViewCompleted(this.controller, { value: true })
 			await this.sendAuthStatusUpdate()
 		} catch (error) {
@@ -129,14 +131,19 @@ export class AuthServiceMock extends AuthService {
 
 	override async restoreRefreshTokenAndRetrieveAuthInfo(): Promise<void> {
 		try {
+			this.authState.pending = false
+
 			if (this.authState.authInfo) {
+				this.authState.authenticated = true
 				await this.sendAuthStatusUpdate()
 			} else {
 				console.warn("No user found after restoring auth token")
+				this.authState.authenticated = false
 				this.authState.authInfo = undefined
 			}
 		} catch (error) {
 			console.error("Error restoring auth token:", error)
+			this.authState.authenticated = false
 			this.authState.authInfo = undefined
 			return
 		}
