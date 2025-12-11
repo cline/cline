@@ -16,10 +16,10 @@ interface TaskReconstructionResult {
 
 /**
  * Reconstructs task history from existing task folders
- * @param isManuallyCalled Whether the function was called manually by the user through command palette
+ * @param showNotifications Whether to show user-facing notifications and dialogs
  * @returns Reconstruction result or null if cancelled
  */
-export async function reconstructTaskHistory(isManuallyCalled = true): Promise<TaskReconstructionResult | null> {
+export async function reconstructTaskHistory(showNotifications = true): Promise<TaskReconstructionResult | null> {
 	try {
 		// Show confirmation dialog using HostProvider
 		const proceed = await HostProvider.window.showMessage({
@@ -35,7 +35,7 @@ export async function reconstructTaskHistory(isManuallyCalled = true): Promise<T
 			return null
 		}
 
-		if (isManuallyCalled) {
+		if (showNotifications) {
 			// Show initial progress message
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
@@ -46,7 +46,7 @@ export async function reconstructTaskHistory(isManuallyCalled = true): Promise<T
 		const result = await performTaskHistoryReconstruction()
 
 		// Show results
-		if (isManuallyCalled) {
+		if (showNotifications) {
 			if (result.errors.length > 0) {
 				const errorMessage = `Reconstruction completed with warnings:\n- Reconstructed: ${result.reconstructedTasks} tasks\n- Skipped: ${result.skippedTasks} tasks\n- Errors: ${result.errors.length}\n\nFirst few errors:\n${result.errors.slice(0, 3).join("\n")}`
 
@@ -65,7 +65,7 @@ export async function reconstructTaskHistory(isManuallyCalled = true): Promise<T
 		return result
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
-		if (isManuallyCalled) {
+		if (showNotifications) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: `Failed to reconstruct task history: ${errorMessage}`,

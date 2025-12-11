@@ -2,8 +2,13 @@ import { arePathsEqual } from "@utils/path"
 import { getShellForProfile } from "@utils/shell"
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
-import { mergePromise, TerminalProcess, TerminalProcessResultPromise } from "./TerminalProcess"
-import { TerminalInfo, TerminalRegistry } from "./TerminalRegistry"
+import {
+	TerminalInfo as ITerminalInfo,
+	ITerminalManager,
+	TerminalProcessResultPromise as ITerminalProcessResultPromise,
+} from "@/integrations/terminal/types"
+import { mergePromise, VscodeTerminalProcess } from "./VscodeTerminalProcess"
+import { TerminalInfo, TerminalRegistry } from "./VscodeTerminalRegistry"
 
 /*
 TerminalManager:
@@ -90,9 +95,9 @@ declare module "vscode" {
 	}
 }
 
-export class TerminalManager {
+export class VscodeTerminalManager implements ITerminalManager {
 	private terminalIds: Set<number> = new Set()
-	private processes: Map<number, TerminalProcess> = new Map()
+	private processes: Map<number, VscodeTerminalProcess> = new Map()
 	private disposables: vscode.Disposable[] = []
 	private shellIntegrationTimeout: number = 4000
 	private terminalReuseEnabled: boolean = true
@@ -156,27 +161,30 @@ export class TerminalManager {
 		return arePathsEqual(currentCwd, targetCwd)
 	}
 
-	runCommand(terminalInfo: TerminalInfo, command: string): TerminalProcessResultPromise {
-		console.log(`[TerminalManager] Running command on terminal ${terminalInfo.id}: "${command}"`)
-		console.log(`[TerminalManager] Terminal ${terminalInfo.id} busy state before: ${terminalInfo.busy}`)
+	runCommand(terminalInfo: ITerminalInfo, command: string): ITerminalProcessResultPromise {
+		// Cast to VSCode-specific TerminalInfo for internal use
+		// Using unknown as intermediate cast due to structural differences between ITerminal and vscode.Terminal
+		const vscodeTerminalInfo = terminalInfo as unknown as TerminalInfo
+		console.log(`[TerminalManager] Running command on terminal ${vscodeTerminalInfo.id}: "${command}"`)
+		console.log(`[TerminalManager] Terminal ${vscodeTerminalInfo.id} busy state before: ${vscodeTerminalInfo.busy}`)
 
-		terminalInfo.busy = true
-		terminalInfo.lastCommand = command
-		const process = new TerminalProcess()
-		this.processes.set(terminalInfo.id, process)
+		vscodeTerminalInfo.busy = true
+		vscodeTerminalInfo.lastCommand = command
+		const process = new VscodeTerminalProcess()
+		this.processes.set(vscodeTerminalInfo.id, process)
 
 		process.once("completed", () => {
-			console.log(`[TerminalManager] Terminal ${terminalInfo.id} completed, setting busy to false`)
-			terminalInfo.busy = false
+			console.log(`[TerminalManager] Terminal ${vscodeTerminalInfo.id} completed, setting busy to false`)
+			vscodeTerminalInfo.busy = false
 		})
 
 		// if shell integration is not available, remove terminal so it does not get reused as it may be running a long-running process
 		process.once("no_shell_integration", () => {
-			console.log(`no_shell_integration received for terminal ${terminalInfo.id}`)
+			console.log(`no_shell_integration received for terminal ${vscodeTerminalInfo.id}`)
 			// Remove the terminal so we can't reuse it (in case it's running a long-running process)
-			TerminalRegistry.removeTerminal(terminalInfo.id)
-			this.terminalIds.delete(terminalInfo.id)
-			this.processes.delete(terminalInfo.id)
+			TerminalRegistry.removeTerminal(vscodeTerminalInfo.id)
+			this.terminalIds.delete(vscodeTerminalInfo.id)
+			this.processes.delete(vscodeTerminalInfo.id)
 		})
 
 		const promise = new Promise<void>((resolve, reject) => {
@@ -184,39 +192,39 @@ export class TerminalManager {
 				resolve()
 			})
 			process.once("error", (error) => {
-				console.error(`Error in terminal ${terminalInfo.id}:`, error)
+				console.error(`Error in terminal ${vscodeTerminalInfo.id}:`, error)
 				reject(error)
 			})
 		})
 
 		// if shell integration is already active, run the command immediately
-		if (terminalInfo.terminal.shellIntegration) {
+		if (vscodeTerminalInfo.terminal.shellIntegration) {
 			process.waitForShellIntegration = false
-			process.run(terminalInfo.terminal, command)
+			process.run(vscodeTerminalInfo.terminal, command)
 		} else {
 			// docs recommend waiting 3s for shell integration to activate
 			console.log(
-				`[TerminalManager Test] Waiting for shell integration for terminal ${terminalInfo.id} with timeout ${this.shellIntegrationTimeout}ms`,
+				`[TerminalManager Test] Waiting for shell integration for terminal ${vscodeTerminalInfo.id} with timeout ${this.shellIntegrationTimeout}ms`,
 			)
-			pWaitFor(() => terminalInfo.terminal.shellIntegration !== undefined, {
+			pWaitFor(() => vscodeTerminalInfo.terminal.shellIntegration !== undefined, {
 				timeout: this.shellIntegrationTimeout,
 			})
 				.then(() => {
 					console.log(
-						`[TerminalManager Test] Shell integration activated for terminal ${terminalInfo.id} within timeout.`,
+						`[TerminalManager Test] Shell integration activated for terminal ${vscodeTerminalInfo.id} within timeout.`,
 					)
 				})
 				.catch((err) => {
 					console.warn(
-						`[TerminalManager Test] Shell integration timed out or failed for terminal ${terminalInfo.id}: ${err.message}`,
+						`[TerminalManager Test] Shell integration timed out or failed for terminal ${vscodeTerminalInfo.id}: ${err.message}`,
 					)
 				})
 				.finally(() => {
-					console.log(`[TerminalManager Test] Proceeding with command execution for terminal ${terminalInfo.id}.`)
-					const existingProcess = this.processes.get(terminalInfo.id)
+					console.log(`[TerminalManager Test] Proceeding with command execution for terminal ${vscodeTerminalInfo.id}.`)
+					const existingProcess = this.processes.get(vscodeTerminalInfo.id)
 					if (existingProcess && existingProcess.waitForShellIntegration) {
 						existingProcess.waitForShellIntegration = false
-						existingProcess.run(terminalInfo.terminal, command)
+						existingProcess.run(vscodeTerminalInfo.terminal, command)
 					}
 				})
 		}
@@ -224,7 +232,7 @@ export class TerminalManager {
 		return mergePromise(process, promise)
 	}
 
-	async getOrCreateTerminal(cwd: string): Promise<TerminalInfo> {
+	async getOrCreateTerminal(cwd: string): Promise<ITerminalInfo> {
 		const terminals = TerminalRegistry.getAllTerminals()
 		const expectedShellPath =
 			this.defaultTerminalProfile !== "default" ? getShellForProfile(this.defaultTerminalProfile) : undefined
@@ -254,7 +262,8 @@ export class TerminalManager {
 		if (matchingTerminal) {
 			console.log(`[TerminalManager] Found matching terminal ${matchingTerminal.id} in correct cwd`)
 			this.terminalIds.add(matchingTerminal.id)
-			return matchingTerminal
+			// Cast to ITerminalInfo for interface compatibility
+			return matchingTerminal as unknown as ITerminalInfo
 		}
 
 		// If no non-busy terminal in the current working dir exists and terminal reuse is enabled, try to find any non-busy terminal regardless of CWD
@@ -268,7 +277,8 @@ export class TerminalManager {
 				})
 
 				// Navigate back to the desired directory
-				const cdProcess = this.runCommand(availableTerminal, `cd "${cwd}"`)
+				// Cast to ITerminalInfo for interface compatibility
+				const cdProcess = this.runCommand(availableTerminal as unknown as ITerminalInfo, `cd "${cwd}"`)
 
 				// Wait for the cd command to complete before proceeding
 				await cdProcess
@@ -299,14 +309,16 @@ export class TerminalManager {
 					}
 				}
 				this.terminalIds.add(availableTerminal.id)
-				return availableTerminal
+				// Cast to ITerminalInfo for interface compatibility
+				return availableTerminal as unknown as ITerminalInfo
 			}
 		}
 
 		// If all terminals are busy or don't match shell profile, create a new one with the configured shell
 		const newTerminalInfo = TerminalRegistry.createTerminal(cwd, expectedShellPath)
 		this.terminalIds.add(newTerminalInfo.id)
-		return newTerminalInfo
+		// Cast to ITerminalInfo for interface compatibility
+		return newTerminalInfo as unknown as ITerminalInfo
 	}
 
 	getTerminals(busy: boolean): { id: number; lastCommand: string }[] {
