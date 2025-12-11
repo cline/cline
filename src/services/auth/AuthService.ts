@@ -348,7 +348,7 @@ export class AuthService {
 				error: "Unknown error.",
 			}
 		} finally {
-			await this.sendAuthStatusUpdate().catch(console.error)
+			this.sendAuthStatusUpdate().catch(console.error)
 		}
 	}
 

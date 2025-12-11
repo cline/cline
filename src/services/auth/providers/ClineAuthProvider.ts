@@ -215,10 +215,11 @@ export class ClineAuthProvider implements IAuthProvider {
 					Logger.debug(
 						`Waiting ${Math.ceil((this.RETRY_DELAY_MS - timeSinceLastAttempt) / 1000)}s before retry attempt ${this.refreshRetryCount + 1}/${this.MAX_REFRESH_RETRIES}`,
 					)
+
 					return {
 						authenticated: true,
 						pending: true,
-						nextRetryAt: Date.now() + this.RETRY_DELAY_MS - timeSinceLastAttempt,
+						nextRetryAt: now + this.RETRY_DELAY_MS - timeSinceLastAttempt,
 					}
 				}
 
@@ -234,7 +235,7 @@ export class ClineAuthProvider implements IAuthProvider {
 						authenticated: true,
 						pending: false,
 						error: "Failed several retries. Waiting before retrying again.",
-						nextRetryAt: Date.now() + waitTime,
+						nextRetryAt: now + waitTime,
 					}
 				}
 
@@ -281,7 +282,7 @@ export class ClineAuthProvider implements IAuthProvider {
 						authenticated: true,
 						error: "Unknown network error.",
 						pending: true,
-						nextRetryAt: Date.now() + this.RETRY_DELAY_MS,
+						nextRetryAt: now + this.RETRY_DELAY_MS,
 					}
 				}
 			}
