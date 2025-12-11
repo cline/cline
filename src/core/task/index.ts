@@ -1743,6 +1743,7 @@ export class Task {
 		})
 
 		let completed = false
+		let exitCode: number | null | undefined = null
 		let completionTimer: NodeJS.Timeout | null = null
 		const COMPLETION_TIMEOUT_MS = 6000 // 6 seconds
 
@@ -1754,8 +1755,9 @@ export class Task {
 			}
 		}, COMPLETION_TIMEOUT_MS)
 
-		process.once("completed", async () => {
+		process.once("completed", async (code?: number | null) => {
 			completed = true
+			exitCode = code
 			//await this.say("shell_integration_warning_with_suggestion")
 			// Clear the completion timer
 			if (completionTimer) {
@@ -1843,12 +1845,7 @@ export class Task {
 			await setTimeoutPromise(50)
 		}
 
-		const result = terminalManager.processOutput(
-			outputLines,
-			isSubagent ? terminalManager["subagentTerminalOutputLineLimit"] : undefined,
-			isSubagent,
-		)
-		const exitCode = process.exitCode
+		const result = terminalManager.processOutput(outputLines, undefined, isSubagent)
 
 		if (didCancelViaUi) {
 			return [
