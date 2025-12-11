@@ -8,7 +8,7 @@ import { DEVSTRAL_AGENT_ROLE_TEMPLATE } from "./overrides"
 import { baseTemplate } from "./template"
 
 export const config = createVariant(ModelFamily.DEVSTRAL)
-	.description("Baseline prompt for Devstral stealth family models")
+	.description("Baseline prompt for Devstral family models")
 	.version(1)
 	.tags("devstral", "stable")
 	.labels({
