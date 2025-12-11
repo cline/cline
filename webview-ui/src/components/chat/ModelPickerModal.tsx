@@ -23,7 +23,7 @@ const SETTINGS_ONLY_PROVIDERS: ApiProvider[] = [
 	"dify",
 	"oca",
 	"aihubmix",
-	"sapaicore",
+	"together",
 ]
 
 const OPENROUTER_MODEL_PROVIDERS: ApiProvider[] = ["cline", "openrouter", "vercel-ai-gateway"]
