@@ -3,7 +3,7 @@ import { EventEmitter } from "events"
 import * as vscode from "vscode"
 import { stripAnsi } from "@/hosts/vscode/terminal/ansiUtils"
 import { getLatestTerminalOutput } from "@/hosts/vscode/terminal/get-latest-output"
-import type { ITerminalProcess, TerminalProcessEvents } from "@/integrations/terminal/ITerminalProcess"
+import type { ITerminalProcess, TerminalProcessEvents } from "@/integrations/terminal/types"
 
 // how long to wait after a process outputs anything before we consider it "cool" again
 const PROCESS_HOT_TIMEOUT_NORMAL = 2_000

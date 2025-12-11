@@ -11,8 +11,7 @@
 import { ChildProcess, spawn } from "child_process"
 import { EventEmitter } from "events"
 
-import type { ITerminalProcess, TerminalProcessEvents } from "../ITerminalProcess"
-import type { ITerminal } from "../types"
+import type { ITerminal, ITerminalProcess, TerminalProcessEvents } from "../types"
 
 /**
  * Manages the execution of a command in a standalone terminal environment.

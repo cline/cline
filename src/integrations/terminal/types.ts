@@ -5,7 +5,66 @@
  */
 
 import type { ClineToolResponseContent } from "@shared/messages"
-import type { ITerminalProcess } from "./ITerminalProcess"
+import type { EventEmitter } from "events"
+
+// =============================================================================
+// Terminal Process Types
+// =============================================================================
+
+/**
+ * Event types for terminal process
+ */
+export interface TerminalProcessEvents {
+	line: [line: string]
+	continue: []
+	completed: []
+	error: [error: Error]
+	no_shell_integration: []
+}
+
+/**
+ * Interface for terminal process implementations.
+ * Both VscodeTerminalProcess and StandaloneTerminalProcess implement this interface.
+ *
+ * Events emitted:
+ * - 'line': Emitted for each line of output
+ * - 'completed': Emitted when the process completes
+ * - 'continue': Emitted when continue() is called
+ * - 'error': Emitted on process errors
+ * - 'no_shell_integration': Emitted when shell integration is not available (VSCode only)
+ */
+export interface ITerminalProcess extends EventEmitter<TerminalProcessEvents> {
+	/**
+	 * Whether the process is actively outputting (used to stall API requests)
+	 */
+	isHot: boolean
+
+	/**
+	 * Whether to wait for shell integration before running commands.
+	 * VSCode processes may need to wait, standalone processes don't.
+	 */
+	waitForShellIntegration: boolean
+
+	/**
+	 * Continue execution without waiting for completion.
+	 * Stops event emission and resolves the promise.
+	 * This is called when user clicks "Proceed While Running".
+	 */
+	continue(): void
+
+	/**
+	 * Get output that hasn't been retrieved yet.
+	 * @returns The unretrieved output
+	 */
+	getUnretrievedOutput(): string
+
+	/**
+	 * Terminate the process if it's still running.
+	 * Only available for standalone processes (child_process).
+	 * VSCode terminal processes cannot be terminated via this interface.
+	 */
+	terminate?(): void
+}
 
 // =============================================================================
 // Terminal Types
@@ -60,7 +119,7 @@ export interface ITerminal {
 
 /**
  * Terminal process result interface.
- * @deprecated Use ITerminalProcess from ./ITerminalProcess instead.
+ * @deprecated Use ITerminalProcess instead.
  * This is kept for backwards compatibility.
  */
 export type ITerminalProcessResult = ITerminalProcess

@@ -34,7 +34,6 @@ export {
 } from "./CommandOrchestrator"
 
 // Export terminal process interface
-export type { ITerminalProcess, TerminalProcessEvents } from "./ITerminalProcess"
 
 // Export standalone terminal implementations
 export { StandaloneTerminal } from "./standalone/StandaloneTerminal"
@@ -53,11 +52,13 @@ export type {
 	// Terminal types
 	ITerminal,
 	ITerminalManager,
+	ITerminalProcess,
 	ITerminalProcessResult,
 	// Command Orchestrator types
 	OrchestrationOptions,
 	OrchestrationResult,
 	StandaloneTerminalOptions,
 	TerminalInfo,
+	TerminalProcessEvents,
 	TerminalProcessResultPromise,
 } from "./types"
