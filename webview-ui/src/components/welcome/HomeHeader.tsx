@@ -32,24 +32,19 @@ const HomeHeader = ({ shouldShowQuickWins = false }: HomeHeaderProps) => {
 					@keyframes logo-pop-in {
 						0% {
 							opacity: 0;
-							transform: scale(0.8);
+							transform: scale(0.95);
 						}
-						50% {
+						60% {
 							opacity: 1;
-							transform: scale(1.1);
-						}
-						65% {
-							transform: scale(0.9);
-						}
-						80% {
-							transform: scale(1.05);
+							transform: scale(1.02);
 						}
 						100% {
+							opacity: 1;
 							transform: scale(1);
 						}
 					}
 					.logo-animate {
-						animation: logo-pop-in 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+						animation: logo-pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 					}
 				`}
 			</style>

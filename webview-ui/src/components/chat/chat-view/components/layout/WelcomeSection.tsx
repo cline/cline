@@ -207,18 +207,18 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 					@keyframes fadeIn {
 						from {
 							opacity: 0;
-							transform: translateY(10px);
+							transform: scale(0.98);
 						}
 						to {
 							opacity: 1;
-							transform: translateY(0);
+							transform: scale(1);
 						}
 					}
 					.fade-in-cards {
 						animation: fadeIn 0.4s ease-out forwards;
 					}
 					.fade-in-history {
-						animation: fadeIn 0.4s ease-out 0.2s forwards;
+						animation: fadeIn 0.4s ease-out forwards;
 						opacity: 0;
 					}
 				`}
