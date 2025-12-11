@@ -219,6 +219,9 @@ export class MessageQueueService {
 			const prompt = content.substring("gemini:".length).trim()
 			return await this.handleGeminiCli(prompt, true)
 		}
+		if (content === "help" || content === "messaging-help" || content === "?") {
+			return this.getHelpText()
+		}
 		if (content === "auto-approve-all" || content === "yolo-mode") {
 			return await this.handleAutoApproveAll()
 		}
@@ -411,6 +414,10 @@ export class MessageQueueService {
 			// Handle usage/cost query: "get-usage"
 			else if (message.content === "get-usage" || message.content === "get-tokens" || message.content === "get-cost") {
 				responseContent = await this.handleGetUsage()
+			}
+			// Handle help command
+			else if (message.content === "help" || message.content === "messaging-help" || message.content === "?") {
+				responseContent = this.getHelpText()
 			}
 			// Handle enable-all-commands: enables auto-approval for ALL terminal commands (including PowerShell)
 			else if (message.content === "enable-all-commands" || message.content === "yolo-commands") {
@@ -787,6 +794,57 @@ export class MessageQueueService {
 			const v = c === "x" ? r : (r & 0x3) | 0x8
 			return v.toString(16)
 		})
+	}
+
+	/**
+	 * Get help text for all messaging commands
+	 */
+	private getHelpText(): string {
+		return `
+╔══════════════════════════════════════════════════════════════════════╗
+║              BCLINE MESSAGING SYSTEM - HELP                          ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+📋 BASIC COMMANDS:
+  help                    Show this help message
+  get-usage               Get token usage and cost for current task
+  auto-approve-all        Enable all auto-approvals (files, commands, browser, MCP)
+  yolo-mode               Alias for auto-approve-all
+  enable-all-commands     Enable auto-approval for ALL terminal commands
+  yolo-commands           Alias for enable-all-commands
+  set-model:<model-id>    Switch OpenRouter model (e.g., set-model:anthropic/claude-sonnet-4)
+
+🤖 CLI ROUTING:
+  claude:<prompt>         Send to Claude CLI (Opus 4.5)
+  claude-yolo:<prompt>    Claude CLI with auto-approve (bypassPermissions)
+  codex:<prompt>          Send to Codex CLI (GPT-5.1) in read-only mode
+  codex-yolo:<prompt>     Codex CLI with full agent mode (bypasses sandbox)
+  gemini:<prompt>         Send to Gemini CLI
+  gemini-yolo:<prompt>    Gemini CLI with YOLO mode
+
+🔗 ORCHESTRATION:
+  pipeline: a->b->c: prompt   Chain agents sequentially (output feeds next)
+  parallel: a+b+c: prompt     Run agents in parallel, aggregate results
+
+💻 POWERSHELL COMMANDS (from any directory):
+  Send-Cline "message"    Send message to Cline
+  Send-Claude "prompt"    Send to Claude CLI
+  Send-Codex "prompt"     Send to Codex CLI  
+  Send-Gemini "prompt"    Send to Gemini CLI
+  Cline-AutoApprove       Enable auto-approvals
+  Cline-SetModel "model"  Switch model
+  Cline-Usage             Get token usage
+  Cline-Help              Show this help
+
+📁 MESSAGE QUEUE:
+  Location: .message-queue/
+  ├── inbox/      Messages TO Cline
+  ├── responses/  Responses FROM Cline
+  └── outbox/     Notifications FROM Cline
+
+📚 DOCUMENTATION:
+  See CLI_MESSAGING.md for full documentation
+`.trim()
 	}
 
 	/**
