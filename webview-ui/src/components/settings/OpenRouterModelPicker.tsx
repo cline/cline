@@ -55,12 +55,12 @@ const recommendedModels = [
 	{
 		id: "anthropic/claude-opus-4.5",
 		description: "State-of-the-art for complex coding",
-		label: "NEW",
+		label: "HOT",
 	},
 	{
-		id: "openai/gpt-5.1",
+		id: "openai/gpt-5.2",
 		description: "OpenAI's latest with strong coding abilities",
-		label: "HOT",
+		label: "NEW",
 	},
 	{
 		id: "google/gemini-3-pro-preview",
