@@ -17,7 +17,7 @@ export class AuthServiceMock extends AuthService {
 		}
 
 		this._initProvider()
-		this.controller = controller
+		this._controller = controller
 	}
 
 	/**
@@ -49,10 +49,12 @@ export class AuthServiceMock extends AuthService {
 		const authUrl = new URL(ClineEnv.config().apiBaseUrl)
 		const authUrlString = authUrl.toString()
 		// Call the parent implementation
-		if (this.authState.authInfo) {
+		if (this.authState.authenticated && this.authState.authInfo) {
 			console.log("Already authenticated with mock server")
 			return String.create({ value: authUrlString })
 		}
+
+		this.authState.pending = false
 
 		try {
 			// Use token exchange endpoint like ClineAuthProvider
@@ -99,6 +101,7 @@ export class AuthServiceMock extends AuthService {
 				},
 				provider: this.provider?.name || "mock",
 			}
+			this.authState.pending = false
 
 			console.log(`Successfully authenticated with mock server as ${authData.userInfo.name} (${authData.userInfo.email})`)
 
@@ -110,6 +113,7 @@ export class AuthServiceMock extends AuthService {
 			await visibleWebview?.controller.handleAuthCallback(authData.accessToken, providerName)
 		} catch (error) {
 			console.error("Error signing in with mock server:", error)
+			this.authState.authenticated = false
 			this.authState.authInfo = undefined
 			throw error
 		}
@@ -121,7 +125,7 @@ export class AuthServiceMock extends AuthService {
 		try {
 			this.authState.authenticated = true
 			this.authState.pending = false
-			await setWelcomeViewCompleted(this.controller, { value: true })
+			await setWelcomeViewCompleted(this._controller, { value: true })
 			await this.sendAuthStatusUpdate()
 		} catch (error) {
 			console.error("Error signing in with custom token:", error)
