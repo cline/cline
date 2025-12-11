@@ -4,24 +4,30 @@
  * This class handles subprocess management for terminal commands when running
  * outside of VSCode (CLI, JetBrains). It spawns child processes and streams
  * their output through events.
+ *
+ * Implements ITerminalProcess interface for polymorphic usage with CommandExecutor.
  */
 
 import { ChildProcess, spawn } from "child_process"
 import { EventEmitter } from "events"
 
-import type { ITerminal, ITerminalProcessResult } from "./types"
+import type { ITerminalProcess, TerminalProcessEvents } from "../ITerminalProcess"
+import type { ITerminal } from "../types"
 
 /**
  * Manages the execution of a command in a standalone terminal environment.
  * Extends EventEmitter to provide real-time output streaming.
+ *
+ * Implements ITerminalProcess for polymorphic usage with CommandExecutor.
  *
  * Events:
  * - 'line': Emitted for each line of output
  * - 'completed': Emitted when the process completes
  * - 'continue': Emitted when continue() is called
  * - 'error': Emitted on process errors
+ * - 'no_shell_integration': Emitted for compatibility (never actually emitted in standalone)
  */
-export class StandaloneTerminalProcess extends EventEmitter implements ITerminalProcessResult {
+export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvents> implements ITerminalProcess {
 	/** We don't need to wait since we control the process directly */
 	waitForShellIntegration: boolean = false
 

@@ -4,7 +4,7 @@
  * the StandaloneTerminalManager used in CLI/JetBrains environments.
  */
 
-import { EventEmitter } from "events"
+import type { ITerminalProcess } from "./ITerminalProcess"
 
 /**
  * Represents a terminal instance with its metadata and state.
@@ -54,28 +54,19 @@ export interface ITerminal {
 }
 
 /**
- * Terminal process result that combines Promise functionality with event emission.
- * Allows for both awaiting completion and listening to real-time output.
+ * Terminal process result interface.
+ * @deprecated Use ITerminalProcess from ./ITerminalProcess instead.
+ * This is kept for backwards compatibility.
  */
-export interface ITerminalProcessResult extends EventEmitter {
-	/** Whether the process is actively outputting (hot) */
-	isHot: boolean
-	/** Whether we're waiting for shell integration to activate */
-	waitForShellIntegration: boolean
-	/** Continue execution without waiting for completion */
-	continue(): void
-	/** Terminate the process (if supported) */
-	terminate?(): void
-	/** Get output that hasn't been retrieved yet */
-	getUnretrievedOutput(): string
-}
+export type ITerminalProcessResult = ITerminalProcess
 
 /**
  * Promise-like interface for terminal process results.
- * Combines Promise<void> with ITerminalProcessResult for flexible usage.
+ * Combines Promise<void> with ITerminalProcess for flexible usage.
+ * This allows the process to be awaited while also providing access to events.
  */
 export type TerminalProcessResultPromise = Promise<void> &
-	ITerminalProcessResult & {
+	ITerminalProcess & {
 		/** Listen for line output events */
 		on(event: "line", listener: (line: string) => void): TerminalProcessResultPromise
 		/** Listen for completion event */
