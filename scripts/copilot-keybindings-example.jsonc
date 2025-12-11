@@ -1,0 +1,29 @@
+// Add these to your VS Code keybindings.json (Ctrl+Shift+P -> "Open Keyboard Shortcuts (JSON)")
+// Quick model switching for Copilot Chat
+
+[
+	// Switch to Haiku (cheap/fast)
+	{
+		"key": "ctrl+shift+1",
+		"command": "workbench.action.chat.selectModel",
+		"args": {
+			"modelId": "claude-haiku-4.5"
+		}
+	},
+	// Switch to Sonnet (balanced)
+	{
+		"key": "ctrl+shift+2",
+		"command": "workbench.action.chat.selectModel",
+		"args": {
+			"modelId": "claude-sonnet-4.5"
+		}
+	},
+	// Switch to Opus (powerful)
+	{
+		"key": "ctrl+shift+3",
+		"command": "workbench.action.chat.selectModel",
+		"args": {
+			"modelId": "claude-opus-4.5"
+		}
+	}
+]
