@@ -67,10 +67,10 @@ export const VARIANT_CONFIGS = {
 	 * Configured for advanced agentic coding capabilities
 	 */
 	[ModelFamily.HERMES]: hermesConfig,
-	/*** Devstral variant - Optimized for MICROWAVE stealth model family
+	/*** Devstral variant - Optimized for DEVSTRAL stealth model family
 	 * Configured for vendor specific message
 	 */
-	[ModelFamily.MICROWAVE]: devstralConfig,
+	[ModelFamily.DEVSTRAL]: devstralConfig,
 	/**
 	 * Next-gen variant - Advanced models with enhanced capabilities
 	 * Includes additional features like feedback loops and web fetching

@@ -4,10 +4,10 @@ import { isDevstralModelFamily } from "@/utils/model-utils"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
 import { validateVariant } from "../variant-validator"
-import { MICROWAVE_AGENT_ROLE_TEMPLATE } from "./overrides"
+import { DEVSTRAL_AGENT_ROLE_TEMPLATE } from "./overrides"
 import { baseTemplate } from "./template"
 
-export const config = createVariant(ModelFamily.MICROWAVE)
+export const config = createVariant(ModelFamily.DEVSTRAL)
 	.description("Baseline prompt for Devstral stealth family models")
 	.version(1)
 	.tags("devstral", "stable")
@@ -57,7 +57,7 @@ export const config = createVariant(ModelFamily.MICROWAVE)
 	})
 	.config({})
 	.overrideComponent(SystemPromptSection.AGENT_ROLE, {
-		template: MICROWAVE_AGENT_ROLE_TEMPLATE,
+		template: DEVSTRAL_AGENT_ROLE_TEMPLATE,
 	})
 	.build()
 

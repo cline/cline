@@ -219,7 +219,7 @@ describe("Prompt System Integration Tests", () => {
 			contextVariations,
 		},
 		{
-			modelGroup: ModelFamily.MICROWAVE,
+			modelGroup: ModelFamily.DEVSTRAL,
 			modelIds: ["devstral"],
 			providerId: "cline",
 			contextVariations,
