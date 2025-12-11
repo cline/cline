@@ -64,6 +64,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 		setTimeout(() => {
 			setDidClickDevstralButton(true)
 			setShowChatModelSelector(true)
+			onClose()
 		}, 10)
 	}
 
@@ -81,6 +82,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 		setTimeout(() => {
 			setDidClickGPT52Button(true)
 			setShowChatModelSelector(true)
+			onClose()
 		}, 10)
 	}
 
@@ -201,7 +203,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 											appearance="primary"
 											onClick={setDevstral}
 											style={{ transform: "scale(0.85)", transformOrigin: "left center" }}>
-											Try Devstral-2512
+											Try for Free Devstral-2512
 										</VSCodeButton>
 									)}
 								</div>
