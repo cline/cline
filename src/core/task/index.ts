@@ -3196,20 +3196,6 @@ export class Task {
 			//  || this.didEditFile
 			await setTimeoutPromise(300) // delay after saving file to let terminals catch up
 		}
-
-		// This code will be introduced in a followup PR to support summary for background commands
-		// Add background command summary section (commands that user clicked "Proceed while running")
-		// Only available in backgroundExec mode
-		// const backgroundSummary = this.commandExecutor.getBackgroundCommandSummary()
-		// if (backgroundSummary) {
-		// 	details += "\n\n" + backgroundSummary
-		// }
-		// In backgroundExec mode with running detached processes, skip the terminal wait entirely
-		// since those processes are intentionally running in the background after "Proceed While Running"
-		// const hasRunningBackgroundCommands = this.commandExecutor.hasActiveBackgroundCommand()
-		// const shouldSkipTerminalWait = this.terminalExecutionMode === "backgroundExec" && hasRunningBackgroundCommands
-		// 		if (busyTerminals.length > 0 && !shouldSkipTerminalWait) {
-
 		// let terminalWasBusy = false
 		if (busyTerminals.length > 0) {
 			// wait for terminals to cool down
