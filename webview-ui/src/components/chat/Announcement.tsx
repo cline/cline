@@ -1,4 +1,4 @@
-import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { XIcon } from "lucide-react"
 import { CSSProperties, memo, useState } from "react"
 import { useMount } from "react-use"
@@ -46,12 +46,12 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 	const { isLoginLoading, handleSignIn } = useClineSignIn()
 
-	const [didClickMicrowaveButton, setDidClickMicrowaveButton] = useState(false)
+	const [didClickDevstralButton, setDidClickDevstralButton] = useState(false)
 	// Need to get latest model list in case user hits shortcut button to set model
 	useMount(refreshOpenRouterModels)
 
-	const setMicrowave = () => {
-		const modelId = "stealth/microwave"
+	const setDevstral = () => {
+		const modelId = "mistralai/devstral-2512"
 		// set both plan and act modes to use code-supernova-1-million
 		handleFieldsChange({
 			planModeOpenRouterModelId: modelId,
@@ -63,7 +63,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 		})
 
 		setTimeout(() => {
-			setDidClickMicrowaveButton(true)
+			setDidClickDevstralButton(true)
 			setShowChatModelSelector(true)
 		}, 10)
 	}
@@ -104,35 +104,6 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 						</li>
 					</>
 				)}
-				<li>
-					New <code>microwave</code> stealth model, free for a limited time!
-					<br />
-					{user ? (
-						<div style={{ display: "flex", gap: "8px", flexWrap: "wrap", margin: "5px 0" }}>
-							{!didClickMicrowaveButton && (
-								<VSCodeButton
-									appearance="primary"
-									onClick={setMicrowave}
-									style={{ transform: "scale(0.85)", transformOrigin: "left center" }}>
-									Try stealth/microwave
-								</VSCodeButton>
-							)}
-						</div>
-					) : (
-						<VSCodeButton
-							appearance="primary"
-							disabled={isLoginLoading}
-							onClick={handleSignIn}
-							style={{ margin: "5px 0", transform: "scale(0.85)", transformOrigin: "left center" }}>
-							Sign Up with Cline
-							{isLoginLoading && (
-								<span className="ml-1 animate-spin">
-									<span className="codicon codicon-refresh"></span>
-								</span>
-							)}
-						</VSCodeButton>
-					)}
-				</li>
 			</ul>
 			{isVscode && (
 				<p style={{ margin: "0" }}>
