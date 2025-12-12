@@ -57,6 +57,11 @@ During installation, you'll authenticate and configure your preferred provider u
 - Create GitLab pipelines that generate migration scripts from schema changes
 - Build Jenkins jobs that use Cline to analyze test failures and suggest fixes
 
+**Hooks integration**
+- Run [hooks](/features/hooks/index) in CLI tasks to validate operations and enforce policies
+- Enable hooks per-task with `-s hooks_enabled=true` or globally via `cline config set hooks-enabled=true`
+- Combine hooks with headless automation for consistent enforcement across all environments
+
 ## Learn more
 
 <Columns cols={2}>
