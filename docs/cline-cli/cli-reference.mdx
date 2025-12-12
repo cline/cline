@@ -282,9 +282,10 @@ TASK SETTINGS
               Enable or disable hooks for the task (true/false)
 
 HOOKS INTEGRATION
-       The CLI supports hooks, which let you inject custom logic into Cline's
-       workflow at key moments. Hooks can validate operations before they
-       execute, monitor tool usage, and shape AI decisions.
+       Hooks let you inject custom logic into Cline's workflow at key moments.
+       They can validate operations before they execute, monitor tool usage,
+       and shape AI decisions. This allows you to integrate hooks into
+       automated workflows, CI/CD pipelines, and headless task execution.
 
        Enable hooks for a task:
 
@@ -294,14 +295,6 @@ HOOKS INTEGRATION
 
               cline config set hooks-enabled=true
               cline config get hooks-enabled
-
-       Hooks are useful for:
-
-       • Validating operations before execution
-       • Monitoring tool usage and performance
-       • Enforcing project-specific rules
-       • Integrating with external tools and services
-       • CI/CD pipeline automation
 
        Note: Hooks in the CLI are only supported on macOS and Linux.
 
