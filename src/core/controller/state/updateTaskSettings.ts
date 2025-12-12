@@ -25,6 +25,8 @@ export async function updateTaskSettings(controller: Controller, request: Update
 				return "high"
 			case ProtoOpenaiReasoningEffort.MINIMAL:
 				return "minimal"
+			case ProtoOpenaiReasoningEffort.XHIGH:
+				return "xhigh"
 			default:
 				return "medium"
 		}

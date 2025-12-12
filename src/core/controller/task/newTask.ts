@@ -23,6 +23,8 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 				return "high"
 			case ProtoOpenaiReasoningEffort.MINIMAL:
 				return "minimal"
+			case ProtoOpenaiReasoningEffort.XHIGH:
+				return "xhigh"
 			default:
 				return "medium"
 		}
