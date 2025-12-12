@@ -1,6 +1,7 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
 import { GlobalFileNames } from "@core/storage/disk"
+import { StateManager } from "@core/storage/StateManager"
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
@@ -220,7 +221,6 @@ export class McpHub {
 
 		// Validate remote MCP server URL against remote config if blockPersonalRemoteMCPServers is enabled
 		if (config.type !== "stdio" && "url" in config && config.url) {
-			const { StateManager } = await import("@core/storage/StateManager")
 			const stateManager = StateManager.get()
 			const remoteConfig = stateManager.getRemoteConfigSettings()
 
