@@ -144,9 +144,7 @@
 								"pages": [
 									"features/hooks/index",
 									"features/hooks/hook-reference",
-									"features/hooks/samples",
-									"features/hooks/advanced-patterns",
-									"features/hooks/testing-and-debugging"
+									"features/hooks/samples"
 								]
 							},
 							"features/multiroot-workspace",
@@ -280,17 +278,46 @@
 						"pages": [
 							"enterprise-solutions/overview",
 							"enterprise-solutions/onboarding",
-							"enterprise-solutions/members/roles-and-permissions",
+							"enterprise-solutions/team-management/managing-members",
 							{
-								"group": "Provider Remote Configuration",
+								"group": "SaaS Provider Configuration",
 								"pages": [
+									"enterprise-solutions/configuration/remote-configuration/overview",
 									{
 										"group": "AWS Bedrock",
 										"pages": [
-											"enterprise-solutions/provider-remote-config/aws-bedrock/admin-configuration",
-											"enterprise-solutions/provider-remote-config/aws-bedrock/member-configuration"
+											"enterprise-solutions/configuration/remote-configuration/aws-bedrock/admin-configuration",
+											"enterprise-solutions/configuration/remote-configuration/aws-bedrock/member-configuration"
+										]
+									},
+									{
+										"group": "LiteLLM",
+										"pages": [
+											"enterprise-solutions/configuration/remote-configuration/litellm/admin-configuration",
+											"enterprise-solutions/configuration/remote-configuration/litellm/member-configuration"
+										]
+									},
+									{
+										"group": "Google Vertex AI",
+										"pages": [
+											"enterprise-solutions/configuration/remote-configuration/google-vertex/admin-configuration",
+											"enterprise-solutions/configuration/remote-configuration/google-vertex/member-configuration"
 										]
 									}
+								]
+							},
+							{
+								"group": "Control Other Cline Features",
+								"pages": [
+									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/yolo-mode"
+								]
+							},
+							{
+								"group": "Monitoring",
+								"pages": [
+									"enterprise-solutions/monitoring/overview",
+									"enterprise-solutions/monitoring/telemetry",
+									"enterprise-solutions/monitoring/opentelemetry"
 								]
 							}
 						]
@@ -366,14 +393,14 @@
 		{
 			"source": "/features/hooks/real-world-examples",
 			"destination": "/features/hooks/samples"
-    },
-    {
+		},
+		{
 			"source": "/enterprise-solutions/configure-AWS-Bedrock-Admin",
-			"destination": "/enterprise-solutions/provider-remote-config/aws-bedrock/admin-configuration"
+			"destination": "/enterprise-solutions/configuration/remote-configuration/aws-bedrock/admin-configuration"
 		},
 		{
 			"source": "/enterprise-solutions/configure-AWS-Bedrock-Member",
-			"destination": "/enterprise-solutions/provider-remote-config/aws-bedrock/member-configuration"
+			"destination": "/enterprise-solutions/configuration/remote-configuration/aws-bedrock/member-configuration"
 		},
 		{
 			"source": "/enterprise-solutions/configure-workOS-authkit",
@@ -382,6 +409,14 @@
 		{
 			"source": "/enterprise-solutions/Onboarding your Organization",
 			"destination": "/enterprise-solutions/onboarding"
+		},
+		{
+			"source": "/enterprise-solutions/team-management/overview",
+			"destination": "/enterprise-solutions/team-management/managing-members"
+		},
+		{
+			"source": "/enterprise-solutions/team-management/roles-and-permissions",
+			"destination": "/enterprise-solutions/team-management/managing-members"
 		}
 	],
 	"search": {

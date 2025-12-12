@@ -132,6 +132,7 @@ const baseContext: SystemPromptContext = {
 	cwd: "/test/project",
 	ide: "TestIde",
 	supportsBrowserUse: true,
+	clineWebToolsEnabled: true,
 	mcpHub: {
 		getServers: () => [
 			{
@@ -218,8 +219,8 @@ describe("Prompt System Integration Tests", () => {
 			contextVariations,
 		},
 		{
-			modelGroup: ModelFamily.MICROWAVE,
-			modelIds: ["microwave"],
+			modelGroup: ModelFamily.DEVSTRAL,
+			modelIds: ["devstral"],
 			providerId: "cline",
 			contextVariations,
 		},

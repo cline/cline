@@ -49,7 +49,6 @@ export interface GlobalState {
 	workspaceRoots: WorkspaceRoot[] | undefined
 	primaryRootIndex: number
 	multiRootEnabled: boolean
-	hooksEnabled: boolean
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
 	lastDismissedCliBannerVersion: number
@@ -127,6 +126,7 @@ export interface Settings {
 	aihubmixAppCode: string | undefined
 	hooksEnabled: boolean
 	subagentsEnabled: boolean
+	enableParallelToolCalling: boolean
 	hicapModelId: string | undefined
 
 	// Plan mode configurations
@@ -244,6 +244,7 @@ export interface Secrets {
 	doubaoApiKey: string | undefined
 	mistralApiKey: string | undefined
 	liteLlmApiKey: string | undefined
+	remoteLiteLlmApiKey: string | undefined
 	authNonce: string | undefined
 	asksageApiKey: string | undefined
 	xaiApiKey: string | undefined

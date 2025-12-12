@@ -767,7 +767,15 @@ export const ChatRowContent = memo(
 									border: "1px solid var(--vscode-editorGroup-border)",
 								}}>
 								<div
+									aria-label={isExpanded ? "Collapse summary" : "Expand summary"}
 									onClick={handleToggle}
+									onKeyDown={(e) => {
+										if (e.key === "Enter" || e.key === " ") {
+											e.preventDefault()
+											e.stopPropagation()
+											handleToggle()
+										}
+									}}
 									style={{
 										color: "var(--vscode-descriptionForeground)",
 										padding: "9px 10px",
@@ -776,7 +784,8 @@ export const ChatRowContent = memo(
 										WebkitUserSelect: "none",
 										MozUserSelect: "none",
 										msUserSelect: "none",
-									}}>
+									}}
+									tabIndex={0}>
 									{isExpanded ? (
 										<div>
 											<div style={{ display: "flex", alignItems: "center", marginBottom: "8px" }}>
@@ -880,6 +889,48 @@ export const ChatRowContent = memo(
 							</div>
 							{/* Displaying the 'content' which now holds "Fetching URL: [URL]" */}
 							{/* <div style={{ paddingTop: 5, fontSize: '0.9em', opacity: 0.8 }}>{tool.content}</div> */}
+						</>
+					)
+				case "webSearch":
+					return (
+						<>
+							<div style={headerStyle}>
+								<span
+									className="codicon codicon-search"
+									style={{ color: normalColor, marginBottom: "-1.5px" }}></span>
+								{tool.operationIsLocatedInWorkspace === false &&
+									toolIcon("sign-out", "yellow", -90, "This search is external")}
+								<span style={{ fontWeight: "bold" }}>
+									{message.type === "ask"
+										? "Cline wants to search the web for:"
+										: "Cline searched the web for:"}
+								</span>
+							</div>
+							<div
+								style={{
+									borderRadius: 3,
+									backgroundColor: CODE_BLOCK_BG_COLOR,
+									overflow: "hidden",
+									border: "1px solid var(--vscode-editorGroup-border)",
+									padding: "9px 10px",
+									userSelect: "text",
+									WebkitUserSelect: "text",
+									MozUserSelect: "text",
+									msUserSelect: "text",
+								}}>
+								<span
+									className="ph-no-capture"
+									style={{
+										whiteSpace: "nowrap",
+										overflow: "hidden",
+										textOverflow: "ellipsis",
+										marginRight: "8px",
+										direction: "rtl",
+										textAlign: "left",
+									}}>
+									{tool.path + "\u200E"}
+								</span>
+							</div>
 						</>
 					)
 				default:
@@ -1249,7 +1300,15 @@ export const ChatRowContent = memo(
 						return (
 							<>
 								<div
+									aria-label={isExpanded ? "Collapse API request" : "Expand API request"}
 									onClick={handleToggle}
+									onKeyDown={(e) => {
+										if (e.key === "Enter" || e.key === " ") {
+											e.preventDefault()
+											e.stopPropagation()
+											handleToggle()
+										}
+									}}
 									style={{
 										...headerStyle,
 										marginBottom:
@@ -1260,7 +1319,8 @@ export const ChatRowContent = memo(
 										WebkitUserSelect: "none",
 										MozUserSelect: "none",
 										msUserSelect: "none",
-									}}>
+									}}
+									tabIndex={0}>
 									<div
 										style={{
 											display: "flex",
@@ -1362,7 +1422,15 @@ export const ChatRowContent = memo(
 							<>
 								{message.text && (
 									<div
+										aria-label={isExpanded ? "Collapse thinking" : "Expand thinking"}
 										onClick={handleToggle}
+										onKeyDown={(e) => {
+											if (e.key === "Enter" || e.key === " ") {
+												e.preventDefault()
+												e.stopPropagation()
+												handleToggle()
+											}
+										}}
 										style={{
 											// marginBottom: 15,
 											cursor: "pointer",
@@ -1370,7 +1438,8 @@ export const ChatRowContent = memo(
 
 											fontStyle: "italic",
 											overflow: "hidden",
-										}}>
+										}}
+										tabIndex={0}>
 										{isExpanded ? (
 											<div style={{ marginTop: -3 }}>
 												<span style={{ fontWeight: "bold", display: "block", marginBottom: "4px" }}>
