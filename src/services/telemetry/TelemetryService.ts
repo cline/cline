@@ -301,7 +301,7 @@ export class TelemetryService {
 	}
 
 	public removeProvider(name: string) {
-		this.providers = this.providers.filter((p) => p.name() !== name)
+		this.providers = this.providers.filter((p) => p.name !== name)
 	}
 
 	/**

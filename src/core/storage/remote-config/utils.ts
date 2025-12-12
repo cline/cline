@@ -224,8 +224,8 @@ export async function applyRemoteConfig(remoteConfig?: RemoteConfig): Promise<vo
 		if (client.meterProvider || client.loggerProvider) {
 			telemetryService.addProvider(
 				await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider, {
-					id: REMOTE_CONFIG_OTEL_PROVIDER_ID,
-					remoteConfig: true,
+					name: REMOTE_CONFIG_OTEL_PROVIDER_ID,
+					isRemoteConfig: true,
 				}).initialize(),
 			)
 		}

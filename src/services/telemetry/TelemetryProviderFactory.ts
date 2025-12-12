@@ -47,7 +47,7 @@ export class TelemetryProviderFactory {
 			providers.push(new NoOpTelemetryProvider())
 		}
 
-		Logger.info("TelemetryProviderFactory: Created providers - " + providers.map((p) => p.name()).join(", "))
+		Logger.info("TelemetryProviderFactory: Created providers - " + providers.map((p) => p.name).join(", "))
 		return providers
 	}
 
@@ -68,7 +68,9 @@ export class TelemetryProviderFactory {
 			case "opentelemetry": {
 				const client = new OpenTelemetryClientProvider()
 				if (client.meterProvider || client.loggerProvider) {
-					return await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider).initialize()
+					return await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider, {
+						isRemoteConfig: false,
+					}).initialize()
 				}
 				Logger.info("TelemetryProviderFactory: OpenTelemetry providers not available")
 				return new NoOpTelemetryProvider()
@@ -106,9 +108,7 @@ export class TelemetryProviderFactory {
  * or for testing purposes
  */
 export class NoOpTelemetryProvider implements ITelemetryProvider {
-	name(): string {
-		return "NoOpTelemetryProvider"
-	}
+	readonly name = "NoOpTelemetryProvider"
 	private isOptIn = true
 
 	log(_event: string, _properties?: TelemetryProperties): void {
