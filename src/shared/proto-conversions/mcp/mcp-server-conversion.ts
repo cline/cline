@@ -1,13 +1,13 @@
 import {
-	McpServerStatus,
+	McpPrompt as ProtoMcpPrompt,
+	McpPromptArgument as ProtoMcpPromptArgument,
 	McpResource as ProtoMcpResource,
 	McpResourceTemplate as ProtoMcpResourceTemplate,
 	McpServer as ProtoMcpServer,
+	McpServerStatus,
 	McpTool as ProtoMcpTool,
-	McpPrompt as ProtoMcpPrompt,
-	McpPromptArgument as ProtoMcpPromptArgument,
 } from "@shared/proto/cline/mcp"
-import { McpOAuthAuthStatus, McpResource, McpResourceTemplate, McpServer, McpTool, McpPrompt, McpPromptArgument } from "../../mcp"
+import { McpOAuthAuthStatus, McpPrompt, McpPromptArgument, McpResource, McpResourceTemplate, McpServer, McpTool } from "../../mcp"
 
 // Helper to convert TS status to Proto enum
 function convertMcpStatusToProto(status: McpServer["status"]): McpServerStatus {
