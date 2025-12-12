@@ -120,6 +120,28 @@ C:\Users\bob43\Downloads\Bcline\.message-queue\
 - Codex CLI: `npm install -g @openai/codex`
 - Gemini CLI: `npm install -g gemini-cli`
 
+## Rules for AI Assistants (Copilot, Claude, etc.)
+
+When executing terminal commands in this workspace:
+
+1. **Run commands DIRECTLY in PowerShell** - Never invoke AI CLI wrappers like `claude`, `codex`, or `gemini` commands when you already have terminal access
+2. **Use native tools** - Run `npm`, `git`, `node`, PowerShell cmdlets, etc. directly
+3. **No nested AI invocation** - If you ARE an AI assistant with terminal access, do NOT spawn another AI CLI to do work. Execute the commands yourself.
+4. **The Claude/Codex/Gemini CLIs are for humans** - Those CLI tools are meant for users to invoke AI agents. An AI assistant should not call another AI through CLI.
+
+**Example - WRONG:**
+```powershell
+claude "fix the bug in auth.ts"   # Don't do this - you're already an AI!
+```
+
+**Example - CORRECT:**
+```powershell
+# Just run the actual commands directly:
+npm run build
+git status
+Get-Content .\src\auth.ts
+```
+
 ## Troubleshooting
 
 **Commands not found:**
