@@ -3544,7 +3544,7 @@ export const sapAiCoreDefaultModelId: SapAiCoreModelId = "anthropic--claude-3.5-
 const sapAiCoreModelDescription = "Pricing is calculated using SAP's Capacity Units rather than direct USD pricing."
 export const sapAiCoreModels = {
 	"anthropic--claude-4.5-haiku": {
-		maxTokens: 8192,
+		maxTokens: 64000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
