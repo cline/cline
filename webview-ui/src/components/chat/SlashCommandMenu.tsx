@@ -2,7 +2,7 @@ import { type SlashCommand } from "@shared/slashCommands"
 import React, { useCallback, useEffect, useRef } from "react"
 import ScreenReaderAnnounce from "@/components/common/ScreenReaderAnnounce"
 import { useMenuAnnouncement } from "@/hooks/useMenuAnnouncement"
-import { getMatchingSlashCommands, SlashCommand } from "@/utils/slash-commands"
+import { getMatchingSlashCommands } from "@/utils/slash-commands"
 
 interface SlashCommandMenuProps {
 	onSelect: (command: SlashCommand) => void
