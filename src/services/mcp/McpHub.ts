@@ -234,6 +234,35 @@ export class McpHub {
 			}
 		}
 
+		// Validate local MCP servers based on remote config
+		if (config.type === "stdio") {
+			const stateManager = StateManager.get()
+			const remoteConfig = stateManager.getRemoteConfigSettings()
+
+			// If marketplace is disabled, block all local servers
+			if (remoteConfig.mcpMarketplaceEnabled === false) {
+				return
+			}
+
+			// Check if server is from GitHub marketplace
+			if (name.startsWith("github.com/")) {
+				// If allowlist is configured, validate against it
+				if (remoteConfig.allowedMCPServers && remoteConfig.allowedMCPServers.length > 0) {
+					const allowedIds = remoteConfig.allowedMCPServers.map((server: { id: string }) => server.id)
+
+					if (!allowedIds.includes(name)) {
+						return
+					}
+				} else {
+					// If no allowlist, GitHub servers are not allowed
+					return
+				}
+			} else {
+				// Non-GitHub local servers are blocked
+				return
+			}
+		}
+
 		if (config.disabled) {
 			//console.log(`[MCP Debug] Creating disabled connection object for server "${name}"`)
 			// Create a connection object for disabled server so it appears in UI
