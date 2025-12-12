@@ -1,11 +1,6 @@
-import { describe, expect, it } from "vitest"
 import type { McpServer } from "@shared/mcp"
-import {
-	getMcpPromptCommands,
-	getMatchingSlashCommands,
-	validateSlashCommand,
-	slashCommandRegex,
-} from "../slash-commands"
+import { describe, expect, it } from "vitest"
+import { getMatchingSlashCommands, getMcpPromptCommands, slashCommandRegex, validateSlashCommand } from "../slash-commands"
 
 // Helper to create a mock MCP server
 function createMockMcpServer(overrides: Partial<McpServer> = {}): McpServer {
@@ -45,10 +40,10 @@ describe("slash-commands", () => {
 			expect(result).toEqual([])
 		})
 
-		it("should skip servers with error status", () => {
+		it("should skip servers with connecting status", () => {
 			const servers = [
 				createMockMcpServer({
-					status: "error",
+					status: "connecting",
 					prompts: [{ name: "test-prompt", description: "A test prompt" }],
 				}),
 			]
