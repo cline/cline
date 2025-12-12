@@ -39,6 +39,16 @@ describe("ErrorRow", () => {
 		text: "Test error message",
 	}
 
+	// Message with Cline provider to trigger ClineError-specific handling
+	const clineProviderMessage: ClineMessage = {
+		...mockMessage,
+		modelInfo: {
+			providerId: "cline",
+			modelId: "cline-model",
+			mode: "act",
+		},
+	}
+
 	beforeEach(() => {
 		vi.clearAllMocks()
 	})
@@ -91,7 +101,13 @@ describe("ErrorRow", () => {
 			const { ClineError } = await import("../../../../src/services/error/ClineError")
 			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
 
-			render(<ErrorRow apiRequestFailedMessage="Insufficient credits error" errorType="error" message={mockMessage} />)
+			render(
+				<ErrorRow
+					apiRequestFailedMessage="Insufficient credits error"
+					errorType="error"
+					message={clineProviderMessage}
+				/>,
+			)
 
 			expect(screen.getByTestId("credit-limit-error")).toBeInTheDocument()
 			expect(screen.getByText("You have run out of credits.")).toBeInTheDocument()
@@ -109,7 +125,7 @@ describe("ErrorRow", () => {
 			const { ClineError } = await import("../../../../src/services/error/ClineError")
 			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
 
-			render(<ErrorRow apiRequestFailedMessage="Rate limit exceeded" errorType="error" message={mockMessage} />)
+			render(<ErrorRow apiRequestFailedMessage="Rate limit exceeded" errorType="error" message={clineProviderMessage} />)
 
 			expect(screen.getByText("Rate limit exceeded")).toBeInTheDocument()
 			expect(screen.getByText("Request ID: req_123456")).toBeInTheDocument()
@@ -126,7 +142,7 @@ describe("ErrorRow", () => {
 			const { ClineError } = await import("../../../../src/services/error/ClineError")
 			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
 
-			render(<ErrorRow apiRequestFailedMessage="Authentication failed" errorType="error" message={mockMessage} />)
+			render(<ErrorRow apiRequestFailedMessage="Authentication failed" errorType="error" message={clineProviderMessage} />)
 
 			expect(screen.getByText("Authentication failed")).toBeInTheDocument()
 			expect(screen.getByText("Sign in to Cline")).toBeInTheDocument()

@@ -206,18 +206,35 @@ export class MessageQueueService {
 		if (content.startsWith("parallel:")) {
 			return await this.handleParallel(content.substring("parallel:".length).trim())
 		}
-		// Handle CLI routing prefixes
+		// Handle CLI routing prefixes (check -yolo variants first since they're more specific)
+		if (content.startsWith("claude-yolo:")) {
+			const prompt = content.substring("claude-yolo:".length).trim()
+			return await this.handleClaudeCli(prompt, true) // yolo = auto-approve all
+		}
 		if (content.startsWith("claude:")) {
 			const prompt = content.substring("claude:".length).trim()
 			return await this.handleClaudeCli(prompt, true)
+		}
+		if (content.startsWith("codex-yolo:")) {
+			const prompt = content.substring("codex-yolo:".length).trim()
+			return await this.handleCodexCli(prompt, true) // yolo = bypass sandbox
 		}
 		if (content.startsWith("codex:")) {
 			const prompt = content.substring("codex:".length).trim()
 			return await this.handleCodexCli(prompt, true)
 		}
+		if (content.startsWith("gemini-yolo:")) {
+			const prompt = content.substring("gemini-yolo:".length).trim()
+			return await this.handleGeminiCli(prompt, true) // yolo = auto-approve all
+		}
 		if (content.startsWith("gemini:")) {
 			const prompt = content.substring("gemini:".length).trim()
 			return await this.handleGeminiCli(prompt, true)
+		}
+		// Handle Copilot CLI routing
+		if (content.startsWith("copilot:")) {
+			const prompt = content.substring("copilot:".length).trim()
+			return await this.handleCopilotCli(prompt)
 		}
 		if (content === "help" || content === "messaging-help" || content === "?") {
 			return this.getHelpText()
@@ -299,8 +316,11 @@ export class MessageQueueService {
 					case "gemini":
 						result = await this.handleGeminiCli(prompt, true)
 						break
+					case "copilot":
+						result = await this.handleCopilotCli(prompt)
+						break
 					default:
-						result = `Error: Unknown agent '${agent}'. Use claude, codex, or gemini.`
+						result = `Error: Unknown agent '${agent}'. Use claude, codex, gemini, or copilot.`
 				}
 			} catch (error: any) {
 				result = `Error in ${agent}: ${error.message}`
@@ -352,6 +372,9 @@ export class MessageQueueService {
 						break
 					case "gemini":
 						result = await this.handleGeminiCli(prompt, true)
+						break
+					case "copilot":
+						result = await this.handleCopilotCli(prompt)
 						break
 					default:
 						result = `Error: Unknown agent '${agent}'`
@@ -427,18 +450,27 @@ export class MessageQueueService {
 			else if (message.content === "auto-approve-all" || message.content === "yolo-mode") {
 				responseContent = await this.handleAutoApproveAll()
 			}
-			// Handle Claude CLI commands: "claude:prompt" - all tools enabled, auto-approve
-			else if (message.content.startsWith("claude:")) {
+			// Handle Claude CLI commands (check -yolo variant first)
+			else if (message.content.startsWith("claude-yolo:")) {
+				const prompt = message.content.substring("claude-yolo:".length).trim()
+				responseContent = await this.handleClaudeCli(prompt, true)
+			} else if (message.content.startsWith("claude:")) {
 				const prompt = message.content.substring("claude:".length).trim()
 				responseContent = await this.handleClaudeCli(prompt, true)
 			}
-			// Handle Codex CLI commands: "codex:prompt" - full auto mode
-			else if (message.content.startsWith("codex:")) {
+			// Handle Codex CLI commands (check -yolo variant first)
+			else if (message.content.startsWith("codex-yolo:")) {
+				const prompt = message.content.substring("codex-yolo:".length).trim()
+				responseContent = await this.handleCodexCli(prompt, true)
+			} else if (message.content.startsWith("codex:")) {
 				const prompt = message.content.substring("codex:".length).trim()
 				responseContent = await this.handleCodexCli(prompt, true)
 			}
-			// Handle Gemini CLI commands: "gemini:prompt" - yolo mode enabled
-			else if (message.content.startsWith("gemini:")) {
+			// Handle Gemini CLI commands (check -yolo variant first)
+			else if (message.content.startsWith("gemini-yolo:")) {
+				const prompt = message.content.substring("gemini-yolo:".length).trim()
+				responseContent = await this.handleGeminiCli(prompt, true)
+			} else if (message.content.startsWith("gemini:")) {
 				const prompt = message.content.substring("gemini:".length).trim()
 				responseContent = await this.handleGeminiCli(prompt, true)
 			}
@@ -740,6 +772,48 @@ export class MessageQueueService {
 	}
 
 	/**
+	 * Handle GitHub Copilot CLI commands - sends prompts to Copilot CLI and returns response
+	 * @param prompt The prompt to send to Copilot CLI
+	 */
+	private async handleCopilotCli(prompt: string): Promise<string> {
+		if (!prompt) {
+			return `Error: No prompt provided. Use format: copilot:your prompt here`
+		}
+
+		try {
+			const { execSync } = require("child_process")
+			// Use -p for non-interactive prompt mode
+			const command = `copilot -p "${prompt.replace(/"/g, '\\"')}"`
+
+			this.log(`🤖 Sending to Copilot CLI: ${prompt}`)
+			const result = execSync(command, {
+				encoding: "utf8",
+				timeout: 120000, // 2 minute timeout
+				cwd: this.workspaceRoot,
+			})
+
+			// Clean up response - remove usage stats at the end
+			const lines = result.split("\n")
+			const cleanLines = lines.filter(
+				(line: string) =>
+					!line.startsWith("Total usage") &&
+					!line.startsWith("Total duration") &&
+					!line.startsWith("Total code") &&
+					!line.startsWith("Usage by model"),
+			)
+			const cleanResponse = cleanLines.join("\n").trim()
+
+			this.log(`✅ Copilot CLI response received`)
+			this.writeCompletionSignal("copilot", "success", cleanResponse)
+			return `Task completed: Copilot CLI finished - ${cleanResponse.substring(0, 200)}${cleanResponse.length > 200 ? "..." : ""}`
+		} catch (error: any) {
+			this.log(`❌ Error calling Copilot CLI: ${error.message}`)
+			this.writeCompletionSignal("copilot", "error", error.message)
+			return `Task completed: Copilot CLI error - ${error.message}`
+		}
+	}
+
+	/**
 	 * Write a completion signal file for easy polling by external processes
 	 */
 	private writeCompletionSignal(source: string, status: "success" | "error", message: string): void {
@@ -851,16 +925,19 @@ export class MessageQueueService {
   codex-yolo:<prompt>     Codex CLI with full agent mode (bypasses sandbox)
   gemini:<prompt>         Send to Gemini CLI
   gemini-yolo:<prompt>    Gemini CLI with YOLO mode
+  copilot:<prompt>        Send to GitHub Copilot CLI
 
 🔗 ORCHESTRATION:
   pipeline: a->b->c: prompt   Chain agents sequentially (output feeds next)
   parallel: a+b+c: prompt     Run agents in parallel, aggregate results
+  (agents: claude, codex, gemini, copilot)
 
 💻 POWERSHELL COMMANDS (from any directory):
   Send-Cline "message"    Send message to Cline
   Send-Claude "prompt"    Send to Claude CLI
   Send-Codex "prompt"     Send to Codex CLI  
   Send-Gemini "prompt"    Send to Gemini CLI
+  Send-Copilot "prompt"   Send to GitHub Copilot CLI
   Cline-AutoApprove       Enable auto-approvals
   Cline-SetModel "model"  Switch model
   Cline-Usage             Get token usage

@@ -79,7 +79,18 @@ export async function downloadTask(historyItem: HistoryItem, conversationHistory
 		try {
 			// Write content to the selected location
 			await writeFile(saveResponse.selectedPath, markdownContent)
-			await openFile(saveResponse.selectedPath, false, true)
+
+			// Try to open the file in the editor, but don't fail the export if it doesn't work
+			// (can fail in SSH remote environments where the file path is on the remote machine)
+			try {
+				await openFile(saveResponse.selectedPath, false, true)
+			} catch {
+				// Opening failed (common in remote SSH environments), show success message with path
+				await HostProvider.window.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message: `Task exported successfully to: ${saveResponse.selectedPath}`,
+				})
+			}
 		} catch (error) {
 			await HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
