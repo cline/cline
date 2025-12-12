@@ -278,6 +278,36 @@ TASK SETTINGS
 
        mode   Starting mode (act/plan)
 
+       hooks_enabled
+              Enable or disable hooks for the task (true/false)
+
+HOOKS INTEGRATION
+       The CLI supports hooks, which let you inject custom logic into Cline's
+       workflow at key moments. Hooks can validate operations before they
+       execute, monitor tool usage, and shape AI decisions.
+
+       Enable hooks for a task:
+
+              cline "prompt" -s hooks_enabled=true
+
+       Configure hooks globally:
+
+              cline config set hooks-enabled=true
+              cline config get hooks-enabled
+
+       Hooks are useful for:
+
+       • Validating operations before execution
+       • Monitoring tool usage and performance
+       • Enforcing project-specific rules
+       • Integrating with external tools and services
+       • CI/CD pipeline automation
+
+       Note: Hooks in the CLI are only supported on macOS and Linux.
+
+       For complete hooks documentation, see:
+       <https://docs.cline.bot/features/hooks/index>
+
 NOTES & EXAMPLES
        The cline task send and cline task new commands support reading from
        stdin, enabling powerful pipeline compositions:
