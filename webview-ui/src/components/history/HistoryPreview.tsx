@@ -86,23 +86,13 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 			</style>
 
 			<div
-				aria-label={isExpanded ? "Collapse history preview" : "Expand history preview"}
 				className="history-header"
-				onClick={toggleExpanded}
-				onKeyDown={(e) => {
-					if (e.key === "Enter" || e.key === " ") {
-						e.preventDefault()
-						e.stopPropagation()
-						toggleExpanded()
-					}
-				}}
 				style={{
 					color: "var(--vscode-descriptionForeground)",
 					margin: "10px 16px 10px 16px",
 					display: "flex",
 					alignItems: "center",
-				}}
-				tabIndex={0}>
+				}}>
 				<span
 					className="codicon codicon-comment-discussion"
 					style={{

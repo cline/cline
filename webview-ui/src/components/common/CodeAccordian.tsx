@@ -58,6 +58,7 @@ const CodeAccordian = ({
 					aria-label={isExpanded ? "Collapse code block" : "Expand code block"}
 					onClick={isLoading ? undefined : onToggleExpand}
 					onKeyDown={(e) => {
+						if (isLoading) return
 						if (e.key === "Enter" || e.key === " ") {
 							e.preventDefault()
 							e.stopPropagation()
