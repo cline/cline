@@ -5,8 +5,8 @@
  * functionality to create, retrieve, update, and remove terminals.
  */
 
+import type { ITerminal, StandaloneTerminalOptions, TerminalInfo } from "../types"
 import { StandaloneTerminal } from "./StandaloneTerminal"
-import type { ITerminal, StandaloneTerminalOptions, TerminalInfo } from "./types"
 
 /**
  * Registry for tracking standalone terminal instances.

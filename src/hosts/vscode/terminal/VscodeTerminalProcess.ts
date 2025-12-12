@@ -1,22 +1,30 @@
 import { TerminalOutputFailureReason, telemetryService } from "@services/telemetry"
 import { EventEmitter } from "events"
 import * as vscode from "vscode"
-import { getLatestTerminalOutput } from "../../../integrations/terminal/get-latest-output"
-import { stripAnsi } from "./ansiUtils"
-
-export interface TerminalProcessEvents {
-	line: [line: string]
-	continue: []
-	completed: []
-	error: [error: Error]
-	no_shell_integration: []
-}
+import { stripAnsi } from "@/hosts/vscode/terminal/ansiUtils"
+import { getLatestTerminalOutput } from "@/hosts/vscode/terminal/get-latest-output"
+import type { ITerminalProcess, TerminalProcessEvents } from "@/integrations/terminal/types"
 
 // how long to wait after a process outputs anything before we consider it "cool" again
 const PROCESS_HOT_TIMEOUT_NORMAL = 2_000
 const PROCESS_HOT_TIMEOUT_COMPILING = 15_000
 
-export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> {
+/**
+ * VscodeTerminalProcess - Manages command execution in VSCode's integrated terminal.
+ *
+ * This class handles command execution using VSCode's shell integration API.
+ * It processes VSCode-specific escape sequences and streams output through events.
+ *
+ * Implements ITerminalProcess interface for polymorphic usage with CommandExecutor.
+ *
+ * Events:
+ * - 'line': Emitted for each line of output
+ * - 'completed': Emitted when the process completes
+ * - 'continue': Emitted when continue() is called
+ * - 'error': Emitted on process errors
+ * - 'no_shell_integration': Emitted when shell integration is not available
+ */
+export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> implements ITerminalProcess {
 	waitForShellIntegration: boolean = true
 	private isListening: boolean = true
 	private buffer: string = ""

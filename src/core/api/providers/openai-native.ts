@@ -12,6 +12,7 @@ import { Logger } from "@/services/logging/Logger"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiFormat } from "@/shared/proto/cline/models"
+import { isGPT5ModelFamily } from "@/utils/model-utils"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -118,7 +119,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 					}
 				: {}),
 			...(model.info.temperature !== undefined ? { temperature: model.info.temperature } : {}),
-			...(includeTools ? getOpenAIToolParams(tools) : {}),
+			...(includeTools ? getOpenAIToolParams(tools, isGPT5ModelFamily(model.id)) : {}),
 		})
 
 		for await (const chunk of stream) {

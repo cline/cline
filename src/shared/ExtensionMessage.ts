@@ -106,6 +106,7 @@ export interface ExtensionState {
 	subagentsEnabled?: boolean
 	enhancedNotebookInteractionEnabled?: boolean
 	nativeToolCallSetting?: boolean
+	enableParallelToolCalling?: boolean
 }
 
 export interface ClineMessage {

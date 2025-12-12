@@ -6,9 +6,9 @@
  * VSCode's terminal API.
  */
 
+import type { ITerminalManager, TerminalInfo, TerminalProcessResultPromise } from "../types"
 import { StandaloneTerminalProcess } from "./StandaloneTerminalProcess"
 import { StandaloneTerminalRegistry } from "./StandaloneTerminalRegistry"
-import type { ITerminalManager, TerminalInfo, TerminalProcessResultPromise } from "./types"
 
 /**
  * Helper function to merge a process with a promise for the TerminalProcessResultPromise type.

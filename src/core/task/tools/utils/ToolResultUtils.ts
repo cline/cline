@@ -21,7 +21,6 @@ export class ToolResultUtils {
 		userMessageContent: any[],
 		toolDescription: (block: ToolUse) => string,
 		_api: ApiHandler,
-		markToolAsUsed: () => void,
 		coordinator?: ToolExecutorCoordinator,
 		toolUseIdMap?: Map<string, string>,
 	): void {
@@ -36,8 +35,8 @@ export class ToolResultUtils {
 					})()
 				: toolDescription(block)
 
-			// Get tool_use_id from map, or use "cline" as fallback for backward compatibility
-			const toolUseId = toolUseIdMap?.get(block.name) || "cline"
+			// Get tool_use_id from map using call_id, or use "cline" as fallback for backward compatibility
+			const toolUseId = toolUseIdMap?.get(block.call_id || "") || "cline"
 
 			// If we have already added a tool result for this tool use, skip adding another one
 			if (
@@ -54,7 +53,7 @@ export class ToolResultUtils {
 		} else {
 			// For complex content (arrays with text/image blocks), pass it through directly
 			// The content array should already be properly formatted with type, text, source, etc.
-			const toolUseId = toolUseIdMap?.get(block.name) || "cline"
+			const toolUseId = toolUseIdMap?.get(block.call_id || "") || "cline"
 
 			// If using backward-compatible "cline" ID and content is an array, spread it directly
 			// instead of wrapping it (which would cause JSON.stringify in createToolResultBlock)
@@ -64,8 +63,6 @@ export class ToolResultUtils {
 				userMessageContent.push(ToolResultUtils.createToolResultBlock(content, toolUseId, block.call_id))
 			}
 		}
-		// once a tool result has been collected, ignore all other tool uses since we should only ever present one tool result per message
-		markToolAsUsed()
 	}
 
 	private static createToolResultBlock(content: ToolResponse, id?: string, call_id?: string) {

@@ -69,6 +69,88 @@ import {
 import { Mode } from "@shared/storage/types"
 
 /**
+ * Returns the static model list for a provider.
+ * For providers with dynamic models (openrouter, cline, ollama, etc.), returns undefined.
+ * Some providers depend on configuration (qwen, zai) for region-specific models.
+ */
+export function getModelsForProvider(
+	provider: ApiProvider,
+	apiConfiguration?: ApiConfiguration,
+): Record<string, ModelInfo> | undefined {
+	switch (provider) {
+		case "anthropic":
+			return anthropicModels
+		case "claude-code":
+			return claudeCodeModels
+		case "bedrock":
+			return bedrockModels
+		case "vertex":
+			return vertexModels
+		case "gemini":
+			return geminiModels
+		case "openai-native":
+			return openAiNativeModels
+		case "deepseek":
+			return deepSeekModels
+		case "qwen":
+			return apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels
+		case "qwen-code":
+			return qwenCodeModels
+		case "doubao":
+			return doubaoModels
+		case "mistral":
+			return mistralModels
+		case "asksage":
+			return askSageModels
+		case "xai":
+			return xaiModels
+		case "moonshot":
+			return moonshotModels
+		case "nebius":
+			return nebiusModels
+		case "sambanova":
+			return sambanovaModels
+		case "cerebras":
+			return cerebrasModels
+		case "groq":
+			return groqModels
+		case "baseten":
+			return basetenModels
+		case "sapaicore":
+			return sapAiCoreModels
+		case "huawei-cloud-maas":
+			return huaweiCloudMaasModels
+		case "zai":
+			return apiConfiguration?.zaiApiLine === "china" ? mainlandZAiModels : internationalZAiModels
+		case "fireworks":
+			return fireworksModels
+		case "minimax":
+			return minimaxModels
+		case "huggingface":
+			return huggingFaceModels
+		case "nousResearch":
+			return nousResearchModels
+		// Providers with dynamic models - return undefined
+		case "openrouter":
+		case "cline":
+		case "openai":
+		case "ollama":
+		case "lmstudio":
+		case "vscode-lm":
+		case "litellm":
+		case "requesty":
+		case "hicap":
+		case "dify":
+		case "vercel-ai-gateway":
+		case "oca":
+		case "aihubmix":
+		case "together":
+		default:
+			return undefined
+	}
+}
+
+/**
  * Interface for normalized API configuration
  */
 export interface NormalizedApiConfig {

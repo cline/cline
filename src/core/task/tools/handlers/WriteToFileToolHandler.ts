@@ -374,12 +374,12 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				config.taskState.userMessageContent,
 				ToolDisplayUtils.getToolDescription,
 				config.api,
-				() => {
-					config.taskState.didAlreadyUseTool = true
-				},
 				config.coordinator,
 				config.taskState.toolUseIdMap,
 			)
+			if (!config.enableParallelToolCalling) {
+				config.taskState.didAlreadyUseTool = true
+			}
 
 			return
 		}
@@ -442,12 +442,12 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					config.taskState.userMessageContent,
 					ToolDisplayUtils.getToolDescription,
 					config.api,
-					() => {
-						config.taskState.didAlreadyUseTool = true
-					},
 					config.coordinator,
 					config.taskState.toolUseIdMap,
 				)
+				if (!config.enableParallelToolCalling) {
+					config.taskState.didAlreadyUseTool = true
+				}
 
 				// Revert changes and reset diff view
 				await config.services.diffViewProvider.revertChanges()
