@@ -5,6 +5,7 @@ import { FileSearchRequest, FileSearchType, RelativePathsRequest } from "@shared
 import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
 import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
+import { type SlashCommand } from "@shared/slashCommands"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { AtSignIcon, PlusIcon } from "lucide-react"
@@ -42,7 +43,6 @@ import {
 	getMatchingSlashCommands,
 	insertSlashCommand,
 	removeSlashCommand,
-	type SlashCommand,
 	shouldShowSlashCommandsMenu,
 	slashCommandDeleteRegex,
 	slashCommandRegexGlobal,
