@@ -143,11 +143,20 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 			/>
 
 			<div
+				aria-label={isModalVisible ? "Close auto-approve settings" : "Open auto-approve settings"}
 				className="group cursor-pointer pt-3 pb-3.5 pr-2 px-3.5 flex items-center justify-between gap-0"
 				onClick={() => {
 					setIsModalVisible((prev) => !prev)
 				}}
-				ref={buttonRef}>
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault()
+						e.stopPropagation()
+						setIsModalVisible((prev) => !prev)
+					}
+				}}
+				ref={buttonRef}
+				tabIndex={0}>
 				<div className="flex flex-nowrap items-center gap-1 min-w-0 flex-1">
 					<span className="whitespace-nowrap">Auto-approve:</span>
 					{getEnabledActionsText()}

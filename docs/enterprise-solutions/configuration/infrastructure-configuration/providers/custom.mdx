@@ -1,0 +1,254 @@
+---
+title: "Custom Provider Configuration"
+sidebarTitle: "Custom Providers"
+description: "Configure custom OpenAI-compatible providers for your Cline deployment"
+---
+
+<Info>
+**Configuration Path: Self-Hosted**
+
+This guide covers custom provider configuration for self-hosted deployments.
+</Info>
+
+Configure Cline to use any OpenAI-compatible API provider, including Azure OpenAI, self-hosted inference servers, and other third-party services.
+
+## What are Custom Providers?
+
+Custom providers include any API that implements the OpenAI API format:
+
+- **Azure OpenAI Service**: Microsoft's managed OpenAI models
+- **vLLM**: Self-hosted inference server
+- **Ollama**: Local model runner
+- **Text Generation Inference (TGI)**: Hugging Face's inference server
+- **LocalAI**: Local OpenAI API replacement
+- **Other OpenAI-compatible APIs**: Any custom implementation
+
+## Configuration Format
+
+Configure custom providers through your remote configuration JSON using the `providerSettings.OpenAiCompatible` section:
+
+```json
+{
+  "providerSettings": {
+    "OpenAiCompatible": {
+      "models": [
+        {
+          "id": "gpt-4-turbo",
+          "name": "GPT-4 Turbo"
+        }
+      ],
+      "openAiBaseUrl": "https://your-api.company.com/v1"
+    }
+  }
+}
+```
+
+## Configuration Fields
+
+| Field | Type | Description | Required |
+|-------|------|-------------|----------|
+| `models` | Array | List of model configurations | Yes |
+| `openAiBaseUrl` | String | API endpoint base URL | Yes |
+| `openAiApiKey` | String | API key for authentication | No |
+| `openAiModelId` | String | Default model identifier | No |
+
+### Azure OpenAI Specific Fields
+
+For Azure OpenAI, additional fields are available:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `azureApiVersion` | String | Azure API version (e.g., `2024-02-15-preview`) |
+
+## Example Configurations
+
+### Azure OpenAI
+
+```json
+{
+  "providerSettings": {
+    "OpenAiCompatible": {
+      "models": [
+        {
+          "id": "gpt-4-turbo",
+          "name": "GPT-4 Turbo"
+        }
+      ],
+      "openAiBaseUrl": "https://your-resource.openai.azure.com/openai/deployments/gpt-4-turbo",
+      "openAiApiKey": "your-azure-api-key",
+      "azureApiVersion": "2024-02-15-preview"
+    }
+  }
+}
+```
+
+### Self-Hosted vLLM
+
+```json
+{
+  "providerSettings": {
+    "OpenAiCompatible": {
+      "models": [
+        {
+          "id": "meta-llama/Llama-2-70b-chat-hf",
+          "name": "Llama 2 70B"
+        }
+      ],
+      "openAiBaseUrl": "http://vllm.company.com:8000/v1"
+    }
+  }
+}
+```
+
+### Local Ollama
+
+```json
+{
+  "providerSettings": {
+    "OpenAiCompatible": {
+      "models": [
+        {
+          "id": "codellama",
+          "name": "Code Llama"
+        }
+      ],
+      "openAiBaseUrl": "http://localhost:11434/v1"
+    }
+  }
+}
+```
+
+### Text Generation Inference (TGI)
+
+```json
+{
+  "providerSettings": {
+    "OpenAiCompatible": {
+      "models": [
+        {
+          "id": "mistralai/Mistral-7B-Instruct-v0.2",
+          "name": "Mistral 7B Instruct"
+        }
+      ],
+      "openAiBaseUrl": "http://tgi.company.com:8080/v1",
+      "openAiApiKey": "your-tgi-api-key"
+    }
+  }
+}
+```
+
+### LocalAI
+
+```json
+{
+  "providerSettings": {
+    "OpenAiCompatible": {
+      "models": [
+        {
+          "id": "gpt-3.5-turbo",
+          "name": "Local GPT-3.5"
+        }
+      ],
+      "openAiBaseUrl": "http://localhost:8080/v1"
+    }
+  }
+}
+```
+
+### Internal Network (No Auth)
+
+```json
+{
+  "providerSettings": {
+    "OpenAiCompatible": {
+      "models": [
+        {
+          "id": "custom-model",
+          "name": "Custom Model"
+        }
+      ],
+      "openAiBaseUrl": "http://internal.api:8000/v1"
+    }
+  }
+}
+```
+
+## Model Configuration
+
+Each model requires basic information:
+
+```json
+{
+  "id": "model-identifier",
+  "name": "Display Name",
+  "info": {
+    "maxTokens": 4096,
+    "contextWindow": 128000,
+    "supportsImages": true,
+    "supportsPromptCache": false
+  }
+}
+```
+
+## Prerequisites
+
+Before configuring a custom provider, you need:
+
+1. **API Endpoint**: URL of your OpenAI-compatible API
+2. **API Key** (if required): Authentication credentials
+3. **Model IDs**: Names of available models
+4. **Network Access**: Connectivity from where Cline is being used
+
+## Troubleshooting
+
+**Connection Errors**
+
+Verify the endpoint is accessible:
+```bash
+curl https://your-api.company.com/v1/models
+```
+
+**Authentication Errors**
+
+Test authentication with your API key:
+```bash
+curl -H "Authorization: Bearer your-api-key" \
+  https://your-api.company.com/v1/models
+```
+
+**Model Not Found**
+
+Ensure the model ID in your configuration matches what the API expects. Check available models:
+```bash
+curl -H "Authorization: Bearer your-api-key" \
+  https://your-api.company.com/v1/models
+```
+
+**Timeout Issues**
+
+If responses are slow:
+- Check network latency
+- Verify server has adequate resources
+- Consider using faster models
+
+## Provider Documentation
+
+For setup and deployment of these services, see their official documentation:
+
+<CardGroup cols={2}>
+  <Card title="Azure OpenAI" icon="microsoft" href="https://learn.microsoft.com/en-us/azure/ai-services/openai/">
+    Microsoft's managed OpenAI service
+  </Card>
+  
+  <Card title="vLLM" icon="server" href="https://docs.vllm.ai/">
+    High-performance inference engine
+  </Card>
+  
+  <Card title="Ollama" icon="download" href="https://ollama.ai/">
+    Run models locally
+  </Card>
+  
+  <Card title="Text Generation Inference" icon="code" href="https://huggingface.co/docs/text-generation-inference/">
+    Hugging Face inference server
+  </Card>
+</CardGroup>

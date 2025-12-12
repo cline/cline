@@ -42,18 +42,42 @@ e2e("Views - can set up API keys and navigate to Settings from Chat", async ({ s
 	await expect(apiKeyInput).not.toBeVisible()
 	await expect(providerSelectorInput).not.toBeVisible()
 
-	// Verify you are now in the chat page after setup was completed
-	// cline logo has the name "clline-logo"
-	const clineLogo = sidebar.locator(".size-20 > path")
+	// Verify the "What's New" modal is visible for new installs and can be closed.
+	const dialog = sidebar.getByRole("heading", {
+		name: /^🎉 New in v\d/,
+	})
+	await expect(dialog).toBeVisible()
+	await sidebar.getByRole("button", { name: "Close" }).click()
+	await expect(dialog).not.toBeVisible()
+
+	// Verify you are now in the chat page after setup was completed and the dialog was closed.
+	// cline logo container
+	const clineLogo = sidebar.locator(".size-20")
 	await expect(clineLogo).toBeVisible()
 	const chatInputBox = sidebar.getByTestId("chat-input")
 	await expect(chatInputBox).toBeVisible()
 
-	// Verify the release banner is visible for new installs and can be closed.
-	const releaseBanner = sidebar.getByRole("heading", {
-		name: /^🎉 New in v\d/,
-	})
-	await expect(releaseBanner).toBeVisible()
-	await sidebar.getByTestId("close-announcement-button").click()
-	await expect(releaseBanner).not.toBeVisible()
+	// Verify What's New Section is showing and starts with first banner,
+	// and the navigation buttons work
+	await expect(sidebar.locator(".fade-in-cards")).toBeVisible()
+	await expect(
+		sidebar
+			.locator("div")
+			.filter({ hasText: /^1\/3$/ })
+			.first(),
+	).toBeVisible()
+	await sidebar.getByRole("button", { name: "Next banner" }).click()
+	await expect(
+		sidebar
+			.locator("div")
+			.filter({ hasText: /^2\/3$/ })
+			.first(),
+	).toBeVisible()
+	await sidebar.getByRole("button", { name: "Previous banner" }).click()
+	await expect(
+		sidebar
+			.locator("div")
+			.filter({ hasText: /^1\/3$/ })
+			.first(),
+	).toBeVisible()
 })

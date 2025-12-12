@@ -984,6 +984,33 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
+		case msg.Say == string(types.SayTypeMcpServerResponse):
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
+			}
+
+		case msg.Say == string(types.SayTypeMcpNotification):
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
+			}
+
+		case msg.Say == string(types.SayTypeUseMcpServer):
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
+			}
+
 		case msg.Say == string(types.SayTypeCheckpointCreated):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
@@ -1005,6 +1032,14 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 					coordinator.CompleteTurn(len(messages))
 					displayedUsage = true
 				}
+			}
+
+		case msg.Say == string(types.SayTypeCompletionResult):
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !msg.Partial && !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Ask == string(types.AskTypeCommandOutput):
