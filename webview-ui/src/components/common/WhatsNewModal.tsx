@@ -86,23 +86,6 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 		}, 10)
 	}
 
-	const setGPT52 = () => {
-		const modelId = "openai/gpt-5.2"
-		handleFieldsChange({
-			planModeOpenRouterModelId: modelId,
-			actModeOpenRouterModelId: modelId,
-			planModeOpenRouterModelInfo: openRouterModels[modelId],
-			actModeOpenRouterModelInfo: openRouterModels[modelId],
-			planModeApiProvider: "cline",
-			actModeApiProvider: "cline",
-		})
-
-		setTimeout(() => {
-			setDidClickGPT52Button(true)
-			setShowChatModelSelector(true)
-		}, 10)
-	}
-
 	const handleShowAccount = () => {
 		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
 			console.error("Failed to get login URL:", err),
@@ -220,7 +203,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 											appearance="primary"
 											onClick={setDevstral}
 											style={{ transform: "scale(0.85)", transformOrigin: "left center" }}>
-											Try Devstral-2512
+											Free Try Devstral-2512
 										</VSCodeButton>
 									)}
 								</div>
