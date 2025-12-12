@@ -8,23 +8,23 @@ import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotoc
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import {
 	CallToolResultSchema,
+	GetPromptResultSchema,
+	ListPromptsResultSchema,
 	ListResourcesResultSchema,
 	ListResourceTemplatesResultSchema,
 	ListToolsResultSchema,
-	ListPromptsResultSchema,
-	GetPromptResultSchema,
 	ReadResourceResultSchema,
 } from "@modelcontextprotocol/sdk/types.js"
 import {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
+	McpPrompt,
+	McpPromptResponse,
 	McpResource,
 	McpResourceResponse,
 	McpResourceTemplate,
 	McpServer,
 	McpTool,
 	McpToolCallResponse,
-	McpPrompt,
-	McpPromptResponse,
 	MIN_MCP_TIMEOUT_SECONDS,
 } from "@shared/mcp"
 import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
@@ -619,13 +619,9 @@ export class McpHub {
 				return []
 			}
 
-			const response = await connection.client.request(
-				{ method: "prompts/list" },
-				ListPromptsResultSchema,
-				{
-					timeout: DEFAULT_REQUEST_TIMEOUT_MS,
-				},
-			)
+			const response = await connection.client.request({ method: "prompts/list" }, ListPromptsResultSchema, {
+				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+			})
 
 			return (response?.prompts || []).map((prompt) => ({
 				name: prompt.name,
@@ -638,7 +634,6 @@ export class McpHub {
 				})),
 			}))
 		} catch (_error) {
-			// console.error(`Failed to fetch prompts for ${serverName}:`, error)
 			return []
 		}
 	}
