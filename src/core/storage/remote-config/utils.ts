@@ -175,16 +175,20 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	return transformed
 }
 
+const REMOTE_CONFIG_OTEL_PROVIDER_ID = "OpenTelemetryRemoteConfiguredProvider"
+
 /**
  * Applies remote config to the StateManager's remote config cache
  * @param remoteConfig The remote configuration object to apply
  */
 export async function applyRemoteConfig(remoteConfig?: RemoteConfig): Promise<void> {
 	const stateManager = StateManager.get()
+	const telemetryService = await getTelemetryService()
 
 	// If no remote config provided, clear the cache and relevant state
 	if (!remoteConfig) {
 		stateManager.clearRemoteConfig()
+		telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
 		// the remote config cline rules toggle state is stored in global state
 		stateManager.setGlobalState("remoteRulesToggles", {})
 		stateManager.setGlobalState("remoteWorkflowToggles", {})
@@ -206,6 +210,7 @@ export async function applyRemoteConfig(remoteConfig?: RemoteConfig): Promise<vo
 
 	// Clear existing remote config cache
 	stateManager.clearRemoteConfig()
+	telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
 
 	// Populate remote config cache with transformed values
 	for (const [key, value] of Object.entries(transformed)) {
@@ -214,12 +219,14 @@ export async function applyRemoteConfig(remoteConfig?: RemoteConfig): Promise<vo
 
 	const otelConfig = remoteConfigToOtelConfig(transformed)
 	if (otelConfig.enabled) {
-		const telemetryService = await getTelemetryService()
 		const client = new OpenTelemetryClientProvider(otelConfig as OpenTelemetryClientValidConfig)
 
 		if (client.meterProvider || client.loggerProvider) {
 			telemetryService.addProvider(
-				await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider).initialize(),
+				await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider, {
+					id: REMOTE_CONFIG_OTEL_PROVIDER_ID,
+					remoteConfig: true,
+				}).initialize(),
 			)
 		}
 	}

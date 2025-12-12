@@ -24,7 +24,17 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	private gauges = new Map<string, ReturnType<Meter["createObservableGauge"]>>()
 	private gaugeValues = new Map<string, Map<string, { value: number; attributes?: TelemetryProperties }>>()
 
-	constructor(meterProvider: MeterProvider | null, loggerProvider: LoggerProvider | null) {
+	private id?: string
+	private remoteConfig?: boolean
+
+	constructor(
+		meterProvider: MeterProvider | null,
+		loggerProvider: LoggerProvider | null,
+		{ id, remoteConfig }: { id?: string; remoteConfig?: boolean } = {},
+	) {
+		this.id = id
+		this.remoteConfig = remoteConfig
+
 		// Initialize telemetry settings
 		this.telemetrySettings = {
 			extensionEnabled: true,
@@ -48,10 +58,14 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 		}
 	}
 	name(): string {
-		return "OpenTelemetryProvider"
+		return this.id || "OpenTelemetryProvider"
 	}
 
 	public async initialize(): Promise<OpenTelemetryTelemetryProvider> {
+		if (this.remoteConfig) {
+			return this
+		}
+
 		// Listen for host telemetry changes
 		HostProvider.env.subscribeToTelemetrySettings(
 			{},
@@ -149,7 +163,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public isEnabled(): boolean {
-		return this.telemetrySettings.extensionEnabled && this.telemetrySettings.hostEnabled
+		return this.remoteConfig || (this.telemetrySettings.extensionEnabled && this.telemetrySettings.hostEnabled)
 	}
 
 	public getSettings(): TelemetrySettings {

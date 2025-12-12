@@ -300,6 +300,10 @@ export class TelemetryService {
 		this.providers.push(provider)
 	}
 
+	public removeProvider(name: string) {
+		this.providers = this.providers.filter((p) => p.name() !== name)
+	}
+
 	/**
 	 * Updates the telemetry state based on user preferences and VSCode settings
 	 * Only enables telemetry if both VSCode global telemetry is enabled and user has opted in
