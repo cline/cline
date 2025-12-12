@@ -203,7 +203,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 											appearance="primary"
 											onClick={setDevstral}
 											style={{ transform: "scale(0.85)", transformOrigin: "left center" }}>
-											Free Try Devstral-2512
+											Try for Free Devstral-2512
 										</VSCodeButton>
 									)}
 								</div>
