@@ -226,7 +226,7 @@ export class McpHub {
 
 			if (remoteConfig.blockPersonalRemoteMCPServers === true) {
 				const remoteMCPServers = remoteConfig.remoteMCPServers || []
-				const allowedUrls = remoteMCPServers.map((server: { name: string; url: string }) => server.url)
+				const allowedUrls = remoteMCPServers.map((server) => server.url)
 
 				if (!allowedUrls.includes(config.url)) {
 					return
@@ -236,7 +236,6 @@ export class McpHub {
 
 		// Validate local MCP servers based on remote config
 		if (config.type === "stdio") {
-			const { StateManager } = await import("@core/storage/StateManager")
 			const stateManager = StateManager.get()
 			const remoteConfig = stateManager.getRemoteConfigSettings()
 
