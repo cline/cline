@@ -808,10 +808,6 @@ export function filterOpenRouterModelIds(modelIds: string[], provider: ApiProvid
 			if (id.toLowerCase().includes("minimax-m2") || id.toLowerCase().includes("devstral-2512")) {
 				return true
 			}
-			// Keep the selected model if it's a :free model
-			if (id === openRouterDefaultModelId) {
-				return true
-			}
 			// Filter out other :free models
 			return !id.includes(":free")
 		})
