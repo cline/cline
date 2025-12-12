@@ -1,5 +1,6 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { InfoIcon } from "lucide-react"
+import ClineLogoSanta from "@/assets/ClineLogoSanta"
 import ClineLogoVariable from "@/assets/ClineLogoVariable"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -20,10 +21,35 @@ const HomeHeader = ({ shouldShowQuickWins = false }: HomeHeaderProps) => {
 		}
 	}
 
+	// Check if it's December for festive logo
+	const isDecember = new Date().getMonth() === 11 // 11 = December (0-indexed)
+	const LogoComponent = isDecember ? ClineLogoSanta : ClineLogoVariable
+
 	return (
 		<div className="flex flex-col items-center mb-5">
-			<div className="my-7">
-				<ClineLogoVariable className="size-20" environment={environment} />
+			<style>
+				{`
+					@keyframes logo-pop-in {
+						0% {
+							opacity: 0;
+							transform: scale(0.95);
+						}
+						60% {
+							opacity: 1;
+							transform: scale(1.02);
+						}
+						100% {
+							opacity: 1;
+							transform: scale(1);
+						}
+					}
+					.logo-animate {
+						animation: logo-pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+					}
+				`}
+			</style>
+			<div className="my-7 logo-animate">
+				<LogoComponent className="size-20" environment={environment} />
 			</div>
 			<div className="text-center flex items-center justify-center">
 				<h1 className="m-0 font-bold">What can I do for you?</h1>

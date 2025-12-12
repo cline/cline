@@ -1,13 +1,62 @@
 # Changelog
 
+## [3.41.0]
+
+### Added
+- OpenAI GPT-5.2
+- Devstral-2512 (formerly stealth model "Microwave")
+- Improvements to chat modal model picker
+- Amazon Nova 2 Lite 
+- DeepSeek 3.2 to native tool calling allow list
+- Responses API support for Codex models in OpenAI provider (requires native tool calling)
+- Xmas Special Santa Cline
+- Welcome screen UI enhancements
+
+### Fixed
+- Initial checkpoint commit now non-blocking for improved responsiveness in large repositories
+- Gemini Vertex models erroring when thinking parameters are not supported
+- Restrictive file permissions for secrets.json
+- Ollama streaming requests not aborting when task is cancelled
+
+### Refactored
+- OpenAI provider to centralize temperature configuration and include missing GPT-5 model settings
+- OpenAI native handler to use metadata for model capabilities
+- Vertex provider to use metadata for model capabilities
+
+## [3.40.2]
+
+- Fix logout on network errors during token refresh (e.g., opening laptop while offline)
+
+## [3.40.1]
+
+- Fix cost calculation display for Anthropic API requests
+
+## [3.40.0]
+
+- Fix highlighted text flashing when task header is collapsed
+- Add X-Cerebras-3rd-Party-Integration header to Cerebras API requests
+- Add microwave family system prompt configuration
+- Remove tooltips from auto approve menu
+- Fix Standalone, ensure cwd is the install dir to find resources reliably
+- Fix a bug where terminal commands with double quotes are broken when "Terminal Execution Mode" is set to "Background Exec"
+- Add support for slash commands anywhere in a message, not just at the beginning. This matches the behavior of @ mentions for a more flexible input experience.
+- Add bottom padding to the last message to fix last response text getting cut off by auto approve settings bar.
+- Add default thinking level for Gemini 3 Pro models in Gemini provider
+
+## [3.39.2]
+
+- Fix for microwave model and thinking settings
+
 ## [3.39.1]
+
 - Fix Openrouter and Cline Provider model info
 
 ## [3.39.0]
+
 - Add Explain Changes feature
 - Add microwave Stealth model
-- Add Tabbed Model Picker with Recommended and Free tabs 
-- Add support to View remote rules and workflows in the editor 
+- Add Tabbed Model Picker with Recommended and Free tabs
+- Add support to View remote rules and workflows in the editor
 - Enable NTC (Native Tool Calling) by default
 - Bug fixes and improvements for LiteLLM provider
 
@@ -31,18 +80,20 @@
 ## [3.38.1]
 
 ### Fixed
+
 - Fixed handling of 'signature' field in sanitizeAnthropicContentBlock to properly preserve it when thinking is enabled, as required by Anthropic's API.
 
 ## [3.38.0]
 
 ### Added
+
 - Gemini 3 Pro Preview model
 - AquaVoice Avalon model for voice-to-text dictation
 
 ### Fixed
+
 - Automatic context truncation when AWS Bedrock token usage rate limits are exceeded
 - Removed new_task tool from system prompts, updated slash command prompts, and added helper function for native tool calling validation
-
 
 ## [3.37.1]
 
