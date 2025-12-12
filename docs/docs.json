@@ -137,8 +137,16 @@
 							"features/dictation",
 							"features/drag-and-drop",
 							"features/editing-messages",
+							"features/explain-changes",
 							"features/focus-chain",
-							"features/hooks",
+							{
+								"group": "Hooks",
+								"pages": [
+									"features/hooks/index",
+									"features/hooks/hook-reference",
+									"features/hooks/samples"
+								]
+							},
 							"features/multiroot-workspace",
 							"features/plan-and-act",
 							{
@@ -146,12 +154,20 @@
 								"pages": [
 									"features/slash-commands/new-task",
 									"features/slash-commands/new-rule",
+									"features/slash-commands/explain-changes",
 									"features/slash-commands/smol",
 									"features/slash-commands/report-bug",
 									"features/slash-commands/deep-planning"
 								]
 							},
-							"features/slash-commands/workflows",
+							{
+								"group": "Workflows",
+								"pages": [
+									"features/slash-commands/workflows/index",
+									"features/slash-commands/workflows/quickstart",
+									"features/slash-commands/workflows/best-practices"
+								]
+							},
 							{
 								"group": "Task Management",
 								"pages": [
@@ -189,6 +205,7 @@
 									"provider-config/fireworks",
 									"provider-config/zai",
 									"provider-config/gcp-vertex-ai",
+									"provider-config/baseten",
 									{
 										"group": "AWS Bedrock",
 										"pages": [
@@ -215,8 +232,7 @@
 									"provider-config/vscode-language-model-api",
 									"provider-config/sap-aicore",
 									"provider-config/vercel-ai-gateway",
-									"provider-config/requesty",
-									"provider-config/baseten"
+									"provider-config/requesty"
 								]
 							}
 						]
@@ -242,18 +258,68 @@
 						]
 					},
 					{
-						"group": "Enterprise",
-						"pages": [
-							"enterprise-solutions/overview",
-							"enterprise-solutions/security-concerns"
-						]
-					},
-					{
 						"group": "Reference",
 						"pages": [
+							"troubleshooting/networking-and-proxies",
 							"troubleshooting/terminal-quick-fixes",
 							"troubleshooting/terminal-integration-guide",
+							"troubleshooting/task-history-recovery",
 							"more-info/telemetry"
+						]
+					}
+				]
+			},
+			{
+				"tab": "Enterprise",
+				"icon": "building",
+				"groups": [
+					{
+						"group": "Enterprise Solutions",
+						"pages": [
+							"enterprise-solutions/overview",
+							"enterprise-solutions/onboarding",
+							"enterprise-solutions/team-management/managing-members",
+							{
+								"group": "SaaS Provider Configuration",
+								"pages": [
+									"enterprise-solutions/configuration/remote-configuration/overview",
+									{
+										"group": "AWS Bedrock",
+										"pages": [
+											"enterprise-solutions/configuration/remote-configuration/aws-bedrock/admin-configuration",
+											"enterprise-solutions/configuration/remote-configuration/aws-bedrock/member-configuration"
+										]
+									},
+									{
+										"group": "LiteLLM",
+										"pages": [
+											"enterprise-solutions/configuration/remote-configuration/litellm/admin-configuration",
+											"enterprise-solutions/configuration/remote-configuration/litellm/member-configuration"
+										]
+									},
+									{
+										"group": "Google Vertex AI",
+										"pages": [
+											"enterprise-solutions/configuration/remote-configuration/google-vertex/admin-configuration",
+											"enterprise-solutions/configuration/remote-configuration/google-vertex/member-configuration"
+										]
+									}
+								]
+							},
+							{
+								"group": "Control Other Cline Features",
+								"pages": [
+									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/yolo-mode"
+								]
+							},
+							{
+								"group": "Monitoring",
+								"pages": [
+									"enterprise-solutions/monitoring/overview",
+									"enterprise-solutions/monitoring/telemetry",
+									"enterprise-solutions/monitoring/opentelemetry"
+								]
+							}
 						]
 					}
 				]
@@ -262,11 +328,6 @@
 				"tab": "Learn",
 				"icon": "graduation-cap",
 				"href": "https://cline.bot/learn"
-			},
-			{
-				"tab": "Blog",
-				"icon": "newspaper",
-				"href": "https://cline.bot/blog"
 			}
 		]
 	},
@@ -328,6 +389,34 @@
 		{
 			"source": "/cline-cli/samples",
 			"destination": "/cline-cli/samples/overview"
+		},
+		{
+			"source": "/features/hooks/real-world-examples",
+			"destination": "/features/hooks/samples"
+		},
+		{
+			"source": "/enterprise-solutions/configure-AWS-Bedrock-Admin",
+			"destination": "/enterprise-solutions/configuration/remote-configuration/aws-bedrock/admin-configuration"
+		},
+		{
+			"source": "/enterprise-solutions/configure-AWS-Bedrock-Member",
+			"destination": "/enterprise-solutions/configuration/remote-configuration/aws-bedrock/member-configuration"
+		},
+		{
+			"source": "/enterprise-solutions/configure-workOS-authkit",
+			"destination": "/enterprise-solutions/onboarding"
+		},
+		{
+			"source": "/enterprise-solutions/Onboarding your Organization",
+			"destination": "/enterprise-solutions/onboarding"
+		},
+		{
+			"source": "/enterprise-solutions/team-management/overview",
+			"destination": "/enterprise-solutions/team-management/managing-members"
+		},
+		{
+			"source": "/enterprise-solutions/team-management/roles-and-permissions",
+			"destination": "/enterprise-solutions/team-management/managing-members"
 		}
 	],
 	"search": {

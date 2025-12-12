@@ -91,7 +91,7 @@ export async function refreshAvalaiModels(
 			}
 		}
 		await fs.writeFile(avalaiModelsFilePath, JSON.stringify(models))
-	} catch (error) {
+	} catch (_error) {
 		// If we failed to fetch models, try to read cached models
 		const cachedModels = await readAvalaiModels(controller)
 		if (cachedModels) {
@@ -112,7 +112,7 @@ async function readAvalaiModels(controller: Controller): Promise<Record<string, 
 		try {
 			const fileContents = await fs.readFile(avalaiModelsFilePath, "utf8")
 			return JSON.parse(fileContents)
-		} catch (error) {
+		} catch (_error) {
 			return undefined
 		}
 	}

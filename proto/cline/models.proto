@@ -29,8 +29,12 @@ service ModelsService {
   rpc refreshHicapModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns AvalAI models
   rpc refreshAvalaiModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Refreshes and returns LiteLLM models
+  rpc refreshLiteLlmModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Subscribe to OpenRouter models updates
   rpc subscribeToOpenRouterModels(EmptyRequest) returns (stream OpenRouterCompatibleModelInfo);
+  // Subscribe to LiteLLM models updates
+  rpc subscribeToLiteLlmModels(EmptyRequest) returns (stream OpenRouterCompatibleModelInfo);
   // Updates API configuration (legacy - uses combined configuration)
   rpc updateApiConfigurationProto(UpdateApiConfigurationRequest) returns (Empty);
   // Updates API configuration (new - uses separate options and secrets)
@@ -99,6 +103,9 @@ message OpenRouterModelInfo {
   optional bool supports_global_endpoint = 11;
   repeated ModelTier tiers = 12;
   optional string name = 13;
+  optional double temperature = 14;
+  optional bool supports_reasoning = 15;
+  optional ApiFormat api_format = 16;
 }
 
 // Shared response message for model information
@@ -378,6 +385,8 @@ message OcaModelInfo {
   optional string banner = 16;
   // Canonical model identifier as reported by OCA
   string model_name = 17;
+  // The API format used by this model
+  optional ApiFormat api_format = 18;
 }
 
 // Aggregated OCA model catalog keyed by model identifier
@@ -433,6 +442,14 @@ enum ApiProvider {
   AVALAI = 40;
 }
 
+enum ApiFormat {
+  ANTHROPIC_CHAT = 0;
+  GEMINI_CHAT = 1;
+  OPENAI_CHAT = 2;
+  R1_CHAT = 3;
+  OPENAI_RESPONSES = 4;
+}
+
 // Model info for OpenAI-compatible models
 message OpenAiCompatibleModelInfo {
   optional int64 max_tokens = 1;
@@ -449,6 +466,7 @@ message OpenAiCompatibleModelInfo {
   repeated ModelTier tiers = 12;
   optional double temperature = 13;
   optional bool is_r1_format_required = 14;
+  optional ApiFormat api_format = 15;
 }
 
 // Model info for LiteLLM models
@@ -466,6 +484,7 @@ message LiteLLMModelInfo {
   optional string description = 11;
   repeated ModelTier tiers = 12;
   optional double temperature = 13;
+  optional ApiFormat api_format = 14;
 }
 
 // Main ApiConfiguration message
@@ -597,8 +616,9 @@ message ModelsApiConfiguration {
   optional string plan_mode_aihubmix_model_id = 135;
   optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 136;
   optional string plan_mode_nous_research_model_id = 137;
-  optional string plan_mode_avalai_model_id = 138;
-  optional OpenRouterModelInfo plan_mode_avalai_model_info = 139;
+  optional string gemini_plan_mode_thinking_level = 138;
+  optional string plan_mode_avalai_model_id = 139;
+  optional OpenRouterModelInfo plan_mode_avalai_model_info = 140;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -639,6 +659,7 @@ message ModelsApiConfiguration {
   optional string act_mode_aihubmix_model_id = 235;
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 236;
   optional string act_mode_nous_research_model_id = 237;
-  optional string act_mode_avalai_model_id = 238;
-  optional OpenRouterModelInfo act_mode_avalai_model_info = 239;
+  optional string gemini_act_mode_thinking_level = 238;
+  optional string act_mode_avalai_model_id = 239;
+  optional OpenRouterModelInfo act_mode_avalai_model_info = 240;
 }

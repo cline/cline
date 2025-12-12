@@ -28,7 +28,7 @@ export interface AvalaiModelPickerProps {
 	currentMode: Mode
 }
 
-const AvalaiModelPicker: React.FC<AvalaiModelPickerProps> = ({ isPopup, currentMode }) => {
+const AvalaiModelPicker: React.FC<AvalaiModelPickerProps> = ({ isPopup: _isPopup, currentMode }) => {
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds, avalaiModels, refreshAvalaiModels } = useExtensionState()
 

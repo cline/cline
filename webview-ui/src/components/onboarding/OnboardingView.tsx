@@ -199,8 +199,7 @@ type UserTypeSelectionProps = {
 
 const UserTypeSelectionStep = ({ userType, onSelectUserType }: UserTypeSelectionProps) => (
 	<div className="flex flex-col w-full items-center">
-		<div className="flex w-full max-w-lg flex-col gap-6 my-4">
-			<h3 className="text-base text-left self-start font-semibold">LETS GET STARTED</h3>
+		<div className="flex w-full max-w-lg flex-col gap-3 my-2">
 			{USER_TYPE_SELECTIONS.map((option) => {
 				const isSelected = userType === option.type
 
@@ -276,6 +275,7 @@ const OnboardingView = ({ onboardingModels }: { onboardingModels: OnboardingMode
 	const { openRouterModels, hideSettings, hideAccount, setShowWelcome } = useExtensionState()
 
 	const [stepNumber, setStepNumber] = useState(0)
+	const [isActionLoading, setIsActionLoading] = useState(false)
 	const [userType, setUserType] = useState<NEW_USER_TYPE>(NEW_USER_TYPE.FREE)
 
 	const [selectedModelId, setSelectedModelId] = useState("")
@@ -335,11 +335,17 @@ const OnboardingView = ({ onboardingModels }: { onboardingModels: OnboardingMode
 			switch (action) {
 				case "signup":
 					setStepNumber(stepNumber + 1)
-					await AccountServiceClient.accountLoginClicked({}).catch(() => {})
+					setIsActionLoading(true)
+					await AccountServiceClient.accountLoginClicked({})
+						.catch(() => {})
+						.finally(() => setIsActionLoading(false))
 					await finishOnboarding(true, stepNumber + 1)
 					break
 				case "signin":
-					await AccountServiceClient.accountLoginClicked({}).catch(() => {})
+					setIsActionLoading(true)
+					await AccountServiceClient.accountLoginClicked({})
+						.catch(() => {})
+						.finally(() => setIsActionLoading(false))
 					await finishOnboarding(true, stepNumber + 1)
 					break
 				case "next":
@@ -370,19 +376,19 @@ const OnboardingView = ({ onboardingModels }: { onboardingModels: OnboardingMode
 
 	return (
 		<div className="fixed inset-0 p-0 flex flex-col w-full">
-			<div className="h-full px-5 xs:mx-10 overflow-auto flex flex-col gap-7 items-center justify-center mt-10">
-				<ClineLogoWhite className="size-16" />
-				<h2 className="text-lg font-semibold p-0">{stepDisplayInfo.title}</h2>
+			<div className="h-full px-5 xs:mx-10 overflow-auto flex flex-col gap-4 items-center justify-center">
+				<ClineLogoWhite className="size-16 flex-shrink-0" />
+				<h2 className="text-lg font-semibold p-0 flex-shrink-0">{stepDisplayInfo.title}</h2>
 				{stepNumber === 2 && (
 					<div className="flex w-full max-w-lg flex-col gap-6 my-4 items-center ">
 						<LoaderCircleIcon className="animate-spin" />
 					</div>
 				)}
 				{stepDisplayInfo.description && (
-					<p className="text-foreground text-sm text-center m-0 p-0">{stepDisplayInfo.description}</p>
+					<p className="text-foreground text-sm text-center m-0 p-0 flex-shrink-0">{stepDisplayInfo.description}</p>
 				)}
 
-				<div className="flex-1 w-full flex max-w-lg overflow-y-scroll">
+				<div className="flex-1 w-full flex max-w-lg overflow-y-auto min-h-0">
 					<OnboardingStepContent
 						models={openRouterModels}
 						onboardingModels={models}
@@ -396,10 +402,11 @@ const OnboardingView = ({ onboardingModels }: { onboardingModels: OnboardingMode
 					/>
 				</div>
 
-				<footer className="flex w-full max-w-lg flex-col gap-3 my-2 px-2 overflow-hidden">
+				<footer className="flex w-full max-w-lg flex-col gap-3 my-2 px-2 overflow-hidden flex-shrink-0">
 					{stepDisplayInfo.buttons.map((btn) => (
 						<Button
-							className="w-full rounded-xs"
+							className={`w-full rounded-xs ${isActionLoading ? "animate-pulse" : ""}`}
+							disabled={isActionLoading}
 							key={btn.text}
 							onClick={() => handleFooterAction(btn.action)}
 							variant={btn.variant}>

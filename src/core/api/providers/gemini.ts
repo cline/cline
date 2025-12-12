@@ -6,7 +6,7 @@ import {
 	type GenerateContentResponseUsageMetadata,
 	GoogleGenAI,
 	FunctionDeclaration as GoogleTool,
-	Part,
+	ThinkingLevel,
 } from "@google/genai"
 import { GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
 import { telemetryService } from "@/services/telemetry"
@@ -28,6 +28,7 @@ interface GeminiHandlerOptions extends CommonApiHandlerOptions {
 	geminiApiKey?: string
 	geminiBaseUrl?: string
 	thinkingBudgetTokens?: number
+	thinkingLevel?: string
 	apiModelId?: string
 	ulid?: string
 }
@@ -116,28 +117,49 @@ export class GeminiHandler implements ApiHandler {
 		const contents = messages.map(convertAnthropicMessageToGemini)
 
 		// Configure thinking budget if supported
-		const thinkingBudget = this.options.thinkingBudgetTokens ?? 0
-		const _maxBudget = info.thinkingConfig?.maxBudget ?? 0
+		const _thinkingBudget = this.options.thinkingBudgetTokens ?? 0
+		const maxBudget = info.thinkingConfig?.maxBudget ?? 24576
+		const thinkingBudget = Math.min(_thinkingBudget, maxBudget)
+		// When ThinkingLevel is defined, thinking budget cannot be zero
+		// and only level is used to control thinking behavior.
+		// Only set thinkingLevel for models that support it
+		let thinkingLevel: ThinkingLevel | undefined
+		if (info.thinkingConfig?.supportsThinkingLevel) {
+			const level = this.options.thinkingLevel || info.thinkingConfig.geminiThinkingLevel
+			if (level === "high") {
+				thinkingLevel = ThinkingLevel.HIGH
+			} else if (level === "low") {
+				thinkingLevel = ThinkingLevel.LOW
+			}
+		}
 
 		// Set up base generation config
 		const requestConfig: GenerateContentConfig = {
 			// Add base URL if configured
 			httpOptions: this.options.geminiBaseUrl ? { baseUrl: this.options.geminiBaseUrl } : undefined,
-			...{ systemInstruction: systemPrompt },
+			systemInstruction: systemPrompt,
 			// Set temperature (default to 0)
-			temperature: 0,
+			// Gemini 3.0 recommends 1.0
+			temperature: info.temperature ?? 1,
 		}
 
-		// Add thinking config if the model supports it
-		if (thinkingBudget > 0) {
+		// Add thinking config only if the model supports it
+		if (info.thinkingConfig) {
 			requestConfig.thinkingConfig = {
-				thinkingBudget: thinkingBudget,
-				includeThoughts: true,
+				// Turn off thinking:
+				// thinkingBudget: 0
+				// Turn on dynamic thinking:
+				// thinkingBudget: -1
+				// Turn on fixed thinking budget:
+				thinkingBudget: thinkingLevel ? undefined : thinkingBudget, // Use budget only if thinkingLevel is not set
+				thinkingLevel,
+				includeThoughts: thinkingBudget > 0 || !!thinkingLevel,
 			}
 		}
 
 		// Generate content using the configured parameters
 		const sdkCallStartTime = Date.now()
+		let responseId: string | undefined
 		let sdkFirstChunkTime: number | undefined
 		let ttftSdkMs: number | undefined
 		let apiSuccess = false
@@ -148,7 +170,8 @@ export class GeminiHandler implements ApiHandler {
 		let thoughtsTokenCount = 0 // Initialize thought token counts
 		let lastUsageMetadata: GenerateContentResponseUsageMetadata | undefined
 
-		if (tools?.length) {
+		const isNativeToolCallsEnabled = tools?.length
+		if (isNativeToolCallsEnabled) {
 			requestConfig.tools = [{ functionDeclarations: tools }]
 			requestConfig.toolConfig = {
 				// Force the model to call 'any' function.
@@ -176,56 +199,45 @@ export class GeminiHandler implements ApiHandler {
 				}
 
 				// Handle thinking content from Gemini's response
-				const candidateForThoughts = chunk?.candidates?.[0]
-				const partsForThoughts = candidateForThoughts?.content?.parts
-				let thoughts = "" // Initialize as empty string
-
-				if (partsForThoughts) {
-					// This ensures partsForThoughts is a Part[] array
-					for (const part of partsForThoughts) {
-						const { thought, text } = part as Part
-						if (thought && text) {
-							// Ensure part.text exists
-							// Handle the thought part
-							thoughts += text + "\n" // Append thought and a newline
+				const parts = chunk?.candidates?.[0]?.content?.parts || []
+				for (const part of parts) {
+					if (part.thought && part.text) {
+						yield {
+							type: "reasoning",
+							id: chunk.responseId,
+							reasoning: part.text || "",
+							signature: part.thoughtSignature,
+						}
+					} else if (part.text) {
+						yield {
+							type: "text",
+							text: part.text,
+							id: chunk.responseId,
+							signature: part.thoughtSignature,
 						}
 					}
-				}
-
-				if (thoughts.trim() !== "") {
-					yield {
-						type: "reasoning",
-						reasoning: thoughts.trim(),
-					}
-					thoughts = "" // Reset thoughts after yielding
-				}
-
-				if (chunk.text) {
-					yield {
-						type: "text",
-						text: chunk.text,
-					}
-				}
-
-				if (tools && chunk.functionCalls && chunk.functionCalls?.length > 0) {
-					for (const functionCall of chunk.functionCalls) {
-						if (functionCall.args) {
-							console.log("[GeminiHandler] tool call received:", functionCall)
+					if (part.functionCall) {
+						const functionCall = part.functionCall
+						const args = Object.entries(functionCall.args || {}).filter(([_key, val]) => !!val)
+						if (functionCall.args && args.length > 0) {
 							yield {
 								type: "tool_calls",
+								id: chunk.responseId,
 								tool_call: {
 									function: {
-										id: functionCall.id || functionCall.name,
+										id: chunk.responseId,
 										name: functionCall.name,
 										arguments: JSON.stringify(functionCall.args),
 									},
 								},
+								signature: part.thoughtSignature,
 							}
 						}
 					}
 				}
 
 				if (chunk.usageMetadata) {
+					responseId = chunk.responseId
 					lastUsageMetadata = chunk.usageMetadata
 					promptTokens = lastUsageMetadata.promptTokenCount ?? promptTokens
 					outputTokens = lastUsageMetadata.candidatesTokenCount ?? outputTokens
@@ -251,6 +263,7 @@ export class GeminiHandler implements ApiHandler {
 					cacheReadTokens,
 					cacheWriteTokens: 0,
 					totalCost,
+					id: responseId,
 				}
 			}
 		} catch (error) {
