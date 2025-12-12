@@ -226,11 +226,41 @@ export class McpHub {
 
 			if (remoteConfig.blockPersonalRemoteMCPServers === true) {
 				const remoteMCPServers = remoteConfig.remoteMCPServers || []
-				const allowedUrls = remoteMCPServers.map((server) => server.url)
+				const allowedUrls = remoteMCPServers.map((server: { name: string; url: string }) => server.url)
 
 				if (!allowedUrls.includes(config.url)) {
 					return
 				}
+			}
+		}
+
+		// Validate local MCP servers based on remote config
+		if (config.type === "stdio") {
+			const { StateManager } = await import("@core/storage/StateManager")
+			const stateManager = StateManager.get()
+			const remoteConfig = stateManager.getRemoteConfigSettings()
+
+			// If marketplace is disabled, block all local servers
+			if (remoteConfig.mcpMarketplaceEnabled === false) {
+				return
+			}
+
+			// Check if server is from GitHub marketplace
+			if (name.startsWith("github.com/")) {
+				// If allowlist is configured, validate against it
+				if (remoteConfig.allowedMCPServers && remoteConfig.allowedMCPServers.length > 0) {
+					const allowedIds = remoteConfig.allowedMCPServers.map((server: { id: string }) => server.id)
+
+					if (!allowedIds.includes(name)) {
+						return
+					}
+				} else {
+					// If no allowlist, GitHub servers are not allowed
+					return
+				}
+			} else {
+				// Non-GitHub local servers are blocked
+				return
 			}
 		}
 
