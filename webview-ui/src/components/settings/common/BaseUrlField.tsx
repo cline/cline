@@ -13,6 +13,7 @@ interface BaseUrlFieldProps {
 	placeholder?: string
 	disabled?: boolean
 	showLockIcon?: boolean
+	alwaysVisible?: boolean
 }
 
 /**
@@ -25,8 +26,9 @@ export const BaseUrlField = ({
 	placeholder = "Default: https://api.example.com",
 	disabled = false,
 	showLockIcon = false,
+	alwaysVisible = false,
 }: BaseUrlFieldProps) => {
-	const [isEnabled, setIsEnabled] = useState(!!initialValue)
+	const [isEnabled, setIsEnabled] = useState(!!initialValue || alwaysVisible)
 	const [localValue, setLocalValue] = useDebouncedInput(initialValue || "", onChange)
 
 	const handleToggle = (e: any) => {
@@ -35,6 +37,22 @@ export const BaseUrlField = ({
 		if (!checked) {
 			setLocalValue("")
 		}
+	}
+
+	// If alwaysVisible is true, render without checkbox
+	if (alwaysVisible) {
+		return (
+			<div style={{ marginBottom: 10 }}>
+				<label style={{ display: "block", marginBottom: 4, fontSize: "13px" }}>{label}</label>
+				<VSCodeTextField
+					onInput={(e: any) => setLocalValue(e.target.value.trim())}
+					placeholder={placeholder}
+					style={{ width: "100%" }}
+					type="url"
+					value={localValue}
+				/>
+			</div>
+		)
 	}
 
 	return (

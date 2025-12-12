@@ -315,6 +315,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.HICAP
 		case "nousResearch":
 			return ProtoApiProvider.NOUSRESEARCH
+		case "databricks":
+			return ProtoApiProvider.DATABRICKS
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -403,6 +405,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "minimax"
 		case ProtoApiProvider.NOUSRESEARCH:
 			return "nousResearch"
+		case ProtoApiProvider.DATABRICKS:
+			return "databricks"
 		default:
 			return "anthropic"
 	}
@@ -494,6 +498,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		aihubmixAppCode: config.aihubmixAppCode,
 		hicapApiKey: config.hicapApiKey,
 		hicapModelId: config.hicapModelId,
+		databricksApiKey: config.databricksApiKey,
+		databricksBaseUrl: config.databricksBaseUrl,
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider ? convertApiProviderToProto(config.planModeApiProvider) : undefined,
@@ -661,6 +667,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		hicapApiKey: protoConfig.hicapApiKey,
 		hicapModelId: protoConfig.hicapModelId,
 		nousResearchApiKey: protoConfig.nousResearchApiKey,
+		databricksApiKey: protoConfig.databricksApiKey,
+		databricksBaseUrl: protoConfig.databricksBaseUrl,
 
 		// Plan mode configurations
 		planModeApiProvider:
