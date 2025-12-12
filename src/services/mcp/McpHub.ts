@@ -218,6 +218,22 @@ export class McpHub {
 		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
 		this.connections = this.connections.filter((conn) => conn.server.name !== name)
 
+		// Validate remote MCP server URL against remote config if blockPersonalRemoteMCPServers is enabled
+		if (config.type !== "stdio" && "url" in config && config.url) {
+			const { StateManager } = await import("@core/storage/StateManager")
+			const stateManager = StateManager.get()
+			const remoteConfig = stateManager.getRemoteConfigSettings()
+
+			if (remoteConfig.blockPersonalRemoteMCPServers === true) {
+				const remoteMCPServers = remoteConfig.remoteMCPServers || []
+				const allowedUrls = remoteMCPServers.map((server) => server.url)
+
+				if (!allowedUrls.includes(config.url)) {
+					return
+				}
+			}
+		}
+
 		if (config.disabled) {
 			//console.log(`[MCP Debug] Creating disabled connection object for server "${name}"`)
 			// Create a connection object for disabled server so it appears in UI
