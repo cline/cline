@@ -256,7 +256,7 @@ export async function parseSlashCommands(
 /**
  * Formats MCP prompt response messages into a text format for injection
  */
-function formatMcpPromptResponse(response: McpPromptResponse): string {
+export function formatMcpPromptResponse(response: McpPromptResponse): string {
 	const parts: string[] = []
 
 	if (response.description) {
