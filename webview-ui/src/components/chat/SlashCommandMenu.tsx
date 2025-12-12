@@ -1,3 +1,4 @@
+import type { McpServer } from "@shared/mcp"
 import React, { useCallback, useEffect, useRef } from "react"
 import { getMatchingSlashCommands, SlashCommand } from "@/utils/slash-commands"
 
@@ -11,6 +12,7 @@ interface SlashCommandMenuProps {
 	globalWorkflowToggles?: Record<string, boolean>
 	remoteWorkflowToggles?: Record<string, boolean>
 	remoteWorkflows?: any[]
+	mcpServers?: McpServer[]
 }
 
 const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
@@ -23,6 +25,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 	globalWorkflowToggles = {},
 	remoteWorkflowToggles,
 	remoteWorkflows,
+	mcpServers = [],
 }) => {
 	const menuRef = useRef<HTMLDivElement>(null)
 
@@ -56,9 +59,11 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 		globalWorkflowToggles,
 		remoteWorkflowToggles,
 		remoteWorkflows,
+		mcpServers,
 	)
 	const defaultCommands = filteredCommands.filter((cmd) => cmd.section === "default" || !cmd.section)
 	const workflowCommands = filteredCommands.filter((cmd) => cmd.section === "custom")
+	const mcpCommands = filteredCommands.filter((cmd) => cmd.section === "mcp")
 
 	// Create a reusable function for rendering a command section
 	const renderCommandSection = (commands: SlashCommand[], title: string, indexOffset: number, showDescriptions: boolean) => {
@@ -112,6 +117,12 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 					<>
 						{renderCommandSection(defaultCommands, "Default Commands", 0, true)}
 						{renderCommandSection(workflowCommands, "Workflow Commands", defaultCommands.length, false)}
+						{renderCommandSection(
+							mcpCommands,
+							"MCP Prompts",
+							defaultCommands.length + workflowCommands.length,
+							true,
+						)}
 					</>
 				) : (
 					<div className="py-2 px-3 cursor-default flex flex-col">
