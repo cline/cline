@@ -9,14 +9,16 @@ import { ShowMessageType } from "@/shared/proto/host/window"
  * For models which don't support images, will not allow them to be selected
  */
 export async function selectFiles(imagesAllowed: boolean): Promise<{ images: string[]; files: string[] }> {
-	const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp"] // supported by anthropic and openrouter
+	const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp", "gif"] // supported by anthropic and openrouter
 	const OTHER_FILE_EXTENSIONS = ["xml", "json", "txt", "log", "md", "docx", "ipynb", "pdf", "xlsx", "csv"]
+
+	const fileFilters = imagesAllowed ? [...IMAGE_EXTENSIONS, ...OTHER_FILE_EXTENSIONS, "*"] : [...OTHER_FILE_EXTENSIONS, "*"]
 
 	const showDialogueResponse = await HostProvider.window.showOpenDialogue({
 		canSelectMany: true,
 		openLabel: "Select",
 		filters: {
-			files: imagesAllowed ? [...IMAGE_EXTENSIONS, ...OTHER_FILE_EXTENSIONS] : OTHER_FILE_EXTENSIONS,
+			files: fileFilters,
 		},
 	})
 
@@ -30,6 +32,14 @@ export async function selectFiles(imagesAllowed: boolean): Promise<{ images: str
 		const fileExtension = path.extname(filePath).toLowerCase().substring(1)
 
 		const isImage = IMAGE_EXTENSIONS.includes(fileExtension)
+
+		if (!imagesAllowed && isImage) {
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: `Image skipped: ${path.basename(filePath)} is not supported by the selected model.`,
+			})
+			return null
+		}
 
 		if (isImage) {
 			let buffer: Buffer
@@ -112,6 +122,8 @@ export function getMimeType(filePath: string): string {
 			return "image/jpeg"
 		case ".webp":
 			return "image/webp"
+		case ".gif":
+			return "image/gif"
 		default:
 			throw new Error(`Unsupported file type: ${ext}`)
 	}
