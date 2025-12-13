@@ -27,6 +27,8 @@ service ModelsService {
   rpc refreshRequestyModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Hicap models
   rpc refreshHicapModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Refreshes and returns AvalAI models
+  rpc refreshAvalaiModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns LiteLLM models
   rpc refreshLiteLlmModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Subscribe to OpenRouter models updates
@@ -181,6 +183,7 @@ message ModelsApiSecrets {
   optional string oca_refresh_token = 37;
   optional string minimax_api_key = 38;
   optional string aihubmix_api_key = 39;
+  optional string avalai_api_key = 40;
 }
 
 // API configuration options (non-secret settings)
@@ -266,6 +269,8 @@ message ModelsApiOptions {
   optional OcaModelInfo plan_mode_oca_model_info = 132;
   optional string plan_mode_aihubmix_model_id = 133;
   optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 134;
+  optional string plan_mode_avalai_model_id = 135;
+  optional OpenRouterModelInfo plan_mode_avalai_model_info = 136;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -303,6 +308,8 @@ message ModelsApiOptions {
   optional OcaModelInfo act_mode_oca_model_info = 232;
   optional string act_mode_aihubmix_model_id = 233;
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 234;
+  optional string act_mode_avalai_model_id = 235;
+  optional OpenRouterModelInfo act_mode_avalai_model_info = 236;
 }
 
 // Request for updating API configuration (legacy - uses combined configuration)
@@ -432,6 +439,7 @@ enum ApiProvider {
   HICAP = 37;
   AIHUBMIX = 38;
   NOUSRESEARCH = 39;
+  AVALAI = 40;
 }
 
 enum ApiFormat {
@@ -567,6 +575,7 @@ message ModelsApiConfiguration {
   optional string aihubmix_base_url = 83;
   optional string aihubmix_app_code = 84;
   optional string nous_research_api_key = 85;
+  optional string avalai_api_key = 86;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -608,6 +617,8 @@ message ModelsApiConfiguration {
   optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 136;
   optional string plan_mode_nous_research_model_id = 137;
   optional string gemini_plan_mode_thinking_level = 138;
+  optional string plan_mode_avalai_model_id = 139;
+  optional OpenRouterModelInfo plan_mode_avalai_model_info = 140;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -649,4 +660,6 @@ message ModelsApiConfiguration {
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 236;
   optional string act_mode_nous_research_model_id = 237;
   optional string gemini_act_mode_thinking_level = 238;
+  optional string act_mode_avalai_model_id = 239;
+  optional OpenRouterModelInfo act_mode_avalai_model_info = 240;
 }

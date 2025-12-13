@@ -1,0 +1,74 @@
+---
+title: "AvalAI"
+description: "Learn how to use AvalAI with Cline to access 300+ language models from 20+ providers through a single OpenAI-compatible API."
+---
+
+AvalAI is an AI API gateway that provides access to over 300 language models from more than 20 different providers, all through a single OpenAI-compatible API. This simplifies setup and allows you to easily experiment with different models without managing multiple API keys.
+
+**Website:** [https://avalai.org](https://avalai.org)  
+**Documentation:** [https://docs.avalai.org/en/](https://docs.avalai.org/en/)
+
+### Getting an API Key
+
+1.  **Sign Up:** Visit the [AvalAI website](https://chat.avalai.org/platform) and create an account.
+2.  **Get an API Key:** Navigate to your dashboard or API keys section to generate a new API key.
+3.  **Copy the Key:** Copy the API key for use in Cline.
+
+For detailed instructions, visit the [AvalAI Quickstart Guide](https://docs.avalai.org/en/quickstart).
+
+### Supported Models
+
+AvalAI provides access to 300+ models from 20+ providers including:
+OpenAI - GPT-5, o3 Pro and more
+Anthropic - Claude 4.1 Opus, Claude 4.1 Sonnet and more
+Google - Gemini 2.5 Pro, Gemini 2.5 Flash and more
+XAI - Grok 4, Grok 3 and more
+DeepSeek - DeepSeek-V3.2 and more
+Alibaba - Qwen3 Max, QwQ Plus and more
+Moonshot.ai - Kimi K2, Kimi Latest, Kimi Thinking and more
+Z.AI - GLM-4.6 and more
+- And many more...
+
+Cline automatically fetches the complete list of available models from AvalAI's public API, so you'll always have access to the latest models without needing to update the extension.
+
+### Configuration in Cline
+
+1.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
+2.  **Select Provider:** Choose "AvalAI" from the "API Provider" dropdown.
+3.  **Browse Models:** The model list loads automatically from AvalAI's public API - no API key needed to browse available models.
+4.  **Select Model:** Choose your desired model from the "Model" dropdown. You can search by model name, provider, or use the favorites feature to mark frequently used models.
+5.  **Enter API Key:** Paste your AvalAI API key into the "AvalAI API Key" field to start using the selected model.
+
+### Features
+
+- **OpenAI-Compatible API:** Works with standard OpenAI SDK implementations
+- **Multi-Provider Support:** Access models from Anthropic, Google, Meta, Mistral, and many others through a single API
+- **Automatic Model Discovery:** Model list updates automatically without requiring extension updates
+- **Unified Billing:** Single API key and billing for all providers
+- **Model Information:** View pricing, context windows, and capabilities for each model
+- **Search and Filter:** Easily find models by name, provider, or capability
+- **Favorites:** Mark frequently used models for quick access
+
+### API Specifications
+
+- **Base URL:** `https://api.avalai.org/v1`
+- **Compatibility:** OpenAI API Standard
+- **Additional Support:** 
+  - Anthropic SDK (for Claude native models)
+  - Gemini SDK (for Gemini models)
+  - Vertex AI SDK (for Gemini models)
+
+### Tips and Notes
+
+-   **Model Selection:** With 300+ models available, experiment to find the best one for your specific use case.
+-   **Pricing:** AvalAI provides transparent pricing for each model. Check the model picker in Cline to see input/output costs per token.
+-   **No API Key for Browsing:** You can browse and explore all available models without an API key. The API key is only required when you're ready to start making requests.
+-   **Multi-Provider Access:** Access models from multiple providers without managing separate API keys for each.
+-   **Model Information:** Each model displays its context window size, pricing, and supported features (images, prompt caching, etc.).
+
+### Getting Help
+
+For additional support or questions about AvalAI:
+- Visit the [AvalAI Documentation](https://docs.avalai.org/en/)
+- Check the [Quickstart Guide](https://docs.avalai.org/en/quickstart)
+- Contact AvalAI support through their website

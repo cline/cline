@@ -5,6 +5,7 @@ import {
 	anthropicModels,
 	askSageDefaultModelId,
 	askSageModels,
+	avalaiModelInfoSaneDefaults,
 	basetenDefaultModelId,
 	basetenModels,
 	bedrockDefaultModelId,
@@ -289,6 +290,16 @@ export function normalizeApiConfiguration(
 				selectedModelId: hicapModelId || "",
 				selectedModelInfo: hicapModelInfoSaneDefaults,
 			}
+		case "avalai":
+			const avalaiModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeAvalaiModelId : apiConfiguration?.actModeAvalaiModelId
+			const avalaiModelInfo =
+				currentMode === "plan" ? apiConfiguration?.planModeAvalaiModelInfo : apiConfiguration?.actModeAvalaiModelInfo
+			return {
+				selectedProvider: provider,
+				selectedModelId: avalaiModelId || "",
+				selectedModelInfo: avalaiModelInfo || avalaiModelInfoSaneDefaults,
+			}
 		case "ollama":
 			const ollamaModelId =
 				currentMode === "plan" ? apiConfiguration?.planModeOllamaModelId : apiConfiguration?.actModeOllamaModelId
@@ -508,6 +519,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			huggingFaceModelId: undefined,
 			huaweiCloudMaasModelId: undefined,
 			hicapModelId: undefined,
+			avalaiModelId: undefined,
 			aihubmixModelId: undefined,
 			nousResearchModelId: undefined,
 
@@ -520,6 +532,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			basetenModelInfo: undefined,
 			huggingFaceModelInfo: undefined,
 			vsCodeLmModelSelector: undefined,
+			avalaiModelInfo: undefined,
 			aihubmixModelInfo: undefined,
 
 			// AWS Bedrock fields
@@ -558,6 +571,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			mode === "plan" ? apiConfiguration.planModeHuaweiCloudMaasModelId : apiConfiguration.actModeHuaweiCloudMaasModelId,
 		ocaModelId: mode === "plan" ? apiConfiguration.planModeOcaModelId : apiConfiguration.actModeOcaModelId,
 		hicapModelId: mode === "plan" ? apiConfiguration.planModeHicapModelId : apiConfiguration.actModeHicapModelId,
+		avalaiModelId: mode === "plan" ? apiConfiguration.planModeAvalaiModelId : apiConfiguration.actModeAvalaiModelId,
 		aihubmixModelId: mode === "plan" ? apiConfiguration.planModeAihubmixModelId : apiConfiguration.actModeAihubmixModelId,
 		nousResearchModelId:
 			mode === "plan" ? apiConfiguration.planModeNousResearchModelId : apiConfiguration.actModeNousResearchModelId,
@@ -576,6 +590,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		vsCodeLmModelSelector:
 			mode === "plan" ? apiConfiguration.planModeVsCodeLmModelSelector : apiConfiguration.actModeVsCodeLmModelSelector,
 		hicapModelInfo: mode === "plan" ? apiConfiguration.planModeHicapModelInfo : apiConfiguration.actModeHicapModelInfo,
+		avalaiModelInfo: mode === "plan" ? apiConfiguration.planModeAvalaiModelInfo : apiConfiguration.actModeAvalaiModelInfo,
 		aihubmixModelInfo:
 			mode === "plan" ? apiConfiguration.planModeAihubmixModelInfo : apiConfiguration.actModeAihubmixModelInfo,
 
@@ -737,6 +752,13 @@ export async function syncModeConfigurations(
 			updates.actModeHicapModelId = sourceFields.hicapModelId
 			updates.planModeHicapModelInfo = sourceFields.hicapModelInfo
 			updates.actModeHicapModelInfo = sourceFields.hicapModelInfo
+			break
+
+		case "avalai":
+			updates.planModeAvalaiModelId = sourceFields.avalaiModelId
+			updates.actModeAvalaiModelId = sourceFields.avalaiModelId
+			updates.planModeAvalaiModelInfo = sourceFields.avalaiModelInfo
+			updates.actModeAvalaiModelInfo = sourceFields.avalaiModelInfo
 			break
 
 		case "vercel-ai-gateway":

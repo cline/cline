@@ -153,6 +153,10 @@
 			"label": "Hicap"
 		},
 		{
+			"value": "avalai",
+			"label": "AvalAI"
+		},
+		{
 			"value": "aihubmix",
 			"label": "AIhubmix"
 		},
