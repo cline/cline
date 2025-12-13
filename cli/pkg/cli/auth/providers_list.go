@@ -132,7 +132,7 @@ func (r *ProviderListResult) GetAllReadyProviders() []*ProviderDisplay {
 
 		// Determine readiness: OCA uses auth state presence; others need creds and model
 		if provider == cline.ApiProvider_OCA {
-			state, _ := GetLatestOCAState(context.Background(), 2 *time.Second)
+			state, _ := GetLatestOCAState(context.Background(), 2*time.Second)
 			if state == nil || state.User == nil {
 				continue
 			}
@@ -315,8 +315,15 @@ func checkAPIKeyExists(stateData map[string]interface{}, provider cline.ApiProvi
 
 	// Check if the key exists and is not empty
 	if value, ok := stateData[keyField]; ok {
-		if str, ok := value.(string); ok && str != "" {
-			return true
+		if str, ok := value.(string); ok {
+			// For Ollama, an empty base URL is valid (means use default localhost:11434)
+			if keyField == "ollamaBaseUrl" {
+				return true
+			}
+			// For other providers, require non-empty value
+			if str != "" {
+				return true
+			}
 		}
 	}
 
@@ -497,7 +504,6 @@ func DetectAllConfiguredProviders(ctx context.Context, manager *task.Manager) ([
 			verboseLog("[DEBUG]   Key %s not found", providerCheck.keyField)
 		}
 	}
-
 
 	verboseLog("[DEBUG] Total configured providers: %d", len(configuredProviders))
 	for _, p := range configuredProviders {
