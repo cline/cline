@@ -153,6 +153,10 @@ export class McpHub {
 				return undefined
 			}
 
+			// Expand environment variables before validation
+			// This allows ${env:VAR_NAME} syntax in URLs, headers, env vars, etc.
+			config = expandEnvironmentVariables(config)
+
 			// Validate against schema
 			const result = McpSettingsSchema.safeParse(config)
 			if (!result.success) {
@@ -1124,11 +1128,6 @@ export class McpHub {
 				throw new Error(`An MCP server with the name "${serverName}" already exists`)
 			}
 
-			const urlValidation = z.string().url().safeParse(serverUrl)
-			if (!urlValidation.success) {
-				throw new Error(`Invalid server URL: ${serverUrl}. Please provide a valid URL.`)
-			}
-
 			const serverConfig = {
 				url: serverUrl,
 				type: transportType,
@@ -1136,7 +1135,15 @@ export class McpHub {
 				autoApprove: [],
 			}
 
-			const parsedConfig = ServerConfigSchema.parse(serverConfig)
+			// Expand environment variables for validation
+			const expandedConfig = expandEnvironmentVariables(serverConfig)
+
+			const urlValidation = z.string().url().safeParse(expandedConfig.url)
+			if (!urlValidation.success) {
+				throw new Error(`Invalid server URL: ${expandedConfig.url}. Please provide a valid URL.`)
+			}
+
+			const parsedConfig = ServerConfigSchema.parse(expandedConfig)
 
 			settings.mcpServers[serverName] = parsedConfig
 			const settingsPath = await this.getMcpSettingsFilePath()
