@@ -9,7 +9,9 @@ export function formatContentBlockToMarkdown(block: Anthropic.ContentBlockParam)
 		case "text":
 			return block.text
 		case "image":
-			return `[Image]`
+			return block.source.type === "base64"
+				? `![Image](data:${block.source.media_type};base64,${block.source.data})`
+				: "[Image]"
 		case "document":
 			return `[Document]`
 		case "tool_use":
