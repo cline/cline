@@ -61,7 +61,13 @@ import { USER_CONTENT_TAGS } from "@shared/messages/constants"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { ClineDefaultTool, READ_ONLY_TOOLS } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
-import { isClaude4PlusModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
+import {
+	isClaude4PlusModelFamily,
+	isGPT5ModelFamily,
+	isLocalModel,
+	isMinimaxModelFamily,
+	isNextGenModelFamily,
+} from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import { filterExistingFiles } from "@utils/tabFiltering"
 import cloneDeep from "clone-deep"
@@ -99,7 +105,12 @@ import { MessageStateHandler } from "./message-state"
 import { StreamResponseHandler } from "./StreamResponseHandler"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
-import { detectAvailableCliTools, extractProviderDomainFromUrl, updateApiReqMsg } from "./utils"
+import {
+	detectAvailableCliTools,
+	extractProviderDomainFromUrl,
+	mergeEnvironmentDetailsIntoUserContent,
+	updateApiReqMsg,
+} from "./utils"
 import { buildUserFeedbackContent } from "./utils/buildUserFeedbackContent"
 
 export type ToolResponse = ClineToolResponseContent
@@ -2350,7 +2361,11 @@ export class Task {
 		// add environment details as its own text block, separate from tool results
 		// do not add environment details to the message which we are compacting the context window
 		if (environmentDetails) {
-			userContent.push({ type: "text", text: environmentDetails })
+			if (isMinimaxModelFamily(this.api.getModel().id)) {
+				userContent = mergeEnvironmentDetailsIntoUserContent(userContent, environmentDetails)
+			} else {
+				userContent.push({ type: "text", text: environmentDetails })
+			}
 		}
 
 		if (shouldCompact) {
