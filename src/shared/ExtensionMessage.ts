@@ -179,8 +179,8 @@ export type ClineSay =
 	| "generate_explanation"
 	| "info" // Added for general informational messages like retry status
 	| "task_progress"
-	| "hook"
-	| "hook_output"
+	| "hook_status"
+	| "hook_output_stream"
 
 export interface ClineSayTool {
 	tool:

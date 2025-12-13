@@ -3,11 +3,12 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/cline/cli/pkg/cli/clerror"
-	"github.com/cline/cli/pkg/cli/types"
 	"github.com/cline/cli/pkg/cli/output"
+	"github.com/cline/cli/pkg/cli/types"
 )
 
 // SayHandler handles SAY type messages
@@ -90,6 +91,10 @@ func (h *SayHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
 		return h.handleInfo(msg, dc)
 	case string(types.SayTypeTaskProgress):
 		return h.handleTaskProgress(msg, dc)
+	case string(types.SayTypeHook):
+		return h.handleHook(msg, dc)
+	case string(types.SayTypeHookOutput):
+		return h.handleHookOutput(msg, dc)
 	default:
 		return h.handleDefault(msg, dc)
 	}
@@ -242,18 +247,17 @@ func (h *SayHandler) handleCompletionResult(msg *types.ClineMessage, dc *Display
 }
 
 func formatUserMessage(text string) string {
-    lines := strings.Split(text, "\n")
-    
-    // Wrap each line in backticks
-    for i, line := range lines {
-        if line != "" {
-            lines[i] = fmt.Sprintf("`%s`", line)
-        }
-    }
-    
-    return strings.Join(lines, "\n")
-}
+	lines := strings.Split(text, "\n")
 
+	// Wrap each line in backticks
+	for i, line := range lines {
+		if line != "" {
+			lines[i] = fmt.Sprintf("`%s`", line)
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
 
 // handleUserFeedback handles user feedback messages
 func (h *SayHandler) handleUserFeedback(msg *types.ClineMessage, dc *DisplayContext) error {
@@ -513,6 +517,122 @@ func (h *SayHandler) handleTaskProgress(msg *types.ClineMessage, dc *DisplayCont
 	rendered := dc.Renderer.RenderMarkdown(markdown)
 	output.Printf("\n%s\n", rendered)
 	return nil
+}
+
+// handleHook handles hook execution status messages
+func (h *SayHandler) handleHook(msg *types.ClineMessage, dc *DisplayContext) error {
+	var hook types.HookMessage
+	if err := json.Unmarshal([]byte(msg.Text), &hook); err != nil {
+		// Fallback to simple message if JSON parsing fails
+		return dc.Renderer.RenderMessage("HOOK", msg.Text, true)
+	}
+
+	// Build base hook description
+	hookDesc := hook.HookName
+	if hook.ToolName != "" {
+		hookDesc = fmt.Sprintf("%s for tool %s", hook.HookName, hook.ToolName)
+	}
+
+	// Build message starting with hook name and status
+	var message string
+	pathCount := len(hook.ScriptPaths)
+
+	// Show script count if multiple scripts
+	if pathCount > 1 {
+		message = fmt.Sprintf("%s [%d scripts] %s", hookDesc, pathCount, hook.Status)
+	} else {
+		message = fmt.Sprintf("%s %s", hookDesc, hook.Status)
+	}
+
+	// Add path information
+	if pathCount == 1 {
+		// Single hook: show path inline (dimmed by renderer)
+		formattedPath := formatHookPath(hook.ScriptPaths[0])
+		message = fmt.Sprintf("%s (%s)", message, formattedPath)
+	} else if pathCount > 1 {
+		// Multiple hooks: always show all paths (not verbose-only)
+		for _, scriptPath := range hook.ScriptPaths {
+			formattedPath := formatHookPath(scriptPath)
+			message += fmt.Sprintf("\n  → %s", formattedPath)
+		}
+	}
+
+	// Append exit code for failed hooks
+	if hook.Status == "failed" && hook.ExitCode != 0 {
+		message = fmt.Sprintf("%s - exit %d", message, hook.ExitCode)
+	}
+
+	// Render the message
+	return dc.Renderer.RenderMessage("HOOK", message, true)
+}
+
+// handleHookOutput handles streaming output from hooks
+// This is a placeholder for future enhancement when we want to stream hook stdout/stderr
+func (h *SayHandler) handleHookOutput(msg *types.ClineMessage, dc *DisplayContext) error {
+	// Future: implement hook output streaming
+	// For now, do nothing to avoid cluttering the output
+	// The hook stdout/stderr is available in msg.Text if needed
+	return nil
+}
+
+// formatHookPath converts a full hook path to the display format:
+// - Global hooks: "~/Documents/Cline/Hooks/TaskStart"
+// - Workspace hooks: "repo-name/.clinerules/hooks/TaskStart"
+func formatHookPath(fullPath string) string {
+	// Normalize to forward slashes for consistent processing
+	normalizedPath := strings.ReplaceAll(fullPath, "\\", "/")
+
+	// Get home directory for tilde expansion
+	homeDir := ""
+	if h, err := getHomeDir(); err == nil {
+		homeDir = strings.ReplaceAll(h, "\\", "/")
+	}
+
+	// Check if path starts with home directory
+	if homeDir != "" && strings.HasPrefix(normalizedPath, homeDir) {
+		// Replace home directory with tilde
+		relativePath := strings.TrimPrefix(normalizedPath, homeDir)
+		relativePath = strings.TrimPrefix(relativePath, "/")
+		return "~/" + relativePath
+	}
+
+	// Workspace hook: find the repo name and .clinerules portion
+	// Expected path format: /absolute/path/to/repo-name/.clinerules/hooks/HookName
+	parts := strings.Split(normalizedPath, "/")
+
+	for i, part := range parts {
+		if part == ".clinerules" && i > 0 {
+			// Get repo name (directory immediately before .clinerules)
+			repoName := parts[i-1]
+			// Build display path: "repo-name/.clinerules/hooks/HookName"
+			remaining := parts[i:]
+			return repoName + "/" + strings.Join(remaining, "/")
+		}
+	}
+
+	// Fallback: if we can't identify the pattern, show last 3 components
+	// or just the full normalized path if it's too short
+	if len(parts) >= 3 {
+		return strings.Join(parts[len(parts)-3:], "/")
+	}
+	return normalizedPath
+}
+
+// getHomeDir returns the user's home directory
+func getHomeDir() (string, error) {
+	// Try to get home directory from environment
+	if home := getEnv("HOME"); home != "" {
+		return home, nil
+	}
+	if home := getEnv("USERPROFILE"); home != "" { // Windows
+		return home, nil
+	}
+	return "", fmt.Errorf("unable to determine home directory")
+}
+
+// getEnv is a helper to get environment variable
+func getEnv(key string) string {
+	return os.Getenv(key)
 }
 
 // handleDefault handles unknown SAY message types

@@ -188,7 +188,7 @@ setTimeout(() => {
 			result.wasCancelled.should.equal(false)
 
 			// Verify messages were sent
-			sayMessages.should.matchAny((msg: any) => msg.type === "hook")
+			sayMessages.should.matchAny((msg: any) => msg.type === "hook_status")
 		})
 
 		it("should handle hook that requests cancellation", async function () {
@@ -436,7 +436,7 @@ setTimeout(() => {
 
 			// Should have at least one hook message
 			messages.length.should.be.greaterThan(0)
-			const hookMessage = messages.find((m) => m.say === "hook")
+			const hookMessage = messages.find((m) => m.say === "hook_status")
 			should.exist(hookMessage)
 		})
 

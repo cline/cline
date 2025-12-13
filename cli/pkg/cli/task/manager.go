@@ -1043,6 +1043,15 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
+		case msg.Say == string(types.SayTypeHook):
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
+			}
+
 		case msg.Say == string(types.SayTypeAPIReqStarted):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			apiInfo := types.APIRequestInfo{Cost: -1}
@@ -1180,6 +1189,7 @@ func (m *Manager) displayMessage(msg *types.ClineMessage, isLast, isPartial bool
 			SystemRenderer:  m.systemRenderer,
 			IsLast:          isLast,
 			IsPartial:       isPartial,
+			Verbose:         global.Config.Verbose,
 			MessageIndex:    messageIndex,
 			IsStreamingMode: isStreaming,
 			IsInteractive:   isInteractive,
