@@ -207,6 +207,7 @@ const mockActiveMessages: ClineMessage[] = [
 
 const mockStreamingMessages: ClineMessage[] = [
 	...mockActiveMessages,
+	createApiReqMessage(4.9, "Initial analysis request"),
 	createMessage(
 		0.17,
 		"say",
@@ -450,21 +451,27 @@ export const LongConversation: Story = {
 // Optimized message patterns for common scenarios
 const createErrorMessages = () => [
 	createMessage(5, "say", "task", "Help me fix the build errors in my React application"),
+	createApiReqMessage(4.9, "<task>mock</task> Mocking"),
 	createMessage(
 		4.7,
 		"say",
 		"text",
 		"I'll help you fix the build errors. Let me first examine the current state of your application.",
 	),
+	createApiReqMessage(4.9, "<task>mock</task> Mocking"),
 	createMessage(4.3, "say", "command", "npm run build"),
+	createApiReqMessage(4.9, "<task>mock</task> Mocking"),
 	createMessage(4, "say", "error", "Build failed with TypeScript errors in UserProfile.tsx and api.ts"),
+	createApiReqMessage(4.9, "<task>mock</task> Mocking"),
 	createMessage(
 		3.7,
 		"say",
 		"text",
 		"I can see there are TypeScript errors in your code. Let me examine the files and fix these issues.",
 	),
+	createApiReqMessage(4.9, "<task>mock</task> Mocking"),
 	createMessage(3.3, "say", "tool", JSON.stringify({ tool: "readFile", path: "src/components/UserProfile.tsx" })),
+	createApiReqMessage(4.9, "<task>mock</task> Mocking"),
 	createMessage(
 		3,
 		"say",
@@ -549,6 +556,17 @@ export const EmptyState: Story = {
 		docs: {
 			description: {
 				story: "Shows the empty state for first-time users with no conversation history or active tasks.",
+			},
+		},
+	},
+}
+
+export const EmptyStateWithHistory: Story = {
+	decorators: [createStoryDecorator({ clineMessages: [], taskHistory: mockTaskHistory, isNewUser: true })],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows the chat view to users with conversation history but no active tasks.",
 			},
 		},
 	},
