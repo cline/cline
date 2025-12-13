@@ -28,6 +28,7 @@ func GetBYOProviderList() []BYOProviderOption {
 		{Name: "Cerebras", Provider: cline.ApiProvider_CEREBRAS},
 		{Name: "NousResearch", Provider: cline.ApiProvider_NOUSRESEARCH},
 		{Name: "Oracle Code Assist", Provider: cline.ApiProvider_OCA},
+		{Name: "SAP AI Core", Provider: cline.ApiProvider_SAPAICORE},
 	}
 }
 
@@ -75,6 +76,8 @@ func SupportsBYOModelFetching(provider cline.ApiProvider) bool {
 		return true
 	case cline.ApiProvider_OCA:
 		return true
+	case cline.ApiProvider_SAPAICORE:
+		return true
 	}
 
 	return SupportsStaticModelList(provider)
@@ -105,6 +108,8 @@ func GetBYOProviderPlaceholder(provider cline.ApiProvider) string {
 		return "e.g., Hermes-4-405B"
 	case cline.ApiProvider_OCA:
 		return "e.g., oca/llama4"
+	case cline.ApiProvider_SAPAICORE:
+		return "e.g., anthropic--claude-4-sonnet"
 	default:
 		return "Enter model ID"
 	}
