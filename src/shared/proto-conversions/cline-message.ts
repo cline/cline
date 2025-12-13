@@ -102,8 +102,8 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		info: ClineSay.INFO,
 		task_progress: ClineSay.TASK_PROGRESS,
 		error_retry: ClineSay.ERROR_RETRY,
-		hook: ClineSay.INFO,
-		hook_output: ClineSay.COMMAND_OUTPUT_SAY,
+		hook_status: ClineSay.HOOK_STATUS,
+		hook_output_stream: ClineSay.HOOK_OUTPUT_STREAM,
 		generate_explanation: ClineSay.GENERATE_EXPLANATION,
 	}
 
@@ -152,6 +152,8 @@ function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 		[ClineSay.TASK_PROGRESS]: "task_progress",
 		[ClineSay.ERROR_RETRY]: "error_retry",
 		[ClineSay.GENERATE_EXPLANATION]: "generate_explanation",
+		[ClineSay.HOOK_STATUS]: "hook_status",
+		[ClineSay.HOOK_OUTPUT_STREAM]: "hook_output_stream",
 	}
 
 	return mapping[say]
