@@ -17,7 +17,7 @@ import type { EventEmitter } from "events"
 export interface TerminalProcessEvents {
 	line: [line: string]
 	continue: []
-	completed: []
+	completed: [exitCode?: number | null]
 	error: [error: Error]
 	no_shell_integration: []
 }
