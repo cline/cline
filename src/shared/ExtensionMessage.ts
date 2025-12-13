@@ -104,6 +104,7 @@ export interface ExtensionState {
 	hooksEnabled?: boolean
 	remoteConfigSettings?: Partial<RemoteConfigFields>
 	subagentsEnabled?: boolean
+	enhancedNotebookInteractionEnabled?: boolean
 	nativeToolCallSetting?: boolean
 	enableParallelToolCalling?: boolean
 }

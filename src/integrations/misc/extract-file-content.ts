@@ -13,7 +13,11 @@ export type FileContentResult = {
  * Extract content from a file, handling both text and images
  * Extra logic for handling images based on whether the model supports images
  */
-export async function extractFileContent(absolutePath: string, modelSupportsImages: boolean): Promise<FileContentResult> {
+export async function extractFileContent(
+	absolutePath: string,
+	modelSupportsImages: boolean,
+	enhancedNotebookInteractionEnabled: boolean = false,
+): Promise<FileContentResult> {
 	// Check if file exists first
 	try {
 		await fs.access(absolutePath)
@@ -41,7 +45,7 @@ export async function extractFileContent(absolutePath: string, modelSupportsImag
 	} else {
 		// Handle text files using existing extraction functions
 		try {
-			const textContent = await callTextExtractionFunctions(absolutePath)
+			const textContent = await callTextExtractionFunctions(absolutePath, enhancedNotebookInteractionEnabled)
 			return {
 				text: textContent,
 			}
