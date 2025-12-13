@@ -235,9 +235,16 @@ export class ClaudeCodeHandler implements ApiHandler {
 								}
 							}
 							break
-						case "tool_use":
+						case "tool_use": {
 							// ALWAYS yield tool_use blocks - they are NOT available in stream events!
 							// Stream events only contain text, thinking, and redacted_thinking deltas.
+							//
+							// Important: the native-tool-call streaming pipeline expects `function.arguments` as JSON text.
+							// Claude Code returns `tool_use.input` as an object, so stringify it here to avoid `[object Object]`
+							// and losing required parameters during parsing.
+							const argumentsJson =
+								typeof content.input === "string" ? content.input : JSON.stringify(content.input ?? {})
+
 							yield {
 								type: "tool_calls",
 								tool_call: {
@@ -245,11 +252,12 @@ export class ClaudeCodeHandler implements ApiHandler {
 									function: {
 										id: content.id,
 										name: content.name,
-										arguments: content.input,
+										arguments: argumentsJson,
 									},
 								},
 							}
 							break
+						}
 					}
 				}
 
