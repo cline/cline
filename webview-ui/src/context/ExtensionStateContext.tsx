@@ -282,8 +282,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	// References to store subscription cancellation functions
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
 
-	// Reference for focusChatInput subscription
-	const focusChatInputUnsubscribeRef = useRef<(() => void) | null>(null)
 	const mcpButtonUnsubscribeRef = useRef<(() => void) | null>(null)
 	const historyButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const chatButtonUnsubscribeRef = useRef<(() => void) | null>(null)
@@ -307,7 +305,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		}
 	}, [])
 	const mcpServersSubscriptionRef = useRef<(() => void) | null>(null)
-	const didBecomeVisibleUnsubscribeRef = useRef<(() => void) | null>(null)
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
@@ -414,18 +411,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				onComplete: () => {},
 			},
 		)
-
-		// Subscribe to didBecomeVisible events
-		didBecomeVisibleUnsubscribeRef.current = UiServiceClient.subscribeToDidBecomeVisible(EmptyRequest.create({}), {
-			onResponse: () => {
-				console.log("[DEBUG] Received didBecomeVisible event from gRPC stream")
-				window.dispatchEvent(new CustomEvent("focusChatInput"))
-			},
-			onError: (error) => {
-				console.error("Error in didBecomeVisible subscription:", error)
-			},
-			onComplete: () => {},
-		})
 
 		// Subscribe to MCP servers updates
 		mcpServersSubscriptionRef.current = McpServiceClient.subscribeToMcpServers(EmptyRequest.create(), {
@@ -582,21 +567,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			onComplete: () => {},
 		})
 
-		// Subscribe to focus chat input events
-		focusChatInputUnsubscribeRef.current = UiServiceClient.subscribeToFocusChatInput(
-			{},
-			{
-				onResponse: () => {
-					// Dispatch a local DOM event within this webview only
-					window.dispatchEvent(new CustomEvent("focusChatInput"))
-				},
-				onError: (error: Error) => {
-					console.error("Error in focusChatInput subscription:", error)
-				},
-				onComplete: () => {},
-			},
-		)
-
 		// Clean up subscriptions when component unmounts
 		return () => {
 			if (stateSubscriptionRef.current) {
@@ -647,17 +617,9 @@ export const ExtensionStateContextProvider: React.FC<{
 				relinquishControlUnsubscribeRef.current()
 				relinquishControlUnsubscribeRef.current = null
 			}
-			if (focusChatInputUnsubscribeRef.current) {
-				focusChatInputUnsubscribeRef.current()
-				focusChatInputUnsubscribeRef.current = null
-			}
 			if (mcpServersSubscriptionRef.current) {
 				mcpServersSubscriptionRef.current()
 				mcpServersSubscriptionRef.current = null
-			}
-			if (didBecomeVisibleUnsubscribeRef.current) {
-				didBecomeVisibleUnsubscribeRef.current()
-				didBecomeVisibleUnsubscribeRef.current = null
 			}
 		}
 	}, [])

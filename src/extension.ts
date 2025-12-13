@@ -27,11 +27,11 @@ import { fixWithCline } from "./core/controller/commands/fixWithCline"
 import { improveWithCline } from "./core/controller/commands/improveWithCline"
 import { clearOnboardingModelsCache } from "./core/controller/models/getClineOnboardingModels"
 import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
-import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
+import { sendShowWebviewEvent } from "./core/controller/ui/subscribeToShowWebview"
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { workspaceResolver } from "./core/workspace"
-import { focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtils"
+import { getContextForCommand, showWebview } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMsg } from "./hosts/vscode/commit-message-generator"
 import {
 	disposeVscodeCommentReviewController,
@@ -207,8 +207,8 @@ export async function activate(context: vscode.ExtensionContext) {
 					// No terminal content was copied (either nothing selected or some error)
 					return
 				}
-				// Ensure the sidebar view is visible
-				await focusChatInput()
+				// Ensure the sidebar view is visible but preserve editor focus
+				await showWebview(true)
 
 				await sendAddToInputEvent(`Terminal output:\n\`\`\`\n${terminalContents}\n\`\`\``)
 
@@ -361,20 +361,26 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	// Register the focusChatInput command handler
+	// Register the showWebview command handler
 	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.FocusChatInput, async () => {
+		vscode.commands.registerCommand(commands.ShowWebview, async (preserveEditorFocus: boolean = false) => {
 			const webview = WebviewProvider.getInstance() as VscodeWebviewProvider
 
 			// Show the webview
 			const webviewView = webview.getWebview()
 			if (webviewView) {
-				webviewView.show()
+				if (preserveEditorFocus) {
+					// Only make webview visible without forcing focus
+					webviewView.show(false)
+				} else {
+					// Show and force focus (default behavior for explicit focus actions)
+					webviewView.show(true)
+				}
 			}
 
-			// Send focus event
-			sendFocusChatInputEvent()
-			telemetryService.captureButtonClick("command_focusChatInput", webview.controller?.task?.ulid)
+			// Send show webview event with preserveEditorFocus flag
+			sendShowWebviewEvent(preserveEditorFocus)
+			telemetryService.captureButtonClick("command_showWebview", webview.controller?.task?.ulid)
 		}),
 	)
 

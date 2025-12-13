@@ -21,7 +21,7 @@ export async function getContextForCommand(
 			commandContext: CommandContext
 	  }
 > {
-	const activeWebview = await focusChatInput()
+	const activeWebview = await showWebview(true)
 	// Use the controller from the active instance
 	const controller = activeWebview.controller
 
@@ -46,9 +46,9 @@ export async function getContextForCommand(
 	return { controller, commandContext }
 }
 
-export async function focusChatInput(): Promise<WebviewProvider> {
-	await vscode.commands.executeCommand(ExtensionRegistryInfo.commands.FocusChatInput)
+export async function showWebview(preserveEditorFocus: boolean = true): Promise<WebviewProvider> {
+	await vscode.commands.executeCommand(ExtensionRegistryInfo.commands.ShowWebview, preserveEditorFocus)
 
-	// At this point, the instance is guaranteed to exist due to the FocusChatInput command
+	// At this point, the instance is guaranteed to exist due to the ShowWebview command
 	return WebviewProvider.getInstance()
 }
