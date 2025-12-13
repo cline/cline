@@ -79,7 +79,12 @@ INSTANT TASK OPTIONS
               following after completion.  Example: cline -o "what's 6 + 8?"
 
        -s, --setting setting value
-              Override a setting for this task
+              Override a setting for this task.  Multiple settings can be
+              specified in two ways:
+
+              • Comma-separated: -s aws-region=us-west-2,mode=act
+
+              • Multiple flags: -s aws-region=us-west-2 -s mode=act
 
        -y, --no-interactive, --yolo
               Enable fully autonomous mode.  Disables all interactivity:
@@ -168,7 +173,9 @@ COMMANDS
               Options:
 
               -s, --setting setting value
-                     Set task-specific settings
+                     Set task-specific settings.  Supports multiple settings
+                     via comma-separated values (-s key1=val1,key2=val2) or
+                     multiple flags (-s key1=val1 -s key2=val2).
 
               -y, --no-interactive, --yolo
                      Enable autonomous mode

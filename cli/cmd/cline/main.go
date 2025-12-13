@@ -171,7 +171,7 @@ see the manual page: man cline`,
 	rootCmd.Flags().StringSliceVarP(&images, "image", "i", nil, "attach image files")
 	rootCmd.Flags().StringSliceVarP(&files, "file", "f", nil, "attach files")
 	rootCmd.Flags().StringVarP(&mode, "mode", "m", "plan", "mode (act|plan) - defaults to plan")
-	rootCmd.Flags().StringSliceVarP(&settings, "setting", "s", nil, "task settings (key=value format)")
+	rootCmd.Flags().StringSliceVarP(&settings, "setting", "s", nil, "task settings (key=value format, e.g., -s aws-region=us-west-2,mode=act or -s aws-region=us-west-2 -s mode=act)")
 	rootCmd.Flags().BoolVarP(&yolo, "yolo", "y", false, "enable yolo mode (non-interactive)")
 	rootCmd.Flags().BoolVar(&yolo, "no-interactive", false, "enable yolo mode (non-interactive)")
 	rootCmd.Flags().BoolVarP(&oneshot, "oneshot", "o", false, "full autonomous mode")
