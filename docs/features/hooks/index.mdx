@@ -137,10 +137,30 @@ The key is combining hooks with external tools. A hook can be the glue between C
   </Card>
 </CardGroup>
 
-## Related Features
+## CLI support
+
+Hooks are also available in the [Cline CLI](/cline-cli/overview). You can enable or disable hooks when running tasks from the command line:
+
+```bash
+# Enable hooks for a task
+cline "What does this repo do?" -s hooks_enabled=true
+
+# Configure hooks globally via CLI
+cline config set hooks-enabled=true
+cline config get hooks-enabled
+```
+
+This allows you to integrate hooks into automated workflows, CI/CD pipelines, and headless task execution.
+
+<Note>
+Hooks in the CLI are only supported on macOS and Linux. Windows support is not yet available.
+</Note>
+
+## Related features
 
 Hooks complement other Cline features:
 
 - [Cline Rules](/features/cline-rules) define high-level guidance that hooks can enforce
 - [Checkpoints](/features/checkpoints) let you roll back changes if a hook didn't catch an issue
 - [Auto-Approve](/features/auto-approve) works well with hooks as safety nets for automated operations
+- [Cline CLI](/cline-cli/overview) enables hooks in terminal-based and automated workflows
