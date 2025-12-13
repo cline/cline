@@ -143,10 +143,10 @@ async function fetchRemoteConfigForOrganization(organizationId: string): Promise
 async function fetchApiKeysForOrganization(organizationId: string): Promise<APIKeySettings> {
 	try {
 		// Fetch API keys string using helper
-		const apiKeysString = await makeAuthenticatedRequest<string>(CLINE_API_ENDPOINT.API_KEYS, organizationId)
+		const response = await makeAuthenticatedRequest<{ providerApiKeys: string }>(CLINE_API_ENDPOINT.API_KEYS, organizationId)
 
 		// Parse and return API keys
-		return parseApiKeys(apiKeysString)
+		return parseApiKeys(response?.providerApiKeys)
 	} catch (error) {
 		console.error(`Failed to fetch API keys for organization ${organizationId}:`, error)
 		return {}
