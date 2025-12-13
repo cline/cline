@@ -189,8 +189,17 @@ export const FocusChain: React.FC<FocusChainProps> = memo(
 
 		return (
 			<div
+				aria-label={isExpanded ? "Collapse focus chain" : "Expand focus chain"}
 				className="relative rounded-sm bg-toolbar-hover/65 flex flex-col gap-1.5 select-none hover:bg-toolbar-hover overflow-hidden opacity-80 hover:opacity-100 transition-[transform,box-shadow] duration-200 cursor-pointer"
 				onClick={handleToggle}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault()
+						e.stopPropagation()
+						handleToggle()
+					}
+				}}
+				tabIndex={0}
 				title={CLICK_TO_EDIT_TITLE}>
 				<ToDoListHeader isExpanded={isExpanded} todoInfo={todoInfo} />
 				{isExpanded && (
