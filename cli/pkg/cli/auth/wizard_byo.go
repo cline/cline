@@ -585,11 +585,11 @@ func getProviderModelIDFromState(stateData map[string]interface{}, provider clin
 	return ""
 }
 
- // getProviderAPIKeyFromState retrieves the API key for a specific provider from state
+// getProviderAPIKeyFromState retrieves the API key for a specific provider from state
 func getProviderAPIKeyFromState(stateData map[string]interface{}, provider cline.ApiProvider) string {
 	// OCA uses account authentication, not API keys. Consider it "present" if authenticated.
 	if provider == cline.ApiProvider_OCA {
-		if state, _ := GetLatestOCAState(context.TODO(), 2 * time.Second); state != nil && state.User != nil {
+		if state, _ := GetLatestOCAState(context.TODO(), 2*time.Second); state != nil && state.User != nil {
 			// Return a sentinel non-empty string so upstream checks pass.
 			return "OCA_AUTH_VERIFIED"
 		}
@@ -747,7 +747,6 @@ func (pw *ProviderWizard) handleRemoveProvider() error {
 func (pw *ProviderWizard) clearProviderAPIKey(provider cline.ApiProvider) error {
 	return RemoveProviderPartial(pw.ctx, pw.manager, provider)
 }
-
 
 func signOutOca(ctx context.Context) error {
 	client, err := global.GetDefaultClient(ctx)

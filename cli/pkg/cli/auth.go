@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/cline/cli/pkg/cli/auth"
+	"github.com/cline/cli/pkg/cli/global"
 	"github.com/spf13/cobra"
 )
 
@@ -29,6 +30,11 @@ Quick Setup Mode:
   Supported providers: openai-native, openai, anthropic, gemini, openrouter, xai, cerebras, ollama
   Note: Bedrock provider requires interactive setup due to complex auth fields`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Check for JSON output mode - not supported for interactive commands
+			// Per the plan: Interactive commands output PLAIN TEXT errors, not JSON
+			if err := global.Config.MustNotBeJSON("auth"); err != nil {
+				return err
+			}
 			return auth.RunAuthFlow(cmd.Context(), args)
 		},
 	}
