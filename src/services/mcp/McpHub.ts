@@ -250,8 +250,10 @@ export class McpHub {
 			let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
 
 			// Create OAuth provider for remote transports (SSE and HTTP)
+			// Skip OAuth if user has provided custom Authorization header
+			const hasCustomAuth = config.headers?.["Authorization"] || config.headers?.["authorization"]
 			const authProvider =
-				config.type === "sse" || config.type === "streamableHttp"
+				(config.type === "sse" || config.type === "streamableHttp") && !hasCustomAuth
 					? await this.mcpOAuthManager.getOrCreateProvider(name, config.url)
 					: undefined
 
