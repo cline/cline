@@ -153,6 +153,10 @@
 			"label": "Hicap"
 		},
 		{
+			"value": "bailing",
+			"label": "Bailing"
+		},
+		{
 			"value": "aihubmix",
 			"label": "AIhubmix"
 		},
