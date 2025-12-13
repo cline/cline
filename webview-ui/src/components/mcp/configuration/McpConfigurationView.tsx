@@ -21,6 +21,7 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 	const { remoteConfigSettings, setMcpServers, environment } = useExtensionState()
 	// Show marketplace by default unless remote config explicitly disables it
 	const showMarketplace = remoteConfigSettings?.mcpMarketplaceEnabled !== false
+	const showRemoteServers = remoteConfigSettings?.blockPersonalRemoteMCPServers !== true
 	const [activeTab, setActiveTab] = useState<McpViewTab>(initialTab || (showMarketplace ? "marketplace" : "configure"))
 
 	const handleTabChange = (tab: McpViewTab) => {
@@ -32,7 +33,10 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 			// If marketplace is disabled by remote config and we're on marketplace tab, switch to configure
 			setActiveTab("configure")
 		}
-	}, [showMarketplace, activeTab])
+		if (!showRemoteServers && activeTab === "addRemote") {
+			setActiveTab("configure")
+		}
+	}, [showMarketplace, showRemoteServers, activeTab])
 
 	// Get setter for MCP marketplace catalog from context
 	const { setMcpMarketplaceCatalog } = useExtensionState()
@@ -102,9 +106,11 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 							Marketplace
 						</TabButton>
 					)}
-					<TabButton isActive={activeTab === "addRemote"} onClick={() => handleTabChange("addRemote")}>
-						Remote Servers
-					</TabButton>
+					{showRemoteServers && (
+						<TabButton isActive={activeTab === "addRemote"} onClick={() => handleTabChange("addRemote")}>
+							Remote Servers
+						</TabButton>
+					)}
 					<TabButton isActive={activeTab === "configure"} onClick={() => handleTabChange("configure")}>
 						Configure
 					</TabButton>
@@ -113,7 +119,9 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 				{/* Content container */}
 				<div style={{ width: "100%" }}>
 					{showMarketplace && activeTab === "marketplace" && <McpMarketplaceView />}
-					{activeTab === "addRemote" && <AddRemoteServerForm onServerAdded={() => handleTabChange("configure")} />}
+					{showRemoteServers && activeTab === "addRemote" && (
+						<AddRemoteServerForm onServerAdded={() => handleTabChange("configure")} />
+					)}
 					{activeTab === "configure" && <ConfigureServersView />}
 				</div>
 			</div>
