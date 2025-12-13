@@ -3,9 +3,7 @@ import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from 
 import { TelemetryMetadata, TelemetryService } from "../TelemetryService"
 
 class FakeProvider implements ITelemetryProvider {
-	name(): string {
-		return "FakeProvider"
-	}
+	readonly name = "FakeProvider"
 	public counters: Array<{ name: string; value: number; attributes: TelemetryProperties; description?: string }> = []
 	public histograms: Array<{ name: string; value: number; attributes: TelemetryProperties; description?: string }> = []
 	public gauges = new Map<string, Map<string, { value: number; attributes: TelemetryProperties; description?: string }>>()

@@ -1,3 +1,5 @@
+import { RemoteConfigFields } from "@/shared/storage/state-keys"
+
 export interface OpenTelemetryClientConfig {
 	/**
 	 * Whether telemetry is enabled via OTEL_TELEMETRY_ENABLED
@@ -25,6 +27,11 @@ export interface OpenTelemetryClientConfig {
 	 * General OTLP endpoint (used if specific endpoints not set)
 	 */
 	otlpEndpoint?: string
+
+	/**
+	 * General OTLP headers
+	 */
+	otlpHeaders?: Record<string, string>
 
 	/**
 	 * Metrics-specific OTLP protocol
@@ -89,6 +96,28 @@ const isTestEnv = process.env.E2E_TEST === "true" || process.env.IS_TEST === "tr
  * Lazily initialized on first access to avoid race conditions with environment variable loading.
  */
 let otelConfig: OpenTelemetryClientConfig | null = null
+
+export function remoteConfigToOtelConfig(settings: Partial<RemoteConfigFields>): OpenTelemetryClientConfig {
+	return {
+		enabled: !!settings.openTelemetryEnabled,
+		metricsExporter: settings.openTelemetryMetricsExporter,
+		logsExporter: settings.openTelemetryLogsExporter,
+		otlpProtocol: settings.openTelemetryOtlpProtocol,
+		otlpEndpoint: settings.openTelemetryOtlpEndpoint,
+		otlpHeaders: settings.openTelemetryOtlpHeaders,
+		metricExportInterval: settings.openTelemetryMetricExportInterval,
+		otlpInsecure: settings.openTelemetryOtlpInsecure,
+
+		otlpMetricsEndpoint: settings.openTelemetryOtlpMetricsEndpoint,
+		otlpMetricsProtocol: settings.openTelemetryOtlpMetricsProtocol,
+		otlpLogsEndpoint: settings.openTelemetryOtlpLogsEndpoint,
+		otlpLogsProtocol: settings.openTelemetryOtlpLogsProtocol,
+
+		logBatchSize: settings.openTelemetryLogBatchSize,
+		logBatchTimeout: settings.openTelemetryLogBatchTimeout,
+		logMaxQueueSize: settings.openTelemetryLogMaxQueueSize,
+	}
+}
 
 /**
  * Gets or creates the OpenTelemetry configuration from environment variables.

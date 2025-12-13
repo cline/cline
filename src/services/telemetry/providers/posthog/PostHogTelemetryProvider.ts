@@ -15,6 +15,8 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	private telemetrySettings: TelemetrySettings
 	private isSharedClient: boolean
 
+	readonly name = "PostHogTelemetryProvider"
+
 	constructor(sharedClient?: PostHog) {
 		this.isSharedClient = !!sharedClient
 
@@ -59,9 +61,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		this.telemetrySettings.level = await this.getTelemetryLevel()
 		return this
 	}
-	name(): string {
-		return "PostHogTelemetryProvider"
-	}
+
 	public log(event: string, properties?: TelemetryProperties): void {
 		if (!this.isEnabled() || this.telemetrySettings.level === "off") {
 			return
