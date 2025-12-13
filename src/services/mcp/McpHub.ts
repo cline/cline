@@ -38,7 +38,6 @@ import { fetch } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { getServerAuthHash } from "@/utils/mcpAuth"
 import { TelemetryService } from "../telemetry/TelemetryService"
-import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { McpOAuthManager } from "./McpOAuthManager"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
 import { McpConnection, McpServerConfig, Transport } from "./types"
@@ -539,15 +538,16 @@ export class McpHub {
 				return []
 			}
 
-			const response = await connection.client.request({ method: "tools/list" }, ListToolsResultSchema, {
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
-			})
-
-			// Get autoApprove settings
+			// Get timeout and autoApprove settings
 			const settingsPath = await this.getMcpSettingsFilePath()
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 			const autoApproveConfig = config.mcpServers[serverName]?.autoApprove || []
+			const mcpTimeout = config.mcpServers[serverName]?.timeout || DEFAULT_MCP_TIMEOUT_SECONDS
+
+			const response = await connection.client.request({ method: "tools/list" }, ListToolsResultSchema, {
+				timeout: secondsToMs(mcpTimeout),
+			})
 
 			// Mark tools as always allowed based on settings
 			const tools = (response?.tools || []).map((tool) => ({
@@ -571,8 +571,14 @@ export class McpHub {
 				return []
 			}
 
+			// Get timeout setting
+			const settingsPath = await this.getMcpSettingsFilePath()
+			const content = await fs.readFile(settingsPath, "utf-8")
+			const config = JSON.parse(content)
+			const mcpTimeout = config.mcpServers[serverName]?.timeout || DEFAULT_MCP_TIMEOUT_SECONDS
+
 			const response = await connection.client.request({ method: "resources/list" }, ListResourcesResultSchema, {
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: secondsToMs(mcpTimeout),
 			})
 			return response?.resources || []
 		} catch (_error) {
@@ -590,11 +596,17 @@ export class McpHub {
 				return []
 			}
 
+			// Get timeout setting
+			const settingsPath = await this.getMcpSettingsFilePath()
+			const content = await fs.readFile(settingsPath, "utf-8")
+			const config = JSON.parse(content)
+			const mcpTimeout = config.mcpServers[serverName]?.timeout || DEFAULT_MCP_TIMEOUT_SECONDS
+
 			const response = await connection.client.request(
 				{ method: "resources/templates/list" },
 				ListResourceTemplatesResultSchema,
 				{
-					timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+					timeout: secondsToMs(mcpTimeout),
 				},
 			)
 
@@ -917,6 +929,12 @@ export class McpHub {
 			throw new Error(`Server "${serverName}" is disabled`)
 		}
 
+		// Get timeout setting
+		const settingsPath = await this.getMcpSettingsFilePath()
+		const content = await fs.readFile(settingsPath, "utf-8")
+		const config = JSON.parse(content)
+		const mcpTimeout = config.mcpServers[serverName]?.timeout || DEFAULT_MCP_TIMEOUT_SECONDS
+
 		return await connection.client.request(
 			{
 				method: "resources/read",
@@ -925,6 +943,9 @@ export class McpHub {
 				},
 			},
 			ReadResourceResultSchema,
+			{
+				timeout: secondsToMs(mcpTimeout),
+			},
 		)
 	}
 
