@@ -166,6 +166,7 @@ export function normalizeApiConfiguration(
 	apiConfiguration: ApiConfiguration | undefined,
 	currentMode: Mode,
 	liteLlmModels?: Record<string, ModelInfo>,
+	ioIntelligenceModels?: Record<string, ModelInfo>,
 ): NormalizedApiConfig {
 	const provider =
 		(currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "anthropic"
@@ -476,6 +477,23 @@ export function normalizeApiConfiguration(
 						? nousResearchModels[nousResearchModelId as keyof typeof nousResearchModels]
 						: nousResearchModels[nousResearchDefaultModelId],
 			}
+		case "iointelligence":
+			const ioIntelligenceModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeApiModelId : apiConfiguration?.actModeApiModelId
+			const ioIntelligenceModelInfo =
+				currentMode === "plan"
+					? apiConfiguration?.planModeIoIntelligenceModelInfo
+					: apiConfiguration?.actModeIoIntelligenceModelInfo
+			// Use model info from API if available, otherwise fall back to fetched models or defaults
+			const finalIoIntelligenceModelInfo =
+				ioIntelligenceModelInfo ||
+				(ioIntelligenceModelId && ioIntelligenceModels?.[ioIntelligenceModelId]) ||
+				openAiModelInfoSaneDefaults
+			return {
+				selectedProvider: provider,
+				selectedModelId: ioIntelligenceModelId || "",
+				selectedModelInfo: finalIoIntelligenceModelInfo,
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -782,6 +800,7 @@ export async function syncModeConfigurations(
 		case "sapaicore":
 		case "zai":
 		case "minimax":
+		case "iointelligence":
 		default:
 			updates.planModeApiModelId = sourceFields.apiModelId
 			updates.actModeApiModelId = sourceFields.apiModelId

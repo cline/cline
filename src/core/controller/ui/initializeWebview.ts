@@ -1,5 +1,6 @@
 import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
 import { readMcpMarketplaceCatalogFromCache } from "@/core/storage/disk"
 import { telemetryService } from "@/services/telemetry"
 import { GlobalStateAndSettings } from "@/shared/storage/state-keys"
@@ -8,6 +9,7 @@ import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplace
 import { refreshBasetenModels } from "../models/refreshBasetenModels"
 import { refreshGroqModels } from "../models/refreshGroqModels"
 import { refreshHicapModels } from "../models/refreshHicapModels"
+import { refreshIoIntelligenceModels } from "../models/refreshIoIntelligenceModels"
 import { refreshLiteLlmModels } from "../models/refreshLiteLlmModels"
 import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
 import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
@@ -200,6 +202,64 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 		if (liteLlmBaseUrl && liteLlmApiKey) {
 			await refreshLiteLlmModels()
 		}
+
+		// Fetch IO Intelligence models automatically (no API key required)
+		refreshIoIntelligenceModels(controller, {
+			metadata: undefined,
+			apiKey: "",
+			baseUrl: "",
+		})
+			.then(async (response) => {
+				if (response && response.models) {
+					// Convert protobuf models to application types
+					const models = fromProtobufModels(response.models)
+
+					if (models && Object.keys(models).length > 0) {
+						// Update model info in state for IO Intelligence (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
+						const apiConfiguration = controller.stateManager.getApiConfiguration()
+						const planActSeparateModelsSetting =
+							controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
+						const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
+
+						if (planActSeparateModelsSetting) {
+							// Separate models: update only current mode
+							const modelIdField = currentMode === "plan" ? "planModeApiModelId" : "actModeApiModelId"
+							const modelInfoField =
+								currentMode === "plan" ? "planModeIoIntelligenceModelInfo" : "actModeIoIntelligenceModelInfo"
+							const modelId = apiConfiguration[modelIdField]
+
+							if (modelId && models[modelId]) {
+								controller.stateManager.setGlobalState(modelInfoField, models[modelId])
+								await controller.postStateToWebview()
+							}
+						} else {
+							// Shared models: update both plan and act modes
+							const planModelId = apiConfiguration.planModeApiModelId
+							const actModelId = apiConfiguration.actModeApiModelId
+							const updates: Partial<GlobalStateAndSettings> = {}
+
+							// Update plan mode model info if we have a model ID
+							if (planModelId && models[planModelId]) {
+								updates.planModeIoIntelligenceModelInfo = models[planModelId]
+							}
+
+							// Update act mode model info if we have a model ID
+							if (actModelId && models[actModelId]) {
+								updates.actModeIoIntelligenceModelInfo = models[actModelId]
+							}
+
+							// Post state update if we updated any model info
+							if (Object.keys(updates).length > 0) {
+								controller.stateManager.setGlobalStateBatch(updates)
+								await controller.postStateToWebview()
+							}
+						}
+					}
+				}
+			})
+			.catch((error) => {
+				console.error("Failed to fetch IO Intelligence models on initialization:", error)
+			})
 
 		// GUI relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
 		// We do this for all users since many users switch between api providers and if they were to switch back to openrouter it would be showing outdated model info if we hadn't retrieved the latest at this point

@@ -117,6 +117,10 @@
 			"label": "Hugging Face"
 		},
 		{
+			"value": "iointelligence",
+			"label": "IO Intelligence"
+		},
+		{
 			"value": "nebius",
 			"label": "Nebius AI Studio"
 		},

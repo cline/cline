@@ -114,6 +114,7 @@ func (r *ProviderListResult) GetAllReadyProviders() []*ProviderDisplay {
 		cline.ApiProvider_NOUSRESEARCH,
 		cline.ApiProvider_OCA,
 		cline.ApiProvider_HICAP,
+		cline.ApiProvider_IOINTELLIGENCE,
 	}
 
 	// Check each provider to see if it's ready to use
@@ -360,6 +361,8 @@ func GetProviderDisplayName(provider cline.ApiProvider) string {
 		return "Hicap"
 	case cline.ApiProvider_NOUSRESEARCH:
 		return "NousResearch"
+	case cline.ApiProvider_IOINTELLIGENCE:
+		return "IO Intelligence"
 	default:
 		return "Unknown"
 	}
@@ -483,6 +486,7 @@ func DetectAllConfiguredProviders(ctx context.Context, manager *task.Manager) ([
 		{cline.ApiProvider_CEREBRAS, "cerebrasApiKey"},
 		{cline.ApiProvider_HICAP, "hicapApiKey"},
 		{cline.ApiProvider_NOUSRESEARCH, "nousResearchApiKey"},
+		{cline.ApiProvider_IOINTELLIGENCE, "ioIntelligenceApiKey"},
 	}
 
 	for _, providerCheck := range providersToCheck {
