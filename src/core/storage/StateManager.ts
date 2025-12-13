@@ -1077,6 +1077,10 @@ export class StateManager {
 		Object.assign(this.workspaceStateCache, workspaceState)
 	}
 
+	private remotelyConfiguredField<T extends keyof Settings>(key: T): Settings[T] {
+		return this.remoteConfigCache[key] || this.taskStateCache[key] || this.globalStateCache[key]
+	}
+
 	/**
 	 * Construct API configuration from cached component keys
 	 */
@@ -1122,221 +1126,127 @@ export class StateManager {
 			aihubmixApiKey: this.secretsCache["aihubmixApiKey"],
 
 			// Global state (with remote config precedence for applicable fields)
-			awsRegion:
-				this.remoteConfigCache["awsRegion"] || this.taskStateCache["awsRegion"] || this.globalStateCache["awsRegion"],
-			awsUseCrossRegionInference:
-				this.remoteConfigCache["awsUseCrossRegionInference"] ||
-				this.taskStateCache["awsUseCrossRegionInference"] ||
-				this.globalStateCache["awsUseCrossRegionInference"],
-			awsUseGlobalInference:
-				this.remoteConfigCache["awsUseGlobalInference"] ||
-				this.taskStateCache["awsUseGlobalInference"] ||
-				this.globalStateCache["awsUseGlobalInference"],
-			awsBedrockUsePromptCache:
-				this.remoteConfigCache["awsBedrockUsePromptCache"] ||
-				this.taskStateCache["awsBedrockUsePromptCache"] ||
-				this.globalStateCache["awsBedrockUsePromptCache"],
-			awsBedrockEndpoint:
-				this.remoteConfigCache["awsBedrockEndpoint"] ||
-				this.taskStateCache["awsBedrockEndpoint"] ||
-				this.globalStateCache["awsBedrockEndpoint"],
-			awsProfile: this.taskStateCache["awsProfile"] || this.globalStateCache["awsProfile"],
-			awsUseProfile: this.taskStateCache["awsUseProfile"] || this.globalStateCache["awsUseProfile"],
-			awsAuthentication: this.taskStateCache["awsAuthentication"] || this.globalStateCache["awsAuthentication"],
-			vertexProjectId: this.taskStateCache["vertexProjectId"] || this.globalStateCache["vertexProjectId"],
-			vertexRegion: this.taskStateCache["vertexRegion"] || this.globalStateCache["vertexRegion"],
-			requestyBaseUrl: this.taskStateCache["requestyBaseUrl"] || this.globalStateCache["requestyBaseUrl"],
-			openAiBaseUrl:
-				this.remoteConfigCache["openAiBaseUrl"] ||
-				this.taskStateCache["openAiBaseUrl"] ||
-				this.globalStateCache["openAiBaseUrl"],
-			openAiHeaders:
-				this.remoteConfigCache["openAiHeaders"] ||
-				this.taskStateCache["openAiHeaders"] ||
-				this.globalStateCache["openAiHeaders"] ||
-				{},
-			ollamaBaseUrl: this.taskStateCache["ollamaBaseUrl"] || this.globalStateCache["ollamaBaseUrl"],
-			ollamaApiOptionsCtxNum:
-				this.taskStateCache["ollamaApiOptionsCtxNum"] || this.globalStateCache["ollamaApiOptionsCtxNum"],
-			lmStudioBaseUrl: this.taskStateCache["lmStudioBaseUrl"] || this.globalStateCache["lmStudioBaseUrl"],
-			lmStudioMaxTokens: this.taskStateCache["lmStudioMaxTokens"] || this.globalStateCache["lmStudioMaxTokens"],
-			anthropicBaseUrl: this.taskStateCache["anthropicBaseUrl"] || this.globalStateCache["anthropicBaseUrl"],
-			geminiBaseUrl: this.taskStateCache["geminiBaseUrl"] || this.globalStateCache["geminiBaseUrl"],
-			azureApiVersion:
-				this.remoteConfigCache["azureApiVersion"] ||
-				this.taskStateCache["azureApiVersion"] ||
-				this.globalStateCache["azureApiVersion"],
-			openRouterProviderSorting:
-				this.taskStateCache["openRouterProviderSorting"] || this.globalStateCache["openRouterProviderSorting"],
-			liteLlmBaseUrl: this.taskStateCache["liteLlmBaseUrl"] || this.globalStateCache["liteLlmBaseUrl"],
-			liteLlmUsePromptCache: this.taskStateCache["liteLlmUsePromptCache"] || this.globalStateCache["liteLlmUsePromptCache"],
-			qwenApiLine: this.taskStateCache["qwenApiLine"] || this.globalStateCache["qwenApiLine"],
-			moonshotApiLine: this.taskStateCache["moonshotApiLine"] || this.globalStateCache["moonshotApiLine"],
-			zaiApiLine: this.taskStateCache["zaiApiLine"] || this.globalStateCache["zaiApiLine"],
-			asksageApiUrl: this.taskStateCache["asksageApiUrl"] || this.globalStateCache["asksageApiUrl"],
-			requestTimeoutMs: this.taskStateCache["requestTimeoutMs"] || this.globalStateCache["requestTimeoutMs"],
-			fireworksModelMaxCompletionTokens:
-				this.taskStateCache["fireworksModelMaxCompletionTokens"] ||
-				this.globalStateCache["fireworksModelMaxCompletionTokens"],
-			fireworksModelMaxTokens:
-				this.taskStateCache["fireworksModelMaxTokens"] || this.globalStateCache["fireworksModelMaxTokens"],
-			sapAiCoreBaseUrl: this.taskStateCache["sapAiCoreBaseUrl"] || this.globalStateCache["sapAiCoreBaseUrl"],
-			sapAiCoreTokenUrl: this.taskStateCache["sapAiCoreTokenUrl"] || this.globalStateCache["sapAiCoreTokenUrl"],
-			sapAiResourceGroup: this.taskStateCache["sapAiResourceGroup"] || this.globalStateCache["sapAiResourceGroup"],
-			sapAiCoreUseOrchestrationMode:
-				this.taskStateCache["sapAiCoreUseOrchestrationMode"] || this.globalStateCache["sapAiCoreUseOrchestrationMode"],
-			claudeCodePath: this.taskStateCache["claudeCodePath"] || this.globalStateCache["claudeCodePath"],
-			qwenCodeOauthPath: this.taskStateCache["qwenCodeOauthPath"] || this.globalStateCache["qwenCodeOauthPath"],
-			difyBaseUrl: this.taskStateCache["difyBaseUrl"] || this.globalStateCache["difyBaseUrl"],
+			awsRegion: this.remotelyConfiguredField("awsRegion"),
+			awsUseCrossRegionInference: this.remotelyConfiguredField("awsUseCrossRegionInference"),
+			awsUseGlobalInference: this.remotelyConfiguredField("awsUseGlobalInference"),
+			awsBedrockUsePromptCache: this.remotelyConfiguredField("awsBedrockUsePromptCache"),
+			awsBedrockEndpoint: this.remotelyConfiguredField("awsBedrockEndpoint"),
+			awsProfile: this.remotelyConfiguredField("awsProfile"),
+			awsUseProfile: this.remotelyConfiguredField("awsUseProfile"),
+			awsAuthentication: this.remotelyConfiguredField("awsAuthentication"),
+			vertexProjectId: this.remotelyConfiguredField("vertexProjectId"),
+			vertexRegion: this.remotelyConfiguredField("vertexRegion"),
+			requestyBaseUrl: this.remotelyConfiguredField("requestyBaseUrl"),
+			openAiBaseUrl: this.remotelyConfiguredField("openAiBaseUrl"),
+			openAiHeaders: this.remotelyConfiguredField("openAiHeaders") || {},
+			ollamaBaseUrl: this.remotelyConfiguredField("ollamaBaseUrl"),
+			ollamaApiOptionsCtxNum: this.remotelyConfiguredField("ollamaApiOptionsCtxNum"),
+			lmStudioBaseUrl: this.remotelyConfiguredField("lmStudioBaseUrl"),
+			lmStudioMaxTokens: this.remotelyConfiguredField("lmStudioMaxTokens"),
+			anthropicBaseUrl: this.remotelyConfiguredField("anthropicBaseUrl"),
+			geminiBaseUrl: this.remotelyConfiguredField("geminiBaseUrl"),
+			azureApiVersion: this.remotelyConfiguredField("azureApiVersion"),
+			openRouterProviderSorting: this.remotelyConfiguredField("openRouterProviderSorting"),
+			liteLlmBaseUrl: this.remotelyConfiguredField("liteLlmBaseUrl"),
+			liteLlmUsePromptCache: this.remotelyConfiguredField("liteLlmUsePromptCache"),
+			qwenApiLine: this.remotelyConfiguredField("qwenApiLine"),
+			moonshotApiLine: this.remotelyConfiguredField("moonshotApiLine"),
+			zaiApiLine: this.remotelyConfiguredField("zaiApiLine"),
+			asksageApiUrl: this.remotelyConfiguredField("asksageApiUrl"),
+			requestTimeoutMs: this.remotelyConfiguredField("requestTimeoutMs"),
+			fireworksModelMaxCompletionTokens: this.remotelyConfiguredField("fireworksModelMaxCompletionTokens"),
+			fireworksModelMaxTokens: this.remotelyConfiguredField("fireworksModelMaxTokens"),
+			sapAiCoreBaseUrl: this.remotelyConfiguredField("sapAiCoreBaseUrl"),
+			sapAiCoreTokenUrl: this.remotelyConfiguredField("sapAiCoreTokenUrl"),
+			sapAiResourceGroup: this.remotelyConfiguredField("sapAiResourceGroup"),
+			sapAiCoreUseOrchestrationMode: this.remotelyConfiguredField("sapAiCoreUseOrchestrationMode"),
+			claudeCodePath: this.remotelyConfiguredField("claudeCodePath"),
+			qwenCodeOauthPath: this.remotelyConfiguredField("qwenCodeOauthPath"),
+			difyBaseUrl: this.remotelyConfiguredField("difyBaseUrl"),
 			ocaBaseUrl: this.globalStateCache["ocaBaseUrl"],
-			minimaxApiLine: this.taskStateCache["minimaxApiLine"] || this.globalStateCache["minimaxApiLine"],
+			minimaxApiLine: this.remotelyConfiguredField("minimaxApiLine"),
 			ocaMode: this.globalStateCache["ocaMode"],
 			hicapModelId: this.globalStateCache["hicapModelId"],
-			aihubmixBaseUrl: this.taskStateCache["aihubmixBaseUrl"] || this.globalStateCache["aihubmixBaseUrl"],
-			aihubmixAppCode: this.taskStateCache["aihubmixAppCode"] || this.globalStateCache["aihubmixAppCode"],
+			aihubmixBaseUrl: this.remotelyConfiguredField("aihubmixBaseUrl"),
+			aihubmixAppCode: this.remotelyConfiguredField("aihubmixAppCode"),
 
 			// Plan mode configurations
-			planModeApiProvider:
-				this.remoteConfigCache["planModeApiProvider"] ||
-				this.taskStateCache["planModeApiProvider"] ||
-				this.globalStateCache["planModeApiProvider"],
-			planModeApiModelId: this.taskStateCache["planModeApiModelId"] || this.globalStateCache["planModeApiModelId"],
-			planModeThinkingBudgetTokens:
-				this.taskStateCache["planModeThinkingBudgetTokens"] || this.globalStateCache["planModeThinkingBudgetTokens"],
-			planModeReasoningEffort:
-				this.taskStateCache["planModeReasoningEffort"] || this.globalStateCache["planModeReasoningEffort"],
-			planModeVsCodeLmModelSelector:
-				this.taskStateCache["planModeVsCodeLmModelSelector"] || this.globalStateCache["planModeVsCodeLmModelSelector"],
-			planModeAwsBedrockCustomSelected:
-				this.taskStateCache["planModeAwsBedrockCustomSelected"] ||
-				this.globalStateCache["planModeAwsBedrockCustomSelected"],
-			planModeAwsBedrockCustomModelBaseId:
-				this.taskStateCache["planModeAwsBedrockCustomModelBaseId"] ||
-				this.globalStateCache["planModeAwsBedrockCustomModelBaseId"],
-			planModeOpenRouterModelId:
-				this.taskStateCache["planModeOpenRouterModelId"] || this.globalStateCache["planModeOpenRouterModelId"],
-			planModeOpenRouterModelInfo:
-				this.taskStateCache["planModeOpenRouterModelInfo"] || this.globalStateCache["planModeOpenRouterModelInfo"],
-			planModeOpenAiModelId: this.taskStateCache["planModeOpenAiModelId"] || this.globalStateCache["planModeOpenAiModelId"],
-			planModeOpenAiModelInfo:
-				this.taskStateCache["planModeOpenAiModelInfo"] || this.globalStateCache["planModeOpenAiModelInfo"],
-			planModeOllamaModelId: this.taskStateCache["planModeOllamaModelId"] || this.globalStateCache["planModeOllamaModelId"],
-			planModeLmStudioModelId:
-				this.taskStateCache["planModeLmStudioModelId"] || this.globalStateCache["planModeLmStudioModelId"],
-			planModeLiteLlmModelId:
-				this.taskStateCache["planModeLiteLlmModelId"] || this.globalStateCache["planModeLiteLlmModelId"],
-			planModeLiteLlmModelInfo:
-				this.taskStateCache["planModeLiteLlmModelInfo"] || this.globalStateCache["planModeLiteLlmModelInfo"],
-			planModeRequestyModelId:
-				this.taskStateCache["planModeRequestyModelId"] || this.globalStateCache["planModeRequestyModelId"],
-			planModeRequestyModelInfo:
-				this.taskStateCache["planModeRequestyModelInfo"] || this.globalStateCache["planModeRequestyModelInfo"],
-			planModeTogetherModelId:
-				this.taskStateCache["planModeTogetherModelId"] || this.globalStateCache["planModeTogetherModelId"],
-			planModeFireworksModelId:
-				this.taskStateCache["planModeFireworksModelId"] || this.globalStateCache["planModeFireworksModelId"],
-			planModeSapAiCoreModelId:
-				this.taskStateCache["planModeSapAiCoreModelId"] || this.globalStateCache["planModeSapAiCoreModelId"],
-			planModeSapAiCoreDeploymentId:
-				this.taskStateCache["planModeSapAiCoreDeploymentId"] || this.globalStateCache["planModeSapAiCoreDeploymentId"],
-			planModeGroqModelId: this.taskStateCache["planModeGroqModelId"] || this.globalStateCache["planModeGroqModelId"],
-			planModeGroqModelInfo: this.taskStateCache["planModeGroqModelInfo"] || this.globalStateCache["planModeGroqModelInfo"],
-			planModeBasetenModelId:
-				this.taskStateCache["planModeBasetenModelId"] || this.globalStateCache["planModeBasetenModelId"],
-			planModeBasetenModelInfo:
-				this.taskStateCache["planModeBasetenModelInfo"] || this.globalStateCache["planModeBasetenModelInfo"],
-			planModeHuggingFaceModelId:
-				this.taskStateCache["planModeHuggingFaceModelId"] || this.globalStateCache["planModeHuggingFaceModelId"],
-			planModeHuggingFaceModelInfo:
-				this.taskStateCache["planModeHuggingFaceModelInfo"] || this.globalStateCache["planModeHuggingFaceModelInfo"],
-			planModeHuaweiCloudMaasModelId:
-				this.taskStateCache["planModeHuaweiCloudMaasModelId"] || this.globalStateCache["planModeHuaweiCloudMaasModelId"],
-			planModeHuaweiCloudMaasModelInfo:
-				this.taskStateCache["planModeHuaweiCloudMaasModelInfo"] ||
-				this.globalStateCache["planModeHuaweiCloudMaasModelInfo"],
+			planModeApiProvider: this.remotelyConfiguredField("planModeApiProvider"),
+			planModeApiModelId: this.remotelyConfiguredField("planModeApiModelId"),
+			planModeThinkingBudgetTokens: this.remotelyConfiguredField("planModeThinkingBudgetTokens"),
+			planModeReasoningEffort: this.remotelyConfiguredField("planModeReasoningEffort"),
+			planModeVsCodeLmModelSelector: this.remotelyConfiguredField("planModeVsCodeLmModelSelector"),
+			planModeAwsBedrockCustomSelected: this.remotelyConfiguredField("planModeAwsBedrockCustomSelected"),
+			planModeAwsBedrockCustomModelBaseId: this.remotelyConfiguredField("planModeAwsBedrockCustomModelBaseId"),
+			planModeOpenRouterModelId: this.remotelyConfiguredField("planModeOpenRouterModelId"),
+			planModeOpenRouterModelInfo: this.remotelyConfiguredField("planModeOpenRouterModelInfo"),
+			planModeOpenAiModelId: this.remotelyConfiguredField("planModeOpenAiModelId"),
+			planModeOpenAiModelInfo: this.remotelyConfiguredField("planModeOpenAiModelInfo"),
+			planModeOllamaModelId: this.remotelyConfiguredField("planModeOllamaModelId"),
+			planModeLmStudioModelId: this.remotelyConfiguredField("planModeLmStudioModelId"),
+			planModeLiteLlmModelId: this.remotelyConfiguredField("planModeLiteLlmModelId"),
+			planModeLiteLlmModelInfo: this.remotelyConfiguredField("planModeLiteLlmModelInfo"),
+			planModeRequestyModelId: this.remotelyConfiguredField("planModeRequestyModelId"),
+			planModeRequestyModelInfo: this.remotelyConfiguredField("planModeRequestyModelInfo"),
+			planModeTogetherModelId: this.remotelyConfiguredField("planModeTogetherModelId"),
+			planModeFireworksModelId: this.remotelyConfiguredField("planModeFireworksModelId"),
+			planModeSapAiCoreModelId: this.remotelyConfiguredField("planModeSapAiCoreModelId"),
+			planModeSapAiCoreDeploymentId: this.remotelyConfiguredField("planModeSapAiCoreDeploymentId"),
+			planModeGroqModelId: this.remotelyConfiguredField("planModeGroqModelId"),
+			planModeGroqModelInfo: this.remotelyConfiguredField("planModeGroqModelInfo"),
+			planModeBasetenModelId: this.remotelyConfiguredField("planModeBasetenModelId"),
+			planModeBasetenModelInfo: this.remotelyConfiguredField("planModeBasetenModelInfo"),
+			planModeHuggingFaceModelId: this.remotelyConfiguredField("planModeHuggingFaceModelId"),
+			planModeHuggingFaceModelInfo: this.remotelyConfiguredField("planModeHuggingFaceModelInfo"),
+			planModeHuaweiCloudMaasModelId: this.remotelyConfiguredField("planModeHuaweiCloudMaasModelId"),
+			planModeHuaweiCloudMaasModelInfo: this.remotelyConfiguredField("planModeHuaweiCloudMaasModelInfo"),
 			planModeOcaModelId: this.globalStateCache["planModeOcaModelId"],
 			planModeOcaModelInfo: this.globalStateCache["planModeOcaModelInfo"],
-			planModeHicapModelId: this.taskStateCache["planModeHicapModelId"] || this.globalStateCache["planModeHicapModelId"],
-			planModeHicapModelInfo:
-				this.taskStateCache["planModeHicapModelInfo"] || this.globalStateCache["planModeHicapModelInfo"],
-			planModeAihubmixModelId:
-				this.taskStateCache["planModeAihubmixModelId"] || this.globalStateCache["planModeAihubmixModelId"],
-			planModeAihubmixModelInfo:
-				this.taskStateCache["planModeAihubmixModelInfo"] || this.globalStateCache["planModeAihubmixModelInfo"],
-			planModeNousResearchModelId:
-				this.taskStateCache["planModeNousResearchModelId"] || this.globalStateCache["planModeNousResearchModelId"],
-			geminiPlanModeThinkingLevel:
-				this.taskStateCache["geminiPlanModeThinkingLevel"] || this.globalStateCache["geminiPlanModeThinkingLevel"],
+			planModeHicapModelId: this.remotelyConfiguredField("planModeHicapModelId"),
+			planModeHicapModelInfo: this.remotelyConfiguredField("planModeHicapModelInfo"),
+			planModeAihubmixModelId: this.remotelyConfiguredField("planModeAihubmixModelId"),
+			planModeAihubmixModelInfo: this.remotelyConfiguredField("planModeAihubmixModelInfo"),
+			planModeNousResearchModelId: this.remotelyConfiguredField("planModeNousResearchModelId"),
+			geminiPlanModeThinkingLevel: this.remotelyConfiguredField("geminiPlanModeThinkingLevel"),
 
 			// Act mode configurations
-			actModeApiProvider:
-				this.remoteConfigCache["actModeApiProvider"] ||
-				this.taskStateCache["actModeApiProvider"] ||
-				this.globalStateCache["actModeApiProvider"],
-			actModeApiModelId: this.taskStateCache["actModeApiModelId"] || this.globalStateCache["actModeApiModelId"],
-			actModeThinkingBudgetTokens:
-				this.taskStateCache["actModeThinkingBudgetTokens"] || this.globalStateCache["actModeThinkingBudgetTokens"],
-			actModeReasoningEffort:
-				this.taskStateCache["actModeReasoningEffort"] || this.globalStateCache["actModeReasoningEffort"],
-			actModeVsCodeLmModelSelector:
-				this.taskStateCache["actModeVsCodeLmModelSelector"] || this.globalStateCache["actModeVsCodeLmModelSelector"],
-			actModeAwsBedrockCustomSelected:
-				this.taskStateCache["actModeAwsBedrockCustomSelected"] ||
-				this.globalStateCache["actModeAwsBedrockCustomSelected"],
-			actModeAwsBedrockCustomModelBaseId:
-				this.taskStateCache["actModeAwsBedrockCustomModelBaseId"] ||
-				this.globalStateCache["actModeAwsBedrockCustomModelBaseId"],
-			actModeOpenRouterModelId:
-				this.taskStateCache["actModeOpenRouterModelId"] || this.globalStateCache["actModeOpenRouterModelId"],
-			actModeOpenRouterModelInfo:
-				this.taskStateCache["actModeOpenRouterModelInfo"] || this.globalStateCache["actModeOpenRouterModelInfo"],
-			actModeOpenAiModelId: this.taskStateCache["actModeOpenAiModelId"] || this.globalStateCache["actModeOpenAiModelId"],
-			actModeOpenAiModelInfo:
-				this.taskStateCache["actModeOpenAiModelInfo"] || this.globalStateCache["actModeOpenAiModelInfo"],
-			actModeOllamaModelId: this.taskStateCache["actModeOllamaModelId"] || this.globalStateCache["actModeOllamaModelId"],
-			actModeLmStudioModelId:
-				this.taskStateCache["actModeLmStudioModelId"] || this.globalStateCache["actModeLmStudioModelId"],
-			actModeLiteLlmModelId: this.taskStateCache["actModeLiteLlmModelId"] || this.globalStateCache["actModeLiteLlmModelId"],
-			actModeLiteLlmModelInfo:
-				this.taskStateCache["actModeLiteLlmModelInfo"] || this.globalStateCache["actModeLiteLlmModelInfo"],
-			actModeRequestyModelId:
-				this.taskStateCache["actModeRequestyModelId"] || this.globalStateCache["actModeRequestyModelId"],
-			actModeRequestyModelInfo:
-				this.taskStateCache["actModeRequestyModelInfo"] || this.globalStateCache["actModeRequestyModelInfo"],
-			actModeTogetherModelId:
-				this.taskStateCache["actModeTogetherModelId"] || this.globalStateCache["actModeTogetherModelId"],
-			actModeFireworksModelId:
-				this.taskStateCache["actModeFireworksModelId"] || this.globalStateCache["actModeFireworksModelId"],
-			actModeSapAiCoreModelId:
-				this.taskStateCache["actModeSapAiCoreModelId"] || this.globalStateCache["actModeSapAiCoreModelId"],
-			actModeSapAiCoreDeploymentId:
-				this.taskStateCache["actModeSapAiCoreDeploymentId"] || this.globalStateCache["actModeSapAiCoreDeploymentId"],
-			actModeGroqModelId: this.taskStateCache["actModeGroqModelId"] || this.globalStateCache["actModeGroqModelId"],
-			actModeGroqModelInfo: this.taskStateCache["actModeGroqModelInfo"] || this.globalStateCache["actModeGroqModelInfo"],
-			actModeBasetenModelId: this.taskStateCache["actModeBasetenModelId"] || this.globalStateCache["actModeBasetenModelId"],
-			actModeBasetenModelInfo:
-				this.taskStateCache["actModeBasetenModelInfo"] || this.globalStateCache["actModeBasetenModelInfo"],
-			actModeHuggingFaceModelId:
-				this.taskStateCache["actModeHuggingFaceModelId"] || this.globalStateCache["actModeHuggingFaceModelId"],
-			actModeHuggingFaceModelInfo:
-				this.taskStateCache["actModeHuggingFaceModelInfo"] || this.globalStateCache["actModeHuggingFaceModelInfo"],
-			actModeHuaweiCloudMaasModelId:
-				this.taskStateCache["actModeHuaweiCloudMaasModelId"] || this.globalStateCache["actModeHuaweiCloudMaasModelId"],
-			actModeHuaweiCloudMaasModelInfo:
-				this.taskStateCache["actModeHuaweiCloudMaasModelInfo"] ||
-				this.globalStateCache["actModeHuaweiCloudMaasModelInfo"],
+			actModeApiProvider: this.remotelyConfiguredField("actModeApiProvider"),
+			actModeApiModelId: this.remotelyConfiguredField("actModeApiModelId"),
+			actModeThinkingBudgetTokens: this.remotelyConfiguredField("actModeThinkingBudgetTokens"),
+			actModeReasoningEffort: this.remotelyConfiguredField("actModeReasoningEffort"),
+			actModeVsCodeLmModelSelector: this.remotelyConfiguredField("actModeVsCodeLmModelSelector"),
+			actModeAwsBedrockCustomSelected: this.remotelyConfiguredField("actModeAwsBedrockCustomSelected"),
+			actModeAwsBedrockCustomModelBaseId: this.remotelyConfiguredField("actModeAwsBedrockCustomModelBaseId"),
+			actModeOpenRouterModelId: this.remotelyConfiguredField("actModeOpenRouterModelId"),
+			actModeOpenRouterModelInfo: this.remotelyConfiguredField("actModeOpenRouterModelInfo"),
+			actModeOpenAiModelId: this.remotelyConfiguredField("actModeOpenAiModelId"),
+			actModeOpenAiModelInfo: this.remotelyConfiguredField("actModeOpenAiModelInfo"),
+			actModeOllamaModelId: this.remotelyConfiguredField("actModeOllamaModelId"),
+			actModeLmStudioModelId: this.remotelyConfiguredField("actModeLmStudioModelId"),
+			actModeLiteLlmModelId: this.remotelyConfiguredField("actModeLiteLlmModelId"),
+			actModeLiteLlmModelInfo: this.remotelyConfiguredField("actModeLiteLlmModelInfo"),
+			actModeRequestyModelId: this.remotelyConfiguredField("actModeRequestyModelId"),
+			actModeRequestyModelInfo: this.remotelyConfiguredField("actModeRequestyModelInfo"),
+			actModeTogetherModelId: this.remotelyConfiguredField("actModeTogetherModelId"),
+			actModeFireworksModelId: this.remotelyConfiguredField("actModeFireworksModelId"),
+			actModeSapAiCoreModelId: this.remotelyConfiguredField("actModeSapAiCoreModelId"),
+			actModeSapAiCoreDeploymentId: this.remotelyConfiguredField("actModeSapAiCoreDeploymentId"),
+			actModeGroqModelId: this.remotelyConfiguredField("actModeGroqModelId"),
+			actModeGroqModelInfo: this.remotelyConfiguredField("actModeGroqModelInfo"),
+			actModeBasetenModelId: this.remotelyConfiguredField("actModeBasetenModelId"),
+			actModeBasetenModelInfo: this.remotelyConfiguredField("actModeBasetenModelInfo"),
+			actModeHuggingFaceModelId: this.remotelyConfiguredField("actModeHuggingFaceModelId"),
+			actModeHuggingFaceModelInfo: this.remotelyConfiguredField("actModeHuggingFaceModelInfo"),
+			actModeHuaweiCloudMaasModelId: this.remotelyConfiguredField("actModeHuaweiCloudMaasModelId"),
+			actModeHuaweiCloudMaasModelInfo: this.remotelyConfiguredField("actModeHuaweiCloudMaasModelInfo"),
 			actModeOcaModelId: this.globalStateCache["actModeOcaModelId"],
 			actModeOcaModelInfo: this.globalStateCache["actModeOcaModelInfo"],
 			actModeHicapModelId: this.globalStateCache["actModeHicapModelId"],
 			actModeHicapModelInfo: this.globalStateCache["actModeHicapModelInfo"],
-			actModeAihubmixModelId:
-				this.taskStateCache["actModeAihubmixModelId"] || this.globalStateCache["actModeAihubmixModelId"],
-			actModeAihubmixModelInfo:
-				this.taskStateCache["actModeAihubmixModelInfo"] || this.globalStateCache["actModeAihubmixModelInfo"],
-			actModeNousResearchModelId:
-				this.taskStateCache["actModeNousResearchModelId"] || this.globalStateCache["actModeNousResearchModelId"],
-			geminiActModeThinkingLevel:
-				this.taskStateCache["geminiActModeThinkingLevel"] || this.globalStateCache["geminiActModeThinkingLevel"],
+			actModeAihubmixModelId: this.remotelyConfiguredField("actModeAihubmixModelId"),
+			actModeAihubmixModelInfo: this.remotelyConfiguredField("actModeAihubmixModelInfo"),
+			actModeNousResearchModelId: this.remotelyConfiguredField("actModeNousResearchModelId"),
+			geminiActModeThinkingLevel: this.remotelyConfiguredField("geminiActModeThinkingLevel"),
 			nousResearchApiKey: this.secretsCache["nousResearchApiKey"],
 		}
 	}
