@@ -18,6 +18,10 @@ export interface ClineAuthContextType {
 	clineUser: ClineUser | null
 	organizations: UserOrganization[] | null
 	activeOrganization: UserOrganization | null
+	isAuthenticated: boolean
+	isPending: boolean
+	error: string | null
+	nextRetryAt: number | null
 }
 
 export const ClineAuthContext = createContext<ClineAuthContextType | undefined>(undefined)
@@ -25,6 +29,10 @@ export const ClineAuthContext = createContext<ClineAuthContextType | undefined>(
 export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 	const [user, setUser] = useState<ClineUser | null>(null)
 	const [userOrganizations, setUserOrganizations] = useState<UserOrganization[] | null>(null)
+	const [isPending, setIsPending] = useState(false)
+	const [error, setError] = useState<string | null>(null)
+	const [isAuthenticated, setIsAuthenticated] = useState(false)
+	const [nextRetryAt, setNextRetryAt] = useState<number | null>(null)
 
 	const getUserOrganizations = useCallback(async () => {
 		try {
@@ -48,12 +56,13 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	// Handle auth status update events
 	useEffect(() => {
 		const cancelSubscription = AccountServiceClient.subscribeToAuthStatusUpdate(EmptyRequest.create(), {
-			onResponse: async (response: any) => {
-				if (!response?.user?.uid) {
-					setUser(null)
-				}
+			onResponse: async (response) => {
+				setUser(response?.user || null)
+				setIsAuthenticated(!!response.authenticated)
+				setIsPending(!!response.pending)
+				setError(response.error || null)
+				setNextRetryAt(response.nextRetryAt || null)
 				if (response?.user && user?.uid !== response.user.uid) {
-					setUser(response.user)
 					// Once we have a new user, fetch organizations that
 					// allow us to display the active account in account view UI
 					// and fetch the correct credit balance to display on mount
@@ -80,6 +89,10 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				clineUser: user,
 				organizations: userOrganizations,
 				activeOrganization,
+				error,
+				isAuthenticated,
+				isPending,
+				nextRetryAt,
 			}}>
 			{children}
 		</ClineAuthContext.Provider>

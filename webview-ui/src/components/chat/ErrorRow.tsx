@@ -15,9 +15,8 @@ interface ErrorRowProps {
 }
 
 const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStreamingFailedMessage }: ErrorRowProps) => {
-	const { clineUser } = useClineAuth()
 	const rawApiError = apiRequestFailedMessage || apiReqStreamingFailedMessage
-
+	const { clineUser } = useClineAuth()
 	const { isLoginLoading, handleSignIn } = useClineSignIn()
 
 	const renderErrorContent = () => {

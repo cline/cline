@@ -1,13 +1,12 @@
 import { EnvironmentConfig } from "@/config"
 import { Controller } from "@/core/controller"
-import { ClineAuthInfo } from "../AuthService"
+import { InternalAuthState } from "../AuthService"
 
 export interface IAuthProvider {
 	readonly name: string
 	config: EnvironmentConfig
+	retrieveClineAuthInfo(controller: Controller): Promise<InternalAuthState>
 	shouldRefreshIdToken(token: string, expiresAt?: number): Promise<boolean>
-	retrieveClineAuthInfo(controller: Controller): Promise<ClineAuthInfo | null>
-	refreshToken(refreshToken: string, storedData: ClineAuthInfo): Promise<Partial<ClineAuthInfo>>
 	getAuthRequest(callbackUrl: string): Promise<string>
-	signIn(controller: Controller, authorizationCode: string, provider: string): Promise<ClineAuthInfo | null>
+	signIn(controller: Controller, authorizationCode: string, provider: string): Promise<InternalAuthState>
 }
