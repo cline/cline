@@ -448,8 +448,10 @@ export class SapAiCoreHandler implements ApiHandler {
 			this.aiCoreDestination = await this.createAiCoreDestination()
 
 			// Extract expiration from the destination's auth token
-			// OAuth2 always provides expiresIn in the token response
 			const expiresIn = this.aiCoreDestination.authTokens[0].expiresIn
+			if (!expiresIn) {
+				throw new Error("Destination authTokens missing expiresIn field")
+			}
 			this.destinationExpiresAt = Date.now() + parseInt(expiresIn) * 1000
 		}
 
