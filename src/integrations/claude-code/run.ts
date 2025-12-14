@@ -29,140 +29,208 @@ type ProcessState = {
 // We use a conservative limit to avoid issues while supporting older Claude Code versions that don't support file input.
 export const MAX_SYSTEM_PROMPT_LENGTH = 65536
 
+function includesUnknownOption(output: string, option: string): boolean {
+	// Claude Code/Go-style errors often look like:
+	//   "error: unknown option '--include-partial-messages'"
+	// execa can also wrap them as:
+	//   "Command failed with exit code 1\nerror: unknown option '--include-partial-messages'"
+	const normalized = output.toLowerCase()
+	const needle = `unknown option '${option}'`.toLowerCase()
+	return normalized.includes(needle)
+}
+
+class ClaudeCodeUnsupportedIncludePartialMessagesError extends Error {
+	readonly output: string
+
+	constructor(output: string, cause: unknown) {
+		super("Claude Code CLI does not support --include-partial-messages", { cause: cause as any })
+		this.name = "ClaudeCodeUnsupportedIncludePartialMessagesError"
+		this.output = output
+	}
+}
+
 export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator<ClaudeCodeMessage | string> {
 	const isSystemPromptTooLong = options.systemPrompt.length > MAX_SYSTEM_PROMPT_LENGTH
 	const uniqueId = crypto.randomUUID()
 	const tempFilePath = path.join(os.tmpdir(), `cline-system-prompt-${uniqueId}.txt`)
-	if (os.platform() === "win32" || isSystemPromptTooLong) {
+
+	// Avoid mutating the caller's options across retry attempts.
+	let systemPromptArg = options.systemPrompt
+	let shouldUseFile = options.shouldUseFile
+	const didWriteTempSystemPromptFile = os.platform() === "win32" || isSystemPromptTooLong
+
+	if (didWriteTempSystemPromptFile) {
 		// Use a temporary file to prevent ENAMETOOLONG and E2BIG errors
 		// https://github.com/anthropics/claude-code/issues/3411#issuecomment-3082068547
 		await fs.writeFile(tempFilePath, options.systemPrompt, "utf8")
-		options.systemPrompt = tempFilePath
-		options.shouldUseFile = true
+		systemPromptArg = tempFilePath
+		shouldUseFile = true
 	}
 
-	const cProcess = runProcess(options, await getCwd())
+	const cwd = await getCwd()
 
-	const rl = readline.createInterface({
-		input: cProcess.stdout,
-	})
+	const runOnce = async function* (includePartialMessages: boolean): AsyncGenerator<ClaudeCodeMessage | string> {
+		const cProcess = runProcess(
+			{
+				...options,
+				systemPrompt: systemPromptArg,
+				shouldUseFile,
+			},
+			cwd,
+			includePartialMessages,
+		)
 
-	const processState: ProcessState = {
-		error: null,
-		stderrLogs: "",
-		exitCode: null,
-		partialData: null,
-	}
-
-	try {
-		cProcess.stderr.on("data", (data) => {
-			processState.stderrLogs += data.toString()
+		const rl = readline.createInterface({
+			input: cProcess.stdout,
 		})
 
-		cProcess.on("close", (code) => {
-			processState.exitCode = code
-		})
+		const processState: ProcessState = {
+			error: null,
+			stderrLogs: "",
+			exitCode: null,
+			partialData: null,
+		}
 
-		cProcess.on("error", (err) => {
-			processState.error = err
-		})
+		try {
+			cProcess.stderr.on("data", (data) => {
+				processState.stderrLogs += data.toString()
+			})
 
-		for await (const line of rl) {
-			if (processState.error) {
-				throw processState.error
-			}
+			cProcess.on("close", (code) => {
+				processState.exitCode = code
+			})
 
-			if (line.trim()) {
-				const chunk = parseChunk(line, processState)
+			cProcess.on("error", (err) => {
+				processState.error = err
+			})
 
-				if (!chunk) {
-					continue
+			for await (const line of rl) {
+				if (processState.error) {
+					throw processState.error
 				}
 
-				yield chunk
+				if (line.trim()) {
+					const chunk = parseChunk(line, processState)
+
+					if (!chunk) {
+						continue
+					}
+
+					yield chunk
+				}
 			}
-		}
 
-		// We rely on the assistant message. If the output was truncated, it's better having a poorly formatted message
-		// from which to extract something, than throwing an error/showing the model didn't return any messages.
-		if (processState.partialData && processState.partialData.startsWith(`{"type":"assistant"`)) {
-			yield processState.partialData
-		}
+			// We rely on the assistant message. If the output was truncated, it's better having a poorly formatted message
+			// from which to extract something, than throwing an error/showing the model didn't return any messages.
+			if (processState.partialData && processState.partialData.startsWith(`{"type":"assistant"`)) {
+				yield processState.partialData
+			}
 
-		const { exitCode } = await cProcess
-		if (exitCode !== null && exitCode !== 0) {
-			const errorOutput = processState.error?.message || processState.stderrLogs?.trim()
-			throw new Error(
-				`Claude Code process exited with code ${exitCode}.${errorOutput ? ` Error output: ${errorOutput}` : ""}`,
-			)
-		}
-	} catch (err) {
-		console.error(`Error during Claude Code execution:`, err)
-
-		if (processState.stderrLogs.includes("unknown option '--system-prompt-file'")) {
-			throw new Error(`The Claude Code executable is outdated. Please update it to the latest version.`, {
-				cause: err,
-			})
-		}
-
-		if (processState.stderrLogs.includes("unknown option '--include-partial-messages'")) {
-			throw new Error(
-				`The Claude Code executable is outdated and does not support streaming mode. Please update to the latest version using: npm update -g @anthropic-ai/claude-code`,
-				{
-					cause: err,
-				},
-			)
-		}
-
-		if (err instanceof Error) {
-			if (err.message.includes("ENOENT")) {
+			const { exitCode } = await cProcess
+			if (exitCode !== null && exitCode !== 0) {
+				const errorOutput = processState.error?.message || processState.stderrLogs?.trim()
 				throw new Error(
-					`Failed to find the Claude Code executable.
-Make sure it's installed and available in your PATH or properly set in your provider settings.`,
-					{ cause: err },
+					`Claude Code process exited with code ${exitCode}.${errorOutput ? ` Error output: ${errorOutput}` : ""}`,
+				)
+			}
+		} catch (err) {
+			const errMessage = err instanceof Error ? err.message : ""
+			const combinedOutput = `${errMessage}\n${processState.stderrLogs}`
+
+			// Older Claude Code versions don't support `--include-partial-messages`.
+			// Signal the outer loop to retry without streaming events.
+			if (includePartialMessages && includesUnknownOption(combinedOutput, "--include-partial-messages")) {
+				throw new ClaudeCodeUnsupportedIncludePartialMessagesError(combinedOutput, err)
+			}
+
+			console.error(`Error during Claude Code execution:`, err)
+
+			if (includesUnknownOption(processState.stderrLogs, "--system-prompt-file")) {
+				throw new Error(`The Claude Code executable is outdated. Please update it to the latest version.`, {
+					cause: err,
+				})
+			}
+
+			// If we reach this, retry without `--include-partial-messages` was not possible or already attempted.
+			// Provide a clear error message prompting the user to update.
+			if (includesUnknownOption(combinedOutput, "--include-partial-messages")) {
+				throw new Error(
+					`The Claude Code executable is outdated and does not support streaming mode. Please update to the latest version using: npm update -g @anthropic-ai/claude-code`,
+					{
+						cause: err,
+					},
 				)
 			}
 
-			if (err.message.includes("E2BIG")) {
-				throw new Error(
-					`Executing Claude Code failed due to a long system prompt. The maximum argument length is 131072 bytes. 
+			if (err instanceof Error) {
+				if (err.message.includes("ENOENT")) {
+					throw new Error(
+						`Failed to find the Claude Code executable.
+Make sure it's installed and available in your PATH or properly set in your provider settings.`,
+						{ cause: err },
+					)
+				}
+
+				if (err.message.includes("E2BIG")) {
+					throw new Error(
+						`Executing Claude Code failed due to a long system prompt. The maximum argument length is 131072 bytes. 
 Rules and workflows contribute to a longer system prompt, consider disabling some of them temporarily to reduce the length.
 Anthropic is aware of this issue and is considering a fix: https://github.com/anthropics/claude-code/issues/3411.
 `,
-					{ cause: err },
-				)
-			}
+						{ cause: err },
+					)
+				}
 
-			if (err.message.includes("ENAMETOOLONG")) {
-				throw new Error(
-					`Executing Claude Code failed due to a long system prompt. Windows has a limit of 8191 characters, which makes the integration with Cline not work properly.
+				if (err.message.includes("ENAMETOOLONG")) {
+					throw new Error(
+						`Executing Claude Code failed due to a long system prompt. Windows has a limit of 8191 characters, which makes the integration with Cline not work properly.
 Please check our docs on how to integrate Claude Code with Cline on Windows: https://docs.cline.bot/provider-config/claude-code#windows-setup.
 Anthropic is aware of this issue and is considering a fix: https://github.com/anthropics/claude-code/issues/3411.
 `,
-					{ cause: err },
-				)
+						{ cause: err },
+					)
+				}
+
+				// When the command fails, execa throws an error with the arguments, which include the whole system prompt.
+				// We want to log that, but not show it to the user.
+				const startOfCommand = err.message.indexOf(": ")
+				if (startOfCommand !== -1) {
+					const messageWithoutCommand = err.message.slice(0, startOfCommand).trim()
+
+					throw new Error(`${messageWithoutCommand}\n${processState.stderrLogs?.trim()}`, { cause: err })
+				}
 			}
 
-			// When the command fails, execa throws an error with the arguments, which include the whole system prompt.
-			// We want to log that, but not show it to the user.
-			const startOfCommand = err.message.indexOf(": ")
-			if (startOfCommand !== -1) {
-				const messageWithoutCommand = err.message.slice(0, startOfCommand).trim()
-
-				throw new Error(`${messageWithoutCommand}\n${processState.stderrLogs?.trim()}`, { cause: err })
+			throw err
+		} finally {
+			rl.close()
+			if (!cProcess.killed) {
+				cProcess.kill()
+				// Suppress expected rejection from kill to prevent "unhandled rejection" errors
+				cProcess.catch(() => {})
 			}
 		}
+	}
 
-		throw err
+	try {
+		let includePartialMessages = true
+		for (let attempt = 0; attempt < 2; attempt++) {
+			try {
+				yield* runOnce(includePartialMessages)
+				return
+			} catch (err) {
+				if (includePartialMessages && err instanceof ClaudeCodeUnsupportedIncludePartialMessagesError) {
+					console.warn(
+						"[Claude Code] Detected CLI without `--include-partial-messages`; retrying without streaming events.",
+					)
+					includePartialMessages = false
+					continue
+				}
+				throw err
+			}
+		}
 	} finally {
-		rl.close()
-		if (!cProcess.killed) {
-			cProcess.kill()
-			// Suppress expected rejection from kill to prevent "unhandled rejection" errors
-			cProcess.catch(() => {})
-		}
-
-		if (options.shouldUseFile) {
+		if (didWriteTempSystemPromptFile) {
 			fs.unlink(tempFilePath).catch(console.error)
 		}
 	}
@@ -197,16 +265,17 @@ const BUFFER_SIZE = 20_000_000 // 20 MB
 const CLAUDE_CODE_MAX_OUTPUT_TOKENS = "32000"
 
 function runProcess(
-	{ systemPrompt, messages, path, modelId, thinkingBudgetTokens, shouldUseFile }: ClaudeCodeOptions,
+	{ systemPrompt, messages, path: claudePathOverride, modelId, thinkingBudgetTokens, shouldUseFile }: ClaudeCodeOptions,
 	cwd: string,
+	includePartialMessages = true,
 ) {
-	const claudePath = path?.trim() || "claude"
+	const claudePath = claudePathOverride?.trim() || "claude"
 
 	const args = [
 		shouldUseFile ? "--system-prompt-file" : "--system-prompt",
 		systemPrompt,
 		"--verbose",
-		"--include-partial-messages",
+		...(includePartialMessages ? ["--include-partial-messages"] : []),
 		"--output-format",
 		"stream-json",
 		"--disallowedTools",

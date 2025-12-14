@@ -104,15 +104,25 @@ type RedactedThinkingContentBlock = {
 	signature?: string
 }
 
+type TextDelta = {
+	type: "text_delta"
+	text?: string
+}
+
+type ThinkingDelta = {
+	type: "thinking_delta"
+	thinking?: string
+}
+
+type SignatureDelta = {
+	type: "signature_delta"
+	signature?: string
+}
+
 type ContentBlockDeltaEvent = {
 	type: "content_block_delta"
 	index: number
-	delta: {
-		type: "text_delta" | "thinking_delta" | "signature_delta"
-		text?: string
-		thinking?: string
-		signature?: string
-	}
+	delta: TextDelta | ThinkingDelta | SignatureDelta
 }
 
 type ContentBlockStopEvent = {
