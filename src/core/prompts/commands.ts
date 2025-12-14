@@ -1,9 +1,40 @@
-import { getShell } from "@utils/shell"
+import type { ApiProviderInfo } from "@/core/api"
+import { getDeepPlanningPrompt } from "./commands/deep-planning"
 
-export const newTaskToolResponse = () =>
-	`<explicit_instructions type="new_task">
+export const newTaskToolResponse = (willUseNativeTools: boolean) => {
+	const xmlExample = `
+Example:
+<new_task>
+<context>1. Current Work:
+   [Detailed description]
+
+2. Key Technical Concepts:
+   - [Concept 1]
+   - [Concept 2]
+   - [...]
+
+3. Relevant Files and Code:
+   - [File Name 1]
+      - [Summary of why this file is important]
+      - [Summary of the changes made to this file, if any]
+      - [Important Code Snippet]
+   - [File Name 2]
+      - [Important Code Snippet]
+   - [...]
+
+4. Problem Solving:
+   [Detailed description]
+
+5. Pending Tasks and Next Steps:
+   - [Task 1 details & next steps]
+   - [Task 2 details & next steps]
+   - [...]</context>
+</new_task>
+`
+
+	return `<explicit_instructions type="new_task">
 The user has explicitly asked you to help them create a new task with preloaded context, which you will generate. The user may have provided instructions or additional information for you to consider when summarizing existing work and creating the context for the new task.
-Irrespective of whether additional information or instructions are given, you are ONLY allowed to respond to this message by calling the new_task tool.
+Irrespective of whether additional information or instructions are given, you are ONLY allowed to respond to this message by calling the new_task tool.${willUseNativeTools ? " You MUST call the new_task tool EVEN if it's not in your existing toolset." : ""}
 
 The new_task tool is defined below:
 
@@ -18,15 +49,11 @@ Parameters:
   3. Relevant Files and Code: If applicable, enumerate specific files and code sections examined, modified, or created for the task continuation. Pay special attention to the most recent messages and changes.
   4. Problem Solving: Document problems solved thus far and any ongoing troubleshooting efforts.
   5. Pending Tasks and Next Steps: Outline all pending tasks that you have explicitly been asked to work on, as well as list the next steps you will take for all outstanding work, if applicable. Include code snippets where they add clarity. For any next steps, include direct quotes from the most recent conversation showing exactly what task you were working on and where you left off. This should be verbatim to ensure there's no information loss in context between tasks.
-
-Usage:
-<new_task>
-<context>context to preload new task with</context>
-</new_task>
-
+${xmlExample}
 Below is the the user's input when they indicated that they wanted to create a new task.
 </explicit_instructions>\n
 `
+}
 
 export const condenseToolResponse = (focusChainSettings?: { enabled: boolean }) =>
 	`<explicit_instructions type="condense">
@@ -208,256 +235,95 @@ cline "<prompt>"
 </explicit_instructions>\n
 `
 
-export const deepPlanningToolResponse = (focusChainSettings?: { enabled: boolean }) => {
-	const detectedShell = getShell()
+export const explainChangesToolResponse = () =>
+	`<explicit_instructions type="explain_changes">
+The user has asked you to explain code changes. You have access to a tool called **generate_explanation** that opens a multi-file diff view with AI-generated inline comments explaining code changes between two git references.
 
-	// FIXME: detectedShell returns a non-string value on some Windows machines
-	let isPowerShell = false
-	try {
-		isPowerShell =
-			detectedShell != null &&
-			typeof detectedShell === "string" &&
-			(detectedShell.toLowerCase().includes("powershell") || detectedShell.toLowerCase().includes("pwsh"))
-	} catch {}
+# Important: Use Non-Interactive Commands
 
-	return `<explicit_instructions type="deep-planning">
-Your task is to create a comprehensive implementation plan before writing any code. This process has four distinct steps that must be completed in order.
+When running git or gh commands, always use non-interactive variants to ensure output is returned immediately without requiring user interaction:
 
-Your behavior should be methodical and thorough - take time to understand the codebase completely before making any recommendations. The quality of your investigation directly impacts the success of the implementation.
+- **For git commands**: Use \`git --no-pager\` prefix to disable the pager (e.g., \`git --no-pager log\`, \`git --no-pager diff\`, \`git --no-pager show\`)
+- **For gh commands**: Use \`--json\` flag when possible for structured output, or pipe to \`cat\` if needed (e.g., \`gh pr diff 123 | cat\`)
 
-## STEP 1: Silent Investigation
+This prevents commands from entering interactive/pager mode which would hang waiting for user input.
 
-<important>
-until explicitly instructed by the user to proceed with coding.
-You must thoroughly understand the existing codebase before proposing any changes.
-Perform your research without commentary or narration. Execute commands and read files without explaining what you're about to do. Only speak up if you have specific questions for the user.
-</important>
+# Workflow
 
-### Required Research Activities
-You must use the read_file tool to examine relevant source files, configuration files, and documentation. You must use terminal commands to gather information about the codebase structure and patterns. All terminal output must be piped to cat for visibility.
+Follow these steps to explain code changes:
 
-### Essential Terminal Commands
-First, determine the language(s) used in the codebase, then execute these commands to build your understanding. You must tailor them to the codebase and ensure the output is not overly verbose. For example, you should exclude dependency folders such as node_modules, venv or php vendor, etc. These are only examples, the exact commands will differ depending on the codebase.
+## 1. Gather Information About the Changes
 
-${
-	isPowerShell
-		? `
-# Discover project structure and file types
-Get-ChildItem -Recurse -Include "*.py","*.js","*.ts","*.java","*.cpp","*.go" | Select-Object -First 30 | Select-Object FullName
+First, use git or gh CLI tools to understand what changes exist. **Always get the full unified diff output**, not just stats:
 
-# Find all class and function definitions
-Get-ChildItem -Recurse -Include "*.py","*.js","*.ts","*.java","*.cpp","*.go" | Select-String -Pattern "class|function|def|interface|struct"
+- For commits: \`git --no-pager show <commit>\` to see a specific commit's full diff
+- For commit ranges: \`git --no-pager log --oneline <from>..<to>\` to see commits in range, then \`git --no-pager diff <from>..<to>\` for full diff
+- For branches: \`git --no-pager diff <branch1>..<branch2>\` to see full diff of all changes
+- For pull requests: \`gh pr view <number> --json commits,files\` for metadata, then \`gh pr diff <number> | cat\` for full diff
+- For staged changes: \`git --no-pager diff --cached\` to see full diff of staged files
+- For working directory: \`git --no-pager diff\` for full diff of unstaged changes
 
-# Analyze import patterns and dependencies
-Get-ChildItem -Recurse -Include "*.py","*.js","*.ts","*.java","*.cpp" | Select-String -Pattern "import|from|require|#include" | Sort-Object | Get-Unique
+To get a comprehensive overview between two refs, run:
 
-# Find dependency manifests
-Get-ChildItem -Recurse -Include "requirements*.txt","package.json","Cargo.toml","pom.xml","Gemfile","go.mod" | Get-Content
+**Bash:**
+\`\`\`bash
+echo "=== COMMITS ==="; git --no-pager log --oneline <from_ref>..<to_ref>; echo "=== CHANGED FILES ==="; git diff <from_ref>..<to_ref> --name-only; echo "=== FULL DIFF ==="; git --no-pager diff <from_ref>..<to_ref>
+\`\`\`
 
-# Identify technical debt and TODOs
-Get-ChildItem -Recurse -Include "*.py","*.js","*.ts","*.java","*.cpp","*.go" | Select-String -Pattern "TODO|FIXME|XXX|HACK|NOTE"
-`
-		: `
-# Discover project structure and file types
-find . -type f -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.java" -o -name "*.cpp" -o -name "*.go" | head -30 | cat
+**PowerShell:**
+\`\`\`powershell
+'=== COMMITS ==='; git --no-pager log --oneline <from_ref>..<to_ref>; '=== CHANGED FILES ==='; git diff <from_ref>..<to_ref> --name-only; '=== FULL DIFF ==='; git --no-pager diff <from_ref>..<to_ref>
+\`\`\`
 
-# Find all class and function definitions
-grep -r "class\|function\|def\|interface\|struct\|func\|type.*struct\|type.*interface" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" --include="*.go" . | cat
+Replace \`<from_ref>\` and \`<to_ref>\` with the appropriate git references (commit hashes, branch names, tags, HEAD~1, etc.).
 
-# Analyze import patterns and dependencies
-grep -r "import\|from\|require\|#include" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" . | sort | uniq | cat
+## 2. Build Context for Better Explanations
 
-# Find dependency manifests
-find . -name "requirements*.txt" -o -name "package.json" -o -name "Cargo.toml" -o -name "pom.xml" -o -name "Gemfile" -o -name "go.mod" | xargs cat
+Before calling generate_explanation, gather context that will help produce more insightful explanations:
 
-# Identify technical debt and TODOs
-grep -r "TODO\|FIXME\|XXX\|HACK\|NOTE" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" --include="*.go" . | cat
-`
-}
+- Read relevant files to understand the codebase structure
+- Look at related code that the changes interact with
+- Check for tests that might explain the intended behavior
+- Review any related documentation or comments
+- If needed, view file contents at different versions: \`git --no-pager show <ref>:<file>\`
 
+The more context you have in your conversation history, the better the explanations will be since generate_explanation uses the full conversation context when generating comments.
 
-## STEP 2: Discussion and Questions
+## 3. Determine Git References
 
-Ask the user brief, targeted questions that will influence your implementation plan. Keep your questions concise and conversational. Ask only essential questions needed to create an accurate plan.
+Identify the appropriate git references for the diff:
 
-**Ask questions only when necessary for:**
-- Clarifying ambiguous requirements or specifications
-- Choosing between multiple equally valid implementation approaches  
-- Confirming assumptions about existing system behavior or constraints
-- Understanding preferences for specific technical decisions that will affect the implementation
+- **from_ref**: The "before" state (commit hash, branch name, tag, HEAD~1, etc.)
+- **to_ref**: The "after" state (optional - defaults to working directory if omitted)
 
-Your questions should be direct and specific. Avoid long explanations or multiple questions in one response.
+Examples of reference combinations:
+- Last commit: from_ref="HEAD~1", to_ref="HEAD"
+- Specific commit: from_ref="abc123^", to_ref="abc123"
+- Branch comparison: from_ref="main", to_ref="feature-branch"
+- Staged changes: from_ref="HEAD" (omit to_ref to compare to working directory with staged changes)
+- PR changes: from_ref="main", to_ref="pr-branch-name"
 
-## STEP 3: Create Implementation Plan Document
+## 4. Call generate_explanation
 
-Create a structured markdown document containing your complete implementation plan. The document must follow this exact format with clearly marked sections:
-
-### Document Structure Requirements
-
-Your implementation plan must be saved as implementation_plan.md, and *must* be structured as follows:
-
-
-# Implementation Plan
-
-[Overview]
-Single sentence describing the overall goal.
-
-Multiple paragraphs outlining the scope, context, and high-level approach. Explain why this implementation is needed and how it fits into the existing system.
-
-[Types]  
-Single sentence describing the type system changes.
-
-Detailed type definitions, interfaces, enums, or data structures with complete specifications. Include field names, types, validation rules, and relationships.
-
-[Files]
-Single sentence describing file modifications.
-
-Detailed breakdown:
-- New files to be created (with full paths and purpose)
-- Existing files to be modified (with specific changes)  
-- Files to be deleted or moved
-- Configuration file updates
-
-[Functions]
-Single sentence describing function modifications.
-
-Detailed breakdown:
-- New functions (name, signature, file path, purpose)
-- Modified functions (exact name, current file path, required changes)
-- Removed functions (name, file path, reason, migration strategy)
-
-[Classes]
-Single sentence describing class modifications.
-
-Detailed breakdown:
-- New classes (name, file path, key methods, inheritance)
-- Modified classes (exact name, file path, specific modifications)
-- Removed classes (name, file path, replacement strategy)
-
-[Dependencies]
-Single sentence describing dependency modifications.
-
-Details of new packages, version changes, and integration requirements.
-
-[Testing]
-Single sentence describing testing approach.
-
-Test file requirements, existing test modifications, and validation strategies.
-
-[Implementation Order]
-Single sentence describing the implementation sequence.
-
-Numbered steps showing the logical order of changes to minimize conflicts and ensure successful integration.
-
-
-## STEP 4: Create Implementation Task
-
-Use the new_task command to create a task for implementing the plan. The task must include a <task_progress> list that breaks down the implementation into trackable steps.
-
-### Task Creation Requirements
-
-Your new task should be self-contained and reference the plan document rather than requiring additional codebase investigation. Include these specific instructions in the task description:
-
-**Plan Document Navigation Commands:**
-The implementation agent should use these commands to read specific sections of the implementation plan. You should adapt these examples to conform to the structure of the .md file you createdm, and explicitly provide them when creating the new task:
-
-${
-	isPowerShell
-		? `
-# Read Overview section
-$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Overview\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Types\\]').LineNumber; $content[($start-1)..($end-2)]
-
-# Read Types section
-$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Types\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Files\\]').LineNumber; $content[($start-1)..($end-2)]
-
-# Read Files section
-$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Files\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Functions\\]').LineNumber; $content[($start-1)..($end-2)]
-
-# Read Functions section
-$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Functions\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Classes\\]').LineNumber; $content[($start-1)..($end-2)]
-
-# Read Classes section
-$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Classes\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Dependencies\\]').LineNumber; $content[($start-1)..($end-2)]
-
-# Read Dependencies section
-$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Dependencies\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Testing\\]').LineNumber; $content[($start-1)..($end-2)]
-
-# Read Testing section
-$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Testing\\]').LineNumber; $end = ($content | Select-String -Pattern '\\[Implementation Order\\]').LineNumber; $content[($start-1)..($end-2)]
-
-# Read Implementation Order section
-$content = Get-Content implementation_plan.md; $start = ($content | Select-String -Pattern '\\[Implementation Order\\]').LineNumber; $content[($start-1)..($content.Length-1)]
-`
-		: `
-# Read Overview section
-sed -n '/\[Overview\]/,/\[Types\]/p' implementation_plan.md | head -n 1 | cat
-
-# Read Types section  
-sed -n '/\[Types\]/,/\[Files\]/p' implementation_plan.md | head -n 1 | cat
-
-# Read Files section
-sed -n '/\[Files\]/,/\[Functions\]/p' implementation_plan.md | head -n 1 | cat
-
-# Read Functions section
-sed -n '/\[Functions\]/,/\[Classes\]/p' implementation_plan.md | head -n 1 | cat
-
-# Read Classes section
-sed -n '/\[Classes\]/,/\[Dependencies\]/p' implementation_plan.md | head -n 1 | cat
-
-# Read Dependencies section
-sed -n '/\[Dependencies\]/,/\[Testing\]/p' implementation_plan.md | head -n 1 | cat
-
-# Read Testing section
-sed -n '/\[Testing\]/,/\[Implementation Order\]/p' implementation_plan.md | head -n 1 | cat
-
-# Read Implementation Order section
-sed -n '/\[Implementation Order\]/,$p' implementation_plan.md | cat
-`
-}
-
-
-**Task Progress Format:**
-<IMPORTANT>
-You absolutely must include the task_progress contents in context when creating the new task. When providing it, do not wrap it in XML tags- instead provide it like this:
-
-
-task_progress Items:
-- [ ] Step 1: Brief description of first implementation step
-- [ ] Step 2: Brief description of second implementation step  
-- [ ] Step 3: Brief description of third implementation step
-- [ ] Step N: Brief description of final implementation step
-
-
-You also MUST include the path to the markdown file you have created in your new task prompt. You should do this as follows:
-
-Refer to @path/to/file/markdown.md for a complete breakdown of the task requirements and steps. You should periodically read this file again.
-
-${
-	focusChainSettings?.enabled
-		? `
-**Task Progress Parameter:**
-When creating the new task, you must include a task_progress parameter that breaks down the implementation into trackable steps. This should follow the standard Markdown checklist format with "- [ ]" for incomplete items.`
-		: ""
-}
-
-
-
-### Mode Switching
-
-When creating the new task, request a switch to "act mode" if you are currently in "plan mode". This ensures the implementation agent operates in execution mode rather than planning mode.
-</IMPORTANT>
-
-## Quality Standards
-
-You must be specific with exact file paths, function names, and class names. You must be comprehensive and avoid assuming implicit understanding. You must be practical and consider real-world constraints and edge cases. You must use precise technical language and avoid ambiguity.
-
-Your implementation plan should be detailed enough that another developer could execute it without additional investigation.
-
----
-
-**Execute all four steps in sequence. Your role is to plan thoroughly, not to implement. Code creation begins only after the new task is created and you receive explicit instruction to proceed.**
-
-Below is the user's input when they indicated that they wanted to create a comprehensive implementation plan.
+Use the generate_explanation tool with:
+- **title**: A descriptive title for the diff view (e.g., "Changes in commit abc123", "PR #42: Add user authentication")
+- **from_ref**: The git reference for the "before" state
+- **to_ref**: The git reference for the "after" state (optional)
+Below is the user's input describing what changes they want explained. If no input is provided, default to analyzing uncommitted changes in the working directory (may or may not be staged).
 </explicit_instructions>\n
 `
+
+/**
+ * Generates the deep-planning slash command response with model-family-aware variant selection
+ * @param focusChainSettings Optional focus chain settings to include in the prompt
+ * @param providerInfo Optional API provider info for model family detection
+ * @param enableNativeToolCalls Optional flag to determine if native tool calling is enabled
+ * @returns The deep-planning prompt string with appropriate variant and focus chain settings applied
+ */
+export const deepPlanningToolResponse = (
+	focusChainSettings?: { enabled: boolean },
+	providerInfo?: ApiProviderInfo,
+	enableNativeToolCalls?: boolean,
+) => {
+	return getDeepPlanningPrompt(focusChainSettings, providerInfo, enableNativeToolCalls)
 }

@@ -1,3 +1,4 @@
+import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
 import { RemoteConfig } from "@shared/remote-config/schema"
 import { RemoteConfigFields } from "@shared/storage/state-keys"
 import { StateManager } from "../StateManager"
@@ -19,6 +20,9 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	}
 	if (remoteConfig.allowedMCPServers !== undefined) {
 		transformed.allowedMCPServers = remoteConfig.allowedMCPServers
+	}
+	if (remoteConfig.blockPersonalRemoteMCPServers !== undefined) {
+		transformed.blockPersonalRemoteMCPServers = remoteConfig.blockPersonalRemoteMCPServers
 	}
 	if (remoteConfig.yoloModeAllowed !== undefined) {
 		// only set the yoloModeToggled field if yolo mode is not allowed. Otherwise, we let the user toggle it.
@@ -124,9 +128,44 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		providers.push("cline")
 	}
 
+	// Map LiteLLM provider settings
+	const liteLlmSettings = remoteConfig.providerSettings?.LiteLLM
+	if (liteLlmSettings) {
+		transformed.planModeApiProvider = "litellm"
+		transformed.actModeApiProvider = "litellm"
+		providers.push("litellm")
+
+		if (liteLlmSettings.baseUrl !== undefined) {
+			transformed.liteLlmBaseUrl = liteLlmSettings.baseUrl
+		}
+	}
+
+	// Map Vertex provider settings
+	const vertexSettings = remoteConfig.providerSettings?.Vertex
+	if (vertexSettings) {
+		transformed.planModeApiProvider = "vertex"
+		transformed.actModeApiProvider = "vertex"
+		providers.push("vertex")
+
+		if (vertexSettings.vertexProjectId !== undefined) {
+			transformed.vertexProjectId = vertexSettings.vertexProjectId
+		}
+		if (vertexSettings.vertexRegion !== undefined) {
+			transformed.vertexRegion = vertexSettings.vertexRegion
+		}
+	}
+
 	// This line needs to stay here, it is order dependent on the above code checking the configured providers
 	if (providers.length > 0) {
 		transformed.remoteConfiguredProviders = providers
+	}
+
+	// Map global rules and workflows
+	if (remoteConfig.globalRules !== undefined) {
+		transformed.remoteGlobalRules = remoteConfig.globalRules
+	}
+	if (remoteConfig.globalWorkflows !== undefined) {
+		transformed.remoteGlobalWorkflows = remoteConfig.globalWorkflows
 	}
 
 	return transformed
@@ -139,14 +178,27 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 export function applyRemoteConfig(remoteConfig?: RemoteConfig): void {
 	const stateManager = StateManager.get()
 
-	// If no remote config provided, clear the cache
+	// If no remote config provided, clear the cache and relevant state
 	if (!remoteConfig) {
 		stateManager.clearRemoteConfig()
+		// the remote config cline rules toggle state is stored in global state
+		stateManager.setGlobalState("remoteRulesToggles", {})
+		stateManager.setGlobalState("remoteWorkflowToggles", {})
 		return
 	}
 
 	// Transform remote config to state shape
 	const transformed = transformRemoteConfigToStateShape(remoteConfig)
+
+	// Synchronize toggle state
+	const currentRuleToggles = stateManager.getGlobalStateKey("remoteRulesToggles") || {}
+	const currentWorkflowToggles = stateManager.getGlobalStateKey("remoteWorkflowToggles") || {}
+
+	const syncedRuleToggles = synchronizeRemoteRuleToggles(remoteConfig.globalRules || [], currentRuleToggles)
+	const syncedWorkflowToggles = synchronizeRemoteRuleToggles(remoteConfig.globalWorkflows || [], currentWorkflowToggles)
+
+	stateManager.setGlobalState("remoteRulesToggles", syncedRuleToggles)
+	stateManager.setGlobalState("remoteWorkflowToggles", syncedWorkflowToggles)
 
 	// Clear existing remote config cache
 	stateManager.clearRemoteConfig()

@@ -6,6 +6,7 @@ import HistoryView from "./components/history/HistoryView"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 import OnboardingView from "./components/onboarding/OnboardingView"
 import SettingsView from "./components/settings/SettingsView"
+import WelcomeView from "./components/welcome/WelcomeView"
 import { useClineAuth } from "./context/ClineAuthContext"
 import { useExtensionState } from "./context/ExtensionStateContext"
 import { Providers } from "./Providers"
@@ -19,9 +20,11 @@ const AppContent = () => {
 		showMcp,
 		mcpTab,
 		showSettings,
+		settingsTargetSection,
 		showHistory,
 		showAccount,
 		showAnnouncement,
+		onboardingModels,
 		setShowAnnouncement,
 		setShouldShowAnnouncement,
 		closeMcpView,
@@ -54,12 +57,12 @@ const AppContent = () => {
 	}
 
 	if (showWelcome) {
-		return <OnboardingView />
+		return onboardingModels ? <OnboardingView onboardingModels={onboardingModels} /> : <WelcomeView />
 	}
 
 	return (
 		<div className="flex h-screen w-full flex-col">
-			{showSettings && <SettingsView onDone={hideSettings} />}
+			{showSettings && <SettingsView onDone={hideSettings} targetSection={settingsTargetSection} />}
 			{showHistory && <HistoryView onDone={hideHistory} />}
 			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
 			{showAccount && (

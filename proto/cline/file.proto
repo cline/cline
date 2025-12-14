@@ -49,6 +49,9 @@ service FileService {
   // Toggle a Windsurf rule (enable or disable)
   rpc toggleWindsurfRule(ToggleWindsurfRuleRequest) returns (ClineRulesToggles);
 
+  // Toggle an Agents rule (enable or disable)
+  rpc toggleAgentsRule(ToggleAgentsRuleRequest) returns (ClineRulesToggles);
+
   // Refreshes all rule toggles (Cline, External, and Workflows)
   rpc refreshRules(EmptyRequest) returns (RefreshedRules);
 
@@ -66,6 +69,18 @@ service FileService {
 
   // Opens or creates a focus chain checklist markdown file for editing
   rpc openFocusChainFile(StringRequest) returns (Empty);
+
+  // Refreshes all hook toggles (discovers hooks and their enabled state)
+  rpc refreshHooks(EmptyRequest) returns (HooksToggles);
+
+  // Toggles a hook on or off via chmod +x/-x
+  rpc toggleHook(ToggleHookRequest) returns (ToggleHookResponse);
+
+  // Creates a new hook from template
+  rpc createHook(CreateHookRequest) returns (CreateHookResponse);
+
+  // Deletes an existing hook file
+  rpc deleteHook(DeleteHookRequest) returns (DeleteHookResponse);
 }
 
 // Response for refreshRules operation
@@ -74,12 +89,20 @@ message RefreshedRules {
   ClineRulesToggles local_cline_rules_toggles = 2;
   ClineRulesToggles local_cursor_rules_toggles = 3;
   ClineRulesToggles local_windsurf_rules_toggles = 4;
-  ClineRulesToggles local_workflow_toggles = 5;
-  ClineRulesToggles global_workflow_toggles = 6;
+  ClineRulesToggles local_agents_rules_toggles = 5;
+  ClineRulesToggles local_workflow_toggles = 6;
+  ClineRulesToggles global_workflow_toggles = 7;
 }
 
 // Request to toggle a Windsurf rule
 message ToggleWindsurfRuleRequest {
+  Metadata metadata = 1;
+  string rule_path = 2; // Path to the rule file
+  bool enabled = 3; // Whether to enable or disable the rule
+}
+
+// Request to toggle an Agents rule
+message ToggleAgentsRuleRequest {
   Metadata metadata = 1;
   string rule_path = 2; // Path to the rule file
   bool enabled = 3; // Whether to enable or disable the rule
@@ -156,10 +179,17 @@ message RuleFile {
   bool already_exists = 3; // For createRuleFile, indicates if file already existed
 }
 
+// Enum for rule scope (local, global, or remote)
+enum RuleScope {
+  LOCAL = 0;
+  GLOBAL = 1;
+  REMOTE = 2;
+}
+
 // Request to toggle a Cline rule
 message ToggleClineRuleRequest {
   Metadata metadata = 1;
-  bool is_global = 2; // Whether this is a global rule or workspace rule
+  RuleScope scope = 2; // Scope of the rule (local, global, or remote)
   string rule_path = 3; // Path to the rule file
   bool enabled = 4; // Whether to enable or disable the rule
 }
@@ -173,6 +203,7 @@ message ClineRulesToggles {
 message ToggleClineRules {
   ClineRulesToggles global_cline_rules_toggles = 1;
   ClineRulesToggles local_cline_rules_toggles = 2;
+  ClineRulesToggles remote_rules_toggles = 3;
 }
 
 // Request to toggle a Cursor rule
@@ -187,5 +218,63 @@ message ToggleWorkflowRequest {
   Metadata metadata = 1;
   string workflow_path = 2;
   bool enabled = 3;
-  bool is_global = 4;
+  RuleScope scope = 4; // Scope of the workflow (local, global, or remote)
+}
+
+// Maps from hook name to enabled/disabled status
+message HookInfo {
+  string name = 1;
+  bool enabled = 2;
+  string absolute_path = 3;
+}
+
+message WorkspaceHooks {
+  string workspace_name = 1;
+  repeated HookInfo hooks = 2;
+}
+
+message HooksToggles {
+  repeated HookInfo global_hooks = 1;
+  repeated WorkspaceHooks workspace_hooks = 2;
+  bool is_windows = 3; // Whether the system is Windows (toggles disabled)
+}
+
+// Request to toggle a hook
+message ToggleHookRequest {
+  Metadata metadata = 1;
+  string hook_name = 2; // Name of the hook (e.g., "TaskStart")
+  bool is_global = 3; // Whether this is a global or workspace hook
+  bool enabled = 4; // Whether to enable (chmod +x) or disable (chmod -x)
+  optional string workspace_name = 5; // For multi-root workspaces, specifies which workspace
+}
+
+// Response for toggleHook operation
+message ToggleHookResponse {
+  HooksToggles hooks_toggles = 1;
+}
+
+// Request to create a hook
+message CreateHookRequest {
+  Metadata metadata = 1;
+  string hook_name = 2; // Name of the hook to create
+  bool is_global = 3; // Whether to create in global or workspace hooks directory
+  optional string workspace_name = 4; // For multi-root workspaces, specifies which workspace
+}
+
+// Response for createHook operation
+message CreateHookResponse {
+  HooksToggles hooks_toggles = 1;
+}
+
+// Request to delete a hook
+message DeleteHookRequest {
+  Metadata metadata = 1;
+  string hook_name = 2; // Name of the hook to delete
+  bool is_global = 3; // Whether this is a global or workspace hook
+  optional string workspace_name = 4; // For multi-root workspaces, specifies which workspace
+}
+
+// Response for deleteHook operation
+message DeleteHookResponse {
+  HooksToggles hooks_toggles = 1;
 }

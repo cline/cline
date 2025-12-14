@@ -12,12 +12,13 @@ import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
-const CLAUDE_MODELS = [
+export const SUPPORTED_BEDROCK_THINKING_MODELS = [
 	"anthropic.claude-3-7-sonnet-20250219-v1:0",
 	"anthropic.claude-sonnet-4-20250514-v1:0",
 	"anthropic.claude-sonnet-4-5-20250929-v1:0",
 	`anthropic.claude-sonnet-4-20250514-v1:0${CLAUDE_SONNET_1M_SUFFIX}`,
 	`anthropic.claude-sonnet-4-5-20250929-v1:0${CLAUDE_SONNET_1M_SUFFIX}`,
+	"anthropic.claude-opus-4-5-20251101-v1:0",
 	"anthropic.claude-opus-4-1-20250805-v1:0",
 	"anthropic.claude-opus-4-20250514-v1:0",
 	"anthropic.claude-haiku-4-5-20251001-v1:0",
@@ -350,10 +351,10 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 						</div>
 					)}
 
-					{(CLAUDE_MODELS.includes(selectedModelId) ||
+					{(SUPPORTED_BEDROCK_THINKING_MODELS.includes(selectedModelId) ||
 						(modeFields.awsBedrockCustomSelected &&
 							modeFields.awsBedrockCustomModelBaseId &&
-							CLAUDE_MODELS.includes(modeFields.awsBedrockCustomModelBaseId))) && (
+							SUPPORTED_BEDROCK_THINKING_MODELS.includes(modeFields.awsBedrockCustomModelBaseId))) && (
 						<ThinkingBudgetSlider currentMode={currentMode} />
 					)}
 

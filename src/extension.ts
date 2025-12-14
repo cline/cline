@@ -25,13 +25,19 @@ import { addToCline } from "./core/controller/commands/addToCline"
 import { explainWithCline } from "./core/controller/commands/explainWithCline"
 import { fixWithCline } from "./core/controller/commands/fixWithCline"
 import { improveWithCline } from "./core/controller/commands/improveWithCline"
+import { clearOnboardingModelsCache } from "./core/controller/models/getClineOnboardingModels"
 import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { workspaceResolver } from "./core/workspace"
 import { focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtils"
-import { abortCommitGeneration, generateCommitMessage } from "./hosts/vscode/commit-message-generator"
+import { abortCommitGeneration, generateCommitMsg } from "./hosts/vscode/commit-message-generator"
+import {
+	disposeVscodeCommentReviewController,
+	getVscodeCommentReviewController,
+} from "./hosts/vscode/review/VscodeCommentReviewController"
+import { VscodeTerminalManager } from "./hosts/vscode/terminal/VscodeTerminalManager"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { ExtensionRegistryInfo } from "./registry"
@@ -392,7 +398,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Register the generateGitCommitMessage command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.GenerateCommit, async (scm) => {
-			generateCommitMessage(webview.controller.stateManager, scm)
+			generateCommitMsg(webview.controller.stateManager, scm)
 		}),
 		vscode.commands.registerCommand(commands.AbortCommit, () => {
 			abortCommitGeneration()
@@ -401,7 +407,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		context.secrets.onDidChange(async (event) => {
-			if (event.key === "clineAccountId" || event.key === "cline:clineAccountId") {
+			if (event.key === "cline:clineAccountId") {
 				// Check if the secret was removed (logout) or added/updated (login)
 				const secretValue = await context.secrets.get(event.key)
 				const activeWebview = WebviewProvider.getVisibleInstance()
@@ -427,6 +433,8 @@ function setupHostProvider(context: ExtensionContext) {
 
 	const createWebview = () => new VscodeWebviewProvider(context)
 	const createDiffView = () => new VscodeDiffViewProvider()
+	const createCommentReview = () => getVscodeCommentReviewController()
+	const createTerminalManager = () => new VscodeTerminalManager()
 	const outputChannel = vscode.window.createOutputChannel("Cline")
 	context.subscriptions.push(outputChannel)
 
@@ -434,6 +442,8 @@ function setupHostProvider(context: ExtensionContext) {
 	HostProvider.initialize(
 		createWebview,
 		createDiffView,
+		createCommentReview,
+		createTerminalManager,
 		vscodeHostBridgeClient,
 		outputChannel.appendLine,
 		getCallbackUrl,
@@ -484,6 +494,11 @@ export async function deactivate() {
 
 	// Clean up hook discovery cache
 	HookDiscoveryCache.getInstance().dispose()
+
+	// Clean up comment review controller
+	disposeVscodeCommentReviewController()
+
+	clearOnboardingModelsCache()
 
 	Logger.log("Cline extension deactivated")
 }

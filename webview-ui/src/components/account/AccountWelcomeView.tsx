@@ -1,5 +1,5 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { handleSignIn } from "@/context/ClineAuthContext"
+import { useClineSignIn } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import ClineLogoVariable from "../../assets/ClineLogoVariable"
 
@@ -8,6 +8,7 @@ import ClineLogoVariable from "../../assets/ClineLogoVariable"
 // 		<ClineLogoWhite className="size-16 mb-4" />
 export const AccountWelcomeView = () => {
 	const { environment } = useExtensionState()
+	const { isLoginLoading, handleSignIn } = useClineSignIn()
 
 	return (
 		<div className="flex flex-col items-center pr-3 gap-2.5">
@@ -18,8 +19,13 @@ export const AccountWelcomeView = () => {
 				upcoming features.
 			</p>
 
-			<VSCodeButton className="w-full mb-4" onClick={() => handleSignIn()}>
+			<VSCodeButton className="w-full mb-4" disabled={isLoginLoading} onClick={handleSignIn}>
 				Sign up with Cline
+				{isLoginLoading && (
+					<span className="ml-1 animate-spin">
+						<span className="codicon codicon-refresh"></span>
+					</span>
+				)}
 			</VSCodeButton>
 
 			<p className="text-(--vscode-descriptionForeground) text-xs text-center m-0">

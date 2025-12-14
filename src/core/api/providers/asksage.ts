@@ -1,5 +1,5 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { AskSageModelId, askSageDefaultModelId, askSageDefaultURL, askSageModels, ModelInfo } from "@shared/api"
+import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
@@ -19,6 +19,16 @@ type AskSageRequest = {
 	}[]
 	model: string
 	dataset: "none"
+	usage: boolean
+}
+
+type AskSageUsage = {
+	model_tokens: {
+		completion_tokens: number
+		prompt_tokens: number
+		total_tokens: number
+	}
+	asksage_tokens: number
 }
 
 type AskSageResponse = {
@@ -28,6 +38,18 @@ type AskSageResponse = {
 	response: string
 	// Generated response message
 	message: string
+	// whether embedding & vector systems are down
+	embedding_down: boolean
+	vectors_down: boolean
+	// references if dataset is not none
+	references: string
+	type: string
+	added_obj: any
+	tool_calls: any
+	// usage metrics
+	usage: AskSageUsage | null
+	tool_responses: any[]
+	tool_calls_unified: any[]
 }
 
 export class AskSageHandler implements ApiHandler {
@@ -47,10 +69,9 @@ export class AskSageHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
 		try {
 			const model = this.getModel()
-
 			// Transform messages into AskSageRequest format
 			const formattedMessages = messages.map((msg) => {
 				const content = Array.isArray(msg.content)
@@ -68,6 +89,7 @@ export class AskSageHandler implements ApiHandler {
 				message: formattedMessages,
 				model: model.id,
 				dataset: "none",
+				usage: true,
 			}
 
 			// Make request to AskSage API
@@ -91,15 +113,72 @@ export class AskSageHandler implements ApiHandler {
 				throw new Error("No content in AskSage response")
 			}
 
-			// Return entire response as a single chunk since streaming is not supported
+			// Yield tool responses if they exist
+			if (result.tool_responses && result.tool_responses.length > 0) {
+				for (const toolResponse of result.tool_responses) {
+					yield {
+						type: "text",
+						text: `[Tool Response: ${JSON.stringify(toolResponse)}]\n`,
+					}
+				}
+			}
+
+			// Yield the main response text
 			yield {
 				type: "text",
 				text: result.message,
+			}
+
+			// Yield usage information if available
+			if (result.usage) {
+				yield {
+					type: "usage",
+					inputTokens: result.usage.model_tokens.prompt_tokens,
+					outputTokens: result.usage.model_tokens.completion_tokens,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+					totalCost: result.usage.asksage_tokens, // Cost = Consumed AskSage tokens
+				}
 			}
 		} catch (error) {
 			if (error instanceof Error) {
 				throw new Error(`AskSage request failed: ${error.message}`)
 			}
+			throw error
+		}
+	}
+
+	async getApiStreamUsage() {
+		if (!this.apiKey) {
+			return undefined
+		}
+
+		try {
+			const response = await fetch(`${this.apiUrl}/count-monthly-tokens`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"x-access-tokens": this.apiKey,
+				},
+				body: JSON.stringify({ app_name: "asksage" }),
+			})
+
+			if (!response.ok) {
+				console.error("Failed to fetch AskSage usage", await response.text())
+				return undefined
+			}
+
+			const data = await response.json()
+			const usedTokens = data.response as number
+
+			return {
+				type: "usage" as const,
+				inputTokens: usedTokens,
+				outputTokens: 0,
+			}
+		} catch (error) {
+			console.error("Error fetching AskSage usage:", error)
+			return undefined
 		}
 	}
 

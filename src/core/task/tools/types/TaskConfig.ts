@@ -9,6 +9,7 @@ import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import type { BrowserSettings } from "@shared/BrowserSettings"
 import type { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import type { FocusChainSettings } from "@shared/FocusChainSettings"
+import type { ClineContent } from "@shared/messages/content"
 import type { Mode } from "@shared/storage/types"
 import type { ClineDefaultTool } from "@shared/tools"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
@@ -19,6 +20,7 @@ import type { StateManager } from "../../../storage/StateManager"
 import type { MessageStateHandler } from "../../message-state"
 import type { TaskState } from "../../TaskState"
 import type { AutoApprove } from "../../tools/autoApprove"
+import type { HookExecution } from "../../types/HookExecution"
 import type { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
 import { TASK_CALLBACKS_KEYS, TASK_CONFIG_KEYS, TASK_SERVICES_KEYS } from "../utils/ToolConstants"
 
@@ -34,6 +36,7 @@ export interface TaskConfig {
 	strictPlanModeEnabled: boolean
 	yoloModeToggled: boolean
 	vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec"
+	enableParallelToolCalling: boolean
 	context: vscode.ExtensionContext
 
 	// Multi-workspace support (optional for backward compatibility)
@@ -116,6 +119,17 @@ export interface TaskCallbacks {
 	applyLatestBrowserSettings: () => Promise<BrowserSession>
 
 	switchToActMode: () => Promise<boolean>
+
+	// Hook execution callbacks
+	setActiveHookExecution: (hookExecution: HookExecution) => Promise<void>
+	clearActiveHookExecution: () => Promise<void>
+	getActiveHookExecution: () => Promise<HookExecution | undefined>
+
+	// User prompt hook callback
+	runUserPromptSubmitHook: (
+		userContent: ClineContent[],
+		context: "initial_task" | "resume" | "feedback",
+	) => Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }>
 }
 
 /**

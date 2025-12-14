@@ -12,6 +12,8 @@ import { DictationSettings } from "./DictationSettings"
 import { FocusChainSettings } from "./FocusChainSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpDisplayMode } from "./McpDisplayMode"
+import { ClineMessageModelInfo } from "./messages"
+import { OnboardingModelGroup } from "./proto/cline/state"
 import { Mode, OpenaiReasoningEffort } from "./storage/types"
 import { TelemetrySetting } from "./TelemetrySetting"
 import { UserInfo } from "./UserInfo"
@@ -38,6 +40,7 @@ export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__"
 export interface ExtensionState {
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
+	onboardingModels: OnboardingModelGroup | undefined
 	apiConfiguration?: ApiConfiguration
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
@@ -77,10 +80,14 @@ export interface ExtensionState {
 	globalWorkflowToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
+	remoteRulesToggles?: ClineRulesToggles
+	remoteWorkflowToggles?: ClineRulesToggles
+	localAgentsRulesToggles: ClineRulesToggles
 	mcpResponsesCollapsed?: boolean
 	strictPlanModeEnabled?: boolean
 	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
+	clineWebToolsEnabled?: ClineFeatureSetting
 	focusChainSettings: FocusChainSettings
 	dictationSettings: DictationSettings
 	customPrompt?: string
@@ -94,10 +101,11 @@ export interface ExtensionState {
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
 	lastDismissedCliBannerVersion: number
-	hooksEnabled?: ClineFeatureSetting
+	hooksEnabled?: boolean
 	remoteConfigSettings?: Partial<RemoteConfigFields>
 	subagentsEnabled?: boolean
-	nativeToolCallSetting?: ClineFeatureSetting
+	nativeToolCallSetting?: boolean
+	enableParallelToolCalling?: boolean
 }
 
 export interface ClineMessage {
@@ -116,11 +124,13 @@ export interface ClineMessage {
 	isOperationOutsideWorkspace?: boolean
 	conversationHistoryIndex?: number
 	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
+	modelInfo?: ClineMessageModelInfo
 }
 
 export type ClineAsk =
 	| "followup"
 	| "plan_mode_respond"
+	| "act_mode_respond"
 	| "command"
 	| "command_output"
 	| "completion_result"
@@ -165,6 +175,7 @@ export type ClineSay =
 	| "clineignore_error"
 	| "checkpoint_created"
 	| "load_mcp_documentation"
+	| "generate_explanation"
 	| "info" // Added for general informational messages like retry status
 	| "task_progress"
 	| "hook"
@@ -181,6 +192,7 @@ export interface ClineSayTool {
 		| "listCodeDefinitionNames"
 		| "searchFiles"
 		| "webFetch"
+		| "webSearch"
 		| "summarizeTask"
 	path?: string
 	diff?: string
@@ -226,6 +238,14 @@ export interface ClineSayBrowserAction {
 	action: BrowserAction
 	coordinate?: string
 	text?: string
+}
+
+export interface ClineSayGenerateExplanation {
+	title: string
+	fromRef: string
+	toRef: string
+	status: "generating" | "complete" | "error"
+	error?: string
 }
 
 export type BrowserActionResult = {

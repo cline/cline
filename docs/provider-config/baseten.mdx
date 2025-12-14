@@ -3,7 +3,7 @@ title: "Baseten"
 description: "Learn how to configure and use Baseten's Model APIs with Cline. Access frontier open-source models with enterprise-grade performance, reliability, and competitive pricing."
 ---
 
-Baseten provides on-demand frontier model APIs designed for production applications, not just experimentation. Built on the Baseten Inference Stack, these APIs deliver enterprise-grade performance and reliability with optimized inference for leading open-source models from OpenAI, DeepSeek, Meta, Moonshot AI, and Alibaba Cloud.
+Baseten provides on-demand frontier model APIs designed for production applications, not just experimentation. Built on the Baseten Inference Stack, these APIs deliver optimized inference for leading open-source models from OpenAI, DeepSeek, Moonshot AI, and Alibaba Cloud.
 
 **Website:** [https://www.baseten.co/products/model-apis/](https://www.baseten.co/products/model-apis/)
 
@@ -14,13 +14,21 @@ Baseten provides on-demand frontier model APIs designed for production applicati
 3.  **Create a Key:** Generate a new API key. Give it a descriptive name (e.g., "Cline").
 4.  **Copy the Key:** Copy the API key immediately and store it securely.
 
+### Configuration in Cline
+
+1.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
+2.  **Select Provider:** Choose "Baseten" from the "API Provider" dropdown.
+3.  **Enter API Key:** Paste your Baseten API key into the "Baseten API Key" field.
+4.  **Select Model:** Choose your desired model from the "Model" dropdown.
+
+**IMPORTANT: For Kimi K2 Thinking:** To use the `moonshotai/Kimi-K2-Thinking` model, you must enable **Native Tool Call (Experimental)** in Cline settings. This setting allows Cline to call tools through their native tool processor and is required for this reasoning model to function properly.
+
 ### Supported Models
 
 Cline supports all current models under Baseten Model APIs, including:
 For the most updated pricing, please visit: https://www.baseten.co/products/model-apis/
-Note: Kimi K2 0711, Llama 4 Maverick, and Llama 4 Scout Model APIs have been deprecated at 5pm PT on October 8th.
-https://www.baseten.co/resources/changelog/model-api-deprecation-notice-kimi-k2-0711-scout-maverick/
 
+-   `moonshotai/Kimi-K2-Thinking` (Moonshot AI) - Enhanced reasoning capabilities with step-by-step thought processes (262K context) - \$0.60/\$2.50 per 1M tokens
 -   `zai-org/GLM-4.6` (Z AI) - Frontier open model with advanced agentic, reasoning and coding capabilities by Z AI (200k context) \$0.60/\$2.20 per 1M tokens
 -   `moonshotai/Kimi-K2-Instruct-0905` (Moonshot AI) - September update with enhanced capabilities (262K context) - \$0.60/\$2.50 per 1M tokens
 -   `openai/gpt-oss-120b` (OpenAI) - 120B MoE with strong reasoning capabilities (128K context) - \$0.10/\$0.50 per 1M tokens
@@ -30,13 +38,7 @@ https://www.baseten.co/resources/changelog/model-api-deprecation-notice-kimi-k2-
 -   `deepseek-ai/DeepSeek-R1-0528` - Latest revision of DeepSeek's reasoning model (163K context) - \$2.55/\$5.95 per 1M tokens
 -   `deepseek-ai/DeepSeek-V3.1` - Hybrid reasoning with advanced tool calling (163K context) - \$0.50/\$1.50 per 1M tokens
 -   `deepseek-ai/DeepSeek-V3-0324` - Fast general-purpose with enhanced reasoning (163K context) - \$0.77/\$0.77 per 1M tokens
-
-### Configuration in Cline
-
-1.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
-2.  **Select Provider:** Choose "Baseten" from the "API Provider" dropdown.
-3.  **Enter API Key:** Paste your Baseten API key into the "Baseten API Key" field.
-4.  **Select Model:** Choose your desired model from the "Model" dropdown.
+-   `deepseek-ai/DeepSeek-V3.2` - Fast general-purpose with enhanced reasoning (163K context) - \$0.77/\$0.77 per 1M tokens
 
 ### Production-First Architecture
 
@@ -59,47 +61,17 @@ Baseten's Model APIs are built for production environments with several key adva
 
 #### Developer Experience
 - **OpenAI compatible API** - migrate by swapping a single URL
-- **Drop-in replacement** for closed models with comprehensive observability
+- **Drop-in replacement** for closed models with comprehensive observability and analytics
 - **Seamless scaling** from Model APIs to dedicated deployments
 
 ### Special Features
 
 #### Function Calling & Tool Use
-All Baseten models support structured outputs, function calling, and tool use as part of the Baseten Inference Stack, making them ideal for agentic applications.
-
-#### Reasoning Capabilities
-DeepSeek models offer enhanced reasoning with step-by-step thought processes, while maintaining production-ready performance.
-
-#### Long Context Support
-- **Up to 1 million tokens** for Llama 4 models (Maverick and Scout)
-- **262K tokens** for Qwen3 models
-- **163K tokens** for DeepSeek models
-- **Perfect for code repositories** and complex multi-turn conversations
-
-#### Quantization Optimizations
-Models are deployed with advanced quantization techniques (fp4, fp8, fp16) for optimal performance while maintaining quality.
-
-### Migration from Other Providers
-
-Baseten's OpenAI compatibility makes migration straightforward:
-
-**From OpenAI:**
-- Swap `api.openai.com` with `inference.baseten.co/v1`
-- Keep existing request/response formats
-- Benefit from significant cost savings
-
-**From Other Providers:**
-- Use standard OpenAI SDK format
-- Maintain existing prompting strategies
-- Access to newer open-source models
+All Baseten models support structured outputs, function calling, and tool use as part of the Baseten Inference Stack, making them ideal for agentic applications and coding workflows.
 
 ### Tips and Notes
 
--   **Model Selection:** Choose models based on your specific use case - reasoning models for complex tasks, coding models for development work, and flagship models for general applications.
--   **Cost Optimization:** Baseten offers some of the most competitive pricing in the market, especially for open-source models.
--   **Context Windows:** Take advantage of large context windows (up to 1M tokens) for including substantial codebases and documentation.
--   **Enterprise Ready:** Baseten is designed for production use with enterprise-grade security, compliance, and reliability.
--   **Dynamic Model Updates:** Cline automatically fetches the latest model list from Baseten, ensuring access to new models as they're released.
+-   **Dynamic Model Updates:** Cline automatically fetches the latest model list from Baseten, ensuring access to new models as they're released in real time.
 -   **Multi-Cloud Capacity Management (MCM):** Baseten's multi-cloud infrastructure ensures high availability and low latency globally.
 -   **Support:** Baseten provides dedicated support for production deployments and can work with you on dedicated resources as you scale.
 

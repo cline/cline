@@ -7,6 +7,7 @@ import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { HistoryItem } from "@shared/HistoryItem"
 import { McpDisplayMode } from "@shared/McpDisplayMode"
 import { WorkspaceRoot } from "@shared/multi-root/types"
+import { GlobalInstructionsFile } from "@shared/remote-config/schema"
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
@@ -26,6 +27,9 @@ export type GlobalStateAndSettings = GlobalState & Settings
 export interface RemoteConfigExtraFields {
 	remoteConfiguredProviders: string[]
 	allowedMCPServers: Array<{ id: string }>
+	remoteGlobalRules?: GlobalInstructionsFile[]
+	remoteGlobalWorkflows?: GlobalInstructionsFile[]
+	blockPersonalRemoteMCPServers?: boolean
 }
 
 export type RemoteConfigFields = GlobalStateAndSettings & RemoteConfigExtraFields
@@ -46,11 +50,13 @@ export interface GlobalState {
 	workspaceRoots: WorkspaceRoot[] | undefined
 	primaryRootIndex: number
 	multiRootEnabled: boolean
-	hooksEnabled: boolean
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
 	lastDismissedCliBannerVersion: number
 	nativeToolCallEnabled: boolean
+	remoteRulesToggles: ClineRulesToggles
+	remoteWorkflowToggles: ClineRulesToggles
+	dismissedBanners: Array<{ bannerId: string; dismissedAt: number }>
 }
 
 export interface Settings {
@@ -105,6 +111,7 @@ export interface Settings {
 	strictPlanModeEnabled: boolean
 	yoloModeToggled: boolean
 	useAutoCondense: boolean
+	clineWebToolsEnabled: boolean
 	preferredLanguage: string
 	openaiReasoningEffort: OpenaiReasoningEffort
 	mode: Mode
@@ -120,12 +127,14 @@ export interface Settings {
 	aihubmixAppCode: string | undefined
 	hooksEnabled: boolean
 	subagentsEnabled: boolean
+	enableParallelToolCalling: boolean
 	hicapModelId: string | undefined
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
 	planModeApiModelId: string | undefined
 	planModeThinkingBudgetTokens: number | undefined
+	geminiPlanModeThinkingLevel: string | undefined
 	planModeReasoningEffort: string | undefined
 	planModeVsCodeLmModelSelector: LanguageModelChatSelector | undefined
 	planModeAwsBedrockCustomSelected: boolean | undefined
@@ -158,10 +167,12 @@ export interface Settings {
 	planModeHicapModelInfo: ModelInfo | undefined
 	planModeAihubmixModelId: string | undefined
 	planModeAihubmixModelInfo: ModelInfo | undefined
+	planModeNousResearchModelId: string | undefined
 	// Act mode configurations
 	actModeApiProvider: ApiProvider
 	actModeApiModelId: string | undefined
 	actModeThinkingBudgetTokens: number | undefined
+	geminiActModeThinkingLevel: string | undefined
 	actModeReasoningEffort: string | undefined
 	actModeVsCodeLmModelSelector: LanguageModelChatSelector | undefined
 	actModeAwsBedrockCustomSelected: boolean | undefined
@@ -194,6 +205,7 @@ export interface Settings {
 	actModeHicapModelInfo: ModelInfo | undefined
 	actModeAihubmixModelId: string | undefined
 	actModeAihubmixModelInfo: ModelInfo | undefined
+	actModeNousResearchModelId: string | undefined
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: boolean
@@ -233,6 +245,7 @@ export interface Secrets {
 	doubaoApiKey: string | undefined
 	mistralApiKey: string | undefined
 	liteLlmApiKey: string | undefined
+	remoteLiteLlmApiKey: string | undefined
 	authNonce: string | undefined
 	asksageApiKey: string | undefined
 	xaiApiKey: string | undefined
@@ -254,11 +267,14 @@ export interface Secrets {
 	minimaxApiKey: string | undefined
 	hicapApiKey: string | undefined
 	aihubmixApiKey: string | undefined
+	mcpOAuthSecrets: string | undefined
+	nousResearchApiKey: string | undefined
 }
 
 export interface LocalState {
 	localClineRulesToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
+	localAgentsRulesToggles: ClineRulesToggles
 	workflowToggles: ClineRulesToggles
 }

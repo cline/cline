@@ -18,6 +18,7 @@ service McpService {
   rpc toggleToolAutoApprove(ToggleToolAutoApproveRequest) returns (McpServers);
   rpc refreshMcpMarketplace(EmptyRequest) returns (McpMarketplaceCatalog);
   rpc openMcpSettings(EmptyRequest) returns (Empty);
+  rpc authenticateMcpServer(StringRequest) returns (Empty);
 
   // Subscribe to MCP marketplace catalog updates
   rpc subscribeToMcpMarketplaceCatalog(EmptyRequest) returns (stream McpMarketplaceCatalog);
@@ -43,6 +44,7 @@ message AddRemoteMcpServerRequest {
   Metadata metadata = 1;
   string server_name = 2;
   string server_url = 3;
+  optional string transport_type = 4;
 }
 
 message ToggleToolAutoApproveRequest {
@@ -91,6 +93,8 @@ message McpServer {
   repeated McpResourceTemplate resource_templates = 7;
   optional bool disabled = 8;
   optional int32 timeout = 9;
+  optional bool oauth_required = 10;
+  optional string oauth_auth_status = 11;
 }
 
 message McpServers {

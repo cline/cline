@@ -1,5 +1,7 @@
+import { clearOnboardingModelsCache, getClineOnboardingModels } from "@/core/controller/models/getClineOnboardingModels"
+import type { OnboardingModel } from "@/shared/proto/cline/state"
 import { FEATURE_FLAGS, FeatureFlag, FeatureFlagDefaultValue } from "@/shared/services/feature-flags/feature-flags"
-import type { IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
+import type { FeatureFlagPayload, IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
 
 // Default cache time-to-live (TTL) for feature flags - an hour
 const DEFAULT_CACHE_TTL = 60 * 60 * 1000
@@ -17,35 +19,46 @@ export class FeatureFlagsService {
 	 */
 	public constructor(private provider: IFeatureFlagsProvider) {}
 
-	private cache: Map<FeatureFlag, unknown> = new Map()
-	private lastCacheUpdateTime: number = 0
+	private cache: Map<FeatureFlag, FeatureFlagPayload> = new Map()
+	/**
+	 * Tracks cache update time and user ID for cache validity
+	 */
+	private cacheInfo = { updateTime: 0, userId: null as string | null }
 
 	/**
 	 * Poll all known feature flags to update their cached values
 	 */
-	public async poll(): Promise<void> {
+	public async poll(userId?: string): Promise<void> {
 		// Do not update cache if last update was less than an hour ago
 		const timesNow = Date.now()
-		if (timesNow - this.lastCacheUpdateTime < DEFAULT_CACHE_TTL) {
-			return
+		if (timesNow - this.cacheInfo.updateTime < DEFAULT_CACHE_TTL && this.cache.size) {
+			// If time is within TTL, only skip if user context (userId) is unchanged.
+			// If userId changed (including from/to undefined/null), refresh cache.
+			if (userId && this.cacheInfo.userId === userId) {
+				return
+			}
 		}
-		this.lastCacheUpdateTime = timesNow
+
 		for (const flag of FEATURE_FLAGS) {
-			const flagEnabled = await this.getFeatureFlag(flag).catch(() => false)
-			this.cache.set(flag, flagEnabled === true)
+			const payload = await this.getFeatureFlag(flag).catch(() => false)
+			this.cache.set(flag, payload ?? false)
 		}
+
+		// Only update timestamp after successfully populating cache
+		this.cacheInfo = { updateTime: timesNow, userId: userId || null }
+
+		getClineOnboardingModels() // Refresh onboarding models cache if relevant flag changed
 	}
 
-	private async getFeatureFlag(flagName: FeatureFlag): Promise<unknown> {
+	private async getFeatureFlag(flagName: FeatureFlag): Promise<FeatureFlagPayload | undefined> {
 		try {
+			const payload = await this.provider.getFeatureFlagPayload(flagName)
 			const flagValue = await this.provider.getFeatureFlag(flagName)
-			const value = flagValue ?? FeatureFlagDefaultValue[flagName]
-			this.cache.set(flagName, value)
+			const value = payload ?? flagValue ?? FeatureFlagDefaultValue[flagName] ?? undefined
 			return value
 		} catch (error) {
 			console.error(`Error checking if feature flag ${flagName} is enabled:`, error)
-			this.cache.set(flagName, false)
-			return false
+			return FeatureFlagDefaultValue[flagName] ?? false
 		}
 	}
 
@@ -74,20 +87,26 @@ export class FeatureFlagsService {
 		return this.cache.get(flagName) === true
 	}
 
-	public getWorkOsAuthEnabled(): boolean {
-		return this.getBooleanFlagEnabled(FeatureFlag.WORKOS_AUTH)
-	}
-
 	public getDoNothingFlag(): boolean {
 		return this.getBooleanFlagEnabled(FeatureFlag.DO_NOTHING)
 	}
 
 	public getHooksEnabled(): boolean {
-		return false
+		return this.getBooleanFlagEnabled(FeatureFlag.HOOKS)
 	}
 
-	public getNativeToolCallEnabled(): boolean {
-		return this.getBooleanFlagEnabled(FeatureFlag.NATIVE_TOOL_CALLS_NEXT_GEN_MODELS)
+	public getWebtoolsEnabled(): boolean {
+		return this.getBooleanFlagEnabled(FeatureFlag.WEBTOOLS)
+	}
+
+	public getOnboardingOverrides() {
+		const payload = this.cache.get(FeatureFlag.ONBOARDING_MODELS)
+		// Check if payload is object
+		if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+			return payload.models as unknown as Record<string, OnboardingModel & { hidden?: boolean }>
+		}
+		clearOnboardingModelsCache()
+		return undefined
 	}
 
 	/**
@@ -95,9 +114,9 @@ export class FeatureFlagsService {
 	 * @param flagName The feature flag key
 	 * @returns The feature flag payload or null if not found
 	 */
-	public async getPayload(flagName: string): Promise<unknown> {
+	public async getPayload(flagName: string): Promise<FeatureFlagPayload | null> {
 		try {
-			return await this.provider.getFeatureFlagPayload(flagName)
+			return (await this.provider.getFeatureFlagPayload(flagName)) ?? null
 		} catch (error) {
 			console.error(`Error retrieving feature flag payload for ${flagName}:`, error)
 			return null
@@ -126,15 +145,6 @@ export class FeatureFlagsService {
 	 */
 	public getSettings() {
 		return this.provider.getSettings()
-	}
-
-	/**
-	 * Reset the feature flags cache
-	 * Should run on user auth state changes to ensure flags are up-to-date
-	 */
-	public reset(): void {
-		this.cache.clear()
-		this.lastCacheUpdateTime = 0
 	}
 
 	/**

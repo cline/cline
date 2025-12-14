@@ -1,7 +1,6 @@
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { findLastIndex } from "@shared/array"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
-import { ClineFeatureSetting } from "@shared/ClineFeatureSetting"
 import { DEFAULT_DICTATION_SETTINGS, DictationSettings } from "@shared/DictationSettings"
 import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
@@ -9,7 +8,7 @@ import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 import type { UserInfo } from "@shared/proto/cline/account"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import type { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
-import { type TerminalProfile } from "@shared/proto/cline/state"
+import { OnboardingModelGroup, type TerminalProfile } from "@shared/proto/cline/state"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
@@ -33,8 +32,10 @@ import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceCli
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
+	onboardingModels: OnboardingModelGroup | undefined
 	openRouterModels: Record<string, ModelInfo>
 	hicapModels: Record<string, ModelInfo>
+	liteLlmModels: Record<string, ModelInfo>
 	openAiModels: string[]
 	requestyModels: Record<string, ModelInfo>
 	groqModels: Record<string, ModelInfo>
@@ -49,9 +50,9 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 	// View state
 	showMcp: boolean
-	hooksEnabled?: ClineFeatureSetting
 	mcpTab?: McpViewTab
 	showSettings: boolean
+	settingsTargetSection?: string
 	showHistory: boolean
 	showAccount: boolean
 	showAnnouncement: boolean
@@ -72,16 +73,21 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalCursorRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalWindsurfRulesToggles: (toggles: Record<string, boolean>) => void
+	setLocalAgentsRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setGlobalWorkflowToggles: (toggles: Record<string, boolean>) => void
+	setRemoteRulesToggles: (toggles: Record<string, boolean>) => void
+	setRemoteWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
 	setTotalTasksSize: (value: number | null) => void
 	setExpandTaskHeader: (value: boolean) => void
 	setShowWelcome: (value: boolean) => void
+	setOnboardingModels: (value: OnboardingModelGroup | undefined) => void
 
 	// Refresh functions
 	refreshOpenRouterModels: () => void
 	refreshHicapModels: () => void
+	refreshLiteLlmModels: () => void
 	setUserInfo: (userInfo?: UserInfo) => void
 
 	// Navigation state setters
@@ -90,7 +96,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 	// Navigation functions
 	navigateToMcp: (tab?: McpViewTab) => void
-	navigateToSettings: () => void
+	navigateToSettings: (targetSection?: string) => void
 	navigateToHistory: () => void
 	navigateToAccount: () => void
 	navigateToChat: () => void
@@ -116,6 +122,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [showMcp, setShowMcp] = useState(false)
 	const [mcpTab, setMcpTab] = useState<McpViewTab | undefined>(undefined)
 	const [showSettings, setShowSettings] = useState(false)
+	const [settingsTargetSection, setSettingsTargetSection] = useState<string | undefined>(undefined)
 	const [showHistory, setShowHistory] = useState(false)
 	const [showAccount, setShowAccount] = useState(false)
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
@@ -128,7 +135,10 @@ export const ExtensionStateContextProvider: React.FC<{
 	}, [setShowMcp, setMcpTab])
 
 	// Hide functions
-	const hideSettings = useCallback(() => setShowSettings(false), [setShowSettings])
+	const hideSettings = useCallback(() => {
+		setShowSettings(false)
+		setSettingsTargetSection(undefined)
+	}, [])
 	const hideHistory = useCallback(() => setShowHistory(false), [setShowHistory])
 	const hideAccount = useCallback(() => setShowAccount(false), [setShowAccount])
 	const hideAnnouncement = useCallback(() => setShowAnnouncement(false), [setShowAnnouncement])
@@ -148,12 +158,16 @@ export const ExtensionStateContextProvider: React.FC<{
 		[setShowMcp, setMcpTab, setShowSettings, setShowHistory, setShowAccount],
 	)
 
-	const navigateToSettings = useCallback(() => {
-		setShowHistory(false)
-		closeMcpView()
-		setShowAccount(false)
-		setShowSettings(true)
-	}, [setShowSettings, setShowHistory, closeMcpView, setShowAccount])
+	const navigateToSettings = useCallback(
+		(targetSection?: string) => {
+			setShowHistory(false)
+			closeMcpView()
+			setShowAccount(false)
+			setSettingsTargetSection(targetSection)
+			setShowSettings(true)
+		},
+		[closeMcpView],
+	)
 
 	const navigateToHistory = useCallback(() => {
 		setShowSettings(false)
@@ -199,6 +213,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		localClineRulesToggles: {},
 		localCursorRulesToggles: {},
 		localWindsurfRulesToggles: {},
+		localAgentsRulesToggles: {},
 		localWorkflowToggles: {},
 		globalWorkflowToggles: {},
 		shellIntegrationTimeout: 4000,
@@ -210,11 +225,13 @@ export const ExtensionStateContextProvider: React.FC<{
 		defaultTerminalProfile: "default",
 		isNewUser: false,
 		welcomeViewCompleted: false,
+		onboardingModels: undefined,
 		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
 		strictPlanModeEnabled: false,
 		yoloModeToggled: false,
 		customPrompt: undefined,
 		useAutoCondense: false,
+		clineWebToolsEnabled: { user: true, featureFlag: false },
 		autoCondenseThreshold: undefined,
 		favoritedModelIds: [],
 		lastDismissedInfoBannerVersion: 0,
@@ -230,16 +247,21 @@ export const ExtensionStateContextProvider: React.FC<{
 		primaryRootIndex: 0,
 		isMultiRootWorkspace: false,
 		multiRootSetting: { user: false, featureFlag: false },
-		hooksEnabled: { user: false, featureFlag: false },
-		nativeToolCallSetting: { user: false, featureFlag: false },
+		hooksEnabled: false,
+		nativeToolCallSetting: false,
+		enableParallelToolCalling: false,
 	})
 	const [expandTaskHeader, setExpandTaskHeader] = useState(true)
 	const [didHydrateState, setDidHydrateState] = useState(false)
+
 	const [showWelcome, setShowWelcome] = useState(false)
+	const [onboardingModels, setOnboardingModels] = useState<OnboardingModelGroup | undefined>(undefined)
+
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
 	const [hicapModels, setHicapModels] = useState<Record<string, ModelInfo>>({})
+	const [liteLlmModels, setLiteLlmModels] = useState<Record<string, ModelInfo>>({})
 	const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
 	const [availableTerminalProfiles, setAvailableTerminalProfiles] = useState<TerminalProfile[]>([])
 
@@ -270,7 +292,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const partialMessageUnsubscribeRef = useRef<(() => void) | null>(null)
 	const mcpMarketplaceUnsubscribeRef = useRef<(() => void) | null>(null)
 	const openRouterModelsUnsubscribeRef = useRef<(() => void) | null>(null)
-	const hicapModelsUnsubscribeRef = useRef<(() => void) | null>(null)
+	const liteLlmModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 	const workspaceUpdatesUnsubscribeRef = useRef<(() => void) | null>(null)
 	const relinquishControlUnsubscribeRef = useRef<(() => void) | null>(null)
 
@@ -317,12 +339,13 @@ export const ExtensionStateContextProvider: React.FC<{
 							// Update welcome screen state based on API configuration if welcome view not in progress
 							if (!newState.welcomeViewCompleted && !showWelcome) {
 								setShowWelcome(true)
+								setOnboardingModels(newState.onboardingModels)
 							} else if (newState.welcomeViewCompleted) {
 								setShowWelcome(false)
+								setOnboardingModels(undefined)
 							}
-							setDidHydrateState(true)
 
-							console.log("[DEBUG] returning new state in ESC")
+							setDidHydrateState(true)
 
 							return newState
 						})
@@ -484,7 +507,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		// Subscribe to OpenRouter models updates
 		openRouterModelsUnsubscribeRef.current = ModelsServiceClient.subscribeToOpenRouterModels(EmptyRequest.create({}), {
 			onResponse: (response: OpenRouterCompatibleModelInfo) => {
-				console.log("[DEBUG] Received OpenRouter models update from gRPC stream")
 				const models = fromProtobufModels(response.models)
 				setOpenRouterModels({
 					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
@@ -496,6 +518,20 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 			onComplete: () => {
 				console.log("OpenRouter models subscription completed")
+			},
+		})
+
+		// Subscribe to LiteLLM models updates
+		liteLlmModelsUnsubscribeRef.current = ModelsServiceClient.subscribeToLiteLlmModels(EmptyRequest.create({}), {
+			onResponse: (response: OpenRouterCompatibleModelInfo) => {
+				const models = fromProtobufModels(response.models)
+				setLiteLlmModels(models)
+			},
+			onError: (error) => {
+				console.error("Error in LiteLLM models subscription:", error)
+			},
+			onComplete: () => {
+				console.log("LiteLLM models subscription completed")
 			},
 		})
 
@@ -599,6 +635,10 @@ export const ExtensionStateContextProvider: React.FC<{
 				openRouterModelsUnsubscribeRef.current()
 				openRouterModelsUnsubscribeRef.current = null
 			}
+			if (liteLlmModelsUnsubscribeRef.current) {
+				liteLlmModelsUnsubscribeRef.current()
+				liteLlmModelsUnsubscribeRef.current = null
+			}
 			if (workspaceUpdatesUnsubscribeRef.current) {
 				workspaceUpdatesUnsubscribeRef.current()
 				workspaceUpdatesUnsubscribeRef.current = null
@@ -645,12 +685,23 @@ export const ExtensionStateContextProvider: React.FC<{
 			.catch((error: Error) => console.error("Failed to refresh Hicap models:", error))
 	}, [])
 
+	const refreshLiteLlmModels = useCallback(() => {
+		ModelsServiceClient.refreshLiteLlmModelsRpc(EmptyRequest.create({}))
+			.then((response: OpenRouterCompatibleModelInfo) => {
+				const models = fromProtobufModels(response.models)
+				setLiteLlmModels(models)
+			})
+			.catch((error: Error) => console.error("Failed to refresh LiteLLM models:", error))
+	}, [])
+
 	const contextValue: ExtensionStateContextType = {
 		...state,
 		didHydrateState,
 		showWelcome,
+		onboardingModels,
 		openRouterModels,
 		hicapModels,
+		liteLlmModels,
 		openAiModels,
 		requestyModels,
 		groqModels: groqModelsState,
@@ -663,6 +714,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		showMcp,
 		mcpTab,
 		showSettings,
+		settingsTargetSection,
 		showHistory,
 		showAccount,
 		showAnnouncement,
@@ -671,8 +723,11 @@ export const ExtensionStateContextProvider: React.FC<{
 		localClineRulesToggles: state.localClineRulesToggles || {},
 		localCursorRulesToggles: state.localCursorRulesToggles || {},
 		localWindsurfRulesToggles: state.localWindsurfRulesToggles || {},
+		localAgentsRulesToggles: state.localAgentsRulesToggles || {},
 		localWorkflowToggles: state.localWorkflowToggles || {},
 		globalWorkflowToggles: state.globalWorkflowToggles || {},
+		remoteRulesToggles: state.remoteRulesToggles || {},
+		remoteWorkflowToggles: state.remoteWorkflowToggles || {},
 		enableCheckpointsSetting: state.enableCheckpointsSetting,
 		currentFocusChainChecklist: state.currentFocusChainChecklist,
 
@@ -691,6 +746,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowAnnouncement,
 		hideChatModelSelector,
 		setShowWelcome,
+		setOnboardingModels,
 		setShowChatModelSelector,
 		setShouldShowAnnouncement: (value) =>
 			setState((prevState) => ({
@@ -725,6 +781,11 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				localWindsurfRulesToggles: toggles,
 			})),
+		setLocalAgentsRulesToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				localAgentsRulesToggles: toggles,
+			})),
 		setLocalWorkflowToggles: (toggles) =>
 			setState((prevState) => ({
 				...prevState,
@@ -735,10 +796,21 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				globalWorkflowToggles: toggles,
 			})),
+		setRemoteRulesToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				remoteRulesToggles: toggles,
+			})),
+		setRemoteWorkflowToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				remoteWorkflowToggles: toggles,
+			})),
 		setMcpTab,
 		setTotalTasksSize,
 		refreshOpenRouterModels,
 		refreshHicapModels,
+		refreshLiteLlmModels,
 		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
 		expandTaskHeader,

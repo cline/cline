@@ -1,6 +1,6 @@
 import type { PaymentTransaction, UsageTransaction } from "@shared/ClineAccount"
 import { VSCodeDataGrid, VSCodeDataGridCell, VSCodeDataGridRow } from "@vscode/webview-ui-toolkit/react"
-import { useState } from "react"
+import { memo, useState } from "react"
 import { formatDollars, formatTimestamp } from "@/utils/format"
 import { TabButton } from "../mcp/configuration/McpConfigurationView"
 
@@ -11,7 +11,7 @@ interface CreditsHistoryTableProps {
 	showPayments?: boolean
 }
 
-const CreditsHistoryTable = ({ isLoading, usageData, paymentsData, showPayments }: CreditsHistoryTableProps) => {
+const CreditsHistoryTable = memo(({ isLoading, usageData, paymentsData, showPayments }: CreditsHistoryTableProps) => {
 	const [activeTab, setActiveTab] = useState<"usage" | "payments">("usage")
 
 	return (
@@ -60,7 +60,15 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData, showPayments 
 											<VSCodeDataGridCell grid-column="1">
 												{formatTimestamp(row.createdAt)}
 											</VSCodeDataGridCell>
-											<VSCodeDataGridCell grid-column="2">{`${row.aiModelName}`}</VSCodeDataGridCell>
+											<VSCodeDataGridCell grid-column="2">
+												{row.operation === "web_search"
+													? "Web Search"
+													: row.operation === "web_fetch"
+														? "Web Fetch"
+														: row.operation === "search_chat_completion"
+															? "Web Fetch (LLM)"
+															: row.aiModelName}
+											</VSCodeDataGridCell>
 											{/* <VSCodeDataGridCell grid-column="3">{`${row.promptTokens} → ${row.completionTokens}`}</VSCodeDataGridCell> */}
 											<VSCodeDataGridCell grid-column="3">{`$${Number(row.creditsUsed / 1000000).toFixed(4)}`}</VSCodeDataGridCell>
 										</VSCodeDataGridRow>
@@ -107,6 +115,6 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData, showPayments 
 			</div>
 		</div>
 	)
-}
+})
 
 export default CreditsHistoryTable
