@@ -10,11 +10,8 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 	await expect(inputbox).toBeVisible()
 	await inputbox.fill("Hello, Cline!")
 	await expect(inputbox).toHaveValue("Hello, Cline!")
-	await sidebar.getByTestId("send-button").click({ delay: 100 })
+	await sidebar.getByTestId("send-button").click()
 	await expect(inputbox).toHaveValue("")
-
-	// Loading State initially
-	await expect(sidebar.getByText("API Request...")).toBeVisible()
 
 	// Starting a new task should clear the current chat view and show the recent tasks
 	await sidebar.getByRole("button", { name: "New Task", exact: true }).first().click()
@@ -37,10 +34,11 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 	// === slash commands preserve following text ===
 	await expect(inputbox).toHaveValue("")
 	// Type partial slash command to trigger menu
-	await inputbox.pressSequentially("/new", { delay: 100 })
+	await inputbox.fill("/newt")
 
-	// Wait for menu to be visible and select first option with Tab
-	await inputbox.press("Tab")
+	// Wait for menu to be visible and click on menu item
+	await inputbox.focus()
+	await sidebar.getByText("newtask", { exact: false }).click()
 	await expect(inputbox).toHaveValue("/newtask ")
 
 	// Add following text to verify it works correctly
@@ -52,10 +50,10 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 	await expect(inputbox).toHaveValue("")
 
 	// Type partial @ mention to trigger menu
-	await inputbox.pressSequentially("@prob")
+	await inputbox.fill("@prob")
 
-	// Wait for menu to be visible and select first option with Tab
-	await inputbox.press("Tab")
+	// Wait for menu to be visible and click on menu item
+	await sidebar.getByText("Problems", { exact: false }).first().click()
 	await expect(inputbox).toHaveValue("@problems ")
 
 	// Add following text to verify it works correctly

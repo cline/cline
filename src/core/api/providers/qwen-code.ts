@@ -2,12 +2,15 @@ import { promises as fs } from "node:fs"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ModelInfo, QwenCodeModelId, qwenCodeDefaultModelId, qwenCodeModels } from "@shared/api"
 import OpenAI from "openai"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import * as os from "os"
 import * as path from "path"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 // --- Constants for Qwen OAuth2 ---
 const QWEN_OAUTH_BASE_URL = "https://chat.qwen.ai"
@@ -174,7 +177,7 @@ export class QwenCodeHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: OpenAITool[]): ApiStream {
 		await this.ensureAuthenticated()
 		const client = this.ensureClient()
 		const model = this.getModel()
@@ -193,10 +196,12 @@ export class QwenCodeHandler implements ApiHandler {
 			stream: true,
 			stream_options: { include_usage: true },
 			max_completion_tokens: model.info.maxTokens,
+			...getOpenAIToolParams(tools),
 		}
 
 		const stream = await this.callApiWithRetry(() => client.chat.completions.create(requestOptions))
 
+		const toolCallProcessor = new ToolCallProcessor()
 		let fullContent = ""
 
 		for await (const apiChunk of stream) {
@@ -238,6 +243,10 @@ export class QwenCodeHandler implements ApiHandler {
 						}
 					}
 				}
+			}
+
+			if (delta?.tool_calls) {
+				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 			}
 
 			// Handle reasoning content (o1-style)

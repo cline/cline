@@ -23,6 +23,7 @@
 		"@radix-ui/react-hover-card": "^1.1.15",
 		"@radix-ui/react-popover": "^1.1.15",
 		"@radix-ui/react-progress": "^1.1.7",
+		"@radix-ui/react-separator": "^1.1.7",
 		"@radix-ui/react-slot": "^1.2.3",
 		"@radix-ui/react-tooltip": "^1.2.8",
 		"@vscode/webview-ui-toolkit": "^1.4.0",
@@ -75,7 +76,7 @@
 		"storybook": "^9.1.6",
 		"tailwindcss": "^4.1.13",
 		"typescript": "^5.7.3",
-		"vite": "^6.3.6",
+		"vite": "^6.4.1",
 		"vitest": "^3.0.5"
 	},
 	"optionalDependencies": {

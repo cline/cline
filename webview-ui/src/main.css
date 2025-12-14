@@ -154,6 +154,16 @@ vscode-dropdown::part(listbox) {
 
 /* Context mentions */
 
+/* Needs to match the highlightLayerRef in ChatTextArea for proper positioning */
+.mention-context-textarea-highlight,
+.mention-context-highlight,
+.mention-context-highlight-with-shadow,
+.slash-command-match-textarea-highlight {
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-editor-font-size);
+	line-height: var(--vscode-editor-line-height);
+}
+
 .mention-context-textarea-highlight {
 	background-color: color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
 	border-radius: 3px;

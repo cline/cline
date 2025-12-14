@@ -5,7 +5,7 @@ const now = Date.now();
 const hoursAgo = Math.floor((now - lastMessageTs) / 3600000);
 
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: hoursAgo >= 1
     ? `TASK_CONTEXT: Task was paused ${hoursAgo} hours ago - you may need to re-familiarize yourself with the context`
     : "",

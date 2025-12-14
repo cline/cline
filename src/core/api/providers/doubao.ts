@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { DoubaoModelId, doubaoDefaultModelId, doubaoModels, ModelInfo } from "@shared/api"
 import OpenAI from "openai"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -27,6 +28,7 @@ export class DoubaoHandler implements ApiHandler {
 				this.client = new OpenAI({
 					baseURL: "https://ark.cn-beijing.volces.com/api/v3/",
 					apiKey: this.options.doubaoApiKey,
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {
 				throw new Error(`Error creating Doubao client: ${error.message}`)

@@ -40,8 +40,8 @@ export class AskFollowupQuestionToolHandler implements IToolHandler, IPartialBlo
 		}
 		config.taskState.consecutiveMistakeCount = 0
 
-		// Show notification if auto-approval is enabled
-		if (config.autoApprovalSettings.enabled && config.autoApprovalSettings.enableNotifications) {
+		// Show notification if enabled
+		if (config.autoApprovalSettings.enableNotifications) {
 			showSystemNotification({
 				subtitle: "Cline has a question...",
 				message: question.replace(/\n/g, " "),

@@ -1,10 +1,13 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ModelInfo, MoonshotModelId, moonshotDefaultModelId, moonshotModels } from "@/shared/api"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface MoonshotHandlerOptions extends CommonApiHandlerOptions {
 	moonshotApiKey?: string
@@ -27,6 +30,7 @@ export class MoonshotHandler implements ApiHandler {
 					baseURL:
 						this.options.moonshotApiLine === "china" ? "https://api.moonshot.cn/v1" : "https://api.moonshot.ai/v1",
 					apiKey: this.options.moonshotApiKey,
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {
 				throw new Error(`Error creating Moonshot client: ${error.message}`)
@@ -36,7 +40,7 @@ export class MoonshotHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
 
@@ -52,7 +56,11 @@ export class MoonshotHandler implements ApiHandler {
 			max_tokens: model.info.maxTokens,
 			stream: true,
 			stream_options: { include_usage: true },
+			...getOpenAIToolParams(tools),
 		})
+
+		const toolCallProcessor = new ToolCallProcessor()
+
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
 			if (delta?.content) {
@@ -60,6 +68,10 @@ export class MoonshotHandler implements ApiHandler {
 					type: "text",
 					text: delta.content,
 				}
+			}
+
+			if (delta?.tool_calls) {
+				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 			}
 
 			if (delta && "reasoning_content" in delta && delta.reasoning_content) {

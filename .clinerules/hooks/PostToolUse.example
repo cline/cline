@@ -1,54 +1,19 @@
 #!/usr/bin/env bash
-# PostToolUse Hook Example
-# 
-# This hook runs AFTER a tool is executed. It can:
-# 1. Observe tool results and outcomes
-# 2. Add context for FUTURE tool uses via contextModification
-# 3. Log or track tool usage patterns
-#
-# IMPORTANT: Context injection affects FUTURE AI decisions, not the current tool execution.
-# The tool has already completed when this hook runs.
 
-# Read the hook input (JSON via stdin)
+echo "PostToolUse running inside local cline/.clinerules/hooks/ directory"
+
 input=$(cat)
+echo $input | jq .
 
-# Extract tool information
-tool_name=$(echo "$input" | jq -r '.postToolUse.toolName // "unknown"')
-parameters=$(echo "$input" | jq -r '.postToolUse.parameters // {}')
-result=$(echo "$input" | jq -r '.postToolUse.result // ""')
-success=$(echo "$input" | jq -r '.postToolUse.success // false')
-execution_time=$(echo "$input" | jq -r '.postToolUse.executionTimeMs // 0')
+for i in {1..5}; do
+  sleep 1
+  echo "$i"
+done
 
-# Example 1: Learning from file operations
-# Track successful file creations to build context about project structure
-# if [[ "$tool_name" == "write_to_file" && "$success" == "true" ]]; then
-#   path=$(echo "$parameters" | jq -r '.path // ""')
-#   cat <<EOF
-# {
-#   "shouldContinue": true,
-#   "contextModification": "FILE_OPERATIONS: Successfully created '$path'. Future operations should maintain consistency with this file's patterns and structure."
-# }
-# EOF
-#   exit 0
-# fi
-
-# Example 2: Performance monitoring
-# Warn about slow operations
-# if [[ "$execution_time" -gt 5000 ]]; then
-#   cat <<EOF
-# {
-#   "shouldContinue": true,
-#   "contextModification": "PERFORMANCE: Tool '$tool_name' took ${execution_time}ms to complete. Consider optimizing future similar operations or breaking them into smaller steps."
-# }
-# EOF
-#   exit 0
-# fi
-
-# Example 3: Context injection for future tool uses
-# The context will be available in the NEXT API request
 cat <<EOF
 {
-  "shouldContinue": true,
-  "contextModification": "TOOL_RESULT: The tool '$tool_name' completed with success=$success. Consider validating the results before proceeding to the next step."
+  "cancel": false,
+  "contextModification": "PostToolUse response from the local cline/.clinerules/hooks/ directory.",
+  "errorMessage": "PostToolUse hook custom errorMessage"
 }
 EOF

@@ -35,6 +35,8 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 								return `File Edit: ${toolData.path || "Unknown file"}`
 							} else if (toolData.tool === "newFileCreated") {
 								return `New File: ${toolData.path || "Unknown file"}`
+							} else if (toolData.tool === "fileDeleted") {
+								return `Delete File: ${toolData.path || "Unknown file"}`
 							} else if (toolData.tool === "webFetch") {
 								return `Web Fetch: ${toolData.path || "Unknown URL"}`
 							}
@@ -81,6 +83,8 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 								return `File Edit Approval: ${toolData.path || "Unknown file"}`
 							} else if (toolData.tool === "newFileCreated") {
 								return `New File Approval: ${toolData.path || "Unknown file"}`
+							} else if (toolData.tool === "fileDeleted") {
+								return `File Deletion Approval: ${toolData.path || "Unknown file"}`
 							} else if (toolData.tool === "webFetch") {
 								return `Web Fetch: ${toolData.path || "Unknown URL"}`
 							}

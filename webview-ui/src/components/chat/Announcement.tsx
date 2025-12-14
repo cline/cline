@@ -57,15 +57,20 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h4>
 			<ul style={ulStyle}>
 				<li>
-					Cline Teams is now free through the end of the year for unlimited users. Includes Jetbrains, RBAC, centralized
-					billing and more.{" "}
-					<VSCodeLink href="https://app.cline.bot/login" style={linkStyle}>
-						Start using teams
-					</VSCodeLink>
+					<strong>Hooks</strong> allow you to inject custom logic into Cline's workflow&nbsp; (
+					<a href="https://docs.cline.bot/features/hooks" style={linkStyle}>
+						Hooks Docs
+					</a>
+					)
 				</li>
 				<li>
-					Use the “exacto” versions of GLM-4.6, Kimi-K2, and Qwen3-Coder in the Cline provider model picker for the best
-					balance of cost, speed, accuracy and tool-calling.
+					Bug fixes and improvements, including support for <code>&lt;think&gt;</code> tags (for better compatibility
+					with open-source models), refinements to the GLM-4.6 system prompt, CLI auth & provider updates, and fixes for
+					the OpenAI Compatible provider.&nbsp; (
+					<a href="https://github.com/cline/cline/blob/main/CHANGELOG.md" style={linkStyle}>
+						View full changelog
+					</a>
+					)
 				</li>
 			</ul>
 			<div style={hrStyle} />

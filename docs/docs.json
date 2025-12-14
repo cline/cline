@@ -88,6 +88,14 @@
 							"cline-cli/overview",
 							"cline-cli/installation",
 							"cline-cli/three-core-flows",
+							{
+								"group": "CLI Samples",
+								"pages": [
+									"cline-cli/samples/overview",
+									"cline-cli/samples/github-issue-rca",
+									"cline-cli/samples/github-integration"
+								]
+							},
 							"cline-cli/cli-reference"
 						]
 					},
@@ -130,6 +138,7 @@
 							"features/drag-and-drop",
 							"features/editing-messages",
 							"features/focus-chain",
+							"features/hooks",
 							"features/multiroot-workspace",
 							"features/plan-and-act",
 							{
@@ -315,6 +324,10 @@
 		{
 			"source": "/getting-started/your-first-task",
 			"destination": "/getting-started/your-first-project"
+		},
+		{
+			"source": "/cline-cli/samples",
+			"destination": "/cline-cli/samples/overview"
 		}
 	],
 	"search": {
