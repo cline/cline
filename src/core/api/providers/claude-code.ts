@@ -36,15 +36,45 @@ export class ClaudeCodeHandler implements ApiHandler {
 			thinkingBudgetTokens: this.options.thinkingBudgetTokens,
 		})
 
-		// Usage is included with assistant messages,
-		// but cost is included in the result chunk
-		const usage: ApiStreamUsageChunk = {
-			type: "usage",
+		// Usage is included with assistant messages/events,
+		// but cost is included in the result chunk.
+		//
+		// IMPORTANT: Task-level metrics currently accumulate (`+=`) usage chunks.
+		// Claude Code emits cumulative usage totals, so we must convert them to deltas here.
+		const lastUsageTotals = {
 			inputTokens: 0,
 			outputTokens: 0,
 			cacheReadTokens: 0,
 			cacheWriteTokens: 0,
-			totalCost: 0, // Initialize to 0, will be updated if paid
+		}
+
+		const makeUsageDelta = (current: {
+			id?: string
+			inputTokens: number
+			outputTokens: number
+			cacheReadTokens: number
+			cacheWriteTokens: number
+			totalCost?: number
+		}): ApiStreamUsageChunk => {
+			const delta = (currentValue: number, lastValue: number) => Math.max(0, currentValue - lastValue)
+
+			const chunk: ApiStreamUsageChunk = {
+				type: "usage",
+				id: current.id,
+				inputTokens: delta(current.inputTokens, lastUsageTotals.inputTokens),
+				outputTokens: delta(current.outputTokens, lastUsageTotals.outputTokens),
+				cacheReadTokens: delta(current.cacheReadTokens, lastUsageTotals.cacheReadTokens),
+				cacheWriteTokens: delta(current.cacheWriteTokens, lastUsageTotals.cacheWriteTokens),
+				// totalCost is not a delta; Task overwrites it, so emit the latest value when we have it.
+				totalCost: current.totalCost ?? 0,
+			}
+
+			lastUsageTotals.inputTokens = current.inputTokens
+			lastUsageTotals.outputTokens = current.outputTokens
+			lastUsageTotals.cacheReadTokens = current.cacheReadTokens
+			lastUsageTotals.cacheWriteTokens = current.cacheWriteTokens
+
+			return chunk
 		}
 
 		let isPaidUsage = true
@@ -72,16 +102,29 @@ export class ClaudeCodeHandler implements ApiHandler {
 				const event = chunk.event
 
 				switch (event.type) {
-					case "message_start":
-						// Yield initial usage stats
-						usage.inputTokens = event.message.usage.input_tokens || 0
-						usage.cacheWriteTokens = event.message.usage.cache_creation_input_tokens || 0
-						usage.cacheReadTokens = event.message.usage.cache_read_input_tokens || 0
-						usage.outputTokens = event.message.usage.output_tokens || 0
-						// Keep totalCost at 0 until we get the result chunk with actual cost
-						usage.totalCost = 0
-						yield usage
+					case "message_start": {
+						// Claude Code usage values are cumulative totals -> convert to deltas for Task.
+						// Reset last totals for a new message stream.
+						lastUsageTotals.inputTokens = 0
+						lastUsageTotals.outputTokens = 0
+						lastUsageTotals.cacheReadTokens = 0
+						lastUsageTotals.cacheWriteTokens = 0
+
+						const inputTokens = event.message.usage.input_tokens || 0
+						const cacheWriteTokens = event.message.usage.cache_creation_input_tokens || 0
+						const cacheReadTokens = event.message.usage.cache_read_input_tokens || 0
+						const outputTokens = event.message.usage.output_tokens || 0
+
+						yield makeUsageDelta({
+							id: event.message.id,
+							inputTokens,
+							outputTokens,
+							cacheReadTokens,
+							cacheWriteTokens,
+							totalCost: 0,
+						})
 						break
+					}
 
 					case "content_block_start":
 						switch (event.content_block.type) {
@@ -154,13 +197,18 @@ export class ClaudeCodeHandler implements ApiHandler {
 						}
 						break
 
-					case "message_delta":
-						// Update output tokens (cumulative count, not delta)
-						usage.outputTokens = event.usage.output_tokens || 0
-						// Keep totalCost at 0 until we get the result chunk with actual cost
-						usage.totalCost = 0
-						yield usage
+					case "message_delta": {
+						// output_tokens is cumulative -> convert to delta.
+						// MessageDeltaEvent does not include a message id; keep it undefined here.
+						yield makeUsageDelta({
+							inputTokens: lastUsageTotals.inputTokens,
+							outputTokens: event.usage.output_tokens || 0,
+							cacheReadTokens: lastUsageTotals.cacheReadTokens,
+							cacheWriteTokens: lastUsageTotals.cacheWriteTokens,
+							totalCost: 0,
+						})
 						break
+					}
 
 					case "content_block_stop":
 						// No-op for reasoning; nothing to flush when using pure deltas
@@ -240,8 +288,7 @@ export class ClaudeCodeHandler implements ApiHandler {
 							// Stream events only contain text, thinking, and redacted_thinking deltas.
 							//
 							// Important: the native-tool-call streaming pipeline expects `function.arguments` as JSON text.
-							// Claude Code returns `tool_use.input` as an object, so stringify it here to avoid `[object Object]`
-							// and losing required parameters during parsing.
+							// Claude Code returns `tool_use.input` as an object, so stringify it here.
 							const argumentsJson =
 								typeof content.input === "string" ? content.input : JSON.stringify(content.input ?? {})
 
@@ -261,26 +308,39 @@ export class ClaudeCodeHandler implements ApiHandler {
 					}
 				}
 
-				// Only update usage from assistant chunk if we didn't get it from stream events
-				// (to avoid overwriting with potentially stale data)
+				// Only update usage from assistant chunk if we didn't get it from stream events.
+				// (Older Claude Code CLIs won't emit stream_event usage.)
 				if (!didReceiveStreamEvents) {
 					// According to Anthropic's API documentation:
 					// https://docs.anthropic.com/en/api/messages#usage-object
 					// The `input_tokens` field already includes both `cache_read_input_tokens` and `cache_creation_input_tokens`.
-					// Therefore, we should not add cache tokens to the input_tokens count again, as this would result in double-counting.
-					usage.inputTokens = message.usage?.input_tokens ?? 0
-					usage.outputTokens = message.usage?.output_tokens ?? 0
-					usage.cacheReadTokens = message.usage?.cache_read_input_tokens ?? 0
-					usage.cacheWriteTokens = message.usage?.cache_creation_input_tokens ?? 0
+					const inputTokens = message.usage?.input_tokens ?? 0
+					const outputTokens = message.usage?.output_tokens ?? 0
+					const cacheReadTokens = message.usage?.cache_read_input_tokens ?? 0
+					const cacheWriteTokens = message.usage?.cache_creation_input_tokens ?? 0
+
+					yield makeUsageDelta({
+						id: message.id,
+						inputTokens,
+						outputTokens,
+						cacheReadTokens,
+						cacheWriteTokens,
+						totalCost: 0,
+					})
 				}
 
 				continue
 			}
 
 			if (chunk.type === "result" && "result" in chunk) {
-				usage.totalCost = isPaidUsage ? chunk.total_cost_usd : 0
-
-				yield usage
+				// Only the cost changes here; emit it as the latest (non-delta) cost value.
+				yield makeUsageDelta({
+					inputTokens: lastUsageTotals.inputTokens,
+					outputTokens: lastUsageTotals.outputTokens,
+					cacheReadTokens: lastUsageTotals.cacheReadTokens,
+					cacheWriteTokens: lastUsageTotals.cacheWriteTokens,
+					totalCost: isPaidUsage ? chunk.total_cost_usd : 0,
+				})
 			}
 		}
 	}

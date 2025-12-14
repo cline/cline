@@ -1,10 +1,10 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { RuleFileRequest } from "@shared/proto/index.cline"
-import { InfoIcon, PenIcon, Trash2Icon } from "lucide-react"
+import { REMOTE_URI_SCHEME } from "@shared/remote-config/constants"
+import { EyeIcon, InfoIcon, PenIcon, Trash2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
 
 const RuleRow: React.FC<{
@@ -81,7 +81,9 @@ const RuleRow: React.FC<{
 	}
 
 	const handleEditClick = () => {
-		FileServiceClient.openFile(StringRequest.create({ value: rulePath })).catch((err) =>
+		// For remote rules, use the special remote:// URI format
+		const filePath = isRemote ? `${REMOTE_URI_SCHEME}${ruleType === "workflow" ? "workflow" : "rule"}/${rulePath}` : rulePath
+		FileServiceClient.openFile(StringRequest.create({ value: filePath })).catch((err) =>
 			console.error("Failed to open file:", err),
 		)
 	}
@@ -98,10 +100,7 @@ const RuleRow: React.FC<{
 
 	return (
 		<div className="mb-2.5">
-			<div
-				className={cn("flex items-center px-2 py-4 rounded bg-text-block-background max-h-4", {
-					'opacity-60': isDisabled,
-				})}>
+			<div className="flex items-center px-2 py-4 rounded bg-text-block-background max-h-4">
 				<span className="flex-1 overflow-hidden break-all whitespace-normal flex items-center mr-1" title={rulePath}>
 					{getRuleTypeIcon() && <span className="mr-1.5">{getRuleTypeIcon()}</span>}
 					<span className="ph-no-capture">{finalDisplayName}</span>
@@ -122,19 +121,18 @@ const RuleRow: React.FC<{
 					<Switch
 						checked={enabled}
 						className="mx-1"
-						disabled={isRemote}
+						disabled={isDisabled}
 						key={rulePath}
 						onClick={() => toggleRule(rulePath, !enabled)}
 						title={isDisabled ? "This rule is required and cannot be disabled" : undefined}
 					/>
 					<Button
-						aria-label="Edit rule file"
-						disabled={isRemote}
+						aria-label={isRemote ? "View rule file" : "Edit rule file"}
 						onClick={handleEditClick}
 						size="xs"
-						title="Edit rule file"
+						title={isRemote ? "View rule file (read-only)" : "Edit rule file"}
 						variant="icon">
-						<PenIcon />
+						{isRemote ? <EyeIcon /> : <PenIcon />}
 					</Button>
 					<Button
 						aria-label="Delete rule file"

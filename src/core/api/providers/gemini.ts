@@ -28,6 +28,7 @@ interface GeminiHandlerOptions extends CommonApiHandlerOptions {
 	geminiApiKey?: string
 	geminiBaseUrl?: string
 	thinkingBudgetTokens?: number
+	thinkingLevel?: string
 	apiModelId?: string
 	ulid?: string
 }
@@ -119,10 +120,18 @@ export class GeminiHandler implements ApiHandler {
 		const _thinkingBudget = this.options.thinkingBudgetTokens ?? 0
 		const maxBudget = info.thinkingConfig?.maxBudget ?? 24576
 		const thinkingBudget = Math.min(_thinkingBudget, maxBudget)
-		const thinkLevel = info.thinkingConfig?.thinkingLevel
-		// When ThinkingLevel is defineded, thinking budget cannot be zero
+		// When ThinkingLevel is defined, thinking budget cannot be zero
 		// and only level is used to control thinking behavior.
-		const thinkingLevel = thinkLevel ? (thinkLevel === "low" ? ThinkingLevel.LOW : ThinkingLevel.HIGH) : undefined
+		// Only set thinkingLevel for models that support it
+		let thinkingLevel: ThinkingLevel | undefined
+		if (info.thinkingConfig?.supportsThinkingLevel) {
+			const level = this.options.thinkingLevel || info.thinkingConfig.geminiThinkingLevel
+			if (level === "high") {
+				thinkingLevel = ThinkingLevel.HIGH
+			} else if (level === "low") {
+				thinkingLevel = ThinkingLevel.LOW
+			}
+		}
 
 		// Set up base generation config
 		const requestConfig: GenerateContentConfig = {
@@ -134,16 +143,18 @@ export class GeminiHandler implements ApiHandler {
 			temperature: info.temperature ?? 1,
 		}
 
-		// Add thinking config if the model supports it
-		requestConfig.thinkingConfig = {
-			// Turn off thinking:
-			// thinkingBudget: 0
-			// Turn on dynamic thinking:
-			// thinkingBudget: -1
-			// Turn on fixed thinking budget:
-			thinkingBudget: thinkingLevel ? undefined : thinkingBudget,
-			thinkingLevel,
-			includeThoughts: thinkingBudget > 0,
+		// Add thinking config only if the model supports it
+		if (info.thinkingConfig) {
+			requestConfig.thinkingConfig = {
+				// Turn off thinking:
+				// thinkingBudget: 0
+				// Turn on dynamic thinking:
+				// thinkingBudget: -1
+				// Turn on fixed thinking budget:
+				thinkingBudget: thinkingLevel ? undefined : thinkingBudget, // Use budget only if thinkingLevel is not set
+				thinkingLevel,
+				includeThoughts: thinkingBudget > 0 || !!thinkingLevel,
+			}
 		}
 
 		// Generate content using the configured parameters

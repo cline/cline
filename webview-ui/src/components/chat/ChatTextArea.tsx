@@ -5,20 +5,21 @@ import { FileSearchRequest, FileSearchType, RelativePathsRequest } from "@shared
 import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
 import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
+import { type SlashCommand } from "@shared/slashCommands"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { AtSignIcon, PlusIcon } from "lucide-react"
 import type React from "react"
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
-import { useClickAway, useWindowSize } from "react-use"
+import { useWindowSize } from "react-use"
 import styled from "styled-components"
 import ContextMenu from "@/components/chat/ContextMenu"
 import { CHAT_CONSTANTS } from "@/components/chat/chat-view/constants"
+import ModelPickerModal from "@/components/chat/ModelPickerModal"
 import SlashCommandMenu from "@/components/chat/SlashCommandMenu"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import Thumbnails from "@/components/common/Thumbnails"
-import ApiOptions from "@/components/settings/ApiOptions"
 import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useClineAuth } from "@/context/ClineAuthContext"
@@ -42,9 +43,9 @@ import {
 	getMatchingSlashCommands,
 	insertSlashCommand,
 	removeSlashCommand,
-	type SlashCommand,
 	shouldShowSlashCommandsMenu,
 	slashCommandDeleteRegex,
+	slashCommandRegexGlobal,
 	validateSlashCommand,
 } from "@/utils/slash-commands"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
@@ -153,7 +154,7 @@ const ModelSelectorTooltip = styled.div<ModelSelectorTooltipProps>`
 	right: 15px;
 	background: ${CODE_BLOCK_BG_COLOR};
 	border: 1px solid var(--vscode-editorGroup-border);
-	padding: 12px;
+	padding: 12px 12px 18px 12px;
 	border-radius: 3px;
 	z-index: 1000;
 	max-height: calc(100vh - 100px);
@@ -484,7 +485,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setSlashCommandsQuery("")
 
 				if (textAreaRef.current) {
-					const { newValue, commandIndex } = insertSlashCommand(textAreaRef.current.value, command.name, queryLength)
+					const { newValue, commandIndex } = insertSlashCommand(
+						textAreaRef.current.value,
+						command.name,
+						queryLength,
+						cursorPosition,
+					)
 					const newCursorPosition = newValue.indexOf(" ", commandIndex + 1 + command.name.length) + 1
 
 					setInputValue(newValue)
@@ -499,7 +505,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}, 0)
 				}
 			},
-			[setInputValue, slashCommandsQuery],
+			[setInputValue, slashCommandsQuery, cursorPosition],
 		)
 		const handleKeyDown = useCallback(
 			(event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -760,7 +766,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setShowContextMenu(showMenu)
 
 				if (showSlashCommandsMenu) {
-					const slashIndex = newValue.indexOf("/")
+					// Find the slash nearest to cursor (before cursor position)
+					const beforeCursor = newValue.slice(0, newCursorPosition)
+					const slashIndex = beforeCursor.lastIndexOf("/")
 					const query = newValue.slice(slashIndex + 1, newCursorPosition)
 					setSlashCommandsQuery(query)
 					setSelectedSlashCommandsIndex(0)
@@ -983,18 +991,20 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				// highlight @mentions
 				.replace(mentionRegexGlobal, '<mark class="mention-context-textarea-highlight">$&</mark>')
 
-			// check for highlighting /slash-commands
-			if (/^\s*\//.test(processedText)) {
-				const slashIndex = processedText.indexOf("/")
+			// Highlight only the FIRST valid /slash-command in the text
+			// Only one slash command is processed per message, so we only highlight the first one
+			slashCommandRegexGlobal.lastIndex = 0
+			let hasHighlightedSlashCommand = false
+			processedText = processedText.replace(slashCommandRegexGlobal, (match, prefix, command) => {
+				// Only highlight the first valid slash command
+				if (hasHighlightedSlashCommand) {
+					return match
+				}
 
-				// end of command is end of text or first whitespace
-				const spaceIndex = processedText.indexOf(" ", slashIndex)
-				const endIndex = spaceIndex > -1 ? spaceIndex : processedText.length
-
-				// extract and validate the exact command text
-				const commandText = processedText.substring(slashIndex + 1, endIndex)
+				// Extract just the command name (without the slash)
+				const commandName = command.substring(1)
 				const isValidCommand = validateSlashCommand(
-					commandText,
+					commandName,
 					localWorkflowToggles,
 					globalWorkflowToggles,
 					remoteWorkflowToggles,
@@ -1002,17 +1012,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				)
 
 				if (isValidCommand) {
-					const fullCommand = processedText.substring(slashIndex, endIndex) // includes slash
-
-					const highlighted = `<mark class="mention-context-textarea-highlight">${fullCommand}</mark>`
-					processedText = processedText.substring(0, slashIndex) + highlighted + processedText.substring(endIndex)
+					hasHighlightedSlashCommand = true
+					// Keep the prefix (whitespace or empty) and wrap the command in highlight
+					return `${prefix}<mark class="mention-context-textarea-highlight">${command}</mark>`
 				}
-			}
+				return match
+			})
 
 			highlightLayerRef.current.innerHTML = processedText
 			highlightLayerRef.current.scrollTop = textAreaRef.current.scrollTop
 			highlightLayerRef.current.scrollLeft = textAreaRef.current.scrollLeft
-		}, [localWorkflowToggles, globalWorkflowToggles])
+		}, [localWorkflowToggles, globalWorkflowToggles, remoteWorkflowToggles, remoteConfigSettings])
 
 		useLayoutEffect(() => {
 			updateHighlights()
@@ -1132,25 +1142,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			updateHighlights()
 		}, [inputValue, handleInputChange, updateHighlights])
 
-		// Use an effect to detect menu close
-		useEffect(() => {
-			if (prevShowModelSelector.current && !showModelSelector) {
-				// Menu was just closed
-				submitApiConfig()
-			}
-			prevShowModelSelector.current = showModelSelector
-		}, [showModelSelector, submitApiConfig])
-
-		// Remove the handleApiConfigSubmit callback
-		// Update click handler to just toggle the menu
 		const handleModelButtonClick = () => {
 			setShowModelSelector(!showModelSelector)
 		}
-
-		// Update click away handler to just close menu
-		useClickAway(modelSelectorRef, () => {
-			setShowModelSelector(false)
-		})
 
 		// Get model display name
 		const modelDisplayName = useMemo(() => {
@@ -1752,33 +1746,22 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							<ClineRulesToggleModal />
 
 							<ModelContainer ref={modelSelectorRef}>
-								<ModelButtonWrapper ref={buttonRef}>
-									<ModelDisplayButton
-										disabled={false}
-										isActive={showModelSelector}
-										onClick={handleModelButtonClick}
-										role="button"
-										tabIndex={0}
-										title="Select Model / API Provider">
-										<ModelButtonContent className="text-xs">{modelDisplayName}</ModelButtonContent>
-									</ModelDisplayButton>
-								</ModelButtonWrapper>
-								{showModelSelector && (
-									<ModelSelectorTooltip
-										arrowPosition={arrowPosition}
-										menuPosition={menuPosition}
-										style={{
-											bottom: `calc(100vh - ${menuPosition}px + 6px)`,
-										}}>
-										<ApiOptions
-											apiErrorMessage={undefined}
-											currentMode={mode}
-											isPopup={true}
-											modelIdErrorMessage={undefined}
-											showModelOptions={true}
-										/>
-									</ModelSelectorTooltip>
-								)}
+								<ModelPickerModal
+									currentMode={mode}
+									isOpen={showModelSelector}
+									onOpenChange={setShowModelSelector}>
+									<ModelButtonWrapper ref={buttonRef}>
+										<ModelDisplayButton
+											disabled={false}
+											isActive={showModelSelector}
+											onClick={handleModelButtonClick}
+											role="button"
+											tabIndex={0}
+											title="Select Model / API Provider">
+											<ModelButtonContent className="text-xs">{modelDisplayName}</ModelButtonContent>
+										</ModelDisplayButton>
+									</ModelButtonWrapper>
+								</ModelPickerModal>
 							</ModelContainer>
 						</ButtonGroup>
 					</div>

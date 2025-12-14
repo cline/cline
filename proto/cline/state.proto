@@ -28,6 +28,8 @@ service StateService {
   rpc updateInfoBannerVersion(Int64Request) returns (Empty);
   rpc updateModelBannerVersion(Int64Request) returns (Empty);
   rpc updateCliBannerVersion(Int64Request) returns (Empty);
+  rpc dismissBanner(StringRequest) returns (Empty);
+  rpc trackBannerEvent(TrackBannerEventRequest) returns (Empty);
   rpc installClineCli(EmptyRequest) returns (Empty);
   rpc checkCliInstallation(EmptyRequest) returns (Boolean);
   rpc getProcessInfo(EmptyRequest) returns (ProcessInfo);
@@ -225,6 +227,8 @@ message Settings {
   optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 131;
   optional string act_mode_aihubmix_model_id = 132;
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 133;
+  optional bool cline_web_tools_enabled = 134;
+  optional bool hooks_enabled = 135;
 }
 
 message DictationSettings {
@@ -363,6 +367,8 @@ message UpdateSettingsRequest {
   optional string cline_env = 31;
   optional bool native_tool_call_enabled = 32;
   optional OnboardingModelGroup onboarding_models = 33;
+  optional bool cline_web_tools_enabled = 34;
+  optional bool enable_parallel_tool_calling = 35;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {
@@ -403,4 +409,9 @@ message OnboardingModel {
   string badge = 5;
   string group = 6;
   OpenRouterModelInfo info = 7;
+}
+
+message TrackBannerEventRequest {
+  string banner_id = 1;
+  string event_type = 2;
 }

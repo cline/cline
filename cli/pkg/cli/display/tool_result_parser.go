@@ -221,83 +221,12 @@ func (p *ToolResultParser) ParseCodeDefinitions(content string) string {
 
 // ParseWebFetch formats webFetch tool results with content preview
 func (p *ToolResultParser) ParseWebFetch(content, url string) string {
-	if content == "" {
-		return fmt.Sprintf("*Fetched content from %s (empty response)*", url)
-	}
+	return ""
+}
 
-	lines := strings.Split(content, "\n")
-	
-	var result strings.Builder
-	
-	// Try to extract title
-	var title string
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "#") && !strings.HasPrefix(trimmed, "##") {
-			title = strings.TrimSpace(strings.TrimPrefix(trimmed, "#"))
-			break
-		}
-	}
-
-	if title != "" {
-		result.WriteString(fmt.Sprintf("**Title:** %s\n\n", title))
-	}
-
-	// Show preview of content
-	result.WriteString("**Preview:**\n")
-	
-	charCount := 0
-	maxChars := 500
-	previewLines := []string{}
-	
-	for _, line := range lines {
-		// Skip markdown headers
-		if strings.HasPrefix(strings.TrimSpace(line), "#") {
-			continue
-		}
-		
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
-		
-		if charCount+len(trimmed) > maxChars {
-			break
-		}
-		
-		previewLines = append(previewLines, trimmed)
-		charCount += len(trimmed)
-	}
-
-	result.WriteString(strings.Join(previewLines, " "))
-	result.WriteString("...\n\n")
-
-	// Extract sections
-	sections := []string{}
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "##") {
-			section := strings.TrimSpace(strings.TrimPrefix(trimmed, "##"))
-			sections = append(sections, section)
-			if len(sections) >= 5 {
-				break
-			}
-		}
-	}
-
-	if len(sections) > 0 {
-		result.WriteString("**Sections Found:**\n")
-		for _, section := range sections {
-			result.WriteString(fmt.Sprintf("- %s\n", section))
-		}
-		result.WriteString("\n")
-	}
-
-	// Word count estimate
-	wordCount := len(strings.Fields(content))
-	result.WriteString(fmt.Sprintf("*[Full content: ~%s]*", p.formatWordCount(wordCount)))
-
-	return result.String()
+// ParseWebSearch formats webSearch tool results
+func (p *ToolResultParser) ParseWebSearch(content, query string) string {
+	return ""
 }
 
 // detectLanguage returns syntax highlighting language based on file extension
@@ -365,6 +294,8 @@ func (p *ToolResultParser) ParseToolResult(tool *types.ToolMessage) string {
 		return p.ParseCodeDefinitions(tool.Content)
 	case "webFetch":
 		return p.ParseWebFetch(tool.Content, tool.Path)
+	case "webSearch":
+		return p.ParseWebSearch(tool.Content, tool.Path)
 	default:
 		return tool.Content
 	}

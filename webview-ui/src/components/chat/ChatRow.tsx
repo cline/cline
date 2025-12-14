@@ -5,12 +5,14 @@ import {
 	ClineAskUseMcpServer,
 	ClineMessage,
 	ClinePlanModeResponse,
+	ClineSayGenerateExplanation,
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
 import { BooleanRequest, Int64Request, StringRequest } from "@shared/proto/cline/common"
 import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
+import { FoldVerticalIcon } from "lucide-react"
 import React, { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import styled from "styled-components"
@@ -276,6 +278,7 @@ export const ChatRowContent = memo(
 	}: ChatRowContentProps) => {
 		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode } = useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
+		const [explainChangesDisabled, setExplainChangesDisabled] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
 			top: 0,
@@ -322,6 +325,7 @@ export const ChatRowContent = memo(
 		useEffect(() => {
 			return onRelinquishControl(() => {
 				setSeeNewChangesDisabled(false)
+				setExplainChangesDisabled(false)
 			})
 		}, [onRelinquishControl])
 
@@ -750,7 +754,9 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div style={headerStyle}>
-								{toolIcon("book")}
+								<span style={{ color: normalColor, marginBottom: "-1.5px" }}>
+									<FoldVerticalIcon size={16} />
+								</span>
 								<span style={{ fontWeight: "bold" }}>Cline is condensing the conversation:</span>
 							</div>
 							<div
@@ -761,7 +767,15 @@ export const ChatRowContent = memo(
 									border: "1px solid var(--vscode-editorGroup-border)",
 								}}>
 								<div
+									aria-label={isExpanded ? "Collapse summary" : "Expand summary"}
 									onClick={handleToggle}
+									onKeyDown={(e) => {
+										if (e.key === "Enter" || e.key === " ") {
+											e.preventDefault()
+											e.stopPropagation()
+											handleToggle()
+										}
+									}}
 									style={{
 										color: "var(--vscode-descriptionForeground)",
 										padding: "9px 10px",
@@ -770,7 +784,8 @@ export const ChatRowContent = memo(
 										WebkitUserSelect: "none",
 										MozUserSelect: "none",
 										msUserSelect: "none",
-									}}>
+									}}
+									tabIndex={0}>
 									{isExpanded ? (
 										<div>
 											<div style={{ display: "flex", alignItems: "center", marginBottom: "8px" }}>
@@ -874,6 +889,48 @@ export const ChatRowContent = memo(
 							</div>
 							{/* Displaying the 'content' which now holds "Fetching URL: [URL]" */}
 							{/* <div style={{ paddingTop: 5, fontSize: '0.9em', opacity: 0.8 }}>{tool.content}</div> */}
+						</>
+					)
+				case "webSearch":
+					return (
+						<>
+							<div style={headerStyle}>
+								<span
+									className="codicon codicon-search"
+									style={{ color: normalColor, marginBottom: "-1.5px" }}></span>
+								{tool.operationIsLocatedInWorkspace === false &&
+									toolIcon("sign-out", "yellow", -90, "This search is external")}
+								<span style={{ fontWeight: "bold" }}>
+									{message.type === "ask"
+										? "Cline wants to search the web for:"
+										: "Cline searched the web for:"}
+								</span>
+							</div>
+							<div
+								style={{
+									borderRadius: 3,
+									backgroundColor: CODE_BLOCK_BG_COLOR,
+									overflow: "hidden",
+									border: "1px solid var(--vscode-editorGroup-border)",
+									padding: "9px 10px",
+									userSelect: "text",
+									WebkitUserSelect: "text",
+									MozUserSelect: "text",
+									msUserSelect: "text",
+								}}>
+								<span
+									className="ph-no-capture"
+									style={{
+										whiteSpace: "nowrap",
+										overflow: "hidden",
+										textOverflow: "ellipsis",
+										marginRight: "8px",
+										direction: "rtl",
+										textAlign: "left",
+									}}>
+									{tool.path + "\u200E"}
+								</span>
+							</div>
 						</>
 					)
 				default:
@@ -1243,7 +1300,15 @@ export const ChatRowContent = memo(
 						return (
 							<>
 								<div
+									aria-label={isExpanded ? "Collapse API request" : "Expand API request"}
 									onClick={handleToggle}
+									onKeyDown={(e) => {
+										if (e.key === "Enter" || e.key === " ") {
+											e.preventDefault()
+											e.stopPropagation()
+											handleToggle()
+										}
+									}}
 									style={{
 										...headerStyle,
 										marginBottom:
@@ -1254,7 +1319,8 @@ export const ChatRowContent = memo(
 										WebkitUserSelect: "none",
 										MozUserSelect: "none",
 										msUserSelect: "none",
-									}}>
+									}}
+									tabIndex={0}>
 									<div
 										style={{
 											display: "flex",
@@ -1272,7 +1338,7 @@ export const ChatRowContent = memo(
 											style={{
 												opacity: cost != null && cost > 0 ? 1 : 0,
 											}}>
-											${Number(cost || 0)?.toFixed(4)}
+											{cost != null && Number(cost || 0) > 0 ? `$${Number(cost || 0).toFixed(4)}` : ""}
 										</VSCodeBadge>
 									</div>
 									<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
@@ -1356,7 +1422,15 @@ export const ChatRowContent = memo(
 							<>
 								{message.text && (
 									<div
+										aria-label={isExpanded ? "Collapse thinking" : "Expand thinking"}
 										onClick={handleToggle}
+										onKeyDown={(e) => {
+											if (e.key === "Enter" || e.key === " ") {
+												e.preventDefault()
+												e.stopPropagation()
+												handleToggle()
+											}
+										}}
 										style={{
 											// marginBottom: 15,
 											cursor: "pointer",
@@ -1364,7 +1438,8 @@ export const ChatRowContent = memo(
 
 											fontStyle: "italic",
 											overflow: "hidden",
-										}}>
+										}}
+										tabIndex={0}>
 										{isExpanded ? (
 											<div style={{ marginTop: -3 }}>
 												<span style={{ fontWeight: "bold", display: "block", marginBottom: "4px" }}>
@@ -1457,6 +1532,124 @@ export const ChatRowContent = memo(
 								Loading MCP documentation
 							</div>
 						)
+					case "generate_explanation": {
+						let explanationInfo: ClineSayGenerateExplanation = {
+							title: "code changes",
+							fromRef: "",
+							toRef: "",
+							status: "generating",
+						}
+						try {
+							if (message.text) {
+								explanationInfo = JSON.parse(message.text)
+							}
+						} catch {
+							// Use defaults if parsing fails
+						}
+						// Check if generation was interrupted:
+						// 1. If status is "generating" but this isn't the last message, it was interrupted
+						// 2. If status is "generating" and lastModifiedMessage is a resume ask, task was just cancelled
+						const wasCancelled =
+							explanationInfo.status === "generating" &&
+							(!isLast ||
+								lastModifiedMessage?.ask === "resume_task" ||
+								lastModifiedMessage?.ask === "resume_completed_task")
+						const isGenerating = explanationInfo.status === "generating" && !wasCancelled
+						const isError = explanationInfo.status === "error"
+						return (
+							<div
+								style={{
+									display: "flex",
+									flexDirection: "column",
+									backgroundColor: CODE_BLOCK_BG_COLOR,
+									border: "1px solid var(--vscode-editorGroup-border)",
+									borderRadius: 5,
+									padding: "10px 12px",
+									fontSize: 12,
+								}}>
+								<div
+									style={{
+										display: "flex",
+										alignItems: "center",
+									}}>
+									{isGenerating ? (
+										<span style={{ marginRight: 8 }}>
+											<ProgressIndicator />
+										</span>
+									) : isError ? (
+										<i
+											className="codicon codicon-error"
+											style={{ marginRight: 8, color: "var(--vscode-errorForeground)" }}
+										/>
+									) : wasCancelled ? (
+										<i
+											className="codicon codicon-circle-slash"
+											style={{ marginRight: 8, color: "var(--vscode-descriptionForeground)" }}
+										/>
+									) : (
+										<i
+											className="codicon codicon-check"
+											style={{ marginRight: 8, color: "var(--vscode-charts-green)" }}
+										/>
+									)}
+									<span style={{ fontWeight: 500 }}>
+										{isGenerating
+											? "Generating explanation"
+											: isError
+												? "Failed to generate explanation"
+												: wasCancelled
+													? "Explanation cancelled"
+													: "Generated explanation"}
+									</span>
+								</div>
+								{isError && explanationInfo.error && (
+									<div
+										style={{
+											opacity: 0.8,
+											marginLeft: 24,
+											marginTop: 6,
+											color: "var(--vscode-errorForeground)",
+											wordBreak: "break-word",
+										}}>
+										{explanationInfo.error}
+									</div>
+								)}
+								{!isError && (explanationInfo.title || explanationInfo.fromRef) && (
+									<div style={{ opacity: 0.8, marginLeft: 24, marginTop: 6 }}>
+										<div>{explanationInfo.title}</div>
+										{explanationInfo.fromRef && (
+											<div
+												style={{
+													fontSize: 11,
+													opacity: 0.7,
+													marginTop: 4,
+													marginLeft: -3,
+													wordBreak: "break-all",
+												}}>
+												<code
+													style={{
+														background: "var(--vscode-textBlockQuote-background)",
+														padding: "2px 6px",
+														borderRadius: 3,
+													}}>
+													{explanationInfo.fromRef}
+												</code>
+												<span style={{ margin: "0 6px" }}>→</span>
+												<code
+													style={{
+														background: "var(--vscode-textBlockQuote-background)",
+														padding: "2px 6px",
+														borderRadius: 3,
+													}}>
+													{explanationInfo.toRef || "working directory"}
+												</code>
+											</div>
+										)}
+									</div>
+								)}
+							</div>
+						)
+					}
 					case "completion_result":
 						const hasChanges = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
 						const text = hasChanges ? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
@@ -1500,7 +1693,7 @@ export const ChatRowContent = memo(
 									)}
 								</WithCopyButton>
 								{message.partial !== true && hasChanges && (
-									<div style={{ paddingTop: 17 }}>
+									<div style={{ paddingTop: 17, display: "flex", flexDirection: "column", gap: 8 }}>
 										<SuccessButton
 											disabled={seeNewChangesDisabled}
 											onClick={() => {
@@ -1518,8 +1711,31 @@ export const ChatRowContent = memo(
 												width: "100%",
 											}}>
 											<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
-											See new changes
+											View Changes
 										</SuccessButton>
+										{PLATFORM_CONFIG.type === PlatformType.VSCODE && (
+											<SuccessButton
+												disabled={explainChangesDisabled}
+												onClick={() => {
+													setExplainChangesDisabled(true)
+													TaskServiceClient.explainChanges({
+														metadata: {},
+														messageTs: message.ts,
+													}).catch((err) => {
+														console.error("Failed to explain changes:", err)
+														setExplainChangesDisabled(false)
+													})
+												}}
+												style={{
+													cursor: explainChangesDisabled ? "wait" : "pointer",
+													width: "100%",
+													backgroundColor: "var(--vscode-button-secondaryBackground)",
+													borderColor: "var(--vscode-button-secondaryBackground)",
+												}}>
+												<i className="codicon codicon-comment-discussion" style={{ marginRight: 6 }} />
+												{explainChangesDisabled ? "Explaining..." : "Explain Changes"}
+											</SuccessButton>
+										)}
 									</div>
 								)}
 							</>
@@ -1782,7 +1998,7 @@ export const ChatRowContent = memo(
 										)}
 									</WithCopyButton>
 									{message.partial !== true && hasChanges && (
-										<div style={{ marginTop: 15 }}>
+										<div style={{ marginTop: 15, display: "flex", flexDirection: "column", gap: 8 }}>
 											<SuccessButton
 												appearance="secondary"
 												disabled={seeNewChangesDisabled}
@@ -1803,8 +2019,32 @@ export const ChatRowContent = memo(
 														cursor: seeNewChangesDisabled ? "wait" : "pointer",
 													}}
 												/>
-												See new changes
+												View Changes
 											</SuccessButton>
+											{PLATFORM_CONFIG.type === PlatformType.VSCODE && (
+												<SuccessButton
+													appearance="secondary"
+													disabled={explainChangesDisabled}
+													onClick={() => {
+														setExplainChangesDisabled(true)
+														TaskServiceClient.explainChanges({
+															metadata: {},
+															messageTs: message.ts,
+														}).catch((err) => {
+															console.error("Failed to explain changes:", err)
+															setExplainChangesDisabled(false)
+														})
+													}}>
+													<i
+														className="codicon codicon-comment-discussion"
+														style={{
+															marginRight: 6,
+															cursor: explainChangesDisabled ? "wait" : "pointer",
+														}}
+													/>
+													{explainChangesDisabled ? "Explaining..." : "Explain Changes"}
+												</SuccessButton>
+											)}
 										</div>
 									)}
 								</div>
@@ -1841,15 +2081,6 @@ export const ChatRowContent = memo(
 									ref={contentRef}
 									textToCopy={question}>
 									<Markdown markdown={question} />
-									<OptionsButtons
-										inputValue={inputValue}
-										isActive={
-											(isLast && lastModifiedMessage?.ask === "followup") ||
-											(!selected && options && options.length > 0)
-										}
-										options={options}
-										selected={selected}
-									/>
 									{quoteButtonState.visible && (
 										<QuoteButton
 											left={quoteButtonState.left}
@@ -1860,6 +2091,15 @@ export const ChatRowContent = memo(
 										/>
 									)}
 								</WithCopyButton>
+								<OptionsButtons
+									inputValue={inputValue}
+									isActive={
+										(isLast && lastModifiedMessage?.ask === "followup") ||
+										(!selected && options && options.length > 0)
+									}
+									options={options}
+									selected={selected}
+								/>
 							</div>
 						)
 					case "new_task":
@@ -1927,12 +2167,23 @@ export const ChatRowContent = memo(
 							response = message.text
 						}
 						return (
-							<WithCopyButton
-								onMouseUp={handleMouseUp}
-								position="bottom-right"
-								ref={contentRef}
-								textToCopy={response}>
-								<Markdown markdown={response} />
+							<>
+								<WithCopyButton
+									onMouseUp={handleMouseUp}
+									position="bottom-right"
+									ref={contentRef}
+									textToCopy={response}>
+									<Markdown markdown={response} />
+									{quoteButtonState.visible && (
+										<QuoteButton
+											left={quoteButtonState.left}
+											onClick={() => {
+												handleQuoteClick()
+											}}
+											top={quoteButtonState.top}
+										/>
+									)}
+								</WithCopyButton>
 								<OptionsButtons
 									inputValue={inputValue}
 									isActive={
@@ -1942,16 +2193,7 @@ export const ChatRowContent = memo(
 									options={options}
 									selected={selected}
 								/>
-								{quoteButtonState.visible && (
-									<QuoteButton
-										left={quoteButtonState.left}
-										onClick={() => {
-											handleQuoteClick()
-										}}
-										top={quoteButtonState.top}
-									/>
-								)}
-							</WithCopyButton>
+							</>
 						)
 					}
 					default:

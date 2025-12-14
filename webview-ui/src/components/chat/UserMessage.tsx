@@ -1,6 +1,6 @@
 import { CheckpointRestoreRequest } from "@shared/proto/cline/checkpoints"
 import { ClineCheckpointRestore } from "@shared/WebviewMessage"
-import React, { forwardRef, useRef, useState } from "react"
+import React, { forwardRef, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
 import Thumbnails from "@/components/common/Thumbnails"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -20,6 +20,8 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 	const [editedText, setEditedText] = useState(text || "")
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
 	const { checkpointManagerErrorMessage } = useExtensionState()
+
+	const highlightedText = useMemo(() => highlightText(editedText || text), [editedText, text])
 
 	// Create refs for the buttons to check in the blur handler
 	const restoreAllButtonRef = useRef<HTMLButtonElement>(null)
@@ -87,12 +89,12 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 
 	return (
 		<div
+			className="py-2 px-2.5"
 			onClick={handleClick}
 			style={{
 				backgroundColor: isEditing ? "unset" : "var(--vscode-badge-background)",
 				color: "var(--vscode-badge-foreground)",
 				borderRadius: "3px",
-				padding: "9px",
 				whiteSpace: "pre-line",
 				wordWrap: "break-word",
 			}}>
@@ -145,8 +147,8 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 					</div>
 				</>
 			) : (
-				<span className="ph-no-capture" style={{ display: "block" }}>
-					{highlightText(editedText || text)}
+				<span className="ph-no-capture text-sm" style={{ display: "block" }}>
+					{highlightedText}
 				</span>
 			)}
 			{((images && images.length > 0) || (files && files.length > 0)) && (

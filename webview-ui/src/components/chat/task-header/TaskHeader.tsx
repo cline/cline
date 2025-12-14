@@ -1,12 +1,10 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
-import { StringRequest } from "@shared/proto/cline/common"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
-import React, { useCallback, useMemo, useState } from "react"
+import React, { useCallback, useLayoutEffect, useMemo, useState } from "react"
 import Thumbnails from "@/components/common/Thumbnails"
 import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
-import { UiServiceClient } from "@/services/grpc-client"
 import { getEnvironmentColor } from "@/utils/environmentColors"
 import CopyTaskButton from "./buttons/CopyTaskButton"
 import DeleteTaskButton from "./buttons/DeleteTaskButton"
@@ -16,7 +14,6 @@ import { CheckpointError } from "./CheckpointError"
 import ContextWindow from "./ContextWindow"
 import { FocusChain } from "./FocusChain"
 import { highlightText } from "./Highlights"
-import TaskTimeline from "./TaskTimeline"
 
 const IS_DEV = process.env.IS_DEV === '"true"'
 interface TaskHeaderProps {
@@ -30,7 +27,6 @@ interface TaskHeaderProps {
 	lastApiReqTotalTokens?: number
 	lastProgressMessageText?: string
 	onClose: () => void
-	onScrollToMessage?: (messageIndex: number) => void
 	onSendMessage?: (command: string, files: string[], images: string[]) => void
 }
 
@@ -46,14 +42,12 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	lastApiReqTotalTokens,
 	lastProgressMessageText,
 	onClose,
-	onScrollToMessage,
 	onSendMessage,
 }) => {
 	const {
 		apiConfiguration,
 		currentTaskItem,
 		checkpointManagerErrorMessage,
-		clineMessages,
 		navigateToSettings,
 		mode,
 		expandTaskHeader: isTaskExpanded,
@@ -62,14 +56,19 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	} = useExtensionState()
 
 	const [isHighlightedTextExpanded, setIsHighlightedTextExpanded] = useState(false)
+	const [isTextOverflowing, setIsTextOverflowing] = useState(false)
 	const highlightedTextRef = React.useRef<HTMLDivElement>(null)
 
-	const { highlightedText, displayTextExpandable } = useMemo(() => {
-		const taskTextLines = task.text?.split("\n") || []
-		const highlightedText = highlightText(task.text, false)
+	const highlightedText = useMemo(() => highlightText(task.text, false), [task.text])
 
-		return { highlightedText, displayTextExpandable: taskTextLines.length > 3 }
-	}, [task.text])
+	// Check if text overflows the container (i.e., needs clamping)
+	useLayoutEffect(() => {
+		const el = highlightedTextRef.current
+		if (el && isTaskExpanded && !isHighlightedTextExpanded) {
+			// Check if content height exceeds the max-height
+			setIsTextOverflowing(el.scrollHeight > el.clientHeight)
+		}
+	}, [task.text, isTaskExpanded, isHighlightedTextExpanded])
 
 	// Handle click outside to collapse
 	React.useEffect(() => {
@@ -102,20 +101,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const toggleTaskExpanded = useCallback(() => setIsTaskExpanded(!isTaskExpanded), [setIsTaskExpanded, isTaskExpanded])
 
 	const handleCheckpointSettingsClick = useCallback(() => {
-		navigateToSettings()
-		setTimeout(async () => {
-			try {
-				await UiServiceClient.scrollToSettings(StringRequest.create({ value: "features" }))
-			} catch (error) {
-				console.error("Error scrolling to checkpoint settings:", error)
-			}
-		}, 300)
+		navigateToSettings("features")
 	}, [navigateToSettings])
 
 	const environmentBorderColor = getEnvironmentColor(environment, "border")
 
 	return (
-		<div className={"p-2 flex flex-col gap-1.5"}>
+		<div className="pt-2 pb-2 pl-[15px] pr-[14px] flex flex-col gap-2">
 			{/* Display Checkpoint Error */}
 			<CheckpointError
 				checkpointManagerErrorMessage={checkpointManagerErrorMessage}
@@ -134,7 +126,18 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					borderColor: environmentBorderColor,
 				}}>
 				{/* Task Title */}
-				<div className="flex justify-between items-center cursor-pointer" onClick={toggleTaskExpanded}>
+				<div
+					aria-label={isTaskExpanded ? "Collapse task header" : "Expand task header"}
+					className="flex justify-between items-center cursor-pointer"
+					onClick={toggleTaskExpanded}
+					onKeyDown={(e) => {
+						if (e.key === "Enter" || e.key === " ") {
+							e.preventDefault()
+							e.stopPropagation()
+							toggleTaskExpanded()
+						}
+					}}
+					tabIndex={0}>
 					<div className="flex justify-between items-center">
 						{isTaskExpanded ? <ChevronDownIcon size="16" /> : <ChevronRightIcon size="16" />}
 						{isTaskExpanded && (
@@ -155,7 +158,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					<div className="flex items-center select-none grow min-w-0 gap-1 justify-between">
 						{!isTaskExpanded && (
 							<div className="whitespace-nowrap overflow-hidden text-ellipsis grow min-w-0">
-								<span className="ph-no-capture text-base">{highlightText(task.text, false)}</span>
+								<span className="ph-no-capture text-base">{highlightedText}</span>
 							</div>
 						)}
 					</div>
@@ -176,16 +179,17 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					<div className="flex flex-col break-words" key={`task-details-${currentTaskItem?.id}`}>
 						<div
 							className={cn(
-								"ph-no-capture whitespace-pre-wrap break-words px-0.5 text-sm cursor-pointer mt-1 relative",
+								"ph-no-capture whitespace-pre-wrap break-words px-0.5 text-sm mt-1 relative",
+								"max-h-[4.5rem] overflow-hidden",
 								{
 									"max-h-[25vh] overflow-y-auto scroll-smooth": isHighlightedTextExpanded,
-									"max-h-[4.5rem] overflow-hidden": !isHighlightedTextExpanded && displayTextExpandable,
+									"cursor-pointer": isTextOverflowing,
 								},
 							)}
-							onClick={() => displayTextExpandable && setIsHighlightedTextExpanded(true)}
+							onClick={() => isTextOverflowing && setIsHighlightedTextExpanded(true)}
 							ref={highlightedTextRef}
 							style={
-								!isHighlightedTextExpanded && displayTextExpandable
+								!isHighlightedTextExpanded && isTextOverflowing
 									? {
 											WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
 											maskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
@@ -209,8 +213,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							tokensOut={tokensOut}
 							useAutoCondense={false} // Disable auto-condense configuration in UI for now
 						/>
-
-						<TaskTimeline messages={clineMessages} onBlockClick={onScrollToMessage} />
 					</div>
 				)}
 			</div>

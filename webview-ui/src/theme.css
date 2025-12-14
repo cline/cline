@@ -1,5 +1,6 @@
 /* Editor theme mapping */
 @theme {
+	--color-cline: #9663f1;
 	--color-background: var(--vscode-sideBar-background);
 	--color-border: var(--vscode-focusBorder);
 	--color-border-panel: var(--vscode-panel-border);
@@ -46,6 +47,7 @@
 	--color-toolbar-default: var(--vscode-toolbar-background);
 	--color-toolbar-hover: var(--vscode-toolbar-hoverBackground);
 	--color-error: var(--vscode-errorForeground);
+	--color-error-icon: var(--vscode-problemsErrorIcon-foreground);
 	--color-description: var(--vscode-descriptionForeground);
 	--color-success: var(--vscode-charts-green);
 	--color-warning: var(--vscode-charts-yellow);
@@ -171,4 +173,35 @@
 	--sidebar-accent-foreground: oklch(0.985 0 0);
 	--sidebar-border: oklch(1 0 0 / 10%);
 	--sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer utilities {
+	/**
+	 * Variant that becomes visible when focused
+	 * Useful for skip links and other keyboard navigation aids
+	 */
+	.sr-only-focusable:focus {
+		position: static;
+		width: auto;
+		height: auto;
+		padding: inherit;
+		margin: inherit;
+		overflow: visible;
+		clip: auto;
+		white-space: normal;
+	}
+
+	@keyframes flash {
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.5;
+		}
+	}
+
+	.animate-flash {
+		animation: flash 1.5s ease-in-out infinite;
+	}
 }

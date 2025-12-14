@@ -82,8 +82,7 @@ export class VercelAIGatewayHandler implements ApiHandler {
 				if ("reasoning" in delta && delta.reasoning) {
 					yield {
 						type: "reasoning",
-						// @ts-ignore-next-line
-						reasoning: delta.reasoning,
+						reasoning: typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning),
 					}
 				}
 
