@@ -74,8 +74,8 @@ jobs:
                   CLINE_ENVIRONMENT: production
                   # OpenTelemetry production defaults (can be overridden at runtime)
                   OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
-                  OTEL_LOGS_EXPORTER: console,otlp
-                  OTEL_METRICS_EXPORTER: console,otlp
+                  OTEL_LOGS_EXPORTER: otlp
+                  OTEL_METRICS_EXPORTER: otlp
                   OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
                   OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
                   OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}

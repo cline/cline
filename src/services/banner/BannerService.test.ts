@@ -1,6 +1,6 @@
 /**
  * Tests for BannerService
- * Tests API fetching, caching, and rule evaluation logic
+ * Tests API fetching, caching, and client-side provider filtering
  */
 
 import type { BannerRules } from "@shared/ClineBanner"
@@ -51,7 +51,7 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_test1",
 								titleMd: "Test Banner",
@@ -59,8 +59,6 @@ describe("BannerService", () => {
 								severity: "info" as const,
 								placement: "top" as const,
 								rulesJson: "{}",
-								activeFrom: new Date(Date.now() - 86400000).toISOString(),
-								activeTo: new Date(Date.now() + 86400000).toISOString(),
 							},
 						],
 					},
@@ -87,7 +85,7 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_cached",
 								titleMd: "Cached Banner",
@@ -127,85 +125,7 @@ describe("BannerService", () => {
 		})
 	})
 
-	describe("Date Range Filtering", () => {
-		it("should filter out expired banners", async () => {
-			const mockResponse = {
-				data: {
-					data: {
-						banners: [
-							{
-								id: "bnr_expired",
-								titleMd: "Expired",
-								bodyMd: "Test",
-								severity: "info" as const,
-								placement: "top" as const,
-								rulesJson: "{}",
-								activeFrom: new Date(Date.now() - 172800000).toISOString(),
-								activeTo: new Date(Date.now() - 86400000).toISOString(), // activeTo is in the Past
-							},
-						],
-					},
-				},
-			}
-
-			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
-			expect(banners).to.have.lengthOf(0)
-		})
-
-		it("should filter out future banners", async () => {
-			const mockResponse = {
-				data: {
-					data: {
-						banners: [
-							{
-								id: "bnr_future",
-								titleMd: "Future",
-								bodyMd: "Test",
-								severity: "info" as const,
-								placement: "top" as const,
-								rulesJson: "{}",
-								activeFrom: new Date(Date.now() + 86400000).toISOString(), // activeFrom is in the Future
-								activeTo: new Date(Date.now() + 172800000).toISOString(),
-							},
-						],
-					},
-				},
-			}
-
-			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
-			expect(banners).to.have.lengthOf(0)
-		})
-
-		it("should include currently active banners", async () => {
-			const mockResponse = {
-				data: {
-					data: {
-						banners: [
-							{
-								id: "bnr_active",
-								titleMd: "Active",
-								bodyMd: "Test",
-								severity: "info" as const,
-								placement: "top" as const,
-								rulesJson: "{}",
-								activeFrom: new Date(Date.now() - 86400000).toISOString(),
-								activeTo: new Date(Date.now() + 86400000).toISOString(),
-							},
-						],
-					},
-				},
-			}
-
-			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
-			expect(banners).to.have.lengthOf(1)
-			expect(banners[0].id).to.equal("bnr_active")
-		})
-	})
-
-	describe("API Provider Rule Evaluation", () => {
+	describe("API Provider Rule Evaluation (Client-Side)", () => {
 		it("should show banner when user has the required API provider configured", async () => {
 			const controllerWithOpenAI: Partial<Controller> = {
 				stateManager: {
@@ -223,7 +143,7 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_openai",
 								titleMd: "OpenAI Users",
@@ -261,7 +181,7 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_openai",
 								titleMd: "OpenAI Users",
@@ -298,7 +218,7 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_multi",
 								titleMd: "Multiple Providers",
@@ -320,260 +240,12 @@ describe("BannerService", () => {
 		})
 	})
 
-	describe("Audience Targeting", () => {
-		it("should show banner targeting all users", async () => {
-			const mockResponse = {
-				data: {
-					data: {
-						banners: [
-							{
-								id: "bnr_all",
-								titleMd: "All Users",
-								bodyMd: "For everyone",
-								severity: "info" as const,
-								placement: "top" as const,
-								rulesJson: JSON.stringify({ audience: "all" } as BannerRules),
-							},
-						],
-					},
-				},
-			}
-
-			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
-
-			expect(banners).to.have.lengthOf(1)
-			expect(banners[0].id).to.equal("bnr_all")
-		})
-
-		it("should show team admin banner to admin users", async () => {
-			const mockAuthService = {
-				getUserOrganizations: () => [{ id: "org1", name: "Test Org", roles: ["admin"] }],
-				getInfo: () => ({ user: { email: "test@example.com" } }),
-			} as any
-
-			bannerService.setAuthService(mockAuthService)
-
-			const mockResponse = {
-				data: {
-					data: {
-						banners: [
-							{
-								id: "bnr_admin",
-								titleMd: "Team Admins",
-								bodyMd: "For team admins only",
-								severity: "info" as const,
-								placement: "top" as const,
-								rulesJson: JSON.stringify({ audience: "team admin only" } as BannerRules),
-							},
-						],
-					},
-				},
-			}
-
-			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
-
-			expect(banners).to.have.lengthOf(1)
-			expect(banners[0].id).to.equal("bnr_admin")
-		})
-
-		it("should show team admin banner to owner users", async () => {
-			const mockAuthService = {
-				getUserOrganizations: () => [{ id: "org1", name: "Test Org", roles: ["owner"] }],
-				getInfo: () => ({ user: { email: "test@example.com" } }),
-			} as any
-
-			bannerService.setAuthService(mockAuthService)
-
-			const mockResponse = {
-				data: {
-					data: {
-						banners: [
-							{
-								id: "bnr_admin",
-								titleMd: "Team Admins",
-								bodyMd: "For team admins only",
-								severity: "info" as const,
-								placement: "top" as const,
-								rulesJson: JSON.stringify({ audience: "team admin only" } as BannerRules),
-							},
-						],
-					},
-				},
-			}
-
-			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
-
-			expect(banners).to.have.lengthOf(1)
-			expect(banners[0].id).to.equal("bnr_admin")
-		})
-
-		it("should NOT show team admin banner to non-admin users", async () => {
-			const mockAuthService = {
-				getUserOrganizations: () => [{ id: "org1", name: "Test Org", roles: ["member"] }],
-				getInfo: () => ({ user: { email: "test@example.com" } }),
-			} as any
-
-			bannerService.setAuthService(mockAuthService)
-
-			const mockResponse = {
-				data: {
-					data: {
-						banners: [
-							{
-								id: "bnr_admin",
-								titleMd: "Team Admins",
-								bodyMd: "For team admins only",
-								severity: "info" as const,
-								placement: "top" as const,
-								rulesJson: JSON.stringify({ audience: "team admin only" } as BannerRules),
-							},
-						],
-					},
-				},
-			}
-
-			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
-
-			expect(banners).to.have.lengthOf(0)
-		})
-
-		it("should show team members banner to users in organizations", async () => {
-			const mockAuthService = {
-				getUserOrganizations: () => [{ id: "org1", name: "Test Org", roles: ["member"] }],
-				getInfo: () => ({ user: { email: "test@example.com" } }),
-			} as any
-
-			bannerService.setAuthService(mockAuthService)
-
-			const mockResponse = {
-				data: {
-					data: {
-						banners: [
-							{
-								id: "bnr_team",
-								titleMd: "Team Members",
-								bodyMd: "For team members",
-								severity: "info" as const,
-								placement: "top" as const,
-								rulesJson: JSON.stringify({ audience: "team members" } as BannerRules),
-							},
-						],
-					},
-				},
-			}
-
-			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
-
-			expect(banners).to.have.lengthOf(1)
-			expect(banners[0].id).to.equal("bnr_team")
-		})
-
-		it("should NOT show team members banner to users without organizations", async () => {
-			const mockAuthService = {
-				getUserOrganizations: () => [],
-				getInfo: () => ({ user: { email: "test@example.com" } }),
-			} as any
-
-			bannerService.setAuthService(mockAuthService)
-
-			const mockResponse = {
-				data: {
-					data: {
-						banners: [
-							{
-								id: "bnr_team",
-								titleMd: "Team Members",
-								bodyMd: "For team members",
-								severity: "info" as const,
-								placement: "top" as const,
-								rulesJson: JSON.stringify({ audience: "team members" } as BannerRules),
-							},
-						],
-					},
-				},
-			}
-
-			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
-
-			expect(banners).to.have.lengthOf(0)
-		})
-
-		it("should show personal banner to users without organizations", async () => {
-			const mockAuthService = {
-				getUserOrganizations: () => [],
-				getInfo: () => ({ user: { email: "test@example.com" } }),
-			} as any
-
-			bannerService.setAuthService(mockAuthService)
-
-			const mockResponse = {
-				data: {
-					data: {
-						banners: [
-							{
-								id: "bnr_personal",
-								titleMd: "Personal Users",
-								bodyMd: "For personal users",
-								severity: "info" as const,
-								placement: "top" as const,
-								rulesJson: JSON.stringify({ audience: "personal only" } as BannerRules),
-							},
-						],
-					},
-				},
-			}
-
-			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
-
-			expect(banners).to.have.lengthOf(1)
-			expect(banners[0].id).to.equal("bnr_personal")
-		})
-
-		it("should NOT show personal banner to users with organizations", async () => {
-			const mockAuthService = {
-				getUserOrganizations: () => [{ id: "org1", name: "Test Org", roles: ["member"] }],
-				getInfo: () => ({ user: { email: "test@example.com" } }),
-			} as any
-
-			bannerService.setAuthService(mockAuthService)
-
-			const mockResponse = {
-				data: {
-					data: {
-						banners: [
-							{
-								id: "bnr_personal",
-								titleMd: "Personal Users",
-								bodyMd: "For personal users",
-								severity: "info" as const,
-								placement: "top" as const,
-								rulesJson: JSON.stringify({ audience: "personal only" } as BannerRules),
-							},
-						],
-					},
-				},
-			}
-
-			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
-
-			expect(banners).to.have.lengthOf(0)
-		})
-	})
-
 	describe("Invalid or No Banner Rules", () => {
 		it("should handle malformed rules gracefully (fail open)", async () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_malformed",
 								titleMd: "Malformed",
@@ -597,7 +269,7 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_norules",
 								titleMd: "No Rules",
@@ -624,7 +296,7 @@ describe("BannerService", () => {
 			const mockResponse = {
 				data: {
 					data: {
-						banners: [
+						items: [
 							{
 								id: "bnr_test",
 								titleMd: "Test",

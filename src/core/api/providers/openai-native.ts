@@ -1,10 +1,18 @@
-import { ModelInfo, OpenAiNativeModelId, openAiNativeDefaultModelId, openAiNativeModels } from "@shared/api"
+import {
+	ModelInfo,
+	OpenAiCompatibleModelInfo,
+	OpenAiNativeModelId,
+	openAiNativeDefaultModelId,
+	openAiNativeModels,
+} from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
 import { Logger } from "@/services/logging/Logger"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
+import { ApiFormat } from "@/shared/proto/cline/models"
+import { isGPT5ModelFamily } from "@/utils/model-utils"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -61,13 +69,12 @@ export class OpenAiNativeHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(
-		systemPrompt: string,
-		messages: ClineStorageMessage[],
-		tools?: ChatCompletionTool[],
-		useResponseFormat = false,
-	): ApiStream {
-		if (useResponseFormat) {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ChatCompletionTool[]): ApiStream {
+		// Responses API requires tool format to be set to OPENAI_RESPONSES with native tools calling enabled
+		if (this.getModel()?.info?.apiFormat === ApiFormat.OPENAI_RESPONSES) {
+			if (!tools?.length) {
+				throw new Error("Native Tool Call must be enabled in your setting for OpenAI Responses API")
+			}
 			yield* this.createResponseStream(systemPrompt, messages, tools)
 		} else {
 			yield* this.createCompletionStream(systemPrompt, messages, tools)
@@ -83,119 +90,58 @@ export class OpenAiNativeHandler implements ApiHandler {
 		const model = this.getModel()
 		const toolCallProcessor = new ToolCallProcessor()
 
-		switch (model.id) {
-			case "o1":
-			case "o1-preview":
-			case "o1-mini": {
-				// o1 doesn't support streaming, non-1 temp, or system prompt
-				const response = await client.chat.completions.create({
-					model: model.id,
-					messages: [{ role: "user", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
-				})
+		// Handle o1 models separately as they don't support streaming
+		if (model.info.supportsStreaming === false) {
+			const response = await client.chat.completions.create({
+				model: model.id,
+				messages: [{ role: "user", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+			})
+			yield {
+				type: "text",
+				text: response.choices[0]?.message.content || "",
+			}
+			yield* this.yieldUsage(model.info, response.usage)
+			return
+		}
+
+		const systemRole = model.info.systemRole ?? "system"
+		const includeReasoning = model.info.supportsReasoningEffort ?? false
+		const includeTools = model.info.supportsTools ?? true
+
+		const stream = await client.chat.completions.create({
+			model: model.id,
+			messages: [{ role: systemRole, content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+			stream: true,
+			stream_options: { include_usage: true },
+			...(includeReasoning
+				? {
+						reasoning_effort: (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium",
+					}
+				: {}),
+			...(model.info.temperature !== undefined ? { temperature: model.info.temperature } : {}),
+			...(includeTools ? getOpenAIToolParams(tools, isGPT5ModelFamily(model.id)) : {}),
+		})
+
+		for await (const chunk of stream) {
+			const delta = chunk.choices[0]?.delta
+			if (delta?.content) {
 				yield {
 					type: "text",
-					text: response.choices[0]?.message.content || "",
+					text: delta.content,
 				}
-
-				yield* this.yieldUsage(model.info, response.usage)
-
-				break
 			}
-			case "o4-mini":
-			case "o3":
-			case "o3-mini": {
-				const stream = await client.chat.completions.create({
-					model: model.id,
-					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
-					stream: true,
-					stream_options: { include_usage: true },
-					reasoning_effort: (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium",
-				})
 
-				for await (const chunk of stream) {
-					const delta = chunk.choices[0]?.delta
-					if (delta?.content) {
-						yield {
-							type: "text",
-							text: delta.content,
-						}
-					}
-					if (chunk.usage) {
-						// Only last chunk contains usage
-						yield* this.yieldUsage(model.info, chunk.usage)
-					}
+			if (delta?.tool_calls) {
+				try {
+					yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
+				} catch (error) {
+					console.error("Error processing tool call delta:", error, delta.tool_calls)
 				}
-				break
 			}
-			case "gpt-5-2025-08-07":
-			case "gpt-5-mini-2025-08-07":
-			case "gpt-5-nano-2025-08-07":
-			case "gpt-5.1-2025-11-13":
-			case "gpt-5.1-chat-latest":
-			case "gpt-5.1": {
-				const stream = await client.chat.completions.create({
-					model: model.id,
-					temperature: 1,
-					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
-					stream: true,
-					stream_options: { include_usage: true },
-					reasoning_effort: (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium",
-					...getOpenAIToolParams(tools),
-				})
 
-				for await (const chunk of stream) {
-					const delta = chunk.choices[0]?.delta
-					if (delta?.content) {
-						yield {
-							type: "text",
-							text: delta.content,
-						}
-					}
-
-					if (delta?.tool_calls) {
-						try {
-							yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
-						} catch (error) {
-							console.error("Error processing tool call delta:", error, delta.tool_calls)
-						}
-					}
-
-					if (chunk.usage) {
-						// Only last chunk contains usage - stream is ending
-						yield* this.yieldUsage(model.info, chunk.usage)
-					}
-				}
-				break
-			}
-			default: {
-				const stream = await client.chat.completions.create({
-					model: model.id,
-					// max_completion_tokens: this.getModel().info.maxTokens,
-					temperature: 0,
-					messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
-					stream: true,
-					stream_options: { include_usage: true },
-					...getOpenAIToolParams(tools),
-				})
-
-				for await (const chunk of stream) {
-					const delta = chunk.choices[0]?.delta
-					if (delta?.content) {
-						yield {
-							type: "text",
-							text: delta.content,
-						}
-					}
-
-					if (delta?.tool_calls) {
-						yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
-					}
-
-					if (chunk.usage) {
-						// Only last chunk contains usage - stream is ending
-						yield* this.yieldUsage(model.info, chunk.usage)
-					}
-				}
+			if (chunk.usage) {
+				// Only last chunk contains usage
+				yield* this.yieldUsage(model.info, chunk.usage)
 			}
 		}
 	}
@@ -203,7 +149,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 	private async *createResponseStream(
 		systemPrompt: string,
 		messages: ClineStorageMessage[],
-		tools?: ChatCompletionTool[],
+		tools: ChatCompletionTool[],
 	): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
@@ -402,15 +348,16 @@ export class OpenAiNativeHandler implements ApiHandler {
 		}
 	}
 
-	getModel(): { id: OpenAiNativeModelId; info: ModelInfo } {
+	getModel(): { id: OpenAiNativeModelId; info: OpenAiCompatibleModelInfo } {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in openAiNativeModels) {
 			const id = modelId as OpenAiNativeModelId
-			return { id, info: openAiNativeModels[id] }
+			const info = openAiNativeModels[id]
+			return { id, info: { ...info } }
 		}
 		return {
 			id: openAiNativeDefaultModelId,
-			info: openAiNativeModels[openAiNativeDefaultModelId],
+			info: { ...openAiNativeModels[openAiNativeDefaultModelId] },
 		}
 	}
 }

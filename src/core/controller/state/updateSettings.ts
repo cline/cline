@@ -12,7 +12,6 @@ import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { ClineEnv } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
-import { TerminalInfo } from "@/integrations/terminal/TerminalRegistry"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { telemetryService } from "../../../services/telemetry"
@@ -72,11 +71,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		// Update checkpoints setting
 		if (request.enableCheckpointsSetting !== undefined) {
 			controller.stateManager.setGlobalState("enableCheckpointsSetting", request.enableCheckpointsSetting)
-		}
-
-		// Update MCP marketplace setting
-		if (request.mcpMarketplaceEnabled !== undefined) {
-			controller.stateManager.setGlobalState("mcpMarketplaceEnabled", request.mcpMarketplaceEnabled)
 		}
 
 		// Update MCP responses collapsed setting
@@ -191,6 +185,14 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("yoloModeToggled", request.yoloModeToggled)
 		}
 
+		// Update cline web tools setting
+		if (request.clineWebToolsEnabled !== undefined) {
+			if (controller.task) {
+				telemetryService.captureClineWebToolsToggle(controller.task.ulid, request.clineWebToolsEnabled)
+			}
+			controller.stateManager.setGlobalState("clineWebToolsEnabled", request.clineWebToolsEnabled)
+		}
+
 		if (request.dictationSettings !== undefined) {
 			// Convert from protobuf format (snake_case) to TypeScript format (camelCase)
 			const dictationSettings = {
@@ -286,14 +288,15 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("defaultTerminalProfile", profileId)
 
 			let closedCount = 0
-			let busyTerminals: TerminalInfo[] = []
+			let busyTerminalsCount = 0
 
 			// Update the terminal manager of the current task if it exists
 			if (controller.task) {
 				// Call the updated setDefaultTerminalProfile method that returns closed terminal info
-				const result = controller.task.terminalManager.setDefaultTerminalProfile(profileId)
+				// Use `as any` to handle type incompatibility between VSCode's TerminalInfo and standalone TerminalInfo
+				const result = controller.task.terminalManager.setDefaultTerminalProfile(profileId) as any
 				closedCount = result.closedCount
-				busyTerminals = result.busyTerminals
+				busyTerminalsCount = result.busyTerminals?.length ?? 0
 
 				// Show information message if terminals were closed
 				if (closedCount > 0) {
@@ -305,10 +308,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				}
 
 				// Show warning if there are busy terminals that couldn't be closed
-				if (busyTerminals.length > 0) {
+				if (busyTerminalsCount > 0) {
 					const message =
-						`${busyTerminals.length} busy ${busyTerminals.length === 1 ? "terminal has" : "terminals have"} a different profile. ` +
-						`Close ${busyTerminals.length === 1 ? "it" : "them"} to use the new profile for all commands.`
+						`${busyTerminalsCount} busy ${busyTerminalsCount === 1 ? "terminal has" : "terminals have"} a different profile. ` +
+						`Close ${busyTerminalsCount === 1 ? "it" : "them"} to use the new profile for all commands.`
 					HostProvider.window.showMessage({
 						type: ShowMessageType.WARNING,
 						message,
@@ -366,6 +369,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 					controller.task.api.getModel().id,
 				)
 			}
+		}
+
+		if (request.enableParallelToolCalling !== undefined) {
+			controller.stateManager.setGlobalState("enableParallelToolCalling", !!request.enableParallelToolCalling)
 		}
 
 		// Post updated state to webview

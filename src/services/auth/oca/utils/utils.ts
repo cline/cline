@@ -142,9 +142,9 @@ export async function createOcaHeaders(accessToken: string, taskId: string): Pro
  * Use only for non-security, informational, or display purposes.
  * @param token JWT string
  */
-export function parseJwtPayload(token: string): JwtPayload | null {
+export function parseJwtPayload<T extends JwtPayload>(token: string): T | null {
 	try {
-		const payload = jwtDecode(token)
+		const payload = jwtDecode<T>(token)
 		return payload
 	} catch {
 		return null

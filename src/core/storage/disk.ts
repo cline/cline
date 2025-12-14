@@ -6,14 +6,37 @@ import { HistoryItem } from "@shared/HistoryItem"
 import { RemoteConfig } from "@shared/remote-config/schema"
 import { GlobalState, Settings } from "@shared/storage/state-keys"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
-import { randomUUID } from "crypto"
 import fs from "fs/promises"
 import os from "os"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
+import { telemetryService } from "@/services/telemetry"
 import { McpMarketplaceCatalog } from "@/shared/mcp"
 import { StateManager } from "./StateManager"
+
+/**
+ * Atomically write data to a file using temp file + rename pattern.
+ * This prevents readers from seeing partial/incomplete data by writing to a temporary
+ * file first, then renaming it to the target location. The rename operation is atomic
+ * in most cases on modern systems, though behavior may vary across platforms and filesystems.
+ *
+ * @param filePath - The target file path
+ * @param data - The data to write
+ */
+async function atomicWriteFile(filePath: string, data: string): Promise<void> {
+	const tmpPath = `${filePath}.tmp.${Date.now()}.${Math.random().toString(36).substring(7)}.json`
+	try {
+		// Write to temporary file first
+		await fs.writeFile(tmpPath, data, "utf8")
+		// Rename temp file to target (atomic in most cases)
+		await fs.rename(tmpPath, filePath)
+	} catch (error) {
+		// Clean up temp file if it exists
+		fs.unlink(tmpPath).catch(() => {})
+		throw error
+	}
+}
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -35,26 +58,6 @@ export const GlobalFileNames = {
 	taskMetadata: "task_metadata.json",
 	mcpMarketplaceCatalog: "mcp_marketplace_catalog.json",
 	remoteConfig: (orgId: string) => `remote_config_${orgId}.json`,
-}
-
-/**
- * Atomic write: Write to temp file, then rename
- * Prevents corruption from partial writes and concurrent access
- */
-async function atomicWriteFile(filePath: string, content: string): Promise<void> {
-	const tempPath = `${filePath}.${randomUUID()}.tmp`
-	try {
-		// Write to temp file
-		await fs.writeFile(tempPath, content, "utf8")
-		// Atomic rename (overwrites target if exists)
-		await fs.rename(tempPath, filePath)
-	} catch (error) {
-		// Clean up temp file if it exists
-		try {
-			await fs.unlink(tempPath)
-		} catch {}
-		throw error
-	}
 }
 
 export async function getDocumentsPath(): Promise<string> {
@@ -406,66 +409,83 @@ async function createTaskHistoryBackup(): Promise<string | null> {
 export async function readTaskHistoryFromState(): Promise<HistoryItem[]> {
 	try {
 		const filePath = await getTaskHistoryStateFilePath()
-		if (await fileExistsAtPath(filePath)) {
-			const contents = await fs.readFile(filePath, "utf8")
+		if (!(await fileExistsAtPath(filePath))) {
+			return []
+		}
+
+		const contents = await fs.readFile(filePath, "utf8")
+		try {
+			return JSON.parse(contents)
+		} catch (parseError) {
+			telemetryService.captureExtensionStorageError(parseError, "parseError_attemptingRecovery")
+
+			console.error("[Disk] Failed to parse task history from main file:", parseError)
+			console.error("[Disk] Corrupted content length:", contents.length, "bytes")
+			console.error("[Disk] First 100 chars:", contents.substring(0, 100))
+
+			// CRITICAL: Try to recover from backup instead of returning empty array
+			console.warn("[Disk] Attempting recovery from backup files...")
+
 			try {
-				const parsed = JSON.parse(contents)
-				return parsed
-			} catch (parseError) {
-				console.error("[Disk] Failed to parse task history from main file:", parseError)
-				console.error("[Disk] Corrupted content length:", contents.length, "bytes")
-				console.error("[Disk] First 100 chars:", contents.substring(0, 100))
+				const dir = path.dirname(filePath)
+				const basename = path.basename(filePath)
+				const files = await fs.readdir(dir)
 
-				// CRITICAL: Try to recover from backup instead of returning empty array
-				console.warn("[Disk] Attempting recovery from backup files...")
+				// Find all backup files
+				const backupPattern = new RegExp(`^${basename}\\.backup-(.+)$`)
+				const backups = files
+					.filter((file) => backupPattern.test(file))
+					.map((file) => ({
+						name: file,
+						path: path.join(dir, file),
+						match: file.match(backupPattern),
+					}))
+					.filter((backup) => backup.match !== null)
+					.sort((a, b) => {
+						// Sort by timestamp (most recent first)
+						return b.match![1].localeCompare(a.match![1])
+					})
 
-				try {
-					const dir = path.dirname(filePath)
-					const basename = path.basename(filePath)
-					const files = await fs.readdir(dir)
-
-					// Find all backup files
-					const backupPattern = new RegExp(`^${basename}\\.backup-(.+)$`)
-					const backups = files
-						.filter((file) => backupPattern.test(file))
-						.map((file) => ({
-							name: file,
-							path: path.join(dir, file),
-							match: file.match(backupPattern),
-						}))
-						.filter((backup) => backup.match !== null)
-						.sort((a, b) => {
-							// Sort by timestamp (most recent first)
-							return b.match![1].localeCompare(a.match![1])
-						})
-
-					// Try each backup in order (most recent first)
-					for (const backup of backups) {
-						try {
-							console.log("[Disk] Trying backup:", backup.name)
-							const backupContents = await fs.readFile(backup.path, "utf8")
-							const parsed = JSON.parse(backupContents)
-							console.log("[Disk] Successfully recovered from backup:", backup.name)
-							console.warn("[Disk] IMPORTANT: Main file is corrupted. Consider restoring from backup.")
-							return parsed
-						} catch (backupError) {
-							console.error(`[Disk] Backup ${backup.name} also corrupted:`, backupError)
-							// Continue to next backup
-						}
+				// Try each backup in order (most recent first)
+				for (const backup of backups) {
+					try {
+						console.log("[Disk] Trying backup:", backup.name)
+						const backupContents = await fs.readFile(backup.path, "utf8")
+						const parsed = JSON.parse(backupContents)
+						console.log("[Disk] Successfully recovered from backup:", backup.name)
+						console.warn("[Disk] IMPORTANT: Main file is corrupted. Consider restoring from backup.")
+						return parsed
+					} catch (backupError) {
+						console.error(`[Disk] Backup ${backup.name} also corrupted:`, backupError)
+						// Continue to next backup
 					}
-
-					// All backups failed
-					console.error("[Disk] CRITICAL: All backup recovery attempts failed!")
-					throw new Error("Task history file is corrupted and no valid backups exist. Data recovery required.")
-				} catch (recoveryError) {
-					console.error("[Disk] Backup recovery process failed:", recoveryError)
-					throw new Error(`Task history corrupted and recovery failed: ${recoveryError}`)
 				}
+
+				// All backups failed
+				console.error("[Disk] CRITICAL: All backup recovery attempts failed!")
+
+				// Last resort: attempt to reconstruct from task folders (may prompt user via HostProvider)
+				console.warn("[Disk] Attempting reconstruction from task folders...")
+				try {
+					const { reconstructTaskHistory } = await import("../commands/reconstructTaskHistory")
+					const result = await reconstructTaskHistory(false)
+					if (result && result.reconstructedTasks > 0) {
+						const newContents = await fs.readFile(filePath, "utf8")
+						return JSON.parse(newContents)
+					}
+				} catch (reconstructError) {
+					console.error("[Disk] Reconstruction attempt failed:", reconstructError)
+				}
+
+				throw new Error("Task history file is corrupted and no valid backups exist. Data recovery required.")
+			} catch (recoveryError) {
+				console.error("[Disk] Backup recovery process failed:", recoveryError)
+				throw new Error(`Task history corrupted and recovery failed: ${recoveryError}`)
 			}
 		}
-		return []
 	} catch (error) {
-		console.error("[Disk] Failed to read task history:", error)
+		// Filesystem or other errors - throw them for the caller to handle
+		telemetryService.captureExtensionStorageError(error, "readTaskHistoryFromState")
 		throw error
 	}
 }
@@ -659,4 +679,122 @@ export async function getWorkspaceHooksDirs(): Promise<string[]> {
 			}),
 		)
 	).filter((path): path is string => Boolean(path))
+}
+
+/**
+ * Writes the conversation history to a temporary JSON file for PreCompact hook consumption.
+ * The file is created in the task's directory with a unique timestamp-based name.
+ * Returns the absolute path to the created file.
+ *
+ * @param taskId The task ID
+ * @param apiConversationHistory The conversation history to write
+ * @param timestamp Optional timestamp to use for the filename (defaults to Date.now())
+ * @returns The absolute path to the temporary file
+ */
+export async function writeConversationHistoryJson(
+	taskId: string,
+	apiConversationHistory: Anthropic.MessageParam[],
+	timestamp?: number,
+): Promise<string> {
+	const taskDir = await ensureTaskDirectoryExists(taskId)
+	const fileTimestamp = timestamp ?? Date.now()
+	const tempFileName = `conversation_history_${fileTimestamp}.json`
+	const tempFilePath = path.join(taskDir, tempFileName)
+
+	try {
+		await atomicWriteFile(tempFilePath, JSON.stringify(apiConversationHistory, null, 2))
+		return tempFilePath
+	} catch (error) {
+		console.error("Failed to write conversation history JSON for hook:", error)
+		throw error
+	}
+}
+
+/**
+ * Cleans up a temporary conversation history file created for hook execution.
+ * Silently handles errors (file already deleted, permissions, etc.)
+ *
+ * @param filePath The path to the temporary file to delete
+ */
+export async function cleanupConversationHistoryFile(filePath: string): Promise<void> {
+	try {
+		if (await fileExistsAtPath(filePath)) {
+			await fs.unlink(filePath)
+		}
+	} catch (error) {
+		// Silently handle errors - this is cleanup, not critical
+		console.debug("Failed to cleanup conversation history file:", filePath, error)
+	}
+}
+
+/**
+ * Writes the conversation history in human-readable text format to a temporary file for PreCompact hook consumption.
+ * This formats the conversation history (user and assistant messages) in a readable text format,
+ * making it easy to analyze the conversation flow without parsing JSON.
+ *
+ * @param taskId The task ID
+ * @param conversationHistory The conversation history messages
+ * @param timestamp Optional timestamp to use for the filename (defaults to Date.now())
+ * @returns The absolute path to the temporary file
+ */
+export async function writeConversationHistoryText(
+	taskId: string,
+	conversationHistory: Anthropic.MessageParam[],
+	timestamp?: number,
+): Promise<string> {
+	const taskDir = await ensureTaskDirectoryExists(taskId)
+	const fileTimestamp = timestamp ?? Date.now()
+	const tempFileName = `conversation_history_${fileTimestamp}.txt`
+	const tempFilePath = path.join(taskDir, tempFileName)
+
+	try {
+		// Build the formatted conversation history (excluding system prompt)
+		let fullContext = "=== CONVERSATION HISTORY ===\n\n"
+
+		// Format each message in the conversation
+		for (let i = 0; i < conversationHistory.length; i++) {
+			const message = conversationHistory[i]
+			fullContext += `--- Message ${i + 1} (${message.role.toUpperCase()}) ---\n`
+
+			// Handle content which can be a string or array
+			if (typeof message.content === "string") {
+				fullContext += message.content
+			} else if (Array.isArray(message.content)) {
+				for (const block of message.content) {
+					if (block.type === "text") {
+						fullContext += block.text
+					} else if (block.type === "image") {
+						fullContext += `[IMAGE: ${block.source?.type || "unknown"}]`
+					} else if (block.type === "tool_use") {
+						fullContext += `[TOOL USE: ${block.name}]\n`
+						fullContext += `Input: ${JSON.stringify(block.input, null, 2)}`
+					} else if (block.type === "tool_result") {
+						fullContext += `[TOOL RESULT: ${block.tool_use_id}]\n`
+						if (typeof block.content === "string") {
+							fullContext += block.content
+						} else if (Array.isArray(block.content)) {
+							for (const resultBlock of block.content) {
+								if (resultBlock.type === "text") {
+									fullContext += resultBlock.text
+								} else if (resultBlock.type === "image") {
+									fullContext += `[IMAGE]`
+								}
+							}
+						}
+					}
+					fullContext += "\n\n"
+				}
+			}
+
+			fullContext += "\n"
+		}
+
+		fullContext += "=== END OF CONTEXT ===\n"
+
+		await atomicWriteFile(tempFilePath, fullContext)
+		return tempFilePath
+	} catch (error) {
+		console.error("Failed to write conversation history text for hook:", error)
+		throw error
+	}
 }

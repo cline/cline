@@ -1,13 +1,9 @@
 console.log("Loading stub impls...")
 
 const { createStub } = require("./stub-utils")
-const { StandaloneTerminalManager } = require("./enhanced-terminal")
 
 // Import the base vscode object from stubs
 const vscode = require("./vscode-stubs.js")
-
-// Create global terminal manager instance
-const globalTerminalManager = new StandaloneTerminalManager()
 
 // Extend the existing window object from stubs rather than overwriting it
 vscode.window = {
@@ -41,39 +37,25 @@ vscode.window = {
 		return {}
 	},
 	createTerminal: (...args) => {
-		console.log("Enhanced createTerminal:", ...args)
+		// In standalone mode, terminals are managed directly by Task.terminalManager (StandaloneTerminalManager)
+		// This stub is provided for compatibility but should not be called directly
+		console.log("Stubbed createTerminal:", ...args)
 
-		// Extract options from arguments
-		let options = {}
-		if (args.length > 0) {
-			if (typeof args[0] === "string") {
-				// Called with (name, shellPath, shellArgs)
-				options = {
-					name: args[0],
-					shellPath: args[1],
-					shellArgs: args[2],
-				}
-			} else if (typeof args[0] === "object") {
-				// Called with options object
-				options = args[0]
-			}
+		// Return a minimal stub terminal object
+		const stubTerminal = {
+			name: args[0]?.name || args[0] || "Terminal",
+			processId: Promise.resolve(undefined),
+			creationOptions: {},
+			exitStatus: undefined,
+			state: { isInteractedWith: false },
+			sendText: (text) => console.log("Stubbed terminal.sendText:", text),
+			show: () => console.log("Stubbed terminal.show"),
+			hide: () => console.log("Stubbed terminal.hide"),
+			dispose: () => console.log("Stubbed terminal.dispose"),
 		}
 
-		// Use our enhanced terminal manager to create a terminal
-		const terminalInfo = globalTerminalManager.registry.createTerminal({
-			name: options.name || `Terminal ${Date.now()}`,
-			cwd: options.cwd || process.cwd(),
-			shellPath: options.shellPath,
-		})
-
-		// Store reference for tracking
-		vscode.window.terminals.push(terminalInfo.terminal)
-		if (!vscode.window.activeTerminal) {
-			vscode.window.activeTerminal = terminalInfo.terminal
-		}
-
-		console.log(`Enhanced terminal created: ${terminalInfo.id}`)
-		return terminalInfo.terminal
+		vscode.window.terminals.push(stubTerminal)
+		return stubTerminal
 	},
 	activeTextEditor: undefined,
 	visibleTextEditors: [],
@@ -172,8 +154,5 @@ vscode.Uri = {
 		return vscode.Uri.file("/" + joined.replace(/\/+/g, "/"))
 	},
 }
-
-// Export the terminal manager globally for Cline core to use
-global.standaloneTerminalManager = globalTerminalManager
 
 console.log("Finished loading stub impls...")

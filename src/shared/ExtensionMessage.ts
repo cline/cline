@@ -12,7 +12,7 @@ import { DictationSettings } from "./DictationSettings"
 import { FocusChainSettings } from "./FocusChainSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpDisplayMode } from "./McpDisplayMode"
-import { ClineMessageModelInfo } from "./messages/content"
+import { ClineMessageModelInfo } from "./messages"
 import { OnboardingModelGroup } from "./proto/cline/state"
 import { Mode, OpenaiReasoningEffort } from "./storage/types"
 import { TelemetrySetting } from "./TelemetrySetting"
@@ -87,6 +87,7 @@ export interface ExtensionState {
 	strictPlanModeEnabled?: boolean
 	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
+	clineWebToolsEnabled?: ClineFeatureSetting
 	focusChainSettings: FocusChainSettings
 	dictationSettings: DictationSettings
 	customPrompt?: string
@@ -101,10 +102,11 @@ export interface ExtensionState {
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
 	lastDismissedCliBannerVersion: number
-	hooksEnabled?: ClineFeatureSetting
+	hooksEnabled?: boolean
 	remoteConfigSettings?: Partial<RemoteConfigFields>
 	subagentsEnabled?: boolean
 	nativeToolCallSetting?: boolean
+	enableParallelToolCalling?: boolean
 }
 
 export interface ClineMessage {
@@ -174,6 +176,7 @@ export type ClineSay =
 	| "clineignore_error"
 	| "checkpoint_created"
 	| "load_mcp_documentation"
+	| "generate_explanation"
 	| "info" // Added for general informational messages like retry status
 	| "task_progress"
 	| "hook"
@@ -190,6 +193,7 @@ export interface ClineSayTool {
 		| "listCodeDefinitionNames"
 		| "searchFiles"
 		| "webFetch"
+		| "webSearch"
 		| "summarizeTask"
 	path?: string
 	diff?: string
@@ -235,6 +239,14 @@ export interface ClineSayBrowserAction {
 	action: BrowserAction
 	coordinate?: string
 	text?: string
+}
+
+export interface ClineSayGenerateExplanation {
+	title: string
+	fromRef: string
+	toRef: string
+	status: "generating" | "complete" | "error"
+	error?: string
 }
 
 export type BrowserActionResult = {

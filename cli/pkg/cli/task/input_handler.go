@@ -251,7 +251,8 @@ func determineAutoApprovalAction(msg *types.ClineMessage) (string, error) {
 			types.ToolTypeListFilesRecursive,
 			types.ToolTypeListCodeDefinitionNames,
 			types.ToolTypeSearchFiles,
-			types.ToolTypeWebFetch:
+			types.ToolTypeWebFetch,
+			types.ToolTypeWebSearch:
 			return "read_files", nil
 		case types.ToolTypeEditedExistingFile,
 			types.ToolTypeNewFileCreated:

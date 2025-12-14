@@ -116,6 +116,7 @@ export const mockProviderInfo = {
 			supportsPromptCache: false,
 		},
 	},
+	mode: "act" as const,
 }
 
 const makeMockProviderInfo = (modelId: string, providerId: string = "test") => ({
@@ -131,6 +132,7 @@ const baseContext: SystemPromptContext = {
 	cwd: "/test/project",
 	ide: "TestIde",
 	supportsBrowserUse: true,
+	clineWebToolsEnabled: true,
 	mcpHub: {
 		getServers: () => [
 			{
@@ -214,6 +216,12 @@ describe("Prompt System Integration Tests", () => {
 			modelGroup: ModelFamily.HERMES,
 			modelIds: ["hermes-4"],
 			providerId: "test",
+			contextVariations,
+		},
+		{
+			modelGroup: ModelFamily.DEVSTRAL,
+			modelIds: ["devstral"],
+			providerId: "cline",
 			contextVariations,
 		},
 		{
