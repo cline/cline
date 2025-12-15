@@ -59,7 +59,32 @@ Settings for all installed MCP servers are located in the `cline_mcp_settings.js
 2. Select the "Configure" tab.
 3. Click the "Configure MCP Servers" button at the bottom of the pane.
 
-The file uses a JSON format with a `mcpServers` object containing named server configurations:
+The file uses a JSON format with a `mcpServers` object containing named server configurations.
+
+### Referencing environment variables
+
+If you need to add secrets (API keys, tokens, credentials), do not hardcode them in `cline_mcp_settings.json`.
+
+Instead, reference an environment variable with `${env:VAR_NAME}`.
+
+Cline expands these values at runtime, but keeps the `${env:...}` string in the settings file so your secrets do not get written to disk.
+
+#### Why we recommend this
+
+Most MCP servers need credentials somewhere.
+
+- Local STDIO servers often read secrets from their process environment (for example `API_KEY` in an `env` block).
+- Remote servers often expect secrets in request headers (for example `Authorization: Bearer ...`).
+
+Hardcoding these values in a JSON settings file makes them easy to leak through normal workflows like commits, diffs, screenshots, and copy-pasted snippets.
+
+Environment variables keep the secret out of the file, make rotation easier, and make the config safe to share.
+
+<Note>
+If the environment variable is not set, Cline leaves the `${env:VAR_NAME}` value unchanged and the server will likely fail to connect.
+</Note>
+
+#### Example: STDIO server env vars
 
 ```json
 {
@@ -68,7 +93,7 @@ The file uses a JSON format with a `mcpServers` object containing named server c
 			"command": "python",
 			"args": ["/path/to/server.py"],
 			"env": {
-				"API_KEY": "your_api_key"
+				"API_KEY": "${env:MY_SERVER_API_KEY}"
 			},
 			"alwaysAllow": ["tool1", "tool2"],
 			"disabled": false
@@ -77,7 +102,24 @@ The file uses a JSON format with a `mcpServers` object containing named server c
 }
 ```
 
-_Example of MCP Server config in Cline (STDIO Transport)_
+#### Example: Remote server auth headers
+
+```json
+{
+	"mcpServers": {
+		"remote-server": {
+			"type": "streamableHttp",
+			"url": "https://your-server-url.com/mcp",
+			"headers": {
+				"Authorization": "Bearer ${env:MY_MCP_TOKEN}"
+			},
+			"disabled": false
+		}
+	}
+}
+```
+
+_Examples of MCP server config using environment variable references_
 
 ---
 
