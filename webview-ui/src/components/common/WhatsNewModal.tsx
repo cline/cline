@@ -1,14 +1,12 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { XIcon } from "lucide-react"
 import React, { useState } from "react"
 import { useMount } from "react-use"
-import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
-import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../settings/OpenRouterModelPicker"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 
 interface WhatsNewModalProps {
@@ -18,10 +16,6 @@ interface WhatsNewModalProps {
 }
 
 export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version }) => {
-	if (!open) {
-		return null
-	}
-
 	const isVscode = PLATFORM_CONFIG.type === PlatformType.VSCODE
 	const { clineUser } = useClineAuth()
 	const { openRouterModels, setShowChatModelSelector, refreshOpenRouterModels } = useExtensionState()
@@ -32,23 +26,6 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 	const [didClickGPT52Button, setDidClickGPT52Button] = useState(false)
 	// Need to get latest model list in case user hits shortcut button to set model
 	useMount(refreshOpenRouterModels)
-
-	const handleBackdropClick = (e: React.MouseEvent) => {
-		if (e.target === e.currentTarget) {
-			onClose()
-		}
-	}
-
-	// Handle escape key to close modal
-	React.useEffect(() => {
-		const handleKeyDown = (e: KeyboardEvent) => {
-			if (e.key === "Escape" && open) {
-				onClose()
-			}
-		}
-		window.addEventListener("keydown", handleKeyDown)
-		return () => window.removeEventListener("keydown", handleKeyDown)
-	}, [open, onClose])
 
 	const setDevstral = () => {
 		const modelId = "mistralai/devstral-2512:free"
@@ -93,46 +70,11 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 	}
 
 	return (
-		<div
-			aria-modal="true"
-			className="fixed inset-0 bg-black/80 flex justify-center items-start"
-			onClick={handleBackdropClick}
-			role="dialog"
-			style={{ zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 100, paddingTop: "calc(15vh + 60px)" }}>
-			<div
+		<Dialog onOpenChange={(isOpen) => !isOpen && onClose()} open={open}>
+			<DialogContent
 				aria-describedby="whats-new-description"
 				aria-labelledby="whats-new-title"
-				className="relative bg-code rounded-sm shadow-lg max-w-md w-full mx-4"
-				style={{ maxWidth: "420px", height: "fit-content" }}>
-				{/* Close button */}
-				<Button
-					aria-label="Close"
-					className="absolute top-3 right-3 z-10"
-					onClick={onClose}
-					size="icon"
-					style={{
-						width: "29px",
-						height: "29px",
-						borderRadius: "50%",
-						backgroundColor: "rgba(0, 0, 0, 0.3)",
-					}}
-					variant="icon">
-					<XIcon style={{ width: "18px", height: "18px" }} />
-				</Button>
-
-				{/* Featured image area */}
-				{/* <div
-					className="w-full rounded-t-sm overflow-hidden"
-					style={{
-						height: "160px",
-						backgroundImage:
-							"url('https://cline.ghost.io/content/images/2025/12/u9318423161_from_autumn_to_winter_interpreted_in_nature_in_th_621d4b5d-74bb-4757-8afc-8095d4fafcc4_1.png')",
-						backgroundSize: "cover",
-						backgroundPosition: "center",
-						backgroundRepeat: "no-repeat",
-					}}
-				/> */}
-
+				className="max-w-md p-0 gap-0">
 				{/* Content area */}
 				<div className="p-5 pr-10" id="whats-new-description">
 					{/* Badge */}
@@ -228,22 +170,6 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 						}}
 					/>
 
-					{/* Social links */}
-					{/* <p className="text-sm mb-5" style={{ color: "var(--vscode-descriptionForeground)" }}>
-						Join us on{" "}
-						<VSCodeLink href="https://x.com/cline" style={{ display: "inline" }}>
-							X,
-						</VSCodeLink>{" "}
-						<VSCodeLink href="https://discord.gg/cline" style={{ display: "inline" }}>
-							discord,
-						</VSCodeLink>{" "}
-						or{" "}
-						<VSCodeLink href="https://www.reddit.com/r/cline/" style={{ display: "inline" }}>
-							r/cline
-						</VSCodeLink>{" "}
-						for more updates!
-					</p> */}
-
 					{/* Action button */}
 					<div className="flex gap-3">
 						<VSCodeButton appearance="secondary" data-testid="close-whats-new-modal" onClick={onClose}>
@@ -251,8 +177,8 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 						</VSCodeButton>
 					</div>
 				</div>
-			</div>
-		</div>
+			</DialogContent>
+		</Dialog>
 	)
 }
 
