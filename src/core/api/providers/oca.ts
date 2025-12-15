@@ -207,7 +207,7 @@ export class OcaHandler implements ApiHandler {
 
 		const toolCallProcessor = new ToolCallProcessor()
 
-		const stream = await client.chat.completions.create({
+		const chatCompletionParams = {
 			model: this.options.ocaModelId || liteLlmDefaultModelId,
 			messages: [enhancedSystemMessage, ...enhancedMessages],
 			temperature,
@@ -220,7 +220,31 @@ export class OcaHandler implements ApiHandler {
 				litellm_session_id: `cline-${this.options.taskId}`,
 				...getOpenAIToolParams(tools),
 			}), // Add session ID for LiteLLM tracking
-		})
+		}
+
+		// Log the exact API request payload for debugging
+		console.log(
+			"[OCA Chat API Request]:",
+			JSON.stringify(
+				{
+					...chatCompletionParams,
+					messages: chatCompletionParams.messages.map((msg) => ({
+						role: msg.role,
+						content:
+							typeof msg.content === "string"
+								? msg.content.substring(0, 200) + (msg.content.length > 200 ? "..." : "")
+								: msg.content,
+						// Don't log full content to avoid cluttering logs
+					})),
+				},
+				null,
+				2,
+			),
+		)
+
+		const stream = (await client.chat.completions.create(
+			chatCompletionParams,
+		)) as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
 
 		const inputCost = (await this.calculateCost(1e6, 0)) || 0
 		const outputCost = (await this.calculateCost(0, 1e6)) || 0
@@ -303,7 +327,7 @@ export class OcaHandler implements ApiHandler {
 				reasoning: { effort: "medium", summary: "auto" },
 			}))
 
-		Logger.debug("OCA Responses Input: " + JSON.stringify(input))
+		// Logger.debug("OCA Responses Input: " + JSON.stringify(input))
 
 		// Create the response using Responses API
 		const stream = await client.responses.create({
@@ -312,6 +336,7 @@ export class OcaHandler implements ApiHandler {
 			input,
 			stream: true,
 			tools: responseTools,
+			reasoning: { effort: "medium", summary: "auto" },
 		})
 
 		// Process the response stream

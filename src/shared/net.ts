@@ -94,6 +94,7 @@
  */
 
 import { EnvHttpProxyAgent, setGlobalDispatcher, fetch as undiciFetch } from "undici"
+import { Logger } from "@/services/logging/Logger"
 
 let mockFetch: typeof globalThis.fetch | undefined
 
@@ -121,7 +122,71 @@ export const fetch: typeof globalThis.fetch = (() => {
 		baseFetch = undiciFetch as any as typeof globalThis.fetch
 	}
 
-	return (input: string | URL | Request, init?: RequestInit): Promise<Response> => (mockFetch || baseFetch)(input, init)
+	return async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+		const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url
+		const method = init?.method || (input instanceof Request ? input.method : "GET")
+
+		// Log request details
+		console.log(`[Cline Network Request] ${method} ${url}`)
+		console.log(init?.body)
+		if (init?.headers) {
+			console.log(
+				"[Cline Network Request Headers]:",
+				JSON.stringify(Object.fromEntries(Object.entries(init.headers).map(([k, v]) => [k, String(v)])), null, 2),
+			)
+		}
+		if (init?.body && typeof init.body === "string") {
+			try {
+				// Try to parse as JSON for pretty printing
+				console.log(init.body)
+				Logger.debug("body: " + init?.body)
+				const parsed = JSON.parse(init.body)
+				console.log("[Cline Network Request Body]:", JSON.stringify(parsed, null, 2))
+			} catch {
+				// If not JSON, log as string
+				console.log("[Cline Network Request Body]:", init.body)
+			}
+		} else if (init?.body) {
+			console.log("[Cline Network Request Body]:", "[Binary data or FormData]")
+		}
+
+		const startTime = Date.now()
+		const response = await (mockFetch || baseFetch)(input, init)
+		const duration = Date.now() - startTime
+
+		// Clone the response to read its body without consuming it
+		const clonedResponse = response.clone()
+
+		// Log response details
+		console.log(`[Cline Network Response] ${response.status} ${response.statusText} (${duration}ms)`)
+
+		// Log response headers
+		const responseHeaders: Record<string, string> = {}
+		clonedResponse.headers.forEach((value, key) => {
+			responseHeaders[key] = value
+		})
+		console.log("[Cline Network Response Headers]:", JSON.stringify(responseHeaders, null, 2))
+
+		// Try to log response body for JSON responses
+		try {
+			const contentType = clonedResponse.headers.get("content-type")
+			if (contentType?.includes("application/json")) {
+				const responseText = await clonedResponse.text()
+				try {
+					const parsed = JSON.parse(responseText)
+					console.log("[Cline Network Response Body]:", JSON.stringify(parsed, null, 2))
+				} catch {
+					console.log("[Cline Network Response Body]:", responseText)
+				}
+			} else {
+				console.log("[Cline Network Response Body]:", "[Non-JSON content or streaming response]")
+			}
+		} catch (error) {
+			console.log("[Cline Network Response Body]:", "[Error reading response body]", error)
+		}
+
+		return response
+	}
 })()
 
 /**
