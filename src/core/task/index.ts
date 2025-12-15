@@ -2123,6 +2123,8 @@ export class Task {
 			throw new Error("Task instance aborted")
 		}
 
+		await this.controller.remoteConfigService.fetch()
+
 		// Increment API request counter for focus chain list management
 		this.taskState.apiRequestCount++
 		this.taskState.apiRequestsSinceLastTodoUpdate++

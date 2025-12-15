@@ -174,6 +174,15 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	return transformed
 }
 
+export function clearRemoteConfig() {
+	const stateManager = StateManager.get()
+
+	stateManager.clearRemoteConfig()
+	// the remote config cline rules toggle state is stored in global state
+	stateManager.setGlobalState("remoteRulesToggles", {})
+	stateManager.setGlobalState("remoteWorkflowToggles", {})
+}
+
 /**
  * Applies remote config to the StateManager's remote config cache
  * @param remoteConfig The remote configuration object to apply
@@ -183,10 +192,7 @@ export function applyRemoteConfig(remoteConfig?: RemoteConfig): void {
 
 	// If no remote config provided, clear the cache and relevant state
 	if (!remoteConfig) {
-		stateManager.clearRemoteConfig()
-		// the remote config cline rules toggle state is stored in global state
-		stateManager.setGlobalState("remoteRulesToggles", {})
-		stateManager.setGlobalState("remoteWorkflowToggles", {})
+		clearRemoteConfig()
 		return
 	}
 

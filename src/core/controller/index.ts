@@ -46,7 +46,7 @@ import {
 	GlobalFileNames,
 	writeMcpMarketplaceCatalogToCache,
 } from "../storage/disk"
-import { fetchRemoteConfig } from "../storage/remote-config/fetch"
+import { RemoteConfigService } from "../storage/remote-config/service"
 import { type PersistenceErrorEvent, StateManager } from "../storage/StateManager"
 import { Task } from "../task"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
@@ -69,6 +69,7 @@ export class Controller {
 	accountService: ClineAccountService
 	authService: AuthService
 	ocaAuthService: OcaAuthService
+	remoteConfigService: RemoteConfigService
 	readonly stateManager: StateManager
 
 	// NEW: Add workspace manager (optional initially)
@@ -104,13 +105,13 @@ export class Controller {
 
 	/**
 	 * Starts the periodic remote config fetching timer
-	 * Fetches immediately and then every 30 seconds
+	 * Fetches immediately and then every 5 minutes
 	 */
 	private startRemoteConfigTimer() {
 		// Initial fetch
-		fetchRemoteConfig(this)
-		// Set up 30-second interval
-		this.remoteConfigTimer = setInterval(() => fetchRemoteConfig(this), 30000) // 30 seconds
+		this.remoteConfigService.fetch()
+		// Set up 5-minute interval
+		this.remoteConfigTimer = setInterval(this.remoteConfigService.fetch, 300000) // 5 minutes
 	}
 
 	constructor(readonly context: vscode.ExtensionContext) {
@@ -140,6 +141,7 @@ export class Controller {
 			},
 		})
 		this.authService = AuthService.getInstance(this)
+		this.remoteConfigService = new RemoteConfigService(this)
 		this.ocaAuthService = OcaAuthService.initialize(this)
 		this.accountService = ClineAccountService.getInstance()
 
@@ -186,6 +188,7 @@ export class Controller {
 		try {
 			// AuthService now handles its own storage cleanup in handleDeauth()
 			this.stateManager.setGlobalState("userInfo", undefined)
+			this.remoteConfigService.clear()
 
 			// Update API providers through cache service
 			const apiConfiguration = this.stateManager.getApiConfiguration()
@@ -237,15 +240,6 @@ export class Controller {
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
 	) {
-		// Fire-and-forget: We intentionally don't await fetchRemoteConfig here.
-		// Remote config is already fetched in startRemoteConfigTimer() which runs in the constructor,
-		// so enterprise policies (yoloModeAllowed, allowedMCPServers, etc.) are already applied.
-		// This call just ensures we have the latest state, but we shouldn't block the UI for it.
-		// getGlobalSettingsKey() reads from remoteConfigCache on each call, so any updates
-		// will apply as soon as this fetch completes. The function also calls postStateToWebview()
-		// when done and catches all errors internally.
-		fetchRemoteConfig(this)
-
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
@@ -534,6 +528,8 @@ export class Controller {
 
 			// Mark welcome view as completed since user has successfully logged in
 			this.stateManager.setGlobalState("welcomeViewCompleted", true)
+
+			await this.remoteConfigService.fetch()
 
 			if (this.task) {
 				this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
