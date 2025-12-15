@@ -321,4 +321,122 @@ describe("BannerService", () => {
 			expect(axiosGetStub.calledTwice).to.be.true
 		})
 	})
+
+	describe("OS Parameter Integration", () => {
+		it("should send OS parameter in API request", async () => {
+			const mockResponse = {
+				data: {
+					data: {
+						items: [
+							{
+								id: "bnr_test",
+								titleMd: "Test Banner",
+								bodyMd: "This is a test",
+								severity: "info" as const,
+								placement: "top" as const,
+								rulesJson: "{}",
+							},
+						],
+					},
+				},
+			}
+
+			axiosGetStub.resolves(mockResponse)
+			await bannerService.fetchActiveBanners()
+
+			expect(axiosGetStub.calledOnce).to.be.true
+			const call = axiosGetStub.getCall(0)
+			const url = call.args[0]
+			expect(url).to.include("os=")
+		})
+
+		it("should handle OS detection errors gracefully", async () => {
+			const originalPlatform = process.platform
+			Object.defineProperty(process, "platform", {
+				get: () => {
+					throw new Error("Platform access denied")
+				},
+				configurable: true,
+			})
+
+			const mockResponse = {
+				data: {
+					data: {
+						items: [
+							{
+								id: "bnr_test",
+								titleMd: "Test Banner",
+								bodyMd: "This is a test",
+								severity: "info" as const,
+								placement: "top" as const,
+								rulesJson: "{}",
+							},
+						],
+					},
+				},
+			}
+
+			axiosGetStub.resolves(mockResponse)
+			const banners = await bannerService.fetchActiveBanners()
+
+			Object.defineProperty(process, "platform", {
+				value: originalPlatform,
+				configurable: true,
+			})
+
+			expect(banners).to.have.lengthOf(1)
+			expect(axiosGetStub.calledOnce).to.be.true
+			const call = axiosGetStub.getCall(0)
+			const url = call.args[0]
+			expect(url).to.include("os=unknown")
+		})
+
+		it("should detect different OS types correctly", async () => {
+			const testCases = [
+				{ platform: "win32", expected: "windows" },
+				{ platform: "darwin", expected: "macos" },
+				{ platform: "linux", expected: "linux" },
+				{ platform: "freebsd", expected: "unknown" },
+			]
+
+			for (const { platform, expected } of testCases) {
+				const originalPlatform = process.platform
+				Object.defineProperty(process, "platform", {
+					value: platform,
+					configurable: true,
+				})
+
+				const mockResponse = {
+					data: {
+						data: {
+							items: [
+								{
+									id: "bnr_test",
+									titleMd: "Test Banner",
+									bodyMd: "This is a test",
+									severity: "info" as const,
+									placement: "top" as const,
+									rulesJson: "{}",
+								},
+							],
+						},
+					},
+				}
+
+				axiosGetStub.resolves(mockResponse)
+				await bannerService.fetchActiveBanners()
+
+				const call = axiosGetStub.getCall(axiosGetStub.callCount - 1)
+				const url = call.args[0]
+				expect(url).to.include(`os=${expected}`)
+
+				Object.defineProperty(process, "platform", {
+					value: originalPlatform,
+					configurable: true,
+				})
+
+				axiosGetStub.reset()
+			}
+		})
+	})
 })
