@@ -1,5 +1,5 @@
+import { Button } from "@components/ui/button"
 import { EmptyRequest } from "@shared/proto/cline/common"
-import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import React, { useState } from "react"
 import { useMount } from "react-use"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
@@ -71,10 +71,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 
 	return (
 		<Dialog onOpenChange={(isOpen) => !isOpen && onClose()} open={open}>
-			<DialogContent
-				aria-describedby="whats-new-description"
-				aria-labelledby="whats-new-title"
-				className="max-w-md p-0 gap-0">
+			<DialogContent aria-describedby="whats-new-description" aria-labelledby="whats-new-title" className="p-0 gap-0">
 				{/* Content area */}
 				<div className="p-5 pr-10" id="whats-new-description">
 					{/* Badge */}
@@ -101,12 +98,14 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					<ul className="text-sm mb-3 pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						{isVscode && (
 							<li className="mb-2">
-								Use the new{" "}
-								<VSCodeLink
+								Use the new
+								<a
+									className="mx-1"
 									href="https://docs.cline.bot/features/slash-commands/explain-changes"
-									style={{ display: "inline" }}>
+									rel="noreferrer"
+									target="_blank">
 									/explain-changes
-								</VSCodeLink>{" "}
+								</a>
 								slash command to explain the changes in branches, commits, etc. (Try asking Cline to explain a PR
 								you need to review!)
 							</li>
@@ -117,21 +116,15 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 							{user ? (
 								<div className="flex gap-2 flex-wrap my-1.5">
 									{!didClickGPT52Button && (
-										<VSCodeButton
-											appearance="primary"
-											onClick={setGPT52}
-											style={{ transform: "scale(0.85)", transformOrigin: "left center" }}>
+										<Button className="my-1" onClick={setGPT52} size="sm">
 											Try GPT-5.2
-										</VSCodeButton>
+										</Button>
 									)}
 								</div>
 							) : (
-								<VSCodeButton
-									appearance="primary"
-									onClick={handleShowAccount}
-									style={{ margin: "5px 0", transform: "scale(0.85)", transformOrigin: "left center" }}>
+								<Button className="my-1" onClick={handleShowAccount} size="sm">
 									Sign Up with Cline
-								</VSCodeButton>
+								</Button>
 							)}
 						</li>
 						<li className="mb-2">
@@ -141,40 +134,24 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 							{user ? (
 								<div className="flex gap-2 flex-wrap my-1.5">
 									{!didClickDevstralButton && (
-										<VSCodeButton
-											appearance="primary"
-											onClick={setDevstral}
-											style={{ transform: "scale(0.85)", transformOrigin: "left center" }}>
+										<Button className="my-1" onClick={setDevstral} size="sm">
 											Try for Free Devstral-2512
-										</VSCodeButton>
+										</Button>
 									)}
 								</div>
 							) : (
-								<VSCodeButton
-									appearance="primary"
-									onClick={handleShowAccount}
-									style={{ margin: "5px 0", transform: "scale(0.85)", transformOrigin: "left center" }}>
+								<Button className="my-1" onClick={handleShowAccount} size="sm">
 									Sign Up with Cline
-								</VSCodeButton>
+								</Button>
 							)}
 						</li>
 					</ul>
 
-					{/* Divider */}
-					<div
-						className="mb-3"
-						style={{
-							height: "1px",
-							backgroundColor: "var(--vscode-descriptionForeground)",
-							opacity: 0.1,
-						}}
-					/>
-
 					{/* Action button */}
-					<div className="flex gap-3">
-						<VSCodeButton appearance="secondary" data-testid="close-whats-new-modal" onClick={onClose}>
+					<div className="flex gap-3 pt-4 border-t-1 border-description/20">
+						<Button data-testid="close-whats-new-modal" onClick={onClose} size="sm" variant="secondary">
 							Dismiss
-						</VSCodeButton>
+						</Button>
 					</div>
 				</div>
 			</DialogContent>
