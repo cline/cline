@@ -442,22 +442,6 @@ export class SapAiCoreHandler implements ApiHandler {
 		return this.token.access_token
 	}
 
-	private async getDestination(): Promise<any> {
-		if (!this.aiCoreDestination || !this.destinationExpiresAt || this.destinationExpiresAt < Date.now()) {
-			this.validateCredentials()
-			this.aiCoreDestination = await this.createAiCoreDestination()
-
-			// Extract expiration from the destination's auth token
-			const expiresIn = this.aiCoreDestination.authTokens[0].expiresIn
-			if (!expiresIn) {
-				throw new Error("Destination authTokens missing expiresIn field")
-			}
-			this.destinationExpiresAt = Date.now() + parseInt(expiresIn) * 1000
-		}
-
-		return this.aiCoreDestination
-	}
-
 	// TODO: these fallback fetching deployment id methods can be removed in future version if decided that users migration to fetching deployment id in design-time (open SAP AI Core provider UI) considered as completed.
 	private async getAiCoreDeployments(): Promise<Deployment[]> {
 		const token = await this.getToken()
@@ -527,8 +511,17 @@ export class SapAiCoreHandler implements ApiHandler {
 
 	// TODO: support credentials changes after initial setup
 	private async ensureAiCoreEnvSetup(): Promise<void> {
-		// getDestination() handles validation, caching, and expiration checking
-		this.aiCoreDestination = await this.getDestination()
+		if (!this.aiCoreDestination || !this.destinationExpiresAt || this.destinationExpiresAt < Date.now()) {
+			this.validateCredentials()
+			this.aiCoreDestination = await this.createAiCoreDestination()
+
+			// Extract expiration from the destination's auth token
+			const expiresIn = this.aiCoreDestination.authTokens[0].expiresIn
+			if (!expiresIn) {
+				throw new Error("Destination authTokens missing expiresIn field")
+			}
+			this.destinationExpiresAt = Date.now() + parseInt(expiresIn) * 1000
+		}
 	}
 
 	private async *createMessageWithOrchestration(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
