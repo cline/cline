@@ -61,11 +61,11 @@ Settings for all installed MCP servers are located in the `cline_mcp_settings.js
 
 The file uses a JSON format with a `mcpServers` object containing named server configurations.
 
-### Referencing environment variables
+## Referencing environment variables
 
 You can reference environment variables in your MCP server configuration using `${env:VAR_NAME}` syntax. Cline expands these values at runtime while keeping the `${env:...}` placeholder in the settings file, so your secrets never get written to disk.
 
-#### Why use environment variables
+### Why use environment variables
 
 Most MCP servers need credentials somewhere.
 
