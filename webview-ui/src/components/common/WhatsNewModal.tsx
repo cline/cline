@@ -103,6 +103,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 							<li className="mb-2">
 								Use the new
 								<a
+									aria-label="Learn about the explain-changes slash command"
 									className="mx-1"
 									href="https://docs.cline.bot/features/slash-commands/explain-changes"
 									rel="noreferrer"

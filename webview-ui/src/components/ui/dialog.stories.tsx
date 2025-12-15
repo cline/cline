@@ -94,7 +94,7 @@ export const Interactive: StoryObj<StoryProps> = {
 	},
 	render: (args) => (
 		<div className="w-full h-full flex justify-center items-center overflow-hidden">
-			<div className="flex flex-col justify-center items-center  h-[60%] w-[50%] overflow-hidden mt-50">
+			<div className="flex flex-col justify-center items-center h-[60%] w-[50%] overflow-hidden mt-50">
 				<div className="flex justify-center my-5">
 					<ClineLogoWhite className="size-16" />
 				</div>
