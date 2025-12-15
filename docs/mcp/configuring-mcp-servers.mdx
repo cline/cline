@@ -63,13 +63,9 @@ The file uses a JSON format with a `mcpServers` object containing named server c
 
 ### Referencing environment variables
 
-If you need to add secrets (API keys, tokens, credentials), do not hardcode them in `cline_mcp_settings.json`.
+You can reference environment variables in your MCP server configuration using `${env:VAR_NAME}` syntax. Cline expands these values at runtime while keeping the `${env:...}` placeholder in the settings file, so your secrets never get written to disk.
 
-Instead, reference an environment variable with `${env:VAR_NAME}`.
-
-Cline expands these values at runtime, but keeps the `${env:...}` string in the settings file so your secrets do not get written to disk.
-
-#### Why we recommend this
+#### Why use environment variables
 
 Most MCP servers need credentials somewhere.
 
