@@ -17,7 +17,7 @@ const meta: Meta<typeof Input> = {
 
 export default meta
 
-export const Default = () => (
+export const Overview = () => (
 	<div className="w-screen flex justify-center items-center">
 		<div className="flex flex-col gap-4 w-full max-w-md px-4">
 			<Input placeholder="Default text input" type="text" />

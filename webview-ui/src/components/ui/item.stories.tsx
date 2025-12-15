@@ -30,7 +30,7 @@ const meta: Meta<typeof Item> = {
 
 export default meta
 
-export const Default = () => (
+export const Overview = () => (
 	<div className="w-screen flex justify-center items-center">
 		<div className="flex flex-col gap-5 w-full max-w-md px-4">
 			<ItemGroup>

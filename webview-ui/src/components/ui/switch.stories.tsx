@@ -16,7 +16,7 @@ const meta: Meta<typeof Switch> = {
 
 export default meta
 
-export const Default = () => (
+export const Overview = () => (
 	<div className="w-screen flex justify-center items-center">
 		<div className="flex flex-col gap-6 w-full max-w-md px-4">
 			<div className="flex items-center justify-between">

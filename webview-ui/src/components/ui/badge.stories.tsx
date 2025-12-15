@@ -17,7 +17,7 @@ const meta: Meta<typeof Badge> = {
 
 export default meta
 
-export const Default = () => {
+export const Overview = () => {
 	const variants = ["default", "info", "danger", "outline", "cline", "success", "warning"] as const
 
 	const types = [

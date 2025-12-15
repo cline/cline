@@ -16,7 +16,7 @@ const meta: Meta<typeof Separator> = {
 
 export default meta
 
-export const Default = () => (
+export const Overview = () => (
 	<div className="w-screen flex justify-center items-center">
 		<div className="flex flex-col gap-8 w-full max-w-md px-4">
 			<div className="space-y-4">
