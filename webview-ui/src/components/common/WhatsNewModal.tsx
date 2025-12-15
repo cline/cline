@@ -1,6 +1,6 @@
 import { Button } from "@components/ui/button"
 import { EmptyRequest } from "@shared/proto/cline/common"
-import React, { useState } from "react"
+import React, { useCallback, useRef } from "react"
 import { useMount } from "react-use"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
@@ -19,55 +19,58 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 	const isVscode = PLATFORM_CONFIG.type === PlatformType.VSCODE
 	const { clineUser } = useClineAuth()
 	const { openRouterModels, setShowChatModelSelector, refreshOpenRouterModels } = useExtensionState()
-	const user = clineUser || undefined
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
-	const [didClickDevstralButton, setDidClickDevstralButton] = useState(false)
-	const [didClickGPT52Button, setDidClickGPT52Button] = useState(false)
-	// Need to get latest model list in case user hits shortcut button to set model
+	const clickedModelsRef = useRef<Set<string>>(new Set())
+
+	// Get latest model list in case user hits shortcut button to set model
 	useMount(refreshOpenRouterModels)
 
-	const setDevstral = () => {
-		const modelId = "mistralai/devstral-2512:free"
-		handleFieldsChange({
-			planModeOpenRouterModelId: modelId,
-			actModeOpenRouterModelId: modelId,
-			planModeOpenRouterModelInfo: openRouterModels[modelId],
-			actModeOpenRouterModelInfo: openRouterModels[modelId],
-			planModeApiProvider: "cline",
-			actModeApiProvider: "cline",
-		})
+	const setModel = useCallback(
+		(modelId: string) => {
+			handleFieldsChange({
+				planModeOpenRouterModelId: modelId,
+				actModeOpenRouterModelId: modelId,
+				planModeOpenRouterModelInfo: openRouterModels[modelId],
+				actModeOpenRouterModelInfo: openRouterModels[modelId],
+				planModeApiProvider: "cline",
+				actModeApiProvider: "cline",
+			})
 
-		setTimeout(() => {
-			setDidClickDevstralButton(true)
+			clickedModelsRef.current.add(modelId)
 			setShowChatModelSelector(true)
 			onClose()
-		}, 10)
-	}
+		},
+		[handleFieldsChange, openRouterModels, setShowChatModelSelector, onClose],
+	)
 
-	const setGPT52 = () => {
-		const modelId = "openai/gpt-5.2"
-		handleFieldsChange({
-			planModeOpenRouterModelId: modelId,
-			actModeOpenRouterModelId: modelId,
-			planModeOpenRouterModelInfo: openRouterModels[modelId],
-			actModeOpenRouterModelInfo: openRouterModels[modelId],
-			planModeApiProvider: "cline",
-			actModeApiProvider: "cline",
-		})
-
-		setTimeout(() => {
-			setDidClickGPT52Button(true)
-			setShowChatModelSelector(true)
-			onClose()
-		}, 10)
-	}
-
-	const handleShowAccount = () => {
+	const handleShowAccount = useCallback(() => {
 		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
 			console.error("Failed to get login URL:", err),
 		)
+	}, [])
+
+	const ModelButton: React.FC<{ modelId: string; label: string }> = ({ modelId, label }) => {
+		const isClicked = clickedModelsRef.current.has(modelId)
+		if (isClicked) {
+			return null
+		}
+
+		return (
+			<Button className="my-1" onClick={() => setModel(modelId)} size="sm">
+				{label}
+			</Button>
+		)
 	}
+
+	const AuthButton: React.FC<{ children: React.ReactNode }> = ({ children }) =>
+		clineUser ? (
+			<div className="flex gap-2 flex-wrap my-1.5">{children}</div>
+		) : (
+			<Button className="my-1" onClick={handleShowAccount} size="sm">
+				Sign Up with Cline
+			</Button>
+		)
 
 	return (
 		<Dialog onOpenChange={(isOpen) => !isOpen && onClose()} open={open}>
@@ -113,37 +116,17 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 						<li className="mb-2">
 							New <strong>OpenAI GPT-5.2</strong> model available!
 							<br />
-							{user ? (
-								<div className="flex gap-2 flex-wrap my-1.5">
-									{!didClickGPT52Button && (
-										<Button className="my-1" onClick={setGPT52} size="sm">
-											Try GPT-5.2
-										</Button>
-									)}
-								</div>
-							) : (
-								<Button className="my-1" onClick={handleShowAccount} size="sm">
-									Sign Up with Cline
-								</Button>
-							)}
+							<AuthButton>
+								<ModelButton label="Try GPT-5.2" modelId="openai/gpt-5.2" />
+							</AuthButton>
 						</li>
 						<li className="mb-2">
 							Mistral's <strong>Devstral-2512:free</strong> (formerly stealth model "Microwave"), free for a limited
 							time!
 							<br />
-							{user ? (
-								<div className="flex gap-2 flex-wrap my-1.5">
-									{!didClickDevstralButton && (
-										<Button className="my-1" onClick={setDevstral} size="sm">
-											Try for Free Devstral-2512
-										</Button>
-									)}
-								</div>
-							) : (
-								<Button className="my-1" onClick={handleShowAccount} size="sm">
-									Sign Up with Cline
-								</Button>
-							)}
+							<AuthButton>
+								<ModelButton label="Try for Free Devstral-2512" modelId="mistralai/devstral-2512:free" />
+							</AuthButton>
 						</li>
 					</ul>
 
