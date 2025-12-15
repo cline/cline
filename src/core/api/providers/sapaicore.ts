@@ -510,7 +510,7 @@ export class SapAiCoreHandler implements ApiHandler {
 	}
 
 	// TODO: support credentials changes after initial setup
-	private async ensureAiCoreEnvSetup(): Promise<void> {
+	private async ensureAiCoreEnvSetup() {
 		if (!this.aiCoreDestination || !this.destinationExpiresAt || this.destinationExpiresAt < Date.now()) {
 			this.validateCredentials()
 			this.aiCoreDestination = await this.createAiCoreDestination()
