@@ -26,6 +26,9 @@ const HOOK_EXECUTION_TIMEOUT_MS = 30000
 // Maximum size for context modification (to prevent prompt overflow)
 const MAX_CONTEXT_MODIFICATION_SIZE = 50000 // ~50KB
 
+// Exit code indicating cancellation/interruption (Unix SIGINT convention: 128 + signal 2)
+const EXIT_CODE_SIGINT = 130
+
 /**
  * Validates hook output JSON structure.
  * Ensures required fields are present and have correct types.
@@ -437,7 +440,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 									source: this.source,
 									toolName: this.toolName,
 									durationMs,
-									exitCode: exitCode ?? 130,
+									exitCode: exitCode ?? EXIT_CODE_SIGINT,
 									cancelRequested: true,
 									contextModified: !!parsedOutput.contextModification,
 									contextSize: parsedOutput.contextModification?.length,
