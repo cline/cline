@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.43.1]
+
+### Patch Changes
+
+- Fix GLM-4.6 Model reference id
+
 ## [3.43.0]
 
 ### Added
@@ -9,6 +15,7 @@
 - Add parsing of env variable patterns to the mcpconfig.json
 
 ### Fixed
+
 - TLS Proxy support issues for VSCode
 - Add supportsReasoning flag to OpenAI reasoning models
 - Fix thinking not available for some models in the OpenAI provider
@@ -18,6 +25,7 @@
 - Improve ModelPickerModal provider list layout
 
 ### Refactored
+
 - Migrate WhatsNewModal to new shared dialogue component
 
 ## [3.42.0]
