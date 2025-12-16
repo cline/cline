@@ -124,6 +124,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 					style={{
 						flexGrow: 1,
 						overflowY: "scroll", // always show scrollbar
+						overflowAnchor: "none", // prevent scroll jump when content expands
 					}}
 				/>
 			</div>
