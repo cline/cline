@@ -10,7 +10,7 @@ import {
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
 import { BooleanRequest, Int64Request, StringRequest } from "@shared/proto/cline/common"
-import { VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import { FoldVerticalIcon } from "lucide-react"
 import React, { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -26,7 +26,7 @@ import CodeBlock, {
 	CODE_BLOCK_BG_COLOR,
 	TERMINAL_CODE_BLOCK_BG_COLOR,
 } from "@/components/common/CodeBlock"
-import { WithCopyButton } from "@/components/common/CopyButton"
+import { CopyButton, WithCopyButton } from "@/components/common/CopyButton"
 import MarkdownBlock from "@/components/common/MarkdownBlock"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
@@ -1411,6 +1411,14 @@ export const ChatRowContent = memo(
 										}}>
 										{icon}
 										{title}
+										{/* Need to render this every time since it affects height of row by 2px */}
+										<VSCodeBadge
+											className="text-sm"
+											style={{
+												opacity: cost != null && cost > 0 ? 1 : 0,
+											}}>
+											{cost != null && Number(cost || 0) > 0 ? `$${Number(cost || 0).toFixed(4)}` : ""}
+										</VSCodeBadge>
 									</div>
 									<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 								</div>
@@ -1766,27 +1774,7 @@ export const ChatRowContent = memo(
 												Task Completed
 											</span>
 										</div>
-										<button
-											onClick={() => {
-												navigator.clipboard.writeText(text || "")
-											}}
-											onMouseEnter={(e) => {
-												e.currentTarget.style.opacity = "1"
-											}}
-											onMouseLeave={(e) => {
-												e.currentTarget.style.opacity = "0.6"
-											}}
-											style={{
-												background: "transparent",
-												border: "none",
-												padding: "4px",
-												cursor: "pointer",
-												display: "flex",
-												alignItems: "center",
-												opacity: 0.6,
-											}}>
-											<span className="codicon codicon-copy" style={{ fontSize: "14px" }}></span>
-										</button>
+										<CopyButton textToCopy={text || ""} />
 									</div>
 									<CompletionOutput
 										borderColor={successColor}
@@ -2135,27 +2123,7 @@ export const ChatRowContent = memo(
 												</span>
 											</div>
 											<div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-												<button
-													onClick={() => {
-														navigator.clipboard.writeText(text || "")
-													}}
-													onMouseEnter={(e) => {
-														e.currentTarget.style.opacity = "1"
-													}}
-													onMouseLeave={(e) => {
-														e.currentTarget.style.opacity = "0.6"
-													}}
-													style={{
-														background: "transparent",
-														border: "none",
-														padding: "4px",
-														cursor: "pointer",
-														display: "flex",
-														alignItems: "center",
-														opacity: 0.6,
-													}}>
-													<span className="codicon codicon-copy" style={{ fontSize: "14px" }}></span>
-												</button>
+												<CopyButton textToCopy={text || ""} />
 												<TaskFeedbackButtons
 													isFromHistory={
 														!isLast ||
