@@ -10,9 +10,10 @@ import {
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
 import { BooleanRequest, Int64Request, StringRequest } from "@shared/proto/cline/common"
-import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
+import { Mode } from "@shared/storage/types"
+import { VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
-import { FoldVerticalIcon } from "lucide-react"
+import { Brain, FoldVerticalIcon } from "lucide-react"
 import React, { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import styled from "styled-components"
@@ -33,11 +34,10 @@ import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server
 import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { cn } from "@/lib/utils"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
-import { ErrorBlockTitle } from "./ErrorBlockTitle"
+import { findApiReqInfoForCheckpoint, findNextSegmentCost } from "./chat-view/utils/messageUtils"
 import ErrorRow from "./ErrorRow"
 import HookMessage from "./HookMessage"
 import NewTaskPreview from "./NewTaskPreview"
@@ -51,7 +51,16 @@ const errorColor = "var(--vscode-errorForeground)"
 const successColor = "var(--vscode-charts-green)"
 const _cancelledColor = "var(--vscode-descriptionForeground)"
 
+// Shared keyframes for cursor blink animation
+const cursorBlinkKeyframes = `
+	@keyframes cursorBlink {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0; }
+	}
+`
+
 const ChatRowContainer = styled.div`
+	${cursorBlinkKeyframes}
 	padding: 10px 6px 10px 15px;
 	position: relative;
 
@@ -87,6 +96,10 @@ interface ChatRowProps {
 	sendMessageFromChatRow?: (text: string, images: string[], files: string[]) => void
 	onSetQuote: (text: string) => void
 	onCancelCommand?: () => void
+	mode?: Mode
+	reasoningContent?: string
+	responseStarted?: boolean
+	isRequestInProgress?: boolean
 }
 
 interface QuoteButtonState {
@@ -113,7 +126,137 @@ export const ProgressIndicator = () => (
 	</div>
 )
 
-const Markdown = memo(({ markdown }: { markdown?: string }) => {
+const BlinkingCursorSpan = styled.span`
+	display: inline-block;
+	width: 2px;
+	height: 1em;
+	background-color: currentColor;
+	margin-left: 2px;
+	vertical-align: text-bottom;
+	animation: cursorBlink 1s ease-in-out infinite;
+`
+
+const BlinkingCursor = () => <BlinkingCursorSpan />
+
+const TypewriterText = memo(({ text }: { text: string }) => {
+	const [displayedLength, setDisplayedLength] = useState(0)
+
+	useEffect(() => {
+		setDisplayedLength(0)
+		const interval = setInterval(() => {
+			setDisplayedLength((prev) => {
+				if (prev >= text.length) {
+					clearInterval(interval)
+					return prev
+				}
+				return prev + 1
+			})
+		}, 30)
+
+		return () => clearInterval(interval)
+	}, [text])
+
+	return (
+		<>
+			{text.slice(0, displayedLength)}
+			<BlinkingCursor />
+		</>
+	)
+})
+
+const ThinkingBlockContainer = styled.div<{ $isVisible: boolean; $instant?: boolean }>`
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	max-height: ${(props) => (props.$isVisible ? "150px" : "0")};
+	opacity: ${(props) => (props.$isVisible ? 1 : 0)};
+	overflow: hidden;
+	transition: ${(props) => (props.$instant ? "none" : "max-height 250ms cubic-bezier(0.4, 0, 0.2, 1), opacity 150ms ease-out")};
+	width: 100%;
+	min-width: 0;
+`
+
+const ThinkingBlockScroll = styled.div`
+	max-height: 150px;
+	overflow-y: auto;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.5;
+	white-space: pre-wrap;
+	word-break: break-word;
+	flex: 1;
+	scrollbar-width: none;
+	-ms-overflow-style: none;
+	&::-webkit-scrollbar {
+		display: none;
+	}
+`
+
+// State type for api_req_started rendering
+type ApiReqState = "pre" | "thinking" | "error" | "final"
+
+const ThinkingBlock = memo(
+	({
+		reasoningContent,
+		isVisible,
+		showCursor = true,
+		showIcon = true,
+		instant = false,
+	}: {
+		reasoningContent?: string
+		isVisible: boolean
+		showCursor?: boolean
+		showIcon?: boolean
+		instant?: boolean
+	}) => {
+		const scrollRef = useRef<HTMLDivElement>(null)
+		const [shouldRender, setShouldRender] = useState(isVisible)
+
+		// Only auto-scroll to bottom during streaming (showCursor=true)
+		// For expanded collapsed thinking, start at top
+		useEffect(() => {
+			if (scrollRef.current && isVisible && showCursor) {
+				scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+			}
+		}, [reasoningContent, isVisible, showCursor])
+
+		useEffect(() => {
+			if (isVisible) {
+				setShouldRender(true)
+			} else if (instant) {
+				// Instant unmount for streaming thinking - no delay
+				setShouldRender(false)
+			} else {
+				// Delayed unmount for user-toggled expanded thinking (animation)
+				const timer = setTimeout(() => setShouldRender(false), 250)
+				return () => clearTimeout(timer)
+			}
+		}, [isVisible, instant])
+
+		if (!shouldRender) return null
+
+		return (
+			<ThinkingBlockContainer $instant={instant} $isVisible={isVisible}>
+				{showIcon && (
+					<Brain
+						size={14}
+						style={{
+							color: "var(--vscode-descriptionForeground)",
+							opacity: 0.7,
+							flexShrink: 0,
+							marginTop: 2,
+						}}
+					/>
+				)}
+				<ThinkingBlockScroll ref={scrollRef}>
+					{reasoningContent}
+					{isVisible && showCursor && <BlinkingCursor />}
+				</ThinkingBlockScroll>
+			</ThinkingBlockContainer>
+		)
+	},
+)
+
+const Markdown = memo(({ markdown, showCursor }: { markdown?: string; showCursor?: boolean }) => {
 	return (
 		<div
 			style={{
@@ -123,7 +266,7 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 				marginTop: -15,
 				overflow: "hidden", // contain child margins so that parent diff matches height of children
 			}}>
-			<MarkdownBlock markdown={markdown} />
+			<MarkdownBlock markdown={markdown} showCursor={showCursor} />
 		</div>
 	)
 })
@@ -275,8 +418,13 @@ export const ChatRowContent = memo(
 		sendMessageFromChatRow,
 		onSetQuote,
 		onCancelCommand,
+		mode,
+		reasoningContent,
+		responseStarted,
+		isRequestInProgress,
 	}: ChatRowContentProps) => {
-		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode } = useExtensionState()
+		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode, clineMessages } =
+			useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [explainChangesDisabled, setExplainChangesDisabled] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
@@ -290,12 +438,12 @@ export const ChatRowContent = memo(
 		// Command output expansion state (for all messages, but only used by command messages)
 		const [isOutputFullyExpanded, setIsOutputFullyExpanded] = useState(false)
 		const prevCommandExecutingRef = useRef<boolean>(false)
-		const [cost, apiReqCancelReason, apiReqStreamingFailedMessage, retryStatus] = useMemo(() => {
+		const [cost, apiReqStreamingFailedMessage] = useMemo(() => {
 			if (message.text != null && message.say === "api_req_started") {
 				const info: ClineApiReqInfo = JSON.parse(message.text)
-				return [info.cost, info.cancelReason, info.streamingFailedMessage, info.retryStatus]
+				return [info.cost, info.streamingFailedMessage]
 			}
-			return [undefined, undefined, undefined, undefined, undefined]
+			return [undefined, undefined]
 		}, [message.text, message.say])
 
 		// when resuming task last won't be api_req_failed but a resume_task message so api_req_started will show loading spinner. that's why we just remove the last api_req_started that failed without streaming anything
@@ -466,12 +614,9 @@ export const ChatRowContent = memo(
 						<span style={{ color: successColor, fontWeight: "bold" }}>Task Completed</span>,
 					]
 				case "api_req_started":
-					return ErrorBlockTitle({
-						cost,
-						apiReqCancelReason,
-						apiRequestFailedMessage,
-						retryStatus,
-					})
+					// API request rows no longer render the request payload/cost accordion.
+					// Thinking/reasoning is handled directly in the api_req_started renderer below.
+					return [null, null]
 				case "followup":
 					return [
 						<span
@@ -485,16 +630,7 @@ export const ChatRowContent = memo(
 				default:
 					return [null, null]
 			}
-		}, [
-			type,
-			cost,
-			apiRequestFailedMessage,
-			isCommandExecuting,
-			isCommandPending,
-			apiReqCancelReason,
-			isMcpServerResponding,
-			message.text,
-		])
+		}, [type, cost, apiRequestFailedMessage, isCommandExecuting, isCommandPending, isMcpServerResponding, message.text])
 
 		const headerStyle: React.CSSProperties = {
 			display: "flex",
@@ -767,15 +903,7 @@ export const ChatRowContent = memo(
 									border: "1px solid var(--vscode-editorGroup-border)",
 								}}>
 								<div
-									aria-label={isExpanded ? "Collapse summary" : "Expand summary"}
 									onClick={handleToggle}
-									onKeyDown={(e) => {
-										if (e.key === "Enter" || e.key === " ") {
-											e.preventDefault()
-											e.stopPropagation()
-											handleToggle()
-										}
-									}}
 									style={{
 										color: "var(--vscode-descriptionForeground)",
 										padding: "9px 10px",
@@ -784,8 +912,7 @@ export const ChatRowContent = memo(
 										WebkitUserSelect: "none",
 										MozUserSelect: "none",
 										msUserSelect: "none",
-									}}
-									tabIndex={0}>
+									}}>
 									{isExpanded ? (
 										<div>
 											<div style={{ display: "flex", alignItems: "center", marginBottom: "8px" }}>
@@ -889,48 +1016,6 @@ export const ChatRowContent = memo(
 							</div>
 							{/* Displaying the 'content' which now holds "Fetching URL: [URL]" */}
 							{/* <div style={{ paddingTop: 5, fontSize: '0.9em', opacity: 0.8 }}>{tool.content}</div> */}
-						</>
-					)
-				case "webSearch":
-					return (
-						<>
-							<div style={headerStyle}>
-								<span
-									className="codicon codicon-search"
-									style={{ color: normalColor, marginBottom: "-1.5px" }}></span>
-								{tool.operationIsLocatedInWorkspace === false &&
-									toolIcon("sign-out", "yellow", -90, "This search is external")}
-								<span style={{ fontWeight: "bold" }}>
-									{message.type === "ask"
-										? "Cline wants to search the web for:"
-										: "Cline searched the web for:"}
-								</span>
-							</div>
-							<div
-								style={{
-									borderRadius: 3,
-									backgroundColor: CODE_BLOCK_BG_COLOR,
-									overflow: "hidden",
-									border: "1px solid var(--vscode-editorGroup-border)",
-									padding: "9px 10px",
-									userSelect: "text",
-									WebkitUserSelect: "text",
-									MozUserSelect: "text",
-									msUserSelect: "text",
-								}}>
-								<span
-									className="ph-no-capture"
-									style={{
-										whiteSpace: "nowrap",
-										overflow: "hidden",
-										textOverflow: "ellipsis",
-										marginRight: "8px",
-										direction: "rtl",
-										textAlign: "left",
-									}}>
-									{tool.path + "\u200E"}
-								</span>
-							</div>
 						</>
 					)
 				default:
@@ -1296,54 +1381,135 @@ export const ChatRowContent = memo(
 		switch (message.type) {
 			case "say":
 				switch (message.say) {
-					case "api_req_started":
+					case "api_req_started": {
+						// Derive explicit state
+						const hasError = !!(apiRequestFailedMessage || apiReqStreamingFailedMessage)
+						const hasCost = cost != null
+						const hasReasoning = !!reasoningContent
+						const hasResponseStarted = !!responseStarted
+
+						const apiReqState: ApiReqState = hasError
+							? "error"
+							: hasCost
+								? "final"
+								: hasReasoning
+									? "thinking"
+									: "pre"
+
+						// While reasoning is streaming, keep the Brain ThinkingBlock exactly as-is.
+						// Once response content starts (any text/tool/command), collapse into a compact
+						// "🧠 Thinking" row that can be expanded to show the reasoning only.
+						const showStreamingThinking = hasReasoning && !hasResponseStarted && !hasError && !hasCost
+						const showCollapsedThinking = hasReasoning && !showStreamingThinking
+
+						// Find the most recent tool activity in the conversation
+						// Only show if the last tool was exploratory (read/list/search)
+						// and no user/text message has occurred since
+						// Memoized to avoid iterating through all messages on every render
+						const currentActivity = useMemo(() => {
+							// Look backwards from the end to find the most recent relevant message
+							for (let i = clineMessages.length - 1; i >= 0; i--) {
+								const msg = clineMessages[i]
+								// Stop if we hit user feedback or Cline text - fall back to default
+								if (msg.say === "user_feedback" || msg.say === "text") {
+									return null
+								}
+								// Check for tool messages
+								if (msg.say === "tool" || msg.ask === "tool") {
+									try {
+										const tool = JSON.parse(msg.text || "{}") as ClineSayTool
+										// Exploratory tools - show activity
+										if (tool.tool === "readFile" && tool.path) {
+											return `Reading ${cleanPathPrefix(tool.path)}`
+										}
+										if (tool.tool === "listFilesTopLevel" && tool.path) {
+											return `Exploring ${cleanPathPrefix(tool.path)}/`
+										}
+										if (tool.tool === "listFilesRecursive" && tool.path) {
+											return `Exploring ${cleanPathPrefix(tool.path)}`
+										}
+										if (tool.tool === "searchFiles" && tool.regex) {
+											return `Searching for ${tool.regex}`
+										}
+										if (tool.tool === "listCodeDefinitionNames" && tool.path) {
+											return `Reading definitions in ${cleanPathPrefix(tool.path)}/`
+										}
+										// Non-exploratory tool found first - fall back to default
+										return null
+									} catch {
+										// ignore parse errors
+									}
+								}
+							}
+							return null
+						}, [clineMessages])
+
 						return (
 							<>
-								<div
-									aria-label={isExpanded ? "Collapse API request" : "Expand API request"}
-									onClick={handleToggle}
-									onKeyDown={(e) => {
-										if (e.key === "Enter" || e.key === " ") {
-											e.preventDefault()
-											e.stopPropagation()
-											handleToggle()
-										}
-									}}
-									style={{
-										...headerStyle,
-										marginBottom:
-											(cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage ? 10 : 0,
-										justifyContent: "space-between",
-										cursor: "pointer",
-										userSelect: "none",
-										WebkitUserSelect: "none",
-										MozUserSelect: "none",
-										msUserSelect: "none",
-									}}
-									tabIndex={0}>
-									<div
-										style={{
-											display: "flex",
-											alignItems: "center",
-											gap: "10px",
-										}}>
-										{icon}
-										{title}
-										{/* Need to render this every time since it affects height of row by 2px */}
-										<VSCodeBadge
-											className={cn("text-sm", {
-												"opacity-100": cost != null && cost > 0,
-												"opacity-0": cost == null || cost <= 0,
-											})}
-											style={{
-												opacity: cost != null && cost > 0 ? 1 : 0,
-											}}>
-											{cost != null && Number(cost || 0) > 0 ? `$${Number(cost || 0).toFixed(4)}` : ""}
-										</VSCodeBadge>
+								{apiReqState === "pre" && (
+									<div style={{ color: "var(--vscode-descriptionForeground)" }}>
+										<TypewriterText
+											text={currentActivity || (mode === "plan" ? "Planning..." : "Thinking...")}
+										/>
 									</div>
-									<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
-								</div>
-								{((cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage) && (
+								)}
+
+								{showStreamingThinking && (
+									<ThinkingBlock
+										instant={true}
+										isVisible={true}
+										reasoningContent={reasoningContent}
+										showCursor={true}
+									/>
+								)}
+
+								{showCollapsedThinking && (
+									<>
+										<div
+											onClick={handleToggle}
+											style={{
+												display: "flex",
+												alignItems: "center",
+												gap: "8px",
+												cursor: "pointer",
+												userSelect: "none",
+												WebkitUserSelect: "none",
+												MozUserSelect: "none",
+												msUserSelect: "none",
+												color: "var(--vscode-descriptionForeground)",
+												marginTop: apiReqState === "pre" ? 10 : 0,
+												marginBottom: hasError ? 10 : 0,
+											}}
+											title="Click to view reasoning">
+											<Brain
+												size={14}
+												style={{
+													color: "var(--vscode-descriptionForeground)",
+													opacity: 0.7,
+													flexShrink: 0,
+												}}
+											/>
+											<span style={{ fontWeight: 500 }}>Thinking</span>
+											<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}></span>
+										</div>
+
+										{isExpanded && reasoningContent && (
+											<div
+												className="ph-no-capture"
+												onClick={handleToggle}
+												style={{ marginTop: 8, cursor: "pointer" }}>
+												<ThinkingBlock
+													isVisible={true}
+													reasoningContent={reasoningContent}
+													showCursor={false}
+													showIcon={false}
+												/>
+											</div>
+										)}
+									</>
+								)}
+
+								{apiReqState === "error" && (
 									<ErrorRow
 										apiReqStreamingFailedMessage={apiReqStreamingFailedMessage}
 										apiRequestFailedMessage={apiRequestFailedMessage}
@@ -1351,19 +1517,9 @@ export const ChatRowContent = memo(
 										message={message}
 									/>
 								)}
-
-								{isExpanded && (
-									<div style={{ marginTop: "10px" }}>
-										<CodeAccordian
-											code={JSON.parse(message.text || "{}").request}
-											isExpanded={true}
-											language="markdown"
-											onToggleExpand={handleToggle}
-										/>
-									</div>
-								)}
 							</>
 						)
+					}
 					case "api_req_finished":
 						return null // we should never see this message type
 					case "mcp_server_response":
@@ -1400,89 +1556,29 @@ export const ChatRowContent = memo(
 						)
 					case "text":
 						return (
-							<WithCopyButton
-								onMouseUp={handleMouseUp}
-								position="bottom-right"
-								ref={contentRef}
-								textToCopy={message.text}>
-								<Markdown markdown={message.text} />
-								{quoteButtonState.visible && (
-									<QuoteButton
-										left={quoteButtonState.left}
-										onClick={() => {
-											handleQuoteClick()
-										}}
-										top={quoteButtonState.top}
-									/>
-								)}
-							</WithCopyButton>
-						)
-					case "reasoning":
-						return (
 							<>
-								{message.text && (
-									<div
-										aria-label={isExpanded ? "Collapse thinking" : "Expand thinking"}
-										onClick={handleToggle}
-										onKeyDown={(e) => {
-											if (e.key === "Enter" || e.key === " ") {
-												e.preventDefault()
-												e.stopPropagation()
-												handleToggle()
-											}
-										}}
-										style={{
-											// marginBottom: 15,
-											cursor: "pointer",
-											color: "var(--vscode-descriptionForeground)",
-
-											fontStyle: "italic",
-											overflow: "hidden",
-										}}
-										tabIndex={0}>
-										{isExpanded ? (
-											<div style={{ marginTop: -3 }}>
-												<span style={{ fontWeight: "bold", display: "block", marginBottom: "4px" }}>
-													Thinking
-													<span
-														className="codicon codicon-chevron-down"
-														style={{
-															display: "inline-block",
-															transform: "translateY(3px)",
-															marginLeft: "1.5px",
-														}}
-													/>
-												</span>
-												<span className="ph-no-capture">{message.text}</span>
-											</div>
-										) : (
-											<div style={{ display: "flex", alignItems: "center" }}>
-												<span style={{ fontWeight: "bold", marginRight: "4px" }}>Thinking:</span>
-												<span
-													className="ph-no-capture"
-													style={{
-														whiteSpace: "nowrap",
-														overflow: "hidden",
-														textOverflow: "ellipsis",
-														direction: "rtl",
-														textAlign: "left",
-														flex: 1,
-													}}>
-													{message.text + "\u200E"}
-												</span>
-												<span
-													className="codicon codicon-chevron-right"
-													style={{
-														marginLeft: "4px",
-														flexShrink: 0,
-													}}
-												/>
-											</div>
-										)}
-									</div>
-								)}
+								<WithCopyButton
+									onMouseUp={handleMouseUp}
+									position="bottom-right"
+									ref={contentRef}
+									textToCopy={message.text}>
+									<Markdown markdown={message.text} showCursor={isRequestInProgress} />
+									{quoteButtonState.visible && (
+										<QuoteButton
+											left={quoteButtonState.left}
+											onClick={() => {
+												handleQuoteClick()
+											}}
+											top={quoteButtonState.top}
+										/>
+									)}
+								</WithCopyButton>
 							</>
 						)
+					case "reasoning":
+						// Standalone reasoning rows are intentionally not rendered.
+						// Reasoning is displayed via the api_req_started Brain "Thinking" UI and via low-stakes tool hover tooltips.
+						return null
 					case "user_feedback":
 						return (
 							<UserMessage
@@ -1516,7 +1612,16 @@ export const ChatRowContent = memo(
 					case "clineignore_error":
 						return <ErrorRow errorType="clineignore_error" message={message} />
 					case "checkpoint_created":
-						return <CheckmarkControl isCheckpointCheckedOut={message.isCheckpointCheckedOut} messageTs={message.ts} />
+						const apiReqInfo = findApiReqInfoForCheckpoint(message.ts, clineMessages)
+						const segmentCost = findNextSegmentCost(message.ts, clineMessages)
+						return (
+							<CheckmarkControl
+								apiReqInfo={apiReqInfo}
+								isCheckpointCheckedOut={message.isCheckpointCheckedOut}
+								messageTs={message.ts}
+								segmentCost={segmentCost}
+							/>
+						)
 					case "load_mcp_documentation":
 						return (
 							<div

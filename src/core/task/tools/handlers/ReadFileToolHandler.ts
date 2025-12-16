@@ -161,9 +161,31 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			throw error
 		}
 
-		// Execute the actual file read operation
+		// Execute the actual file read operation with retry logic for "File not found" errors
 		const supportsImages = config.api.getModel().info.supportsImages ?? false
-		const fileContent = await extractFileContent(absolutePath, supportsImages)
+		let fileContent
+
+		try {
+			fileContent = await extractFileContent(absolutePath, supportsImages)
+		} catch (error) {
+			// Check if this is a "File not found" error
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			if (errorMessage.includes("File not found")) {
+				// Wait briefly and retry once
+				await new Promise((resolve) => setTimeout(resolve, 100))
+
+				try {
+					fileContent = await extractFileContent(absolutePath, supportsImages)
+				} catch (retryError) {
+					// Both attempts failed - return error to AI context without showing in UI
+					const retryErrorMessage = retryError instanceof Error ? retryError.message : String(retryError)
+					return formatResponse.toolError(retryErrorMessage)
+				}
+			} else {
+				// Not a "File not found" error - throw to trigger normal error handling
+				throw error
+			}
+		}
 
 		// Track file read operation
 		await config.services.fileContextTracker.trackFileContext(relPath!, "read_tool")
