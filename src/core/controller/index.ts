@@ -105,13 +105,13 @@ export class Controller {
 
 	/**
 	 * Starts the periodic remote config fetching timer
-	 * Fetches immediately and then every 5 minutes
+	 * Fetches immediately and then every hour
 	 */
 	private startRemoteConfigTimer() {
 		// Initial fetch
 		this.remoteConfigService.fetch()
-		// Set up 5-minute interval
-		this.remoteConfigTimer = setInterval(this.remoteConfigService.fetch, 300000) // 5 minutes
+		// Set up 1-hour interval
+		this.remoteConfigTimer = setInterval(this.remoteConfigService.fetch, 3600000) // 1 hour
 	}
 
 	constructor(readonly context: vscode.ExtensionContext) {
