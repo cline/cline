@@ -16,9 +16,6 @@ import { RetriableError, withRetry } from "../retry"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
 
-// Define a default TTL for the cache (e.g., 15 minutes in seconds)
-const _DEFAULT_CACHE_TTL_SECONDS = 900
-
 const rateLimitPatterns = [/got status: 429/i, /429 Too Many Requests/i, /rate limit exceeded/i, /too many requests/i]
 
 interface GeminiHandlerOptions extends CommonApiHandlerOptions {
@@ -120,13 +117,17 @@ export class GeminiHandler implements ApiHandler {
 		const _thinkingBudget = this.options.thinkingBudgetTokens ?? 0
 		const maxBudget = info.thinkingConfig?.maxBudget ?? 24576
 		const thinkingBudget = Math.min(_thinkingBudget, maxBudget)
-		// When ThinkingLevel is defineded, thinking budget cannot be zero
+		// When ThinkingLevel is defined, thinking budget cannot be zero
 		// and only level is used to control thinking behavior.
+		// Only set thinkingLevel for models that support it
 		let thinkingLevel: ThinkingLevel | undefined
-		if (this.options.thinkingLevel === "low") {
-			thinkingLevel = ThinkingLevel.LOW
-		} else if (this.options.thinkingLevel === "high") {
-			thinkingLevel = ThinkingLevel.HIGH
+		if (info.thinkingConfig?.supportsThinkingLevel) {
+			const level = this.options.thinkingLevel || info.thinkingConfig.geminiThinkingLevel
+			if (level === "high") {
+				thinkingLevel = ThinkingLevel.HIGH
+			} else if (level === "low") {
+				thinkingLevel = ThinkingLevel.LOW
+			}
 		}
 
 		// Set up base generation config
@@ -139,16 +140,18 @@ export class GeminiHandler implements ApiHandler {
 			temperature: info.temperature ?? 1,
 		}
 
-		// Add thinking config if the model supports it
-		requestConfig.thinkingConfig = {
-			// Turn off thinking:
-			// thinkingBudget: 0
-			// Turn on dynamic thinking:
-			// thinkingBudget: -1
-			// Turn on fixed thinking budget:
-			thinkingBudget: thinkingLevel ? undefined : thinkingBudget,
-			thinkingLevel,
-			includeThoughts: thinkingBudget > 0 || !!thinkingLevel,
+		// Add thinking config only if the model supports it
+		if (info.thinkingConfig) {
+			requestConfig.thinkingConfig = {
+				// Turn off thinking:
+				// thinkingBudget: 0
+				// Turn on dynamic thinking:
+				// thinkingBudget: -1
+				// Turn on fixed thinking budget:
+				thinkingBudget: thinkingLevel ? undefined : thinkingBudget, // Use budget only if thinkingLevel is not set
+				thinkingLevel,
+				includeThoughts: thinkingBudget > 0 || !!thinkingLevel,
+			}
 		}
 
 		// Generate content using the configured parameters

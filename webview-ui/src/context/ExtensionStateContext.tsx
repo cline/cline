@@ -1,7 +1,6 @@
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { findLastIndex } from "@shared/array"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
-import { ClineFeatureSetting } from "@shared/ClineFeatureSetting"
 import { DEFAULT_DICTATION_SETTINGS, DictationSettings } from "@shared/DictationSettings"
 import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
@@ -51,9 +50,9 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 	// View state
 	showMcp: boolean
-	hooksEnabled?: ClineFeatureSetting
 	mcpTab?: McpViewTab
 	showSettings: boolean
+	settingsTargetSection?: string
 	showHistory: boolean
 	showAccount: boolean
 	showAnnouncement: boolean
@@ -97,7 +96,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 	// Navigation functions
 	navigateToMcp: (tab?: McpViewTab) => void
-	navigateToSettings: () => void
+	navigateToSettings: (targetSection?: string) => void
 	navigateToHistory: () => void
 	navigateToAccount: () => void
 	navigateToChat: () => void
@@ -123,6 +122,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [showMcp, setShowMcp] = useState(false)
 	const [mcpTab, setMcpTab] = useState<McpViewTab | undefined>(undefined)
 	const [showSettings, setShowSettings] = useState(false)
+	const [settingsTargetSection, setSettingsTargetSection] = useState<string | undefined>(undefined)
 	const [showHistory, setShowHistory] = useState(false)
 	const [showAccount, setShowAccount] = useState(false)
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
@@ -135,7 +135,10 @@ export const ExtensionStateContextProvider: React.FC<{
 	}, [setShowMcp, setMcpTab])
 
 	// Hide functions
-	const hideSettings = useCallback(() => setShowSettings(false), [setShowSettings])
+	const hideSettings = useCallback(() => {
+		setShowSettings(false)
+		setSettingsTargetSection(undefined)
+	}, [])
 	const hideHistory = useCallback(() => setShowHistory(false), [setShowHistory])
 	const hideAccount = useCallback(() => setShowAccount(false), [setShowAccount])
 	const hideAnnouncement = useCallback(() => setShowAnnouncement(false), [setShowAnnouncement])
@@ -155,12 +158,16 @@ export const ExtensionStateContextProvider: React.FC<{
 		[setShowMcp, setMcpTab, setShowSettings, setShowHistory, setShowAccount],
 	)
 
-	const navigateToSettings = useCallback(() => {
-		setShowHistory(false)
-		closeMcpView()
-		setShowAccount(false)
-		setShowSettings(true)
-	}, [setShowSettings, setShowHistory, closeMcpView, setShowAccount])
+	const navigateToSettings = useCallback(
+		(targetSection?: string) => {
+			setShowHistory(false)
+			closeMcpView()
+			setShowAccount(false)
+			setSettingsTargetSection(targetSection)
+			setShowSettings(true)
+		},
+		[closeMcpView],
+	)
 
 	const navigateToHistory = useCallback(() => {
 		setShowSettings(false)
@@ -224,6 +231,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		yoloModeToggled: false,
 		customPrompt: undefined,
 		useAutoCondense: false,
+		clineWebToolsEnabled: { user: true, featureFlag: false },
 		autoCondenseThreshold: undefined,
 		favoritedModelIds: [],
 		lastDismissedInfoBannerVersion: 0,
@@ -239,8 +247,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		primaryRootIndex: 0,
 		isMultiRootWorkspace: false,
 		multiRootSetting: { user: false, featureFlag: false },
-		hooksEnabled: { user: false, featureFlag: false },
+		hooksEnabled: false,
 		nativeToolCallSetting: false,
+		enableParallelToolCalling: false,
 	})
 	const [expandTaskHeader, setExpandTaskHeader] = useState(true)
 	const [didHydrateState, setDidHydrateState] = useState(false)
@@ -705,6 +714,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		showMcp,
 		mcpTab,
 		showSettings,
+		settingsTargetSection,
 		showHistory,
 		showAccount,
 		showAnnouncement,

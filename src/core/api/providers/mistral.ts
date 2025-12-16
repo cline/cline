@@ -30,9 +30,25 @@ export class MistralHandler implements ApiHandler {
 			}
 			try {
 				// Create HTTP client with custom fetch for proxy support
+				// The Mistral SDK's HTTPClient passes a Request object to the fetcher,
+				// but we need to extract the URL and init options to pass to our fetch wrapper
+				// which properly handles proxy configuration in standalone mode (JetBrains/CLI)
 				const httpClient = new HTTPClient({
-					fetcher: (request) => {
-						return fetch(request)
+					fetcher: async (input: RequestInfo | URL, init?: RequestInit) => {
+						// Handle both string/URL and Request object inputs
+						if (input instanceof Request) {
+							return fetch(input.url, {
+								method: input.method,
+								headers: input.headers,
+								body: input.body,
+								redirect: input.redirect,
+								signal: input.signal,
+								// duplex is required when sending a body stream in Node.js/undici
+								duplex: input.body ? "half" : undefined,
+								...init,
+							} as RequestInit)
+						}
+						return fetch(input, init)
 					},
 				})
 

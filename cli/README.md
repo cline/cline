@@ -70,3 +70,4 @@ Apache-2.0 - see [LICENSE](https://github.com/cline/cline/blob/main/LICENSE) for
 -   Report issues: [GitHub Issues](https://github.com/cline/cline/issues)
 -   Community: [GitHub Discussions](https://github.com/cline/cline/discussions)
 -   Documentation: [docs.cline.bot](https://docs.cline.bot)
+-   Cline CLI Architecture: [architecture.md](./architecture.md)

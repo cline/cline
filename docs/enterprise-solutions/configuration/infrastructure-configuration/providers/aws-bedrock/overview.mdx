@@ -1,0 +1,182 @@
+---
+title: "AWS Bedrock Configuration"
+sidebarTitle: "AWS Bedrock"
+description: "Configure AWS Bedrock for your Cline deployment"
+---
+
+<Info>
+**Configuration Path: Self-Hosted**
+
+This guide covers Bedrock configuration for self-hosted deployments. For simple web-based setup, see [AWS Bedrock SaaS Configuration](/enterprise-solutions/configuration/remote-configuration/aws-bedrock/admin-configuration).
+</Info>
+
+Configure Cline to use AWS Bedrock for enterprise access to Claude and other foundation models through Amazon's managed service.
+
+## Configuration Format
+
+Configure Bedrock through your remote configuration JSON using the `providerSettings.AwsBedrock` section:
+
+```json
+{
+  "providerSettings": {
+    "AwsBedrock": {
+      "models": [
+        {
+          "id": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+          "name": "Claude 3.5 Sonnet"
+        }
+      ],
+      "awsRegion": "us-east-1"
+    }
+  }
+}
+```
+
+## Configuration Fields
+
+| Field | Type | Description | Required |
+|-------|------|-------------|----------|
+| `models` | Array | List of model configurations | Yes |
+| `awsRegion` | String | AWS region (e.g., `us-east-1`) | Yes |
+| `awsUseCrossRegionInference` | Boolean | Enable cross-region inference | No |
+| `awsUseGlobalInference` | Boolean | Enable global inference routing | No |
+| `awsBedrockUsePromptCache` | Boolean | Enable prompt caching | No |
+| `awsBedrockEndpoint` | String | Custom Bedrock endpoint URL | No |
+| `customModels` | Array | Custom model configurations | No |
+
+### Model Configuration
+
+Each model in the `models` array requires:
+
+```json
+{
+  "id": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+  "name": "Claude 3.5 Sonnet",
+  "info": {
+    "maxTokens": 8192,
+    "contextWindow": 200000,
+    "supportsImages": true,
+    "supportsPromptCache": true
+  }
+}
+```
+
+## Common Model IDs
+
+| Model ID | Description | Context Window |
+|----------|-------------|----------------|
+| `anthropic.claude-3-5-sonnet-20241022-v2:0` | Latest Claude Sonnet | 200K tokens |
+| `anthropic.claude-3-5-haiku-20241022-v1:0` | Latest Claude Haiku | 200K tokens |
+| `anthropic.claude-3-opus-20240229-v1:0` | Claude Opus | 200K tokens |
+
+<Note>
+Model availability varies by region. See [AWS Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/models-regions.html) for region-specific model availability.
+</Note>
+
+## Example Configurations
+
+### Basic Configuration
+
+```json
+{
+  "providerSettings": {
+    "AwsBedrock": {
+      "models": [
+        {
+          "id": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+          "name": "Claude 3.5 Sonnet"
+        }
+      ],
+      "awsRegion": "us-east-1"
+    }
+  }
+}
+```
+
+### With Prompt Caching
+
+```json
+{
+  "providerSettings": {
+    "AwsBedrock": {
+      "models": [
+        {
+          "id": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+          "name": "Claude 3.5 Sonnet"
+        }
+      ],
+      "awsRegion": "us-east-1",
+      "awsBedrockUsePromptCache": true
+    }
+  }
+}
+```
+
+### Multiple Models
+
+```json
+{
+  "providerSettings": {
+    "AwsBedrock": {
+      "models": [
+        {
+          "id": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+          "name": "Claude 3.5 Sonnet"
+        },
+        {
+          "id": "anthropic.claude-3-5-haiku-20241022-v1:0",
+          "name": "Claude 3.5 Haiku"
+        }
+      ],
+      "awsRegion": "us-east-1"
+    }
+  }
+}
+```
+
+## Prerequisites
+
+Before configuring Cline to use Bedrock, you need:
+
+1. **AWS Account** with Bedrock access enabled
+2. **IAM Permissions** for Bedrock API calls (`bedrock:InvokeModel`, `bedrock:InvokeModelWithResponseStream`)
+3. **Model Access** enabled for desired models in the Bedrock console
+4. **AWS Credentials** configured (IAM role, access keys, or AWS profile)
+
+<Tip>
+For AWS account setup and IAM configuration, see the [AWS Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/getting-started.html).
+</Tip>
+
+## Troubleshooting
+
+**"Access Denied" Errors**
+
+Ensure your AWS credentials have the required Bedrock permissions. See [AWS IAM documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/security-iam.html) for permission requirements.
+
+**"Model Not Found" Errors**
+
+Verify model access is enabled in the AWS Bedrock console and the model is available in your configured region.
+
+**High Latency**
+
+Consider using a region closer to your users or enabling cross-region inference for better performance.
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="AWS Bedrock Docs" icon="book" href="https://docs.aws.amazon.com/bedrock/">
+    Complete AWS Bedrock documentation
+  </Card>
+  
+  <Card title="Model Access" icon="key" href="https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html">
+    How to enable model access
+  </Card>
+  
+  <Card title="IAM Permissions" icon="shield" href="https://docs.aws.amazon.com/bedrock/latest/userguide/security-iam.html">
+    Required IAM permissions
+  </Card>
+  
+  <Card title="Pricing" icon="dollar-sign" href="https://aws.amazon.com/bedrock/pricing/">
+    AWS Bedrock pricing details
+  </Card>
+</CardGroup>

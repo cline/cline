@@ -2,6 +2,7 @@ import * as vscode from "vscode"
 import {
 	cleanupMcpMarketplaceCatalogFromGlobalState,
 	migrateCustomInstructionsToGlobalRules,
+	migrateHooksEnabledToBoolean,
 	migrateTaskHistoryToFile,
 	migrateWelcomeViewCompleted,
 	migrateWorkspaceToGlobalStorage,
@@ -61,6 +62,9 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 
 	// Ensure taskHistory.json exists and migrate legacy state (runs once)
 	await migrateTaskHistoryToFile(context)
+
+	// Migrate hooksEnabled from ClineFeatureSetting to boolean (one-time cleanup)
+	await migrateHooksEnabledToBoolean(context)
 
 	// Clean up MCP marketplace catalog from global state (moved to disk cache)
 	await cleanupMcpMarketplaceCatalogFromGlobalState(context)

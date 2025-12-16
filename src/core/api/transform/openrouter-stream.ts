@@ -6,6 +6,7 @@ import {
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 } from "@shared/api"
+import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import OpenAI from "openai"
 import { ChatCompletionTool } from "openai/resources/chat/completions"
 import { convertToOpenAiMessages } from "./openai-format"
@@ -186,6 +187,9 @@ export async function createOpenRouterStream(
 		openRouterProviderSorting = undefined
 	}
 
+	// Skip reasoning for models that don't support it (e.g., devstral, grok-4)
+	const includeReasoning = !shouldSkipReasoningForModel(model.id)
+
 	// @ts-ignore-next-line
 	const stream = await client.chat.completions.create({
 		model: model.id,
@@ -195,7 +199,7 @@ export async function createOpenRouterStream(
 		messages: openAiMessages,
 		stream: true,
 		stream_options: { include_usage: true },
-		include_reasoning: true,
+		include_reasoning: includeReasoning,
 		...(model.id.startsWith("openai/o") ? { reasoning_effort: reasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),
 		...(openRouterProviderSorting && !providerPreferences ? { provider: { sort: openRouterProviderSorting } } : {}),

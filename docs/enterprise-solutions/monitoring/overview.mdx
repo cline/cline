@@ -1,0 +1,111 @@
+---
+title: "Enterprise Monitoring"
+sidebarTitle: "Overview"
+description: "Optional telemetry and observability for your Cline deployment"
+---
+
+Cline includes optional monitoring capabilities for organizations that want to track usage and integrate with their observability infrastructure.
+
+## Monitoring Options
+
+<CardGroup cols={2}>
+  <Card title="Cline Telemetry" icon="chart-simple" href="/enterprise-solutions/monitoring/telemetry">
+    Built-in anonymous usage tracking that helps improve Cline (opt-in)
+  </Card>
+  
+  <Card title="OpenTelemetry" icon="chart-line" href="/enterprise-solutions/monitoring/opentelemetry">
+    Export metrics and logs to your own observability backends (advanced)
+  </Card>
+</CardGroup>
+
+## Cline Telemetry
+
+Cline includes opt-in telemetry for anonymous usage tracking:
+
+- Feature usage patterns
+- Task completion rates  
+- Error occurrences
+- Performance metrics
+
+Users can enable or disable telemetry in Cline settings. All data is anonymous and does not include code content, file paths, or sensitive information.
+
+See [Cline Telemetry](/enterprise-solutions/monitoring/telemetry) for configuration details.
+
+## OpenTelemetry Integration
+
+For advanced monitoring needs, Cline supports OpenTelemetry's OTLP (OpenTelemetry Protocol) for exporting metrics and logs to your own infrastructure.
+
+This allows you to:
+- Export telemetry to your existing observability platforms
+- Integrate with tools like Datadog, New Relic, or Grafana Cloud
+- Maintain full control over your monitoring data
+- Aggregate metrics across your organization
+
+<Note>
+OpenTelemetry integration is **optional** and requires additional configuration. Most users don't need this feature.
+</Note>
+
+See [OpenTelemetry](/enterprise-solutions/monitoring/opentelemetry) for setup instructions.
+
+## Use Cases
+
+### When to Use Cline Telemetry
+- You want to help improve Cline through anonymous usage data
+- No additional setup required
+- Suitable for most users
+
+### When to Use OpenTelemetry
+- You need granular metrics in your own systems
+- You're integrating with existing observability infrastructure
+- You want detailed logs and metrics for debugging
+- You need custom dashboards or alerting
+
+## Getting Started
+
+<Steps>
+<Step title="Choose Your Approach">
+Decide whether basic telemetry or OpenTelemetry integration fits your needs
+</Step>
+
+<Step title="Enable Telemetry">
+For basic telemetry, enable it in Cline settings. For OpenTelemetry, see the configuration guide.
+</Step>
+
+<Step title="Verify Data Collection">
+Confirm telemetry is being collected as expected
+</Step>
+</Steps>
+
+## Privacy & Security
+
+All Cline monitoring features are designed with privacy in mind:
+
+<CardGroup cols={2}>
+  <Card title="Anonymous" icon="user-secret">
+    No personal information collected
+  </Card>
+  
+  <Card title="Optional" icon="toggle-on">
+    Users can disable at any time
+  </Card>
+  
+  <Card title="Local First" icon="laptop">
+    Code never leaves your machine
+  </Card>
+  
+  <Card title="Transparent" icon="code">
+    Open source - see what's collected
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configure Telemetry" icon="gear" href="/enterprise-solutions/monitoring/telemetry">
+    Set up basic telemetry settings
+  </Card>
+  
+  <Card title="OpenTelemetry Setup" icon="chart-line" href="/enterprise-solutions/monitoring/opentelemetry">
+    Advanced monitoring with OpenTelemetry
+  </Card>
+</CardGroup>

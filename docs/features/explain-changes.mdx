@@ -1,0 +1,95 @@
+---
+title: "Explain Changes"
+sidebarTitle: "Explain Changes"
+---
+
+<Note>
+This feature is only available in **VS Code**. The diff view with inline comments requires VS Code's native diff capabilities.
+</Note>
+
+
+Explain Changes is an AI-powered code review feature that adds inline explanations to your code changes. When Cline makes modifications to your codebase, you can click a button to get streaming, contextual explanations that appear directly in VS Code's diff view.
+
+
+<Frame>
+	<video
+		autoPlay
+		loop
+		muted
+		playsInline
+		src="https://storage.googleapis.com/cline_public_images/explain-code-button.mp4"
+	/>
+</Frame>
+
+
+## How It Works
+<Note>
+Explain Changes requires **[Checkpoints](/features/checkpoints)** to be enabled. Make sure to enable checkpoints in your Cline settings before using this feature.
+</Note>
+
+After Cline completes a task that involves file changes, you'll see an "Explain Changes" button alongside the "View Changes" button in the completion message. Clicking this button:
+
+1. Opens a multi-file diff view showing all changed files
+2. Streams AI-generated explanations as inline comments
+3. Places comments at relevant code locations to explain what changed and why
+
+The AI uses the full conversation context to provide meaningful explanations, not just describing what code does, but explaining the reasoning behind the changes.
+
+## Interactive Comment Threads
+
+One of the most powerful aspects of Explain Changes is that the comments are fully interactive. You can have conversations directly within each comment thread.
+
+### Asking Follow-up Questions
+
+Each explanation comment has a reply input where you can ask questions about that specific piece of code:
+
+- "Why did you use this approach instead of X?"
+- "Can you explain this pattern in more detail?"
+- "What would happen if we changed this to Y?"
+
+The AI will respond with context-aware answers, understanding both the code being discussed and the original task context.
+
+### Moving to Main Chat
+
+If a conversation in a comment thread becomes complex or you want to continue working on that code, click the title area of the comment thread to move the entire conversation into Cline's main chat input. This lets you:
+
+- Continue the discussion with full Cline capabilities
+- Have Cline make additional changes based on the discussion
+- Keep the context from your review conversation
+
+## When to Use Explain Changes
+
+### Learning and Onboarding
+
+When you're new to a codebase or working with unfamiliar patterns, Explain Changes helps you understand not just what Cline did, but why. The explanations cover:
+
+- Design decisions and trade-offs
+- Technical concepts and patterns used
+- Relationships between different changes
+
+### Code Review
+
+Use Explain Changes as part of your review process:
+
+- Understand complex changes before committing
+- Verify the AI's reasoning matches your expectations
+- Catch potential issues by understanding the full context
+
+### Knowledge Transfer
+
+The explanations serve as documentation for your changes. When other team members review your code, they can see the reasoning behind each modification.
+
+## Best Practices
+
+1. **Ask specific questions**: The more specific your follow-up questions, the more useful the AI's responses will be.
+
+2. **Use for complex changes**: Explain Changes is most valuable for multi-file changes or complex logic. For simple changes, the diff view alone may be sufficient.
+
+3. **Move important discussions to chat**: If a comment thread reveals something that needs more work, move it to main chat to take action.
+
+4. **Review before committing**: Use Explain Changes as a final check before committing changes to ensure you understand everything Cline did.
+
+## Related Features
+
+- [Checkpoints](/features/checkpoints) - Required for Explain Changes to work
+- [/explain-changes](/features/slash-commands/explain-changes) - Slash command to explain any git diff
