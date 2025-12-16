@@ -3,6 +3,7 @@ import type {
 	ChatCompletionToolChoiceOption,
 	ChatCompletionTool as OpenAITool,
 } from "openai/resources/chat/completions"
+import { Logger } from "@/services/logging/Logger"
 import type { ApiStreamToolCallsChunk } from "./stream"
 
 /**
@@ -37,6 +38,7 @@ export class ToolCallProcessor {
 
 			// Accumulate the function name if present
 			if (toolCallDelta.function?.name) {
+				Logger.debug(`[ToolCallProcessor] Native Tool Called: ${toolCallDelta.function.name}`)
 				this.lastToolCall.name = toolCallDelta.function.name
 			}
 

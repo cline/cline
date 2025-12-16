@@ -85,6 +85,14 @@ export class Logger {
 		Logger.output("LOG", message)
 	}
 
+	static debug(message: string) {
+		Logger.output("DEBUG", message)
+	}
+
+	static info(message: string) {
+		Logger.output("INFO", message)
+	}
+
 	private static output(level: string, message: string, error?: Error) {
 		Logger.ensureLogFileReady()
 
@@ -99,6 +107,12 @@ export class Logger {
 				break
 			case "WARN":
 				console.warn(message)
+				break
+			case "DEBUG":
+				console.debug(message)
+				break
+			case "INFO":
+				console.info(message)
 				break
 			default:
 				console.log(message)

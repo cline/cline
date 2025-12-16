@@ -1524,6 +1524,8 @@ export class Task {
 
 		const subAgentStartTime = isSubagent ? performance.now() : 0
 
+		Logger.info("Executing command in terminal: " + command)
+
 		// Force subagents to use background terminal (hidden execution)
 
 		let terminalManager: TerminalManager

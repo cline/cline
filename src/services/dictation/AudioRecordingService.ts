@@ -139,7 +139,7 @@ export class AudioRecordingService {
 			this.recordingProcess.stderr?.on("data", (data) => {
 				const message = data.toString().trim()
 				if (message && !message.includes("In:") && !message.includes("Out:")) {
-					// Logger.info(`Recording stderr: ${message}`)
+					Logger.info(`Recording stderr: ${message}`)
 				}
 			})
 
