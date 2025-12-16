@@ -8,16 +8,9 @@
  * @returns true if hooks are enabled and supported on this platform, false otherwise
  */
 export function getHooksEnabledSafe(userSetting: boolean | undefined): boolean {
-	// Handle legacy ClineFeatureSetting object format {user: boolean, featureFlag: boolean}
-	// This can occur if the migration hasn't run yet or if reading from an old state
-	let booleanValue: boolean
-	if (typeof userSetting === "object" && userSetting !== null) {
-		// Legacy format - extract the user preference
-		booleanValue = (userSetting as any).user === true
-	} else {
-		// Modern boolean format or undefined
-		booleanValue = userSetting ?? false
-	}
+	// Handle legacy object format: {user: boolean, featureFlag: boolean}, which
+	// can occur if the migration hasn't run yet or if reading from an old state.
+	const booleanValue = Boolean((userSetting as any)?.user ?? userSetting)
 
 	// Force hooks to false on Windows (not yet supported)
 	return process.platform === "win32" ? false : booleanValue
