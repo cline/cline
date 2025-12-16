@@ -7,7 +7,7 @@
 
 import type { ChildProcess } from "child_process"
 
-import type { ITerminal, StandaloneTerminalOptions } from "./types"
+import type { ITerminal, StandaloneTerminalOptions } from "../types"
 
 /**
  * A standalone terminal implementation that doesn't depend on VSCode.

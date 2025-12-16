@@ -46,7 +46,6 @@ export const READ_ONLY_TOOLS = [
 	ClineDefaultTool.LIST_CODE_DEF,
 	ClineDefaultTool.BROWSER,
 	ClineDefaultTool.ASK,
-	ClineDefaultTool.ATTEMPT,
 	ClineDefaultTool.WEB_SEARCH,
 	ClineDefaultTool.WEB_FETCH,
 ] as const

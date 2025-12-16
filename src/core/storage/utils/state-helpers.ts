@@ -283,6 +283,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const autoCondenseThreshold =
 			context.globalState.get<GlobalStateAndSettings["autoCondenseThreshold"]>("autoCondenseThreshold") // number from 0 to 1
 		const hooksEnabled = context.globalState.get<GlobalStateAndSettings["hooksEnabled"]>("hooksEnabled")
+		const enableParallelToolCalling =
+			context.globalState.get<GlobalStateAndSettings["enableParallelToolCalling"]>("enableParallelToolCalling")
 		const hicapModelId = context.globalState.get<GlobalStateAndSettings["hicapModelId"]>("hicapModelId")
 		const aihubmixBaseUrl = context.globalState.get<GlobalStateAndSettings["aihubmixBaseUrl"]>("aihubmixBaseUrl")
 		const aihubmixAppCode = context.globalState.get<GlobalStateAndSettings["aihubmixAppCode"]>("aihubmixAppCode")
@@ -683,6 +685,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			// Hooks require explicit user opt-in and are only supported on macOS/Linux
 			hooksEnabled: getHooksEnabledSafe(hooksEnabled),
 			subagentsEnabled: subagentsEnabled ?? false,
+			enableParallelToolCalling: enableParallelToolCalling ?? false,
 			lastDismissedInfoBannerVersion: lastDismissedInfoBannerVersion ?? 0,
 			lastDismissedModelBannerVersion: lastDismissedModelBannerVersion ?? 0,
 			lastDismissedCliBannerVersion: lastDismissedCliBannerVersion ?? 0,

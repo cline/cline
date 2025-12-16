@@ -37,6 +37,7 @@ import { z } from "zod"
 import { HostProvider } from "@/hosts/host-provider"
 import { fetch } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { expandEnvironmentVariables } from "@/utils/envExpansion"
 import { getServerAuthHash } from "@/utils/mcpAuth"
 import { TelemetryService } from "../telemetry/TelemetryService"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
@@ -152,6 +153,10 @@ export class McpHub {
 				})
 				return undefined
 			}
+
+			// Expand environment variables before validation
+			// This allows ${env:VAR_NAME} syntax in URLs, headers, env vars, etc.
+			config = expandEnvironmentVariables(config)
 
 			// Validate against schema
 			const result = McpSettingsSchema.safeParse(config)
@@ -281,6 +286,12 @@ export class McpHub {
 		}
 
 		try {
+			// Store unexpanded config for display/comparison (keeps credentials out of stored config)
+			const configForStorage = JSON.stringify(config)
+
+			// Expand environment variables in config before using it
+			const expandedConfig = expandEnvironmentVariables(config)
+
 			// Each MCP server requires its own transport connection and has unique capabilities, configurations, and error handling. Having separate clients also allows proper scoping of resources/tools and independent server management like reconnection.
 			const client = new Client(
 				{
@@ -296,20 +307,19 @@ export class McpHub {
 
 			// Create OAuth provider for remote transports (SSE and HTTP)
 			const authProvider =
-				config.type === "sse" || config.type === "streamableHttp"
-					? await this.mcpOAuthManager.getOrCreateProvider(name, config.url)
+				expandedConfig.type === "sse" || expandedConfig.type === "streamableHttp"
+					? await this.mcpOAuthManager.getOrCreateProvider(name, expandedConfig.url)
 					: undefined
 
-			switch (config.type) {
+			switch (expandedConfig.type) {
 				case "stdio": {
 					transport = new StdioClientTransport({
-						command: config.command,
-						args: config.args,
-						cwd: config.cwd,
+						command: expandedConfig.command,
+						args: expandedConfig.args,
+						cwd: expandedConfig.cwd,
 						env: {
-							// ...(config.env ? await injectEnv(config.env) : {}), // Commented out as injectEnv is not found
 							...getDefaultEnvironment(),
-							...(config.env || {}), // Use config.env directly or an empty object
+							...(expandedConfig.env || {}), // Now has expanded environment variables
 						},
 						stderr: "pipe",
 					})
@@ -364,12 +374,12 @@ export class McpHub {
 					const sseOptions = {
 						authProvider,
 						requestInit: {
-							headers: config.headers,
+							headers: expandedConfig.headers,
 						},
 					}
 					const reconnectingEventSourceOptions = {
 						max_retry_time: 5000,
-						withCredentials: !!config.headers?.["Authorization"],
+						withCredentials: !!expandedConfig.headers?.["Authorization"],
 						// IMPORTANT: Custom fetch function is required for SSE with OAuth
 						// When we provide eventSourceInit, we override the SDK's default fetch
 						// The SDK's default would call _commonHeaders() for auth, but since we're
@@ -391,7 +401,7 @@ export class McpHub {
 					}
 					// Use ReconnectingEventSource for auto-reconnection on connection drops
 					global.EventSource = ReconnectingEventSource
-					transport = new SSEClientTransport(new URL(config.url), {
+					transport = new SSEClientTransport(new URL(expandedConfig.url), {
 						...sseOptions,
 						eventSourceInit: reconnectingEventSourceOptions,
 					})
@@ -409,10 +419,10 @@ export class McpHub {
 					break
 				}
 				case "streamableHttp": {
-					transport = new StreamableHTTPClientTransport(new URL(config.url), {
+					transport = new StreamableHTTPClientTransport(new URL(expandedConfig.url), {
 						authProvider,
 						requestInit: {
-							headers: config.headers ?? undefined,
+							headers: expandedConfig.headers ?? undefined,
 						},
 					})
 					transport.onerror = async (error) => {
@@ -434,7 +444,7 @@ export class McpHub {
 			const connection: McpConnection = {
 				server: {
 					name,
-					config: JSON.stringify(config),
+					config: configForStorage,
 					status: "connecting",
 					disabled: config.disabled,
 					uid: this.getMcpServerKey(name),
@@ -1163,11 +1173,6 @@ export class McpHub {
 				throw new Error(`An MCP server with the name "${serverName}" already exists`)
 			}
 
-			const urlValidation = z.string().url().safeParse(serverUrl)
-			if (!urlValidation.success) {
-				throw new Error(`Invalid server URL: ${serverUrl}. Please provide a valid URL.`)
-			}
-
 			const serverConfig = {
 				url: serverUrl,
 				type: transportType,
@@ -1175,7 +1180,15 @@ export class McpHub {
 				autoApprove: [],
 			}
 
-			const parsedConfig = ServerConfigSchema.parse(serverConfig)
+			// Expand environment variables for validation
+			const expandedConfig = expandEnvironmentVariables(serverConfig)
+
+			const urlValidation = z.string().url().safeParse(expandedConfig.url)
+			if (!urlValidation.success) {
+				throw new Error(`Invalid server URL: ${expandedConfig.url}. Please provide a valid URL.`)
+			}
+
+			const parsedConfig = ServerConfigSchema.parse(expandedConfig)
 
 			settings.mcpServers[serverName] = parsedConfig
 			const settingsPath = await this.getMcpSettingsFilePath()

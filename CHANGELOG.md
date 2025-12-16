@@ -1,5 +1,44 @@
 # Changelog
 
+## [3.42.0]
+
+### Added
+
+- Expose `getAvailableSlashCommands` rpc endpoint to UI clients
+- Made slash command menu and context menu accessible and screenreader-friendly
+- Made expanding/collapsing UI components accessible
+
+### Fixed
+
+- Devstral OpenRouter model ID and routing issues
+- Incorrect pricing display for Devstral model in the extension
+
+## [3.41.0]
+
+### Added
+
+- OpenAI GPT-5.2
+- Devstral-2512 (formerly stealth model "Microwave")
+- Improvements to chat modal model picker
+- Amazon Nova 2 Lite
+- DeepSeek 3.2 to native tool calling allow list
+- Responses API support for Codex models in OpenAI provider (requires native tool calling)
+- Xmas Special Santa Cline
+- Welcome screen UI enhancements
+
+### Fixed
+
+- Initial checkpoint commit now non-blocking for improved responsiveness in large repositories
+- Gemini Vertex models erroring when thinking parameters are not supported
+- Restrictive file permissions for secrets.json
+- Ollama streaming requests not aborting when task is cancelled
+
+### Refactored
+
+- OpenAI provider to centralize temperature configuration and include missing GPT-5 model settings
+- OpenAI native handler to use metadata for model capabilities
+- Vertex provider to use metadata for model capabilities
+
 ## [3.40.2]
 
 - Fix logout on network errors during token refresh (e.g., opening laptop while offline)
