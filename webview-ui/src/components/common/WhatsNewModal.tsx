@@ -99,34 +99,21 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 
 					{/* Description */}
 					<ul className="text-sm mb-3 pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
-						{isVscode && (
-							<li className="mb-2">
-								Use the new
-								<a
-									aria-label="Learn about the explain-changes slash command"
-									className="mx-1"
-									href="https://docs.cline.bot/features/slash-commands/explain-changes"
-									rel="noreferrer"
-									target="_blank">
-									/explain-changes
-								</a>
-								slash command to explain the changes in branches, commits, etc. (Try asking Cline to explain a PR
-								you need to review!)
-							</li>
-						)}
 						<li className="mb-2">
-							New <strong>OpenAI GPT-5.2</strong> model available!
+							<strong>Cline provider</strong> now runs on the Vercel AI Gateway for better latency and fewer errors.
+						</li>
+						<li className="mb-2">
+							To celebrate, we're offering free <strong>GLM-4.6</strong> for a limited time!
 							<br />
 							<AuthButton>
-								<ModelButton label="Try GPT-5.2" modelId="openai/gpt-5.2" />
+								<ModelButton label="Try GLM-4.6" modelId="z-ai/glm-4.6" />
 							</AuthButton>
 						</li>
 						<li className="mb-2">
-							Mistral's <strong>Devstral-2512:free</strong> (formerly stealth model "Microwave"), free for a limited
-							time!
+							<strong>Kat-Coder Pro</strong>, free for a limited time!
 							<br />
 							<AuthButton>
-								<ModelButton label="Try for Free Devstral-2512" modelId="mistralai/devstral-2512:free" />
+								<ModelButton label="Try Kat-Coder Pro" modelId="kwaipilot/kat-coder-pro:free" />
 							</AuthButton>
 						</li>
 					</ul>
