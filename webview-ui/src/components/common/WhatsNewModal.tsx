@@ -51,7 +51,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 	}, [open, onClose])
 
 	const setDevstral = () => {
-		const modelId = "mistralai/devstral-2512"
+		const modelId = "mistralai/devstral-2512:free"
 		handleFieldsChange({
 			planModeOpenRouterModelId: modelId,
 			actModeOpenRouterModelId: modelId,
@@ -193,7 +193,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 							)}
 						</li>
 						<li className="mb-2">
-							Mistral's <strong>Devstral-2512</strong> (formerly stealth model "Microwave"), free for a limited
+							Mistral's <strong>Devstral-2512:free</strong> (formerly stealth model "Microwave"), free for a limited
 							time!
 							<br />
 							{user ? (
