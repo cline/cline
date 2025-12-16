@@ -15,7 +15,7 @@ import { ModelInfoView } from "./common/ModelInfoView"
 import { DropdownContainer } from "./common/ModelSelector"
 import FeaturedModelCard from "./FeaturedModelCard"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
-import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
+import { filterOpenRouterModelIds, getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Star icon for favorites
@@ -81,7 +81,7 @@ export const freeModels = [
 		label: "FREE",
 	},
 	{
-		id: "mistralai/devstral-2512",
+		id: "mistralai/devstral-2512:free",
 		description: "Mistral's latest model with strong coding abilities",
 		label: "FREE",
 	},
@@ -164,20 +164,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 
 	const modelIds = useMemo(() => {
 		const unfilteredModelIds = Object.keys(openRouterModels).sort((a, b) => a.localeCompare(b))
-
-		if (modeFields.apiProvider === "cline") {
-			// For Cline provider: exclude :free models, but keep Minimax models
-			return unfilteredModelIds.filter((id) => {
-				// Keep all Minimax models regardless of :free suffix
-				if (id.toLowerCase().includes("minimax-m2")) {
-					return true
-				}
-				// Filter out other :free models
-				return !id.includes(":free")
-			})
-		}
-		// For OpenRouter and Vercel AI Gateway providers: exclude Cline-specific models
-		return unfilteredModelIds.filter((id) => !id.startsWith("cline/"))
+		return filterOpenRouterModelIds(unfilteredModelIds, modeFields.apiProvider || "openrouter")
 	}, [openRouterModels, modeFields.apiProvider])
 
 	const searchableItems = useMemo(() => {
