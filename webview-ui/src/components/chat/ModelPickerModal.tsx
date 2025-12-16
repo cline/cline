@@ -70,6 +70,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		showMcp,
 		showHistory,
 		showAccount,
+		remoteConfigSettings,
 	} = useExtensionState()
 	const { handleModeFieldChange, handleModeFieldsChange, handleFieldsChange } = useApiConfigurationHandlers()
 
@@ -123,6 +124,10 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 
 	// Get configured providers
 	const configuredProviders = useMemo(() => {
+		if (remoteConfigSettings?.remoteConfiguredProviders) {
+			return remoteConfigSettings.remoteConfiguredProviders
+		}
+
 		return getConfiguredProviders(apiConfiguration)
 	}, [apiConfiguration])
 

@@ -25,7 +25,7 @@ export type GlobalStateAndSettingsKey = keyof (GlobalState & Settings)
 export type GlobalStateAndSettings = GlobalState & Settings
 
 export interface RemoteConfigExtraFields {
-	remoteConfiguredProviders: string[]
+	remoteConfiguredProviders: ApiProvider[]
 	allowedMCPServers: Array<{ id: string }>
 	remoteGlobalRules?: GlobalInstructionsFile[]
 	remoteGlobalWorkflows?: GlobalInstructionsFile[]

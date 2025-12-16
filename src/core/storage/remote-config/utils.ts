@@ -1,6 +1,7 @@
 import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
 import { RemoteConfig } from "@shared/remote-config/schema"
 import { RemoteConfigFields } from "@shared/storage/state-keys"
+import { ApiProvider } from "@/shared/api"
 import { StateManager } from "../StateManager"
 
 /**
@@ -77,7 +78,7 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 
 	// Map provider settings
 
-	const providers: string[] = []
+	const providers: ApiProvider[] = []
 
 	// Map OpenAiCompatible provider settings
 	const openAiSettings = remoteConfig.providerSettings?.OpenAiCompatible

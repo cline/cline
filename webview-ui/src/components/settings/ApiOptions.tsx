@@ -1,3 +1,4 @@
+import { ApiProvider } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
 import PROVIDERS from "@shared/providers/providers.json"
 import { Mode } from "@shared/storage/types"
@@ -139,7 +140,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 		// Filter by remote config if remoteConfiguredProviders is set
 		if (remoteConfigSettings?.remoteConfiguredProviders && remoteConfigSettings.remoteConfiguredProviders.length > 0) {
-			providers = providers.filter((option) => remoteConfigSettings.remoteConfiguredProviders!.includes(option.value))
+			providers = providers.filter((option) =>
+				remoteConfigSettings.remoteConfiguredProviders!.includes(option.value as ApiProvider),
+			)
 		}
 
 		return providers
