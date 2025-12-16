@@ -1,3 +1,4 @@
+import { observeOpenAI } from "@langfuse/openai"
 import {
 	ModelInfo,
 	OpenAiCompatibleModelInfo,
@@ -86,7 +87,10 @@ export class OpenAiNativeHandler implements ApiHandler {
 		messages: ClineStorageMessage[],
 		tools?: ChatCompletionTool[],
 	): ApiStream {
-		const client = this.ensureClient()
+		const openaiClient = this.ensureClient()
+		const client = observeOpenAI(openaiClient, {
+			generationName: "openai-native",
+		})
 		const model = this.getModel()
 		const toolCallProcessor = new ToolCallProcessor()
 

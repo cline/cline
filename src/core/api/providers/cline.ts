@@ -1,4 +1,5 @@
-import { LangfuseSpan } from "@langfuse/tracing"
+import { observeOpenAI } from "@langfuse/openai"
+import { LangfuseSpan, updateActiveTrace } from "@langfuse/tracing"
 import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
@@ -109,10 +110,12 @@ export class ClineHandler implements ApiHandler {
 			this.lastGenerationId = undefined
 			this.lastRequestId = undefined
 
-			let completionStartTime: Date | undefined
 			let didOutputUsage: boolean = false
-
-			const client = await this.ensureClient()
+			const openaiClient = await this.ensureClient()
+			const client = observeOpenAI(openaiClient, {
+				generationName: "cline",
+				sessionId: this.options.ulid,
+			})
 			const model = this.getModel()
 			const toolCallProcessor = new ToolCallProcessor()
 
@@ -122,7 +125,7 @@ export class ClineHandler implements ApiHandler {
 					? lastUserContent
 					: lastUserContent?.map((m) => (m.type === "text" ? m.text : "")).join("\n\n")
 
-			span?.update({ input, metadata: { model: model.id, systemPrompt } })
+			span?.update({ input, metadata: { model: model.id } })
 
 			const stream = await createOpenRouterStream(
 				client,
@@ -135,15 +138,6 @@ export class ClineHandler implements ApiHandler {
 				tools,
 				this.options.geminiThinkingLevel,
 			)
-			// Create a nested generation for the LLM call
-			const generation = span?.startObservation(
-				"llm-call",
-				{
-					model: model.id,
-					input: messages,
-				},
-				{ asType: "generation" },
-			)
 
 			for await (const chunk of stream) {
 				Logger.debug("ClineHandler chunk:" + JSON.stringify(chunk))
@@ -154,14 +148,6 @@ export class ClineHandler implements ApiHandler {
 					// Include metadata in the error message if available
 					const metadataStr = error.metadata ? `\nMetadata: ${JSON.stringify(error.metadata, null, 2)}` : ""
 					throw new Error(`Cline API Error ${error.code}: ${error.message}${metadataStr}`)
-				}
-
-				if (!completionStartTime) {
-					completionStartTime = new Date()
-					generation?.update({
-						model: model.id,
-						completionStartTime,
-					})
 				}
 
 				if (!this.lastGenerationId && chunk.id) {
@@ -247,13 +233,6 @@ export class ClineHandler implements ApiHandler {
 						totalCost,
 					}
 					didOutputUsage = true
-
-					generation?.update({
-						model: model.id,
-						completionStartTime,
-						usageDetails: { input: inputTokens, output: outputTokens },
-						costDetails: { totalCost },
-					})
 				}
 			}
 
@@ -263,20 +242,16 @@ export class ClineHandler implements ApiHandler {
 				const apiStreamUsage = await this.getApiStreamUsage()
 				if (apiStreamUsage) {
 					yield apiStreamUsage
-
-					generation?.update({
-						completionStartTime,
-						model: model.id,
-						usageDetails: { input: apiStreamUsage.inputTokens, output: apiStreamUsage.outputTokens },
-						costDetails: { totalCost: apiStreamUsage.totalCost || 0 },
-					})
 				}
 			}
-
-			generation?.end()
 		} catch (error) {
 			console.error("Cline API Error:", error)
 			throw error
+		} finally {
+			updateActiveTrace({
+				userId: "test",
+				sessionId: this.options.ulid,
+			})
 		}
 	}
 

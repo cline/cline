@@ -7,7 +7,7 @@ import { NodeSDK } from "@opentelemetry/sdk-node"
 new LangfuseClient({
 	publicKey: process.env.LANGFUSE_PUBLIC_KEY,
 	secretKey: process.env.LANGFUSE_SECRET_KEY,
-	baseUrl: process.env.LANGFUSE_BASE_URL || "https://cloud.langfuse.com",
+	baseUrl: process.env.LANGFUSE_BASE_URL || "https://us.cloud.langfuse.com",
 })
 
 export const langfuse = new NodeSDK({ spanProcessors: [new LangfuseSpanProcessor()] })

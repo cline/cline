@@ -1,3 +1,4 @@
+import { observeOpenAI } from "@langfuse/openai"
 import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
@@ -48,7 +49,10 @@ export class VercelAIGatewayHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		const client = this.ensureClient()
+		const openaiClient = this.ensureClient()
+		const client = observeOpenAI(openaiClient, {
+			generationName: "vercel-ai-gateway",
+		})
 		const modelId = this.getModel().id
 		const modelInfo = this.getModel().info
 

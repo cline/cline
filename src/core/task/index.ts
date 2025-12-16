@@ -44,7 +44,7 @@ import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
 import { ITerminalManager } from "@integrations/terminal/types"
-import { LangfuseSpan, startObservation } from "@langfuse/tracing"
+import { startObservation } from "@langfuse/tracing"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { featureFlagsService } from "@services/feature-flags"
@@ -136,6 +136,7 @@ export class Task {
 	private taskIsFavorited?: boolean
 	private cwd: string
 	private taskInitializationStartTime: number
+	private span
 
 	taskState: TaskState
 
@@ -332,6 +333,8 @@ export class Task {
 			taskIsFavorited: this.taskIsFavorited,
 			updateTaskHistory: this.updateTaskHistory,
 		})
+
+		this.span = startObservation("task")
 
 		// Initialize context trackers
 		this.fileContextTracker = new FileContextTracker(controller, this.taskId)
@@ -1325,6 +1328,7 @@ export class Task {
 		let includeFileDetails = true
 		while (!this.taskState.abort) {
 			const didEndLoop = await this.recursivelyMakeClineRequests(nextUserContent, includeFileDetails)
+
 			includeFileDetails = false // we only need file details the first time
 
 			//  The way this agentic loop works is that cline will be given a task that he then calls tools to complete. unless there's an attempt_completion call, we keep responding back to him with his tool's responses until he either attempt_completion or does not use anymore tools. If he does not use anymore tools, we ask him to consider if he's completed the task and then call attempt_completion, otherwise proceed with completing the task.
@@ -1696,7 +1700,7 @@ export class Task {
 		this.taskState.didAutomaticallyRetryFailedApiRequest = true
 	}
 
-	async *attemptApiRequest(previousApiReqIndex: number, span: LangfuseSpan): ApiStream {
+	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
 		await pWaitFor(() => this.mcpHub.isConnecting !== true, {
 			timeout: 10_000,
@@ -1815,7 +1819,12 @@ export class Task {
 		}
 
 		// Response API requires native tool calls to be enabled
-		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory, tools, span)
+		const stream = this.api.createMessage(
+			systemPrompt,
+			contextManagementMetadata.truncatedConversationHistory,
+			tools,
+			this.span,
+		)
 
 		const iterator = stream[Symbol.asyncIterator]()
 
@@ -1968,8 +1977,9 @@ export class Task {
 				// Reset the automatic retry flag so the request can proceed
 				this.taskState.didAutomaticallyRetryFailedApiRequest = false
 			}
+
 			// delegate generator output from the recursive call
-			yield* this.attemptApiRequest(previousApiReqIndex, span)
+			yield* this.attemptApiRequest(previousApiReqIndex)
 			return
 		}
 
@@ -2142,11 +2152,6 @@ export class Task {
 			mode: mode,
 		}
 
-		// The Span for the Task
-		const span = startObservation(
-			// name
-			providerId + "-api-request",
-		)
 		if (this.taskState.consecutiveMistakeCount >= this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")) {
 			const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 			if (autoApprovalSettings.enableNotifications) {
@@ -2506,7 +2511,7 @@ export class Task {
 			this.taskState.toolUseIdMap.clear()
 
 			const { toolUseHandler, reasonsHandler } = this.streamHandler.getHandlers()
-			const stream = this.attemptApiRequest(previousApiReqIndex, span) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
+			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
 
 			let assistantMessageId = ""
 			let assistantMessage = "" // For UI display (includes XML)
@@ -2527,7 +2532,7 @@ export class Task {
 							taskMetrics.cacheWriteTokens += chunk.cacheWriteTokens ?? 0
 							taskMetrics.cacheReadTokens += chunk.cacheReadTokens ?? 0
 							taskMetrics.totalCost = chunk.totalCost ?? taskMetrics.totalCost
-							span.update({ output: assistantTextOnly })
+							this.span.update({ output: assistantTextOnly })
 							break
 						case "reasoning": {
 							// Process the reasoning delta through the handler
@@ -2683,7 +2688,7 @@ export class Task {
 					await this.reinitExistingTaskFromId(this.taskId)
 				}
 			} finally {
-				span.end()
+				this.span.end()
 				this.taskState.isStreaming = false
 			}
 
