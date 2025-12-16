@@ -32,6 +32,7 @@ import { freeModels, recommendedModels } from "@/components/settings/OpenRouterM
 import { SUPPORTED_ANTHROPIC_THINKING_MODELS } from "@/components/settings/providers/AnthropicProvider"
 import { SUPPORTED_BEDROCK_THINKING_MODELS } from "@/components/settings/providers/BedrockProvider"
 import {
+	filterOpenRouterModelIds,
 	getModelsForProvider,
 	getModeSpecificFields,
 	normalizeApiConfiguration,
@@ -128,11 +129,14 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 	// Get models for current provider
 	const allModels = useMemo((): ModelItem[] => {
 		if (OPENROUTER_MODEL_PROVIDERS.includes(selectedProvider)) {
-			return Object.entries(openRouterModels || {}).map(([id, info]) => ({
+			const modelIds = Object.keys(openRouterModels || {})
+			const filteredIds = filterOpenRouterModelIds(modelIds, selectedProvider)
+
+			return filteredIds.map((id) => ({
 				id,
 				name: id.split("/").pop() || id,
 				provider: id.split("/")[0],
-				info,
+				info: openRouterModels[id],
 			}))
 		}
 
