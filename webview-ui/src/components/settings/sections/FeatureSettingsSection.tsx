@@ -34,6 +34,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		remoteConfigSettings,
 		subagentsEnabled,
 		nativeToolCallSetting,
+		enableParallelToolCalling,
 	} = useExtensionState()
 
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
@@ -358,6 +359,22 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							performance for supported models.
 						</p>
 					</div>
+					<div className="mt-2.5">
+						<VSCodeCheckbox
+							checked={enableParallelToolCalling}
+							onChange={(e) => {
+								const enabled = (e?.target as HTMLInputElement).checked
+								updateSetting("enableParallelToolCalling", enabled)
+							}}>
+							Enable Parallel Tool Calling
+						</VSCodeCheckbox>
+						<p className="text-xs">
+							<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
+							<span className="text-description">
+								Allows models to call multiple tools in a single response. Automatically enabled for GPT-5 models.
+							</span>
+						</p>
+					</div>
 					{multiRootSetting.featureFlag && (
 						<div className="mt-2.5">
 							<VSCodeCheckbox
@@ -376,7 +393,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 					)}
 					<div className="mt-2.5">
 						<VSCodeCheckbox
-							checked={hooksEnabled?.user}
+							checked={hooksEnabled}
 							disabled={!isMacOSOrLinux()}
 							onChange={(e: any) => {
 								const checked = e.target.checked === true

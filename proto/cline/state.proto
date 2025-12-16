@@ -228,6 +228,7 @@ message Settings {
   optional string act_mode_aihubmix_model_id = 132;
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 133;
   optional bool cline_web_tools_enabled = 134;
+  optional bool hooks_enabled = 135;
 }
 
 message DictationSettings {
@@ -367,6 +368,7 @@ message UpdateSettingsRequest {
   optional bool native_tool_call_enabled = 32;
   optional OnboardingModelGroup onboarding_models = 33;
   optional bool cline_web_tools_enabled = 34;
+  optional bool enable_parallel_tool_calling = 35;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {

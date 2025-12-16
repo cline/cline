@@ -32,6 +32,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		mistralApiKey,
 		fireworksApiKey,
 		liteLlmApiKey,
+		remoteLiteLlmApiKey,
 		asksageApiKey,
 		xaiApiKey,
 		sambanovaApiKey,
@@ -77,6 +78,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("mistralApiKey") as Promise<Secrets["mistralApiKey"]>,
 		context.secrets.get("fireworksApiKey") as Promise<Secrets["fireworksApiKey"]>,
 		context.secrets.get("liteLlmApiKey") as Promise<Secrets["liteLlmApiKey"]>,
+		context.secrets.get("remoteLiteLlmApiKey") as Promise<Secrets["remoteLiteLlmApiKey"]>,
 		context.secrets.get("asksageApiKey") as Promise<Secrets["asksageApiKey"]>,
 		context.secrets.get("xaiApiKey") as Promise<Secrets["xaiApiKey"]>,
 		context.secrets.get("sambanovaApiKey") as Promise<Secrets["sambanovaApiKey"]>,
@@ -128,6 +130,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		asksageApiKey,
 		fireworksApiKey,
 		liteLlmApiKey,
+		remoteLiteLlmApiKey,
 		doubaoApiKey,
 		mistralApiKey,
 		openAiNativeApiKey,
@@ -283,6 +286,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const autoCondenseThreshold =
 			context.globalState.get<GlobalStateAndSettings["autoCondenseThreshold"]>("autoCondenseThreshold") // number from 0 to 1
 		const hooksEnabled = context.globalState.get<GlobalStateAndSettings["hooksEnabled"]>("hooksEnabled")
+		const enableParallelToolCalling =
+			context.globalState.get<GlobalStateAndSettings["enableParallelToolCalling"]>("enableParallelToolCalling")
 		const hicapModelId = context.globalState.get<GlobalStateAndSettings["hicapModelId"]>("hicapModelId")
 		const aihubmixBaseUrl = context.globalState.get<GlobalStateAndSettings["aihubmixBaseUrl"]>("aihubmixBaseUrl")
 		const aihubmixAppCode = context.globalState.get<GlobalStateAndSettings["aihubmixAppCode"]>("aihubmixAppCode")
@@ -693,6 +698,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			// Hooks require explicit user opt-in and are only supported on macOS/Linux
 			hooksEnabled: getHooksEnabledSafe(hooksEnabled),
 			subagentsEnabled: subagentsEnabled ?? false,
+			enableParallelToolCalling: enableParallelToolCalling ?? false,
 			lastDismissedInfoBannerVersion: lastDismissedInfoBannerVersion ?? 0,
 			lastDismissedModelBannerVersion: lastDismissedModelBannerVersion ?? 0,
 			lastDismissedCliBannerVersion: lastDismissedCliBannerVersion ?? 0,
@@ -760,6 +766,7 @@ export async function resetGlobalState(controller: Controller) {
 		"mistralApiKey",
 		"clineAccountId",
 		"liteLlmApiKey",
+		"remoteLiteLlmApiKey",
 		"fireworksApiKey",
 		"asksageApiKey",
 		"xaiApiKey",
