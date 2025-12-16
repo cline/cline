@@ -24,9 +24,6 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	if (remoteConfig.blockPersonalRemoteMCPServers !== undefined) {
 		transformed.blockPersonalRemoteMCPServers = remoteConfig.blockPersonalRemoteMCPServers
 	}
-	if (remoteConfig.remoteMCPServers !== undefined) {
-		transformed.remoteMCPServers = remoteConfig.remoteMCPServers
-	}
 	if (remoteConfig.yoloModeAllowed !== undefined) {
 		// only set the yoloModeToggled field if yolo mode is not allowed. Otherwise, we let the user toggle it.
 		if (remoteConfig.yoloModeAllowed === false) {
