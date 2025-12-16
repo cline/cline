@@ -3,196 +3,223 @@ title: "Keyboard Shortcuts"
 sidebarTitle: "Keyboard Shortcuts"
 ---
 
-Cline's keyboard shortcuts let you access AI assistance without taking your hands off the keyboard. Speed up your workflow by using hotkeys for common Cline actions.
+Speed up your workflow by accessing Cline's AI assistance without taking your hands off the keyboard.
 
-## Default Keyboard Shortcuts
+<Tip>
+**The One Shortcut You Need:** `Ctrl+'` (Windows/Linux) or `Cmd+'` (macOS)
 
-Cline comes with these built-in keyboard shortcuts:
+This context-aware shortcut handles your most common needs:
+- **With text selected:** Adds code to Cline chat
+- **Without selection:** Focuses the chat input
 
-| Action           | Windows/Linux | macOS   | When Active                  | Description                        |
-| ---------------- | ------------- | ------- | ---------------------------- | ---------------------------------- |
-| Add to Cline     | `Ctrl+'`      | `Cmd+'` | When text is selected        | Adds selected code to Cline chat   |
-| Focus Chat Input | `Ctrl+'`      | `Cmd+'` | When no text is selected     | Focuses the Cline chat input field |
-| Generate Commit  | (unset)       | (unset) | When Git is the SCM provider | Generate commit message            |
+Master this one shortcut, and you're 90% there.
+</Tip>
 
-The `Ctrl+'` / `Cmd+'` shortcut is context-aware: it adds selected code to chat when you have text selected, or focuses the chat input when nothing is selected.
+## Default Shortcuts
 
-## All Available Commands for Custom Shortcuts
+Cline has minimal default shortcuts by design, so they won't conflict with your existing VSCode setup:
 
-You can assign keyboard shortcuts to any of these commands. They're organized by category to help you find what you need:
+| Shortcut | Windows/Linux | macOS | What It Does |
+| -------- | ------------- | ----- | ------------ |
+| **Add to Chat / Focus Input** | `Ctrl+'` | `Cmd+'` | Context-aware: adds selected code or focuses chat |
+| **Generate Commit** | (none) | (none) | Available via Git UI button only |
 
-### Navigation & Views
+That's it! Everything else is available for you to customize.
 
-| Command ID                      | Description                           | Default Shortcut |
-| ------------------------------- | ------------------------------------- | ---------------- |
-| `claude-dev.SidebarProvider.focus` | Opens and focuses the Cline sidebar   | (unset)          |
+## Quick Workflow Examples
 
-**Note:** The command uses `claude-dev` for historical reasons but works with the Cline extension.
+Here's how keyboard shortcuts fit into real coding workflows:
 
-### Task Management
+### Debug & Fix Workflow
 
-| Command ID                               | Description                                   | Default Shortcut |
-| ---------------------------------------- | --------------------------------------------- | ---------------- |
-| `cline.plusButtonClicked`                | Starts a new Cline task                       | (unset)          |
-| `cline.historyButtonClicked`             | Opens task history                            | (unset)          |
-| `cline.reconstructTaskHistory`           | Reconstructs task history from saved data     | (unset)          |
+1. **Find error in code** → VSCode highlights it
+2. **Select the problematic code** → `Shift+Arrow` or `Ctrl+L` / `Cmd+L`
+3. **Send to Cline** → `Ctrl+'` / `Cmd+'`
+4. **Ask for help** → Type your question, hit `Enter`
 
-### Chat & Code Interaction
+### Code Review Workflow
 
-| Command ID                               | Description                                      | Default Shortcut        |
-| ---------------------------------------- | ------------------------------------------------ | ----------------------- |
-| `cline.addToChat`                        | Adds selected code to Cline chat                 | `Ctrl+'` / `Cmd+'` *    |
-| `cline.focusChatInput`                   | Focuses the Cline chat input field               | `Ctrl+'` / `Cmd+'` **   |
-| `cline.explainCode`                      | Explains selected code (via lightbulb menu)      | (unset)                 |
-| `cline.improveCode`                      | Suggests improvements for selected code          | (unset)                 |
-
-\* Active when text is selected  
-\*\* Active when no text is selected
-
-### Terminal Integration
-
-| Command ID                               | Description                                   | Default Shortcut |
-| ---------------------------------------- | --------------------------------------------- | ---------------- |
-| `cline.addTerminalOutputToChat`          | Adds terminal output to Cline chat            | (unset)          |
-
-### Git Integration
-
-| Command ID                               | Description                                   | Default Shortcut |
-| ---------------------------------------- | --------------------------------------------- | ---------------- |
-| `cline.generateGitCommitMessage`         | Generates a commit message for staged changes | (unset)          |
-| `cline.abortGitCommitMessage`            | Stops commit message generation               | (unset)          |
-
-### Settings & Configuration
-
-| Command ID                               | Description                                   | Default Shortcut |
-| ---------------------------------------- | --------------------------------------------- | ---------------- |
-| `cline.settingsButtonClicked`            | Opens Cline settings                          | (unset)          |
-| `cline.mcpButtonClicked`                 | Opens MCP servers configuration               | (unset)          |
-| `cline.accountButtonClicked`             | Opens account settings                        | (unset)          |
-
-### Other
-
-| Command ID                               | Description                                   | Default Shortcut |
-| ---------------------------------------- | --------------------------------------------- | ---------------- |
-| `cline.openWalkthrough`                  | Opens the Cline walkthrough guide             | (unset)          |
-
-## Commands NOT Available for Keyboard Shortcuts
-
-Some Cline features are **only accessible through other UI interactions** and cannot be assigned keyboard shortcuts:
-
-### Code Actions (Lightbulb Menu Only)
-
-| Command                  | How to Access                                                   | Description                                              |
-| ------------------------ | --------------------------------------------------------------- | -------------------------------------------------------- |
-| **Fix with Cline**       | Click the lightbulb icon when there are errors in your code     | Automatically fixes errors and warnings with AI          |
-
-**Why can't I assign a shortcut to "Fix with Cline"?**  
-This command is implemented as a VSCode Code Action, which only appears contextually in the lightbulb menu when there are diagnostics (errors/warnings) in your code. It requires the error context to work properly, so it's not available as a standalone keyboard command.
-
-**Alternative workflows:**
-- Use `Ctrl+'` / `Cmd+'` to add code with errors to chat, then ask Cline to fix them
-- Click the lightbulb icon (⚡) that appears next to lines with errors
-- Right-click on code and select "Add to Cline" to discuss issues
-
-## How to Customize Keyboard Shortcuts
-
-Customize any of the available commands to match your preferences:
-
-1. **Open the Keyboard Shortcuts editor:**
-   - Press `Ctrl+K Ctrl+S` (Windows/Linux) or `Cmd+K Cmd+S` (macOS)
-   - Or go to **File > Preferences > Keyboard Shortcuts**
-
-2. **Search for "Cline"** to see all available commands
-
-3. **Click the pencil icon** (✏️) next to the command you want to customize
-
-4. **Press the key combination** you want to use
-
-5. **Press Enter** to save
-
-### Tips for Choosing Shortcuts
-
-- **Avoid conflicts:** Make sure your shortcut doesn't override important VSCode shortcuts
-- **Use modifiers:** Combine `Ctrl`/`Cmd`, `Alt`, and `Shift` to avoid conflicts
-- **Be ergonomic:** Choose shortcuts that are comfortable for your keyboard layout
-- **Create patterns:** Use similar shortcuts for related commands (e.g., all `Alt+` combinations)
-
-## Suggested Shortcuts by Workflow
-
-Here are suggested shortcuts organized by common workflows:
-
-### Quick Code Analysis Workflow
-
-| Action                | Suggested Shortcut             | Command ID                          |
-| --------------------- | ------------------------------ | ----------------------------------- |
-| Add to Cline          | `Ctrl+'` / `Cmd+'` (default)   | `cline.addToChat`                   |
-| Explain Code          | `Ctrl+Shift+E` / `Cmd+Shift+E` | `cline.explainCode`                 |
-| Improve Code          | `Ctrl+Shift+I` / `Cmd+Shift+I` | `cline.improveCode`                 |
-
-### Task Management Workflow
-
-| Action                | Suggested Shortcut             | Command ID                          |
-| --------------------- | ------------------------------ | ----------------------------------- |
-| Open Cline Sidebar    | `Ctrl+Shift+L` / `Cmd+Shift+L` | `claude-dev.SidebarProvider.focus`  |
-| New Task              | `Ctrl+Shift+N` / `Cmd+Shift+N` | `cline.plusButtonClicked`           |
-| Task History          | `Ctrl+Shift+H` / `Cmd+Shift+H` | `cline.historyButtonClicked`        |
+1. **Review a function** → Select it with `Ctrl+L` / `Cmd+L`
+2. **Get AI review** → `Ctrl+'` / `Cmd+'` then ask "Review this"
+3. **Iterate** → Apply suggestions and repeat
 
 ### Terminal Integration Workflow
 
-| Action                     | Suggested Shortcut             | Command ID                          |
-| -------------------------- | ------------------------------ | ----------------------------------- |
-| Open Terminal              | `` Ctrl+` `` / `` Cmd+` ``     | (VSCode built-in)                   |
-| Add Terminal Output        | `Alt+T`                        | `cline.addTerminalOutputToChat`     |
+1. **Run a command** → Execute in terminal
+2. **Capture output** → Right-click in terminal → "Add to Cline"
+3. **Get help** → Ask Cline to interpret errors
 
-### Git Workflow
+<Info>
+**Pro Tip:** Combine VSCode's selection shortcuts with Cline's chat shortcut for a keyboard-only workflow. Use `Ctrl+L` / `Cmd+L` to select lines, then `Ctrl+'` / `Cmd+'` to send to Cline.
+</Info>
 
-| Action                     | Suggested Shortcut             | Command ID                          |
-| -------------------------- | ------------------------------ | ----------------------------------- |
-| Generate Commit Message    | `Ctrl+Shift+G` / `Cmd+Shift+G` | `cline.generateGitCommitMessage`    |
-| Abort Commit Generation    | `Ctrl+Shift+Esc` / `Cmd+Shift+Esc` | `cline.abortGitCommitMessage`   |
+## Customizing Shortcuts
 
-## Keyboard-First Workflow Example
+Want to assign shortcuts to more Cline commands? Here's how:
 
-Here's how you can use Cline entirely with the keyboard:
+**Step 1:** Open VSCode's Keyboard Shortcuts editor
+- Press `Ctrl+K Ctrl+S` (Windows/Linux) or `Cmd+K Cmd+S` (macOS)
+- Or: **File → Preferences → Keyboard Shortcuts**
 
-1. **Select code:** Use VSCode's selection shortcuts (`Shift+Arrow`, `Ctrl+L` / `Cmd+L` for line)
-2. **Send to Cline:** Press `Ctrl+'` / `Cmd+'`
-3. **Type your question:** Focus is automatically on the chat input
-4. **Submit:** Press `Enter` to send
-5. **Apply changes:** Use `Tab` to navigate and `Enter` to approve
+**Step 2:** Search for "Cline"
 
-## Integration with VSCode Shortcuts
+**Step 3:** Click the ✏️ icon next to any command
 
-Cline's shortcuts work seamlessly with VSCode's built-in shortcuts. Here are useful combinations:
+**Step 4:** Press your desired key combo, then `Enter`
 
-### Selection Shortcuts (Built into VSCode)
+<Warning>
+**Avoid Conflicts:** Check that your shortcut doesn't override important VSCode commands. The shortcuts editor will warn you about conflicts.
+</Warning>
 
-| Action                    | Windows/Linux     | macOS             |
-| ------------------------- | ----------------- | ----------------- |
-| Select line               | `Ctrl+L`          | `Cmd+L`           |
-| Select word               | `Ctrl+D`          | `Cmd+D`           |
-| Expand selection          | `Shift+Alt+Right` | `Shift+Opt+Right` |
-| Select all occurrences    | `Ctrl+Shift+L`    | `Cmd+Shift+L`     |
+## Available Commands Reference
 
-### View Management (Built into VSCode)
+<Accordion title="Task Management Commands">
 
-| Action                    | Windows/Linux     | macOS             |
-| ------------------------- | ----------------- | ----------------- |
-| Toggle terminal           | `` Ctrl+` ``      | `` Cmd+` ``       |
-| Toggle sidebar            | `Ctrl+B`          | `Cmd+B`           |
-| Split editor              | `Ctrl+\`          | `Cmd+\`           |
-| Command palette           | `Ctrl+Shift+P`    | `Cmd+Shift+P`     |
+These commands help you navigate and manage Cline tasks:
 
-**Pro tip:** Combine VSCode's split editor (`Ctrl+\` / `Cmd+\`) with Cline's sidebar to view code and AI assistance side-by-side.
+| Command ID | Description | Suggested Shortcut |
+| ---------- | ----------- | ------------------ |
+| `cline.plusButtonClicked` | Start a new task | `Ctrl+Shift+N` / `Cmd+Shift+N` |
+| `cline.historyButtonClicked` | Open task history | `Ctrl+Shift+H` / `Cmd+Shift+H` |
+| `claude-dev.SidebarProvider.focus` | Open Cline sidebar | `Ctrl+Shift+L` / `Cmd+Shift+L` |
+| `cline.reconstructTaskHistory` | Reconstruct task history | (advanced, rarely used) |
 
-## Discovering More Commands
+**Note:** `claude-dev` prefix is for historical reasons - it works with Cline.
 
-To find all Cline commands:
+</Accordion>
 
-1. Open the **Command Palette** (`Ctrl+Shift+P` / `Cmd+Shift+P`)
-2. Type **"Cline"** to filter
-3. Browse available commands
-4. Assign shortcuts to your favorites in the Keyboard Shortcuts editor
+<Accordion title="Code Interaction Commands">
+
+Work directly with your code:
+
+| Command ID | Description | Suggested Shortcut |
+| ---------- | ----------- | ------------------ |
+| `cline.addToChat` | Add selected code to chat | `Ctrl+'` / `Cmd+'` ⭐ (default) |
+| `cline.focusChatInput` | Focus chat input | `Ctrl+'` / `Cmd+'` ⭐ (default) |
+| `cline.explainCode` | Explain selected code | `Ctrl+Shift+E` / `Cmd+Shift+E` |
+| `cline.improveCode` | Suggest code improvements | `Ctrl+Shift+I` / `Cmd+Shift+I` |
+
+⭐ These share the same shortcut - it's context-aware!
+
+</Accordion>
+
+<Accordion title="Terminal Integration Commands">
+
+Connect Cline with your terminal:
+
+| Command ID | Description | Suggested Shortcut |
+| ---------- | ----------- | ------------------ |
+| `cline.addTerminalOutputToChat` | Add terminal output to Cline | `Alt+T` |
+
+**Tip:** Use this after running commands to get help interpreting output or fixing errors.
+
+</Accordion>
+
+<Accordion title="Git Integration Commands">
+
+Generate commit messages with AI:
+
+| Command ID | Description | Suggested Shortcut |
+| ---------- | ----------- | ------------------ |
+| `cline.generateGitCommitMessage` | Generate commit message | `Ctrl+Shift+G` / `Cmd+Shift+G` |
+| `cline.abortGitCommitMessage` | Stop generation | `Ctrl+Shift+Esc` / `Cmd+Shift+Esc` |
+
+</Accordion>
+
+<Accordion title="Settings & Configuration Commands">
+
+Quick access to Cline configuration:
+
+| Command ID | Description | Suggested Shortcut |
+| ---------- | ----------- | ------------------ |
+| `cline.settingsButtonClicked` | Open Cline settings | (use sidebar button) |
+| `cline.mcpButtonClicked` | Open MCP servers config | (use sidebar button) |
+| `cline.accountButtonClicked` | Open account settings | (use sidebar button) |
+| `cline.openWalkthrough` | Open walkthrough guide | (rarely used) |
+
+**Note:** These are typically accessed via sidebar buttons rather than shortcuts.
+
+</Accordion>
+
+## What About "Fix with Cline"?
+
+<Warning>
+**You CAN'T assign a keyboard shortcut to "Fix with Cline"**
+
+This command only appears in the **lightbulb menu** (💡) when VSCode detects errors in your code. It needs the error context to work, so it's not available as a standalone command.
+
+**Workarounds:**
+- Click the 💡 lightbulb icon that appears next to errors
+- Or select code with errors and use `Ctrl+'` / `Cmd+'` to ask Cline to fix them
+- Or right-click and select "Add to Cline"
+</Warning>
+
+Learn more about code actions in our [Code Commands documentation](/features/commands-and-shortcuts/code-commands).
+
+## Best Practices
+
+<Tip>
+**Start Simple**
+
+Don't try to memorize 20 shortcuts on day one. Start with:
+1. `Ctrl+'` / `Cmd+'` (the essential one)
+2. Add 1-2 more based on your actual usage patterns
+3. Build muscle memory over time
+</Tip>
+
+**Choose Shortcuts Wisely:**
+- **Be ergonomic:** Use comfortable key combinations
+- **Create patterns:** Group related commands (e.g., all Cline shortcuts use `Ctrl+Shift+...`)
+- **Avoid conflicts:** Don't override VSCode essentials like `Ctrl+C` or `Ctrl+S`
+- **Use modifiers:** Combine `Ctrl`/`Cmd` + `Shift` + `Alt` to reduce conflicts
+
+**Build the Habit:**
+- Use shortcuts consistently for a week to build muscle memory
+- Keep a note of your custom shortcuts until they're automatic
+- Review monthly to see if your workflow has changed
+
+## Integration with VSCode
+
+Cline's shortcuts complement VSCode's built-in keyboard navigation:
+
+<AccordionGroup>
+
+<Accordion title="Selection Shortcuts (VSCode Built-in)">
+
+| Action | Windows/Linux | macOS |
+| ------ | ------------- | ----- |
+| Select line | `Ctrl+L` | `Cmd+L` |
+| Select word | `Ctrl+D` | `Cmd+D` |
+| Expand selection | `Shift+Alt+Right` | `Shift+Opt+Right` |
+| Select all occurrences | `Ctrl+Shift+L` | `Cmd+Shift+L` |
+
+Combine these with `Ctrl+'` / `Cmd+'` to quickly send code to Cline.
+
+</Accordion>
+
+<Accordion title="View Management (VSCode Built-in)">
+
+| Action | Windows/Linux | macOS |
+| ------ | ------------- | ----- |
+| Toggle terminal | `` Ctrl+` `` | `` Cmd+` `` |
+| Toggle sidebar | `Ctrl+B` | `Cmd+B` |
+| Split editor | `Ctrl+\` | `Cmd+\` |
+| Command palette | `Ctrl+Shift+P` | `Cmd+Shift+P` |
+
+**Pro tip:** Use `Ctrl+\` / `Cmd+\` to split your editor, keeping Cline visible while you code.
+
+</Accordion>
+
+</AccordionGroup>
+
+## Discovering Commands
+
+Not sure what commands are available? Use VSCode's Command Palette:
+
+1. Press `Ctrl+Shift+P` / `Cmd+Shift+P`
+2. Type "Cline" to filter
+3. Browse all available commands
+4. Assign shortcuts to your favorites
 
 <Frame>
 	<img
@@ -201,12 +228,8 @@ To find all Cline commands:
 	/>
 </Frame>
 
-## Best Practices
+---
 
-- **Start with defaults:** Learn the default `Ctrl+'` / `Cmd+'` shortcut first - it's versatile and handles the most common use cases
-- **Add gradually:** Don't create 20 shortcuts at once. Add them as you discover which commands you use frequently
-- **Document your shortcuts:** Keep a note of custom shortcuts you create, especially if they're non-standard
-- **Muscle memory:** Use shortcuts consistently for a few days to build muscle memory
-- **Review periodically:** Revisit your shortcuts every month to optimize based on actual usage
-
-Keyboard shortcuts may seem like a small optimization, but they can significantly speed up your workflow when using Cline regularly. By keeping your hands on the keyboard, you maintain your coding flow while still getting AI assistance exactly when you need it.
+<Info>
+**Remember:** The goal isn't to memorize every possible shortcut. Master `Ctrl+'` / `Cmd+'` first, then gradually add shortcuts for commands you use frequently. Quality over quantity!
+</Info>
