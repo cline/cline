@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.44.0]
+
+## Added
+- Updating minor version to show a proper banner for the release
+
 ## [3.43.1]
 
 ### Patch Changes
