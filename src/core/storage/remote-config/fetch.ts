@@ -7,7 +7,7 @@ import { CLINE_API_ENDPOINT } from "../../../shared/cline/api"
 import { APIKeySchema, type APIKeySettings, RemoteConfig, RemoteConfigSchema } from "../../../shared/remote-config/schema"
 import { deleteRemoteConfigFromCache, readRemoteConfigFromCache, writeRemoteConfigToCache } from "../disk"
 import { StateManager } from "../StateManager"
-import { applyRemoteConfig, clearRemoteConfig } from "./utils"
+import { applyRemoteConfig } from "./utils"
 
 /**
  * Parses API keys from a JSON string response
@@ -240,41 +240,22 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 	}
 }
 
-const THROTTLE_DELAY_MS = 30000 // 30 seconds
-export class RemoteConfigService {
-	private lastFetchedAt?: number
-	private readonly controller: Controller
-
-	constructor(controller: Controller) {
-		this.controller = controller
-	}
-
-	/**
-	 * Main entry point for fetching remote configuration.
-	 * Scans all user organizations, switches to the one with remote config if found,
-	 * and applies the configuration.
-	 *
-	 * It catches any exceptions, logs them and does not propagate them to the caller.
-	 *
-	 * This function is called to ensure users stay in
-	 * organizations with remote configuration enabled.
-	 * It throttles the calls to prevent rate limiting.
-	 */
-	async fetch() {
-		try {
-			const timeSinceLastAttempt = this.lastFetchedAt && Date.now() - this.lastFetchedAt
-			if (timeSinceLastAttempt !== undefined && timeSinceLastAttempt < THROTTLE_DELAY_MS) {
-				return
-			}
-
-			this.lastFetchedAt = Date.now()
-			await ensureUserInOrgWithRemoteConfig(this.controller)
-		} catch (error) {
-			console.error("Failed to fetch remote config", error)
-		}
-	}
-
-	clear() {
-		clearRemoteConfig()
+/**
+ * Main entry point for fetching remote configuration.
+ * Scans all user organizations, switches to the one with remote config if found,
+ * and applies the configuration.
+ *
+ * It catches any exceptions, logs them and does not propagate them to the caller.
+ *
+ * This function is called periodically to ensure users stay in
+ * organizations with remote configuration enabled.
+ *
+ * @param controller The controller instance
+ */
+export async function fetchRemoteConfig(controller: Controller) {
+	try {
+		await ensureUserInOrgWithRemoteConfig(controller)
+	} catch (error) {
+		console.error("Failed to fetch remote config", error)
 	}
 }

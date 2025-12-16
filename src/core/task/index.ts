@@ -93,6 +93,7 @@ import { ensureLocalClineDirExists } from "../context/instructions/user-instruct
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
 import { executeHook } from "../hooks/hook-executor"
+import { fetchRemoteConfig } from "../storage/remote-config/fetch"
 import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
@@ -2123,7 +2124,7 @@ export class Task {
 			throw new Error("Task instance aborted")
 		}
 
-		await this.controller.remoteConfigService.fetch()
+		await fetchRemoteConfig(this.controller)
 
 		// Increment API request counter for focus chain list management
 		this.taskState.apiRequestCount++
