@@ -1794,6 +1794,7 @@ export class Task {
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
 			enableNativeToolCalls: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
+			enhancedNotebookInteractionEnabled: this.stateManager.getGlobalSettingsKey("enhancedNotebookInteractionEnabled"),
 		}
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)

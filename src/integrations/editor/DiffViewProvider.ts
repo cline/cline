@@ -23,7 +23,7 @@ export abstract class DiffViewProvider {
 	protected fileEncoding: string = "utf8"
 	private streamedLines: string[] = []
 	private newContent?: string
-	public enhancedNotebookInteractionEnabled: boolean = true
+	public enhancedNotebookInteractionEnabled: boolean = false
 
 	constructor() {}
 
