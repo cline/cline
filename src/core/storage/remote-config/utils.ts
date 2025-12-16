@@ -4,6 +4,7 @@ import { RemoteConfigFields } from "@shared/storage/state-keys"
 import { getTelemetryService } from "@/services/telemetry"
 import { OpenTelemetryClientProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryClientProvider"
 import { OpenTelemetryTelemetryProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider"
+import { type TelemetryService } from "@/services/telemetry/TelemetryService"
 import { OpenTelemetryClientValidConfig, remoteConfigToOtelConfig } from "@/shared/services/config/otel-config"
 import { StateManager } from "../StateManager"
 
@@ -179,6 +180,25 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 }
 
 const REMOTE_CONFIG_OTEL_PROVIDER_ID = "OpenTelemetryRemoteConfiguredProvider"
+async function applyRemoteOTELConfig(transformed: Partial<RemoteConfigFields>, telemetryService: TelemetryService) {
+	try {
+		const otelConfig = remoteConfigToOtelConfig(transformed)
+		if (otelConfig.enabled) {
+			const client = new OpenTelemetryClientProvider(otelConfig as OpenTelemetryClientValidConfig)
+
+			if (client.meterProvider || client.loggerProvider) {
+				telemetryService.addProvider(
+					await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider, {
+						name: REMOTE_CONFIG_OTEL_PROVIDER_ID,
+						isRemoteConfig: true,
+					}).initialize(),
+				)
+			}
+		}
+	} catch (err) {
+		console.log("[REMOTE CONFIG DEBUG] Failed to apply remote OTEL config", err)
+	}
+}
 
 /**
  * Applies remote config to the StateManager's remote config cache
@@ -220,17 +240,5 @@ export async function applyRemoteConfig(remoteConfig?: RemoteConfig): Promise<vo
 		stateManager.setRemoteConfigField(key as keyof RemoteConfigFields, value)
 	}
 
-	const otelConfig = remoteConfigToOtelConfig(transformed)
-	if (otelConfig.enabled) {
-		const client = new OpenTelemetryClientProvider(otelConfig as OpenTelemetryClientValidConfig)
-
-		if (client.meterProvider || client.loggerProvider) {
-			telemetryService.addProvider(
-				await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider, {
-					name: REMOTE_CONFIG_OTEL_PROVIDER_ID,
-					isRemoteConfig: true,
-				}).initialize(),
-			)
-		}
-	}
+	await applyRemoteOTELConfig(transformed, telemetryService)
 }

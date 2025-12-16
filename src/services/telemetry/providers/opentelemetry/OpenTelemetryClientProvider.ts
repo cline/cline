@@ -5,7 +5,7 @@ import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs
 import { MeterProvider } from "@opentelemetry/sdk-metrics"
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions"
 import { ExtensionRegistryInfo } from "@/registry"
-import { getValidOpenTelemetryConfig, OpenTelemetryClientValidConfig } from "@/shared/services/config/otel-config"
+import { OpenTelemetryClientValidConfig } from "@/shared/services/config/otel-config"
 import {
 	createConsoleLogExporter,
 	createConsoleMetricReader,
@@ -30,14 +30,8 @@ export class OpenTelemetryClientProvider {
 		return process.env.TEL_DEBUG_DIAGNOSTICS === "true" || process.env.IS_DEV === "true"
 	}
 
-	constructor(config?: OpenTelemetryClientValidConfig) {
-		this.config = config || getValidOpenTelemetryConfig()
-
-		if (!this.config) {
-			console.log("[OTEL DEBUG] OpenTelemetry is disabled or not configured")
-			return
-		}
-
+	constructor(config: OpenTelemetryClientValidConfig) {
+		this.config = config
 		const isDebugMode = this.isDebugEnabled()
 
 		// Only log endpoint in debug mode (security: avoid exposing infrastructure details)

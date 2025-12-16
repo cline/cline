@@ -66,7 +66,12 @@ export class TelemetryProviderFactory {
 				return new NoOpTelemetryProvider()
 			}
 			case "opentelemetry": {
-				const client = new OpenTelemetryClientProvider()
+				const otelConfig = getValidOpenTelemetryConfig()
+				if (!otelConfig) {
+					console.log("[OTEL DEBUG] OpenTelemetry is disabled or not configured")
+					return new NoOpTelemetryProvider()
+				}
+				const client = new OpenTelemetryClientProvider(otelConfig)
 				if (client.meterProvider || client.loggerProvider) {
 					return await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider, {
 						isRemoteConfig: false,
