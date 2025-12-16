@@ -78,6 +78,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 		if (e.key === "Escape") {
+			setEditedText(text || "")
 			setIsEditing(false)
 		} else if (e.key === "Enter" && e.metaKey && !checkpointManagerErrorMessage) {
 			handleRestoreWorkspace("taskAndWorkspace")
