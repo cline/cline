@@ -155,7 +155,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 		const model = this.getModel()
 
 		// Convert messages to Responses API input format
-		const input = convertToOpenAIResponsesInput(messages)
+		const input = convertToOpenAIResponsesInput("", messages)
 
 		// Convert ChatCompletion tools to Responses API format if provided
 		const responseTools = tools

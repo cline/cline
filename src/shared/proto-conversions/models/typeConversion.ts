@@ -146,6 +146,7 @@ export function fromProtobufOcaModelInfo(protoInfo: ProtoOcaModelInfo): OcaModel
 		surveyContent: protoInfo.surveyContent,
 		supportsChatApi: protoInfo.supportsChatApi,
 		supportsResponsesApi: protoInfo.supportsResponsesApi,
+		supportsReasoning: protoInfo.supportsReasoning,
 	}
 }
 

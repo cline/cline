@@ -110,6 +110,7 @@ function convertOcaModelInfoToProtoOcaModelInfo(info: OcaModelInfo | undefined):
 		modelName: info.modelName,
 		supportsChatApi: info.supportsChatApi,
 		supportsResponsesApi: info.supportsResponsesApi,
+		supportsReasoning: info.supportsReasoning,
 	}
 }
 
@@ -135,6 +136,7 @@ function convertProtoOcaModelInfoToOcaModelInfo(info: ProtoOcaModelInfo | undefi
 		modelName: info.modelName,
 		supportsChatApi: info.supportsChatApi,
 		supportsResponsesApi: info.supportsResponsesApi,
+		supportsReasoning: info.supportsReasoning,
 	}
 }
 
@@ -414,6 +416,7 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 
 // Converts application ApiConfiguration to proto ApiConfiguration
 export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoApiConfiguration {
+	config.ocaReasoningEffort
 	return {
 		// Global configuration fields
 		apiKey: config.apiKey,
@@ -533,6 +536,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeSapAiCoreDeploymentId: config.planModeSapAiCoreDeploymentId,
 		planModeOcaModelId: config.planModeOcaModelId,
 		planModeOcaModelInfo: convertOcaModelInfoToProtoOcaModelInfo(config.planModeOcaModelInfo),
+		planModeOcaReasoningEffort: config.planModeOcaReasoningEffort,
 		planModeAihubmixModelId: config.planModeAihubmixModelId,
 		planModeAihubmixModelInfo: convertOpenAiCompatibleModelInfoToProto(config.planModeAihubmixModelInfo),
 		planModeHicapModelId: config.planModeHicapModelId,
@@ -572,6 +576,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeSapAiCoreDeploymentId: config.actModeSapAiCoreDeploymentId,
 		actModeOcaModelId: config.actModeOcaModelId,
 		actModeOcaModelInfo: convertOcaModelInfoToProtoOcaModelInfo(config.actModeOcaModelInfo),
+		actModeOcaReasoningEffort: config.actModeOcaReasoningEffort,
 		actModeAihubmixModelId: config.actModeAihubmixModelId,
 		actModeAihubmixModelInfo: convertOpenAiCompatibleModelInfoToProto(config.actModeAihubmixModelInfo),
 		actModeHicapModelId: config.actModeHicapModelId,
@@ -704,6 +709,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeSapAiCoreDeploymentId: protoConfig.planModeSapAiCoreDeploymentId,
 		planModeOcaModelId: protoConfig.planModeOcaModelId,
 		planModeOcaModelInfo: convertProtoOcaModelInfoToOcaModelInfo(protoConfig.planModeOcaModelInfo),
+		planModeOcaReasoningEffort: protoConfig.planModeOcaReasoningEffort,
 		planModeAihubmixModelId: protoConfig.planModeAihubmixModelId,
 		planModeAihubmixModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.planModeAihubmixModelInfo),
 		planModeHicapModelId: protoConfig.planModeHicapModelId,
@@ -744,6 +750,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeSapAiCoreDeploymentId: protoConfig.actModeSapAiCoreDeploymentId,
 		actModeOcaModelId: protoConfig.actModeOcaModelId,
 		actModeOcaModelInfo: convertProtoOcaModelInfoToOcaModelInfo(protoConfig.actModeOcaModelInfo),
+		actModeOcaReasoningEffort: protoConfig.actModeOcaReasoningEffort,
 		actModeAihubmixModelId: protoConfig.actModeAihubmixModelId,
 		actModeAihubmixModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.actModeAihubmixModelInfo),
 		actModeHicapModelId: protoConfig.actModeHicapModelId,

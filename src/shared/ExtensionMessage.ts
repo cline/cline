@@ -47,6 +47,7 @@ export interface ExtensionState {
 	remoteBrowserHost?: string
 	preferredLanguage?: string
 	openaiReasoningEffort?: OpenaiReasoningEffort
+	ocaReasoningEffort?: string
 	mode: Mode
 	checkpointManagerErrorMessage?: string
 	clineMessages: ClineMessage[]

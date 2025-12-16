@@ -1,5 +1,5 @@
 import type { ApiConfiguration, OcaModelInfo } from "@shared/api"
-import { Mode } from "@shared/storage/types"
+import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { VSCodeButton, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import React, { useMemo } from "react"
 import { VSC_BUTTON_BACKGROUND, VSC_BUTTON_FOREGROUND, VSC_DESCRIPTION_FOREGROUND, VSC_FOREGROUND } from "@/utils/vscStyles"
@@ -55,6 +55,18 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 		}
 	}
 
+	const handleReasoningEffortChange = async (newValue: string) => {
+		await handleModeFieldsChange(
+			{
+				ocaReasoningEffort: { plan: "planModeOcaReasoningEffort", act: "actModeOcaReasoningEffort" },
+			},
+			{
+				ocaReasoningEffort: newValue,
+			},
+			currentMode,
+		)
+	}
+
 	const onAcknowledge = async () => {
 		if (pendingModelId && ocaModels) {
 			await handleModeFieldsChange(
@@ -79,6 +91,15 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration, currentMode)
+	}, [apiConfiguration, currentMode])
+	console.log("Selected Model Info: ", selectedModelInfo)
+
+	const selectedReasoningEffort = useMemo(() => {
+		if (currentMode == "plan") {
+			return apiConfiguration?.planModeOcaReasoningEffort
+		} else {
+			return apiConfiguration?.actModeOcaReasoningEffort
+		}
 	}, [apiConfiguration, currentMode])
 
 	const modelIds = useMemo(() => {
@@ -105,6 +126,10 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 			)}
 			<style>{`
 				#model-id::part(listbox){
+					max-height: 100px;
+					overflow: auto;
+				}
+				#reasoning-effort-dropdown::part(listbox){
 					max-height: 100px;
 					overflow: auto;
 				}
@@ -155,6 +180,66 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 					Last refreshed at {lastRefreshedText}
 				</div>
 			) : null}
+			{selectedModelInfo.supportsReasoning && (
+				<React.Fragment>
+					<label className="font-medium text-[12px] mt-[10px] mb-[2px]">Reasoning Effort</label>
+					<div className="flex items-center gap-2 mb-1">
+						<VSCodeDropdown
+							className="flex-1 text-[12px] min-h-[24px]"
+							currentValue={selectedReasoningEffort}
+							id="reasoning-effort-dropdown"
+							onChange={(e: any) => {
+								const newValue = e.target.currentValue as OpenaiReasoningEffort
+								handleReasoningEffortChange(newValue)
+							}}>
+							<VSCodeOption
+								style={{
+									padding: "4px 8px",
+									cursor: "pointer",
+									wordWrap: "break-word",
+									maxWidth: "100%",
+									fontSize: 12,
+								}}
+								value="minimal">
+								Minimal
+							</VSCodeOption>
+							<VSCodeOption
+								style={{
+									padding: "4px 8px",
+									cursor: "pointer",
+									wordWrap: "break-word",
+									maxWidth: "100%",
+									fontSize: 12,
+								}}
+								value="low">
+								Low
+							</VSCodeOption>
+							<VSCodeOption
+								style={{
+									padding: "4px 8px",
+									cursor: "pointer",
+									wordWrap: "break-word",
+									maxWidth: "100%",
+									fontSize: 12,
+								}}
+								value="medium">
+								Medium
+							</VSCodeOption>
+							<VSCodeOption
+								style={{
+									padding: "4px 8px",
+									cursor: "pointer",
+									wordWrap: "break-word",
+									maxWidth: "100%",
+									fontSize: 12,
+								}}
+								value="high">
+								High
+							</VSCodeOption>
+						</VSCodeDropdown>
+					</div>
+				</React.Fragment>
+			)}
 			{selectedModelInfo && (
 				<>
 					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}

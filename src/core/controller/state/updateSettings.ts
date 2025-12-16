@@ -126,6 +126,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("openaiReasoningEffort", reasoningEffort)
 		}
 
+		if (request.ocaReasoningEffort) {
+			controller.stateManager.setGlobalState("ocaReasoningEffort", request.ocaReasoningEffort)
+		}
+
 		if (request.preferredLanguage !== undefined) {
 			controller.stateManager.setGlobalState("preferredLanguage", request.preferredLanguage)
 		}

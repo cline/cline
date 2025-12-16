@@ -838,6 +838,7 @@ export class Controller {
 		const vscodeTerminalExecutionMode = this.stateManager.getGlobalStateKey("vscodeTerminalExecutionMode")
 		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
+		const ocaReasoningEffort = this.stateManager.getGlobalSettingsKey("ocaReasoningEffort")
 		// Can be undefined but is set to either true or false by the migration that runs on extension launch in extension.ts
 		const welcomeViewCompleted = !!this.stateManager.getGlobalStateKey("welcomeViewCompleted")
 
@@ -894,6 +895,7 @@ export class Controller {
 			dictationSettings: updatedDictationSettings,
 			preferredLanguage,
 			openaiReasoningEffort,
+			ocaReasoningEffort,
 			mode,
 			strictPlanModeEnabled,
 			yoloModeToggled,
