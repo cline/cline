@@ -22,7 +22,6 @@ Cline has minimal default shortcuts by design, so they won't conflict with your 
 | Shortcut | Windows/Linux | macOS | What It Does |
 | -------- | ------------- | ----- | ------------ |
 | **Add to Chat / Focus Input** | `Ctrl+'` | `Cmd+'` | Context-aware: adds selected code or focuses chat |
-| **Generate Commit** | (none) | (none) | Available via Git UI button only |
 
 That's it! Everything else is available for you to customize.
 
@@ -50,7 +49,7 @@ Here's how keyboard shortcuts fit into real coding workflows:
 3. **Get help** → Ask Cline to interpret errors
 
 <Info>
-**Pro Tip:** Combine VSCode's selection shortcuts with Cline's chat shortcut for a keyboard-only workflow. Use `Ctrl+L` / `Cmd+L` to select lines, then `Ctrl+'` / `Cmd+'` to send to Cline.
+**Pro Tip:** Assign a keyboard shortcut to `cline.addTerminalOutputToChat` (like `Alt+T`) so you can quickly capture terminal output without right-clicking. This is especially useful when debugging errors or analyzing command output.
 </Info>
 
 ## Customizing Shortcuts
@@ -82,7 +81,6 @@ These commands help you navigate and manage Cline tasks:
 | `cline.plusButtonClicked` | Start a new task | `Ctrl+Shift+N` / `Cmd+Shift+N` |
 | `cline.historyButtonClicked` | Open task history | `Ctrl+Shift+H` / `Cmd+Shift+H` |
 | `claude-dev.SidebarProvider.focus` | Open Cline sidebar | `Ctrl+Shift+L` / `Cmd+Shift+L` |
-| `cline.reconstructTaskHistory` | Reconstruct task history | (advanced, rarely used) |
 
 **Note:** `claude-dev` prefix is for historical reasons - it works with Cline.
 
@@ -126,18 +124,22 @@ Generate commit messages with AI:
 
 </Accordion>
 
-<Accordion title="Settings & Configuration Commands">
+<Accordion title="Settings & Configuration Commands (Advanced)">
 
-Quick access to Cline configuration:
+These commands open Cline's configuration panels. Most users access these via the sidebar buttons, but keyboard shortcuts can be useful for:
+
+- **Frequent MCP server developers** who constantly adjust server configurations
+- **Demo/presentation scenarios** where you need quick, keyboard-only navigation
+- **Accessibility workflows** where mouse usage is minimized
 
 | Command ID | Description | Suggested Shortcut |
 | ---------- | ----------- | ------------------ |
-| `cline.settingsButtonClicked` | Open Cline settings | (use sidebar button) |
-| `cline.mcpButtonClicked` | Open MCP servers config | (use sidebar button) |
-| `cline.accountButtonClicked` | Open account settings | (use sidebar button) |
-| `cline.openWalkthrough` | Open walkthrough guide | (rarely used) |
+| `cline.settingsButtonClicked` | Open Cline settings | `Ctrl+Alt+,` / `Cmd+Opt+,` |
+| `cline.mcpButtonClicked` | Open MCP servers config | `Ctrl+Alt+M` / `Cmd+Opt+M` |
+| `cline.accountButtonClicked` | Open account settings | `Ctrl+Alt+A` / `Cmd+Opt+A` |
+| `cline.openWalkthrough` | Open walkthrough guide | (not recommended) |
 
-**Note:** These are typically accessed via sidebar buttons rather than shortcuts.
+**Our take:** Unless you're constantly tweaking settings or building MCP servers, the sidebar buttons are more convenient. But if you find yourself opening these panels frequently, shortcuts can save time.
 
 </Accordion>
 
@@ -177,40 +179,6 @@ Don't try to memorize 20 shortcuts on day one. Start with:
 - Use shortcuts consistently for a week to build muscle memory
 - Keep a note of your custom shortcuts until they're automatic
 - Review monthly to see if your workflow has changed
-
-## Integration with VSCode
-
-Cline's shortcuts complement VSCode's built-in keyboard navigation:
-
-<AccordionGroup>
-
-<Accordion title="Selection Shortcuts (VSCode Built-in)">
-
-| Action | Windows/Linux | macOS |
-| ------ | ------------- | ----- |
-| Select line | `Ctrl+L` | `Cmd+L` |
-| Select word | `Ctrl+D` | `Cmd+D` |
-| Expand selection | `Shift+Alt+Right` | `Shift+Opt+Right` |
-| Select all occurrences | `Ctrl+Shift+L` | `Cmd+Shift+L` |
-
-Combine these with `Ctrl+'` / `Cmd+'` to quickly send code to Cline.
-
-</Accordion>
-
-<Accordion title="View Management (VSCode Built-in)">
-
-| Action | Windows/Linux | macOS |
-| ------ | ------------- | ----- |
-| Toggle terminal | `` Ctrl+` `` | `` Cmd+` `` |
-| Toggle sidebar | `Ctrl+B` | `Cmd+B` |
-| Split editor | `Ctrl+\` | `Cmd+\` |
-| Command palette | `Ctrl+Shift+P` | `Cmd+Shift+P` |
-
-**Pro tip:** Use `Ctrl+\` / `Cmd+\` to split your editor, keeping Cline visible while you code.
-
-</Accordion>
-
-</AccordionGroup>
 
 ## Discovering Commands
 
