@@ -1,3 +1,4 @@
+import { LangfuseSpan } from "@langfuse/tracing"
 import { ApiConfiguration, ModelInfo, QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -48,7 +49,7 @@ export type CommonApiHandlerOptions = {
 	onRetryAttempt?: ApiConfiguration["onRetryAttempt"]
 }
 export interface ApiHandler {
-	createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ClineTool[], useResponseApi?: boolean): ApiStream
+	createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ClineTool[], span?: LangfuseSpan): ApiStream
 	getModel(): ApiHandlerModel
 	getApiStreamUsage?(): Promise<ApiStreamUsageChunk | undefined>
 	abort?(): void

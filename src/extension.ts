@@ -44,6 +44,7 @@ import { ExtensionRegistryInfo } from "./registry"
 import { AuthService } from "./services/auth/AuthService"
 import { LogoutReason } from "./services/auth/types"
 import { telemetryService } from "./services/telemetry"
+import { langfuse } from "./services/trace/langfuse"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { fileExistsAtPath } from "./utils/fs"
@@ -430,6 +431,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
 function setupHostProvider(context: ExtensionContext) {
 	console.log("Setting up vscode host providers...")
+
+	langfuse.start()
 
 	const createWebview = () => new VscodeWebviewProvider(context)
 	const createDiffView = () => new VscodeDiffViewProvider()

@@ -1,3 +1,4 @@
+import { LangfuseSpan } from "@langfuse/tracing"
 import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
@@ -98,28 +99,51 @@ export class ClineHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
+	async *createMessage(
+		systemPrompt: string,
+		messages: ClineStorageMessage[],
+		tools?: OpenAITool[],
+		span?: LangfuseSpan,
+	): ApiStream {
 		try {
-			const client = await this.ensureClient()
-
 			this.lastGenerationId = undefined
 			this.lastRequestId = undefined
 
+			let completionStartTime: Date | undefined
 			let didOutputUsage: boolean = false
+
+			const client = await this.ensureClient()
+			const model = this.getModel()
+			const toolCallProcessor = new ToolCallProcessor()
+
+			const lastUserContent = messages.at(-1)?.content
+			const input =
+				typeof lastUserContent === "string"
+					? lastUserContent
+					: lastUserContent?.map((m) => (m.type === "text" ? m.text : "")).join("\n\n")
+
+			span?.update({ input, metadata: { model: model.id, systemPrompt } })
 
 			const stream = await createOpenRouterStream(
 				client,
 				systemPrompt,
 				messages,
-				this.getModel(),
+				model,
 				this.options.reasoningEffort,
 				this.options.thinkingBudgetTokens,
 				this.options.openRouterProviderSorting,
 				tools,
 				this.options.geminiThinkingLevel,
 			)
-
-			const toolCallProcessor = new ToolCallProcessor()
+			// Create a nested generation for the LLM call
+			const generation = span?.startObservation(
+				"llm-call",
+				{
+					model: model.id,
+					input: messages,
+				},
+				{ asType: "generation" },
+			)
 
 			for await (const chunk of stream) {
 				Logger.debug("ClineHandler chunk:" + JSON.stringify(chunk))
@@ -130,6 +154,14 @@ export class ClineHandler implements ApiHandler {
 					// Include metadata in the error message if available
 					const metadataStr = error.metadata ? `\nMetadata: ${JSON.stringify(error.metadata, null, 2)}` : ""
 					throw new Error(`Cline API Error ${error.code}: ${error.message}${metadataStr}`)
+				}
+
+				if (!completionStartTime) {
+					completionStartTime = new Date()
+					generation?.update({
+						model: model.id,
+						completionStartTime,
+					})
 				}
 
 				if (!this.lastGenerationId && chunk.id) {
@@ -203,15 +235,25 @@ export class ClineHandler implements ApiHandler {
 						totalCost = 0
 					}
 
+					const inputTokens = (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0)
+					const outputTokens = chunk.usage.completion_tokens || 0
+
 					yield {
 						type: "usage",
 						cacheWriteTokens: 0,
 						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-						inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
-						outputTokens: chunk.usage.completion_tokens || 0,
+						inputTokens,
+						outputTokens,
 						totalCost,
 					}
 					didOutputUsage = true
+
+					generation?.update({
+						model: model.id,
+						completionStartTime,
+						usageDetails: { input: inputTokens, output: outputTokens },
+						costDetails: { totalCost },
+					})
 				}
 			}
 
@@ -221,8 +263,17 @@ export class ClineHandler implements ApiHandler {
 				const apiStreamUsage = await this.getApiStreamUsage()
 				if (apiStreamUsage) {
 					yield apiStreamUsage
+
+					generation?.update({
+						completionStartTime,
+						model: model.id,
+						usageDetails: { input: apiStreamUsage.inputTokens, output: apiStreamUsage.outputTokens },
+						costDetails: { totalCost: apiStreamUsage.totalCost || 0 },
+					})
 				}
 			}
+
+			generation?.end()
 		} catch (error) {
 			console.error("Cline API Error:", error)
 			throw error
@@ -249,14 +300,20 @@ export class ClineHandler implements ApiHandler {
 				})
 
 				const generation = response.data
+
+				const totalCost = generation?.total_cost || 0
+				const inputTokens =
+					(generation.usage.prompt_tokens || 0) - (generation.usage.prompt_tokens_details?.cached_tokens || 0)
+				const outputTokens = generation.usage.completion_tokens || 0
+
 				return {
 					type: "usage",
 					cacheWriteTokens: 0,
 					cacheReadTokens: generation?.native_tokens_cached || 0,
 					// openrouter generation endpoint fails often
-					inputTokens: (generation?.native_tokens_prompt || 0) - (generation?.native_tokens_cached || 0),
-					outputTokens: generation?.native_tokens_completion || 0,
-					totalCost: generation?.total_cost || 0,
+					inputTokens,
+					outputTokens,
+					totalCost,
 				}
 			} catch (error) {
 				// ignore if fails

@@ -44,6 +44,7 @@ import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
 import { ITerminalManager } from "@integrations/terminal/types"
+import { LangfuseSpan, startObservation } from "@langfuse/tracing"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { featureFlagsService } from "@services/feature-flags"
@@ -1695,7 +1696,7 @@ export class Task {
 		this.taskState.didAutomaticallyRetryFailedApiRequest = true
 	}
 
-	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
+	async *attemptApiRequest(previousApiReqIndex: number, span: LangfuseSpan): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
 		await pWaitFor(() => this.mcpHub.isConnecting !== true, {
 			timeout: 10_000,
@@ -1814,7 +1815,7 @@ export class Task {
 		}
 
 		// Response API requires native tool calls to be enabled
-		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory, tools)
+		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory, tools, span)
 
 		const iterator = stream[Symbol.asyncIterator]()
 
@@ -1968,7 +1969,7 @@ export class Task {
 				this.taskState.didAutomaticallyRetryFailedApiRequest = false
 			}
 			// delegate generator output from the recursive call
-			yield* this.attemptApiRequest(previousApiReqIndex)
+			yield* this.attemptApiRequest(previousApiReqIndex, span)
 			return
 		}
 
@@ -2141,6 +2142,11 @@ export class Task {
 			mode: mode,
 		}
 
+		// The Span for the Task
+		const span = startObservation(
+			// name
+			providerId + "-api-request",
+		)
 		if (this.taskState.consecutiveMistakeCount >= this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")) {
 			const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 			if (autoApprovalSettings.enableNotifications) {
@@ -2500,7 +2506,7 @@ export class Task {
 			this.taskState.toolUseIdMap.clear()
 
 			const { toolUseHandler, reasonsHandler } = this.streamHandler.getHandlers()
-			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
+			const stream = this.attemptApiRequest(previousApiReqIndex, span) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
 
 			let assistantMessageId = ""
 			let assistantMessage = "" // For UI display (includes XML)
@@ -2521,6 +2527,7 @@ export class Task {
 							taskMetrics.cacheWriteTokens += chunk.cacheWriteTokens ?? 0
 							taskMetrics.cacheReadTokens += chunk.cacheReadTokens ?? 0
 							taskMetrics.totalCost = chunk.totalCost ?? taskMetrics.totalCost
+							span.update({ output: assistantTextOnly })
 							break
 						case "reasoning": {
 							// Process the reasoning delta through the handler
@@ -2676,6 +2683,7 @@ export class Task {
 					await this.reinitExistingTaskFromId(this.taskId)
 				}
 			} finally {
+				span.end()
 				this.taskState.isStreaming = false
 			}
 
