@@ -385,7 +385,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 							/>
 						</SearchContainer>
 
-						{/* Settings section - collapsible provider + icon toggles */}
+						{/* Settings section - provider + icon toggles */}
 						<SettingsSection onClick={(e) => e.stopPropagation()}>
 							<SettingsHeader>
 								{/* Provider - collapsible inline */}
@@ -441,107 +441,124 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 									</Tooltip>
 								</IconToggles>
 							</SettingsHeader>
-							{isProviderExpanded && (
-								<ProviderInlineList>
-									{configuredProviders.map((provider) => (
-										<ProviderInlineItem
-											$isSelected={provider === selectedProvider}
-											key={provider}
-											onClick={() => handleProviderSelect(provider)}>
-											{provider === selectedProvider && <span style={{ marginRight: 4 }}>✓</span>}
-											<span>{getProviderLabel(provider)}</span>
-										</ProviderInlineItem>
-									))}
-									<ProviderInlineItem $isSelected={false} onClick={handleConfigureClick}>
-										<span style={{ color: "var(--vscode-textLink-foreground)" }}>Configure...</span>
-									</ProviderInlineItem>
-								</ProviderInlineList>
-							)}
 						</SettingsSection>
 
 						{/* Scrollable content */}
 						<ModelListContainer>
-							{/* Current model - inside scroll area for seamless scrolling */}
-							{isSplit ? (
-								<SplitModeRow onClick={(e) => e.stopPropagation()}>
-									<SplitModeCell
-										$isActive={activeEditMode === "plan"}
-										onClick={() => setActiveEditMode("plan")}>
-										<SplitModeLabel $mode="plan">P</SplitModeLabel>
-										<SplitModeModel>
-											{planModel.selectedModelId?.split("/").pop() || "Not set"}
-										</SplitModeModel>
-									</SplitModeCell>
-									<SplitModeCell $isActive={activeEditMode === "act"} onClick={() => setActiveEditMode("act")}>
-										<SplitModeLabel $mode="act">A</SplitModeLabel>
-										<SplitModeModel>{actModel.selectedModelId?.split("/").pop() || "Not set"}</SplitModeModel>
-									</SplitModeCell>
-								</SplitModeRow>
-							) : (
-								selectedModelId &&
-								modelBelongsToProvider &&
-								(() => {
-									// Check if current model has a featured label (only for Cline provider)
-									const currentFeaturedModel = isClineProvider
-										? [...recommendedModels, ...freeModels].find((m) => m.id === selectedModelId)
-										: undefined
-									return (
-										<CurrentModelRow onClick={() => onOpenChange(false)}>
+							{/* Provider list - shown when expanded, inside scroll area */}
+							{isProviderExpanded && (
+								<>
+									{configuredProviders.map((provider) => (
+										<ProviderListItem
+											$isSelected={provider === selectedProvider}
+											key={provider}
+											onClick={() => handleProviderSelect(provider)}>
+											{provider === selectedProvider && <span style={{ marginRight: 6 }}>✓</span>}
+											<span>{getProviderLabel(provider)}</span>
+										</ProviderListItem>
+									))}
+									<ProviderListItem $isSelected={false} onClick={handleConfigureClick}>
+										<span style={{ color: "var(--vscode-textLink-foreground)" }}>Configure providers...</span>
+									</ProviderListItem>
+								</>
+							)}
+
+							{/* Model content - hidden when provider list is expanded */}
+							{!isProviderExpanded && (
+								<>
+									{/* Current model - inside scroll area for seamless scrolling */}
+									{isSplit ? (
+										<SplitModeRow onClick={(e) => e.stopPropagation()}>
+											<SplitModeCell
+												$isActive={activeEditMode === "plan"}
+												onClick={() => setActiveEditMode("plan")}>
+												<SplitModeLabel $mode="plan">P</SplitModeLabel>
+												<SplitModeModel>
+													{planModel.selectedModelId?.split("/").pop() || "Not set"}
+												</SplitModeModel>
+											</SplitModeCell>
+											<SplitModeCell
+												$isActive={activeEditMode === "act"}
+												onClick={() => setActiveEditMode("act")}>
+												<SplitModeLabel $mode="act">A</SplitModeLabel>
+												<SplitModeModel>
+													{actModel.selectedModelId?.split("/").pop() || "Not set"}
+												</SplitModeModel>
+											</SplitModeCell>
+										</SplitModeRow>
+									) : (
+										selectedModelId &&
+										modelBelongsToProvider &&
+										(() => {
+											// Check if current model has a featured label (only for Cline provider)
+											const currentFeaturedModel = isClineProvider
+												? [...recommendedModels, ...freeModels].find((m) => m.id === selectedModelId)
+												: undefined
+											return (
+												<CurrentModelRow onClick={() => onOpenChange(false)}>
+													<ModelInfoRow>
+														<ModelName>
+															{selectedModelId.split("/").pop() || selectedModelId}
+														</ModelName>
+														<ModelProvider>
+															{OPENROUTER_MODEL_PROVIDERS.includes(selectedProvider)
+																? selectedModelId.split("/")[0]
+																: selectedProvider}
+														</ModelProvider>
+													</ModelInfoRow>
+													{currentFeaturedModel?.label && (
+														<ModelLabel>{currentFeaturedModel.label}</ModelLabel>
+													)}
+												</CurrentModelRow>
+											)
+										})()
+									)}
+
+									{/* For Cline: Show recommended models */}
+									{isClineProvider &&
+										featuredModels.map((model) => (
+											<ModelItemContainer
+												$isSelected={false}
+												key={model.id}
+												onClick={() => handleSelectModel(model.id, openRouterModels[model.id])}>
+												<ModelInfoRow>
+													<ModelName>{model.name}</ModelName>
+													<ModelProvider>{model.provider}</ModelProvider>
+												</ModelInfoRow>
+												<ModelLabel>{model.label}</ModelLabel>
+											</ModelItemContainer>
+										))}
+
+									{/* All other models (for non-Cline always, for Cline only when searching) */}
+									{filteredModels.map((model) => (
+										<ModelItemContainer
+											$isSelected={false}
+											key={model.id}
+											onClick={() => handleSelectModel(model.id, model.info)}>
 											<ModelInfoRow>
-												<ModelName>{selectedModelId.split("/").pop() || selectedModelId}</ModelName>
-												<ModelProvider>
-													{OPENROUTER_MODEL_PROVIDERS.includes(selectedProvider)
-														? selectedModelId.split("/")[0]
-														: selectedProvider}
-												</ModelProvider>
+												<ModelName>{model.name}</ModelName>
+												<ModelProvider>{model.provider}</ModelProvider>
 											</ModelInfoRow>
-											{currentFeaturedModel?.label && <ModelLabel>{currentFeaturedModel.label}</ModelLabel>}
-										</CurrentModelRow>
-									)
-								})()
+										</ModelItemContainer>
+									))}
+
+									{/* Settings-only providers: show configure link instead of model list */}
+									{SETTINGS_ONLY_PROVIDERS.includes(selectedProvider) && (
+										<SettingsOnlyMessage onClick={handleConfigureClick}>
+											<Settings size={14} />
+											<span>Configure in model settings</span>
+										</SettingsOnlyMessage>
+									)}
+
+									{/* Empty state */}
+									{isSearching &&
+										filteredModels.length === 0 &&
+										featuredModels.length === 0 &&
+										!SETTINGS_ONLY_PROVIDERS.includes(selectedProvider) && (
+											<EmptyState>No models found</EmptyState>
+										)}
+								</>
 							)}
-
-							{/* For Cline: Show recommended models */}
-							{isClineProvider &&
-								featuredModels.map((model) => (
-									<ModelItemContainer
-										$isSelected={false}
-										key={model.id}
-										onClick={() => handleSelectModel(model.id, openRouterModels[model.id])}>
-										<ModelInfoRow>
-											<ModelName>{model.name}</ModelName>
-											<ModelProvider>{model.provider}</ModelProvider>
-										</ModelInfoRow>
-										<ModelLabel>{model.label}</ModelLabel>
-									</ModelItemContainer>
-								))}
-
-							{/* All other models (for non-Cline always, for Cline only when searching) */}
-							{filteredModels.map((model) => (
-								<ModelItemContainer
-									$isSelected={false}
-									key={model.id}
-									onClick={() => handleSelectModel(model.id, model.info)}>
-									<ModelInfoRow>
-										<ModelName>{model.name}</ModelName>
-										<ModelProvider>{model.provider}</ModelProvider>
-									</ModelInfoRow>
-								</ModelItemContainer>
-							))}
-
-							{/* Settings-only providers: show configure link instead of model list */}
-							{SETTINGS_ONLY_PROVIDERS.includes(selectedProvider) && (
-								<SettingsOnlyMessage onClick={handleConfigureClick}>
-									<Settings size={14} />
-									<span>Configure in model settings</span>
-								</SettingsOnlyMessage>
-							)}
-
-							{/* Empty state */}
-							{isSearching &&
-								filteredModels.length === 0 &&
-								featuredModels.length === 0 &&
-								!SETTINGS_ONLY_PROVIDERS.includes(selectedProvider) && <EmptyState>No models found</EmptyState>}
 						</ModelListContainer>
 					</FixedModalContainer>,
 					document.body,
@@ -645,32 +662,15 @@ const ProviderRow = styled.div`
 	}
 `
 
-// Floating provider dropdown (overlays content)
-const ProviderInlineList = styled.div`
-	position: absolute;
-	top: 100%;
-	left: 0;
-	right: 0;
-	display: flex;
-	flex-direction: column;
-	padding: 4px 0;
-	background: ${CODE_BLOCK_BG_COLOR};
-	border: 1px solid var(--vscode-editorGroup-border);
-	border-radius: 4px;
-	max-height: 150px;
-	overflow-y: auto;
-	z-index: 100;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-`
-
-const ProviderInlineItem = styled.div<{ $isSelected: boolean }>`
+// Provider list item - shown inline in the scrollable content area
+const ProviderListItem = styled.div<{ $isSelected: boolean }>`
 	display: flex;
 	align-items: center;
-	padding: 4px 8px;
+	padding: 8px 10px;
 	cursor: pointer;
-	font-size: 11px;
+	font-size: 12px;
 	color: ${(props) => (props.$isSelected ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
-	border-radius: 3px;
+	background: ${(props) => (props.$isSelected ? "var(--vscode-list-activeSelectionBackground)" : "transparent")};
 	&:hover {
 		background: var(--vscode-list-hoverBackground);
 	}

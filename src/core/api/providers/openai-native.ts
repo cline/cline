@@ -23,6 +23,7 @@ import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-p
 interface OpenAiNativeHandlerOptions extends CommonApiHandlerOptions {
 	openAiNativeApiKey?: string
 	reasoningEffort?: string
+	thinkingBudgetTokens?: number
 	apiModelId?: string
 }
 
@@ -105,19 +106,18 @@ export class OpenAiNativeHandler implements ApiHandler {
 		}
 
 		const systemRole = model.info.systemRole ?? "system"
-		const includeReasoning = model.info.supportsReasoningEffort ?? false
+		const includeReasoning = this.options.thinkingBudgetTokens && model.info.supportsReasoningEffort
 		const includeTools = model.info.supportsTools ?? true
+		const reasoningEffort = includeReasoning
+			? (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium"
+			: undefined
 
 		const stream = await client.chat.completions.create({
 			model: model.id,
 			messages: [{ role: systemRole, content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 			stream: true,
 			stream_options: { include_usage: true },
-			...(includeReasoning
-				? {
-						reasoning_effort: (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium",
-					}
-				: {}),
+			reasoning_effort: reasoningEffort,
 			...(model.info.temperature !== undefined ? { temperature: model.info.temperature } : {}),
 			...(includeTools ? getOpenAIToolParams(tools, isGPT5ModelFamily(model.id)) : {}),
 		})
