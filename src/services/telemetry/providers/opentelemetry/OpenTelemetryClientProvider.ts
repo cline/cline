@@ -1,6 +1,6 @@
 import { metrics } from "@opentelemetry/api"
 import { logs } from "@opentelemetry/api-logs"
-import { Resource } from "@opentelemetry/resources"
+import { defaultResource, type Resource, resourceFromAttributes } from "@opentelemetry/resources"
 import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs"
 import { MeterProvider } from "@opentelemetry/sdk-metrics"
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions"
@@ -80,10 +80,12 @@ export class OpenTelemetryClientProvider {
 		}
 
 		// Create resource with service information
-		const resource = new Resource({
-			[ATTR_SERVICE_NAME]: "cline",
-			[ATTR_SERVICE_VERSION]: ExtensionRegistryInfo.version,
-		})
+		const resource = defaultResource().merge(
+			resourceFromAttributes({
+				[ATTR_SERVICE_NAME]: "cline",
+				[ATTR_SERVICE_VERSION]: ExtensionRegistryInfo.version,
+			}),
+		)
 
 		// Initialize metrics if configured
 		if (this.config.metricsExporter) {
