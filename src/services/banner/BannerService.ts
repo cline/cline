@@ -171,51 +171,60 @@ export class BannerService {
 			}
 
 			const apiConfiguration = this._controller.stateManager.getApiConfiguration()
-			const hasAnyProvider = rules.providers.some((provider) => {
+			const currentMode = this._controller.stateManager.getGlobalSettingsKey("mode")
+			const selectedProvider =
+				currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider
+
+			if (!selectedProvider) {
+				Logger.log(`BannerService: Banner ${banner.id} filtered by client - no provider selected for ${currentMode} mode`)
+				return false
+			}
+
+			const hasMatchingProvider = rules.providers.some((provider) => {
+				// Normalize provider names for comparison
 				switch (provider) {
 					case "anthropic":
 					case "claude-code":
-						return !!apiConfiguration?.apiKey
+						return selectedProvider === "anthropic"
 					case "openai":
 					case "openai-native":
-						return !!apiConfiguration?.openAiApiKey || !!apiConfiguration?.openAiNativeApiKey
+						return selectedProvider === "openai" || selectedProvider === "openai-native"
 					case "openrouter":
-						return !!apiConfiguration?.openRouterApiKey
+						return selectedProvider === "openrouter"
 					case "bedrock":
-						return !!apiConfiguration?.awsAccessKey || !!apiConfiguration?.awsBedrockApiKey
+						return selectedProvider === "bedrock"
 					case "gemini":
-						return !!apiConfiguration?.geminiApiKey
+						return selectedProvider === "gemini"
 					case "deepseek":
-						return !!apiConfiguration?.deepSeekApiKey
+						return selectedProvider === "deepseek"
 					case "qwen":
 					case "qwen-code":
-						return !!apiConfiguration?.qwenApiKey
+						return selectedProvider === "qwen"
 					case "mistral":
-						return !!apiConfiguration?.mistralApiKey
+						return selectedProvider === "mistral"
 					case "ollama":
-						return !!apiConfiguration?.ollamaApiKey
+						return selectedProvider === "ollama"
 					case "xai":
-						return !!apiConfiguration?.xaiApiKey
+						return selectedProvider === "xai"
 					case "cerebras":
-						return !!apiConfiguration?.cerebrasApiKey
+						return selectedProvider === "cerebras"
 					case "groq":
-						return !!apiConfiguration?.groqApiKey
+						return selectedProvider === "groq"
 					case "cline":
-						return (
-							apiConfiguration?.planModeApiProvider === "cline" || apiConfiguration?.actModeApiProvider === "cline"
-						)
+						return selectedProvider === "cline"
 					default:
-						return false
+						// For any other providers, do a direct string comparison
+						return selectedProvider === provider
 				}
 			})
 
-			if (!hasAnyProvider) {
+			if (!hasMatchingProvider) {
 				Logger.log(
-					`BannerService: Banner ${banner.id} filtered by client - user doesn't have any of these providers configured: ${rules.providers.join(", ")}`,
+					`BannerService: Banner ${banner.id} filtered by client - selected provider '${selectedProvider}' doesn't match any of these required providers: ${rules.providers.join(", ")}`,
 				)
 			}
 
-			return hasAnyProvider
+			return hasMatchingProvider
 		} catch (error) {
 			Logger.log(
 				`BannerService: Error parsing provider rules for banner ${banner.id}: ${error instanceof Error ? error.message : String(error)}`,
