@@ -62,7 +62,8 @@ my-company/                    # Single Git repo
 **Multiple Repositories**: Separate Git repositories, each with their own history, opened together in one VSCode workspace.
 
 ```
-fullstack.code-workspace       # Workspace file (not a repo)
+~/projects/
+├── fullstack.code-workspace   # Workspace config file
 ├── frontend/                  # git@github.com:acme/frontend.git
 │   └── .git/
 ├── backend/                   # git@github.com:acme/backend.git
@@ -151,7 +152,8 @@ If two folders have the same name, append numbers or use the workspace file to g
 ### Monorepo Development
 
 ```
-my-app.code-workspace
+~/projects/my-app/
+├── my-app.code-workspace      # Workspace config file
 ├── web/          (React frontend)
 ├── api/          (Node.js backend)  
 ├── mobile/       (React Native)
@@ -165,7 +167,8 @@ All folders share one Git history. Changes across packages are atomic.
 ### Microservices with Separate Repos
 
 ```
-services.code-workspace
+~/projects/services/
+├── services.code-workspace    # Workspace config file
 ├── user-service/       (git: github.com/acme/user-service)
 ├── payment-service/    (git: github.com/acme/payment-service)
 ├── gateway/            (git: github.com/acme/api-gateway)
@@ -179,7 +182,8 @@ Each service has its own repository. Cline can update the proto definitions and 
 ### Full-Stack with Shared Contracts
 
 ```
-fullstack.code-workspace
+~/projects/fullstack/
+├── fullstack.code-workspace   # Workspace config file
 ├── client/         (git: github.com/acme/web-client)
 ├── server/         (git: github.com/acme/api-server)
 └── types/          (git: github.com/acme/shared-types)
@@ -190,7 +194,8 @@ The types repository defines interfaces used by both client and server. When you
 ### Hybrid Setup
 
 ```
-project.code-workspace
+~/projects/project/
+├── project.code-workspace     # Workspace config file
 ├── main-app/       (git: github.com/acme/main-app)
 ├── vendor/         (no VCS - vendored dependencies)
 └── scripts/        (no VCS - local automation)
