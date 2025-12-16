@@ -133,25 +133,9 @@ Used for local servers running on your machine:
 -   Simpler setup (no HTTP server needed)
 -   Runs as a child process on your machine
 
+STDIO servers use `command` and `args` fields to launch the server process. See the [STDIO example above](#example-stdio-server-env-vars) for a complete configuration.
+
 For more in-depth information about how STDIO transport works, see [MCP Transport Mechanisms](/mcp/mcp-transport-mechanisms).
-
-STDIO configuration example:
-
-```json
-{
-	"mcpServers": {
-		"local-server": {
-			"command": "node",
-			"args": ["/path/to/server.js"],
-			"env": {
-				"API_KEY": "your_api_key"
-			},
-			"alwaysAllow": ["tool1", "tool2"],
-			"disabled": false
-		}
-	}
-}
-```
 
 ### SSE Transport
 
@@ -163,24 +147,9 @@ Used for remote servers accessed over HTTP/HTTPS:
 -   Requires network access
 -   Allows centralized deployment and management
 
+SSE servers use `url` and optional `headers` fields for authentication. See the [remote server example above](#example-remote-server-auth-headers) for a complete configuration.
+
 For more in-depth information about how SSE transport works, see [MCP Transport Mechanisms](/mcp/mcp-transport-mechanisms).
-
-SSE configuration example:
-
-```json
-{
-	"mcpServers": {
-		"remote-server": {
-			"url": "https://your-server-url.com/mcp",
-			"headers": {
-				"Authorization": "Bearer your-token"
-			},
-			"alwaysAllow": ["tool3"],
-			"disabled": false
-		}
-	}
-}
-```
 
 ---
 
