@@ -81,7 +81,7 @@ export const freeModels = [
 		label: "FREE",
 	},
 	{
-		id: "zai/glm-4.6",
+		id: "z-ai/glm-4.6",
 		description: "Zhipu AI's latest agentic coding model in GLM series",
 		label: "FREE",
 	},
