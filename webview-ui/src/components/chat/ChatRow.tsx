@@ -1390,10 +1390,47 @@ export const ChatRowContent = memo(
 					case "api_req_started":
 						return (
 							<>
-								{title && (
-									<div style={headerStyle}>
+								<div
+									onClick={handleToggle}
+									style={{
+										...headerStyle,
+										marginBottom:
+											(cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage ? 10 : 0,
+										justifyContent: "space-between",
+										cursor: "pointer",
+										userSelect: "none",
+										WebkitUserSelect: "none",
+										MozUserSelect: "none",
+										msUserSelect: "none",
+									}}>
+									<div
+										style={{
+											display: "flex",
+											alignItems: "center",
+											gap: "10px",
+										}}>
 										{icon}
 										{title}
+									</div>
+									<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
+								</div>
+								{((cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage) && (
+									<ErrorRow
+										apiReqStreamingFailedMessage={apiReqStreamingFailedMessage}
+										apiRequestFailedMessage={apiRequestFailedMessage}
+										errorType="error"
+										message={message}
+									/>
+								)}
+
+								{isExpanded && (
+									<div style={{ marginTop: "10px" }}>
+										<CodeAccordian
+											code={JSON.parse(message.text || "{}").request}
+											isExpanded={true}
+											language="markdown"
+											onToggleExpand={handleToggle}
+										/>
 									</div>
 								)}
 							</>
