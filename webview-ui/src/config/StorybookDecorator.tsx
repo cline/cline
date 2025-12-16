@@ -13,7 +13,9 @@ import { StorybookThemes } from "../../.storybook/themes"
 // Component that handles theme switching
 const ThemeHandler: React.FC<{ children: React.ReactNode; theme?: string }> = ({ children, theme }) => {
 	React.useEffect(() => {
-		const styles = theme?.includes("light") ? StorybookThemes.light : StorybookThemes.dark
+		const isVSCode = theme?.startsWith("vs")
+		const color = theme?.includes("light") ? StorybookThemes.light : StorybookThemes.dark
+		const styles = isVSCode ? color.vs : color.jb
 
 		// Apply CSS variables to the document root
 		const root = document.documentElement
@@ -21,7 +23,7 @@ const ThemeHandler: React.FC<{ children: React.ReactNode; theme?: string }> = ({
 			root.style.setProperty(property, value)
 		})
 
-		document.body.style.backgroundColor = styles["--vscode-editor-background"]
+		document.body.style.backgroundColor = styles["--vscode-sideBar-background"]
 		document.body.style.color = styles["--vscode-editor-foreground"]
 		document.body.style.fontFamily = styles["--vscode-font-family"]
 		document.body.style.fontSize = styles["--vscode-font-size"]
