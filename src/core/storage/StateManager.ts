@@ -1077,8 +1077,8 @@ export class StateManager {
 		Object.assign(this.workspaceStateCache, workspaceState)
 	}
 
-	private providerField<Key extends "planModeApiProvider" | "actModeApiProvider">(provider: Key): Settings[Key] {
-		const selectedProvider = this.taskStateCache[provider] || this.globalStateCache[provider]
+	private providerField<Key extends "planModeApiProvider" | "actModeApiProvider">(key: Key): Settings[Key] {
+		const selectedProvider = this.taskStateCache[key] || this.globalStateCache[key]
 		if (!this.remoteConfigCache.remoteConfiguredProviders?.length) {
 			return selectedProvider
 		}
@@ -1087,7 +1087,7 @@ export class StateManager {
 			return selectedProvider
 		}
 
-		return this.remoteConfigCache.remoteConfiguredProviders[0]
+		return this.remoteConfigCache[key] || this.remoteConfigCache.remoteConfiguredProviders[0]
 	}
 
 	/**
