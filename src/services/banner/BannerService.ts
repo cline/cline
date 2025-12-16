@@ -89,12 +89,14 @@ export class BannerService {
 
 			const ideType = await this.getIdeType()
 			const extensionVersion = await this.getExtensionVersion()
+			const osType = await this.getOSType()
 
 			const urlObj = new URL("/banners/v1/messages", this._baseUrl)
 			urlObj.searchParams.set("ide", ideType)
 			if (extensionVersion) {
 				urlObj.searchParams.set("extension_version", extensionVersion)
 			}
+			urlObj.searchParams.set("os", osType)
 
 			const url = urlObj.toString()
 			Logger.log(`BannerService: Fetching banners from ${url}`)
@@ -221,6 +223,28 @@ export class BannerService {
 				`BannerService: Error parsing provider rules for banner ${banner.id}: ${error instanceof Error ? error.message : String(error)}`,
 			)
 			return true
+		}
+	}
+
+	/**
+	 * Gets the current Operating System
+	 * @returns OS type (windows, linux, macos or unknown)
+	 */
+	private async getOSType(): Promise<string> {
+		try {
+			switch (process.platform) {
+				case "win32":
+					return "windows"
+				case "linux":
+					return "linux"
+				case "darwin":
+					return "macos"
+				default:
+					return "unknown"
+			}
+		} catch (error) {
+			Logger.error("BannerService: Error getting OS type", error)
+			return "unknown"
 		}
 	}
 
