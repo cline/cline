@@ -131,13 +131,9 @@ export interface BannerAction {
 
 	/**
 	 * Button style variant
-	 * - "default": primary button (blue)
-	 * - "secondary": secondary button (gray)
-	 * - "danger": error/destructive button (red)
-	 * - "outline": outlined button
 	 * If undefined, uses "default"
 	 */
-	variant?: "default" | "secondary" | "danger" | "outline"
+	variant?: "default" | "secondary" | "danger" | "outline" | "ghost"
 
 	/**
 	 * Conditional visibility based on extension state

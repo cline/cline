@@ -1,11 +1,12 @@
+import { BannerAction, BannerCardData } from "@shared/cline/banner"
 import { ChevronLeft, ChevronRight, XIcon } from "lucide-react"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 
-interface BannerAction {
+interface BannerActions {
 	label: string
 	onClick: () => void
-	variant?: "primary" | "secondary"
+	variant?: BannerAction["variant"]
 	disabled?: boolean
 }
 
@@ -14,8 +15,9 @@ export interface BannerData {
 	icon?: React.ReactNode
 	title: string
 	description: string | React.ReactNode
-	actions?: BannerAction[]
+	actions?: BannerActions[]
 	onDismiss?: () => void
+	severity?: BannerCardData["severity"]
 }
 
 interface BannerCarouselProps {

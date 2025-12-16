@@ -378,6 +378,19 @@ export const EmptyState: Story = {
 	},
 }
 
+export const ReturnUser: Story = {
+	decorators: [
+		createStoryDecorator({ clineMessages: [], taskHistory: mockTaskHistory, isNewUser: true, showAnnouncement: false }),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows the home screen populated with conversation history for returning users.",
+			},
+		},
+	},
+}
+
 export const ActiveConversation: Story = {
 	decorators: [createStoryDecorator({ task: mockTaskHistory[0], currentTaskItem: mockTaskHistory[0] })],
 	parameters: {

@@ -9,7 +9,7 @@ import { BannerData } from "@/components/common/BannerCarousel"
 export function filterBanners(
 	banners: BannerCardData[],
 	options: {
-		currentPlatform: "windows" | "mac" | "linux" | "unknown"
+		currentPlatform: "windows" | "mac" | "linux"
 		isClineUser: boolean
 		currentTime?: Date
 	},
@@ -19,7 +19,7 @@ export function filterBanners(
 	return banners.filter((banner) => {
 		// Platform filter
 		if (banner.platforms && banner.platforms.length > 0) {
-			if (currentPlatform === "unknown" || !banner.platforms.includes(currentPlatform)) {
+			if (currentPlatform && !banner.platforms.includes(currentPlatform)) {
 				return false
 			}
 		}
@@ -60,7 +60,7 @@ export function filterBanners(
 function filterActions(
 	actions: BannerAction[] | undefined,
 	options: {
-		currentPlatform: "windows" | "mac" | "linux" | "unknown"
+		currentPlatform: "windows" | "mac" | "linux"
 		isClineUser: boolean
 	},
 ): BannerAction[] {
@@ -73,7 +73,7 @@ function filterActions(
 	return actions.filter((action) => {
 		// Platform filter
 		if (action.platforms && action.platforms.length > 0) {
-			if (currentPlatform === "unknown" || !action.platforms.includes(currentPlatform)) {
+			if (!action.platforms.includes(currentPlatform)) {
 				return false
 			}
 		}
@@ -182,7 +182,7 @@ export function convertBannerData(
 		.map((action) => ({
 			label: action.title,
 			onClick: () => onAction(action),
-			variant: action.variant === "secondary" ? ("secondary" as const) : ("primary" as const),
+			variant: (action.variant ?? "primary") as BannerAction["variant"],
 			disabled: action.disabled,
 		}))
 
@@ -196,10 +196,13 @@ export function convertBannerData(
 
 	return {
 		id: banner.id,
-		icon: banner.icon ? <DynamicIcon className="size-4" name={banner.icon as any} /> : undefined,
+		icon: banner.icon ? (
+			<DynamicIcon className="size-4" name={banner.icon as React.ComponentProps<typeof DynamicIcon>["name"]} />
+		) : undefined,
 		title: banner.title,
 		description: renderDescription(banner.description, filteredEndAction, onAction),
 		actions: filteredActions.length > 0 ? filteredActions : undefined,
 		onDismiss: () => onDismiss(banner.id),
+		severity: banner.severity,
 	}
 }
