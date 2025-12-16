@@ -232,15 +232,15 @@ export class BannerService {
 	 */
 	private async getOSType(): Promise<string> {
 		try {
-			const raw_os_type = process.platform
-			if (raw_os_type.includes("win32")) {
-				return "windows"
-			} else if (raw_os_type.includes("linux")) {
-				return "linux"
-			} else if (raw_os_type.includes("macos")) {
-				return "macos"
-			} else {
-				return "unknown"
+			switch (process.platform) {
+				case "win32":
+					return "windows"
+				case "linux":
+					return "linux"
+				case "darwin":
+					return "macos"
+				default:
+					return "unknown"
 			}
 		} catch (error) {
 			Logger.error("BannerService: Error getting OS type", error)

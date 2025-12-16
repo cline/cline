@@ -424,9 +424,15 @@ describe("BannerService", () => {
 				}
 
 				axiosGetStub.resolves(mockResponse)
+
+				// Clear cache to ensure fresh API call for each platform test
+				bannerService.clearCache()
+
 				await bannerService.fetchActiveBanners()
 
-				const call = axiosGetStub.getCall(axiosGetStub.callCount - 1)
+				expect(axiosGetStub.called).to.be.true
+				const call = axiosGetStub.lastCall
+				expect(call).to.not.be.null
 				const url = call.args[0]
 				expect(url).to.include(`os=${expected}`)
 
@@ -435,7 +441,7 @@ describe("BannerService", () => {
 					configurable: true,
 				})
 
-				axiosGetStub.reset()
+				axiosGetStub.resetHistory()
 			}
 		})
 	})
