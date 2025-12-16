@@ -12,7 +12,7 @@ import { detectEncoding } from "../misc/extract-text"
 import { openFile } from "../misc/open-file"
 
 export abstract class DiffViewProvider {
-	editType?: "create" | "modify"
+	editType?: "create" | "modify" | "delete"
 	isEditing = false
 	originalContent: string | undefined
 	private createdDirs: string[] = []
@@ -26,12 +26,12 @@ export abstract class DiffViewProvider {
 
 	constructor() {}
 
-	public async open(relPath: string): Promise<void> {
+	public async open(relPath: string, options?: { displayPath?: string }): Promise<void> {
 		this.isEditing = true
-		this.relPath = relPath
 		const cwd = await getCwd()
 		const absolutePathResolved = workspaceResolver.resolveWorkspacePath(cwd, relPath, "DiffViewProvider.open.absolutePath")
 		this.absolutePath = typeof absolutePathResolved === "string" ? absolutePathResolved : absolutePathResolved.absolutePath
+		this.relPath = options?.displayPath ?? relPath
 		const fileExists = this.editType === "modify"
 
 		// if the file is already open, ensure it's not dirty before getting its contents
@@ -224,6 +224,10 @@ export abstract class DiffViewProvider {
 		}
 	}
 
+	async showFile(absolutePath: string): Promise<void> {
+		await openFile(absolutePath, true)
+	}
+
 	/**
 	 * Replaces text in the diff editor with the specified content.
 	 *
@@ -264,7 +268,7 @@ export abstract class DiffViewProvider {
 		// get text after save in case there is any auto-formatting done by the editor
 		const postSaveContent = (await this.getDocumentText()) || ""
 
-		await openFile(this.absolutePath, true)
+		await this.showFile(this.absolutePath)
 		await this.closeAllDiffViews()
 
 		const newProblems = await this.getNewDiagnosticProblems()
@@ -366,6 +370,27 @@ export abstract class DiffViewProvider {
 				lineCount += part.count || 0
 			}
 		}
+	}
+
+	async deleteFile(fileName: string) {
+		const fileLocation = this.absolutePath
+		if (!fileLocation?.endsWith(fileName) || !this.isEditing) {
+			return
+		}
+
+		// Close diff views before deleting the file
+		await this.closeAllDiffViews()
+
+		// Delete the file
+		try {
+			await fs.rm(fileLocation, { force: true })
+			console.log(`File ${fileLocation} has been deleted.`)
+		} catch (error) {
+			console.error(`Failed to delete file ${fileLocation}:`, error)
+		}
+
+		this.isEditing = false
+		this.newContent = undefined
 	}
 
 	// close editor if open?

@@ -3,7 +3,6 @@ import path from "path"
 import * as vscode from "vscode"
 import { HistoryItem } from "@/shared/HistoryItem"
 import { ensureRulesDirectoryExists, readTaskHistoryFromState, writeTaskHistoryToState } from "./disk"
-import { StateManager } from "./StateManager"
 
 export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionContext) {
 	// Keys to migrate from workspace storage back to global storage
@@ -566,44 +565,70 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 		if (welcomeViewCompleted === undefined) {
 			console.log("Migrating welcomeViewCompleted setting...")
 
-			// Get all extension state to check for existing API keys
-			const stateManager = new StateManager(context)
-			await stateManager.initialize()
-			const config = stateManager.getApiConfiguration()
+			// Fetch API keys directly from secrets
+			const apiKey = await context.secrets.get("apiKey")
+			const openRouterApiKey = await context.secrets.get("openRouterApiKey")
+			const clineAccountId = await context.secrets.get("clineAccountId")
+			const openAiApiKey = await context.secrets.get("openAiApiKey")
+			const ollamaApiKey = await context.secrets.get("ollamaApiKey")
+			const liteLlmApiKey = await context.secrets.get("liteLlmApiKey")
+			const geminiApiKey = await context.secrets.get("geminiApiKey")
+			const openAiNativeApiKey = await context.secrets.get("openAiNativeApiKey")
+			const deepSeekApiKey = await context.secrets.get("deepSeekApiKey")
+			const requestyApiKey = await context.secrets.get("requestyApiKey")
+			const togetherApiKey = await context.secrets.get("togetherApiKey")
+			const qwenApiKey = await context.secrets.get("qwenApiKey")
+			const doubaoApiKey = await context.secrets.get("doubaoApiKey")
+			const mistralApiKey = await context.secrets.get("mistralApiKey")
+			const asksageApiKey = await context.secrets.get("asksageApiKey")
+			const xaiApiKey = await context.secrets.get("xaiApiKey")
+			const sambanovaApiKey = await context.secrets.get("sambanovaApiKey")
+			const sapAiCoreClientId = await context.secrets.get("sapAiCoreClientId")
+			const difyApiKey = await context.secrets.get("difyApiKey")
+			const hicapApiKey = await context.secrets.get("hicapApiKey")
 
-			// This is the original logic used for checking is the welcome view should be shown
+			// Fetch configuration values from global state
+			const awsRegion = context.globalState.get("awsRegion")
+			const vertexProjectId = context.globalState.get("vertexProjectId")
+			const planModeOllamaModelId = context.globalState.get("planModeOllamaModelId")
+			const planModeLmStudioModelId = context.globalState.get("planModeLmStudioModelId")
+			const actModeOllamaModelId = context.globalState.get("actModeOllamaModelId")
+			const actModeLmStudioModelId = context.globalState.get("actModeLmStudioModelId")
+			const planModeVsCodeLmModelSelector = context.globalState.get("planModeVsCodeLmModelSelector")
+			const actModeVsCodeLmModelSelector = context.globalState.get("actModeVsCodeLmModelSelector")
+
+			// This is the original logic used for checking if the welcome view should be shown
 			// It was located in the ExtensionStateContextProvider
-			const hasKey = config
-				? [
-						config.apiKey,
-						config.openRouterApiKey,
-						config.awsRegion,
-						config.vertexProjectId,
-						config.openAiApiKey,
-						config.ollamaApiKey,
-						config.planModeOllamaModelId,
-						config.planModeLmStudioModelId,
-						config.actModeOllamaModelId,
-						config.actModeLmStudioModelId,
-						config.liteLlmApiKey,
-						config.geminiApiKey,
-						config.openAiNativeApiKey,
-						config.deepSeekApiKey,
-						config.requestyApiKey,
-						config.togetherApiKey,
-						config.qwenApiKey,
-						config.doubaoApiKey,
-						config.mistralApiKey,
-						config.planModeVsCodeLmModelSelector,
-						config.actModeVsCodeLmModelSelector,
-						config.clineAccountId,
-						config.asksageApiKey,
-						config.xaiApiKey,
-						config.sambanovaApiKey,
-						config.sapAiCoreClientId,
-						config.difyApiKey,
-					].some((key) => key !== undefined)
-				: false
+			const hasKey = [
+				apiKey,
+				openRouterApiKey,
+				awsRegion,
+				vertexProjectId,
+				openAiApiKey,
+				ollamaApiKey,
+				planModeOllamaModelId,
+				planModeLmStudioModelId,
+				actModeOllamaModelId,
+				actModeLmStudioModelId,
+				liteLlmApiKey,
+				geminiApiKey,
+				openAiNativeApiKey,
+				deepSeekApiKey,
+				requestyApiKey,
+				togetherApiKey,
+				qwenApiKey,
+				doubaoApiKey,
+				mistralApiKey,
+				planModeVsCodeLmModelSelector,
+				actModeVsCodeLmModelSelector,
+				clineAccountId,
+				asksageApiKey,
+				xaiApiKey,
+				sambanovaApiKey,
+				sapAiCoreClientId,
+				difyApiKey,
+				hicapApiKey,
+			].some((key) => key !== undefined)
 
 			// Set welcomeViewCompleted based on whether user has keys
 			await context.globalState.update("welcomeViewCompleted", hasKey)
@@ -612,6 +637,58 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 		}
 	} catch (error) {
 		console.error("Failed to migrate welcomeViewCompleted:", error)
+		// Continue execution - migration failure shouldn't break extension startup
+	}
+}
+
+export async function cleanupMcpMarketplaceCatalogFromGlobalState(context: vscode.ExtensionContext) {
+	try {
+		// Check if mcpMarketplaceCatalog exists in global state
+		const mcpMarketplaceCatalog = await context.globalState.get("mcpMarketplaceCatalog")
+
+		if (mcpMarketplaceCatalog !== undefined) {
+			console.log("Cleaning up mcpMarketplaceCatalog from global state...")
+
+			// Delete it from global state
+			await context.globalState.update("mcpMarketplaceCatalog", undefined)
+
+			console.log("Successfully removed mcpMarketplaceCatalog from global state")
+		}
+	} catch (error) {
+		console.error("Failed to cleanup mcpMarketplaceCatalog from global state:", error)
+		// Continue execution - cleanup failure shouldn't break extension startup
+	}
+}
+
+/**
+ * Legacy type definition for the old ClineFeatureSetting structure
+ */
+type LegacyHooksEnabled = { user?: boolean; featureFlag?: boolean }
+
+/**
+ * Migrates hooksEnabled from ClineFeatureSetting {user: boolean, featureFlag: boolean} to boolean
+ */
+export async function migrateHooksEnabledToBoolean(context: vscode.ExtensionContext) {
+	try {
+		const hooksEnabled = await context.globalState.get("hooksEnabled")
+
+		// Check if hooksEnabled exists and is an object (the old ClineFeatureSetting structure)
+		if (hooksEnabled !== undefined && typeof hooksEnabled === "object" && hooksEnabled !== null) {
+			console.log("Migrating hooksEnabled from ClineFeatureSetting to boolean...")
+
+			// Cast to the legacy type to access properties safely
+			const legacySetting = hooksEnabled as LegacyHooksEnabled
+
+			// Extract the boolean value from the 'user' field
+			const booleanValue = legacySetting.user === true
+
+			// Update with the new boolean value
+			await context.globalState.update("hooksEnabled", booleanValue)
+
+			console.log(`Successfully migrated hooksEnabled to boolean: ${booleanValue}`)
+		}
+	} catch (error) {
+		console.error("Failed to migrate hooksEnabled to boolean:", error)
 		// Continue execution - migration failure shouldn't break extension startup
 	}
 }

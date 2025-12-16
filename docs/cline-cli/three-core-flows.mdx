@@ -1,0 +1,158 @@
+---
+title: "Three Core Flows"
+description: "Learn the three ways to use Cline CLI: interactive mode, headless automation, and multi-instance parallelization"
+---
+
+Two concepts to understand:
+
+**Task** - A single job for Cline to complete ("add tests to utils.js"). You describe what you want, Cline plans how to do it, then executes the plan. Tasks run on instances.
+
+**Instance** - An independent Cline workspace. Each instance runs one task at a time. Create multiple instances to run multiple tasks that work on different parts of your project in parallel.
+
+## 1. Interactive mode: Plan first, then act
+
+Start here to see how Cline works. Interactive mode opens a chat session where you can review plans before execution.
+
+```bash
+cline
+```
+
+Cline opens an interactive session in your current directory. Type your task as a message. Cline enters Plan mode and proposes a step-by-step strategy.
+
+Review or edit the plan in chat. When you're ready, switch to execution:
+
+```bash
+/act
+```
+
+Cline executes the approved steps—reading files, writing code, running commands. You maintain control throughout the process.
+
+## 2. Headless single-shot: Complete a task without chat
+
+Use this for automation where you want a one-liner that just does the work.
+
+```bash
+cline instance new --default
+cline task new -y "Generate unit tests for all Go files"
+```
+
+With the `-y` (YOLO) flag, Cline plans and executes autonomously without interactive chat. Perfect for CI, cron jobs, or scripts.
+
+Examples:
+
+```bash
+# Create a complete feature
+cline task new -y "Create a REST API for user authentication"
+
+# Generate documentation
+cline task new -y "Add JSDoc comments to all functions in src/"
+
+# Refactor code
+cline task new -y "Convert all var declarations to const/let"
+```
+
+Monitor your task with:
+
+```bash
+# View task status
+cline task view
+
+# Follow task progress in real-time
+cline task view --follow
+```
+
+Press Ctrl+C to exit the view.
+
+<Note>
+Run YOLO mode with care on a directory or a clean Git branch. You get speed in exchange for oversight, so be ready to revert if needed.
+</Note>
+
+## 3. Multi-instance: Run parallel agents
+
+Multiple instances let you parallelize work on the same project without colliding contexts. Run frontend, backend, and infrastructure tasks simultaneously.
+
+Create your first instance:
+
+```bash
+cline instance new
+```
+
+This returns an instance address you'll use to target tasks. Attach a task to this instance:
+
+```bash
+# Frontend work on first instance
+cline task new -y "Build React components"
+```
+
+Create a second instance and set it as default in one command:
+
+```bash
+cline instance new --default
+```
+
+Now you can create tasks without specifying the address—they automatically use the default instance:
+
+```bash
+# Backend work on the new default instance
+cline task new -y "Implement API endpoints"
+```
+
+List all running instances:
+
+```bash
+cline instances list
+```
+
+Stop all instances when done:
+
+```bash
+cline instances kill -a
+```
+
+<Tip>
+Keep track of instance addresses returned by `cline instance new`. When scripting multiple agents, store these IDs and direct your tasks to the appropriate instance.
+</Tip>
+
+## Configuring context window for local providers
+
+For Ollama and LM Studio, you can configure the model context window via CLI:
+
+```bash
+# For Ollama
+cline config s ollama-api-options-ctx-num=32768
+
+# For LM Studio
+cline config s lm-studio-max-tokens=32768
+```
+
+For other providers (Anthropic, OpenRouter, etc.), the context window is defined per model in the model metadata and is not user-configurable—Cline uses each model's built-in context limits automatically.
+
+## Choosing the right flow
+
+- **Interactive mode**: Best for exploring new problems, learning how Cline works, or when you want to review plans before execution
+- **Headless single-shot**: Perfect for automation, CI/CD, and tasks where you trust Cline to execute without supervision
+- **Multi-instance**: Use when you need to parallelize work or maintain separate contexts for different parts of your project
+
+<Tip>
+For in-depth commands and flags, check out the [CLI reference](/cline-cli/cli-reference) page for complete documentation on all available options.
+</Tip>
+
+## Next steps
+
+<Columns cols={2}>
+  <Card title="CLI reference" icon="terminal" href="/cline-cli/cli-reference">
+    Complete command documentation including configuration, instance management, and task commands.
+  </Card>
+  
+  <Card title="Plan and Act" icon="brain" href="/features/plan-and-act">
+    Deep dive into Plan and Act modes, including when to use each and how to switch between them.
+  </Card>
+  
+  <Card title="YOLO mode" icon="zap" href="/features/yolo-mode">
+    Understand how YOLO mode works and when to use full automation versus manual approval.
+  </Card>
+  
+  <Card title="Task management" icon="clipboard-check" href="/features/tasks/task-management">
+    Learn how Cline tracks and manages tasks, including saving and restoring state from checkpoints.
+  </Card>
+</Columns>

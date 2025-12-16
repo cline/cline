@@ -89,7 +89,15 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 				border: "1px solid var(--vscode-editorGroup-border)",
 			}}>
 			<div
+				aria-label={isExpanded ? "Collapse search results" : "Expand search results"}
 				onClick={onToggleExpand}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault()
+						e.stopPropagation()
+						onToggleExpand()
+					}
+				}}
 				style={{
 					color: "var(--vscode-descriptionForeground)",
 					display: "flex",
@@ -100,7 +108,8 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 					WebkitUserSelect: "none",
 					MozUserSelect: "none",
 					msUserSelect: "none",
-				}}>
+				}}
+				tabIndex={0}>
 				<span>/</span>
 				<span
 					style={{

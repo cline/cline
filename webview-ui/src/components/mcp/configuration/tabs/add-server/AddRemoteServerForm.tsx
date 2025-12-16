@@ -1,18 +1,20 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { AddRemoteMcpServerRequest, McpServers } from "@shared/proto/cline/mcp"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { VSCodeButton, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeLink, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { LINKS } from "@/constants"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
 
+type TransportType = "streamableHttp" | "sse"
+
 const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) => {
 	const [serverName, setServerName] = useState("")
 	const [serverUrl, setServerUrl] = useState("")
+	const [transportType, setTransportType] = useState<TransportType>("streamableHttp")
 	const [isSubmitting, setIsSubmitting] = useState(false)
 	const [error, setError] = useState("")
-	const [showConnectingMessage, setShowConnectingMessage] = useState(false)
 	const { setMcpServers } = useExtensionState()
 
 	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -37,13 +39,13 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 
 		setError("")
 		setIsSubmitting(true)
-		setShowConnectingMessage(true)
 
 		try {
 			const servers: McpServers = await McpServiceClient.addRemoteMcpServer(
 				AddRemoteMcpServerRequest.create({
 					serverName: serverName.trim(),
 					serverUrl: serverUrl.trim(),
+					transportType: transportType,
 				}),
 			)
 
@@ -55,17 +57,15 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 			setServerName("")
 			setServerUrl("")
 			onServerAdded()
-			setShowConnectingMessage(false)
 		} catch (error) {
 			setIsSubmitting(false)
 			setError(error instanceof Error ? error.message : "Failed to add server")
-			setShowConnectingMessage(false)
 		}
 	}
 
 	return (
 		<div className="p-4 px-5">
-			<div className="text-[var(--vscode-foreground)] mb-2">
+			<div className="text-(--vscode-foreground) mb-2">
 				Add a remote MCP server by providing a name and its URL endpoint. Learn more{" "}
 				<VSCodeLink href={LINKS.DOCUMENTATION.REMOTE_MCP_SERVER_DOCS} style={{ display: "inline" }}>
 					here.
@@ -101,19 +101,29 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 					</VSCodeTextField>
 				</div>
 
-				{error && <div className="mb-3 text-[var(--vscode-errorForeground)]">{error}</div>}
-
-				<div className="flex items-center mt-3 w-full">
-					<VSCodeButton className="w-full" disabled={isSubmitting} type="submit">
-						{isSubmitting ? "Adding..." : "Add Server"}
-					</VSCodeButton>
-
-					{showConnectingMessage && (
-						<div className="ml-3 text-[var(--vscode-notificationsInfoIcon-foreground)] text-sm">
-							Connecting to server... This may take a few seconds.
-						</div>
-					)}
+				<div className="mb-3">
+					<label className={`block text-sm font-medium mb-2 ${isSubmitting ? "opacity-50" : ""}`}>Transport Type</label>
+					<VSCodeRadioGroup
+						disabled={isSubmitting}
+						onChange={(e) => {
+							const value = (e.target as HTMLInputElement).value as TransportType
+							setTransportType(value)
+						}}
+						value={transportType}>
+						<VSCodeRadio checked={transportType === "streamableHttp"} value="streamableHttp">
+							Streamable HTTP
+						</VSCodeRadio>
+						<VSCodeRadio checked={transportType === "sse"} value="sse">
+							SSE (Legacy)
+						</VSCodeRadio>
+					</VSCodeRadioGroup>
 				</div>
+
+				{error && <div className="mb-3 text-(--vscode-errorForeground)">{error}</div>}
+
+				<VSCodeButton className="w-full" disabled={isSubmitting} type="submit">
+					{isSubmitting ? "Connecting..." : "Add Server"}
+				</VSCodeButton>
 
 				<VSCodeButton
 					appearance="secondary"

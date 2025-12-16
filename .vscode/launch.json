@@ -19,6 +19,7 @@
 				"${workspaceFolder}/dist/**/*.js"
 			],
 			"preLaunchTask": "${defaultBuildTask}",
+			"envFile": "${workspaceFolder}/.env",
 			"env": {
 				"IS_DEV": "true",
 				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}",
@@ -39,6 +40,7 @@
 				"${workspaceFolder}/dist/**/*.js"
 			],
 			"preLaunchTask": "${defaultBuildTask}",
+			"envFile": "${workspaceFolder}/.env",
 			"env": {
 				"IS_DEV": "true",
 				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}",
@@ -59,6 +61,7 @@
 				"${workspaceFolder}/dist/**/*.js"
 			],
 			"preLaunchTask": "${defaultBuildTask}",
+			"envFile": "${workspaceFolder}/.env",
 			"env": {
 				"IS_DEV": "true",
 				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}",
@@ -84,6 +87,7 @@
 			"preLaunchTask": "clean-tmp-user",
 			"internalConsoleOptions": "openOnSessionStart",
 			"postDebugTask": "stop",
+			"envFile": "${workspaceFolder}/.env",
 			"env": {
 				"IS_DEV": "true",
 				"TEMP_PROFILE": "true",
@@ -114,6 +118,7 @@
 				"tsx"
 			],
 			"program": "scripts/test-standalone-core-api-server.ts",
+			"envFile": "${workspaceFolder}/.env",
 			"env": {
 				"PROTOBUS_PORT": "26040",
 				"HOSTBRIDGE_PORT": "26041",
@@ -151,6 +156,7 @@
 				"--exit",
 				"${file}"
 			],
+			"envFile": "${workspaceFolder}/.env",
 			"env": {
 				"TS_NODE_PROJECT": "./tsconfig.unit-test.json",
 				"NODE_ENV": "test",
@@ -159,6 +165,27 @@
 			},
 			"console": "integratedTerminal",
 			"internalConsoleOptions": "openOnSessionStart"
+		},
+		{
+			"name": "Open Storybook",
+			"type": "node",
+			"request": "launch",
+			"runtimeExecutable": "npm",
+			"runtimeArgs": [
+				"run",
+				"storybook"
+			],
+			"cwd": "${workspaceFolder}/webview-ui",
+			"console": "integratedTerminal",
+			"internalConsoleOptions": "neverOpen",
+			"serverReadyAction": {
+				"pattern": "Local:.*http://localhost:([0-9]+)",
+				"uriFormat": "http://localhost:%s",
+				"action": "openExternally"
+			},
+			"env": {
+				"IS_DEV": "true"
+			}
 		}
 	]
 }

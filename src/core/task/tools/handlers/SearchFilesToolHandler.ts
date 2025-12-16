@@ -1,6 +1,6 @@
 import type { ToolUse } from "@core/assistant-message"
 import { regexSearchFiles } from "@services/ripgrep"
-import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
+import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import * as path from "path"
 import { formatResponse } from "@/core/prompts/responses"
 import { parseWorkspaceInlinePath } from "@/core/workspace/utils/parseWorkspaceInlinePath"
@@ -10,7 +10,7 @@ import { telemetryService } from "@/services/telemetry"
 import { ClineSayTool } from "@/shared/ExtensionMessage"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
-import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
+import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
@@ -207,6 +207,11 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 		const regex: string | undefined = block.params.regex
 		const filePattern: string | undefined = block.params.file_pattern
 
+		// Extract provider information for telemetry
+		const apiConfig = config.services.stateManager.getApiConfiguration()
+		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+
 		// Validate required parameters
 		const pathValidation = this.validator.assertRequiredParams(block, "path")
 		if (!pathValidation.ok) {
@@ -227,16 +232,67 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 		// Determine which paths to search
 		const searchPaths = this.determineSearchPaths(config, parsedPath, workspaceHint, relDirPath!)
 
+		// Determine workspace context for telemetry
+		const primaryWorkspaceRoot = searchPaths[0]?.workspaceRoot
+		const resolvedToNonPrimary =
+			searchPaths.length === 0
+				? true
+				: searchPaths.length > 1 || (primaryWorkspaceRoot ? !arePathsEqual(primaryWorkspaceRoot, config.cwd) : true)
+		const workspaceContext = {
+			isMultiRootEnabled: config.isMultiRootEnabled || false,
+			usedWorkspaceHint: !!workspaceHint,
+			resolvedToNonPrimary,
+			resolutionMethod: (workspaceHint ? "hint" : searchPaths.length > 1 ? "path_detection" : "primary_fallback") as
+				| "hint"
+				| "primary_fallback"
+				| "path_detection",
+		}
+
+		// Capture workspace path resolution telemetry
+		if (config.isMultiRootEnabled && config.workspaceManager) {
+			const resolutionType = workspaceHint
+				? "hint_provided"
+				: searchPaths.length > 1
+					? "cross_workspace_search"
+					: "fallback_to_primary"
+			telemetryService.captureWorkspacePathResolved(
+				config.ulid,
+				"SearchFilesToolHandler",
+				resolutionType,
+				workspaceHint ? "workspace_name" : undefined,
+				searchPaths.length > 0, // resolution success = found paths to search
+				undefined, // TODO: could calculate primary workspace index
+				true,
+			)
+		}
+
 		// Execute searches in all relevant workspaces in parallel
 		const searchPromises = searchPaths.map(({ absolutePath, workspaceName, workspaceRoot }) =>
 			this.executeSearch(config, absolutePath, workspaceName, workspaceRoot, regex, filePattern),
 		)
 
 		// Wait for all searches to complete
+		const searchStartTime = performance.now()
 		const searchResults = await Promise.all(searchPromises)
+		const searchDurationMs = performance.now() - searchStartTime
 
 		// Format and combine results
 		const results = this.formatSearchResults(config, searchResults, searchPaths)
+
+		// Capture workspace search pattern telemetry
+		if (config.isMultiRootEnabled && config.workspaceManager) {
+			const searchType = workspaceHint ? "targeted" : searchPaths.length > 1 ? "cross_workspace" : "primary_only"
+			const resultsFound = searchResults.some((result) => result.resultCount > 0)
+
+			telemetryService.captureWorkspaceSearchPattern(
+				config.ulid,
+				searchType,
+				searchPaths.length,
+				!!workspaceHint,
+				resultsFound,
+				searchDurationMs,
+			)
+		}
 
 		const sharedMessageProps = {
 			tool: "searchFiles",
@@ -253,30 +309,64 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 			// Auto-approval flow
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
 			await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
-			config.taskState.consecutiveAutoApprovedRequestsCount++
 
 			// Capture telemetry
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
+			telemetryService.captureToolUsage(
+				config.ulid,
+				block.name,
+				config.api.getModel().id,
+				provider,
+				true,
+				true,
+				workspaceContext,
+				block.isNativeToolCall,
+			)
 		} else {
 			// Manual approval flow
 			const notificationMessage = `Cline wants to search files for ${regex}`
 
 			// Show notification
-			showNotificationForApprovalIfAutoApprovalEnabled(
-				notificationMessage,
-				config.autoApprovalSettings.enabled,
-				config.autoApprovalSettings.enableNotifications,
-			)
+			showNotificationForApproval(notificationMessage, config.autoApprovalSettings.enableNotifications)
 
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
 
 			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
 			if (!didApprove) {
-				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
+				telemetryService.captureToolUsage(
+					config.ulid,
+					block.name,
+					config.api.getModel().id,
+					provider,
+					false,
+					false,
+					workspaceContext,
+					block.isNativeToolCall,
+				)
 				return formatResponse.toolDenied()
 			} else {
-				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
+				telemetryService.captureToolUsage(
+					config.ulid,
+					block.name,
+					config.api.getModel().id,
+					provider,
+					false,
+					true,
+					workspaceContext,
+					block.isNativeToolCall,
+				)
 			}
+		}
+
+		// Run PreToolUse hook after approval but before execution
+		try {
+			const { ToolHookUtils } = await import("../utils/ToolHookUtils")
+			await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+		} catch (error) {
+			const { PreToolUseHookCancellationError } = await import("@core/hooks/PreToolUseHookCancellationError")
+			if (error instanceof PreToolUseHookCancellationError) {
+				return formatResponse.toolDenied()
+			}
+			throw error
 		}
 
 		return results

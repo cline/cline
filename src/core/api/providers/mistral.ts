@@ -1,6 +1,10 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { Mistral } from "@mistralai/mistralai"
+import { HTTPClient } from "@mistralai/mistralai/lib/http"
+import { Tool as MistralTool } from "@mistralai/mistralai/models/components/tool"
 import { MistralModelId, ModelInfo, mistralDefaultModelId, mistralModels } from "@shared/api"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { ClineStorageMessage } from "@/shared/messages/content"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToMistralMessages } from "../transform/mistral-format"
@@ -25,8 +29,32 @@ export class MistralHandler implements ApiHandler {
 				throw new Error("Mistral API key is required")
 			}
 			try {
+				// Create HTTP client with custom fetch for proxy support
+				// The Mistral SDK's HTTPClient passes a Request object to the fetcher,
+				// but we need to extract the URL and init options to pass to our fetch wrapper
+				// which properly handles proxy configuration in standalone mode (JetBrains/CLI)
+				const httpClient = new HTTPClient({
+					fetcher: async (input: RequestInfo | URL, init?: RequestInit) => {
+						// Handle both string/URL and Request object inputs
+						if (input instanceof Request) {
+							return fetch(input.url, {
+								method: input.method,
+								headers: input.headers,
+								body: input.body,
+								redirect: input.redirect,
+								signal: input.signal,
+								// duplex is required when sending a body stream in Node.js/undici
+								duplex: input.body ? "half" : undefined,
+								...init,
+							} as RequestInit)
+						}
+						return fetch(input, init)
+					},
+				})
+
 				this.client = new Mistral({
 					apiKey: this.options.mistralApiKey,
+					httpClient,
 				})
 			} catch (error) {
 				throw new Error(`Error creating Mistral client: ${error.message}`)
@@ -36,7 +64,7 @@ export class MistralHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const stream = await client.chat
 			.stream({
@@ -45,6 +73,8 @@ export class MistralHandler implements ApiHandler {
 				temperature: 0,
 				messages: [{ role: "system", content: systemPrompt }, ...convertToMistralMessages(messages)],
 				stream: true,
+				tools: tools?.length ? (tools as MistralTool[]) : undefined,
+				toolChoice: tools?.length ? "any" : undefined,
 			})
 			.catch((err) => {
 				// The Mistal SDK uses statusCode instead of status
@@ -58,7 +88,20 @@ export class MistralHandler implements ApiHandler {
 
 		for await (const chunk of stream) {
 			const delta = chunk.data.choices[0]?.delta
-			if (delta?.content) {
+			if (delta.toolCalls) {
+				for (const toolCall of delta.toolCalls) {
+					yield {
+						type: "tool_calls",
+						tool_call: {
+							function: {
+								id: toolCall.id,
+								name: toolCall.function.name,
+								arguments: JSON.stringify(toolCall.function.arguments),
+							},
+						},
+					}
+				}
+			} else if (delta?.content) {
 				let content: string = ""
 				if (typeof delta.content === "string") {
 					content = delta.content

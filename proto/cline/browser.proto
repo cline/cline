@@ -1,10 +1,12 @@
 syntax = "proto3";
 
 package cline;
+
 import "cline/common.proto";
-import "cline/state.proto";
-option java_package = "bot.cline.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
 option java_multiple_files = true;
+option java_package = "bot.cline.proto";
 
 service BrowserService {
   rpc getBrowserConnectionInfo(EmptyRequest) returns (BrowserConnectionInfo);
@@ -29,6 +31,11 @@ message BrowserConnection {
 message ChromePath {
   string path = 1;
   bool is_bundled = 2;
+}
+
+message Viewport {
+  int32 width = 1;
+  int32 height = 2;
 }
 
 message BrowserSettings {

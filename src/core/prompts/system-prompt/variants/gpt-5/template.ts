@@ -1,13 +1,16 @@
 import { SystemPromptSection } from "../../templates/placeholders"
 import type { SystemPromptContext } from "../../types"
 
-export const baseTemplate = `{{${SystemPromptSection.AGENT_ROLE}}}
+/**
+ * Base template for GPT-5 variant with structured sections
+ */
+export const BASE = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 {{${SystemPromptSection.TOOL_USE}}}
 
 ====
 
-{{${SystemPromptSection.TODO}}}
+{{${SystemPromptSection.TASK_PROGRESS}}}
 
 ====
 
@@ -23,7 +26,7 @@ export const baseTemplate = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 ====
 
-{{${SystemPromptSection.TASK_PROGRESS}}}
+{{${SystemPromptSection.CLI_SUBAGENTS}}}
 
 ====
 
@@ -49,7 +52,7 @@ export const baseTemplate = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 {{${SystemPromptSection.USER_INSTRUCTIONS}}}`
 
-export const rules_template = (context: SystemPromptContext) => `RULES
+const RULES = (context: SystemPromptContext) => `RULES
 
 - Your current working directory is: {{CWD}}
 - You cannot \`cd\` into a different directory to complete a task. You are stuck operating from '{{CWD}}', so be sure to pass in the correct 'path' parameter when using tools that require a path.
@@ -74,5 +77,10 @@ export const rules_template = (context: SystemPromptContext) => `RULES
 - When using the replace_in_file tool, you must include complete lines in your SEARCH blocks, not partial lines. The system requires exact line matches and cannot match partial lines. For example, if you want to match a line containing "const x = 5;", your SEARCH block must include the entire line, not just "x = 5" or other fragments.
 - When using the replace_in_file tool, if you use multiple SEARCH/REPLACE blocks, list them in the order they appear in the file. For example if you need to make changes to both line 10 and line 50, first include the SEARCH/REPLACE block for line 10, followed by the SEARCH/REPLACE block for line 50.
 - When using the replace_in_file tool, Do NOT add extra characters to the markers (e.g., ------- SEARCH> is INVALID). Do NOT forget to use the closing +++++++ REPLACE marker. Do NOT modify the marker format in any way. Malformed XML will cause complete tool failure and break the entire editing process.
-- It is critical you wait for the user's response after each tool use, in order to confirm the success of the tool use. For example, if asked to make a todo app, you would create a file, wait for the user's response it was created successfully, then create another file if needed, wait for the user's response it was created successfully, etc.{{BROWSER_WAIT_RULES}}
+- You may use multiple tools in a single response when the operations are independent (e.g., reading several files, creating independent files). For dependent operations where one result informs the next, use tools sequentially and wait for the user's response.{{BROWSER_WAIT_RULES}}
 - MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations.`
+
+export const GPT_5_TEMPLATE_OVERRIDES = {
+	BASE,
+	RULES,
+} as const

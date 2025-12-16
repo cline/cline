@@ -1,0 +1,66 @@
+#!/usr/bin/env node
+
+/**
+ * TEMPLATE HOOK SCRIPT
+ *
+ * This is a template for creating new hook fixtures.
+ * Copy this file to create a new fixture script.
+ *
+ * Customize the logic below to implement your specific hook behavior.
+ */
+
+try {
+  // Parse the input from stdin (what gets passed to the hook)
+  const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
+
+  // Extract relevant input data
+  // For PreToolUse hooks:
+  const { toolName, parameters } = input.preToolUse || {};
+  // For PostToolUse hooks:
+  // const { toolName, parameters, result, success, executionTimeMs } = input.postToolUse || {};
+
+  // Common metadata (available in all hook types)
+  const { hookName: hookType, timestamp, taskId, workspaceRoots, userId } = input;
+
+  // Initialize output variables
+  let shouldContinue = true;
+  let contextModification = "";
+  let errorMessage = "";
+
+  // === CUSTOMIZE THIS LOGIC ===
+  // Implement your hook logic here
+
+  // Example: Simple success hook
+  contextModification = "TEMPLATE: Hook executed successfully";
+
+  // Example: Context injection based on tool name
+  if (toolName === "write_to_file") {
+    contextModification = "FILE_OPERATIONS: File modification operation";
+  } else if (toolName === "run_command") {
+    contextModification = "SYSTEM_OPERATIONS: Command execution operation";
+  }
+
+  // Example: Validation/blocking
+  // if (!parameters?.path) {
+  //   shouldContinue = false;
+  //   errorMessage = "ERROR: Tool requires a 'path' parameter";
+  // }
+
+  // === END CUSTOM LOGIC ===
+
+  // Return the standardized output format
+  console.log(JSON.stringify({
+    shouldContinue,
+    contextModification,
+    errorMessage
+  }));
+
+} catch (error) {
+  // Error handling - hooks should handle their own errors gracefully
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  console.log(JSON.stringify({
+    cancel: true,
+    contextModification: "",
+    errorMessage: `HOOK_ERROR: ${errorMessage}`
+  }));
+}

@@ -1,8 +1,8 @@
 import { resolveWorkspacePath } from "@core/workspace"
+import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
 import { ClineDefaultTool } from "@shared/tools"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
-import { featureFlagsService } from "@/services/feature-flags"
 import { getCwd, getDesktopDir, isLocatedInPath, isLocatedInWorkspace } from "@/utils/path"
 
 export class AutoApprove {
@@ -28,7 +28,7 @@ export class AutoApprove {
 		if (this.workspacePathsCache === null || this.isMultiRootScenarioCache === null) {
 			// First time - fetch and cache for the lifetime of this task
 			this.workspacePathsCache = await HostProvider.workspace.getWorkspacePaths({})
-			this.isMultiRootScenarioCache = featureFlagsService.getMultiRootEnabled() && this.workspacePathsCache.paths.length > 1
+			this.isMultiRootScenarioCache = isMultiRootEnabled(this.stateManager) && this.workspacePathsCache.paths.length > 1
 		}
 
 		return {
@@ -49,11 +49,13 @@ export class AutoApprove {
 				case ClineDefaultTool.NEW_RULE:
 				case ClineDefaultTool.FILE_NEW:
 				case ClineDefaultTool.FILE_EDIT:
+				case ClineDefaultTool.APPLY_PATCH:
 				case ClineDefaultTool.BASH:
 					return [true, true]
 
 				case ClineDefaultTool.BROWSER:
 				case ClineDefaultTool.WEB_FETCH:
+				case ClineDefaultTool.WEB_SEARCH:
 				case ClineDefaultTool.MCP_ACCESS:
 				case ClineDefaultTool.MCP_USE:
 					return true
@@ -62,30 +64,30 @@ export class AutoApprove {
 
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 
-		if (autoApprovalSettings.enabled) {
-			switch (toolName) {
-				case ClineDefaultTool.FILE_READ:
-				case ClineDefaultTool.LIST_FILES:
-				case ClineDefaultTool.LIST_CODE_DEF:
-				case ClineDefaultTool.SEARCH:
-					return [autoApprovalSettings.actions.readFiles, autoApprovalSettings.actions.readFilesExternally ?? false]
-				case ClineDefaultTool.NEW_RULE:
-				case ClineDefaultTool.FILE_NEW:
-				case ClineDefaultTool.FILE_EDIT:
-					return [autoApprovalSettings.actions.editFiles, autoApprovalSettings.actions.editFilesExternally ?? false]
-				case ClineDefaultTool.BASH:
-					return [
-						autoApprovalSettings.actions.executeSafeCommands ?? false,
-						autoApprovalSettings.actions.executeAllCommands ?? false,
-					]
-				case ClineDefaultTool.BROWSER:
-					return autoApprovalSettings.actions.useBrowser
-				case ClineDefaultTool.WEB_FETCH:
-					return autoApprovalSettings.actions.useBrowser
-				case ClineDefaultTool.MCP_ACCESS:
-				case ClineDefaultTool.MCP_USE:
-					return autoApprovalSettings.actions.useMcp
-			}
+		switch (toolName) {
+			case ClineDefaultTool.FILE_READ:
+			case ClineDefaultTool.LIST_FILES:
+			case ClineDefaultTool.LIST_CODE_DEF:
+			case ClineDefaultTool.SEARCH:
+				return [autoApprovalSettings.actions.readFiles, autoApprovalSettings.actions.readFilesExternally ?? false]
+			case ClineDefaultTool.NEW_RULE:
+			case ClineDefaultTool.FILE_NEW:
+			case ClineDefaultTool.FILE_EDIT:
+			case ClineDefaultTool.APPLY_PATCH:
+				return [autoApprovalSettings.actions.editFiles, autoApprovalSettings.actions.editFilesExternally ?? false]
+			case ClineDefaultTool.BASH:
+				return [
+					autoApprovalSettings.actions.executeSafeCommands ?? false,
+					autoApprovalSettings.actions.executeAllCommands ?? false,
+				]
+			case ClineDefaultTool.BROWSER:
+				return autoApprovalSettings.actions.useBrowser
+			case ClineDefaultTool.WEB_FETCH:
+			case ClineDefaultTool.WEB_SEARCH:
+				return autoApprovalSettings.actions.useBrowser
+			case ClineDefaultTool.MCP_ACCESS:
+			case ClineDefaultTool.MCP_USE:
+				return autoApprovalSettings.actions.useMcp
 		}
 		return false
 	}

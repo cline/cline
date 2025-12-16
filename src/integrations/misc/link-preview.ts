@@ -1,5 +1,6 @@
 import axios from "axios"
 import ogs from "open-graph-scraper"
+import { fetch, getAxiosSettings } from "@/shared/net"
 
 export interface OpenGraphData {
 	title?: string
@@ -27,6 +28,7 @@ export async function fetchOpenGraphData(url: string): Promise<OpenGraphData> {
 			fetchOptions: {
 				redirect: "follow", // Follow redirects
 			} as any,
+			fetch, // Use configured fetch with proxy support
 		}
 
 		const { result } = await ogs(options)
@@ -94,6 +96,7 @@ export async function detectImageUrl(url: string): Promise<boolean> {
 				"User-Agent": "Mozilla/5.0 (compatible; VSCodeExtension/1.0; +https://cline.bot)",
 			},
 			timeout: 3000,
+			...getAxiosSettings(),
 		})
 
 		const contentType = response.headers["content-type"]

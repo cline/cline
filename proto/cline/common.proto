@@ -1,17 +1,16 @@
 syntax = "proto3";
 
 package cline;
-option java_package = "bot.cline.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
 option java_multiple_files = true;
+option java_package = "bot.cline.proto";
 
-message Metadata {
-}
+message Metadata {}
 
-message EmptyRequest {
-}
+message EmptyRequest {}
 
-message Empty {
-}
+message Empty {}
 
 message StringRequest {
   string value = 2;

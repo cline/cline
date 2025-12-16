@@ -14,5 +14,9 @@
 	"description": "",
 	"dependencies": {
 		"mintlify": "^4.2.23"
+	},
+	"overrides": {
+		"tar-fs": "^3.1.1",
+		"js-yaml": "^4.1.1"
 	}
 }

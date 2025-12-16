@@ -4,8 +4,8 @@ import { ExtensionState } from "@/shared/ExtensionMessage"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
 
-// Keep track of active state subscriptions by controller ID
-const activeStateSubscriptions = new Map<string, StreamingResponseHandler<State>>()
+// Keep track of active state subscriptions
+const activeStateSubscriptions = new Set<StreamingResponseHandler<State>>()
 
 /**
  * Subscribe to state updates
@@ -20,59 +20,61 @@ export async function subscribeToState(
 	responseStream: StreamingResponseHandler<State>,
 	requestId?: string,
 ): Promise<void> {
-	const controllerId = controller.id
-
-	// Send the initial state
-	const initialState = await controller.getStateToPostToWebview()
-	const initialStateJson = JSON.stringify(initialState)
-
-	//console.log(`[DEBUG] set up state subscription for controller ${controllerId}`)
-
-	await responseStream({
-		stateJson: initialStateJson,
-	})
-
-	// Add this subscription to the active subscriptions with the controller ID
-	activeStateSubscriptions.set(controllerId, responseStream)
+	// Add this subscription to the active subscriptions
+	activeStateSubscriptions.add(responseStream)
 
 	// Register cleanup when the connection is closed
 	const cleanup = () => {
-		activeStateSubscriptions.delete(controllerId)
-		//console.log(`[DEBUG] Cleaned up state subscription for controller ${controllerId}`)
+		activeStateSubscriptions.delete(responseStream)
+		//console.log(`[DEBUG] Cleaned up state subscription`)
 	}
 
 	// Register the cleanup function with the request registry if we have a requestId
 	if (requestId) {
 		getRequestRegistry().registerRequest(requestId, cleanup, { type: "state_subscription" }, responseStream)
 	}
-}
 
-/**
- * Send a state update to a specific controller's subscription
- * @param controllerId The ID of the controller to send the state to
- * @param state The state to send
- */
-export async function sendStateUpdate(controllerId: string, state: ExtensionState): Promise<void> {
-	// Get the subscription for this specific controller
-	const responseStream = activeStateSubscriptions.get(controllerId)
+	// Send the initial state
+	const initialState = await controller.getStateToPostToWebview()
+	const initialStateJson = JSON.stringify(initialState)
 
-	if (!responseStream) {
-		console.log(`[DEBUG] No active state subscription for controller ${controllerId}`)
-		return
-	}
+	//console.log(`[DEBUG] set up state subscription`)
 
 	try {
-		const stateJson = JSON.stringify(state)
 		await responseStream(
 			{
-				stateJson,
+				stateJson: initialStateJson,
 			},
 			false, // Not the last message
 		)
-		//console.log(`[DEBUG] sending followup state to controller ${controllerId}`, stateJson.length, "chars")
 	} catch (error) {
-		console.error(`Error sending state update to controller ${controllerId}:`, error)
-		// Remove the subscription if there was an error
-		activeStateSubscriptions.delete(controllerId)
+		console.error("Error sending initial state:", error)
+		activeStateSubscriptions.delete(responseStream)
 	}
+}
+
+/**
+ * Send a state update to all active subscribers
+ * @param state The state to send
+ */
+export async function sendStateUpdate(state: ExtensionState): Promise<void> {
+	// Send the state to all active subscribers
+	const promises = Array.from(activeStateSubscriptions).map(async (responseStream) => {
+		try {
+			const stateJson = JSON.stringify(state)
+			await responseStream(
+				{
+					stateJson,
+				},
+				false, // Not the last message
+			)
+			//console.log(`[DEBUG] sending followup state`, stateJson.length, "chars")
+		} catch (error) {
+			console.error("Error sending state update:", error)
+			// Remove the subscription if there was an error
+			activeStateSubscriptions.delete(responseStream)
+		}
+	})
+
+	await Promise.all(promises)
 }
