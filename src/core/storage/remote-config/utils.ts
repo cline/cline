@@ -190,13 +190,13 @@ async function applyRemoteOTELConfig(transformed: Partial<RemoteConfigFields>, t
 				telemetryService.addProvider(
 					await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider, {
 						name: REMOTE_CONFIG_OTEL_PROVIDER_ID,
-						isRemoteConfig: true,
+						bypassUserSettings: true,
 					}).initialize(),
 				)
 			}
 		}
 	} catch (err) {
-		console.log("[REMOTE CONFIG DEBUG] Failed to apply remote OTEL config", err)
+		console.error("[REMOTE CONFIG DEBUG] Failed to apply remote OTEL config", err)
 	}
 }
 

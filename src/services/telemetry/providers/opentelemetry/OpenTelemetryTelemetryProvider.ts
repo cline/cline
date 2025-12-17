@@ -25,15 +25,15 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	private gaugeValues = new Map<string, Map<string, { value: number; attributes?: TelemetryProperties }>>()
 
 	readonly name: string
-	private isRemoteConfig: boolean
+	private bypassUserSettings: boolean
 
 	constructor(
 		meterProvider: MeterProvider | null,
 		loggerProvider: LoggerProvider | null,
-		{ name, isRemoteConfig }: { name?: string; isRemoteConfig: boolean },
+		{ name, bypassUserSettings }: { name?: string; bypassUserSettings: boolean },
 	) {
 		this.name = name || "OpenTelemetryProvider"
-		this.isRemoteConfig = isRemoteConfig
+		this.bypassUserSettings = bypassUserSettings
 
 		// Initialize telemetry settings
 		this.telemetrySettings = {
@@ -59,7 +59,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public async initialize(): Promise<OpenTelemetryTelemetryProvider> {
-		if (this.isRemoteConfig) {
+		if (this.bypassUserSettings) {
 			return this
 		}
 
@@ -160,7 +160,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public isEnabled(): boolean {
-		return this.isRemoteConfig || (this.telemetrySettings.extensionEnabled && this.telemetrySettings.hostEnabled)
+		return this.bypassUserSettings || (this.telemetrySettings.extensionEnabled && this.telemetrySettings.hostEnabled)
 	}
 
 	public getSettings(): TelemetrySettings {
