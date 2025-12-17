@@ -1,6 +1,6 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
-import { getMcpSettingsFilePath } from "@core/storage/disk"
+import { getMcpSettingsFilePath as getMcpSettingsFilePathHelper } from "@core/storage/disk"
 import { StateManager } from "@core/storage/StateManager"
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
@@ -118,14 +118,17 @@ export class McpHub {
 		return uid
 	}
 
+	/**
+	 * Gets the path to the MCP settings file
+	 * @returns Path to the MCP settings file
+	 */
 	async getMcpSettingsFilePath(): Promise<string> {
-		const settingsDir = await this.getSettingsDirectoryPath()
-		return getMcpSettingsFilePath(settingsDir)
+		return getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 	}
 
 	private async readAndValidateMcpSettingsFile(): Promise<z.infer<typeof McpSettingsSchema> | undefined> {
 		try {
-			const settingsPath = await getMcpSettingsFilePath(await this.getSettingsDirectoryPath())
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 
 			let config: any
@@ -163,7 +166,7 @@ export class McpHub {
 	}
 
 	private async watchMcpSettingsFile(): Promise<void> {
-		const settingsPath = await getMcpSettingsFilePath(await this.getSettingsDirectoryPath())
+		const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 
 		this.settingsWatcher = chokidar.watch(settingsPath, {
 			persistent: true, // Keep the process running as long as files are being watched
@@ -586,7 +589,7 @@ export class McpHub {
 			})
 
 			// Get autoApprove settings
-			const settingsPath = await getMcpSettingsFilePath(await this.getSettingsDirectoryPath())
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 			const autoApproveConfig = config.mcpServers[serverName]?.autoApprove || []
@@ -881,7 +884,7 @@ export class McpHub {
 
 	private async notifyWebviewOfServerChanges(): Promise<void> {
 		// servers should always be sorted in the order they are defined in the settings file
-		const settingsPath = await getMcpSettingsFilePath(await this.getSettingsDirectoryPath())
+		const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 		const content = await fs.readFile(settingsPath, "utf-8")
 		const config = JSON.parse(content)
 		const serverOrder = Object.keys(config.mcpServers || {})
@@ -924,7 +927,7 @@ export class McpHub {
 			if (config.mcpServers[serverName]) {
 				config.mcpServers[serverName].disabled = disabled
 
-				const settingsPath = await getMcpSettingsFilePath(await this.getSettingsDirectoryPath())
+				const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 				await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
 
 				const connection = this.connections.find((conn) => conn.server.name === serverName)
@@ -1056,7 +1059,7 @@ export class McpHub {
 	 */
 	async toggleToolAutoApproveRPC(serverName: string, toolNames: string[], shouldAllow: boolean): Promise<McpServer[]> {
 		try {
-			const settingsPath = await getMcpSettingsFilePath(await this.getSettingsDirectoryPath())
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 
@@ -1101,7 +1104,7 @@ export class McpHub {
 
 	async toggleToolAutoApprove(serverName: string, toolNames: string[], shouldAllow: boolean): Promise<void> {
 		try {
-			const settingsPath = await getMcpSettingsFilePath(await this.getSettingsDirectoryPath())
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 
@@ -1178,7 +1181,7 @@ export class McpHub {
 			const parsedConfig = ServerConfigSchema.parse(expandedConfig)
 
 			settings.mcpServers[serverName] = parsedConfig
-			const settingsPath = await getMcpSettingsFilePath(await this.getSettingsDirectoryPath())
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 
 			// We don't write the zod-transformed version to the file.
 			// The above parse() call adds the transportType field to the server config
@@ -1210,7 +1213,7 @@ export class McpHub {
 			// Clear OAuth data BEFORE removing from config (while we still have the connection/URL)
 			await this.clearOAuthForConnection(serverName)
 
-			const settingsPath = await getMcpSettingsFilePath(await this.getSettingsDirectoryPath())
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 			if (!config.mcpServers || typeof config.mcpServers !== "object") {
@@ -1245,7 +1248,7 @@ export class McpHub {
 				throw new Error(`Invalid timeout value: ${timeout}. Must be at minimum ${MIN_MCP_TIMEOUT_SECONDS} seconds.`)
 			}
 
-			const settingsPath = await getMcpSettingsFilePath(await this.getSettingsDirectoryPath())
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 
