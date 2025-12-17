@@ -309,7 +309,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 			const rect = triggerRef.current.getBoundingClientRect()
 			const buttonCenter = rect.left + rect.width / 2
 			const rightPosition = document.documentElement.clientWidth - buttonCenter - 5
-			setMenuPosition(rect.top)
+			setMenuPosition(rect.top + 1)
 			setArrowPosition(rightPosition)
 		}
 	}, [isOpen, viewportWidth, viewportHeight])
@@ -612,8 +612,8 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 const FixedModalContainer = styled.div<{ $menuPosition: number; $arrowPosition: number }>`
 	position: fixed;
 	bottom: ${(props) => `calc(100vh - ${props.$menuPosition}px + 6px)`};
-	left: 15px;
-	right: 15px;
+	left: 10px;
+	right: 10px;
 	display: flex;
 	flex-direction: column;
 	max-height: 18em;
@@ -621,7 +621,7 @@ const FixedModalContainer = styled.div<{ $menuPosition: number; $arrowPosition: 
 	border: 1px solid var(--vscode-editorGroup-border);
 	border-bottom: none;
 	border-radius: 6px 6px 0 0;
-	z-index: 1000;
+	z-index: 49;
 
 	&::before {
 		content: "";
@@ -638,7 +638,7 @@ const FixedModalContainer = styled.div<{ $menuPosition: number; $arrowPosition: 
 		content: "";
 		position: absolute;
 		bottom: -5px;
-		right: ${(props) => props.$arrowPosition - 15}px;
+		right: ${(props) => props.$arrowPosition - 10}px;
 		height: 10px;
 		width: 10px;
 		transform: rotate(45deg);

@@ -701,14 +701,14 @@ const ClineRulesToggleModal: React.FC = () => {
 
 const ModalContainer = styled.div<{ $menuPosition: number; $arrowPosition: number }>`
 	position: fixed;
-	left: 15px;
-	right: 15px;
-	bottom: ${(props) => `calc(100vh - ${props.$menuPosition}px + 6px)`};
+	left: 10px;
+	right: 10px;
+	bottom: ${(props) => `calc(100vh - ${props.$menuPosition}px + 7px)`};
 	background: ${CODE_BLOCK_BG_COLOR};
 	border: 1px solid var(--vscode-editorGroup-border);
 	border-bottom: none;
 	border-radius: 6px 6px 0 0;
-	z-index: 1000;
+	z-index: 49;
 	display: flex;
 	flex-direction: column;
 	max-height: calc(100vh - 100px);
@@ -729,7 +729,7 @@ const ModalContainer = styled.div<{ $menuPosition: number; $arrowPosition: numbe
 		content: "";
 		position: absolute;
 		bottom: -5px;
-		right: ${(props) => props.$arrowPosition - 15}px;
+		right: ${(props) => props.$arrowPosition - 10}px;
 		height: 10px;
 		width: 10px;
 		transform: rotate(45deg);
