@@ -243,4 +243,16 @@ Both limitations are restored when you return to a single-folder workspace.
 
 - Break large tasks into workspace-specific operations when possible
 - Use [Plan mode](/features/plan-and-act) to let Cline understand structure first
-- Exclude large generated folders (`node_modules`, `dist`) from workspace search scope
+- Use VSCode's `files.exclude` setting to hide generated folders from the file explorer and search:
+
+```json
+// settings.json
+"files.exclude": {
+  "**/node_modules": true,
+  "**/dist": true,
+  "**/build": true,
+  "**/.git": true
+}
+```
+
+This reduces noise in Cline's file listings and helps it focus on your actual source code rather than generated files or dependencies.
