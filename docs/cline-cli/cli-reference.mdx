@@ -377,20 +377,20 @@ When you run a command with `-F json` (or `--output-format json`), Cline prints 
 
 ### ClineMessage schema
 
-| Field | Type | Notes |
-|-------|------|-------|
-| `type` | `"ask" or "say"` | Top-level message category. |
-| `text` | `string` | Human-readable message content. |
-| `ts` | `number` | Unix epoch timestamp in milliseconds. |
-| `reasoning` | `string` | Optional. Model reasoning text when present. |
-| `say` | `string` | Optional. Present when `type` is `"say"`. |
-| `ask` | `string` | Optional. Present when `type` is `"ask"`. |
-| `partial` | `boolean` | Optional. `true` for streaming updates. |
-| `images` | `string[]` | Optional. Image URIs when included with a message. |
-| `files` | `string[]` | Optional. File paths when attached to a message. |
-| `lastCheckpointHash` | `string` | Optional. Git checkpoint hash when available. |
-| `isCheckpointCheckedOut` | `boolean` | Optional. `true` if Cline checked out a checkpoint. |
-| `isOperationOutsideWorkspace` | `boolean` | Optional. `true` if an operation happened outside the workspace. |
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `type` | `"ask" or "say"` | Yes | Top-level message category. |
+| `text` | `string` | Yes | Human-readable message content. |
+| `ts` | `number` | Yes | Unix epoch timestamp in milliseconds. |
+| `reasoning` | `string` | No | Omitted when empty. |
+| `say` | `string` | No | Omitted when empty. Present when `type` is `"say"`. |
+| `ask` | `string` | No | Omitted when empty. Present when `type` is `"ask"`. |
+| `partial` | `boolean` | No | Omitted when false. `true` for streaming updates. |
+| `images` | `string[]` | No | Omitted when empty. Image URIs when included with a message. |
+| `files` | `string[]` | No | Omitted when empty. File paths when attached to a message. |
+| `lastCheckpointHash` | `string` | No | Omitted when empty. Git checkpoint hash when available. |
+| `isCheckpointCheckedOut` | `boolean` | No | Omitted when false. `true` if Cline checked out a checkpoint. |
+| `isOperationOutsideWorkspace` | `boolean` | No | Omitted when false. `true` if an operation happened outside the workspace. |
 
 <Note>
 Most fields are optional and omitted when empty. If you parse this output, treat missing fields as “not present”, not as empty strings.
