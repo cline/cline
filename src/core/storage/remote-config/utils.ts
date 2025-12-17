@@ -191,6 +191,8 @@ export function applyRemoteConfig(remoteConfig?: RemoteConfig): void {
 	}
 
 	// Transform remote config to state shape
+	// These are then set to the remote config cache in the StateManager
+	// We need to ensure the cache is checked for new fields
 	const transformed = transformRemoteConfigToStateShape(remoteConfig)
 
 	// Synchronize toggle state
