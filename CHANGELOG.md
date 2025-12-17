@@ -1,8 +1,10 @@
 # Changelog
 
-## 3.44.2
+## [3.44.2]
 
-- c090f5b: fix: skip reasoning for GLM models
+- Polished the model picker UI with checkmarks for selected models, tooltips on Plan/Act tabs, and consistent arrow pointers across all popup modals
+- Improved WhatsNew modal responsiveness and cleaned up redundant UI elements
+- Fixed GLM models outputting garbled text in thinking tags—reasoning is now properly disabled for these models
 
 ## [3.44.1]
 
