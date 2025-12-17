@@ -1,29 +1,7 @@
-import { GlobalFileNames } from "@core/storage/disk"
+import { getMcpSettingsFilePath } from "@core/storage/disk"
 import { StateManager } from "@core/storage/StateManager"
 import { RemoteMCPServer } from "@shared/remote-config/schema"
-import { fileExistsAtPath } from "@utils/fs"
 import * as fs from "fs/promises"
-import * as path from "path"
-
-/**
- * Gets the path to the MCP settings file
- * Creates the file if it doesn't exist
- */
-async function getMcpSettingsFilePath(settingsDirectoryPath: string): Promise<string> {
-	const mcpSettingsFilePath = path.join(settingsDirectoryPath, GlobalFileNames.mcpSettings)
-	const fileExists = await fileExistsAtPath(mcpSettingsFilePath)
-	if (!fileExists) {
-		await fs.writeFile(
-			mcpSettingsFilePath,
-			`{
-  "mcpServers": {
-    
-  }
-}`,
-		)
-	}
-	return mcpSettingsFilePath
-}
 
 /**
  * Synchronizes remote MCP servers from remote config to the local MCP settings file
@@ -58,7 +36,7 @@ export async function syncRemoteMcpServersToSettings(
 		const stateManager = StateManager.get()
 		const previousRemoteServers = (stateManager.getRemoteConfigSettings().previousRemoteMCPServers as RemoteMCPServer[]) || []
 
-		// Step 1: Remove old remote servers that are no longer in the new list
+		// Remove old remote servers that are no longer in the new list
 		for (const prevServer of previousRemoteServers) {
 			// Check if this server exists in current settings with same name and URL
 			const existingServer = config.mcpServers[prevServer.name]
@@ -74,19 +52,18 @@ export async function syncRemoteMcpServersToSettings(
 			}
 		}
 
-		// Step 2: Add/update servers from new remote config
+		// Add/update servers from new remote config
 		for (const server of remoteMCPServers) {
-			// Check if server with same name and URL already exists
+			// Check if server with same name and URL already exists to skip duplicates
 			const existingServer = config.mcpServers[server.name]
 			if (existingServer && existingServer.url === server.url) {
-				// Duplicate detected - skip
 				continue
 			}
 
 			// Add or update the server
 			config.mcpServers[server.name] = {
 				url: server.url,
-				type: "streamableHttp", // Standard transport for remote servers
+				type: "streamableHttp",
 				disabled: false,
 				autoApprove: [],
 			}
