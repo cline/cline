@@ -612,6 +612,9 @@ const SearchInput = styled.input`
 	outline: none;
 	font-size: 11px;
 	color: var(--vscode-foreground);
+	&:focus {
+		outline: none;
+	}
 	&::placeholder {
 		color: var(--vscode-descriptionForeground);
 		opacity: 0.7;
