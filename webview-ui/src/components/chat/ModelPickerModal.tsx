@@ -2,7 +2,6 @@ import type { ModelInfo as ModelInfoType } from "@shared/api"
 import { ANTHROPIC_MAX_THINKING_BUDGET, ANTHROPIC_MIN_THINKING_BUDGET, ApiProvider } from "@shared/api"
 import { UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { Mode } from "@shared/storage/types"
-import Fuse from "fuse.js"
 import { Brain, ChevronDownIcon, Search, Settings, Sparkles } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
@@ -258,14 +257,13 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		return []
 	}, [selectedProvider, openRouterModels, apiConfiguration])
 
-	// Filter models by search
-	const fuse = useMemo(() => {
-		return new Fuse(allModels, {
-			keys: ["id", "name", "provider"],
-			threshold: 0.4,
-			includeMatches: true,
-		})
-	}, [allModels])
+	// Multi-word substring search - all words must match somewhere in id/name/provider
+	const matchesSearch = useCallback((model: ModelItem, query: string): boolean => {
+		if (!query.trim()) return true
+		const queryWords = query.toLowerCase().trim().split(/\s+/)
+		const searchText = `${model.id} ${model.name} ${model.provider || ""}`.toLowerCase()
+		return queryWords.every((word) => searchText.includes(word))
+	}, [])
 
 	// Filtered models - for OpenRouter/Vercel show all by default, for Cline only when searching
 	const filteredModels = useMemo(() => {
@@ -276,7 +274,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 
 		let models: ModelItem[]
 		if (searchQuery) {
-			models = fuse.search(searchQuery).map((r) => r.item)
+			models = allModels.filter((m) => matchesSearch(m, searchQuery))
 		} else {
 			// For non-Cline OpenRouter providers: show all models by default
 			models = [...allModels]
@@ -294,7 +292,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		// Sort alphabetically by provider
 		models = models.sort((a, b) => (a.provider || "").localeCompare(b.provider || ""))
 		return models
-	}, [searchQuery, fuse, selectedModelId, selectedProvider, allModels])
+	}, [searchQuery, matchesSearch, selectedModelId, selectedProvider, allModels])
 
 	// Featured models for Cline provider (recommended + free)
 	const featuredModels = useMemo(() => {
@@ -309,13 +307,13 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		// Filter out current model
 		const filtered = allFeatured.filter((m) => m.id !== selectedModelId)
 
-		// Apply search filter if searching
+		// Apply search filter if searching (uses same multi-word logic)
 		if (searchQuery) {
-			return filtered.filter((m) => m.id.toLowerCase().includes(searchQuery.toLowerCase()))
+			return filtered.filter((m) => matchesSearch(m, searchQuery))
 		}
 
 		return filtered
-	}, [selectedProvider, searchQuery, selectedModelId])
+	}, [selectedProvider, searchQuery, selectedModelId, matchesSearch])
 
 	// Handle model selection - in split mode uses activeEditMode, otherwise closes modal
 	const handleSelectModel = useCallback(
