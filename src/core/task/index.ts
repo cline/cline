@@ -2124,7 +2124,14 @@ export class Task {
 			throw new Error("Task instance aborted")
 		}
 
-		await fetchRemoteConfig(this.controller)
+		// Fire-and-forget: We intentionally don't await fetchRemoteConfig here.
+		// Remote config is already fetched in startRemoteConfigTimer() which runs in the constructor,
+		// so enterprise policies (yoloModeAllowed, allowedMCPServers, etc.) are already applied.
+		// This call just ensures we have the latest state, but we shouldn't block the UI for it.
+		// getGlobalSettingsKey() reads from remoteConfigCache on each call, so any updates
+		// will apply as soon as this fetch completes. The function also calls postStateToWebview()
+		// when done and catches all errors internally.
+		fetchRemoteConfig(this.controller)
 
 		// Increment API request counter for focus chain list management
 		this.taskState.apiRequestCount++
