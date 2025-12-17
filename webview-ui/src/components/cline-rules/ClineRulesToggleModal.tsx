@@ -703,7 +703,7 @@ const ModalContainer = styled.div<{ $menuPosition: number; $arrowPosition: numbe
 	position: fixed;
 	left: 10px;
 	right: 10px;
-	bottom: ${(props) => `calc(100vh - ${props.$menuPosition}px + 7px)`};
+	bottom: ${(props) => `calc(100vh - ${props.$menuPosition}px + 6px)`};
 	background: ${CODE_BLOCK_BG_COLOR};
 	border: 1px solid var(--vscode-editorGroup-border);
 	border-bottom: none;

@@ -612,7 +612,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 // Fixed position modal container - matches original ModelSelectorTooltip positioning
 const FixedModalContainer = styled.div<{ $menuPosition: number; $arrowPosition: number }>`
 	position: fixed;
-	bottom: ${(props) => `calc(100vh - ${props.$menuPosition}px + 6px)`};
+	bottom: ${(props) => `calc(100vh - ${props.$menuPosition}px + 5px)`};
 	left: 10px;
 	right: 10px;
 	display: flex;
