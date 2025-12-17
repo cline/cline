@@ -9,8 +9,10 @@ This workflow helps you:
 2. Clean up the changelog (fix version format, wordsmith entries)
 3. Push changes back to the PR branch
 4. Merge with proper commit message format
-5. Tag and push the release
-6. Provide next steps for publishing
+5. Tag and push the release (after verifying the commit)
+6. Trigger the publish workflow
+7. Update GitHub release notes
+8. Provide final summary with Slack announcement
 
 ## Step 1: Find the Changeset PR
 
@@ -38,7 +40,12 @@ Checkout the PR branch:
 ```bash
 git fetch origin changeset-release/main
 git checkout changeset-release/main
-git pull origin changeset-release/main
+```
+
+If the branch has diverged from remote, reset to the remote version:
+
+```bash
+git reset --hard origin/changeset-release/main
 ```
 
 ## Step 3: Analyze the Changes
@@ -106,47 +113,47 @@ VERSION=<version from package.json>
 gh pr merge $PR_NUMBER --squash --subject "v${VERSION} Release Notes" --body ""
 ```
 
+**If merge is blocked by branch protection:**
+- Users with admin privileges can add the `--admin` flag to bypass
+- Users without admin privileges need to get the PR approved through normal review first before merging
+
 ## Step 7: Tag the Release
 
-After the merge completes, tag the release:
+After the merge completes, checkout main and pull:
 
 ```bash
 git checkout main
 git pull origin main
+```
+
+**IMPORTANT: Verify the latest commit is the release commit before tagging:**
+
+```bash
+git log -1 --oneline
+```
+
+Confirm the commit message matches `v{VERSION} Release Notes` (e.g., `v3.44.1 Release Notes`). Do NOT blindly tag HEAD without verification.
+
+Once verified, tag and push:
+
+```bash
 VERSION=<version>
 git tag v${VERSION}
 git push origin v${VERSION}
 ```
 
-## Step 8: Return to Main and Summary
+## Step 8: Trigger Publish Workflow
 
-Ensure we're back on main:
+**Copy the tag to clipboard** so the user can easily paste it into the GitHub Actions workflow:
 
 ```bash
-git checkout main
+echo -n "v{VERSION}" | pbcopy
 ```
 
-**Copy a Slack announcement message to clipboard:**
-
-```
-VS Code v{VERSION} Released
-
-Highlights:
-- Key change 1
-- Key change 2
-- Key change 3
-```
-
-**Present a final summary:**
-- Version released: v{VERSION}
-- PR merged: #{PR_NUMBER}
-- Tag pushed: v{VERSION}
-- Slack message copied to clipboard
-
-**Remind the user to:**
-1. Trigger the publish release GitHub Action at: https://github.com/cline/cline/actions/workflows/publish.yml
-   - Select "release" for release-type
-   - Enter `v{VERSION}` as the tag
+**Tell the user to trigger the publish workflow:**
+1. Go to: https://github.com/cline/cline/actions/workflows/publish.yml
+2. Select **"release"** for release-type
+3. Paste **`v{VERSION}`** as the tag (already in clipboard)
 
 **Wait for the user** to confirm the publish workflow has completed before proceeding.
 
@@ -182,8 +189,27 @@ Verify the release was updated:
 gh release view v${VERSION}
 ```
 
-**Final reminders:**
-1. Post the Slack message to announce the release
+## Step 10: Final Summary
+
+**Copy a Slack announcement message to clipboard** (include the full changelog, not just highlights):
+
+```bash
+echo "VS Code v{VERSION} Released
+
+- Changelog entry 1
+- Changelog entry 2
+- Changelog entry 3" | pbcopy
+```
+
+**Present a final summary:**
+- Version released: v{VERSION}
+- PR merged: #{PR_NUMBER}
+- Tag pushed: v{VERSION}
+- Release: https://github.com/cline/cline/releases/tag/v{VERSION}
+- Slack message copied to clipboard
+
+**Final reminder:**
+Post the Slack message to announce the release
 
 ## Handling Edge Cases
 
