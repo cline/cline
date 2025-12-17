@@ -1,8 +1,18 @@
 # Changelog
 
+## 3.44.1
+
+### Patch Changes
+
+- eb5a452: Fixed MCP local server connections being blocked after v3.42.0
+- 6a90294: update jwa library in package lock json
+- 2f3450f: fix: Remotely configured API keys
+- 3e89c28: feat: implement lazy evaluation for dynamic tool instructions to support context-aware prompts
+
 ## [3.44.0]
 
 ## Added
+
 - Updating minor version to show a proper banner for the release
 
 ## [3.43.1]
