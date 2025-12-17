@@ -736,7 +736,10 @@ const ProviderListItem = styled.div<{ $isSelected: boolean }>`
 	cursor: pointer;
 	font-size: 11px;
 	color: ${(props) => (props.$isSelected ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
-	background: ${(props) => (props.$isSelected ? "var(--vscode-list-activeSelectionBackground)" : "transparent")};
+	background: ${(props) =>
+		props.$isSelected
+			? `linear-gradient(var(--vscode-list-activeSelectionBackground), var(--vscode-list-activeSelectionBackground)), ${CODE_BLOCK_BG_COLOR}`
+			: "transparent"};
 	&:hover {
 		background: var(--vscode-list-hoverBackground);
 	}
@@ -838,7 +841,8 @@ const CurrentModelRow = styled.div`
 	min-height: 28px;
 	box-sizing: border-box;
 	cursor: pointer;
-	background: var(--vscode-list-activeSelectionBackground);
+	background: linear-gradient(var(--vscode-list-activeSelectionBackground), var(--vscode-list-activeSelectionBackground)),
+		${CODE_BLOCK_BG_COLOR};
 	position: sticky;
 	top: 0;
 	z-index: 1;
@@ -865,7 +869,10 @@ const SplitModeCell = styled.div<{ $isActive: boolean }>`
 	cursor: pointer;
 	flex: 1;
 	min-width: 0;
-	background: ${(props) => (props.$isActive ? "var(--vscode-list-activeSelectionBackground)" : "transparent")};
+	background: ${(props) =>
+		props.$isActive
+			? `linear-gradient(var(--vscode-list-activeSelectionBackground), var(--vscode-list-activeSelectionBackground)), ${CODE_BLOCK_BG_COLOR}`
+			: "transparent"};
 	border-bottom: 2px solid ${(props) => (props.$isActive ? "var(--vscode-focusBorder)" : "transparent")};
 	&:hover {
 		background: var(--vscode-list-hoverBackground);
