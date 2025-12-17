@@ -1077,6 +1077,19 @@ export class StateManager {
 		Object.assign(this.workspaceStateCache, workspaceState)
 	}
 
+	private providerField<Key extends "planModeApiProvider" | "actModeApiProvider">(key: Key): Settings[Key] {
+		const selectedProvider = this.taskStateCache[key] || this.globalStateCache[key]
+		if (!this.remoteConfigCache.remoteConfiguredProviders?.length) {
+			return selectedProvider
+		}
+
+		if (this.remoteConfigCache.remoteConfiguredProviders.includes(selectedProvider)) {
+			return selectedProvider
+		}
+
+		return this.remoteConfigCache[key] || this.remoteConfigCache.remoteConfiguredProviders[0]
+	}
+
 	/**
 	 * Construct API configuration from cached component keys
 	 */
@@ -1205,10 +1218,7 @@ export class StateManager {
 			aihubmixAppCode: this.taskStateCache["aihubmixAppCode"] || this.globalStateCache["aihubmixAppCode"],
 
 			// Plan mode configurations
-			planModeApiProvider:
-				this.remoteConfigCache["planModeApiProvider"] ||
-				this.taskStateCache["planModeApiProvider"] ||
-				this.globalStateCache["planModeApiProvider"],
+			planModeApiProvider: this.providerField("planModeApiProvider"),
 			planModeApiModelId: this.taskStateCache["planModeApiModelId"] || this.globalStateCache["planModeApiModelId"],
 			planModeThinkingBudgetTokens:
 				this.taskStateCache["planModeThinkingBudgetTokens"] || this.globalStateCache["planModeThinkingBudgetTokens"],
@@ -1278,10 +1288,7 @@ export class StateManager {
 				this.taskStateCache["geminiPlanModeThinkingLevel"] || this.globalStateCache["geminiPlanModeThinkingLevel"],
 
 			// Act mode configurations
-			actModeApiProvider:
-				this.remoteConfigCache["actModeApiProvider"] ||
-				this.taskStateCache["actModeApiProvider"] ||
-				this.globalStateCache["actModeApiProvider"],
+			actModeApiProvider: this.providerField("actModeApiProvider"),
 			actModeApiModelId: this.taskStateCache["actModeApiModelId"] || this.globalStateCache["actModeApiModelId"],
 			actModeThinkingBudgetTokens:
 				this.taskStateCache["actModeThinkingBudgetTokens"] || this.globalStateCache["actModeThinkingBudgetTokens"],
