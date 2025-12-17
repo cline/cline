@@ -205,7 +205,7 @@ export class OcaHandler implements ApiHandler {
 
 		const toolCallProcessor = new ToolCallProcessor()
 
-		const stream = await client.chat.completions.create({
+		const chatCompletionsParams: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
 			model: this.options.ocaModelId || liteLlmDefaultModelId,
 			messages: [enhancedSystemMessage, ...enhancedMessages],
 			temperature,
@@ -218,7 +218,13 @@ export class OcaHandler implements ApiHandler {
 				litellm_session_id: `cline-${this.options.taskId}`,
 				...getOpenAIToolParams(tools),
 			}), // Add session ID for LiteLLM tracking
-		})
+		}
+
+		if (this.options.ocaModelInfo?.supportsReasoningEffort) {
+			chatCompletionsParams["reasoning_effort"] = this.options.ocaReasoningEffort || ("medium" as any)
+		}
+
+		const stream = await client.chat.completions.create(chatCompletionsParams)
 
 		const inputCost = (await this.calculateCost(1e6, 0)) || 0
 		const outputCost = (await this.calculateCost(0, 1e6)) || 0
