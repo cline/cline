@@ -2,8 +2,6 @@
 
 ## 3.44.2
 
-### Patch Changes
-
 - c090f5b: fix: skip reasoning for GLM models
 
 ## [3.44.1]
