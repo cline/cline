@@ -69,7 +69,7 @@ func (p *ToolResultParser) ParseListFiles(content, path string) string {
 	}
 
 	lines := strings.Split(strings.TrimSpace(content), "\n")
-	
+
 	// Check for truncation message
 	var truncationMsg string
 	lastLine := lines[len(lines)-1]
@@ -79,7 +79,7 @@ func (p *ToolResultParser) ParseListFiles(content, path string) string {
 	}
 
 	totalFiles := len(lines)
-	
+
 	var result strings.Builder
 	result.WriteString(fmt.Sprintf("*%d %s*\n\n", totalFiles, p.pluralize(totalFiles, "file", "files")))
 
@@ -132,7 +132,7 @@ func (p *ToolResultParser) ParseSearchFiles(content string) string {
 
 	// Extract result count from first line
 	firstLine := lines[0]
-	
+
 	var result strings.Builder
 	result.WriteString(fmt.Sprintf("*%s*\n\n", firstLine))
 
@@ -146,7 +146,7 @@ func (p *ToolResultParser) ParseSearchFiles(content string) string {
 
 	for i := 1; i < len(lines) && filesShown < maxFiles && matchesShown < maxMatches; i++ {
 		line := lines[i]
-		
+
 		if line == "" {
 			continue
 		}
@@ -158,7 +158,7 @@ func (p *ToolResultParser) ParseSearchFiles(content string) string {
 				result.WriteString(p.formatFileMatches(currentFile, fileResults))
 				filesShown++
 			}
-			
+
 			currentFile = line
 			fileResults = []string{}
 		} else if currentFile != "" {
@@ -186,14 +186,14 @@ func (p *ToolResultParser) ParseSearchFiles(content string) string {
 // formatFileMatches formats matches for a single file
 func (p *ToolResultParser) formatFileMatches(file string, matches []string) string {
 	var result strings.Builder
-	
+
 	// Parse file path and extension for syntax highlighting
 	ext := filepath.Ext(file)
 	lang := p.detectLanguage(ext)
-	
+
 	result.WriteString(fmt.Sprintf("**%s** (%d %s)\n", file, len(matches), p.pluralize(len(matches), "match", "matches")))
 	result.WriteString(fmt.Sprintf("```%s\n", lang))
-	
+
 	maxMatches := 5
 	for i, match := range matches {
 		if i >= maxMatches {
@@ -203,9 +203,9 @@ func (p *ToolResultParser) formatFileMatches(file string, matches []string) stri
 		result.WriteString(match)
 		result.WriteString("\n")
 	}
-	
+
 	result.WriteString("```\n\n")
-	
+
 	return result.String()
 }
 
@@ -221,7 +221,83 @@ func (p *ToolResultParser) ParseCodeDefinitions(content string) string {
 
 // ParseWebFetch formats webFetch tool results with content preview
 func (p *ToolResultParser) ParseWebFetch(content, url string) string {
-	return ""
+	if content == "" {
+		return fmt.Sprintf("*Fetched content from %s (empty response)*", url)
+	}
+
+	lines := strings.Split(content, "\n")
+
+	var result strings.Builder
+
+	// Try to extract title
+	var title string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "#") && !strings.HasPrefix(trimmed, "##") {
+			title = strings.TrimSpace(strings.TrimPrefix(trimmed, "#"))
+			break
+		}
+	}
+
+	if title != "" {
+		result.WriteString(fmt.Sprintf("**Title:** %s\n\n", title))
+	}
+
+	// Show preview of content
+	result.WriteString("**Preview:**\n")
+
+	charCount := 0
+	maxChars := 500
+	previewLines := []string{}
+
+	for _, line := range lines {
+		// Skip markdown headers
+		if strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
+		}
+
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+
+		if charCount+len(trimmed) > maxChars {
+			break
+		}
+
+		previewLines = append(previewLines, trimmed)
+		charCount += len(trimmed)
+	}
+
+	result.WriteString(strings.Join(previewLines, " "))
+	result.WriteString("...\n\n")
+
+	// Extract sections
+	sections := []string{}
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "##") {
+			section := strings.TrimSpace(strings.TrimPrefix(trimmed, "##"))
+			sections = append(sections, section)
+			if len(sections) >= 5 {
+				break
+			}
+		}
+	}
+
+	if len(sections) > 0 {
+		result.WriteString("**Sections Found:**\n")
+		for _, section := range sections {
+			result.WriteString(fmt.Sprintf("- %s\n", section))
+		}
+		result.WriteString("\n")
+	}
+
+	// Word count estimate
+	wordCount := len(strings.Fields(content))
+	result.WriteString(fmt.Sprintf("*[Full content: ~%s]*", p.formatWordCount(wordCount)))
+
+	return result.String()
 }
 
 // ParseWebSearch formats webSearch tool results

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/cline/cli/pkg/cli/global"
+	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/grpc-go/client"
 	"github.com/cline/grpc-go/cline"
 )
@@ -58,6 +59,26 @@ func (m *Manager) UpdateSettings(ctx context.Context, settings *cline.Settings, 
 	_, err := m.client.State.UpdateSettingsCli(ctx, request)
 	if err != nil {
 		return fmt.Errorf("failed to update settings: %w", err)
+	}
+
+	// Extract updated field names
+	var updated []string
+	if settings != nil {
+		// Use reflection or manual extraction based on what was set
+		// For now, we'll indicate that settings were updated
+		updated = append(updated, "settings")
+	}
+	if secrets != nil {
+		updated = append(updated, "secrets")
+	}
+
+	// Check for JSON output mode
+	if global.Config.JsonFormat() {
+		data := map[string]interface{}{
+			"updated":  updated,
+			"instance": m.clientAddress,
+		}
+		return output.OutputJSONSuccess("config set", data)
 	}
 
 	fmt.Println("Settings updated successfully")
@@ -113,6 +134,21 @@ func (m *Manager) ListSettings(ctx context.Context) error {
 		"hooksEnabled",
 	}
 
+	// Check for JSON output mode
+	if global.Config.JsonFormat() {
+		// Filter to settings fields
+		settings := make(map[string]interface{})
+		for _, field := range settingsFields {
+			if value, ok := stateData[field]; ok {
+				settings[field] = value
+			}
+		}
+		data := map[string]interface{}{
+			"settings": settings,
+		}
+		return output.OutputJSONSuccess("config list", data)
+	}
+
 	// Render each field using the renderer
 	for _, field := range settingsFields {
 		if value, ok := stateData[field]; ok {
@@ -141,6 +177,15 @@ func (m *Manager) GetSetting(ctx context.Context, key string) error {
 	value, found := getNestedValue(stateData, parts)
 	if !found {
 		return fmt.Errorf("setting '%s' not found", key)
+	}
+
+	// Check for JSON output mode
+	if global.Config.JsonFormat() {
+		data := map[string]interface{}{
+			"key":   key,
+			"value": value,
+		}
+		return output.OutputJSONSuccess("config get", data)
 	}
 
 	// Render the value

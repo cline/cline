@@ -29,9 +29,8 @@ func HandleClineAuth(ctx context.Context) error {
 	}
 
 	fmt.Println()
-	
+
 	verboseLog("✓ You are signed in!")
-	
 
 	// Configure default Cline model after successful authentication
 	if err := configureDefaultClineModel(ctx); err != nil {

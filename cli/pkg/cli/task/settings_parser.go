@@ -8,7 +8,6 @@ import (
 	"github.com/cline/grpc-go/cline"
 )
 
-
 func ParseTaskSettings(settingsFlags []string) (*cline.Settings, *cline.Secrets, error) {
 	if len(settingsFlags) == 0 {
 		return nil, nil, nil

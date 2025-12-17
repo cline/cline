@@ -37,11 +37,17 @@ var (
 
 func InitializeGlobalConfig(cfg *GlobalConfig) error {
 	if cfg.ConfigPath == "" {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("failed to get home directory: %w", err)
+		// Check CLINE_DIR environment variable first
+		if clineDir := os.Getenv("CLINE_DIR"); clineDir != "" {
+			cfg.ConfigPath = clineDir
+		} else {
+			// Fall back to default ~/.cline
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				return fmt.Errorf("failed to get home directory: %w", err)
+			}
+			cfg.ConfigPath = filepath.Join(homeDir, ".cline")
 		}
-		cfg.ConfigPath = filepath.Join(homeDir, ".cline")
 	}
 
 	// Ensure .cline directory exists
@@ -64,6 +70,36 @@ func InitializeGlobalConfig(cfg *GlobalConfig) error {
 		return fmt.Errorf("failed to initialize clients: %w", err)
 	}
 
+	return nil
+}
+
+// JsonFormat returns true if output format is set to JSON
+func (cfg *GlobalConfig) JsonFormat() bool {
+	if cfg.OutputFormat == "" {
+		return false // Default is rich
+	}
+	return cfg.OutputFormat == "json"
+}
+
+// PlainFormat returns true if output format is set to plain
+func (cfg *GlobalConfig) PlainFormat() bool {
+	if cfg.OutputFormat == "" {
+		return false // Default is rich
+	}
+	return cfg.OutputFormat == "plain"
+}
+
+// RichFormat returns true if output format is set to rich (or default)
+func (c *GlobalConfig) RichFormat() bool {
+	return c.OutputFormat == "" || c.OutputFormat == "rich"
+}
+
+// MustNotBeJSON returns an error if JSON output mode is active.
+// Use this at the start of interactive commands that cannot work with JSON output.
+func (c *GlobalConfig) MustNotBeJSON(commandName string) error {
+	if c.JsonFormat() {
+		return fmt.Errorf("%s is an interactive command and cannot be used with --output-format json", commandName)
+	}
 	return nil
 }
 

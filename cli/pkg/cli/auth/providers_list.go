@@ -132,7 +132,7 @@ func (r *ProviderListResult) GetAllReadyProviders() []*ProviderDisplay {
 
 		// Determine readiness: OCA uses auth state presence; others need creds and model
 		if provider == cline.ApiProvider_OCA {
-			state, _ := GetLatestOCAState(context.Background(), 2 *time.Second)
+			state, _ := GetLatestOCAState(context.Background(), 2*time.Second)
 			if state == nil || state.User == nil {
 				continue
 			}
@@ -497,7 +497,6 @@ func DetectAllConfiguredProviders(ctx context.Context, manager *task.Manager) ([
 			verboseLog("[DEBUG]   Key %s not found", providerCheck.keyField)
 		}
 	}
-
 
 	verboseLog("[DEBUG] Total configured providers: %d", len(configuredProviders))
 	for _, p := range configuredProviders {

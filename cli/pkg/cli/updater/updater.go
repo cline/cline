@@ -29,7 +29,7 @@ type npmRegistryResponse struct {
 }
 
 const (
-	checkInterval = 24 * time.Hour
+	checkInterval  = 24 * time.Hour
 	requestTimeout = 3 * time.Second
 )
 
@@ -48,30 +48,22 @@ func CheckAndUpdate(isVerbose bool) {
 
 	// Skip in CI environments
 	if os.Getenv("CI") != "" {
-		if verbose {
-			output.Printf("[updater] Skipping update check (CI environment)\n")
-		}
+		global.VerboseLog("version", "[updater] Skipping update check (CI environment)")
 		return
 	}
 
 	// Skip if user disabled auto-updates
 	if os.Getenv("NO_AUTO_UPDATE") != "" {
-		if verbose {
-			output.Printf("[updater] Skipping update check (NO_AUTO_UPDATE set)\n")
-		}
+		global.VerboseLog("version", "[updater] Skipping update check (NO_AUTO_UPDATE set)")
 		return
 	}
 
-	if verbose {
-		output.Printf("[updater] Starting background update check...\n")
-	}
+	global.VerboseLog("version", "[updater] Starting background update check")
 
 	// Run in background so we don't block CLI startup
 	go func() {
 		if err := checkAndUpdateInternal(false); err != nil {
-			if verbose {
-				output.Printf("[updater] Update check failed: %v\n", err)
-			}
+			global.VerboseLogf("version", "[updater] Update check failed: %v", err)
 		}
 	}()
 }
@@ -84,49 +76,37 @@ func CheckAndUpdateSync(isVerbose bool, bypassCache bool) {
 
 	// Skip in CI environments
 	if os.Getenv("CI") != "" {
-		if verbose {
-			output.Printf("[updater] Skipping update check (CI environment)\n")
-		}
+		global.VerboseLog("version", "[updater] Skipping update check (CI environment)")
 		return
 	}
 
 	// Skip if user disabled auto-updates
 	if os.Getenv("NO_AUTO_UPDATE") != "" {
-		if verbose {
-			output.Printf("[updater] Skipping update check (NO_AUTO_UPDATE set)\n")
-		}
+		global.VerboseLog("version", "[updater] Skipping update check (NO_AUTO_UPDATE set)")
 		return
 	}
 
-	if verbose {
-		output.Printf("[updater] Starting update check...\n")
-	}
+	global.VerboseLog("version", "[updater] Starting update check")
 
 	// Run synchronously
 	if err := checkAndUpdateInternal(bypassCache); err != nil {
-		if verbose {
-			output.Printf("[updater] Update check failed: %v\n", err)
-		}
+		global.VerboseLogf("version", "[updater] Update check failed: %v", err)
 	}
 }
 
 func checkAndUpdateInternal(bypassCache bool) error {
-	if verbose {
-		output.Printf("[updater] Loading update cache...\n")
-	}
+	global.VerboseLog("version", "[updater] Loading update cache")
 
 	// Load cache
 	cache, err := loadCache()
 	if !bypassCache && err == nil && time.Since(cache.LastCheck) < checkInterval {
 		// Checked recently, skip (unless cache is bypassed)
-		if verbose {
-			output.Printf("[updater] Cache is fresh (last checked %v ago), skipping\n", time.Since(cache.LastCheck))
-		}
+		global.VerboseLogf("version", "[updater] Cache is fresh (last checked %v ago), skipping", time.Since(cache.LastCheck))
 		return nil
 	}
 
-	if err != nil && verbose {
-		output.Printf("[updater] Cache load failed or doesn't exist: %v\n", err)
+	if err != nil {
+		global.VerboseLogf("version", "[updater] Cache load failed or doesn't exist: %v", err)
 	}
 
 	// Determine channel
@@ -135,23 +115,17 @@ func checkAndUpdateInternal(bypassCache bool) error {
 		distTag = "nightly"
 	}
 
-	if verbose {
-		output.Printf("[updater] Current version: %s (channel: %s)\n", global.CliVersion, distTag)
-		output.Printf("[updater] Fetching latest version from npm registry...\n")
-	}
+	global.VerboseLogf("version", "[updater] Current version: %s (channel: %s)", global.CliVersion, distTag)
+	global.VerboseLog("version", "[updater] Fetching latest version from npm registry")
 
 	// Fetch latest version from npm
 	latestVersion, err := fetchLatestVersion()
 	if err != nil {
-		if verbose {
-			output.Printf("[updater] Failed to fetch latest version: %v\n", err)
-		}
+		global.VerboseLogf("version", "[updater] Failed to fetch latest version: %v", err)
 		return err
 	}
 
-	if verbose {
-		output.Printf("[updater] Latest version on npm: %s\n", latestVersion)
-	}
+	global.VerboseLogf("version", "[updater] Latest version on npm: %s", latestVersion)
 
 	// Update cache
 	cache = cacheData{
@@ -160,29 +134,21 @@ func checkAndUpdateInternal(bypassCache bool) error {
 	}
 	saveCache(cache)
 
-	if verbose {
-		output.Printf("[updater] Updated cache\n")
-	}
+	global.VerboseLog("version", "[updater] Updated cache")
 
 	// Compare versions
 	currentVersion := strings.TrimPrefix(global.CliVersion, "v")
 	latestVersion = strings.TrimPrefix(latestVersion, "v")
 
-	if verbose {
-		output.Printf("[updater] Comparing versions: current=%s latest=%s\n", currentVersion, latestVersion)
-	}
+	global.VerboseLogf("version", "[updater] Comparing versions: current=%s latest=%s", currentVersion, latestVersion)
 
 	if !isNewer(latestVersion, currentVersion) {
 		// Already up to date
-		if verbose {
-			output.Printf("[updater] Already on latest version, no update needed\n")
-		}
+		global.VerboseLog("version", "[updater] Already on latest version, no update needed")
 		return nil
 	}
 
-	if verbose {
-		output.Printf("[updater] Update available! Attempting to install...\n")
-	}
+	global.VerboseLog("version", "[updater] Update available! Attempting to install")
 
 	// Determine channel for update command
 	channel := "latest"
@@ -191,22 +157,19 @@ func checkAndUpdateInternal(bypassCache bool) error {
 	}
 
 	// Attempt update
-	if verbose {
-		output.Printf("[updater] Running: npm install -g cline%s\n",
-			map[bool]string{true: "@"+channel, false: ""}[channel == "nightly"])
+	packageName := "cline"
+	if channel == "nightly" {
+		packageName = "cline@" + channel
 	}
+	global.VerboseLogf("version", "[updater] Running: npm install -g %s", packageName)
 
 	if err := attemptUpdate(channel); err != nil {
-		if verbose {
-			output.Printf("[updater] Update failed: %v\n", err)
-		}
+		global.VerboseLogf("version", "[updater] Update failed: %v", err)
 		showFailureMessage(channel)
 		return err
 	}
 
-	if verbose {
-		output.Printf("[updater] Update completed successfully!\n")
-	}
+	global.VerboseLog("version", "[updater] Update completed successfully!")
 
 	showSuccessMessage(latestVersion)
 	return nil

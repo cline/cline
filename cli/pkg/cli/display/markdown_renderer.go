@@ -24,12 +24,11 @@ type MarkdownRenderer struct {
 // word wrap, the indentation looks weird so you have to turn it off
 // and everything will be right next to the left margin
 // but if you DO use glamours word wrap, it also means if you resize the terminal,
-// it will scuff everything. but given that this is the case for the input anyway, 
-// i figure we just make things as beautiful as possible 
+// it will scuff everything. but given that this is the case for the input anyway,
+// i figure we just make things as beautiful as possible
 // and if you resize the terminal, you'll learn real quick.
 // anyway, you can set this to true or false to experiment
 const USETERMINALWORDWRAP = true
-
 
 // seems like a reliable way to check for terminals
 // for now i'm keeping everything as auto
@@ -64,9 +63,6 @@ func glamourStyleJSON(terminalWrap bool) string {
 	return fmt.Sprintf(tmpl, "2")
 }
 
-
-
-
 func NewMarkdownRenderer() (*MarkdownRenderer, error) {
 	var wordWrap int
 	if USETERMINALWORDWRAP {
@@ -78,9 +74,9 @@ func NewMarkdownRenderer() (*MarkdownRenderer, error) {
 	}
 
 	r, err := glamour.NewTermRenderer(
-		glamour.WithStandardStyle(detectTerminalTheme()),              	 					 // Load full auto style first
-		glamour.WithStylesFromJSONBytes([]byte(glamourStyleJSON(USETERMINALWORDWRAP))),  	 // Then override just margins
-		glamour.WithWordWrap(wordWrap),                        
+		glamour.WithStandardStyle(detectTerminalTheme()),                               // Load full auto style first
+		glamour.WithStylesFromJSONBytes([]byte(glamourStyleJSON(USETERMINALWORDWRAP))), // Then override just margins
+		glamour.WithWordWrap(wordWrap),
 		glamour.WithPreservedNewLines(),
 	)
 	if err != nil {
@@ -121,7 +117,6 @@ func NewMarkdownRendererWithWidth(width int) (*MarkdownRenderer, error) {
 	}
 	return &MarkdownRenderer{renderer: r, width: width}, nil
 }
-
 
 // NewMarkdownRendererForTerminal creates a markdown renderer using the actual terminal width.
 // Falls back to 120 if terminal width cannot be determined.
