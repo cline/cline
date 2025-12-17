@@ -640,10 +640,6 @@ const SettingsHeader = styled.div`
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	cursor: pointer;
-	&:hover {
-		opacity: 0.8;
-	}
 `
 
 const IconToggles = styled.div`
