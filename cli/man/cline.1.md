@@ -78,6 +78,28 @@ These options apply to all subcommands:
 
 :   Output format. Options: **rich** (default), **json**, **plain**
 
+    When you use **-F json**, the CLI prints each client message as JSON.
+
+    Each message is a **ClineMessage** object.
+
+    Required fields:
+
+    - **type**: "ask" or "say"
+    - **text**: message text
+    - **ts**: Unix epoch timestamp in milliseconds
+
+    Optional fields (omitted when empty):
+
+    - **reasoning**: reasoning text
+    - **say**: say subtype (present when type is "say")
+    - **ask**: ask subtype (present when type is "ask")
+    - **partial**: streaming flag
+    - **images**: list of image URIs
+    - **files**: list of file paths
+    - **lastCheckpointHash**: git checkpoint hash
+    - **isCheckpointCheckedOut**: checkpoint checkout flag
+    - **isOperationOutsideWorkspace**: workspace safety flag
+
 **-h**, **\--help**
 
 :   Display help information for the command.

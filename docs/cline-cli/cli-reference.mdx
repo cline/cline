@@ -371,6 +371,43 @@ COPYRIGHT
        Copyright © 2025 Cline Bot Inc. Licensed under the Apache License 2.0.
 ```
 
+## JSON output (-F json)
+
+When you run a command with `-F json` (or `--output-format json`), Cline prints each client message as JSON.
+
+### ClineMessage schema
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `type` | `"ask" or "say"` | Yes | Top-level message category. |
+| `text` | `string` | Yes | Human-readable message content. |
+| `ts` | `number` | Yes | Unix epoch timestamp in milliseconds. |
+| `reasoning` | `string` | No | Omitted when empty. |
+| `say` | `string` | No | Omitted when empty. Present when `type` is `"say"`. |
+| `ask` | `string` | No | Omitted when empty. Present when `type` is `"ask"`. |
+| `partial` | `boolean` | No | Omitted when false. `true` for streaming updates. |
+| `images` | `string[]` | No | Omitted when empty. Image URIs when included with a message. |
+| `files` | `string[]` | No | Omitted when empty. File paths when attached to a message. |
+| `lastCheckpointHash` | `string` | No | Omitted when empty. Git checkpoint hash when available. |
+| `isCheckpointCheckedOut` | `boolean` | No | Omitted when false. `true` if Cline checked out a checkpoint. |
+| `isOperationOutsideWorkspace` | `boolean` | No | Omitted when false. `true` if an operation happened outside the workspace. |
+
+<Note>
+Most fields are optional and omitted when empty. If you parse this output, treat missing fields as “not present”, not as empty strings.
+</Note>
+
+### Example
+
+```json
+{
+  "type": "say",
+  "text": "Cline is about to run a command.",
+  "ts": 1760501486669,
+  "say": "command",
+  "partial": false
+}
+```
+
 ### Shell Completion
 
 Generate autocompletion scripts for various shells:
