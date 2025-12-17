@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.45.0]
+
+- Added Gemini 3 Flash Preview model
+
 ## [3.44.2]
 
 - Polished the model picker UI with checkmarks for selected models, tooltips on Plan/Act tabs, and consistent arrow pointers across all popup modals
