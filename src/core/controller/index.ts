@@ -239,6 +239,15 @@ export class Controller {
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
 	) {
+		// Fire-and-forget: We intentionally don't await fetchRemoteConfig here.
+		// Remote config is already fetched in startRemoteConfigTimer() which runs in the constructor,
+		// so enterprise policies (yoloModeAllowed, allowedMCPServers, etc.) are already applied.
+		// This call just ensures we have the latest state, but we shouldn't block the UI for it.
+		// getGlobalSettingsKey() reads from remoteConfigCache on each call, so any updates
+		// will apply as soon as this fetch completes. The function also calls postStateToWebview()
+		// when done and catches all errors internally.
+		fetchRemoteConfig(this)
+
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
