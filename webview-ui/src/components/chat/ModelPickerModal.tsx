@@ -469,22 +469,36 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 									{/* Current model - inside scroll area for seamless scrolling */}
 									{isSplit ? (
 										<SplitModeRow onClick={(e) => e.stopPropagation()}>
-											<SplitModeCell
-												$isActive={activeEditMode === "plan"}
-												onClick={() => setActiveEditMode("plan")}>
-												<SplitModeLabel $mode="plan">P</SplitModeLabel>
-												<SplitModeModel>
-													{planModel.selectedModelId?.split("/").pop() || "Not set"}
-												</SplitModeModel>
-											</SplitModeCell>
-											<SplitModeCell
-												$isActive={activeEditMode === "act"}
-												onClick={() => setActiveEditMode("act")}>
-												<SplitModeLabel $mode="act">A</SplitModeLabel>
-												<SplitModeModel>
-													{actModel.selectedModelId?.split("/").pop() || "Not set"}
-												</SplitModeModel>
-											</SplitModeCell>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<SplitModeCell
+														$isActive={activeEditMode === "plan"}
+														onClick={() => setActiveEditMode("plan")}>
+														<SplitModeLabel $mode="plan">P</SplitModeLabel>
+														<SplitModeModel>
+															{planModel.selectedModelId?.split("/").pop() || "Not set"}
+														</SplitModeModel>
+													</SplitModeCell>
+												</TooltipTrigger>
+												<TooltipContent side="top" style={{ zIndex: 9999 }}>
+													Plan mode
+												</TooltipContent>
+											</Tooltip>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<SplitModeCell
+														$isActive={activeEditMode === "act"}
+														onClick={() => setActiveEditMode("act")}>
+														<SplitModeLabel $mode="act">A</SplitModeLabel>
+														<SplitModeModel>
+															{actModel.selectedModelId?.split("/").pop() || "Not set"}
+														</SplitModeModel>
+													</SplitModeCell>
+												</TooltipTrigger>
+												<TooltipContent side="top" style={{ zIndex: 9999 }}>
+													Act mode
+												</TooltipContent>
+											</Tooltip>
 										</SplitModeRow>
 									) : (
 										selectedModelId &&
