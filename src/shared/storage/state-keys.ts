@@ -30,6 +30,7 @@ export interface RemoteConfigExtraFields {
 	remoteGlobalRules?: GlobalInstructionsFile[]
 	remoteGlobalWorkflows?: GlobalInstructionsFile[]
 	blockPersonalRemoteMCPServers?: boolean
+	openTelemetryOtlpHeaders: Record<string, string> | undefined
 }
 
 export type RemoteConfigFields = GlobalStateAndSettings & RemoteConfigExtraFields
@@ -213,7 +214,6 @@ export interface Settings {
 	openTelemetryLogsExporter: string | undefined
 	openTelemetryOtlpProtocol: string
 	openTelemetryOtlpEndpoint: string
-	openTelemetryOtlpHeaders: Record<string, string> | undefined
 	openTelemetryOtlpMetricsProtocol: string | undefined
 	openTelemetryOtlpMetricsEndpoint: string | undefined
 	openTelemetryOtlpLogsProtocol: string | undefined

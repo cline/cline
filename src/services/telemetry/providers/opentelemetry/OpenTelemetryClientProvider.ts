@@ -48,6 +48,8 @@ export class OpenTelemetryClientProvider {
 		}
 
 		// Check for headers configuration
+		// This is only used for printing, only the config value should be passed down
+		// so that the library can read and parse the env variable correclty if the config value is undefined
 		const headers = config?.otlpHeaders || process.env.OTEL_EXPORTER_OTLP_HEADERS
 		if (isDebugMode && headers) {
 			const headerCount = config?.otlpHeaders

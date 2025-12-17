@@ -300,8 +300,6 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpProtocol"]>("openTelemetryOtlpProtocol")
 		const openTelemetryOtlpEndpoint =
 			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpEndpoint"]>("openTelemetryOtlpEndpoint")
-		const openTelemetryOtlpHeaders =
-			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpHeaders"]>("openTelemetryOtlpHeaders")
 		const openTelemetryOtlpMetricsProtocol = context.globalState.get<
 			GlobalStateAndSettings["openTelemetryOtlpMetricsProtocol"]
 		>("openTelemetryOtlpMetricsProtocol")
@@ -706,7 +704,6 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			openTelemetryLogsExporter,
 			openTelemetryOtlpProtocol: openTelemetryOtlpProtocol ?? "http/json",
 			openTelemetryOtlpEndpoint: openTelemetryOtlpEndpoint ?? "http://localhost:4318",
-			openTelemetryOtlpHeaders,
 			openTelemetryOtlpMetricsProtocol,
 			openTelemetryOtlpMetricsEndpoint,
 			openTelemetryOtlpLogsProtocol,
