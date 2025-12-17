@@ -9,6 +9,7 @@ import { createPortal } from "react-dom"
 import { useWindowSize } from "react-use"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import PopupModalContainer from "@/components/common/PopupModalContainer"
 
 const PLAN_MODE_COLOR = "var(--vscode-activityWarningBadge-background)"
 const ACT_MODE_COLOR = "var(--vscode-focusBorder)"
@@ -385,7 +386,12 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 			{/* Modal - rendered via portal with fixed positioning */}
 			{isOpen &&
 				createPortal(
-					<FixedModalContainer $arrowPosition={arrowPosition} $menuPosition={menuPosition} ref={modalRef}>
+					<PopupModalContainer
+						$arrowPosition={arrowPosition}
+						$bottomOffset={5}
+						$maxHeight="18em"
+						$menuPosition={menuPosition}
+						ref={modalRef}>
 						{/* Search */}
 						<SearchContainer>
 							<Search size={14} style={{ color: "var(--vscode-descriptionForeground)", flexShrink: 0 }} />
@@ -602,53 +608,12 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 								</>
 							)}
 						</ModelListContainer>
-					</FixedModalContainer>,
+					</PopupModalContainer>,
 					document.body,
 				)}
 		</>
 	)
 }
-
-// Fixed position modal container - matches original ModelSelectorTooltip positioning
-const FixedModalContainer = styled.div<{ $menuPosition: number; $arrowPosition: number }>`
-	position: fixed;
-	bottom: ${(props) => `calc(100vh - ${props.$menuPosition}px + 5px)`};
-	left: 10px;
-	right: 10px;
-	display: flex;
-	flex-direction: column;
-	max-height: 18em;
-	background: ${CODE_BLOCK_BG_COLOR};
-	border: 1px solid var(--vscode-editorGroup-border);
-	border-bottom: none;
-	border-radius: 6px 6px 0 0;
-	z-index: 49;
-
-	&::before {
-		content: "";
-		position: absolute;
-		bottom: 0;
-		left: 0;
-		right: 0;
-		height: 1px;
-		background: var(--vscode-editorGroup-border);
-		z-index: -1;
-	}
-
-	&::after {
-		content: "";
-		position: absolute;
-		bottom: -5px;
-		right: ${(props) => props.$arrowPosition - 10}px;
-		height: 10px;
-		width: 10px;
-		transform: rotate(45deg);
-		border-right: 1px solid var(--vscode-editorGroup-border);
-		border-bottom: 1px solid var(--vscode-editorGroup-border);
-		background: ${CODE_BLOCK_BG_COLOR};
-		z-index: -1;
-	}
-`
 
 const SearchContainer = styled.div`
 	padding: 4px 10px;
