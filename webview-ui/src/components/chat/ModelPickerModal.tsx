@@ -1,12 +1,15 @@
 import type { ModelInfo as ModelInfoType } from "@shared/api"
-import { ANTHROPIC_MAX_THINKING_BUDGET, ANTHROPIC_MIN_THINKING_BUDGET, ApiProvider } from "@shared/api"
+import { ANTHROPIC_MIN_THINKING_BUDGET, ApiProvider } from "@shared/api"
 import { UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { Mode } from "@shared/storage/types"
-import { Brain, ChevronDownIcon, Search, Settings, Sparkles } from "lucide-react"
+import Fuse from "fuse.js"
+import { ArrowLeftRight, Brain, Check, ChevronDownIcon, ChevronRightIcon, Search, Settings } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
+import { useWindowSize } from "react-use"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import PopupModalContainer from "@/components/common/PopupModalContainer"
 
 const PLAN_MODE_COLOR = "var(--vscode-activityWarningBadge-background)"
 const ACT_MODE_COLOR = "var(--vscode-focusBorder)"
@@ -24,95 +27,6 @@ const SETTINGS_ONLY_PROVIDERS: ApiProvider[] = [
 	"aihubmix",
 	"together",
 ]
-
-// Helper to get provider-specific configuration info and empty state guidance
-const getProviderInfo = (
-	provider: ApiProvider,
-	apiConfiguration: any,
-	effectiveMode: "plan" | "act",
-): { modelId?: string; baseUrl?: string; helpText: string } => {
-	switch (provider) {
-		case "lmstudio":
-			return {
-				modelId:
-					effectiveMode === "plan" ? apiConfiguration.planModeLmStudioModelId : apiConfiguration.actModeLmStudioModelId,
-				baseUrl: apiConfiguration.lmStudioBaseUrl,
-				helpText: "Start LM Studio and load a model to begin",
-			}
-		case "ollama":
-			return {
-				modelId:
-					effectiveMode === "plan" ? apiConfiguration.planModeOllamaModelId : apiConfiguration.actModeOllamaModelId,
-				baseUrl: apiConfiguration.ollamaBaseUrl,
-				helpText: "Run `ollama serve` and pull a model",
-			}
-		case "litellm":
-			return {
-				modelId:
-					effectiveMode === "plan" ? apiConfiguration.planModeLiteLlmModelId : apiConfiguration.actModeLiteLlmModelId,
-				baseUrl: apiConfiguration.liteLlmBaseUrl,
-				helpText: "Add your LiteLLM proxy URL in settings",
-			}
-		case "openai":
-			return {
-				modelId:
-					effectiveMode === "plan" ? apiConfiguration.planModeOpenAiModelId : apiConfiguration.actModeOpenAiModelId,
-				baseUrl: apiConfiguration.openAiBaseUrl,
-				helpText: "Add your OpenAI API key and endpoint",
-			}
-		case "vscode-lm":
-			return {
-				modelId: undefined,
-				baseUrl: undefined,
-				helpText: "Select a VS Code language model from settings",
-			}
-		case "requesty":
-			return {
-				modelId:
-					effectiveMode === "plan" ? apiConfiguration.planModeRequestyModelId : apiConfiguration.actModeRequestyModelId,
-				baseUrl: apiConfiguration.requestyBaseUrl,
-				helpText: "Add your Requesty API key in settings",
-			}
-		case "together":
-			return {
-				modelId:
-					effectiveMode === "plan" ? apiConfiguration.planModeTogetherModelId : apiConfiguration.actModeTogetherModelId,
-				baseUrl: undefined,
-				helpText: "Add your Together AI API key in settings",
-			}
-		case "dify":
-			return {
-				modelId: undefined,
-				baseUrl: apiConfiguration.difyBaseUrl,
-				helpText: "Configure your Dify workflow URL and API key",
-			}
-		case "hicap":
-			return {
-				modelId: effectiveMode === "plan" ? apiConfiguration.planModeHicapModelId : apiConfiguration.actModeHicapModelId,
-				baseUrl: undefined,
-				helpText: "Add your HiCap API key in settings",
-			}
-		case "oca":
-			return {
-				modelId: effectiveMode === "plan" ? apiConfiguration.planModeOcaModelId : apiConfiguration.actModeOcaModelId,
-				baseUrl: apiConfiguration.ocaBaseUrl,
-				helpText: "Configure your OCA endpoint in settings",
-			}
-		case "aihubmix":
-			return {
-				modelId:
-					effectiveMode === "plan" ? apiConfiguration.planModeAihubmixModelId : apiConfiguration.actModeAihubmixModelId,
-				baseUrl: apiConfiguration.aihubmixBaseUrl,
-				helpText: "Add your AIHubMix API key in settings",
-			}
-		default:
-			return {
-				modelId: undefined,
-				baseUrl: undefined,
-				helpText: "Configure this provider in model settings",
-			}
-	}
-}
 
 const OPENROUTER_MODEL_PROVIDERS: ApiProvider[] = ["cline", "openrouter", "vercel-ai-gateway"]
 
@@ -164,13 +78,12 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 	const [searchQuery, setSearchQuery] = useState("")
 	const [activeEditMode, setActiveEditMode] = useState<Mode>(currentMode) // which mode we're editing in split view
 	const [menuPosition, setMenuPosition] = useState(0)
+	const [arrowPosition, setArrowPosition] = useState(0)
 	const [isProviderExpanded, setIsProviderExpanded] = useState(false)
-	const [providerDropdownPosition, setProviderDropdownPosition] = useState({ top: 0, left: 0, width: 0, maxHeight: 200 })
 	const searchInputRef = useRef<HTMLInputElement>(null)
 	const triggerRef = useRef<HTMLDivElement>(null)
 	const modalRef = useRef<HTMLDivElement>(null)
-	const providerRowRef = useRef<HTMLDivElement>(null)
-	const providerDropdownRef = useRef<HTMLDivElement>(null)
+	const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 
 	// Get current provider from config - use activeEditMode when in split mode
 	const effectiveMode = planActSeparateModelsSetting ? activeEditMode : currentMode
@@ -212,18 +125,6 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		[handleModeFieldChange, currentMode],
 	)
 
-	// Handle thinking budget slider change
-	const handleThinkingBudgetChange = useCallback(
-		(value: number) => {
-			handleModeFieldChange(
-				{ plan: "planModeThinkingBudgetTokens", act: "actModeThinkingBudgetTokens" },
-				value,
-				currentMode,
-			)
-		},
-		[handleModeFieldChange, currentMode],
-	)
-
 	// Get configured providers
 	const configuredProviders = useMemo(() => {
 		return getConfiguredProviders(apiConfiguration)
@@ -257,13 +158,14 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		return []
 	}, [selectedProvider, openRouterModels, apiConfiguration])
 
-	// Multi-word substring search - all words must match somewhere in id/name/provider
-	const matchesSearch = useCallback((model: ModelItem, query: string): boolean => {
-		if (!query.trim()) return true
-		const queryWords = query.toLowerCase().trim().split(/\s+/)
-		const searchText = `${model.id} ${model.name} ${model.provider || ""}`.toLowerCase()
-		return queryWords.every((word) => searchText.includes(word))
-	}, [])
+	// Filter models by search
+	const fuse = useMemo(() => {
+		return new Fuse(allModels, {
+			keys: ["id", "name", "provider"],
+			threshold: 0.4,
+			includeMatches: true,
+		})
+	}, [allModels])
 
 	// Filtered models - for OpenRouter/Vercel show all by default, for Cline only when searching
 	const filteredModels = useMemo(() => {
@@ -274,7 +176,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 
 		let models: ModelItem[]
 		if (searchQuery) {
-			models = allModels.filter((m) => matchesSearch(m, searchQuery))
+			models = fuse.search(searchQuery).map((r) => r.item)
 		} else {
 			// For non-Cline OpenRouter providers: show all models by default
 			models = [...allModels]
@@ -292,7 +194,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		// Sort alphabetically by provider
 		models = models.sort((a, b) => (a.provider || "").localeCompare(b.provider || ""))
 		return models
-	}, [searchQuery, matchesSearch, selectedModelId, selectedProvider, allModels])
+	}, [searchQuery, fuse, selectedModelId, selectedProvider, allModels])
 
 	// Featured models for Cline provider (recommended + free)
 	const featuredModels = useMemo(() => {
@@ -307,13 +209,13 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		// Filter out current model
 		const filtered = allFeatured.filter((m) => m.id !== selectedModelId)
 
-		// Apply search filter if searching (uses same multi-word logic)
+		// Apply search filter if searching
 		if (searchQuery) {
-			return filtered.filter((m) => matchesSearch(m, searchQuery))
+			return filtered.filter((m) => m.id.toLowerCase().includes(searchQuery.toLowerCase()))
 		}
 
 		return filtered
-	}, [selectedProvider, searchQuery, selectedModelId, matchesSearch])
+	}, [selectedProvider, searchQuery, selectedModelId])
 
 	// Handle model selection - in split mode uses activeEditMode, otherwise closes modal
 	const handleSelectModel = useCallback(
@@ -392,11 +294,9 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		[onOpenChange, navigateToSettings],
 	)
 
-	// Calculate menu position when opening + reset expanded states
+	// Reset states when opening/closing
 	useEffect(() => {
-		if (isOpen && triggerRef.current) {
-			const rect = triggerRef.current.getBoundingClientRect()
-			setMenuPosition(rect.top)
+		if (isOpen) {
 			setIsProviderExpanded(false)
 			setTimeout(() => searchInputRef.current?.focus(), 100)
 		} else {
@@ -404,18 +304,27 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		}
 	}, [isOpen])
 
+	// Calculate positions for modal and arrow (update on viewport resize)
+	useEffect(() => {
+		if (isOpen && triggerRef.current) {
+			const rect = triggerRef.current.getBoundingClientRect()
+			const buttonCenter = rect.left + rect.width / 2
+			const rightPosition = document.documentElement.clientWidth - buttonCenter - 5
+			setMenuPosition(rect.top + 1)
+			setArrowPosition(rightPosition)
+		}
+	}, [isOpen, viewportWidth, viewportHeight])
+
 	// Handle click outside to close
 	useEffect(() => {
 		if (!isOpen) return
 
 		const handleClickOutside = (e: MouseEvent) => {
-			// Don't close if clicking inside modal, trigger, or provider dropdown portal
 			if (
 				modalRef.current &&
 				!modalRef.current.contains(e.target as Node) &&
 				triggerRef.current &&
-				!triggerRef.current.contains(e.target as Node) &&
-				(!providerDropdownRef.current || !providerDropdownRef.current.contains(e.target as Node))
+				!triggerRef.current.contains(e.target as Node)
 			) {
 				onOpenChange(false)
 			}
@@ -466,8 +375,6 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 
 	const isClineProvider = selectedProvider === "cline"
 	const isSearching = !!searchQuery
-	const isSettingsOnlyProvider = SETTINGS_ONLY_PROVIDERS.includes(selectedProvider)
-	const hasModelsToSearch = allModels.length > 0
 
 	return (
 		<>
@@ -479,84 +386,43 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 			{/* Modal - rendered via portal with fixed positioning */}
 			{isOpen &&
 				createPortal(
-					<FixedModalContainer $menuPosition={menuPosition} ref={modalRef}>
-						{/* Search - only show when there are models to search */}
-						{hasModelsToSearch && (
-							<SearchContainer>
-								<Search size={14} style={{ color: "var(--vscode-descriptionForeground)", flexShrink: 0 }} />
-								<SearchInput
-									onChange={(e) => setSearchQuery(e.target.value)}
-									placeholder={`Search ${allModels.length} models`}
-									ref={searchInputRef as any}
-									value={searchQuery}
-								/>
-							</SearchContainer>
-						)}
+					<PopupModalContainer
+						$arrowPosition={arrowPosition}
+						$bottomOffset={5}
+						$maxHeight="18em"
+						$menuPosition={menuPosition}
+						ref={modalRef}>
+						{/* Search */}
+						<SearchContainer>
+							<Search size={14} style={{ color: "var(--vscode-descriptionForeground)", flexShrink: 0 }} />
+							<SearchInput
+								onChange={(e) => {
+									setSearchQuery(e.target.value)
+									setIsProviderExpanded(false)
+								}}
+								placeholder={`Search ${allModels.length} models`}
+								ref={searchInputRef as any}
+								value={searchQuery}
+							/>
+						</SearchContainer>
 
-						{/* Settings section - collapsible provider + icon toggles */}
+						{/* Settings section - provider + icon toggles */}
 						<SettingsSection onClick={(e) => e.stopPropagation()}>
 							<SettingsHeader>
 								{/* Provider - collapsible inline */}
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<ProviderRow
-											onClick={() => {
-												if (providerRowRef.current) {
-													const rect = providerRowRef.current.getBoundingClientRect()
-													const viewportHeight = window.innerHeight
-													const spaceBelow = viewportHeight - rect.bottom
-													const itemHeight = 28 // approximate height per item
-													const numItems = configuredProviders.length + 1 // +1 for "Add provider"
-													const dropdownHeight = Math.min(numItems * itemHeight + 8, 200) // 8px for padding
-
-													// If not enough space below, position above
-													const shouldFlipUp = spaceBelow < dropdownHeight + 10 && rect.top > spaceBelow
-
-													setProviderDropdownPosition({
-														top: shouldFlipUp ? rect.top - dropdownHeight - 4 : rect.bottom + 4,
-														left: rect.left,
-														width: modalRef.current?.getBoundingClientRect().width || rect.width,
-														maxHeight: shouldFlipUp ? rect.top - 10 : spaceBelow - 10,
-													})
-												}
-												setIsProviderExpanded(!isProviderExpanded)
-											}}
-											ref={providerRowRef}>
-											<ProviderLabel>Provider:</ProviderLabel>
-											<span
-												style={{
-													fontSize: "var(--vscode-font-size, 13px)",
-													color: "var(--vscode-foreground)",
-												}}>
-												{getProviderLabel(selectedProvider)}
-											</span>
-											<ChevronDownIcon size={12} style={{ color: "var(--vscode-descriptionForeground)" }} />
-										</ProviderRow>
-									</TooltipTrigger>
-									<TooltipContent side="top" style={{ zIndex: 9999 }}>
-										Configured providers
-									</TooltipContent>
-								</Tooltip>
+								<ProviderRow onClick={() => setIsProviderExpanded(!isProviderExpanded)}>
+									<span style={{ fontSize: 11, color: "var(--vscode-foreground)" }}>
+										{getProviderLabel(selectedProvider)}
+									</span>
+									{isProviderExpanded ? (
+										<ChevronDownIcon size={12} style={{ color: "var(--vscode-descriptionForeground)" }} />
+									) : (
+										<ChevronRightIcon size={12} style={{ color: "var(--vscode-descriptionForeground)" }} />
+									)}
+								</ProviderRow>
 
 								{/* Icon toggles */}
 								<IconToggles>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<IconToggle
-												$isActive={isSplit}
-												onClick={(e) => {
-													e.stopPropagation()
-													handleSplitToggle(!isSplit)
-												}}>
-												<Sparkles size={14} />
-											</IconToggle>
-										</TooltipTrigger>
-										<TooltipContent side="top" style={{ zIndex: 9999 }}>
-											{isSplit
-												? "Use different models for Plan vs Act"
-												: "Click to use different models for Plan vs Act"}
-										</TooltipContent>
-									</Tooltip>
 									<Tooltip>
 										<TooltipTrigger asChild>
 											<IconToggle
@@ -577,192 +443,182 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 													: "Enable extended thinking for enhanced reasoning"}
 										</TooltipContent>
 									</Tooltip>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<IconToggle
+												$isActive={isSplit}
+												onClick={(e) => {
+													e.stopPropagation()
+													handleSplitToggle(!isSplit)
+												}}>
+												<ArrowLeftRight size={14} />
+											</IconToggle>
+										</TooltipTrigger>
+										<TooltipContent side="top" style={{ zIndex: 9999 }}>
+											Use different models for Plan vs Act
+										</TooltipContent>
+									</Tooltip>
 								</IconToggles>
 							</SettingsHeader>
-							{/* Thinking budget slider - always shown when model supports thinking, greyed out when disabled */}
-							{supportsThinking && (
-								<ThinkingSliderRow $isDisabled={!thinkingEnabled} onClick={(e) => e.stopPropagation()}>
-									<ThinkingSliderLabel>
-										Thinking ({(thinkingEnabled ? thinkingBudget : 0).toLocaleString()} tokens)
-									</ThinkingSliderLabel>
-									<ThinkingSlider
-										disabled={!thinkingEnabled}
-										max={ANTHROPIC_MAX_THINKING_BUDGET}
-										min={0}
-										onChange={(e) => {
-											const value = Number(e.target.value)
-											const clampedValue = Math.max(value, ANTHROPIC_MIN_THINKING_BUDGET)
-											handleThinkingBudgetChange(clampedValue)
-										}}
-										type="range"
-										value={thinkingEnabled ? thinkingBudget : 0}
-									/>
-								</ThinkingSliderRow>
-							)}
 						</SettingsSection>
 
 						{/* Scrollable content */}
 						<ModelListContainer>
-							{/* Current model - inside scroll area for seamless scrolling */}
-							{isSplit ? (
-								<SplitModeRow onClick={(e) => e.stopPropagation()}>
-									<SplitModeCell
-										$isActive={activeEditMode === "plan"}
-										onClick={() => setActiveEditMode("plan")}>
-										<SplitModeLabel $mode="plan">P</SplitModeLabel>
-										<SplitModeModel>
-											{planModel.selectedModelId?.split("/").pop() || "Not set"}
-										</SplitModeModel>
-									</SplitModeCell>
-									<SplitModeCell $isActive={activeEditMode === "act"} onClick={() => setActiveEditMode("act")}>
-										<SplitModeLabel $mode="act">A</SplitModeLabel>
-										<SplitModeModel>{actModel.selectedModelId?.split("/").pop() || "Not set"}</SplitModeModel>
-									</SplitModeCell>
-								</SplitModeRow>
-							) : (
-								selectedModelId &&
-								modelBelongsToProvider &&
-								(() => {
-									// Check if current model has a featured label (only for Cline provider)
-									const currentFeaturedModel = isClineProvider
-										? [...recommendedModels, ...freeModels].find((m) => m.id === selectedModelId)
-										: undefined
-									return (
-										<CurrentModelRow onClick={() => onOpenChange(false)}>
-											<ModelInfoRow>
-												<ModelName>{selectedModelId.split("/").pop() || selectedModelId}</ModelName>
-												<ModelProvider>
-													{OPENROUTER_MODEL_PROVIDERS.includes(selectedProvider)
-														? selectedModelId.split("/")[0]
-														: selectedProvider}
-												</ModelProvider>
-											</ModelInfoRow>
-											{currentFeaturedModel?.label && <ModelLabel>{currentFeaturedModel.label}</ModelLabel>}
-										</CurrentModelRow>
-									)
-								})()
+							{/* Provider list - shown when expanded, inside scroll area */}
+							{isProviderExpanded && (
+								<>
+									{configuredProviders.map((provider) => (
+										<ProviderListItem
+											$isSelected={provider === selectedProvider}
+											key={provider}
+											onClick={() => handleProviderSelect(provider)}>
+											<span>{getProviderLabel(provider)}</span>
+											{provider === selectedProvider && (
+												<Check
+													size={14}
+													style={{
+														color: "var(--vscode-foreground)",
+														flexShrink: 0,
+													}}
+												/>
+											)}
+										</ProviderListItem>
+									))}
+									<ProviderListItem $isSelected={false} onClick={handleConfigureClick}>
+										<span style={{ color: "var(--vscode-textLink-foreground)" }}>Configure providers...</span>
+									</ProviderListItem>
+								</>
 							)}
 
-							{/* For Cline: Show recommended models */}
-							{isClineProvider &&
-								featuredModels.map((model) => (
-									<ModelItemContainer
-										$isSelected={false}
-										key={model.id}
-										onClick={() => handleSelectModel(model.id, openRouterModels[model.id])}>
-										<ModelInfoRow>
-											<ModelName>{model.name}</ModelName>
-											<ModelProvider>{model.provider}</ModelProvider>
-										</ModelInfoRow>
-										<ModelLabel>{model.label}</ModelLabel>
-									</ModelItemContainer>
-								))}
+							{/* Model content - hidden when provider list is expanded */}
+							{!isProviderExpanded && (
+								<>
+									{/* Current model - inside scroll area for seamless scrolling */}
+									{isSplit ? (
+										<SplitModeRow onClick={(e) => e.stopPropagation()}>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<SplitModeCell
+														$isActive={activeEditMode === "plan"}
+														onClick={() => setActiveEditMode("plan")}>
+														<SplitModeLabel $mode="plan">P</SplitModeLabel>
+														<SplitModeModel>
+															{planModel.selectedModelId?.split("/").pop() || "Not set"}
+														</SplitModeModel>
+													</SplitModeCell>
+												</TooltipTrigger>
+												<TooltipContent side="top" style={{ zIndex: 9999 }}>
+													Plan mode
+												</TooltipContent>
+											</Tooltip>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<SplitModeCell
+														$isActive={activeEditMode === "act"}
+														onClick={() => setActiveEditMode("act")}>
+														<SplitModeLabel $mode="act">A</SplitModeLabel>
+														<SplitModeModel>
+															{actModel.selectedModelId?.split("/").pop() || "Not set"}
+														</SplitModeModel>
+													</SplitModeCell>
+												</TooltipTrigger>
+												<TooltipContent side="top" style={{ zIndex: 9999 }}>
+													Act mode
+												</TooltipContent>
+											</Tooltip>
+										</SplitModeRow>
+									) : (
+										selectedModelId &&
+										modelBelongsToProvider &&
+										(() => {
+											// Check if current model has a featured label (only for Cline provider)
+											const currentFeaturedModel = isClineProvider
+												? [...recommendedModels, ...freeModels].find((m) => m.id === selectedModelId)
+												: undefined
+											return (
+												<CurrentModelRow onClick={() => onOpenChange(false)}>
+													<ModelInfoRow>
+														<ModelName>
+															{selectedModelId.split("/").pop() || selectedModelId}
+														</ModelName>
+														<ModelProvider>
+															{OPENROUTER_MODEL_PROVIDERS.includes(selectedProvider)
+																? selectedModelId.split("/")[0]
+																: selectedProvider}
+														</ModelProvider>
+													</ModelInfoRow>
+													{currentFeaturedModel?.label && (
+														<ModelLabel>{currentFeaturedModel.label}</ModelLabel>
+													)}
+													<Check
+														size={14}
+														style={{
+															color: "var(--vscode-foreground)",
+															flexShrink: 0,
+														}}
+													/>
+												</CurrentModelRow>
+											)
+										})()
+									)}
 
-							{/* All other models (for non-Cline always, for Cline only when searching) */}
-							{filteredModels.map((model) => (
-								<ModelItemContainer
-									$isSelected={false}
-									key={model.id}
-									onClick={() => handleSelectModel(model.id, model.info)}>
-									<ModelInfoRow>
-										<ModelName>{model.name}</ModelName>
-										<ModelProvider>{model.provider}</ModelProvider>
-									</ModelInfoRow>
-								</ModelItemContainer>
-							))}
+									{/* For Cline: Show recommended models */}
+									{isClineProvider &&
+										featuredModels.map((model) => (
+											<ModelItemContainer
+												$isSelected={false}
+												key={model.id}
+												onClick={() => handleSelectModel(model.id, openRouterModels[model.id])}>
+												<ModelInfoRow>
+													<ModelName>{model.name}</ModelName>
+													<ModelProvider>{model.provider}</ModelProvider>
+												</ModelInfoRow>
+												<ModelLabel>{model.label}</ModelLabel>
+											</ModelItemContainer>
+										))}
 
-							{/* Settings-only providers: show configured model info and help text */}
-							{SETTINGS_ONLY_PROVIDERS.includes(selectedProvider) &&
-								(() => {
-									const providerInfo = getProviderInfo(selectedProvider, apiConfiguration, effectiveMode)
-									return (
-										<SettingsOnlyContainer>
-											{/* Show configured model if exists */}
-											{providerInfo.modelId && (
-												<ConfiguredModelRow>
-													<ConfiguredModelLabel>Current model:</ConfiguredModelLabel>
-													<ConfiguredModelName>{providerInfo.modelId}</ConfiguredModelName>
-												</ConfiguredModelRow>
-											)}
-											{/* Show base URL if configured */}
-											{providerInfo.baseUrl && (
-												<ConfiguredModelRow>
-													<ConfiguredModelLabel>Endpoint:</ConfiguredModelLabel>
-													<ConfiguredModelUrl>{providerInfo.baseUrl}</ConfiguredModelUrl>
-												</ConfiguredModelRow>
-											)}
-											{/* Help text / empty state guidance */}
-											{!providerInfo.modelId && <HelpTextRow>{providerInfo.helpText}</HelpTextRow>}
-											{/* Configure link */}
-											<SettingsOnlyLink onClick={handleConfigureClick}>
-												<Settings size={12} />
-												<span>{providerInfo.modelId ? "Edit in settings" : "Configure in settings"}</span>
-											</SettingsOnlyLink>
-										</SettingsOnlyContainer>
-									)
-								})()}
+									{/* All other models (for non-Cline always, for Cline only when searching) */}
+									{filteredModels.map((model) => (
+										<ModelItemContainer
+											$isSelected={false}
+											key={model.id}
+											onClick={() => handleSelectModel(model.id, model.info)}>
+											<ModelInfoRow>
+												<ModelName>{model.name}</ModelName>
+												<ModelProvider>{model.provider}</ModelProvider>
+											</ModelInfoRow>
+										</ModelItemContainer>
+									))}
 
-							{/* Empty state */}
-							{isSearching &&
-								filteredModels.length === 0 &&
-								featuredModels.length === 0 &&
-								!SETTINGS_ONLY_PROVIDERS.includes(selectedProvider) && <EmptyState>No models found</EmptyState>}
+									{/* Settings-only providers: show configure link instead of model list */}
+									{SETTINGS_ONLY_PROVIDERS.includes(selectedProvider) && (
+										<SettingsOnlyMessage onClick={handleConfigureClick}>
+											<Settings size={14} />
+											<span>Configure in model settings</span>
+										</SettingsOnlyMessage>
+									)}
+
+									{/* Empty state */}
+									{isSearching &&
+										filteredModels.length === 0 &&
+										featuredModels.length === 0 &&
+										!SETTINGS_ONLY_PROVIDERS.includes(selectedProvider) && (
+											<EmptyState>No models found</EmptyState>
+										)}
+								</>
+							)}
 						</ModelListContainer>
-					</FixedModalContainer>,
-					document.body,
-				)}
-
-			{/* Provider dropdown - rendered via portal to avoid clipping */}
-			{isOpen &&
-				isProviderExpanded &&
-				createPortal(
-					<ProviderDropdownPortal
-						onClick={(e) => e.stopPropagation()}
-						ref={providerDropdownRef}
-						style={{
-							top: providerDropdownPosition.top,
-							left: providerDropdownPosition.left,
-							width: providerDropdownPosition.width - 20, // Account for modal padding
-							maxHeight: providerDropdownPosition.maxHeight,
-						}}>
-						{configuredProviders.map((provider) => (
-							<ProviderInlineItem
-								$isSelected={provider === selectedProvider}
-								key={provider}
-								onClick={() => handleProviderSelect(provider)}>
-								{provider === selectedProvider && <span style={{ marginRight: 4 }}>✓</span>}
-								<span>{getProviderLabel(provider)}</span>
-							</ProviderInlineItem>
-						))}
-						<ProviderInlineItem $isSelected={false} onClick={handleConfigureClick}>
-							<span style={{ color: "var(--vscode-textLink-foreground)" }}>+ Add provider</span>
-						</ProviderInlineItem>
-					</ProviderDropdownPortal>,
+					</PopupModalContainer>,
 					document.body,
 				)}
 		</>
 	)
 }
 
-// Fixed position modal container - matches original ModelSelectorTooltip positioning
-const FixedModalContainer = styled.div<{ $menuPosition: number }>`
-	position: fixed;
-	bottom: ${(props) => `calc(100vh - ${props.$menuPosition}px + 8px)`};
-	left: 15px;
-	right: 15px;
-	display: flex;
-	flex-direction: column;
-	max-height: 22em;
-	max-width: 375px;
-	background: ${CODE_BLOCK_BG_COLOR};
-	border: 1px solid var(--vscode-editorGroup-border);
-	border-radius: 6px;
-	overflow: hidden;
-	z-index: 1000;
-`
-
 const SearchContainer = styled.div`
 	padding: 4px 10px;
+	min-height: 28px;
+	box-sizing: border-box;
 	border-bottom: 1px solid var(--vscode-editorGroup-border);
 	display: flex;
 	align-items: center;
@@ -774,8 +630,11 @@ const SearchInput = styled.input`
 	background: transparent;
 	border: none;
 	outline: none;
-	font-size: var(--vscode-font-size, 13px);
+	font-size: 11px;
 	color: var(--vscode-foreground);
+	&:focus {
+		outline: none;
+	}
 	&::placeholder {
 		color: var(--vscode-descriptionForeground);
 		opacity: 0.7;
@@ -784,7 +643,6 @@ const SearchInput = styled.input`
 
 const SettingsSection = styled.div`
 	position: relative;
-	z-index: 10;
 	padding: 4px 10px;
 	border-bottom: 1px solid var(--vscode-editorGroup-border);
 	display: flex;
@@ -792,7 +650,6 @@ const SettingsSection = styled.div`
 `
 
 const SettingsHeader = styled.div`
-	position: relative;
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -831,69 +688,26 @@ const IconToggle = styled.button<{ $isActive: boolean; $isDisabled?: boolean }>`
 const ProviderRow = styled.div`
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 4px;
 	cursor: pointer;
 	&:hover {
 		opacity: 0.8;
 	}
 `
 
-const ProviderLabel = styled.span`
-	font-size: calc(var(--vscode-font-size, 13px) * 0.85);
-	color: var(--vscode-descriptionForeground);
-`
-
-const ProviderName = styled.span`
-	font-size: var(--vscode-font-size, 13px);
-	color: var(--vscode-foreground);
-	font-weight: 500;
-	cursor: pointer;
-	&:hover {
-		opacity: 0.8;
-	}
-`
-
-// Floating provider dropdown (overlays content) - legacy, kept for reference
-const ProviderInlineList = styled.div`
-	position: absolute;
-	top: 100%;
-	left: 0;
-	right: 0;
-	display: flex;
-	flex-direction: column;
-	padding: 4px 0;
-	background: ${CODE_BLOCK_BG_COLOR};
-	border: 1px solid var(--vscode-editorGroup-border);
-	border-radius: 4px;
-	max-height: 150px;
-	overflow-y: auto;
-	z-index: 999;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-`
-
-// Provider dropdown rendered via portal to avoid clipping
-const ProviderDropdownPortal = styled.div`
-	position: fixed;
-	display: flex;
-	flex-direction: column;
-	padding: 4px 0;
-	background: ${CODE_BLOCK_BG_COLOR};
-	border: 1px solid var(--vscode-editorGroup-border);
-	border-radius: 4px;
-	max-height: 200px;
-	overflow-y: auto;
-	z-index: 2000;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-`
-
-const ProviderInlineItem = styled.div<{ $isSelected: boolean }>`
+// Provider list item - shown inline in the scrollable content area
+const ProviderListItem = styled.div<{ $isSelected: boolean }>`
 	display: flex;
 	align-items: center;
-	padding: 4px 8px;
+	justify-content: space-between;
+	padding: 6px 10px;
 	cursor: pointer;
-	font-size: var(--vscode-font-size, 13px);
+	font-size: 11px;
 	color: ${(props) => (props.$isSelected ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
-	border-radius: 3px;
+	background: ${(props) =>
+		props.$isSelected
+			? `linear-gradient(var(--vscode-list-activeSelectionBackground), var(--vscode-list-activeSelectionBackground)), ${CODE_BLOCK_BG_COLOR}`
+			: "transparent"};
 	&:hover {
 		background: var(--vscode-list-hoverBackground);
 	}
@@ -902,7 +716,7 @@ const ProviderInlineItem = styled.div<{ $isSelected: boolean }>`
 const ModelListContainer = styled.div`
 	flex: 1;
 	overflow-y: auto;
-	min-height: 100px;
+	min-height: 0;
 	scrollbar-width: thin;
 	&::-webkit-scrollbar {
 		width: 6px;
@@ -937,7 +751,7 @@ const ModelInfoRow = styled.div`
 `
 
 const ModelName = styled.span`
-	font-size: var(--vscode-font-size, 13px);
+	font-size: 11px;
 	color: var(--vscode-foreground);
 	white-space: nowrap;
 	overflow: hidden;
@@ -945,13 +759,16 @@ const ModelName = styled.span`
 `
 
 const ModelProvider = styled.span`
-	font-size: calc(var(--vscode-font-size, 13px) * 0.85);
+	font-size: 10px;
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;
+	@media (max-width: 280px) {
+		display: none;
+	}
 `
 
 const ModelLabel = styled.span`
-	font-size: calc(var(--vscode-font-size, 13px) * 0.75);
+	font-size: 9px;
 	color: var(--vscode-textLink-foreground);
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
@@ -963,71 +780,11 @@ const ModelLabel = styled.span`
 const EmptyState = styled.div`
 	padding: 12px 10px;
 	text-align: center;
-	font-size: var(--vscode-font-size, 13px);
+	font-size: 11px;
 	color: var(--vscode-descriptionForeground);
 `
 
-// Settings-only provider container with configured model info
-const SettingsOnlyContainer = styled.div`
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-	padding: 12px 10px;
-`
-
-const ConfiguredModelRow = styled.div`
-	display: flex;
-	align-items: center;
-	gap: 6px;
-`
-
-const ConfiguredModelLabel = styled.span`
-	font-size: calc(var(--vscode-font-size, 13px) * 0.85);
-	color: var(--vscode-descriptionForeground);
-	flex-shrink: 0;
-`
-
-const ConfiguredModelName = styled.span`
-	font-size: var(--vscode-font-size, 13px);
-	color: var(--vscode-foreground);
-	font-weight: 500;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-`
-
-const ConfiguredModelUrl = styled.span`
-	font-size: calc(var(--vscode-font-size, 13px) * 0.85);
-	color: var(--vscode-descriptionForeground);
-	font-family: var(--vscode-editor-font-family);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-`
-
-const HelpTextRow = styled.div`
-	font-size: calc(var(--vscode-font-size, 13px) * 0.9);
-	color: var(--vscode-descriptionForeground);
-	text-align: center;
-	padding: 4px 0;
-`
-
-const SettingsOnlyLink = styled.div`
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 6px;
-	padding: 6px 0;
-	margin-top: 4px;
-	cursor: pointer;
-	color: var(--vscode-textLink-foreground);
-	font-size: calc(var(--vscode-font-size, 13px) * 0.9);
-	&:hover {
-		text-decoration: underline;
-	}
-`
-
-// Settings-only provider message - clickable link to settings (legacy, kept for reference)
+// Settings-only provider message - clickable link to settings
 const SettingsOnlyMessage = styled.div`
 	display: flex;
 	align-items: center;
@@ -1047,9 +804,13 @@ const CurrentModelRow = styled.div`
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
+	gap: 6px;
 	padding: 4px 10px;
+	min-height: 28px;
+	box-sizing: border-box;
 	cursor: pointer;
-	background: var(--vscode-list-activeSelectionBackground);
+	background: linear-gradient(var(--vscode-list-activeSelectionBackground), var(--vscode-list-activeSelectionBackground)),
+		${CODE_BLOCK_BG_COLOR};
 	position: sticky;
 	top: 0;
 	z-index: 1;
@@ -1071,83 +832,35 @@ const SplitModeCell = styled.div<{ $isActive: boolean }>`
 	align-items: center;
 	gap: 6px;
 	padding: 4px 10px;
+	min-height: 28px;
+	box-sizing: border-box;
 	cursor: pointer;
 	flex: 1;
 	min-width: 0;
-	background: ${(props) => (props.$isActive ? "var(--vscode-list-activeSelectionBackground)" : "transparent")};
-	box-shadow: ${(props) => (props.$isActive ? "inset 0 -2px 0 var(--vscode-focusBorder)" : "none")};
+	background: ${(props) =>
+		props.$isActive
+			? `linear-gradient(var(--vscode-list-activeSelectionBackground), var(--vscode-list-activeSelectionBackground)), ${CODE_BLOCK_BG_COLOR}`
+			: "transparent"};
+	border-bottom: 2px solid ${(props) => (props.$isActive ? "var(--vscode-focusBorder)" : "transparent")};
 	&:hover {
 		background: var(--vscode-list-hoverBackground);
 	}
 `
 
 const SplitModeLabel = styled.span<{ $mode: "plan" | "act" }>`
-	font-size: calc(var(--vscode-font-size, 13px) * 0.75);
+	font-size: 9px;
 	font-weight: 600;
 	color: ${(props) => (props.$mode === "plan" ? PLAN_MODE_COLOR : ACT_MODE_COLOR)};
 	text-transform: uppercase;
 `
 
 const SplitModeModel = styled.span`
-	font-size: calc(var(--vscode-font-size, 13px) * 0.85);
+	font-size: 10px;
 	color: var(--vscode-foreground);
 	flex: 1;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-`
-
-// Thinking budget slider components
-const ThinkingSliderRow = styled.div<{ $isDisabled?: boolean }>`
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	padding: 6px 0;
-	margin-top: 2px;
-	opacity: ${(props) => (props.$isDisabled ? 0.4 : 1)};
-	pointer-events: ${(props) => (props.$isDisabled ? "none" : "auto")};
-`
-
-const ThinkingSliderLabel = styled.span`
-	font-size: calc(var(--vscode-font-size, 13px) * 0.85);
-	color: var(--vscode-descriptionForeground);
-	white-space: nowrap;
-	min-width: 145px;
-`
-
-const ThinkingSlider = styled.input`
-	flex: 1;
-	height: 4px;
-	-webkit-appearance: none;
-	appearance: none;
-	background: var(--vscode-input-background);
-	border-radius: 2px;
-	outline: none;
-	cursor: pointer;
-
-	&::-webkit-slider-thumb {
-		-webkit-appearance: none;
-		appearance: none;
-		width: 12px;
-		height: 12px;
-		background: var(--vscode-textLink-foreground);
-		border-radius: 50%;
-		cursor: pointer;
-		transition: transform 0.1s ease;
-	}
-
-	&::-webkit-slider-thumb:hover {
-		transform: scale(1.2);
-	}
-
-	&::-moz-range-thumb {
-		width: 12px;
-		height: 12px;
-		background: var(--vscode-textLink-foreground);
-		border: none;
-		border-radius: 50%;
-		cursor: pointer;
-	}
 `
 
 export default ModelPickerModal

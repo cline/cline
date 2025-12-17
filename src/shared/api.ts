@@ -900,6 +900,23 @@ export const vertexModels = {
 		inputPrice: 2.0,
 		outputPrice: 12.0,
 		temperature: 1.0,
+		supportsReasoning: true,
+		thinkingConfig: {
+			geminiThinkingLevel: "high",
+			supportsThinkingLevel: true,
+		},
+	},
+	"gemini-3-flash-preview": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 0.5,
+		outputPrice: 3.0,
+		cacheWritesPrice: 0.05,
+		temperature: 1.0,
+		supportsReasoning: true,
 		thinkingConfig: {
 			geminiThinkingLevel: "high",
 			supportsThinkingLevel: true,
@@ -1302,6 +1319,35 @@ export const geminiModels = {
 			},
 		],
 	},
+	"gemini-3-flash-preview": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 0.5,
+		outputPrice: 3.0,
+		cacheWritesPrice: 0.05,
+		supportsReasoning: true,
+		thinkingConfig: {
+			geminiThinkingLevel: "low",
+			supportsThinkingLevel: true,
+		},
+		tiers: [
+			{
+				contextWindow: 200000,
+				inputPrice: 0.3,
+				outputPrice: 2.5,
+				cacheReadsPrice: 0.03,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 0.3,
+				outputPrice: 2.5,
+				cacheReadsPrice: 0.03,
+			},
+		],
+	},
 	"gemini-2.5-pro": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
@@ -1486,6 +1532,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.175,
 		temperature: 1,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
 	"gpt-5.1-2025-11-13": {
@@ -1498,6 +1545,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.125,
 		temperature: 1,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
 	"gpt-5.1": {
@@ -1510,6 +1558,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.125,
 		temperature: 1,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
 	"gpt-5.1-codex": {
@@ -1523,6 +1572,7 @@ export const openAiNativeModels = {
 		apiFormat: ApiFormat.OPENAI_RESPONSES,
 		temperature: 1,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
 	"gpt-5.1-chat-latest": {
@@ -1535,6 +1585,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.125,
 		temperature: 1,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
 	"gpt-5-2025-08-07": {
@@ -1547,6 +1598,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.125,
 		temperature: 1,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
 	"gpt-5-codex": {
@@ -1560,6 +1612,7 @@ export const openAiNativeModels = {
 		apiFormat: ApiFormat.OPENAI_RESPONSES,
 		temperature: 1,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
 	"gpt-5-mini-2025-08-07": {
@@ -1572,6 +1625,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.025,
 		temperature: 1,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
 	"gpt-5-nano-2025-08-07": {
@@ -1584,6 +1638,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.005,
 		temperature: 1,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
 	"gpt-5-chat-latest": {
@@ -1596,6 +1651,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.125,
 		temperature: 1,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
 	o3: {
@@ -1607,6 +1663,7 @@ export const openAiNativeModels = {
 		outputPrice: 8.0,
 		cacheReadsPrice: 0.5,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 		supportsTools: false,
 	},
@@ -1619,6 +1676,7 @@ export const openAiNativeModels = {
 		outputPrice: 4.4,
 		cacheReadsPrice: 0.275,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 		supportsTools: false,
 	},
@@ -1661,6 +1719,7 @@ export const openAiNativeModels = {
 		outputPrice: 4.4,
 		cacheReadsPrice: 0.55,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 		supportsTools: false,
 	},
