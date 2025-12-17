@@ -11,7 +11,7 @@ const GENERIC: ClineToolSpec = {
 		{
 			name: "command",
 			required: true,
-			instruction: `The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.`,
+			instruction: `The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions. Always use flags to disable pagers for commands that may use them (e.g. \`git --no-pager log\`).`,
 			usage: "Your command here",
 		},
 		{
@@ -45,7 +45,7 @@ const NATIVE_GPT_5: ClineToolSpec = {
 			name: "command",
 			required: true,
 			instruction:
-				"The CLI command to execute. This should be valid for the current operating system. Do not use the ~ character or $HOME to refer to the home directory. Always use absolute paths. The command will be executed from the current workspace, you do not need to cd to the workspace.",
+				"The CLI command to execute. This should be valid for the current operating system. Do not use the ~ character or $HOME to refer to the home directory. Always use absolute paths. The command will be executed from the current workspace, you do not need to cd to the workspace. Always use flags to disable pagers for commands that may use them (e.g. `git --no-pager log`).",
 		},
 		{
 			name: "requires_approval",
@@ -73,7 +73,7 @@ const GEMINI_3: ClineToolSpec = {
 			name: "command",
 			required: true,
 			instruction:
-				"The CLI command to execute. This should be valid for the current operating system. For command chaining, use proper shell operators like && to chain commands (e.g., 'cd path && command'). Do not use the ~ character or $HOME to refer to the home directory. Always use absolute paths. Do not run search/grep commands that may return thousands of results.",
+				"The CLI command to execute. This should be valid for the current operating system. For command chaining, use proper shell operators like && to chain commands (e.g., 'cd path && command'). Do not use the ~ character or $HOME to refer to the home directory. Always use absolute paths. Do not run search/grep commands that may return thousands of results. Always use flags to disable pagers for commands that may use them (e.g. `git --no-pager log`).",
 		},
 		{
 			name: "requires_approval",
