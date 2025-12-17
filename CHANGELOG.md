@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.44.1]
+
+- Fixed a critical bug where local MCP servers stopped connecting after v3.42.0—all user-configured stdio-based MCP servers should now work again
+- Fixed remotely configured API keys not being extracted correctly for enterprise users
+- Added support for dynamic tool instructions that adapt based on runtime context, laying groundwork for future context-aware features
+
+## [3.44.0]
+
+## Added
+
+- Updating minor version to show a proper banner for the release
+
+## [3.43.1]
+
+### Patch Changes
+
+- Fix GLM-4.6 Model reference id
+
 ## [3.43.0]
 
 ### Added
@@ -9,6 +27,7 @@
 - Add parsing of env variable patterns to the mcpconfig.json
 
 ### Fixed
+
 - TLS Proxy support issues for VSCode
 - Add supportsReasoning flag to OpenAI reasoning models
 - Fix thinking not available for some models in the OpenAI provider
@@ -18,6 +37,7 @@
 - Improve ModelPickerModal provider list layout
 
 ### Refactored
+
 - Migrate WhatsNewModal to new shared dialogue component
 
 ## [3.42.0]
