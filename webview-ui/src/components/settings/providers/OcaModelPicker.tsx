@@ -1,5 +1,5 @@
 import type { ApiConfiguration, OcaModelInfo } from "@shared/api"
-import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
+import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import React, { useMemo } from "react"
 import { VSC_BUTTON_BACKGROUND, VSC_BUTTON_FOREGROUND, VSC_DESCRIPTION_FOREGROUND, VSC_FOREGROUND } from "@/utils/vscStyles"
@@ -92,7 +92,6 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration, currentMode)
 	}, [apiConfiguration, currentMode])
-	console.log("Selected Model Info: ", selectedModelInfo)
 
 	const selectedReasoningEffort = useMemo(() => {
 		if (currentMode == "plan") {
@@ -189,7 +188,7 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 							currentValue={selectedReasoningEffort}
 							id="reasoning-effort-dropdown"
 							onChange={(e: any) => {
-								const newValue = e.target.currentValue as OpenaiReasoningEffort
+								const newValue = e.target.currentValue
 								handleReasoningEffortChange(newValue)
 							}}>
 							<VSCodeOption

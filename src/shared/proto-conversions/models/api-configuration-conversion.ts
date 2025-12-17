@@ -416,7 +416,6 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 
 // Converts application ApiConfiguration to proto ApiConfiguration
 export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoApiConfiguration {
-	config.ocaReasoningEffort
 	return {
 		// Global configuration fields
 		apiKey: config.apiKey,

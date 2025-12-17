@@ -71,14 +71,9 @@ import { ClineStorageMessage } from "@/shared/messages/content"
  * @param messages - Array of ClineStorageMessage objects to be converted
  * @returns ResponseInput array containing the transformed messages with proper reasoning pairing
  */
-export function convertToOpenAIResponsesInput(systemPrompt: string, messages: ClineStorageMessage[]): ResponseInput {
+export function convertToOpenAIResponsesInput(messages: ClineStorageMessage[]): ResponseInput {
 	const allItems: any[] = []
 	const toolUseIdToCallId = new Map<string, string>()
-
-	allItems.push({
-		role: "system",
-		content: systemPrompt,
-	})
 
 	for (const m of messages) {
 		if (typeof m.content === "string") {
@@ -220,7 +215,7 @@ export function convertToOpenAIResponsesInput(systemPrompt: string, messages: Cl
 
 			// Flush any remaining user message content
 			if (messageContent.length > 0) {
-				allItems.push({ role: m.role, content: messageContent })
+				allItems.push({ role: m.role, content: [...messageContent] })
 			}
 		}
 	}

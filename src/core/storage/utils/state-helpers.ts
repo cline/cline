@@ -266,7 +266,6 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const ocaMode = context.globalState.get("ocaMode") as string | undefined
 		const openaiReasoningEffort =
 			context.globalState.get<GlobalStateAndSettings["openaiReasoningEffort"]>("openaiReasoningEffort")
-		const ocaReasoningEffort = context.globalState.get<GlobalStateAndSettings["ocaReasoningEffort"]>("ocaReasoningEffort")
 		const preferredLanguage = context.globalState.get<GlobalStateAndSettings["preferredLanguage"]>("preferredLanguage")
 		const focusChainSettings = context.globalState.get<GlobalStateAndSettings["focusChainSettings"]>("focusChainSettings")
 		const dictationSettings = context.globalState.get<GlobalStateAndSettings["dictationSettings"]>("dictationSettings") as
@@ -672,7 +671,6 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			browserSettings: { ...DEFAULT_BROWSER_SETTINGS, ...browserSettings }, // this will ensure that older versions of browserSettings (e.g. before remoteBrowserEnabled was added) are merged with the default values (false for remoteBrowserEnabled)
 			preferredLanguage: preferredLanguage || "English",
 			openaiReasoningEffort: (openaiReasoningEffort as OpenaiReasoningEffort) || "medium",
-			ocaReasoningEffort: ocaReasoningEffort as string | undefined,
 			mode: mode || "act",
 			userInfo,
 			mcpMarketplaceEnabled: mcpMarketplaceEnabledRaw ?? true,

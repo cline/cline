@@ -117,7 +117,6 @@ export interface Settings {
 	clineWebToolsEnabled: boolean
 	preferredLanguage: string
 	openaiReasoningEffort: OpenaiReasoningEffort
-	ocaReasoningEffort: string | undefined
 	mode: Mode
 	dictationSettings: DictationSettings
 	focusChainSettings: FocusChainSettings

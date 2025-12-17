@@ -55,7 +55,6 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 			}
 			for (const model of response.data.data) {
 				const modelId = model.litellm_params?.model
-				console.log("Model: ", modelId, "Supported list: ", model.model_info.supported_api_list)
 				if (typeof modelId !== "string" || !modelId) {
 					continue
 				}

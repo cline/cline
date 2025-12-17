@@ -86,19 +86,13 @@ Reminder on how to use the task_progress parameter:
 
 ${reminder}`
 
-// const recommended = `
-// # task_progress RECOMMENDED
+const recommended = `
+# task_progress RECOMMENDED
 
-// When starting a new task, it is recommended to include a todo list using the task_progress parameter.
+When starting a new task, it is recommended to include a todo list using the task_progress parameter.
 
-// const recommended = `
-// # task_progress RECOMMENDED
-
-// For new tasks, consider including a todo list via the task_progress parameter in tool calls.\n\nKey elements:\n1. Develop a comprehensive checklist outlining all required steps.\n2. Format using Markdown: - [ ] for incomplete items, - [x] for completed ones.\n\n**Advantages of a task_progress list:**\n\t- Provides a clear implementation roadmap.\n\t- Enables ongoing progress tracking.\n\t- Prevents overlooking any steps.\n\t- Allows users to review, monitor, and adjust the plan as needed.\n\n**Sample checklist format:**\n\`\`\`\n- [ ] Analyze requirements\n- [ ] Set up necessary files\n- [ ] Implement main functionality\n- [ ] Handle edge cases\n- [ ] Test the implementation\n- [ ] Verify results\n\`\`\`\n\nA well-maintained task_progress list supports effective progress tracking and comprehensive task coverage.\n
-
-// `
-
-const recommended = ""
+${listInstructionsRecommended}
+`
 
 const apiRequestCount = `
 # task_progress
