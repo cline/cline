@@ -239,33 +239,30 @@ export class McpHub {
 			}
 		}
 
-		// Validate local MCP servers based on remote config
+		// Validate local MCP servers based on remote config (enterprise feature)
 		if (config.type === "stdio") {
 			const stateManager = StateManager.get()
 			const remoteConfig = stateManager.getRemoteConfigSettings()
 
-			// If marketplace is disabled, block all local servers
+			// If marketplace is explicitly disabled by enterprise config, block all local servers
 			if (remoteConfig.mcpMarketplaceEnabled === false) {
 				return
 			}
 
-			// Check if server is from GitHub marketplace
-			if (name.startsWith("github.com/")) {
-				// If allowlist is configured, validate against it
-				if (remoteConfig.allowedMCPServers && remoteConfig.allowedMCPServers.length > 0) {
+			// Only apply allowlist restrictions if enterprise has configured an allowlist
+			if (remoteConfig.allowedMCPServers && remoteConfig.allowedMCPServers.length > 0) {
+				// Check if server is from GitHub marketplace
+				if (name.startsWith("github.com/")) {
 					const allowedIds = remoteConfig.allowedMCPServers.map((server: { id: string }) => server.id)
 
 					if (!allowedIds.includes(name)) {
 						return
 					}
-				} else {
-					// If no allowlist, GitHub servers are not allowed
-					return
 				}
-			} else {
-				// Non-GitHub local servers are blocked
-				return
+				// Non-GitHub local servers are allowed when there's an allowlist
+				// (the allowlist only restricts marketplace servers)
 			}
+			// If no enterprise allowlist configured, allow all local servers (default behavior)
 		}
 
 		if (config.disabled) {
