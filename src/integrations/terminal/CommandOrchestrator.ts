@@ -250,9 +250,9 @@ export async function orchestrateCommandExecution(
 		largeOutputLogPath = path.join(os.tmpdir(), `cline-large-output-${Date.now()}.log`)
 		largeOutputLogStream = fs.createWriteStream(largeOutputLogPath, { flags: "a" })
 
-		// Write all existing lines to file
-		for (const line of outputLines) {
-			largeOutputLogStream.write(line + "\n")
+		// Write all existing lines to file in a single batch to reduce I/O overhead
+		if (outputLines.length > 0) {
+			largeOutputLogStream.write(outputLines.join("\n") + "\n")
 		}
 
 		// Keep first N lines for summary
