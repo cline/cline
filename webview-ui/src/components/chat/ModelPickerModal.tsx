@@ -390,7 +390,10 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 						<SearchContainer>
 							<Search size={14} style={{ color: "var(--vscode-descriptionForeground)", flexShrink: 0 }} />
 							<SearchInput
-								onChange={(e) => setSearchQuery(e.target.value)}
+								onChange={(e) => {
+									setSearchQuery(e.target.value)
+									setIsProviderExpanded(false)
+								}}
 								placeholder={`Search ${allModels.length} models`}
 								ref={searchInputRef as any}
 								value={searchQuery}
