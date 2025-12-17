@@ -453,8 +453,16 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 											$isSelected={provider === selectedProvider}
 											key={provider}
 											onClick={() => handleProviderSelect(provider)}>
-											{provider === selectedProvider && <span style={{ marginRight: 6 }}>✓</span>}
 											<span>{getProviderLabel(provider)}</span>
+											{provider === selectedProvider && (
+												<Check
+													size={14}
+													style={{
+														color: "var(--vscode-foreground)",
+														flexShrink: 0,
+													}}
+												/>
+											)}
 										</ProviderListItem>
 									))}
 									<ProviderListItem $isSelected={false} onClick={handleConfigureClick}>
@@ -686,9 +694,10 @@ const ProviderRow = styled.div`
 const ProviderListItem = styled.div<{ $isSelected: boolean }>`
 	display: flex;
 	align-items: center;
-	padding: 8px 10px;
+	justify-content: space-between;
+	padding: 4.5px 10px;
 	cursor: pointer;
-	font-size: 12px;
+	font-size: 11px;
 	color: ${(props) => (props.$isSelected ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
 	background: ${(props) => (props.$isSelected ? "var(--vscode-list-activeSelectionBackground)" : "transparent")};
 	&:hover {
