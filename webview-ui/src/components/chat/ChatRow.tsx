@@ -543,13 +543,18 @@ export const ChatRowContent = memo(
 
 			switch (tool.tool) {
 				case "editedExistingFile":
+					const content = tool?.content || ""
+					const isApplyingPatch = content?.startsWith("%%bash") && !content.endsWith("*** End Patch\nEOF")
+					const editToolTitle = isApplyingPatch
+						? "Cline is creating patches to edit this file:"
+						: "Cline wants to edit this file:"
 					return (
 						<>
 							<div style={headerStyle}>
 								{toolIcon("edit")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>Cline wants to edit this file:</span>
+								<span style={{ fontWeight: "bold" }}>{editToolTitle}</span>
 							</div>
 							<CodeAccordian
 								// isLoading={message.partial}
