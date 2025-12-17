@@ -3,7 +3,7 @@ import { ANTHROPIC_MIN_THINKING_BUDGET, ApiProvider } from "@shared/api"
 import { UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { Mode } from "@shared/storage/types"
 import Fuse from "fuse.js"
-import { Brain, ChevronDownIcon, ChevronRightIcon, Search, Settings, Sparkles } from "lucide-react"
+import { Brain, Check, ChevronDownIcon, ChevronRightIcon, Search, Settings, Sparkles } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import styled from "styled-components"
@@ -523,6 +523,13 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 													{currentFeaturedModel?.label && (
 														<ModelLabel>{currentFeaturedModel.label}</ModelLabel>
 													)}
+													<Check
+														size={14}
+														style={{
+															color: "var(--vscode-foreground)",
+															flexShrink: 0,
+														}}
+													/>
 												</CurrentModelRow>
 											)
 										})()
@@ -742,6 +749,9 @@ const ModelProvider = styled.span`
 	font-size: 10px;
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;
+	@media (max-width: 280px) {
+		display: none;
+	}
 `
 
 const ModelLabel = styled.span`
@@ -781,6 +791,7 @@ const CurrentModelRow = styled.div`
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
+	gap: 6px;
 	padding: 4px 10px;
 	min-height: 28px;
 	box-sizing: border-box;
