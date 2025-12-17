@@ -7,57 +7,45 @@ description: "Configure Single Sign-On (SSO) for Cline Enterprise via WorkOS Aut
 ## Overview
 Cline Enterprise integrates with your identity provider (IdP) via **WorkOS AuthKit** for SSO.
 
-This page documents the **verified configuration inputs** required by the Cline Enterprise backend (Core Platform) to enable WorkOS-based authentication.
+This page describes, at a high level, how SSO is set up for Cline Enterprise using WorkOS AuthKit.
 
 If you haven’t completed initial onboarding, start with [Onboarding](/enterprise-solutions/onboarding).
 
-## What you configure
-There are two parts:
+## Where setup happens
+SSO setup spans three places:
 
-1) **WorkOS dashboard**
-- Create/configure an AuthKit connection for your IdP (Okta, Microsoft Entra ID/Azure AD, Google Workspace, or any SAML/OIDC IdP supported by WorkOS).
-- Configure an AuthKit redirect URL (callback) and webhook signing secret.
+1) **Cline Dashboard (app.cline.bot)**
+- Where you sign in and verify SSO works for your organization.
 
-2) **Your Cline Enterprise backend**
-- Provide WorkOS credentials and secrets via environment variables.
+2) **WorkOS dashboard**
+- Where your IdP connection is configured (AuthKit → Connections).
 
-## Required environment variables (Cline Enterprise backend)
-The Cline Enterprise backend expects the following WorkOS configuration values (as environment variables).
-
-| Variable | Purpose |
-| --- | --- |
-| `WORKOS_API_KEY` | Authenticates the backend to WorkOS APIs. |
-| `WORKOS_CLIENT_ID` | Identifies your WorkOS AuthKit client. |
-| `WORKOS_COOKIE_SIGNING_SECRET` | Used to create/verify **sealed sessions** (signed session cookie payloads). |
-| `WORKOS_REDIRECT_URI` | The backend callback URL that WorkOS redirects to after SSO completes. |
-| `WORKOS_WEBHOOK_SECRET` | Used to validate the `WorkOS-Signature` header for WorkOS webhooks. |
+3) **Your Identity Provider (Okta / Entra / Google Workspace / Keycloak, etc.)**
+- Where users, groups, and login policy are managed.
 
 <Info>
-These values are referenced by the core-platform backend configuration (`WorkOSConfig`) and are required for WorkOS-based SSO.
+This page intentionally avoids backend deployment/internal configuration details. If you’re onboarding to Cline Enterprise and need deployment-specific configuration values (like redirect URLs), contact your onboarding/support channel.
 </Info>
 
-## Redirect URI (callback URL)
-WorkOS needs an exact **Redirect URI** for your deployment.
-
-- In WorkOS, set the AuthKit redirect/callback URL to your backend’s auth callback endpoint.
-- In your backend configuration, set `WORKOS_REDIRECT_URI` to the same value.
+## Using the Cline Dashboard
+Use the Cline Dashboard at https://app.cline.bot to:
+- complete sign-in and onboarding flows
+- verify users can authenticate via SSO
 
 <Info>
-The exact URL depends on your deployment hostname. In core-platform’s production/staging Helm values, the callback path is `/api/v1/auth/callback` (shown as an example), but you should use the hostname for your environment.
+The dashboard includes SSO-related callback routes used during authentication (for example, `/auth/callback` and `/auth/sso-callback`).
 </Info>
 
-## Webhooks
-Cline Enterprise validates WorkOS webhooks using the `WORKOS_WEBHOOK_SECRET`.
+## Configure your IdP connection in WorkOS
+To connect your IdP to Cline Enterprise, configure your identity provider in **WorkOS AuthKit**:
 
-WorkOS webhooks are used for syncing organization-related events. In the current core-platform implementation:
-- Organization create/update/delete events are handled.
-- Membership **role updates** are handled.
+1. In the WorkOS dashboard, go to **AuthKit → Connections**
+2. Click **Add Connection**
+3. Select your identity provider (e.g., Okta, Microsoft Entra ID/Azure AD, Google Workspace, Generic SAML/OIDC)
+4. Follow the provider-specific instructions in WorkOS
 
-## WorkOS dashboard setup
-WorkOS’s UI and required fields vary by IdP.
-
-Follow WorkOS’s official setup instructions for your provider:
-- WorkOS AuthKit SSO docs: https://workos.com/docs/authkit/sso
+WorkOS’s UI and required fields vary by provider. For details, follow WorkOS documentation:
+- https://workos.com/docs/authkit/sso
 
 ## Keycloak note (IdP compatibility)
 Cline Enterprise’s default SSO integration is **via WorkOS** (there is no direct Keycloak integration in the code we inspected).
@@ -65,15 +53,13 @@ Cline Enterprise’s default SSO integration is **via WorkOS** (there is no dire
 If you use **Keycloak** as your IdP, the supported path is to configure Keycloak in WorkOS as a **Generic SAML** or **Generic OIDC** provider (using the settings WorkOS requests for those provider types).
 
 ## Verification
-After configuring WorkOS + your backend:
+After configuring WorkOS:
 
-1) Attempt an SSO sign-in from your Cline Enterprise UI.
-2) Confirm the sign-in completes (redirects back successfully).
-3) If you enabled webhooks, confirm webhook signature validation succeeds and org/member events are received.
+1) Attempt an SSO sign-in from https://app.cline.bot.
+2) Confirm the sign-in completes (you are redirected back successfully).
 
 ## Troubleshooting
-- **Redirect URI mismatch**: ensure WorkOS’s configured redirect URI exactly matches `WORKOS_REDIRECT_URI` (including scheme, host, path).
-- **Webhook signature failures**: ensure `WORKOS_WEBHOOK_SECRET` matches the WorkOS webhook signing secret and the `WorkOS-Signature` header is present.
+- **Redirect URI mismatch**: confirm the redirect/callback URL configured in WorkOS matches what was provided during your Cline Enterprise onboarding.
 
 For additional troubleshooting guidance, refer to WorkOS documentation:
 - https://workos.com/docs/authkit/sso
