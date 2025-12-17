@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.44.2
+
+### Patch Changes
+
+- c090f5b: fix: skip reasoning for GLM models
+
 ## [3.44.1]
 
 - Fixed a critical bug where local MCP servers stopped connecting after v3.42.0—all user-configured stdio-based MCP servers should now work again
