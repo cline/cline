@@ -24,7 +24,7 @@ export class Logger {
 	 */
 	private static ensureLogFileReady(): void {
 		// Skip file logging in standalone mode - console is redirected by parent process
-		if (process.env.IS_STANDALONE) {
+		if (process.env.IS_STANDALONE === "true") {
 			return
 		}
 
@@ -67,6 +67,17 @@ export class Logger {
 	 * Get the path to the current log file (VS Code mode only)
 	 */
 	static getLogFilePath(): string | undefined {
+		return Logger.logFilePath
+	}
+
+	/**
+	 * Ensures the log file is initialized and returns its path.
+	 * This is useful when you need the log file path and want to guarantee it exists.
+	 * VS Code mode: Creates the log file if needed and returns the path.
+	 * Standalone mode: Returns undefined (logs are managed by parent process).
+	 */
+	static ensureLogFileAndGetPath(): string | undefined {
+		Logger.ensureLogFileReady()
 		return Logger.logFilePath
 	}
 

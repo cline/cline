@@ -9,7 +9,7 @@ import { Controller } from ".."
  * Standalone mode: Does nothing (logs are managed by parent process).
  */
 export async function openLogFile(_controller: Controller, _request: EmptyRequest): Promise<Empty> {
-	const logPath = Logger.getLogFilePath()
+	const logPath = Logger.ensureLogFileAndGetPath()
 	if (logPath) {
 		await openFileIntegration(logPath)
 	}
