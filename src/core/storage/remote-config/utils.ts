@@ -1,7 +1,9 @@
 import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
 import { RemoteConfig } from "@shared/remote-config/schema"
 import { RemoteConfigFields } from "@shared/storage/state-keys"
+import { ensureSettingsDirectoryExists } from "../disk"
 import { StateManager } from "../StateManager"
+import { syncRemoteMcpServersToSettings } from "./syncRemoteMcpServers"
 
 /**
  * Transforms RemoteConfig schema to RemoteConfigFields shape
@@ -177,8 +179,9 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 /**
  * Applies remote config to the StateManager's remote config cache
  * @param remoteConfig The remote configuration object to apply
+ * @param settingsDirectoryPath Path to the settings directory
  */
-export function applyRemoteConfig(remoteConfig?: RemoteConfig): void {
+export async function applyRemoteConfig(remoteConfig?: RemoteConfig, settingsDirectoryPath?: string): Promise<void> {
 	const stateManager = StateManager.get()
 
 	// If no remote config provided, clear the cache and relevant state
@@ -189,6 +192,9 @@ export function applyRemoteConfig(remoteConfig?: RemoteConfig): void {
 		stateManager.setGlobalState("remoteWorkflowToggles", {})
 		return
 	}
+
+	// Save previousRemoteMCPServers before clearing cache, this is needed for next sync to detect removals)
+	const previousRemoteMCPServers = stateManager.getRemoteConfigSettings().previousRemoteMCPServers
 
 	// Transform remote config to state shape
 	const transformed = transformRemoteConfigToStateShape(remoteConfig)
@@ -209,5 +215,24 @@ export function applyRemoteConfig(remoteConfig?: RemoteConfig): void {
 	// Populate remote config cache with transformed values
 	for (const [key, value] of Object.entries(transformed)) {
 		stateManager.setRemoteConfigField(key as keyof RemoteConfigFields, value)
+	}
+
+	// Restore previousRemoteMCPServers across cache clears
+	if (previousRemoteMCPServers !== undefined) {
+		stateManager.setRemoteConfigField("previousRemoteMCPServers", previousRemoteMCPServers)
+	}
+
+	// Sync remote MCP servers to settings file (AFTER cache is populated, so sync can read previous state)
+	if (remoteConfig.remoteMCPServers !== undefined) {
+		try {
+			// Get settings directory path - use provided path or get it from disk helper
+			const settingsPath = settingsDirectoryPath || (await ensureSettingsDirectoryExists())
+			await syncRemoteMcpServersToSettings(remoteConfig.remoteMCPServers, settingsPath)
+			// Store current remote servers list for next sync to detect removals
+			stateManager.setRemoteConfigField("previousRemoteMCPServers", remoteConfig.remoteMCPServers)
+		} catch (error) {
+			console.error("[RemoteConfig] Failed to sync remote MCP servers to settings:", error)
+			// Continue with other config application even if MCP sync fails
+		}
 	}
 }
