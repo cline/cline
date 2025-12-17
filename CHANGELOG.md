@@ -2,8 +2,6 @@
 
 ## 3.44.1
 
-### Patch Changes
-
 - eb5a452: Fixed MCP local server connections being blocked after v3.42.0
 - 6a90294: update jwa library in package lock json
 - 2f3450f: fix: Remotely configured API keys
