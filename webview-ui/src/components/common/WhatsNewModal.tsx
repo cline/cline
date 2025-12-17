@@ -103,6 +103,13 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 								<ModelButton label="Try Kat-Coder Pro" modelId="kwaipilot/kat-coder-pro:free" />
 							</AuthButton>
 						</li>
+						<li>
+							<strong>Gemini 3 Flash Preview</strong> now available!
+							<br />
+							<AuthButton>
+								<ModelButton label="Try Gemini 3 Flash Preview" modelId="google/gemini-3-flash-preview" />
+							</AuthButton>
+						</li>
 					</ul>
 				</div>
 			</DialogContent>
