@@ -1,11 +1,10 @@
 # Changelog
 
-## 3.44.1
+## [3.44.1]
 
-- eb5a452: Fixed MCP local server connections being blocked after v3.42.0
-- 6a90294: update jwa library in package lock json
-- 2f3450f: fix: Remotely configured API keys
-- 3e89c28: feat: implement lazy evaluation for dynamic tool instructions to support context-aware prompts
+- Fixed a critical bug where local MCP servers stopped connecting after v3.42.0—all user-configured stdio-based MCP servers should now work again
+- Fixed remotely configured API keys not being extracted correctly for enterprise users
+- Added support for dynamic tool instructions that adapt based on runtime context, laying groundwork for future context-aware features
 
 ## [3.44.0]
 
