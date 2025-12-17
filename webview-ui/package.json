@@ -20,6 +20,7 @@
 		"@fontsource/azeret-mono": "^5.2.9",
 		"@heroui/react": "^2.8.0-beta.2",
 		"@paper-design/shaders-react": "^0.0.46",
+		"@radix-ui/react-dialog": "^1.1.15",
 		"@radix-ui/react-hover-card": "^1.1.15",
 		"@radix-ui/react-popover": "^1.1.15",
 		"@radix-ui/react-progress": "^1.1.7",
