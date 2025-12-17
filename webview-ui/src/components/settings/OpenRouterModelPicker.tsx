@@ -81,6 +81,16 @@ export const freeModels = [
 		label: "FREE",
 	},
 	{
+		id: "z-ai/glm-4.6",
+		description: "Zhipu AI's latest agentic coding model in GLM series",
+		label: "FREE",
+	},
+	{
+		id: "kwaipilot/kat-coder-pro:free",
+		description: "KwaiKAT's most advanced agentic coding model in the KAT-Coder series",
+		label: "FREE",
+	},
+	{
 		id: "mistralai/devstral-2512:free",
 		description: "Mistral's latest model with strong coding abilities",
 		label: "FREE",
