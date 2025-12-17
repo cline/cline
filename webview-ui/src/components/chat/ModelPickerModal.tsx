@@ -3,7 +3,7 @@ import { ANTHROPIC_MIN_THINKING_BUDGET, ApiProvider } from "@shared/api"
 import { UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { Mode } from "@shared/storage/types"
 import Fuse from "fuse.js"
-import { Brain, Check, ChevronDownIcon, ChevronRightIcon, Search, Settings, Sparkles } from "lucide-react"
+import { ArrowLeftRight, Brain, Check, ChevronDownIcon, ChevronRightIcon, Search, Settings } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useWindowSize } from "react-use"
@@ -417,23 +417,6 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 									<Tooltip>
 										<TooltipTrigger asChild>
 											<IconToggle
-												$isActive={isSplit}
-												onClick={(e) => {
-													e.stopPropagation()
-													handleSplitToggle(!isSplit)
-												}}>
-												<Sparkles size={14} />
-											</IconToggle>
-										</TooltipTrigger>
-										<TooltipContent side="top" style={{ zIndex: 9999 }}>
-											{isSplit
-												? "Use different models for Plan vs Act"
-												: "Click to use different models for Plan vs Act"}
-										</TooltipContent>
-									</Tooltip>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<IconToggle
 												$isActive={thinkingEnabled}
 												$isDisabled={!supportsThinking}
 												onClick={(e) => {
@@ -449,6 +432,21 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 												: thinkingEnabled
 													? "Extended thinking enabled"
 													: "Enable extended thinking for enhanced reasoning"}
+										</TooltipContent>
+									</Tooltip>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<IconToggle
+												$isActive={isSplit}
+												onClick={(e) => {
+													e.stopPropagation()
+													handleSplitToggle(!isSplit)
+												}}>
+												<ArrowLeftRight size={14} />
+											</IconToggle>
+										</TooltipTrigger>
+										<TooltipContent side="top" style={{ zIndex: 9999 }}>
+											Use different models for Plan vs Act
 										</TooltipContent>
 									</Tooltip>
 								</IconToggles>
@@ -651,6 +649,8 @@ const FixedModalContainer = styled.div<{ $menuPosition: number; $arrowPosition: 
 
 const SearchContainer = styled.div`
 	padding: 4px 10px;
+	min-height: 28px;
+	box-sizing: border-box;
 	border-bottom: 1px solid var(--vscode-editorGroup-border);
 	display: flex;
 	align-items: center;
@@ -732,7 +732,7 @@ const ProviderListItem = styled.div<{ $isSelected: boolean }>`
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 4.5px 10px;
+	padding: 6px 10px;
 	cursor: pointer;
 	font-size: 11px;
 	color: ${(props) => (props.$isSelected ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
