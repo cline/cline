@@ -1,8 +1,15 @@
 # Changelog
 
+## [3.44.1]
+
+- Fixed a critical bug where local MCP servers stopped connecting after v3.42.0—all user-configured stdio-based MCP servers should now work again
+- Fixed remotely configured API keys not being extracted correctly for enterprise users
+- Added support for dynamic tool instructions that adapt based on runtime context, laying groundwork for future context-aware features
+
 ## [3.44.0]
 
 ## Added
+
 - Updating minor version to show a proper banner for the release
 
 ## [3.43.1]
