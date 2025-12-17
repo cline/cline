@@ -72,9 +72,12 @@ import { ulid } from "ulid"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
-import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
-import { CommandExecutorCallbacks, StandaloneTerminalManager } from "@/integrations/terminal"
-import { CommandExecutor, FullCommandExecutorConfig } from "@/integrations/terminal/CommandExecutor"
+import {
+	CommandExecutor,
+	CommandExecutorCallbacks,
+	FullCommandExecutorConfig,
+	StandaloneTerminalManager,
+} from "@/integrations/terminal"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
 import { telemetryService } from "@/services/telemetry"
 import {
@@ -272,7 +275,6 @@ export class Task {
 		this.cancelTask = cancelTask
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
 		this.taskLockAcquired = taskLockAcquired
-
 		// Determine terminal execution mode and create appropriate terminal manager
 		this.terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
 
