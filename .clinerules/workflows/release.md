@@ -73,7 +73,7 @@ The changelog needs these fixes:
 
 1. **Add brackets to version number**: Change `## 3.44.1` to `## [3.44.1]`
 
-2. **No category headers**: Don't use `### Added`, `### Fixed`, etc. Just a flat list of bullet points.
+2. **Category headers**: Use `### Added`, `### Fixed` if possible to classify the changes as additions, fixes, refactors etc.
 
 3. **Order entries from most important to least important**:
    - Lead with major new features or significant fixes users care about
