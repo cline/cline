@@ -1,8 +1,13 @@
+export enum BannerSeverity {
+	Info = "info",
+	Success = "success",
+	Warning = "warning",
+}
+
 /**
  * Banner data structure for backend-to-frontend communication.
  * Backend constructs this JSON, frontend renders it via BannerCarousel.
  */
-
 export interface BannerCardData {
 	/** Unique identifier for the banner (used for dismissal tracking) */
 	id: string
@@ -22,11 +27,8 @@ export interface BannerCardData {
 
 	/**
 	 * Severity level determines styling
-	 * - "info" (default): informational
-	 * - "danger": warning/error state
-	 * - "secondary": less prominent
 	 */
-	severity?: "info" | "danger" | "secondary"
+	severity?: BannerSeverity
 
 	/**
 	 * Optional inline action displayed at the end of the description text
@@ -57,12 +59,14 @@ export interface BannerCardData {
 	 * Time window for displaying the banner
 	 * If undefined, display indefinitely
 	 */
-	duration?: {
+	active?: {
 		/** Start date (ISO 8601 string) - show banner on/after this date */
 		from?: string
 		/** End date (ISO 8601 string) - hide banner after this date */
 		to?: string
 	}
+
+	isEnabled: boolean
 }
 
 /**
@@ -171,6 +175,7 @@ export const BANNER_DATA: BannerCardData[] = [
 			action: BannerActionType.Link,
 			arg: "https://docs.cline.bot/features/customization/opening-cline-in-sidebar",
 		},
+		isEnabled: true,
 	},
 
 	// Announcement with conditional actions based on user auth state
@@ -192,6 +197,7 @@ export const BANNER_DATA: BannerCardData[] = [
 				clineUserOnly: false, // Only non-Cline users see this
 			},
 		],
+		isEnabled: true,
 	},
 
 	// Platform-specific banner (macOS/Linux)
@@ -199,7 +205,7 @@ export const BANNER_DATA: BannerCardData[] = [
 		id: "cli-install-unix-v1",
 		icon: "terminal",
 		title: "CLI & Subagents Available",
-		platforms: ["mac", "linux"],
+		platforms: ["mac", "linux"] satisfies BannerCardData["platforms"],
 		description: "Use Cline in your terminal and enable subagent capabilities.",
 		endAction: {
 			title: "Learn more",
@@ -220,6 +226,7 @@ export const BANNER_DATA: BannerCardData[] = [
 				},
 			},
 		],
+		isEnabled: true,
 	},
 
 	// Platform-specific banner (Windows)
@@ -227,12 +234,93 @@ export const BANNER_DATA: BannerCardData[] = [
 		id: "cli-info-windows-v1",
 		icon: "terminal",
 		title: "Cline CLI Info",
-		platforms: ["windows"],
+		platforms: ["windows"] satisfies BannerCardData["platforms"],
 		description: "Available for macOS and Linux. Coming soon to other platforms.",
 		endAction: {
 			title: "Learn more",
 			action: BannerActionType.Link,
 			arg: "https://docs.cline.bot/cline-cli/overview",
 		},
+		isEnabled: true,
 	},
-]
+].filter((banner) => banner.isEnabled)
+
+/**
+ * Backend banner format returned from server API
+ */
+export interface BackendBanner {
+	id: string
+	isEnabled: boolean
+	titleMd: string
+	bodyMd: string
+	severity: "info" | "success" | "warning"
+	placement: "top" | "bottom"
+	rulesJson: string
+	activeFrom?: string // ISO 8601 date-time
+	activeTo?: string // ISO 8601 date-time
+	createdAt?: string
+	updatedAt?: string
+}
+
+/**
+ * Targeting rules structure from backend rulesJson
+ */
+interface BackendBannerRules {
+	ide?: string[] // e.g., ["vscode", "dashboard"]
+	audience?: string[] // e.g., ["all", "cline_users", "non_cline_users"]
+	platforms?: ("windows" | "mac" | "linux")[]
+	actions?: Array<
+		BannerAction & {
+			isEndAction?: boolean
+		}
+	>
+}
+
+/**
+ * Convert backend Banner JSON to frontend BannerCardData
+ */
+export function convertBackendBanner(backendBanner: BackendBanner): BannerCardData {
+	// Parse targeting rules
+	let rules: BackendBannerRules = {}
+	try {
+		rules = JSON.parse(backendBanner.rulesJson)
+	} catch (e) {
+		console.warn("Failed to parse banner rulesJson:", e)
+	}
+
+	// Map severity string to enum
+	const severityMap: Record<string, BannerSeverity> = {
+		info: BannerSeverity.Info,
+		success: BannerSeverity.Success,
+		warning: BannerSeverity.Warning,
+	}
+
+	// Determine clineUserOnly from audience rules
+	let clineUserOnly: boolean | undefined
+	if (rules.audience?.includes("cline_users") && !rules.audience?.includes("non_cline_users")) {
+		clineUserOnly = true
+	} else if (rules.audience?.includes("non_cline_users") && !rules.audience?.includes("cline_users")) {
+		clineUserOnly = false
+	}
+
+	// Extract actions and endAction from rules
+	const actions = rules.actions?.filter((action) => !action.isEndAction)
+	const endAction = rules.actions?.find((action) => action.isEndAction)
+
+	// Build BannerCardData
+	return {
+		id: backendBanner.id,
+		title: backendBanner.titleMd,
+		description: backendBanner.bodyMd,
+		severity: severityMap[backendBanner.severity],
+		isEnabled: backendBanner.isEnabled,
+		clineUserOnly,
+		platforms: rules.platforms,
+		active: {
+			from: backendBanner.activeFrom,
+			to: backendBanner.activeTo,
+		},
+		actions,
+		endAction,
+	}
+}

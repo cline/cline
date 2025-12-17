@@ -1,4 +1,4 @@
-import { BannerAction, BannerActionType, BannerCardData } from "@shared/cline/banner"
+import { BannerAction, BannerActionType, BannerCardData, BannerSeverity } from "@shared/cline/banner"
 import { DynamicIcon } from "lucide-react/dynamic"
 import React from "react"
 import { BannerData } from "@/components/common/BannerCarousel"
@@ -35,15 +35,15 @@ export function filterBanners(
 		}
 
 		// Time window filter
-		if (banner.duration) {
-			if (banner.duration.from) {
-				const fromDate = new Date(banner.duration.from)
+		if (banner.active) {
+			if (banner.active.from) {
+				const fromDate = new Date(banner.active.from)
 				if (currentTime < fromDate) {
 					return false
 				}
 			}
-			if (banner.duration.to) {
-				const toDate = new Date(banner.duration.to)
+			if (banner.active.to) {
+				const toDate = new Date(banner.active.to)
 				if (currentTime > toDate) {
 					return false
 				}
@@ -156,6 +156,86 @@ function renderDescription(
 			</a>
 		</span>
 	)
+}
+
+/**
+ * Backend banner format returned from server API
+ */
+export interface BackendBanner {
+	id: string
+	isEnabled: boolean
+	titleMd: string
+	bodyMd: string
+	severity: "info" | "success" | "warning"
+	placement: "top" | "bottom"
+	rulesJson: string
+	activeFrom?: string // ISO 8601 date-time
+	activeTo?: string // ISO 8601 date-time
+	createdAt?: string
+	updatedAt?: string
+}
+
+/**
+ * Targeting rules structure from backend rulesJson
+ */
+interface BannerRules {
+	ide?: string[] // e.g., ["vscode", "dashboard"]
+	audience?: string[] // e.g., ["all", "cline_users", "non_cline_users"]
+	platforms?: ("windows" | "mac" | "linux")[]
+	actions?: Array<
+		BannerAction & {
+			isEndAction?: boolean
+		}
+	>
+}
+
+/**
+ * Convert backend Banner JSON to frontend BannerCardData
+ */
+export function convertBackendBanner(backendBanner: BackendBanner): BannerCardData {
+	// Parse targeting rules
+	let rules: BannerRules = {}
+	try {
+		rules = JSON.parse(backendBanner.rulesJson)
+	} catch (e) {
+		console.warn("Failed to parse banner rulesJson:", e)
+	}
+
+	// Map severity string to enum
+	const severityMap: Record<string, BannerSeverity> = {
+		info: BannerSeverity.Info,
+		success: BannerSeverity.Success,
+		warning: BannerSeverity.Warning,
+	}
+
+	// Determine clineUserOnly from audience rules
+	let clineUserOnly: boolean | undefined
+	if (rules.audience?.includes("cline_users") && !rules.audience?.includes("non_cline_users")) {
+		clineUserOnly = true
+	} else if (rules.audience?.includes("non_cline_users") && !rules.audience?.includes("cline_users")) {
+		clineUserOnly = false
+	}
+
+	// Extract actions and endAction from rules
+	const actions = rules.actions?.filter((action) => !action.isEndAction)
+	const endAction = rules.actions?.find((action) => action.isEndAction)
+
+	// Build BannerCardData
+	return {
+		id: backendBanner.id,
+		title: backendBanner.titleMd,
+		description: backendBanner.bodyMd,
+		severity: severityMap[backendBanner.severity],
+		isEnabled: backendBanner.isEnabled,
+		clineUserOnly,
+		platforms: rules.platforms,
+		active: {
+			from: backendBanner.activeFrom,
+			to: backendBanner.activeTo,
+		},
+		actions,
+		endAction,
+	}
 }
 
 /**
