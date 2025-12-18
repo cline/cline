@@ -15,7 +15,7 @@ import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
-import { isMacOSOrLinux } from "@/utils/platformUtils"
+import { useIsMacOSOrLinux } from "@/utils/platformUtils"
 import { WelcomeSectionProps } from "../../types/chatTypes"
 
 /**
@@ -39,9 +39,11 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	const shouldShowInfoBanner = lastDismissedInfoBannerVersion < CURRENT_INFO_BANNER_VERSION
 	const shouldShowNewModelBanner = lastDismissedModelBannerVersion < CURRENT_MODEL_BANNER_VERSION
 
+	const isMacOSOrLinux = useIsMacOSOrLinux()
+
 	// Show CLI banner if not dismissed and platform is VSCode (not JetBrains/standalone)
 	const shouldShowCliBanner =
-		isMacOSOrLinux() &&
+		isMacOSOrLinux &&
 		PLATFORM_CONFIG.type === PlatformType.VSCODE &&
 		lastDismissedCliBannerVersion < CURRENT_CLI_BANNER_VERSION
 
@@ -149,8 +151,8 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 			banners.push({
 				id: "cli-install",
 				icon: <Terminal className="w-5 h-5" />,
-				title: isMacOSOrLinux() ? "CLI & Subagents Available" : "Cline CLI Info",
-				description: isMacOSOrLinux() ? (
+				title: isMacOSOrLinux ? "CLI & Subagents Available" : "Cline CLI Info",
+				description: isMacOSOrLinux ? (
 					<>
 						Use Cline in your terminal and enable subagent capabilities.{" "}
 						<VSCodeLink href="https://docs.cline.bot/cline-cli/overview" style={{ display: "inline" }}>
@@ -165,7 +167,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 						</VSCodeLink>
 					</>
 				),
-				actions: isMacOSOrLinux()
+				actions: isMacOSOrLinux
 					? [
 							{ label: "Install", onClick: handleInstallCli, variant: "primary" },
 							{
