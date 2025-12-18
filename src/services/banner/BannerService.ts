@@ -189,29 +189,9 @@ export class BannerService {
 					case "openai":
 					case "openai-native":
 						return selectedProvider === "openai" || selectedProvider === "openai-native"
-					case "openrouter":
-						return selectedProvider === "openrouter"
-					case "bedrock":
-						return selectedProvider === "bedrock"
-					case "gemini":
-						return selectedProvider === "gemini"
-					case "deepseek":
-						return selectedProvider === "deepseek"
 					case "qwen":
 					case "qwen-code":
 						return selectedProvider === "qwen"
-					case "mistral":
-						return selectedProvider === "mistral"
-					case "ollama":
-						return selectedProvider === "ollama"
-					case "xai":
-						return selectedProvider === "xai"
-					case "cerebras":
-						return selectedProvider === "cerebras"
-					case "groq":
-						return selectedProvider === "groq"
-					case "cline":
-						return selectedProvider === "cline"
 					default:
 						// For any other providers, do a direct string comparison
 						return selectedProvider === provider
