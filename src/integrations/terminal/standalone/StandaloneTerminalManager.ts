@@ -475,6 +475,10 @@ export class StandaloneTerminalManager implements ITerminalManager {
 
 		// Listen for completion - clear timeout
 		process.on("completed", () => {
+			// Guard: Skip if already handled by timeout
+			if (backgroundCommand.status !== "running") {
+				return
+			}
 			const timeout = this.backgroundTimeouts.get(id)
 			if (timeout) {
 				clearTimeout(timeout)
@@ -486,6 +490,10 @@ export class StandaloneTerminalManager implements ITerminalManager {
 
 		// Listen for errors - clear timeout
 		process.on("error", (error: Error) => {
+			// Guard: Skip if already handled by timeout
+			if (backgroundCommand.status !== "running") {
+				return
+			}
 			const timeout = this.backgroundTimeouts.get(id)
 			if (timeout) {
 				clearTimeout(timeout)
