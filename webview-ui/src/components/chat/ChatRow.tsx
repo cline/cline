@@ -58,6 +58,11 @@ const cursorBlinkKeyframes = `
 		0%, 100% { opacity: 1; }
 		50% { opacity: 0; }
 	}
+	
+	@keyframes iconPulse {
+		0%, 100% { opacity: 0.5; }
+		50% { opacity: 1; }
+	}
 `
 
 const ChatRowContainer = styled.div`
@@ -133,6 +138,7 @@ const BlinkingCursorSpan = styled.span`
 	height: 1em;
 	background-color: currentColor;
 	margin-left: 2px;
+	margin-top: 3px;
 	vertical-align: text-bottom;
 	animation: cursorBlink 1s ease-in-out infinite;
 `
@@ -178,6 +184,8 @@ const ThinkingBlockContainer = styled.div<{ $isVisible: boolean; $instant?: bool
 `
 
 const ThinkingBlockScroll = styled.div`
+	display: flex;
+	align-items: flex-start;
 	max-height: 150px;
 	overflow-y: auto;
 	color: var(--vscode-descriptionForeground);
@@ -187,6 +195,8 @@ const ThinkingBlockScroll = styled.div`
 	flex: 1;
 	scrollbar-width: none;
 	-ms-overflow-style: none;
+	padding-left: 8px;
+	border-left: 1px solid rgba(255, 255, 255, 0.1);
 	&::-webkit-scrollbar {
 		display: none;
 	}
@@ -238,8 +248,11 @@ const ThinkingBlock = memo(
 		return (
 			<ThinkingBlockContainer $instant={instant} $isVisible={isVisible}>
 				{showIcon && (
-					<div style={{ marginTop: "1px", flexShrink: 0 }}>
-						<ClineLogoWhite className="size-3.5 opacity-70" />
+					<div style={{ marginTop: "4px", flexShrink: 0 }}>
+						<ClineLogoWhite
+							className="size-3.5"
+							style={{ transform: "scale(1.1)", animation: "iconPulse 1s ease-in-out infinite" }}
+						/>
 					</div>
 				)}
 				<ThinkingBlockScroll ref={scrollRef}>
@@ -1594,10 +1607,32 @@ export const ChatRowContent = memo(
 						return (
 							<>
 								{apiReqState === "pre" && (
-									<div style={{ color: "var(--vscode-descriptionForeground)" }}>
-										<TypewriterText
-											text={currentActivity || (mode === "plan" ? "Planning..." : "Thinking...")}
-										/>
+									<div
+										style={{
+											display: "flex",
+											alignItems: "flex-start",
+											gap: "8px",
+											color: "var(--vscode-descriptionForeground)",
+										}}>
+										<div style={{ marginTop: "4px", flexShrink: 0 }}>
+											<ClineLogoWhite
+												className="size-3.5"
+												style={{
+													transform: "scale(1.1)",
+													animation: "iconPulse 1s ease-in-out infinite",
+												}}
+											/>
+										</div>
+										<div
+											style={{
+												paddingLeft: "8px",
+												borderLeft: "1px solid rgba(255, 255, 255, 0.1)",
+												flex: 1,
+											}}>
+											<TypewriterText
+												text={currentActivity || (mode === "plan" ? "Planning..." : "Thinking...")}
+											/>
+										</div>
 									</div>
 								)}
 
@@ -1610,7 +1645,7 @@ export const ChatRowContent = memo(
 									/>
 								)}
 
-										{showCollapsedThinking && (
+								{showCollapsedThinking && (
 									<>
 										<div
 											onClick={handleToggle}
@@ -1628,9 +1663,6 @@ export const ChatRowContent = memo(
 												marginBottom: hasError ? 10 : 0,
 											}}
 											title="Click to view reasoning">
-											<div style={{ marginTop: "1px", flexShrink: 0 }}>
-												<ClineLogoWhite className="size-3.5 opacity-70" />
-											</div>
 											<span style={{ fontWeight: 500 }}>Thinking</span>
 											<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}></span>
 										</div>
@@ -1704,7 +1736,30 @@ export const ChatRowContent = memo(
 									position="bottom-right"
 									ref={contentRef}
 									textToCopy={message.text}>
-									<Markdown markdown={message.text} showCursor={isRequestInProgress} />
+									{isRequestInProgress ? (
+										<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+											<div style={{ marginTop: "1px", flexShrink: 0 }}>
+												<ClineLogoWhite
+													className="size-3.5"
+													style={{
+														transform: "scale(1.1)",
+														animation: "iconPulse 1s ease-in-out infinite",
+													}}
+												/>
+											</div>
+											<div
+												style={{
+													flex: 1,
+													minWidth: 0,
+													paddingLeft: "8px",
+													borderLeft: "1px solid rgba(255, 255, 255, 0.1)",
+												}}>
+												<Markdown markdown={message.text} showCursor={true} />
+											</div>
+										</div>
+									) : (
+										<Markdown markdown={message.text} showCursor={false} />
+									)}
 									{quoteButtonState.visible && (
 										<QuoteButton
 											left={quoteButtonState.left}
@@ -1807,12 +1862,7 @@ export const ChatRowContent = memo(
 					case "clineignore_error":
 						return <ErrorRow errorType="clineignore_error" message={message} />
 					case "checkpoint_created":
-						return (
-							<CheckmarkControl
-								isCheckpointCheckedOut={message.isCheckpointCheckedOut}
-								messageTs={message.ts}
-							/>
-						)
+						return <CheckmarkControl isCheckpointCheckedOut={message.isCheckpointCheckedOut} messageTs={message.ts} />
 					case "load_mcp_documentation":
 						return (
 							<div
