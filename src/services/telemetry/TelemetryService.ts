@@ -16,7 +16,7 @@ import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
  * When adding a new category, add it both here and to the initial values in telemetryCategoryEnabled
  * Ensure `if (!this.isCategoryEnabled('<category_name>')` is added to the capture method
  */
-type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "dictation" | "subagents"
+type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "dictation" | "subagents" | "hooks"
 
 /**
  * Enum for terminal output failure reasons
@@ -89,6 +89,7 @@ export class TelemetryService {
 		["dictation", true], // Dictation telemetry enabled
 		["focus_chain", true], // Focus Chain telemetry enabled
 		["subagents", true], // CLI Subagents telemetry enabled
+		["hooks", true], // Hooks telemetry enabled
 	])
 
 	private userId?: string
@@ -125,6 +126,14 @@ export class TelemetryService {
 			TTFT_SECONDS: "cline.api.ttft.seconds",
 			DURATION_SECONDS: "cline.api.duration.seconds",
 			THROUGHPUT_TOKENS_PER_SECOND: "cline.api.throughput.tokens_per_second",
+		},
+		HOOKS: {
+			EXECUTIONS_TOTAL: "cline.hooks.executions.total",
+			DURATION_SECONDS: "cline.hooks.duration.seconds",
+			FAILURES_TOTAL: "cline.hooks.failures.total",
+			CANCELLATIONS_TOTAL: "cline.hooks.cancellations.total",
+			CONTEXT_MODIFICATIONS_TOTAL: "cline.hooks.context_modifications.total",
+			CACHE_ACCESSES_TOTAL: "cline.hooks.cache.accesses.total",
 		},
 	}
 	// Event constants for tracking user interactions and system events
@@ -267,6 +276,19 @@ export class TelemetryService {
 			// Tracks when the rules menu button is clicked
 			RULES_MENU_OPENED: "ui.rules_menu_opened",
 		},
+		// Hooks-related events for tracking hook execution
+		HOOKS: {
+			// Tracks when hooks feature is enabled
+			ENABLED: "hooks.enabled",
+			// Tracks when hooks feature is disabled
+			DISABLED: "hooks.disabled",
+			// Tracks when a hook requests task cancellation
+			CANCEL_REQUESTED: "hooks.cancel_requested",
+			// Tracks when a hook modifies context
+			CONTEXT_MODIFIED: "hooks.context_modified",
+			// Tracks when hook discovery completes
+			DISCOVERY_COMPLETED: "hooks.discovery_completed",
+		},
 	}
 
 	public static async create(): Promise<TelemetryService> {
@@ -294,6 +316,14 @@ export class TelemetryService {
 	) {
 		this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
 		console.info(`[TelemetryService] Initialized with ${providers.length} telemetry provider(s)`)
+	}
+
+	public addProvider(provider: ITelemetryProvider) {
+		this.providers.push(provider)
+	}
+
+	public removeProvider(name: string) {
+		this.providers = this.providers.filter((p) => p.name !== name)
 	}
 
 	/**
@@ -1924,6 +1954,171 @@ export class TelemetryService {
 				...args,
 			},
 		})
+	}
+
+	// Hooks telemetry methods
+
+	/**
+	 * Records hook discovery cache access (hit or miss)
+	 * @param hookName The type of hook being accessed
+	 * @param cacheHit Whether the cache had the result (true) or miss (false)
+	 */
+	public captureHookCacheAccess(hookName: string, cacheHit: boolean) {
+		if (!this.isCategoryEnabled("hooks")) {
+			return
+		}
+
+		// Record cache access counter with hit/miss attribute
+		// This allows deriving hit rate: hits / (hits + misses)
+		this.recordCounter(TelemetryService.METRICS.HOOKS.CACHE_ACCESSES_TOTAL, 1, {
+			hookName,
+			cacheHit: cacheHit.toString(),
+		})
+	}
+
+	// Simplified Hook Telemetry API (following MCP pattern)
+
+	/**
+	 * Records hook execution events with a unified status-based approach.
+	 * This is the simplified API that consolidates multiple hook execution methods.
+	 *
+	 * @param ulid Task identifier
+	 * @param hookName Type of hook (PreToolUse, PostToolUse, etc.)
+	 * @param status Current execution status
+	 * @param metadata Optional execution metadata
+	 */
+	public captureHookExecution(
+		ulid: string,
+		hookName: string,
+		status: "started" | "completed" | "failed" | "cancelled",
+		metadata?: {
+			source?: "global" | "workspace"
+			toolName?: string
+			durationMs?: number
+			exitCode?: number
+			errorType?: "timeout" | "execution" | "validation"
+			errorMessage?: string
+			cancelRequested?: boolean
+			contextModified?: boolean
+			contextSize?: number
+		},
+	) {
+		if (!this.isCategoryEnabled("hooks")) {
+			return
+		}
+
+		const properties: TelemetryProperties = {
+			ulid,
+			hookName,
+			status,
+			timestamp: new Date().toISOString(),
+			...(metadata?.source && { source: metadata.source }),
+			...(metadata?.toolName && { toolName: metadata.toolName }),
+			...(metadata?.durationMs !== undefined && { durationMs: metadata.durationMs }),
+			...(metadata?.exitCode !== undefined && { exitCode: metadata.exitCode }),
+			...(metadata?.errorType && { errorType: metadata.errorType }),
+			...(metadata?.errorMessage && {
+				errorMessage: metadata.errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH),
+			}),
+			...(metadata?.cancelRequested !== undefined && { cancelRequested: metadata.cancelRequested }),
+			...(metadata?.contextModified !== undefined && { contextModified: metadata.contextModified }),
+			...(metadata?.contextSize !== undefined && { contextSize: metadata.contextSize }),
+		}
+
+		// Single event for all statuses
+		this.capture({
+			event: "hooks.execution",
+			properties,
+		})
+
+		// Record metrics based on status
+		const hookAttributes = {
+			ulid,
+			hookName,
+			status,
+			...(metadata?.source && { source: metadata.source }),
+			...(metadata?.toolName && { toolName: metadata.toolName }),
+		}
+
+		if (status === "started") {
+			this.recordCounter(TelemetryService.METRICS.HOOKS.EXECUTIONS_TOTAL, 1, hookAttributes)
+		} else if (status === "completed") {
+			if (metadata?.durationMs !== undefined) {
+				this.recordHistogram(TelemetryService.METRICS.HOOKS.DURATION_SECONDS, metadata.durationMs / 1000, hookAttributes)
+			}
+			if (metadata?.cancelRequested) {
+				this.recordCounter(TelemetryService.METRICS.HOOKS.CANCELLATIONS_TOTAL, 1, hookAttributes)
+			}
+			if (metadata?.contextModified) {
+				this.recordCounter(TelemetryService.METRICS.HOOKS.CONTEXT_MODIFICATIONS_TOTAL, 1, hookAttributes)
+			}
+		} else if (status === "failed") {
+			this.recordCounter(TelemetryService.METRICS.HOOKS.FAILURES_TOTAL, 1, {
+				...hookAttributes,
+				errorType: metadata?.errorType || "unknown",
+			})
+		} else if (status === "cancelled") {
+			this.recordCounter(TelemetryService.METRICS.HOOKS.CANCELLATIONS_TOTAL, 1, hookAttributes)
+		}
+	}
+
+	/**
+	 * Records hook discovery results (simplified version).
+	 *
+	 * @param hookName The type of hook being discovered
+	 * @param globalCount Number of global hooks found
+	 * @param workspaceCount Number of workspace-specific hooks found
+	 */
+	public captureHookDiscovery(hookName: string, globalCount: number, workspaceCount: number) {
+		if (!this.isCategoryEnabled("hooks")) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.HOOKS.DISCOVERY_COMPLETED,
+			properties: {
+				hookName,
+				globalCount,
+				workspaceCount,
+				totalCount: globalCount + workspaceCount,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Safely executes a telemetry call with error protection.
+	 *
+	 * Use for critical execution paths where telemetry errors could break functionality:
+	 * - Hook execution (during tool execution)
+	 * - Browser automation (during active sessions)
+	 * - Auth flows, task initialization
+	 * - MCP server operations
+	 *
+	 * Not needed for non-critical, fire-and-forget events:
+	 * - UI events (clicks, navigation)
+	 * - Post-completion events
+	 * - Background operations
+	 *
+	 * This wrapper protects against both pre-provider errors (parameter construction,
+	 * property access, calculations) and provider-level errors (network, API failures).
+	 *
+	 * @param telemetryFn The telemetry function to execute
+	 * @param context Optional context string for debugging (e.g., "HookFactory.exec")
+	 *
+	 * @example
+	 * telemetryService.safeCapture(
+	 *   () => telemetryService.captureHookExecution(taskId, hookName, "started", {...}),
+	 *   'HookFactory.exec.started'
+	 * )
+	 */
+	public safeCapture(telemetryFn: () => void, context?: string): void {
+		try {
+			telemetryFn()
+		} catch (error) {
+			const contextStr = context ? ` [Context: ${context}]` : ""
+			console.error(`[Telemetry] Failed to capture telemetry${contextStr}:`, error)
+		}
 	}
 
 	/**

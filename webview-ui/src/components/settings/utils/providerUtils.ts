@@ -805,7 +805,11 @@ export function filterOpenRouterModelIds(modelIds: string[], provider: ApiProvid
 		// For Cline provider: exclude :free models, but keep Minimax models
 		return modelIds.filter((id) => {
 			// Keep all Minimax and devstral models regardless of :free suffix
-			if (id.toLowerCase().includes("minimax-m2") || id.toLowerCase().includes("devstral-2512")) {
+			if (
+				id.toLowerCase().includes("minimax-m2") ||
+				id.toLowerCase().includes("devstral-2512") ||
+				id.toLowerCase().includes("kat-coder-pro")
+			) {
 				return true
 			}
 			// Filter out other :free models
