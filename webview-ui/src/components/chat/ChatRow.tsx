@@ -183,22 +183,24 @@ const CommandOutput = memo(
 			const beforeLogPath = output.substring(0, logPathLineStart)
 			const afterLogPath = logPathLineEnd !== -1 ? output.substring(logPathLineEnd) : ""
 
+			// Extract just the filename from the full path for display
+			const fileName = logFilePath.split("/").pop() || logFilePath
+
 			return (
 				<>
 					{beforeLogPath && <CodeBlock forceWrap={true} source={`${"```"}shell\n${beforeLogPath}\n${"```"}`} />}
-					<div className="px-2 py-3 flex items-center gap-2 rounded-sm mx-1 my-2 bg-banner-background">
-						<span className="opacity-90">📋 Output is being logged to: </span>
-						<Button
-							className="break-all"
-							onClick={() => {
-								FileServiceClient.openFile(StringRequest.create({ value: logFilePath })).catch((err) =>
-									console.error("Failed to open log file:", err),
-								)
-							}}
-							variant="link">
-							{logFilePath}
-						</Button>
-					</div>
+					<Button
+						className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs w-full justify-start rounded-none border-b border-vscode-editorGroup-border"
+						onClick={() => {
+							FileServiceClient.openFile(StringRequest.create({ value: logFilePath })).catch((err) =>
+								console.error("Failed to open log file:", err),
+							)
+						}}
+						title={`Click to open: ${logFilePath}`}
+						variant="ghost">
+						<span className="opacity-90">📋 Output is being logged to:</span>
+						<span className="text-vscode-textLink-foreground underline break-all">{fileName}</span>
+					</Button>
 					{afterLogPath && <CodeBlock forceWrap={true} source={`${"```"}shell\n${afterLogPath}\n${"```"}`} />}
 				</>
 			)
