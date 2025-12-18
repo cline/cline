@@ -5,33 +5,19 @@
 
 /**
  * Formats a date into the timestamp format used in log filenames.
- * Format: YYYY-MM-DD-HH-mm-ss
- * Example: 2025-01-15-14-30-45
+ * Format: YYYY-MM-DDTHH-mm-ss (UTC)
+ * Example: 2025-01-15T14-30-45
  */
 export function formatLogFilenameTimestamp(date: Date = new Date()): string {
-	return [
-		date.getFullYear(),
-		String(date.getMonth() + 1).padStart(2, "0"),
-		String(date.getDate()).padStart(2, "0"),
-		String(date.getHours()).padStart(2, "0"),
-		String(date.getMinutes()).padStart(2, "0"),
-		String(date.getSeconds()).padStart(2, "0"),
-	].join("-")
+	// Use ISO format and replace colons with dashes for filename compatibility
+	return date.toISOString().replace(/:/g, "-").split(".")[0]
 }
 
 /**
  * Formats a date into the timestamp format used in log messages.
- * Format: YYYY-MM-DDTHH:mm:ss.SSS
- * Example: 2025-01-15T14:30:45.123
+ * Format: YYYY-MM-DDTHH:mm:ss.SSSZ (UTC)
+ * Example: 2025-01-15T14:30:45.123Z
  */
 export function formatLogMessageTimestamp(date: Date = new Date()): string {
-	const year = date.getFullYear()
-	const month = String(date.getMonth() + 1).padStart(2, "0")
-	const day = String(date.getDate()).padStart(2, "0")
-	const hours = String(date.getHours()).padStart(2, "0")
-	const minutes = String(date.getMinutes()).padStart(2, "0")
-	const seconds = String(date.getSeconds()).padStart(2, "0")
-	const milliseconds = String(date.getMilliseconds()).padStart(3, "0")
-
-	return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${milliseconds}`
+	return date.toISOString()
 }
