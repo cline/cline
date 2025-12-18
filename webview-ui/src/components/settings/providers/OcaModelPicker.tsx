@@ -74,7 +74,6 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 
 	const onAcknowledge = async () => {
 		if (pendingModelId && ocaModels) {
-			console.log(pendingModelId)
 			const fieldChangeKeys: any = {
 				ocaModelId: { plan: "planModeOcaModelId", act: "actModeOcaModelId" },
 				ocaModelInfo: { plan: "planModeOcaModelInfo", act: "actModeOcaModelInfo" },
@@ -116,7 +115,6 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 			return apiConfiguration?.actModeOcaModelInfo
 		}
 	}, [apiConfiguration, currentMode])
-	console.log(selectedOcaModelInfo)
 
 	const modelIds = useMemo(() => {
 		return Object.keys(ocaModels || []).sort((a, b) => a.localeCompare(b))
