@@ -115,9 +115,14 @@ export function convertClineStorageToAnthropicMessage(
 		return { role, content }
 	}
 
+	// Removes thinking block that has no signature (invalid thinking block that's incompatible with Anthropic API)
+	const filteredContent = content.filter((b) => b.type !== "thinking" || !!b.signature)
+
 	// Handle array content - strip Cline-specific fields for non-reasoning_details providers
 	const shouldCleanContent = !REASONING_DETAILS_PROVIDERS.includes(provider)
-	const cleanedContent = shouldCleanContent ? content.map(cleanContentBlock) : (content as Anthropic.MessageParam["content"])
+	const cleanedContent = shouldCleanContent
+		? filteredContent.map(cleanContentBlock)
+		: (filteredContent as Anthropic.MessageParam["content"])
 
 	return { role, content: cleanedContent }
 }
@@ -131,21 +136,19 @@ export function cleanContentBlock(block: ClineContent): Anthropic.ContentBlock {
 		"reasoning_details" in block ||
 		"call_id" in block ||
 		"summary" in block ||
-		(block.type === "tool_use" && "signature" in block)
+		(block.type !== "thinking" && "signature" in block)
 
 	if (!hasClineFields) {
 		return block as Anthropic.ContentBlock
 	}
 
-	// Remove Cline-specific fields (signature only for tool_use blocks)
+	// Removes Cline-specific fields & the signature field that's added for Gemini.
 	// biome-ignore lint/correctness/noUnusedVariables: intentional destructuring to remove properties
 	const { reasoning_details, call_id, summary, ...rest } = block as any
 
-	// Remove signature only from tool_use blocks (used by Gemini)
-	if (rest.type === "tool_use" && "signature" in rest) {
-		// biome-ignore lint/correctness/noUnusedVariables: intentional destructuring to remove properties
-		const { signature, ...cleanBlock } = rest
-		return cleanBlock satisfies Anthropic.ContentBlock
+	// Remove signature from non-thinking blocks that were added for Gemini
+	if (block.type !== "thinking" && rest.signature) {
+		rest.signature = undefined
 	}
 
 	return rest satisfies Anthropic.ContentBlock

@@ -5,7 +5,7 @@
  * model families and context configurations using snapshot testing.
  *
  * Usage:
- * - Run tests normally: `npm run test:unit -- --update-snapshots`
+ * - Run tests normally: `npm run test:unit`
  *   Tests will fail if generated prompts don't match existing snapshots
  *
  * - Update snapshots: `npm run test:unit -- --update-snapshots`
@@ -26,40 +26,31 @@ import { ModelFamily } from "@/shared/prompts"
 import { getSystemPrompt } from "../index"
 import type { SystemPromptContext } from "../types"
 
-// Check if snapshots should be updated via process argument
-const UPDATE_SNAPSHOTS = process.argv.includes("--update-snapshots") || process.env.UPDATE_SNAPSHOTS === "true"
+// ============================================================================
+// Configuration
+// ============================================================================
 
-// Helper to format snapshot mismatch error messages
-const formatSnapshotError = (snapshotName: string, differences: string): string => {
-	return `
+const UPDATE_SNAPSHOTS = process.argv.includes("--update-snapshots") || process.env.UPDATE_SNAPSHOTS === "true"
+const SNAPSHOTS_DIR = path.join(__dirname, "__snapshots__")
+const TEST_TIMEOUT = 30000
+const MAX_DIFF_LINES = 10
+
+// ============================================================================
+// Snapshot Helpers
+// ============================================================================
+
+const formatSnapshotError = (snapshotName: string, details: string): string => `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ❌ SNAPSHOT MISMATCH: ${snapshotName}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-${differences}
+${details}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔧 HOW TO FIX:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. 📋 Review the differences above to understand what changed
-2. 🤔 Determine if the changes are intentional:
-   - ✅ Expected changes (prompt improvements, new features)
-   - ❌ Unexpected changes (bugs, regressions)
-
-3. 🔄 If changes are correct, update snapshots:
-   npm run test:unit -- --update-snapshots
-
-4. 🐛 If changes are unintentional, investigate:
-   - Check recent changes to prompt generation logic
-   - Verify context/configuration hasn't changed unexpectedly
-   - Look for dependency updates that might affect output
-
+🔧 To update snapshots: npm run test:unit -- --update-snapshots
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `
-}
 
-// Helper to compare two strings and return differences
 const compareStrings = (expected: string, actual: string): string | null => {
 	if (expected === actual) {
 		return null
@@ -67,64 +58,69 @@ const compareStrings = (expected: string, actual: string): string | null => {
 
 	const expectedLines = expected.split("\n")
 	const actualLines = actual.split("\n")
-	const maxLines = Math.max(expectedLines.length, actualLines.length)
-	const differences: string[] = []
+	const diffs: string[] = []
 
-	for (let i = 0; i < maxLines; i++) {
-		const expectedLine = expectedLines[i] || ""
-		const actualLine = actualLines[i] || ""
-
-		if (expectedLine !== actualLine) {
-			if (differences.length < 10) {
-				// Limit to first 10 differences for readability
-				differences.push(`Line ${i + 1}:`)
-				if (expectedLine) {
-					differences.push(`  - Expected: ${expectedLine.substring(0, 100)}${expectedLine.length > 100 ? "..." : ""}`)
-				}
-				if (actualLine) {
-					differences.push(`  + Actual:   ${actualLine.substring(0, 100)}${actualLine.length > 100 ? "..." : ""}`)
-				}
+	for (let i = 0; i < Math.max(expectedLines.length, actualLines.length) && diffs.length < MAX_DIFF_LINES; i++) {
+		const exp = expectedLines[i] || ""
+		const act = actualLines[i] || ""
+		if (exp !== act) {
+			diffs.push(`Line ${i + 1}:`)
+			if (exp) {
+				diffs.push(`  - Expected: ${exp.substring(0, 100)}${exp.length > 100 ? "..." : ""}`)
+			}
+			if (act) {
+				diffs.push(`  + Actual:   ${act.substring(0, 100)}${act.length > 100 ? "..." : ""}`)
 			}
 		}
 	}
 
-	if (differences.length === 0) {
-		return null
-	}
-
-	const summary = [
-		`Expected length: ${expected.length} characters`,
-		`Actual length: ${actual.length} characters`,
-		`Line count difference: ${expectedLines.length} vs ${actualLines.length}`,
+	return [
+		`Expected: ${expected.length} chars, ${expectedLines.length} lines`,
+		`Actual: ${actual.length} chars, ${actualLines.length} lines`,
 		"",
-		"First differences:",
-		...differences,
-	]
+		...diffs,
+		diffs.length >= MAX_DIFF_LINES ? "... and more differences" : "",
+	].join("\n")
+}
 
-	if (differences.length >= 10) {
-		summary.push("... and more differences")
+async function assertSnapshot(name: string, content: string): Promise<void> {
+	const snapshotPath = path.join(SNAPSHOTS_DIR, name)
+
+	if (UPDATE_SNAPSHOTS) {
+		await fs.writeFile(snapshotPath, content, "utf-8")
+		console.log(`Updated snapshot: ${name} (${content.length} chars)`)
+		return
 	}
 
-	return summary.join("\n")
+	try {
+		const existing = await fs.readFile(snapshotPath, "utf-8")
+		const diff = compareStrings(existing, content)
+		if (diff) {
+			throw new Error(formatSnapshotError(name, diff))
+		}
+		console.log(`✓ Snapshot matches: ${name}`)
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+			throw new Error(formatSnapshotError(name, `Snapshot does not exist. Run with --update-snapshots to create it.`))
+		}
+		throw error
+	}
 }
+
+// ============================================================================
+// Test Context Helpers
+// ============================================================================
 
 export const mockProviderInfo = {
 	providerId: "test",
-	model: {
-		id: "fast",
-		info: {
-			supportsPromptCache: false,
-		},
-	},
+	model: { id: "fast", info: { supportsPromptCache: false } },
 	mode: "act" as const,
 }
 
-const makeMockProviderInfo = (modelId: string, providerId: string = "test") => ({
+const makeProviderInfo = (modelId: string, providerId: string = "test") => ({
 	providerId: modelId.includes("ollama") ? "ollama" : providerId,
-	model: {
-		...mockProviderInfo.model,
-		id: modelId,
-	},
+	model: { ...mockProviderInfo.model, id: modelId },
+	mode: "act" as const,
 	customPrompt: providerId.includes("lmstudio") || providerId.includes("ollama") ? "compact" : undefined,
 })
 
@@ -136,31 +132,18 @@ const baseContext: SystemPromptContext = {
 	mcpHub: {
 		getServers: () => [
 			{
+				uid: "1234567",
 				name: "test-server",
 				status: "connected",
 				config: '{"command": "test"}',
-				tools: [
-					{
-						name: "test_tool",
-						description: "A test tool",
-						inputSchema: { type: "object", properties: {} },
-					},
-				],
+				tools: [{ name: "test_tool", description: "A test tool", inputSchema: { type: "object", properties: {} } }],
 				resources: [],
 				resourceTemplates: [],
 			},
 		],
 	} as unknown as McpHub,
-	focusChainSettings: {
-		enabled: true,
-		remindClineInterval: 6,
-	},
-	browserSettings: {
-		viewport: {
-			width: 1280,
-			height: 720,
-		},
-	},
+	focusChainSettings: { enabled: true, remindClineInterval: 6 },
+	browserSettings: { viewport: { width: 1280, height: 720 } },
 	globalClineRulesFileInstructions: "Follow global rules",
 	localClineRulesFileInstructions: "Follow local rules",
 	preferredLanguageInstructions: "Prefer TypeScript",
@@ -169,276 +152,151 @@ const baseContext: SystemPromptContext = {
 	enableNativeToolCalls: false,
 }
 
-describe("Prompt System Integration Tests", () => {
-	beforeEach(() => {
-		// Reset any necessary state before each test
-	})
+const isNativeToolsFamily = (family: ModelFamily) =>
+	[ModelFamily.NATIVE_NEXT_GEN, ModelFamily.NATIVE_GPT_5, ModelFamily.NATIVE_GPT_5_1, ModelFamily.GEMINI_3].includes(family)
 
-	// Show helpful information about snapshot testing mode
-	before(() => {
-		if (UPDATE_SNAPSHOTS) {
-			console.log("🔄 SNAPSHOT UPDATE MODE: Will update all snapshot files with current output")
+type TestRunner = Mocha.Context & { skip(): void; timeout(ms: number): void }
+
+async function runPromptTest(
+	testCtx: TestRunner,
+	context: SystemPromptContext,
+	modelId: string,
+	handler: (result: Awaited<ReturnType<typeof getSystemPrompt>>) => Promise<void>,
+): Promise<void> {
+	testCtx.timeout(TEST_TIMEOUT)
+	try {
+		const result = await getSystemPrompt(context)
+		await handler(result)
+	} catch (error) {
+		if (error instanceof Error && error.message.includes("No prompt variant found")) {
+			console.log(`Skipping ${modelId} - no variant available (expected)`)
+			testCtx.skip()
 		} else {
-			console.log("✅ SNAPSHOT TEST MODE: Will compare against existing snapshots")
+			throw error
 		}
+	}
+}
+
+// ============================================================================
+// Test Data
+// ============================================================================
+
+const contextVariations: Array<{ name: string; override: Partial<SystemPromptContext> }> = [
+	{ name: "basic", override: {} },
+	{ name: "no-browser", override: { supportsBrowserUse: false } },
+	{ name: "no-mcp", override: { mcpHub: { getServers: () => [] } as unknown as McpHub } },
+	{ name: "no-focus-chain", override: { focusChainSettings: { enabled: false, remindClineInterval: 0 } } },
+]
+
+const modelTestCases = [
+	{ family: ModelFamily.GENERIC, modelId: "gpt-3", providerId: "openai" },
+	{ family: ModelFamily.GLM, modelId: "glm-4.6", providerId: "zai" },
+	{ family: ModelFamily.HERMES, modelId: "hermes-4", providerId: "test" },
+	{ family: ModelFamily.DEVSTRAL, modelId: "devstral", providerId: "cline" },
+	{ family: ModelFamily.NEXT_GEN, modelId: "claude-sonnet-4", providerId: "anthropic" },
+	{ family: ModelFamily.XS, modelId: "qwen3_coder", providerId: "lmstudio" },
+	{ family: ModelFamily.NATIVE_NEXT_GEN, modelId: "claude-4-5-sonnet", providerId: "cline" },
+	{ family: ModelFamily.GPT_5, modelId: "gpt-5", providerId: "openai" },
+	{ family: ModelFamily.NATIVE_GPT_5, modelId: "gpt-5-codex", providerId: "openai" },
+	{ family: ModelFamily.NATIVE_GPT_5_1, modelId: "gpt-5-1", providerId: "openai" },
+	{ family: ModelFamily.GEMINI_3, modelId: "gemini-3", providerId: "vertex" },
+]
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+describe("Prompt System Integration Tests", () => {
+	before(async () => {
+		console.log(UPDATE_SNAPSHOTS ? "🔄 SNAPSHOT UPDATE MODE" : "✅ SNAPSHOT TEST MODE")
+		await fs.mkdir(SNAPSHOTS_DIR, { recursive: true }).catch(() => {})
 	})
-	const contextVariations = [
-		{ name: "basic", baseContext: { ...baseContext } },
-		{
-			name: "no-browser",
-			baseContext: { ...baseContext, supportsBrowserUse: false },
-		},
-		{
-			name: "no-mcp",
-			baseContext: { ...baseContext, mcpHub: { getServers: () => [] } },
-		},
-		{
-			name: "no-focus-chain",
-			baseContext: { ...baseContext, focusChainSettings: { enabled: false } },
-		},
-	]
 
-	// Table-driven test cases for different model families
-	const modelTestCases = [
-		{
-			modelGroup: ModelFamily.GENERIC,
-			modelIds: ["gpt-3"],
-			providerId: "openai",
-			contextVariations,
-		},
-		{
-			modelGroup: ModelFamily.GLM,
-			modelIds: ["glm-4.6"],
-			providerId: "zai",
-			contextVariations,
-		},
-		{
-			modelGroup: ModelFamily.HERMES,
-			modelIds: ["hermes-4"],
-			providerId: "test",
-			contextVariations,
-		},
-		{
-			modelGroup: ModelFamily.DEVSTRAL,
-			modelIds: ["devstral"],
-			providerId: "cline",
-			contextVariations,
-		},
-		{
-			modelGroup: ModelFamily.NEXT_GEN,
-			modelIds: ["claude-sonnet-4"],
-			providerId: "anthropic",
-			contextVariations,
-		},
-		{
-			modelGroup: ModelFamily.XS,
-			modelIds: ["qwen3_coder"],
-			providerId: "lmstudio",
-			contextVariations,
-		},
-		{
-			modelGroup: ModelFamily.NATIVE_NEXT_GEN,
-			modelIds: ["claude-4-5-sonnet"],
-			providerId: "cline",
-			contextVariations,
-		},
-		{
-			modelGroup: ModelFamily.GPT_5,
-			modelIds: ["gpt-5"],
-			providerId: "openai",
-			contextVariations,
-		},
-		{
-			modelGroup: ModelFamily.NATIVE_GPT_5,
-			modelIds: ["gpt-5-codex"],
-			providerId: "openai",
-			contextVariations,
-		},
-		{
-			modelGroup: ModelFamily.NATIVE_GPT_5_1,
-			modelIds: ["gpt-5-1"],
-			providerId: "openai",
-			contextVariations,
-		},
-		{
-			modelGroup: ModelFamily.GEMINI_3,
-			modelIds: ["gemini-3"],
-			providerId: "vertex",
-			contextVariations,
-		},
-	]
-
-	// Generate snapshots for all model/context combinations
 	describe("Snapshot Testing", () => {
-		const snapshotsDir = path.join(__dirname, "__snapshots__")
+		for (const { family, modelId, providerId } of modelTestCases) {
+			describe(`${family} Model Group`, () => {
+				const enableNativeToolCalls = isNativeToolsFamily(family)
 
-		before(async () => {
-			// Ensure snapshots directory exists
-			try {
-				await fs.mkdir(snapshotsDir, { recursive: true })
-			} catch {
-				// Directory might already exist
-			}
-		})
-
-		for (const { modelGroup, modelIds, providerId, contextVariations } of modelTestCases) {
-			describe(`${modelGroup} Model Group`, () => {
-				for (const modelId of modelIds) {
-					for (const { name: contextName, baseContext } of contextVariations) {
-						const context = {
-							...baseContext,
-							providerInfo: makeMockProviderInfo(modelId, providerId),
-							isTesting: true,
-							enableNativeToolCalls:
-								modelGroup === ModelFamily.NATIVE_NEXT_GEN ||
-								modelGroup === ModelFamily.NATIVE_GPT_5 ||
-								modelGroup === ModelFamily.NATIVE_GPT_5_1 ||
-								modelGroup === ModelFamily.GEMINI_3,
-						}
-						it(`should generate consistent prompt for ${providerId}/${modelId} with ${contextName} context`, async function () {
-							this.timeout(30000) // Allow more time for prompt generation
-
-							try {
-								const { systemPrompt } = await getSystemPrompt(context as SystemPromptContext)
-
-								// Basic structure assertions
-								expect(systemPrompt).to.be.a("string")
-								expect(systemPrompt.length).to.be.greaterThan(100)
-								expect(systemPrompt).to.not.include("{{TOOL_USE_SECTION}}") // Tools placeholder should be removed
-
-								// Snapshot testing logic
-								const snapshotName = `${providerId}_${modelId.replace(/[^a-zA-Z0-9]/g, "_")}-${contextName}.snap`
-								const snapshotPath = path.join(snapshotsDir, snapshotName)
-
-								if (UPDATE_SNAPSHOTS) {
-									// Update mode: write new snapshot
-									await fs.writeFile(snapshotPath, systemPrompt, "utf-8")
-									console.log(`Updated snapshot: ${snapshotName} (${systemPrompt.length} chars)`)
-								} else {
-									// Test mode: compare with existing snapshot
-									try {
-										const existingSnapshot = await fs.readFile(snapshotPath, "utf-8")
-										const differences = compareStrings(existingSnapshot, systemPrompt)
-
-										if (differences) {
-											throw new Error(formatSnapshotError(snapshotName, differences))
-										}
-
-										console.log(`✓ Snapshot matches: ${snapshotName}`)
-									} catch (error) {
-										if (error instanceof Error && (error as any).code === "ENOENT") {
-											// Snapshot doesn't exist
-											throw new Error(
-												formatSnapshotError(
-													snapshotName,
-													`Snapshot file does not exist: ${snapshotPath}\n` +
-														`This is a new test case. Run with --update-snapshots to create the initial snapshot.`,
-												),
-											)
-										}
-										// Re-throw comparison errors
-										throw error
-									}
-								}
-							} catch (error) {
-								// For missing variants, we expect errors - that's okay
-								if (error instanceof Error && error.message.includes("No prompt variant found")) {
-									console.log(`Skipping ${modelId} - no variant available (expected)`)
-									this.skip()
-								} else {
-									throw error
-								}
-							}
-						})
+				it(`should generate consistent native tools object when enabled`, async function () {
+					const context: SystemPromptContext = {
+						...baseContext,
+						providerInfo: makeProviderInfo(modelId, providerId),
+						enableNativeToolCalls,
 					}
+
+					await runPromptTest(this, context, modelId, async ({ tools }) => {
+						if (!enableNativeToolCalls) {
+							expect(tools).to.be.undefined
+							return
+						}
+
+						expect(tools).to.be.an("array").that.is.not.empty
+						const snapshotName = `${providerId}_${family.replace(/[^a-zA-Z0-9]/g, "_")}.tools.snap`
+						await assertSnapshot(snapshotName, JSON.stringify(tools, null, 2))
+					})
+				})
+
+				for (const { name: contextName, override } of contextVariations) {
+					it(`should generate consistent prompt for ${providerId}/${modelId} with ${contextName} context`, async function () {
+						const context: SystemPromptContext = {
+							...baseContext,
+							...override,
+							providerInfo: makeProviderInfo(modelId, providerId),
+							enableNativeToolCalls,
+						}
+
+						await runPromptTest(this, context, modelId, async ({ systemPrompt, tools }) => {
+							if (enableNativeToolCalls) {
+								expect(tools).to.be.an("array").that.is.not.empty
+							} else {
+								expect(tools).to.be.undefined
+							}
+
+							expect(systemPrompt).to.be.a("string").with.length.greaterThan(100)
+							expect(systemPrompt).to.not.include("{{TOOL_USE_SECTION}}")
+
+							const snapshotName = `${providerId}_${modelId.replace(/[^a-zA-Z0-9]/g, "_")}-${contextName}.snap`
+							await assertSnapshot(snapshotName, systemPrompt)
+						})
+					})
 				}
 			})
 		}
 	})
 
 	describe("Context-Specific Features", () => {
-		it("should include browser-specific content when browser is enabled", async function () {
-			this.timeout(30000)
+		const featureTests = [
+			{ name: "browser-specific content when browser is enabled", context: { supportsBrowserUse: true }, check: "browser" },
+			{ name: "MCP content when MCP servers are present", context: {}, check: "MCP" },
+			{ name: "TODO content when focus chain is enabled", context: {}, check: "TODO" },
+			{ name: "user instructions when provided", context: {}, check: "USER'S CUSTOM INSTRUCTIONS" },
+		]
 
-			const contextWithBrowser = { ...baseContext, supportsBrowserUse: true }
-
-			try {
-				const { systemPrompt } = await getSystemPrompt(contextWithBrowser)
-				expect(systemPrompt.toLowerCase()).to.include("browser")
-			} catch (error) {
-				if (error instanceof Error && error.message.includes("No prompt variant found")) {
-					this.skip()
-				} else {
-					throw error
-				}
-			}
-		})
-
-		it("should include MCP content when MCP servers are present", async function () {
-			this.timeout(30000)
-
-			try {
-				const { systemPrompt } = await getSystemPrompt(baseContext)
-				expect(systemPrompt).to.include("MCP")
-			} catch (error) {
-				if (error instanceof Error && error.message.includes("No prompt variant found")) {
-					this.skip()
-				} else {
-					throw error
-				}
-			}
-		})
-
-		it("should include TODO content when focus chain is enabled", async function () {
-			this.timeout(30000)
-
-			try {
-				const { systemPrompt } = await getSystemPrompt(baseContext)
-				expect(systemPrompt).to.include("TODO")
-			} catch (error) {
-				if (error instanceof Error && error.message.includes("No prompt variant found")) {
-					this.skip()
-				} else {
-					throw error
-				}
-			}
-		})
-
-		it("should include user instructions when provided", async function () {
-			this.timeout(30000)
-
-			try {
-				const { systemPrompt } = await getSystemPrompt(baseContext)
-				expect(systemPrompt).to.include("USER'S CUSTOM INSTRUCTIONS")
-			} catch (error) {
-				if (error instanceof Error && error.message.includes("No prompt variant found")) {
-					this.skip()
-				} else {
-					throw error
-				}
-			}
-		})
+		for (const { name, context, check } of featureTests) {
+			it(`should include ${name}`, async function () {
+				await runPromptTest(this, { ...baseContext, ...context }, "default", async ({ systemPrompt }) => {
+					expect(systemPrompt.toLowerCase()).to.include(check.toLowerCase())
+				})
+			})
+		}
 	})
 
 	describe("Error Handling", () => {
 		it("should handle completely invalid context gracefully", async function () {
-			this.timeout(30000)
-
-			const invalidContext = {} as SystemPromptContext
-			const { systemPrompt } = await getSystemPrompt(invalidContext)
+			this.timeout(TEST_TIMEOUT)
+			const { systemPrompt } = await getSystemPrompt({} as SystemPromptContext)
 			expect(systemPrompt).to.be.a("string")
 		})
 
 		it("should handle undefined context properties", async function () {
-			this.timeout(30000)
-
+			this.timeout(TEST_TIMEOUT)
 			const contextWithNulls: SystemPromptContext = {
 				cwd: undefined,
 				ide: "",
 				supportsBrowserUse: undefined,
 				mcpHub: undefined,
 				focusChainSettings: undefined,
-				providerInfo: baseContext.providerInfo,
+				providerInfo: mockProviderInfo,
 			}
 
 			try {
@@ -446,7 +304,6 @@ describe("Prompt System Integration Tests", () => {
 				expect(systemPrompt).to.be.a("string")
 				expect(systemPrompt).to.include("{{TOOL_USE_SECTION}}")
 			} catch (error) {
-				// Error is acceptable for invalid context
 				expect(error).to.be.instanceOf(Error)
 			}
 		})

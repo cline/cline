@@ -36,8 +36,10 @@ export type GlobalStateAndSettings = GlobalState & Settings
 export interface RemoteConfigExtraFields {
 	remoteConfiguredProviders: string[]
 	allowedMCPServers: Array<{ id: string }>
+	remoteMCPServers?: Array<{ name: string; url: string }>
 	remoteGlobalRules?: GlobalInstructionsFile[]
 	remoteGlobalWorkflows?: GlobalInstructionsFile[]
+	blockPersonalRemoteMCPServers?: boolean
 }
 
 export type RemoteConfigFields = GlobalStateAndSettings & RemoteConfigExtraFields
