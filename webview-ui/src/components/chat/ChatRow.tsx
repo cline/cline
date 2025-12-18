@@ -566,6 +566,15 @@ export const ChatRowContent = memo(
 
 		const type = message.type === "ask" ? message.ask : message.say
 
+		// DEBUG: Log message info to trace rendering
+		console.log("[ChatRow DEBUG]", {
+			ts: message.ts,
+			type: message.type,
+			messageType: type,
+			hasText: !!message.text,
+			isLast,
+		})
+
 		const handleToggle = useCallback(() => {
 			onToggleExpand(message.ts)
 		}, [onToggleExpand, message.ts])
