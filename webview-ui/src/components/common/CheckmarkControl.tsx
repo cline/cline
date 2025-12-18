@@ -2,7 +2,6 @@ import { flip, offset, shift, useFloating } from "@floating-ui/react"
 import { CheckpointRestoreRequest } from "@shared/proto/cline/checkpoints"
 import { Int64Request } from "@shared/proto/cline/common"
 import { ClineCheckpointRestore } from "@shared/WebviewMessage"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import styled from "styled-components"
@@ -13,45 +12,41 @@ import { CheckpointsServiceClient } from "@/services/grpc-client"
 interface CheckmarkControlProps {
 	messageTs?: number
 	isCheckpointCheckedOut?: boolean
-	apiReqInfo?: {
-		cost: number | undefined
-		request: string | undefined
-	}
-	segmentCost?: number
 }
 
-export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, apiReqInfo, segmentCost }: CheckmarkControlProps) => {
+export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: CheckmarkControlProps) => {
 	const [compareDisabled, setCompareDisabled] = useState(false)
 	const [restoreTaskDisabled, setRestoreTaskDisabled] = useState(false)
 	const [restoreWorkspaceDisabled, setRestoreWorkspaceDisabled] = useState(false)
 	const [restoreBothDisabled, setRestoreBothDisabled] = useState(false)
 	const [showRestoreConfirm, setShowRestoreConfirm] = useState(false)
+	const [showMoreOptions, setShowMoreOptions] = useState(false)
 	const { onRelinquishControl } = useExtensionState()
 
 	// Debounce
-	const closeRestoreTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+	const closeMenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 	const scheduleCloseRestore = useCallback(() => {
-		if (closeRestoreTimeoutRef.current) {
-			clearTimeout(closeRestoreTimeoutRef.current)
+		if (closeMenuTimeoutRef.current) {
+			clearTimeout(closeMenuTimeoutRef.current)
 		}
-		closeRestoreTimeoutRef.current = setTimeout(() => {
+		closeMenuTimeoutRef.current = setTimeout(() => {
 			setShowRestoreConfirm(false)
 		}, 350)
 	}, [])
 
 	const cancelCloseRestore = useCallback(() => {
-		if (closeRestoreTimeoutRef.current) {
-			clearTimeout(closeRestoreTimeoutRef.current)
-			closeRestoreTimeoutRef.current = null
+		if (closeMenuTimeoutRef.current) {
+			clearTimeout(closeMenuTimeoutRef.current)
+			closeMenuTimeoutRef.current = null
 		}
 	}, [])
 
 	// Debounce cleanup
 	useEffect(() => {
 		return () => {
-			if (closeRestoreTimeoutRef.current) {
-				clearTimeout(closeRestoreTimeoutRef.current)
-				closeRestoreTimeoutRef.current = null
+			if (closeMenuTimeoutRef.current) {
+				clearTimeout(closeMenuTimeoutRef.current)
+				closeMenuTimeoutRef.current = null
 			}
 		}
 	}, [showRestoreConfirm])
@@ -63,13 +58,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, apiReqInfo
 		}
 	}, [isCheckpointCheckedOut, restoreWorkspaceDisabled])
 
-	// Floating UI for Restore menu
-	const {
-		refs: restoreRefs,
-		floatingStyles: restoreFloatingStyles,
-		update: restoreUpdate,
-		placement: restorePlacement,
-	} = useFloating({
+	const { refs, floatingStyles, update, placement } = useFloating({
 		placement: "bottom-end",
 		middleware: [
 			offset({
@@ -83,17 +72,17 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, apiReqInfo
 
 	useEffect(() => {
 		const handleScroll = () => {
-			restoreUpdate()
+			update()
 		}
 		window.addEventListener("scroll", handleScroll, true)
 		return () => window.removeEventListener("scroll", handleScroll, true)
-	}, [restoreUpdate])
+	}, [update])
 
 	useEffect(() => {
 		if (showRestoreConfirm) {
-			restoreUpdate()
+			update()
 		}
-	}, [showRestoreConfirm, restoreUpdate])
+	}, [showRestoreConfirm, update])
 
 	// Use the onRelinquishControl hook instead of message event
 	useEffect(() => {
@@ -103,6 +92,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, apiReqInfo
 			setRestoreWorkspaceDisabled(false)
 			setRestoreBothDisabled(false)
 			setShowRestoreConfirm(false)
+			setShowMoreOptions(false)
 		})
 	}, [onRelinquishControl])
 
@@ -176,133 +166,130 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, apiReqInfo
 			isMenuOpen={showRestoreConfirm}
 			onMouseEnter={handleControlsMouseEnter}
 			onMouseLeave={handleControlsMouseLeave}>
-			<Row>
-				<i
-					className="codicon codicon-bookmark"
-					style={{
-						color: isCheckpointCheckedOut
-							? "var(--vscode-textLink-foreground)"
-							: "var(--vscode-descriptionForeground)",
-						fontSize: "12px",
-						flexShrink: 0,
-					}}
-				/>
-				<DottedLine $isCheckedOut={isCheckpointCheckedOut} className="hover-show-inverse" />
-				<div className="hover-content">
-					<Label $isCheckedOut={isCheckpointCheckedOut}>
-						{isCheckpointCheckedOut ? "Checkpoint (restored)" : "Checkpoint"}
-					</Label>
-					<DottedLine $isCheckedOut={isCheckpointCheckedOut} />
-					<ButtonGroup>
+			<i
+				className="codicon codicon-bookmark"
+				style={{
+					color: isCheckpointCheckedOut ? "var(--vscode-textLink-foreground)" : "var(--vscode-descriptionForeground)",
+					fontSize: "12px",
+					flexShrink: 0,
+				}}
+			/>
+			<DottedLine $isCheckedOut={isCheckpointCheckedOut} className="hover-show-inverse" />
+			<div className="hover-content">
+				<Label $isCheckedOut={isCheckpointCheckedOut}>
+					{isCheckpointCheckedOut ? "Checkpoint (restored)" : "Checkpoint"}
+				</Label>
+				<DottedLine $isCheckedOut={isCheckpointCheckedOut} />
+				<ButtonGroup>
+					<CustomButton
+						$isCheckedOut={isCheckpointCheckedOut}
+						disabled={compareDisabled}
+						onClick={async () => {
+							setCompareDisabled(true)
+							try {
+								await CheckpointsServiceClient.checkpointDiff(
+									Int64Request.create({
+										value: messageTs,
+									}),
+								)
+							} catch (err) {
+								console.error("CheckpointDiff error:", err)
+							} finally {
+								setCompareDisabled(false)
+							}
+						}}
+						style={{ cursor: compareDisabled ? "wait" : "pointer" }}>
+						Compare
+					</CustomButton>
+					<DottedLine $isCheckedOut={isCheckpointCheckedOut} small />
+					<div ref={refs.setReference} style={{ position: "relative", marginTop: -2 }}>
 						<CustomButton
 							$isCheckedOut={isCheckpointCheckedOut}
-							disabled={compareDisabled}
-							onClick={async () => {
-								setCompareDisabled(true)
-								try {
-									await CheckpointsServiceClient.checkpointDiff(
-										Int64Request.create({
-											value: messageTs,
-										}),
-									)
-								} catch (err) {
-									console.error("CheckpointDiff error:", err)
-								} finally {
-									setCompareDisabled(false)
-								}
-							}}
-							style={{ cursor: compareDisabled ? "wait" : "pointer" }}>
-							Compare
+							isActive={showRestoreConfirm}
+							onClick={() => setShowRestoreConfirm(true)}>
+							Restore
 						</CustomButton>
-						<DottedLine $isCheckedOut={isCheckpointCheckedOut} small />
-						<div
-							onMouseEnter={handleMouseEnter}
-							onMouseLeave={handleMouseLeave}
-							ref={restoreRefs.setReference}
-							style={{ position: "relative", marginTop: -2 }}>
-							<CustomButton
-								$isCheckedOut={isCheckpointCheckedOut}
-								isActive={showRestoreConfirm}
-								onClick={() => setShowRestoreConfirm(true)}>
-								Restore
-							</CustomButton>
-							{showRestoreConfirm &&
-								createPortal(
-									<RestoreConfirmTooltip
-										data-placement={restorePlacement}
-										onMouseEnter={handleMouseEnter}
-										onMouseLeave={handleMouseLeave}
-										ref={restoreRefs.setFloating}
-										style={restoreFloatingStyles}>
-										<RestoreOption>
-											<VSCodeButton
-												disabled={restoreWorkspaceDisabled || isCheckpointCheckedOut}
-												onClick={handleRestoreWorkspace}
-												style={{
-													cursor: isCheckpointCheckedOut
-														? "not-allowed"
-														: restoreWorkspaceDisabled
-															? "wait"
-															: "pointer",
-													width: "100%",
-													marginBottom: "10px",
-												}}>
-												Restore Files
-											</VSCodeButton>
-											<p>
-												Restores your project's files back to a snapshot taken at this point (use
-												"Compare" to see what will be reverted)
-											</p>
-										</RestoreOption>
-										<RestoreOption>
-											<VSCodeButton
-												disabled={restoreTaskDisabled}
-												onClick={handleRestoreTask}
-												style={{
-													cursor: restoreTaskDisabled ? "wait" : "pointer",
-													width: "100%",
-													marginBottom: "10px",
-												}}>
-												Restore Task Only
-											</VSCodeButton>
-											<p>Deletes messages after this point (does not affect workspace files)</p>
-										</RestoreOption>
-										<RestoreOption>
-											<VSCodeButton
-												disabled={restoreBothDisabled}
-												onClick={handleRestoreBoth}
-												style={{
-													cursor: restoreBothDisabled ? "wait" : "pointer",
-													width: "100%",
-													marginBottom: "10px",
-												}}>
-												Restore Files & Task
-											</VSCodeButton>
-											<p>Restores your project's files and deletes all messages after this point</p>
-										</RestoreOption>
-									</RestoreConfirmTooltip>,
-									document.body,
-								)}
-						</div>
-						<DottedLine $isCheckedOut={isCheckpointCheckedOut} small />
-					</ButtonGroup>
-				</div>
-				{segmentCost != null && segmentCost > 0 && <CostLabel>${segmentCost.toFixed(2)}</CostLabel>}
-			</Row>
+						{showRestoreConfirm &&
+							createPortal(
+								<RestoreConfirmTooltip
+									data-placement={placement}
+									onMouseEnter={handleMouseEnter}
+									onMouseLeave={handleMouseLeave}
+									ref={refs.setFloating}
+									style={floatingStyles}>
+									<PrimaryRestoreOption>
+										<PrimaryButton
+											disabled={restoreBothDisabled}
+											onClick={handleRestoreBoth}
+											style={{
+												cursor: restoreBothDisabled ? "wait" : "pointer",
+											}}>
+											<i className="codicon codicon-debug-restart" style={{ marginRight: "6px" }} />
+											Restore Files & Task
+										</PrimaryButton>
+										<p>Revert files and clear messages after this point</p>
+									</PrimaryRestoreOption>
+									
+									<MoreOptionsToggle onClick={() => setShowMoreOptions(!showMoreOptions)}>
+										More options
+										<i className={`codicon codicon-chevron-${showMoreOptions ? 'up' : 'down'}`} style={{ marginLeft: "4px", fontSize: "10px" }} />
+									</MoreOptionsToggle>
+
+									{showMoreOptions && (
+										<AdditionalOptions>
+											<RestoreOption>
+												<SecondaryButton
+													disabled={restoreWorkspaceDisabled || isCheckpointCheckedOut}
+													onClick={handleRestoreWorkspace}
+													style={{
+														cursor: isCheckpointCheckedOut
+															? "not-allowed"
+															: restoreWorkspaceDisabled
+																? "wait"
+																: "pointer",
+													}}>
+													<i className="codicon codicon-file-symlink-directory" style={{ marginRight: "6px" }} />
+													Restore Files Only
+												</SecondaryButton>
+												<p>Revert files to this checkpoint</p>
+											</RestoreOption>
+											<RestoreOption>
+												<SecondaryButton
+													disabled={restoreTaskDisabled}
+													onClick={handleRestoreTask}
+													style={{
+														cursor: restoreTaskDisabled ? "wait" : "pointer",
+													}}>
+													<i className="codicon codicon-comment-discussion" style={{ marginRight: "6px" }} />
+													Restore Task Only
+												</SecondaryButton>
+												<p>Clear messages after this point</p>
+											</RestoreOption>
+										</AdditionalOptions>
+									)}
+								</RestoreConfirmTooltip>,
+								document.body,
+							)}
+					</div>
+					<DottedLine $isCheckedOut={isCheckpointCheckedOut} small />
+				</ButtonGroup>
+			</div>
 		</Container>
 	)
 }
 
 const Container = styled.div<{ isMenuOpen?: boolean; $isCheckedOut?: boolean }>`
 	display: flex;
-	flex-direction: column;
+	align-items: center;
 	padding: 4px 0;
-	gap: 0;
+	gap: 4px;
 	position: relative;
 	min-width: 0;
+	min-height: 17px;
 	margin-top: -10px;
 	margin-bottom: -10px;
 	opacity: ${(props) => (props.$isCheckedOut ? 1 : props.isMenuOpen ? 1 : 0.5)};
+	height: 0.5rem;
 	&:hover {
 		opacity: 1;
 	}
@@ -326,24 +313,6 @@ const Container = styled.div<{ isMenuOpen?: boolean; $isCheckedOut?: boolean }>`
 	&:hover .hover-show-inverse {
 		display: none;
 	}
-`
-
-const Row = styled.div`
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	min-height: 17px;
-	height: 0.5rem;
-`
-
-const CostLabel = styled.span`
-	font-size: 11px;
-	background: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
-	padding: 1px 6px;
-	border-radius: 3px;
-	flex-shrink: 0;
-	margin-left: auto;
 `
 
 const Label = styled.span<{ $isCheckedOut?: boolean }>`
@@ -430,22 +399,115 @@ const CustomButton = styled.button<{ disabled?: boolean; isActive?: boolean; $is
 	}
 `
 
-const RestoreOption = styled.div`
-	&:not(:last-child) {
-		margin-bottom: 10px;
-		padding-bottom: 4px;
-		border-bottom: 1px solid var(--vscode-editorGroup-border);
-	}
+const PrimaryRestoreOption = styled.div`
+	margin-bottom: 12px;
 
 	p {
-		margin: 0 0 2px 0;
+		margin: 8px 0 0 0;
 		color: var(--vscode-descriptionForeground);
 		font-size: 11px;
 		line-height: 14px;
 	}
+`
 
-	&:last-child p {
-		margin: 0 0 -2px 0;
+const PrimaryButton = styled.button`
+	width: 100%;
+	padding: 6px 10px;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: none;
+	border-radius: 3px;
+	font-size: 13px;
+	font-weight: 500;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: background 0.1s ease;
+	margin-bottom: 8px;
+
+	&:hover:not(:disabled) {
+		background: var(--vscode-button-hoverBackground);
+	}
+
+	&:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+`
+
+const MoreOptionsToggle = styled.button`
+	width: 100%;
+	padding: 2px 0;
+	background: transparent;
+	color: var(--vscode-textLink-foreground);
+	border: none;
+	font-size: 11px;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	transition: opacity 0.1s ease;
+	opacity: 0.8;
+    margin-bottom: -4px;
+	&:hover {
+		opacity: 1;
+	}
+`
+
+const AdditionalOptions = styled.div`
+	padding-top: 8px;
+	margin-top: 6px;
+	border-top: 1px solid var(--vscode-editorGroup-border);
+	animation: slideDown 0.15s ease-out;
+
+	@keyframes slideDown {
+		from {
+			opacity: 0;
+			transform: translateY(-4px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+`
+
+const RestoreOption = styled.div`
+	&:not(:last-child) {
+		margin-bottom: 12px;
+	}
+
+	p {
+		margin: 8px 0 0 0;
+		color: var(--vscode-descriptionForeground);
+		font-size: 11px;
+		line-height: 14px;
+	}
+`
+
+const SecondaryButton = styled.button`
+	width: 100%;
+	padding: 5px 8px;
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border: 1px solid var(--vscode-editorGroup-border);
+	border-radius: 3px;
+	font-size: 12px;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: all 0.1s ease;
+	margin-bottom: 8px;
+
+	&:hover:not(:disabled) {
+		background: var(--vscode-button-secondaryHoverBackground);
+	}
+
+	&:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 `
 
@@ -453,10 +515,11 @@ const RestoreConfirmTooltip = styled.div`
 	position: fixed;
 	background: ${CODE_BLOCK_BG_COLOR};
 	border: 1px solid var(--vscode-editorGroup-border);
-	padding: 12px;
-	border-radius: 3px;
-	width: min(calc(100vw - 54px), 600px);
+	padding: 14px;
+	border-radius: 5px;
+	width: min(calc(100vw - 54px), 200px);
 	z-index: 1000;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 
 	// Add invisible padding to create a safe hover zone
 	&::before {
@@ -499,9 +562,10 @@ const RestoreConfirmTooltip = styled.div`
 	}
 
 	p {
-		margin: 0 0 6px 0;
+		margin: 0;
 		color: var(--vscode-descriptionForeground);
-		font-size: 12px;
+		font-size: 11px;
+		line-height: 14px;
 		white-space: normal;
 		word-wrap: break-word;
 	}
