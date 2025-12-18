@@ -443,6 +443,14 @@ const ChatRow = memo(
 		// Store the previous height to compare with the current height
 		// This allows us to detect changes without causing re-renders
 		const prevHeightRef = useRef(0)
+		
+		// DEBUG: Log ChatRow mount
+		console.log("[ChatRow MOUNT]", {
+			ts: message.ts,
+			type: message.type,
+			ask: message.ask,
+			say: message.say,
+		})
 
 		const [chatrow, { height }] = useSize(
 			<ChatRowContainer>

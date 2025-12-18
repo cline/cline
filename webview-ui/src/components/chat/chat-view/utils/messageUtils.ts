@@ -381,7 +381,10 @@ export function isTextMessagePendingToolCall(textTs: number, allMessages: ClineM
  */
 export function isApiReqAbsorbable(apiReqTs: number, allMessages: ClineMessage[]): boolean {
 	const apiReqIndex = allMessages.findIndex((m) => m.ts === apiReqTs && m.say === "api_req_started")
-	if (apiReqIndex === -1) return false
+	if (apiReqIndex === -1) {
+		console.log("[isApiReqAbsorbable] api_req not found", apiReqTs)
+		return false
+	}
 
 	let hasLowStakesTool = false
 	for (let i = apiReqIndex + 1; i < allMessages.length; i++) {
@@ -402,10 +405,12 @@ export function isApiReqAbsorbable(apiReqTs: number, allMessages: ClineMessage[]
 
 		// Any other tool/command is considered high-stakes; do not absorb
 		if (msg.say === "tool" || msg.ask === "tool" || msg.say === "command" || msg.ask === "command") {
+			console.log("[isApiReqAbsorbable] has high-stakes tool, NOT absorbing", apiReqTs)
 			return false
 		}
 	}
 
+	console.log("[isApiReqAbsorbable] result:", { apiReqTs, hasLowStakesTool, willAbsorb: hasLowStakesTool })
 	return hasLowStakesTool
 }
 

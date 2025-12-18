@@ -97,6 +97,14 @@ const ToolGroupRenderer = memo(
 		const isExpanded = expandedRows[groupTs] ?? true // Default expanded
 		const isLast = index === groupedMessages.length - 1
 
+		// DEBUG: Log tool group rendering
+		console.log("[ToolGroupRenderer]", {
+			groupTs,
+			messageCount: messages.length,
+			isExpanded,
+			messages: messages.map(m => ({ ts: m.ts, say: m.say, ask: m.ask }))
+		})
+
 		// Track which individual tool items are expanded (for folders, search, etc.)
 		const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({})
 
@@ -270,6 +278,14 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	messageHandlers,
 }) => {
 	const { mode } = useExtensionState()
+	
+	// DEBUG: Log message rendering
+	console.log("[MessageRenderer]", {
+		index,
+		messageCount: groupedMessages.length,
+		isArray: Array.isArray(messageOrGroup),
+		messageType: Array.isArray(messageOrGroup) ? "group" : messageOrGroup.say || messageOrGroup.ask,
+	})
 
 	// Get reasoning content and response status for api_req_started messages
 	const reasoningData = useMemo(() => {
@@ -322,7 +338,11 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	// Deterministic flash fix:
 	// If this api_req_started is meant to be absorbed into a low-stakes tool group,
 	// never render it as a standalone row.
-	if (messageOrGroup.say === "api_req_started" && isApiReqAbsorbable(messageOrGroup.ts, modifiedMessages)) {
+	// BUT: Only absorb if this isn't the last/only message (to avoid hiding completed task api_reqs)
+	if (messageOrGroup.say === "api_req_started" && 
+		index < groupedMessages.length - 1 && 
+		isApiReqAbsorbable(messageOrGroup.ts, modifiedMessages)) {
+		console.log("[MessageRenderer] Absorbing api_req at index", index)
 		return null
 	}
 
