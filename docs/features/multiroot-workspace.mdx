@@ -243,16 +243,18 @@ Both limitations are restored when you return to a single-folder workspace.
 
 - Break large tasks into workspace-specific operations when possible
 - Use [Plan mode](/features/plan-and-act) to let Cline understand structure first
-- Use VSCode's `files.exclude` setting to hide generated folders from the file explorer and search:
+- Add a `.clineignore` file to reduce noise, speed up scanning, and keep Cline focused on source code:
 
-```json
-// settings.json
-"files.exclude": {
-  "**/node_modules": true,
-  "**/dist": true,
-  "**/build": true,
-  "**/.git": true
-}
+```text
+# Dependencies
+**/node_modules/
+
+# Build outputs
+**/dist/
+**/build/
+
+# VCS metadata
+**/.git/
 ```
 
-This reduces noise in Cline's file listings and helps it focus on your actual source code rather than generated files or dependencies.
+For more patterns and gotchas, see the [.clineignore File Guide](/prompting/prompt-engineering-guide#clineignore-file-guide).
