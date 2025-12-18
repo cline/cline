@@ -111,6 +111,7 @@ function convertOcaModelInfoToProtoOcaModelInfo(info: OcaModelInfo | undefined):
 		supportsChatApi: info.supportsChatApi,
 		supportsResponsesApi: info.supportsResponsesApi,
 		supportsReasoning: info.supportsReasoning,
+		reasoningEffortOptions: info.reasoningEffortOptions,
 	}
 }
 
@@ -137,6 +138,7 @@ function convertProtoOcaModelInfoToOcaModelInfo(info: ProtoOcaModelInfo | undefi
 		supportsChatApi: info.supportsChatApi,
 		supportsResponsesApi: info.supportsResponsesApi,
 		supportsReasoning: info.supportsReasoning,
+		reasoningEffortOptions: info.reasoningEffortOptions,
 	}
 }
 

@@ -82,6 +82,7 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 					supportsChatApi: supportedApiList.includes(CHAT_COMPLETIONS_API),
 					supportsResponsesApi: supportedApiList.includes(RESPONSES_API),
 					supportsReasoning: modelInfo.is_reasoning_model || false,
+					reasoningEffortOptions: modelInfo.reasoning_effort_options || [],
 				})
 			}
 			console.log("OCA models fetched", models)

@@ -282,6 +282,7 @@ export interface OcaModelInfo extends OpenAiCompatibleModelInfo {
 	supportsChatApi?: boolean
 	supportsResponsesApi?: boolean
 	supportsReasoning?: boolean
+	reasoningEffortOptions: string[]
 }
 
 export const CLAUDE_SONNET_1M_SUFFIX = ":1m"

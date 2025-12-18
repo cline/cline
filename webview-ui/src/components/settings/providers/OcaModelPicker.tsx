@@ -40,17 +40,22 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 				setPendingModelId(newModelId)
 				setShowRestrictedPopup(true)
 			} else {
-				await handleModeFieldsChange(
-					{
-						ocaModelId: { plan: "planModeOcaModelId", act: "actModeOcaModelId" },
-						ocaModelInfo: { plan: "planModeOcaModelInfo", act: "actModeOcaModelInfo" },
-					},
-					{
-						ocaModelId: newModelId,
-						ocaModelInfo: ocaModels[newModelId],
-					},
-					currentMode,
-				)
+				const fieldChangeKeys: any = {
+					ocaModelId: { plan: "planModeOcaModelId", act: "actModeOcaModelId" },
+					ocaModelInfo: { plan: "planModeOcaModelInfo", act: "actModeOcaModelInfo" },
+				}
+				const fieldChangeValues: any = {
+					ocaModelId: newModelId,
+					ocaModelInfo: ocaModels[newModelId],
+				}
+				if (ocaModels[newModelId].supportsReasoning && ocaModels[newModelId].reasoningEffortOptions.length > 0) {
+					fieldChangeKeys["ocaReasoningEffort"] = {
+						plan: "planModeOcaReasoningEffort",
+						act: "actModeOcaReasoningEffort",
+					}
+					fieldChangeValues["ocaReasoningEffort"] = ocaModels[newModelId].reasoningEffortOptions[0]
+				}
+				await handleModeFieldsChange(fieldChangeKeys, fieldChangeValues, currentMode)
 			}
 		}
 	}
@@ -69,17 +74,20 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 
 	const onAcknowledge = async () => {
 		if (pendingModelId && ocaModels) {
-			await handleModeFieldsChange(
-				{
-					ocaModelId: { plan: "planModeOcaModelId", act: "actModeOcaModelId" },
-					ocaModelInfo: { plan: "planModeOcaModelInfo", act: "actModeOcaModelInfo" },
-				},
-				{
-					ocaModelId: pendingModelId,
-					ocaModelInfo: ocaModels[pendingModelId],
-				},
-				currentMode,
-			)
+			console.log(pendingModelId)
+			const fieldChangeKeys: any = {
+				ocaModelId: { plan: "planModeOcaModelId", act: "actModeOcaModelId" },
+				ocaModelInfo: { plan: "planModeOcaModelInfo", act: "actModeOcaModelInfo" },
+			}
+			const fieldChangeValues: any = {
+				ocaModelId: pendingModelId,
+				ocaModelInfo: ocaModels[pendingModelId],
+			}
+			if (ocaModels[pendingModelId].supportsReasoning && ocaModels[pendingModelId].reasoningEffortOptions.length > 0) {
+				fieldChangeKeys["ocaReasoningEffort"] = { plan: "planModeOcaReasoningEffort", act: "actModeOcaReasoningEffort" }
+				fieldChangeValues["ocaReasoningEffort"] = ocaModels[pendingModelId].reasoningEffortOptions[0]
+			}
+			await handleModeFieldsChange(fieldChangeKeys, fieldChangeValues, currentMode)
 			setPendingModelId(null)
 			setShowRestrictedPopup(false)
 		}
@@ -100,6 +108,15 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 			return apiConfiguration?.actModeOcaReasoningEffort
 		}
 	}, [apiConfiguration, currentMode])
+
+	const selectedOcaModelInfo = useMemo(() => {
+		if (currentMode == "plan") {
+			return apiConfiguration?.planModeOcaModelInfo
+		} else {
+			return apiConfiguration?.actModeOcaModelInfo
+		}
+	}, [apiConfiguration, currentMode])
+	console.log(selectedOcaModelInfo)
 
 	const modelIds = useMemo(() => {
 		return Object.keys(ocaModels || []).sort((a, b) => a.localeCompare(b))
@@ -179,66 +196,38 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 					Last refreshed at {lastRefreshedText}
 				</div>
 			) : null}
-			{selectedModelInfo.supportsReasoning && (
-				<React.Fragment>
-					<label className="font-medium text-[12px] mt-[10px] mb-[2px]">Reasoning Effort</label>
-					<div className="flex items-center gap-2 mb-1">
-						<VSCodeDropdown
-							className="flex-1 text-[12px] min-h-[24px]"
-							currentValue={selectedReasoningEffort}
-							id="reasoning-effort-dropdown"
-							onChange={(e: any) => {
-								const newValue = e.target.currentValue
-								handleReasoningEffortChange(newValue)
-							}}>
-							<VSCodeOption
-								style={{
-									padding: "4px 8px",
-									cursor: "pointer",
-									wordWrap: "break-word",
-									maxWidth: "100%",
-									fontSize: 12,
-								}}
-								value="minimal">
-								Minimal
-							</VSCodeOption>
-							<VSCodeOption
-								style={{
-									padding: "4px 8px",
-									cursor: "pointer",
-									wordWrap: "break-word",
-									maxWidth: "100%",
-									fontSize: 12,
-								}}
-								value="low">
-								Low
-							</VSCodeOption>
-							<VSCodeOption
-								style={{
-									padding: "4px 8px",
-									cursor: "pointer",
-									wordWrap: "break-word",
-									maxWidth: "100%",
-									fontSize: 12,
-								}}
-								value="medium">
-								Medium
-							</VSCodeOption>
-							<VSCodeOption
-								style={{
-									padding: "4px 8px",
-									cursor: "pointer",
-									wordWrap: "break-word",
-									maxWidth: "100%",
-									fontSize: 12,
-								}}
-								value="high">
-								High
-							</VSCodeOption>
-						</VSCodeDropdown>
-					</div>
-				</React.Fragment>
-			)}
+			{selectedOcaModelInfo &&
+				selectedOcaModelInfo.supportsReasoning &&
+				selectedOcaModelInfo.reasoningEffortOptions.length >= 0 && (
+					<React.Fragment>
+						<label className="font-medium text-[12px] mt-[10px] mb-[2px]">Reasoning Effort</label>
+						<div className="flex items-center gap-2 mb-1">
+							<VSCodeDropdown
+								className="flex-1 text-[12px] min-h-[24px]"
+								currentValue={selectedReasoningEffort}
+								id="reasoning-effort-dropdown"
+								onChange={(e: any) => {
+									const newValue = e.target.currentValue
+									handleReasoningEffortChange(newValue)
+								}}>
+								{selectedOcaModelInfo?.reasoningEffortOptions.map((reasoningEffort) => (
+									<VSCodeOption
+										key={reasoningEffort}
+										style={{
+											padding: "4px 8px",
+											cursor: "pointer",
+											wordWrap: "break-word",
+											maxWidth: "100%",
+											fontSize: 12,
+										}}
+										value={reasoningEffort}>
+										{reasoningEffort}
+									</VSCodeOption>
+								))}
+							</VSCodeDropdown>
+						</div>
+					</React.Fragment>
+				)}
 			{selectedModelInfo && (
 				<>
 					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}

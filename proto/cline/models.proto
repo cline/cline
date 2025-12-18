@@ -387,6 +387,8 @@ message OcaModelInfo {
   optional bool supports_chat_api = 20;
   // Supports reasoning
   optional bool supports_reasoning = 21;
+  // reasoning effort options
+  repeated string reasoning_effort_options = 22;
 }
 
 // Aggregated OCA model catalog keyed by model identifier
