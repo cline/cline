@@ -53,6 +53,11 @@ export const recommendedModels = [
 		label: "BEST",
 	},
 	{
+		id: "google/gemini-3-flash-preview",
+		description: "Intelligent model built for speed and price efficiency",
+		label: "NEW",
+	},
+	{
 		id: "anthropic/claude-opus-4.5",
 		description: "State-of-the-art for complex coding",
 		label: "HOT",
@@ -78,6 +83,16 @@ export const freeModels = [
 	{
 		id: "minimax/minimax-m2",
 		description: "Open source model with solid performance",
+		label: "FREE",
+	},
+	{
+		id: "z-ai/glm-4.6",
+		description: "Zhipu AI's latest agentic coding model in GLM series",
+		label: "FREE",
+	},
+	{
+		id: "kwaipilot/kat-coder-pro:free",
+		description: "KwaiKAT's most advanced agentic coding model in the KAT-Coder series",
 		label: "FREE",
 	},
 	{

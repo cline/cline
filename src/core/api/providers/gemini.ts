@@ -16,9 +16,6 @@ import { RetriableError, withRetry } from "../retry"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
 
-// Define a default TTL for the cache (e.g., 15 minutes in seconds)
-const _DEFAULT_CACHE_TTL_SECONDS = 900
-
 const rateLimitPatterns = [/got status: 429/i, /429 Too Many Requests/i, /rate limit exceeded/i, /too many requests/i]
 
 interface GeminiHandlerOptions extends CommonApiHandlerOptions {
