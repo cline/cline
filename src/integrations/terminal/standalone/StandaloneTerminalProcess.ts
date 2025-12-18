@@ -10,7 +10,8 @@
 
 import { ChildProcess, spawn } from "child_process"
 import { EventEmitter } from "events"
-import treeKill from "tree-kill"
+
+import { terminateProcessTree } from "@/utils/process-termination"
 
 import {
 	isCompilingOutput,
@@ -318,11 +319,12 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 	/**
 	 * Terminate the process and all its children.
 	 *
-	 * Uses tree-kill package which handles cross-platform process tree termination:
-	 * - On Unix: Uses process groups to kill the entire process tree
-	 * - On Windows: Uses taskkill with /T flag to kill the process tree
+	 * Uses terminateProcessTree utility which handles:
+	 * - Cross-platform process tree termination via tree-kill
+	 * - Graceful shutdown with SIGTERM
+	 * - SIGKILL fallback after 2 second timeout
 	 */
-	terminate(): void {
+	async terminate(): Promise<void> {
 		if (!this.childProcess || this.isCompleted) {
 			return
 		}
@@ -334,7 +336,10 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 			return
 		}
 
-		// tree-kill handles cross-platform process tree termination
-		treeKill(pid, "SIGTERM")
+		await terminateProcessTree({
+			pid,
+			childProcess: this.childProcess,
+			isCompleted: () => this.isCompleted,
+		})
 	}
 }

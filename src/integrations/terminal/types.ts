@@ -62,8 +62,10 @@ export interface ITerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	 * Terminate the process if it's still running.
 	 * Only available for standalone processes (child_process).
 	 * VSCode terminal processes cannot be terminated via this interface.
+	 *
+	 * May be async to allow for graceful shutdown with SIGKILL fallback.
 	 */
-	terminate?(): void
+	terminate?(): void | Promise<void>
 }
 
 // =============================================================================
