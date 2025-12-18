@@ -14,7 +14,7 @@ import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
-import { convertBannerData, filterBanners } from "@/utils/bannerUtils"
+import { convertBannerData } from "@/utils/bannerUtils"
 import { getCurrentPlatform } from "@/utils/platformUtils"
 import { WelcomeSectionProps } from "../../types/chatTypes"
 
@@ -66,8 +66,16 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 		const shouldShowCliBanner =
 			PLATFORM_CONFIG.type === PlatformType.VSCODE && lastDismissedCliBannerVersion < CURRENT_CLI_BANNER_VERSION
 
-		// Filter banners based on version tracking
+		// Filter banners based on version tracking and user status	 */
 		return BANNER_DATA.filter((banner) => {
+			if (banner.isClineUserOnly !== undefined) {
+				return banner.isClineUserOnly === !!clineUser
+			}
+
+			if (banner.platforms && !banner.platforms.includes(getCurrentPlatform())) {
+				return false
+			}
+
 			// Map banner IDs to version checks
 			if (banner.id.startsWith("info-banner") && !shouldShowInfoBanner) {
 				return false
@@ -80,7 +88,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 			}
 			return true
 		})
-	}, [lastDismissedInfoBannerVersion, lastDismissedCliBannerVersion, lastDismissedModelBannerVersion])
+	}, [lastDismissedInfoBannerVersion, lastDismissedCliBannerVersion, lastDismissedModelBannerVersion, clineUser])
 
 	/**
 	 * Action handler - maps action types to actual implementations
@@ -155,31 +163,12 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	 * Build array of active banners for carousel
 	 */
 	const activeBanners = useMemo(() => {
-		// Get current platform and filter banners
-		const currentPlatform = getCurrentPlatform()
-		const isClineUser = !!clineUser
-
-		const filteredBanners = filterBanners(bannerConfig, {
-			currentPlatform,
-			isClineUser,
-		})
-
 		// Convert to BannerData format for carousel
-		return filteredBanners.map((banner) =>
-			convertBannerData(
-				banner,
-				{
-					onAction: handleBannerAction,
-					onDismiss: handleBannerDismiss,
-				},
-				{
-					currentPlatform,
-					isClineUser,
-					extensionState: {
-						subagentsEnabled: !!subagentsEnabled,
-					},
-				},
-			),
+		return bannerConfig.map((banner) =>
+			convertBannerData(banner, {
+				onAction: handleBannerAction,
+				onDismiss: handleBannerDismiss,
+			}),
 		)
 	}, [bannerConfig, clineUser, subagentsEnabled, handleBannerAction, handleBannerDismiss])
 

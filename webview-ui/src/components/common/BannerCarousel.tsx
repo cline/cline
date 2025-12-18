@@ -1,12 +1,11 @@
-import { BannerAction, BannerCardData } from "@shared/cline/banner"
 import { ChevronLeft, ChevronRight, XIcon } from "lucide-react"
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useRemark } from "react-remark"
 import { Button } from "@/components/ui/button"
 
 interface BannerActions {
 	label: string
 	onClick: () => void
-	variant?: BannerAction["variant"]
 	disabled?: boolean
 }
 
@@ -17,7 +16,6 @@ export interface BannerData {
 	description: string | React.ReactNode
 	actions?: BannerActions[]
 	onDismiss?: () => void
-	severity?: BannerCardData["severity"]
 }
 
 interface BannerCarouselProps {
@@ -30,8 +28,19 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 	const [isTransitioning, setIsTransitioning] = useState(false)
 	const autoPlayIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
+	const [currentBannerMarkdownText, setMarkdown] = useRemark()
+
 	// Compute a safe index that's always within bounds
-	const safeCurrentIndex = banners.length === 0 ? 0 : Math.min(currentIndex, banners.length - 1)
+	const safeCurrentIndex = useMemo(
+		() => (banners.length === 0 ? 0 : Math.min(currentIndex, banners.length - 1)),
+		[currentIndex, banners.length],
+	)
+	// Use the safe index to get the current banner
+	const currentBanner = useMemo(() => {
+		const banner = banners[safeCurrentIndex]
+		setMarkdown(typeof banner.description === "string" ? banner.description : "")
+		return banner
+	}, [banners, safeCurrentIndex, setMarkdown])
 
 	const transitionToIndex = useCallback((newIndex: number) => {
 		setIsTransitioning(true)
@@ -83,9 +92,6 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 		return null
 	}
 
-	// Use the safe index to get the current banner
-	const currentBanner = banners[safeCurrentIndex]
-
 	// Safety check: if currentBanner is undefined (shouldn't happen with above logic, but just in case)
 	if (!currentBanner) {
 		return null
@@ -121,7 +127,7 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 
 				{/* Card content with fixed height and fade transition */}
 				<div
-					className="px-4 pt-4 pb-3"
+					className="p-4"
 					style={{
 						height: "144px",
 						overflow: "hidden",
@@ -140,22 +146,18 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 					</h3>
 
 					{/* Description */}
-					<div className="text-base mb-4 text-description">{currentBanner.description}</div>
+					<div className="text-base mb-4 text-description">{currentBannerMarkdownText}</div>
 
 					{/* Action buttons */}
-					{currentBanner.actions && currentBanner.actions.length > 0 && (
+					{currentBanner.actions?.length ? (
 						<div className="flex gap-3 mt-4">
 							{currentBanner.actions.map((action, idx) => (
-								<Button
-									disabled={action.disabled}
-									key={idx}
-									onClick={action.onClick}
-									variant={action.variant === "secondary" ? "secondary" : "default"}>
+								<Button disabled={action.disabled} key={idx} onClick={action.onClick}>
 									{action.label}
 								</Button>
 							))}
 						</div>
-					)}
+					) : null}
 				</div>
 
 				{/* Navigation footer - only show if more than 1 banner */}
