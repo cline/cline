@@ -38,7 +38,6 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
-import { findApiReqInfoForCheckpoint, findNextSegmentCost } from "./chat-view/utils/messageUtils"
 import ErrorRow from "./ErrorRow"
 import HookMessage from "./HookMessage"
 import NewTaskPreview from "./NewTaskPreview"
@@ -1808,14 +1807,10 @@ export const ChatRowContent = memo(
 					case "clineignore_error":
 						return <ErrorRow errorType="clineignore_error" message={message} />
 					case "checkpoint_created":
-						const apiReqInfo = findApiReqInfoForCheckpoint(message.ts, clineMessages)
-						const segmentCost = findNextSegmentCost(message.ts, clineMessages)
 						return (
 							<CheckmarkControl
-								apiReqInfo={apiReqInfo}
 								isCheckpointCheckedOut={message.isCheckpointCheckedOut}
 								messageTs={message.ts}
-								segmentCost={segmentCost}
 							/>
 						)
 					case "load_mcp_documentation":
