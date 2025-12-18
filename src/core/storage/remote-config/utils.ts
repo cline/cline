@@ -1,7 +1,8 @@
 import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
 import { RemoteConfig } from "@shared/remote-config/schema"
 import { RemoteConfigFields } from "@shared/storage/state-keys"
-import { getTelemetryService } from "@/services/telemetry"
+import { Logger } from "@/services/logging/Logger"
+import { getTelemetryService, telemetryService } from "@/services/telemetry"
 import { OpenTelemetryClientProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryClientProvider"
 import { OpenTelemetryTelemetryProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider"
 import { type TelemetryService } from "@/services/telemetry/TelemetryService"
@@ -208,6 +209,23 @@ async function applyRemoteOTELConfig(transformed: Partial<RemoteConfigFields>, t
 	}
 }
 
+export async function clearRemoteConfig() {
+	try {
+		const stateManager = StateManager.get()
+
+		stateManager.clearRemoteConfig()
+		telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
+		// the remote config cline rules toggle state is stored in global state
+		stateManager.setGlobalState("remoteRulesToggles", {})
+		stateManager.setGlobalState("remoteWorkflowToggles", {})
+
+		// clear secrets
+		stateManager.setSecret("remoteLiteLlmApiKey", undefined)
+	} catch (err) {
+		Logger.error("[REMOTE CONFIG] Failed to clear remote config", err)
+	}
+}
+
 /**
  * Applies remote config to the StateManager's remote config cache
  * @param remoteConfig The remote configuration object to apply
@@ -224,11 +242,7 @@ export async function applyRemoteConfig(
 
 	// If no remote config provided, clear the cache and relevant state
 	if (!remoteConfig) {
-		stateManager.clearRemoteConfig()
-		telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
-		// the remote config cline rules toggle state is stored in global state
-		stateManager.setGlobalState("remoteRulesToggles", {})
-		stateManager.setGlobalState("remoteWorkflowToggles", {})
+		clearRemoteConfig()
 		return
 	}
 
