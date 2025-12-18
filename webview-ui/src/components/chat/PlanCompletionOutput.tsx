@@ -1,5 +1,6 @@
 import { memo, useState } from "react"
 import { CHAT_ROW_EXPANDED_BG_COLOR } from "@/components/common/CodeBlock"
+import { CopyButton } from "@/components/common/CopyButton"
 import MarkdownBlock from "@/components/common/MarkdownBlock"
 import ExpandHandle from "./ExpandHandle"
 
@@ -74,28 +75,7 @@ const PlanCompletionOutput = memo(({ text, onCopy }: PlanCompletionOutputProps) 
 						Plan Complete
 					</span>
 				</div>
-				<button
-					onClick={() => {
-						navigator.clipboard.writeText(text || "")
-						onCopy?.()
-					}}
-					onMouseEnter={(e) => {
-						e.currentTarget.style.opacity = "1"
-					}}
-					onMouseLeave={(e) => {
-						e.currentTarget.style.opacity = "0.6"
-					}}
-					style={{
-						background: "transparent",
-						border: "none",
-						padding: "4px",
-						cursor: "pointer",
-						display: "flex",
-						alignItems: "center",
-						opacity: 0.6,
-					}}>
-					<span className="codicon codicon-copy" style={{ fontSize: "14px" }}></span>
-				</button>
+				<CopyButton textToCopy={text || ""} />
 			</div>
 
 			{/* Content */}
