@@ -5,6 +5,16 @@ export interface NavigatorUAData {
 	brands: { brand: string; version: string }[]
 }
 
+/**
+ * Pure helper: checks whether a given platform string is macOS or Linux.
+ *
+ * This is intentionally *not* a React hook so it can be used safely from anywhere
+ * (including non-React code and unit tests).
+ */
+export const isMacOSOrLinux = (platform?: string): boolean => {
+	return platform === "darwin" || platform === "linux"
+}
+
 export const unknown = "Unknown"
 
 const platforms = {
@@ -49,5 +59,8 @@ export const isSafari = !isChrome && userAgent.indexOf("Safari") >= 0
  */
 export const useIsMacOSOrLinux = (): boolean => {
 	const { platform } = useExtensionState()
-	return platform !== "win32" && platform !== "unknown"
+	// Be conservative: only return true when we *explicitly* know we're on macOS/Linux.
+	// This avoids incorrectly enabling mac/linux-only UI during the initial hydration phase
+	// where platform may still be "unknown".
+	return isMacOSOrLinux(platform)
 }
