@@ -107,6 +107,7 @@ export interface ExtensionState {
 	nativeToolCallSetting?: boolean
 	enableParallelToolCalling?: boolean
 	backgroundEditEnabled?: boolean
+	optOutOfRemoteConfig?: boolean
 }
 
 export interface ClineMessage {

@@ -131,6 +131,7 @@ export interface Settings {
 	subagentsEnabled: boolean
 	enableParallelToolCalling: boolean
 	backgroundEditEnabled: boolean
+	optOutOfRemoteConfig: boolean
 
 	// Model-specific settings
 	hicapModelId: string | undefined
