@@ -53,6 +53,11 @@ export const recommendedModels = [
 		label: "BEST",
 	},
 	{
+		id: "google/gemini-3-flash-preview",
+		description: "Intelligent model built for speed and price efficiency",
+		label: "NEW",
+	},
+	{
 		id: "anthropic/claude-opus-4.5",
 		description: "State-of-the-art for complex coding",
 		label: "HOT",

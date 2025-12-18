@@ -13,7 +13,7 @@ import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useRef, useState } from "react"
 import { useClickAway, useWindowSize } from "react-use"
 import styled from "styled-components"
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import PopupModalContainer from "@/components/common/PopupModalContainer"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient } from "@/services/grpc-client"
@@ -376,23 +376,7 @@ const ClineRulesToggleModal: React.FC = () => {
 			</div>
 
 			{isVisible && (
-				<div
-					className="fixed left-[15px] right-[15px] border border-editor-group-border rounded z-1000 flex flex-col"
-					style={{
-						bottom: `calc(100vh - ${menuPosition}px + 6px)`,
-						background: CODE_BLOCK_BG_COLOR,
-						maxHeight: "calc(100vh - 100px)",
-						overscrollBehavior: "contain",
-					}}>
-					<div
-						className="fixed h-2.5 w-2.5 z-[-1] rotate-45 border-r border-b border-editor-group-border"
-						style={{
-							bottom: `calc(100vh - ${menuPosition}px)`,
-							right: arrowPosition,
-							background: CODE_BLOCK_BG_COLOR,
-						}}
-					/>
-
+				<PopupModalContainer $arrowPosition={arrowPosition} $menuPosition={menuPosition}>
 					{/* Fixed header section - tabs and description */}
 					<div className="flex-shrink-0 px-2 pt-0">
 						{/* Tabs container */}
@@ -709,7 +693,7 @@ const ClineRulesToggleModal: React.FC = () => {
 							</>
 						)}
 					</div>
-				</div>
+				</PopupModalContainer>
 			)}
 		</div>
 	)

@@ -57,6 +57,20 @@ During installation, you'll authenticate and configure your preferred provider u
 - Create GitLab pipelines that generate migration scripts from schema changes
 - Build Jenkins jobs that use Cline to analyze test failures and suggest fixes
 
+## Hooks integration
+
+[Hooks](/features/hooks/index) let you inject custom logic into Cline's workflow to validate operations and enforce policies. You can enable hooks when running tasks from the command line:
+
+```bash
+# Enable hooks for a task
+cline "What does this repo do?" -s hooks_enabled=true
+
+# Configure hooks globally via CLI
+cline config set hooks-enabled=true
+```
+
+This allows you to integrate hooks into automated workflows, CI/CD pipelines, and headless task execution for consistent enforcement across all environments.
+
 ## Learn more
 
 <Columns cols={2}>
