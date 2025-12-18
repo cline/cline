@@ -1,6 +1,7 @@
 import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
 import { RemoteConfig } from "@shared/remote-config/schema"
 import { RemoteConfigFields } from "@shared/storage/state-keys"
+import { AuthService } from "@/services/auth/AuthService"
 import { Logger } from "@/services/logging/Logger"
 import { getTelemetryService, telemetryService } from "@/services/telemetry"
 import { OpenTelemetryClientProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryClientProvider"
@@ -241,7 +242,7 @@ export async function applyRemoteConfig(
 	const telemetryService = await getTelemetryService()
 
 	// If no remote config provided, clear the cache and relevant state
-	if (!remoteConfig) {
+	if (!remoteConfig || !isRemoteConfigEnabled()) {
 		clearRemoteConfig()
 		return
 	}
@@ -292,4 +293,31 @@ export async function applyRemoteConfig(
 		}
 	}
 	await applyRemoteOTELConfig(transformed, telemetryService)
+}
+
+export const isRemoteConfigEnabled = () => {
+	const stateManager = StateManager.get()
+	const hasOptedOut = stateManager.getGlobalSettingsKey("optOutOfRemoteConfig")
+
+	if (!hasOptedOut) {
+		return true
+	}
+
+	// User has opted out - check if they're an admin/owner
+	const authService = AuthService.getInstance()
+	const userOrgs = authService.getUserOrganizations()
+	const activeOrgId = authService.getActiveOrganizationId()
+
+	if (!userOrgs || !activeOrgId) {
+		return true
+	}
+
+	const activeOrg = userOrgs.find((org) => org.organizationId === activeOrgId)
+	const isAdminOrOwner = activeOrg?.roles?.some((role) => role === "admin" || role === "owner")
+
+	const canDisableRemoteConfig = isAdminOrOwner
+
+	// If remote config can't be disabled, then it's enabled
+	// we already check if the user opted out earlier
+	return !canDisableRemoteConfig
 }

@@ -6,8 +6,7 @@ import { AuthService } from "../../../services/auth/AuthService"
 import { CLINE_API_ENDPOINT } from "../../../shared/cline/api"
 import { APIKeySchema, type APIKeySettings, RemoteConfig, RemoteConfigSchema } from "../../../shared/remote-config/schema"
 import { deleteRemoteConfigFromCache, readRemoteConfigFromCache, writeRemoteConfigToCache } from "../disk"
-import { StateManager } from "../StateManager"
-import { applyRemoteConfig } from "./utils"
+import { applyRemoteConfig, clearRemoteConfig, isRemoteConfigEnabled } from "./utils"
 
 /**
  * Parses API keys from a JSON string response
@@ -198,7 +197,7 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 		const result = await findOrganizationWithRemoteConfig()
 
 		if (!result) {
-			StateManager.get().clearRemoteConfig()
+			clearRemoteConfig()
 			controller.postStateToWebview()
 			return undefined
 		}
@@ -254,6 +253,10 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
  */
 export async function fetchRemoteConfig(controller: Controller) {
 	try {
+		if (!isRemoteConfigEnabled()) {
+			return
+		}
+
 		await ensureUserInOrgWithRemoteConfig(controller)
 	} catch (error) {
 		console.error("Failed to fetch remote config", error)
