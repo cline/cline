@@ -2142,6 +2142,16 @@ export class Task {
 		}
 
 		if (this.taskState.consecutiveMistakeCount >= this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")) {
+			// In yolo mode, don't wait for user input - fail the task
+			if (this.stateManager.getGlobalSettingsKey("yoloModeToggled")) {
+				const errorMessage =
+					`[YOLO MODE] Task failed: Too many consecutive mistakes (${this.taskState.consecutiveMistakeCount}). ` +
+					`The model may not be capable enough for this task. Consider using a more capable model.`
+				await this.say("error", errorMessage)
+				// End the task loop with failure
+				return true // didEndLoop = true, signals task completion/failure
+			}
+
 			const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 			if (autoApprovalSettings.enableNotifications) {
 				showSystemNotification({
