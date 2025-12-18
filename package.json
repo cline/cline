@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.42.0",
+	"version": "3.45.0",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -378,7 +378,7 @@
 		"pretest": "npm run compile && npm run compile-tests && npm run compile-standalone && npm run lint",
 		"test": "npm-run-all test:unit test:integration",
 		"test:integration": "vscode-test",
-		"test:unit": "cross-env TS_NODE_PROJECT=./tsconfig.unit-test.json mocha # Use `UPDATE_SNAPSHOTS=true npm run test:unit` to rebuild prompt snapshots",
+		"test:unit": "cross-env TS_NODE_PROJECT=./tsconfig.unit-test.json mocha",
 		"test:coverage": "vscode-test --coverage",
 		"test:sca-server": "npx tsx watch scripts/test-standalone-core-api-server.ts",
 		"test:tp-orchestrator": "npx tsx scripts/testing-platform-orchestrator.ts",

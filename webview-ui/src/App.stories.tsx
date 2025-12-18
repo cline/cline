@@ -14,7 +14,7 @@ import WelcomeView from "./components/welcome/WelcomeView"
 
 // Mock component that mimics App behavior but works in Storybook
 const MockApp = () => {
-	const { showWelcome, onboardingModels } = useExtensionState()
+	const { showWelcome, onboardingModels, showAnnouncement } = useExtensionState()
 
 	return (
 		<HeroUIProvider>
@@ -25,7 +25,12 @@ const MockApp = () => {
 					<WelcomeView />
 				)
 			) : (
-				<ChatView hideAnnouncement={() => {}} isHidden={false} showAnnouncement={false} showHistoryView={() => {}} />
+				<ChatView
+					hideAnnouncement={() => {}}
+					isHidden={false}
+					showAnnouncement={showAnnouncement}
+					showHistoryView={() => {}}
+				/>
 			)}
 		</HeroUIProvider>
 	)
@@ -221,6 +226,7 @@ const createMockState = (overrides: any = {}) => ({
 	...useExtensionState(),
 	useAutoCondense: true,
 	autoCondenseThreshold: 0.5,
+	version: "0.0.1-stories",
 	welcomeViewCompleted: true,
 	showWelcome: false,
 	clineMessages: mockActiveMessages,
@@ -228,6 +234,7 @@ const createMockState = (overrides: any = {}) => ({
 	apiConfiguration: mockApiConfiguration,
 	onboardingModels: undefined,
 	openRouterModels: bedrockModels,
+	showAnnouncement: false,
 	...overrides,
 })
 
@@ -357,6 +364,17 @@ export const Onboarding: Story = {
 		// Should see model selection again
 		await expect(canvas.getByPlaceholderText("Search model...")).toBeInTheDocument()
 		await userEvent.click(canvas.getByText("Back"))
+	},
+}
+
+export const EmptyState: Story = {
+	decorators: [createStoryDecorator({ clineMessages: [], taskHistory: [], isNewUser: true, showAnnouncement: true })],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows the empty state for first-time users with no conversation history or active tasks.",
+			},
+		},
 	},
 }
 
@@ -538,17 +556,6 @@ export const PlanMode: Story = {
 		docs: {
 			description: {
 				story: "Shows Cline in Plan mode, where it focuses on creating detailed plans and discussing approaches before implementation.",
-			},
-		},
-	},
-}
-
-export const EmptyState: Story = {
-	decorators: [createStoryDecorator({ clineMessages: [], taskHistory: [], isNewUser: true })],
-	parameters: {
-		docs: {
-			description: {
-				story: "Shows the empty state for first-time users with no conversation history or active tasks.",
 			},
 		},
 	},
