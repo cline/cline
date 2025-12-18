@@ -158,14 +158,7 @@ export async function getMcpSettingsFilePath(settingsDirectoryPath: string): Pro
 	const mcpSettingsFilePath = path.join(settingsDirectoryPath, GlobalFileNames.mcpSettings)
 	const fileExists = await fileExistsAtPath(mcpSettingsFilePath)
 	if (!fileExists) {
-		await fs.writeFile(
-			mcpSettingsFilePath,
-			`{
-  "mcpServers": {
-    
-  }
-}`,
-		)
+		await fs.writeFile(mcpSettingsFilePath, JSON.stringify({ mcpServers: {} }, null, 2))
 	}
 	return mcpSettingsFilePath
 }
