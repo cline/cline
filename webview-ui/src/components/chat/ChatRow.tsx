@@ -13,10 +13,11 @@ import { BooleanRequest, Int64Request, StringRequest } from "@shared/proto/cline
 import { Mode } from "@shared/storage/types"
 import { VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
-import { Brain, FoldVerticalIcon } from "lucide-react"
+import { FoldVerticalIcon } from "lucide-react"
 import React, { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import styled from "styled-components"
+import ClineLogoWhite from "@/assets/ClineLogoWhite"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
 import "./ChatRow.css"
@@ -238,15 +239,9 @@ const ThinkingBlock = memo(
 		return (
 			<ThinkingBlockContainer $instant={instant} $isVisible={isVisible}>
 				{showIcon && (
-					<Brain
-						size={14}
-						style={{
-							color: "var(--vscode-descriptionForeground)",
-							opacity: 0.7,
-							flexShrink: 0,
-							marginTop: 2,
-						}}
-					/>
+					<div style={{ marginTop: "1px", flexShrink: 0 }}>
+						<ClineLogoWhite className="size-3.5 opacity-70" />
+					</div>
 				)}
 				<ThinkingBlockScroll ref={scrollRef}>
 					{reasoningContent}
@@ -1634,14 +1629,9 @@ export const ChatRowContent = memo(
 												marginBottom: hasError ? 10 : 0,
 											}}
 											title="Click to view reasoning">
-											<Brain
-												size={14}
-												style={{
-													color: "var(--vscode-descriptionForeground)",
-													opacity: 0.7,
-													flexShrink: 0,
-												}}
-											/>
+											<div style={{ marginTop: "1px", flexShrink: 0 }}>
+												<ClineLogoWhite className="size-3.5 opacity-70" />
+											</div>
 											<span style={{ fontWeight: 500 }}>Thinking</span>
 											<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}></span>
 										</div>
