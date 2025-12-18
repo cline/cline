@@ -4,8 +4,7 @@ import * as vscode from "vscode"
 import { stripAnsi } from "@/hosts/vscode/terminal/ansiUtils"
 import { getLatestTerminalOutput } from "@/hosts/vscode/terminal/get-latest-output"
 import {
-	COMPILING_MARKERS,
-	COMPILING_NULLIFIERS,
+	isCompilingOutput,
 	MAX_FULL_OUTPUT_SIZE,
 	MAX_UNRETRIEVED_LINES,
 	PROCESS_HOT_TIMEOUT_COMPILING,
@@ -161,9 +160,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 					clearTimeout(this.hotTimer)
 				}
 				// these markers indicate the command is some kind of local dev server recompiling the app, which we want to wait for output of before sending request to cline
-				const isCompiling =
-					COMPILING_MARKERS.some((marker) => data.toLowerCase().includes(marker.toLowerCase())) &&
-					!COMPILING_NULLIFIERS.some((nullifier) => data.toLowerCase().includes(nullifier.toLowerCase()))
+				const isCompiling = isCompilingOutput(data)
 				this.hotTimer = setTimeout(
 					() => {
 						this.isHot = false

@@ -13,8 +13,7 @@ import { EventEmitter } from "events"
 import treeKill from "tree-kill"
 
 import {
-	COMPILING_MARKERS,
-	COMPILING_NULLIFIERS,
+	isCompilingOutput,
 	MAX_FULL_OUTPUT_SIZE,
 	MAX_UNRETRIEVED_LINES,
 	PROCESS_HOT_TIMEOUT_COMPILING,
@@ -185,10 +184,7 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 		}
 
 		// Check for compilation markers to adjust hot timeout
-		const isCompiling =
-			COMPILING_MARKERS.some((marker) => data.toLowerCase().includes(marker.toLowerCase())) &&
-			!COMPILING_NULLIFIERS.some((nullifier) => data.toLowerCase().includes(nullifier.toLowerCase()))
-
+		const isCompiling = isCompilingOutput(data)
 		const hotTimeout = isCompiling ? PROCESS_HOT_TIMEOUT_COMPILING : PROCESS_HOT_TIMEOUT_NORMAL
 		this.hotTimer = setTimeout(() => {
 			this.isHot = false

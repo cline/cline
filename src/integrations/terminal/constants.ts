@@ -102,3 +102,21 @@ export const COMPILING_NULLIFIERS = [
 	"error",
 	"fail",
 ]
+
+/**
+ * Check if terminal output indicates compilation/building.
+ * Only matches markers at the START of lines to avoid false positives
+ * from file names, error messages, or code containing these words.
+ */
+export function isCompilingOutput(data: string): boolean {
+	const lines = data.split("\n")
+	const hasMarker = lines.some((line) => {
+		const trimmed = line.trim().toLowerCase()
+		return COMPILING_MARKERS.some((marker) => trimmed.startsWith(marker.toLowerCase()))
+	})
+	const hasNullifier = lines.some((line) => {
+		const trimmed = line.trim().toLowerCase()
+		return COMPILING_NULLIFIERS.some((nullifier) => trimmed.startsWith(nullifier.toLowerCase()))
+	})
+	return hasMarker && !hasNullifier
+}
