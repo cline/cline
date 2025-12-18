@@ -10,15 +10,15 @@ import {
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
 import { BooleanRequest, Int64Request, StringRequest } from "@shared/proto/cline/common"
-import { Mode } from "@shared/storage/types"
-import { VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
-import { Brain, FoldVerticalIcon } from "lucide-react"
+import { FoldVerticalIcon } from "lucide-react"
 import React, { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import styled from "styled-components"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
+import "./ChatRow.css"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
 import { CheckpointControls } from "@/components/common/CheckpointControls"
 import CodeBlock, {
@@ -26,9 +26,8 @@ import CodeBlock, {
 	CODE_BLOCK_BG_COLOR,
 	TERMINAL_CODE_BLOCK_BG_COLOR,
 } from "@/components/common/CodeBlock"
-import { WithCopyButton } from "@/components/common/CopyButton"
+import { CopyButton, WithCopyButton } from "@/components/common/CopyButton"
 import MarkdownBlock from "@/components/common/MarkdownBlock"
-import SuccessButton from "@/components/common/SuccessButton"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
@@ -37,7 +36,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
-import { findApiReqInfoForCheckpoint, findNextSegmentCost } from "./chat-view/utils/messageUtils"
+import { ErrorBlockTitle } from "./ErrorBlockTitle"
 import ErrorRow from "./ErrorRow"
 import HookMessage from "./HookMessage"
 import NewTaskPreview from "./NewTaskPreview"
@@ -51,16 +50,7 @@ const errorColor = "var(--vscode-errorForeground)"
 const successColor = "var(--vscode-charts-green)"
 const _cancelledColor = "var(--vscode-descriptionForeground)"
 
-// Shared keyframes for cursor blink animation
-const cursorBlinkKeyframes = `
-	@keyframes cursorBlink {
-		0%, 100% { opacity: 1; }
-		50% { opacity: 0; }
-	}
-`
-
 const ChatRowContainer = styled.div`
-	${cursorBlinkKeyframes}
 	padding: 10px 6px 10px 15px;
 	position: relative;
 
@@ -96,10 +86,6 @@ interface ChatRowProps {
 	sendMessageFromChatRow?: (text: string, images: string[], files: string[]) => void
 	onSetQuote: (text: string) => void
 	onCancelCommand?: () => void
-	mode?: Mode
-	reasoningContent?: string
-	responseStarted?: boolean
-	isRequestInProgress?: boolean
 }
 
 interface QuoteButtonState {
@@ -126,137 +112,7 @@ export const ProgressIndicator = () => (
 	</div>
 )
 
-const BlinkingCursorSpan = styled.span`
-	display: inline-block;
-	width: 2px;
-	height: 1em;
-	background-color: currentColor;
-	margin-left: 2px;
-	vertical-align: text-bottom;
-	animation: cursorBlink 1s ease-in-out infinite;
-`
-
-const BlinkingCursor = () => <BlinkingCursorSpan />
-
-const TypewriterText = memo(({ text }: { text: string }) => {
-	const [displayedLength, setDisplayedLength] = useState(0)
-
-	useEffect(() => {
-		setDisplayedLength(0)
-		const interval = setInterval(() => {
-			setDisplayedLength((prev) => {
-				if (prev >= text.length) {
-					clearInterval(interval)
-					return prev
-				}
-				return prev + 1
-			})
-		}, 30)
-
-		return () => clearInterval(interval)
-	}, [text])
-
-	return (
-		<>
-			{text.slice(0, displayedLength)}
-			<BlinkingCursor />
-		</>
-	)
-})
-
-const ThinkingBlockContainer = styled.div<{ $isVisible: boolean; $instant?: boolean }>`
-	display: flex;
-	align-items: flex-start;
-	gap: 8px;
-	max-height: ${(props) => (props.$isVisible ? "150px" : "0")};
-	opacity: ${(props) => (props.$isVisible ? 1 : 0)};
-	overflow: hidden;
-	transition: ${(props) => (props.$instant ? "none" : "max-height 250ms cubic-bezier(0.4, 0, 0.2, 1), opacity 150ms ease-out")};
-	width: 100%;
-	min-width: 0;
-`
-
-const ThinkingBlockScroll = styled.div`
-	max-height: 150px;
-	overflow-y: auto;
-	color: var(--vscode-descriptionForeground);
-	line-height: 1.5;
-	white-space: pre-wrap;
-	word-break: break-word;
-	flex: 1;
-	scrollbar-width: none;
-	-ms-overflow-style: none;
-	&::-webkit-scrollbar {
-		display: none;
-	}
-`
-
-// State type for api_req_started rendering
-type ApiReqState = "pre" | "thinking" | "error" | "final"
-
-const ThinkingBlock = memo(
-	({
-		reasoningContent,
-		isVisible,
-		showCursor = true,
-		showIcon = true,
-		instant = false,
-	}: {
-		reasoningContent?: string
-		isVisible: boolean
-		showCursor?: boolean
-		showIcon?: boolean
-		instant?: boolean
-	}) => {
-		const scrollRef = useRef<HTMLDivElement>(null)
-		const [shouldRender, setShouldRender] = useState(isVisible)
-
-		// Only auto-scroll to bottom during streaming (showCursor=true)
-		// For expanded collapsed thinking, start at top
-		useEffect(() => {
-			if (scrollRef.current && isVisible && showCursor) {
-				scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-			}
-		}, [reasoningContent, isVisible, showCursor])
-
-		useEffect(() => {
-			if (isVisible) {
-				setShouldRender(true)
-			} else if (instant) {
-				// Instant unmount for streaming thinking - no delay
-				setShouldRender(false)
-			} else {
-				// Delayed unmount for user-toggled expanded thinking (animation)
-				const timer = setTimeout(() => setShouldRender(false), 250)
-				return () => clearTimeout(timer)
-			}
-		}, [isVisible, instant])
-
-		if (!shouldRender) return null
-
-		return (
-			<ThinkingBlockContainer $instant={instant} $isVisible={isVisible}>
-				{showIcon && (
-					<Brain
-						size={14}
-						style={{
-							color: "var(--vscode-descriptionForeground)",
-							opacity: 0.7,
-							flexShrink: 0,
-							marginTop: 2,
-						}}
-					/>
-				)}
-				<ThinkingBlockScroll ref={scrollRef}>
-					{reasoningContent}
-					{isVisible && showCursor && <BlinkingCursor />}
-				</ThinkingBlockScroll>
-			</ThinkingBlockContainer>
-		)
-	},
-)
-
-const Markdown = memo(({ markdown, showCursor }: { markdown?: string; showCursor?: boolean }) => {
+const Markdown = memo(({ markdown }: { markdown?: string }) => {
 	return (
 		<div
 			style={{
@@ -266,7 +122,7 @@ const Markdown = memo(({ markdown, showCursor }: { markdown?: string; showCursor
 				marginTop: -15,
 				overflow: "hidden", // contain child margins so that parent diff matches height of children
 			}}>
-			<MarkdownBlock markdown={markdown} showCursor={showCursor} />
+			<MarkdownBlock markdown={markdown} />
 		</div>
 	)
 })
@@ -277,11 +133,13 @@ const CommandOutput = memo(
 		isOutputFullyExpanded,
 		onToggle,
 		isContainerExpanded,
+		borderColor = "var(--vscode-editorGroup-border)",
 	}: {
 		output: string
 		isOutputFullyExpanded: boolean
 		onToggle: () => void
 		isContainerExpanded: boolean
+		borderColor?: string
 	}) => {
 		const outputLines = output.split("\n")
 		const lineCount = outputLines.length
@@ -316,9 +174,9 @@ const CommandOutput = memo(
 					paddingBottom: lineCount > 5 ? "16px" : "0",
 					overflow: "visible",
 					borderTop: "1px solid rgba(255,255,255,.07)",
-					backgroundColor: TERMINAL_CODE_BLOCK_BG_COLOR,
 					borderBottomLeftRadius: "6px",
 					borderBottomRightRadius: "6px",
+					backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
 				}}>
 				<div
 					ref={outputRef}
@@ -337,15 +195,9 @@ const CommandOutput = memo(
 				{lineCount > 5 && (
 					<div
 						onClick={onToggle}
-						onMouseEnter={(e) => {
-							e.currentTarget.style.opacity = "0.8"
-						}}
-						onMouseLeave={(e) => {
-							e.currentTarget.style.opacity = "1"
-						}}
 						style={{
 							position: "absolute",
-							bottom: "-10px",
+							bottom: "-8px",
 							left: "50%",
 							transform: "translateX(-50%)",
 							display: "flex",
@@ -353,16 +205,85 @@ const CommandOutput = memo(
 							alignItems: "center",
 							padding: "1px 14px",
 							cursor: "pointer",
-							backgroundColor: "var(--vscode-descriptionForeground)",
-							borderRadius: "3px 3px 6px 6px",
-							transition: "opacity 0.1s ease",
-							border: "1px solid rgba(0, 0, 0, 0.1)",
+							backgroundColor: borderColor,
+							borderRadius: "2px",
+							border: "none",
 						}}>
 						<span
 							className={`codicon codicon-triangle-${isOutputFullyExpanded ? "up" : "down"}`}
 							style={{
 								fontSize: "11px",
-								color: "var(--vscode-editor-background)",
+								color: "#000000",
+							}}
+						/>
+					</div>
+				)}
+			</div>
+		)
+	},
+)
+
+const CompletionOutput = memo(
+	({
+		text,
+		isOutputFullyExpanded,
+		onToggle,
+		borderColor = successColor,
+	}: {
+		text: string
+		isOutputFullyExpanded: boolean
+		onToggle: () => void
+		borderColor?: string
+	}) => {
+		const outputLines = text.split("\n")
+		const lineCount = outputLines.length
+		const shouldAutoShow = lineCount <= 5
+
+		return (
+			<div
+				style={{
+					width: "100%",
+					position: "relative",
+					paddingBottom: lineCount > 5 ? "8px" : "0",
+					overflow: "visible",
+					borderTop: "1px solid rgba(255,255,255,.07)",
+					borderBottomLeftRadius: "6px",
+					borderBottomRightRadius: "6px",
+					backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
+				}}>
+				<div
+					className="completion-output-content"
+					style={{
+						maxHeight: shouldAutoShow ? "none" : isOutputFullyExpanded ? "400px" : "150px",
+						overflowY: shouldAutoShow ? "visible" : "auto",
+						scrollBehavior: "smooth",
+						padding: "12px",
+					}}>
+					<Markdown markdown={text} />
+				</div>
+				{/* Show notch only if there's more than 5 lines */}
+				{lineCount > 5 && (
+					<div
+						onClick={onToggle}
+						style={{
+							position: "absolute",
+							bottom: "-8px",
+							left: "50%",
+							transform: "translateX(-50%)",
+							display: "flex",
+							justifyContent: "center",
+							alignItems: "center",
+							padding: "1px 14px",
+							cursor: "pointer",
+							backgroundColor: borderColor,
+							borderRadius: "2px",
+							border: "none",
+						}}>
+						<span
+							className={`codicon codicon-triangle-${isOutputFullyExpanded ? "up" : "down"}`}
+							style={{
+								fontSize: "11px",
+								color: "#000000",
 							}}
 						/>
 					</div>
@@ -418,15 +339,13 @@ export const ChatRowContent = memo(
 		sendMessageFromChatRow,
 		onSetQuote,
 		onCancelCommand,
-		mode,
-		reasoningContent,
-		responseStarted,
-		isRequestInProgress,
 	}: ChatRowContentProps) => {
-		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode, clineMessages } =
-			useExtensionState()
+		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode } = useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [explainChangesDisabled, setExplainChangesDisabled] = useState(false)
+		const [viewChangesHovered, setViewChangesHovered] = useState(false)
+		const [explainChangesHovered, setExplainChangesHovered] = useState(false)
+		const [completionContainerHovered, setCompletionContainerHovered] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
 			top: 0,
@@ -438,12 +357,45 @@ export const ChatRowContent = memo(
 		// Command output expansion state (for all messages, but only used by command messages)
 		const [isOutputFullyExpanded, setIsOutputFullyExpanded] = useState(false)
 		const prevCommandExecutingRef = useRef<boolean>(false)
-		const [cost, apiReqStreamingFailedMessage] = useMemo(() => {
+		// Completion output expansion state
+		const [isCompletionOutputExpanded, setIsCompletionOutputExpanded] = useState(false)
+		const hasAutoExpandedRef = useRef(false)
+		const hasAutoCollapsedRef = useRef(false)
+		const prevIsLastRef = useRef(isLast)
+
+		// Auto-expand completion output when it's the last message (runs once per message)
+		useEffect(() => {
+			const isCompletionResult = message.ask === "completion_result" || message.say === "completion_result"
+
+			// Auto-expand if it's last and we haven't already auto-expanded
+			if (isLast && isCompletionResult && !hasAutoExpandedRef.current) {
+				setIsCompletionOutputExpanded(true)
+				hasAutoExpandedRef.current = true
+				hasAutoCollapsedRef.current = false // Reset the auto-collapse flag when expanding
+			}
+		}, [isLast, message.ask, message.say])
+
+		// Auto-collapse completion output ONCE when transitioning from last to not-last
+		useEffect(() => {
+			const isCompletionResult = message.ask === "completion_result" || message.say === "completion_result"
+			const wasLast = prevIsLastRef.current
+
+			// Only auto-collapse if transitioning from last to not-last, and we haven't already auto-collapsed
+			if (wasLast && !isLast && isCompletionResult && !hasAutoCollapsedRef.current) {
+				setIsCompletionOutputExpanded(false)
+				hasAutoCollapsedRef.current = true
+				hasAutoExpandedRef.current = false // Reset the auto-expand flag when collapsing
+			}
+
+			prevIsLastRef.current = isLast
+		}, [isLast, message.ask, message.say])
+
+		const [cost, apiReqCancelReason, apiReqStreamingFailedMessage, retryStatus] = useMemo(() => {
 			if (message.text != null && message.say === "api_req_started") {
 				const info: ClineApiReqInfo = JSON.parse(message.text)
-				return [info.cost, info.streamingFailedMessage]
+				return [info.cost, info.cancelReason, info.streamingFailedMessage, info.retryStatus]
 			}
-			return [undefined, undefined]
+			return [undefined, undefined, undefined, undefined, undefined]
 		}, [message.text, message.say])
 
 		// when resuming task last won't be api_req_failed but a resume_task message so api_req_started will show loading spinner. that's why we just remove the last api_req_started that failed without streaming anything
@@ -614,9 +566,12 @@ export const ChatRowContent = memo(
 						<span style={{ color: successColor, fontWeight: "bold" }}>Task Completed</span>,
 					]
 				case "api_req_started":
-					// API request rows no longer render the request payload/cost accordion.
-					// Thinking/reasoning is handled directly in the api_req_started renderer below.
-					return [null, null]
+					return ErrorBlockTitle({
+						cost,
+						apiReqCancelReason,
+						apiRequestFailedMessage,
+						retryStatus,
+					})
 				case "followup":
 					return [
 						<span
@@ -630,7 +585,16 @@ export const ChatRowContent = memo(
 				default:
 					return [null, null]
 			}
-		}, [type, cost, apiRequestFailedMessage, isCommandExecuting, isCommandPending, isMcpServerResponding, message.text])
+		}, [
+			type,
+			cost,
+			apiRequestFailedMessage,
+			isCommandExecuting,
+			isCommandPending,
+			apiReqCancelReason,
+			isMcpServerResponding,
+			message.text,
+		])
 
 		const headerStyle: React.CSSProperties = {
 			display: "flex",
@@ -679,18 +643,13 @@ export const ChatRowContent = memo(
 
 			switch (tool.tool) {
 				case "editedExistingFile":
-					const content = tool?.content || ""
-					const isApplyingPatch = content?.startsWith("%%bash") && !content.endsWith("*** End Patch\nEOF")
-					const editToolTitle = isApplyingPatch
-						? "Cline is creating patches to edit this file:"
-						: "Cline wants to edit this file:"
 					return (
 						<>
 							<div style={headerStyle}>
 								{toolIcon("edit")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>{editToolTitle}</span>
+								<span style={{ fontWeight: "bold" }}>Cline wants to edit this file:</span>
 							</div>
 							<CodeAccordian
 								// isLoading={message.partial}
@@ -1021,6 +980,48 @@ export const ChatRowContent = memo(
 							</div>
 							{/* Displaying the 'content' which now holds "Fetching URL: [URL]" */}
 							{/* <div style={{ paddingTop: 5, fontSize: '0.9em', opacity: 0.8 }}>{tool.content}</div> */}
+						</>
+					)
+				case "webSearch":
+					return (
+						<>
+							<div style={headerStyle}>
+								<span
+									className="codicon codicon-search"
+									style={{ color: normalColor, marginBottom: "-1.5px" }}></span>
+								{tool.operationIsLocatedInWorkspace === false &&
+									toolIcon("sign-out", "yellow", -90, "This search is external")}
+								<span style={{ fontWeight: "bold" }}>
+									{message.type === "ask"
+										? "Cline wants to search the web for:"
+										: "Cline searched the web for:"}
+								</span>
+							</div>
+							<div
+								style={{
+									borderRadius: 3,
+									backgroundColor: CODE_BLOCK_BG_COLOR,
+									overflow: "hidden",
+									border: "1px solid var(--vscode-editorGroup-border)",
+									padding: "9px 10px",
+									userSelect: "text",
+									WebkitUserSelect: "text",
+									MozUserSelect: "text",
+									msUserSelect: "text",
+								}}>
+								<span
+									className="ph-no-capture"
+									style={{
+										whiteSpace: "nowrap",
+										overflow: "hidden",
+										textOverflow: "ellipsis",
+										marginRight: "8px",
+										direction: "rtl",
+										textAlign: "left",
+									}}>
+									{tool.path + "\u200E"}
+								</span>
+							</div>
 						</>
 					)
 				default:
@@ -1386,135 +1387,42 @@ export const ChatRowContent = memo(
 		switch (message.type) {
 			case "say":
 				switch (message.say) {
-					case "api_req_started": {
-						// Derive explicit state
-						const hasError = !!(apiRequestFailedMessage || apiReqStreamingFailedMessage)
-						const hasCost = cost != null
-						const hasReasoning = !!reasoningContent
-						const hasResponseStarted = !!responseStarted
-
-						const apiReqState: ApiReqState = hasError
-							? "error"
-							: hasCost
-								? "final"
-								: hasReasoning
-									? "thinking"
-									: "pre"
-
-						// While reasoning is streaming, keep the Brain ThinkingBlock exactly as-is.
-						// Once response content starts (any text/tool/command), collapse into a compact
-						// "🧠 Thinking" row that can be expanded to show the reasoning only.
-						const showStreamingThinking = hasReasoning && !hasResponseStarted && !hasError && !hasCost
-						const showCollapsedThinking = hasReasoning && !showStreamingThinking
-
-						// Find the most recent tool activity in the conversation
-						// Only show if the last tool was exploratory (read/list/search)
-						// and no user/text message has occurred since
-						// Memoized to avoid iterating through all messages on every render
-						const currentActivity = useMemo(() => {
-							// Look backwards from the end to find the most recent relevant message
-							for (let i = clineMessages.length - 1; i >= 0; i--) {
-								const msg = clineMessages[i]
-								// Stop if we hit user feedback or Cline text - fall back to default
-								if (msg.say === "user_feedback" || msg.say === "text") {
-									return null
-								}
-								// Check for tool messages
-								if (msg.say === "tool" || msg.ask === "tool") {
-									try {
-										const tool = JSON.parse(msg.text || "{}") as ClineSayTool
-										// Exploratory tools - show activity
-										if (tool.tool === "readFile" && tool.path) {
-											return `Reading ${cleanPathPrefix(tool.path)}`
-										}
-										if (tool.tool === "listFilesTopLevel" && tool.path) {
-											return `Exploring ${cleanPathPrefix(tool.path)}/`
-										}
-										if (tool.tool === "listFilesRecursive" && tool.path) {
-											return `Exploring ${cleanPathPrefix(tool.path)}`
-										}
-										if (tool.tool === "searchFiles" && tool.regex) {
-											return `Searching for ${tool.regex}`
-										}
-										if (tool.tool === "listCodeDefinitionNames" && tool.path) {
-											return `Reading definitions in ${cleanPathPrefix(tool.path)}/`
-										}
-										// Non-exploratory tool found first - fall back to default
-										return null
-									} catch {
-										// ignore parse errors
-									}
-								}
-							}
-							return null
-						}, [clineMessages])
-
+					case "api_req_started":
 						return (
 							<>
-								{apiReqState === "pre" && (
-									<div style={{ color: "var(--vscode-descriptionForeground)" }}>
-										<TypewriterText
-											text={currentActivity || (mode === "plan" ? "Planning..." : "Thinking...")}
-										/>
-									</div>
-								)}
-
-								{showStreamingThinking && (
-									<ThinkingBlock
-										instant={true}
-										isVisible={true}
-										reasoningContent={reasoningContent}
-										showCursor={true}
-									/>
-								)}
-
-								{showCollapsedThinking && (
-									<>
-										<div
-											onClick={handleToggle}
+								<div
+									onClick={handleToggle}
+									style={{
+										...headerStyle,
+										marginBottom:
+											(cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage ? 10 : 0,
+										justifyContent: "space-between",
+										cursor: "pointer",
+										userSelect: "none",
+										WebkitUserSelect: "none",
+										MozUserSelect: "none",
+										msUserSelect: "none",
+									}}>
+									<div
+										style={{
+											display: "flex",
+											alignItems: "center",
+											gap: "10px",
+										}}>
+										{icon}
+										{title}
+										{/* Need to render this every time since it affects height of row by 2px */}
+										<VSCodeBadge
+											className="text-sm"
 											style={{
-												display: "flex",
-												alignItems: "center",
-												gap: "8px",
-												cursor: "pointer",
-												userSelect: "none",
-												WebkitUserSelect: "none",
-												MozUserSelect: "none",
-												msUserSelect: "none",
-												color: "var(--vscode-descriptionForeground)",
-												marginTop: apiReqState === "pre" ? 10 : 0,
-												marginBottom: hasError ? 10 : 0,
-											}}
-											title="Click to view reasoning">
-											<Brain
-												size={14}
-												style={{
-													color: "var(--vscode-descriptionForeground)",
-													opacity: 0.7,
-													flexShrink: 0,
-												}}
-											/>
-											<span style={{ fontWeight: 500 }}>Thinking</span>
-											<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}></span>
-										</div>
-
-										{isExpanded && reasoningContent && (
-											<div
-												className="ph-no-capture"
-												onClick={handleToggle}
-												style={{ marginTop: 8, cursor: "pointer" }}>
-												<ThinkingBlock
-													isVisible={true}
-													reasoningContent={reasoningContent}
-													showCursor={false}
-													showIcon={false}
-												/>
-											</div>
-										)}
-									</>
-								)}
-
-								{apiReqState === "error" && (
+												opacity: cost != null && cost > 0 ? 1 : 0,
+											}}>
+											{cost != null && Number(cost || 0) > 0 ? `$${Number(cost || 0).toFixed(4)}` : ""}
+										</VSCodeBadge>
+									</div>
+									<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
+								</div>
+								{((cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage) && (
 									<ErrorRow
 										apiReqStreamingFailedMessage={apiReqStreamingFailedMessage}
 										apiRequestFailedMessage={apiRequestFailedMessage}
@@ -1522,9 +1430,19 @@ export const ChatRowContent = memo(
 										message={message}
 									/>
 								)}
+
+								{isExpanded && (
+									<div style={{ marginTop: "10px" }}>
+										<CodeAccordian
+											code={JSON.parse(message.text || "{}").request}
+											isExpanded={true}
+											language="markdown"
+											onToggleExpand={handleToggle}
+										/>
+									</div>
+								)}
 							</>
 						)
-					}
 					case "api_req_finished":
 						return null // we should never see this message type
 					case "mcp_server_response":
@@ -1561,29 +1479,80 @@ export const ChatRowContent = memo(
 						)
 					case "text":
 						return (
-							<>
-								<WithCopyButton
-									onMouseUp={handleMouseUp}
-									position="bottom-right"
-									ref={contentRef}
-									textToCopy={message.text}>
-									<Markdown markdown={message.text} showCursor={isRequestInProgress} />
-									{quoteButtonState.visible && (
-										<QuoteButton
-											left={quoteButtonState.left}
-											onClick={() => {
-												handleQuoteClick()
-											}}
-											top={quoteButtonState.top}
-										/>
-									)}
-								</WithCopyButton>
-							</>
+							<WithCopyButton
+								onMouseUp={handleMouseUp}
+								position="bottom-right"
+								ref={contentRef}
+								textToCopy={message.text}>
+								<Markdown markdown={message.text} />
+								{quoteButtonState.visible && (
+									<QuoteButton
+										left={quoteButtonState.left}
+										onClick={() => {
+											handleQuoteClick()
+										}}
+										top={quoteButtonState.top}
+									/>
+								)}
+							</WithCopyButton>
 						)
 					case "reasoning":
-						// Standalone reasoning rows are intentionally not rendered.
-						// Reasoning is displayed via the api_req_started Brain "Thinking" UI and via low-stakes tool hover tooltips.
-						return null
+						return (
+							<>
+								{message.text && (
+									<div
+										onClick={handleToggle}
+										style={{
+											// marginBottom: 15,
+											cursor: "pointer",
+											color: "var(--vscode-descriptionForeground)",
+
+											fontStyle: "italic",
+											overflow: "hidden",
+										}}>
+										{isExpanded ? (
+											<div style={{ marginTop: -3 }}>
+												<span style={{ fontWeight: "bold", display: "block", marginBottom: "4px" }}>
+													Thinking
+													<span
+														className="codicon codicon-chevron-down"
+														style={{
+															display: "inline-block",
+															transform: "translateY(3px)",
+															marginLeft: "1.5px",
+														}}
+													/>
+												</span>
+												<span className="ph-no-capture">{message.text}</span>
+											</div>
+										) : (
+											<div style={{ display: "flex", alignItems: "center" }}>
+												<span style={{ fontWeight: "bold", marginRight: "4px" }}>Thinking:</span>
+												<span
+													className="ph-no-capture"
+													style={{
+														whiteSpace: "nowrap",
+														overflow: "hidden",
+														textOverflow: "ellipsis",
+														direction: "rtl",
+														textAlign: "left",
+														flex: 1,
+													}}>
+													{message.text + "\u200E"}
+												</span>
+												<span
+													className="codicon codicon-chevron-right"
+													style={{
+														marginLeft: "4px",
+														flexShrink: 0,
+													}}
+												/>
+											</div>
+										)}
+									</div>
+								)}
+							</>
+						)
 					case "user_feedback":
 						return (
 							<UserMessage
@@ -1617,16 +1586,7 @@ export const ChatRowContent = memo(
 					case "clineignore_error":
 						return <ErrorRow errorType="clineignore_error" message={message} />
 					case "checkpoint_created":
-						const apiReqInfo = findApiReqInfoForCheckpoint(message.ts, clineMessages)
-						const segmentCost = findNextSegmentCost(message.ts, clineMessages)
-						return (
-							<CheckmarkControl
-								apiReqInfo={apiReqInfo}
-								isCheckpointCheckedOut={message.isCheckpointCheckedOut}
-								messageTs={message.ts}
-								segmentCost={segmentCost}
-							/>
-						)
+						return <CheckmarkControl isCheckpointCheckedOut={message.isCheckpointCheckedOut} messageTs={message.ts} />
 					case "load_mcp_documentation":
 						return (
 							<div
@@ -1766,45 +1726,66 @@ export const ChatRowContent = memo(
 						return (
 							<>
 								<div
+									onMouseEnter={() => setCompletionContainerHovered(true)}
+									onMouseLeave={() => setCompletionContainerHovered(false)}
 									style={{
-										...headerStyle,
-										marginBottom: "10px",
+										borderRadius: 6,
+										border: `1px solid ${completionContainerHovered ? successColor : "var(--vscode-editorGroup-border)"}`,
+										overflow: "visible",
+										backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
+										transition: "border-color 0.2s ease",
 									}}>
-									{icon}
-									{title}
-									{/* <TaskFeedbackButtons
-										isFromHistory={
-											!isLast ||
-											lastModifiedMessage?.ask === "resume_completed_task" ||
-											lastModifiedMessage?.ask === "resume_task"
-										}
-										messageTs={message.ts}
+									<div
 										style={{
-											marginLeft: "auto",
-										}}
-									/> */}
+											display: "flex",
+											alignItems: "center",
+											justifyContent: "space-between",
+											padding: "8px 10px",
+											backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
+											borderTopLeftRadius: "6px",
+											borderTopRightRadius: "6px",
+											borderBottomLeftRadius: 0,
+											borderBottomRightRadius: 0,
+										}}>
+										<div
+											style={{
+												display: "flex",
+												alignItems: "center",
+												gap: "8px",
+												flex: 1,
+												minWidth: 0,
+											}}>
+											<div
+												style={{
+													width: "8px",
+													height: "8px",
+													borderRadius: "50%",
+													backgroundColor: successColor,
+													flexShrink: 0,
+												}}
+											/>
+											<span
+												style={{
+													color: successColor,
+													fontWeight: 500,
+													fontSize: "13px",
+													flexShrink: 0,
+												}}>
+												Task Completed
+											</span>
+										</div>
+										<CopyButton textToCopy={text || ""} />
+									</div>
+									<CompletionOutput
+										borderColor={successColor}
+										isOutputFullyExpanded={isCompletionOutputExpanded}
+										onToggle={() => setIsCompletionOutputExpanded(!isCompletionOutputExpanded)}
+										text={text || ""}
+									/>
 								</div>
-								<WithCopyButton
-									onMouseUp={handleMouseUp}
-									position="bottom-right"
-									ref={contentRef}
-									style={{
-										color: "var(--vscode-charts-green)",
-										paddingTop: 10,
-									}}
-									textToCopy={text}>
-									<Markdown markdown={text} />
-									{quoteButtonState.visible && (
-										<QuoteButton
-											left={quoteButtonState.left}
-											onClick={handleQuoteClick}
-											top={quoteButtonState.top}
-										/>
-									)}
-								</WithCopyButton>
 								{message.partial !== true && hasChanges && (
-									<div style={{ paddingTop: 17, display: "flex", flexDirection: "column", gap: 8 }}>
-										<SuccessButton
+									<div style={{ paddingTop: 17, display: "flex", flexDirection: "row", gap: 8 }}>
+										<button
 											disabled={seeNewChangesDisabled}
 											onClick={() => {
 												setSeeNewChangesDisabled(true)
@@ -1816,15 +1797,28 @@ export const ChatRowContent = memo(
 													console.error("Failed to show task completion view changes:", err),
 												)
 											}}
+											onMouseEnter={() => setViewChangesHovered(true)}
+											onMouseLeave={() => setViewChangesHovered(false)}
 											style={{
 												cursor: seeNewChangesDisabled ? "wait" : "pointer",
-												width: "100%",
+												flex: 1,
+												background: CHAT_ROW_EXPANDED_BG_COLOR,
+												border: `1px solid ${viewChangesHovered ? successColor : "var(--vscode-editorGroup-border)"}`,
+												color: successColor,
+												borderRadius: "2px",
+												padding: "8px 12px",
+												fontSize: "13px",
+												fontFamily: "inherit",
+												display: "flex",
+												alignItems: "center",
+												justifyContent: "center",
+												transition: "border-color 0.2s ease",
 											}}>
 											<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
 											View Changes
-										</SuccessButton>
+										</button>
 										{PLATFORM_CONFIG.type === PlatformType.VSCODE && (
-											<SuccessButton
+											<button
 												disabled={explainChangesDisabled}
 												onClick={() => {
 													setExplainChangesDisabled(true)
@@ -1836,15 +1830,26 @@ export const ChatRowContent = memo(
 														setExplainChangesDisabled(false)
 													})
 												}}
+												onMouseEnter={() => setExplainChangesHovered(true)}
+												onMouseLeave={() => setExplainChangesHovered(false)}
 												style={{
 													cursor: explainChangesDisabled ? "wait" : "pointer",
-													width: "100%",
-													backgroundColor: "var(--vscode-button-secondaryBackground)",
-													borderColor: "var(--vscode-button-secondaryBackground)",
+													flex: 1,
+													background: CHAT_ROW_EXPANDED_BG_COLOR,
+													border: `1px solid ${explainChangesHovered ? successColor : "var(--vscode-editorGroup-border)"}`,
+													color: successColor,
+													borderRadius: "2px",
+													padding: "8px 12px",
+													fontSize: "13px",
+													fontFamily: "inherit",
+													display: "flex",
+													alignItems: "center",
+													justifyContent: "center",
+													transition: "border-color 0.2s ease",
 												}}>
 												<i className="codicon codicon-comment-discussion" style={{ marginRight: 6 }} />
 												{explainChangesDisabled ? "Explaining..." : "Explain Changes"}
-											</SuccessButton>
+											</button>
 										)}
 									</div>
 								)}
@@ -2072,45 +2077,76 @@ export const ChatRowContent = memo(
 								<div>
 									<div
 										style={{
-											...headerStyle,
-											marginBottom: "10px",
+											borderRadius: 6,
+											border: `1px solid ${successColor}`,
+											overflow: "visible",
+											backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
+											transition: "all 0.3s ease-in-out",
 										}}>
-										{icon}
-										{title}
-										<TaskFeedbackButtons
-											isFromHistory={
-												!isLast ||
-												lastModifiedMessage?.ask === "resume_completed_task" ||
-												lastModifiedMessage?.ask === "resume_task"
-											}
-											messageTs={message.ts}
+										<div
 											style={{
-												marginLeft: "auto",
-											}}
+												display: "flex",
+												alignItems: "center",
+												justifyContent: "space-between",
+												padding: "8px 10px",
+												backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
+												borderTopLeftRadius: "6px",
+												borderTopRightRadius: "6px",
+												borderBottomLeftRadius: 0,
+												borderBottomRightRadius: 0,
+											}}>
+											<div
+												style={{
+													display: "flex",
+													alignItems: "center",
+													gap: "8px",
+													flex: 1,
+													minWidth: 0,
+												}}>
+												<div
+													style={{
+														width: "8px",
+														height: "8px",
+														borderRadius: "50%",
+														backgroundColor: successColor,
+														flexShrink: 0,
+													}}
+												/>
+												<span
+													style={{
+														color: successColor,
+														fontWeight: 500,
+														fontSize: "13px",
+														flexShrink: 0,
+													}}>
+													Task Completed
+												</span>
+											</div>
+											<div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+												<CopyButton textToCopy={text || ""} />
+												<TaskFeedbackButtons
+													isFromHistory={
+														!isLast ||
+														lastModifiedMessage?.ask === "resume_completed_task" ||
+														lastModifiedMessage?.ask === "resume_task"
+													}
+													messageTs={message.ts}
+													style={{
+														flexShrink: 0,
+													}}
+												/>
+											</div>
+										</div>
+										<CompletionOutput
+											borderColor={successColor}
+											isOutputFullyExpanded={isCompletionOutputExpanded}
+											onToggle={() => setIsCompletionOutputExpanded(!isCompletionOutputExpanded)}
+											text={text || ""}
 										/>
 									</div>
-									<WithCopyButton
-										onMouseUp={handleMouseUp}
-										position="bottom-right"
-										ref={contentRef}
-										style={{
-											color: "var(--vscode-charts-green)",
-											paddingTop: 10,
-										}}
-										textToCopy={text}>
-										<Markdown markdown={text} />
-										{quoteButtonState.visible && (
-											<QuoteButton
-												left={quoteButtonState.left}
-												onClick={handleQuoteClick}
-												top={quoteButtonState.top}
-											/>
-										)}
-									</WithCopyButton>
 									{message.partial !== true && hasChanges && (
-										<div style={{ marginTop: 15, display: "flex", flexDirection: "column", gap: 8 }}>
-											<SuccessButton
-												appearance="secondary"
+										<div style={{ marginTop: 15, display: "flex", flexDirection: "row", gap: 8 }}>
+											<button
 												disabled={seeNewChangesDisabled}
 												onClick={() => {
 													setSeeNewChangesDisabled(true)
@@ -2121,19 +2157,29 @@ export const ChatRowContent = memo(
 													).catch((err) =>
 														console.error("Failed to show task completion view changes:", err),
 													)
+												}}
+												onMouseEnter={() => setViewChangesHovered(true)}
+												onMouseLeave={() => setViewChangesHovered(false)}
+												style={{
+													cursor: seeNewChangesDisabled ? "wait" : "pointer",
+													flex: 1,
+													background: CHAT_ROW_EXPANDED_BG_COLOR,
+													border: `1px solid ${viewChangesHovered ? successColor : "var(--vscode-editorGroup-border)"}`,
+													color: successColor,
+													borderRadius: "2px",
+													padding: "8px 12px",
+													fontSize: "13px",
+													fontFamily: "inherit",
+													display: "flex",
+													alignItems: "center",
+													justifyContent: "center",
+													transition: "border-color 0.2s ease",
 												}}>
-												<i
-													className="codicon codicon-new-file"
-													style={{
-														marginRight: 6,
-														cursor: seeNewChangesDisabled ? "wait" : "pointer",
-													}}
-												/>
+												<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
 												View Changes
-											</SuccessButton>
+											</button>
 											{PLATFORM_CONFIG.type === PlatformType.VSCODE && (
-												<SuccessButton
-													appearance="secondary"
+												<button
 													disabled={explainChangesDisabled}
 													onClick={() => {
 														setExplainChangesDisabled(true)
@@ -2144,16 +2190,30 @@ export const ChatRowContent = memo(
 															console.error("Failed to explain changes:", err)
 															setExplainChangesDisabled(false)
 														})
+													}}
+													onMouseEnter={() => setExplainChangesHovered(true)}
+													onMouseLeave={() => setExplainChangesHovered(false)}
+													style={{
+														cursor: explainChangesDisabled ? "wait" : "pointer",
+														flex: 1,
+														background: CHAT_ROW_EXPANDED_BG_COLOR,
+														border: `1px solid ${explainChangesHovered ? successColor : "var(--vscode-editorGroup-border)"}`,
+														color: successColor,
+														borderRadius: "2px",
+														padding: "8px 12px",
+														fontSize: "13px",
+														fontFamily: "inherit",
+														display: "flex",
+														alignItems: "center",
+														justifyContent: "center",
+														transition: "border-color 0.2s ease",
 													}}>
 													<i
 														className="codicon codicon-comment-discussion"
-														style={{
-															marginRight: 6,
-															cursor: explainChangesDisabled ? "wait" : "pointer",
-														}}
+														style={{ marginRight: 6 }}
 													/>
 													{explainChangesDisabled ? "Explaining..." : "Explain Changes"}
-												</SuccessButton>
+												</button>
 											)}
 										</div>
 									)}
