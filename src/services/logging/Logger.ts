@@ -1,5 +1,6 @@
 import * as fs from "fs"
 import * as path from "path"
+import { HostProvider } from "@/hosts/host-provider"
 import { ErrorService } from "../error"
 import { getVSCodeLogsDir } from "./constants"
 import { formatLogFilenameTimestamp, formatLogMessageTimestamp } from "./timestamp"
@@ -10,6 +11,7 @@ import { formatLogFilenameTimestamp, formatLogMessageTimestamp } from "./timesta
  * In standalone mode, logs to console (which is redirected to file by the parent process).
  */
 export class Logger {
+	public readonly channelName = "Cline Dev Logger"
 	private static fileStream?: fs.WriteStream
 	private static logFilePath?: string
 
@@ -107,6 +109,17 @@ export class Logger {
 	private static output(level: string, message: string, error?: Error) {
 		Logger.ensureLogFileReady()
 
+		let fullMessage = message
+		if (error?.message) {
+			fullMessage += ` ${error.message}`
+		}
+
+		// Log to the VS Code output channel
+		HostProvider.get().logToChannel(`${level} ${fullMessage}`)
+		if (error?.stack) {
+			console.log(`Stack trace:\n${error.stack}`)
+		}
+
 		// Pass through to standard output naturally - no formatting
 		switch (level) {
 			case "ERROR":
@@ -133,10 +146,6 @@ export class Logger {
 		// If VS Code, format and write to file
 		if (Logger.fileStream) {
 			const timestamp = formatLogMessageTimestamp()
-			let fullMessage = message
-			if (error?.message) {
-				fullMessage += ` ${error.message}`
-			}
 			const formattedMessage = `[${timestamp}] ${level} ${fullMessage}`
 
 			try {
