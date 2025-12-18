@@ -42,7 +42,7 @@ const PlanCompletionOutput = memo(({ text, onCopy }: PlanCompletionOutputProps) 
 					justifyContent: "space-between",
 					padding: "8px 10px",
 					backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
-					borderBottom: "1px solid rgba(255, 255, 255, 0.5)",
+					borderBottom: "1px solid rgba(var(--vscode-editorGroup-border-rgb, 128, 128, 128), 0.5)",
 					borderTopLeftRadius: "6px",
 					borderTopRightRadius: "6px",
 					borderBottomLeftRadius: 0,
@@ -106,6 +106,13 @@ const PlanCompletionOutput = memo(({ text, onCopy }: PlanCompletionOutputProps) 
 							marginTop: -15,
 							overflow: "hidden",
 						}}>
+						<style>
+							{`
+								.plan-completion-content hr {
+									opacity: 0.2;
+								}
+							`}
+						</style>
 						<MarkdownBlock markdown={text} />
 					</div>
 				</div>
