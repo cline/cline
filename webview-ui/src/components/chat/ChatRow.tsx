@@ -41,6 +41,7 @@ import { findApiReqInfoForCheckpoint, findNextSegmentCost } from "./chat-view/ut
 import ErrorRow from "./ErrorRow"
 import HookMessage from "./HookMessage"
 import NewTaskPreview from "./NewTaskPreview"
+import PlanCompletionOutput from "./PlanCompletionOutput"
 import QuoteButton from "./QuoteButton"
 import ReportBugPreview from "./ReportBugPreview"
 import SearchResultsDisplay from "./SearchResultsDisplay"
@@ -2577,23 +2578,8 @@ export const ChatRowContent = memo(
 							response = message.text
 						}
 						return (
-							<>
-								<WithCopyButton
-									onMouseUp={handleMouseUp}
-									position="bottom-right"
-									ref={contentRef}
-									textToCopy={response}>
-									<Markdown markdown={response} />
-									{quoteButtonState.visible && (
-										<QuoteButton
-											left={quoteButtonState.left}
-											onClick={() => {
-												handleQuoteClick()
-											}}
-											top={quoteButtonState.top}
-										/>
-									)}
-								</WithCopyButton>
+							<div>
+								<PlanCompletionOutput text={response || ""} />
 								<OptionsButtons
 									inputValue={inputValue}
 									isActive={
@@ -2603,7 +2589,7 @@ export const ChatRowContent = memo(
 									options={options}
 									selected={selected}
 								/>
-							</>
+							</div>
 						)
 					}
 					default:
