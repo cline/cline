@@ -101,6 +101,25 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 					? apiConfiguration.actModeOcaModelId
 					: defaultModelId!
 
+			let planModeOcaReasoningEffort
+			let actModeOcaReasoningEffort
+			if (
+				models[planModeSelectedModelId].supportsReasoning &&
+				models[planModeSelectedModelId].reasoningEffortOptions.length > 0
+			) {
+				planModeOcaReasoningEffort = apiConfiguration.planModeOcaReasoningEffort
+					? apiConfiguration.planModeOcaReasoningEffort
+					: models[planModeSelectedModelId].reasoningEffortOptions[0]
+			}
+			if (
+				models[actModeSelectedModelId].supportsReasoning &&
+				models[actModeSelectedModelId].reasoningEffortOptions.length > 0
+			) {
+				actModeOcaReasoningEffort = apiConfiguration.actModeOcaReasoningEffort
+					? apiConfiguration.actModeOcaReasoningEffort
+					: models[actModeSelectedModelId].reasoningEffortOptions[0]
+			}
+
 			// Build updates object based on plan/act mode setting
 			const updates: Partial<GlobalStateAndSettings> = {}
 
@@ -108,15 +127,19 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 				if (currentMode === "plan") {
 					updates.planModeOcaModelId = planModeSelectedModelId
 					updates.planModeOcaModelInfo = models[planModeSelectedModelId]
+					updates.planModeOcaReasoningEffort = planModeOcaReasoningEffort
 				} else {
 					updates.actModeOcaModelId = actModeSelectedModelId
 					updates.actModeOcaModelInfo = models[actModeSelectedModelId]
+					updates.actModeOcaReasoningEffort = actModeOcaReasoningEffort
 				}
 			} else {
 				updates.planModeOcaModelId = planModeSelectedModelId
 				updates.planModeOcaModelInfo = models[planModeSelectedModelId]
+				updates.planModeOcaReasoningEffort = planModeOcaReasoningEffort
 				updates.actModeOcaModelId = actModeSelectedModelId
 				updates.actModeOcaModelInfo = models[actModeSelectedModelId]
+				updates.actModeOcaReasoningEffort = actModeOcaReasoningEffort
 			}
 
 			// Update state directly using batch method

@@ -43,17 +43,15 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 				const fieldChangeKeys: any = {
 					ocaModelId: { plan: "planModeOcaModelId", act: "actModeOcaModelId" },
 					ocaModelInfo: { plan: "planModeOcaModelInfo", act: "actModeOcaModelInfo" },
+					ocaReasoningEffort: { plan: "planModeOcaReasoningEffort", act: "actModeOcaReasoningEffort" },
 				}
 				const fieldChangeValues: any = {
 					ocaModelId: newModelId,
 					ocaModelInfo: ocaModels[newModelId],
-				}
-				if (ocaModels[newModelId].supportsReasoning && ocaModels[newModelId].reasoningEffortOptions.length > 0) {
-					fieldChangeKeys["ocaReasoningEffort"] = {
-						plan: "planModeOcaReasoningEffort",
-						act: "actModeOcaReasoningEffort",
-					}
-					fieldChangeValues["ocaReasoningEffort"] = ocaModels[newModelId].reasoningEffortOptions[0]
+					ocaReasoningEffort:
+						ocaModels[newModelId].reasoningEffortOptions.length > 0
+							? ocaModels[newModelId].reasoningEffortOptions[0]
+							: undefined,
 				}
 				await handleModeFieldsChange(fieldChangeKeys, fieldChangeValues, currentMode)
 			}
@@ -77,14 +75,15 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 			const fieldChangeKeys: any = {
 				ocaModelId: { plan: "planModeOcaModelId", act: "actModeOcaModelId" },
 				ocaModelInfo: { plan: "planModeOcaModelInfo", act: "actModeOcaModelInfo" },
+				ocaReasoningEffort: { plan: "planModeOcaReasoningEffort", act: "actModeOcaReasoningEffort" },
 			}
 			const fieldChangeValues: any = {
 				ocaModelId: pendingModelId,
 				ocaModelInfo: ocaModels[pendingModelId],
-			}
-			if (ocaModels[pendingModelId].supportsReasoning && ocaModels[pendingModelId].reasoningEffortOptions.length > 0) {
-				fieldChangeKeys["ocaReasoningEffort"] = { plan: "planModeOcaReasoningEffort", act: "actModeOcaReasoningEffort" }
-				fieldChangeValues["ocaReasoningEffort"] = ocaModels[pendingModelId].reasoningEffortOptions[0]
+				ocaReasoningEffort:
+					ocaModels[pendingModelId].reasoningEffortOptions.length > 0
+						? ocaModels[pendingModelId].reasoningEffortOptions[0]
+						: undefined,
 			}
 			await handleModeFieldsChange(fieldChangeKeys, fieldChangeValues, currentMode)
 			setPendingModelId(null)
@@ -194,7 +193,8 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 					Last refreshed at {lastRefreshedText}
 				</div>
 			) : null}
-			{selectedOcaModelInfo &&
+			{!loading &&
+				selectedOcaModelInfo &&
 				selectedOcaModelInfo.supportsReasoning &&
 				selectedOcaModelInfo.reasoningEffortOptions.length >= 0 && (
 					<React.Fragment>
