@@ -36,7 +36,7 @@ function extractTagContent(response: string, tag: string): string[] {
 
 const SEARCH_MODELS = {
 	grok: "x-ai/grok-code-fast-1",
-	gemini: "google/gemini-2.5-flash-lite",
+	gemini: "google/gemini-3-flash-preview",
 }
 
 /**
