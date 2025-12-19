@@ -87,9 +87,9 @@ export interface ITelemetryProvider {
 	getSettings(): TelemetrySettings
 
 	/**
-	 * Returns the name of the telemetry provider.
+	 * The name of the telemetry provider.
 	 */
-	name(): string
+	readonly name: string
 
 	/**
 	 * Record a counter metric (cumulative value that only increases)

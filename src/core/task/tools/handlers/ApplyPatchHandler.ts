@@ -171,17 +171,6 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			)
 			.catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
 
-		const requiresOpen =
-			!provider.isEditing || state.currentPreviewPath !== targetResolution.resolvedPath || provider.editType === undefined
-
-		const needsCreateEditor = actionType === PatchActionType.ADD || (actionType === PatchActionType.UPDATE && !!movePath)
-
-		if (requiresOpen) {
-			provider.editType = needsCreateEditor ? "create" : "modify"
-			await provider.open(targetResolution.absolutePath, { displayPath: targetResolution.resolvedPath })
-			state.currentPreviewPath = targetResolution.resolvedPath
-		}
-
 		const stream: { content: string | undefined } = { content: undefined }
 
 		switch (actionType) {
@@ -336,7 +325,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 					if (result.finalContent) {
 						responseLines.push(`\n<final_file_content path="${path}">`)
 						responseLines.push(result.finalContent)
-						responseLines.push(`\n</final_file_content>`)
+						responseLines.push(`</final_file_content>`)
 					}
 					if (result.newProblemsMessage) {
 						responseLines.push(`\n\n${result.newProblemsMessage}`)
@@ -498,7 +487,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 					changes[path] = {
 						type: PatchActionType.UPDATE,
 						oldContent: originalFiles[path],
-						newContent: this.applyChunks(originalFiles[path]!, action.chunks, path),
+						newContent: this.applyChunks(originalFiles[path]!, action.chunks, path).trimEnd(),
 						movePath: action.movePath,
 					}
 					break
@@ -522,7 +511,6 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			return content
 		}
 
-		const endsWithNewline = content.endsWith("\n")
 		const lines = content.split("\n")
 		const result: string[] = []
 		let currentIndex = 0
@@ -558,9 +546,8 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 		// Copy remaining lines
 		result.push(...lines.slice(currentIndex))
-		const joined = result.join("\n")
 
-		return endsWithNewline && !joined.endsWith("\n") ? `${joined}\n` : joined
+		return result.join("\n")
 	}
 
 	private async applyCommit(commit: Commit): Promise<Record<string, FileOpsResult>> {
