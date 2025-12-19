@@ -13,14 +13,16 @@ import { CheckpointsServiceClient } from "@/services/grpc-client"
 interface CheckmarkControlProps {
 	messageTs?: number
 	isCheckpointCheckedOut?: boolean
+	segmentCost?: number
 }
 
-export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: CheckmarkControlProps) => {
+export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, segmentCost }: CheckmarkControlProps) => {
 	const [compareDisabled, setCompareDisabled] = useState(false)
 	const [restoreTaskDisabled, setRestoreTaskDisabled] = useState(false)
 	const [restoreWorkspaceDisabled, setRestoreWorkspaceDisabled] = useState(false)
 	const [restoreBothDisabled, setRestoreBothDisabled] = useState(false)
 	const [showRestoreConfirm, setShowRestoreConfirm] = useState(false)
+	const [showMoreOptions, setShowMoreOptions] = useState(false)
 	const { onRelinquishControl } = useExtensionState()
 
 	// Debounce
@@ -92,6 +94,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 			setRestoreWorkspaceDisabled(false)
 			setRestoreBothDisabled(false)
 			setShowRestoreConfirm(false)
+			setShowMoreOptions(false)
 		})
 	}, [onRelinquishControl])
 
@@ -180,8 +183,8 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 				</Label>
 				<DottedLine $isCheckedOut={isCheckpointCheckedOut} />
 				<ButtonGroup>
-					<CustomButton
-						$isCheckedOut={isCheckpointCheckedOut}
+					<VSCodeButton
+						appearance="secondary"
 						disabled={compareDisabled}
 						onClick={async () => {
 							setCompareDisabled(true)
@@ -197,17 +200,17 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 								setCompareDisabled(false)
 							}
 						}}
-						style={{ cursor: compareDisabled ? "wait" : "pointer" }}>
+						style={{ cursor: compareDisabled ? "wait" : "pointer", fontSize: "9px" }}>
 						Compare
-					</CustomButton>
+					</VSCodeButton>
 					<DottedLine $isCheckedOut={isCheckpointCheckedOut} small />
 					<div ref={refs.setReference} style={{ position: "relative", marginTop: -2 }}>
-						<CustomButton
-							$isCheckedOut={isCheckpointCheckedOut}
-							isActive={showRestoreConfirm}
-							onClick={() => setShowRestoreConfirm(true)}>
+						<VSCodeButton
+							appearance="secondary"
+							onClick={() => setShowRestoreConfirm(true)}
+							style={{ fontSize: "9px" }}>
 							Restore
-						</CustomButton>
+						</VSCodeButton>
 						{showRestoreConfirm &&
 							createPortal(
 								<RestoreConfirmTooltip
@@ -216,52 +219,74 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 									onMouseLeave={handleMouseLeave}
 									ref={refs.setFloating}
 									style={floatingStyles}>
-									<RestoreOption>
+									<PrimaryRestoreOption>
 										<VSCodeButton
-											disabled={restoreWorkspaceDisabled || isCheckpointCheckedOut}
-											onClick={handleRestoreWorkspace}
-											style={{
-												cursor: isCheckpointCheckedOut
-													? "not-allowed"
-													: restoreWorkspaceDisabled
-														? "wait"
-														: "pointer",
-												width: "100%",
-												marginBottom: "10px",
-											}}>
-											Restore Files
-										</VSCodeButton>
-										<p>
-											Restores your project's files back to a snapshot taken at this point (use "Compare" to
-											see what will be reverted)
-										</p>
-									</RestoreOption>
-									<RestoreOption>
-										<VSCodeButton
-											disabled={restoreTaskDisabled}
-											onClick={handleRestoreTask}
-											style={{
-												cursor: restoreTaskDisabled ? "wait" : "pointer",
-												width: "100%",
-												marginBottom: "10px",
-											}}>
-											Restore Task Only
-										</VSCodeButton>
-										<p>Deletes messages after this point (does not affect workspace files)</p>
-									</RestoreOption>
-									<RestoreOption>
-										<VSCodeButton
+											appearance="primary"
 											disabled={restoreBothDisabled}
 											onClick={handleRestoreBoth}
 											style={{
 												cursor: restoreBothDisabled ? "wait" : "pointer",
 												width: "100%",
-												marginBottom: "10px",
+												marginBottom: "8px",
 											}}>
+											<i className="codicon codicon-debug-restart" style={{ marginRight: "6px" }} />
 											Restore Files & Task
 										</VSCodeButton>
-										<p>Restores your project's files and deletes all messages after this point</p>
-									</RestoreOption>
+										<p>Revert files and clear messages after this point</p>
+									</PrimaryRestoreOption>
+
+									<MoreOptionsToggle onClick={() => setShowMoreOptions(!showMoreOptions)}>
+										More options
+										<i
+											className={`codicon codicon-chevron-${showMoreOptions ? "up" : "down"}`}
+											style={{ marginLeft: "4px", fontSize: "10px" }}
+										/>
+									</MoreOptionsToggle>
+
+									{showMoreOptions && (
+										<AdditionalOptions>
+											<RestoreOption>
+												<VSCodeButton
+													appearance="secondary"
+													disabled={restoreWorkspaceDisabled || isCheckpointCheckedOut}
+													onClick={handleRestoreWorkspace}
+													style={{
+														cursor: isCheckpointCheckedOut
+															? "not-allowed"
+															: restoreWorkspaceDisabled
+																? "wait"
+																: "pointer",
+														width: "100%",
+														marginBottom: "8px",
+													}}>
+													<i
+														className="codicon codicon-file-symlink-directory"
+														style={{ marginRight: "6px" }}
+													/>
+													Restore Files Only
+												</VSCodeButton>
+												<p>Revert files to this checkpoint</p>
+											</RestoreOption>
+											<RestoreOption>
+												<VSCodeButton
+													appearance="secondary"
+													disabled={restoreTaskDisabled}
+													onClick={handleRestoreTask}
+													style={{
+														cursor: restoreTaskDisabled ? "wait" : "pointer",
+														width: "100%",
+														marginBottom: "8px",
+													}}>
+													<i
+														className="codicon codicon-comment-discussion"
+														style={{ marginRight: "6px" }}
+													/>
+													Restore Task Only
+												</VSCodeButton>
+												<p>Clear messages after this point</p>
+											</RestoreOption>
+										</AdditionalOptions>
+									)}
 								</RestoreConfirmTooltip>,
 								document.body,
 							)}
@@ -269,6 +294,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 					<DottedLine $isCheckedOut={isCheckpointCheckedOut} small />
 				</ButtonGroup>
 			</div>
+			{segmentCost != null && segmentCost > 0 && <CostLabel>${segmentCost.toFixed(4)}</CostLabel>}
 		</Container>
 	)
 }
@@ -316,6 +342,16 @@ const Label = styled.span<{ $isCheckedOut?: boolean }>`
 	shrink: 0;
 `
 
+const CostLabel = styled.span`
+	font-size: 11px;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	padding: 1px 6px;
+	border-radius: 3px;
+	flex-shrink: 0;
+	margin-left: auto;
+`
+
 const DottedLine = styled.div<{ small?: boolean; $isCheckedOut?: boolean }>`
 	flex: ${(props) => (props.small ? "0 0 5px" : "1")};
 	min-width: ${(props) => (props.small ? "5px" : "5px")};
@@ -336,80 +372,64 @@ const ButtonGroup = styled.div`
 	shrink: 0;
 `
 
-const CustomButton = styled.button<{ disabled?: boolean; isActive?: boolean; $isCheckedOut?: boolean }>`
-	background: ${(props) =>
-		props.isActive || props.disabled
-			? props.$isCheckedOut
-				? "var(--vscode-textLink-foreground)"
-				: "var(--vscode-descriptionForeground)"
-			: "transparent"};
+const PrimaryRestoreOption = styled.div`
+	margin-bottom: 12px;
+
+	p {
+		margin: 8px 0 0 0;
+		color: var(--vscode-descriptionForeground);
+		font-size: 11px;
+		line-height: 14px;
+	}
+`
+
+const MoreOptionsToggle = styled.button`
+	width: 100%;
+	padding: 2px 0;
+	background: transparent;
+	color: var(--vscode-textLink-foreground);
 	border: none;
-	color: ${(props) =>
-		props.isActive || props.disabled
-			? "var(--vscode-editor-background)"
-			: props.$isCheckedOut
-				? "var(--vscode-textLink-foreground)"
-				: "var(--vscode-descriptionForeground)"};
-	padding: 2px 6px;
-	font-size: 9px;
+	font-size: 11px;
 	cursor: pointer;
-	position: relative;
-
-	&::before {
-		content: "";
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		border-radius: 1px;
-		background-image: ${(props) =>
-			props.isActive || props.disabled
-				? "none"
-				: `linear-gradient(to right, ${props.$isCheckedOut ? "var(--vscode-textLink-foreground)" : "var(--vscode-descriptionForeground)"} 50%, transparent 50%),
-            linear-gradient(to bottom, ${props.$isCheckedOut ? "var(--vscode-textLink-foreground)" : "var(--vscode-descriptionForeground)"} 50%, transparent 50%),
-            linear-gradient(to right, ${props.$isCheckedOut ? "var(--vscode-textLink-foreground)" : "var(--vscode-descriptionForeground)"} 50%, transparent 50%),
-            linear-gradient(to bottom, ${props.$isCheckedOut ? "var(--vscode-textLink-foreground)" : "var(--vscode-descriptionForeground)"} 50%, transparent 50%)`};
-		background-size: ${(props) => (props.isActive || props.disabled ? "auto" : `4px 1px, 1px 4px, 4px 1px, 1px 4px`)};
-		background-repeat: repeat-x, repeat-y, repeat-x, repeat-y;
-		background-position:
-			0 0,
-			100% 0,
-			0 100%,
-			0 0;
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	transition: opacity 0.1s ease;
+	opacity: 0.8;
+    margin-bottom: -4px;
+	&:hover {
+		opacity: 1;
 	}
+`
 
-	&:hover:not(:disabled) {
-		background: ${(props) =>
-			props.$isCheckedOut ? "var(--vscode-textLink-foreground)" : "var(--vscode-descriptionForeground)"};
-		color: var(--vscode-editor-background);
-		&::before {
-			display: none;
+const AdditionalOptions = styled.div`
+	padding-top: 8px;
+	margin-top: 6px;
+	border-top: 1px solid var(--vscode-editorGroup-border);
+	animation: slideDown 0.15s ease-out;
+
+	@keyframes slideDown {
+		from {
+			opacity: 0;
+			transform: translateY(-4px);
 		}
-	}
-
-	&:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
 	}
 `
 
 const RestoreOption = styled.div`
 	&:not(:last-child) {
-		margin-bottom: 10px;
-		padding-bottom: 4px;
-		border-bottom: 1px solid var(--vscode-editorGroup-border);
+		margin-bottom: 12px;
 	}
 
 	p {
-		margin: 0 0 2px 0;
+		margin: 8px 0 0 0;
 		color: var(--vscode-descriptionForeground);
 		font-size: 11px;
 		line-height: 14px;
-	}
-
-	&:last-child p {
-		margin: 0 0 -2px 0;
 	}
 `
 
@@ -417,10 +437,11 @@ const RestoreConfirmTooltip = styled.div`
 	position: fixed;
 	background: ${CODE_BLOCK_BG_COLOR};
 	border: 1px solid var(--vscode-editorGroup-border);
-	padding: 12px;
-	border-radius: 3px;
-	width: min(calc(100vw - 54px), 600px);
+	padding: 14px;
+	border-radius: 5px;
+	width: min(calc(100vw - 54px), 200px);
 	z-index: 1000;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 
 	// Add invisible padding to create a safe hover zone
 	&::before {
@@ -463,9 +484,10 @@ const RestoreConfirmTooltip = styled.div`
 	}
 
 	p {
-		margin: 0 0 6px 0;
+		margin: 0;
 		color: var(--vscode-descriptionForeground);
-		font-size: 12px;
+		font-size: 11px;
+		line-height: 14px;
 		white-space: normal;
 		word-wrap: break-word;
 	}
