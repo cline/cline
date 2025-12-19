@@ -42,6 +42,7 @@ export type ApiProvider =
 	| "minimax"
 	| "hicap"
 	| "nousResearch"
+	| "avalai"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic
@@ -86,6 +87,7 @@ export interface ApiHandlerSecrets {
 	minimaxApiKey?: string
 	hicapApiKey?: string
 	nousResearchApiKey?: string
+	avalaiApiKey?: string
 }
 
 export interface ApiHandlerOptions {
@@ -176,6 +178,8 @@ export interface ApiHandlerOptions {
 	planModeHicapModelId?: string
 	planModeHicapModelInfo?: ModelInfo
 	planModeNousResearchModelId?: string
+	planModeAvalaiModelId?: string
+	planModeAvalaiModelInfo?: ModelInfo
 	// Act mode configurations
 
 	// Act mode configurations
@@ -216,6 +220,8 @@ export interface ApiHandlerOptions {
 	actModeHicapModelId?: string
 	actModeHicapModelInfo?: ModelInfo
 	actModeNousResearchModelId?: string
+	actModeAvalaiModelId?: string
+	actModeAvalaiModelInfo?: ModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions &
@@ -302,6 +308,21 @@ export interface HicapCompatibleModelInfo extends ModelInfo {
 
 export const hicapModelInfoSaneDefaults: HicapCompatibleModelInfo = {
 	maxTokens: -1,
+	contextWindow: 128_000,
+	supportsImages: true,
+	supportsPromptCache: true,
+	inputPrice: 0,
+	outputPrice: 0,
+	temperature: 1,
+}
+
+export interface AvalaiCompatibleModelInfo extends ModelInfo {
+	temperature?: number
+	ownedBy?: string
+}
+
+export const avalaiModelInfoSaneDefaults: AvalaiCompatibleModelInfo = {
+	maxTokens: 8192,
 	contextWindow: 128_000,
 	supportsImages: true,
 	supportsPromptCache: true,

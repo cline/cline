@@ -54,6 +54,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		ocaRefreshToken,
 		minimaxApiKey,
 		hicapApiKey,
+		avalaiApiKey,
 		aihubmixApiKey,
 		mcpOAuthSecrets,
 		nousResearchApiKey,
@@ -99,6 +100,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("ocaRefreshToken") as Promise<string | undefined>,
 		context.secrets.get("minimaxApiKey") as Promise<Secrets["minimaxApiKey"]>,
 		context.secrets.get("hicapApiKey") as Promise<Secrets["hicapApiKey"]>,
+		context.secrets.get("avalaiApiKey") as Promise<Secrets["avalaiApiKey"]>,
 		context.secrets.get("aihubmixApiKey") as Promise<Secrets["aihubmixApiKey"]>,
 		context.secrets.get("mcpOAuthSecrets") as Promise<Secrets["mcpOAuthSecrets"]>,
 		context.secrets.get("nousResearchApiKey") as Promise<Secrets["nousResearchApiKey"]>,
@@ -146,6 +148,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		ocaRefreshToken,
 		minimaxApiKey,
 		hicapApiKey,
+		avalaiApiKey,
 		aihubmixApiKey,
 		mcpOAuthSecrets,
 		nousResearchApiKey,
@@ -395,6 +398,10 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["planModeHicapModelId"]>("planModeHicapModelId")
 		const planModeHicapModelInfo =
 			context.globalState.get<GlobalStateAndSettings["planModeHicapModelInfo"]>("planModeHicapModelInfo")
+		const planModeAvalaiModelId =
+			context.globalState.get<GlobalStateAndSettings["planModeAvalaiModelId"]>("planModeAvalaiModelId")
+		const planModeAvalaiModelInfo =
+			context.globalState.get<GlobalStateAndSettings["planModeAvalaiModelInfo"]>("planModeAvalaiModelInfo")
 		const planModeAihubmixModelId =
 			context.globalState.get<GlobalStateAndSettings["planModeAihubmixModelId"]>("planModeAihubmixModelId")
 		const planModeAihubmixModelInfo =
@@ -471,6 +478,10 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const actModeHicapModelId = context.globalState.get<GlobalStateAndSettings["actModeHicapModelId"]>("actModeHicapModelId")
 		const actModeHicapModelInfo =
 			context.globalState.get<GlobalStateAndSettings["actModeHicapModelInfo"]>("actModeHicapModelInfo")
+		const actModeAvalaiModelId =
+			context.globalState.get<GlobalStateAndSettings["actModeAvalaiModelId"]>("actModeAvalaiModelId")
+		const actModeAvalaiModelInfo =
+			context.globalState.get<GlobalStateAndSettings["actModeAvalaiModelInfo"]>("actModeAvalaiModelInfo")
 		const actModeAihubmixModelId =
 			context.globalState.get<GlobalStateAndSettings["actModeAihubmixModelId"]>("actModeAihubmixModelId")
 		const actModeAihubmixModelInfo =
@@ -606,6 +617,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeOcaModelInfo,
 			planModeHicapModelId,
 			planModeHicapModelInfo,
+			planModeAvalaiModelId,
+			planModeAvalaiModelInfo,
 			planModeAihubmixModelId,
 			planModeAihubmixModelInfo,
 			planModeNousResearchModelId,
@@ -644,6 +657,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeOcaModelInfo,
 			actModeHicapModelId,
 			actModeHicapModelInfo,
+			actModeAvalaiModelId,
+			actModeAvalaiModelInfo,
 			actModeAihubmixModelId,
 			actModeAihubmixModelInfo,
 			actModeNousResearchModelId,
@@ -775,6 +790,7 @@ export async function resetGlobalState(controller: Controller) {
 		"ocaRefreshToken",
 		"minimaxApiKey",
 		"hicapApiKey",
+		"avalaiApiKey",
 		"aihubmixApiKey",
 		"mcpOAuthSecrets",
 		"nousResearchApiKey",

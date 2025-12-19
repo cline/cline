@@ -169,6 +169,8 @@ export interface Settings {
 	planModeOcaModelInfo: OcaModelInfo | undefined
 	planModeHicapModelId: string | undefined
 	planModeHicapModelInfo: ModelInfo | undefined
+	planModeAvalaiModelId: string | undefined
+	planModeAvalaiModelInfo: ModelInfo | undefined
 	planModeAihubmixModelId: string | undefined
 	planModeAihubmixModelInfo: ModelInfo | undefined
 	planModeNousResearchModelId: string | undefined
@@ -207,6 +209,8 @@ export interface Settings {
 	actModeOcaModelInfo: OcaModelInfo | undefined
 	actModeHicapModelId: string | undefined
 	actModeHicapModelInfo: ModelInfo | undefined
+	actModeAvalaiModelId: string | undefined
+	actModeAvalaiModelInfo: ModelInfo | undefined
 	actModeAihubmixModelId: string | undefined
 	actModeAihubmixModelInfo: ModelInfo | undefined
 	actModeNousResearchModelId: string | undefined
@@ -270,6 +274,7 @@ export interface Secrets {
 	ocaRefreshToken: string | undefined
 	minimaxApiKey: string | undefined
 	hicapApiKey: string | undefined
+	avalaiApiKey: string | undefined
 	aihubmixApiKey: string | undefined
 	mcpOAuthSecrets: string | undefined
 	nousResearchApiKey: string | undefined

@@ -35,6 +35,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	onboardingModels: OnboardingModelGroup | undefined
 	openRouterModels: Record<string, ModelInfo>
 	hicapModels: Record<string, ModelInfo>
+	avalaiModels: Record<string, ModelInfo>
 	liteLlmModels: Record<string, ModelInfo>
 	openAiModels: string[]
 	requestyModels: Record<string, ModelInfo>
@@ -87,6 +88,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	// Refresh functions
 	refreshOpenRouterModels: () => void
 	refreshHicapModels: () => void
+	refreshAvalaiModels: () => void
 	refreshLiteLlmModels: () => void
 	setUserInfo: (userInfo?: UserInfo) => void
 
@@ -262,6 +264,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
 	const [hicapModels, setHicapModels] = useState<Record<string, ModelInfo>>({})
+	const [avalaiModels, setAvalaiModels] = useState<Record<string, ModelInfo>>({})
 	const [liteLlmModels, setLiteLlmModels] = useState<Record<string, ModelInfo>>({})
 	const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
 	const [availableTerminalProfiles, setAvailableTerminalProfiles] = useState<TerminalProfile[]>([])
@@ -686,6 +689,15 @@ export const ExtensionStateContextProvider: React.FC<{
 			.catch((error: Error) => console.error("Failed to refresh Hicap models:", error))
 	}, [])
 
+	const refreshAvalaiModels = useCallback(() => {
+		ModelsServiceClient.refreshAvalaiModels(EmptyRequest.create({}))
+			.then((response: OpenRouterCompatibleModelInfo) => {
+				const models = fromProtobufModels(response.models)
+				setAvalaiModels(models)
+			})
+			.catch((error: Error) => console.error("Failed to refresh AvalAI models:", error))
+	}, [])
+
 	const refreshLiteLlmModels = useCallback(() => {
 		ModelsServiceClient.refreshLiteLlmModelsRpc(EmptyRequest.create({}))
 			.then((response: OpenRouterCompatibleModelInfo) => {
@@ -702,6 +714,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		onboardingModels,
 		openRouterModels,
 		hicapModels,
+		avalaiModels,
 		liteLlmModels,
 		openAiModels,
 		requestyModels,
@@ -811,6 +824,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setTotalTasksSize,
 		refreshOpenRouterModels,
 		refreshHicapModels,
+		refreshAvalaiModels,
 		refreshLiteLlmModels,
 		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
