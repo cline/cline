@@ -41,11 +41,10 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 
 	const isMacOSOrLinux = useIsMacOSOrLinux()
 
-	// Show CLI banner if not dismissed and platform is VSCode (not JetBrains/standalone)
+	// Show CLI banner on all platforms (VSCode only, not JetBrains/standalone)
+	// The banner content handles platform-specific messaging
 	const shouldShowCliBanner =
-		isMacOSOrLinux &&
-		PLATFORM_CONFIG.type === PlatformType.VSCODE &&
-		lastDismissedCliBannerVersion < CURRENT_CLI_BANNER_VERSION
+		PLATFORM_CONFIG.type === PlatformType.VSCODE && lastDismissedCliBannerVersion < CURRENT_CLI_BANNER_VERSION
 
 	const { clineUser } = useClineAuth()
 	const { openRouterModels, setShowChatModelSelector, navigateToSettings, subagentsEnabled } = useExtensionState()
