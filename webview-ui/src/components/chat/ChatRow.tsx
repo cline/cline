@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
+import { DiffEditRow } from "./DiffEditRow"
 import { ErrorBlockTitle } from "./ErrorBlockTitle"
 import ErrorRow from "./ErrorRow"
 import HookMessage from "./HookMessage"
@@ -556,13 +557,17 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>{editToolTitle}</span>
 							</div>
-							<CodeAccordian
-								// isLoading={message.partial}
-								code={tool.content}
-								isExpanded={isExpanded}
-								onToggleExpand={handleToggle}
-								path={tool.path!}
-							/>
+							{tool.path && tool.content ? (
+								<DiffEditRow patch={tool.content} path={tool.path} />
+							) : (
+								<CodeAccordian
+									// isLoading={message.partial}
+									code={tool.content}
+									isExpanded={isExpanded}
+									onToggleExpand={handleToggle}
+									path={tool.path!}
+								/>
+							)}
 						</>
 					)
 				case "fileDeleted":

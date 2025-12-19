@@ -35,6 +35,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		subagentsEnabled,
 		nativeToolCallSetting,
 		enableParallelToolCalling,
+		backgroundEditEnabled,
 	} = useExtensionState()
 
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
@@ -372,6 +373,24 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
 							<span className="text-description">
 								Allows models to call multiple tools in a single response. Automatically enabled for GPT-5 models.
+							</span>
+						</p>
+					</div>
+					<div className="mt-2.5">
+						<VSCodeCheckbox
+							checked={backgroundEditEnabled}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								updateSetting("backgroundEditEnabled", checked)
+							}}>
+							Enable Background Edit
+						</VSCodeCheckbox>
+						<p className="text-xs">
+							<span className="text-xs bg-button-background/80 text-button-foreground px-2 py-1 rounded-lg mr-1">
+								Experimental
+							</span>
+							<span className="text-description">
+								Allows Cline to edit documents in the background without opening the diff editor.
 							</span>
 						</p>
 					</div>
