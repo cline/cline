@@ -10,7 +10,6 @@ import HistoryPreview from "@/components/history/HistoryPreview"
 import { useApiConfigurationHandlers } from "@/components/settings/utils/useApiConfigurationHandlers"
 import HomeHeader from "@/components/welcome/HomeHeader"
 import { SuggestedTasks } from "@/components/welcome/SuggestedTasks"
-import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
@@ -60,13 +59,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	 * For now, using EXAMPLE_BANNER_DATA with version-based filtering
 	 */
 	const bannerConfig = useMemo((): BannerCardData[] => {
-		// Map version tracking to banner IDs
-		const shouldShowInfoBanner = lastDismissedInfoBannerVersion < CURRENT_INFO_BANNER_VERSION
-		const shouldShowNewModelBanner = lastDismissedModelBannerVersion < CURRENT_MODEL_BANNER_VERSION
-		const shouldShowCliBanner =
-			PLATFORM_CONFIG.type === PlatformType.VSCODE && lastDismissedCliBannerVersion < CURRENT_CLI_BANNER_VERSION
-
-		// Filter banners based on version tracking and user status	 */
+		// Filter banners based on version tracking and user status
 		return BANNER_DATA.filter((banner) => {
 			if (banner.isClineUserOnly !== undefined) {
 				return banner.isClineUserOnly === !!clineUser
@@ -76,16 +69,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 				return false
 			}
 
-			// Map banner IDs to version checks
-			if (banner.id.startsWith("info-banner") && !shouldShowInfoBanner) {
-				return false
-			}
-			if (banner.id.startsWith("new-model") && !shouldShowNewModelBanner) {
-				return false
-			}
-			if (banner.id.startsWith("cli-") && !shouldShowCliBanner) {
-				return false
-			}
 			return true
 		})
 	}, [lastDismissedInfoBannerVersion, lastDismissedCliBannerVersion, lastDismissedModelBannerVersion, clineUser])

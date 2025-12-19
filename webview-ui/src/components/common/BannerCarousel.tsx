@@ -35,11 +35,9 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 		() => (banners.length === 0 ? 0 : Math.min(currentIndex, banners.length - 1)),
 		[currentIndex, banners.length],
 	)
-	// Use the safe index to get the current banner
-	const currentBanner = useMemo(() => {
-		const banner = banners[safeCurrentIndex]
-		setMarkdown(typeof banner.description === "string" ? banner.description : "")
-		return banner
+
+	useEffect(() => {
+		setMarkdown(typeof banners?.[safeCurrentIndex]?.description === "string" ? banners[safeCurrentIndex].description : "")
 	}, [banners, safeCurrentIndex, setMarkdown])
 
 	const transitionToIndex = useCallback((newIndex: number) => {
@@ -91,6 +89,9 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 	if (banners.length === 0) {
 		return null
 	}
+
+	// Use the safe index to get the current banner
+	const currentBanner = banners[safeCurrentIndex]
 
 	// Safety check: if currentBanner is undefined (shouldn't happen with above logic, but just in case)
 	if (!currentBanner) {
