@@ -32,7 +32,7 @@ import { getLatestAnnouncementId } from "./utils/announcements"
  */
 export async function initialize(context: vscode.ExtensionContext): Promise<WebviewProvider> {
 	try {
-		await StateManager.initialize(context)
+		await StateManager.initialize()
 	} catch (error) {
 		console.error("[Controller] CRITICAL: Failed to initialize StateManager - extension may not function properly:", error)
 		HostProvider.window.showMessage({
@@ -58,7 +58,7 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	await migrateWelcomeViewCompleted(context)
 
 	// Migrate workspace storage values back to global storage (reverting previous migration)
-	await migrateWorkspaceToGlobalStorage(context)
+	await migrateWorkspaceToGlobalStorage()
 
 	// Ensure taskHistory.json exists and migrate legacy state (runs once)
 	await migrateTaskHistoryToFile(context)
