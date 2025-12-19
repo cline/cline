@@ -390,7 +390,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								Experimental
 							</span>
 							<span className="text-description">
-								Allows Cline to edit documents in the background without opening the diff editor.
+								Allows edits to perform in the background without opening the diff view in editor.
 							</span>
 						</p>
 					</div>

@@ -296,7 +296,6 @@ export class Task {
 		this.urlContentFetcher = new UrlContentFetcher(controller.context)
 		this.browserSession = new BrowserSession(stateManager)
 		this.contextManager = new ContextManager()
-		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
 		this.streamHandler = new StreamResponseHandler()
 		this.cwd = cwd
 		this.stateManager = stateManager
@@ -304,9 +303,8 @@ export class Task {
 
 		// DiffViewProvider opens Diff Editor during edits while FileEditProvider performs
 		// edits in the background without stealing user's editor's focus.
-		this.diffViewProvider = this.stateManager.getGlobalSettingsKey("backgroundEditEnabled")
-			? new FileEditProvider()
-			: HostProvider.get().createDiffViewProvider()
+		const backgroundEditEnabled = this.stateManager.getGlobalSettingsKey("backgroundEditEnabled")
+		this.diffViewProvider = backgroundEditEnabled ? new FileEditProvider() : HostProvider.get().createDiffViewProvider()
 
 		// Set up MCP notification callback for real-time notifications
 		this.mcpHub.setNotificationCallback(async (serverName: string, _level: string, message: string) => {
