@@ -250,6 +250,7 @@ const createMockState = (overrides: any = {}) => ({
 	onboardingModels: undefined,
 	openRouterModels: bedrockModels,
 	showAnnouncement: false,
+	backgroundEditEnabled: false,
 	...overrides,
 })
 
@@ -828,7 +829,7 @@ const createNewFormatMultiFileMessages = () => [
 ]
 
 export const DiffEditNewFormat: Story = {
-	decorators: [createStoryDecorator({ clineMessages: createNewFormatMultiFileMessages() })],
+	decorators: [createStoryDecorator({ backgroundEditEnabled: true, clineMessages: createNewFormatMultiFileMessages() })],
 	parameters: {
 		docs: {
 			description: {
@@ -845,7 +846,7 @@ export const DiffEditNewFormatStreaming: Story = {
 				createMessage(5, "say", "task", "Add TypeScript types to the user module"),
 				createMessage(4.7, "say", "text", "I'll add TypeScript types to improve type safety."),
 			])
-			const mockState = useMemo(() => createMockState({ clineMessages: messages }), [messages])
+			const mockState = useMemo(() => createMockState({ backgroundEditEnabled: true, clineMessages: messages }), [messages])
 
 			useEffect(() => {
 				// Simulate streaming: progressively add more content
@@ -968,7 +969,7 @@ function validateEmail(email: string): boolean {
 ]
 
 export const DiffEditReplaceDiffFormat: Story = {
-	decorators: [createStoryDecorator({ clineMessages: createReplaceDiffFormatPatchMessages() })],
+	decorators: [createStoryDecorator({ backgroundEditEnabled: true, clineMessages: createReplaceDiffFormatPatchMessages() })],
 	parameters: {
 		docs: {
 			description: {
@@ -985,7 +986,7 @@ export const DiffEditReplaceDiffFormatStreaming: Story = {
 				createMessage(5, "say", "task", "Update error handling"),
 				createMessage(4.7, "say", "text", "I'll improve the error handling in the API client."),
 			])
-			const mockState = useMemo(() => createMockState({ clineMessages: messages }), [messages])
+			const mockState = useMemo(() => createMockState({ backgroundEditEnabled: true, clineMessages: messages }), [messages])
 
 			useEffect(() => {
 				const completePatch = `------- SEARCH
