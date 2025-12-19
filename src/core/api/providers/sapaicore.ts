@@ -902,12 +902,6 @@ export class SapAiCoreHandler implements ApiHandler {
 		stream: any,
 		_model: { id: SapAiCoreModelId; info: ModelInfo },
 	): AsyncGenerator<any, void, unknown> {
-		function toStrictJson(str: string): string {
-			// Wrap it in parentheses so JS will treat it as an expression
-			const obj = new Function("return " + str)()
-			return JSON.stringify(obj)
-		}
-
 		const _usage = { input_tokens: 0, output_tokens: 0 }
 
 		try {
@@ -922,7 +916,7 @@ export class SapAiCoreHandler implements ApiHandler {
 
 						try {
 							// Parse the incoming JSON data from the stream
-							const data = JSON.parse(toStrictJson(jsonData))
+							const data = JSON.parse(jsonData)
 
 							// Handle metadata (token usage)
 							if (data.metadata?.usage) {
