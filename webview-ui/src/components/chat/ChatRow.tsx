@@ -559,7 +559,7 @@ export const ChatRowContent = memo(
 								<span style={{ fontWeight: "bold" }}>{editToolTitle}</span>
 							</div>
 							{backgroundEditEnabled && tool.path && tool.content ? (
-								<DiffEditRow patch={tool.content} path={tool.path} />
+								<DiffEditRow isLoading={message.partial} patch={tool.content} path={tool.path} />
 							) : (
 								<CodeAccordian
 									// isLoading={message.partial}

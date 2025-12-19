@@ -45,7 +45,7 @@ export const DiffEditRow = memo<DiffEditRowProps>(({ patch, path, isLoading }) =
 		const parsed = parsePatch(patch, path)
 		return {
 			parsedFiles: parsed.parsedFiles,
-			isStreaming: isLoading !== true || parsed.isStreaming,
+			isStreaming: isLoading || parsed.isStreaming,
 		}
 	}, [patch, path, isLoading])
 
@@ -58,12 +58,6 @@ export const DiffEditRow = memo<DiffEditRowProps>(({ patch, path, isLoading }) =
 			{parsedFiles.map((file) => (
 				<FileBlock file={file} isStreaming={isStreaming} key={file.path} />
 			))}
-			{isStreaming && !path && (
-				<div className="bg-gray-800 rounded-xs flex items-center text-gray-400">
-					<div className="animate-pulse mr-3">●</div>
-					Streaming content...
-				</div>
-			)}
 		</div>
 	)
 })
@@ -271,7 +265,7 @@ function parseNewFormat(content: string): Patch[] {
 }
 
 /**
- * Parse SEACH REPLACE diff format patches (------- SEARCH / ======= / +++++++ REPLACE)
+ * Parse SEARCH REPLACE diff format patches (------- SEARCH / ======= / +++++++ REPLACE)
  * Converts SEARCH block to deletions (-) and REPLACE block to additions (+)
  */
 function parseSearchReplaceFormat(patch: string, path: string): Patch | undefined {

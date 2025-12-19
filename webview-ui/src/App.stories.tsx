@@ -988,7 +988,6 @@ export const DiffEditReplaceDiffFormatStreaming: Story = {
 			const mockState = useMemo(() => createMockState({ clineMessages: messages }), [messages])
 
 			useEffect(() => {
-				// Simulate streaming: start with partial patch, then complete it
 				const completePatch = `------- SEARCH
 try {
   const response = await fetch(url)
@@ -1008,25 +1007,34 @@ try {
   throw error
 }
 +++++++ REPLACE`
-				// Stream each line after a delay to simulate streaming
+
 				const patchChunks = completePatch.split("\n")
-				for (let i = 0; i < patchChunks.length; i++) {
-					setTimeout(() => {
-						setMessages((prev: ClineMessage[]) => {
-							const updated = [...prev]
-							updated[updated.length - 1] = createSayToolMessage(
-								4.3,
-								{
-									tool: "editedExistingFile",
-									path: "src/auth/types.ts",
-									content: patchChunks.slice(0, i + 1).join("\n"),
-								},
-								{ partial: i !== patchChunks.length - 1 },
-							)
-							return updated
-						})
-					}, i * 500)
-				}
+				let currentIndex = 0
+
+				const intervalId = setInterval(() => {
+					if (currentIndex >= patchChunks.length) {
+						clearInterval(intervalId)
+						return
+					}
+
+					setMessages((prev: ClineMessage[]) => {
+						const updated = [...prev]
+						updated[updated.length - 1] = createSayToolMessage(
+							4.3,
+							{
+								tool: "editedExistingFile",
+								path: "src/auth/types.ts",
+								content: patchChunks.slice(0, currentIndex + 1).join("\n"),
+							},
+							{ partial: currentIndex !== patchChunks.length - 1 },
+						)
+						return updated
+					})
+
+					currentIndex++
+				}, 500)
+
+				return () => clearInterval(intervalId)
 			}, [])
 
 			return (
