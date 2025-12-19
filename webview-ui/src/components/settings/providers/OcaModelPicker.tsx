@@ -40,20 +40,22 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 				setPendingModelId(newModelId)
 				setShowRestrictedPopup(true)
 			} else {
-				const fieldChangeKeys: any = {
-					ocaModelId: { plan: "planModeOcaModelId", act: "actModeOcaModelId" },
-					ocaModelInfo: { plan: "planModeOcaModelInfo", act: "actModeOcaModelInfo" },
-					ocaReasoningEffort: { plan: "planModeOcaReasoningEffort", act: "actModeOcaReasoningEffort" },
-				}
-				const fieldChangeValues: any = {
-					ocaModelId: newModelId,
-					ocaModelInfo: ocaModels[newModelId],
-					ocaReasoningEffort:
-						ocaModels[newModelId].reasoningEffortOptions.length > 0
-							? ocaModels[newModelId].reasoningEffortOptions[0]
-							: undefined,
-				}
-				await handleModeFieldsChange(fieldChangeKeys, fieldChangeValues, currentMode)
+				await handleModeFieldsChange(
+					{
+						ocaModelId: { plan: "planModeOcaModelId", act: "actModeOcaModelId" },
+						ocaModelInfo: { plan: "planModeOcaModelInfo", act: "actModeOcaModelInfo" },
+						ocaReasoningEffort: { plan: "planModeOcaReasoningEffort", act: "actModeOcaReasoningEffort" },
+					},
+					{
+						ocaModelId: newModelId,
+						ocaModelInfo: ocaModels[newModelId],
+						ocaReasoningEffort:
+							ocaModels[newModelId].reasoningEffortOptions.length > 0
+								? ocaModels[newModelId].reasoningEffortOptions[0]
+								: undefined,
+					},
+					currentMode,
+				)
 			}
 		}
 	}
@@ -72,20 +74,22 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 
 	const onAcknowledge = async () => {
 		if (pendingModelId && ocaModels) {
-			const fieldChangeKeys: any = {
-				ocaModelId: { plan: "planModeOcaModelId", act: "actModeOcaModelId" },
-				ocaModelInfo: { plan: "planModeOcaModelInfo", act: "actModeOcaModelInfo" },
-				ocaReasoningEffort: { plan: "planModeOcaReasoningEffort", act: "actModeOcaReasoningEffort" },
-			}
-			const fieldChangeValues: any = {
-				ocaModelId: pendingModelId,
-				ocaModelInfo: ocaModels[pendingModelId],
-				ocaReasoningEffort:
-					ocaModels[pendingModelId].reasoningEffortOptions.length > 0
-						? ocaModels[pendingModelId].reasoningEffortOptions[0]
-						: undefined,
-			}
-			await handleModeFieldsChange(fieldChangeKeys, fieldChangeValues, currentMode)
+			await handleModeFieldsChange(
+				{
+					ocaModelId: { plan: "planModeOcaModelId", act: "actModeOcaModelId" },
+					ocaModelInfo: { plan: "planModeOcaModelInfo", act: "actModeOcaModelInfo" },
+					ocaReasoningEffort: { plan: "planModeOcaReasoningEffort", act: "actModeOcaReasoningEffort" },
+				},
+				{
+					ocaModelId: pendingModelId,
+					ocaModelInfo: ocaModels[pendingModelId],
+					ocaReasoningEffort:
+						ocaModels[pendingModelId].reasoningEffortOptions.length > 0
+							? ocaModels[pendingModelId].reasoningEffortOptions[0]
+							: undefined,
+				},
+				currentMode,
+			)
 			setPendingModelId(null)
 			setShowRestrictedPopup(false)
 		}
@@ -107,13 +111,7 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 		}
 	}, [apiConfiguration, currentMode])
 
-	const selectedOcaModelInfo = useMemo(() => {
-		if (currentMode == "plan") {
-			return apiConfiguration?.planModeOcaModelInfo
-		} else {
-			return apiConfiguration?.actModeOcaModelInfo
-		}
-	}, [apiConfiguration, currentMode])
+	const reasoningEffortOptions = selectedModelInfo ? (selectedModelInfo as OcaModelInfo).reasoningEffortOptions : []
 
 	const modelIds = useMemo(() => {
 		return Object.keys(ocaModels || []).sort((a, b) => a.localeCompare(b))
@@ -193,39 +191,36 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 					Last refreshed at {lastRefreshedText}
 				</div>
 			) : null}
-			{!loading &&
-				selectedOcaModelInfo &&
-				selectedOcaModelInfo.supportsReasoning &&
-				selectedOcaModelInfo.reasoningEffortOptions.length >= 0 && (
-					<React.Fragment>
-						<label className="font-medium text-[12px] mt-[10px] mb-[2px]">Reasoning Effort</label>
-						<div className="flex items-center gap-2 mb-1">
-							<VSCodeDropdown
-								className="flex-1 text-[12px] min-h-[24px]"
-								currentValue={selectedReasoningEffort}
-								id="reasoning-effort-dropdown"
-								onChange={(e: any) => {
-									const newValue = e.target.currentValue
-									handleReasoningEffortChange(newValue)
-								}}>
-								{selectedOcaModelInfo?.reasoningEffortOptions.map((reasoningEffort) => (
-									<VSCodeOption
-										key={reasoningEffort}
-										style={{
-											padding: "4px 8px",
-											cursor: "pointer",
-											wordWrap: "break-word",
-											maxWidth: "100%",
-											fontSize: 12,
-										}}
-										value={reasoningEffort}>
-										{reasoningEffort}
-									</VSCodeOption>
-								))}
-							</VSCodeDropdown>
-						</div>
-					</React.Fragment>
-				)}
+			{!loading && selectedModelInfo && selectedModelInfo.supportsReasoning && reasoningEffortOptions.length >= 0 && (
+				<React.Fragment>
+					<label className="font-medium text-[12px] mt-[10px] mb-[2px]">Reasoning Effort</label>
+					<div className="flex items-center gap-2 mb-1">
+						<VSCodeDropdown
+							className="flex-1 text-[12px] min-h-[24px]"
+							currentValue={selectedReasoningEffort}
+							id="reasoning-effort-dropdown"
+							onChange={(e: any) => {
+								const newValue = e.target.currentValue
+								handleReasoningEffortChange(newValue)
+							}}>
+							{reasoningEffortOptions.map((reasoningEffort) => (
+								<VSCodeOption
+									key={reasoningEffort}
+									style={{
+										padding: "4px 8px",
+										cursor: "pointer",
+										wordWrap: "break-word",
+										maxWidth: "100%",
+										fontSize: 12,
+									}}
+									value={reasoningEffort}>
+									{reasoningEffort}
+								</VSCodeOption>
+							))}
+						</VSCodeDropdown>
+					</div>
+				</React.Fragment>
+			)}
 			{selectedModelInfo && (
 				<>
 					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
