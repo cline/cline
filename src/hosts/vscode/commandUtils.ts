@@ -1,5 +1,6 @@
 import * as fs from "fs/promises"
 import * as vscode from "vscode"
+import { sanitizeCellForLLM } from "@/integrations/misc/notebook-utils"
 import { ExtensionRegistryInfo } from "@/registry"
 import { Logger } from "@/services/logging/Logger"
 import { CommandContext } from "@/shared/proto/index.cline"
@@ -31,11 +32,8 @@ async function findMatchingNotebookCell(filePath: string, notebookCell?: number)
 			// Get a reference to the specific cell object
 			const cellToProcess = notebook.cells[notebookCell]
 
-			// Clear the outputs array before stringifying to ensure clean JSON
-			cellToProcess.outputs = []
-
-			// Stringify the modified cell object with 2-space indentation
-			return JSON.stringify(cellToProcess, null, 2)
+			// Sanitize the cell outputs (truncate images, keep text outputs)
+			return sanitizeCellForLLM(cellToProcess)
 		}
 
 		Logger.log("No valid notebook cell number provided")

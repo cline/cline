@@ -7,6 +7,7 @@ import mammoth from "mammoth"
 import * as path from "path"
 // @ts-ignore-next-line
 import pdf from "pdf-parse/lib/pdf-parse"
+import { sanitizeNotebookForLLM } from "./notebook-utils"
 
 export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string): Promise<string> {
 	const detected = chardet.detect(fileBuffer)
@@ -83,9 +84,9 @@ async function extractTextFromIPYNB(filePath: string, enhancedNotebookInteractio
 	const encoding = await detectEncoding(fileBuffer)
 	const data = iconv.decode(fileBuffer, encoding)
 
-	// If enhanced notebook interaction is enabled, return raw JSON for proper editing
+	// If enhanced notebook interaction is enabled, return sanitized JSON for proper editing
 	if (enhancedNotebookInteractionEnabled) {
-		return data
+		return sanitizeNotebookForLLM(data)
 	}
 
 	// Otherwise, extract text content for reading
