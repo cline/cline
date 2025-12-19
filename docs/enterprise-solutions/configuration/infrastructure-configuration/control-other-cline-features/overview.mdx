@@ -1,0 +1,35 @@
+---
+title: "Overview"
+sidebarTitle: "Overview"
+description: "Configure Cline settings for your enterprise deployment"
+---
+
+This section covers configuration options for controlling Cline's behavior in enterprise deployments.
+
+## Available Settings
+
+<Card title="YOLO Mode" icon="rocket" href="/enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/yolo-mode">
+  Control enterprise access to autonomous operation mode with complete auto-approval
+</Card>
+
+## Configuration Methods
+
+These settings can be configured through:
+
+
+### Individual Users
+- Users can toggle settings in their local Cline interface
+- Enterprise policies can restrict certain settings
+- Changes apply immediately to new tasks
+
+## Enterprise Controls
+
+Administrators can enforce policies through remote configuration:
+
+```json
+{
+  "yoloModeAllowed": false
+}
+```
+
+When `yoloModeAllowed` is set to `false`, users cannot enable YOLO Mode in their local Cline interface.

@@ -478,8 +478,9 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 	
 	env = append(env,
 		fmt.Sprintf("NODE_PATH=%s", nodePath),
-		"GRPC_TRACE=all",
-		"GRPC_VERBOSITY=DEBUG",
+		// These control gRPC debug logging
+		//"GRPC_TRACE=all",
+		//"GRPC_VERBOSITY=DEBUG",
 		"NODE_ENV=development",
 	)
 	cmd.Env = env

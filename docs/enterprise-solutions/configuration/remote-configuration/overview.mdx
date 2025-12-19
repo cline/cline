@@ -1,0 +1,102 @@
+---
+title: "SaaS Provider Configuration"
+sidebarTitle: "Overview"
+description: "Configure inference providers through the Cline hosted admin console for centralized organization management"
+---
+
+
+SaaS Provider Configuration allows administrators to centrally configure inference providers for their entire organization through the Cline hosted admin console. This approach ensures consistent provider access, security policies, and cost management across all team members without requiring individual developer setup or infrastructure deployment.
+
+## How Remote Configuration Works
+
+Remote configuration operates through Cline's hosted service at [app.cline.bot](https://app.cline.bot), where administrators can:
+
+<CardGroup cols={2}>
+  <Card title="Centralized Setup" icon="gear">
+    Configure providers once for the entire organization through the web-based admin console.
+  </Card>
+  
+  <Card title="Automatic Enforcement" icon="shield-check">
+    Team members automatically receive the configured provider settings when signed into their organization.
+  </Card>
+  
+  <Card title="Simplified Onboarding" icon="user-plus">
+    New team members get instant access to inference providers without complex individual configuration.
+  </Card>
+  
+  <Card title="Consistent Experience" icon="users">
+    Ensure all team members use the same models, regions, and settings organization-wide.
+  </Card>
+</CardGroup>
+
+## Supported Providers
+
+Cline supports remote configuration for the following inference providers:
+
+| Provider | Use Case | Configuration | Member Setup |
+|----------|----------|---------------|--------------|
+| **Cline** | Organizations using Cline's native provider with centralized API key management | API provider selection, model access | No individual API keys needed - fully managed by organization |
+| **Amazon Bedrock** | Organizations using AWS infrastructure | Region selection, VPC endpoints, cross-region inference, prompt caching | AWS credential configuration in VS Code |
+| **LiteLLM** | Organizations requiring multi-model access through a unified proxy | Proxy endpoint, authentication, model routing | API key or endpoint configuration in VS Code (or centralized with Master Key) |
+| **Google Vertex AI** | Organizations using Google Cloud Platform | Project ID, region selection, model access | Service account or credential configuration in VS Code |
+
+
+## Configuration Process
+
+The typical remote configuration process follows these steps:
+
+<Steps>
+<Step title="Administrator Setup">
+Access the Cline admin console and configure the desired inference provider with organization-wide settings.
+</Step>
+
+<Step title="Automatic Distribution">
+Provider configuration is automatically distributed to all organization members signed into Cline.
+</Step>
+
+<Step title="Member Credential Setup">
+Team members add their individual credentials (API keys, AWS profiles, etc.) to connect to the configured provider.
+</Step>
+
+<Step title="Immediate Access">
+Once credentials are configured, members can immediately start using the inference provider through Cline.
+</Step>
+</Steps>
+
+## Benefits of Remote Configuration
+
+### **For Administrators**
+- **Centralized Control**: Manage all provider settings from one location
+- **Security Compliance**: Ensure consistent security policies across the organization
+- **Easy Updates**: Change provider settings organization-wide instantly
+
+### **For Team Members**  
+- **Simplified Setup**: No need to research provider configuration options
+- **Consistent Experience**: Same models and features available to everyone
+- **Quick Onboarding**: Get started immediately with pre-configured providers
+- **Focus on Development**: Spend time coding instead of configuring inference providers
+
+## Getting Started
+
+To get started with provider remote configuration:
+
+1. **Choose Your Provider**: Select the inference provider that best fits your organization's needs and existing infrastructure
+2. **Admin Configuration**: Follow the provider-specific admin configuration guide
+3. **Member Onboarding**: Have team members complete the provider-specific member configuration
+4. **Start Developing**: Begin using Cline with centrally managed inference provider access
+
+Select your provider below to begin the configuration process:
+
+<CardGroup cols={3}>
+  <Card title="Amazon Bedrock" icon="aws" href="/enterprise-solutions/configuration/remote-configuration/aws-bedrock/admin-configuration">
+    AWS-based AI models with enterprise security and compliance features.
+  </Card>
+  
+  <Card title="LiteLLM" icon="layer-group" href="/enterprise-solutions/configuration/remote-configuration/litellm/admin-configuration">
+    Unified proxy for accessing 100+ AI models through a single interface.
+  </Card>
+  
+  <Card title="Google Vertex AI" icon="google" href="/enterprise-solutions/configuration/remote-configuration/google-vertex/admin-configuration">
+    Google Cloud's AI platform with advanced ML capabilities and global infrastructure.
+  </Card>
+</CardGroup>
