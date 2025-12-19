@@ -21,6 +21,7 @@ import {
 	ChatLayout,
 	convertHtmlToMarkdown,
 	filterVisibleMessages,
+	groupLowStakesTools,
 	groupMessages,
 	InputSection,
 	MessagesArea,
@@ -324,7 +325,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [modifiedMessages, currentFocusChainChecklist])
 
 	const groupedMessages = useMemo(() => {
-		return groupMessages(visibleMessages)
+		return groupLowStakesTools(groupMessages(visibleMessages))
 	}, [visibleMessages])
 
 	// Use scroll behavior hook
