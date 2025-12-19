@@ -42,6 +42,7 @@ export type ApiProvider =
 	| "minimax"
 	| "hicap"
 	| "nousResearch"
+	| "iointelligence"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic
@@ -86,6 +87,7 @@ export interface ApiHandlerSecrets {
 	minimaxApiKey?: string
 	hicapApiKey?: string
 	nousResearchApiKey?: string
+	ioIntelligenceApiKey?: string
 }
 
 export interface ApiHandlerOptions {
@@ -137,6 +139,7 @@ export interface ApiHandlerOptions {
 	ocaMode?: string
 	aihubmixBaseUrl?: string
 	aihubmixAppCode?: string
+	ioIntelligenceBaseUrl?: string
 
 	// Plan mode configurations
 	planModeApiModelId?: string
@@ -173,6 +176,7 @@ export interface ApiHandlerOptions {
 	planModeOcaModelInfo?: OcaModelInfo
 	planModeAihubmixModelId?: string
 	planModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
+	planModeIoIntelligenceModelInfo?: ModelInfo
 	planModeHicapModelId?: string
 	planModeHicapModelInfo?: ModelInfo
 	planModeNousResearchModelId?: string
@@ -213,6 +217,7 @@ export interface ApiHandlerOptions {
 	actModeOcaModelInfo?: OcaModelInfo
 	actModeAihubmixModelId?: string
 	actModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
+	actModeIoIntelligenceModelInfo?: ModelInfo
 	actModeHicapModelId?: string
 	actModeHicapModelInfo?: ModelInfo
 	actModeNousResearchModelId?: string

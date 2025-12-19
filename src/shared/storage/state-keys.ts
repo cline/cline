@@ -127,6 +127,7 @@ export interface Settings {
 	ocaMode: string | undefined
 	aihubmixBaseUrl: string | undefined
 	aihubmixAppCode: string | undefined
+	ioIntelligenceBaseUrl: string | undefined
 	hooksEnabled: boolean
 	subagentsEnabled: boolean
 	enableParallelToolCalling: boolean
@@ -171,6 +172,7 @@ export interface Settings {
 	planModeHicapModelInfo: ModelInfo | undefined
 	planModeAihubmixModelId: string | undefined
 	planModeAihubmixModelInfo: ModelInfo | undefined
+	planModeIoIntelligenceModelInfo: ModelInfo | undefined
 	planModeNousResearchModelId: string | undefined
 	// Act mode configurations
 	actModeApiProvider: ApiProvider
@@ -209,6 +211,7 @@ export interface Settings {
 	actModeHicapModelInfo: ModelInfo | undefined
 	actModeAihubmixModelId: string | undefined
 	actModeAihubmixModelInfo: ModelInfo | undefined
+	actModeIoIntelligenceModelInfo: ModelInfo | undefined
 	actModeNousResearchModelId: string | undefined
 
 	// OpenTelemetry configuration
@@ -273,6 +276,7 @@ export interface Secrets {
 	aihubmixApiKey: string | undefined
 	mcpOAuthSecrets: string | undefined
 	nousResearchApiKey: string | undefined
+	ioIntelligenceApiKey: string | undefined
 }
 
 export interface LocalState {

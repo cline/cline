@@ -49,6 +49,15 @@ service ModelsService {
   rpc refreshOcaModels(StringRequest) returns (OcaCompatibleModelInfo);
   // Fetches available models from AIhubmix
   rpc getAihubmixModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Fetches available models from IO Intelligence
+  rpc refreshIoIntelligenceModels(IoIntelligenceModelsRequest) returns (OpenRouterCompatibleModelInfo);
+}
+
+// Request for fetching IO Intelligence models
+message IoIntelligenceModelsRequest {
+  Metadata metadata = 1;
+  string base_url = 2;
+  string api_key = 3;
 }
 
 // List of VS Code LM models
@@ -432,6 +441,7 @@ enum ApiProvider {
   HICAP = 37;
   AIHUBMIX = 38;
   NOUSRESEARCH = 39;
+  IOINTELLIGENCE = 40;
 }
 
 enum ApiFormat {
@@ -567,6 +577,8 @@ message ModelsApiConfiguration {
   optional string aihubmix_base_url = 83;
   optional string aihubmix_app_code = 84;
   optional string nous_research_api_key = 85;
+  optional string io_intelligence_api_key = 86;
+  optional string io_intelligence_base_url = 87;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -608,6 +620,7 @@ message ModelsApiConfiguration {
   optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 136;
   optional string plan_mode_nous_research_model_id = 137;
   optional string gemini_plan_mode_thinking_level = 138;
+  optional OpenRouterModelInfo plan_mode_io_intelligence_model_info = 140;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -649,4 +662,5 @@ message ModelsApiConfiguration {
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 236;
   optional string act_mode_nous_research_model_id = 237;
   optional string gemini_act_mode_thinking_level = 238;
+  optional OpenRouterModelInfo act_mode_io_intelligence_model_info = 240;
 }
