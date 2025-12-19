@@ -6,6 +6,61 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
+			"type": "node",
+			"request": "launch",
+			"name": "Debug Cline Core (for CLI)",
+			"skipFiles": [
+				"<node_internals>/**"
+			],
+			"sourceMaps": true,
+			"resolveSourceMapLocations": [
+				"${workspaceFolder}/**",
+				"!**/node_modules/**"
+			],
+			"cwd": "${workspaceFolder}/dist-standalone",
+			"outFiles": [
+				"${workspaceFolder}/dist-standalone/**/*.js"
+			],
+			"preLaunchTask": "build-and-start-cline-host-debug",
+			"runtimeExecutable": "node",
+			"runtimeArgs": [
+				"--enable-source-maps"
+			],
+			"program": "${workspaceFolder}/dist-standalone/cline-core.js",
+			"args": [
+				"--port",
+				"6743",
+				"--host-bridge-port",
+				"6744",
+				"--config",
+				"${env:HOME}/.cline"
+			],
+			"envFile": "${workspaceFolder}/.env",
+			"env": {
+				"NODE_PATH": "${workspaceFolder}/dist-standalone/node_modules:${workspaceFolder}/dist-standalone/fake_node_modules",
+				"NODE_ENV": "development"
+			},
+			"console": "integratedTerminal",
+			"internalConsoleOptions": "neverOpen",
+			"serverReadyAction": {
+				"pattern": "All services started successfully",
+				"action": "startDebugging",
+				"name": "Launch Cline CLI (debug attach)"
+			}
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "Launch Cline CLI (debug attach)",
+			"runtimeExecutable": "${workspaceFolder}/cli/bin/cline",
+			"runtimeArgs": [
+				"--address",
+				"127.0.0.1:6743"
+			],
+			"console": "integratedTerminal",
+			"internalConsoleOptions": "openOnFirstSessionStart"
+		},
+		{
 			"name": "Run Extension (production)",
 			"type": "extensionHost",
 			"request": "launch",

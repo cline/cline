@@ -14,6 +14,84 @@
 			}
 		},
 		{
+			"label": "compile-cli",
+			"type": "npm",
+			"script": "compile-cli",
+			"group": "build",
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "compile-cli-and-standalone",
+			"dependsOn": [
+				"compile-cli",
+				"compile-standalone"
+			],
+			"dependsOrder": "parallel",
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "build-and-start-cline-host-debug",
+			"dependsOn": [
+				"compile-cli-and-standalone",
+				"start-cline-host-debug"
+			],
+			"dependsOrder": "sequence",
+			"problemMatcher": []
+		},
+		{
+			"label": "start-cline-host-debug",
+			"type": "shell",
+			"command": "./cli/bin/cline-host --verbose --port 6744",
+			"isBackground": true,
+			"problemMatcher": {
+				"pattern": {
+					"regexp": "^Starting gRPC server",
+					"file": 1,
+					"location": 2,
+					"message": 3
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "^Starting",
+					"endsPattern": "^.*gRPC server listening"
+				}
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"group": "cline-debug"
+			}
+		},
+		{
+			"label": "start-cline-cli-debug",
+			"type": "shell",
+			"command": "./cli/bin/cline --address 127.0.0.1:6743",
+			"isBackground": true,
+			"problemMatcher": {
+				"pattern": {
+					"regexp": ".",
+					"file": 1,
+					"location": 2,
+					"message": 3
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".",
+					"endsPattern": "."
+				}
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"group": "cline-debug",
+				"focus": true
+			}
+		},
+		{
 			"label": "npm: protos",
 			"type": "npm",
 			"script": "protos",
