@@ -70,6 +70,53 @@ func FetchOllamaModels(ctx context.Context, manager *task.Manager, baseURL strin
 	return resp.Values, nil
 }
 
+// SapAiCoreDeployment represents a SAP AI Core model deployment with ID and display name
+type SapAiCoreDeployment struct {
+	ModelName    string
+	DeploymentID string
+	DisplayName  string // e.g., "claude-4-sonnet (deployment-123)"
+}
+
+// FetchSapAiCoreModels fetches available SAP AI Core models from Cline Core
+// Takes SAP AI Core configuration and returns deployments and orchestration availability
+func FetchSapAiCoreModels(ctx context.Context, manager *task.Manager, clientID, clientSecret, baseURL, tokenURL, resourceGroup string) ([]SapAiCoreDeployment, bool, error) {
+	req := &cline.SapAiCoreModelsRequest{
+		ClientId:      clientID,
+		ClientSecret:  clientSecret,
+		BaseUrl:       baseURL,
+		TokenUrl:      tokenURL,
+		ResourceGroup: resourceGroup,
+	}
+
+	resp, err := manager.GetClient().Models.GetSapAiCoreModels(ctx, req)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to fetch SAP AI Core models: %w", err)
+	}
+
+	// Extract deployment information
+	deployments := make([]SapAiCoreDeployment, len(resp.Deployments))
+	if len(deployments) == 0 {
+		fmt.Errorf("No running deployments found")
+		return deployments, resp.OrchestrationAvailable, nil
+	}
+
+	for i, deployment := range resp.Deployments {
+		// Create a shortened deployment ID for display (last 8 characters)
+		shortDeploymentID := deployment.DeploymentId
+		if len(shortDeploymentID) > 8 {
+			shortDeploymentID = shortDeploymentID[len(shortDeploymentID)-8:]
+		}
+		
+		deployments[i] = SapAiCoreDeployment{
+			ModelName:    deployment.ModelName,
+			DeploymentID: deployment.DeploymentId,
+			DisplayName:  fmt.Sprintf("%s (%s)", deployment.ModelName, shortDeploymentID),
+		}
+	}
+
+	return deployments, resp.OrchestrationAvailable, nil
+}
+
 // DisplayModelSelectionMenu shows an interactive menu for selecting a model from a list.
 // Models are displayed alphabetically. Uses model ID as the option value to avoid
 // index-based bugs when list order changes.
@@ -104,6 +151,91 @@ func DisplayModelSelectionMenu(models []string, providerName string) (string, er
 	}
 
 	return selectedModel, nil
+}
+
+// DisplaySapAiCoreDeploymentSelectionMenu shows an interactive menu for selecting a SAP AI Core deployment.
+// Deployments are displayed with both model name and deployment ID for clarity.
+// Separates deployed models from not-deployed models with section headers.
+// Returns the selected deployment.
+func DisplaySapAiCoreDeploymentSelectionMenu(deployments []SapAiCoreDeployment, providerName string) (SapAiCoreDeployment, error) {
+	if len(deployments) == 0 {
+		return SapAiCoreDeployment{}, fmt.Errorf("no deployments available for selection")
+	}
+
+	// Separate deployments into deployed (has deployment ID) and not deployed (no deployment ID)
+	var deployed []SapAiCoreDeployment
+	var notDeployed []SapAiCoreDeployment
+
+	for _, deployment := range deployments {
+		if deployment.DeploymentID != "" {
+			deployed = append(deployed, deployment)
+		} else {
+			notDeployed = append(notDeployed, deployment)
+		}
+	}
+
+	// Build options with section separators
+	var options []huh.Option[int]
+	deploymentIndex := 0
+
+	// Sort each section by model name for consistent display
+	sort.Slice(deployed, func(i, j int) bool {
+		return deployed[i].ModelName < deployed[j].ModelName
+	})
+
+	// Add deployed models section
+	if len(deployed) > 0 {
+		// Add section separator (disabled option)
+		options = append(options, huh.NewOption("── Deployed Models ──", -1).Selected(false))
+		
+		for _, deployment := range deployed {
+			options = append(options, huh.NewOption(deployment.DisplayName, deploymentIndex))
+			deploymentIndex++
+		}
+	}
+
+	sort.Slice(notDeployed, func(i, j int) bool {
+		return notDeployed[i].ModelName < notDeployed[j].ModelName
+	})
+
+	// Add not deployed models section
+	if len(notDeployed) > 0 {
+		// Add section separator (disabled option)
+		options = append(options, huh.NewOption("── Not Deployed Models ──", -1).Selected(false))
+		
+		for _, deployment := range notDeployed {
+			options = append(options, huh.NewOption(deployment.ModelName, deploymentIndex))
+			deploymentIndex++
+		}
+	}
+
+	// Combine all deployments in order for index mapping
+	allDeployments := append(deployed, notDeployed...)
+
+	var selectedIndex int
+	title := fmt.Sprintf("Select a %s deployment", providerName)
+
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[int]().
+				Title(title).
+				Options(options...).
+				Height(calculateSelectHeight()).
+				Filtering(true).
+				Value(&selectedIndex),
+		),
+	)
+
+	if err := form.Run(); err != nil {
+		return SapAiCoreDeployment{}, fmt.Errorf("failed to select deployment: %w", err)
+	}
+
+	// Reject selection of separator headers
+	if selectedIndex == -1 {
+		return SapAiCoreDeployment{}, fmt.Errorf("invalid selection")
+	}
+
+	return allDeployments[selectedIndex], nil
 }
 
 // ConvertModelsMapToSlice converts a map of models to a sorted slice of model IDs.
