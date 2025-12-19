@@ -106,6 +106,7 @@ export interface ExtensionState {
 	subagentsEnabled?: boolean
 	nativeToolCallSetting?: boolean
 	enableParallelToolCalling?: boolean
+	backgroundEditEnabled?: boolean
 }
 
 export interface ClineMessage {
