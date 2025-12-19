@@ -369,6 +369,155 @@ export function isTextMessagePendingToolCall(textTs: number, allMessages: ClineM
 }
 
 /**
+ * Check if a tool group should be hidden because its tools are currently being
+ * displayed in the loading state animation.
+ *
+ * Returns true ONLY when:
+ * 1. The MOST RECENT api_req_started overall has no cost (loading state is active)
+ * 2. This tool group falls in the "current activities" range (between the previous
+ *    completed api_req and the current one)
+ *
+ * This mirrors the ChatRow currentActivities logic - we only hide tools that are
+ * actively being shown in the loading state, not older tool groups.
+ */
+export function isToolGroupInFlight(toolGroupMessages: ClineMessage[], allMessages: ClineMessage[]): boolean {
+	if (toolGroupMessages.length === 0) return false
+
+	// Step 1: Find the MOST RECENT api_req_started overall (search backwards)
+	let mostRecentApiReq: ClineMessage | null = null
+	let mostRecentApiReqIndex = -1
+	for (let i = allMessages.length - 1; i >= 0; i--) {
+		if (allMessages[i].say === "api_req_started") {
+			mostRecentApiReq = allMessages[i]
+			mostRecentApiReqIndex = i
+			break
+		}
+	}
+
+	if (!mostRecentApiReq?.text) return false
+
+	// Step 2: Check if it's in "pre" state (no cost = loading state active)
+	try {
+		const info = JSON.parse(mostRecentApiReq.text)
+		if (info.cost != null) {
+			// Loading state is NOT active - show all tool groups in ToolGroupRenderer
+			return false
+		}
+	} catch {
+		return false
+	}
+
+	// Step 3: Loading state IS active. Find the previous COMPLETED api_req.
+	let prevCompletedApiReqIndex = -1
+	for (let i = mostRecentApiReqIndex - 1; i >= 0; i--) {
+		const msg = allMessages[i]
+		if (msg.say === "api_req_started" && msg.text) {
+			try {
+				const prevInfo = JSON.parse(msg.text)
+				if (prevInfo.cost != null) {
+					prevCompletedApiReqIndex = i
+					break
+				}
+			} catch {
+				/* continue searching */
+			}
+		}
+	}
+
+	// If no previous completed api_req, there's no "current activities" range.
+	// ChatRow's currentActivities returns empty in this case, so don't hide the tool group.
+	if (prevCompletedApiReqIndex === -1) {
+		return false
+	}
+
+	// Step 4: Check if any tool in this group falls in the "current activities" range
+	const lastTool = [...toolGroupMessages].reverse().find((m) => isLowStakesTool(m))
+	if (!lastTool) return false
+
+	const toolIndex = allMessages.findIndex((m) => m.ts === lastTool.ts)
+	if (toolIndex === -1) return false
+
+	// Tool is in the "current activities" range if it's AFTER prevCompleted and BEFORE current
+	const isInCurrentActivitiesRange = toolIndex > prevCompletedApiReqIndex && toolIndex < mostRecentApiReqIndex
+
+	return isInCurrentActivitiesRange
+}
+
+/**
+ * Filter a tool group to exclude tools that are in the "current activities" range.
+ * Returns the filtered array of messages (may be empty).
+ *
+ * This is used so ToolGroupRenderer shows PAST tools (what's already in context),
+ * while the loading state shows ACTIVE tools (what's being "read" now).
+ */
+export function getToolsNotInCurrentActivities(toolGroupMessages: ClineMessage[], allMessages: ClineMessage[]): ClineMessage[] {
+	// Step 1: Find the MOST RECENT api_req_started overall (search backwards)
+	let mostRecentApiReqIndex = -1
+	for (let i = allMessages.length - 1; i >= 0; i--) {
+		if (allMessages[i].say === "api_req_started") {
+			mostRecentApiReqIndex = i
+			break
+		}
+	}
+
+	if (mostRecentApiReqIndex === -1) return toolGroupMessages
+
+	// Step 2: Check if it's in "pre" state (no cost = loading state active)
+	const mostRecentApiReq = allMessages[mostRecentApiReqIndex]
+	if (!mostRecentApiReq?.text) return toolGroupMessages
+
+	let isLoadingStateActive = false
+	try {
+		const info = JSON.parse(mostRecentApiReq.text)
+		isLoadingStateActive = info.cost == null
+	} catch {
+		return toolGroupMessages
+	}
+
+	if (!isLoadingStateActive) {
+		// Loading state is NOT active - show all tools
+		return toolGroupMessages
+	}
+
+	// Step 3: Loading state IS active. Find the previous COMPLETED api_req.
+	let prevCompletedApiReqIndex = -1
+	for (let i = mostRecentApiReqIndex - 1; i >= 0; i--) {
+		const msg = allMessages[i]
+		if (msg.say === "api_req_started" && msg.text) {
+			try {
+				const prevInfo = JSON.parse(msg.text)
+				if (prevInfo.cost != null) {
+					prevCompletedApiReqIndex = i
+					break
+				}
+			} catch {
+				/* continue searching */
+			}
+		}
+	}
+
+	// If no previous completed api_req, there's no "current activities" range
+	if (prevCompletedApiReqIndex === -1) {
+		return toolGroupMessages
+	}
+
+	// Step 4: Filter out tools that are in the "current activities" range
+	return toolGroupMessages.filter((msg) => {
+		// Only filter tool messages
+		if (!isLowStakesTool(msg)) return true
+
+		const toolIndex = allMessages.findIndex((m) => m.ts === msg.ts)
+		if (toolIndex === -1) return true
+
+		// Tool is in "current activities" range if AFTER prevCompleted AND BEFORE current
+		const isInCurrentActivitiesRange = toolIndex > prevCompletedApiReqIndex && toolIndex < mostRecentApiReqIndex
+
+		// Keep only if NOT in current activities range
+		return !isInCurrentActivitiesRange
+	})
+}
+
+/**
  * Returns true if this api_req_started should be fully absorbed into a low-stakes tool group.
  *
  * This scans FORWARD from the api_req_started until the next api_req_started and checks:

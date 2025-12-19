@@ -11,7 +11,7 @@ import {
 } from "@shared/ExtensionMessage"
 import { BooleanRequest, Int64Request, StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
-import { VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import { FoldVerticalIcon } from "lucide-react"
 import React, { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -38,6 +38,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
+import { findNextSegmentCost } from "./chat-view/utils/messageUtils"
 import ErrorRow from "./ErrorRow"
 import HookMessage from "./HookMessage"
 import NewTaskPreview from "./NewTaskPreview"
@@ -52,8 +53,8 @@ const errorColor = "var(--vscode-errorForeground)"
 const successColor = "var(--vscode-charts-green)"
 const _cancelledColor = "var(--vscode-descriptionForeground)"
 
-// Shared keyframes for cursor blink animation
-const cursorBlinkKeyframes = `
+// Shared keyframes for animations
+const sharedKeyframes = `
 	@keyframes cursorBlink {
 		0%, 100% { opacity: 1; }
 		50% { opacity: 0; }
@@ -63,10 +64,15 @@ const cursorBlinkKeyframes = `
 		0%, 100% { opacity: 0.5; }
 		50% { opacity: 1; }
 	}
+	
+	@keyframes shimmer {
+		0% { background-position: 200% 0; }
+		100% { background-position: -200% 0; }
+	}
 `
 
 const ChatRowContainer = styled.div`
-	${cursorBlinkKeyframes}
+	${sharedKeyframes}
 	padding: 10px 6px 10px 15px;
 	position: relative;
 
@@ -145,30 +151,49 @@ const BlinkingCursorSpan = styled.span`
 
 const BlinkingCursor = () => <BlinkingCursorSpan />
 
-const TypewriterText = memo(({ text }: { text: string }) => {
+// Shimmer text styled component - applies shimmer effect after typing completes
+const ShimmerSpan = styled.span`
+	background: linear-gradient(
+		90deg,
+		var(--vscode-descriptionForeground) 40%,
+		var(--vscode-foreground) 50%,
+		var(--vscode-descriptionForeground) 60%
+	);
+	background-size: 200% 100%;
+	-webkit-background-clip: text;
+	background-clip: text;
+	color: transparent;
+	animation: shimmer 2s infinite linear;
+`
+
+// TypewriterText with shimmer effect after typing completes
+const TypewriterText = memo(({ text, speed = 30 }: { text: string; speed?: number }) => {
 	const [displayedLength, setDisplayedLength] = useState(0)
+	const [isComplete, setIsComplete] = useState(false)
 
 	useEffect(() => {
 		setDisplayedLength(0)
+		setIsComplete(false)
 		const interval = setInterval(() => {
 			setDisplayedLength((prev) => {
 				if (prev >= text.length) {
 					clearInterval(interval)
+					setIsComplete(true)
 					return prev
 				}
 				return prev + 1
 			})
-		}, 30)
+		}, speed)
 
 		return () => clearInterval(interval)
-	}, [text])
+	}, [text, speed])
 
-	return (
-		<>
-			{text.slice(0, displayedLength)}
-			<BlinkingCursor />
-		</>
-	)
+	// After typing completes, show shimmer effect instead of blinking cursor
+	if (isComplete) {
+		return <ShimmerSpan>{text}</ShimmerSpan>
+	}
+
+	return <>{text.slice(0, displayedLength)}</>
 })
 
 const ThinkingBlockContainer = styled.div<{ $isVisible: boolean; $instant?: boolean }>`
@@ -1364,7 +1389,8 @@ export const ChatRowContent = memo(
 								</div>
 								<div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
 									{showCancelButton && (
-										<button
+										<VSCodeButton
+											appearance="secondary"
 											onClick={(e) => {
 												e.stopPropagation()
 												if (vscodeTerminalExecutionMode === "backgroundExec") {
@@ -1376,24 +1402,9 @@ export const ChatRowContent = memo(
 													)
 												}
 											}}
-											onMouseEnter={(e) => {
-												e.currentTarget.style.background = "var(--vscode-button-secondaryHoverBackground)"
-											}}
-											onMouseLeave={(e) => {
-												e.currentTarget.style.background = "var(--vscode-button-secondaryBackground)"
-											}}
-											style={{
-												background: "var(--vscode-button-secondaryBackground)",
-												color: "var(--vscode-button-secondaryForeground)",
-												border: "none",
-												borderRadius: "2px",
-												padding: "4px 10px",
-												fontSize: "12px",
-												cursor: "pointer",
-												fontFamily: "inherit",
-											}}>
+											style={{ fontSize: "12px" }}>
 											{vscodeTerminalExecutionMode === "backgroundExec" ? "cancel" : "stop"}
-										</button>
+										</VSCodeButton>
 									)}
 								</div>
 							</div>
@@ -1562,46 +1573,100 @@ export const ChatRowContent = memo(
 						const showStreamingThinking = hasReasoning && !hasResponseStarted && !hasError && !hasCost
 						const showCollapsedThinking = hasReasoning && !showStreamingThinking
 
-						// Find the most recent tool activity in the conversation
-						// Only show if the last tool was exploratory (read/list/search)
-						// and no user/text message has occurred since
-						// Memoized to avoid iterating through all messages on every render
-						const currentActivity = useMemo(() => {
-							// Look backwards from the end to find the most recent relevant message
+						// Find all exploratory tool activities from the PREVIOUS completed API request.
+						// This shows what Cline just ingested while waiting for the next response.
+						// Includes action verbiage and icons for each tool type.
+						// Memoized to avoid iterating through all messages on every render.
+						const currentActivities = useMemo(() => {
+							const activities: { icon: string; text: string }[] = []
+
+							// Helper to format search regex for display - show all terms separated by |
+							const formatSearchRegex = (regex: string, path: string, filePattern?: string): string => {
+								const terms = regex
+									.split("|")
+									.map((t) => t.trim().replace(/\\b/g, "").replace(/\\s\?/g, " "))
+									.filter(Boolean)
+								let result = `"${terms.join(" | ")}" in ${cleanPathPrefix(path)}/`
+								if (filePattern && filePattern !== "*") result += ` (${filePattern})`
+								return result
+							}
+
+							// Find the most recent api_req_started (the current one being rendered)
+							// Then find the PREVIOUS api_req_started that has a cost (completed)
+							// Collect all low-stakes tools between those two
+
+							let currentApiReqIndex = -1
+							let prevCompletedApiReqIndex = -1
+
+							// Find the current api_req_started (most recent)
 							for (let i = clineMessages.length - 1; i >= 0; i--) {
-								const msg = clineMessages[i]
-								// Stop if we hit user feedback or Cline text - fall back to default
-								if (msg.say === "user_feedback" || msg.say === "text") {
-									return null
+								if (clineMessages[i].say === "api_req_started") {
+									currentApiReqIndex = i
+									break
 								}
-								// Check for tool messages
-								if (msg.say === "tool" || msg.ask === "tool") {
+							}
+
+							if (currentApiReqIndex === -1) return activities
+
+							// Find the previous api_req_started that is completed (has cost)
+							for (let i = currentApiReqIndex - 1; i >= 0; i--) {
+								const msg = clineMessages[i]
+								if (msg.say === "api_req_started" && msg.text) {
 									try {
-										const tool = JSON.parse(msg.text || "{}") as ClineSayTool
-										// Exploratory tools - show activity
-										if (tool.tool === "readFile" && tool.path) {
-											return `Reading ${cleanPathPrefix(tool.path)}`
+										const info = JSON.parse(msg.text)
+										if (info.cost != null) {
+											prevCompletedApiReqIndex = i
+											break
 										}
-										if (tool.tool === "listFilesTopLevel" && tool.path) {
-											return `Exploring ${cleanPathPrefix(tool.path)}/`
-										}
-										if (tool.tool === "listFilesRecursive" && tool.path) {
-											return `Exploring ${cleanPathPrefix(tool.path)}`
-										}
-										if (tool.tool === "searchFiles" && tool.regex) {
-											return `Searching for ${tool.regex}`
-										}
-										if (tool.tool === "listCodeDefinitionNames" && tool.path) {
-											return `Reading definitions in ${cleanPathPrefix(tool.path)}/`
-										}
-										// Non-exploratory tool found first - fall back to default
-										return null
 									} catch {
 										// ignore parse errors
 									}
 								}
 							}
-							return null
+
+							if (prevCompletedApiReqIndex === -1) return activities
+
+							// Collect all low-stakes tools between prevCompletedApiReq and currentApiReq
+							for (let i = prevCompletedApiReqIndex + 1; i < currentApiReqIndex; i++) {
+								const msg = clineMessages[i]
+								if (msg.say === "tool" || msg.ask === "tool") {
+									try {
+										const tool = JSON.parse(msg.text || "{}") as ClineSayTool
+										// Exploratory tools - collect activity with icon and action verbiage
+										if (tool.tool === "readFile" && tool.path) {
+											activities.push({
+												icon: "file-code",
+												text: `Reading ${cleanPathPrefix(tool.path)}...`,
+											})
+										} else if (tool.tool === "listFilesTopLevel" && tool.path) {
+											activities.push({
+												icon: "folder-opened",
+												text: `Exploring ${cleanPathPrefix(tool.path)}/...`,
+											})
+										} else if (tool.tool === "listFilesRecursive" && tool.path) {
+											activities.push({
+												icon: "folder-opened",
+												text: `Exploring ${cleanPathPrefix(tool.path)}/...`,
+											})
+										} else if (tool.tool === "searchFiles" && tool.regex && tool.path) {
+											activities.push({
+												icon: "search",
+												text: `Searching ${formatSearchRegex(tool.regex, tool.path, tool.filePattern)}...`,
+											})
+										} else if (tool.tool === "listCodeDefinitionNames" && tool.path) {
+											activities.push({
+												icon: "symbol-class",
+												text: `Analyzing ${cleanPathPrefix(tool.path)}/...`,
+											})
+										}
+										// Non-exploratory tools are ignored (they have their own UI)
+									} catch {
+										// ignore parse errors
+									}
+								}
+							}
+
+							return activities
 						}, [clineMessages])
 
 						return (
@@ -1615,13 +1680,7 @@ export const ChatRowContent = memo(
 											color: "var(--vscode-descriptionForeground)",
 										}}>
 										<div style={{ marginTop: "4px", flexShrink: 0 }}>
-											<ClineLogoWhite
-												className="size-3.5"
-												style={{
-													transform: "scale(1.1)",
-													animation: "iconPulse 1s ease-in-out infinite",
-												}}
-											/>
+											<ClineLogoWhite className="size-3.5" style={{ transform: "scale(1.1)" }} />
 										</div>
 										<div
 											style={{
@@ -1629,9 +1688,29 @@ export const ChatRowContent = memo(
 												borderLeft: "1px solid rgba(255, 255, 255, 0.1)",
 												flex: 1,
 											}}>
-											<TypewriterText
-												text={currentActivity || (mode === "plan" ? "Planning..." : "Thinking...")}
-											/>
+											{currentActivities.length > 0 ? (
+												<div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+													{currentActivities.map((activity, i) => (
+														<div
+															key={i}
+															style={{
+																display: "flex",
+																alignItems: "flex-start",
+																gap: "6px",
+															}}>
+															<span
+																className={`codicon codicon-${activity.icon}`}
+																style={{ fontSize: "12px", opacity: 0.7, flexShrink: 0 }}
+															/>
+															<span style={{ flex: 1 }}>
+																<TypewriterText speed={15} text={activity.text} />
+															</span>
+														</div>
+													))}
+												</div>
+											) : (
+												<TypewriterText text={mode === "plan" ? "Planning..." : "Thinking..."} />
+											)}
 										</div>
 									</div>
 								)}
@@ -1862,7 +1941,14 @@ export const ChatRowContent = memo(
 					case "clineignore_error":
 						return <ErrorRow errorType="clineignore_error" message={message} />
 					case "checkpoint_created":
-						return <CheckmarkControl isCheckpointCheckedOut={message.isCheckpointCheckedOut} messageTs={message.ts} />
+						const segmentCost = findNextSegmentCost(message.ts, clineMessages)
+						return (
+							<CheckmarkControl
+								isCheckpointCheckedOut={message.isCheckpointCheckedOut}
+								messageTs={message.ts}
+								segmentCost={segmentCost}
+							/>
+						)
 					case "load_mcp_documentation":
 						return (
 							<div

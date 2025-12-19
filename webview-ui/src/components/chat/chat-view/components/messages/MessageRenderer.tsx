@@ -10,6 +10,7 @@ import { FileServiceClient } from "@/services/grpc-client"
 import { MessageHandlers } from "../../types/chatTypes"
 import {
 	findReasoningForApiReq,
+	getToolsNotInCurrentActivities,
 	isApiReqAbsorbable,
 	isLowStakesTool,
 	isTextMessagePendingToolCall,
@@ -17,23 +18,44 @@ import {
 } from "../../utils/messageUtils"
 
 /**
+ * Format search regex for display - simplify complex patterns
+ */
+function formatSearchDisplay(regex: string, path: string, filePattern?: string): string {
+	// Split by | and clean up regex syntax
+	const terms = regex
+		.split("|")
+		.map((t) => t.trim().replace(/\\b/g, "").replace(/\\s\?/g, " "))
+		.filter(Boolean)
+	const termDisplay = terms.length > 3 ? `${terms.length} patterns` : `"${terms.join(" | ")}"`
+	let result = `${termDisplay} in ${cleanPathPrefix(path)}/`
+	if (filePattern && filePattern !== "*") result += ` (${filePattern})`
+	return result
+}
+
+/**
  * Get display info for a tool message
  */
-function getToolDisplayInfo(message: ClineMessage): { icon: string; path: string; label: string } | null {
+function getToolDisplayInfo(message: ClineMessage): { icon: string; path: string; label: string; displayText?: string } | null {
 	if (message.say !== "tool" && message.ask !== "tool") return null
 	try {
 		const tool = JSON.parse(message.text || "{}") as ClineSayTool
+		const folderPath = (tool.path || "") + "/"
 		switch (tool.tool) {
 			case "readFile":
 				return { icon: "file-code", path: tool.path || "", label: "read" }
 			case "listFilesTopLevel":
-				return { icon: "folder-opened", path: tool.path || "", label: "listed" }
+				return { icon: "folder-opened", path: folderPath, label: "listed" }
 			case "listFilesRecursive":
-				return { icon: "folder-opened", path: tool.path || "", label: "listed recursively" }
+				return { icon: "folder-opened", path: folderPath, label: "listed recursively" }
 			case "listCodeDefinitionNames":
-				return { icon: "symbol-class", path: tool.path || "", label: "definitions" }
+				return { icon: "symbol-class", path: folderPath, label: "definitions" }
 			case "searchFiles":
-				return { icon: "search", path: tool.path || "", label: `search: ${tool.regex}` }
+				return {
+					icon: "search",
+					path: folderPath,
+					label: `search: ${tool.regex}`,
+					displayText: formatSearchDisplay(tool.regex || "", tool.path || "", tool.filePattern),
+				}
 			default:
 				return null
 		}
@@ -43,7 +65,7 @@ function getToolDisplayInfo(message: ClineMessage): { icon: string; path: string
 }
 
 /**
- * Get summary label for a tool group
+ * Get summary label for a tool group - shows what's been added to context
  */
 function getToolGroupSummary(messages: ClineMessage[]): string {
 	const toolTypes: string[] = []
@@ -68,8 +90,8 @@ function getToolGroupSummary(messages: ClineMessage[]): string {
 	if (searchCount > 0) parts.push(`${searchCount} search${searchCount > 1 ? "es" : ""}`)
 	if (defCount > 0) parts.push(`${defCount} definition${defCount > 1 ? "s" : ""}`)
 
-	if (parts.length === 0) return "Files"
-	return parts.join(", ")
+	if (parts.length === 0) return "Context"
+	return parts.join(", ") + " in context"
 }
 
 interface ToolGroupRendererProps {
@@ -90,12 +112,16 @@ function hasExpandableContent(tool: ClineSayTool): boolean {
 
 /**
  * Renders a collapsible group of low-stakes tool calls
+ * Only shows tools that are NOT in the "current activities" range (PAST tools only)
  */
 const ToolGroupRenderer = memo(
 	({ messages, expandedRows, onToggleExpand, index, groupedMessages, allMessages }: ToolGroupRendererProps) => {
 		const groupTs = messages[0]?.ts || 0
 		const isExpanded = expandedRows[groupTs] ?? true // Default expanded
 		const isLast = index === groupedMessages.length - 1
+
+		// Filter out tools that are in the "current activities" range (being shown in loading state)
+		const filteredMessages = useMemo(() => getToolsNotInCurrentActivities(messages, allMessages), [messages, allMessages])
 
 		// Track which individual tool items are expanded (for folders, search, etc.)
 		const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({})
@@ -114,14 +140,16 @@ const ToolGroupRenderer = memo(
 			setExpandedItems((prev) => ({ ...prev, [ts]: !prev[ts] }))
 		}, [])
 
-		const summary = useMemo(() => getToolGroupSummary(messages), [messages])
+		// Use filtered messages for summary (only show count of PAST tools)
+		const summary = useMemo(() => getToolGroupSummary(filteredMessages), [filteredMessages])
 
 		// Build tool items with associated reasoning (reasoning that comes BEFORE a tool)
+		// Use FILTERED messages so we only show PAST tools, not current activities
 		const toolsWithReasoning = useMemo(() => {
 			const result: { tool: ClineMessage; parsedTool: ClineSayTool; reasoning?: string }[] = []
 			let pendingReasoning: string[] = []
 
-			for (const msg of messages) {
+			for (const msg of filteredMessages) {
 				if (msg.say === "reasoning" && msg.text) {
 					pendingReasoning.push(msg.text)
 				} else if (isLowStakesTool(msg)) {
@@ -141,7 +169,12 @@ const ToolGroupRenderer = memo(
 				}
 			}
 			return result
-		}, [messages])
+		}, [filteredMessages])
+
+		// Don't render if no PAST tools to show (all tools are in current activities)
+		if (toolsWithReasoning.length === 0) {
+			return null
+		}
 
 		return (
 			<div className={cn("px-4 py-2", { "pb-4": isLast })} style={{ color: "var(--vscode-descriptionForeground)" }}>
@@ -209,10 +242,10 @@ const ToolGroupRenderer = memo(
 												whiteSpace: "nowrap",
 												overflow: "hidden",
 												textOverflow: "ellipsis",
-												direction: "rtl",
+												direction: info.displayText ? "ltr" : "rtl",
 												textAlign: "left",
 											}}>
-											{cleanPathPrefix(info.path) + "\u200E"}
+											{(info.displayText || cleanPathPrefix(info.path)) + "\u200E"}
 										</span>
 									</div>
 									{/* Expanded content for folders/search/definitions - raw text */}
@@ -290,6 +323,8 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	}, [messageOrGroup, modifiedMessages])
 
 	// Tool group (low-stakes tools grouped together)
+	// Always render - the loading state in ChatRow shows current activities,
+	// while ToolGroupRenderer shows what's in context. Overlap is fine.
 	if (isToolGroup(messageOrGroup)) {
 		return (
 			<ToolGroupRenderer
@@ -323,9 +358,11 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	// If this api_req_started is meant to be absorbed into a low-stakes tool group,
 	// never render it as a standalone row.
 	// BUT: Only absorb if this isn't the last/only message (to avoid hiding completed task api_reqs)
-	if (messageOrGroup.say === "api_req_started" && 
-		index < groupedMessages.length - 1 && 
-		isApiReqAbsorbable(messageOrGroup.ts, modifiedMessages)) {
+	if (
+		messageOrGroup.say === "api_req_started" &&
+		index < groupedMessages.length - 1 &&
+		isApiReqAbsorbable(messageOrGroup.ts, modifiedMessages)
+	) {
 		return null
 	}
 
