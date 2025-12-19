@@ -386,11 +386,9 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							Enable Background Edit
 						</VSCodeCheckbox>
 						<p className="text-xs">
-							<span className="text-xs bg-button-background/80 text-button-foreground px-2 py-1 rounded-lg mr-1">
-								Experimental
-							</span>
+							<span className="text-error">Experimental: </span>
 							<span className="text-description">
-								Allows edits to perform in the background without opening the diff view in editor.
+								Allows editing files in background without opening the diff view in editor.
 							</span>
 						</p>
 					</div>
@@ -405,7 +403,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								Enable Multi-Root Workspace
 							</VSCodeCheckbox>
 							<p className="text-xs">
-								<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
+								<span className="text-error">Experimental: </span>{" "}
 								<span className="text-description">Allows cline to work across multiple workspaces.</span>
 							</p>
 						</div>

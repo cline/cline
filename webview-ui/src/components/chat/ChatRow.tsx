@@ -277,7 +277,8 @@ export const ChatRowContent = memo(
 		onSetQuote,
 		onCancelCommand,
 	}: ChatRowContentProps) => {
-		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode } = useExtensionState()
+		const { backgroundEditEnabled, mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode } =
+			useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [explainChangesDisabled, setExplainChangesDisabled] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
@@ -557,7 +558,7 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>{editToolTitle}</span>
 							</div>
-							{tool.path && tool.content ? (
+							{backgroundEditEnabled && tool.path && tool.content ? (
 								<DiffEditRow patch={tool.content} path={tool.path} />
 							) : (
 								<CodeAccordian
@@ -597,13 +598,17 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>Cline wants to create a new file:</span>
 							</div>
-							<CodeAccordian
-								code={tool.content!}
-								isExpanded={isExpanded}
-								isLoading={message.partial}
-								onToggleExpand={handleToggle}
-								path={tool.path!}
-							/>
+							{backgroundEditEnabled && tool.path && tool.content ? (
+								<DiffEditRow patch={tool.content} path={tool.path} />
+							) : (
+								<CodeAccordian
+									code={tool.content!}
+									isExpanded={isExpanded}
+									isLoading={message.partial}
+									onToggleExpand={handleToggle}
+									path={tool.path!}
+								/>
+							)}
 						</>
 					)
 				case "readFile":

@@ -34,8 +34,20 @@ const LINE_STYLES = {
 	default: "bg-editor-background text-editor-foreground",
 } as const
 
-export const DiffEditRow = memo<{ patch: string; path: string }>(({ patch, path }) => {
-	const { parsedFiles, isStreaming } = useMemo(() => parsePatch(patch, path), [patch, path])
+interface DiffEditRowProps {
+	patch: string
+	path: string
+	isLoading?: boolean
+}
+
+export const DiffEditRow = memo<DiffEditRowProps>(({ patch, path, isLoading }) => {
+	const { parsedFiles, isStreaming } = useMemo(() => {
+		const parsed = parsePatch(patch, path)
+		return {
+			parsedFiles: parsed.parsedFiles,
+			isStreaming: isLoading !== true || parsed.isStreaming,
+		}
+	}, [patch, path, isLoading])
 
 	if (!path) {
 		return null
@@ -108,7 +120,7 @@ const FileBlock = memo<{ file: Patch; isStreaming: boolean }>(
 
 				{isExpanded && (
 					<div
-						className="border-t border-code-block-background max-h-[250px] overflow-y-auto"
+						className="border-t border-code-block-background max-h-72 overflow-y-auto"
 						onScroll={handleScroll}
 						ref={scrollContainerRef}>
 						<div className="font-mono text-xs">
