@@ -63,6 +63,7 @@ export const TASK_CALLBACKS_KEYS = [
 	"reinitExistingTaskFromId",
 	"cancelTask",
 	"updateTaskHistory",
+	"createNewTask",
 	"switchToActMode",
 	"setActiveHookExecution",
 	"clearActiveHookExecution",

@@ -551,6 +551,7 @@ export class Task {
 			this.setActiveHookExecution.bind(this),
 			this.clearActiveHookExecution.bind(this),
 			this.getActiveHookExecution.bind(this),
+			this.createNewTaskCallback.bind(this),
 		)
 	}
 
@@ -822,6 +823,23 @@ export class Task {
 
 	private async switchToActModeCallback(): Promise<boolean> {
 		return await this.controller.toggleActModeForYoloMode()
+	}
+
+	// Callback passed to ToolExecutor to programmatically create a new task
+	private async createNewTaskCallback(text: string, images?: string[], files?: string[]): Promise<string | void> {
+		try {
+			// Prefer controller helper if available (captures telemetry/UI events)
+			// @ts-expect-error handleTaskCreation may not exist on all hosts
+			if (typeof (this.controller as any).handleTaskCreation === "function") {
+				await (this.controller as any).handleTaskCreation(text)
+				return
+			}
+			// Fallback to direct task init
+			return await this.controller.initTask(text, images, files)
+		} catch {
+			// Silently ignore errors and return void to keep tool flow stable
+			return
+		}
 	}
 
 	/**
@@ -3258,7 +3276,7 @@ export class Task {
 								globalWorkflowToggles,
 								this.ulid,
 								this.stateManager.getGlobalSettingsKey("focusChainSettings"),
-								this.useNativeToolCalls
+								this.useNativeToolCalls,
 							)
 
 							if (needsCheck) {

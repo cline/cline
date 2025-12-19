@@ -108,6 +108,9 @@ export interface TaskCallbacks {
 	shouldAutoApproveTool: (toolName: ClineDefaultTool) => boolean | [boolean, boolean]
 	shouldAutoApproveToolWithPath: (toolName: ClineDefaultTool, path?: string) => Promise<boolean>
 
+	// Programmatically create a new task (auto-approval flow for NEW_TASK)
+	createNewTask: (text: string, images?: string[], files?: string[]) => Promise<string | void>
+
 	// Additional callbacks for task management
 	postStateToWebview: () => Promise<void>
 	reinitExistingTaskFromId: (taskId: string) => Promise<void>

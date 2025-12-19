@@ -119,6 +119,7 @@ export class ToolExecutor {
 		private setActiveHookExecution: (hookExecution: NonNullable<typeof taskState.activeHookExecution>) => Promise<void>,
 		private clearActiveHookExecution: () => Promise<void>,
 		private getActiveHookExecution: () => Promise<typeof taskState.activeHookExecution>,
+		private createNewTask: (text: string, images?: string[], files?: string[]) => Promise<string | void>,
 	) {
 		this.autoApprover = new AutoApprove(this.stateManager)
 
@@ -178,6 +179,7 @@ export class ToolExecutor {
 				setActiveHookExecution: this.setActiveHookExecution,
 				clearActiveHookExecution: this.clearActiveHookExecution,
 				getActiveHookExecution: this.getActiveHookExecution,
+				createNewTask: this.createNewTask,
 			},
 			coordinator: this.coordinator,
 		}
