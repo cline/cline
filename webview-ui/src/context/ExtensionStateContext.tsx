@@ -241,6 +241,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		backgroundCommandTaskId: undefined,
 		lastDismissedCliBannerVersion: 0,
 		subagentsEnabled: false,
+		backgroundEditEnabled: false,
 
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],
@@ -249,6 +250,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		multiRootSetting: { user: false, featureFlag: false },
 		hooksEnabled: false,
 		nativeToolCallSetting: false,
+		enableParallelToolCalling: false,
 	})
 	const [expandTaskHeader, setExpandTaskHeader] = useState(true)
 	const [didHydrateState, setDidHydrateState] = useState(false)

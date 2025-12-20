@@ -105,6 +105,8 @@ export interface ExtensionState {
 	remoteConfigSettings?: Partial<RemoteConfigFields>
 	subagentsEnabled?: boolean
 	nativeToolCallSetting?: boolean
+	enableParallelToolCalling?: boolean
+	backgroundEditEnabled?: boolean
 }
 
 export interface ClineMessage {

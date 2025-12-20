@@ -46,7 +46,7 @@ export const ModelDescriptionMarkdown = memo(({ markdown, key, isPopup }: ModelD
 					<div className="absolute bottom-0 right-0 flex items-center">
 						<div className="w-10 h-5 bg-linear-to-r from-transparent to-sidebar-background" />
 						<Button
-							className={cn("bg-sidebar-background p-0 m-0 text-sm", {
+							className={cn("bg-sidebar-background p-0 m-0 text-sm cursor-pointer", {
 								"bg-code-block-background": isPopup,
 							})}
 							onClick={() => setIsExpanded(!isExpanded)}
