@@ -8,12 +8,9 @@ import { sendAddToInputEvent } from "../ui/subscribeToAddToInput"
 
 // 'Add to Cline' context menu in editor and code action
 // Inserts the selected code into the chat.
-export async function addToCline(controller: Controller, request: CommandContext, notebookContext?: String): Promise<Empty> {
-	if (
-		(!request.selectedText || !request.selectedText.trim()) &&
-		!(request.notebookCellJson && request.filePath?.endsWith(".ipynb"))
-	) {
-		Logger.log("❌ No text selected and no notebook cell context - returning early")
+export async function addToCline(controller: Controller, request: CommandContext, notebookContext?: string): Promise<Empty> {
+	if (!request.selectedText?.trim() && !notebookContext) {
+		Logger.log("❌ No text selected and no notebook context - returning early")
 		return {}
 	}
 
@@ -22,11 +19,10 @@ export async function addToCline(controller: Controller, request: CommandContext
 
 	let input = `${fileMention}\n\`\`\`\n${request.selectedText}\n\`\`\``
 
-	// Add notebook cell JSON for .ipynb files to provide complete context
-	if (request.notebookCellJson && filePath.endsWith(".ipynb")) {
-		Logger.log("Adding notebook cell JSON to context for enhanced editing")
-		input += `\n${notebookContext}\n`
-		input += `\n\nCurrent Notebook Cell Context (Raw JSON):\n\`\`\`json\n${request.notebookCellJson}\n\`\`\``
+	// Add notebook context if provided (includes cell JSON)
+	if (notebookContext) {
+		Logger.log("Adding notebook context for enhanced editing")
+		input += `\n${notebookContext}`
 	}
 
 	if (request.diagnostics.length) {
@@ -34,15 +30,16 @@ export async function addToCline(controller: Controller, request: CommandContext
 		input += `\nProblems:\n${problemsString}`
 	}
 
-	await sendAddToInputEvent(input)
+	// Notebooks send immediately, regular adds just fill input
+	if (notebookContext && controller.task) {
+		await controller.task.handleWebviewAskResponse("messageResponse", input)
+	} else if (notebookContext) {
+		await controller.initTask(input)
+	} else {
+		await sendAddToInputEvent(input)
+	}
 
-	console.log(
-		"addToCline",
-		request.selectedText,
-		filePath,
-		request.language,
-		request.notebookCellJson ? "with notebook cell JSON" : "",
-	)
+	console.log("addToCline", request.selectedText, filePath, request.language, notebookContext ? "with notebook context" : "")
 	telemetryService.captureButtonClick("codeAction_addToChat", controller.task?.ulid)
 
 	return {}

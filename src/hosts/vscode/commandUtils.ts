@@ -14,7 +14,7 @@ import { convertVscodeDiagnostics } from "./hostbridge/workspace/getDiagnostics"
  * @param notebookCell The cell index from the active notebook editor
  * @returns JSON string of the matching cell, or null if no match found
  */
-async function findMatchingNotebookCell(filePath: string, notebookCell?: number): Promise<string | null> {
+export async function findMatchingNotebookCell(filePath: string, notebookCell?: number): Promise<string | null> {
 	try {
 		// Read the notebook file directly
 		const notebookContent = await fs.readFile(filePath, "utf8")
@@ -88,41 +88,6 @@ export async function getContextForCommand(
 		filePath,
 		diagnostics,
 		language,
-	}
-
-	// Enhanced notebook handling for .ipynb files
-	if (filePath.endsWith(".ipynb")) {
-		const enhancedNotebookInteractionEnabled =
-			controller.stateManager.getGlobalSettingsKey("enhancedNotebookInteractionEnabled") ?? false
-
-		Logger.log(`🔍 NOTEBOOK DEBUG: File is .ipynb, enhanced feature enabled: ${enhancedNotebookInteractionEnabled}`)
-
-		if (enhancedNotebookInteractionEnabled) {
-			const activeNotebook = vscode.window.activeNotebookEditor
-
-			try {
-				Logger.log(`📓 Processing notebook file: ${filePath}`)
-				Logger.log(
-					`📍 Selection range: ${textRange.start.line}:${textRange.start.character} to ${textRange.end.line}:${textRange.end.character}`,
-				)
-				Logger.log(`📝 Selected text: "${selectedText.substring(0, 100)}${selectedText.length > 100 ? "..." : ""}"`)
-
-				if (activeNotebook) {
-					const cellIndex = activeNotebook.notebook.cellAt(activeNotebook.selection.start).index
-					const notebookCellJson = await findMatchingNotebookCell(filePath, cellIndex)
-
-					if (notebookCellJson) {
-						commandContext.notebookCellJson = notebookCellJson
-						Logger.log("✅ Successfully added notebook cell JSON to context")
-					} else {
-						Logger.log("❌ No matching cell found")
-					}
-				}
-			} catch (error) {
-				Logger.error("💥 Error processing notebook file:", error)
-				// Continue with regular processing - notebook enhancement is optional
-			}
-		}
 	}
 
 	return { controller, commandContext }
