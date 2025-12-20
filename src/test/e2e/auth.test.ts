@@ -63,21 +63,21 @@ e2e("Views - can set up API keys and navigate to Settings from Chat", async ({ s
 	await expect(
 		sidebar
 			.locator("div")
-			.filter({ hasText: /^1\/3$/ })
+			.filter({ hasText: /^1 \/ 3$/ })
 			.first(),
 	).toBeVisible()
 	await sidebar.getByRole("button", { name: "Next banner" }).click()
 	await expect(
 		sidebar
 			.locator("div")
-			.filter({ hasText: /^2\/3$/ })
+			.filter({ hasText: /^2 \/ 3$/ })
 			.first(),
 	).toBeVisible()
 	await sidebar.getByRole("button", { name: "Previous banner" }).click()
 	await expect(
 		sidebar
 			.locator("div")
-			.filter({ hasText: /^1\/3$/ })
+			.filter({ hasText: /^1 \/ 3$/ })
 			.first(),
 	).toBeVisible()
 })
