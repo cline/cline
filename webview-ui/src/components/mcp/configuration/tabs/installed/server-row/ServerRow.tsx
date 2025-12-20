@@ -167,7 +167,11 @@ const ServerRow = ({
 
 	return (
 		<div className="mb-2.5">
-			<div className="flex bg-code-block-background p-2 gap-4 items-center" onClick={handleRowClick}>
+			<div
+				className={cn("flex bg-code-block-background p-2 gap-4 items-center", {
+					"cursor-pointer": !server.error && isExpandable,
+				})}
+				onClick={handleRowClick}>
 				{!server.error && isExpandable && (
 					<span
 						className={cn("mr-2 codicon", {
