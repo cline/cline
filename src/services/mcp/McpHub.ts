@@ -809,6 +809,11 @@ export class McpHub {
 			} else if (this.configsRequireRestart(JSON.parse(currentConnection.server.config), config)) {
 				// Existing server with changed connection config (excludes Cline-specific settings)
 				try {
+					// Set status to "connecting" and notify webview before restart (same pattern as restartConnection)
+					currentConnection.server.status = "connecting"
+					currentConnection.server.error = ""
+					await this.notifyWebviewOfServerChanges()
+
 					if (config.type === "stdio") {
 						this.setupFileWatcher(name, config)
 					}
