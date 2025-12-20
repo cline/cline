@@ -36,6 +36,8 @@ jobs:
             - uses: actions/checkout@v4
               with:
                   ref: ${{ github.event.inputs.tag }}
+                  fetch-depth: 0
+                  fetch-tags: true
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -139,6 +141,7 @@ jobs:
                   files: "*.vsix"
                   body: |
                       ${{ steps.changelog.outputs.content }}
+
                       **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.prev_tag.outputs.prev_tag }}...${{ steps.validate_tag.outputs.tag }}
                   prerelease: ${{ github.event.inputs.release-type == 'pre-release' }}
               env:
