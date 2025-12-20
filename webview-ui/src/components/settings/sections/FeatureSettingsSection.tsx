@@ -35,6 +35,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		subagentsEnabled,
 		nativeToolCallSetting,
 		enableParallelToolCalling,
+		backgroundEditEnabled,
 	} = useExtensionState()
 
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
@@ -375,6 +376,22 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</span>
 						</p>
 					</div>
+					<div className="mt-2.5">
+						<VSCodeCheckbox
+							checked={backgroundEditEnabled}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								updateSetting("backgroundEditEnabled", checked)
+							}}>
+							Enable Background Edit
+						</VSCodeCheckbox>
+						<p className="text-xs">
+							<span className="text-error">Experimental: </span>
+							<span className="text-description">
+								Allows editing files in background without opening the diff view in editor.
+							</span>
+						</p>
+					</div>
 					{multiRootSetting.featureFlag && (
 						<div className="mt-2.5">
 							<VSCodeCheckbox
@@ -386,7 +403,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								Enable Multi-Root Workspace
 							</VSCodeCheckbox>
 							<p className="text-xs">
-								<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
+								<span className="text-error">Experimental: </span>{" "}
 								<span className="text-description">Allows cline to work across multiple workspaces.</span>
 							</p>
 						</div>

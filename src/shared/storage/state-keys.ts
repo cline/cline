@@ -131,8 +131,10 @@ export interface Settings {
 	hooksEnabled: boolean
 	subagentsEnabled: boolean
 	enableParallelToolCalling: boolean
-	hicapModelId: string | undefined
+	backgroundEditEnabled: boolean
 
+	// Model-specific settings
+	hicapModelId: string | undefined
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
 	planModeApiModelId: string | undefined

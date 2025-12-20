@@ -327,12 +327,12 @@ export function normalizeApiConfiguration(
 		case "litellm":
 			const liteLlmModelId =
 				currentMode === "plan" ? apiConfiguration?.planModeLiteLlmModelId : apiConfiguration?.actModeLiteLlmModelId
-			// model info lookup
-			const liteLlmModelInfo = liteLlmModels?.[liteLlmModelId || ""]
+			const liteLlmModelInfo =
+				currentMode === "plan" ? apiConfiguration?.planModeLiteLlmModelInfo : apiConfiguration?.actModeLiteLlmModelInfo
 			return {
 				selectedProvider: provider,
 				selectedModelId: liteLlmModelId || "",
-				selectedModelInfo: liteLlmModelInfo || ({} as ModelInfo),
+				selectedModelInfo: liteLlmModelInfo || liteLlmModelInfoSaneDefaults,
 			}
 		case "xai":
 			return getProviderData(xaiModels, xaiDefaultModelId)
