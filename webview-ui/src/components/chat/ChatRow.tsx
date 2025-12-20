@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
+import { DiffEditRow } from "./DiffEditRow"
 import { ErrorBlockTitle } from "./ErrorBlockTitle"
 import ErrorRow from "./ErrorRow"
 import HookMessage from "./HookMessage"
@@ -276,7 +277,8 @@ export const ChatRowContent = memo(
 		onSetQuote,
 		onCancelCommand,
 	}: ChatRowContentProps) => {
-		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode } = useExtensionState()
+		const { backgroundEditEnabled, mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode } =
+			useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [explainChangesDisabled, setExplainChangesDisabled] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
@@ -556,13 +558,17 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>{editToolTitle}</span>
 							</div>
-							<CodeAccordian
-								// isLoading={message.partial}
-								code={tool.content}
-								isExpanded={isExpanded}
-								onToggleExpand={handleToggle}
-								path={tool.path!}
-							/>
+							{backgroundEditEnabled && tool.path && tool.content ? (
+								<DiffEditRow isLoading={message.partial} patch={tool.content} path={tool.path} />
+							) : (
+								<CodeAccordian
+									// isLoading={message.partial}
+									code={tool.content}
+									isExpanded={isExpanded}
+									onToggleExpand={handleToggle}
+									path={tool.path!}
+								/>
+							)}
 						</>
 					)
 				case "fileDeleted":
@@ -592,13 +598,17 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>Cline wants to create a new file:</span>
 							</div>
-							<CodeAccordian
-								code={tool.content!}
-								isExpanded={isExpanded}
-								isLoading={message.partial}
-								onToggleExpand={handleToggle}
-								path={tool.path!}
-							/>
+							{backgroundEditEnabled && tool.path && tool.content ? (
+								<DiffEditRow patch={tool.content} path={tool.path} />
+							) : (
+								<CodeAccordian
+									code={tool.content!}
+									isExpanded={isExpanded}
+									isLoading={message.partial}
+									onToggleExpand={handleToggle}
+									path={tool.path!}
+								/>
+							)}
 						</>
 					)
 				case "readFile":
@@ -1662,41 +1672,35 @@ export const ChatRowContent = memo(
 							<>
 								<div
 									style={{
-										...headerStyle,
-										marginBottom: "10px",
+										borderRadius: 6,
+										border: `1px solid ${successColor}`,
+										backgroundColor: "color-mix(in srgb, var(--vscode-charts-green) 8%, transparent)",
+										padding: "10px 12px",
 									}}>
-									{icon}
-									{title}
-									{/* <TaskFeedbackButtons
-										isFromHistory={
-											!isLast ||
-											lastModifiedMessage?.ask === "resume_completed_task" ||
-											lastModifiedMessage?.ask === "resume_task"
-										}
-										messageTs={message.ts}
+									<div
 										style={{
-											marginLeft: "auto",
-										}}
-									/> */}
+											...headerStyle,
+											marginBottom: "10px",
+										}}>
+										{icon}
+										{title}
+									</div>
+									<WithCopyButton
+										copyButtonStyle={{ bottom: 10, right: -8 }}
+										onMouseUp={handleMouseUp}
+										position="bottom-right"
+										ref={contentRef}
+										textToCopy={text}>
+										<Markdown markdown={text} />
+										{quoteButtonState.visible && (
+											<QuoteButton
+												left={quoteButtonState.left}
+												onClick={handleQuoteClick}
+												top={quoteButtonState.top}
+											/>
+										)}
+									</WithCopyButton>
 								</div>
-								<WithCopyButton
-									onMouseUp={handleMouseUp}
-									position="bottom-right"
-									ref={contentRef}
-									style={{
-										color: "var(--vscode-charts-green)",
-										paddingTop: 10,
-									}}
-									textToCopy={text}>
-									<Markdown markdown={text} />
-									{quoteButtonState.visible && (
-										<QuoteButton
-											left={quoteButtonState.left}
-											onClick={handleQuoteClick}
-											top={quoteButtonState.top}
-										/>
-									)}
-								</WithCopyButton>
 								{message.partial !== true && hasChanges && (
 									<div style={{ paddingTop: 17, display: "flex", flexDirection: "column", gap: 8 }}>
 										<SuccessButton
@@ -1967,41 +1971,46 @@ export const ChatRowContent = memo(
 								<div>
 									<div
 										style={{
-											...headerStyle,
-											marginBottom: "10px",
+											borderRadius: 6,
+											border: `1px solid ${successColor}`,
+											backgroundColor: "color-mix(in srgb, var(--vscode-charts-green) 8%, transparent)",
+											padding: "10px 12px",
 										}}>
-										{icon}
-										{title}
-										<TaskFeedbackButtons
-											isFromHistory={
-												!isLast ||
-												lastModifiedMessage?.ask === "resume_completed_task" ||
-												lastModifiedMessage?.ask === "resume_task"
-											}
-											messageTs={message.ts}
+										<div
 											style={{
-												marginLeft: "auto",
-											}}
-										/>
-									</div>
-									<WithCopyButton
-										onMouseUp={handleMouseUp}
-										position="bottom-right"
-										ref={contentRef}
-										style={{
-											color: "var(--vscode-charts-green)",
-											paddingTop: 10,
-										}}
-										textToCopy={text}>
-										<Markdown markdown={text} />
-										{quoteButtonState.visible && (
-											<QuoteButton
-												left={quoteButtonState.left}
-												onClick={handleQuoteClick}
-												top={quoteButtonState.top}
+												...headerStyle,
+												marginBottom: "10px",
+											}}>
+											{icon}
+											{title}
+											<TaskFeedbackButtons
+												isFromHistory={
+													!isLast ||
+													lastModifiedMessage?.ask === "resume_completed_task" ||
+													lastModifiedMessage?.ask === "resume_task"
+												}
+												messageTs={message.ts}
+												style={{
+													marginLeft: "auto",
+												}}
 											/>
-										)}
-									</WithCopyButton>
+										</div>
+										<WithCopyButton
+											copyButtonStyle={{ bottom: 10, right: -8 }}
+											onMouseUp={handleMouseUp}
+											position="bottom-right"
+											ref={contentRef}
+											textToCopy={text}>
+											<Markdown markdown={text} />
+											{quoteButtonState.visible && (
+												<QuoteButton
+													left={quoteButtonState.left}
+													onClick={handleQuoteClick}
+													top={quoteButtonState.top}
+												/>
+											)}
+										</WithCopyButton>
+									</div>
 									{message.partial !== true && hasChanges && (
 										<div style={{ marginTop: 15, display: "flex", flexDirection: "column", gap: 8 }}>
 											<SuccessButton
