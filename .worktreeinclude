@@ -1,0 +1,10 @@
+# Environment files
+.env
+.env.*
+*evals.env
+
+# Local ignore rules
+.clineignore
+
+# Local Claude settings
+**/.claude/settings.local.json
