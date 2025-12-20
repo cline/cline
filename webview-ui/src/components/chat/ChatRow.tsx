@@ -1672,41 +1672,35 @@ export const ChatRowContent = memo(
 							<>
 								<div
 									style={{
-										...headerStyle,
-										marginBottom: "10px",
+										borderRadius: 6,
+										border: `1px solid ${successColor}`,
+										backgroundColor: "color-mix(in srgb, var(--vscode-charts-green) 8%, transparent)",
+										padding: "10px 12px",
 									}}>
-									{icon}
-									{title}
-									{/* <TaskFeedbackButtons
-										isFromHistory={
-											!isLast ||
-											lastModifiedMessage?.ask === "resume_completed_task" ||
-											lastModifiedMessage?.ask === "resume_task"
-										}
-										messageTs={message.ts}
+									<div
 										style={{
-											marginLeft: "auto",
-										}}
-									/> */}
+											...headerStyle,
+											marginBottom: "10px",
+										}}>
+										{icon}
+										{title}
+									</div>
+									<WithCopyButton
+										copyButtonStyle={{ bottom: 10, right: -8 }}
+										onMouseUp={handleMouseUp}
+										position="bottom-right"
+										ref={contentRef}
+										textToCopy={text}>
+										<Markdown markdown={text} />
+										{quoteButtonState.visible && (
+											<QuoteButton
+												left={quoteButtonState.left}
+												onClick={handleQuoteClick}
+												top={quoteButtonState.top}
+											/>
+										)}
+									</WithCopyButton>
 								</div>
-								<WithCopyButton
-									onMouseUp={handleMouseUp}
-									position="bottom-right"
-									ref={contentRef}
-									style={{
-										color: "var(--vscode-charts-green)",
-										paddingTop: 10,
-									}}
-									textToCopy={text}>
-									<Markdown markdown={text} />
-									{quoteButtonState.visible && (
-										<QuoteButton
-											left={quoteButtonState.left}
-											onClick={handleQuoteClick}
-											top={quoteButtonState.top}
-										/>
-									)}
-								</WithCopyButton>
 								{message.partial !== true && hasChanges && (
 									<div style={{ paddingTop: 17, display: "flex", flexDirection: "column", gap: 8 }}>
 										<SuccessButton
@@ -1977,41 +1971,46 @@ export const ChatRowContent = memo(
 								<div>
 									<div
 										style={{
-											...headerStyle,
-											marginBottom: "10px",
+											borderRadius: 6,
+											border: `1px solid ${successColor}`,
+											backgroundColor: "color-mix(in srgb, var(--vscode-charts-green) 8%, transparent)",
+											padding: "10px 12px",
 										}}>
-										{icon}
-										{title}
-										<TaskFeedbackButtons
-											isFromHistory={
-												!isLast ||
-												lastModifiedMessage?.ask === "resume_completed_task" ||
-												lastModifiedMessage?.ask === "resume_task"
-											}
-											messageTs={message.ts}
+										<div
 											style={{
-												marginLeft: "auto",
-											}}
-										/>
-									</div>
-									<WithCopyButton
-										onMouseUp={handleMouseUp}
-										position="bottom-right"
-										ref={contentRef}
-										style={{
-											color: "var(--vscode-charts-green)",
-											paddingTop: 10,
-										}}
-										textToCopy={text}>
-										<Markdown markdown={text} />
-										{quoteButtonState.visible && (
-											<QuoteButton
-												left={quoteButtonState.left}
-												onClick={handleQuoteClick}
-												top={quoteButtonState.top}
+												...headerStyle,
+												marginBottom: "10px",
+											}}>
+											{icon}
+											{title}
+											<TaskFeedbackButtons
+												isFromHistory={
+													!isLast ||
+													lastModifiedMessage?.ask === "resume_completed_task" ||
+													lastModifiedMessage?.ask === "resume_task"
+												}
+												messageTs={message.ts}
+												style={{
+													marginLeft: "auto",
+												}}
 											/>
-										)}
-									</WithCopyButton>
+										</div>
+										<WithCopyButton
+											copyButtonStyle={{ bottom: 10, right: -8 }}
+											onMouseUp={handleMouseUp}
+											position="bottom-right"
+											ref={contentRef}
+											textToCopy={text}>
+											<Markdown markdown={text} />
+											{quoteButtonState.visible && (
+												<QuoteButton
+													left={quoteButtonState.left}
+													onClick={handleQuoteClick}
+													top={quoteButtonState.top}
+												/>
+											)}
+										</WithCopyButton>
+									</div>
 									{message.partial !== true && hasChanges && (
 										<div style={{ marginTop: 15, display: "flex", flexDirection: "column", gap: 8 }}>
 											<SuccessButton
