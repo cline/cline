@@ -419,8 +419,12 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				// Fetch cell JSON and bundle into notebookContext
 				const filePath = context.commandContext.filePath || ""
-				const cellIndex = activeNotebook.notebook.cellAt(activeNotebook.selection.start).index
-				const cellJson = await findMatchingNotebookCell(filePath, cellIndex)
+				// Handle empty notebooks - no cell to reference
+				let cellJson: string | null = null
+				if (activeNotebook.notebook.cellCount > 0) {
+					const cellIndex = activeNotebook.notebook.cellAt(activeNotebook.selection.start).index
+					cellJson = await findMatchingNotebookCell(filePath, cellIndex)
+				}
 
 				const notebookContext = `User prompt: ${userPrompt}
 Insert a new Jupyter notebook cell above or below the current cell based on user prompt.

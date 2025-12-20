@@ -73,7 +73,14 @@ export async function getContextForCommand(
 
 	const editor = vscode.window.activeTextEditor
 	if (!editor) {
-		return
+		// Fallback for notebooks with no cells (no text editor active)
+		const activeNotebook = vscode.window.activeNotebookEditor
+		if (!activeNotebook) {
+			return
+		}
+		const filePath = activeNotebook.notebook.uri.fsPath
+		const diagnostics = convertVscodeDiagnostics(vscodeDiagnostics || [])
+		return { controller, commandContext: { selectedText: "", filePath, diagnostics, language: "" } }
 	}
 	// Use provided range if available, otherwise use current selection
 	// (vscode command passes an argument in the first param by default, so we need to ensure it's a Range object)
