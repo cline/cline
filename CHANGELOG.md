@@ -2,13 +2,8 @@
 
 ## 3.46.0
 
-### Minor Changes
-
 - b3e0ef9: add multi-root workspace support to cline CLI
 - ace4819: show slash command autocompletion in the cli
-
-### Patch Changes
-
 - f019c36: Refactor Anthropic handler to use metadata for reasoning support
 - 12eadd3: fix cline auth for bedrock provider
 - 09276eb: Prevent duplicate error messages during streaming for Diff Edit tool when Parallel Tool Calling is not enabled.
