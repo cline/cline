@@ -1027,6 +1027,11 @@ export class McpHub {
 				const connection = this.connections.find((conn) => conn.server.name === serverName)
 				if (connection) {
 					connection.server.disabled = disabled
+					// When enabling a server, set status to "connecting" so UI shows yellow indicator
+					if (!disabled) {
+						connection.server.status = "connecting"
+						connection.server.error = ""
+					}
 				}
 
 				const serverOrder = Object.keys(config.mcpServers || {})
