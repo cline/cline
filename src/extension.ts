@@ -408,10 +408,12 @@ export async function activate(context: vscode.ExtensionContext) {
 				}
 
 				// Create context with cells and user prompt
-				const notebookContext = `User prompt: ${userPrompt}\n\nInsert a new Jupyter notebook cell above or below the current cell based on user prompt. \n\n Special considerations for using replace_in_file on *.ipynb files:
-										\n * Jupyter notebook files are JSON format with specific structure for source code cells
-										\n * Source code in cells is stored as JSON string arrays ending with explicit \\n characters and commas
-										\n * Always match the exact JSON format including quotes, commas, and escaped newlines. `
+				const notebookContext = `User prompt: ${userPrompt}
+Insert a new Jupyter notebook cell above or below the current cell based on user prompt.
+Special considerations for using replace_in_file on *.ipynb files:
+* Jupyter notebook files are JSON format with specific structure for source code cells
+* Source code in cells is stored as JSON string arrays ending with explicit \\n characters and commas
+* Always match the exact JSON format including quotes, commas, and escaped newlines. `
 				const context = await getContextForCommand(range, diagnostics)
 				if (!context) {
 					return
