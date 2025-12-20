@@ -389,42 +389,44 @@ export async function activate(context: vscode.ExtensionContext) {
 * Source code in cells is stored as JSON string arrays ending with explicit \\n characters and commas
 * Always match the exact JSON format including quotes, commas, and escaped newlines.`
 
+	// Helper to get notebook context for Jupyter commands
+	async function getNotebookCommandContext(range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) {
+		const activeNotebook = vscode.window.activeNotebookEditor
+		if (!activeNotebook) {
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: "No active Jupyter notebook found. Please open a .ipynb file first.",
+			})
+			return null
+		}
+
+		const ctx = await getContextForCommand(range, diagnostics)
+		if (!ctx) {
+			return null
+		}
+
+		const filePath = ctx.commandContext.filePath || ""
+		let cellJson: string | null = null
+		if (activeNotebook.notebook.cellCount > 0) {
+			const cellIndex = activeNotebook.notebook.cellAt(activeNotebook.selection.start).index
+			cellJson = await findMatchingNotebookCell(filePath, cellIndex)
+		}
+
+		return { ...ctx, cellJson }
+	}
+
 	context.subscriptions.push(
 		vscode.commands.registerCommand(
 			commands.JupyterGenerateCell,
 			async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
-				const activeNotebook = vscode.window.activeNotebookEditor
-				if (!activeNotebook) {
-					HostProvider.window.showMessage({
-						type: ShowMessageType.ERROR,
-						message: "No active Jupyter notebook found. Please open a .ipynb file first.",
-					})
-					return
-				}
-
-				// Get user prompt using custom input dialog
 				const userPrompt = await showJupyterPromptInput(
 					"Generate Notebook Cell",
 					"Enter your prompt for generating notebook cell (press Enter to confirm & Esc to cancel)",
 				)
+				if (!userPrompt) return
 
-				if (!userPrompt) {
-					return // User cancelled the input
-				}
-
-				const context = await getContextForCommand(range, diagnostics)
-				if (!context) {
-					return
-				}
-
-				// Fetch cell JSON and bundle into notebookContext
-				const filePath = context.commandContext.filePath || ""
-				// Handle empty notebooks - no cell to reference
-				let cellJson: string | null = null
-				if (activeNotebook.notebook.cellCount > 0) {
-					const cellIndex = activeNotebook.notebook.cellAt(activeNotebook.selection.start).index
-					cellJson = await findMatchingNotebookCell(filePath, cellIndex)
-				}
+				const ctx = await getNotebookCommandContext(range, diagnostics)
+				if (!ctx) return
 
 				const notebookContext = `User prompt: ${userPrompt}
 Insert a new Jupyter notebook cell above or below the current cell based on user prompt.
@@ -432,10 +434,10 @@ ${NOTEBOOK_EDIT_INSTRUCTIONS}
 
 Current Notebook Cell Context (JSON, sanitized of image data):
 \`\`\`json
-${cellJson || "{}"}
+${ctx.cellJson || "{}"}
 \`\`\``
 
-				await addToCline(context.controller, context.commandContext, notebookContext)
+				await addToCline(ctx.controller, ctx.commandContext, notebookContext)
 			},
 		),
 	)
@@ -444,30 +446,14 @@ ${cellJson || "{}"}
 		vscode.commands.registerCommand(
 			commands.JupyterExplainCell,
 			async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
-				const activeNotebook = vscode.window.activeNotebookEditor
-				if (!activeNotebook) {
-					HostProvider.window.showMessage({
-						type: ShowMessageType.ERROR,
-						message: "No active Jupyter notebook found. Please open a .ipynb file first.",
-					})
-					return
-				}
+				const ctx = await getNotebookCommandContext(range, diagnostics)
+				if (!ctx) return
 
-				const context = await getContextForCommand(range, diagnostics)
-				if (!context) {
-					return
-				}
-
-				// Fetch cell JSON and bundle into notebookContext
-				const filePath = context.commandContext.filePath || ""
-				const cellIndex = activeNotebook.notebook.cellAt(activeNotebook.selection.start).index
-				const cellJson = await findMatchingNotebookCell(filePath, cellIndex)
-
-				const notebookContext = cellJson
-					? `\n\nCurrent Notebook Cell Context (JSON, sanitized of image data):\n\`\`\`json\n${cellJson}\n\`\`\``
+				const notebookContext = ctx.cellJson
+					? `\n\nCurrent Notebook Cell Context (JSON, sanitized of image data):\n\`\`\`json\n${ctx.cellJson}\n\`\`\``
 					: undefined
 
-				await explainWithCline(context.controller, context.commandContext, notebookContext)
+				await explainWithCline(ctx.controller, ctx.commandContext, notebookContext)
 			},
 		),
 	)
@@ -476,44 +462,24 @@ ${cellJson || "{}"}
 		vscode.commands.registerCommand(
 			commands.JupyterImproveCell,
 			async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
-				const activeNotebook = vscode.window.activeNotebookEditor
-				if (!activeNotebook) {
-					HostProvider.window.showMessage({
-						type: ShowMessageType.ERROR,
-						message: "No active Jupyter notebook found. Please open a .ipynb file first.",
-					})
-					return
-				}
-
-				// Get user prompt using custom input dialog
 				const userPrompt = await showJupyterPromptInput(
 					"Improve Notebook Cell",
 					"Enter your prompt for improving the current notebook cell (press Enter to confirm & Esc to cancel)",
 				)
+				if (!userPrompt) return
 
-				if (!userPrompt) {
-					return // User cancelled the input
-				}
-
-				const context = await getContextForCommand(range, diagnostics)
-				if (!context) {
-					return
-				}
-
-				// Fetch cell JSON and bundle into notebookContext
-				const filePath = context.commandContext.filePath || ""
-				const cellIndex = activeNotebook.notebook.cellAt(activeNotebook.selection.start).index
-				const cellJson = await findMatchingNotebookCell(filePath, cellIndex)
+				const ctx = await getNotebookCommandContext(range, diagnostics)
+				if (!ctx) return
 
 				const notebookContext = `User prompt: ${userPrompt}
 ${NOTEBOOK_EDIT_INSTRUCTIONS}
 
 Current Notebook Cell Context (JSON, sanitized of image data):
 \`\`\`json
-${cellJson || "{}"}
+${ctx.cellJson || "{}"}
 \`\`\``
 
-				await improveWithCline(context.controller, context.commandContext, notebookContext)
+				await improveWithCline(ctx.controller, ctx.commandContext, notebookContext)
 			},
 		),
 	)
