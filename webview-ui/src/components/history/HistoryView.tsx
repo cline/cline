@@ -349,11 +349,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								</span>
 							</VSCodeRadio>
 						</VSCodeRadioGroup>
-
-						<div className="flex justify-end gap-2.5">
-							<VSCodeButton onClick={() => handleBatchHistorySelect(true)}>Select All</VSCodeButton>
-							<VSCodeButton onClick={() => handleBatchHistorySelect(false)}>Select None</VSCodeButton>
-						</div>
 					</div>
 				</div>
 				<div style={{ flexGrow: 1, overflowY: "auto", margin: 0 }}>
@@ -649,6 +644,14 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						padding: "10px 10px",
 						borderTop: "1px solid var(--vscode-panel-border)",
 					}}>
+					<div className="flex gap-2.5 mb-2.5">
+						<VSCodeButton appearance="secondary" onClick={() => handleBatchHistorySelect(true)} style={{ flex: 1 }}>
+							Select All
+						</VSCodeButton>
+						<VSCodeButton appearance="secondary" onClick={() => handleBatchHistorySelect(false)} style={{ flex: 1 }}>
+							Select None
+						</VSCodeButton>
+					</div>
 					{selectedItems.length > 0 ? (
 						<DangerButton
 							aria-label="Delete selected items"
