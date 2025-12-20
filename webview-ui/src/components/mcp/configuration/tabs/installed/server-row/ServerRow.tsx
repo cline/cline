@@ -207,7 +207,14 @@ const ServerRow = ({
 					</Button>
 				)}
 				{/* Toggle Switch */}
-				<Switch checked={!server.disabled} key={server.name} onClick={handleToggleMcpServer} />
+				<Switch
+					checked={!server.disabled}
+					key={server.name}
+					onClick={(e) => {
+						e.stopPropagation()
+						handleToggleMcpServer()
+					}}
+				/>
 				<div
 					className={cn("h-2 w-2 ml-0.5 rounded-full", {
 						"bg-success": server.status === "connected",
