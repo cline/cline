@@ -178,7 +178,9 @@ export class AuthService {
 						if (updatedAuthInfo) {
 							this.authState = updatedAuthInfo
 							clineAccountAuthToken = updatedAuthInfo.authInfo?.idToken
-							authStatusChanged = true
+							if (updatedAuthInfo.authInfo) {
+								authStatusChanged = true
+							}
 						}
 					} catch (error) {
 						// Only log out for permanent auth failures, not network issues
