@@ -205,7 +205,7 @@ export class McpHub {
 		})
 
 		this.settingsWatcher.on("change", async () => {
-			// Skip processing if we're the ones making the change (e.g., autoApprove toggle)
+			// Skip processing if we're updating Cline-specific settings (autoApprove, timeout)
 			if (this.isUpdatingClineSettings) {
 				return
 			}
@@ -738,7 +738,7 @@ export class McpHub {
 					console.error(`Failed to connect to new MCP server ${name}:`, error)
 				}
 			} else if (this.configsRequireRestart(JSON.parse(currentConnection.server.config), config)) {
-				// Existing server with changed config (excluding autoApprove changes)
+				// Existing server with changed connection config (excludes Cline-specific settings)
 				try {
 					if (config.type === "stdio") {
 						this.setupFileWatcher(name, config)
@@ -750,7 +750,7 @@ export class McpHub {
 					console.error(`Failed to reconnect MCP server ${name}:`, error)
 				}
 			} else {
-				// Config is the same except possibly autoApprove - update in-memory autoApprove state
+				// Only Cline-specific settings changed - update in-memory state without restart
 				const autoApprove = config.autoApprove || []
 				if (currentConnection.server.tools) {
 					currentConnection.server.tools = currentConnection.server.tools.map((tool) => ({
@@ -758,6 +758,14 @@ export class McpHub {
 						autoApprove: autoApprove.includes(tool.name),
 					}))
 				}
+				// Also update Cline-specific settings in the stored config.
+				// This handles the case where someone manually edits the MCP settings file -
+				// the file watcher triggers this code path, and we need to sync the in-memory
+				// config with the file without restarting the server.
+				const currentConfig = JSON.parse(currentConnection.server.config)
+				currentConfig.autoApprove = config.autoApprove
+				currentConfig.timeout = config.timeout
+				currentConnection.server.config = JSON.stringify(currentConfig)
 			}
 		}
 
@@ -770,7 +778,7 @@ export class McpHub {
 		const currentNames = new Set(this.connections.map((conn) => conn.server.name))
 		const newNames = new Set(Object.keys(newServers))
 
-		// Track if any connection-level changes occurred (not just autoApprove)
+		// Track if any connection-level changes occurred (excludes Cline-specific settings)
 		let connectionChangesOccurred = false
 
 		// Delete removed servers
@@ -799,7 +807,7 @@ export class McpHub {
 					console.error(`Failed to connect to new MCP server ${name}:`, error)
 				}
 			} else if (this.configsRequireRestart(JSON.parse(currentConnection.server.config), config)) {
-				// Existing server with changed config (excluding autoApprove changes)
+				// Existing server with changed connection config (excludes Cline-specific settings)
 				try {
 					if (config.type === "stdio") {
 						this.setupFileWatcher(name, config)
@@ -812,7 +820,7 @@ export class McpHub {
 					console.error(`Failed to reconnect MCP server ${name}:`, error)
 				}
 			} else {
-				// Config is the same except possibly autoApprove - update in-memory autoApprove state
+				// Only Cline-specific settings changed - update in-memory state without restart
 				// Don't set connectionChangesOccurred since the RPC already returned the updated state
 				const autoApprove = config.autoApprove || []
 				if (currentConnection.server.tools) {
@@ -821,11 +829,16 @@ export class McpHub {
 						autoApprove: autoApprove.includes(tool.name),
 					}))
 				}
+				// Also update Cline-specific settings in the stored config
+				const currentConfig = JSON.parse(currentConnection.server.config)
+				currentConfig.autoApprove = config.autoApprove
+				currentConfig.timeout = config.timeout
+				currentConnection.server.config = JSON.stringify(currentConfig)
 			}
 		}
 
 		// Only notify webview if actual connection changes occurred.
-		// For autoApprove-only changes, the RPC response already updated the webview,
+		// For Cline-specific settings changes, the RPC response already updated the webview,
 		// so we skip notification to avoid race conditions.
 		if (connectionChangesOccurred) {
 			await this.notifyWebviewOfServerChanges()
