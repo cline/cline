@@ -54,6 +54,25 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	}, [hideAnnouncement])
 
 	/**
+	 * Check if a banner has been dismissed based on its version
+	 */
+	const isBannerDismissed = useCallback(
+		(bannerId: string): boolean => {
+			if (bannerId.startsWith("info-banner")) {
+				return (lastDismissedInfoBannerVersion ?? 0) >= CURRENT_INFO_BANNER_VERSION
+			}
+			if (bannerId.startsWith("new-model")) {
+				return (lastDismissedModelBannerVersion ?? 0) >= CURRENT_MODEL_BANNER_VERSION
+			}
+			if (bannerId.startsWith("cli-")) {
+				return (lastDismissedCliBannerVersion ?? 0) >= CURRENT_CLI_BANNER_VERSION
+			}
+			return false
+		},
+		[lastDismissedInfoBannerVersion, lastDismissedModelBannerVersion, lastDismissedCliBannerVersion],
+	)
+
+	/**
 	 * Banner configuration from backend
 	 * In production, this would come from an API/gRPC call
 	 * For now, using EXAMPLE_BANNER_DATA with version-based filtering
@@ -61,6 +80,10 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	const bannerConfig = useMemo((): BannerCardData[] => {
 		// Filter banners based on version tracking and user status
 		return BANNER_DATA.filter((banner) => {
+			if (isBannerDismissed(banner.id)) {
+				return false
+			}
+
 			if (banner.isClineUserOnly !== undefined) {
 				return banner.isClineUserOnly === !!clineUser
 			}
@@ -71,7 +94,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 
 			return true
 		})
-	}, [lastDismissedInfoBannerVersion, lastDismissedCliBannerVersion, lastDismissedModelBannerVersion, clineUser])
+	}, [isBannerDismissed, clineUser])
 
 	/**
 	 * Action handler - maps action types to actual implementations
