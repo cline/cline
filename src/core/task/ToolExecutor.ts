@@ -213,7 +213,7 @@ export class ToolExecutor {
 		this.coordinator.register(new SharedToolHandler(ClineDefaultTool.FILE_EDIT, writeHandler))
 		this.coordinator.register(new SharedToolHandler(ClineDefaultTool.NEW_RULE, writeHandler))
 
-		this.coordinator.register(new SearchSubAgentHandler(validator))
+		this.coordinator.register(new SearchSubAgentHandler())
 		this.coordinator.register(new SearchFilesToolHandler(validator))
 
 		this.coordinator.register(new ListCodeDefinitionNamesToolHandler(validator))

@@ -731,10 +731,10 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div style={headerStyle}>
-								{tool.content ? (
-									<ScanSearchIcon className="size-2" />
-								) : (
+								{message.partial ? (
 									<Loader2Icon className="size-2 animate-spin" />
+								) : (
+									<ScanSearchIcon className="size-2" />
 								)}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
@@ -742,11 +742,14 @@ export const ChatRowContent = memo(
 							</div>
 							<Button
 								className="bg-code-block-background text-description border border-editor-group-border rounded-xs overflow-hidden w-full flex flex-col justify-start items-start text-left"
+								disabled={message.partial}
 								onClick={handleToggle}
 								variant="ghost">
+								{/* Search Agent Query */}
 								<span className="w-full break-words whitespace-normal text-left">{tool.filePattern} </span>
 								<div className="w-full flex flex-col gap-1 text-left">
-									{isExpanded && tool.content?.split("\n")?.map((line) => <div className="w-full">{line}</div>)}
+									{(message.partial || isExpanded) &&
+										tool.content?.split("\n")?.map((line) => <div className="w-full">{line}</div>)}
 								</div>
 							</Button>
 						</>

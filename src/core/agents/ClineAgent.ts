@@ -18,6 +18,24 @@ export interface AgentActions {
 }
 
 /**
+ * Progress update sent during agent iteration
+ */
+export interface AgentIterationUpdate {
+	/** Current iteration number (0-indexed) */
+	iteration: number
+	/** Maximum iterations allowed */
+	maxIterations: number
+	/** Actions extracted from the agent's response */
+	actions?: AgentActions
+	/** Current context state */
+	context?: unknown
+	/** Cost incurred in this iteration */
+	cost?: number
+	/** Message describing the current status etc */
+	message?: string
+}
+
+/**
  * Configuration for creating a ClineAgent instance
  */
 export interface ClineAgentConfig {
@@ -25,8 +43,8 @@ export interface ClineAgentConfig {
 	modelId: string
 	/** Maximum number of iterations in the agentic loop */
 	maxIterations?: number
-	/** Callback to track cost accumulation */
-	onCostUpdate?: (cost: number) => void
+	/** Callback for iteration progress updates */
+	onIterationUpdate: (update: AgentIterationUpdate) => void | Promise<void>
 	/** System Prompt for the agent */
 	systemPrompt?: string
 	/** Starting messages for the agent */
@@ -43,15 +61,16 @@ export interface ClineAgentConfig {
  */
 export abstract class ClineAgent<TContext> {
 	protected readonly client: ApiHandler
+	protected currentIteration: number = 0
 	protected readonly maxIterations: number
-	protected readonly onCostUpdate?: (cost: number) => void
+	protected readonly onIterationUpdate: (update: AgentIterationUpdate) => void | Promise<void>
 	protected cost = 0
 
 	constructor(private config: ClineAgentConfig) {
 		// Move this to individual subclasses to allow for different client configurations
 		this.client = config.client ?? new ClineHandler({ openRouterModelId: config.modelId, ...config.apiParams })
 		this.maxIterations = config.maxIterations ?? 3
-		this.onCostUpdate = config.onCostUpdate
+		this.onIterationUpdate = config.onIterationUpdate
 	}
 
 	/**
@@ -125,7 +144,7 @@ export abstract class ClineAgent<TContext> {
 	 * @param foundNewContext - Whether new context was found in this iteration
 	 * @param isReadyToAnswer - Whether the agent is ready to answer
 	 */
-	abstract shouldContinue(context: TContext, iteration: number, foundNewContext: boolean, isReadyToAnswer: boolean): boolean
+	abstract shouldContinue(context: TContext, foundNewContext: boolean, isReadyToAnswer: boolean): boolean
 
 	/**
 	 * Formats the final result from the context
@@ -150,7 +169,11 @@ export abstract class ClineAgent<TContext> {
 			}
 			if (msg.type === "usage" && msg.totalCost) {
 				this.cost += msg.totalCost
-				this.onCostUpdate?.(this.cost)
+				await this.onIterationUpdate?.({
+					iteration: this.currentIteration,
+					maxIterations: this.maxIterations,
+					cost: msg.totalCost,
+				})
 			}
 		}
 
@@ -167,7 +190,7 @@ export abstract class ClineAgent<TContext> {
 		const context = this.createInitialContext()
 
 		for (let iteration = 0; iteration < this.maxIterations; iteration++) {
-			console.log(`\n=== Agent iteration ${iteration + 1}/${this.maxIterations} ===`)
+			this.currentIteration = iteration + 1
 
 			// Build context prompt and system prompt
 			const contextPrompt = this.buildContextPrompt(context, iteration)
@@ -182,10 +205,18 @@ export abstract class ClineAgent<TContext> {
 			const stream = this.client.createMessage(systemPrompt, messages)
 			const fullResponse = await this.processStream(stream)
 
-			console.log(`Iteration ${iteration + 1} response:`, fullResponse.substring(0, 200))
+			console.log(`Iteration ${this.currentIteration} response:`, fullResponse.substring(0, 200))
 
 			// Extract actions from response
 			const actions = this.extractActions(fullResponse)
+
+			// Send iteration update
+			await this.onIterationUpdate?.({
+				iteration,
+				maxIterations: this.maxIterations,
+				actions,
+				context,
+			})
 
 			// If ready to answer and has context files, read them first
 			if (actions.isReadyToAnswer && actions.contextFiles.length > 0) {
@@ -216,7 +247,7 @@ export abstract class ClineAgent<TContext> {
 			const foundNewContext = this.updateContextWithToolResults(context, actions.toolCalls, toolResults)
 
 			// Check if we should continue
-			if (!this.shouldContinue(context, iteration, foundNewContext, false)) {
+			if (!this.shouldContinue(context, foundNewContext, false)) {
 				console.log("Agent determined it should stop iterating.")
 				break
 			}

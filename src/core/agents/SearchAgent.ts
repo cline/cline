@@ -3,7 +3,7 @@ import { regexSearchFiles } from "@services/ripgrep"
 import { resolveWorkspacePath } from "@/core/workspace/WorkspaceResolver"
 import { ToolResponse } from "../task"
 import type { TaskConfig } from "../task/tools/types/TaskConfig"
-import { type AgentActions, ClineAgent } from "./ClineAgent"
+import { type AgentActions, AgentIterationUpdate, ClineAgent } from "./ClineAgent"
 
 interface SearchResult {
 	workspaceName?: string
@@ -46,12 +46,12 @@ const SEARCH_MODELS = {
 export class SearchAgent extends ClineAgent<SearchContext> {
 	constructor(
 		private taskConfig: TaskConfig,
-		modelId: string = SEARCH_MODELS.gemini,
 		maxIterations: number = 3,
-		onCostUpdate?: (cost: number) => void,
+		onIterationUpdate: (update: AgentIterationUpdate) => void | Promise<void>,
 		systemPrompt?: string,
+		modelId: string = SEARCH_MODELS.gemini,
 	) {
-		super({ modelId, maxIterations, onCostUpdate, systemPrompt })
+		super({ modelId, maxIterations, onIterationUpdate, systemPrompt })
 	}
 
 	buildSystemPrompt(userInput: string, contextPrompt: string): string {
@@ -67,19 +67,31 @@ export class SearchAgent extends ClineAgent<SearchContext> {
 		const contextParts: string[] = []
 		const MAX_RESULTS_TO_SHOW = 5 // Show details for first 5 searches
 
+		// Track all queries that have been searched
+		const allSearchedQueries: string[] = []
+		const successfulQueries: string[] = []
+		const unsuccessfulQueries: string[] = []
+
 		// Add search results
 		let resultIndex = 0
 		for (const [query, result] of context.searchResults) {
-			if (resultIndex < MAX_RESULTS_TO_SHOW && result.success && result.resultCount > 0) {
-				// Include the full search results for the first few queries
-				contextParts.push(`### Search: "${query}"\n${result.workspaceResults}`)
-			} else if (result.success && result.resultCount > 0) {
-				// For remaining queries, just show summary
-				contextParts.push(
-					`### Search: "${query}"\nFound ${result.resultCount} result${result.resultCount > 1 ? "s" : ""}`,
-				)
+			allSearchedQueries.push(query)
+
+			if (result.success && result.resultCount > 0) {
+				successfulQueries.push(query)
+				if (resultIndex < MAX_RESULTS_TO_SHOW) {
+					// Include the full search results for the first few queries
+					contextParts.push(`### Search: "${query}"\n${result.workspaceResults}`)
+				} else {
+					// For remaining queries, just show summary
+					contextParts.push(
+						`### Search: "${query}"\nFound ${result.resultCount} result${result.resultCount > 1 ? "s" : ""}`,
+					)
+				}
+				resultIndex++
+			} else {
+				unsuccessfulQueries.push(query)
 			}
-			resultIndex++
 		}
 
 		// Add file contents
@@ -87,9 +99,22 @@ export class SearchAgent extends ClineAgent<SearchContext> {
 			contextParts.push(`### File: ${filePath}\n\`\`\`\n${content}\n\`\`\``)
 		}
 
+		// Build header with search history
 		const totalFiles = context.filePaths.size
 		const totalFileContents = context.fileContents.size
-		const header = `Retrieved context from ${context.searchResults.size} search${context.searchResults.size > 1 ? "es" : ""} (${totalFiles} unique file${totalFiles > 1 ? "s" : ""}) and ${totalFileContents} file content${totalFileContents > 1 ? "s" : ""}:\n\n`
+		let header = `Retrieved context from ${context.searchResults.size} search${context.searchResults.size > 1 ? "es" : ""} (${totalFiles} unique file${totalFiles > 1 ? "s" : ""}) and ${totalFileContents} file content${totalFileContents > 1 ? "s" : ""}:\n\n`
+
+		// Add list of previously searched queries to prevent duplicates
+		if (allSearchedQueries.length > 0) {
+			header += `**Previously searched queries (DO NOT search these again):**\n`
+			for (const query of successfulQueries) {
+				header += `- "${query}" ✓ (found results)\n`
+			}
+			for (const query of unsuccessfulQueries) {
+				header += `- "${query}" ✗ (no results)\n`
+			}
+			header += `\n`
+		}
 
 		return header + contextParts.join("\n\n")
 	}
@@ -202,7 +227,7 @@ export class SearchAgent extends ClineAgent<SearchContext> {
 
 		const searchEndTime = performance.now()
 		const msg = `Searches executed in ${searchEndTime - searchStartTime} ms. with ${searchQueries.length} queries and ${filePaths.length} file reads. Total results: ${results.length}`
-		console.log(msg)
+		this.onIterationUpdate({ iteration: this.currentIteration, maxIterations: this.maxIterations, message: msg })
 
 		return results
 	}
@@ -349,12 +374,7 @@ export class SearchAgent extends ClineAgent<SearchContext> {
 		}
 	}
 
-	public shouldContinue(
-		_context: SearchContext,
-		iteration: number,
-		foundNewContext: boolean,
-		isReadyToAnswer: boolean,
-	): boolean {
+	public shouldContinue(_context: SearchContext, foundNewContext: boolean, isReadyToAnswer: boolean): boolean {
 		// Stop if ready to answer
 		if (isReadyToAnswer) {
 			return false
@@ -366,7 +386,7 @@ export class SearchAgent extends ClineAgent<SearchContext> {
 		}
 
 		// Continue if we have iterations left
-		return iteration < this.maxIterations - 1
+		return this.currentIteration < this.maxIterations - 1
 	}
 
 	public formatResult(context: SearchContext, pathOnly = true): ToolResponse {
@@ -377,7 +397,7 @@ export class SearchAgent extends ClineAgent<SearchContext> {
 				const resultLabel = filePathsArray.length === 1 ? "1 file" : `${filePathsArray.length} files`
 				const formattedPaths = filePathsArray.map((filePath, _i) => `- ${filePath}`).join("\n")
 
-				return `Search Agent selected ${resultLabel}:\n${formattedPaths}`
+				return `Search Agent returned ${resultLabel}:\n${formattedPaths}`
 			}
 
 			return [...context.fileContents].map(([filePath, content]) => ({ type: "text", text: `${filePath}\n${content}` }))
@@ -460,6 +480,7 @@ const SEARCH_AGENT_TOOLS: ToolDefinition[] = [
 		placeholder: "SEARCH_QUERY",
 		examples: [
 			`Single search: \`<TOOLSEARCH><query>symbol name</query></TOOLSEARCH>\``,
+			`Single search with REGEX query: \`<TOOLSEARCH><query>class \w+Handler.*ApiHandler|export.*ApiHandler|ApiProvider|ModelProvider</query></TOOLSEARCH>\``,
 			`Multiple parallel searches: \`<TOOLSEARCH><query>getController</query></TOOLSEARCH><TOOLSEARCH><query>AuthService</query></TOOLSEARCH>\``,
 			`Search for a class definition: \`<TOOLSEARCH><query>class UserController</query></TOOLSEARCH>\``,
 		],
