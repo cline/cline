@@ -2213,7 +2213,12 @@ export class Task {
 
 		// Now, if it's the first request AND checkpoints are enabled AND tracker was successfully initialized,
 		// then say "checkpoint_created" and perform the commit.
-		if (isFirstRequest && this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting") && this.checkpointManager) {
+		if (
+			isFirstRequest &&
+			this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting") &&
+			this.checkpointManager &&
+			!this.taskState.checkpointManagerErrorMessage
+		) {
 			await this.say("checkpoint_created") // Now this is conditional
 			const lastCheckpointMessageIndex = findLastIndex(
 				this.messageStateHandler.getClineMessages(),
