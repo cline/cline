@@ -1,10 +1,8 @@
-# Environment files
-.env
-.env.*
-*evals.env
+# Dependencies
+node_modules
+webview-ui/node_modules
 
-# Local ignore rules
-.clineignore
-
-# Local Claude settings
-**/.claude/settings.local.json
+# Generated proto files
+src/generated/
+src/shared/proto/
+webview-ui/src/services/grpc-client.ts
