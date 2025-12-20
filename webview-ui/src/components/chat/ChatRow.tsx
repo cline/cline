@@ -36,6 +36,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
+import { DiffEditRow } from "./DiffEditRow"
 import { ErrorBlockTitle } from "./ErrorBlockTitle"
 import ErrorRow from "./ErrorRow"
 import HookMessage from "./HookMessage"
@@ -340,7 +341,8 @@ export const ChatRowContent = memo(
 		onSetQuote,
 		onCancelCommand,
 	}: ChatRowContentProps) => {
-		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode } = useExtensionState()
+		const { backgroundEditEnabled, mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode } =
+			useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [explainChangesDisabled, setExplainChangesDisabled] = useState(false)
 		const [viewChangesHovered, setViewChangesHovered] = useState(false)
@@ -656,13 +658,17 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>{editToolTitle}</span>
 							</div>
-							<CodeAccordian
-								// isLoading={message.partial}
-								code={tool.content}
-								isExpanded={isExpanded}
-								onToggleExpand={handleToggle}
-								path={tool.path!}
-							/>
+							{backgroundEditEnabled && tool.path && tool.content ? (
+								<DiffEditRow isLoading={message.partial} patch={tool.content} path={tool.path} />
+							) : (
+								<CodeAccordian
+									// isLoading={message.partial}
+									code={tool.content}
+									isExpanded={isExpanded}
+									onToggleExpand={handleToggle}
+									path={tool.path!}
+								/>
+							)}
 						</>
 					)
 				case "fileDeleted":
@@ -692,13 +698,17 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>Cline wants to create a new file:</span>
 							</div>
-							<CodeAccordian
-								code={tool.content!}
-								isExpanded={isExpanded}
-								isLoading={message.partial}
-								onToggleExpand={handleToggle}
-								path={tool.path!}
-							/>
+							{backgroundEditEnabled && tool.path && tool.content ? (
+								<DiffEditRow patch={tool.content} path={tool.path} />
+							) : (
+								<CodeAccordian
+									code={tool.content!}
+									isExpanded={isExpanded}
+									isLoading={message.partial}
+									onToggleExpand={handleToggle}
+									path={tool.path!}
+								/>
+							)}
 						</>
 					)
 				case "readFile":
