@@ -1,5 +1,28 @@
 # Changelog
 
+## 3.46.0
+
+### Minor Changes
+
+- b3e0ef9: add multi-root workspace support to cline CLI
+- ace4819: show slash command autocompletion in the cli
+
+### Patch Changes
+
+- f019c36: Refactor Anthropic handler to use metadata for reasoning support
+- 12eadd3: fix cline auth for bedrock provider
+- 09276eb: Prevent duplicate error messages during streaming for Diff Edit tool when Parallel Tool Calling is not enabled.
+- fb94d8d: Fix issues where platform-based content was not displayed correctly.
+- 8f1405b: Fix banner carousel styling and dismiss functionality
+- 8a9e03c: Fix MCP settings race condition that caused auto-approve toggles and timeout changes to flash and revert
+- 031c2f5: fix: correct typos in gemini system prompt overrides
+- d11bd15: Refactor Bedrock provider to use metadata for reasoning support
+- 608dde9: bump go version
+- edba02b: Add background edit mode with webview diff view.
+- 47ff7c1: fix sapaicore security issue
+- 9f32cd2: fix: Fetch remote config values from the cache
+- f014288: Replace current diff edit tools with Apply Patch tool for GPT-5+ models
+
 ## [3.45.0]
 
 - Added Gemini 3 Flash Preview model
