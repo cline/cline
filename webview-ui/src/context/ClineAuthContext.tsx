@@ -57,12 +57,15 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	useEffect(() => {
 		const cancelSubscription = AccountServiceClient.subscribeToAuthStatusUpdate(EmptyRequest.create(), {
 			onResponse: async (response) => {
-				setUser(response?.user || null)
 				setIsAuthenticated(!!response.authenticated)
 				setIsPending(!!response.pending)
 				setError(response.error || null)
 				setNextRetryAt(response.nextRetryAt || null)
+				if (!response?.user?.uid) {
+					setUser(null)
+				}
 				if (response?.user && user?.uid !== response.user.uid) {
+					setUser(response.user)
 					// Once we have a new user, fetch organizations that
 					// allow us to display the active account in account view UI
 					// and fetch the correct credit balance to display on mount
