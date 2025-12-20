@@ -29,6 +29,4 @@ message CommandContext {
   optional string language = 3;
   // Any diagnostic problems for the current file.
   repeated cline.Diagnostic diagnostics = 4;
-  // Raw JSON of the notebook cell containing the selection (for .ipynb files only).
-  optional string notebook_cell_json = 5;
 }

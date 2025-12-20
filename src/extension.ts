@@ -31,7 +31,7 @@ import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusCh
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { workspaceResolver } from "./core/workspace"
-import { focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtils"
+import { findMatchingNotebookCell, focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMsg } from "./hosts/vscode/commit-message-generator"
 import {
 	disposeVscodeCommentReviewController,
@@ -379,6 +379,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	// Register Jupyter Notebook command handlers
+	const NOTEBOOK_EDIT_INSTRUCTIONS = `Special considerations for using replace_in_file on *.ipynb files:
+* Jupyter notebook files are JSON format with specific structure for source code cells
+* Source code in cells is stored as JSON string arrays ending with explicit \\n characters and commas
+* Always match the exact JSON format including quotes, commas, and escaped newlines.`
+
 	context.subscriptions.push(
 		vscode.commands.registerCommand(
 			commands.JupyterGenerateCell,
@@ -402,17 +407,24 @@ export async function activate(context: vscode.ExtensionContext) {
 					return // User cancelled the input
 				}
 
-				// Create context with cells and user prompt
-				const notebookContext = `User prompt: ${userPrompt}
-Insert a new Jupyter notebook cell above or below the current cell based on user prompt.
-Special considerations for using replace_in_file on *.ipynb files:
-* Jupyter notebook files are JSON format with specific structure for source code cells
-* Source code in cells is stored as JSON string arrays ending with explicit \\n characters and commas
-* Always match the exact JSON format including quotes, commas, and escaped newlines. `
 				const context = await getContextForCommand(range, diagnostics)
 				if (!context) {
 					return
 				}
+
+				// Fetch cell JSON and bundle into notebookContext
+				const filePath = context.commandContext.filePath || ""
+				const cellIndex = activeNotebook.notebook.cellAt(activeNotebook.selection.start).index
+				const cellJson = await findMatchingNotebookCell(filePath, cellIndex)
+
+				const notebookContext = `User prompt: ${userPrompt}
+Insert a new Jupyter notebook cell above or below the current cell based on user prompt.
+${NOTEBOOK_EDIT_INSTRUCTIONS}
+
+Current Notebook Cell Context (JSON, sanitized of image data):
+\`\`\`json
+${cellJson || "{}"}
+\`\`\``
 
 				await addToCline(context.controller, context.commandContext, notebookContext)
 			},
@@ -437,7 +449,16 @@ Special considerations for using replace_in_file on *.ipynb files:
 					return
 				}
 
-				await explainWithCline(context.controller, context.commandContext)
+				// Fetch cell JSON and bundle into notebookContext
+				const filePath = context.commandContext.filePath || ""
+				const cellIndex = activeNotebook.notebook.cellAt(activeNotebook.selection.start).index
+				const cellJson = await findMatchingNotebookCell(filePath, cellIndex)
+
+				const notebookContext = cellJson
+					? `\n\nCurrent Notebook Cell Context (JSON, sanitized of image data):\n\`\`\`json\n${cellJson}\n\`\`\``
+					: undefined
+
+				await explainWithCline(context.controller, context.commandContext, notebookContext)
 			},
 		),
 	)
@@ -465,15 +486,23 @@ Special considerations for using replace_in_file on *.ipynb files:
 					return // User cancelled the input
 				}
 
-				// Create context with cells and user prompt
-				const notebookContext = `Here is the User prompt: ${userPrompt} \n\n Special considerations for using replace_in_file on *.ipynb files:
-										\n * Jupyter notebook files are JSON format with specific structure for source code cells
-										\n * Source code in cells is stored as JSON string arrays ending with explicit \\n characters and commas
-										\n * Always match the exact JSON format including quotes, commas, and escaped newlines. `
 				const context = await getContextForCommand(range, diagnostics)
 				if (!context) {
 					return
 				}
+
+				// Fetch cell JSON and bundle into notebookContext
+				const filePath = context.commandContext.filePath || ""
+				const cellIndex = activeNotebook.notebook.cellAt(activeNotebook.selection.start).index
+				const cellJson = await findMatchingNotebookCell(filePath, cellIndex)
+
+				const notebookContext = `User prompt: ${userPrompt}
+${NOTEBOOK_EDIT_INSTRUCTIONS}
+
+Current Notebook Cell Context (JSON, sanitized of image data):
+\`\`\`json
+${cellJson || "{}"}
+\`\`\``
 
 				await improveWithCline(context.controller, context.commandContext, notebookContext)
 			},

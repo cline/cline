@@ -6,11 +6,12 @@ import { CommandContext, Empty } from "@/shared/proto/index.cline"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { Controller } from "../index"
 
-export async function explainWithCline(controller: Controller, request: CommandContext): Promise<Empty> {
-	if (
-		(!request.selectedText || !request.selectedText.trim()) &&
-		!(request.notebookCellJson && request.filePath?.endsWith(".ipynb"))
-	) {
+export async function explainWithCline(
+	controller: Controller,
+	request: CommandContext,
+	notebookContext?: string,
+): Promise<Empty> {
+	if (!request.selectedText?.trim() && !notebookContext) {
 		HostProvider.window.showMessage({
 			type: ShowMessageType.INFORMATION,
 			message: "Please select some code to explain.",
@@ -23,10 +24,10 @@ export async function explainWithCline(controller: Controller, request: CommandC
 	let prompt = `Explain the following code from ${fileMention}:
 \`\`\`${request.language}\n${request.selectedText}\n\`\`\``
 
-	// Add notebook cell JSON for .ipynb files to provide complete context
-	if (request.notebookCellJson && filePath.endsWith(".ipynb")) {
-		Logger.log("Adding notebook cell JSON to explainWithCline task for enhanced context")
-		prompt += `\n\nCurrent Notebook Cell Context (Raw JSON):\n\`\`\`json\n${request.notebookCellJson}\n\`\`\``
+	// Add notebook context if provided (includes cell JSON)
+	if (notebookContext) {
+		Logger.log("Adding notebook context to explainWithCline task")
+		prompt += notebookContext
 	}
 
 	await controller.initTask(prompt)
