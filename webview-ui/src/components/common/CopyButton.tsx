@@ -27,6 +27,8 @@ interface WithCopyButtonProps {
 const StyledButton = styled(VSCodeButton)`
 	z-index: 1;
 	transform: scale(0.9);
+	background-color:  none;
+	outline: none;
 `
 
 // Unified container component
@@ -46,11 +48,11 @@ const ButtonContainer = styled.div<{ $position?: "top-right" | "bottom-right" }>
 				return "top: 5px; right: 5px;"
 		}
 	}}
-	z-index: 1;
+	z-index: 2;
 	opacity: 0;
 
 	${ContentContainer}:hover & {
-		opacity: 0.5;
+		opacity: 1;
 	}
 `
 
@@ -118,7 +120,6 @@ export const WithCopyButton = forwardRef<HTMLDivElement, WithCopyButtonProps>(
 	) => {
 		return (
 			<ContentContainer className={className} onMouseUp={onMouseUp} ref={ref} style={style} {...props}>
-				{children}
 				{(textToCopy || onCopy) && (
 					<ButtonContainer $position={position}>
 						<CopyButton
@@ -128,6 +129,7 @@ export const WithCopyButton = forwardRef<HTMLDivElement, WithCopyButtonProps>(
 						/>
 					</ButtonContainer>
 				)}
+				{children}
 			</ContentContainer>
 		)
 	},

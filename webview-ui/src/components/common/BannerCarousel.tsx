@@ -1,11 +1,11 @@
 import { ChevronLeft, ChevronRight, XIcon } from "lucide-react"
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useRemark } from "react-remark"
 import { Button } from "@/components/ui/button"
 
-interface BannerAction {
+interface BannerActions {
 	label: string
 	onClick: () => void
-	variant?: "primary" | "secondary"
 	disabled?: boolean
 }
 
@@ -14,7 +14,7 @@ export interface BannerData {
 	icon?: React.ReactNode
 	title: string
 	description: string | React.ReactNode
-	actions?: BannerAction[]
+	actions?: BannerActions[]
 	onDismiss?: () => void
 }
 
@@ -28,8 +28,17 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 	const [isTransitioning, setIsTransitioning] = useState(false)
 	const autoPlayIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
+	const [currentBannerMarkdownText, setMarkdown] = useRemark()
+
 	// Compute a safe index that's always within bounds
-	const safeCurrentIndex = banners.length === 0 ? 0 : Math.min(currentIndex, banners.length - 1)
+	const safeCurrentIndex = useMemo(
+		() => (banners.length === 0 ? 0 : Math.min(currentIndex, banners.length - 1)),
+		[currentIndex, banners.length],
+	)
+
+	useEffect(() => {
+		setMarkdown(typeof banners?.[safeCurrentIndex]?.description === "string" ? banners[safeCurrentIndex].description : "")
+	}, [banners, safeCurrentIndex, setMarkdown])
 
 	const transitionToIndex = useCallback((newIndex: number) => {
 		setIsTransitioning(true)
@@ -99,12 +108,7 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 			onMouseLeave={() => setIsPaused(false)}
 			role="region">
 			{/* Card container with unified styling */}
-			<div
-				className="relative"
-				style={{
-					backgroundColor: "color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 65%, transparent)",
-					borderRadius: "4px",
-				}}>
+			<div className="relative bg-muted rounded-sm">
 				{/* Dismiss button - only show on last card, dismisses ALL banners */}
 				{safeCurrentIndex === banners.length - 1 && currentBanner.onDismiss && (
 					<Button
@@ -124,7 +128,7 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 
 				{/* Card content with fixed height and fade transition */}
 				<div
-					className="px-4 pt-4 pb-3"
+					className="p-4"
 					style={{
 						height: "144px",
 						overflow: "hidden",
@@ -143,65 +147,35 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 					</h3>
 
 					{/* Description */}
-					<div className="text-base mb-4" style={{ color: "var(--vscode-descriptionForeground)" }}>
-						{currentBanner.description}
-					</div>
+					<div className="text-base mb-4 text-description">{currentBannerMarkdownText}</div>
 
 					{/* Action buttons */}
-					{currentBanner.actions && currentBanner.actions.length > 0 && (
+					{currentBanner.actions?.length ? (
 						<div className="flex gap-3 mt-4">
 							{currentBanner.actions.map((action, idx) => (
-								<Button
-									disabled={action.disabled}
-									key={idx}
-									onClick={action.onClick}
-									variant={action.variant === "secondary" ? "secondary" : "default"}>
+								<Button disabled={action.disabled} key={idx} onClick={action.onClick}>
 									{action.label}
 								</Button>
 							))}
 						</div>
-					)}
+					) : null}
 				</div>
 
 				{/* Navigation footer - only show if more than 1 banner */}
 				{banners.length > 1 && (
-					<div
-						className="flex justify-between items-center px-4 py-1"
-						style={{
-							borderTop: "1px solid rgba(255, 255, 255, 0.1)",
-						}}>
+					<div className="flex justify-between items-center px-4 py-1 border-t-1 border-t-description/20">
 						{/* Page indicator */}
-						<div className="text-base font-medium" style={{ color: "var(--vscode-descriptionForeground)" }}>
+						<div className="text-base font-medium text-description">
 							{safeCurrentIndex + 1}/{banners.length}
 						</div>
 
 						{/* Navigation arrows */}
-						<div className="flex -mr-3">
-							<Button
-								aria-label="Previous banner"
-								onClick={handlePrevious}
-								size="icon"
-								style={{
-									width: "40px",
-									height: "40px",
-									padding: "0",
-									backgroundColor: "transparent",
-								}}
-								variant="icon">
-								<ChevronLeft style={{ width: "18px", height: "18px" }} />
+						<div className="flex -mr-3 mt-1">
+							<Button aria-label="Previous banner" onClick={handlePrevious} variant="icon">
+								<ChevronLeft className="size-5 stroke-2" />
 							</Button>
-							<Button
-								aria-label="Next banner"
-								onClick={handleNext}
-								size="icon"
-								style={{
-									width: "40px",
-									height: "40px",
-									padding: "0",
-									backgroundColor: "transparent",
-								}}
-								variant="icon">
-								<ChevronRight style={{ width: "18px", height: "18px" }} />
+							<Button aria-label="Next banner" onClick={handleNext} variant="icon">
+								<ChevronRight className="size-5 stroke-2" />
 							</Button>
 						</div>
 					</div>
