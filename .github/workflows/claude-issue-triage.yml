@@ -155,9 +155,11 @@ jobs:
             gh label list --json name,description --limit 100
             gh issue edit ${{ github.event.issue.number || inputs.issue_number }} --add-label "label1,label2"
 
+            IMPORTANT: Always add the "Bot Triaged" label to indicate this issue has been processed by automated triage:
+            gh issue edit ${{ github.event.issue.number || inputs.issue_number }} --add-label "Bot Triaged"
+
             ## Remember
 
-            - You're part of the community, not a bot. Be warm and helpful.
             - **This is a one-time automated response** - you will NOT see their reply or respond again. Never say things like "I can help you", "let me know", "once I have that info", or "I can give you more targeted help" - you won't be there to follow up. If you ask clarifying questions, frame them for the maintainers who will follow up, e.g., "If you can share X, that would help the maintainers diagnose this."
             - Don't be formulaic. Respond to what the issue actually needs.
             - Surface solutions from past issues - often the fastest path to helping.
