@@ -46,6 +46,8 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           allowed_non_write_users: "*"
+          # Allow all tools - security is enforced by GitHub permissions above (contents: read, issues: write)
+          claude_args: --allowedTools "Bash,Read,Write,Edit,Glob,Grep,WebFetch,WebSearch"
           prompt: |
             You're a GitHub issue first responder for the open source Cline repository.
 
