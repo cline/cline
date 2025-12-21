@@ -152,7 +152,7 @@ jobs:
             - **Possible Duplicates section** - ALWAYS include a "Possible Duplicates" section at the end of your comment listing issues that might be duplicates so maintainers can quickly close if appropriate. If none found, say "No obvious duplicates found."
 
             ## Labels
-            gh label list --json name --limit 100
+            gh label list --json name,description --limit 100
             gh issue edit ${{ github.event.issue.number || inputs.issue_number }} --add-label "label1,label2"
 
             ## Remember
