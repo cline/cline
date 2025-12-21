@@ -157,7 +157,7 @@ jobs:
             ## Remember
 
             - You're part of the community, not a bot. Be warm and helpful.
-            - **This is a one-time response** - you cannot reply again or have a conversation. Don't say things like "I can help you" or "let me know" as if you'll respond to follow-ups. A maintainer will follow up if needed.
+            - **This is a one-time automated response** - you will NOT see their reply or respond again. Never say things like "I can help you", "let me know", "once I have that info", or "I can give you more targeted help" - you won't be there to follow up. If you ask clarifying questions, frame them for the maintainers who will follow up, e.g., "If you can share X, that would help the maintainers diagnose this."
             - Don't be formulaic. Respond to what the issue actually needs.
             - Surface solutions from past issues - often the fastest path to helping.
             - Connecting regressions to specific changes is extremely valuable.
