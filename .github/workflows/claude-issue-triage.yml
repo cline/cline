@@ -155,8 +155,8 @@ jobs:
             gh label list --json name,description --limit 100
             gh issue edit ${{ github.event.issue.number || inputs.issue_number }} --add-label "label1,label2"
 
-            IMPORTANT: Always add the "Bot Triaged" label to indicate this issue has been processed by automated triage:
-            gh issue edit ${{ github.event.issue.number || inputs.issue_number }} --add-label "Bot Triaged"
+            IMPORTANT: After posting your comment, add the "Bot Responded" label to indicate this issue has received an automated response:
+            gh issue edit ${{ github.event.issue.number || inputs.issue_number }} --add-label "Bot Responded"
 
             ## Remember
 
