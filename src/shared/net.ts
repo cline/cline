@@ -112,8 +112,9 @@ export const fetch: typeof globalThis.fetch = (() => {
 
 	let baseFetch: typeof globalThis.fetch = globalThis.fetch
 	// Note: See esbuild.mjs, process.env.IS_STANDALONE is statically rewritten
-	// 'true' in the JetBrains/CLI build.
-	if (process.env.IS_STANDALONE) {
+	// to "true" or "false" (as strings) in the JetBrains/CLI build.
+	// We must use explicit string comparison because "false" is truthy in JS.
+	if (process.env.IS_STANDALONE === "true") {
 		// Configure undici with ProxyAgent
 		const agent = new EnvHttpProxyAgent({})
 		setGlobalDispatcher(agent)

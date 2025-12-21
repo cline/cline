@@ -1,4 +1,4 @@
-import { isGPT5ModelFamily, isGPT51Model, isNextGenModelProvider } from "@utils/model-utils"
+import { isGPT5ModelFamily, isGPT51Model, isGPT52Model, isNextGenModelProvider } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -26,8 +26,8 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 		const modelId = providerInfo.model.id
 		return (
 			isGPT5ModelFamily(modelId) &&
-			// Exclude gpt-5.1 models except for codex variants
-			(modelId.includes("codex") || !isGPT51Model(modelId)) &&
+			// Exclude gpt-5.1 and gpt-5.2 models except for codex variants
+			(modelId.includes("codex") || (!isGPT51Model(modelId) && !isGPT52Model(modelId))) &&
 			// gpt-5-chat models do not support native tool use
 			!modelId.includes("chat") &&
 			isNextGenModelProvider(providerInfo)
@@ -59,6 +59,7 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 		ClineDefaultTool.LIST_CODE_DEF,
 		ClineDefaultTool.BROWSER,
 		ClineDefaultTool.WEB_FETCH,
+		ClineDefaultTool.WEB_SEARCH,
 		ClineDefaultTool.MCP_ACCESS,
 		ClineDefaultTool.ASK,
 		ClineDefaultTool.ATTEMPT,

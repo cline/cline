@@ -36,6 +36,7 @@ export interface UsageTransaction {
 		additionalProp2: string
 		additionalProp3: string
 	}
+	operation?: string
 	organizationId: string
 	promptTokens: number
 	totalTokens: number
@@ -71,6 +72,7 @@ export interface OrganizationUsageTransaction {
 		additionalProp2: string
 		additionalProp3: string
 	}
+	operation?: string
 	organizationId: string
 	promptTokens: number
 	totalTokens: number

@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
+import { DiffEditRow } from "./DiffEditRow"
 import { ErrorBlockTitle } from "./ErrorBlockTitle"
 import ErrorRow from "./ErrorRow"
 import HookMessage from "./HookMessage"
@@ -276,7 +277,8 @@ export const ChatRowContent = memo(
 		onSetQuote,
 		onCancelCommand,
 	}: ChatRowContentProps) => {
-		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode } = useExtensionState()
+		const { backgroundEditEnabled, mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode } =
+			useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [explainChangesDisabled, setExplainChangesDisabled] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
@@ -543,21 +545,30 @@ export const ChatRowContent = memo(
 
 			switch (tool.tool) {
 				case "editedExistingFile":
+					const content = tool?.content || ""
+					const isApplyingPatch = content?.startsWith("%%bash") && !content.endsWith("*** End Patch\nEOF")
+					const editToolTitle = isApplyingPatch
+						? "Cline is creating patches to edit this file:"
+						: "Cline wants to edit this file:"
 					return (
 						<>
 							<div style={headerStyle}>
 								{toolIcon("edit")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>Cline wants to edit this file:</span>
+								<span style={{ fontWeight: "bold" }}>{editToolTitle}</span>
 							</div>
-							<CodeAccordian
-								// isLoading={message.partial}
-								code={tool.content}
-								isExpanded={isExpanded}
-								onToggleExpand={handleToggle}
-								path={tool.path!}
-							/>
+							{backgroundEditEnabled && tool.path && tool.content ? (
+								<DiffEditRow isLoading={message.partial} patch={tool.content} path={tool.path} />
+							) : (
+								<CodeAccordian
+									// isLoading={message.partial}
+									code={tool.content}
+									isExpanded={isExpanded}
+									onToggleExpand={handleToggle}
+									path={tool.path!}
+								/>
+							)}
 						</>
 					)
 				case "fileDeleted":
@@ -587,13 +598,17 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>Cline wants to create a new file:</span>
 							</div>
-							<CodeAccordian
-								code={tool.content!}
-								isExpanded={isExpanded}
-								isLoading={message.partial}
-								onToggleExpand={handleToggle}
-								path={tool.path!}
-							/>
+							{backgroundEditEnabled && tool.path && tool.content ? (
+								<DiffEditRow patch={tool.content} path={tool.path} />
+							) : (
+								<CodeAccordian
+									code={tool.content!}
+									isExpanded={isExpanded}
+									isLoading={message.partial}
+									onToggleExpand={handleToggle}
+									path={tool.path!}
+								/>
+							)}
 						</>
 					)
 				case "readFile":
@@ -767,7 +782,15 @@ export const ChatRowContent = memo(
 									border: "1px solid var(--vscode-editorGroup-border)",
 								}}>
 								<div
+									aria-label={isExpanded ? "Collapse summary" : "Expand summary"}
 									onClick={handleToggle}
+									onKeyDown={(e) => {
+										if (e.key === "Enter" || e.key === " ") {
+											e.preventDefault()
+											e.stopPropagation()
+											handleToggle()
+										}
+									}}
 									style={{
 										color: "var(--vscode-descriptionForeground)",
 										padding: "9px 10px",
@@ -776,7 +799,8 @@ export const ChatRowContent = memo(
 										WebkitUserSelect: "none",
 										MozUserSelect: "none",
 										msUserSelect: "none",
-									}}>
+									}}
+									tabIndex={0}>
 									{isExpanded ? (
 										<div>
 											<div style={{ display: "flex", alignItems: "center", marginBottom: "8px" }}>
@@ -880,6 +904,48 @@ export const ChatRowContent = memo(
 							</div>
 							{/* Displaying the 'content' which now holds "Fetching URL: [URL]" */}
 							{/* <div style={{ paddingTop: 5, fontSize: '0.9em', opacity: 0.8 }}>{tool.content}</div> */}
+						</>
+					)
+				case "webSearch":
+					return (
+						<>
+							<div style={headerStyle}>
+								<span
+									className="codicon codicon-search"
+									style={{ color: normalColor, marginBottom: "-1.5px" }}></span>
+								{tool.operationIsLocatedInWorkspace === false &&
+									toolIcon("sign-out", "yellow", -90, "This search is external")}
+								<span style={{ fontWeight: "bold" }}>
+									{message.type === "ask"
+										? "Cline wants to search the web for:"
+										: "Cline searched the web for:"}
+								</span>
+							</div>
+							<div
+								style={{
+									borderRadius: 3,
+									backgroundColor: CODE_BLOCK_BG_COLOR,
+									overflow: "hidden",
+									border: "1px solid var(--vscode-editorGroup-border)",
+									padding: "9px 10px",
+									userSelect: "text",
+									WebkitUserSelect: "text",
+									MozUserSelect: "text",
+									msUserSelect: "text",
+								}}>
+								<span
+									className="ph-no-capture"
+									style={{
+										whiteSpace: "nowrap",
+										overflow: "hidden",
+										textOverflow: "ellipsis",
+										marginRight: "8px",
+										direction: "rtl",
+										textAlign: "left",
+									}}>
+									{tool.path + "\u200E"}
+								</span>
+							</div>
 						</>
 					)
 				default:
@@ -1249,7 +1315,15 @@ export const ChatRowContent = memo(
 						return (
 							<>
 								<div
+									aria-label={isExpanded ? "Collapse API request" : "Expand API request"}
 									onClick={handleToggle}
+									onKeyDown={(e) => {
+										if (e.key === "Enter" || e.key === " ") {
+											e.preventDefault()
+											e.stopPropagation()
+											handleToggle()
+										}
+									}}
 									style={{
 										...headerStyle,
 										marginBottom:
@@ -1260,7 +1334,8 @@ export const ChatRowContent = memo(
 										WebkitUserSelect: "none",
 										MozUserSelect: "none",
 										msUserSelect: "none",
-									}}>
+									}}
+									tabIndex={0}>
 									<div
 										style={{
 											display: "flex",
@@ -1362,7 +1437,15 @@ export const ChatRowContent = memo(
 							<>
 								{message.text && (
 									<div
+										aria-label={isExpanded ? "Collapse thinking" : "Expand thinking"}
 										onClick={handleToggle}
+										onKeyDown={(e) => {
+											if (e.key === "Enter" || e.key === " ") {
+												e.preventDefault()
+												e.stopPropagation()
+												handleToggle()
+											}
+										}}
 										style={{
 											// marginBottom: 15,
 											cursor: "pointer",
@@ -1370,7 +1453,8 @@ export const ChatRowContent = memo(
 
 											fontStyle: "italic",
 											overflow: "hidden",
-										}}>
+										}}
+										tabIndex={0}>
 										{isExpanded ? (
 											<div style={{ marginTop: -3 }}>
 												<span style={{ fontWeight: "bold", display: "block", marginBottom: "4px" }}>
@@ -1588,41 +1672,35 @@ export const ChatRowContent = memo(
 							<>
 								<div
 									style={{
-										...headerStyle,
-										marginBottom: "10px",
+										borderRadius: 6,
+										border: `1px solid ${successColor}`,
+										backgroundColor: "color-mix(in srgb, var(--vscode-charts-green) 8%, transparent)",
+										padding: "10px 12px",
 									}}>
-									{icon}
-									{title}
-									{/* <TaskFeedbackButtons
-										isFromHistory={
-											!isLast ||
-											lastModifiedMessage?.ask === "resume_completed_task" ||
-											lastModifiedMessage?.ask === "resume_task"
-										}
-										messageTs={message.ts}
+									<div
 										style={{
-											marginLeft: "auto",
-										}}
-									/> */}
+											...headerStyle,
+											marginBottom: "10px",
+										}}>
+										{icon}
+										{title}
+									</div>
+									<WithCopyButton
+										copyButtonStyle={{ bottom: 10, right: -8 }}
+										onMouseUp={handleMouseUp}
+										position="bottom-right"
+										ref={contentRef}
+										textToCopy={text}>
+										<Markdown markdown={text} />
+										{quoteButtonState.visible && (
+											<QuoteButton
+												left={quoteButtonState.left}
+												onClick={handleQuoteClick}
+												top={quoteButtonState.top}
+											/>
+										)}
+									</WithCopyButton>
 								</div>
-								<WithCopyButton
-									onMouseUp={handleMouseUp}
-									position="bottom-right"
-									ref={contentRef}
-									style={{
-										color: "var(--vscode-charts-green)",
-										paddingTop: 10,
-									}}
-									textToCopy={text}>
-									<Markdown markdown={text} />
-									{quoteButtonState.visible && (
-										<QuoteButton
-											left={quoteButtonState.left}
-											onClick={handleQuoteClick}
-											top={quoteButtonState.top}
-										/>
-									)}
-								</WithCopyButton>
 								{message.partial !== true && hasChanges && (
 									<div style={{ paddingTop: 17, display: "flex", flexDirection: "column", gap: 8 }}>
 										<SuccessButton
@@ -1893,41 +1971,46 @@ export const ChatRowContent = memo(
 								<div>
 									<div
 										style={{
-											...headerStyle,
-											marginBottom: "10px",
+											borderRadius: 6,
+											border: `1px solid ${successColor}`,
+											backgroundColor: "color-mix(in srgb, var(--vscode-charts-green) 8%, transparent)",
+											padding: "10px 12px",
 										}}>
-										{icon}
-										{title}
-										<TaskFeedbackButtons
-											isFromHistory={
-												!isLast ||
-												lastModifiedMessage?.ask === "resume_completed_task" ||
-												lastModifiedMessage?.ask === "resume_task"
-											}
-											messageTs={message.ts}
+										<div
 											style={{
-												marginLeft: "auto",
-											}}
-										/>
-									</div>
-									<WithCopyButton
-										onMouseUp={handleMouseUp}
-										position="bottom-right"
-										ref={contentRef}
-										style={{
-											color: "var(--vscode-charts-green)",
-											paddingTop: 10,
-										}}
-										textToCopy={text}>
-										<Markdown markdown={text} />
-										{quoteButtonState.visible && (
-											<QuoteButton
-												left={quoteButtonState.left}
-												onClick={handleQuoteClick}
-												top={quoteButtonState.top}
+												...headerStyle,
+												marginBottom: "10px",
+											}}>
+											{icon}
+											{title}
+											<TaskFeedbackButtons
+												isFromHistory={
+													!isLast ||
+													lastModifiedMessage?.ask === "resume_completed_task" ||
+													lastModifiedMessage?.ask === "resume_task"
+												}
+												messageTs={message.ts}
+												style={{
+													marginLeft: "auto",
+												}}
 											/>
-										)}
-									</WithCopyButton>
+										</div>
+										<WithCopyButton
+											copyButtonStyle={{ bottom: 10, right: -8 }}
+											onMouseUp={handleMouseUp}
+											position="bottom-right"
+											ref={contentRef}
+											textToCopy={text}>
+											<Markdown markdown={text} />
+											{quoteButtonState.visible && (
+												<QuoteButton
+													left={quoteButtonState.left}
+													onClick={handleQuoteClick}
+													top={quoteButtonState.top}
+												/>
+											)}
+										</WithCopyButton>
+									</div>
 									{message.partial !== true && hasChanges && (
 										<div style={{ marginTop: 15, display: "flex", flexDirection: "column", gap: 8 }}>
 											<SuccessButton
