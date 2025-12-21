@@ -14,6 +14,7 @@ pnpm-lock.yaml
 .clineignore
 .venv
 .actrc
+CLAUDE.local.md
 
 webview-ui/src/**/*.js
 webview-ui/src/**/*.js.map
