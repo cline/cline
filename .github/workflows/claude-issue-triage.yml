@@ -149,6 +149,7 @@ jobs:
             - **SME table** - Include the table above if this needs engineering attention. Don't tag people for questions with obvious answers or weak-model issues.
             - **Context for maintainers** - Relevant code paths, what you found. Keep it concise.
             - **Docs links** - If there's relevant documentation, link to it naturally in your response as a recommendation (e.g., "For more details, check out [the Ollama setup guide](url)"). Do NOT add a "Sources" section at the end - integrate doc links into your response where they're helpful.
+            - **Possible Duplicates section** - ALWAYS include a "Possible Duplicates" section at the end of your comment listing issues that might be duplicates so maintainers can quickly close if appropriate. If none found, say "No obvious duplicates found."
 
             ## Labels
             gh label list --json name --limit 100
