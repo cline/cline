@@ -17,6 +17,7 @@ interface WithCopyButtonProps {
 	onCopy?: () => string | undefined | null
 	position?: "top-right" | "bottom-right"
 	style?: React.CSSProperties
+	copyButtonStyle?: React.CSSProperties
 	className?: string
 	onMouseUp?: (event: React.MouseEvent<HTMLDivElement>) => void
 	ariaLabel?: string
@@ -27,8 +28,6 @@ interface WithCopyButtonProps {
 const StyledButton = styled(VSCodeButton)`
 	z-index: 1;
 	transform: scale(0.9);
-	background-color:  none;
-	outline: none;
 `
 
 // Unified container component
@@ -48,11 +47,11 @@ const ButtonContainer = styled.div<{ $position?: "top-right" | "bottom-right" }>
 				return "top: 5px; right: 5px;"
 		}
 	}}
-	z-index: 2;
+	z-index: 1;
 	opacity: 0;
 
 	${ContentContainer}:hover & {
-		opacity: 1;
+		opacity: 0.5;
 	}
 `
 
@@ -111,6 +110,7 @@ export const WithCopyButton = forwardRef<HTMLDivElement, WithCopyButtonProps>(
 			onCopy,
 			position = "top-right",
 			style,
+			copyButtonStyle,
 			className,
 			onMouseUp,
 			ariaLabel, // Destructure ariaLabel
@@ -120,8 +120,9 @@ export const WithCopyButton = forwardRef<HTMLDivElement, WithCopyButtonProps>(
 	) => {
 		return (
 			<ContentContainer className={className} onMouseUp={onMouseUp} ref={ref} style={style} {...props}>
+				{children}
 				{(textToCopy || onCopy) && (
-					<ButtonContainer $position={position}>
+					<ButtonContainer $position={position} style={copyButtonStyle}>
 						<CopyButton
 							ariaLabel={ariaLabel}
 							onCopy={onCopy}
@@ -129,7 +130,6 @@ export const WithCopyButton = forwardRef<HTMLDivElement, WithCopyButtonProps>(
 						/>
 					</ButtonContainer>
 				)}
-				{children}
 			</ContentContainer>
 		)
 	},
