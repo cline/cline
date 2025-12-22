@@ -33,6 +33,7 @@ type Manager struct {
 	clientAddress    string
 	state            *types.ConversationState
 	renderer         *display.Renderer
+	hookRenderer     *display.HookRenderer
 	toolRenderer     *display.ToolRenderer
 	systemRenderer   *display.SystemMessageRenderer
 	streamingDisplay *display.StreamingDisplay
@@ -48,6 +49,7 @@ func NewManager(client *client.ClineClient) *Manager {
 	state := types.NewConversationState()
 	renderer := display.NewRenderer(global.Config.OutputFormat)
 	toolRenderer := display.NewToolRenderer(renderer.GetMdRenderer(), global.Config.OutputFormat)
+	hookRenderer := display.NewHookRenderer(renderer.GetMdRenderer(), global.Config.OutputFormat)
 	systemRenderer := display.NewSystemMessageRenderer(renderer, renderer.GetMdRenderer(), global.Config.OutputFormat)
 	streamingDisplay := display.NewStreamingDisplay(state, renderer)
 
@@ -61,6 +63,7 @@ func NewManager(client *client.ClineClient) *Manager {
 		clientAddress:    "", // Will be set when client is provided
 		state:            state,
 		renderer:         renderer,
+		hookRenderer:     hookRenderer,
 		toolRenderer:     toolRenderer,
 		systemRenderer:   systemRenderer,
 		streamingDisplay: streamingDisplay,
@@ -1183,10 +1186,11 @@ func (m *Manager) displayMessage(msg *types.ClineMessage, isLast, isPartial bool
 		m.mu.RUnlock()
 
 		dc := &handlers.DisplayContext{
-			State:           m.state,
-			Renderer:        m.renderer,
-			ToolRenderer:    m.toolRenderer,
-			SystemRenderer:  m.systemRenderer,
+			State:          m.state,
+			Renderer:       m.renderer,
+			ToolRenderer:   m.toolRenderer,
+			HookRenderer:   m.hookRenderer,
+			SystemRenderer: m.systemRenderer,
 			IsLast:          isLast,
 			IsPartial:       isPartial,
 			Verbose:         global.Config.Verbose,
