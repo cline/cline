@@ -31,7 +31,6 @@ import SuccessButton from "@/components/common/SuccessButton"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
-import { Button } from "@/components/ui/button"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
@@ -189,18 +188,17 @@ const CommandOutput = memo(
 			return (
 				<>
 					{beforeLogPath && <CodeBlock forceWrap={true} source={`${"```"}shell\n${beforeLogPath}\n${"```"}`} />}
-					<Button
-						className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs w-full justify-start rounded-none border-b border-vscode-editorGroup-border"
+					<div
+						className="flex flex-wrap items-center gap-1.5 px-3 py-2 mx-2 my-1.5 rounded bg-banner-background cursor-pointer hover:brightness-110 transition-colors"
 						onClick={() => {
 							FileServiceClient.openFile(StringRequest.create({ value: logFilePath })).catch((err) =>
 								console.error("Failed to open log file:", err),
 							)
 						}}
-						title={`Click to open: ${logFilePath}`}
-						variant="ghost">
-						<span className="opacity-90">📋 Output is being logged to:</span>
+						title={`Click to open: ${logFilePath}`}>
+						<span className="shrink-0">📋 Output is being logged to:</span>
 						<span className="text-vscode-textLink-foreground underline break-all">{fileName}</span>
-					</Button>
+					</div>
 					{afterLogPath && <CodeBlock forceWrap={true} source={`${"```"}shell\n${afterLogPath}\n${"```"}`} />}
 				</>
 			)
