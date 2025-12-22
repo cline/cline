@@ -22,7 +22,7 @@ const ExpandHandle = memo(({ isExpanded, onToggle, className = "bg-editor-group-
 				padding: "1px 14px",
 				borderRadius: "2px",
 			}}>
-			<TriangleIcon className={cn("fill-white", isExpanded ? "rotate-0" : "rotate-180")} size={11} />
+			<TriangleIcon className={cn("fill-black", isExpanded ? "rotate-0" : "rotate-180")} size={11} />
 		</div>
 	)
 })

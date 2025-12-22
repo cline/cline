@@ -1593,32 +1593,9 @@ export const ChatRowContent = memo(
 							<>
 								<div className="rounded-sm border border-editor-group-border overflow-visible bg-code transition-border duration-300 ease-in-out hover:border-success">
 									<div className="flex items-center justify-between px-3 py-2 bg-code rounded-0 rounded-tl-sm rounded-tr-sm">
-										<div
-											style={{
-												display: "flex",
-												alignItems: "center",
-												gap: "8px",
-												flex: 1,
-												minWidth: 0,
-											}}>
-											<div
-												style={{
-													width: "8px",
-													height: "8px",
-													borderRadius: "50%",
-													backgroundColor: successColor,
-													flexShrink: 0,
-												}}
-											/>
-											<span
-												style={{
-													color: successColor,
-													fontWeight: 500,
-													fontSize: "13px",
-													flexShrink: 0,
-												}}>
-												Task Completed
-											</span>
+										<div className="flex items-center gap-2 flex-1 min-w-0">
+											<div className="w-2 h-2 rounded-full bg-success shrink-0" />
+											<span className="text-success font-semibold text-sm shrink-0">Task Completed</span>
 										</div>
 										<CopyButton textToCopy={text || ""} />
 									</div>
