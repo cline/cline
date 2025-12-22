@@ -72,6 +72,7 @@ import { ulid } from "ulid"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
+import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
 import {
 	CommandExecutor,
 	CommandExecutorCallbacks,
