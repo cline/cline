@@ -1,40 +1,28 @@
+import { TriangleIcon } from "lucide-react"
 import { memo } from "react"
+import { cn } from "@/lib/utils"
 
 interface ExpandHandleProps {
 	isExpanded: boolean
 	onToggle: () => void
-	backgroundColor?: string
+	className?: string
 }
 
 /**
  * Reusable expand/collapse handle component
  * Used by CompletionOutput, PlanCompletionOutput, CommandOutput, etc.
  */
-const ExpandHandle = memo(({ isExpanded, onToggle, backgroundColor = "var(--vscode-editorGroup-border)" }: ExpandHandleProps) => {
+const ExpandHandle = memo(({ isExpanded, onToggle, className = "bg-editor-group-border" }: ExpandHandleProps) => {
 	return (
 		<div
+			className={cn("absolute -bottom-2 left-1/2 flex justify-between items-center cursor-pointer border-0", className)}
 			onClick={onToggle}
 			style={{
-				position: "absolute",
-				bottom: "-8px",
-				left: "50%",
 				transform: "translateX(-50%)",
-				display: "flex",
-				justifyContent: "center",
-				alignItems: "center",
 				padding: "1px 14px",
-				cursor: "pointer",
-				backgroundColor,
 				borderRadius: "2px",
-				border: "none",
 			}}>
-			<span
-				className={`codicon codicon-triangle-${isExpanded ? "up" : "down"}`}
-				style={{
-					fontSize: "11px",
-					color: "#000000",
-				}}
-			/>
+			<TriangleIcon className={cn("fill-white", isExpanded ? "rotate-0" : "rotate-180")} size={11} />
 		</div>
 	)
 })

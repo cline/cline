@@ -2079,7 +2079,7 @@ export const ChatRowContent = memo(
 						}
 						return (
 							<div>
-								<PlanCompletionOutputRow text={response || ""} />
+								<PlanCompletionOutputRow text={response || message.text || ""} />
 								<OptionsButtons
 									inputValue={inputValue}
 									isActive={
