@@ -44,6 +44,7 @@ const ActModeHighlight: React.FC = () => {
 interface MarkdownBlockProps {
 	markdown?: string
 	compact?: boolean
+	showCursor?: boolean
 }
 
 /**
@@ -206,7 +207,7 @@ const remarkPreventBoldFilenames = () => {
 	}
 }
 
-const StyledMarkdown = styled.div<{ compact?: boolean }>`
+const StyledMarkdown = styled.div<{ compact?: boolean; $showCursor?: boolean }>`
 	pre {
 		background-color: ${CODE_BLOCK_BG_COLOR};
 		border-radius: 3px;
@@ -304,6 +305,21 @@ const StyledMarkdown = styled.div<{ compact?: boolean }>`
 		margin: 4px 0; /* or 0 if you want them very tight */
 	}
 
+	/* Blinking cursor at end of content */
+	${(props) =>
+		props.$showCursor &&
+		`
+		& > :last-child::after {
+			content: '';
+			display: inline-block;
+			width: 2px;
+			height: 1em;
+			background-color: currentColor;
+			margin-left: 2px;
+			vertical-align: text-bottom;
+			animation: var(--animate-cursor-blink);
+		}
+	`}
 `
 
 const PreWithCopyButton = ({ children, ...preProps }: React.HTMLAttributes<HTMLPreElement>) => {
@@ -364,7 +380,7 @@ const remarkFilePathDetection = () => {
 	}
 }
 
-const MarkdownBlock = memo(({ markdown, compact }: MarkdownBlockProps) => {
+const MarkdownBlock = memo(({ markdown, compact, showCursor }: MarkdownBlockProps) => {
 	const [reactContent, setMarkdown] = useRemark({
 		remarkPlugins: [
 			remarkPreventBoldFilenames,
@@ -461,7 +477,7 @@ const MarkdownBlock = memo(({ markdown, compact }: MarkdownBlockProps) => {
 
 	return (
 		<div>
-			<StyledMarkdown className="ph-no-capture" compact={compact}>
+			<StyledMarkdown $showCursor={showCursor} className="ph-no-capture" compact={compact}>
 				{reactContent}
 			</StyledMarkdown>
 		</div>

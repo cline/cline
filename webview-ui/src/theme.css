@@ -12,6 +12,8 @@
 	--color-code-block-background: var(--vscode-editor-background, --vscode-sideBar-background, rgb(30 30 30));
 	--color-text-block-background: var(--vscode-textCodeBlock-background);
 	--color-editor-group-border: var(--vscode-editorGroup-border);
+	--color-editor-widget-border: var(--vscode-editorWidget-border, #cccccc);
+	--color-editor-warning-foreground: var(--vscode-editorWarning-foreground);
 	--color-sidebar-background: var(--vscode-sideBar-background);
 	--color-sidebar-foreground: var(--vscode-sideBar-foreground);
 	--color-input-foreground: var(--vscode-input-foreground);
@@ -74,6 +76,50 @@
 		to {
 			opacity: 1;
 			transform: scale(1);
+		}
+	}
+
+	--animate-cursor-blink: cursorBlink 1s ease-in-out infinite;
+	@keyframes cursorBlink {
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0;
+		}
+	}
+
+	--animate-icon-pulse: iconPulse 1s ease-in-out infinite;
+	@keyframes iconPulse {
+		0%,
+		100% {
+			opacity: 0.5;
+		}
+		50% {
+			opacity: 1;
+		}
+	}
+
+	--animate-shimmer: shimmer 2s infinite linear;
+	@keyframes shimmer {
+		0% {
+			background-position: 200% 0;
+		}
+		100% {
+			background-position: -200% 0;
+		}
+	}
+
+	--animate-fade-slide-in: fadeSlideIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+	@keyframes fadeSlideIn {
+		from {
+			opacity: 0;
+			transform: translateY(-12px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
 		}
 	}
 }

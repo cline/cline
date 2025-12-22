@@ -1,0 +1,10 @@
+import { memo } from "react"
+import MarkdownBlock from "../common/MarkdownBlock"
+
+export const MarkdownRow = memo(({ markdown, showCursor }: { markdown?: string; showCursor?: boolean }) => {
+	return (
+		<div className="wrap-anywhere -mb-4 -mt-4 overflow-hidden">
+			<MarkdownBlock markdown={markdown} showCursor={showCursor} />
+		</div>
+	)
+})

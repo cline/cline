@@ -3,6 +3,7 @@ import { BrowserAction, BrowserActionResult, ClineMessage, ClineSayBrowserAction
 import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
+import { SquareMousePointerIcon } from "lucide-react"
 import React, { CSSProperties, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import styled from "styled-components"
@@ -29,10 +30,7 @@ const browserSessionRowContainerInnerStyle: CSSProperties = {
 	gap: "10px",
 	marginBottom: "10px",
 }
-const browserIconStyle: CSSProperties = {
-	color: "var(--vscode-foreground)",
-	marginBottom: "-1.5px",
-}
+
 const approveTextStyle: CSSProperties = { fontWeight: "bold" }
 const urlBarContainerStyle: CSSProperties = {
 	margin: "5px auto",
@@ -356,7 +354,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				{isBrowsing && !isLastMessageResume ? (
 					<ProgressIndicator />
 				) : (
-					<span className="codicon codicon-inspect" style={browserIconStyle}></span>
+					<SquareMousePointerIcon className="size-3 -ml-2 stroke-1" />
 				)}
 				<span style={approveTextStyle}>
 					{isAutoApproved ? "Cline is using the browser:" : "Cline wants to use the browser:"}

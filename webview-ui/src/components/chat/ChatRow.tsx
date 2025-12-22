@@ -10,72 +10,50 @@ import {
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
 import { BooleanRequest, Int64Request, StringRequest } from "@shared/proto/cline/common"
-import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeBadge } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
-import { FoldVerticalIcon } from "lucide-react"
+import {
+	CircleXIcon,
+	FilePlus2Icon,
+	FoldVerticalIcon,
+	LoaderCircleIcon,
+	PencilIcon,
+	SquareMinusIcon,
+	TerminalIcon,
+} from "lucide-react"
 import React, { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
-import styled from "styled-components"
+import { ClineCompactIcon } from "@/assets/ClineCompactIcon"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
-import { CheckpointControls } from "@/components/common/CheckpointControls"
-import CodeBlock, {
-	CHAT_ROW_EXPANDED_BG_COLOR,
-	CODE_BLOCK_BG_COLOR,
-	TERMINAL_CODE_BLOCK_BG_COLOR,
-} from "@/components/common/CodeBlock"
+import CodeBlock, { CHAT_ROW_EXPANDED_BG_COLOR } from "@/components/common/CodeBlock"
 import { WithCopyButton } from "@/components/common/CopyButton"
-import MarkdownBlock from "@/components/common/MarkdownBlock"
-import SuccessButton from "@/components/common/SuccessButton"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
+import { Button } from "@/components/ui/button"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
+import { CommandOutputRow } from "./CommandOutputRow"
 import { DiffEditRow } from "./DiffEditRow"
 import { ErrorBlockTitle } from "./ErrorBlockTitle"
 import ErrorRow from "./ErrorRow"
 import HookMessage from "./HookMessage"
+import { MarkdownRow } from "./MarkdownRow"
 import NewTaskPreview from "./NewTaskPreview"
 import QuoteButton from "./QuoteButton"
 import ReportBugPreview from "./ReportBugPreview"
 import SearchResultsDisplay from "./SearchResultsDisplay"
 import UserMessage from "./UserMessage"
 
-const normalColor = "var(--vscode-foreground)"
-const errorColor = "var(--vscode-errorForeground)"
 const successColor = "var(--vscode-charts-green)"
-const _cancelledColor = "var(--vscode-descriptionForeground)"
-
-const ChatRowContainer = styled.div`
-	padding: 10px 6px 10px 15px;
-	position: relative;
-
-	&:hover ${CheckpointControls} {
-		opacity: 1;
-	}
-
-	/* Fade-in animation for hook messages being inserted */
-	&.hook-message-animate {
-		animation: hookFadeSlideIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-	}
-
-	@keyframes hookFadeSlideIn {
-		from {
-			opacity: 0;
-			transform: translateY(-12px);
-		}
-		to {
-			opacity: 1;
-			transform: translateY(0);
-		}
-	}
-`
+// State type for api_req_started rendering
+type ApiReqState = "pre" | "thinking" | "error" | "final"
 
 interface ChatRowProps {
 	message: ClineMessage
@@ -100,134 +78,9 @@ interface QuoteButtonState {
 interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
 
 export const ProgressIndicator = () => (
-	<div
-		style={{
-			width: "16px",
-			height: "16px",
-			display: "flex",
-			alignItems: "center",
-			justifyContent: "center",
-		}}>
-		<div style={{ transform: "scale(0.55)", transformOrigin: "center" }}>
-			<VSCodeProgressRing />
-		</div>
+	<div className="w-4 h-4 flex items-center justify-center">
+		<LoaderCircleIcon className="animate-spin" />
 	</div>
-)
-
-const Markdown = memo(({ markdown }: { markdown?: string }) => {
-	return (
-		<div
-			style={{
-				wordBreak: "break-word",
-				overflowWrap: "anywhere",
-				marginBottom: -15,
-				marginTop: -15,
-				overflow: "hidden", // contain child margins so that parent diff matches height of children
-			}}>
-			<MarkdownBlock markdown={markdown} />
-		</div>
-	)
-})
-
-const CommandOutput = memo(
-	({
-		output,
-		isOutputFullyExpanded,
-		onToggle,
-		isContainerExpanded,
-	}: {
-		output: string
-		isOutputFullyExpanded: boolean
-		onToggle: () => void
-		isContainerExpanded: boolean
-	}) => {
-		const outputLines = output.split("\n")
-		const lineCount = outputLines.length
-		const shouldAutoShow = lineCount <= 5
-		const outputRef = useRef<HTMLDivElement>(null)
-
-		// Auto-scroll to bottom when output changes (only when showing limited output)
-		useEffect(() => {
-			if (!isOutputFullyExpanded && outputRef.current) {
-				// Direct scrollTop manipulation
-				outputRef.current.scrollTop = outputRef.current.scrollHeight
-
-				// Another attempt with more delay (for slower renders) to ensure scrolling works
-				setTimeout(() => {
-					if (outputRef.current) {
-						outputRef.current.scrollTop = outputRef.current.scrollHeight
-					}
-				}, 50)
-			}
-		}, [output, isOutputFullyExpanded])
-
-		// Don't render anything if container is collapsed
-		if (!isContainerExpanded) {
-			return null
-		}
-
-		return (
-			<div
-				style={{
-					width: "100%",
-					position: "relative",
-					paddingBottom: lineCount > 5 ? "16px" : "0",
-					overflow: "visible",
-					borderTop: "1px solid rgba(255,255,255,.07)",
-					backgroundColor: TERMINAL_CODE_BLOCK_BG_COLOR,
-					borderBottomLeftRadius: "6px",
-					borderBottomRightRadius: "6px",
-				}}>
-				<div
-					ref={outputRef}
-					style={{
-						color: "#FFFFFF",
-						maxHeight: shouldAutoShow ? "none" : isOutputFullyExpanded ? "200px" : "75px",
-						overflowY: shouldAutoShow ? "visible" : "auto",
-						scrollBehavior: "smooth",
-						backgroundColor: TERMINAL_CODE_BLOCK_BG_COLOR,
-					}}>
-					<div style={{ backgroundColor: TERMINAL_CODE_BLOCK_BG_COLOR }}>
-						<CodeBlock forceWrap={true} source={`${"```"}shell\n${output}\n${"```"}`} />
-					</div>
-				</div>
-				{/* Show notch only if there's more than 5 lines */}
-				{lineCount > 5 && (
-					<div
-						onClick={onToggle}
-						onMouseEnter={(e) => {
-							e.currentTarget.style.opacity = "0.8"
-						}}
-						onMouseLeave={(e) => {
-							e.currentTarget.style.opacity = "1"
-						}}
-						style={{
-							position: "absolute",
-							bottom: "-10px",
-							left: "50%",
-							transform: "translateX(-50%)",
-							display: "flex",
-							justifyContent: "center",
-							alignItems: "center",
-							padding: "1px 14px",
-							cursor: "pointer",
-							backgroundColor: "var(--vscode-descriptionForeground)",
-							borderRadius: "3px 3px 6px 6px",
-							transition: "opacity 0.1s ease",
-							border: "1px solid rgba(0, 0, 0, 0.1)",
-						}}>
-						<span
-							className={`codicon codicon-triangle-${isOutputFullyExpanded ? "up" : "down"}`}
-							style={{
-								fontSize: "11px",
-								color: "var(--vscode-editor-background)",
-							}}
-						/>
-					</div>
-				)}
-			</div>
-		)
-	},
 )
 
 const ChatRow = memo(
@@ -238,9 +91,9 @@ const ChatRow = memo(
 		const prevHeightRef = useRef(0)
 
 		const [chatrow, { height }] = useSize(
-			<ChatRowContainer>
+			<div className="relative px-2.5 pt-1.5 pb-4">
 				<ChatRowContent {...props} />
-			</ChatRowContainer>,
+			</div>,
 		)
 
 		useEffect(() => {
@@ -406,33 +259,18 @@ export const ChatRowContent = memo(
 			switch (type) {
 				case "error":
 					return [
-						<span
-							className="codicon codicon-error"
-							style={{
-								color: errorColor,
-								marginBottom: "-1.5px",
-							}}></span>,
-						<span style={{ color: errorColor, fontWeight: "bold" }}>Error</span>,
+						<span className="codicon codicon-error text-error mb-[-1.5px]" />,
+						<span className="text-error font-bold">Error</span>,
 					]
 				case "mistake_limit_reached":
 					return [
-						<span
-							className="codicon codicon-error"
-							style={{
-								color: errorColor,
-								marginBottom: "-1.5px",
-							}}></span>,
-						<span style={{ color: errorColor, fontWeight: "bold" }}>Cline is having trouble...</span>,
+						<CircleXIcon className="mb-[-1.5px] text-error size-3 stroke-1" />,
+						<span className="text-error font-bold">Cline is having trouble...</span>,
 					]
 				case "command":
 					return [
-						<span
-							className="codicon codicon-terminal"
-							style={{
-								color: normalColor,
-								marginBottom: "-1.5px",
-							}}></span>,
-						<span style={{ color: normalColor, fontWeight: "bold" }}>Cline wants to execute this command:</span>,
+						<TerminalIcon className="mb-[-1.5px] text-foreground size-3 stroke-1" />,
+						<span className="font-bold text-foreground">Cline wants to execute this command:</span>,
 					]
 				case "use_mcp_server":
 					const mcpServerUse = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
@@ -440,18 +278,11 @@ export const ChatRowContent = memo(
 						isMcpServerResponding ? (
 							<ProgressIndicator />
 						) : (
-							<span
-								className="codicon codicon-server"
-								style={{
-									color: normalColor,
-									marginBottom: "-1.5px",
-								}}></span>
+							<span className="codicon codicon-server text-foreground mb-[-1.5px]" />
 						),
-						<span
-							className="ph-no-capture"
-							style={{ color: normalColor, fontWeight: "bold", wordBreak: "break-word" }}>
+						<span className="ph-no-capture font-bold text-foreground break-words">
 							Cline wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
-							<code style={{ wordBreak: "break-all" }}>
+							<code className="break-all">
 								{getMcpServerDisplayName(mcpServerUse.serverName, mcpMarketplaceCatalog)}
 							</code>{" "}
 							MCP server:
@@ -459,13 +290,8 @@ export const ChatRowContent = memo(
 					]
 				case "completion_result":
 					return [
-						<span
-							className="codicon codicon-check"
-							style={{
-								color: successColor,
-								marginBottom: "-1.5px",
-							}}></span>,
-						<span style={{ color: successColor, fontWeight: "bold" }}>Task Completed</span>,
+						<span className="codicon codicon-check text-success mb-[-1.5px]" />,
+						<span className="text-success font-bold">Task Completed</span>,
 					]
 				case "api_req_started":
 					return ErrorBlockTitle({
@@ -476,13 +302,8 @@ export const ChatRowContent = memo(
 					})
 				case "followup":
 					return [
-						<span
-							className="codicon codicon-question"
-							style={{
-								color: normalColor,
-								marginBottom: "-1.5px",
-							}}></span>,
-						<span style={{ color: normalColor, fontWeight: "bold" }}>Cline has a question:</span>,
+						<span className="codicon codicon-question text-foreground mb-[-1.5px]" />,
+						<span className="font-bold text-foreground">Cline has a question:</span>,
 					]
 				default:
 					return [null, null]
@@ -503,13 +324,6 @@ export const ChatRowContent = memo(
 			alignItems: "center",
 			gap: "10px",
 			marginBottom: "12px",
-		}
-
-		const _pStyle: React.CSSProperties = {
-			margin: 0,
-			whiteSpace: "pre-wrap",
-			wordBreak: "break-word",
-			overflowWrap: "anywhere",
 		}
 
 		const tool = useMemo(() => {
@@ -553,7 +367,7 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div style={headerStyle}>
-								{toolIcon("edit")}
+								<PencilIcon className="mb-[-1.5px] size-3 stroke-1" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>{editToolTitle}</span>
@@ -575,7 +389,7 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div style={headerStyle}>
-								{toolIcon("diff-removed")}
+								<SquareMinusIcon className="mb-[-1.5px] size-3 stroke-1" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>Cline wants to delete this file:</span>
@@ -593,10 +407,10 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div style={headerStyle}>
-								{toolIcon("new-file")}
+								<FilePlus2Icon className="size-3 stroke-1" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>Cline wants to create a new file:</span>
+								<span className="font-bold">Cline wants to create a new file:</span>
 							</div>
 							{backgroundEditEnabled && tool.path && tool.content ? (
 								<DiffEditRow patch={tool.content} path={tool.path} />
@@ -625,9 +439,9 @@ export const ChatRowContent = memo(
 								</span>
 							</div>
 							<div
+								className="bg-code"
 								style={{
 									borderRadius: 3,
-									backgroundColor: CODE_BLOCK_BG_COLOR,
 									overflow: "hidden",
 									border: "1px solid var(--vscode-editorGroup-border)",
 								}}>
@@ -769,15 +583,15 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div style={headerStyle}>
-								<span style={{ color: normalColor, marginBottom: "-1.5px" }}>
+								<span className="color-foreground mb-[-1.5px]">
 									<FoldVerticalIcon size={16} />
 								</span>
 								<span style={{ fontWeight: "bold" }}>Cline is condensing the conversation:</span>
 							</div>
 							<div
+								className="bg-code"
 								style={{
 									borderRadius: 3,
-									backgroundColor: CODE_BLOCK_BG_COLOR,
 									overflow: "hidden",
 									border: "1px solid var(--vscode-editorGroup-border)",
 								}}>
@@ -855,9 +669,7 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div style={headerStyle}>
-								<span
-									className="codicon codicon-link"
-									style={{ color: normalColor, marginBottom: "-1.5px" }}></span>
+								<span className="codicon codicon-link color-foreground mb-[-1.5px]" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This URL is external")}
 								<span style={{ fontWeight: "bold" }}>
@@ -867,6 +679,7 @@ export const ChatRowContent = memo(
 								</span>
 							</div>
 							<div
+								className="bg-code"
 								onClick={() => {
 									// Open the URL in the default browser using gRPC
 									if (tool.path) {
@@ -877,7 +690,6 @@ export const ChatRowContent = memo(
 								}}
 								style={{
 									borderRadius: 3,
-									backgroundColor: CODE_BLOCK_BG_COLOR,
 									overflow: "hidden",
 									border: "1px solid var(--vscode-editorGroup-border)",
 									padding: "9px 10px",
@@ -910,21 +722,19 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div style={headerStyle}>
-								<span
-									className="codicon codicon-search"
-									style={{ color: normalColor, marginBottom: "-1.5px" }}></span>
+								<span className="codicon codicon-search text-foreground mb-[-1.5px]" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This search is external")}
-								<span style={{ fontWeight: "bold" }}>
+								<span className="text-foreground font-bold">
 									{message.type === "ask"
 										? "Cline wants to search the web for:"
 										: "Cline searched the web for:"}
 								</span>
 							</div>
 							<div
+								className="bg-code"
 								style={{
 									borderRadius: 3,
-									backgroundColor: CODE_BLOCK_BG_COLOR,
 									overflow: "hidden",
 									border: "1px solid var(--vscode-editorGroup-border)",
 									padding: "9px 10px",
@@ -1031,29 +841,17 @@ export const ChatRowContent = memo(
 				}
 			}
 
-			// Compact Cline SVG icon component
-			const ClineIcon = () => (
-				<svg height="16" style={{ marginBottom: "-1.5px" }} viewBox="0 0 92 96" width="16">
-					<g fill="currentColor">
-						<path d="M65.4492701,16.3 C76.3374701,16.3 85.1635558,25.16479 85.1635558,36.1 L85.1635558,42.7 L90.9027661,54.1647464 C91.4694141,55.2966923 91.4668177,56.6300535 90.8957658,57.7597839 L85.1635558,69.1 L85.1635558,75.7 C85.1635558,86.63554 76.3374701,95.5 65.4492701,95.5 L26.0206986,95.5 C15.1328272,95.5 6.30641291,86.63554 6.30641291,75.7 L6.30641291,69.1 L0.448507752,57.7954874 C-0.14693501,56.6464093 -0.149634367,55.2802504 0.441262896,54.1288283 L6.30641291,42.7 L6.30641291,36.1 C6.30641291,25.16479 15.1328272,16.3 26.0206986,16.3 L65.4492701,16.3 Z M62.9301895,22 L29.189529,22 C19.8723267,22 12.3191987,29.5552188 12.3191987,38.875 L12.3191987,44.5 L7.44288578,53.9634655 C6.84794449,55.1180686 6.85066096,56.4896598 7.45017099,57.6418974 L12.3191987,67 L12.3191987,72.625 C12.3191987,81.9450625 19.8723267,89.5 29.189529,89.5 L62.9301895,89.5 C72.2476729,89.5 79.8005198,81.9450625 79.8005198,72.625 L79.8005198,67 L84.5682187,57.6061395 C85.1432011,56.473244 85.1458141,55.1345713 84.5752587,53.9994398 L79.8005198,44.5 L79.8005198,38.875 C79.8005198,29.5552188 72.2476729,22 62.9301895,22 Z" />
-						<ellipse cx="45.7349843" cy="11" rx="12" ry="14" />
-						<ellipse cx="33.5" cy="55.5" rx="8" ry="9" />
-						<ellipse cx="57.5" cy="55.5" rx="8" ry="9" />
-					</g>
-				</svg>
-			)
-
 			// Customize icon and title for subagent commands
 			const displayIcon = isSubagentCommand ? (
-				<span style={{ color: normalColor }}>
-					<ClineIcon />
+				<span className="text-foreground mb-[-1.5px]">
+					<ClineCompactIcon />
 				</span>
 			) : (
 				icon
 			)
 
 			const displayTitle = isSubagentCommand ? (
-				<span style={{ color: normalColor, fontWeight: "bold" }}>Cline wants to use a subagent:</span>
+				<span className="text-foreground font-bold">Cline wants to use a subagent:</span>
 			) : (
 				title
 			)
@@ -1134,7 +932,7 @@ export const ChatRowContent = memo(
 								</div>
 								<div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
 									{showCancelButton && (
-										<button
+										<Button
 											onClick={(e) => {
 												e.stopPropagation()
 												if (vscodeTerminalExecutionMode === "backgroundExec") {
@@ -1146,24 +944,9 @@ export const ChatRowContent = memo(
 													)
 												}
 											}}
-											onMouseEnter={(e) => {
-												e.currentTarget.style.background = "var(--vscode-button-secondaryHoverBackground)"
-											}}
-											onMouseLeave={(e) => {
-												e.currentTarget.style.background = "var(--vscode-button-secondaryBackground)"
-											}}
-											style={{
-												background: "var(--vscode-button-secondaryBackground)",
-												color: "var(--vscode-button-secondaryForeground)",
-												border: "none",
-												borderRadius: "2px",
-												padding: "4px 10px",
-												fontSize: "12px",
-												cursor: "pointer",
-												fontFamily: "inherit",
-											}}>
+											variant="secondary">
 											{vscodeTerminalExecutionMode === "backgroundExec" ? "cancel" : "stop"}
-										</button>
+										</Button>
 									)}
 								</div>
 							</div>
@@ -1178,26 +961,6 @@ export const ChatRowContent = memo(
 								</div>
 							</div>
 						)}
-						{/* {output.length > 0 && (
-							<div style={{ width: "100%" }}>
-								<div
-									onClick={handleToggle}
-									style={{
-										display: "flex",
-										alignItems: "center",
-										gap: "4px",
-										width: "100%",
-										justifyContent: "flex-start",
-										cursor: "pointer",
-										padding: `2px 8px ${isExpanded ? 0 : 8}px 8px`,
-									}}>
-									<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}></span>
-									<span style={{ fontSize: "0.8em" }}>
-										{isSubagentCommand ? "Subagent Output" : "Command Output"}
-									</span>
-								</div>
-							</div>
-						)} */}
 						{!isSubagentCommand && (
 							<div style={{ opacity: 0.6, backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR }}>
 								<div style={{ backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR }}>
@@ -1206,7 +969,7 @@ export const ChatRowContent = memo(
 							</div>
 						)}
 						{output.length > 0 && (
-							<CommandOutput
+							<CommandOutputRow
 								isContainerExpanded={true}
 								isOutputFullyExpanded={isOutputFullyExpanded}
 								onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
@@ -1311,7 +1074,7 @@ export const ChatRowContent = memo(
 		switch (message.type) {
 			case "say":
 				switch (message.say) {
-					case "api_req_started":
+					case "api_req_started": {
 						return (
 							<>
 								<div
@@ -1379,6 +1142,7 @@ export const ChatRowContent = memo(
 								)}
 							</>
 						)
+					}
 					case "api_req_finished":
 						return null // we should never see this message type
 					case "mcp_server_response":
@@ -1420,7 +1184,7 @@ export const ChatRowContent = memo(
 								position="bottom-right"
 								ref={contentRef}
 								textToCopy={message.text}>
-								<Markdown markdown={message.text} />
+								<MarkdownRow markdown={message.text} />
 								{quoteButtonState.visible && (
 									<QuoteButton
 										left={quoteButtonState.left}
@@ -1573,11 +1337,8 @@ export const ChatRowContent = memo(
 						const isError = explanationInfo.status === "error"
 						return (
 							<div
+								className="bg-code flex flex-col border border-editor-group-border"
 								style={{
-									display: "flex",
-									flexDirection: "column",
-									backgroundColor: CODE_BLOCK_BG_COLOR,
-									border: "1px solid var(--vscode-editorGroup-border)",
 									borderRadius: 5,
 									padding: "10px 12px",
 									fontSize: 12,
@@ -1592,22 +1353,13 @@ export const ChatRowContent = memo(
 											<ProgressIndicator />
 										</span>
 									) : isError ? (
-										<i
-											className="codicon codicon-error"
-											style={{ marginRight: 8, color: "var(--vscode-errorForeground)" }}
-										/>
+										<i className="codicon codicon-error mr-2 text-error" />
 									) : wasCancelled ? (
-										<i
-											className="codicon codicon-circle-slash"
-											style={{ marginRight: 8, color: "var(--vscode-descriptionForeground)" }}
-										/>
+										<i className="codicon codicon-circle-slash mr-2 text-description" />
 									) : (
-										<i
-											className="codicon codicon-check"
-											style={{ marginRight: 8, color: "var(--vscode-charts-green)" }}
-										/>
+										<i className="codicon codicon-check mr-2 text-success" />
 									)}
-									<span style={{ fontWeight: 500 }}>
+									<span className="font-semibold">
 										{isGenerating
 											? "Generating explanation"
 											: isError
@@ -1630,7 +1382,7 @@ export const ChatRowContent = memo(
 									</div>
 								)}
 								{!isError && (explanationInfo.title || explanationInfo.fromRef) && (
-									<div style={{ opacity: 0.8, marginLeft: 24, marginTop: 6 }}>
+									<div className="opacity-80 ml-6 mt-1.5">
 										<div>{explanationInfo.title}</div>
 										{explanationInfo.fromRef && (
 											<div
@@ -1686,12 +1438,12 @@ export const ChatRowContent = memo(
 										{title}
 									</div>
 									<WithCopyButton
-										copyButtonStyle={{ bottom: 10, right: -8 }}
+										copyButtonClassname="bottom-2.5 -right-2"
 										onMouseUp={handleMouseUp}
 										position="bottom-right"
 										ref={contentRef}
 										textToCopy={text}>
-										<Markdown markdown={text} />
+										<MarkdownRow markdown={text} />
 										{quoteButtonState.visible && (
 											<QuoteButton
 												left={quoteButtonState.left}
@@ -1703,7 +1455,7 @@ export const ChatRowContent = memo(
 								</div>
 								{message.partial !== true && hasChanges && (
 									<div style={{ paddingTop: 17, display: "flex", flexDirection: "column", gap: 8 }}>
-										<SuccessButton
+										<Button
 											disabled={seeNewChangesDisabled}
 											onClick={() => {
 												setSeeNewChangesDisabled(true)
@@ -1718,12 +1470,13 @@ export const ChatRowContent = memo(
 											style={{
 												cursor: seeNewChangesDisabled ? "wait" : "pointer",
 												width: "100%",
-											}}>
+											}}
+											variant="success">
 											<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
 											View Changes
-										</SuccessButton>
+										</Button>
 										{PLATFORM_CONFIG.type === PlatformType.VSCODE && (
-											<SuccessButton
+											<Button
 												disabled={explainChangesDisabled}
 												onClick={() => {
 													setExplainChangesDisabled(true)
@@ -1740,10 +1493,11 @@ export const ChatRowContent = memo(
 													width: "100%",
 													backgroundColor: "var(--vscode-button-secondaryBackground)",
 													borderColor: "var(--vscode-button-secondaryBackground)",
-												}}>
+												}}
+												variant="success">
 												<i className="codicon codicon-comment-discussion" style={{ marginRight: 6 }} />
 												{explainChangesDisabled ? "Explaining..." : "Explain Changes"}
-											</SuccessButton>
+											</Button>
 										)}
 									</div>
 								)}
@@ -1853,12 +1607,12 @@ export const ChatRowContent = memo(
 							// Fallback if JSON parsing fails
 							return (
 								<div style={{ color: "var(--vscode-foreground)" }}>
-									<Markdown markdown={message.text} />
+									<MarkdownRow markdown={message.text} />
 								</div>
 							)
 						}
 					case "hook":
-						return <HookMessage CommandOutput={CommandOutput} message={message} />
+						return <HookMessage CommandOutput={CommandOutputRow} message={message} />
 					case "hook_output":
 						// hook_output messages are combined with hook messages, so we don't render them separately
 						return null
@@ -1954,7 +1708,7 @@ export const ChatRowContent = memo(
 									</div>
 								)}
 								<div style={{ paddingTop: 10 }}>
-									<Markdown markdown={message.text} />
+									<MarkdownRow markdown={message.text} />
 								</div>
 							</>
 						)
@@ -1996,12 +1750,12 @@ export const ChatRowContent = memo(
 											/>
 										</div>
 										<WithCopyButton
-											copyButtonStyle={{ bottom: 10, right: -8 }}
+											copyButtonClassname="bottom-2.5 -right-2"
 											onMouseUp={handleMouseUp}
 											position="bottom-right"
 											ref={contentRef}
 											textToCopy={text}>
-											<Markdown markdown={text} />
+											<MarkdownRow markdown={text} />
 											{quoteButtonState.visible && (
 												<QuoteButton
 													left={quoteButtonState.left}
@@ -2012,9 +1766,8 @@ export const ChatRowContent = memo(
 										</WithCopyButton>
 									</div>
 									{message.partial !== true && hasChanges && (
-										<div style={{ marginTop: 15, display: "flex", flexDirection: "column", gap: 8 }}>
-											<SuccessButton
-												appearance="secondary"
+										<div className="mt-4 flex flex-col gap-2">
+											<Button
 												disabled={seeNewChangesDisabled}
 												onClick={() => {
 													setSeeNewChangesDisabled(true)
@@ -2025,19 +1778,17 @@ export const ChatRowContent = memo(
 													).catch((err) =>
 														console.error("Failed to show task completion view changes:", err),
 													)
-												}}>
-												<i
-													className="codicon codicon-new-file"
-													style={{
-														marginRight: 6,
-														cursor: seeNewChangesDisabled ? "wait" : "pointer",
-													}}
+												}}
+												variant="success">
+												<FilePlus2Icon
+													className={cn("mb-[-1.5px] size-3 stroke-1 mr-1.5 cursor-pointer", {
+														"cursor-wait": seeNewChangesDisabled,
+													})}
 												/>
 												View Changes
-											</SuccessButton>
+											</Button>
 											{PLATFORM_CONFIG.type === PlatformType.VSCODE && (
-												<SuccessButton
-													appearance="secondary"
+												<Button
 													disabled={explainChangesDisabled}
 													onClick={() => {
 														setExplainChangesDisabled(true)
@@ -2048,7 +1799,8 @@ export const ChatRowContent = memo(
 															console.error("Failed to explain changes:", err)
 															setExplainChangesDisabled(false)
 														})
-													}}>
+													}}
+													variant="success">
 													<i
 														className="codicon codicon-comment-discussion"
 														style={{
@@ -2057,7 +1809,7 @@ export const ChatRowContent = memo(
 														}}
 													/>
 													{explainChangesDisabled ? "Explaining..." : "Explain Changes"}
-												</SuccessButton>
+												</Button>
 											)}
 										</div>
 									)}
@@ -2094,7 +1846,7 @@ export const ChatRowContent = memo(
 									position="bottom-right"
 									ref={contentRef}
 									textToCopy={question}>
-									<Markdown markdown={question} />
+									<MarkdownRow markdown={question} />
 									{quoteButtonState.visible && (
 										<QuoteButton
 											left={quoteButtonState.left}
@@ -2120,15 +1872,8 @@ export const ChatRowContent = memo(
 						return (
 							<>
 								<div style={headerStyle}>
-									<span
-										className="codicon codicon-new-file"
-										style={{
-											color: normalColor,
-											marginBottom: "-1.5px",
-										}}></span>
-									<span style={{ color: normalColor, fontWeight: "bold" }}>
-										Cline wants to start a new task:
-									</span>
+									<FilePlus2Icon className="mb-[-1.5px] size-3 stroke-1 " />
+									<span className="text-foreground font-bold">Cline wants to start a new task:</span>
 								</div>
 								<NewTaskPreview context={message.text || ""} />
 							</>
@@ -2137,15 +1882,8 @@ export const ChatRowContent = memo(
 						return (
 							<>
 								<div style={headerStyle}>
-									<span
-										className="codicon codicon-new-file"
-										style={{
-											color: normalColor,
-											marginBottom: "-1.5px",
-										}}></span>
-									<span style={{ color: normalColor, fontWeight: "bold" }}>
-										Cline wants to condense your conversation:
-									</span>
+									<FilePlus2Icon className="mb-[-1.5px] size-3 stroke-1 " />
+									<span className="text-foreground font-bold">Cline wants to condense your conversation:</span>
 								</div>
 								<NewTaskPreview context={message.text || ""} />
 							</>
@@ -2154,15 +1892,8 @@ export const ChatRowContent = memo(
 						return (
 							<>
 								<div style={headerStyle}>
-									<span
-										className="codicon codicon-new-file"
-										style={{
-											color: normalColor,
-											marginBottom: "-1.5px",
-										}}></span>
-									<span style={{ color: normalColor, fontWeight: "bold" }}>
-										Cline wants to create a Github issue:
-									</span>
+									<FilePlus2Icon className="mb-[-1.5px] size-3 stroke-1 " />
+									<span className="text-foreground font-bold">Cline wants to create a Github issue:</span>
 								</div>
 								<ReportBugPreview data={message.text || ""} />
 							</>
@@ -2187,7 +1918,7 @@ export const ChatRowContent = memo(
 									position="bottom-right"
 									ref={contentRef}
 									textToCopy={response}>
-									<Markdown markdown={response} />
+									<MarkdownRow markdown={response} />
 									{quoteButtonState.visible && (
 										<QuoteButton
 											left={quoteButtonState.left}
