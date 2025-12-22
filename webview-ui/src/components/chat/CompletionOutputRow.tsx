@@ -10,14 +10,9 @@ export const CompletionOutputRow = memo(
 
 		return (
 			<div
-				className={cn("bg-code w-full relative pb-0 overflow-visible border-t-1", {
+				className={cn("bg-code w-full relative pb-0 overflow-visible", {
 					"pb-2": lineCount > 5,
-				})}
-				style={{
-					borderTop: "1px solid rgba(255,255,255,.07)",
-					borderBottomLeftRadius: "6px",
-					borderBottomRightRadius: "6px",
-				}}>
+				})}>
 				<div
 					className={cn("completion-output-content scroll-smooth p-3")}
 					style={{
