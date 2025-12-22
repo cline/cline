@@ -1,34 +1,25 @@
 # Changelog
 
-## 3.46.0
+## [3.46.0]
 
-- b3e0ef9: add multi-root workspace support to cline CLI
-- ace4819: show slash command autocompletion in the cli
-- 60d3048: feat(terminal): add background command tracking and summary
+### Added
 
-- Add background command tracking for "Proceed While Running" functionality
-- Track commands in StandaloneTerminalManager with log file output
-- Add 10-minute hard timeout to prevent zombie processes
-- Centralize terminal constants in constants.ts
-- Fix process group termination to kill entire process tree (npm run dev, etc.)
-- Add large output protection with file-based logging
-- Add clickable log file paths in terminal output UI
-- Fix "Not Executed" → "Skipped" label for commands
+- Added GLM 4.7 model
+- Enhanced background terminal execution with command tracking, log file output, zombie process prevention (10-minute timeout), and clickable log paths in UI
+- Apply Patch tool for GPT-5+ models (replacing current diff edit tools)
 
-- f019c36: Refactor Anthropic handler to use metadata for reasoning support
-- 12eadd3: fix cline auth for bedrock provider
-- 09276eb: Prevent duplicate error messages during streaming for Diff Edit tool when Parallel Tool Calling is not enabled.
-- fb94d8d: Fix issues where platform-based content was not displayed correctly.
-- 8f1405b: Fix banner carousel styling and dismiss functionality
-- 031c2f5: fix: correct typos in gemini system prompt overrides
-- 2334d4d: Fix model picker favorites ordering, star toggle, and keyboard navigation for openrouter and vercel-ai-gateway providers
-- d11bd15: Refactor Bedrock provider to use metadata for reasoning support
-- 608dde9: bump go version
-- edba02b: Add background edit mode with webview diff view.
-- 47ff7c1: fix sapaicore security issue
-- 6390d85: Fix Plan/Act mode settings not updating when switching tabs for OpenAI Compatible Endpoints Provider in the settings view
-- 9f32cd2: fix: Fetch remote config values from the cache
-- f014288: Replace current diff edit tools with Apply Patch tool for GPT-5+ models
+### Fixed
+
+- Duplicate error messages during streaming for Diff Edit tool when Parallel Tool Calling is not enabled
+- Banner carousel styling and dismiss functionality
+- Typos in Gemini system prompt overrides
+- Model picker favorites ordering, star toggle, and keyboard navigation for OpenRouter and Vercel AI Gateway providers
+- Fetch remote config values from the cache
+
+### Refactored
+
+- Anthropic handler to use metadata for reasoning support
+- Bedrock provider to use metadata for reasoning support
 
 ## [3.45.1]
 

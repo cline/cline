@@ -89,13 +89,6 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 						<li className="mb-2">
 							<strong>Cline provider</strong> now runs on the Vercel AI Gateway for better latency and fewer errors.
 						</li>
-						<li className="mb-2">
-							To celebrate, we're offering free <strong>GLM-4.6</strong> for a limited time!
-							<br />
-							<AuthButton>
-								<ModelButton label="Try GLM-4.6" modelId="z-ai/glm-4.6" />
-							</AuthButton>
-						</li>
 						<li>
 							<strong>Kat-Coder Pro</strong>, free for a limited time!
 							<br />
@@ -108,6 +101,13 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 							<br />
 							<AuthButton>
 								<ModelButton label="Try Gemini 3 Flash Preview" modelId="google/gemini-3-flash-preview" />
+							</AuthButton>
+						</li>
+						<li>
+							<strong>GLM 4.7</strong> now available!
+							<br />
+							<AuthButton>
+								<ModelButton label="Try GLM 4.7" modelId="z-ai/glm-4.7" />
 							</AuthButton>
 						</li>
 					</ul>
