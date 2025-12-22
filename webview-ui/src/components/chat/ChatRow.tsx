@@ -1906,9 +1906,9 @@ export const ChatRowContent = memo(
 							<div
 								style={{
 									padding: 8,
-									backgroundColor: "rgba(0, 122, 204, 0.1)",
+									backgroundColor: "color-mix(in srgb, var(--vscode-textLink-foreground) 10%, transparent)",
 									borderRadius: 3,
-									border: "1px solid rgba(0, 122, 204, 0.3)",
+									border: "1px solid color-mix(in srgb, var(--vscode-textLink-foreground) 30%, transparent)",
 								}}>
 								<div
 									style={{
