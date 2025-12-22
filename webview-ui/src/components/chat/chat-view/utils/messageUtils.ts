@@ -555,18 +555,26 @@ export function getToolsNotInCurrentActivities(toolGroupMessages: ClineMessage[]
  */
 export function isApiReqAbsorbable(apiReqTs: number, allMessages: ClineMessage[]): boolean {
 	const apiReqIndex = allMessages.findIndex((m) => m.ts === apiReqTs && m.say === "api_req_started")
-	if (apiReqIndex === -1) return false
+	if (apiReqIndex === -1) {
+		return false
+	}
 
 	let hasLowStakesTool = false
 	for (let i = apiReqIndex + 1; i < allMessages.length; i++) {
 		const msg = allMessages[i]
-		if (msg.say === "api_req_started") break
+		if (msg.say === "api_req_started") {
+			break
+		}
 
 		// Reasoning and checkpoints do not affect absorbability
-		if (msg.say === "reasoning" || msg.say === "checkpoint_created") continue
+		if (msg.say === "reasoning" || msg.say === "checkpoint_created") {
+			continue
+		}
 
 		// Text is allowed (we still want to absorb api_req into the tool group)
-		if (msg.say === "text") continue
+		if (msg.say === "text") {
+			continue
+		}
 
 		// Low-stakes tools mark absorbability
 		if (isLowStakesTool(msg)) {
@@ -636,118 +644,106 @@ function isApiReqFollowedOnlyByLowStakesTools(index: number, messages: (ClineMes
  */
 export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessage[])[]): (ClineMessage | ClineMessage[])[] {
 	const result: (ClineMessage | ClineMessage[])[] = []
-	let currentToolGroup: ClineMessage[] = []
-	let pendingReasoning: ClineMessage[] = [] // Reasoning waiting for a tool
-	let pendingApiReq: ClineMessage[] = [] // api_req_started waiting to be absorbed or rendered
-	let hasActualTool = false // Track if we have at least one actual tool
+	let toolGroup: ClineMessage[] = []
+	let pendingReasoning: ClineMessage[] = []
+	let pendingApiReq: ClineMessage[] = []
+	let hasTools = false
 
-	const endToolGroup = () => {
-		if (currentToolGroup.length > 0 && hasActualTool) {
-			// Only create tool group if there's at least one actual tool
-			const toolGroup = [...currentToolGroup] as ClineMessage[] & { _isToolGroup: boolean }
-			toolGroup._isToolGroup = true
-			result.push(toolGroup)
-			// Only clear pending items when we actually used them in a tool group
+	const flushPending = () => {
+		pendingApiReq.forEach((m) => result.push(m))
+		pendingApiReq = []
+		pendingReasoning = []
+	}
+
+	const commitToolGroup = () => {
+		if (toolGroup.length > 0 && hasTools) {
+			const group = toolGroup as ClineMessage[] & { _isToolGroup: boolean }
+			group._isToolGroup = true
+			result.push(group)
 			pendingReasoning = []
 			pendingApiReq = []
 		}
-		// Keep pending items if no tool group was created - they may belong to upcoming tools
-		currentToolGroup = []
-		hasActualTool = false
+		toolGroup = []
+		hasTools = false
 	}
 
-	groupedMessages.forEach((item, index) => {
-		// If it's already a group (browser session), end current tool group and pass through
-		if (Array.isArray(item)) {
-			endToolGroup()
-			// Render any pending api_req that wasn't absorbed
-			pendingApiReq.forEach((m) => result.push(m))
+	const absorbPending = () => {
+		if (pendingApiReq.length > 0) {
+			toolGroup.push(...pendingApiReq)
 			pendingApiReq = []
+		}
+		if (pendingReasoning.length > 0) {
+			toolGroup.push(...pendingReasoning)
 			pendingReasoning = []
+		}
+	}
+
+	for (let i = 0; i < groupedMessages.length; i++) {
+		const item = groupedMessages[i]
+
+		// Browser session group - commit current work and pass through
+		if (Array.isArray(item)) {
+			commitToolGroup()
+			flushPending()
 			result.push(item)
-			return
+			continue
 		}
 
 		const message = item
+		const messageType = message.say
 
-		// Low-stakes tools get grouped
+		// Low-stakes tool - absorb pending and add to group
 		if (isLowStakesTool(message)) {
-			// If we have pending api_req, absorb it into the tool group (don't render separately)
-			if (pendingApiReq.length > 0) {
-				currentToolGroup.push(...pendingApiReq)
-				pendingApiReq = []
-			}
-			// If we have pending reasoning, add it (so reasoning comes before its tool)
-			if (pendingReasoning.length > 0) {
-				currentToolGroup.push(...pendingReasoning)
-				pendingReasoning = []
-			}
-			hasActualTool = true
-			currentToolGroup.push(message)
+			absorbPending()
+			hasTools = true
+			toolGroup.push(message)
+			continue
 		}
-		// Reasoning gets collected, will be added when we see a tool
-		else if (message.say === "reasoning") {
-			if (hasActualTool) {
-				// Already in a tool group, add directly
-				currentToolGroup.push(message)
+
+		// Reasoning - add to group if active, otherwise queue
+		if (messageType === "reasoning") {
+			if (hasTools) {
+				toolGroup.push(message)
 			} else {
-				// Before first tool, collect as pending
 				pendingReasoning.push(message)
 			}
+			continue
 		}
-		// api_req_started - check if it should be absorbed or rendered
-		else if (message.say === "api_req_started") {
-			// Check if this api_req is followed only by low-stakes tools
-			if (isApiReqFollowedOnlyByLowStakesTools(index, groupedMessages)) {
-				// Absorb into tool group (don't end current group, keep building)
-				// Any pending api_req from before also gets absorbed
-				if (pendingApiReq.length > 0) {
-					currentToolGroup.push(...pendingApiReq)
-					pendingApiReq = []
-				}
-				if (pendingReasoning.length > 0) {
-					currentToolGroup.push(...pendingReasoning)
-					pendingReasoning = []
-				}
-				// Add this api_req to pending (will be absorbed when we see the tool)
+
+		// API request - absorb if followed by low-stakes tools, otherwise render
+		if (messageType === "api_req_started") {
+			if (isApiReqFollowedOnlyByLowStakesTools(i, groupedMessages)) {
+				absorbPending()
 				pendingApiReq.push(message)
 			} else {
-				// This api_req has non-low-stakes output - end current tool group
-				endToolGroup()
-				// Render any previous pending api_req
-				pendingApiReq.forEach((m) => result.push(m))
-				pendingApiReq = []
-				pendingReasoning = []
-				// Render this api_req normally (will show Thinking block)
+				commitToolGroup()
+				flushPending()
 				result.push(message)
 			}
+			continue
 		}
-		// Checkpoints after tool groups get absorbed (hidden)
-		else if (message.say === "checkpoint_created" && hasActualTool) {
-			// Absorb checkpoint into the tool group only if we have actual tools
-			currentToolGroup.push(message)
-		}
-		// Text messages: render separately but DON'T flush pending api_req
-		// (the api_req may be absorbed by tools that come after the text)
-		else if (message.say === "text") {
-			// Just render text, keep pending api_req for potential upcoming tools
-			result.push(message)
-		}
-		// Everything else ends the tool group and flushes pending
-		else {
-			endToolGroup()
-			// Render any pending api_req that wasn't absorbed
-			pendingApiReq.forEach((m) => result.push(m))
-			pendingApiReq = []
-			pendingReasoning = []
-			result.push(message)
-		}
-	})
 
-	// Handle trailing tool group
-	endToolGroup()
-	// Render any trailing pending api_req
-	pendingApiReq.forEach((m) => result.push(m))
+		// Checkpoint - absorb into active tool group
+		if (messageType === "checkpoint_created" && hasTools) {
+			toolGroup.push(message)
+			continue
+		}
+
+		// Text - render separately, keep pending for potential future tools
+		if (messageType === "text") {
+			result.push(message)
+			continue
+		}
+
+		// Everything else - commit group, flush pending, and render
+		commitToolGroup()
+		flushPending()
+		result.push(message)
+	}
+
+	// Finalize any remaining work
+	commitToolGroup()
+	flushPending()
 
 	return result
 }

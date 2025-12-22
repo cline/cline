@@ -1597,7 +1597,7 @@ export const ChatRowContent = memo(
 											<div className="w-2 h-2 rounded-full bg-success shrink-0" />
 											<span className="text-success font-semibold text-sm shrink-0">Task Completed</span>
 										</div>
-										<CopyButton textToCopy={text || ""} />
+										<CopyButton className="px-0" textToCopy={text || ""} />
 									</div>
 									<CompletionOutputRow
 										isOutputFullyExpanded={isCompletionOutputExpanded}
@@ -1878,7 +1878,7 @@ export const ChatRowContent = memo(
 							return (
 								<div>
 									<div className="rounded-sm border border-editor-group-border hover:border-success overflow-visible bg-code transition-all duration-300 ease-in-out">
-										<div className="flex items-center justify-between px-2.5 py-2 rounded-t-sm bg-code rounded-tr-sm">
+										<div className="flex items-center justify-between py-2 rounded-t-sm bg-code rounded-tr-sm">
 											<div className="flex items-center gap-2 flex-1 min-w-0">
 												<div className="w-2 h-2 rounded-full bg-success flex-shrink-0" />
 												<span className="text-success font-bold text-sm flex-shrink-0">
@@ -1894,9 +1894,6 @@ export const ChatRowContent = memo(
 														lastModifiedMessage?.ask === "resume_task"
 													}
 													messageTs={message.ts}
-													style={{
-														flexShrink: 0,
-													}}
 												/>
 											</div>
 										</div>
