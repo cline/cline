@@ -1,6 +1,7 @@
 import { memo } from "react"
 import { cn } from "@/lib/utils"
 import { MarkdownRow } from "./MarkdownRow"
+import "./CompletionOutputRow.css"
 
 export const CompletionOutputRow = memo(
 	({ text, isOutputFullyExpanded, onToggle }: { text: string; isOutputFullyExpanded: boolean; onToggle: () => void }) => {
