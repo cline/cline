@@ -2,8 +2,8 @@ import { Meter } from "@opentelemetry/api"
 import type { Logger as OTELLogger } from "@opentelemetry/api-logs"
 import { LoggerProvider } from "@opentelemetry/sdk-logs"
 import { MeterProvider } from "@opentelemetry/sdk-metrics"
-import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
+import { getErrorLevelFromString } from "@/services/error"
 import { getDistinctId, setDistinctId } from "@/services/logging/distinctId"
 import { Setting } from "@/shared/proto/index.host"
 import type { ClineAccountUserInfo } from "../../../auth/AuthService"
@@ -304,8 +304,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 		if (hostSettings.isEnabled === Setting.DISABLED) {
 			return "off"
 		}
-		const config = vscode.workspace.getConfiguration("telemetry")
-		return config?.get<TelemetrySettings["level"]>("telemetryLevel") || "all"
+		return getErrorLevelFromString(hostSettings.errorLevel)
 	}
 
 	/**
