@@ -69,12 +69,16 @@ import Mutex from "p-mutex"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
-import * as vscode from "vscode"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
-import { CommandExecutorCallbacks, StandaloneTerminalManager } from "@/integrations/terminal"
-import { CommandExecutor, FullCommandExecutorConfig } from "@/integrations/terminal/CommandExecutor"
+import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
+import {
+	CommandExecutor,
+	CommandExecutorCallbacks,
+	FullCommandExecutorConfig,
+	StandaloneTerminalManager,
+} from "@/integrations/terminal"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
 import { telemetryService } from "@/services/telemetry"
 import {
@@ -272,7 +276,6 @@ export class Task {
 		this.cancelTask = cancelTask
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
 		this.taskLockAcquired = taskLockAcquired
-
 		// Determine terminal execution mode and create appropriate terminal manager
 		this.terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
 
@@ -296,11 +299,15 @@ export class Task {
 		this.urlContentFetcher = new UrlContentFetcher(controller.context)
 		this.browserSession = new BrowserSession(stateManager)
 		this.contextManager = new ContextManager()
-		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
 		this.streamHandler = new StreamResponseHandler()
 		this.cwd = cwd
 		this.stateManager = stateManager
 		this.workspaceManager = workspaceManager
+
+		// DiffViewProvider opens Diff Editor during edits while FileEditProvider performs
+		// edits in the background without stealing user's editor's focus.
+		const backgroundEditEnabled = this.stateManager.getGlobalSettingsKey("backgroundEditEnabled")
+		this.diffViewProvider = backgroundEditEnabled ? new FileEditProvider() : HostProvider.get().createDiffViewProvider()
 
 		// Set up MCP notification callback for real-time notifications
 		this.mcpHub.setNotificationCallback(async (serverName: string, _level: string, message: string) => {
@@ -1600,21 +1607,6 @@ export class Task {
 		}
 	}
 
-	/**
-	 * Migrates the disableBrowserTool setting from VSCode configuration to browserSettings
-	 */
-	private async migrateDisableBrowserToolSetting(): Promise<void> {
-		const config = vscode.workspace.getConfiguration("cline")
-		const disableBrowserTool = config.get<boolean>("disableBrowserTool")
-
-		if (disableBrowserTool !== undefined) {
-			const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
-			browserSettings.disableToolUse = disableBrowserTool
-			// Remove from VSCode configuration
-			await config.update("disableBrowserTool", undefined, true)
-		}
-	}
-
 	private getCurrentProviderInfo(): ApiProviderInfo {
 		const model = this.api.getModel()
 		const apiConfig = this.stateManager.getApiConfiguration()
@@ -1705,7 +1697,6 @@ export class Task {
 
 		const providerInfo = this.getCurrentProviderInfo()
 		const ide = (await HostProvider.env.getHostVersion({})).platform || "Unknown"
-		await this.migrateDisableBrowserToolSetting()
 		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
 		const disableBrowserTool = browserSettings.disableToolUse ?? false
 		// cline browser tool uses image recognition for navigation (requires model image support).
@@ -2142,6 +2133,16 @@ export class Task {
 		}
 
 		if (this.taskState.consecutiveMistakeCount >= this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")) {
+			// In yolo mode, don't wait for user input - fail the task
+			if (this.stateManager.getGlobalSettingsKey("yoloModeToggled")) {
+				const errorMessage =
+					`[YOLO MODE] Task failed: Too many consecutive mistakes (${this.taskState.consecutiveMistakeCount}). ` +
+					`The model may not be capable enough for this task. Consider using a more capable model.`
+				await this.say("error", errorMessage)
+				// End the task loop with failure
+				return true // didEndLoop = true, signals task completion/failure
+			}
+
 			const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 			if (autoApprovalSettings.enableNotifications) {
 				showSystemNotification({
@@ -2215,7 +2216,12 @@ export class Task {
 
 		// Now, if it's the first request AND checkpoints are enabled AND tracker was successfully initialized,
 		// then say "checkpoint_created" and perform the commit.
-		if (isFirstRequest && this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting") && this.checkpointManager) {
+		if (
+			isFirstRequest &&
+			this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting") &&
+			this.checkpointManager &&
+			!this.taskState.checkpointManagerErrorMessage
+		) {
 			await this.say("checkpoint_created") // Now this is conditional
 			const lastCheckpointMessageIndex = findLastIndex(
 				this.messageStateHandler.getClineMessages(),

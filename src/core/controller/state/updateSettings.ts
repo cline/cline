@@ -320,6 +320,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			}
 		}
 
+		if (request.backgroundEditEnabled !== undefined) {
+			controller.stateManager.setGlobalState("backgroundEditEnabled", !!request.backgroundEditEnabled)
+		}
+
 		if (request.autoCondenseThreshold !== undefined) {
 			const threshold = Math.min(1, Math.max(0, request.autoCondenseThreshold)) // Clamp to 0-1 range
 			controller.stateManager.setGlobalState("autoCondenseThreshold", threshold)

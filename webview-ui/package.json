@@ -75,7 +75,7 @@
 		"@vitest/coverage-v8": "^3.0.9",
 		"globals": "^15.14.0",
 		"jsdom": "^26.0.0",
-		"storybook": "^9.1.6",
+		"storybook": "^9.1.17",
 		"tailwindcss": "^4.1.13",
 		"typescript": "^5.7.3",
 		"vite": "^7.1.11",
