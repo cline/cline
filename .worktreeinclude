@@ -1,8 +1,1 @@
-# Dependencies
-node_modules
-webview-ui/node_modules
-
-# Generated proto files
-src/generated/
-src/shared/proto/
-webview-ui/src/services/grpc-client.ts
+.gitignore
