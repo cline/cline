@@ -523,55 +523,46 @@ func (h *SayHandler) handleTaskProgress(msg *types.ClineMessage, dc *DisplayCont
 func (h *SayHandler) handleHook(msg *types.ClineMessage, dc *DisplayContext) error {
 	var hook types.HookMessage
 	if err := json.Unmarshal([]byte(msg.Text), &hook); err != nil {
-		// Fallback to simple message if JSON parsing fails
+		// Fallback to basic output if JSON parsing fails
 		return dc.Renderer.RenderMessage("HOOK", msg.Text, true)
 	}
 
-	// Build base hook description
-	hookDesc := hook.HookName
-	if hook.ToolName != "" {
-		hookDesc = fmt.Sprintf("%s for tool %s", hook.HookName, hook.ToolName)
+	// Debug: log the parsed hook data
+	if dc.Verbose {
+		fmt.Printf("[DEBUG] Hook parsed: name=%s, status=%s, toolName=%s, scriptPaths=%v\n",
+			hook.HookName, hook.Status, hook.ToolName, hook.ScriptPaths)
 	}
 
-	// Build message starting with hook name and status
-	var message string
-	pathCount := len(hook.ScriptPaths)
-
-	// Show script count if multiple scripts
-	if pathCount > 1 {
-		message = fmt.Sprintf("%s [%d scripts] %s", hookDesc, pathCount, hook.Status)
-	} else {
-		message = fmt.Sprintf("%s %s", hookDesc, hook.Status)
-	}
-
-	// Add path information
-	if pathCount == 1 {
-		// Single hook: show path inline (dimmed by renderer)
-		formattedPath := formatHookPath(hook.ScriptPaths[0])
-		message = fmt.Sprintf("%s (%s)", message, formattedPath)
-	} else if pathCount > 1 {
-		// Multiple hooks: always show all paths (not verbose-only)
-		for _, scriptPath := range hook.ScriptPaths {
-			formattedPath := formatHookPath(scriptPath)
-			message += fmt.Sprintf("\n  → %s", formattedPath)
+	// Format script paths for display (tilde for home, repo-relative for workspace)
+	if len(hook.ScriptPaths) > 0 {
+		formatted := make([]string, 0, len(hook.ScriptPaths))
+		for _, p := range hook.ScriptPaths {
+			if strings.TrimSpace(p) == "" {
+				continue
+			}
+			formatted = append(formatted, formatHookPath(p))
 		}
+		hook.ScriptPaths = formatted
 	}
 
-	// Append exit code for failed hooks
-	if hook.Status == "failed" && hook.ExitCode != 0 {
-		message = fmt.Sprintf("%s - exit %d", message, hook.ExitCode)
+	// Render using HookRenderer for consistent CLI-native output
+	if dc.HookRenderer != nil {
+		rendered := dc.HookRenderer.RenderHookStatus(hook)
+		output.Print("\n")
+		output.Print(rendered)
+		output.Print("\n")
+		return nil
 	}
 
-	// Render the message
-	return dc.Renderer.RenderMessage("HOOK", message, true)
+	// Fallback: if HookRenderer not available
+	return dc.Renderer.RenderMessage("HOOK", fmt.Sprintf("%s %s", hook.HookName, hook.Status), true)
 }
 
 // handleHookOutput handles streaming output from hooks
 // This is a placeholder for future enhancement when we want to stream hook stdout/stderr
 func (h *SayHandler) handleHookOutput(msg *types.ClineMessage, dc *DisplayContext) error {
-	// Future: implement hook output streaming
-	// For now, do nothing to avoid cluttering the output
-	// The hook stdout/stderr is available in msg.Text if needed
+	// Intentionally suppressed for now.
+	// We will implement streamed hook output later (likely under --verbose).
 	return nil
 }
 
@@ -637,5 +628,16 @@ func getEnv(key string) string {
 
 // handleDefault handles unknown SAY message types
 func (h *SayHandler) handleDefault(msg *types.ClineMessage, dc *DisplayContext) error {
+	// Debug: log unhandled say types to help identify missing cases
+	if dc.Verbose {
+		fmt.Printf("[DEBUG] Unhandled SAY type: '%s' (text preview: %s)\n", msg.Say, truncateForDisplay(msg.Text, 50))
+	}
 	return dc.Renderer.RenderMessage("SAY", msg.Text, true)
+}
+
+func truncateForDisplay(text string, maxLen int) string {
+	if len(text) <= maxLen {
+		return text
+	}
+	return text[:maxLen] + "..."
 }

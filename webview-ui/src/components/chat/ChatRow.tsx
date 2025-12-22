@@ -1893,10 +1893,10 @@ export const ChatRowContent = memo(
 								</div>
 							)
 						}
-					case "hook":
+					case "hook_status":
 						return <HookMessage CommandOutput={CommandOutput} message={message} />
-					case "hook_output":
-						// hook_output messages are combined with hook messages, so we don't render them separately
+					case "hook_output_stream":
+						// hook_output_stream messages are combined with hook_status messages, so we don't render them separately
 						return null
 					case "shell_integration_warning_with_suggestion":
 						const isBackgroundModeEnabled = vscodeTerminalExecutionMode === "backgroundExec"

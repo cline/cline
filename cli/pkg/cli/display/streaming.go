@@ -91,7 +91,12 @@ func (s *StreamingDisplay) HandlePartialMessage(msg *types.ClineMessage) error {
 
 func (s *StreamingDisplay) shouldRenderMarkdown(sayType string) bool {
 	switch sayType {
-	case string(types.SayTypeReasoning), string(types.SayTypeText), string(types.SayTypeCompletionResult), string(types.SayTypeTool), "ask":
+	case string(types.SayTypeReasoning),
+		string(types.SayTypeText),
+		string(types.SayTypeCompletionResult),
+		string(types.SayTypeTool),
+		string(types.SayTypeHook),
+		"ask":
 		return true
 	default:
 		return false
@@ -110,6 +115,8 @@ func (s *StreamingDisplay) getPrefix(sayType string) string {
 		return "ASK"
 	case string(types.SayTypeCommand):
 		return "TERMINAL"
+	case string(types.SayTypeHook):
+		return "HOOK"
 	default:
 		return strings.ToUpper(sayType)
 	}

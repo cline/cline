@@ -110,6 +110,11 @@ func (ss *StreamingSegment) renderFinal(currentBuffer string) {
 		if err := json.Unmarshal([]byte(currentBuffer), &tool); err == nil {
 			bodyContent = ss.toolRenderer.GenerateToolContentBody(&tool)
 		}
+	} else if ss.sayType == string(types.SayTypeHook) {
+		// Hook execution: parse and render using HookRenderer (no body rendering in streaming - handled by state stream)
+		// The header has already been shown, so we don't need to render anything here.
+		// The full hook status will be rendered when the complete message arrives in the state stream.
+		bodyContent = ""
 	} else if ss.sayType == string(types.SayTypeCommand) {
 		// Command output
 		bodyContent = "```shell\n" + currentBuffer + "\n```"
@@ -160,6 +165,11 @@ func (ss *StreamingSegment) generateRichHeader() string {
 		
 	case string(types.SayTypeTool):
 		return ss.generateToolHeader()
+
+	case string(types.SayTypeHook):
+		// Render hook status header like other rich sections.
+		// (Body will be rendered by SayHandler when message is complete in state stream.)
+		return "### Hook\n"
 		
 	case "ask":
 		// Check the specific ask type
