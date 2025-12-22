@@ -42,6 +42,10 @@ service TaskService {
   rpc deleteAllTaskHistory(EmptyRequest) returns (DeleteAllTaskHistoryCount);
   // Explains changes with AI and adds inline comments to the diff view
   rpc explainChanges(ExplainChangesRequest) returns (Empty);
+  // Get list of known workspaces sorted by most recently opened
+  rpc getKnownWorkspaces(EmptyRequest) returns (WorkspaceListResponse);
+  // Associate a task with the current workspace
+  rpc associateTaskWithWorkspace(AssociateTaskWithWorkspaceRequest) returns (Empty);
 }
 
 // Request message for creating a new task
@@ -72,7 +76,8 @@ message TaskResponse {
   int32 tokens_out = 8;
   int32 cache_writes = 9;
   int32 cache_reads = 10;
-  string model_id = 11;
+  bool is_cross_workspace = 11; // True if task is from another workspace
+  string model_id = 12;
 }
 
 // Request for getting task history with filtering
@@ -82,6 +87,7 @@ message GetTaskHistoryRequest {
   string search_query = 3;
   string sort_by = 4;
   bool current_workspace_only = 5;
+  string filter_by_workspace_id = 6; // Filter by specific workspace path
 }
 
 // Response for task history
@@ -102,7 +108,9 @@ message TaskItem {
   int32 tokens_out = 8;
   int32 cache_writes = 9;
   int32 cache_reads = 10;
-  string model_id = 11;
+  repeated string workspace_ids = 11; // Workspaces this task belongs to
+  string workspace_name = 12; // Primary workspace display name
+  string model_id = 13;
 }
 
 // Request for ask response operation
@@ -131,4 +139,23 @@ message ExplainChangesRequest {
   Metadata metadata = 1;
   // Timestamp of the completion message to explain changes for
   int64 message_ts = 2;
+}
+
+// Workspace metadata
+message WorkspaceInfo {
+  string path = 1;
+  string name = 2;
+  int64 last_opened = 3;
+}
+
+// Response containing list of known workspaces
+message WorkspaceListResponse {
+  repeated WorkspaceInfo workspaces = 1;
+}
+
+// Request to associate task with workspace
+message AssociateTaskWithWorkspaceRequest {
+  Metadata metadata = 1;
+  string task_id = 2;
+  string workspace_path = 3;
 }

@@ -28,11 +28,14 @@ import { improveWithCline } from "./core/controller/commands/improveWithCline"
 import { clearOnboardingModelsCache } from "./core/controller/models/getClineOnboardingModels"
 import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
+import { initializeWorkspaceMetadata } from "./core/controller/workspace/initializeWorkspaceMetadata"
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
+import { migrateTaskHistoryToWorkspaceState, migrateWorkspaceMetadata } from "./core/storage/state-migrations"
 import { workspaceResolver } from "./core/workspace"
 import { focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMsg } from "./hosts/vscode/commit-message-generator"
+import { initializeVSCodeWorkspace } from "./hosts/vscode/initializeWorkspace"
 import {
 	disposeVscodeCommentReviewController,
 	getVscodeCommentReviewController,
@@ -61,6 +64,9 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 export async function activate(context: vscode.ExtensionContext) {
 	setupHostProvider(context)
 
+	// Run migration before initializing StateManager
+	await migrateTaskHistoryToWorkspaceState(context)
+
 	// Initialize hook discovery cache for performance optimization
 	HookDiscoveryCache.getInstance().initialize(
 		context as any, // Adapt VSCode ExtensionContext to generic interface
@@ -86,6 +92,15 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	const webview = (await initialize(context)) as VscodeWebviewProvider
+
+	// Migrate workspace metadata from task history (one-time)
+	await migrateWorkspaceMetadata(webview.controller.stateManager)
+
+	// Initialize workspace metadata from current folders
+	await initializeWorkspaceMetadata(webview.controller)
+
+	// Set up VSCode-specific workspace tracking
+	initializeVSCodeWorkspace(context, webview.controller)
 
 	Logger.log("Cline extension activated")
 

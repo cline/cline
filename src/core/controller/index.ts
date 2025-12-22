@@ -230,6 +230,21 @@ export class Controller {
 		this.stateManager.setGlobalState("userInfo", info)
 	}
 
+	/**
+	 * Updates workspace metadata for tracking workspace opens
+	 */
+	private async updateWorkspaceMetadata(workspacePath: string, workspaceName: string) {
+		const workspaceMetadata = this.stateManager.getGlobalStateKey("workspaceMetadata") || {}
+
+		workspaceMetadata[workspacePath] = {
+			path: workspacePath,
+			name: workspaceName,
+			lastOpened: Date.now(),
+		}
+
+		this.stateManager.setGlobalState("workspaceMetadata", workspaceMetadata)
+	}
+
 	async initTask(
 		task?: string,
 		images?: string[],
@@ -256,14 +271,18 @@ export class Controller {
 		const subagentTerminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("subagentTerminalOutputLineLimit")
 		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
-		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
 
 		// Check if the user has completed enough tasks to no longer be considered a "new user"
-		if (isNewUser && !historyItem && taskHistory && taskHistory.length >= NEW_USER_TASK_COUNT_THRESHOLD) {
-			this.stateManager.setGlobalState("isNewUser", false)
-			await this.postStateToWebview()
+		if (isNewUser && !historyItem) {
+			// Read from global file to check task count
+			const { readTaskHistoryFromState } = await import("../storage/disk")
+			const taskHistory = await readTaskHistoryFromState()
+			if (taskHistory.length >= NEW_USER_TASK_COUNT_THRESHOLD) {
+				this.stateManager.setGlobalState("isNewUser", false)
+				await this.postStateToWebview()
+			}
 		}
 
 		if (autoApprovalSettings) {
@@ -281,6 +300,13 @@ export class Controller {
 		})
 
 		const cwd = this.workspaceManager?.getPrimaryRoot()?.path || (await getCwd(getDesktopDir()))
+
+		// Track workspace open in metadata
+		const primaryRoot = this.workspaceManager?.getPrimaryRoot()
+		if (primaryRoot) {
+			const workspaceName = primaryRoot.name || primaryRoot.path.split("/").pop() || "workspace"
+			await this.updateWorkspaceMetadata(primaryRoot.path, workspaceName)
+		}
 
 		const taskId = historyItem?.id || Date.now().toString()
 
@@ -756,7 +782,9 @@ export class Controller {
 		taskMetadataFilePath: string
 		apiConversationHistory: Anthropic.MessageParam[]
 	}> {
-		const history = this.stateManager.getGlobalStateKey("taskHistory")
+		// Read from global file (single source of truth)
+		const { readTaskHistoryFromState } = await import("../storage/disk")
+		const history = await readTaskHistoryFromState()
 		const historyItem = history.find((item) => item.id === id)
 		if (historyItem) {
 			const taskDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks", id)
@@ -791,10 +819,11 @@ export class Controller {
 	}
 
 	async deleteTaskFromState(id: string) {
-		// Remove the task from history
-		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
+		// Remove the task from global file (single source of truth)
+		const { readTaskHistoryFromState, writeTaskHistoryToState } = await import("../storage/disk")
+		const taskHistory = await readTaskHistoryFromState()
 		const updatedTaskHistory = taskHistory.filter((task) => task.id !== id)
-		this.stateManager.setGlobalState("taskHistory", updatedTaskHistory)
+		await writeTaskHistoryToState(updatedTaskHistory)
 
 		// Notify the webview that the task has been deleted
 		await this.postStateToWebview()
@@ -812,7 +841,9 @@ export class Controller {
 		const onboardingModels = getClineOnboardingModels()
 		const apiConfiguration = this.stateManager.getApiConfiguration()
 		const lastShownAnnouncementId = this.stateManager.getGlobalStateKey("lastShownAnnouncementId")
-		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
+		// Read from global file (single source of truth)
+		const { readTaskHistoryFromState } = await import("../storage/disk")
+		const taskHistory = await readTaskHistoryFromState()
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
 		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
@@ -863,10 +894,8 @@ export class Controller {
 		const clineMessages = this.task?.messageStateHandler.getClineMessages() || []
 		const checkpointManagerErrorMessage = this.task?.taskState.checkpointManagerErrorMessage
 
-		const processedTaskHistory = (taskHistory || [])
-			.filter((item) => item.ts && item.task)
-			.sort((a, b) => b.ts - a.ts)
-			.slice(0, 100) // for now we're only getting the latest 100 tasks, but a better solution here is to only pass in 3 for recent task history, and then get the full task history on demand when going to the task history view (maybe with pagination?)
+		const processedTaskHistory = (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts)
+		// Removed .slice(0, 100) limit to show all historical tasks
 
 		const latestAnnouncementId = getLatestAnnouncementId()
 		const shouldShowAnnouncement = lastShownAnnouncementId !== latestAnnouncementId
@@ -938,6 +967,7 @@ export class Controller {
 			workspaceRoots: this.workspaceManager?.getRoots() ?? [],
 			primaryRootIndex: this.workspaceManager?.getPrimaryIndex() ?? 0,
 			isMultiRootWorkspace: (this.workspaceManager?.getRoots().length ?? 0) > 1,
+			currentWorkspacePath: this.workspaceManager?.getPrimaryRoot()?.path,
 			multiRootSetting: {
 				user: this.stateManager.getGlobalStateKey("multiRootEnabled"),
 				featureFlag: true, // Multi-root workspace is now always enabled
@@ -986,14 +1016,30 @@ export class Controller {
 	*/
 
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
-		const history = this.stateManager.getGlobalStateKey("taskHistory")
+		// Read from global file (single source of truth)
+		const { readTaskHistoryFromState, writeTaskHistoryToState } = await import("../storage/disk")
+		const history = await readTaskHistoryFromState()
 		const existingItemIndex = history.findIndex((h) => h.id === item.id)
 		if (existingItemIndex !== -1) {
-			history[existingItemIndex] = item
+			const existing = history[existingItemIndex]
+
+			// Merge new data with existing to preserve fields like workspaceIds
+			// Smart merge: don't overwrite existing values with placeholders/empty values
+			history[existingItemIndex] = {
+				...existing, // Keep existing fields
+				...item, // Apply updates
+				// Preserve existing task description if update contains placeholder/empty value
+				task: item.task === "[No task description]" || !item.task ? existing.task : item.task,
+				// Preserve existing workspaceIds if update doesn't have them
+				workspaceIds: item.workspaceIds && item.workspaceIds.length > 0 ? item.workspaceIds : existing.workspaceIds,
+				// Preserve existing workspaceName if update doesn't have it
+				workspaceName: item.workspaceName || existing.workspaceName,
+			}
 		} else {
 			history.push(item)
 		}
-		this.stateManager.setGlobalState("taskHistory", history)
+		// Write back to global file
+		await writeTaskHistoryToState(history)
 		return history
 	}
 
