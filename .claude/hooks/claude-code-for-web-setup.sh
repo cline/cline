@@ -6,7 +6,17 @@ if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
   exit 0
 fi
 
-cd "$CLAUDE_PROJECT_DIR"
+# Determine project directory - fallback to script's parent directory if CLAUDE_PROJECT_DIR not set
+if [ -n "${CLAUDE_PROJECT_DIR:-}" ]; then
+  PROJECT_DIR="$CLAUDE_PROJECT_DIR"
+else
+  # Script is at .claude/hooks/claude-code-for-web-setup.sh, so project root is ../..
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+  echo "Warning: CLAUDE_PROJECT_DIR not set, using fallback: $PROJECT_DIR"
+fi
+
+cd "$PROJECT_DIR"
 
 echo "=== Claude Code for Web Setup ==="
 echo ""
