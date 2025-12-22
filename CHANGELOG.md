@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.45.1]
+
+- Fixed MCP settings race condition where toggling auto-approve or changing timeout settings would cause the UI to flash and revert
+
 ## [3.45.0]
 
 - Added Gemini 3 Flash Preview model
