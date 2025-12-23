@@ -229,7 +229,9 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 
 		// Cache and apply the remote config
 		await writeRemoteConfigToCache(organizationId, config)
-		await applyRemoteConfig(config, undefined, controller.mcpHub)
+		if (!isRemoteConfigEnabled(organizationId)) {
+			await applyRemoteConfig(config, undefined, controller.mcpHub)
+		}
 		controller.postStateToWebview()
 
 		return config
@@ -253,10 +255,6 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
  */
 export async function fetchRemoteConfig(controller: Controller) {
 	try {
-		if (!isRemoteConfigEnabled()) {
-			return
-		}
-
 		await ensureUserInOrgWithRemoteConfig(controller)
 	} catch (error) {
 		console.error("Failed to fetch remote config", error)

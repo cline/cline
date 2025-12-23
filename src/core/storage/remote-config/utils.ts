@@ -242,7 +242,7 @@ export async function applyRemoteConfig(
 	const telemetryService = await getTelemetryService()
 
 	// If no remote config provided, clear the cache and relevant state
-	if (!remoteConfig || !isRemoteConfigEnabled()) {
+	if (!remoteConfig) {
 		clearRemoteConfig()
 		return
 	}
@@ -295,29 +295,27 @@ export async function applyRemoteConfig(
 	await applyRemoteOTELConfig(transformed, telemetryService)
 }
 
-export const isRemoteConfigEnabled = () => {
+const canDisableRemoteConfig = (orgId?: string) => {
+	// Check if they're an admin/owner
+	const authService = AuthService.getInstance()
+	const userOrgs = authService.getUserOrganizations()
+	const remotelyConfiguredOrgId = orgId || authService.getActiveOrganizationId()
+
+	if (!userOrgs || remotelyConfiguredOrgId) {
+		return true
+	}
+
+	const org = userOrgs.find((org) => org.organizationId === remotelyConfiguredOrgId)
+	const isAdminOrOwner = org?.roles?.some((role) => role === "admin" || role === "owner")
+
+	return isAdminOrOwner
+}
+
+export const isRemoteConfigEnabled = (orgId?: string) => {
 	const stateManager = StateManager.get()
 	const hasOptedOut = stateManager.getGlobalSettingsKey("optOutOfRemoteConfig")
 
-	if (!hasOptedOut) {
-		return true
-	}
+	const isDisabled = hasOptedOut && canDisableRemoteConfig(orgId)
 
-	// User has opted out - check if they're an admin/owner
-	const authService = AuthService.getInstance()
-	const userOrgs = authService.getUserOrganizations()
-	const activeOrgId = authService.getActiveOrganizationId()
-
-	if (!userOrgs || !activeOrgId) {
-		return true
-	}
-
-	const activeOrg = userOrgs.find((org) => org.organizationId === activeOrgId)
-	const isAdminOrOwner = activeOrg?.roles?.some((role) => role === "admin" || role === "owner")
-
-	const canDisableRemoteConfig = isAdminOrOwner
-
-	// If remote config can't be disabled, then it's enabled
-	// we already check if the user opted out earlier
-	return !canDisableRemoteConfig
+	return !isDisabled
 }
