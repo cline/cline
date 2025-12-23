@@ -8,3 +8,5 @@ export const MarkdownRow = memo(({ markdown, showCursor }: { markdown?: string; 
 		</div>
 	)
 })
+
+MarkdownRow.displayName = "MarkdownRow"

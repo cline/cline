@@ -4,8 +4,6 @@ import MarkdownBlock from "@/components/common/MarkdownBlock"
 import { cn } from "@/lib/utils"
 import ExpandHandle from "./ExpandHandle"
 
-const neutralColor = "var(--vscode-descriptionForeground)"
-
 interface PlanCompletionOutputProps {
 	text: string
 	onCopy?: () => void
@@ -80,5 +78,7 @@ const PlanCompletionOutputRow = memo(({ text, onCopy }: PlanCompletionOutputProp
 		</div>
 	)
 })
+
+PlanCompletionOutputRow.displayName = "PlanCompletionOutputRow"
 
 export default PlanCompletionOutputRow

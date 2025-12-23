@@ -139,3 +139,5 @@ export const CommandOutputRow = memo(
 		)
 	},
 )
+
+CommandOutputRow.displayName = "CommandOutputRow"

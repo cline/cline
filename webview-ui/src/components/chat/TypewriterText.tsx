@@ -13,7 +13,7 @@ const ShimmerSpan = styled.span`
 	-webkit-background-clip: text;
 	background-clip: text;
 	color: transparent;
-	animation: shimmer 2s infinite linear;
+	animation: var(--animate-shimmer);
 `
 
 // TypewriterText with shimmer effect after typing completes

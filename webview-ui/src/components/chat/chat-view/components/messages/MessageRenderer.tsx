@@ -195,28 +195,19 @@ const ToolGroupRenderer = memo(
 		}
 
 		return (
-			<div className={cn("px-4 py-2", { "pb-4": isLast })} style={{ color: "var(--vscode-descriptionForeground)" }}>
+			<div className={cn("px-4 py-2 text-description", { "pb-4": isLast })}>
 				{/* Collapsible header */}
-				<div
-					onClick={handleToggle}
-					style={{
-						display: "flex",
-						alignItems: "center",
-						gap: "6px",
-						cursor: "pointer",
-						userSelect: "none",
-						fontSize: "13px",
-					}}>
+				<div className="flex items-center gap-1.5 select-none cursor-pointer text-[13px]" onClick={handleToggle}>
 					<span
-						className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}
-						style={{ fontSize: "12px", opacity: 0.7 }}
+						className={`opacity-70 codicon codicon-chevron-${isExpanded ? "down" : "right"}`}
+						style={{ fontSize: "12px" }}
 					/>
-					<span style={{ opacity: 0.9, flex: 1 }}>{summary}</span>
+					<span className="opacity-90 flex-1">{summary}</span>
 				</div>
 
 				{/* Expanded content - files/folders with reasoning in tooltip */}
 				{isExpanded && (
-					<div style={{ marginLeft: "18px", marginTop: "2px" }}>
+					<div className="ml-[18px] mt-0.5">
 						{toolsWithReasoning.map(({ tool, parsedTool, reasoning }) => {
 							const info = getToolDisplayInfo(tool)
 							if (!info) {
@@ -237,6 +228,7 @@ const ToolGroupRenderer = memo(
 											}
 										}}
 										{...(reasoning ? { title: reasoning } : {})}
+										className="flex items-center gap-1.5 cursor-pointer"
 										onMouseEnter={(e) => {
 											e.currentTarget.style.color = "var(--vscode-textLink-foreground)"
 										}}
@@ -244,12 +236,8 @@ const ToolGroupRenderer = memo(
 											e.currentTarget.style.color = "var(--vscode-descriptionForeground)"
 										}}
 										style={{
-											display: "flex",
-											alignItems: "center",
-											gap: "6px",
 											padding: "2px 0",
 											fontSize: "12px",
-											cursor: "pointer",
 											fontFamily: "var(--vscode-editor-font-family)",
 										}}>
 										<span

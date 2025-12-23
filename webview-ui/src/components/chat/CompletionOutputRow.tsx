@@ -35,3 +35,5 @@ export const CompletionOutputRow = memo(
 		)
 	},
 )
+
+CompletionOutputRow.displayName = "CompletionOutputRow"
