@@ -290,10 +290,6 @@
 			"destination": "/getting-started/installing-cline"
 		},
 		{
-			"source": "/getting-started/what-is-cline",
-			"destination": "/getting-started/what-is-cline"
-		},
-		{
 			"source": "/getting-started/overview",
 			"destination": "/getting-started/what-is-cline"
 		},
