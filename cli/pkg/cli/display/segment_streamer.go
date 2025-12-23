@@ -39,9 +39,12 @@ func NewStreamingSegment(sayType, prefix string, mdRenderer *MarkdownRenderer, s
 	// Render rich header immediately when creating segment (if in rich mode and TTY)
 	if shouldMarkdown && outputFormat != "plain" && isTTY() {
 		header := ss.generateRichHeader()
-		rendered, _ := mdRenderer.Render(header)
-		output.Println("")
-		output.Print(rendered)
+		// Avoid printing empty headers (e.g., hooks are rendered via state stream only).
+		if strings.TrimSpace(header) != "" {
+			rendered, _ := mdRenderer.Render(header)
+			output.Println("")
+			output.Print(rendered)
+		}
 	}
 
 	return ss
@@ -167,9 +170,10 @@ func (ss *StreamingSegment) generateRichHeader() string {
 		return ss.generateToolHeader()
 
 	case string(types.SayTypeHook):
-		// Render hook status header like other rich sections.
-		// (Body will be rendered by SayHandler when message is complete in state stream.)
-		return "### Hook\n"
+		// IMPORTANT: Hooks are rendered from the *state stream* (complete messages) to
+		// avoid double-rendering (stream header + state body). Therefore the partial
+		// streaming pipeline should not print a hook header.
+		return ""
 		
 	case "ask":
 		// Check the specific ask type

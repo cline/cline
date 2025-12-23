@@ -93,6 +93,19 @@ const (
 	SayTypeHookOutput SayType = "hook_output_stream"
 )
 
+// normalizeSayType preserves backward compatibility with older say strings.
+// Some clients/recordings may still emit/contain "hook" and "hook_output".
+func normalizeSayType(s string) string {
+	switch s {
+	case "hook":
+		return string(SayTypeHook)
+	case "hook_output":
+		return string(SayTypeHookOutput)
+	default:
+		return s
+	}
+}
+
 // ToolMessage represents a tool-related message
 type ToolMessage struct {
 	Tool                          string `json:"tool"`
@@ -239,7 +252,7 @@ func ConvertProtoToMessage(protoMsg *cline.ClineMessage) *ClineMessage {
 		Text:                        protoMsg.Text,
 		Timestamp:                   protoMsg.Ts,
 		Reasoning:                   protoMsg.Reasoning,
-		Say:                         say,
+		Say:                         normalizeSayType(say),
 		Ask:                         ask,
 		Partial:                     protoMsg.Partial,
 		LastCheckpointHash:          protoMsg.LastCheckpointHash,

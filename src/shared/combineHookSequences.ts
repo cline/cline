@@ -28,7 +28,10 @@ function isToolOrCommandMessage(msg: ClineMessage): boolean {
  * Returns null if parsing fails or message is not a hook.
  */
 function parseHookMetadata(hookMessage: ClineMessage): HookMetadata | null {
-	if (hookMessage.say !== "hook_status" || !hookMessage.text) {
+	// Back-compat: older recordings may use "hook". We use a loose check here
+	// because old recordings may be deserialized without strict typing.
+	const say = hookMessage.say as string | undefined
+	if ((say !== "hook_status" && say !== "hook") || !hookMessage.text) {
 		return null
 	}
 
@@ -83,9 +86,14 @@ function combineHookWithOutputs(
 	let hasOutput = false
 	let i = startIndex + 1
 
-	// Collect all hook_output_stream messages until we hit another hook_status or end of array
-	while (i < messages.length && messages[i].say !== "hook_status") {
-		if (messages[i].say === "hook_output_stream") {
+	// Collect all hook_output_stream messages until we hit another hook_status/hook or end of array
+	while (
+		i < messages.length &&
+		(messages[i].say as string | undefined) !== "hook_status" &&
+		(messages[i].say as string | undefined) !== "hook"
+	) {
+		const say = messages[i].say as string | undefined
+		if (say === "hook_output_stream" || say === "hook_output") {
 			// Add marker before first output
 			if (!hasOutput) {
 				combinedText += `\n${HOOK_OUTPUT_STRING}`
@@ -119,7 +127,8 @@ function combineAllHooks(messages: ClineMessage[]): ClineMessage[] {
 	const combinedHooksByTs = new Map<number, ClineMessage>()
 
 	for (let i = 0; i < messages.length; i++) {
-		if (messages[i].say === "hook_status") {
+		const say = messages[i].say as string | undefined
+		if (say === "hook_status" || say === "hook") {
 			const { combined, nextIndex } = combineHookWithOutputs(messages[i], i, messages)
 			combinedHooksByTs.set(combined.ts, combined)
 			i = nextIndex - 1 // Adjust for loop increment
@@ -130,8 +139,9 @@ function combineAllHooks(messages: ClineMessage[]): ClineMessage[] {
 	const result: ClineMessage[] = []
 
 	for (const msg of messages) {
-		if (msg.say === "hook_output_stream") {
-		} else if (msg.say === "hook_status") {
+		const say = msg.say as string | undefined
+		if (say === "hook_output_stream" || say === "hook_output") {
+		} else if (say === "hook_status" || say === "hook") {
 			// Use combined version
 			result.push(combinedHooksByTs.get(msg.ts) || msg)
 		} else {
@@ -169,7 +179,8 @@ function findImmediateNextToolTimestamp(hookIndex: number, messages: ClineMessag
 
 		// If we hit another PreToolUse hook before finding a tool, stop searching
 		// This prevents matching a hook to a tool that has its own PreToolUse hook
-		if (msg.say === "hook_status") {
+		const say = msg.say as string | undefined
+		if (say === "hook_status" || say === "hook") {
 			const metadata = parseHookMetadata(msg)
 			if (metadata?.hookName === "PreToolUse") {
 				return null

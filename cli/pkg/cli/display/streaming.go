@@ -38,6 +38,14 @@ func (s *StreamingDisplay) HandlePartialMessage(msg *types.ClineMessage) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Hooks are rendered from the state stream only to prevent double-rendering
+	// (partial-stream headers + state-stream full content).
+	// IMPORTANT: Only suppress *partial* hook messages here; full hook status
+	// messages should still be handled by the normal SAY handler pipeline.
+	if msg.Partial && msg.Say == string(types.SayTypeHook) {
+		return nil
+	}
+
 	// Check for deduplication
 	if s.dedupe.IsDuplicate(msg) {
 		return nil
@@ -95,7 +103,6 @@ func (s *StreamingDisplay) shouldRenderMarkdown(sayType string) bool {
 		string(types.SayTypeText),
 		string(types.SayTypeCompletionResult),
 		string(types.SayTypeTool),
-		string(types.SayTypeHook),
 		"ask":
 		return true
 	default:
