@@ -8,6 +8,7 @@ tmp
 
 .DS_Store
 .idea
+.husky/_/
 
 pnpm-lock.yaml
 
