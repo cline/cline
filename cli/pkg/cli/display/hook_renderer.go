@@ -33,9 +33,9 @@ func (hr *HookRenderer) RenderHookStatus(h types.HookMessage) string {
 	if statusText == "" {
 		statusText = "unknown"
 	}
-	
+
 	// Build header: "### Hook <status>: <HookName> (tool: <ToolName>) (exit <code>)"
-	headerParts := []string{fmt.Sprintf("### Hook triggered: %s", h.HookName)}
+	headerParts := []string{fmt.Sprintf("### Hook %s: %s", statusText, h.HookName)}
 	if h.ToolName != "" {
 		headerParts = append(headerParts, fmt.Sprintf("(tool: %s)", h.ToolName))
 	}
@@ -60,6 +60,18 @@ func (hr *HookRenderer) RenderHookStatus(h types.HookMessage) string {
 
 	for _, p := range paths {
 		lines = append(lines, fmt.Sprintf("- Running hook: `%s`", p))
+	}
+
+	// Surface failures prominently (minimal, human-readable).
+	// Details (stack traces, full stderr, etc.) should be reserved for verbose output.
+	if statusText == "failed" && h.Error != nil {
+		if msg := strings.TrimSpace(h.Error.Message); msg != "" {
+			lines = append(lines, fmt.Sprintf("- Error: %s", msg))
+		}
+		// If we have a specific script path, include it as a hint.
+		if sp := strings.TrimSpace(h.Error.ScriptPath); sp != "" {
+			lines = append(lines, fmt.Sprintf("- Script: `%s`", sp))
+		}
 	}
 
 	markdown := strings.Join(lines, "\n")

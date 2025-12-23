@@ -32,6 +32,21 @@ export interface HookExecutionResult {
 	wasCancelled: boolean
 }
 
+function fromHookOutput(output: import("@shared/proto/cline/hooks").HookOutput): HookExecutionResult {
+	// NOTE: HookOutput is a protobuf-generated type, so its fields are always
+	// populated with default values (e.g. empty strings). We intentionally treat
+	// empty strings as “no value” for the higher-level hook executor API.
+	const contextModification = output.contextModification?.trim() ? output.contextModification : undefined
+	const errorMessage = output.errorMessage?.trim() ? output.errorMessage : undefined
+
+	return {
+		cancel: output.cancel,
+		contextModification,
+		errorMessage,
+		wasCancelled: false,
+	}
+}
+
 /**
  * Executes a hook with standardized error handling, status tracking, and cleanup.
  * This consolidates the common pattern used across all hook execution sites.
@@ -61,9 +76,7 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 	const hasHook = await hookFactory.hasHook(hookName)
 
 	if (!hasHook) {
-		return {
-			wasCancelled: false,
-		}
+		return { wasCancelled: false }
 	}
 
 	let hookMessageTs: number | undefined
@@ -120,6 +133,12 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 
 		console.log(`[${hookName} Hook]`, result)
 
+		// NoOpRunner yields a proto-default HookOutput. In that case we preserve the
+		// minimal return shape expected by existing callers/tests.
+		if (result.cancel === false && result.contextModification === "" && result.errorMessage === "") {
+			return { wasCancelled: false }
+		}
+
 		// Check if hook wants to cancel
 		if (result.cancel === true) {
 			// Update hook status to cancelled
@@ -134,12 +153,7 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 				})
 			}
 
-			return {
-				cancel: true,
-				contextModification: result.contextModification,
-				errorMessage: result.errorMessage,
-				wasCancelled: false,
-			}
+			return fromHookOutput(result)
 		}
 
 		// Clear active hook execution after successful completion (only if cancellable)
@@ -159,12 +173,7 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 			})
 		}
 
-		return {
-			cancel: result.cancel,
-			contextModification: result.contextModification,
-			errorMessage: result.errorMessage,
-			wasCancelled: false,
-		}
+		return fromHookOutput(result)
 	} catch (hookError) {
 		// Clear active hook execution (only if cancellable)
 		if (isCancellable && clearActiveHookExecution) {

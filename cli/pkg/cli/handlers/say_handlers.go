@@ -92,9 +92,9 @@ func (h *SayHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
 	case string(types.SayTypeTaskProgress):
 		return h.handleTaskProgress(msg, dc)
 	case string(types.SayTypeHook):
-		return h.handleHook(msg, dc)
+		return h.handleHookStatus(msg, dc)
 	case string(types.SayTypeHookOutput):
-		return h.handleHookOutput(msg, dc)
+		return h.handleHookOutputStream(msg, dc)
 	default:
 		return h.handleDefault(msg, dc)
 	}
@@ -519,8 +519,8 @@ func (h *SayHandler) handleTaskProgress(msg *types.ClineMessage, dc *DisplayCont
 	return nil
 }
 
-// handleHook handles hook execution status messages
-func (h *SayHandler) handleHook(msg *types.ClineMessage, dc *DisplayContext) error {
+// handleHookStatus handles hook execution status messages
+func (h *SayHandler) handleHookStatus(msg *types.ClineMessage, dc *DisplayContext) error {
 	var hook types.HookMessage
 	if err := json.Unmarshal([]byte(msg.Text), &hook); err != nil {
 		// Fallback to basic output if JSON parsing fails
@@ -558,11 +558,24 @@ func (h *SayHandler) handleHook(msg *types.ClineMessage, dc *DisplayContext) err
 	return dc.Renderer.RenderMessage("HOOK", fmt.Sprintf("%s %s", hook.HookName, hook.Status), true)
 }
 
-// handleHookOutput handles streaming output from hooks
+// handleHookOutputStream handles streaming output from hooks
 // This is a placeholder for future enhancement when we want to stream hook stdout/stderr
-func (h *SayHandler) handleHookOutput(msg *types.ClineMessage, dc *DisplayContext) error {
-	// Intentionally suppressed for now.
-	// We will implement streamed hook output later (likely under --verbose).
+func (h *SayHandler) handleHookOutputStream(msg *types.ClineMessage, dc *DisplayContext) error {
+	// Default behavior: suppress hook output streaming to keep CLI output clean.
+	// When --verbose is enabled, print hook output lines for debugging.
+	if !dc.Verbose {
+		return nil
+	}
+
+	line := strings.TrimRight(msg.Text, "\n")
+	if strings.TrimSpace(line) == "" {
+		return nil
+	}
+
+	// Prefix to make it clear this is hook stdout/stderr.
+	// Keep this deliberately simple; future work can correlate output to a
+	// specific hook execution and stream as a grouped section.
+	output.Printf("HOOK> %s\n", line)
 	return nil
 }
 
