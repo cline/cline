@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
 import CodeBlock from "../common/CodeBlock"
 import { Button } from "../ui/button"
+import ExpandHandle from "./ExpandHandle"
 
 export const CommandOutputContent = memo(
 	({
@@ -102,31 +103,7 @@ export const CommandOutputContent = memo(
 					<div className="bg-coder">{renderOutput()}</div>
 				</div>
 				{/* Show notch only if there's more than 5 lines */}
-				{lineCount > 5 && (
-					<div
-						className="absolute bottom-[-10px] left-1/2 transform -translate-x-1/2 flex justify-center items-center px-3.5 py-[1px] cursor-pointer bg-description transition-opacity border border-black border-opacity-10"
-						onClick={onToggle}
-						onMouseEnter={(e) => {
-							e.currentTarget.style.opacity = "0.8"
-						}}
-						onMouseLeave={(e) => {
-							e.currentTarget.style.opacity = "1"
-						}}
-						style={{
-							padding: "1px 14px",
-							cursor: "pointer",
-							borderRadius: "3px 3px 6px 6px",
-							transition: "opacity 0.1s ease",
-							border: "1px solid rgba(0, 0, 0, 0.1)",
-						}}>
-						<span
-							className={`text-code codicon codicon-triangle-${isOutputFullyExpanded ? "up" : "down"}`}
-							style={{
-								fontSize: "11px",
-							}}
-						/>
-					</div>
-				)}
+				{lineCount > 5 && <ExpandHandle isExpanded={isOutputFullyExpanded} onToggle={onToggle} />}
 			</div>
 		)
 	},
@@ -235,12 +212,12 @@ export const CommandOutputRow = memo(
 			<>
 				{commandHeader}
 				<div
-					className="bg-code rounded-sm border border-editor-group-border overflow-hidden"
+					className="bg-code rounded-sm border border-editor-group-border"
 					style={{
 						transition: "all 0.3s ease-in-out",
 					}}>
 					{command && (
-						<div className="bg-code flex items-center justify-between px-2 py-2.5 border-b border-editor-group-border rounded-b-none">
+						<div className="bg-code flex items-center justify-between px-2 py-2.5 border-b border-editor-group-border rounded-b-none overflow-hidden">
 							<div className="flex items-center gap-2 flex-1 m-w-0">
 								<div
 									className={cn("bg-description rounded-full w-2 h-2 shrink-0", {
@@ -270,6 +247,7 @@ export const CommandOutputRow = memo(
 												)
 											}
 										}}
+										size="sm"
 										variant="secondary">
 										{isBackgroundExec ? "cancel" : "stop"}
 									</Button>
@@ -287,10 +265,8 @@ export const CommandOutputRow = memo(
 					)}
 
 					{!isSubagentCommand && (
-						<div className="bg-code opacity-60">
-							<div className="bg-code">
-								<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
-							</div>
+						<div className="bg-code opacity-60 text-sm">
+							<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
 						</div>
 					)}
 

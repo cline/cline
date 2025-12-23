@@ -1051,7 +1051,7 @@ export const ChatRowContent = memo(
 								{apiReqState === "pre" && (
 									<div className="flex items-start gap-2 text-description">
 										<div className="mt-1 flex-shrink-0">
-											<ClineLogoWhite className="size-3.5" style={{ transform: "scale(1.1)" }} />
+											<ClineLogoWhite className="size-3.5 scale-[1.1]" />
 										</div>
 										<div
 											style={{
@@ -1062,10 +1062,10 @@ export const ChatRowContent = memo(
 											{currentActivities.length > 0 ? (
 												<div className="flex flex-col gap-0.5">
 													{currentActivities.map((activity, i) => (
-														<div className="flex items-start gap-2" key={i}>
+														<div className="flex items-start gap-2" key={`activity-${i}`}>
 															<span
-																className={`codicon codicon-${activity.icon}`}
-																style={{ fontSize: "12px", opacity: 0.7, flexShrink: 0 }}
+																className={`codicon codicon-${activity.icon} opacity-70 shrink-0`}
+																style={{ fontSize: "12px" }}
 															/>
 															<span className="flex-1">
 																<TypewriterText speed={15} text={activity.text} />
@@ -1808,7 +1808,7 @@ export const ChatRowContent = memo(
 						return (
 							<>
 								<div className={HEADER_CLASSNAMES}>
-									<FilePlus2Icon className="mb-[-1.5px] size-3 stroke-1 " />
+									<FilePlus2Icon className="mb-[-1.5px] size-3 stroke-1" />
 									<span className="text-foreground font-bold">Cline wants to start a new task:</span>
 								</div>
 								<NewTaskPreview context={message.text || ""} />
@@ -1818,7 +1818,7 @@ export const ChatRowContent = memo(
 						return (
 							<>
 								<div className={HEADER_CLASSNAMES}>
-									<FilePlus2Icon className="mb-[-1.5px] size-3 stroke-1 " />
+									<FilePlus2Icon className="mb-[-1.5px] size-3 stroke-1" />
 									<span className="text-foreground font-bold">Cline wants to condense your conversation:</span>
 								</div>
 								<NewTaskPreview context={message.text || ""} />
@@ -1828,7 +1828,7 @@ export const ChatRowContent = memo(
 						return (
 							<>
 								<div className={HEADER_CLASSNAMES}>
-									<FilePlus2Icon className="mb-[-1.5px] size-3 stroke-1 " />
+									<FilePlus2Icon className="mb-[-1.5px] size-3 stroke-1" />
 									<span className="text-foreground font-bold">Cline wants to create a Github issue:</span>
 								</div>
 								<ReportBugPreview data={message.text || ""} />

@@ -15,14 +15,12 @@ interface ExpandHandleProps {
 const ExpandHandle = memo(({ isExpanded, onToggle, className = "bg-accent" }: ExpandHandleProps) => {
 	return (
 		<div
-			className={cn("absolute -bottom-2 left-1/2 flex justify-between items-center cursor-pointer border-0", className)}
-			onClick={onToggle}
-			style={{
-				transform: "translateX(-50%)",
-				padding: "1px 14px",
-				borderRadius: "2px",
-			}}>
-			<TriangleIcon className={cn("text-black fill-black", isExpanded ? "rotate-0" : "rotate-180")} size={11} />
+			className={cn(
+				"absolute -bottom-2 left-1/2 transform -translate-x-1/2 flex justify-center items-center px-4 py-0.5 cursor-pointer bg-description transition-opacity border border-none rounded-b-sm shrink-0",
+				className,
+			)}
+			onClick={onToggle}>
+			<TriangleIcon className={cn("text-black fill-black", isExpanded ? "rotate-0" : "rotate-180")} size={8} />
 		</div>
 	)
 })
