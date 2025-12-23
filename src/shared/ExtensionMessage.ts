@@ -174,6 +174,7 @@ export type ClineSay =
 	| "diff_error"
 	| "deleted_api_reqs"
 	| "clineignore_error"
+	| "command_permission_denied"
 	| "checkpoint_created"
 	| "load_mcp_documentation"
 	| "generate_explanation"
