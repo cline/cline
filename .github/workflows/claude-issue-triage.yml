@@ -152,8 +152,14 @@ jobs:
             - **Possible Duplicates section** - ALWAYS include a "Possible Duplicates" section at the end of your comment listing issues that might be duplicates so maintainers can quickly close if appropriate. If none found, say "No obvious duplicates found."
 
             ## Labels
+            First, retrieve all available labels and read their descriptions to understand what each is for:
             gh label list --json name,description --limit 100
-            gh issue edit ${{ github.event.issue.number || inputs.issue_number }} --add-label "label1,label2"  # Only use available labels, don't create new ones
+
+            Then apply the appropriate labels based on your analysis. Only use labels from the list above—do not create new labels.
+            gh issue edit ${{ github.event.issue.number || inputs.issue_number }} --add-label "label1,label2"
+
+            If your regression analysis found a likely culprit (a recent PR/commit that probably caused this issue), add the "Regression" label:
+            gh issue edit ${{ github.event.issue.number || inputs.issue_number }} --add-label "Regression"
 
             IMPORTANT: After posting your comment, add the "Bot Responded" label to indicate this issue has received an automated response:
             gh issue edit ${{ github.event.issue.number || inputs.issue_number }} --add-label "Bot Responded"
