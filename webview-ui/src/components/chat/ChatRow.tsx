@@ -1,4 +1,4 @@
-import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
+import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import {
 	ClineApiReqInfo,
 	ClineAskQuestion,
@@ -24,7 +24,6 @@ import {
 } from "lucide-react"
 import { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
-import { ClineCompactIcon } from "@/assets/ClineCompactIcon"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
@@ -40,8 +39,7 @@ import { cn } from "@/lib/utils"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
-import CodeBlock from "../common/CodeBlock"
-import { CommandOutputContent } from "./CommandOutputRow"
+import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
 import { CompletionOutputRow } from "./CompletionOutputRow"
 import { DiffEditRow } from "./DiffEditRow"
 import ErrorRow from "./ErrorRow"
@@ -831,210 +829,19 @@ export const ChatRowContent = memo(
 		}, [isCommandMessage, isCommandExecuting, isExpanded, onToggleExpand, message.ts])
 
 		if (message.ask === "command" || message.say === "command") {
-			const splitMessage = (text: string) => {
-				const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
-				if (outputIndex === -1) {
-					return { command: text, output: "" }
-				}
-				return {
-					command: text.slice(0, outputIndex).trim(),
-					output: text
-						.slice(outputIndex + COMMAND_OUTPUT_STRING.length)
-						.trim()
-						.split("")
-						.map((char) => {
-							switch (char) {
-								case "\t":
-									return "→   "
-								case "\b":
-									return "⌫"
-								case "\f":
-									return "⏏"
-								case "\v":
-									return "⇳"
-								default:
-									return char
-							}
-						})
-						.join(""),
-				}
-			}
-
-			const { command: rawCommand, output } = splitMessage(message.text || "")
-
-			const requestsApproval = rawCommand.endsWith(COMMAND_REQ_APP_STRING)
-			const command = requestsApproval ? rawCommand.slice(0, -COMMAND_REQ_APP_STRING.length) : rawCommand
-			const showCancelButton =
-				(isCommandExecuting || isCommandPending) &&
-				typeof onCancelCommand === "function" &&
-				vscodeTerminalExecutionMode === "backgroundExec"
-
-			// Check if this is a Cline subagent command (only on VSCode platform, not JetBrains/standalone)
-			const isSubagentCommand = PLATFORM_CONFIG.type === PlatformType.VSCODE && command.trim().startsWith("cline ")
-			let subagentPrompt: string | undefined
-
-			if (isSubagentCommand) {
-				// Parse the cline command to extract prompt
-				// Format: cline "prompt"
-				const clineCommandRegex = /^cline\s+"([^"]+)"(?:\s+--no-interactive)?/
-				const match = command.match(clineCommandRegex)
-
-				if (match) {
-					subagentPrompt = match[1]
-				}
-			}
-
-			// Customize icon and title for subagent commands
-			const displayIcon = isSubagentCommand ? (
-				<span className="text-foreground mb-[-1.5px]">
-					<ClineCompactIcon />
-				</span>
-			) : (
-				icon
-			)
-
-			const displayTitle = isSubagentCommand ? (
-				<span className="text-foreground font-bold">Cline wants to use a subagent:</span>
-			) : (
-				title
-			)
-
-			const commandHeader = (
-				<div className={HEADER_CLASSNAMES}>
-					{displayIcon}
-					{displayTitle}
-				</div>
-			)
-
 			return (
-				<>
-					{commandHeader}
-					<div
-						style={{
-							borderRadius: 6,
-							border: "1px solid var(--vscode-editorGroup-border)",
-							overflow: "visible",
-							backgroundColor: "var(--vscode-editor-background)",
-							transition: "all 0.3s ease-in-out",
-						}}>
-						{command && (
-							<div
-								style={{
-									display: "flex",
-									alignItems: "center",
-									justifyContent: "space-between",
-									padding: "8px 10px",
-									backgroundColor: "var(--vscode-editor-background)",
-									borderBottom: "1px solid var(--vscode-editorGroup-border)",
-									borderTopLeftRadius: "6px",
-									borderTopRightRadius: "6px",
-									borderBottomLeftRadius: 0,
-									borderBottomRightRadius: 0,
-								}}>
-								<div
-									style={{
-										display: "flex",
-										alignItems: "center",
-										gap: "8px",
-										flex: 1,
-										minWidth: 0,
-									}}>
-									<div
-										style={{
-											width: "8px",
-											height: "8px",
-											borderRadius: "50%",
-											backgroundColor: isCommandExecuting
-												? "var(--vscode-charts-green)"
-												: isCommandPending
-													? "var(--vscode-editorWarning-foreground)"
-													: "var(--vscode-descriptionForeground)",
-											animation: isCommandExecuting ? "pulse 2s ease-in-out infinite" : "none",
-											flexShrink: 0,
-										}}
-									/>
-									<span
-										style={{
-											color: isCommandExecuting
-												? "var(--vscode-charts-green)"
-												: isCommandPending
-													? "var(--vscode-editorWarning-foreground)"
-													: "var(--vscode-descriptionForeground)",
-											fontWeight: 500,
-											fontSize: "13px",
-											flexShrink: 0,
-										}}>
-										{isCommandExecuting
-											? "Running"
-											: isCommandPending
-												? "Pending"
-												: isCommandCompleted
-													? "Completed"
-													: "Skipped"}
-									</span>
-								</div>
-								<div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-									{showCancelButton && (
-										<Button
-											onClick={(e) => {
-												e.stopPropagation()
-												if (vscodeTerminalExecutionMode === "backgroundExec") {
-													onCancelCommand?.()
-												} else {
-													// For regular terminal mode, show a message
-													alert(
-														"This command is running in the VSCode terminal. You can manually stop it using Ctrl+C in the terminal, or switch to Background Execution mode in settings for cancellable commands.",
-													)
-												}
-											}}
-											variant="secondary">
-											{vscodeTerminalExecutionMode === "backgroundExec" ? "cancel" : "stop"}
-										</Button>
-									)}
-								</div>
-							</div>
-						)}
-						{isSubagentCommand && subagentPrompt && (
-							<div style={{ padding: "10px", borderBottom: "1px solid var(--vscode-editorGroup-border)" }}>
-								<div style={{ marginBottom: 0 }}>
-									<strong>Prompt:</strong>{" "}
-									<span className="ph-no-capture" style={{ fontFamily: "var(--vscode-editor-font-family)" }}>
-										{subagentPrompt}
-									</span>
-								</div>
-							</div>
-						)}
-						{!isSubagentCommand && (
-							<div style={{ opacity: 0.6, backgroundColor: "var(--vscode-editor-background)" }}>
-								<div style={{ backgroundColor: "var(--vscode-editor-background)" }}>
-									<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
-								</div>
-							</div>
-						)}
-						{output.length > 0 && (
-							<CommandOutputContent
-								isContainerExpanded={true}
-								isOutputFullyExpanded={isOutputFullyExpanded}
-								onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
-								output={output}
-							/>
-						)}
-					</div>
-					{requestsApproval && (
-						<div
-							style={{
-								display: "flex",
-								alignItems: "center",
-								gap: 10,
-								padding: 8,
-								fontSize: "12px",
-								color: "var(--vscode-editorWarning-foreground)",
-							}}>
-							<i className="codicon codicon-warning"></i>
-							<span>The model has determined this command requires explicit approval.</span>
-						</div>
-					)}
-				</>
+				<CommandOutputRow
+					icon={icon}
+					isBackgroundExec={vscodeTerminalExecutionMode === "backgroundExec"}
+					isCommandCompleted={isCommandCompleted}
+					isCommandExecuting={isCommandExecuting}
+					isCommandPending={isCommandPending}
+					isOutputFullyExpanded={isOutputFullyExpanded}
+					message={message}
+					onCancelCommand={onCancelCommand}
+					setIsOutputFullyExpanded={setIsOutputFullyExpanded}
+					title={title}
+				/>
 			)
 		}
 
