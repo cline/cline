@@ -532,7 +532,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			const sapMessages = this.convertMessageParamToSAPMessages(messages)
 
 			const response = await orchestrationClient.stream({
-				messages: sapMessages,
+				messagesHistory: [...sapMessages],
 			})
 
 			for await (const chunk of response.stream.toContentStream()) {
