@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite"
 import { TypewriterText } from "./TypewriterText"
 
 const meta: Meta<typeof TypewriterText> = {
-	title: "Components/Chat/TypewriterText",
+	title: "Views/Components/TypewriterText",
 	component: TypewriterText,
 	parameters: {
 		layout: "centered",

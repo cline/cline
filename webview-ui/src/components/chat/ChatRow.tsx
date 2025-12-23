@@ -1389,7 +1389,7 @@ export const ChatRowContent = memo(
 							<>
 								<div className="rounded-sm border border-editor-group-border overflow-visible bg-code transition-border duration-300 ease-in-out hover:border-success">
 									<div className="flex items-center justify-between px-3 py-2 bg-code rounded-0 rounded-tl-sm rounded-tr-sm">
-										<div className="flex items-center gap-2 flex-1 min-w-0 mx-2">
+										<div className="flex items-center gap-2 flex-1 min-w-0">
 											<div className="w-2 h-2 rounded-full bg-success shrink-0" />
 											<span className="text-success font-semibold text-sm shrink-0">Task Completed</span>
 										</div>
@@ -1675,7 +1675,7 @@ export const ChatRowContent = memo(
 								<div>
 									<div className="rounded-sm border border-editor-group-border hover:border-success overflow-visible bg-code transition-all duration-300 ease-in-out">
 										<div className="flex items-center justify-between py-2 rounded-t-sm bg-code">
-											<div className="flex items-center gap-2 flex-1 min-w-0 px-2">
+											<div className="flex items-center gap-2 flex-1 min-w-0">
 												<div className="w-2 h-2 rounded-full bg-success flex-shrink-0" />
 												<span className="text-success font-bold text-sm flex-shrink-0">
 													Task Completed

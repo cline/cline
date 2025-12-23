@@ -1,8 +1,5 @@
 import { memo, useEffect, useState } from "react"
 
-const SHIMMER =
-	"!bg-clip-text text-transparent bg-gradient-to-r from-(--color-description) via-(--color-foreground) to-(--color-description) animate-shimmer"
-
 // TypewriterText with shimmer effect after typing completes
 export const TypewriterText = memo(({ text, speed = 30 }: { text: string; speed?: number }) => {
 	const [displayedLength, setDisplayedLength] = useState(0)
@@ -27,7 +24,11 @@ export const TypewriterText = memo(({ text, speed = 30 }: { text: string; speed?
 
 	// After typing completes, show shimmer effect instead of blinking cursor
 	if (isComplete) {
-		return <span className={SHIMMER}>{text}</span>
+		return (
+			<span className="!bg-clip-text text-transparent bg-gradient-to-r from-(--color-description) via-(--color-foreground) to-(--color-description) animate-shimmer">
+				{text}
+			</span>
+		)
 	}
 
 	return <div>{text.slice(0, displayedLength)}</div>
