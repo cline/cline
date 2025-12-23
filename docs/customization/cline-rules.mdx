@@ -1,0 +1,126 @@
+---
+title: "Cline Rules"
+sidebarTitle: "Cline Rules"
+description: "Define project-specific instructions and coding standards for Cline."
+---
+
+Cline Rules let you provide system-level guidance that persists across conversations. Think of them as a way to include context and preferences for your projects or globally for every conversation.
+
+## Creating a Rule
+
+Click the `+` button in the Rules tab to open a new file in your IDE.
+
+<Frame>
+	<img src="https://storage.googleapis.com/cline_public_images/docs/assets/cline-rules.png" alt="Create a Rule" />
+</Frame>
+
+Once saved:
+- Workspace rules go in `.clinerules/` directory in your project
+- Global rules go in your Global Rules directory
+
+You can also use the [`/newrule` slash command](/features/slash-commands/new-rule) to have Cline create a rule for you.
+
+### Global Rules Directory
+
+| Operating System | Default Location |
+|------------------|------------------|
+| Windows | `Documents\Cline\Rules` |
+| macOS | `~/Documents/Cline/Rules` |
+| Linux/WSL | `~/Documents/Cline/Rules` |
+
+<Note>
+Linux/WSL users: If you don't find global rules in `~/Documents/Cline/Rules`, check `~/Cline/Rules`.
+</Note>
+
+## Example Rule
+
+```markdown
+# Project Guidelines
+
+## Code Style & Patterns
+- Use TypeScript for all new files
+- Prefer composition over inheritance
+- Use repository pattern for data access
+- Follow error handling pattern in /src/utils/errors.ts
+
+## Documentation Requirements
+- Update relevant docs when modifying features
+- Keep README.md in sync with new capabilities
+- Maintain changelog entries in CHANGELOG.md
+
+## Testing Standards
+- Unit tests required for business logic
+- Integration tests for API endpoints
+- E2E tests for critical user flows
+```
+
+## Directory Structure
+
+Place rules in your project's root:
+
+```
+your-project/
+├── .clinerules/              # Folder containing active rules
+│   ├── 01-coding.md          # Core coding standards
+│   ├── 02-documentation.md   # Documentation requirements
+│   └── current-sprint.md     # Rules specific to current work
+├── src/
+└── ...
+```
+
+Cline automatically processes all Markdown files inside `.clinerules/`, combining them into a unified set of rules. Numeric prefixes (optional) help organize files logically.
+
+## Rules Bank Pattern
+
+For projects with multiple contexts, maintain a rules bank:
+
+```
+your-project/
+├── .clinerules/              # Active rules - automatically applied
+│   ├── 01-coding.md
+│   └── client-a.md
+│
+├── clinerules-bank/          # Repository of available but inactive rules
+│   ├── clients/
+│   │   ├── client-a.md
+│   │   └── client-b.md
+│   ├── frameworks/
+│   │   ├── react.md
+│   │   └── vue.md
+│   └── project-types/
+│       ├── api-service.md
+│       └── frontend-app.md
+└── ...
+```
+
+Switch contexts by copying rules:
+
+```bash
+# Switch to Client B
+rm .clinerules/client-a.md
+cp clinerules-bank/clients/client-b.md .clinerules/
+```
+
+## Managing Rules with the Popover
+
+The rules popover under the chat input lets you:
+
+- See which global and workspace rules are active
+- Toggle specific rule files with a single click
+- Create workspace `.clinerules` file or folder
+- Add new rule files
+
+<Frame>
+	<img src="https://storage.googleapis.com/cline_public_images/docs/assets/image%20(1).png" alt="Rules Popover" />
+</Frame>
+
+## AGENTS.md Support
+
+Cline also supports the [AGENTS.md](https://agents.md/) standard as a fallback, automatically detecting `AGENTS.md` files in your workspace root. This lets you use the same rules file across different AI coding tools.
+
+## Tips for Writing Rules
+
+- **Be clear and concise**: Use simple language, avoid ambiguity
+- **Focus on outcomes**: Describe results you want, not specific steps
+- **Keep files focused**: Each rule file should cover a specific concern
+- **Test and iterate**: Experiment to find what works for your workflow
