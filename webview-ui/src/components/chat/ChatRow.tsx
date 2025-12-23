@@ -632,17 +632,15 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div style={headerStyle}>
-								<span className="color-foreground mb-[-1.5px]">
+								<span className="text-foreground mb-[-1.5px]">
 									<FoldVerticalIcon size={16} />
 								</span>
-								<span style={{ fontWeight: "bold" }}>Cline is condensing the conversation:</span>
+								<span className="font-bold">Cline is condensing the conversation:</span>
 							</div>
 							<div
-								className="bg-code"
+								className="bg-code overflow-hidden border border-editor-group-border"
 								style={{
 									borderRadius: 3,
-									overflow: "hidden",
-									border: "1px solid var(--vscode-editorGroup-border)",
 								}}>
 								<div
 									aria-label={isExpanded ? "Collapse summary" : "Expand summary"}
@@ -666,8 +664,8 @@ export const ChatRowContent = memo(
 									tabIndex={0}>
 									{isExpanded ? (
 										<div>
-											<div style={{ display: "flex", alignItems: "center", marginBottom: "8px" }}>
-												<span style={{ fontWeight: "bold", marginRight: "4px" }}>Summary:</span>
+											<div className="flex items-center mb-2">
+												<span className="font-bold mr-1">Summary:</span>
 												<div style={{ flexGrow: 1 }}></div>
 												<span
 													className="codicon codicon-chevron-up"
@@ -687,7 +685,7 @@ export const ChatRowContent = memo(
 											</span>
 										</div>
 									) : (
-										<div style={{ display: "flex", alignItems: "center" }}>
+										<div className="flex items-center">
 											<span
 												className="ph-no-capture"
 												style={{
@@ -707,7 +705,8 @@ export const ChatRowContent = memo(
 													fontSize: 13.5,
 													margin: "1px 0",
 													flexShrink: 0,
-												}}></span>
+												}}
+											/>
 										</div>
 									)}
 								</div>
@@ -1371,23 +1370,16 @@ export const ChatRowContent = memo(
 								ref={contentRef}
 								textToCopy={message.text}>
 								{isRequestInProgress ? (
-									<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-										<div style={{ marginTop: "1px", flexShrink: 0 }}>
+									<div className="flex items-center gap-2">
+										<div className="mt-[1px] shrink-0">
 											<ClineLogoWhite
-												className="size-3.5"
+												className="size-3.5 animate-icon-pulse"
 												style={{
 													transform: "scale(1.1)",
-													animation: "iconPulse 1s ease-in-out infinite",
 												}}
 											/>
 										</div>
-										<div
-											style={{
-												flex: 1,
-												minWidth: 0,
-												paddingLeft: "8px",
-												borderLeft: "1px solid rgba(255, 255, 255, 0.1)",
-											}}>
+										<div className="flex-1 min-w-0 pl-2 border-l border-white/10">
 											<MarkdownRow markdown={message.text} showCursor={true} />
 										</div>
 									</div>
@@ -1407,6 +1399,9 @@ export const ChatRowContent = memo(
 						)
 					}
 					case "reasoning":
+						if (!message.text) {
+							return null
+						}
 						return (
 							<>
 								<div
@@ -1416,7 +1411,7 @@ export const ChatRowContent = memo(
 									onClick={handleToggle}
 									title="Click to view reasoning">
 									<span className="font-semibold">Thinking</span>
-									<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}></span>
+									<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`} />
 								</div>
 
 								{isExpanded && message.text && (

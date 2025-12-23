@@ -54,6 +54,7 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ textToCopy, onCopy, clas
 			aria-label={copied ? "Copied" : ariaLabel || "Copy"}
 			className={cn("scale-90", className)}
 			onClick={handleCopy}
+			size="icon"
 			variant="icon">
 			<span className={`codicon codicon-${copied ? "check" : "copy"}`} />
 		</Button>
