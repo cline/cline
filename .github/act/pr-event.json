@@ -1,0 +1,19 @@
+{
+	"action": "opened",
+	"number": 8284,
+	"pull_request": {
+		"number": 8284,
+		"draft": false,
+		"title": "TEST DO NOT MERGE: add cline pr review cline workflow action",
+		"user": {
+			"login": "maxpaulus43"
+		},
+		"head": {
+			"ref": "pr-review-cline-workflow",
+			"sha": "36c560acf0dd3c8d22ed71c53c214589c73090d7"
+		},
+		"base": {
+			"ref": "main"
+		}
+	}
+}
