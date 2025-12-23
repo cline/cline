@@ -375,6 +375,11 @@ export interface OrchestrationOptions {
 	 * @returns The log file path if tracking was started, undefined otherwise
 	 */
 	onProceedWhileRunning?: (existingOutput: string[]) => { logFilePath: string } | undefined
+	/**
+	 * The type of terminal being used for telemetry tracking.
+	 * Defaults to "vscode" for backward compatibility.
+	 */
+	terminalType?: "vscode" | "standalone"
 }
 
 /**
