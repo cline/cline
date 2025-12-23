@@ -82,13 +82,13 @@
 						"group": "Customization",
 						"pages": [
 							"customization/cline-rules",
-							"customization/memory-bank",
-							"customization/hooks",
 							"customization/workflows",
+							"customization/hooks",
+							"features/multiroot-workspace",
+							"customization/memory-bank",
 							"customization/focus-chain",
 							"customization/auto-approve",
-							"customization/auto-compact",
-							"features/multiroot-workspace"
+							"customization/auto-compact"
 						]
 					},
 					{
