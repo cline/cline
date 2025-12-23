@@ -607,9 +607,8 @@ export const ChatRowContent = memo(
 								{toolIcon("search")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>
-									Cline wants to search this directory for{" "}
-									<code style={{ wordBreak: "break-all" }}>{tool.regex}</code>:
+								<span className="font-bold">
+									Cline wants to search this directory for <code className="break-all">{tool.regex}</code>:
 								</span>
 							</div>
 							<SearchResultsDisplay
@@ -1061,14 +1060,14 @@ export const ChatRowContent = memo(
 												flex: 1,
 											}}>
 											{currentActivities.length > 0 ? (
-												<div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+												<div className="flex flex-col gap-0.5">
 													{currentActivities.map((activity, i) => (
 														<div className="flex items-start gap-2" key={i}>
 															<span
 																className={`codicon codicon-${activity.icon}`}
 																style={{ fontSize: "12px", opacity: 0.7, flexShrink: 0 }}
 															/>
-															<span style={{ flex: 1 }}>
+															<span className="flex-1">
 																<TypewriterText speed={15} text={activity.text} />
 															</span>
 														</div>
