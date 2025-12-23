@@ -2985,8 +2985,8 @@ export class Task {
 				cwd,
 				this.urlContentFetcher,
 				this.fileContextTracker,
-				enhancedNotebookInteractionEnabled,
 				this.workspaceManager,
+				enhancedNotebookInteractionEnabled,
 			)
 
 			const { processedText, needsClinerulesFileCheck: needsCheck } = await parseSlashCommands(

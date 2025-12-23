@@ -60,8 +60,8 @@ export async function parseMentions(
 	cwd: string,
 	urlContentFetcher: UrlContentFetcher,
 	fileContextTracker?: FileContextTracker,
-	enhancedNotebookInteractionEnabled: boolean = false,
 	workspaceManager?: WorkspaceRootManager,
+	enhancedNotebookInteractionEnabled: boolean = false,
 ): Promise<string> {
 	const mentions: Set<string> = new Set()
 	let parsedText = text.replace(mentionRegexGlobal, (match, mention) => {
