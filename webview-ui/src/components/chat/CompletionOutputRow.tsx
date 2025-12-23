@@ -12,7 +12,7 @@ export const CompletionOutputRow = memo(
 
 		return (
 			<div
-				className={cn("bg-code w-full relative pb-0 overflow-visible", {
+				className={cn("bg-code w-full relative pb-0 overflow-visible rounded-b-sm ", {
 					"pb-2": lineCount > 5,
 				})}>
 				<div

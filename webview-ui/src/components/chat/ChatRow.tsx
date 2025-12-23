@@ -17,18 +17,18 @@ import {
 	FilePlus2Icon,
 	FoldVerticalIcon,
 	LoaderCircleIcon,
+	MessageSquareTextIcon,
 	PencilIcon,
 	SquareMinusIcon,
 	TerminalIcon,
 } from "lucide-react"
-import React, { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import { ClineCompactIcon } from "@/assets/ClineCompactIcon"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
-import CodeBlock, { CHAT_ROW_EXPANDED_BG_COLOR } from "@/components/common/CodeBlock"
 import { CopyButton, WithCopyButton } from "@/components/common/CopyButton"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
@@ -40,7 +40,8 @@ import { cn } from "@/lib/utils"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
-import { CommandOutputRow } from "./CommandOutputRow"
+import CodeBlock from "../common/CodeBlock"
+import { CommandOutputContent } from "./CommandOutputRow"
 import { CompletionOutputRow } from "./CompletionOutputRow"
 import { DiffEditRow } from "./DiffEditRow"
 import ErrorRow from "./ErrorRow"
@@ -55,9 +56,10 @@ import { ThinkingRow } from "./ThinkingRow"
 import { TypewriterText } from "./TypewriterText"
 import UserMessage from "./UserMessage"
 
-const successColor = "var(--vscode-charts-green)"
 // State type for api_req_started rendering
 type ApiReqState = "pre" | "thinking" | "error" | "final"
+
+const HEADER_CLASSNAMES = "flex items-center gap-2.5 mb-3"
 
 interface ChatRowProps {
 	message: ClineMessage
@@ -99,7 +101,7 @@ const ChatRow = memo(
 		const prevHeightRef = useRef(0)
 
 		const [chatrow, { height }] = useSize(
-			<div className="relative py-2.5 pr-1.5 pl-4">
+			<div className="relative py-2.5 px-4">
 				<ChatRowContent {...props} />
 			</div>,
 		)
@@ -368,13 +370,6 @@ export const ChatRowContent = memo(
 			message.text,
 		])
 
-		const headerStyle: React.CSSProperties = {
-			display: "flex",
-			alignItems: "center",
-			gap: "10px",
-			marginBottom: "12px",
-		}
-
 		const tool = useMemo(() => {
 			if (message.ask === "tool" || message.say === "tool") {
 				return JSON.parse(message.text || "{}") as ClineSayTool
@@ -415,7 +410,7 @@ export const ChatRowContent = memo(
 						: "Cline wants to edit this file:"
 					return (
 						<>
-							<div style={headerStyle}>
+							<div className={HEADER_CLASSNAMES}>
 								<PencilIcon className="mb-[-1.5px] size-3 stroke-1" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
@@ -437,7 +432,7 @@ export const ChatRowContent = memo(
 				case "fileDeleted":
 					return (
 						<>
-							<div style={headerStyle}>
+							<div className={HEADER_CLASSNAMES}>
 								<SquareMinusIcon className="mb-[-1.5px] size-3 stroke-1" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
@@ -455,7 +450,7 @@ export const ChatRowContent = memo(
 				case "newFileCreated":
 					return (
 						<>
-							<div style={headerStyle}>
+							<div className={HEADER_CLASSNAMES}>
 								<FilePlus2Icon className="size-3 stroke-1" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
@@ -478,7 +473,7 @@ export const ChatRowContent = memo(
 					const isImage = isImageFile(tool.path || "")
 					return (
 						<>
-							<div style={headerStyle}>
+							<div className={HEADER_CLASSNAMES}>
 								{toolIcon(isImage ? "file-media" : "file-code")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
@@ -545,7 +540,7 @@ export const ChatRowContent = memo(
 				case "listFilesTopLevel":
 					return (
 						<>
-							<div style={headerStyle}>
+							<div className={HEADER_CLASSNAMES}>
 								{toolIcon("folder-opened")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
@@ -567,7 +562,7 @@ export const ChatRowContent = memo(
 				case "listFilesRecursive":
 					return (
 						<>
-							<div style={headerStyle}>
+							<div className={HEADER_CLASSNAMES}>
 								{toolIcon("folder-opened")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
@@ -589,7 +584,7 @@ export const ChatRowContent = memo(
 				case "listCodeDefinitionNames":
 					return (
 						<>
-							<div style={headerStyle}>
+							<div className={HEADER_CLASSNAMES}>
 								{toolIcon("file-code")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
@@ -610,7 +605,7 @@ export const ChatRowContent = memo(
 				case "searchFiles":
 					return (
 						<>
-							<div style={headerStyle}>
+							<div className={HEADER_CLASSNAMES}>
 								{toolIcon("search")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
@@ -631,7 +626,7 @@ export const ChatRowContent = memo(
 				case "summarizeTask":
 					return (
 						<>
-							<div style={headerStyle}>
+							<div className={HEADER_CLASSNAMES}>
 								<span className="text-foreground mb-[-1.5px]">
 									<FoldVerticalIcon size={16} />
 								</span>
@@ -716,7 +711,7 @@ export const ChatRowContent = memo(
 				case "webFetch":
 					return (
 						<>
-							<div style={headerStyle}>
+							<div className={HEADER_CLASSNAMES}>
 								<span className="codicon codicon-link color-foreground mb-[-1.5px]" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This URL is external")}
@@ -769,7 +764,7 @@ export const ChatRowContent = memo(
 				case "webSearch":
 					return (
 						<>
-							<div style={headerStyle}>
+							<div className={HEADER_CLASSNAMES}>
 								<span className="codicon codicon-search text-foreground mb-[-1.5px]" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This search is external")}
@@ -905,7 +900,7 @@ export const ChatRowContent = memo(
 			)
 
 			const commandHeader = (
-				<div style={headerStyle}>
+				<div className={HEADER_CLASSNAMES}>
 					{displayIcon}
 					{displayTitle}
 				</div>
@@ -919,7 +914,7 @@ export const ChatRowContent = memo(
 							borderRadius: 6,
 							border: "1px solid var(--vscode-editorGroup-border)",
 							overflow: "visible",
-							backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
+							backgroundColor: "var(--vscode-editor-background)",
 							transition: "all 0.3s ease-in-out",
 						}}>
 						{command && (
@@ -929,7 +924,7 @@ export const ChatRowContent = memo(
 									alignItems: "center",
 									justifyContent: "space-between",
 									padding: "8px 10px",
-									backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
+									backgroundColor: "var(--vscode-editor-background)",
 									borderBottom: "1px solid var(--vscode-editorGroup-border)",
 									borderTopLeftRadius: "6px",
 									borderTopRightRadius: "6px",
@@ -950,7 +945,7 @@ export const ChatRowContent = memo(
 											height: "8px",
 											borderRadius: "50%",
 											backgroundColor: isCommandExecuting
-												? successColor
+												? "var(--vscode-charts-green)"
 												: isCommandPending
 													? "var(--vscode-editorWarning-foreground)"
 													: "var(--vscode-descriptionForeground)",
@@ -961,7 +956,7 @@ export const ChatRowContent = memo(
 									<span
 										style={{
 											color: isCommandExecuting
-												? successColor
+												? "var(--vscode-charts-green)"
 												: isCommandPending
 													? "var(--vscode-editorWarning-foreground)"
 													: "var(--vscode-descriptionForeground)",
@@ -1010,14 +1005,14 @@ export const ChatRowContent = memo(
 							</div>
 						)}
 						{!isSubagentCommand && (
-							<div style={{ opacity: 0.6, backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR }}>
-								<div style={{ backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR }}>
+							<div style={{ opacity: 0.6, backgroundColor: "var(--vscode-editor-background)" }}>
+								<div style={{ backgroundColor: "var(--vscode-editor-background)" }}>
 									<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
 								</div>
 							</div>
 						)}
 						{output.length > 0 && (
-							<CommandOutputRow
+							<CommandOutputContent
 								isContainerExpanded={true}
 								isOutputFullyExpanded={isOutputFullyExpanded}
 								onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
@@ -1048,7 +1043,7 @@ export const ChatRowContent = memo(
 			const server = mcpServers.find((server) => server.name === useMcpServer.serverName)
 			return (
 				<>
-					<div style={headerStyle}>
+					<div className={HEADER_CLASSNAMES}>
 						{icon}
 						{title}
 					</div>
@@ -1588,7 +1583,7 @@ export const ChatRowContent = memo(
 							<>
 								<div className="rounded-sm border border-editor-group-border overflow-visible bg-code transition-border duration-300 ease-in-out hover:border-success">
 									<div className="flex items-center justify-between px-3 py-2 bg-code rounded-0 rounded-tl-sm rounded-tr-sm">
-										<div className="flex items-center gap-2 flex-1 min-w-0">
+										<div className="flex items-center gap-2 flex-1 min-w-0 mx-2">
 											<div className="w-2 h-2 rounded-full bg-success shrink-0" />
 											<span className="text-success font-semibold text-sm shrink-0">Task Completed</span>
 										</div>
@@ -1761,7 +1756,7 @@ export const ChatRowContent = memo(
 							)
 						}
 					case "hook":
-						return <HookMessage CommandOutput={CommandOutputRow} message={message} />
+						return <HookMessage CommandOutput={CommandOutputContent} message={message} />
 					case "hook_output":
 						// hook_output messages are combined with hook messages, so we don't render them separately
 						return null
@@ -1851,7 +1846,7 @@ export const ChatRowContent = memo(
 						return (
 							<>
 								{title && (
-									<div style={headerStyle}>
+									<div className={HEADER_CLASSNAMES}>
 										{icon}
 										{title}
 									</div>
@@ -1873,8 +1868,8 @@ export const ChatRowContent = memo(
 							return (
 								<div>
 									<div className="rounded-sm border border-editor-group-border hover:border-success overflow-visible bg-code transition-all duration-300 ease-in-out">
-										<div className="flex items-center justify-between py-2 rounded-t-sm bg-code rounded-tr-sm">
-											<div className="flex items-center gap-2 flex-1 min-w-0">
+										<div className="flex items-center justify-between py-2 rounded-t-sm bg-code">
+											<div className="flex items-center gap-2 flex-1 min-w-0 px-2">
 												<div className="w-2 h-2 rounded-full bg-success flex-shrink-0" />
 												<span className="text-success font-bold text-sm flex-shrink-0">
 													Task Completed
@@ -1902,7 +1897,7 @@ export const ChatRowContent = memo(
 										<div className="mt-4 flex flex-row gap-2">
 											<Button
 												className={cn(
-													"flex-1 bg-code cursor-pointer border border-editor-group-border text-success rounded-xs px-3 py-2 flex items-center justify-center transition-border duration-200 ease-in-out hover:border-success",
+													"flex-1 bg-code border border-editor-group-border text-success rounded-xs px-3 py-2 flex items-center justify-center transition-border duration-200 ease-in-out hover:border-success",
 													{
 														"cursor-wait": seeNewChangesDisabled,
 													},
@@ -1925,7 +1920,7 @@ export const ChatRowContent = memo(
 											{PLATFORM_CONFIG.type === PlatformType.VSCODE && (
 												<Button
 													className={cn(
-														"flex-1 bg-code cursor-pointer border border-editor-group-border text-success rounded-xs px-3 py-2 flex items-center justify-center transition-border duration-200 ease-in-out hover:border-success",
+														"flex-1 bg-code border border-editor-group-border text-success rounded-xs px-3 py-2 flex items-center justify-center transition-border duration-200 ease-in-out hover:border-success",
 														{
 															"cursor-wait": explainChangesDisabled,
 														},
@@ -1942,7 +1937,7 @@ export const ChatRowContent = memo(
 														})
 													}}
 													variant="success">
-													<i className="codicon codicon-comment-discussion mr-1.5" />
+													<MessageSquareTextIcon className="mb-[-1.5px] size-3 stroke-1 mr-1.5" />
 													{explainChangesDisabled ? "Explaining..." : "Explain Changes"}
 												</Button>
 											)}
@@ -1970,7 +1965,7 @@ export const ChatRowContent = memo(
 						return (
 							<div>
 								{title && (
-									<div style={headerStyle}>
+									<div className={HEADER_CLASSNAMES}>
 										{icon}
 										{title}
 									</div>
@@ -2006,7 +2001,7 @@ export const ChatRowContent = memo(
 					case "new_task":
 						return (
 							<>
-								<div style={headerStyle}>
+								<div className={HEADER_CLASSNAMES}>
 									<FilePlus2Icon className="mb-[-1.5px] size-3 stroke-1 " />
 									<span className="text-foreground font-bold">Cline wants to start a new task:</span>
 								</div>
@@ -2016,7 +2011,7 @@ export const ChatRowContent = memo(
 					case "condense":
 						return (
 							<>
-								<div style={headerStyle}>
+								<div className={HEADER_CLASSNAMES}>
 									<FilePlus2Icon className="mb-[-1.5px] size-3 stroke-1 " />
 									<span className="text-foreground font-bold">Cline wants to condense your conversation:</span>
 								</div>
@@ -2026,7 +2021,7 @@ export const ChatRowContent = memo(
 					case "report_bug":
 						return (
 							<>
-								<div style={headerStyle}>
+								<div className={HEADER_CLASSNAMES}>
 									<FilePlus2Icon className="mb-[-1.5px] size-3 stroke-1 " />
 									<span className="text-foreground font-bold">Cline wants to create a Github issue:</span>
 								</div>
