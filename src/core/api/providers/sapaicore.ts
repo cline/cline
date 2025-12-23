@@ -894,7 +894,6 @@ export class SapAiCoreHandler implements ApiHandler {
 						try {
 							// Parse the incoming JSON data from the stream
 							// Using JSON5 to handle relaxed JSON syntax (e.g., single quotes)
-							// that SAP AI Core sometimes returns in debug mode
 							const data = JSON5.parse(jsonData)
 
 							// Handle metadata (token usage)
