@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.46.1]
+
+### Fixed
+
+- Remove GLM 4.6 from free models
+
+
 ## [3.46.0]
 
 ### Added
