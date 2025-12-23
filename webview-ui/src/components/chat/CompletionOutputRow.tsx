@@ -2,7 +2,7 @@ import { memo } from "react"
 import { cn } from "@/lib/utils"
 import { MarkdownRow } from "./MarkdownRow"
 import "./CompletionOutputRow.css"
-import { TriangleIcon } from "lucide-react"
+import ExpandHandle from "./ExpandHandle"
 
 export const CompletionOutputRow = memo(
 	({ text, isOutputFullyExpanded, onToggle }: { text: string; isOutputFullyExpanded: boolean; onToggle: () => void }) => {
@@ -24,13 +24,9 @@ export const CompletionOutputRow = memo(
 					<MarkdownRow markdown={text} />
 				</div>
 				{/* Show notch only if there's more than 5 lines */}
-				{lineCount > 5 && (
-					<div
-						className="bg-success absolute -bottom-2 left-1/2 transform -translate-x-1/2 p-1 cursor-pointer rounded-xs border-0 flex justify-center items-center px-[14px] py-[1px]"
-						onClick={onToggle}>
-						<TriangleIcon className={cn("fill-black", isOutputFullyExpanded ? "rotate-0" : "rotate-180")} size={11} />
-					</div>
-				)}
+				{lineCount > 5 ? (
+					<ExpandHandle className="bg-success" isExpanded={isOutputFullyExpanded} onToggle={onToggle} />
+				) : null}
 			</div>
 		)
 	},

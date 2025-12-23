@@ -12,7 +12,7 @@ interface ExpandHandleProps {
  * Reusable expand/collapse handle component
  * Used by CompletionOutput, PlanCompletionOutput, CommandOutput, etc.
  */
-const ExpandHandle = memo(({ isExpanded, onToggle, className = "bg-editor-group-border" }: ExpandHandleProps) => {
+const ExpandHandle = memo(({ isExpanded, onToggle, className = "bg-accent" }: ExpandHandleProps) => {
 	return (
 		<div
 			className={cn("absolute -bottom-2 left-1/2 flex justify-between items-center cursor-pointer border-0", className)}
@@ -22,7 +22,7 @@ const ExpandHandle = memo(({ isExpanded, onToggle, className = "bg-editor-group-
 				padding: "1px 14px",
 				borderRadius: "2px",
 			}}>
-			<TriangleIcon className={cn("fill-black", isExpanded ? "rotate-0" : "rotate-180")} size={11} />
+			<TriangleIcon className={cn("text-black fill-black", isExpanded ? "rotate-0" : "rotate-180")} size={11} />
 		</div>
 	)
 })
