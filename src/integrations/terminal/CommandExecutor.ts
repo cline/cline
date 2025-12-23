@@ -150,6 +150,7 @@ export class CommandExecutor {
 					}
 				: undefined,
 			showShellIntegrationSuggestion: this.shouldShowBackgroundTerminalSuggestion(),
+			terminalType: useStandalone ? "standalone" : "vscode",
 		})
 
 		// Capture subagent telemetry
