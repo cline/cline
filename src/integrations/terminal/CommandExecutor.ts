@@ -209,9 +209,13 @@ export class CommandExecutor {
 		if (cancelled) {
 			this.callbacks.updateBackgroundCommandState(false)
 
+			// Wait for terminal buffers to flush before updating the message
+			// This prevents the cancellation notice from appearing in the middle of output
+			await new Promise((resolve) => setTimeout(resolve, 300))
+
 			// Find the last command_output message and update it
 			const messages = this.callbacks.getClineMessages()
-			const lastCommandOutputIndex = this.findLastIndex(messages, (m) => m.say === "command_output")
+			const lastCommandOutputIndex = this.findLastIndex(messages, (m) => m.ask === "command_output")
 			if (lastCommandOutputIndex !== -1) {
 				const existingText = messages[lastCommandOutputIndex].text || ""
 				const cancellationNotice = "\n\nCommand(s) cancelled by user."
