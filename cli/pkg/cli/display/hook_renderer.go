@@ -48,8 +48,6 @@ func (hr *HookRenderer) RenderHookStatus(h types.HookMessage) string {
 	lines = append(lines, header)
 
 	// Paths: keep it readable without verbose; list each path on its own line.
-	// If a single script, render a single italic line.
-	// If multiple scripts, render "*N scripts*" then bullet list.
 	paths := make([]string, 0, len(h.ScriptPaths))
 	for _, p := range h.ScriptPaths {
 		p = strings.TrimSpace(p)
@@ -58,8 +56,13 @@ func (hr *HookRenderer) RenderHookStatus(h types.HookMessage) string {
 		}
 	}
 
-	for _, p := range paths {
-		lines = append(lines, fmt.Sprintf("- Running hook: `%s`", p))
+	if len(paths) == 0 {
+		// Fallback when no script paths are provided (shouldn't happen in normal operation)
+		lines = append(lines, "- *(no hook scripts found)*")
+	} else {
+		for _, p := range paths {
+			lines = append(lines, fmt.Sprintf("- Running hook: `%s`", p))
+		}
 	}
 
 	// Surface failures prominently (minimal, human-readable).

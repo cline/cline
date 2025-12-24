@@ -527,9 +527,9 @@ func (h *SayHandler) handleHookStatus(msg *types.ClineMessage, dc *DisplayContex
 		return dc.Renderer.RenderMessage("HOOK", msg.Text, true)
 	}
 
-	// Debug: log the parsed hook data
+	// Debug: log the parsed hook data using output.Printf for CLI consistency
 	if dc.Verbose {
-		fmt.Printf("[DEBUG] Hook parsed: name=%s, status=%s, toolName=%s, scriptPaths=%v\n",
+		output.Printf("[DEBUG] Hook parsed: name=%s, status=%s, toolName=%s, scriptPaths=%v\n",
 			hook.HookName, hook.Status, hook.ToolName, hook.ScriptPaths)
 	}
 
@@ -641,9 +641,9 @@ func getEnv(key string) string {
 
 // handleDefault handles unknown SAY message types
 func (h *SayHandler) handleDefault(msg *types.ClineMessage, dc *DisplayContext) error {
-	// Debug: log unhandled say types to help identify missing cases
+	// Debug: log unhandled say types to help identify missing cases using output.Printf for CLI consistency
 	if dc.Verbose {
-		fmt.Printf("[DEBUG] Unhandled SAY type: '%s' (text preview: %s)\n", msg.Say, truncateForDisplay(msg.Text, 50))
+		output.Printf("[DEBUG] Unhandled SAY type: '%s' (text preview: %s)\n", msg.Say, truncateForDisplay(msg.Text, 50))
 	}
 	return dc.Renderer.RenderMessage("SAY", msg.Text, true)
 }
