@@ -215,15 +215,9 @@ class NoOpRunner<Name extends HookName> extends HookRunner<Name> {
 	 * @returns A successful hook output (no cancellation)
 	 */
 	override async [exec](_: HookInput): Promise<HookOutput> {
-		// Return an explicit "no-op" payload.
-		// NOTE: HookOutput is a protobuf-generated type with non-optional string
-		// fields, so leaving fields unset will yield default empty strings anyway.
-		// We set them explicitly to make intent clear and consistent.
-		return HookOutput.create({
-			cancel: false,
-			contextModification: "",
-			errorMessage: "",
-		})
+		// HookOutput is a protobuf-generated type with non-optional fields.
+		// Protobuf defaults: cancel=false, contextModification="", errorMessage=""
+		return HookOutput.create({ cancel: false })
 	}
 }
 

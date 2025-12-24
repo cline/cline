@@ -264,6 +264,11 @@ func startClineHost(hostPort int, workspaces []string) (*exec.Cmd, error) {
 	// Note: In `go run` mode, binDir will be a go-build cache directory, so we must
 	// resolve relative to the CLI repo (cli/..
 	if _, statErr := os.Stat(clineHostPath); os.IsNotExist(statErr) {
+		// Log that we're entering dev fallback resolution (helps debug path issues)
+		if Config.Verbose {
+			fmt.Printf("cline-host not found at %s, attempting dev fallback resolution...\n", clineHostPath)
+		}
+
 		// First try: resolve relative to this file's location (cli/pkg/cli/global -> cli/..)
 		// so it works regardless of the current working directory.
 		_, file, _, _ := runtime.Caller(0)
@@ -275,6 +280,9 @@ func startClineHost(hostPort int, workspaces []string) (*exec.Cmd, error) {
 				fmt.Printf("Using development cline-host at: %s\n", clineHostPath)
 			}
 		} else {
+			if Config.Verbose {
+				fmt.Printf("Dev path %s not found, trying cwd fallback...\n", devClineHostPath)
+			}
 			// Fallback: try cwd if caller-based path doesn't work
 			wd, _ := os.Getwd()
 			devClineHostPath2 := filepath.Join(wd, "dist-standalone", "bin", "cline-host")
@@ -283,6 +291,8 @@ func startClineHost(hostPort int, workspaces []string) (*exec.Cmd, error) {
 				if Config.Verbose {
 					fmt.Printf("Using development cline-host at: %s\n", clineHostPath)
 				}
+			} else if Config.Verbose {
+				fmt.Printf("Warning: cwd fallback %s also not found; will use original path %s\n", devClineHostPath2, clineHostPath)
 			}
 		}
 	}

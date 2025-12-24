@@ -82,10 +82,14 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 	let hookMessageTs: number | undefined
 	const abortController = new AbortController()
 
-	// Get hook info including script paths (declare outside try block for error handling)
-	const hookInfo = await hookFactory.getHookInfo(hookName)
+	// Declare hookInfo with empty default - populated inside try block.
+	// If getHookInfo throws, error handlers will use the empty default.
+	let hookInfo: { scriptPaths: string[] } = { scriptPaths: [] }
 
 	try {
+		// Get hook info including script paths
+		hookInfo = await hookFactory.getHookInfo(hookName)
+
 		// Show hook execution indicator and capture timestamp
 		const hookMetadata = {
 			hookName,
