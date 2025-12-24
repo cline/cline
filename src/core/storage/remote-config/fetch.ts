@@ -169,6 +169,10 @@ async function findOrganizationWithRemoteConfig(): Promise<{ organizationId: str
 
 	// Scan each organization for remote config
 	for (const org of userOrganizations) {
+		if (!isRemoteConfigEnabled(org.organizationId)) {
+			continue
+		}
+
 		const remoteConfig = await fetchRemoteConfigForOrganization(org.organizationId)
 
 		if (remoteConfig) {
@@ -229,8 +233,10 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 
 		// Cache and apply the remote config
 		await writeRemoteConfigToCache(organizationId, config)
-		if (!isRemoteConfigEnabled(organizationId)) {
+		if (isRemoteConfigEnabled(organizationId)) {
 			await applyRemoteConfig(config)
+		} else {
+			clearRemoteConfig()
 		}
 		controller.postStateToWebview()
 
