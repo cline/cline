@@ -202,17 +202,39 @@ export class CommandExecutor {
 			Logger.info("Cancelled foreground command")
 		}
 
-		// 3. Update UI state and notify user
+		// 3. Update UI state and notify user by modifying existing message
+		// We modify the previous command_output message instead of sending a new say()
+		// to avoid interfering with any pending ask() dialogs (which would cause
+		// "Current ask promise was ignored" errors)
 		if (cancelled) {
 			this.callbacks.updateBackgroundCommandState(false)
-			try {
-				await this.callbacks.say("command_output", "Command(s) cancelled by user.")
-			} catch (error) {
-				Logger.error("Failed to send cancellation notification", error)
+
+			// Find the last command_output message and update it
+			const messages = this.callbacks.getClineMessages()
+			const lastCommandOutputIndex = this.findLastIndex(messages, (m) => m.say === "command_output")
+			if (lastCommandOutputIndex !== -1) {
+				const existingText = messages[lastCommandOutputIndex].text || ""
+				const cancellationNotice = "\n\nCommand(s) cancelled by user."
+				await this.callbacks.updateClineMessage(lastCommandOutputIndex, {
+					text: existingText + cancellationNotice,
+				})
 			}
 		}
 
 		return cancelled
+	}
+
+	/**
+	 * Find the last index of an element in an array that matches a predicate.
+	 * Helper method since Array.prototype.findLastIndex may not be available in all environments.
+	 */
+	private findLastIndex<T>(array: T[], predicate: (item: T) => boolean): number {
+		for (let i = array.length - 1; i >= 0; i--) {
+			if (predicate(array[i])) {
+				return i
+			}
+		}
+		return -1
 	}
 
 	/**
