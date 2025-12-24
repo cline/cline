@@ -1,4 +1,4 @@
-import { liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
+import { liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults, ModelInfo } from "@shared/api"
 import OpenAI, { APIError, OpenAIError } from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
@@ -18,6 +18,7 @@ import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToOpenAIResponsesInput } from "../transform/openai-response-format"
 import { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
+import { handleResponsesApiStreamResponse } from "../utils/responses_api_support"
 
 export interface OcaHandlerOptions extends CommonApiHandlerOptions {
 	ocaBaseUrl?: string
@@ -103,7 +104,7 @@ export class OcaHandler implements ApiHandler {
 		return this.client
 	}
 
-	async calculateCost(prompt_tokens: number, completion_tokens: number): Promise<number | undefined> {
+	async getApiCosts(prompt_tokens: number, completion_tokens: number): Promise<number | undefined> {
 		// Reference: https://github.com/BerriAI/litellm/blob/122ee634f434014267af104814022af1d9a0882f/litellm/proxy/spend_tracking/spend_management_endpoints.py#L1473
 		const client = this.ensureClient()
 		const modelId = this.options.ocaModelId || liteLlmDefaultModelId
@@ -139,6 +140,19 @@ export class OcaHandler implements ApiHandler {
 			console.error("Error calculating spend:", error)
 			return undefined
 		}
+	}
+
+	async calculateCost(
+		modelInfo: ModelInfo,
+		inputTokens: number,
+		outputTokens: number,
+		_cacheWriteTokens?: number,
+		_cacheReadTokens?: number,
+	) {
+		const inputCost = (await this.getApiCosts(1e6, 0)) || 0
+		const outputCost = (await this.getApiCosts(0, 1e6)) || 0
+		const totalCost = (inputCost * inputTokens) / 1e6 + (outputCost * outputTokens) / 1e6
+		return totalCost
 	}
 
 	@withRetry()
@@ -226,9 +240,6 @@ export class OcaHandler implements ApiHandler {
 
 		const stream = await client.chat.completions.create(chatCompletionsParams)
 
-		const inputCost = (await this.calculateCost(1e6, 0)) || 0
-		const outputCost = (await this.calculateCost(0, 1e6)) || 0
-
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
 
@@ -259,8 +270,11 @@ export class OcaHandler implements ApiHandler {
 
 			// Handle token usage information
 			if (chunk.usage) {
-				const totalCost =
-					(inputCost * chunk.usage.prompt_tokens) / 1e6 + (outputCost * chunk.usage.completion_tokens) / 1e6
+				const totalCost = await this.calculateCost(
+					this.options.ocaModelInfo!,
+					chunk.usage.prompt_tokens,
+					chunk.usage.completion_tokens,
+				)
 
 				// Extract cache-related information if available
 				// Need to use type assertion since these properties are not in the standard OpenAI types
@@ -324,166 +338,7 @@ export class OcaHandler implements ApiHandler {
 		// Create the response using Responses API
 		const stream = await client.responses.create(responsesParams)
 
-		// Process the response stream
-		for await (const chunk of stream) {
-			// Handle different event types from Responses API
-			if (chunk.type === "response.output_item.added") {
-				const item = chunk.item
-				if (item.type === "function_call" && item.id) {
-					yield {
-						type: "tool_calls",
-						id: item.id,
-						tool_call: {
-							call_id: item.call_id,
-							function: {
-								id: item.id,
-								name: item.name,
-								arguments: item.arguments,
-							},
-						},
-					}
-				}
-				if (item.type === "reasoning" && item.encrypted_content && item.id) {
-					yield {
-						type: "reasoning",
-						id: item.id,
-						reasoning: "",
-						redacted_data: item.encrypted_content,
-					}
-				}
-			}
-			if (chunk.type === "response.output_item.done") {
-				const item = chunk.item
-				if (item.type === "function_call") {
-					yield {
-						type: "tool_calls",
-						id: item.id || item.call_id,
-						tool_call: {
-							call_id: item.call_id,
-							function: {
-								id: item.id,
-								name: item.name,
-								arguments: item.arguments,
-							},
-						},
-					}
-				}
-				if (item.type === "reasoning") {
-					yield {
-						type: "reasoning",
-						id: item.id,
-						details: item.summary,
-						reasoning: "",
-					}
-				}
-			}
-			if (chunk.type === "response.reasoning_summary_part.added") {
-				yield {
-					type: "reasoning",
-					id: chunk.item_id,
-					reasoning: chunk.part.text,
-				}
-			}
-			if (chunk.type === "response.reasoning_summary_text.delta") {
-				yield {
-					type: "reasoning",
-					id: chunk.item_id,
-					reasoning: chunk.delta,
-				}
-			}
-			if (chunk.type === "response.reasoning_summary_part.done") {
-				yield {
-					type: "reasoning",
-					id: chunk.item_id,
-					details: chunk.part,
-					reasoning: "",
-				}
-			}
-			if (chunk.type === "response.output_text.delta") {
-				// Handle text content deltas
-				if (chunk.delta) {
-					yield {
-						id: chunk.item_id,
-						type: "text",
-						text: chunk.delta,
-					}
-				}
-			}
-			if (chunk.type === "response.reasoning_text.delta") {
-				// Handle reasoning content deltas
-				if (chunk.delta) {
-					yield {
-						id: chunk.item_id,
-						type: "reasoning",
-						reasoning: chunk.delta,
-					}
-				}
-			}
-			if (chunk.type === "response.function_call_arguments.delta") {
-				yield {
-					type: "tool_calls",
-					tool_call: {
-						function: {
-							id: chunk.item_id,
-							name: chunk.item_id,
-							arguments: chunk.delta,
-						},
-					},
-				}
-			}
-			if (chunk.type === "response.function_call_arguments.done") {
-				// Handle completed function call
-				if (chunk.item_id && chunk.name && chunk.arguments) {
-					yield {
-						type: "tool_calls",
-						tool_call: {
-							function: {
-								id: chunk.item_id,
-								name: chunk.name,
-								arguments: chunk.arguments,
-							},
-						},
-					}
-				}
-			}
-
-			if (
-				chunk.type === "response.incomplete" &&
-				chunk.response?.status === "incomplete" &&
-				chunk.response?.incomplete_details?.reason === "max_output_tokens"
-			) {
-				console.log("Ran out of tokens")
-				if (chunk.response?.output_text?.length > 0) {
-					console.log("Partial output:", chunk.response.output_text)
-				} else {
-					console.log("Ran out of tokens during reasoning")
-				}
-			}
-
-			if (chunk.type === "response.completed" && chunk.response?.usage) {
-				// Handle usage information when response is complete
-				const usage = chunk.response.usage
-				const inputTokens = usage.input_tokens || 0
-				const outputTokens = usage.output_tokens || 0
-				const cacheReadTokens = usage.output_tokens_details?.reasoning_tokens || 0
-				const cacheWriteTokens = usage.input_tokens_details?.cached_tokens || 0
-				const totalTokens = usage.total_tokens || 0
-				Logger.log(`Total tokens from Responses API usage: ${totalTokens}`)
-				const inputCost = (await this.calculateCost(1e6, 0)) || 0
-				const outputCost = (await this.calculateCost(0, 1e6)) || 0
-				const totalCost = (inputCost * inputTokens) / 1e6 + (outputCost * outputTokens) / 1e6
-				const nonCachedInputTokens = Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens)
-				yield {
-					type: "usage",
-					inputTokens: nonCachedInputTokens,
-					outputTokens: outputTokens,
-					cacheWriteTokens: cacheWriteTokens,
-					cacheReadTokens: cacheReadTokens,
-					totalCost: totalCost,
-					id: chunk.response.id,
-				}
-			}
-		}
+		yield* handleResponsesApiStreamResponse(stream, this.options.ocaModelInfo!, this.calculateCost)
 	}
 
 	getModel() {
