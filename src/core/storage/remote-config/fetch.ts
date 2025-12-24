@@ -169,6 +169,10 @@ async function findOrganizationWithRemoteConfig(): Promise<{ organizationId: str
 
 	// Scan each organization for remote config
 	for (const org of userOrganizations) {
+		if (!isRemoteConfigEnabled(org.organizationId)) {
+			continue
+		}
+
 		const remoteConfig = await fetchRemoteConfigForOrganization(org.organizationId)
 
 		if (remoteConfig) {
@@ -231,6 +235,8 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 		await writeRemoteConfigToCache(organizationId, config)
 		if (!isRemoteConfigEnabled(organizationId)) {
 			await applyRemoteConfig(config, undefined, controller.mcpHub)
+		} else {
+			clearRemoteConfig()
 		}
 		controller.postStateToWebview()
 

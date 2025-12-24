@@ -210,7 +210,7 @@ async function applyRemoteOTELConfig(transformed: Partial<RemoteConfigFields>, t
 	}
 }
 
-export async function clearRemoteConfig() {
+export function clearRemoteConfig() {
 	try {
 		const stateManager = StateManager.get()
 
@@ -295,7 +295,7 @@ export async function applyRemoteConfig(
 	await applyRemoteOTELConfig(transformed, telemetryService)
 }
 
-const canDisableRemoteConfig = (orgId?: string) => {
+const canDisableRemoteConfig = (orgId: string) => {
 	// Check if they're an admin/owner
 	const authService = AuthService.getInstance()
 	const userOrgs = authService.getUserOrganizations()
@@ -311,7 +311,7 @@ const canDisableRemoteConfig = (orgId?: string) => {
 	return isAdminOrOwner
 }
 
-export const isRemoteConfigEnabled = (orgId?: string) => {
+export const isRemoteConfigEnabled = (orgId: string) => {
 	const stateManager = StateManager.get()
 	const hasOptedOut = stateManager.getGlobalSettingsKey("optOutOfRemoteConfig")
 
