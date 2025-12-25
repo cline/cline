@@ -178,9 +178,19 @@ export function convertToOpenAiMessages(
 					const toolDetails = toolMessage.reasoning_details
 					if (toolDetails?.length) {
 						if (Array.isArray(toolDetails)) {
-							reasoningDetails.push(...toolDetails)
+							// For Gemini: filter out reasoning details that don't have an id matching the tool call
+							// This prevents "Function call is missing a thought_signature" errors
+							// See: https://github.com/cline/cline/issues/8214
+							const validDetails = toolDetails.filter((detail: any) => detail?.id === toolMessage.id)
+							if (validDetails.length > 0) {
+								reasoningDetails.push(...validDetails)
+							}
 						} else {
-							reasoningDetails.push(toolDetails)
+							// Single reasoning detail - only include if it has matching id
+							const detail = toolDetails as any
+							if (detail?.id === toolMessage.id) {
+								reasoningDetails.push(toolDetails)
+							}
 						}
 					}
 
