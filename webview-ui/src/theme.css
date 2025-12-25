@@ -62,8 +62,20 @@
 	--text-xs: calc(0.85 * var(--vscode-font-size));
 	--text-xxs: calc(0.5 * var(--vscode-font-size));
 	--breakpoint-xs: 400px;
-	--radius-xs: 4px;
+	--radius-xs: 2px;
 	--breakpoint-xxs: 180px;
+
+	--animate-fade-in: fadeIn 0.4s ease-out forwards;
+	@keyframes fadeIn {
+		from {
+			opacity: 0;
+			transform: scale(0.98);
+		}
+		to {
+			opacity: 1;
+			transform: scale(1);
+		}
+	}
 }
 
 @theme inline {
@@ -104,6 +116,7 @@
 	--size-2: calc(1 * var(--vscode-font-size));
 	--size-3: calc(1.25 * var(--vscode-font-size));
 	--size-4: calc(1.5 * var(--vscode-font-size));
+	--size-5: calc(2 * var(--vscode-font-size));
 }
 
 :root {

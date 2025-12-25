@@ -283,6 +283,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const autoCondenseThreshold =
 			context.globalState.get<GlobalStateAndSettings["autoCondenseThreshold"]>("autoCondenseThreshold") // number from 0 to 1
 		const hooksEnabled = context.globalState.get<GlobalStateAndSettings["hooksEnabled"]>("hooksEnabled")
+		const enableParallelToolCalling =
+			context.globalState.get<GlobalStateAndSettings["enableParallelToolCalling"]>("enableParallelToolCalling")
 		const hicapModelId = context.globalState.get<GlobalStateAndSettings["hicapModelId"]>("hicapModelId")
 		const aihubmixBaseUrl = context.globalState.get<GlobalStateAndSettings["aihubmixBaseUrl"]>("aihubmixBaseUrl")
 		const aihubmixAppCode = context.globalState.get<GlobalStateAndSettings["aihubmixAppCode"]>("aihubmixAppCode")
@@ -320,6 +322,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const openTelemetryLogMaxQueueSize =
 			context.globalState.get<GlobalStateAndSettings["openTelemetryLogMaxQueueSize"]>("openTelemetryLogMaxQueueSize")
 		const subagentsEnabled = context.globalState.get<GlobalStateAndSettings["subagentsEnabled"]>("subagentsEnabled")
+		const backgroundEditEnabled =
+			context.globalState.get<GlobalStateAndSettings["backgroundEditEnabled"]>("backgroundEditEnabled")
 
 		// Get mode-related configurations
 		const mode = context.globalState.get<GlobalStateAndSettings["mode"]>("mode")
@@ -680,9 +684,11 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			qwenCodeOauthPath,
 			customPrompt,
 			autoCondenseThreshold: autoCondenseThreshold || 0.75, // default to 0.75 if not set
+			backgroundEditEnabled: backgroundEditEnabled ?? false,
 			// Hooks require explicit user opt-in and are only supported on macOS/Linux
 			hooksEnabled: getHooksEnabledSafe(hooksEnabled),
 			subagentsEnabled: subagentsEnabled ?? false,
+			enableParallelToolCalling: enableParallelToolCalling ?? false,
 			lastDismissedInfoBannerVersion: lastDismissedInfoBannerVersion ?? 0,
 			lastDismissedModelBannerVersion: lastDismissedModelBannerVersion ?? 0,
 			lastDismissedCliBannerVersion: lastDismissedCliBannerVersion ?? 0,

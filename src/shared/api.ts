@@ -322,6 +322,7 @@ export const anthropicModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
@@ -332,6 +333,7 @@ export const anthropicModels = {
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
@@ -343,6 +345,7 @@ export const anthropicModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		inputPrice: 1,
 		outputPrice: 5.0,
 		cacheWritesPrice: 1.25,
@@ -353,6 +356,7 @@ export const anthropicModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
@@ -363,6 +367,7 @@ export const anthropicModels = {
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
@@ -374,6 +379,7 @@ export const anthropicModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		inputPrice: 5.0,
 		outputPrice: 25.0,
 		cacheWritesPrice: 6.25,
@@ -384,6 +390,7 @@ export const anthropicModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		inputPrice: 15.0,
 		outputPrice: 75.0,
 		cacheWritesPrice: 18.75,
@@ -394,6 +401,7 @@ export const anthropicModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		inputPrice: 15.0,
 		outputPrice: 75.0,
 		cacheWritesPrice: 18.75,
@@ -405,6 +413,7 @@ export const anthropicModels = {
 		supportsImages: true,
 
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
@@ -519,6 +528,7 @@ export const bedrockModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		supportsGlobalEndpoint: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -530,6 +540,7 @@ export const bedrockModels = {
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		supportsGlobalEndpoint: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -542,6 +553,7 @@ export const bedrockModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		inputPrice: 1,
 		outputPrice: 5.0,
 		cacheWritesPrice: 1.25,
@@ -552,6 +564,7 @@ export const bedrockModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		supportsGlobalEndpoint: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -563,6 +576,7 @@ export const bedrockModels = {
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		supportsGlobalEndpoint: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -575,6 +589,7 @@ export const bedrockModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		supportsGlobalEndpoint: true,
 		inputPrice: 5.0,
 		outputPrice: 25.0,
@@ -586,6 +601,7 @@ export const bedrockModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		inputPrice: 15.0,
 		outputPrice: 75.0,
 		cacheWritesPrice: 18.75,
@@ -596,6 +612,7 @@ export const bedrockModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		inputPrice: 15.0,
 		outputPrice: 75.0,
 		cacheWritesPrice: 18.75,
@@ -661,6 +678,7 @@ export const bedrockModels = {
 		supportsImages: true,
 
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
@@ -787,8 +805,8 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 		"Claude Sonnet 4.5 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
 }
 
-// Cline custom model - Microwave
-export const clineMicrowaveModelInfo: ModelInfo = {
+// Cline custom model - Devstral
+export const clineDevstralModelInfo: ModelInfo = {
 	contextWindow: 256000,
 	supportsImages: false,
 	supportsPromptCache: false,
@@ -900,6 +918,23 @@ export const vertexModels = {
 		inputPrice: 2.0,
 		outputPrice: 12.0,
 		temperature: 1.0,
+		supportsReasoning: true,
+		thinkingConfig: {
+			geminiThinkingLevel: "high",
+			supportsThinkingLevel: true,
+		},
+	},
+	"gemini-3-flash-preview": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 0.5,
+		outputPrice: 3.0,
+		cacheWritesPrice: 0.05,
+		temperature: 1.0,
+		supportsReasoning: true,
 		thinkingConfig: {
 			geminiThinkingLevel: "high",
 			supportsThinkingLevel: true,
@@ -1302,6 +1337,35 @@ export const geminiModels = {
 			},
 		],
 	},
+	"gemini-3-flash-preview": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 0.5,
+		outputPrice: 3.0,
+		cacheWritesPrice: 0.05,
+		supportsReasoning: true,
+		thinkingConfig: {
+			geminiThinkingLevel: "low",
+			supportsThinkingLevel: true,
+		},
+		tiers: [
+			{
+				contextWindow: 200000,
+				inputPrice: 0.3,
+				outputPrice: 2.5,
+				cacheReadsPrice: 0.03,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 0.3,
+				outputPrice: 2.5,
+				cacheReadsPrice: 0.03,
+			},
+		],
+	},
 	"gemini-2.5-pro": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
@@ -1474,8 +1538,21 @@ export const geminiModels = {
 // OpenAI Native
 // https://openai.com/api/pricing/
 export type OpenAiNativeModelId = keyof typeof openAiNativeModels
-export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-5.1-2025-11-13"
+export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-5.2"
 export const openAiNativeModels = {
+	"gpt-5.2": {
+		maxTokens: 8_192,
+		contextWindow: 272000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.75,
+		outputPrice: 14.0,
+		cacheReadsPrice: 0.175,
+		temperature: 1,
+		systemRole: "developer",
+		supportsReasoning: true,
+		supportsReasoningEffort: true,
+	},
 	"gpt-5.1-2025-11-13": {
 		maxTokens: 8_192,
 		contextWindow: 272000,
@@ -1486,6 +1563,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.125,
 		temperature: 1,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
 	"gpt-5.1": {
@@ -1498,6 +1576,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.125,
 		temperature: 1,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
 	"gpt-5.1-codex": {
@@ -1511,6 +1590,7 @@ export const openAiNativeModels = {
 		apiFormat: ApiFormat.OPENAI_RESPONSES,
 		temperature: 1,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
 	"gpt-5.1-chat-latest": {
@@ -1523,6 +1603,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.125,
 		temperature: 1,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
 	"gpt-5-2025-08-07": {
@@ -1535,6 +1616,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.125,
 		temperature: 1,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
 	"gpt-5-codex": {
@@ -1548,6 +1630,7 @@ export const openAiNativeModels = {
 		apiFormat: ApiFormat.OPENAI_RESPONSES,
 		temperature: 1,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
 	"gpt-5-mini-2025-08-07": {
@@ -1560,6 +1643,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.025,
 		temperature: 1,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
 	"gpt-5-nano-2025-08-07": {
@@ -1572,6 +1656,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.005,
 		temperature: 1,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
 	"gpt-5-chat-latest": {
@@ -1584,6 +1669,7 @@ export const openAiNativeModels = {
 		cacheReadsPrice: 0.125,
 		temperature: 1,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
 	o3: {
@@ -1595,6 +1681,7 @@ export const openAiNativeModels = {
 		outputPrice: 8.0,
 		cacheReadsPrice: 0.5,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 		supportsTools: false,
 	},
@@ -1607,6 +1694,7 @@ export const openAiNativeModels = {
 		outputPrice: 4.4,
 		cacheReadsPrice: 0.275,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 		supportsTools: false,
 	},
@@ -1649,6 +1737,7 @@ export const openAiNativeModels = {
 		outputPrice: 4.4,
 		cacheReadsPrice: 0.55,
 		systemRole: "developer",
+		supportsReasoning: true,
 		supportsReasoningEffort: true,
 		supportsTools: false,
 	},
@@ -2565,8 +2654,40 @@ export const doubaoModels = {
 // Mistral
 // https://docs.mistral.ai/getting-started/models/models_overview/
 export type MistralModelId = keyof typeof mistralModels
-export const mistralDefaultModelId: MistralModelId = "devstral-small-2505"
+export const mistralDefaultModelId: MistralModelId = "devstral-2512"
 export const mistralModels = {
+	"devstral-2512": {
+		maxTokens: 256_000,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"labs-devstral-small-2512": {
+		maxTokens: 256_000,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"mistral-large-2512": {
+		maxTokens: 256_000,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.5,
+		outputPrice: 1.5,
+	},
+	"ministral-14b-2512": {
+		maxTokens: 256_000,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.2,
+	},
 	"mistral-large-2411": {
 		maxTokens: 128_000,
 		contextWindow: 128_000,
@@ -3938,13 +4059,23 @@ export const basetenDefaultModelId = "zai-org/GLM-4.6" satisfies BasetenModelId
 // https://docs.z.ai/guides/llm/glm-4.5
 // https://docs.z.ai/guides/overview/pricing
 export type internationalZAiModelId = keyof typeof internationalZAiModels
-export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-4.5"
+export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-4.7"
 export const internationalZAiModels = {
+	"glm-4.7": {
+		maxTokens: 131_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		cacheReadsPrice: 0.11,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+	},
 	"glm-4.6": {
 		maxTokens: 128_000,
 		contextWindow: 200_000,
 		supportsImages: false,
 		supportsPromptCache: true,
+		cacheReadsPrice: 0.11,
 		inputPrice: 0.6,
 		outputPrice: 2.2,
 	},
@@ -3975,13 +4106,23 @@ export const internationalZAiModels = {
 } as const satisfies Record<string, ModelInfo>
 
 export type mainlandZAiModelId = keyof typeof mainlandZAiModels
-export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-4.5"
+export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-4.7"
 export const mainlandZAiModels = {
+	"glm-4.7": {
+		maxTokens: 131_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		cacheReadsPrice: 0.11,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+	},
 	"glm-4.6": {
 		maxTokens: 128_000,
 		contextWindow: 200_000,
 		supportsImages: false,
 		supportsPromptCache: true,
+		cacheReadsPrice: 0.11,
 		inputPrice: 0.6,
 		outputPrice: 2.2,
 	},
