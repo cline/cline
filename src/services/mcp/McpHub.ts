@@ -55,6 +55,21 @@ export class McpHub {
 	private fileWatchers: Map<string, FSWatcher> = new Map()
 	connections: McpConnection[] = []
 	isConnecting: boolean = false
+	/**
+	 * Flag to skip file watcher processing when we're updating Cline-specific settings
+	 * (autoApprove, timeout) that don't require an MCP server restart.
+	 *
+	 * The file watcher has a 100ms stabilityThreshold before firing "change" events.
+	 * When we update settings, we set this flag to true, write the file, then clear
+	 * the flag after 300ms. This ensures the flag is still true when the delayed
+	 * file watcher event fires, so we can skip redundant processing.
+	 *
+	 * Timeline:
+	 *   0ms:    flag = true, write file
+	 *   ~100ms: file watcher fires "change" → sees flag=true → skips
+	 *   300ms:  flag = false (ready for external file changes)
+	 */
+	private isUpdatingClineSettings: boolean = false
 
 	/**
 	 * Map of unique keys to each connected server names
@@ -190,6 +205,11 @@ export class McpHub {
 		})
 
 		this.settingsWatcher.on("change", async () => {
+			// Skip processing if we're updating Cline-specific settings (autoApprove, timeout)
+			if (this.isUpdatingClineSettings) {
+				return
+			}
+
 			const settings = await this.readAndValidateMcpSettingsFile()
 			if (settings) {
 				try {
@@ -717,8 +737,8 @@ export class McpHub {
 				} catch (error) {
 					console.error(`Failed to connect to new MCP server ${name}:`, error)
 				}
-			} else if (!deepEqual(JSON.parse(currentConnection.server.config), config)) {
-				// Existing server with changed config
+			} else if (this.configsRequireRestart(JSON.parse(currentConnection.server.config), config)) {
+				// Existing server with changed connection config (excludes Cline-specific settings)
 				try {
 					if (config.type === "stdio") {
 						this.setupFileWatcher(name, config)
@@ -729,8 +749,24 @@ export class McpHub {
 				} catch (error) {
 					console.error(`Failed to reconnect MCP server ${name}:`, error)
 				}
+			} else {
+				// Only Cline-specific settings changed - update in-memory state without restart
+				const autoApprove = config.autoApprove || []
+				if (currentConnection.server.tools) {
+					currentConnection.server.tools = currentConnection.server.tools.map((tool) => ({
+						...tool,
+						autoApprove: autoApprove.includes(tool.name),
+					}))
+				}
+				// Also update Cline-specific settings in the stored config.
+				// This handles the case where someone manually edits the MCP settings file -
+				// the file watcher triggers this code path, and we need to sync the in-memory
+				// config with the file without restarting the server.
+				const currentConfig = JSON.parse(currentConnection.server.config)
+				currentConfig.autoApprove = config.autoApprove
+				currentConfig.timeout = config.timeout
+				currentConnection.server.config = JSON.stringify(currentConfig)
 			}
-			// If server exists with same config, do nothing
 		}
 
 		this.isConnecting = false
@@ -742,12 +778,16 @@ export class McpHub {
 		const currentNames = new Set(this.connections.map((conn) => conn.server.name))
 		const newNames = new Set(Object.keys(newServers))
 
+		// Track if any connection-level changes occurred (excludes Cline-specific settings)
+		let connectionChangesOccurred = false
+
 		// Delete removed servers
 		for (const name of currentNames) {
 			if (!newNames.has(name)) {
 				await this.clearOAuthForConnection(name) // Clear OAuth data first
 				await this.deleteConnection(name) // Then delete connection
 				console.log(`Deleted MCP server: ${name}`)
+				connectionChangesOccurred = true
 			}
 		}
 
@@ -762,26 +802,78 @@ export class McpHub {
 						this.setupFileWatcher(name, config)
 					}
 					await this.connectToServer(name, config, "internal")
+					connectionChangesOccurred = true
 				} catch (error) {
 					console.error(`Failed to connect to new MCP server ${name}:`, error)
 				}
-			} else if (!deepEqual(JSON.parse(currentConnection.server.config), config)) {
-				// Existing server with changed config
+			} else if (this.configsRequireRestart(JSON.parse(currentConnection.server.config), config)) {
+				// Existing server with changed connection config (excludes Cline-specific settings)
 				try {
+					// Set status to "connecting" and notify webview before restart (same pattern as restartConnection)
+					currentConnection.server.status = "connecting"
+					currentConnection.server.error = ""
+					await this.notifyWebviewOfServerChanges()
+
 					if (config.type === "stdio") {
 						this.setupFileWatcher(name, config)
 					}
 					await this.deleteConnection(name)
 					await this.connectToServer(name, config, "internal")
 					console.log(`Reconnected MCP server with updated config: ${name}`)
+					connectionChangesOccurred = true
 				} catch (error) {
 					console.error(`Failed to reconnect MCP server ${name}:`, error)
 				}
+			} else {
+				// Only Cline-specific settings changed - update in-memory state without restart
+				// Don't set connectionChangesOccurred since the RPC already returned the updated state
+				const autoApprove = config.autoApprove || []
+				if (currentConnection.server.tools) {
+					currentConnection.server.tools = currentConnection.server.tools.map((tool) => ({
+						...tool,
+						autoApprove: autoApprove.includes(tool.name),
+					}))
+				}
+				// Also update Cline-specific settings in the stored config
+				const currentConfig = JSON.parse(currentConnection.server.config)
+				currentConfig.autoApprove = config.autoApprove
+				currentConfig.timeout = config.timeout
+				currentConnection.server.config = JSON.stringify(currentConfig)
 			}
-			// If server exists with same config, do nothing
 		}
-		await this.notifyWebviewOfServerChanges()
+
+		// Only notify webview if actual connection changes occurred.
+		// For Cline-specific settings changes, the RPC response already updated the webview,
+		// so we skip notification to avoid race conditions.
+		if (connectionChangesOccurred) {
+			await this.notifyWebviewOfServerChanges()
+		}
 		this.isConnecting = false
+	}
+
+	/**
+	 * Compares two MCP server configs to determine if a restart is required.
+	 * Excludes Cline-specific settings since they don't affect the MCP server transport connection.
+	 *
+	 * ## Cline-specific settings (don't require restart):
+	 * - `autoApprove`: tool approval list (UI setting)
+	 * - `timeout`: request timeout (read at request time, not connection time)
+	 *
+	 * ## MCP SDK connection settings (require restart):
+	 * - `type`, `command`, `args`, `cwd`, `env`, `url`, `headers`, `disabled`
+	 *
+	 * ## Adding new Cline-specific settings:
+	 * When adding a new setting that doesn't require server restart:
+	 * 1. Add it to the destructuring below to exclude from comparison
+	 * 2. Add it to `isUpdatingClineSettings` flag usage in the update function
+	 * 3. Update in-memory state (e.g., `connection.server.config`) in the update function
+	 * 4. Update the schema in `src/services/mcp/schemas.ts` if needed
+	 */
+	private configsRequireRestart(oldConfig: McpServerConfig, newConfig: McpServerConfig): boolean {
+		// Exclude Cline-specific settings from comparison (add new ones here)
+		const { autoApprove: _oldAutoApprove, timeout: _oldTimeout, ...oldConnectionConfig } = oldConfig
+		const { autoApprove: _newAutoApprove, timeout: _newTimeout, ...newConnectionConfig } = newConfig
+		return !deepEqual(oldConnectionConfig, newConnectionConfig)
 	}
 
 	private setupFileWatcher(name: string, config: Extract<McpServerConfig, { type: "stdio" }>) {
@@ -940,6 +1032,11 @@ export class McpHub {
 				const connection = this.connections.find((conn) => conn.server.name === serverName)
 				if (connection) {
 					connection.server.disabled = disabled
+					// When enabling a server, set status to "connecting" so UI shows yellow indicator
+					if (!disabled) {
+						connection.server.status = "connecting"
+						connection.server.error = ""
+					}
 				}
 
 				const serverOrder = Object.keys(config.mcpServers || {})
@@ -1065,6 +1162,8 @@ export class McpHub {
 	 * @returns Array of updated MCP servers
 	 */
 	async toggleToolAutoApproveRPC(serverName: string, toolNames: string[], shouldAllow: boolean): Promise<McpServer[]> {
+		// Set flag to prevent file watcher from triggering during our update
+		this.isUpdatingClineSettings = true
 		try {
 			const settingsPath = await this.getMcpSettingsFilePath()
 			const content = await fs.readFile(settingsPath, "utf-8")
@@ -1106,10 +1205,18 @@ export class McpHub {
 		} catch (error) {
 			console.error("Failed to update autoApprove settings:", error)
 			throw error // Re-throw to ensure the error is properly handled
+		} finally {
+			// Clear flag after a delay to ensure file watcher event has been processed
+			// The file watcher has a 100ms stabilityThreshold, so we wait a bit longer
+			setTimeout(() => {
+				this.isUpdatingClineSettings = false
+			}, 300)
 		}
 	}
 
 	async toggleToolAutoApprove(serverName: string, toolNames: string[], shouldAllow: boolean): Promise<void> {
+		// Set flag to prevent file watcher from triggering during our update
+		this.isUpdatingClineSettings = true
 		try {
 			const settingsPath = await this.getMcpSettingsFilePath()
 			const content = await fs.readFile(settingsPath, "utf-8")
@@ -1152,6 +1259,11 @@ export class McpHub {
 				message: "Failed to update autoApprove settings",
 			})
 			throw error // Re-throw to ensure the error is properly handled
+		} finally {
+			// Clear flag after a delay to ensure file watcher event has been processed
+			setTimeout(() => {
+				this.isUpdatingClineSettings = false
+			}, 300)
 		}
 	}
 
@@ -1248,6 +1360,8 @@ export class McpHub {
 	}
 
 	public async updateServerTimeoutRPC(serverName: string, timeout: number): Promise<McpServer[]> {
+		// Set flag to prevent file watcher from triggering during our update
+		this.isUpdatingClineSettings = true
 		try {
 			// Validate timeout against schema
 			const setConfigResult = BaseConfigSchema.shape.timeout.safeParse(timeout)
@@ -1270,7 +1384,13 @@ export class McpHub {
 
 			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
 
-			await this.updateServerConnectionsRPC(config.mcpServers)
+			// Update in-memory config to reflect the new timeout
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+			if (connection) {
+				const currentConfig = JSON.parse(connection.server.config)
+				currentConfig.timeout = timeout
+				connection.server.config = JSON.stringify(currentConfig)
+			}
 
 			const serverOrder = Object.keys(config.mcpServers || {})
 			return this.getSortedMcpServers(serverOrder)
@@ -1284,6 +1404,11 @@ export class McpHub {
 				message: `Failed to update server timeout: ${error instanceof Error ? error.message : String(error)}`,
 			})
 			throw error
+		} finally {
+			// Clear flag after a delay to ensure file watcher event has been processed
+			setTimeout(() => {
+				this.isUpdatingClineSettings = false
+			}, 300)
 		}
 	}
 

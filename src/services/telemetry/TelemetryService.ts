@@ -19,6 +19,26 @@ import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
 type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "dictation" | "subagents" | "hooks"
 
 /**
+ * Terminal type for telemetry differentiation
+ */
+export type TerminalType = "vscode" | "standalone"
+
+/**
+ * VSCode-specific output capture methods
+ */
+export type VscodeOutputMethod = "shell_integration" | "clipboard" | "none"
+
+/**
+ * Standalone-specific output capture methods
+ */
+export type StandaloneOutputMethod = "child_process" | "child_process_error"
+
+/**
+ * Combined type for terminal output methods
+ */
+export type TerminalOutputMethod = VscodeOutputMethod | StandaloneOutputMethod
+
+/**
  * Enum for terminal output failure reasons
  */
 export enum TerminalOutputFailureReason {
@@ -1594,15 +1614,28 @@ export class TelemetryService {
 	// Terminal telemetry methods
 
 	/**
-	 * Records terminal command execution outcomes
+	 * Records terminal command execution outcomes for VSCode terminal
 	 * @param success Whether the command output was successfully captured
-	 * @param method The method used to capture output ("shell_integration" | "clipboard" | "none")
+	 * @param terminalType The type of terminal ("vscode")
+	 * @param method The VSCode-specific method used to capture output
 	 */
-	public captureTerminalExecution(success: boolean, method: "shell_integration" | "clipboard" | "none") {
+	public captureTerminalExecution(success: boolean, terminalType: "vscode", method: VscodeOutputMethod): void
+	/**
+	 * Records terminal command execution outcomes for standalone terminal
+	 * @param success Whether the command output was successfully captured
+	 * @param terminalType The type of terminal ("standalone")
+	 * @param method The standalone-specific method used to capture output
+	 */
+	public captureTerminalExecution(success: boolean, terminalType: "standalone", method: StandaloneOutputMethod): void
+	/**
+	 * Implementation of captureTerminalExecution
+	 */
+	public captureTerminalExecution(success: boolean, terminalType: TerminalType, method: TerminalOutputMethod): void {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_EXECUTION,
 			properties: {
 				success,
+				terminalType,
 				method,
 			},
 		})
@@ -1611,12 +1644,14 @@ export class TelemetryService {
 	/**
 	 * Records when terminal output capture fails
 	 * @param reason The reason for failure
+	 * @param terminalType The type of terminal (defaults to "vscode" for backward compatibility)
 	 */
-	public captureTerminalOutputFailure(reason: TerminalOutputFailureReason) {
+	public captureTerminalOutputFailure(reason: TerminalOutputFailureReason, terminalType: TerminalType = "vscode") {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_OUTPUT_FAILURE,
 			properties: {
 				reason,
+				terminalType,
 			},
 		})
 	}
@@ -1624,12 +1659,14 @@ export class TelemetryService {
 	/**
 	 * Records when user has to intervene with terminal execution
 	 * @param action The user action
+	 * @param terminalType The type of terminal (defaults to "vscode" for backward compatibility)
 	 */
-	public captureTerminalUserIntervention(action: TerminalUserInterventionAction) {
+	public captureTerminalUserIntervention(action: TerminalUserInterventionAction, terminalType: TerminalType = "vscode") {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_USER_INTERVENTION,
 			properties: {
 				action,
+				terminalType,
 			},
 		})
 	}
@@ -1637,12 +1674,14 @@ export class TelemetryService {
 	/**
 	 * Records when terminal execution hangs or gets stuck
 	 * @param stage Where the hang occurred
+	 * @param terminalType The type of terminal (defaults to "vscode" for backward compatibility)
 	 */
-	public captureTerminalHang(stage: TerminalHangStage) {
+	public captureTerminalHang(stage: TerminalHangStage, terminalType: TerminalType = "vscode") {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_HANG,
 			properties: {
 				stage,
+				terminalType,
 			},
 		})
 	}

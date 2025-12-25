@@ -21,24 +21,13 @@ import { telemetryService } from "@services/telemetry"
 import { ClineToolResponseContent } from "@shared/messages"
 import { orchestrateCommandExecution } from "./CommandOrchestrator"
 import { StandaloneTerminalManager } from "./standalone/StandaloneTerminalManager"
-import {
-	ActiveBackgroundCommand,
+import type {
 	CommandExecutorCallbacks,
 	CommandExecutorConfig,
 	ITerminalManager,
+	ShellIntegrationWarningTracker,
 	TerminalProcessResultPromise,
 } from "./types"
-
-// Re-export types for convenience
-export type { CommandExecutorCallbacks, CommandExecutorConfig, FullCommandExecutorConfig } from "./types"
-
-/**
- * Tracker for shell integration warnings to determine when to show background terminal suggestion
- */
-interface ShellIntegrationWarningTracker {
-	timestamps: number[]
-	lastSuggestionShown?: number
-}
 
 /**
  * CommandExecutor - Unified command executor for all terminal modes.
@@ -55,17 +44,16 @@ export class CommandExecutor {
 	private standaloneManager: StandaloneTerminalManager
 	private callbacks: CommandExecutorCallbacks
 
+	// Track the currently executing foreground process for cancellation
+	private currentProcess: TerminalProcessResultPromise | null = null
+
+	// Flag to track if the current command was cancelled externally
+	private wasCancelledExternally = false
+
 	// Track shell integration warnings to determine when to show background terminal suggestion
 	private shellIntegrationWarningTracker: ShellIntegrationWarningTracker = {
 		timestamps: [],
 		lastSuggestionShown: undefined,
-	}
-
-	// Track active background command for cancellation (standalone mode only)
-	private activeBackgroundCommand?: {
-		process: TerminalProcessResultPromise & { terminate?: () => void }
-		command: string
-		outputLines: string[]
 	}
 
 	constructor(config: CommandExecutorConfig, callbacks: CommandExecutorCallbacks) {
@@ -76,16 +64,27 @@ export class CommandExecutor {
 		this.terminalManager = config.terminalManager
 		this.callbacks = callbacks
 
-		// Always create StandaloneTerminalManager for subagents (even in VSCode mode)
-		this.standaloneManager = new StandaloneTerminalManager()
+		// When in backgroundExec mode, the terminalManager is already a StandaloneTerminalManager
+		// created by Task. We should reuse it so that Task.getEnvironmentDetails() can see
+		// the terminals and processes we create (for isHot logic, busy terminals, etc.)
+		if (config.terminalExecutionMode === "backgroundExec" && config.terminalManager instanceof StandaloneTerminalManager) {
+			// Reuse the same instance that Task is using
+			this.standaloneManager = config.terminalManager
+			Logger.info(`[CommandExecutor] Reusing Task's StandaloneTerminalManager for backgroundExec mode`)
+		} else {
+			// Create new StandaloneTerminalManager for subagents (even in VSCode mode)
+			// This ensures subagents run in hidden terminals, not cluttering the user's VSCode terminal
+			this.standaloneManager = new StandaloneTerminalManager()
+			Logger.info(`[CommandExecutor] Created new StandaloneTerminalManager for subagents`)
 
-		// Copy settings from the provided terminalManager to ensure consistency
-		if ("shellIntegrationTimeout" in config.terminalManager) {
-			const tm = config.terminalManager as any
-			this.standaloneManager.setShellIntegrationTimeout(tm.shellIntegrationTimeout || 4000)
-			this.standaloneManager.setTerminalReuseEnabled(tm.terminalReuseEnabled ?? true)
-			this.standaloneManager.setTerminalOutputLineLimit(tm.terminalOutputLineLimit || 500)
-			this.standaloneManager.setSubagentTerminalOutputLineLimit(tm.subagentTerminalOutputLineLimit || 2000)
+			// Copy settings from the provided terminalManager to ensure consistency
+			if ("shellIntegrationTimeout" in config.terminalManager) {
+				const tm = config.terminalManager as any
+				this.standaloneManager.setShellIntegrationTimeout(tm.shellIntegrationTimeout || 4000)
+				this.standaloneManager.setTerminalReuseEnabled(tm.terminalReuseEnabled ?? true)
+				this.standaloneManager.setTerminalOutputLineLimit(tm.terminalOutputLineLimit || 500)
+				this.standaloneManager.setSubagentTerminalOutputLineLimit(tm.subagentTerminalOutputLineLimit || 2000)
+			}
 		}
 	}
 
@@ -120,7 +119,6 @@ export class CommandExecutor {
 		// Subagents always use standalone manager (hidden terminal)
 		const useStandalone = isSubagent || this.terminalExecutionMode === "backgroundExec"
 		const manager = useStandalone ? this.standaloneManager : this.terminalManager
-
 		Logger.info(`Executing command in ${useStandalone ? "standalone" : "VSCode"} terminal: ${command}`)
 
 		// Get terminal and run command
@@ -128,33 +126,32 @@ export class CommandExecutor {
 		terminalInfo.terminal.show()
 		const process = manager.runCommand(terminalInfo, command)
 
-		// Track background command for standalone mode (enables cancellation)
-		if (useStandalone) {
-			this.activeBackgroundCommand = {
-				process: process as any,
-				command,
-				outputLines: [],
-			}
+		// Reset cancellation flag and track the current process
+		this.wasCancelledExternally = false
+		this.currentProcess = process
+		const clearCurrentProcess = () => {
+			this.currentProcess = null
 		}
+		process.once("completed", clearCurrentProcess)
+		process.once("error", clearCurrentProcess)
 
 		// Use shared orchestration logic
+		// The StandaloneTerminalManager handles background command tracking internally
 		const result = await orchestrateCommandExecution(process, manager, this.callbacks, {
 			command,
 			timeoutSeconds,
-			onOutputLine: useStandalone
-				? (line) => {
-						if (this.activeBackgroundCommand) {
-							this.activeBackgroundCommand.outputLines.push(line)
-						}
+			// When "Proceed While Running" is triggered, track the command in the manager
+			// Returns the log file path so the orchestrator can send it to the UI
+			// existingOutput contains all output lines captured so far
+			onProceedWhileRunning: useStandalone
+				? (existingOutput: string[]) => {
+						const backgroundCmd = this.standaloneManager.trackBackgroundCommand(process, command, existingOutput)
+						return { logFilePath: backgroundCmd.logFilePath }
 					}
 				: undefined,
 			showShellIntegrationSuggestion: this.shouldShowBackgroundTerminalSuggestion(),
+			terminalType: useStandalone ? "standalone" : "vscode",
 		})
-
-		// Clear background command tracking if completed
-		if (result.completed && useStandalone) {
-			this.activeBackgroundCommand = undefined
-		}
 
 		// Capture subagent telemetry
 		if (isSubagent && subAgentStartTime > 0) {
@@ -162,112 +159,78 @@ export class CommandExecutor {
 			telemetryService.captureSubagentExecution(this.ulid, durationMs, result.outputLines.length, result.completed)
 		}
 
+		// If the command was cancelled externally (via cancel button), return a clear cancellation message
+		// This ensures the AI agent knows the command was cancelled by the user
+		if (this.wasCancelledExternally) {
+			const outputSoFar =
+				result.outputLines.length > 0
+					? `\nOutput captured before cancellation:\n${manager.processOutput(result.outputLines)}`
+					: ""
+			return [true, `Command was cancelled by the user.${outputSoFar}`]
+		}
+
 		return [result.userRejected, result.result]
 	}
 
 	/**
-	 * Cancel the currently running background command.
-	 * Only works in standalone/backgroundExec mode.
+	 * Cancel all running commands (both foreground and background).
 	 *
-	 * @returns true if a command was cancelled, false otherwise
+	 * This method cancels:
+	 * 1. All detached background commands (those that were "proceeded while running")
+	 * 2. The current foreground process (if one is actively running)
+	 *
+	 * @returns true if any commands were cancelled, false otherwise
 	 */
 	async cancelBackgroundCommand(): Promise<boolean> {
-		if (!this.activeBackgroundCommand) {
-			return false
+		let cancelled = false
+
+		// 1. Cancel all detached background commands
+		const runningCommands = this.standaloneManager.getRunningBackgroundCommands()
+		for (const cmd of runningCommands) {
+			if (this.standaloneManager.cancelBackgroundCommand(cmd.id)) {
+				cancelled = true
+				Logger.info(`Cancelled background command: ${cmd.command}`)
+			}
 		}
 
-		const { process, command, outputLines } = this.activeBackgroundCommand
-		this.activeBackgroundCommand = undefined
-		this.callbacks.updateBackgroundCommandState(false)
+		// 2. Cancel the current foreground process (if any)
+		if (this.currentProcess && typeof (this.currentProcess as any).terminate === "function") {
+			// Set flag so execute() knows the command was cancelled externally
+			this.wasCancelledExternally = true
+			;(this.currentProcess as any).terminate()
+			this.currentProcess = null
+			cancelled = true
+			Logger.info("Cancelled foreground command")
+		}
 
-		try {
-			// Try to terminate the process if the method exists
-			if (typeof process.terminate === "function") {
-				try {
-					await process.terminate()
-					Logger.info(`Terminated background command: ${command}`)
-				} catch (error) {
-					Logger.error(`Error terminating background command: ${command}`, error)
-				}
-			}
-
-			// Ensure any pending operations complete
-			if (typeof process.continue === "function") {
-				try {
-					process.continue()
-				} catch (error) {
-					Logger.error(`Error continuing background command: ${command}`, error)
-				}
-			}
-
-			// Mark the command message as completed in the UI
-			const clineMessages = this.callbacks.getClineMessages()
-			const lastCommandIndex = this.findLastIndex(clineMessages, (m) => m.ask === "command" || m.say === "command")
-			if (lastCommandIndex !== -1) {
-				await this.callbacks.updateClineMessage(lastCommandIndex, {
-					commandCompleted: true,
-				})
-			}
-
-			// Process the captured output to include in the cancellation message
-			const processedOutput = this.standaloneManager.processOutput(outputLines, undefined, false)
-
-			// Add cancellation information to the API conversation history
-			let cancellationMessage = `Command "${command}" was cancelled by the user.`
-			if (processedOutput.length > 0) {
-				cancellationMessage += `\n\nOutput captured before cancellation:\n${processedOutput}`
-			}
-
-			this.callbacks.addToUserMessageContent({
-				type: "text",
-				text: cancellationMessage,
-			})
-
-			return true
-		} catch (error) {
-			Logger.error("Error in cancelBackgroundCommand", error)
-			return false
-		} finally {
+		// 3. Update UI state and notify user
+		if (cancelled) {
+			this.callbacks.updateBackgroundCommandState(false)
 			try {
-				await this.callbacks.say("command_output", "Command execution has been cancelled.")
+				await this.callbacks.say("command_output", "Command(s) cancelled by user.")
 			} catch (error) {
 				Logger.error("Failed to send cancellation notification", error)
 			}
 		}
+
+		return cancelled
 	}
 
 	/**
-	 * Check if there's an active background command
+	 * Check if there are any active background commands.
+	 * Delegates to StandaloneTerminalManager.
 	 */
 	hasActiveBackgroundCommand(): boolean {
-		return !!this.activeBackgroundCommand
+		return this.standaloneManager.hasActiveBackgroundCommands()
 	}
 
 	/**
-	 * Get the active background command info (for external access)
-	 */
-	getActiveBackgroundCommand(): ActiveBackgroundCommand | undefined {
-		return this.activeBackgroundCommand
-	}
-
-	/**
-	 * Get a summary of background commands for environment details
+	 * Get a summary of background commands for environment details.
+	 * Delegates to StandaloneTerminalManager which tracks multiple commands.
 	 */
 	getBackgroundCommandSummary(): string | undefined {
-		if (!this.activeBackgroundCommand) {
-			return undefined
-		}
-
-		const { command, outputLines } = this.activeBackgroundCommand
-		const recentOutput = outputLines.slice(-10).join("\n")
-
-		let summary = "# Background Commands\n"
-		summary += `## Running: \`${command}\`\n`
-		if (recentOutput) {
-			summary += `### Recent Output\n${recentOutput}`
-		}
-
-		return summary
+		const summary = this.standaloneManager.getBackgroundCommandsSummary()
+		return summary || undefined
 	}
 
 	/**
@@ -303,17 +266,5 @@ export class CommandExecutor {
 		}
 
 		return false
-	}
-
-	/**
-	 * Helper to find last index matching a predicate
-	 */
-	private findLastIndex<T>(array: T[], predicate: (item: T) => boolean): number {
-		for (let i = array.length - 1; i >= 0; i--) {
-			if (predicate(array[i])) {
-				return i
-			}
-		}
-		return -1
 	}
 }
