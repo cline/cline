@@ -30,6 +30,8 @@ coverage-unit
 *evals.env
 .env
 
+.worktrees
+
 ## Generated files ##
 src/generated/
 src/shared/proto/
