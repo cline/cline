@@ -62,8 +62,10 @@ export interface ITerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	 * Terminate the process if it's still running.
 	 * Only available for standalone processes (child_process).
 	 * VSCode terminal processes cannot be terminated via this interface.
+	 *
+	 * May be async to allow for graceful shutdown with SIGKILL fallback.
 	 */
-	terminate?(): void
+	terminate?(): void | Promise<void>
 }
 
 // =============================================================================
@@ -244,11 +246,50 @@ export interface StandaloneTerminalOptions {
 }
 
 // =============================================================================
+// Background Command Types
+// =============================================================================
+
+/**
+ * Represents a command running in the background after user clicked "Proceed While Running".
+ * Used by StandaloneTerminalManager to track background commands.
+ */
+export interface BackgroundCommand {
+	/** Unique identifier for the background command */
+	id: string
+	/** The command string being executed */
+	command: string
+	/** Timestamp when the command started */
+	startTime: number
+	/** Current status of the command */
+	status: "running" | "completed" | "error" | "timed_out"
+	/** Path to the log file where output is being written */
+	logFilePath: string
+	/** Number of lines written to the log file */
+	lineCount: number
+	/** Exit code if the command completed or errored */
+	exitCode?: number
+	/** The terminal process running the command */
+	process: TerminalProcessResultPromise
+}
+
+// =============================================================================
 // Command Executor Types
 // =============================================================================
 
 /**
+ * Tracker for shell integration warnings to determine when to show background terminal suggestion.
+ * Used internally by CommandExecutor to track warning frequency.
+ */
+export interface ShellIntegrationWarningTracker {
+	/** Timestamps of recent shell integration warnings */
+	timestamps: number[]
+	/** Timestamp when the suggestion was last shown */
+	lastSuggestionShown?: number
+}
+
+/**
  * Represents an active background command that can be cancelled
+ * @deprecated Use BackgroundCommand instead
  */
 export interface ActiveBackgroundCommand {
 	process: {
@@ -327,6 +368,18 @@ export interface OrchestrationOptions {
 	onOutputLine?: (line: string) => void
 	/** Whether to show shell integration warning with suggestion */
 	showShellIntegrationSuggestion?: boolean
+	/**
+	 * Callback invoked when user clicks "Proceed While Running".
+	 * Used to start background command tracking in the terminal manager.
+	 * @param existingOutput The output lines captured so far (to write to log file)
+	 * @returns The log file path if tracking was started, undefined otherwise
+	 */
+	onProceedWhileRunning?: (existingOutput: string[]) => { logFilePath: string } | undefined
+	/**
+	 * The type of terminal being used for telemetry tracking.
+	 * Defaults to "vscode" for backward compatibility.
+	 */
+	terminalType?: "vscode" | "standalone"
 }
 
 /**
@@ -341,4 +394,6 @@ export interface OrchestrationResult {
 	completed: boolean
 	/** All output lines captured */
 	outputLines: string[]
+	/** Path to log file if output was too large and written to file */
+	logFilePath?: string
 }

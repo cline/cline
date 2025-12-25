@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
-import { useIsMacOSOrLinux } from "@/utils/platformUtils"
+import { isMacOSOrLinux } from "@/utils/platformUtils"
 import Section from "../Section"
 import SubagentOutputLineLimitSlider from "../SubagentOutputLineLimitSlider"
 import { updateSetting } from "../utils/settingsHandlers"
@@ -35,9 +35,9 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		subagentsEnabled,
 		nativeToolCallSetting,
 		enableParallelToolCalling,
+		backgroundEditEnabled,
 	} = useExtensionState()
 
-	const isMacOSOrLinux = useIsMacOSOrLinux()
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
 
 	const handleReasoningEffortChange = (newValue: OpenaiReasoningEffort) => {
@@ -71,7 +71,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 			<Section>
 				<div style={{ marginBottom: 20 }}>
 					{/* Subagents - Only show on macOS and Linux */}
-					{isMacOSOrLinux && PLATFORM_CONFIG.type === PlatformType.VSCODE && (
+					{isMacOSOrLinux() && PLATFORM_CONFIG.type === PlatformType.VSCODE && (
 						<div
 							className="relative p-3 mb-3 rounded-md"
 							id="subagents-section"
@@ -376,6 +376,22 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</span>
 						</p>
 					</div>
+					<div className="mt-2.5">
+						<VSCodeCheckbox
+							checked={backgroundEditEnabled}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								updateSetting("backgroundEditEnabled", checked)
+							}}>
+							Enable Background Edit
+						</VSCodeCheckbox>
+						<p className="text-xs">
+							<span className="text-error">Experimental: </span>
+							<span className="text-description">
+								Allows editing files in background without opening the diff view in editor.
+							</span>
+						</p>
+					</div>
 					{multiRootSetting.featureFlag && (
 						<div className="mt-2.5">
 							<VSCodeCheckbox
@@ -387,7 +403,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								Enable Multi-Root Workspace
 							</VSCodeCheckbox>
 							<p className="text-xs">
-								<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
+								<span className="text-error">Experimental: </span>{" "}
 								<span className="text-description">Allows cline to work across multiple workspaces.</span>
 							</p>
 						</div>
@@ -395,14 +411,14 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 					<div className="mt-2.5">
 						<VSCodeCheckbox
 							checked={hooksEnabled}
-							disabled={!isMacOSOrLinux}
+							disabled={!isMacOSOrLinux()}
 							onChange={(e: any) => {
 								const checked = e.target.checked === true
 								updateSetting("hooksEnabled", checked)
 							}}>
 							Enable Hooks
 						</VSCodeCheckbox>
-						{!isMacOSOrLinux ? (
+						{!isMacOSOrLinux() ? (
 							<p className="text-xs mt-1" style={{ color: "var(--vscode-inputValidation-warningForeground)" }}>
 								Hooks are not yet supported on Windows. This feature is currently available on macOS and Linux
 								only.

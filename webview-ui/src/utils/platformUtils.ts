@@ -1,5 +1,3 @@
-import { useExtensionState } from "@/context/ExtensionStateContext"
-
 export interface NavigatorUAData {
 	platform: string
 	brands: { brand: string; version: string }[]
@@ -44,10 +42,25 @@ export const isChrome = userAgent.indexOf("Chrome") >= 0
 export const isSafari = !isChrome && userAgent.indexOf("Safari") >= 0
 
 /**
- * React hook to check whether the platform is macOS or Linux
- * @returns true if platform is darwin (macOS) or linux, false for Windows or unknown
+ * Gets the current platform: 'windows', 'mac', or 'linux'
+ * Defaults to 'linux' if platform cannot be determined
  */
-export const useIsMacOSOrLinux = (): boolean => {
-	const { platform } = useExtensionState()
-	return platform !== "win32" && platform !== "unknown"
+export function getCurrentPlatform() {
+	// Fallback to linux if platform is not available
+	switch (process?.platform) {
+		case "win32":
+			return "windows"
+		case "darwin":
+			return "mac"
+		default:
+			return "linux"
+	}
+}
+
+/**
+ * Checks if the platform is macOS or Linux
+ * @returns true if platform is darwin (macOS) or linux
+ */
+export const isMacOSOrLinux = (): boolean => {
+	return getCurrentPlatform() !== "windows" // Non-Windows
 }

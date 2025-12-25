@@ -1,5 +1,6 @@
 import type { ModelInfo as ModelInfoType } from "@shared/api"
 import { ANTHROPIC_MAX_THINKING_BUDGET, ANTHROPIC_MIN_THINKING_BUDGET, ApiProvider } from "@shared/api"
+import { StringRequest } from "@shared/proto/cline/common"
 import { UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { Mode } from "@shared/storage/types"
 import { ArrowLeftRight, Brain, Check, ChevronDownIcon, Search, Settings } from "lucide-react"
@@ -150,6 +151,27 @@ interface ModelItem {
 	info?: ModelInfoType
 }
 
+// Star icon for favorites (only for openrouter/vercel-ai-gateway providers)
+const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: React.MouseEvent) => void }) => {
+	return (
+		<div
+			onClick={onClick}
+			style={{
+				cursor: "pointer",
+				color: isFavorite ? "var(--vscode-terminal-ansiYellow)" : "var(--vscode-descriptionForeground)",
+				marginLeft: "8px",
+				fontSize: "14px",
+				display: "flex",
+				alignItems: "center",
+				justifyContent: "center",
+				userSelect: "none",
+				WebkitUserSelect: "none",
+			}}>
+			{isFavorite ? "★" : "☆"}
+		</div>
+	)
+}
+
 const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChange, currentMode, children }) => {
 	const {
 		apiConfiguration,
@@ -160,6 +182,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		showMcp,
 		showHistory,
 		showAccount,
+		favoritedModelIds,
 	} = useExtensionState()
 	const { handleModeFieldChange, handleModeFieldsChange, handleFieldsChange } = useApiConfigurationHandlers()
 
@@ -169,11 +192,13 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 	const [arrowPosition, setArrowPosition] = useState(0)
 	const [isProviderExpanded, setIsProviderExpanded] = useState(false)
 	const [providerDropdownPosition, setProviderDropdownPosition] = useState({ top: 0, left: 0, width: 0, maxHeight: 200 })
+	const [selectedIndex, setSelectedIndex] = useState(-1) // For keyboard navigation
 	const searchInputRef = useRef<HTMLInputElement>(null)
 	const triggerRef = useRef<HTMLDivElement>(null)
 	const modalRef = useRef<HTMLDivElement>(null)
 	const providerRowRef = useRef<HTMLDivElement>(null)
 	const providerDropdownRef = useRef<HTMLDivElement>(null)
+	const itemRefs = useRef<(HTMLDivElement | null)[]>([]) // For scrollIntoView
 	const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 
 	// Get current provider from config - use activeEditMode when in split mode
@@ -293,10 +318,20 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 			models = models.filter((m) => !featuredIds.has(m.id))
 		}
 
+		// For openrouter/vercel-ai-gateway (not cline): put favorites first
+		if (!isCline && (selectedProvider === "openrouter" || selectedProvider === "vercel-ai-gateway")) {
+			const favoriteSet = new Set(favoritedModelIds || [])
+			const favoritedModels = models.filter((m) => favoriteSet.has(m.id))
+			const nonFavoritedModels = models.filter((m) => !favoriteSet.has(m.id))
+			// Sort non-favorited alphabetically by provider
+			nonFavoritedModels.sort((a, b) => (a.provider || "").localeCompare(b.provider || ""))
+			return [...favoritedModels, ...nonFavoritedModels]
+		}
+
 		// Sort alphabetically by provider
 		models = models.sort((a, b) => (a.provider || "").localeCompare(b.provider || ""))
 		return models
-	}, [searchQuery, matchesSearch, selectedModelId, selectedProvider, allModels])
+	}, [searchQuery, matchesSearch, selectedModelId, selectedProvider, allModels, favoritedModelIds])
 
 	// Featured models for Cline provider (recommended + free)
 	const featuredModels = useMemo(() => {
@@ -396,13 +431,74 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		[onOpenChange, navigateToSettings],
 	)
 
+	// Keyboard navigation handler
+	const handleKeyDown = useCallback(
+		(e: React.KeyboardEvent<HTMLInputElement>) => {
+			const totalItems = filteredModels.length + featuredModels.length
+			if (totalItems === 0) return
+
+			switch (e.key) {
+				case "ArrowDown":
+					e.preventDefault()
+					setSelectedIndex((prev) => (prev < totalItems - 1 ? prev + 1 : prev))
+					break
+				case "ArrowUp":
+					e.preventDefault()
+					setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev))
+					break
+				case "Enter":
+					e.preventDefault()
+					if (selectedIndex >= 0) {
+						// Determine which list the index falls into
+						if (selectedIndex < featuredModels.length) {
+							const model = featuredModels[selectedIndex]
+							handleSelectModel(model.id, openRouterModels[model.id])
+						} else {
+							const model = filteredModels[selectedIndex - featuredModels.length]
+							handleSelectModel(model.id, model.info)
+						}
+					}
+					break
+				case "Escape":
+					e.preventDefault()
+					onOpenChange(false)
+					break
+			}
+		},
+		[filteredModels, featuredModels, selectedIndex, handleSelectModel, openRouterModels, onOpenChange],
+	)
+
+	// Reset selectedIndex and clear refs when search/provider changes
+	useEffect(() => {
+		setSelectedIndex(-1)
+		itemRefs.current = []
+	}, [searchQuery, selectedProvider])
+
+	// Scroll selected item into view
+	useEffect(() => {
+		if (selectedIndex >= 0) {
+			// Use requestAnimationFrame to ensure DOM is updated
+			requestAnimationFrame(() => {
+				const element = itemRefs.current[selectedIndex]
+				if (element) {
+					element.scrollIntoView({
+						block: "nearest",
+						behavior: "smooth",
+					})
+				}
+			})
+		}
+	}, [selectedIndex])
+
 	// Reset states when opening/closing
 	useEffect(() => {
 		if (isOpen) {
 			setIsProviderExpanded(false)
+			setSelectedIndex(-1)
 			setTimeout(() => searchInputRef.current?.focus(), 100)
 		} else {
 			setSearchQuery("")
+			setSelectedIndex(-1)
 		}
 	}, [isOpen])
 
@@ -504,6 +600,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 									setSearchQuery(e.target.value)
 									setIsProviderExpanded(false)
 								}}
+								onKeyDown={handleKeyDown}
 								placeholder={`Search ${allModels.length} models`}
 								ref={searchInputRef as any}
 								value={searchQuery}
@@ -686,11 +783,13 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 
 								{/* For Cline: Show recommended models */}
 								{isClineProvider &&
-									featuredModels.map((model) => (
+									featuredModels.map((model, index) => (
 										<ModelItemContainer
-											$isSelected={false}
+											$isSelected={index === selectedIndex}
 											key={model.id}
-											onClick={() => handleSelectModel(model.id, openRouterModels[model.id])}>
+											onClick={() => handleSelectModel(model.id, openRouterModels[model.id])}
+											onMouseEnter={() => setSelectedIndex(index)}
+											ref={(el) => (itemRefs.current[index] = el)}>
 											<ModelInfoRow>
 												<ModelName>{model.name}</ModelName>
 												<ModelProvider>{model.provider}</ModelProvider>
@@ -700,17 +799,37 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 									))}
 
 								{/* All other models (for non-Cline always, for Cline only when searching) */}
-								{filteredModels.map((model) => (
-									<ModelItemContainer
-										$isSelected={false}
-										key={model.id}
-										onClick={() => handleSelectModel(model.id, model.info)}>
-										<ModelInfoRow>
-											<ModelName>{model.name}</ModelName>
-											<ModelProvider>{model.provider}</ModelProvider>
-										</ModelInfoRow>
-									</ModelItemContainer>
-								))}
+								{filteredModels.map((model, index) => {
+									const globalIndex = featuredModels.length + index
+									const isFavorite = (favoritedModelIds || []).includes(model.id)
+									const showStar = selectedProvider === "openrouter" || selectedProvider === "vercel-ai-gateway"
+									return (
+										<ModelItemContainer
+											$isSelected={globalIndex === selectedIndex}
+											key={model.id}
+											onClick={() => handleSelectModel(model.id, model.info)}
+											onMouseEnter={() => setSelectedIndex(globalIndex)}
+											ref={(el) => (itemRefs.current[globalIndex] = el)}>
+											<ModelInfoRow>
+												<ModelName>{model.name}</ModelName>
+												<ModelProvider>{model.provider}</ModelProvider>
+											</ModelInfoRow>
+											{showStar && (
+												<StarIcon
+													isFavorite={isFavorite}
+													onClick={(e) => {
+														e.stopPropagation()
+														StateServiceClient.toggleFavoriteModel(
+															StringRequest.create({ value: model.id }),
+														).catch((error: Error) =>
+															console.error("Failed to toggle favorite model:", error),
+														)
+													}}
+												/>
+											)}
+										</ModelItemContainer>
+									)
+								})}
 
 								{/* Settings-only providers: show configured model info and help text */}
 								{SETTINGS_ONLY_PROVIDERS.includes(selectedProvider) &&
@@ -871,7 +990,7 @@ const ProviderRow = styled.div`
 `
 
 const ProviderLabel = styled.span`
-	font-size: 10px;
+	font-size: 11px;
 	color: var(--vscode-descriptionForeground);
 `
 
@@ -925,6 +1044,8 @@ const ModelItemContainer = styled.div<{ $isSelected: boolean }>`
 	align-items: center;
 	justify-content: space-between;
 	padding: 4px 10px;
+	min-height: 28px;
+	box-sizing: border-box;
 	cursor: pointer;
 	background: ${(props) => (props.$isSelected ? "var(--vscode-list-activeSelectionBackground)" : "transparent")};
 	&:hover {
