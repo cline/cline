@@ -331,28 +331,6 @@
     }
   },
   {
-    "name": "generate_explanation",
-    "description": "Opens a multi-file diff view and generates AI-powered inline comments explaining the changes between two git references. Use this tool to help users understand code changes from git commits, pull requests, branches, or any git refs. The tool uses git to retrieve file contents and displays a side-by-side diff view with explanatory comments.",
-    "parameters": {
-      "type": "OBJECT",
-      "properties": {
-        "title": {
-          "type": "STRING"
-        },
-        "from_ref": {
-          "type": "STRING"
-        },
-        "to_ref": {
-          "type": "STRING"
-        }
-      },
-      "required": [
-        "title",
-        "from_ref"
-      ]
-    }
-  },
-  {
     "name": "12345670mcp0test_tool",
     "description": "test-server: A test tool",
     "parameters": {
