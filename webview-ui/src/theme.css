@@ -12,6 +12,8 @@
 	--color-code-block-background: var(--vscode-editor-background, --vscode-sideBar-background, rgb(30 30 30));
 	--color-text-block-background: var(--vscode-textCodeBlock-background);
 	--color-editor-group-border: var(--vscode-editorGroup-border);
+	--color-editor-widget-border: var(--vscode-editorWidget-border, #cccccc);
+	--color-editor-warning-foreground: var(--vscode-editorWarning-foreground);
 	--color-sidebar-background: var(--vscode-sideBar-background);
 	--color-sidebar-foreground: var(--vscode-sideBar-foreground);
 	--color-input-foreground: var(--vscode-input-foreground);
@@ -53,6 +55,7 @@
 	--color-warning: var(--vscode-charts-yellow);
 	--font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 	--font-azeret-mono: Azeret Mono, monospace;
+	--font-editor: var(--vscode-editor-font-family);
 	--text-2xl: calc(2.25 * var(--vscode-font-size));
 	--text-xl: calc(2 * var(--vscode-font-size));
 	--text-lg: calc(1.5 * var(--vscode-font-size));
@@ -62,6 +65,7 @@
 	--text-xs: calc(0.85 * var(--vscode-font-size));
 	--text-xxs: calc(0.5 * var(--vscode-font-size));
 	--breakpoint-xs: 400px;
+	--radius-half: 50%;
 	--radius-xs: 2px;
 	--breakpoint-xxs: 180px;
 
@@ -74,6 +78,53 @@
 		to {
 			opacity: 1;
 			transform: scale(1);
+		}
+	}
+
+	--animate-cursor-blink: cursorBlink 1s ease-in-out infinite;
+	@keyframes cursorBlink {
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0;
+		}
+	}
+
+	--animate-icon-pulse: iconPulse 1s ease-in-out infinite;
+	@keyframes iconPulse {
+		0%,
+		100% {
+			opacity: 0.5;
+		}
+		50% {
+			opacity: 1;
+		}
+	}
+
+	--animate-shimmer: shine 2s infinite linear;
+	@keyframes shine {
+		0%,
+		100% {
+			background-size: 200% 100%;
+			background-position: left center;
+		}
+		50% {
+			background-size: 200% 100%;
+			background-position: right center;
+		}
+	}
+
+	--animate-fade-slide-in: fadeSlideIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+	@keyframes fadeSlideIn {
+		from {
+			opacity: 0;
+			transform: translateY(-12px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
 		}
 	}
 }

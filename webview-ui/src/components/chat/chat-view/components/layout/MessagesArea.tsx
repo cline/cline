@@ -106,7 +106,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 						setShowScrollToBottom(disableAutoScrollRef.current && !isAtBottom)
 					}}
 					atBottomThreshold={10} // trick to make sure virtuoso re-renders when task changes, and we use initialTopMostItemIndex to start at the bottom
-					className="scrollable"
+					className="scrollable grow overflow-y-scroll"
 					components={{
 						Footer: () => <div style={{ height: 5 }} />, // Add empty padding at the bottom
 					}}
@@ -122,8 +122,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 					rangeChanged={handleRangeChanged}
 					ref={virtuosoRef} // anything lower causes issues with followOutput
 					style={{
-						flexGrow: 1,
-						overflowY: "scroll", // always show scrollbar
+						overflowAnchor: "none", // prevent scroll jump when content expands
 					}}
 				/>
 			</div>

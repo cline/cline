@@ -240,31 +240,22 @@ export function useScrollBehavior(
 			if (!isCollapsing) {
 				disableAutoScrollRef.current = true
 			}
-
+			// Only scroll on collapse, never on expand - expanding should stay in place
 			if (isCollapsing && isAtBottom) {
 				const timer = setTimeout(() => {
 					scrollToBottomAuto()
 				}, 0)
 				return () => clearTimeout(timer)
-			} else if (isLast || isSecondToLast) {
-				if (isCollapsing) {
-					if (isSecondToLast && !isLastCollapsedApiReq) {
-						return
-					}
-					const timer = setTimeout(() => {
-						scrollToBottomAuto()
-					}, 0)
-					return () => clearTimeout(timer)
-				} else {
-					const timer = setTimeout(() => {
-						virtuosoRef.current?.scrollToIndex({
-							index: groupedMessages.length - (isLast ? 1 : 2),
-							align: "start",
-						})
-					}, 0)
-					return () => clearTimeout(timer)
+			} else if (isCollapsing && (isLast || isSecondToLast)) {
+				if (isSecondToLast && !isLastCollapsedApiReq) {
+					return
 				}
+				const timer = setTimeout(() => {
+					scrollToBottomAuto()
+				}, 0)
+				return () => clearTimeout(timer)
 			}
+			// When expanding, don't scroll - let the element expand in place
 		},
 		[groupedMessages, expandedRows, scrollToBottomAuto, isAtBottom],
 	)

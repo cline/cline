@@ -569,7 +569,7 @@ const createPlanModeMessages = () => [
 	createApiReqMessage(4.5, "Detailed planning request", { tokensIn: 20002, tokensOut: 12500, cost: 0.095 }),
 	createAskMessage(
 		"plan_mode_respond",
-		"Here's my comprehensive plan for refactoring your React application with TypeScript migration and performance optimization phases.",
+		"Here's my comprehensive plan for refactoring your React application with TypeScript migration and performance optimization phases.\n\n\n\n\nPhase 1: TypeScript Migration\n1. Set up TypeScript in the project\n2. Rename .js files to .tsx/.ts\n3. Add type definitions for components and props\n4. Fix type errors and ensure type safety\n\nPhase 2: Performance Optimization\n1. Analyze current performance bottlenecks\n2. Implement code-splitting and lazy loading\n3. Optimize rendering with React.memo and useCallback\n4. Minimize bundle size with tree-shaking and minification\n5. Test performance improvements using profiling tools",
 	),
 ]
 
@@ -676,6 +676,7 @@ const quickStory = (
 			clineMessages: [
 				...createLongMessages(),
 				createMessage(6, "say", "task", `Help with ${name.toLowerCase()}`),
+				createMessage(5, "say", "reasoning", `Thinking about helping user with ${name.toLowerCase()}`),
 				createMessage(4.7, "say", "text", `I'll help you with ${name.toLowerCase()}.`),
 				createAskMessage(askType, text, streamingFailedMessage),
 			],
@@ -725,7 +726,7 @@ export const MistakeLimitReached = quickStory(
 export const CompletionResult = quickStory(
 	"Task Completion",
 	"completion_result",
-	"Task completed successfully! I've implemented all the requested features.",
+	"Task completed successfully! I've implemented all the requested features.\n\nWould you like to start a new task?\n\n- View Changes\n- Start New Task\n- Resume Previous Task HAS_CHANGES",
 	"Shows task completion state with Start New Task button.",
 )
 export const BrowserActionLaunch = quickStory(
@@ -772,7 +773,7 @@ export const ApiRequestActive: Story = {
 export const PlanModeResponse = quickStory(
 	"Plan Mode Response",
 	"plan_mode_respond",
-	"Here's my detailed plan for creating a comprehensive testing strategy.",
+	"Here's my comprehensive plan for refactoring your React application with TypeScript migration and performance optimization phases.\n\n\n\n\nPhase 1: TypeScript Migration\n1. Set up TypeScript in the project\n2. Rename .js files to .tsx/.ts\n3. Add type definitions for components and props\n4. Fix type errors and ensure type safety\n\nPhase 2: Performance Optimization\n1. Analyze current performance bottlenecks\n2. Implement code-splitting and lazy loading\n3. Optimize rendering with React.memo and useCallback\n4. Minimize bundle size with tree-shaking and minification\n5. Test performance improvements using profiling tools",
 	"Shows plan mode response where Cline presents a detailed plan for user approval.",
 )
 export const CondenseConversation = quickStory(
