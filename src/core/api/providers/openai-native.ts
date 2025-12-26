@@ -182,7 +182,10 @@ export class OpenAiNativeHandler implements ApiHandler {
 			tools: responseTools,
 			// previous_response_id,
 			// store: true,
-			reasoning: { effort: "medium", summary: "auto" },
+			reasoning: {
+				effort: this.options.reasoningEffort || "medium",
+				summary: "auto",
+			} as any,
 			// include: ["reasoning.encrypted_content"],
 		})
 
