@@ -513,7 +513,7 @@ export class Task {
 			},
 			updateBackgroundCommandState: (isRunning: boolean) =>
 				this.controller.updateBackgroundCommandState(isRunning, this.taskId),
-			updateClineMessage: async (index: number, updates: { commandCompleted?: boolean }) => {
+			updateClineMessage: async (index: number, updates: { commandCompleted?: boolean; text?: string }) => {
 				await this.messageStateHandler.updateClineMessage(index, updates)
 			},
 			getClineMessages: () => this.messageStateHandler.getClineMessages() as Array<{ ask?: string; say?: string }>,
