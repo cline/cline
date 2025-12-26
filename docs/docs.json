@@ -278,6 +278,7 @@
 						"pages": [
 							"enterprise-solutions/overview",
 							"enterprise-solutions/onboarding",
+							"enterprise-solutions/sso-setup",
 							"enterprise-solutions/team-management/managing-members",
 							{
 								"group": "SaaS Provider Configuration",
