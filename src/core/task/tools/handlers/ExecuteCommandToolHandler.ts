@@ -48,7 +48,9 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
 		let command: string | undefined = block.params.command
-		const requiresApprovalRaw: string | undefined = block.params.requires_approval
+		const requiresApprovalParam: unknown = block.params.requires_approval
+		const requiresApprovalRaw: string | undefined =
+			requiresApprovalParam !== undefined && requiresApprovalParam !== null ? String(requiresApprovalParam) : undefined
 		const requiresApprovalPerLLM = requiresApprovalRaw?.toLowerCase() === "true"
 		const timeoutParam: string | undefined = block.params.timeout
 		let timeoutSeconds: number | undefined
@@ -60,11 +62,19 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 
 		// Validate required parameters
 		if (!command) {
+			console.error("ExecuteCommandToolHandler: Missing 'command' parameter", {
+				block: JSON.stringify(block, null, 2),
+				params: JSON.stringify(block.params, null, 2),
+			})
 			config.taskState.consecutiveMistakeCount++
 			return await config.callbacks.sayAndCreateMissingParamError(this.name, "command")
 		}
 
 		if (!requiresApprovalRaw) {
+			console.error("ExecuteCommandToolHandler: Missing 'requires_approval' parameter", {
+				block: JSON.stringify(block, null, 2),
+				params: JSON.stringify(block.params, null, 2),
+			})
 			config.taskState.consecutiveMistakeCount++
 			return await config.callbacks.sayAndCreateMissingParamError(this.name, "requires_approval")
 		}

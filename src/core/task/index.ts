@@ -2426,7 +2426,6 @@ export class Task {
 					// lastMessage.ts = Date.now() DO NOT update ts since it is used as a key for virtuoso list
 					lastMessage.partial = false
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
-					console.log("updating partial message", lastMessage)
 					// await this.saveClineMessagesAndUpdateHistory()
 				}
 				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
@@ -2529,8 +2528,8 @@ export class Task {
 							taskMetrics.totalCost = chunk.totalCost ?? taskMetrics.totalCost
 							break
 						case "reasoning": {
-							// Process the reasoning delta through the handler
-							// Ensure details is always an array
+							// Process the reasoning delta through the handler.
+							// Ensure `details` is always an array for consistent downstream handling.
 							const details = chunk.details ? (Array.isArray(chunk.details) ? chunk.details : [chunk.details]) : []
 							reasonsHandler.processReasoningDelta({
 								id: chunk.id,
@@ -2540,10 +2539,17 @@ export class Task {
 								redacted_data: chunk.redacted_data,
 							})
 
+							const thinkingBlock = reasonsHandler.getCurrentReasoning()
+
 							// fixes bug where cancelling task > aborts task > for loop may be in middle of streaming reasoning > say function throws error before we get a chance to properly clean up and cancel the task.
 							if (!this.taskState.abort) {
-								const thinkingBlock = reasonsHandler.getCurrentReasoning()
-								if (thinkingBlock?.thinking && chunk.reasoning) {
+								// Prevent race condition: once tool execution has started, avoid updating the reasoning UI
+								// (can conflict with ask()/tool approval UI).
+								const hasStartedToolExecution = this.taskState.assistantMessageContent.some(
+									(block) => block.type === "tool_use" && !block.partial,
+								)
+
+								if (!hasStartedToolExecution && thinkingBlock?.thinking && chunk.reasoning) {
 									await this.say("reasoning", thinkingBlock.thinking, undefined, undefined, true)
 								}
 							}
