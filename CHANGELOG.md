@@ -1,11 +1,15 @@
 # Changelog
 
+## 3.46.2
+
+- 99c8571: Fix Workspace and Favorites history filters to work independently instead of being mutually exclusive
+- ac01e69: fix regression that broke JSON parsing for SAP AI Core provider in native API mode for claude models
+
 ## [3.46.1]
 
 ### Fixed
 
 - Remove GLM 4.6 from free models
-
 
 ## [3.46.0]
 
