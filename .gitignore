@@ -29,6 +29,8 @@ coverage-unit
 
 *evals.env
 .env
+.secrets
+.github/act/.secrets
 
 .worktrees
 

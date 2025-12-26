@@ -1,0 +1,140 @@
+name: PR Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    # Skip draft PRs
+    if: github.event.pull_request.draft == false
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install GitHub CLI
+        run: |
+          if ! command -v gh &> /dev/null; then
+            echo "Installing GitHub CLI..."
+            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+            sudo apt-get update
+            sudo apt-get install -y gh
+          else
+            echo "GitHub CLI already installed"
+          fi
+          gh --version
+
+      - name: Install Cline CLI
+        run: npm install -g cline
+
+      - name: Configure Cline with Anthropic
+        run: |
+          cline auth --provider anthropic \
+            --apikey "${{ secrets.ANTHROPIC_API_KEY }}" \
+            --modelid claude-haiku-4-5-20251001
+
+      - name: Get PR context
+        id: context
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+
+          # Create context directory
+          mkdir -p /tmp/pr-review
+
+          # Get PR diff
+          echo "Fetching PR diff..."
+          gh pr diff ${{ github.event.pull_request.number }} > /tmp/pr-review/diff.txt
+          test -s /tmp/pr-review/diff.txt || { echo "Error: Failed to get PR diff"; exit 1; }
+
+          # Get PR info
+          echo "Fetching PR info..."
+          gh pr view ${{ github.event.pull_request.number }} --json title,body,files > /tmp/pr-review/pr_info.json
+          test -s /tmp/pr-review/pr_info.json || { echo "Error: Failed to get PR info"; exit 1; }
+
+          # Get head commit SHA for inline comments
+          echo "Fetching head commit SHA..."
+          gh pr view ${{ github.event.pull_request.number }} --json headRefOid -q .headRefOid > /tmp/pr-review/head_sha.txt
+          test -s /tmp/pr-review/head_sha.txt || { echo "Error: Failed to get head SHA"; exit 1; }
+
+          echo "PR context files created successfully"
+          ls -la /tmp/pr-review/
+
+      - name: Review PR with Cline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_DIFF_FILE: /tmp/pr-review/diff.txt
+          PR_INFO_FILE: /tmp/pr-review/pr_info.json
+          PR_HEAD_SHA_FILE: /tmp/pr-review/head_sha.txt
+        run: |
+          cline --yolo "You are a code reviewer for the Cline repository.
+
+          ## Your Task
+          Review PR #${PR_NUMBER} titled '${PR_TITLE}' by @${PR_AUTHOR}.
+
+          ## Context Files
+          The following files contain PR context - READ THEM FIRST:
+          - **PR Diff**: ${PR_DIFF_FILE} - Contains the full diff of changes
+          - **PR Info**: ${PR_INFO_FILE} - Contains PR metadata (title, body, files changed) as JSON
+          - **Head SHA**: ${PR_HEAD_SHA_FILE} - Contains the commit SHA needed for inline comments
+
+          ## Instructions
+
+          1. **Read the context files** using the Read tool to understand what changed.
+
+          2. **Analyze the changes**: Understand what the PR is doing and why.
+
+          3. **Look for issues**: Check for bugs, security vulnerabilities, performance concerns, code quality issues, missing error handling, and potential edge cases.
+
+          4. **Post inline comments** on specific lines where you have concerns. First read the head SHA from ${PR_HEAD_SHA_FILE}, then use:
+             \`\`\`bash
+             gh api repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/comments \\
+               -f body=\"Your comment here\" \\
+               -f path=\"path/to/file.ts\" \\
+               -f commit_id=\"<SHA from head_sha.txt>\" \\
+               -f side=\"RIGHT\" \\
+               -F line=<line_number>
+             \`\`\`
+
+          5. **Post a summary comment** on the PR after reviewing:
+             \`\`\`bash
+             gh pr comment ${PR_NUMBER} --body \"Your summary here\"
+             \`\`\`
+
+          ## Guidelines
+          - Be constructive and helpful, not nitpicky
+          - Focus on substantive issues, not style (we have linters)
+          - Thank the author for their contribution
+          - Keep comments concise and actionable
+          - Only comment where there are genuine concerns
+          - If the PR looks good, just post a brief positive summary
+
+          ## Important
+          - You MUST read the context files first before reviewing
+          - You MUST post at least a summary comment on the PR using gh pr comment
+          - Use gh CLI commands for GitHub interactions (GH_TOKEN is configured)
+          - Do NOT approve or request changes - just leave comments"
