@@ -486,6 +486,9 @@ export async function deactivate() {
 
 	tearDown()
 
+	// Clean up file logging resources
+	Logger.cleanup()
+
 	// Clean up test mode
 	cleanupTestMode()
 
