@@ -39,6 +39,7 @@ import {
 } from "./hosts/vscode/review/VscodeCommentReviewController"
 import { VscodeTerminalManager } from "./hosts/vscode/terminal/VscodeTerminalManager"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
+import { VscodeSettingsStore } from "./hosts/vscode/VscodeSettingsStore"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { ExtensionRegistryInfo } from "./registry"
 import { AuthService } from "./services/auth/AuthService"
@@ -440,6 +441,7 @@ function setupHostProvider(context: ExtensionContext) {
 
 	const getCallbackUrl = async () => `${vscode.env.uriScheme || "vscode"}://${context.extension.id}`
 	HostProvider.initialize(
+		new VscodeSettingsStore(context),
 		createWebview,
 		createDiffView,
 		createCommentReview,

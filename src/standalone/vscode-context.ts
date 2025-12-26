@@ -11,20 +11,25 @@ import { EnvironmentVariableCollection, MementoStore, readJson, SecretStore } fr
 log("Running standalone cline", ExtensionRegistryInfo.version)
 log(`CLINE_ENVIRONMENT: ${process.env.CLINE_ENVIRONMENT}`)
 
-// WE WILL HAVE TO MIGRATE THIS FROM DATA TO v1 LATER
-const SETTINGS_SUBFOLDER = "data"
+export type ClineDirs = {
+	SETTINGS_DIR: string
+	WORKSPACE_STORAGE_DIR: string
+	GLOBAL_STORAGE_DIR: string
+	EXTENSION_DIR: string
+	context: any
+}
 
-export function initializeContext(clineDir?: string) {
+export function initializeContext(clineDir?: string): ClineDirs {
 	const CLINE_DIR = clineDir || process.env.CLINE_DIR || `${os.homedir()}/.cline`
-	const DATA_DIR = path.join(CLINE_DIR, SETTINGS_SUBFOLDER)
-	const INSTALL_DIR = process.env.INSTALL_DIR || __dirname
-	const WORKSPACE_STORAGE_DIR = process.env.WORKSPACE_STORAGE_DIR || path.join(DATA_DIR, "workspace")
+	const SETTINGS_DIR = path.join(CLINE_DIR, "data")
+	const WORKSPACE_STORAGE_DIR = process.env.WORKSPACE_STORAGE_DIR || path.join(SETTINGS_DIR, "workspace")
+	const GLOBAL_STORAGE_DIR = SETTINGS_DIR
+	const EXTENSION_DIR = path.join(process.env.INSTALL_DIR || __dirname, "extension")
 
-	mkdirSync(DATA_DIR, { recursive: true })
+	mkdirSync(SETTINGS_DIR, { recursive: true })
 	mkdirSync(WORKSPACE_STORAGE_DIR, { recursive: true })
-	log("Using settings dir:", DATA_DIR)
+	log("Using settings dir:", SETTINGS_DIR)
 
-	const EXTENSION_DIR = path.join(INSTALL_DIR, "extension")
 	const EXTENSION_MODE = process.env.IS_DEV === "true" ? ExtensionMode.Development : ExtensionMode.Production
 
 	const extension: Extension<void> = {
@@ -43,18 +48,18 @@ export function initializeContext(clineDir?: string) {
 		extensionMode: EXTENSION_MODE,
 
 		// Set up KV stores.
-		globalState: new MementoStore(path.join(DATA_DIR, "globalState.json")),
-		secrets: new SecretStore(path.join(DATA_DIR, "secrets.json")),
+		globalState: new MementoStore(path.join(SETTINGS_DIR, "globalState.json")),
+		secrets: new SecretStore(path.join(SETTINGS_DIR, "secrets.json")),
 
 		// Set up URIs.
 		storageUri: URI.file(WORKSPACE_STORAGE_DIR),
 		storagePath: WORKSPACE_STORAGE_DIR, // Deprecated, not used in cline.
-		globalStorageUri: URI.file(DATA_DIR),
-		globalStoragePath: DATA_DIR, // Deprecated, not used in cline.
+		globalStorageUri: URI.file(SETTINGS_DIR),
+		globalStoragePath: SETTINGS_DIR, // Deprecated, not used in cline.
 
 		// Logs are global per extension, not per workspace.
-		logUri: URI.file(DATA_DIR),
-		logPath: DATA_DIR, // Deprecated, not used in cline.
+		logUri: URI.file(SETTINGS_DIR),
+		logPath: SETTINGS_DIR, // Deprecated, not used in cline.
 
 		extensionUri: URI.file(EXTENSION_DIR),
 		extensionPath: EXTENSION_DIR, // Deprecated, not used in cline.
@@ -71,8 +76,10 @@ export function initializeContext(clineDir?: string) {
 	log("Finished loading vscode context...")
 
 	return {
-		extensionContext,
-		DATA_DIR,
+		context: extensionContext,
+		SETTINGS_DIR,
+		WORKSPACE_STORAGE_DIR,
+		GLOBAL_STORAGE_DIR,
 		EXTENSION_DIR,
 	}
 }

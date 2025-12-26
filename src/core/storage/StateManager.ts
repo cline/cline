@@ -13,7 +13,6 @@ import {
 	SettingsKey,
 } from "@shared/storage/state-keys"
 import chokidar, { FSWatcher } from "chokidar"
-import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import {
@@ -41,7 +40,6 @@ export class StateManager {
 	private remoteConfigCache: Partial<RemoteConfigFields> = {} as RemoteConfigFields
 	private secretsCache: Secrets = {} as Secrets
 	private workspaceStateCache: LocalState = {} as LocalState
-	private context: ExtensionContext
 	private isInitialized = false
 
 	// In-memory model info cache (not persisted to disk)
@@ -83,16 +81,14 @@ export class StateManager {
 	// Callback to sync external state changes with the UI client
 	onSyncExternalChange?: () => void | Promise<void>
 
-	private constructor(context: ExtensionContext) {
-		this.context = context
-	}
+	private constructor() {}
 
 	/**
 	 * Initialize the cache by loading data from disk
 	 */
-	public static async initialize(context: ExtensionContext): Promise<StateManager> {
+	public static async initialize(): Promise<StateManager> {
 		if (!StateManager.instance) {
-			StateManager.instance = new StateManager(context)
+			StateManager.instance = new StateManager()
 		}
 
 		if (StateManager.instance.isInitialized) {
@@ -101,9 +97,9 @@ export class StateManager {
 
 		try {
 			// Load all extension state from disk
-			const globalState = await readGlobalStateFromDisk(StateManager.instance.context)
-			const secrets = await readSecretsFromDisk(StateManager.instance.context)
-			const workspaceState = await readWorkspaceStateFromDisk(StateManager.instance.context)
+			const globalState = await readGlobalStateFromDisk()
+			const secrets = await readSecretsFromDisk()
+			const workspaceState = await readWorkspaceStateFromDisk()
 
 			// Populate the cache with all extension state and secrets fields
 			// Use populate method to avoid triggering persistence during initialization
@@ -874,7 +870,7 @@ export class StateManager {
 		this.dispose()
 
 		// Reinitialize from disk
-		await StateManager.initialize(this.context)
+		await StateManager.initialize()
 
 		// If there's an active task, reload its settings
 		if (currentTaskId) {
@@ -990,7 +986,7 @@ export class StateManager {
 						// Route task history persistence to file, not VS Code globalState
 						return writeTaskHistoryToState(this.globalStateCache[key])
 					}
-					return this.context.globalState.update(key, this.globalStateCache[key])
+					return HostProvider.globalSettings.put(key, this.globalStateCache[key])
 				}),
 			)
 		} catch (error) {
@@ -1038,9 +1034,9 @@ export class StateManager {
 				Array.from(keys).map((key) => {
 					const value = this.secretsCache[key]
 					if (value) {
-						return this.context.secrets.store(key, value)
+						return HostProvider.secrets.put(key, value)
 					} else {
-						return this.context.secrets.delete(key)
+						return HostProvider.secrets.delete(key)
 					}
 				}),
 			)
@@ -1058,7 +1054,7 @@ export class StateManager {
 			await Promise.all(
 				Array.from(keys).map((key) => {
 					const value = this.workspaceStateCache[key]
-					return this.context.workspaceState.update(key, value)
+					return HostProvider.workspaceSettings.put(key, value)
 				}),
 			)
 		} catch (error) {

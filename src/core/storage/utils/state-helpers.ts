@@ -1,8 +1,8 @@
 import { ANTHROPIC_MIN_THINKING_BUDGET, ApiProvider, fireworksDefaultModelId, type OcaModelInfo } from "@shared/api"
 import { GlobalStateAndSettings, LocalState, SecretKey, Secrets } from "@shared/storage/state-keys"
-import { ExtensionContext } from "vscode"
 import { Controller } from "@/core/controller"
 import { getHooksEnabledSafe } from "@/core/hooks/hooks-utils"
+import { HostProvider } from "@/hosts/host-provider"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@/shared/BrowserSettings"
 import { ClineRulesToggles } from "@/shared/cline-rules"
@@ -11,7 +11,7 @@ import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@/shared/FocusChainSettings"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@/shared/McpDisplayMode"
 import { OpenaiReasoningEffort } from "@/shared/storage/types"
 import { readTaskHistoryFromState } from "../disk"
-export async function readSecretsFromDisk(context: ExtensionContext): Promise<Secrets> {
+export async function readSecretsFromDisk(): Promise<Secrets> {
 	const [
 		apiKey,
 		openRouterApiKey,
@@ -58,50 +58,50 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		mcpOAuthSecrets,
 		nousResearchApiKey,
 	] = await Promise.all([
-		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
-		context.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
-		context.secrets.get("clineAccountId") as Promise<Secrets["clineAccountId"]>,
-		context.secrets.get("cline:clineAccountId") as Promise<Secrets["cline:clineAccountId"]>,
-		context.secrets.get("awsAccessKey") as Promise<Secrets["awsAccessKey"]>,
-		context.secrets.get("awsSecretKey") as Promise<Secrets["awsSecretKey"]>,
-		context.secrets.get("awsSessionToken") as Promise<Secrets["awsSessionToken"]>,
-		context.secrets.get("awsBedrockApiKey") as Promise<Secrets["awsBedrockApiKey"]>,
-		context.secrets.get("openAiApiKey") as Promise<Secrets["openAiApiKey"]>,
-		context.secrets.get("geminiApiKey") as Promise<Secrets["geminiApiKey"]>,
-		context.secrets.get("openAiNativeApiKey") as Promise<Secrets["openAiNativeApiKey"]>,
-		context.secrets.get("deepSeekApiKey") as Promise<Secrets["deepSeekApiKey"]>,
-		context.secrets.get("requestyApiKey") as Promise<Secrets["requestyApiKey"]>,
-		context.secrets.get("togetherApiKey") as Promise<Secrets["togetherApiKey"]>,
-		context.secrets.get("qwenApiKey") as Promise<Secrets["qwenApiKey"]>,
-		context.secrets.get("doubaoApiKey") as Promise<Secrets["doubaoApiKey"]>,
-		context.secrets.get("mistralApiKey") as Promise<Secrets["mistralApiKey"]>,
-		context.secrets.get("fireworksApiKey") as Promise<Secrets["fireworksApiKey"]>,
-		context.secrets.get("liteLlmApiKey") as Promise<Secrets["liteLlmApiKey"]>,
-		context.secrets.get("remoteLiteLlmApiKey") as Promise<Secrets["remoteLiteLlmApiKey"]>,
-		context.secrets.get("asksageApiKey") as Promise<Secrets["asksageApiKey"]>,
-		context.secrets.get("xaiApiKey") as Promise<Secrets["xaiApiKey"]>,
-		context.secrets.get("sambanovaApiKey") as Promise<Secrets["sambanovaApiKey"]>,
-		context.secrets.get("cerebrasApiKey") as Promise<Secrets["cerebrasApiKey"]>,
-		context.secrets.get("groqApiKey") as Promise<Secrets["groqApiKey"]>,
-		context.secrets.get("moonshotApiKey") as Promise<Secrets["moonshotApiKey"]>,
-		context.secrets.get("nebiusApiKey") as Promise<Secrets["nebiusApiKey"]>,
-		context.secrets.get("huggingFaceApiKey") as Promise<Secrets["huggingFaceApiKey"]>,
-		context.secrets.get("sapAiCoreClientId") as Promise<Secrets["sapAiCoreClientId"]>,
-		context.secrets.get("sapAiCoreClientSecret") as Promise<Secrets["sapAiCoreClientSecret"]>,
-		context.secrets.get("huaweiCloudMaasApiKey") as Promise<Secrets["huaweiCloudMaasApiKey"]>,
-		context.secrets.get("basetenApiKey") as Promise<Secrets["basetenApiKey"]>,
-		context.secrets.get("zaiApiKey") as Promise<Secrets["zaiApiKey"]>,
-		context.secrets.get("ollamaApiKey") as Promise<Secrets["ollamaApiKey"]>,
-		context.secrets.get("vercelAiGatewayApiKey") as Promise<Secrets["vercelAiGatewayApiKey"]>,
-		context.secrets.get("difyApiKey") as Promise<Secrets["difyApiKey"]>,
-		context.secrets.get("authNonce") as Promise<Secrets["authNonce"]>,
-		context.secrets.get("ocaApiKey") as Promise<string | undefined>,
-		context.secrets.get("ocaRefreshToken") as Promise<string | undefined>,
-		context.secrets.get("minimaxApiKey") as Promise<Secrets["minimaxApiKey"]>,
-		context.secrets.get("hicapApiKey") as Promise<Secrets["hicapApiKey"]>,
-		context.secrets.get("aihubmixApiKey") as Promise<Secrets["aihubmixApiKey"]>,
-		context.secrets.get("mcpOAuthSecrets") as Promise<Secrets["mcpOAuthSecrets"]>,
-		context.secrets.get("nousResearchApiKey") as Promise<Secrets["nousResearchApiKey"]>,
+		HostProvider.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
+		HostProvider.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
+		HostProvider.secrets.get("clineAccountId") as Promise<Secrets["clineAccountId"]>,
+		HostProvider.secrets.get("cline:clineAccountId") as Promise<Secrets["cline:clineAccountId"]>,
+		HostProvider.secrets.get("awsAccessKey") as Promise<Secrets["awsAccessKey"]>,
+		HostProvider.secrets.get("awsSecretKey") as Promise<Secrets["awsSecretKey"]>,
+		HostProvider.secrets.get("awsSessionToken") as Promise<Secrets["awsSessionToken"]>,
+		HostProvider.secrets.get("awsBedrockApiKey") as Promise<Secrets["awsBedrockApiKey"]>,
+		HostProvider.secrets.get("openAiApiKey") as Promise<Secrets["openAiApiKey"]>,
+		HostProvider.secrets.get("geminiApiKey") as Promise<Secrets["geminiApiKey"]>,
+		HostProvider.secrets.get("openAiNativeApiKey") as Promise<Secrets["openAiNativeApiKey"]>,
+		HostProvider.secrets.get("deepSeekApiKey") as Promise<Secrets["deepSeekApiKey"]>,
+		HostProvider.secrets.get("requestyApiKey") as Promise<Secrets["requestyApiKey"]>,
+		HostProvider.secrets.get("togetherApiKey") as Promise<Secrets["togetherApiKey"]>,
+		HostProvider.secrets.get("qwenApiKey") as Promise<Secrets["qwenApiKey"]>,
+		HostProvider.secrets.get("doubaoApiKey") as Promise<Secrets["doubaoApiKey"]>,
+		HostProvider.secrets.get("mistralApiKey") as Promise<Secrets["mistralApiKey"]>,
+		HostProvider.secrets.get("fireworksApiKey") as Promise<Secrets["fireworksApiKey"]>,
+		HostProvider.secrets.get("liteLlmApiKey") as Promise<Secrets["liteLlmApiKey"]>,
+		HostProvider.secrets.get("remoteLiteLlmApiKey") as Promise<Secrets["remoteLiteLlmApiKey"]>,
+		HostProvider.secrets.get("asksageApiKey") as Promise<Secrets["asksageApiKey"]>,
+		HostProvider.secrets.get("xaiApiKey") as Promise<Secrets["xaiApiKey"]>,
+		HostProvider.secrets.get("sambanovaApiKey") as Promise<Secrets["sambanovaApiKey"]>,
+		HostProvider.secrets.get("cerebrasApiKey") as Promise<Secrets["cerebrasApiKey"]>,
+		HostProvider.secrets.get("groqApiKey") as Promise<Secrets["groqApiKey"]>,
+		HostProvider.secrets.get("moonshotApiKey") as Promise<Secrets["moonshotApiKey"]>,
+		HostProvider.secrets.get("nebiusApiKey") as Promise<Secrets["nebiusApiKey"]>,
+		HostProvider.secrets.get("huggingFaceApiKey") as Promise<Secrets["huggingFaceApiKey"]>,
+		HostProvider.secrets.get("sapAiCoreClientId") as Promise<Secrets["sapAiCoreClientId"]>,
+		HostProvider.secrets.get("sapAiCoreClientSecret") as Promise<Secrets["sapAiCoreClientSecret"]>,
+		HostProvider.secrets.get("huaweiCloudMaasApiKey") as Promise<Secrets["huaweiCloudMaasApiKey"]>,
+		HostProvider.secrets.get("basetenApiKey") as Promise<Secrets["basetenApiKey"]>,
+		HostProvider.secrets.get("zaiApiKey") as Promise<Secrets["zaiApiKey"]>,
+		HostProvider.secrets.get("ollamaApiKey") as Promise<Secrets["ollamaApiKey"]>,
+		HostProvider.secrets.get("vercelAiGatewayApiKey") as Promise<Secrets["vercelAiGatewayApiKey"]>,
+		HostProvider.secrets.get("difyApiKey") as Promise<Secrets["difyApiKey"]>,
+		HostProvider.secrets.get("authNonce") as Promise<Secrets["authNonce"]>,
+		HostProvider.secrets.get("ocaApiKey") as Promise<string | undefined>,
+		HostProvider.secrets.get("ocaRefreshToken") as Promise<string | undefined>,
+		HostProvider.secrets.get("minimaxApiKey") as Promise<Secrets["minimaxApiKey"]>,
+		HostProvider.secrets.get("hicapApiKey") as Promise<Secrets["hicapApiKey"]>,
+		HostProvider.secrets.get("aihubmixApiKey") as Promise<Secrets["aihubmixApiKey"]>,
+		HostProvider.secrets.get("mcpOAuthSecrets") as Promise<Secrets["mcpOAuthSecrets"]>,
+		HostProvider.secrets.get("nousResearchApiKey") as Promise<Secrets["nousResearchApiKey"]>,
 	])
 
 	return {
@@ -152,12 +152,12 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 	}
 }
 
-export async function readWorkspaceStateFromDisk(context: ExtensionContext): Promise<LocalState> {
-	const localClineRulesToggles = context.workspaceState.get("localClineRulesToggles") as ClineRulesToggles | undefined
-	const localWindsurfRulesToggles = context.workspaceState.get("localWindsurfRulesToggles") as ClineRulesToggles | undefined
-	const localCursorRulesToggles = context.workspaceState.get("localCursorRulesToggles") as ClineRulesToggles | undefined
-	const localAgentsRulesToggles = context.workspaceState.get("localAgentsRulesToggles") as ClineRulesToggles | undefined
-	const localWorkflowToggles = context.workspaceState.get("workflowToggles") as ClineRulesToggles | undefined
+export async function readWorkspaceStateFromDisk(): Promise<LocalState> {
+	const localClineRulesToggles = await HostProvider.workspaceSettings.get<ClineRulesToggles>("localClineRulesToggles")
+	const localWindsurfRulesToggles = await HostProvider.workspaceSettings.get<ClineRulesToggles>("localWindsurfRulesToggles")
+	const localCursorRulesToggles = await HostProvider.workspaceSettings.get<ClineRulesToggles>("localCursorRulesToggles")
+	const localAgentsRulesToggles = await HostProvider.workspaceSettings.get<ClineRulesToggles>("localAgentsRulesToggles")
+	const localWorkflowToggles = await HostProvider.workspaceSettings.get<ClineRulesToggles>("workflowToggles")
 
 	return {
 		localClineRulesToggles: localClineRulesToggles || {},
@@ -168,313 +168,361 @@ export async function readWorkspaceStateFromDisk(context: ExtensionContext): Pro
 	}
 }
 
-export async function readGlobalStateFromDisk(context: ExtensionContext): Promise<GlobalStateAndSettings> {
+export async function readGlobalStateFromDisk(): Promise<GlobalStateAndSettings> {
 	try {
 		// Get all global state values
 		const strictPlanModeEnabled =
-			context.globalState.get<GlobalStateAndSettings["strictPlanModeEnabled"]>("strictPlanModeEnabled")
-		const yoloModeToggled = context.globalState.get<GlobalStateAndSettings["yoloModeToggled"]>("yoloModeToggled")
-		const useAutoCondense = context.globalState.get<GlobalStateAndSettings["useAutoCondense"]>("useAutoCondense")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["strictPlanModeEnabled"]>("strictPlanModeEnabled")
+		const yoloModeToggled = HostProvider.globalSettings.get<GlobalStateAndSettings["yoloModeToggled"]>("yoloModeToggled")
+		const useAutoCondense = HostProvider.globalSettings.get<GlobalStateAndSettings["useAutoCondense"]>("useAutoCondense")
 		const clineWebToolsEnabled =
-			context.globalState.get<GlobalStateAndSettings["clineWebToolsEnabled"]>("clineWebToolsEnabled")
-		const isNewUser = context.globalState.get<GlobalStateAndSettings["isNewUser"]>("isNewUser")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["clineWebToolsEnabled"]>("clineWebToolsEnabled")
+		const isNewUser = HostProvider.globalSettings.get<GlobalStateAndSettings["isNewUser"]>("isNewUser")
 		const welcomeViewCompleted =
-			context.globalState.get<GlobalStateAndSettings["welcomeViewCompleted"]>("welcomeViewCompleted")
-		const awsRegion = context.globalState.get<GlobalStateAndSettings["awsRegion"]>("awsRegion")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["welcomeViewCompleted"]>("welcomeViewCompleted")
+		const awsRegion = HostProvider.globalSettings.get<GlobalStateAndSettings["awsRegion"]>("awsRegion")
 		const awsUseCrossRegionInference =
-			context.globalState.get<GlobalStateAndSettings["awsUseCrossRegionInference"]>("awsUseCrossRegionInference")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["awsUseCrossRegionInference"]>("awsUseCrossRegionInference")
 		const awsUseGlobalInference =
-			context.globalState.get<GlobalStateAndSettings["awsUseGlobalInference"]>("awsUseGlobalInference")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["awsUseGlobalInference"]>("awsUseGlobalInference")
 		const awsBedrockUsePromptCache =
-			context.globalState.get<GlobalStateAndSettings["awsBedrockUsePromptCache"]>("awsBedrockUsePromptCache")
-		const awsBedrockEndpoint = context.globalState.get<GlobalStateAndSettings["awsBedrockEndpoint"]>("awsBedrockEndpoint")
-		const awsProfile = context.globalState.get<GlobalStateAndSettings["awsProfile"]>("awsProfile")
-		const awsUseProfile = context.globalState.get<GlobalStateAndSettings["awsUseProfile"]>("awsUseProfile")
-		const awsAuthentication = context.globalState.get<GlobalStateAndSettings["awsAuthentication"]>("awsAuthentication")
-		const vertexProjectId = context.globalState.get<GlobalStateAndSettings["vertexProjectId"]>("vertexProjectId")
-		const vertexRegion = context.globalState.get<GlobalStateAndSettings["vertexRegion"]>("vertexRegion")
-		const openAiBaseUrl = context.globalState.get<GlobalStateAndSettings["openAiBaseUrl"]>("openAiBaseUrl")
-		const requestyBaseUrl = context.globalState.get<GlobalStateAndSettings["requestyBaseUrl"]>("requestyBaseUrl")
-		const openAiHeaders = context.globalState.get<GlobalStateAndSettings["openAiHeaders"]>("openAiHeaders")
-		const ollamaBaseUrl = context.globalState.get<GlobalStateAndSettings["ollamaBaseUrl"]>("ollamaBaseUrl")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["awsBedrockUsePromptCache"]>("awsBedrockUsePromptCache")
+		const awsBedrockEndpoint =
+			HostProvider.globalSettings.get<GlobalStateAndSettings["awsBedrockEndpoint"]>("awsBedrockEndpoint")
+		const awsProfile = HostProvider.globalSettings.get<GlobalStateAndSettings["awsProfile"]>("awsProfile")
+		const awsUseProfile = HostProvider.globalSettings.get<GlobalStateAndSettings["awsUseProfile"]>("awsUseProfile")
+		const awsAuthentication =
+			HostProvider.globalSettings.get<GlobalStateAndSettings["awsAuthentication"]>("awsAuthentication")
+		const vertexProjectId = HostProvider.globalSettings.get<GlobalStateAndSettings["vertexProjectId"]>("vertexProjectId")
+		const vertexRegion = HostProvider.globalSettings.get<GlobalStateAndSettings["vertexRegion"]>("vertexRegion")
+		const openAiBaseUrl = HostProvider.globalSettings.get<GlobalStateAndSettings["openAiBaseUrl"]>("openAiBaseUrl")
+		const requestyBaseUrl = HostProvider.globalSettings.get<GlobalStateAndSettings["requestyBaseUrl"]>("requestyBaseUrl")
+		const openAiHeaders = HostProvider.globalSettings.get<GlobalStateAndSettings["openAiHeaders"]>("openAiHeaders")
+		const ollamaBaseUrl = HostProvider.globalSettings.get<GlobalStateAndSettings["ollamaBaseUrl"]>("ollamaBaseUrl")
 		const ollamaApiOptionsCtxNum =
-			context.globalState.get<GlobalStateAndSettings["ollamaApiOptionsCtxNum"]>("ollamaApiOptionsCtxNum")
-		const lmStudioBaseUrl = context.globalState.get<GlobalStateAndSettings["lmStudioBaseUrl"]>("lmStudioBaseUrl")
-		const lmStudioMaxTokens = context.globalState.get<GlobalStateAndSettings["lmStudioMaxTokens"]>("lmStudioMaxTokens")
-		const anthropicBaseUrl = context.globalState.get<GlobalStateAndSettings["anthropicBaseUrl"]>("anthropicBaseUrl")
-		const geminiBaseUrl = context.globalState.get<GlobalStateAndSettings["geminiBaseUrl"]>("geminiBaseUrl")
-		const azureApiVersion = context.globalState.get<GlobalStateAndSettings["azureApiVersion"]>("azureApiVersion")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["ollamaApiOptionsCtxNum"]>("ollamaApiOptionsCtxNum")
+		const lmStudioBaseUrl = HostProvider.globalSettings.get<GlobalStateAndSettings["lmStudioBaseUrl"]>("lmStudioBaseUrl")
+		const lmStudioMaxTokens =
+			HostProvider.globalSettings.get<GlobalStateAndSettings["lmStudioMaxTokens"]>("lmStudioMaxTokens")
+		const anthropicBaseUrl = HostProvider.globalSettings.get<GlobalStateAndSettings["anthropicBaseUrl"]>("anthropicBaseUrl")
+		const geminiBaseUrl = HostProvider.globalSettings.get<GlobalStateAndSettings["geminiBaseUrl"]>("geminiBaseUrl")
+		const azureApiVersion = HostProvider.globalSettings.get<GlobalStateAndSettings["azureApiVersion"]>("azureApiVersion")
 		const openRouterProviderSorting =
-			context.globalState.get<GlobalStateAndSettings["openRouterProviderSorting"]>("openRouterProviderSorting")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["openRouterProviderSorting"]>("openRouterProviderSorting")
 		const lastShownAnnouncementId =
-			context.globalState.get<GlobalStateAndSettings["lastShownAnnouncementId"]>("lastShownAnnouncementId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["lastShownAnnouncementId"]>("lastShownAnnouncementId")
 		const autoApprovalSettings =
-			context.globalState.get<GlobalStateAndSettings["autoApprovalSettings"]>("autoApprovalSettings")
-		const browserSettings = context.globalState.get<GlobalStateAndSettings["browserSettings"]>("browserSettings")
-		const liteLlmBaseUrl = context.globalState.get<GlobalStateAndSettings["liteLlmBaseUrl"]>("liteLlmBaseUrl")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["autoApprovalSettings"]>("autoApprovalSettings")
+		const browserSettings = HostProvider.globalSettings.get<GlobalStateAndSettings["browserSettings"]>("browserSettings")
+		const liteLlmBaseUrl = HostProvider.globalSettings.get<GlobalStateAndSettings["liteLlmBaseUrl"]>("liteLlmBaseUrl")
 		const liteLlmUsePromptCache =
-			context.globalState.get<GlobalStateAndSettings["liteLlmUsePromptCache"]>("liteLlmUsePromptCache")
-		const fireworksModelMaxCompletionTokens = context.globalState.get<
+			HostProvider.globalSettings.get<GlobalStateAndSettings["liteLlmUsePromptCache"]>("liteLlmUsePromptCache")
+		const fireworksModelMaxCompletionTokens = HostProvider.globalSettings.get<
 			GlobalStateAndSettings["fireworksModelMaxCompletionTokens"]
 		>("fireworksModelMaxCompletionTokens")
 		const fireworksModelMaxTokens =
-			context.globalState.get<GlobalStateAndSettings["fireworksModelMaxTokens"]>("fireworksModelMaxTokens")
-		const userInfo = context.globalState.get<GlobalStateAndSettings["userInfo"]>("userInfo")
-		const qwenApiLine = context.globalState.get<GlobalStateAndSettings["qwenApiLine"]>("qwenApiLine")
-		const moonshotApiLine = context.globalState.get<GlobalStateAndSettings["moonshotApiLine"]>("moonshotApiLine")
-		const zaiApiLine = context.globalState.get<GlobalStateAndSettings["zaiApiLine"]>("zaiApiLine")
-		const minimaxApiLine = context.globalState.get<GlobalStateAndSettings["minimaxApiLine"]>("minimaxApiLine")
-		const telemetrySetting = context.globalState.get<GlobalStateAndSettings["telemetrySetting"]>("telemetrySetting")
-		const asksageApiUrl = context.globalState.get<GlobalStateAndSettings["asksageApiUrl"]>("asksageApiUrl")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["fireworksModelMaxTokens"]>("fireworksModelMaxTokens")
+		const userInfo = HostProvider.globalSettings.get<GlobalStateAndSettings["userInfo"]>("userInfo")
+		const qwenApiLine = HostProvider.globalSettings.get<GlobalStateAndSettings["qwenApiLine"]>("qwenApiLine")
+		const moonshotApiLine = HostProvider.globalSettings.get<GlobalStateAndSettings["moonshotApiLine"]>("moonshotApiLine")
+		const zaiApiLine = HostProvider.globalSettings.get<GlobalStateAndSettings["zaiApiLine"]>("zaiApiLine")
+		const minimaxApiLine = HostProvider.globalSettings.get<GlobalStateAndSettings["minimaxApiLine"]>("minimaxApiLine")
+		const telemetrySetting = HostProvider.globalSettings.get<GlobalStateAndSettings["telemetrySetting"]>("telemetrySetting")
+		const asksageApiUrl = HostProvider.globalSettings.get<GlobalStateAndSettings["asksageApiUrl"]>("asksageApiUrl")
 		const planActSeparateModelsSettingRaw =
-			context.globalState.get<GlobalStateAndSettings["planActSeparateModelsSetting"]>("planActSeparateModelsSetting")
-		const favoritedModelIds = context.globalState.get<GlobalStateAndSettings["favoritedModelIds"]>("favoritedModelIds")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planActSeparateModelsSetting"]>(
+				"planActSeparateModelsSetting",
+			)
+		const favoritedModelIds =
+			HostProvider.globalSettings.get<GlobalStateAndSettings["favoritedModelIds"]>("favoritedModelIds")
 		const globalClineRulesToggles =
-			context.globalState.get<GlobalStateAndSettings["globalClineRulesToggles"]>("globalClineRulesToggles")
-		const requestTimeoutMs = context.globalState.get<GlobalStateAndSettings["requestTimeoutMs"]>("requestTimeoutMs")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["globalClineRulesToggles"]>("globalClineRulesToggles")
+		const requestTimeoutMs = HostProvider.globalSettings.get<GlobalStateAndSettings["requestTimeoutMs"]>("requestTimeoutMs")
 		const shellIntegrationTimeout =
-			context.globalState.get<GlobalStateAndSettings["shellIntegrationTimeout"]>("shellIntegrationTimeout")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["shellIntegrationTimeout"]>("shellIntegrationTimeout")
 		const enableCheckpointsSettingRaw =
-			context.globalState.get<GlobalStateAndSettings["enableCheckpointsSetting"]>("enableCheckpointsSetting")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["enableCheckpointsSetting"]>("enableCheckpointsSetting")
 		const mcpMarketplaceEnabledRaw =
-			context.globalState.get<GlobalStateAndSettings["mcpMarketplaceEnabled"]>("mcpMarketplaceEnabled")
-		const mcpDisplayMode = context.globalState.get<GlobalStateAndSettings["mcpDisplayMode"]>("mcpDisplayMode")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["mcpMarketplaceEnabled"]>("mcpMarketplaceEnabled")
+		const mcpDisplayMode = HostProvider.globalSettings.get<GlobalStateAndSettings["mcpDisplayMode"]>("mcpDisplayMode")
 		const mcpResponsesCollapsedRaw =
-			context.globalState.get<GlobalStateAndSettings["mcpResponsesCollapsed"]>("mcpResponsesCollapsed")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["mcpResponsesCollapsed"]>("mcpResponsesCollapsed")
 		const globalWorkflowToggles =
-			context.globalState.get<GlobalStateAndSettings["globalWorkflowToggles"]>("globalWorkflowToggles")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["globalWorkflowToggles"]>("globalWorkflowToggles")
 		const terminalReuseEnabled =
-			context.globalState.get<GlobalStateAndSettings["terminalReuseEnabled"]>("terminalReuseEnabled")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["terminalReuseEnabled"]>("terminalReuseEnabled")
 		const vscodeTerminalExecutionMode =
-			context.globalState.get<GlobalStateAndSettings["vscodeTerminalExecutionMode"]>("vscodeTerminalExecutionMode")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["vscodeTerminalExecutionMode"]>("vscodeTerminalExecutionMode")
 		const terminalOutputLineLimit =
-			context.globalState.get<GlobalStateAndSettings["terminalOutputLineLimit"]>("terminalOutputLineLimit")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["terminalOutputLineLimit"]>("terminalOutputLineLimit")
 		const maxConsecutiveMistakes =
-			context.globalState.get<GlobalStateAndSettings["maxConsecutiveMistakes"]>("maxConsecutiveMistakes")
-		const subagentTerminalOutputLineLimit = context.globalState.get<
+			HostProvider.globalSettings.get<GlobalStateAndSettings["maxConsecutiveMistakes"]>("maxConsecutiveMistakes")
+		const subagentTerminalOutputLineLimit = HostProvider.globalSettings.get<
 			GlobalStateAndSettings["subagentTerminalOutputLineLimit"]
 		>("subagentTerminalOutputLineLimit")
 		const defaultTerminalProfile =
-			context.globalState.get<GlobalStateAndSettings["defaultTerminalProfile"]>("defaultTerminalProfile")
-		const sapAiCoreBaseUrl = context.globalState.get<GlobalStateAndSettings["sapAiCoreBaseUrl"]>("sapAiCoreBaseUrl")
-		const sapAiCoreTokenUrl = context.globalState.get<GlobalStateAndSettings["sapAiCoreTokenUrl"]>("sapAiCoreTokenUrl")
-		const sapAiResourceGroup = context.globalState.get<GlobalStateAndSettings["sapAiResourceGroup"]>("sapAiResourceGroup")
-		const claudeCodePath = context.globalState.get<GlobalStateAndSettings["claudeCodePath"]>("claudeCodePath")
-		const difyBaseUrl = context.globalState.get<GlobalStateAndSettings["difyBaseUrl"]>("difyBaseUrl")
-		const ocaBaseUrl = context.globalState.get("ocaBaseUrl") as string | undefined
-		const ocaMode = context.globalState.get("ocaMode") as string | undefined
+			HostProvider.globalSettings.get<GlobalStateAndSettings["defaultTerminalProfile"]>("defaultTerminalProfile")
+		const sapAiCoreBaseUrl = HostProvider.globalSettings.get<GlobalStateAndSettings["sapAiCoreBaseUrl"]>("sapAiCoreBaseUrl")
+		const sapAiCoreTokenUrl =
+			HostProvider.globalSettings.get<GlobalStateAndSettings["sapAiCoreTokenUrl"]>("sapAiCoreTokenUrl")
+		const sapAiResourceGroup =
+			HostProvider.globalSettings.get<GlobalStateAndSettings["sapAiResourceGroup"]>("sapAiResourceGroup")
+		const claudeCodePath = HostProvider.globalSettings.get<GlobalStateAndSettings["claudeCodePath"]>("claudeCodePath")
+		const difyBaseUrl = HostProvider.globalSettings.get<GlobalStateAndSettings["difyBaseUrl"]>("difyBaseUrl")
+		const ocaBaseUrl = HostProvider.globalSettings.get<string>("ocaBaseUrl")
+		const ocaMode = HostProvider.globalSettings.get<string>("ocaMode")
 		const openaiReasoningEffort =
-			context.globalState.get<GlobalStateAndSettings["openaiReasoningEffort"]>("openaiReasoningEffort")
-		const preferredLanguage = context.globalState.get<GlobalStateAndSettings["preferredLanguage"]>("preferredLanguage")
-		const focusChainSettings = context.globalState.get<GlobalStateAndSettings["focusChainSettings"]>("focusChainSettings")
-		const dictationSettings = context.globalState.get<GlobalStateAndSettings["dictationSettings"]>("dictationSettings") as
-			| DictationSettings
-			| undefined
+			HostProvider.globalSettings.get<GlobalStateAndSettings["openaiReasoningEffort"]>("openaiReasoningEffort")
+		const preferredLanguage =
+			HostProvider.globalSettings.get<GlobalStateAndSettings["preferredLanguage"]>("preferredLanguage")
+		const focusChainSettings =
+			HostProvider.globalSettings.get<GlobalStateAndSettings["focusChainSettings"]>("focusChainSettings")
+		const dictationSettings = HostProvider.globalSettings.get<DictationSettings>("dictationSettings")
 		const lastDismissedInfoBannerVersion =
-			context.globalState.get<GlobalStateAndSettings["lastDismissedInfoBannerVersion"]>("lastDismissedInfoBannerVersion")
-		const lastDismissedModelBannerVersion = context.globalState.get<
+			HostProvider.globalSettings.get<GlobalStateAndSettings["lastDismissedInfoBannerVersion"]>(
+				"lastDismissedInfoBannerVersion",
+			)
+		const lastDismissedModelBannerVersion = HostProvider.globalSettings.get<
 			GlobalStateAndSettings["lastDismissedModelBannerVersion"]
 		>("lastDismissedModelBannerVersion")
 		const lastDismissedCliBannerVersion =
-			context.globalState.get<GlobalStateAndSettings["lastDismissedCliBannerVersion"]>("lastDismissedCliBannerVersion")
-		const dismissedBanners = context.globalState.get<GlobalStateAndSettings["dismissedBanners"]>("dismissedBanners")
-		const qwenCodeOauthPath = context.globalState.get<GlobalStateAndSettings["qwenCodeOauthPath"]>("qwenCodeOauthPath")
-		const customPrompt = context.globalState.get<GlobalStateAndSettings["customPrompt"]>("customPrompt")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["lastDismissedCliBannerVersion"]>(
+				"lastDismissedCliBannerVersion",
+			)
+		const dismissedBanners = HostProvider.globalSettings.get<GlobalStateAndSettings["dismissedBanners"]>("dismissedBanners")
+		const qwenCodeOauthPath =
+			HostProvider.globalSettings.get<GlobalStateAndSettings["qwenCodeOauthPath"]>("qwenCodeOauthPath")
+		const customPrompt = HostProvider.globalSettings.get<GlobalStateAndSettings["customPrompt"]>("customPrompt")
 		const autoCondenseThreshold =
-			context.globalState.get<GlobalStateAndSettings["autoCondenseThreshold"]>("autoCondenseThreshold") // number from 0 to 1
-		const hooksEnabled = context.globalState.get<GlobalStateAndSettings["hooksEnabled"]>("hooksEnabled")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["autoCondenseThreshold"]>("autoCondenseThreshold") // number from 0 to 1
+		const hooksEnabled = HostProvider.globalSettings.get<GlobalStateAndSettings["hooksEnabled"]>("hooksEnabled")
 		const enableParallelToolCalling =
-			context.globalState.get<GlobalStateAndSettings["enableParallelToolCalling"]>("enableParallelToolCalling")
-		const hicapModelId = context.globalState.get<GlobalStateAndSettings["hicapModelId"]>("hicapModelId")
-		const aihubmixBaseUrl = context.globalState.get<GlobalStateAndSettings["aihubmixBaseUrl"]>("aihubmixBaseUrl")
-		const aihubmixAppCode = context.globalState.get<GlobalStateAndSettings["aihubmixAppCode"]>("aihubmixAppCode")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["enableParallelToolCalling"]>("enableParallelToolCalling")
+		const hicapModelId = HostProvider.globalSettings.get<GlobalStateAndSettings["hicapModelId"]>("hicapModelId")
+		const aihubmixBaseUrl = HostProvider.globalSettings.get<GlobalStateAndSettings["aihubmixBaseUrl"]>("aihubmixBaseUrl")
+		const aihubmixAppCode = HostProvider.globalSettings.get<GlobalStateAndSettings["aihubmixAppCode"]>("aihubmixAppCode")
 
 		// OpenTelemetry configuration
 		const openTelemetryEnabled =
-			context.globalState.get<GlobalStateAndSettings["openTelemetryEnabled"]>("openTelemetryEnabled")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["openTelemetryEnabled"]>("openTelemetryEnabled")
 		const openTelemetryMetricsExporter =
-			context.globalState.get<GlobalStateAndSettings["openTelemetryMetricsExporter"]>("openTelemetryMetricsExporter")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["openTelemetryMetricsExporter"]>(
+				"openTelemetryMetricsExporter",
+			)
 		const openTelemetryLogsExporter =
-			context.globalState.get<GlobalStateAndSettings["openTelemetryLogsExporter"]>("openTelemetryLogsExporter")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["openTelemetryLogsExporter"]>("openTelemetryLogsExporter")
 		const openTelemetryOtlpProtocol =
-			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpProtocol"]>("openTelemetryOtlpProtocol")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["openTelemetryOtlpProtocol"]>("openTelemetryOtlpProtocol")
 		const openTelemetryOtlpEndpoint =
-			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpEndpoint"]>("openTelemetryOtlpEndpoint")
-		const openTelemetryOtlpMetricsProtocol = context.globalState.get<
+			HostProvider.globalSettings.get<GlobalStateAndSettings["openTelemetryOtlpEndpoint"]>("openTelemetryOtlpEndpoint")
+		const openTelemetryOtlpMetricsProtocol = HostProvider.globalSettings.get<
 			GlobalStateAndSettings["openTelemetryOtlpMetricsProtocol"]
 		>("openTelemetryOtlpMetricsProtocol")
-		const openTelemetryOtlpMetricsEndpoint = context.globalState.get<
+		const openTelemetryOtlpMetricsEndpoint = HostProvider.globalSettings.get<
 			GlobalStateAndSettings["openTelemetryOtlpMetricsEndpoint"]
 		>("openTelemetryOtlpMetricsEndpoint")
 		const openTelemetryOtlpLogsProtocol =
-			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpLogsProtocol"]>("openTelemetryOtlpLogsProtocol")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["openTelemetryOtlpLogsProtocol"]>(
+				"openTelemetryOtlpLogsProtocol",
+			)
 		const openTelemetryOtlpLogsEndpoint =
-			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpLogsEndpoint"]>("openTelemetryOtlpLogsEndpoint")
-		const openTelemetryMetricExportInterval = context.globalState.get<
+			HostProvider.globalSettings.get<GlobalStateAndSettings["openTelemetryOtlpLogsEndpoint"]>(
+				"openTelemetryOtlpLogsEndpoint",
+			)
+		const openTelemetryMetricExportInterval = HostProvider.globalSettings.get<
 			GlobalStateAndSettings["openTelemetryMetricExportInterval"]
 		>("openTelemetryMetricExportInterval")
 		const openTelemetryOtlpInsecure =
-			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpInsecure"]>("openTelemetryOtlpInsecure")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["openTelemetryOtlpInsecure"]>("openTelemetryOtlpInsecure")
 		const openTelemetryLogBatchSize =
-			context.globalState.get<GlobalStateAndSettings["openTelemetryLogBatchSize"]>("openTelemetryLogBatchSize")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["openTelemetryLogBatchSize"]>("openTelemetryLogBatchSize")
 		const openTelemetryLogBatchTimeout =
-			context.globalState.get<GlobalStateAndSettings["openTelemetryLogBatchTimeout"]>("openTelemetryLogBatchTimeout")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["openTelemetryLogBatchTimeout"]>(
+				"openTelemetryLogBatchTimeout",
+			)
 		const openTelemetryLogMaxQueueSize =
-			context.globalState.get<GlobalStateAndSettings["openTelemetryLogMaxQueueSize"]>("openTelemetryLogMaxQueueSize")
-		const subagentsEnabled = context.globalState.get<GlobalStateAndSettings["subagentsEnabled"]>("subagentsEnabled")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["openTelemetryLogMaxQueueSize"]>(
+				"openTelemetryLogMaxQueueSize",
+			)
+		const subagentsEnabled = HostProvider.globalSettings.get<GlobalStateAndSettings["subagentsEnabled"]>("subagentsEnabled")
 		const backgroundEditEnabled =
-			context.globalState.get<GlobalStateAndSettings["backgroundEditEnabled"]>("backgroundEditEnabled")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["backgroundEditEnabled"]>("backgroundEditEnabled")
 
 		// Get mode-related configurations
-		const mode = context.globalState.get<GlobalStateAndSettings["mode"]>("mode")
+		const mode = HostProvider.globalSettings.get<GlobalStateAndSettings["mode"]>("mode")
 
 		// Plan mode configurations
-		const planModeApiProvider = context.globalState.get<GlobalStateAndSettings["planModeApiProvider"]>("planModeApiProvider")
-		const planModeApiModelId = context.globalState.get<GlobalStateAndSettings["planModeApiModelId"]>("planModeApiModelId")
+		const planModeApiProvider =
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeApiProvider"]>("planModeApiProvider")
+		const planModeApiModelId =
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeApiModelId"]>("planModeApiModelId")
 		const planModeThinkingBudgetTokens =
-			context.globalState.get<GlobalStateAndSettings["planModeThinkingBudgetTokens"]>("planModeThinkingBudgetTokens")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeThinkingBudgetTokens"]>(
+				"planModeThinkingBudgetTokens",
+			)
 		const geminiPlanModeThinkingLevel =
-			context.globalState.get<GlobalStateAndSettings["geminiPlanModeThinkingLevel"]>("geminiPlanModeThinkingLevel")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["geminiPlanModeThinkingLevel"]>("geminiPlanModeThinkingLevel")
 		const planModeReasoningEffort =
-			context.globalState.get<GlobalStateAndSettings["planModeReasoningEffort"]>("planModeReasoningEffort")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeReasoningEffort"]>("planModeReasoningEffort")
 		const planModeVsCodeLmModelSelector =
-			context.globalState.get<GlobalStateAndSettings["planModeVsCodeLmModelSelector"]>("planModeVsCodeLmModelSelector")
-		const planModeAwsBedrockCustomSelected = context.globalState.get<
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeVsCodeLmModelSelector"]>(
+				"planModeVsCodeLmModelSelector",
+			)
+		const planModeAwsBedrockCustomSelected = HostProvider.globalSettings.get<
 			GlobalStateAndSettings["planModeAwsBedrockCustomSelected"]
 		>("planModeAwsBedrockCustomSelected")
-		const planModeAwsBedrockCustomModelBaseId = context.globalState.get<
+		const planModeAwsBedrockCustomModelBaseId = HostProvider.globalSettings.get<
 			GlobalStateAndSettings["planModeAwsBedrockCustomModelBaseId"]
 		>("planModeAwsBedrockCustomModelBaseId")
 		const planModeOpenRouterModelId =
-			context.globalState.get<GlobalStateAndSettings["planModeOpenRouterModelId"]>("planModeOpenRouterModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeOpenRouterModelId"]>("planModeOpenRouterModelId")
 		const planModeOpenRouterModelInfo =
-			context.globalState.get<GlobalStateAndSettings["planModeOpenRouterModelInfo"]>("planModeOpenRouterModelInfo")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeOpenRouterModelInfo"]>("planModeOpenRouterModelInfo")
 		const planModeOpenAiModelId =
-			context.globalState.get<GlobalStateAndSettings["planModeOpenAiModelId"]>("planModeOpenAiModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeOpenAiModelId"]>("planModeOpenAiModelId")
 		const planModeOpenAiModelInfo =
-			context.globalState.get<GlobalStateAndSettings["planModeOpenAiModelInfo"]>("planModeOpenAiModelInfo")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeOpenAiModelInfo"]>("planModeOpenAiModelInfo")
 		const planModeOllamaModelId =
-			context.globalState.get<GlobalStateAndSettings["planModeOllamaModelId"]>("planModeOllamaModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeOllamaModelId"]>("planModeOllamaModelId")
 		const planModeLmStudioModelId =
-			context.globalState.get<GlobalStateAndSettings["planModeLmStudioModelId"]>("planModeLmStudioModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeLmStudioModelId"]>("planModeLmStudioModelId")
 		const planModeLiteLlmModelId =
-			context.globalState.get<GlobalStateAndSettings["planModeLiteLlmModelId"]>("planModeLiteLlmModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeLiteLlmModelId"]>("planModeLiteLlmModelId")
 		const planModeLiteLlmModelInfo =
-			context.globalState.get<GlobalStateAndSettings["planModeLiteLlmModelInfo"]>("planModeLiteLlmModelInfo")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeLiteLlmModelInfo"]>("planModeLiteLlmModelInfo")
 		const planModeRequestyModelId =
-			context.globalState.get<GlobalStateAndSettings["planModeRequestyModelId"]>("planModeRequestyModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeRequestyModelId"]>("planModeRequestyModelId")
 		const planModeRequestyModelInfo =
-			context.globalState.get<GlobalStateAndSettings["planModeRequestyModelInfo"]>("planModeRequestyModelInfo")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeRequestyModelInfo"]>("planModeRequestyModelInfo")
 		const planModeTogetherModelId =
-			context.globalState.get<GlobalStateAndSettings["planModeTogetherModelId"]>("planModeTogetherModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeTogetherModelId"]>("planModeTogetherModelId")
 		const planModeFireworksModelId =
-			context.globalState.get<GlobalStateAndSettings["planModeFireworksModelId"]>("planModeFireworksModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeFireworksModelId"]>("planModeFireworksModelId")
 		const planModeSapAiCoreModelId =
-			context.globalState.get<GlobalStateAndSettings["planModeSapAiCoreModelId"]>("planModeSapAiCoreModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeSapAiCoreModelId"]>("planModeSapAiCoreModelId")
 		const planModeSapAiCoreDeploymentId =
-			context.globalState.get<GlobalStateAndSettings["planModeSapAiCoreDeploymentId"]>("planModeSapAiCoreDeploymentId")
-		const planModeGroqModelId = context.globalState.get<GlobalStateAndSettings["planModeGroqModelId"]>("planModeGroqModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeSapAiCoreDeploymentId"]>(
+				"planModeSapAiCoreDeploymentId",
+			)
+		const planModeGroqModelId =
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeGroqModelId"]>("planModeGroqModelId")
 		const planModeGroqModelInfo =
-			context.globalState.get<GlobalStateAndSettings["planModeGroqModelInfo"]>("planModeGroqModelInfo")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeGroqModelInfo"]>("planModeGroqModelInfo")
 		const planModeHuggingFaceModelId =
-			context.globalState.get<GlobalStateAndSettings["planModeHuggingFaceModelId"]>("planModeHuggingFaceModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeHuggingFaceModelId"]>("planModeHuggingFaceModelId")
 		const planModeHuggingFaceModelInfo =
-			context.globalState.get<GlobalStateAndSettings["planModeHuggingFaceModelInfo"]>("planModeHuggingFaceModelInfo")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeHuggingFaceModelInfo"]>(
+				"planModeHuggingFaceModelInfo",
+			)
 		const planModeHuaweiCloudMaasModelId =
-			context.globalState.get<GlobalStateAndSettings["planModeHuaweiCloudMaasModelId"]>("planModeHuaweiCloudMaasModelId")
-		const planModeHuaweiCloudMaasModelInfo = context.globalState.get<
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeHuaweiCloudMaasModelId"]>(
+				"planModeHuaweiCloudMaasModelId",
+			)
+		const planModeHuaweiCloudMaasModelInfo = HostProvider.globalSettings.get<
 			GlobalStateAndSettings["planModeHuaweiCloudMaasModelInfo"]
 		>("planModeHuaweiCloudMaasModelInfo")
 		const planModeBasetenModelId =
-			context.globalState.get<GlobalStateAndSettings["planModeBasetenModelId"]>("planModeBasetenModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeBasetenModelId"]>("planModeBasetenModelId")
 		const planModeBasetenModelInfo =
-			context.globalState.get<GlobalStateAndSettings["planModeBasetenModelInfo"]>("planModeBasetenModelInfo")
-		const planModeOcaModelId = context.globalState.get("planModeOcaModelId") as string | undefined
-		const planModeOcaModelInfo = context.globalState.get("planModeOcaModelInfo") as OcaModelInfo | undefined
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeBasetenModelInfo"]>("planModeBasetenModelInfo")
+		const planModeOcaModelId = HostProvider.globalSettings.get<string>("planModeOcaModelId")
+		const planModeOcaModelInfo = HostProvider.globalSettings.get<OcaModelInfo>("planModeOcaModelInfo")
 		const planModeHicapModelId =
-			context.globalState.get<GlobalStateAndSettings["planModeHicapModelId"]>("planModeHicapModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeHicapModelId"]>("planModeHicapModelId")
 		const planModeHicapModelInfo =
-			context.globalState.get<GlobalStateAndSettings["planModeHicapModelInfo"]>("planModeHicapModelInfo")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeHicapModelInfo"]>("planModeHicapModelInfo")
 		const planModeAihubmixModelId =
-			context.globalState.get<GlobalStateAndSettings["planModeAihubmixModelId"]>("planModeAihubmixModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeAihubmixModelId"]>("planModeAihubmixModelId")
 		const planModeAihubmixModelInfo =
-			context.globalState.get<GlobalStateAndSettings["planModeAihubmixModelInfo"]>("planModeAihubmixModelInfo")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeAihubmixModelInfo"]>("planModeAihubmixModelInfo")
 		const planModeNousResearchModelId =
-			context.globalState.get<GlobalStateAndSettings["planModeNousResearchModelId"]>("planModeNousResearchModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["planModeNousResearchModelId"]>("planModeNousResearchModelId")
 		// Act mode configurations
-		const actModeApiProvider = context.globalState.get<GlobalStateAndSettings["actModeApiProvider"]>("actModeApiProvider")
-		const actModeApiModelId = context.globalState.get<GlobalStateAndSettings["actModeApiModelId"]>("actModeApiModelId")
+		const actModeApiProvider =
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeApiProvider"]>("actModeApiProvider")
+		const actModeApiModelId =
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeApiModelId"]>("actModeApiModelId")
 		const actModeThinkingBudgetTokens =
-			context.globalState.get<GlobalStateAndSettings["actModeThinkingBudgetTokens"]>("actModeThinkingBudgetTokens")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeThinkingBudgetTokens"]>("actModeThinkingBudgetTokens")
 		const geminiActModeThinkingLevel =
-			context.globalState.get<GlobalStateAndSettings["geminiActModeThinkingLevel"]>("geminiActModeThinkingLevel")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["geminiActModeThinkingLevel"]>("geminiActModeThinkingLevel")
 		const actModeReasoningEffort =
-			context.globalState.get<GlobalStateAndSettings["actModeReasoningEffort"]>("actModeReasoningEffort")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeReasoningEffort"]>("actModeReasoningEffort")
 		const actModeVsCodeLmModelSelector =
-			context.globalState.get<GlobalStateAndSettings["actModeVsCodeLmModelSelector"]>("actModeVsCodeLmModelSelector")
-		const actModeAwsBedrockCustomSelected = context.globalState.get<
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeVsCodeLmModelSelector"]>(
+				"actModeVsCodeLmModelSelector",
+			)
+		const actModeAwsBedrockCustomSelected = HostProvider.globalSettings.get<
 			GlobalStateAndSettings["actModeAwsBedrockCustomSelected"]
 		>("actModeAwsBedrockCustomSelected")
-		const actModeAwsBedrockCustomModelBaseId = context.globalState.get<
+		const actModeAwsBedrockCustomModelBaseId = HostProvider.globalSettings.get<
 			GlobalStateAndSettings["actModeAwsBedrockCustomModelBaseId"]
 		>("actModeAwsBedrockCustomModelBaseId")
 		const actModeOpenRouterModelId =
-			context.globalState.get<GlobalStateAndSettings["actModeOpenRouterModelId"]>("actModeOpenRouterModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeOpenRouterModelId"]>("actModeOpenRouterModelId")
 		const actModeOpenRouterModelInfo =
-			context.globalState.get<GlobalStateAndSettings["actModeOpenRouterModelInfo"]>("actModeOpenRouterModelInfo")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeOpenRouterModelInfo"]>("actModeOpenRouterModelInfo")
 		const actModeOpenAiModelId =
-			context.globalState.get<GlobalStateAndSettings["actModeOpenAiModelId"]>("actModeOpenAiModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeOpenAiModelId"]>("actModeOpenAiModelId")
 		const actModeOpenAiModelInfo =
-			context.globalState.get<GlobalStateAndSettings["actModeOpenAiModelInfo"]>("actModeOpenAiModelInfo")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeOpenAiModelInfo"]>("actModeOpenAiModelInfo")
 		const actModeOllamaModelId =
-			context.globalState.get<GlobalStateAndSettings["actModeOllamaModelId"]>("actModeOllamaModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeOllamaModelId"]>("actModeOllamaModelId")
 		const actModeLmStudioModelId =
-			context.globalState.get<GlobalStateAndSettings["actModeLmStudioModelId"]>("actModeLmStudioModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeLmStudioModelId"]>("actModeLmStudioModelId")
 		const actModeLiteLlmModelId =
-			context.globalState.get<GlobalStateAndSettings["actModeLiteLlmModelId"]>("actModeLiteLlmModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeLiteLlmModelId"]>("actModeLiteLlmModelId")
 		const actModeLiteLlmModelInfo =
-			context.globalState.get<GlobalStateAndSettings["actModeLiteLlmModelInfo"]>("actModeLiteLlmModelInfo")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeLiteLlmModelInfo"]>("actModeLiteLlmModelInfo")
 		const actModeRequestyModelId =
-			context.globalState.get<GlobalStateAndSettings["actModeRequestyModelId"]>("actModeRequestyModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeRequestyModelId"]>("actModeRequestyModelId")
 		const actModeRequestyModelInfo =
-			context.globalState.get<GlobalStateAndSettings["actModeRequestyModelInfo"]>("actModeRequestyModelInfo")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeRequestyModelInfo"]>("actModeRequestyModelInfo")
 		const actModeTogetherModelId =
-			context.globalState.get<GlobalStateAndSettings["actModeTogetherModelId"]>("actModeTogetherModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeTogetherModelId"]>("actModeTogetherModelId")
 		const actModeFireworksModelId =
-			context.globalState.get<GlobalStateAndSettings["actModeFireworksModelId"]>("actModeFireworksModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeFireworksModelId"]>("actModeFireworksModelId")
 		const actModeSapAiCoreModelId =
-			context.globalState.get<GlobalStateAndSettings["actModeSapAiCoreModelId"]>("actModeSapAiCoreModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeSapAiCoreModelId"]>("actModeSapAiCoreModelId")
 		const actModeSapAiCoreDeploymentId =
-			context.globalState.get<GlobalStateAndSettings["actModeSapAiCoreDeploymentId"]>("actModeSapAiCoreDeploymentId")
-		const actModeGroqModelId = context.globalState.get<GlobalStateAndSettings["actModeGroqModelId"]>("actModeGroqModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeSapAiCoreDeploymentId"]>(
+				"actModeSapAiCoreDeploymentId",
+			)
+		const actModeGroqModelId =
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeGroqModelId"]>("actModeGroqModelId")
 		const actModeGroqModelInfo =
-			context.globalState.get<GlobalStateAndSettings["actModeGroqModelInfo"]>("actModeGroqModelInfo")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeGroqModelInfo"]>("actModeGroqModelInfo")
 		const actModeHuggingFaceModelId =
-			context.globalState.get<GlobalStateAndSettings["actModeHuggingFaceModelId"]>("actModeHuggingFaceModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeHuggingFaceModelId"]>("actModeHuggingFaceModelId")
 		const actModeHuggingFaceModelInfo =
-			context.globalState.get<GlobalStateAndSettings["actModeHuggingFaceModelInfo"]>("actModeHuggingFaceModelInfo")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeHuggingFaceModelInfo"]>("actModeHuggingFaceModelInfo")
 		const actModeHuaweiCloudMaasModelId =
-			context.globalState.get<GlobalStateAndSettings["actModeHuaweiCloudMaasModelId"]>("actModeHuaweiCloudMaasModelId")
-		const actModeHuaweiCloudMaasModelInfo = context.globalState.get<
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeHuaweiCloudMaasModelId"]>(
+				"actModeHuaweiCloudMaasModelId",
+			)
+		const actModeHuaweiCloudMaasModelInfo = HostProvider.globalSettings.get<
 			GlobalStateAndSettings["actModeHuaweiCloudMaasModelInfo"]
 		>("actModeHuaweiCloudMaasModelInfo")
 		const actModeBasetenModelId =
-			context.globalState.get<GlobalStateAndSettings["actModeBasetenModelId"]>("actModeBasetenModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeBasetenModelId"]>("actModeBasetenModelId")
 		const actModeBasetenModelInfo =
-			context.globalState.get<GlobalStateAndSettings["actModeBasetenModelInfo"]>("actModeBasetenModelInfo")
-		const actModeOcaModelId = context.globalState.get("actModeOcaModelId") as string | undefined
-		const actModeOcaModelInfo = context.globalState.get("actModeOcaModelInfo") as OcaModelInfo | undefined
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeBasetenModelInfo"]>("actModeBasetenModelInfo")
+		const actModeOcaModelId = HostProvider.globalSettings.get<string>("actModeOcaModelId")
+		const actModeOcaModelInfo = HostProvider.globalSettings.get<OcaModelInfo>("actModeOcaModelInfo")
 		const actModeNousResearchModelId =
-			context.globalState.get<GlobalStateAndSettings["actModeNousResearchModelId"]>("actModeNousResearchModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeNousResearchModelId"]>("actModeNousResearchModelId")
 		const sapAiCoreUseOrchestrationMode =
-			context.globalState.get<GlobalStateAndSettings["sapAiCoreUseOrchestrationMode"]>("sapAiCoreUseOrchestrationMode")
-		const actModeHicapModelId = context.globalState.get<GlobalStateAndSettings["actModeHicapModelId"]>("actModeHicapModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["sapAiCoreUseOrchestrationMode"]>(
+				"sapAiCoreUseOrchestrationMode",
+			)
+		const actModeHicapModelId =
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeHicapModelId"]>("actModeHicapModelId")
 		const actModeHicapModelInfo =
-			context.globalState.get<GlobalStateAndSettings["actModeHicapModelInfo"]>("actModeHicapModelInfo")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeHicapModelInfo"]>("actModeHicapModelInfo")
 		const actModeAihubmixModelId =
-			context.globalState.get<GlobalStateAndSettings["actModeAihubmixModelId"]>("actModeAihubmixModelId")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeAihubmixModelId"]>("actModeAihubmixModelId")
 		const actModeAihubmixModelInfo =
-			context.globalState.get<GlobalStateAndSettings["actModeAihubmixModelInfo"]>("actModeAihubmixModelInfo")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["actModeAihubmixModelInfo"]>("actModeAihubmixModelInfo")
 
 		let apiProvider: ApiProvider
 		if (planModeApiProvider) {
@@ -509,7 +557,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const taskHistory = await readTaskHistoryFromState()
 
 		// Multi-root workspace support
-		const workspaceRoots = context.globalState.get<GlobalStateAndSettings["workspaceRoots"]>("workspaceRoots")
+		const workspaceRoots = HostProvider.globalSettings.get<GlobalStateAndSettings["workspaceRoots"]>("workspaceRoots")
 		/**
 		 * Get primary root index from global state.
 		 * The primary root is the main workspace folder that Cline focuses on when dealing with
@@ -517,13 +565,14 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		 * and the primary root index indicates which folder (by its position in the array, 0-based)
 		 * should be treated as the main/default working directory for operations.
 		 */
-		const primaryRootIndex = context.globalState.get<GlobalStateAndSettings["primaryRootIndex"]>("primaryRootIndex")
-		const multiRootEnabled = context.globalState.get<GlobalStateAndSettings["multiRootEnabled"]>("multiRootEnabled")
+		const primaryRootIndex = HostProvider.globalSettings.get<GlobalStateAndSettings["primaryRootIndex"]>("primaryRootIndex")
+		const multiRootEnabled = HostProvider.globalSettings.get<GlobalStateAndSettings["multiRootEnabled"]>("multiRootEnabled")
 		const nativeToolCallEnabled =
-			context.globalState.get<GlobalStateAndSettings["nativeToolCallEnabled"]>("nativeToolCallEnabled")
-		const remoteRulesToggles = context.globalState.get<GlobalStateAndSettings["remoteRulesToggles"]>("remoteRulesToggles")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["nativeToolCallEnabled"]>("nativeToolCallEnabled")
+		const remoteRulesToggles =
+			HostProvider.globalSettings.get<GlobalStateAndSettings["remoteRulesToggles"]>("remoteRulesToggles")
 		const remoteWorkflowToggles =
-			context.globalState.get<GlobalStateAndSettings["remoteWorkflowToggles"]>("remoteWorkflowToggles")
+			HostProvider.globalSettings.get<GlobalStateAndSettings["remoteWorkflowToggles"]>("remoteWorkflowToggles")
 
 		return {
 			// api configuration fields
@@ -726,17 +775,13 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 }
 
 export async function resetWorkspaceState(controller: Controller) {
-	const context = controller.context
-	await Promise.all(context.workspaceState.keys().map((key) => controller.context.workspaceState.update(key, undefined)))
+	await Promise.all(HostProvider.workspaceSettings.keys().map((key) => HostProvider.workspaceSettings.delete(key)))
 
 	await controller.stateManager.reInitialize()
 }
 
 export async function resetGlobalState(controller: Controller) {
-	// TODO: Reset all workspace states?
-	const context = controller.context
-
-	await Promise.all(context.globalState.keys().map((key) => context.globalState.update(key, undefined)))
+	await Promise.all(HostProvider.globalSettings.keys().map((key) => HostProvider.globalSettings.delete(key)))
 	const secretKeys: SecretKey[] = [
 		"apiKey",
 		"openRouterApiKey",
@@ -779,6 +824,6 @@ export async function resetGlobalState(controller: Controller) {
 		"mcpOAuthSecrets",
 		"nousResearchApiKey",
 	]
-	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
+	await Promise.all(secretKeys.map((key) => HostProvider.secrets.delete(key)))
 	await controller.stateManager.reInitialize()
 }

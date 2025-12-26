@@ -8,6 +8,7 @@ import { initialize, tearDown } from "@/common"
 import { SqliteLockManager } from "@/core/locks/SqliteLockManager"
 import { WebviewProvider } from "@/core/webview"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
+import { ExternalSettingsStore } from "@/hosts/external/ExternalSettingsStore"
 import { HostProvider } from "@/hosts/host-provider"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { StandaloneTerminalManager } from "@/integrations/terminal"
@@ -15,7 +16,7 @@ import { HOSTBRIDGE_PORT, waitForHostBridgeReady } from "./hostbridge-client"
 import { setLockManager } from "./lock-manager"
 import { PROTOBUS_PORT, startProtobusService } from "./protobus-service"
 import { log } from "./utils"
-import { initializeContext } from "./vscode-context"
+import { ClineDirs, initializeContext } from "./vscode-context"
 
 let globalLockManager: SqliteLockManager | undefined
 
@@ -36,7 +37,7 @@ async function main() {
 	process.chdir(__dirname)
 
 	// Initialize context with optional custom directory from CLI
-	const { extensionContext, DATA_DIR, EXTENSION_DIR } = initializeContext(args.config)
+	const clineDirs = initializeContext(args.config)
 
 	// Configure ports - CLI args override everything
 	if (args.port) {
@@ -57,9 +58,9 @@ async function main() {
 		const hostAddress = await waitForHostBridgeReady()
 
 		// The host bridge should be available before creating the host provider because it depends on the host bridge.
-		setupHostProvider(extensionContext, EXTENSION_DIR, DATA_DIR)
+		setupHostProvider(clineDirs)
 
-		const webviewProvider = await initialize(extensionContext)
+		const webviewProvider = await initialize(clineDirs.context)
 
 		// Enable the localhost HTTP server that handles auth redirects.
 		AuthHandler.getInstance().setEnabled(true)
@@ -68,7 +69,7 @@ async function main() {
 		const protobusAddress = await startProtobusService(webviewProvider.controller)
 
 		// Initialize SQLite lock manager for instance registration
-		const dbPath = `${DATA_DIR}/locks.db`
+		const dbPath = `${clineDirs.SETTINGS_DIR}/locks.db`
 		globalLockManager = new SqliteLockManager({
 			dbPath,
 			instanceAddress: protobusAddress,
@@ -97,9 +98,9 @@ async function main() {
 	}
 }
 
-function setupHostProvider(extensionContext: any, extensionDir: string, dataDir: string) {
+async function setupHostProvider(clineDirs: ClineDirs) {
 	const createWebview = (): WebviewProvider => {
-		return new ExternalWebviewProvider(extensionContext)
+		return new ExternalWebviewProvider(clineDirs.context)
 	}
 	const createDiffView = (): DiffViewProvider => {
 		return new ExternalDiffViewProvider()
@@ -113,6 +114,7 @@ function setupHostProvider(extensionContext: any, extensionDir: string, dataDir:
 	const getBinaryLocation = async (name: string): Promise<string> => path.join(process.cwd(), name)
 
 	HostProvider.initialize(
+		await ExternalSettingsStore.initialize(clineDirs.SETTINGS_DIR, clineDirs.WORKSPACE_STORAGE_DIR),
 		createWebview,
 		createDiffView,
 		createCommentReview,
@@ -121,8 +123,8 @@ function setupHostProvider(extensionContext: any, extensionDir: string, dataDir:
 		log,
 		getCallbackUrl,
 		getBinaryLocation,
-		extensionDir,
-		dataDir,
+		clineDirs.EXTENSION_DIR,
+		clineDirs.GLOBAL_STORAGE_DIR,
 	)
 }
 

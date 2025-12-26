@@ -1,3 +1,4 @@
+import { Settings } from "@/core/storage/settings"
 import { WebviewProvider } from "@/core/webview"
 import { CommentReviewController } from "@/integrations/editor/CommentReviewController"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
@@ -19,6 +20,7 @@ import { HostBridgeClientProvider } from "./host-provider-types"
 export class HostProvider {
 	private static instance: HostProvider | null = null
 
+	settings: Settings
 	createWebviewProvider: WebviewProviderCreator
 	createDiffViewProvider: DiffViewProviderCreator
 	createCommentReviewController: CommentReviewControllerCreator
@@ -46,6 +48,7 @@ export class HostProvider {
 
 	// Private constructor to enforce singleton pattern
 	private constructor(
+		settings: Settings,
 		createWebviewProvider: WebviewProviderCreator,
 		createDiffViewProvider: DiffViewProviderCreator,
 		createCommentReviewController: CommentReviewControllerCreator,
@@ -57,6 +60,7 @@ export class HostProvider {
 		extensionFsPath: string,
 		globalStorageFsPath: string,
 	) {
+		this.settings = settings
 		this.createWebviewProvider = createWebviewProvider
 		this.createDiffViewProvider = createDiffViewProvider
 		this.createCommentReviewController = createCommentReviewController
@@ -70,6 +74,7 @@ export class HostProvider {
 	}
 
 	public static initialize(
+		settings: Settings,
 		webviewProviderCreator: WebviewProviderCreator,
 		diffViewProviderCreator: DiffViewProviderCreator,
 		commentReviewControllerCreator: CommentReviewControllerCreator,
@@ -85,6 +90,7 @@ export class HostProvider {
 			throw new Error("Host provider has already been initialized.")
 		}
 		HostProvider.instance = new HostProvider(
+			settings,
 			webviewProviderCreator,
 			diffViewProviderCreator,
 			commentReviewControllerCreator,
@@ -119,6 +125,15 @@ export class HostProvider {
 	 */
 	public static reset(): void {
 		HostProvider.instance = null
+	}
+	public static get globalSettings() {
+		return HostProvider.get().settings.globalSettings
+	}
+	public static get secrets() {
+		return HostProvider.get().settings.secrets
+	}
+	public static get workspaceSettings() {
+		return HostProvider.get().settings.workspaceSettings
 	}
 
 	public static get workspace() {

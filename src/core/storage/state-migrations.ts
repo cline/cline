@@ -1,10 +1,9 @@
 import fs from "fs/promises"
 import path from "path"
-import * as vscode from "vscode"
 import { HistoryItem } from "@/shared/HistoryItem"
 import { ensureRulesDirectoryExists, readTaskHistoryFromState, writeTaskHistoryToState } from "./disk"
 
-export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionContext) {
+export async function migrateWorkspaceToGlobalStorage() {
 	// Keys to migrate from workspace storage back to global storage
 	const keysToMigrate = [
 		// Core settings
