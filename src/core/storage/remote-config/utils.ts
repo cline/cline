@@ -1,12 +1,14 @@
 import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
 import { RemoteConfig } from "@shared/remote-config/schema"
 import { RemoteConfigFields } from "@shared/storage/state-keys"
+import { ensureSettingsDirectoryExists } from "../disk"
 import { getTelemetryService } from "@/services/telemetry"
 import { OpenTelemetryClientProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryClientProvider"
 import { OpenTelemetryTelemetryProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider"
 import { type TelemetryService } from "@/services/telemetry/TelemetryService"
 import { OpenTelemetryClientValidConfig, remoteConfigToOtelConfig } from "@/shared/services/config/otel-config"
 import { StateManager } from "../StateManager"
+import { syncRemoteMcpServersToSettings } from "./syncRemoteMcpServers"
 
 /**
  * Transforms RemoteConfig schema to RemoteConfigFields shape
@@ -206,8 +208,9 @@ async function applyRemoteOTELConfig(transformed: Partial<RemoteConfigFields>, t
 /**
  * Applies remote config to the StateManager's remote config cache
  * @param remoteConfig The remote configuration object to apply
+ * @param settingsDirectoryPath Path to the settings directory
  */
-export async function applyRemoteConfig(remoteConfig?: RemoteConfig): Promise<void> {
+export async function applyRemoteConfig(remoteConfig?: RemoteConfig, settingsDirectoryPath?: string): Promise<void> {
 	const stateManager = StateManager.get()
 	const telemetryService = await getTelemetryService()
 
@@ -220,6 +223,9 @@ export async function applyRemoteConfig(remoteConfig?: RemoteConfig): Promise<vo
 		stateManager.setGlobalState("remoteWorkflowToggles", {})
 		return
 	}
+
+	// Save previousRemoteMCPServers before clearing cache, this is needed for next sync to detect removals)
+	const previousRemoteMCPServers = stateManager.getRemoteConfigSettings().previousRemoteMCPServers
 
 	// Transform remote config to state shape
 	// These are then set to the remote config cache in the StateManager
@@ -245,5 +251,23 @@ export async function applyRemoteConfig(remoteConfig?: RemoteConfig): Promise<vo
 		stateManager.setRemoteConfigField(key as keyof RemoteConfigFields, value)
 	}
 
+	// Restore previousRemoteMCPServers across cache clears
+	if (previousRemoteMCPServers !== undefined) {
+		stateManager.setRemoteConfigField("previousRemoteMCPServers", previousRemoteMCPServers)
+	}
+
+	// Sync remote MCP servers to settings file (AFTER cache is populated, so sync can read previous state)
+	if (remoteConfig.remoteMCPServers !== undefined) {
+		try {
+			// Get settings directory path - use provided path or get it from disk helper
+			const settingsPath = settingsDirectoryPath || (await ensureSettingsDirectoryExists())
+			await syncRemoteMcpServersToSettings(remoteConfig.remoteMCPServers, settingsPath)
+			// Store current remote servers list for next sync to detect removals
+			stateManager.setRemoteConfigField("previousRemoteMCPServers", remoteConfig.remoteMCPServers)
+		} catch (error) {
+			console.error("[RemoteConfig] Failed to sync remote MCP servers to settings:", error)
+			// Continue with other config application even if MCP sync fails
+		}
+	}
 	await applyRemoteOTELConfig(transformed, telemetryService)
 }

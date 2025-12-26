@@ -1,6 +1,6 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
-import { GlobalFileNames } from "@core/storage/disk"
+import { getMcpSettingsFilePath as getMcpSettingsFilePathHelper } from "@core/storage/disk"
 import { StateManager } from "@core/storage/StateManager"
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
@@ -25,13 +25,11 @@ import {
 	MIN_MCP_TIMEOUT_SECONDS,
 } from "@shared/mcp"
 import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { fileExistsAtPath } from "@utils/fs"
 import { secondsToMs } from "@utils/time"
 import chokidar, { FSWatcher } from "chokidar"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
 import { nanoid } from "nanoid"
-import * as path from "path"
 import ReconnectingEventSource from "reconnecting-eventsource"
 import { z } from "zod"
 import { HostProvider } from "@/hosts/host-provider"
@@ -135,25 +133,17 @@ export class McpHub {
 		return uid
 	}
 
+	/**
+	 * Gets the path to the MCP settings file
+	 * @returns Path to the MCP settings file
+	 */
 	async getMcpSettingsFilePath(): Promise<string> {
-		const mcpSettingsFilePath = path.join(await this.getSettingsDirectoryPath(), GlobalFileNames.mcpSettings)
-		const fileExists = await fileExistsAtPath(mcpSettingsFilePath)
-		if (!fileExists) {
-			await fs.writeFile(
-				mcpSettingsFilePath,
-				`{
-  "mcpServers": {
-    
-  }
-}`,
-			)
-		}
-		return mcpSettingsFilePath
+		return getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 	}
 
 	private async readAndValidateMcpSettingsFile(): Promise<z.infer<typeof McpSettingsSchema> | undefined> {
 		try {
-			const settingsPath = await this.getMcpSettingsFilePath()
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 
 			let config: any
@@ -191,7 +181,7 @@ export class McpHub {
 	}
 
 	private async watchMcpSettingsFile(): Promise<void> {
-		const settingsPath = await this.getMcpSettingsFilePath()
+		const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 
 		this.settingsWatcher = chokidar.watch(settingsPath, {
 			persistent: true, // Keep the process running as long as files are being watched
@@ -616,7 +606,7 @@ export class McpHub {
 			})
 
 			// Get autoApprove settings
-			const settingsPath = await this.getMcpSettingsFilePath()
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 			const autoApproveConfig = config.mcpServers[serverName]?.autoApprove || []
@@ -983,7 +973,7 @@ export class McpHub {
 
 	private async notifyWebviewOfServerChanges(): Promise<void> {
 		// servers should always be sorted in the order they are defined in the settings file
-		const settingsPath = await this.getMcpSettingsFilePath()
+		const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 		const content = await fs.readFile(settingsPath, "utf-8")
 		const config = JSON.parse(content)
 		const serverOrder = Object.keys(config.mcpServers || {})
@@ -1026,7 +1016,7 @@ export class McpHub {
 			if (config.mcpServers[serverName]) {
 				config.mcpServers[serverName].disabled = disabled
 
-				const settingsPath = await this.getMcpSettingsFilePath()
+				const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 				await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
 
 				const connection = this.connections.find((conn) => conn.server.name === serverName)
@@ -1165,7 +1155,7 @@ export class McpHub {
 		// Set flag to prevent file watcher from triggering during our update
 		this.isUpdatingClineSettings = true
 		try {
-			const settingsPath = await this.getMcpSettingsFilePath()
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 
@@ -1218,7 +1208,7 @@ export class McpHub {
 		// Set flag to prevent file watcher from triggering during our update
 		this.isUpdatingClineSettings = true
 		try {
-			const settingsPath = await this.getMcpSettingsFilePath()
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 
@@ -1300,7 +1290,7 @@ export class McpHub {
 			const parsedConfig = ServerConfigSchema.parse(expandedConfig)
 
 			settings.mcpServers[serverName] = parsedConfig
-			const settingsPath = await this.getMcpSettingsFilePath()
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 
 			// We don't write the zod-transformed version to the file.
 			// The above parse() call adds the transportType field to the server config
@@ -1332,7 +1322,7 @@ export class McpHub {
 			// Clear OAuth data BEFORE removing from config (while we still have the connection/URL)
 			await this.clearOAuthForConnection(serverName)
 
-			const settingsPath = await this.getMcpSettingsFilePath()
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 			if (!config.mcpServers || typeof config.mcpServers !== "object") {
@@ -1369,7 +1359,7 @@ export class McpHub {
 				throw new Error(`Invalid timeout value: ${timeout}. Must be at minimum ${MIN_MCP_TIMEOUT_SECONDS} seconds.`)
 			}
 
-			const settingsPath = await this.getMcpSettingsFilePath()
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 
