@@ -2,8 +2,6 @@
 
 ## 3.46.2
 
-### Patch Changes
-
 - 99c8571: Fix Workspace and Favorites history filters to work independently instead of being mutually exclusive
 - ac01e69: fix regression that broke JSON parsing for SAP AI Core provider in native API mode for claude models
 
