@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.45.0",
+	"version": "3.46.1",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -463,7 +463,7 @@
 		"@grpc/grpc-js": "^1.9.15",
 		"@grpc/reflection": "^1.0.4",
 		"@mistralai/mistralai": "^1.5.0",
-		"@modelcontextprotocol/sdk": "^1.11.1",
+		"@modelcontextprotocol/sdk": "^1.25.1",
 		"@opentelemetry/api": "^1.9.0",
 		"@opentelemetry/core": "^2.1.0",
 		"@opentelemetry/exporter-logs-otlp-grpc": "^0.56.0",
@@ -512,6 +512,7 @@
 		"image-size": "^2.0.2",
 		"isbinaryfile": "^5.0.2",
 		"jschardet": "^3.1.4",
+		"json5": "^2.2.3",
 		"mammoth": "^1.11.0",
 		"nanoid": "^5.1.6",
 		"nice-grpc": "^2.1.12",
