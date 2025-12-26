@@ -1,7 +1,7 @@
 import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
 import { RemoteConfig } from "@shared/remote-config/schema"
 import { RemoteConfigFields } from "@shared/storage/state-keys"
-import { getTelemetryService } from "@/services/telemetry"
+import { getTelemetryService, telemetryService } from "@/services/telemetry"
 import { OpenTelemetryClientProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryClientProvider"
 import { OpenTelemetryTelemetryProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider"
 import { type TelemetryService } from "@/services/telemetry/TelemetryService"
@@ -182,6 +182,16 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	return transformed
 }
 
+export function clearRemoteConfig() {
+	const stateManager = StateManager.get()
+
+	stateManager.clearRemoteConfig()
+	telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
+	// the remote config cline rules toggle state is stored in global state
+	stateManager.setGlobalState("remoteRulesToggles", {})
+	stateManager.setGlobalState("remoteWorkflowToggles", {})
+}
+
 const REMOTE_CONFIG_OTEL_PROVIDER_ID = "OpenTelemetryRemoteConfiguredProvider"
 async function applyRemoteOTELConfig(transformed: Partial<RemoteConfigFields>, telemetryService: TelemetryService) {
 	try {
@@ -213,11 +223,7 @@ export async function applyRemoteConfig(remoteConfig?: RemoteConfig): Promise<vo
 
 	// If no remote config provided, clear the cache and relevant state
 	if (!remoteConfig) {
-		stateManager.clearRemoteConfig()
-		telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
-		// the remote config cline rules toggle state is stored in global state
-		stateManager.setGlobalState("remoteRulesToggles", {})
-		stateManager.setGlobalState("remoteWorkflowToggles", {})
+		clearRemoteConfig()
 		return
 	}
 
