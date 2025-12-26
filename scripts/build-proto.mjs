@@ -105,7 +105,10 @@ async function cleanup() {
 	// Clean up existing generated files
 	log_verbose(chalk.cyan("Cleaning up existing generated TypeScript files..."))
 	await rmrf(TS_OUT_DIR)
-	await rmrf("src/generated")
+	// Selectively clean TypeScript output directories, preserving Go protos in src/generated/grpc-go
+	await rmrf("src/generated/grpc-js")
+	await rmrf("src/generated/nice-grpc")
+	await rmrf("src/generated/hosts")
 
 	// Clean up generated files that were moved.
 	await rmrf("src/standalone/services/host-grpc-client.ts")
