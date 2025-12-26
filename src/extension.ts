@@ -25,8 +25,7 @@ import { addToCline } from "./core/controller/commands/addToCline"
 import { explainWithCline } from "./core/controller/commands/explainWithCline"
 import { fixWithCline } from "./core/controller/commands/fixWithCline"
 import { improveWithCline } from "./core/controller/commands/improveWithCline"
-import { clearOnboardingModelsCache } from "./core/controller/models/getClineOnboardingModels"
-import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
+import { sendAddToInputEvent, sendAddToInputEventToClient } from "./core/controller/ui/subscribeToAddToInput"
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
@@ -402,6 +401,18 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 		vscode.commands.registerCommand(commands.AbortCommit, () => {
 			abortCommitGeneration()
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.AddToContext, async (uri: vscode.Uri) => {
+			if (!uri) {
+				return
+			}
+			const lastActiveWebview = WebviewProvider.getLastActiveInstance()
+			if (lastActiveWebview) {
+				await sendAddToInputEventToClient(lastActiveWebview.getClientId(), `@${uri.path}`)
+			}
 		}),
 	)
 
