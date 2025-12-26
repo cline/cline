@@ -109,6 +109,7 @@ func (r *ProviderListResult) GetAllReadyProviders() []*ProviderDisplay {
 		cline.ApiProvider_XAI,
 		cline.ApiProvider_BEDROCK,
 		cline.ApiProvider_GEMINI,
+		cline.ApiProvider_VERTEX,
 		cline.ApiProvider_OLLAMA,
 		cline.ApiProvider_CEREBRAS,
 		cline.ApiProvider_NOUSRESEARCH,
@@ -236,6 +237,8 @@ func mapProviderStringToEnum(providerStr string) (cline.ApiProvider, bool) {
 		return cline.ApiProvider_OLLAMA, true
 	case "cerebras":
 		return cline.ApiProvider_CEREBRAS, true
+	case "vertex":
+		return cline.ApiProvider_VERTEX, true
 	case "cline":
 		return cline.ApiProvider_CLINE, true
 	case "oca":
@@ -271,6 +274,8 @@ func GetProviderIDForEnum(provider cline.ApiProvider) string {
 		return "ollama"
 	case cline.ApiProvider_CEREBRAS:
 		return "cerebras"
+	case cline.ApiProvider_VERTEX:
+		return "vertex"
 	case cline.ApiProvider_CLINE:
 		return "cline"
 	case cline.ApiProvider_OCA:
@@ -356,6 +361,8 @@ func GetProviderDisplayName(provider cline.ApiProvider) string {
 		return "Ollama"
 	case cline.ApiProvider_CEREBRAS:
 		return "Cerebras"
+	case cline.ApiProvider_VERTEX:
+		return "Google Vertex AI"
 	case cline.ApiProvider_CLINE:
 		return "Cline (Official)"
 	case cline.ApiProvider_OCA:
@@ -483,6 +490,7 @@ func DetectAllConfiguredProviders(ctx context.Context, manager *task.Manager) ([
 		{cline.ApiProvider_XAI, []string{"xaiApiKey"}},
 		{cline.ApiProvider_BEDROCK, []string{"awsAccessKey", "awsUseProfile"}},
 		{cline.ApiProvider_GEMINI, []string{"geminiApiKey"}},
+    {cline.ApiProvider_VERTEX, []string{"vertexProjectId"}}, // Vertex uses projectId instead of API key
 		{cline.ApiProvider_OLLAMA, []string{"ollamaBaseUrl"}}, // Ollama uses baseUrl instead of API key
 		{cline.ApiProvider_CEREBRAS, []string{"cerebrasApiKey"}},
 		{cline.ApiProvider_HICAP, []string{"hicapApiKey"}},
