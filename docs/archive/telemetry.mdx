@@ -1,0 +1,34 @@
+---
+title: "Telemetry"
+---
+
+### Overview
+
+To help make Cline better for everyone, we collect usage data that helps us understand how developers are using our open-source AI coding agent. This feedback loop is crucial for improving Cline's capabilities and user experience.
+
+We use PostHog, an open-source analytics platform, for data collection and analysis. Our telemetry implementation is fully transparent - you can review the [source code](https://github.com/cline/cline/blob/main/src/services/posthog/telemetry/TelemetryService.ts) to see exactly what we track.
+
+### Tracking Policy
+
+Privacy is our priority. By default, all collected data is anonymized. If you log in with a Cline account, your telemetry data will be associated with your account to help us improve the product and provide better support when you encounter issues. Your code, prompts, and conversation content always remain private and are never collected.
+
+### What We Track
+
+We collect basic usage data including:
+
+**Task Interactions:** When tasks start and finish, conversation flow (without content)\
+**Mode and Tool Usage:** Switches between plan/act modes, which tools are being used\
+**Token Usage:** Basic metrics about conversation length to estimate cost (not the actual content of the tokens)\
+**System Context:** OS type and VS Code environment details\
+**UI Activity:** Navigation patterns and feature usage
+
+For complete transparency, you can inspect our [telemetry implementation](https://github.com/cline/cline/blob/main/src/services/posthog/telemetry/TelemetryService.ts) to see the exact events we track.
+
+### How to Opt Out
+
+Telemetry in Cline is entirely optional:
+
+-   When you update or install our VS Code extension, you'll see a message about our telemetry
+-   You can change your preference anytime in settings
+
+Cline also respects VS Code's global telemetry settings. If you've disabled telemetry at the VS Code level, Cline's telemetry will automatically be disabled as well.
