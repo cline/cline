@@ -1395,10 +1395,10 @@ func GetProviderDefinitions() (map[string]ProviderDefinition, error) {
 		SetupInstructions: `Get your API key from https://openrouter.ai/keys`,
 	}
 
-	// AWS Bedrock
+	// Amazon Bedrock
 	definitions["bedrock"] = ProviderDefinition{
 		ID:              "bedrock",
-		Name:            "AWS Bedrock",
+		Name:            "Amazon Bedrock",
 		RequiredFields:  getFieldsByProvider("bedrock", configFields, true),
 		OptionalFields:  getFieldsByProvider("bedrock", configFields, false),
 		Models:          modelDefinitions["bedrock"],
@@ -1521,7 +1521,7 @@ func GetProviderDisplayName(providerID string) string {
 	displayNames := map[string]string{
 		"anthropic": "Anthropic (Claude)",
 		"openrouter": "OpenRouter",
-		"bedrock": "AWS Bedrock",
+		"bedrock": "Amazon Bedrock",
 		"openai": "OpenAI Compatible",
 		"ollama": "Ollama",
 		"gemini": "Google Gemini",
