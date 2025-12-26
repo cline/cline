@@ -38,6 +38,22 @@ func (s *StreamingDisplay) HandlePartialMessage(msg *types.ClineMessage) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Hooks are rendered from the state stream only to prevent double-rendering
+	// (partial-stream headers + state-stream full content).
+	//
+	// WHY: The partial stream would print a header (e.g. "### Hook running: PreToolUse")
+	// and then the state stream would print the complete hook message with full details.
+	// This would result in duplicate/confusing output. By suppressing partial hook messages,
+	// we ensure hooks are only rendered once via the state stream's SAY handler pipeline,
+	// which has access to the complete HookMessage JSON for proper formatting.
+	//
+	// IMPORTANT: Only suppress *partial* hook messages here; non-partial (complete) hook
+	// messages pass through to dedup/segment handling where they'll be ignored if already
+	// rendered by the state stream, or handled normally if they arrive first.
+	if msg.Partial && msg.Say == string(types.SayTypeHook) {
+		return nil
+	}
+
 	// Check for deduplication
 	if s.dedupe.IsDuplicate(msg) {
 		return nil
@@ -91,7 +107,11 @@ func (s *StreamingDisplay) HandlePartialMessage(msg *types.ClineMessage) error {
 
 func (s *StreamingDisplay) shouldRenderMarkdown(sayType string) bool {
 	switch sayType {
-	case string(types.SayTypeReasoning), string(types.SayTypeText), string(types.SayTypeCompletionResult), string(types.SayTypeTool), "ask":
+	case string(types.SayTypeReasoning),
+		string(types.SayTypeText),
+		string(types.SayTypeCompletionResult),
+		string(types.SayTypeTool),
+		"ask":
 		return true
 	default:
 		return false
@@ -110,6 +130,8 @@ func (s *StreamingDisplay) getPrefix(sayType string) string {
 		return "ASK"
 	case string(types.SayTypeCommand):
 		return "TERMINAL"
+	case string(types.SayTypeHook):
+		return "HOOK"
 	default:
 		return strings.ToUpper(sayType)
 	}

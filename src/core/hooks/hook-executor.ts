@@ -32,6 +32,21 @@ export interface HookExecutionResult {
 	wasCancelled: boolean
 }
 
+function fromHookOutput(output: import("@shared/proto/cline/hooks").HookOutput): HookExecutionResult {
+	// NOTE: HookOutput is a protobuf-generated type, so its fields are always
+	// populated with default values (e.g. empty strings). We intentionally treat
+	// empty strings as “no value” for the higher-level hook executor API.
+	const contextModification = output.contextModification?.trim() ? output.contextModification : undefined
+	const errorMessage = output.errorMessage?.trim() ? output.errorMessage : undefined
+
+	return {
+		cancel: output.cancel,
+		contextModification,
+		errorMessage,
+		wasCancelled: false,
+	}
+}
+
 /**
  * Executes a hook with standardized error handling, status tracking, and cleanup.
  * This consolidates the common pattern used across all hook execution sites.
@@ -61,23 +76,29 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 	const hasHook = await hookFactory.hasHook(hookName)
 
 	if (!hasHook) {
-		return {
-			wasCancelled: false,
-		}
+		return { wasCancelled: false }
 	}
 
 	let hookMessageTs: number | undefined
 	const abortController = new AbortController()
 
+	// Declare hookInfo with empty default - populated inside try block.
+	// If getHookInfo throws, error handlers will use the empty default.
+	let hookInfo: { scriptPaths: string[] } = { scriptPaths: [] }
+
 	try {
+		// Get hook info including script paths
+		hookInfo = await hookFactory.getHookInfo(hookName)
+
 		// Show hook execution indicator and capture timestamp
 		const hookMetadata = {
 			hookName,
 			...(options.toolName && { toolName: options.toolName }),
 			status: "running",
+			scriptPaths: hookInfo.scriptPaths,
 			...(options.pendingToolInfo && { pendingToolInfo: options.pendingToolInfo }),
 		}
-		hookMessageTs = await say("hook", JSON.stringify(hookMetadata))
+		hookMessageTs = await say("hook_status", JSON.stringify(hookMetadata))
 
 		// Reorder messages immediately so hook UI appears above tool UI
 		// This must happen right after creating the hook message, before the hook runs
@@ -97,7 +118,7 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 
 		// Create streaming callback
 		const streamCallback = async (line: string) => {
-			await say("hook_output", line)
+			await say("hook_output_stream", line)
 		}
 
 		// Create and execute hook
@@ -116,6 +137,12 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 
 		console.log(`[${hookName} Hook]`, result)
 
+		// NoOpRunner yields a proto-default HookOutput. In that case we preserve the
+		// minimal return shape expected by existing callers/tests.
+		if (result.cancel === false && result.contextModification === "" && result.errorMessage === "") {
+			return { wasCancelled: false }
+		}
+
 		// Check if hook wants to cancel
 		if (result.cancel === true) {
 			// Update hook status to cancelled
@@ -126,15 +153,11 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 					status: "cancelled",
 					exitCode: 130,
 					hasJsonResponse: true,
+					scriptPaths: hookInfo.scriptPaths,
 				})
 			}
 
-			return {
-				cancel: true,
-				contextModification: result.contextModification,
-				errorMessage: result.errorMessage,
-				wasCancelled: false,
-			}
+			return fromHookOutput(result)
 		}
 
 		// Clear active hook execution after successful completion (only if cancellable)
@@ -150,15 +173,11 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 				status: "completed",
 				exitCode: 0,
 				hasJsonResponse: true,
+				scriptPaths: hookInfo.scriptPaths,
 			})
 		}
 
-		return {
-			cancel: result.cancel,
-			contextModification: result.contextModification,
-			errorMessage: result.errorMessage,
-			wasCancelled: false,
-		}
+		return fromHookOutput(result)
 	} catch (hookError) {
 		// Clear active hook execution (only if cancellable)
 		if (isCancellable && clearActiveHookExecution) {
@@ -173,6 +192,7 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 					hookName,
 					status: "cancelled",
 					exitCode: 130,
+					scriptPaths: hookInfo.scriptPaths,
 				})
 			}
 
@@ -192,6 +212,7 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 				hookName,
 				status: "failed",
 				exitCode: errorInfo?.exitCode ?? 1,
+				scriptPaths: hookInfo.scriptPaths,
 				...(errorInfo && {
 					error: {
 						type: errorInfo.type,
@@ -266,7 +287,7 @@ async function reorderHookAndToolMessages(messageStateHandler: MessageStateHandl
 	// Check if there are any hook messages after the tool message
 	let hasHookMessagesAfterTool = false
 	for (let i = lastToolMessageIndex + 1; i < clineMessages.length; i++) {
-		if (clineMessages[i].say === "hook" || clineMessages[i].say === "hook_output") {
+		if (clineMessages[i].say === "hook_status" || clineMessages[i].say === "hook_output_stream") {
 			hasHookMessagesAfterTool = true
 			break
 		}

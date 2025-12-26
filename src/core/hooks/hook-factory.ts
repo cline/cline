@@ -215,9 +215,9 @@ class NoOpRunner<Name extends HookName> extends HookRunner<Name> {
 	 * @returns A successful hook output (no cancellation)
 	 */
 	override async [exec](_: HookInput): Promise<HookOutput> {
-		return HookOutput.create({
-			cancel: false,
-		})
+		// HookOutput is a protobuf-generated type with non-optional fields.
+		// Protobuf defaults: cancel=false, contextModification="", errorMessage=""
+		return HookOutput.create({ cancel: false })
 	}
 }
 
@@ -687,6 +687,21 @@ function isExpectedHookError(error: unknown): boolean {
 }
 
 export class HookFactory {
+	/**
+	 * Get information about discovered hooks including their script paths
+	 * @param hookName The type of hook to query
+	 * @returns Object containing array of script paths
+	 */
+	async getHookInfo<Name extends HookName>(
+		hookName: Name,
+	): Promise<{
+		scriptPaths: string[]
+	}> {
+		const { HookDiscoveryCache } = await import("./HookDiscoveryCache")
+		const scripts = await HookDiscoveryCache.getInstance().get(hookName)
+		return { scriptPaths: scripts }
+	}
+
 	/**
 	 * Check if any hook scripts exist for the given hook name
 	 * @returns true if at least one hook script exists, false otherwise

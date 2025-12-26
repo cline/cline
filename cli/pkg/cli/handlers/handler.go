@@ -25,6 +25,7 @@ type DisplayContext struct {
 	State          *types.ConversationState
 	Renderer       *display.Renderer
 	ToolRenderer   *display.ToolRenderer
+	HookRenderer   *display.HookRenderer
 	SystemRenderer *display.SystemMessageRenderer
 	IsLast          bool
 	IsPartial       bool

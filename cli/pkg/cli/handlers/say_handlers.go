@@ -3,11 +3,12 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/cline/cli/pkg/cli/clerror"
-	"github.com/cline/cli/pkg/cli/types"
 	"github.com/cline/cli/pkg/cli/output"
+	"github.com/cline/cli/pkg/cli/types"
 )
 
 // SayHandler handles SAY type messages
@@ -90,6 +91,10 @@ func (h *SayHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
 		return h.handleInfo(msg, dc)
 	case string(types.SayTypeTaskProgress):
 		return h.handleTaskProgress(msg, dc)
+	case string(types.SayTypeHook):
+		return h.handleHookStatus(msg, dc)
+	case string(types.SayTypeHookOutput):
+		return h.handleHookOutputStream(msg, dc)
 	default:
 		return h.handleDefault(msg, dc)
 	}
@@ -242,18 +247,17 @@ func (h *SayHandler) handleCompletionResult(msg *types.ClineMessage, dc *Display
 }
 
 func formatUserMessage(text string) string {
-    lines := strings.Split(text, "\n")
-    
-    // Wrap each line in backticks
-    for i, line := range lines {
-        if line != "" {
-            lines[i] = fmt.Sprintf("`%s`", line)
-        }
-    }
-    
-    return strings.Join(lines, "\n")
-}
+	lines := strings.Split(text, "\n")
 
+	// Wrap each line in backticks
+	for i, line := range lines {
+		if line != "" {
+			lines[i] = fmt.Sprintf("`%s`", line)
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
 
 // handleUserFeedback handles user feedback messages
 func (h *SayHandler) handleUserFeedback(msg *types.ClineMessage, dc *DisplayContext) error {
@@ -515,7 +519,138 @@ func (h *SayHandler) handleTaskProgress(msg *types.ClineMessage, dc *DisplayCont
 	return nil
 }
 
+// handleHookStatus handles hook execution status messages
+func (h *SayHandler) handleHookStatus(msg *types.ClineMessage, dc *DisplayContext) error {
+	var hook types.HookMessage
+	if err := json.Unmarshal([]byte(msg.Text), &hook); err != nil {
+		// Fallback to basic output if JSON parsing fails
+		return dc.Renderer.RenderMessage("HOOK", msg.Text, true)
+	}
+
+	// Debug: log the parsed hook data using output.Printf for CLI consistency
+	if dc.Verbose {
+		output.Printf("[DEBUG] Hook parsed: name=%s, status=%s, toolName=%s, scriptPaths=%v\n",
+			hook.HookName, hook.Status, hook.ToolName, hook.ScriptPaths)
+	}
+
+	// Format script paths for display (tilde for home, repo-relative for workspace)
+	if len(hook.ScriptPaths) > 0 {
+		formatted := make([]string, 0, len(hook.ScriptPaths))
+		for _, p := range hook.ScriptPaths {
+			if strings.TrimSpace(p) == "" {
+				continue
+			}
+			formatted = append(formatted, formatHookPath(p))
+		}
+		hook.ScriptPaths = formatted
+	}
+
+	// Render using HookRenderer for consistent CLI-native output
+	if dc.HookRenderer != nil {
+		rendered := dc.HookRenderer.RenderHookStatus(hook)
+		output.Print("\n")
+		output.Print(rendered)
+		output.Print("\n")
+		return nil
+	}
+
+	// Fallback: if HookRenderer not available
+	return dc.Renderer.RenderMessage("HOOK", fmt.Sprintf("%s %s", hook.HookName, hook.Status), true)
+}
+
+// handleHookOutputStream handles streaming output from hooks
+// This is a placeholder for future enhancement when we want to stream hook stdout/stderr
+func (h *SayHandler) handleHookOutputStream(msg *types.ClineMessage, dc *DisplayContext) error {
+	// Default behavior: suppress hook output streaming to keep CLI output clean.
+	// When --verbose is enabled, print hook output lines for debugging.
+	if !dc.Verbose {
+		return nil
+	}
+
+	line := strings.TrimRight(msg.Text, "\n")
+	if strings.TrimSpace(line) == "" {
+		return nil
+	}
+
+	// Prefix to make it clear this is hook stdout/stderr.
+	// Keep this deliberately simple; future work can correlate output to a
+	// specific hook execution and stream as a grouped section.
+	output.Printf("HOOK> %s\n", line)
+	return nil
+}
+
+// formatHookPath converts a full hook path to the display format:
+// - Global hooks: "~/Documents/Cline/Hooks/TaskStart"
+// - Workspace hooks: "repo-name/.clinerules/hooks/TaskStart"
+func formatHookPath(fullPath string) string {
+	// Normalize to forward slashes for consistent processing
+	normalizedPath := strings.ReplaceAll(fullPath, "\\", "/")
+
+	// Get home directory for tilde expansion
+	homeDir := ""
+	if h, err := getHomeDir(); err == nil {
+		homeDir = strings.ReplaceAll(h, "\\", "/")
+	}
+
+	// Check if path starts with home directory
+	if homeDir != "" && strings.HasPrefix(normalizedPath, homeDir) {
+		// Replace home directory with tilde
+		relativePath := strings.TrimPrefix(normalizedPath, homeDir)
+		relativePath = strings.TrimPrefix(relativePath, "/")
+		return "~/" + relativePath
+	}
+
+	// Workspace hook: find the repo name and .clinerules portion
+	// Expected path format: /absolute/path/to/repo-name/.clinerules/hooks/HookName
+	parts := strings.Split(normalizedPath, "/")
+
+	for i, part := range parts {
+		if part == ".clinerules" && i > 0 {
+			// Get repo name (directory immediately before .clinerules)
+			repoName := parts[i-1]
+			// Build display path: "repo-name/.clinerules/hooks/HookName"
+			remaining := parts[i:]
+			return repoName + "/" + strings.Join(remaining, "/")
+		}
+	}
+
+	// Fallback: if we can't identify the pattern, show last 3 components
+	// or just the full normalized path if it's too short
+	if len(parts) >= 3 {
+		return strings.Join(parts[len(parts)-3:], "/")
+	}
+	return normalizedPath
+}
+
+// getHomeDir returns the user's home directory
+func getHomeDir() (string, error) {
+	// Try to get home directory from environment
+	if home := getEnv("HOME"); home != "" {
+		return home, nil
+	}
+	if home := getEnv("USERPROFILE"); home != "" { // Windows
+		return home, nil
+	}
+	return "", fmt.Errorf("unable to determine home directory")
+}
+
+// getEnv is a helper to get environment variable
+func getEnv(key string) string {
+	return os.Getenv(key)
+}
+
 // handleDefault handles unknown SAY message types
 func (h *SayHandler) handleDefault(msg *types.ClineMessage, dc *DisplayContext) error {
+	// Debug: log unhandled say types to help identify missing cases using output.Printf for CLI consistency
+	if dc.Verbose {
+		output.Printf("[DEBUG] Unhandled SAY type: '%s' (text preview: %s)\n", msg.Say, truncateForDisplay(msg.Text, 50))
+	}
 	return dc.Renderer.RenderMessage("SAY", msg.Text, true)
+}
+
+func truncateForDisplay(text string, maxLen int) string {
+	if len(text) <= maxLen {
+		return text
+	}
+	return text[:maxLen] + "..."
 }
