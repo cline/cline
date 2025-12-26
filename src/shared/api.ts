@@ -42,6 +42,7 @@ export type ApiProvider =
 	| "minimax"
 	| "hicap"
 	| "nousResearch"
+	| "bailing"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic
@@ -86,6 +87,7 @@ export interface ApiHandlerSecrets {
 	minimaxApiKey?: string
 	hicapApiKey?: string
 	nousResearchApiKey?: string
+	bailingApiKey?: string
 }
 
 export interface ApiHandlerOptions {
@@ -176,6 +178,8 @@ export interface ApiHandlerOptions {
 	planModeHicapModelId?: string
 	planModeHicapModelInfo?: ModelInfo
 	planModeNousResearchModelId?: string
+	planModeBailingModelId?: string
+	planModeBailingModelInfo?: ModelInfo
 	// Act mode configurations
 
 	// Act mode configurations
@@ -216,6 +220,8 @@ export interface ApiHandlerOptions {
 	actModeHicapModelId?: string
 	actModeHicapModelInfo?: ModelInfo
 	actModeNousResearchModelId?: string
+	actModeBailingModelId?: string
+	actModeBailingModelInfo?: ModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions &
@@ -4320,3 +4326,33 @@ export const nousResearchModels = {
 			"This incarnation of Hermes 4 balances scale and size. It handles complex reasoning tasks, while staying fast and cost effective. A versatile choice for many use cases.",
 	},
 } as const satisfies Record<string, ModelInfo>
+
+// Bailing
+// https://alipaytbox.yuque.com/sxs0ba/ling/intro
+export const bailingModels = {
+	"Ling-1T": {
+		maxTokens: 32_000,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.57,
+		outputPrice: 2.29,
+		temperature: 0.7,
+		supportsToolCalls: true,
+		description: "Ling-1T - Bailing's reasoning model with tool calling support",
+	},
+	"Ring-1T": {
+		maxTokens: 32_000,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.57,
+		outputPrice: 2.29,
+		temperature: 0.7,
+		supportsToolCalls: false,
+		description: "Ring-1T - Bailing's general purpose model with reasoning capabilities",
+	},
+} as const satisfies Record<string, ModelInfo>
+export type BailingModelId = keyof typeof bailingModels
+export const bailingDefaultModelId: BailingModelId = "Ling-1T"
+
