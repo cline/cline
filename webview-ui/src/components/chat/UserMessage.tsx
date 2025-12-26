@@ -78,12 +78,19 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 		if (e.key === "Escape") {
+			setEditedText(text || "")
 			setIsEditing(false)
 		} else if (e.key === "Enter" && e.metaKey && !checkpointManagerErrorMessage) {
-			handleRestoreWorkspace("taskAndWorkspace")
+			// Check if text is not empty before allowing restore
+			if (editedText.trim() !== "") {
+				handleRestoreWorkspace("taskAndWorkspace")
+			}
 		} else if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) {
 			e.preventDefault()
-			handleRestoreWorkspace("task")
+			// Check if text is not empty before allowing restore
+			if (editedText.trim() !== "") {
+				handleRestoreWorkspace("task")
+			}
 		}
 	}
 
