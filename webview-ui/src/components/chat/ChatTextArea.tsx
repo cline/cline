@@ -38,7 +38,7 @@ import {
 	shouldShowContextMenu,
 } from "@/utils/context-mentions"
 import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
-import { isSafari } from "@/utils/platformUtils"
+import { detectOS, isSafari } from "@/utils/platformUtils"
 import {
 	getMatchingSlashCommands,
 	insertSlashCommand,
@@ -1099,7 +1099,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}, changeModeDelay)
 		}, [mode, showModelSelector, submitApiConfig, inputValue, selectedImages, selectedFiles])
 
-		useShortcut(usePlatform().togglePlanActKeys, onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
+		// Get base shortcut from platform config and adjust for OS
+		let planActShortcut = usePlatform().togglePlanActKeys
+		const os = detectOS(platform || "")
+		if (os === "windows") {
+			// On Windows, Meta is the Windows key which doesn't work well - use Control instead
+			planActShortcut = planActShortcut.replace("Meta", "Control")
+		} else if (os === "linux") {
+			// On Linux, use Alt for consistency
+			planActShortcut = planActShortcut.replace("Meta", "Alt")
+		}
+		useShortcut(planActShortcut, onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
 		const handleContextButtonClick = useCallback(() => {
 			// Focus the textarea first
