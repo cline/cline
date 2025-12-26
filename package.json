@@ -202,6 +202,24 @@
 				"category": "Cline"
 			},
 			{
+				"command": "cline.jupyterGenerateCell",
+				"title": "Generate Jupyter Cell with Cline",
+				"category": "Cline",
+				"icon": "$(sparkle)"
+			},
+			{
+				"command": "cline.jupyterExplainCell",
+				"title": "Explain Jupyter Cell with Cline",
+				"category": "Cline",
+				"icon": "$(question)"
+			},
+			{
+				"command": "cline.jupyterImproveCell",
+				"title": "Improve Jupyter Cell with Cline",
+				"category": "Cline",
+				"icon": "$(lightbulb)"
+			},
+			{
 				"command": "cline.openWalkthrough",
 				"title": "Open Walkthrough",
 				"category": "Cline"
@@ -304,6 +322,25 @@
 					"when": "config.git.enabled && scmProvider == git && cline.isGeneratingCommit"
 				}
 			],
+			"notebook/toolbar": [
+				{
+					"command": "cline.jupyterGenerateCell",
+					"group": "navigation/add@1",
+					"when": "notebookType == 'jupyter-notebook' && config.cline.enhancedNotebookInteractionEnabled"
+				}
+			],
+			"notebook/cell/title": [
+				{
+					"command": "cline.jupyterExplainCell",
+					"group": "inline@1",
+					"when": "notebookType == 'jupyter-notebook' && config.cline.enhancedNotebookInteractionEnabled"
+				},
+				{
+					"command": "cline.jupyterImproveCell",
+					"group": "inline@2",
+					"when": "notebookType == 'jupyter-notebook' && config.cline.enhancedNotebookInteractionEnabled"
+				}
+			],
 			"commandPalette": [
 				{
 					"command": "cline.generateGitCommitMessage",
@@ -335,7 +372,14 @@
 		},
 		"configuration": {
 			"title": "Cline",
-			"properties": {}
+			"properties": {
+				"cline.enhancedNotebookInteractionEnabled": {
+					"type": "boolean",
+					"default": false,
+					"description": "Enable enhanced Jupyter Notebook (.ipynb) support with cell-level context awareness. When enabled, Cline can read and edit notebook cells while preserving the JSON structure.",
+					"order": 1
+				}
+			}
 		}
 	},
 	"scripts": {

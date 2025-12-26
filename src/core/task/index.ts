@@ -165,6 +165,17 @@ export class Task {
 	}
 
 	/**
+	 * Update the enhanced notebook interaction setting for this task
+	 * PUBLIC: Exposed for Controller to use when settings change
+	 */
+	public updateEnhancedNotebookInteractionEnabled(enabled: boolean): void {
+		// Update the tool executor's config if it exists
+		if (this.toolExecutor) {
+			this.toolExecutor.updateEnhancedNotebookInteractionEnabled(enabled)
+		}
+	}
+
+	/**
 	 * Atomically clear active hook execution with mutex protection
 	 * Prevents TOCTOU races when clearing hook execution state
 	 * PUBLIC: Exposed for ToolExecutor to use
@@ -1783,6 +1794,7 @@ export class Task {
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
 			enableNativeToolCalls: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
+			enhancedNotebookInteractionEnabled: this.stateManager.getGlobalSettingsKey("enhancedNotebookInteractionEnabled"),
 		}
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
@@ -2966,12 +2978,15 @@ export class Task {
 		}
 
 		const parseTextBlock = async (text: string): Promise<string> => {
+			const enhancedNotebookInteractionEnabled =
+				this.stateManager.getGlobalSettingsKey("enhancedNotebookInteractionEnabled") ?? false
 			const parsedText = await parseMentions(
 				text,
 				cwd,
 				this.urlContentFetcher,
 				this.fileContextTracker,
 				this.workspaceManager,
+				enhancedNotebookInteractionEnabled,
 			)
 
 			const { processedText, needsClinerulesFileCheck: needsCheck } = await parseSlashCommands(

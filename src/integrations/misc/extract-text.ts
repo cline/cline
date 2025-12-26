@@ -7,6 +7,7 @@ import mammoth from "mammoth"
 import * as path from "path"
 // @ts-ignore-next-line
 import pdf from "pdf-parse/lib/pdf-parse"
+import { sanitizeNotebookForLLM } from "./notebook-utils"
 
 export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string): Promise<string> {
 	const detected = chardet.detect(fileBuffer)
@@ -25,20 +26,26 @@ export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string)
 	}
 }
 
-export async function extractTextFromFile(filePath: string): Promise<string> {
+export async function extractTextFromFile(
+	filePath: string,
+	enhancedNotebookInteractionEnabled: boolean = false,
+): Promise<string> {
 	try {
 		await fs.access(filePath)
 	} catch (_error) {
 		throw new Error(`File not found: ${filePath}`)
 	}
 
-	return callTextExtractionFunctions(filePath)
+	return callTextExtractionFunctions(filePath, enhancedNotebookInteractionEnabled)
 }
 
 /**
  * Expects the fs.access call to have already been performed prior to calling
  */
-export async function callTextExtractionFunctions(filePath: string): Promise<string> {
+export async function callTextExtractionFunctions(
+	filePath: string,
+	enhancedNotebookInteractionEnabled: boolean = false,
+): Promise<string> {
 	const fileExtension = path.extname(filePath).toLowerCase()
 
 	switch (fileExtension) {
@@ -47,7 +54,7 @@ export async function callTextExtractionFunctions(filePath: string): Promise<str
 		case ".docx":
 			return extractTextFromDOCX(filePath)
 		case ".ipynb":
-			return extractTextFromIPYNB(filePath)
+			return extractTextFromIPYNB(filePath, enhancedNotebookInteractionEnabled)
 		case ".xlsx":
 			return extractTextFromExcel(filePath)
 		default:
@@ -72,10 +79,17 @@ async function extractTextFromDOCX(filePath: string): Promise<string> {
 	return result.value
 }
 
-async function extractTextFromIPYNB(filePath: string): Promise<string> {
+async function extractTextFromIPYNB(filePath: string, enhancedNotebookInteractionEnabled: boolean = false): Promise<string> {
 	const fileBuffer = await fs.readFile(filePath)
 	const encoding = await detectEncoding(fileBuffer)
 	const data = iconv.decode(fileBuffer, encoding)
+
+	// If enhanced notebook interaction is enabled, return sanitized JSON for proper editing
+	if (enhancedNotebookInteractionEnabled) {
+		return sanitizeNotebookForLLM(data)
+	}
+
+	// Otherwise, extract text content for reading
 	const notebook = JSON.parse(data)
 	let extractedText = ""
 
