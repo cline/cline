@@ -220,6 +220,14 @@ message ClineMessage {
   ClineModelInfo model_info = 23;
 }
 
+message ShowWebviewRequest {
+  bool preserve_editor_focus = 1;  // When true, show webview without stealing focus from editor
+}
+
+message ShowWebviewEvent {
+  bool preserve_editor_focus = 1;  // When true, webview should not steal focus from editor
+}
+
 // UiService provides methods for managing UI interactions
 service UiService {
   // Scrolls to a specific settings section in the settings view
@@ -258,11 +266,8 @@ service UiService {
   // Subscribe to relinquish control events
   rpc subscribeToRelinquishControl(EmptyRequest) returns (stream Empty);
 
-  // Subscribe to focus chat input events
-  rpc subscribeToFocusChatInput(EmptyRequest) returns (stream Empty);
-
-  // Subscribe to webview visibility change events
-  rpc subscribeToDidBecomeVisible(EmptyRequest) returns (stream Empty);
+  // Subscribe to show webview events
+  rpc subscribeToShowWebview(ShowWebviewRequest) returns (stream ShowWebviewEvent);
 
   // Returns the HTML for the webview index page. This is only used by external clients, not by the vscode webview.
   rpc getWebviewHtml(EmptyRequest) returns (String);
