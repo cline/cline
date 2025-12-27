@@ -324,6 +324,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const subagentsEnabled = context.globalState.get<GlobalStateAndSettings["subagentsEnabled"]>("subagentsEnabled")
 		const backgroundEditEnabled =
 			context.globalState.get<GlobalStateAndSettings["backgroundEditEnabled"]>("backgroundEditEnabled")
+		const optOutOfRemoteConfig =
+			context.globalState.get<GlobalStateAndSettings["optOutOfRemoteConfig"]>("optOutOfRemoteConfig")
 
 		// Get mode-related configurations
 		const mode = context.globalState.get<GlobalStateAndSettings["mode"]>("mode")
@@ -688,6 +690,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			// Hooks require explicit user opt-in and are only supported on macOS/Linux
 			hooksEnabled: getHooksEnabledSafe(hooksEnabled),
 			subagentsEnabled: subagentsEnabled ?? false,
+			optOutOfRemoteConfig: optOutOfRemoteConfig ?? false,
 			enableParallelToolCalling: enableParallelToolCalling ?? false,
 			lastDismissedInfoBannerVersion: lastDismissedInfoBannerVersion ?? 0,
 			lastDismissedModelBannerVersion: lastDismissedModelBannerVersion ?? 0,
