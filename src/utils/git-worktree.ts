@@ -1,5 +1,7 @@
 import { exec } from "child_process"
+import * as path from "path"
 import { promisify } from "util"
+import { copyWorktreeIncludeFiles } from "./worktree-include"
 
 const execAsync = promisify(exec)
 
@@ -135,7 +137,7 @@ export async function listWorktrees(cwd: string): Promise<{ worktrees: Worktree[
  */
 export async function createWorktree(
 	cwd: string,
-	path: string,
+	worktreePath: string,
 	options: {
 		branch?: string
 		baseBranch?: string
@@ -158,27 +160,44 @@ export async function createWorktree(
 		if (options.createNewBranch && options.branch) {
 			// Create a new branch and worktree
 			if (options.baseBranch) {
-				command = `git worktree add -b "${options.branch}" "${path}" "${options.baseBranch}"`
+				command = `git worktree add -b "${options.branch}" "${worktreePath}" "${options.baseBranch}"`
 			} else {
-				command = `git worktree add -b "${options.branch}" "${path}"`
+				command = `git worktree add -b "${options.branch}" "${worktreePath}"`
 			}
 		} else if (options.branch) {
 			// Checkout existing branch
-			command = `git worktree add "${path}" "${options.branch}"`
+			command = `git worktree add "${worktreePath}" "${options.branch}"`
 		} else {
 			// Create detached worktree at HEAD
-			command = `git worktree add --detach "${path}"`
+			command = `git worktree add --detach "${worktreePath}"`
 		}
 
 		await execAsync(command, { cwd })
 
+		// Resolve the absolute path of the new worktree
+		const absoluteWorktreePath = path.isAbsolute(worktreePath) ? worktreePath : path.resolve(cwd, worktreePath)
+
+		// Copy files matched by .worktreeinclude (if it exists)
+		const { copiedCount, errors: copyErrors } = await copyWorktreeIncludeFiles(cwd, absoluteWorktreePath)
+
 		// Get the created worktree info
 		const { worktrees } = await listWorktrees(cwd)
-		const createdWorktree = worktrees.find((w) => w.path === path)
+		const createdWorktree = worktrees.find((w) => w.path === absoluteWorktreePath)
+
+		let message = `Worktree created at ${worktreePath}`
+		if (copiedCount > 0) {
+			message += ` (copied ${copiedCount} file${copiedCount === 1 ? "" : "s"} from .worktreeinclude)`
+		}
+		if (copyErrors.length > 0) {
+			message += `. Some files failed to copy: ${copyErrors.slice(0, 3).join(", ")}`
+			if (copyErrors.length > 3) {
+				message += ` and ${copyErrors.length - 3} more`
+			}
+		}
 
 		return {
 			success: true,
-			message: `Worktree created at ${path}`,
+			message,
 			worktree: createdWorktree,
 		}
 	} catch (error) {
