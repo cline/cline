@@ -263,7 +263,7 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 		} finally {
 			setIsMerging(false)
 		}
-	}, [mergeWorktree, getMainBranch, deleteAfterMerge, loadWorktrees, closeMergeModal])
+	}, [mergeWorktree, getMainBranch, deleteAfterMerge, loadWorktrees])
 
 	// Ask Cline to resolve conflicts
 	const handleAskClineToResolve = useCallback(async () => {
