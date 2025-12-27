@@ -1,0 +1,184 @@
+---
+title: "Worktrees"
+sidebarTitle: "Worktrees"
+---
+
+Worktrees let you work on multiple branches simultaneously, each in its own folder. This enables Cline to work on tasks in parallel across separate VS Code windows, or lets Cline work independently while you continue coding in your main workspace.
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/worktrees-overview.png"
+		alt="Worktrees view showing multiple linked worktrees"
+	/>
+</Frame>
+
+## What Are Git Worktrees?
+
+A Git worktree is a linked copy of your repository in a separate folder, checked out to a specific branch. All worktrees share the same Git history and `.git` directory, but each has its own working directory with different code checked out.
+
+Key concepts:
+- **Main worktree**: Your original repository folder where the `.git` directory lives
+- **Linked worktrees**: Additional folders you create, each checked out to a different branch
+- **Shared history**: All worktrees share commits, branches, and Git configuration
+
+<Tip>
+  Unlike regular branch switching, worktrees let you have multiple branches checked out at the same time in different folders. This means you can have VS Code windows open for different features simultaneously.
+</Tip>
+
+## Why Use Worktrees with Cline?
+
+Worktrees solve a common problem: **Cline takes over your VS Code window while working on a task**. With worktrees, you can:
+
+1. **Run Cline in parallel** - Have Cline work on multiple tasks simultaneously, each in its own worktree and VS Code window
+2. **Keep working while Cline works** - Let Cline handle a task in a separate worktree while you continue coding in your main workspace
+3. **Isolate experimental changes** - Test risky changes in a worktree without affecting your main branch
+4. **Quick context switching** - Jump between features without stashing or committing incomplete work
+
+## Getting Started
+
+<Steps>
+  <Step title="Open the Worktrees View">
+    Click the **Worktrees** button in the Cline sidebar header to open the Worktrees view.
+  </Step>
+  <Step title="Create a New Worktree">
+    Click **New Worktree** at the bottom of the view. You'll need to provide:
+    - **Branch name**: The new branch to create (e.g., `feature/user-auth`)
+    - **Path**: Where to create the worktree folder
+    
+    <Tip>
+      Click **Auto-fill with suggested values** to get a random branch name and a path in your Documents folder.
+    </Tip>
+  </Step>
+  <Step title="Open in New Window">
+    Once created, click the **Open in new window** button to open the worktree in a separate VS Code window. Now you can run Cline independently in that window!
+  </Step>
+</Steps>
+
+## Managing Worktrees
+
+### Viewing Worktrees
+
+The Worktrees view shows all worktrees for your repository:
+
+- **Current**: The worktree you're currently in (highlighted)
+- **Main**: The primary worktree where your `.git` directory lives (cannot be deleted)
+- **Locked**: Worktrees that are locked to prevent accidental deletion
+
+### Opening Worktrees
+
+Each worktree has two open options:
+- **Open in current window**: Replace your current workspace with the worktree
+- **Open in new window**: Open the worktree in a separate VS Code window (recommended for parallel Cline sessions)
+
+### Deleting Worktrees
+
+Click the trash icon on any linked worktree to delete it. This removes the worktree folder and unlinks it from your repository. The branch itself is preserved—only the working directory is removed.
+
+<Warning>
+  You cannot delete the main worktree. It's the primary repository where your `.git` directory lives.
+</Warning>
+
+## Worktreeinclude: Automatic File Copying {#worktreeinclude}
+
+When you create a new worktree, it starts with a fresh checkout—no `node_modules`, no build artifacts, no IDE settings. This means you'd normally need to run `npm install` or similar setup commands.
+
+The `.worktreeinclude` file solves this by automatically copying specified files to new worktrees.
+
+### How It Works
+
+1. Create a `.worktreeinclude` file in your repository root
+2. Add glob patterns for files you want copied (using `.gitignore` syntax)
+3. When Cline creates a new worktree, files matching **both** `.worktreeinclude` **and** `.gitignore` are copied automatically
+
+<Note>
+  Only files that are both matched by `.worktreeinclude` AND listed in `.gitignore` are copied. This prevents accidentally duplicating tracked files.
+</Note>
+
+### Example `.worktreeinclude`
+
+```gitignore
+# Copy node_modules to avoid npm install
+node_modules/
+
+# Copy IDE settings
+.vscode/
+
+# Copy build cache
+.next/
+dist/
+
+# Copy environment files (if gitignored)
+.env.local
+```
+
+### Creating a `.worktreeinclude` File
+
+The Worktrees view will show a tip if you don't have a `.worktreeinclude` file. If you have a `.gitignore`, you can click **Create from .gitignore** to create one pre-filled with your gitignore contents. Then edit it to keep only the patterns you want copied.
+
+<Tip>
+  For most JavaScript/TypeScript projects, just including `node_modules/` in your `.worktreeinclude` saves significant setup time for each new worktree.
+</Tip>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="For Parallel Cline Sessions">
+    1. **Create purpose-specific worktrees** - Name branches clearly (e.g., `cline/refactor-auth`, `cline/add-tests`)
+    2. **Open in new windows** - Always use "Open in new window" for true parallelism
+    3. **Use .worktreeinclude** - Set up automatic file copying to reduce setup time
+  </Accordion>
+  <Accordion title="For Solo Development">
+    1. **Keep your main branch clean** - Use worktrees for experimental or risky changes
+    2. **Quick feature switches** - Instead of stashing, create a worktree for interruptions
+    3. **Review in isolation** - Create worktrees to review PRs without disrupting your work
+  </Accordion>
+  <Accordion title="Worktree Hygiene">
+    1. **Delete unused worktrees** - Remove worktrees when their branches are merged
+    2. **Use meaningful names** - Branch names should indicate the worktree's purpose
+    3. **Check for stale worktrees** - Periodically review and clean up old worktrees
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Branch already exists error">
+    Git doesn't allow the same branch to be checked out in multiple worktrees. Either:
+    - Use a different branch name
+    - Delete the existing worktree using that branch
+  </Accordion>
+  <Accordion title="Worktree folder already exists">
+    The path you specified already contains files. Choose a different path or delete the existing folder first.
+  </Accordion>
+  <Accordion title="Can't delete worktree">
+    If a worktree is locked, you'll need to unlock it first using `git worktree unlock <path>` in the terminal. If the worktree has uncommitted changes, you may need to use force delete.
+  </Accordion>
+  <Accordion title=".worktreeinclude files not copying">
+    Make sure the files you want copied are:
+    1. Listed in your `.worktreeinclude` file
+    2. Also listed in your `.gitignore` (only gitignored files are copied)
+    3. Actually exist in your current worktree
+  </Accordion>
+</AccordionGroup>
+
+## Technical Details
+
+<AccordionGroup>
+  <Accordion title="How Worktrees Work Internally">
+    - Worktrees are a native Git feature (`git worktree` command)
+    - All worktrees share the same `.git` directory and object database
+    - Each worktree has its own index, working directory, and HEAD
+    - Worktree list is stored in `.git/worktrees/`
+  </Accordion>
+  <Accordion title="Storage Considerations">
+    - Each worktree contains a full checkout of the repository
+    - `.worktreeinclude` can significantly increase worktree size (e.g., copying `node_modules`)
+    - Consider your disk space when creating many worktrees
+  </Accordion>
+  <Accordion title="Relationship with Checkpoints">
+    Worktrees are separate from Cline's [checkpoint system](/features/checkpoints). Each worktree has its own checkpoint history. Checkpoints track changes within a single worktree, while worktrees let you work across multiple branches simultaneously.
+  </Accordion>
+</AccordionGroup>
+
+Worktrees unlock true parallel development with Cline. Create a worktree, open it in a new window, and let Cline work independently while you continue coding!
+
