@@ -24,6 +24,9 @@ service WorktreeService {
 
   // Gets available branches for creating worktrees
   rpc getAvailableBranches(EmptyRequest) returns (BranchList);
+
+  // Gets suggested defaults for creating a new worktree (auto-generated branch name and path)
+  rpc getWorktreeDefaults(EmptyRequest) returns (WorktreeDefaults);
 }
 
 // Represents a single git worktree
@@ -80,5 +83,11 @@ message BranchList {
   repeated string local_branches = 1;
   repeated string remote_branches = 2;
   string current_branch = 3;
+}
+
+// Suggested defaults for creating a new worktree
+message WorktreeDefaults {
+  string suggested_branch = 1;  // Auto-generated branch name like "worktree/cline-abc12"
+  string suggested_path = 2;    // Path in Documents/Cline/Worktrees/<project>-<suffix>
 }
 

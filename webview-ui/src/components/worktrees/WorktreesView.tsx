@@ -2,8 +2,9 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import type { Worktree as WorktreeProto } from "@shared/proto/cline/worktree"
 import { CreateWorktreeRequest, DeleteWorktreeRequest, SwitchWorktreeRequest } from "@shared/proto/cline/worktree"
 import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { AlertCircle, BookOpen, ExternalLink, FolderOpen, GitBranch, Loader2, Plus, Trash2 } from "lucide-react"
+import { AlertCircle, BookOpen, ExternalLink, FolderOpen, GitBranch, Loader2, Plus, Trash2, X } from "lucide-react"
 import { memo, useCallback, useEffect, useState } from "react"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { WorktreeServiceClient } from "@/services/grpc-client"
 import { getEnvironmentColor } from "@/utils/environmentColors"
@@ -24,6 +25,7 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 	const [isCreating, setIsCreating] = useState(false)
 	const [createError, setCreateError] = useState<string | null>(null)
 	const [deleteConfirmPath, setDeleteConfirmPath] = useState<string | null>(null)
+	const [isLoadingDefaults, setIsLoadingDefaults] = useState(false)
 
 	// Check if a worktree is the main/primary worktree (first one, typically the original clone)
 	const isMainWorktree = useCallback(
@@ -57,6 +59,28 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 	useEffect(() => {
 		loadWorktrees()
 	}, [loadWorktrees])
+
+	// Fetch and apply suggested defaults for branch name and path
+	const loadDefaults = useCallback(async () => {
+		setIsLoadingDefaults(true)
+		try {
+			const defaults = await WorktreeServiceClient.getWorktreeDefaults(EmptyRequest.create({}))
+			setNewBranchName(defaults.suggestedBranch)
+			setNewWorktreePath(defaults.suggestedPath)
+		} catch (err) {
+			console.error("Failed to load worktree defaults:", err)
+		} finally {
+			setIsLoadingDefaults(false)
+		}
+	}, [])
+
+	// Close modal and reset form state
+	const closeCreateForm = useCallback(() => {
+		setShowCreateForm(false)
+		setNewWorktreePath("")
+		setNewBranchName("")
+		setCreateError(null)
+	}, [])
 
 	const handleCreateWorktree = useCallback(async () => {
 		if (!newWorktreePath || !newBranchName) return
@@ -144,9 +168,8 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 					</div>
 				</div>
 				<p className="text-sm text-[var(--vscode-descriptionForeground)] m-0 mb-2">
-					Worktrees let you work on multiple branches at the same time, each in its own folder. Instead of switching
-					branches (which changes all your files), you can have separate folders for each branch and switch between them
-					instantly.
+					Worktrees let you work on multiple branches at the same time, each in its own folder. Open worktrees in their
+					own VS Code windows so Cline can work on multiple tasks in parallel.
 				</p>
 				<a
 					className="inline-flex items-center gap-1 text-sm text-[var(--vscode-textLink-foreground)] hover:text-[var(--vscode-textLink-activeForeground)]"
@@ -234,18 +257,26 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 									<div className="flex items-center gap-1 ml-2">
 										{!worktree.isCurrent && (
 											<>
-												<VSCodeButton
-													appearance="icon"
-													onClick={() => handleSwitchWorktree(worktree.path, false)}
-													title="Open in current window">
-													<FolderOpen className="w-4 h-4" />
-												</VSCodeButton>
-												<VSCodeButton
-													appearance="icon"
-													onClick={() => handleSwitchWorktree(worktree.path, true)}
-													title="Open in new window">
-													<ExternalLink className="w-4 h-4" />
-												</VSCodeButton>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<VSCodeButton
+															appearance="icon"
+															onClick={() => handleSwitchWorktree(worktree.path, false)}>
+															<FolderOpen className="w-4 h-4" />
+														</VSCodeButton>
+													</TooltipTrigger>
+													<TooltipContent side="bottom">Open in current window</TooltipContent>
+												</Tooltip>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<VSCodeButton
+															appearance="icon"
+															onClick={() => handleSwitchWorktree(worktree.path, true)}>
+															<ExternalLink className="w-4 h-4" />
+														</VSCodeButton>
+													</TooltipTrigger>
+													<TooltipContent side="bottom">Open in new window</TooltipContent>
+												</Tooltip>
 											</>
 										)}
 										{!worktree.isCurrent && !isMainWorktree(worktree) && (
@@ -265,12 +296,16 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 														</VSCodeButton>
 													</div>
 												) : (
-													<VSCodeButton
-														appearance="icon"
-														onClick={() => setDeleteConfirmPath(worktree.path)}
-														title="Delete worktree">
-														<Trash2 className="w-4 h-4 text-[var(--vscode-errorForeground)]" />
-													</VSCodeButton>
+													<Tooltip>
+														<TooltipTrigger asChild>
+															<VSCodeButton
+																appearance="icon"
+																onClick={() => setDeleteConfirmPath(worktree.path)}>
+																<Trash2 className="w-4 h-4 text-[var(--vscode-errorForeground)]" />
+															</VSCodeButton>
+														</TooltipTrigger>
+														<TooltipContent side="bottom">Remove this worktree</TooltipContent>
+													</Tooltip>
 												)}
 											</>
 										)}
@@ -284,9 +319,23 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 
 			{/* Create Worktree Modal */}
 			{showCreateForm && (
-				<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-					<div className="bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded-lg p-5 w-[450px] max-w-[90vw]">
-						<h4 className="mt-0 mb-2">Create New Worktree</h4>
+				<div
+					className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+					onClick={(e) => {
+						// Close when clicking the backdrop (not the modal content)
+						if (e.target === e.currentTarget) {
+							closeCreateForm()
+						}
+					}}>
+					<div className="bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded-lg p-5 w-[450px] max-w-[90vw] relative">
+						{/* Close button */}
+						<button
+							className="absolute top-3 right-3 p-1 rounded hover:bg-[var(--vscode-toolbar-hoverBackground)] text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-foreground)] transition-colors"
+							onClick={closeCreateForm}
+							type="button">
+							<X className="w-4 h-4" />
+						</button>
+						<h4 className="mt-0 mb-2 pr-6">Create New Worktree</h4>
 						<p className="text-sm text-[var(--vscode-descriptionForeground)] mt-0 mb-4">
 							This will create a new folder with a copy of your code on a new branch. You can work on both branches
 							simultaneously without switching.
@@ -326,14 +375,16 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 							<div className="flex justify-end gap-2 mt-2">
 								<VSCodeButton
 									appearance="secondary"
-									disabled={isCreating}
-									onClick={() => {
-										setShowCreateForm(false)
-										setNewWorktreePath("")
-										setNewBranchName("")
-										setCreateError(null)
-									}}>
-									Cancel
+									disabled={isLoadingDefaults || isCreating}
+									onClick={loadDefaults}>
+									{isLoadingDefaults ? (
+										<>
+											<Loader2 className="w-4 h-4 mr-1 animate-spin" />
+											Generating...
+										</>
+									) : (
+										"Auto-fill"
+									)}
 								</VSCodeButton>
 								<VSCodeButton
 									disabled={!newWorktreePath || !newBranchName || isCreating}
