@@ -148,6 +148,11 @@
 				"icon": "$(account)"
 			},
 			{
+				"command": "cline.worktreesButtonClicked",
+				"title": "Git Worktrees",
+				"icon": "$(git-branch)"
+			},
+			{
 				"command": "cline.settingsButtonClicked",
 				"title": "Settings",
 				"icon": "$(settings-gear)"
@@ -266,6 +271,11 @@
 				{
 					"command": "cline.historyButtonClicked",
 					"group": "navigation@3",
+					"when": "view == claude-dev.SidebarProvider"
+				},
+				{
+					"command": "cline.worktreesButtonClicked",
+					"group": "navigation@4",
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
