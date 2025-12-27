@@ -22,6 +22,7 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 	const [newWorktreePath, setNewWorktreePath] = useState("")
 	const [newBranchName, setNewBranchName] = useState("")
 	const [isCreating, setIsCreating] = useState(false)
+	const [createError, setCreateError] = useState<string | null>(null)
 	const [deleteConfirmPath, setDeleteConfirmPath] = useState<string | null>(null)
 
 	// Check if a worktree is the main/primary worktree (first one, typically the original clone)
@@ -61,6 +62,7 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 		if (!newWorktreePath || !newBranchName) return
 
 		setIsCreating(true)
+		setCreateError(null)
 		try {
 			const result = await WorktreeServiceClient.createWorktree(
 				CreateWorktreeRequest.create({
@@ -71,15 +73,16 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 			)
 
 			if (!result.success) {
-				setError(result.message)
+				setCreateError(result.message)
 			} else {
 				await loadWorktrees()
 				setShowCreateForm(false)
 				setNewWorktreePath("")
 				setNewBranchName("")
+				setCreateError(null)
 			}
 		} catch (err) {
-			setError(err instanceof Error ? err.message : "Failed to create worktree")
+			setCreateError(err instanceof Error ? err.message : "Failed to create worktree")
 		} finally {
 			setIsCreating(false)
 		}
@@ -314,6 +317,12 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 									"../my-feature" creates a sibling folder).
 								</p>
 							</div>
+							{createError && (
+								<div className="flex items-start gap-2 p-3 rounded bg-[var(--vscode-inputValidation-errorBackground)] border border-[var(--vscode-inputValidation-errorBorder)]">
+									<AlertCircle className="w-4 h-4 flex-shrink-0 text-[var(--vscode-errorForeground)] mt-0.5" />
+									<p className="text-sm text-[var(--vscode-errorForeground)] m-0">{createError}</p>
+								</div>
+							)}
 							<div className="flex justify-end gap-2 mt-2">
 								<VSCodeButton
 									appearance="secondary"
@@ -322,6 +331,7 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 										setShowCreateForm(false)
 										setNewWorktreePath("")
 										setNewBranchName("")
+										setCreateError(null)
 									}}>
 									Cancel
 								</VSCodeButton>
