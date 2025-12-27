@@ -177,6 +177,7 @@
 									"features/tasks/task-management"
 								]
 							},
+							"features/worktrees",
 							"features/yolo-mode"
 						]
 					},
