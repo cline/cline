@@ -1,9 +1,6 @@
-import { exec } from "child_process"
 import * as path from "path"
-import { promisify } from "util"
+import simpleGit from "simple-git"
 import { copyWorktreeIncludeFiles } from "./worktree-include"
-
-const execAsync = promisify(exec)
 
 export interface Worktree {
 	path: string
@@ -33,7 +30,7 @@ export interface BranchInfo {
  */
 async function checkGitInstalled(): Promise<boolean> {
 	try {
-		await execAsync("git --version")
+		await simpleGit().version()
 		return true
 	} catch (_error) {
 		return false
@@ -45,8 +42,8 @@ async function checkGitInstalled(): Promise<boolean> {
  */
 async function checkGitRepo(cwd: string): Promise<boolean> {
 	try {
-		await execAsync("git rev-parse --git-dir", { cwd })
-		return true
+		const git = simpleGit(cwd)
+		return await git.checkIsRepo()
 	} catch (_error) {
 		return false
 	}
@@ -57,8 +54,9 @@ async function checkGitRepo(cwd: string): Promise<boolean> {
  */
 async function getCurrentWorktreePath(cwd: string): Promise<string> {
 	try {
-		const { stdout } = await execAsync("git rev-parse --show-toplevel", { cwd })
-		return stdout.trim()
+		const git = simpleGit(cwd)
+		const root = await git.revparse(["--show-toplevel"])
+		return root.trim()
 	} catch (_error) {
 		return cwd
 	}
@@ -80,7 +78,8 @@ export async function listWorktrees(cwd: string): Promise<{ worktrees: Worktree[
 
 	try {
 		const currentPath = await getCurrentWorktreePath(cwd)
-		const { stdout } = await execAsync("git worktree list --porcelain", { cwd })
+		const git = simpleGit(cwd)
+		const stdout = await git.raw(["worktree", "list", "--porcelain"])
 
 		const worktrees: Worktree[] = []
 		const entries = stdout.trim().split("\n\n").filter(Boolean)
@@ -155,24 +154,24 @@ export async function createWorktree(
 	}
 
 	try {
-		let command: string
+		const git = simpleGit(cwd)
+		const args: string[] = ["worktree", "add"]
 
 		if (options.createNewBranch && options.branch) {
 			// Create a new branch and worktree
+			args.push("-b", options.branch, worktreePath)
 			if (options.baseBranch) {
-				command = `git worktree add -b "${options.branch}" "${worktreePath}" "${options.baseBranch}"`
-			} else {
-				command = `git worktree add -b "${options.branch}" "${worktreePath}"`
+				args.push(options.baseBranch)
 			}
 		} else if (options.branch) {
 			// Checkout existing branch
-			command = `git worktree add "${worktreePath}" "${options.branch}"`
+			args.push(worktreePath, options.branch)
 		} else {
 			// Create detached worktree at HEAD
-			command = `git worktree add --detach "${worktreePath}"`
+			args.push("--detach", worktreePath)
 		}
 
-		await execAsync(command, { cwd })
+		await git.raw(args)
 
 		// Resolve the absolute path of the new worktree
 		const absoluteWorktreePath = path.isAbsolute(worktreePath) ? worktreePath : path.resolve(cwd, worktreePath)
@@ -223,9 +222,10 @@ export async function deleteWorktree(cwd: string, path: string, force: boolean =
 	}
 
 	try {
-		const command = force ? `git worktree remove --force "${path}"` : `git worktree remove "${path}"`
+		const git = simpleGit(cwd)
+		const args = force ? ["worktree", "remove", "--force", path] : ["worktree", "remove", path]
 
-		await execAsync(command, { cwd })
+		await git.raw(args)
 
 		return {
 			success: true,
@@ -254,31 +254,29 @@ export async function getAvailableBranches(cwd: string): Promise<BranchInfo> {
 	}
 
 	try {
+		const git = simpleGit(cwd)
+
 		// Get current branch
 		let currentBranch = ""
 		try {
-			const { stdout: currentStdout } = await execAsync("git branch --show-current", { cwd })
-			currentBranch = currentStdout.trim()
+			currentBranch = await git.revparse(["--abbrev-ref", "HEAD"])
+			currentBranch = currentBranch.trim()
+			if (currentBranch === "HEAD") {
+				// Detached HEAD state
+				currentBranch = ""
+			}
 		} catch {
 			// Detached HEAD state
 			currentBranch = ""
 		}
 
-		// Get local branches
-		const { stdout: localStdout } = await execAsync("git branch --format='%(refname:short)'", { cwd })
-		const localBranches = localStdout
-			.trim()
-			.split("\n")
-			.map((b) => b.trim().replace(/^'|'$/g, ""))
-			.filter(Boolean)
+		// Get all branches using branchLocal and branch -r
+		const branchSummary = await git.branchLocal()
+		const localBranches = branchSummary.all
 
 		// Get remote branches
-		const { stdout: remoteStdout } = await execAsync("git branch -r --format='%(refname:short)'", { cwd })
-		const remoteBranches = remoteStdout
-			.trim()
-			.split("\n")
-			.map((b) => b.trim().replace(/^'|'$/g, ""))
-			.filter((b) => b && !b.includes("HEAD"))
+		const remoteBranchSummary = await git.branch(["-r"])
+		const remoteBranches = remoteBranchSummary.all.filter((b) => !b.includes("HEAD"))
 
 		// Filter out branches that already have worktrees
 		const { worktrees } = await listWorktrees(cwd)
