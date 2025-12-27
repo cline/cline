@@ -50,7 +50,7 @@ export const Navbar = () => {
 			{
 				id: "worktrees",
 				name: "Worktrees",
-				tooltip: "Git Worktrees",
+				tooltip: "Worktrees",
 				icon: GitBranchIcon,
 				navigate: navigateToWorktrees,
 			},

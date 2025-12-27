@@ -1,12 +1,17 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import type { Worktree as WorktreeProto } from "@shared/proto/cline/worktree"
-import { CreateWorktreeRequest, DeleteWorktreeRequest, SwitchWorktreeRequest } from "@shared/proto/cline/worktree"
+import {
+	CreateWorktreeIncludeRequest,
+	CreateWorktreeRequest,
+	DeleteWorktreeRequest,
+	SwitchWorktreeRequest,
+} from "@shared/proto/cline/worktree"
 import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { AlertCircle, BookOpen, ExternalLink, FolderOpen, GitBranch, Loader2, Plus, Trash2, X } from "lucide-react"
+import { AlertCircle, Check, ExternalLink, FolderOpen, GitBranch, Loader2, Plus, Trash2, X } from "lucide-react"
 import { memo, useCallback, useEffect, useState } from "react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { WorktreeServiceClient } from "@/services/grpc-client"
+import { FileServiceClient, WorktreeServiceClient } from "@/services/grpc-client"
 import { getEnvironmentColor } from "@/utils/environmentColors"
 
 type WorktreesViewProps = {
@@ -26,6 +31,12 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 	const [createError, setCreateError] = useState<string | null>(null)
 	const [deleteConfirmPath, setDeleteConfirmPath] = useState<string | null>(null)
 	const [isLoadingDefaults, setIsLoadingDefaults] = useState(false)
+
+	// .worktreeinclude status
+	const [hasWorktreeInclude, setHasWorktreeInclude] = useState(false)
+	const [hasGitignore, setHasGitignore] = useState(false)
+	const [gitignoreContent, setGitignoreContent] = useState("")
+	const [isCreatingWorktreeInclude, setIsCreatingWorktreeInclude] = useState(false)
 
 	// Check if a worktree is the main/primary worktree (first one, typically the original clone)
 	const isMainWorktree = useCallback(
@@ -56,9 +67,45 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 		}
 	}, [])
 
+	// Load .worktreeinclude status
+	const loadWorktreeIncludeStatus = useCallback(async () => {
+		try {
+			const status = await WorktreeServiceClient.getWorktreeIncludeStatus(EmptyRequest.create({}))
+			setHasWorktreeInclude(status.exists)
+			setHasGitignore(status.hasGitignore)
+			setGitignoreContent(status.gitignoreContent)
+		} catch (err) {
+			console.error("Failed to load worktree include status:", err)
+		}
+	}, [])
+
+	// Create .worktreeinclude file and open it in editor
+	const handleCreateWorktreeInclude = useCallback(async () => {
+		setIsCreatingWorktreeInclude(true)
+		try {
+			const result = await WorktreeServiceClient.createWorktreeInclude(
+				CreateWorktreeIncludeRequest.create({
+					content: gitignoreContent,
+				}),
+			)
+			if (result.success) {
+				setHasWorktreeInclude(true)
+				// Open the file in the editor
+				await FileServiceClient.openFileRelativePath({ value: ".worktreeinclude" })
+			} else {
+				setError(result.message)
+			}
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to create .worktreeinclude")
+		} finally {
+			setIsCreatingWorktreeInclude(false)
+		}
+	}, [gitignoreContent])
+
 	useEffect(() => {
 		loadWorktrees()
-	}, [loadWorktrees])
+		loadWorktreeIncludeStatus()
+	}, [loadWorktrees, loadWorktreeIncludeStatus])
 
 	// Fetch and apply suggested defaults for branch name and path
 	const loadDefaults = useCallback(async () => {
@@ -150,171 +197,238 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 
 	return (
 		<div className="fixed inset-0 flex flex-col overflow-hidden">
-			{/* Header */}
-			<div className="px-5 py-4 border-b border-[var(--vscode-panel-border)]">
-				<div className="flex justify-between items-center mb-3">
-					<h3 className="m-0" style={{ color: getEnvironmentColor(environment) }}>
-						Git Worktrees
-					</h3>
-					<div className="flex gap-2">
-						<VSCodeButton
-							appearance="secondary"
-							disabled={!isGitRepo || isLoading}
-							onClick={() => setShowCreateForm(true)}>
+			{/* Sticky Header with title and Done button */}
+			<div className="flex-none flex justify-between items-center px-5 py-3 border-b border-[var(--vscode-panel-border)]">
+				<h3 className="m-0" style={{ color: getEnvironmentColor(environment) }}>
+					Worktrees
+				</h3>
+				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
+			</div>
+
+			{/* Scrollable Content */}
+			<div className="flex-1 overflow-y-auto p-5">
+				{/* Description */}
+				<p className="text-sm text-[var(--vscode-descriptionForeground)] m-0 mb-4">
+					Git worktrees let you work on multiple branches at the same time, each in its own folder. Open worktrees in
+					their own VS Code windows so Cline can work on multiple tasks in parallel.{" "}
+					<a
+						className="text-[var(--vscode-textLink-foreground)] hover:text-[var(--vscode-textLink-activeForeground)]"
+						href="https://docs.cline.bot/worktrees"
+						rel="noopener noreferrer"
+						style={{ fontSize: "inherit" }}
+						target="_blank">
+						Learn more
+					</a>
+				</p>
+
+				{/* .worktreeinclude status */}
+				{isGitRepo && (
+					<div
+						className="p-3 rounded-md"
+						style={{
+							border: "1px solid var(--vscode-widget-border)",
+							backgroundColor: "var(--vscode-list-hoverBackground)",
+						}}>
+						{hasWorktreeInclude ? (
+							<p className="text-sm text-[var(--vscode-testing-iconPassed)] m-0">
+								<Check className="w-4 h-4 inline-block align-text-bottom mr-1" />
+								.worktreeinclude detected.{" "}
+								<a
+									className="text-[var(--vscode-textLink-foreground)] hover:text-[var(--vscode-textLink-activeForeground)]"
+									href="https://docs.cline.bot/worktreeinclude"
+									rel="noopener noreferrer"
+									style={{ fontSize: "inherit" }}
+									target="_blank">
+									Learn more
+								</a>
+							</p>
+						) : (
+							<div className="flex flex-col gap-2">
+								<p className="text-sm text-[var(--vscode-descriptionForeground)] m-0">
+									<strong>Tip:</strong> Create a{" "}
+									<code className="bg-[var(--vscode-textCodeBlock-background)] px-1 rounded">
+										.worktreeinclude
+									</code>{" "}
+									file to automatically copy files like{" "}
+									<code className="bg-[var(--vscode-textCodeBlock-background)] px-1 rounded">
+										node_modules/
+									</code>{" "}
+									to new worktrees, so you don't have to reinstall dependencies.{" "}
+									<a
+										className="text-[var(--vscode-textLink-foreground)] hover:text-[var(--vscode-textLink-activeForeground)]"
+										href="https://docs.cline.bot/worktreeinclude"
+										rel="noopener noreferrer"
+										style={{ fontSize: "inherit" }}
+										target="_blank">
+										Learn more
+									</a>
+								</p>
+								{hasGitignore && (
+									<VSCodeButton
+										appearance="secondary"
+										disabled={isCreatingWorktreeInclude}
+										onClick={handleCreateWorktreeInclude}>
+										{isCreatingWorktreeInclude ? (
+											<>
+												<Loader2 className="w-3 h-3 mr-1 animate-spin" />
+												Creating...
+											</>
+										) : (
+											"Create from .gitignore"
+										)}
+									</VSCodeButton>
+								)}
+							</div>
+						)}
+					</div>
+				)}
+
+				{/* New Worktree Button */}
+				{isGitRepo && (
+					<div className="mt-4">
+						<VSCodeButton disabled={isLoading} onClick={() => setShowCreateForm(true)}>
 							<Plus className="w-4 h-4 mr-1" />
 							New Worktree
 						</VSCodeButton>
-						<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 					</div>
-				</div>
-				<p className="text-sm text-[var(--vscode-descriptionForeground)] m-0 mb-2">
-					Worktrees let you work on multiple branches at the same time, each in its own folder. Open worktrees in their
-					own VS Code windows so Cline can work on multiple tasks in parallel.
-				</p>
-				<a
-					className="inline-flex items-center gap-1 text-sm text-[var(--vscode-textLink-foreground)] hover:text-[var(--vscode-textLink-activeForeground)]"
-					href="https://docs.cline.bot/worktrees"
-					rel="noopener noreferrer"
-					target="_blank">
-					<BookOpen className="w-3.5 h-3.5" />
-					Learn more about worktrees
-				</a>
-			</div>
+				)}
 
-			{/* Content */}
-			<div className="flex-1 overflow-y-auto p-5">
-				{isLoading ? (
-					<div className="flex items-center justify-center h-32">
-						<Loader2 className="w-6 h-6 animate-spin text-[var(--vscode-descriptionForeground)]" />
-						<span className="ml-2 text-[var(--vscode-descriptionForeground)]">Loading worktrees...</span>
-					</div>
-				) : !isGitRepo ? (
-					<div className="flex flex-col items-center justify-center h-32 text-center">
-						<AlertCircle className="w-8 h-8 text-[var(--vscode-descriptionForeground)] mb-2" />
-						<p className="text-[var(--vscode-descriptionForeground)]">
-							Not a git repository. Worktrees require a git repository.
-						</p>
-					</div>
-				) : error ? (
-					<div className="flex flex-col items-center justify-center h-32 text-center">
-						<AlertCircle className="w-8 h-8 text-[var(--vscode-errorForeground)] mb-2" />
-						<p className="text-[var(--vscode-errorForeground)]">{error}</p>
-						<VSCodeButton appearance="secondary" className="mt-3" onClick={loadWorktrees}>
-							Retry
-						</VSCodeButton>
-					</div>
-				) : worktrees.length === 0 ? (
-					<div className="flex flex-col items-center justify-center h-32 text-center">
-						<GitBranch className="w-8 h-8 text-[var(--vscode-descriptionForeground)] mb-2" />
-						<p className="text-[var(--vscode-descriptionForeground)]">No worktrees found.</p>
-						<p className="text-sm text-[var(--vscode-descriptionForeground)] mt-1">
-							Create a new worktree to work on multiple branches simultaneously.
-						</p>
-					</div>
-				) : (
-					<div className="flex flex-col gap-2">
-						{worktrees.map((worktree) => (
-							<div
-								className={`p-4 rounded border ${
-									worktree.isCurrent
-										? "border-[var(--vscode-focusBorder)] bg-[var(--vscode-list-activeSelectionBackground)]"
-										: "border-[var(--vscode-panel-border)] hover:bg-[var(--vscode-list-hoverBackground)]"
-								}`}
-								key={worktree.path}>
-								<div className="flex items-start justify-between">
-									<div className="flex-1 min-w-0">
-										<div className="flex items-center gap-2 mb-1">
+				{/* Worktrees List */}
+				<div className="mt-4">
+					{isLoading ? (
+						<div className="flex items-center justify-center h-32">
+							<Loader2 className="w-6 h-6 animate-spin text-[var(--vscode-descriptionForeground)]" />
+							<span className="ml-2 text-[var(--vscode-descriptionForeground)]">Loading worktrees...</span>
+						</div>
+					) : !isGitRepo ? (
+						<div className="flex flex-col items-center justify-center h-32 text-center">
+							<AlertCircle className="w-8 h-8 text-[var(--vscode-descriptionForeground)] mb-2" />
+							<p className="text-[var(--vscode-descriptionForeground)]">
+								Not a git repository. Worktrees require a git repository.
+							</p>
+						</div>
+					) : error ? (
+						<div className="flex flex-col items-center justify-center h-32 text-center">
+							<AlertCircle className="w-8 h-8 text-[var(--vscode-errorForeground)] mb-2" />
+							<p className="text-[var(--vscode-errorForeground)]">{error}</p>
+							<VSCodeButton appearance="secondary" className="mt-3" onClick={loadWorktrees}>
+								Retry
+							</VSCodeButton>
+						</div>
+					) : worktrees.length === 0 ? (
+						<div className="flex flex-col items-center justify-center h-32 text-center">
+							<GitBranch className="w-8 h-8 text-[var(--vscode-descriptionForeground)] mb-2" />
+							<p className="text-[var(--vscode-descriptionForeground)]">No worktrees found.</p>
+							<p className="text-sm text-[var(--vscode-descriptionForeground)] mt-1">
+								Create a new worktree to work on multiple branches simultaneously.
+							</p>
+						</div>
+					) : (
+						<div className="flex flex-col gap-2">
+							{worktrees.map((worktree) => (
+								<div
+									className={`p-4 rounded border ${
+										worktree.isCurrent
+											? "border-[var(--vscode-focusBorder)] bg-[var(--vscode-list-activeSelectionBackground)]"
+											: "border-[var(--vscode-panel-border)]"
+									}`}
+									key={worktree.path}>
+									{/* Row 1: Branch name, badges, and action buttons */}
+									<div className="flex items-center justify-between gap-2 mb-1">
+										<div className="flex items-center gap-2 min-w-0 flex-1">
 											<GitBranch className="w-4 h-4 flex-shrink-0 text-[var(--vscode-button-background)]" />
 											<span className="font-medium truncate">
 												{worktree.branch || (worktree.isDetached ? "HEAD (detached)" : "unknown")}
 											</span>
 											{isMainWorktree(worktree) && (
-												<span className="text-xs px-1.5 py-0.5 rounded bg-[var(--vscode-badge-background)] text-[var(--vscode-badge-foreground)]">
+												<span className="text-xs px-1.5 py-0.5 rounded bg-[var(--vscode-badge-background)] text-[var(--vscode-badge-foreground)] flex-shrink-0">
 													Main
 												</span>
 											)}
 											{worktree.isCurrent && (
-												<span className="text-xs px-1.5 py-0.5 rounded bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]">
+												<span className="text-xs px-1.5 py-0.5 rounded bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] flex-shrink-0">
 													Current
 												</span>
 											)}
 											{worktree.isLocked && (
-												<span className="text-xs px-1.5 py-0.5 rounded bg-[var(--vscode-inputValidation-warningBackground)] text-[var(--vscode-inputValidation-warningForeground)]">
+												<span className="text-xs px-1.5 py-0.5 rounded bg-[var(--vscode-inputValidation-warningBackground)] text-[var(--vscode-inputValidation-warningForeground)] flex-shrink-0">
 													Locked
 												</span>
 											)}
 										</div>
-										<div className="flex items-center gap-1 text-sm text-[var(--vscode-descriptionForeground)]">
-											<FolderOpen className="w-3 h-3" />
-											<span className="truncate">{worktree.path}</span>
-										</div>
-										{worktree.commitHash && (
-											<div className="text-xs text-[var(--vscode-descriptionForeground)] mt-1 font-mono">
-												{worktree.commitHash.substring(0, 8)}
-											</div>
-										)}
-									</div>
-									<div className="flex items-center gap-1 ml-2">
-										{!worktree.isCurrent && (
-											<>
-												<Tooltip>
-													<TooltipTrigger asChild>
-														<VSCodeButton
-															appearance="icon"
-															onClick={() => handleSwitchWorktree(worktree.path, false)}>
-															<FolderOpen className="w-4 h-4" />
-														</VSCodeButton>
-													</TooltipTrigger>
-													<TooltipContent side="bottom">Open in current window</TooltipContent>
-												</Tooltip>
-												<Tooltip>
-													<TooltipTrigger asChild>
-														<VSCodeButton
-															appearance="icon"
-															onClick={() => handleSwitchWorktree(worktree.path, true)}>
-															<ExternalLink className="w-4 h-4" />
-														</VSCodeButton>
-													</TooltipTrigger>
-													<TooltipContent side="bottom">Open in new window</TooltipContent>
-												</Tooltip>
-											</>
-										)}
-										{!worktree.isCurrent && !isMainWorktree(worktree) && (
-											<>
-												{deleteConfirmPath === worktree.path ? (
-													<div className="flex items-center gap-1">
-														<VSCodeButton
-															appearance="secondary"
-															className="text-xs"
-															onClick={() => setDeleteConfirmPath(null)}>
-															Cancel
-														</VSCodeButton>
-														<VSCodeButton
-															className="text-xs bg-[var(--vscode-inputValidation-errorBackground)]"
-															onClick={() => handleDeleteWorktree(worktree.path)}>
-															Delete
-														</VSCodeButton>
-													</div>
-												) : (
+										<div className="flex items-center gap-1 flex-shrink-0">
+											{!worktree.isCurrent && (
+												<>
 													<Tooltip>
 														<TooltipTrigger asChild>
 															<VSCodeButton
 																appearance="icon"
-																onClick={() => setDeleteConfirmPath(worktree.path)}>
-																<Trash2 className="w-4 h-4 text-[var(--vscode-errorForeground)]" />
+																onClick={() => handleSwitchWorktree(worktree.path, false)}>
+																<FolderOpen className="w-4 h-4" />
 															</VSCodeButton>
 														</TooltipTrigger>
-														<TooltipContent side="bottom">Remove this worktree</TooltipContent>
+														<TooltipContent side="bottom">Open in current window</TooltipContent>
 													</Tooltip>
-												)}
-											</>
-										)}
+													<Tooltip>
+														<TooltipTrigger asChild>
+															<VSCodeButton
+																appearance="icon"
+																onClick={() => handleSwitchWorktree(worktree.path, true)}>
+																<ExternalLink className="w-4 h-4" />
+															</VSCodeButton>
+														</TooltipTrigger>
+														<TooltipContent side="bottom">Open in new window</TooltipContent>
+													</Tooltip>
+												</>
+											)}
+											{!worktree.isCurrent && !isMainWorktree(worktree) && (
+												<>
+													{deleteConfirmPath === worktree.path ? (
+														<div className="flex items-center gap-1">
+															<VSCodeButton
+																appearance="secondary"
+																className="text-xs"
+																onClick={() => setDeleteConfirmPath(null)}>
+																Cancel
+															</VSCodeButton>
+															<VSCodeButton
+																className="text-xs bg-[var(--vscode-inputValidation-errorBackground)]"
+																onClick={() => handleDeleteWorktree(worktree.path)}>
+																Delete
+															</VSCodeButton>
+														</div>
+													) : (
+														<Tooltip>
+															<TooltipTrigger asChild>
+																<VSCodeButton
+																	appearance="icon"
+																	onClick={() => setDeleteConfirmPath(worktree.path)}>
+																	<Trash2 className="w-4 h-4 text-[var(--vscode-errorForeground)]" />
+																</VSCodeButton>
+															</TooltipTrigger>
+															<TooltipContent side="bottom">Remove this worktree</TooltipContent>
+														</Tooltip>
+													)}
+												</>
+											)}
+										</div>
 									</div>
+									{/* Row 2: Path */}
+									<div className="flex items-center gap-1 text-sm text-[var(--vscode-descriptionForeground)]">
+										<FolderOpen className="w-3 h-3 flex-shrink-0" />
+										<span className="truncate">{worktree.path}</span>
+									</div>
+									{/* Row 3: Commit hash */}
+									{worktree.commitHash && (
+										<div className="text-xs text-[var(--vscode-descriptionForeground)] mt-1 font-mono">
+											{worktree.commitHash.substring(0, 8)}
+										</div>
+									)}
 								</div>
-							</div>
-						))}
-					</div>
-				)}
+							))}
+						</div>
+					)}
+				</div>
 			</div>
 
 			{/* Create Worktree Modal */}

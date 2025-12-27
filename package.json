@@ -149,7 +149,7 @@
 			},
 			{
 				"command": "cline.worktreesButtonClicked",
-				"title": "Git Worktrees",
+				"title": "Worktrees",
 				"icon": "$(git-branch)"
 			},
 			{
