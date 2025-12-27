@@ -1,4 +1,5 @@
 import { MergeWorktreeRequest, MergeWorktreeResult } from "@shared/proto/cline/worktree"
+import { listWorktrees } from "@utils/git-worktree"
 import { getWorkspacePath } from "@utils/path"
 import simpleGit from "simple-git"
 import { Controller } from ".."
@@ -41,7 +42,23 @@ export async function mergeWorktree(_controller: Controller, request: MergeWorkt
 	}
 
 	try {
-		const git = simpleGit(cwd)
+		// Find the worktree that has the target branch checked out
+		// This is where we need to perform the merge
+		const { worktrees } = await listWorktrees(cwd)
+		const targetWorktree = worktrees.find((w) => w.branch === targetBranch)
+
+		if (!targetWorktree) {
+			return MergeWorktreeResult.create({
+				success: false,
+				message: `Target branch '${targetBranch}' is not checked out in any worktree. Please checkout the branch first.`,
+				hasConflicts: false,
+				conflictingFiles: [],
+			})
+		}
+
+		// Use the target worktree's path for merge operations
+		const targetWorktreePath = targetWorktree.path
+		const git = simpleGit(targetWorktreePath)
 		const worktreeGit = simpleGit(worktreePath)
 
 		// Get the branch name of the worktree
@@ -69,7 +86,7 @@ export async function mergeWorktree(_controller: Controller, request: MergeWorkt
 			})
 		}
 
-		// Check for uncommitted changes in the worktree
+		// Check for uncommitted changes in the source worktree
 		try {
 			const status = await worktreeGit.status()
 			if (!status.isClean()) {
@@ -86,22 +103,24 @@ export async function mergeWorktree(_controller: Controller, request: MergeWorkt
 			// If status check fails, continue anyway
 		}
 
-		// Checkout target branch in the main worktree
+		// Check for uncommitted changes in the target worktree
 		try {
-			await git.checkout(targetBranch)
-		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : String(error)
-			return MergeWorktreeResult.create({
-				success: false,
-				message: `Failed to checkout target branch '${targetBranch}': ${errorMessage}`,
-				hasConflicts: false,
-				conflictingFiles: [],
-				sourceBranch,
-				targetBranch,
-			})
+			const targetStatus = await git.status()
+			if (!targetStatus.isClean()) {
+				return MergeWorktreeResult.create({
+					success: false,
+					message: `Target worktree (${targetBranch}) has uncommitted changes. Please commit or stash them first.`,
+					hasConflicts: false,
+					conflictingFiles: [],
+					sourceBranch,
+					targetBranch,
+				})
+			}
+		} catch {
+			// If status check fails, continue anyway
 		}
 
-		// Attempt the merge
+		// Attempt the merge in the target worktree (which already has targetBranch checked out)
 		try {
 			await git.merge([sourceBranch, "--no-edit"])
 		} catch (error) {
