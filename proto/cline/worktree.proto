@@ -36,6 +36,9 @@ service WorktreeService {
 
   // Switches to a different branch in the current worktree (git checkout)
   rpc checkoutBranch(CheckoutBranchRequest) returns (WorktreeResult);
+
+  // Merges a worktree's branch into the target branch and optionally deletes the worktree
+  rpc mergeWorktree(MergeWorktreeRequest) returns (MergeWorktreeResult);
 }
 
 // Represents a single git worktree
@@ -116,5 +119,23 @@ message CreateWorktreeIncludeRequest {
 message CheckoutBranchRequest {
   Metadata metadata = 1;
   string branch = 2;            // Branch name to checkout
+}
+
+// Request to merge a worktree's branch into target branch
+message MergeWorktreeRequest {
+  Metadata metadata = 1;
+  string worktree_path = 2;     // Path of the worktree to merge
+  string target_branch = 3;     // Branch to merge into (e.g., "main")
+  bool delete_after_merge = 4;  // Whether to delete the worktree after successful merge
+}
+
+// Result of merge operation
+message MergeWorktreeResult {
+  bool success = 1;
+  string message = 2;           // Success or error message
+  bool has_conflicts = 3;       // Whether merge resulted in conflicts
+  repeated string conflicting_files = 4; // List of files with conflicts
+  string source_branch = 5;     // The branch that was merged
+  string target_branch = 6;     // The branch merged into
 }
 
