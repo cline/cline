@@ -427,17 +427,23 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 								</div>
 							))}
 						</div>
-
-						{/* New Worktree Button - at bottom */}
-						<div className="mt-4 pt-4 border-t border-[var(--vscode-panel-border)]">
-							<VSCodeButton disabled={isLoading} onClick={() => setShowCreateForm(true)}>
-								<Plus className="w-4 h-4 mr-1" />
-								New Worktree
-							</VSCodeButton>
-						</div>
 					</>
 				)}
 			</div>
+
+			{/* Fixed Bottom - New Worktree Button */}
+			{isGitRepo && (
+				<div
+					className="flex-none px-5 py-3"
+					style={{
+						borderTop: "1px solid var(--vscode-panel-border)",
+					}}>
+					<VSCodeButton disabled={isLoading} onClick={() => setShowCreateForm(true)} style={{ width: "100%" }}>
+						<Plus className="w-4 h-4 mr-1" />
+						New Worktree
+					</VSCodeButton>
+				</div>
+			)}
 
 			{/* Create Worktree Modal */}
 			{showCreateForm && (
