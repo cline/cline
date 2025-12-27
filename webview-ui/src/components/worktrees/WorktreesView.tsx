@@ -58,17 +58,18 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 		[worktrees],
 	)
 
-	// Load worktrees
+	// Load worktrees - only updates state if data changed to prevent flickering
 	const loadWorktrees = useCallback(async () => {
-		setIsLoading(true)
-		setError(null)
 		try {
 			const response = await WorktreeServiceClient.listWorktrees(EmptyRequest.create({}))
-			setWorktrees(response.worktrees)
-			setIsGitRepo(response.isGitRepo)
-			if (response.error) {
-				setError(response.error)
-			}
+			// Only update state if data actually changed (prevents flickering)
+			setWorktrees((prev) => {
+				const newData = JSON.stringify(response.worktrees)
+				const oldData = JSON.stringify(prev)
+				return newData === oldData ? prev : response.worktrees
+			})
+			setIsGitRepo((prev) => (prev === response.isGitRepo ? prev : response.isGitRepo))
+			setError((prev) => (response.error ? response.error : prev === null ? null : prev))
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Failed to load worktrees")
 		} finally {
@@ -119,10 +120,7 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 
 	// Poll for updates every 3 seconds while the view is open
 	useEffect(() => {
-		const interval = setInterval(() => {
-			loadWorktrees()
-		}, 3000)
-
+		const interval = setInterval(loadWorktrees, 3000)
 		return () => clearInterval(interval)
 	}, [loadWorktrees])
 
