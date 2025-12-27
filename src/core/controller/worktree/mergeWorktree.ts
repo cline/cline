@@ -1,10 +1,7 @@
 import { MergeWorktreeRequest, MergeWorktreeResult } from "@shared/proto/cline/worktree"
 import { getWorkspacePath } from "@utils/path"
-import { exec } from "child_process"
-import { promisify } from "util"
+import simpleGit from "simple-git"
 import { Controller } from ".."
-
-const execAsync = promisify(exec)
 
 /**
  * Merges a worktree's branch into the target branch and optionally deletes the worktree
@@ -44,11 +41,14 @@ export async function mergeWorktree(_controller: Controller, request: MergeWorkt
 	}
 
 	try {
+		const git = simpleGit(cwd)
+		const worktreeGit = simpleGit(worktreePath)
+
 		// Get the branch name of the worktree
 		let sourceBranch: string
 		try {
-			const { stdout } = await execAsync(`git -C "${worktreePath}" rev-parse --abbrev-ref HEAD`)
-			sourceBranch = stdout.trim()
+			sourceBranch = await worktreeGit.revparse(["--abbrev-ref", "HEAD"])
+			sourceBranch = sourceBranch.trim()
 		} catch {
 			return MergeWorktreeResult.create({
 				success: false,
@@ -71,8 +71,8 @@ export async function mergeWorktree(_controller: Controller, request: MergeWorkt
 
 		// Check for uncommitted changes in the worktree
 		try {
-			const { stdout: statusOutput } = await execAsync(`git -C "${worktreePath}" status --porcelain`)
-			if (statusOutput.trim()) {
+			const status = await worktreeGit.status()
+			if (!status.isClean()) {
 				return MergeWorktreeResult.create({
 					success: false,
 					message: `Worktree has uncommitted changes. Please commit or stash them first.`,
@@ -88,7 +88,7 @@ export async function mergeWorktree(_controller: Controller, request: MergeWorkt
 
 		// Checkout target branch in the main worktree
 		try {
-			await execAsync(`git checkout "${targetBranch}"`, { cwd })
+			await git.checkout(targetBranch)
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
 			return MergeWorktreeResult.create({
@@ -103,12 +103,12 @@ export async function mergeWorktree(_controller: Controller, request: MergeWorkt
 
 		// Attempt the merge
 		try {
-			await execAsync(`git merge "${sourceBranch}" --no-edit`, { cwd })
+			await git.merge([sourceBranch, "--no-edit"])
 		} catch (error) {
 			// Check if it's a merge conflict
 			try {
-				const { stdout: conflictOutput } = await execAsync(`git diff --name-only --diff-filter=U`, { cwd })
-				const conflictingFiles = conflictOutput
+				const diffResult = await git.diff(["--name-only", "--diff-filter=U"])
+				const conflictingFiles = diffResult
 					.trim()
 					.split("\n")
 					.filter((f) => f)
@@ -116,7 +116,7 @@ export async function mergeWorktree(_controller: Controller, request: MergeWorkt
 				if (conflictingFiles.length > 0) {
 					// Abort the merge so we don't leave the repo in a conflicted state
 					try {
-						await execAsync(`git merge --abort`, { cwd })
+						await git.merge(["--abort"])
 					} catch {
 						// Ignore abort errors
 					}
@@ -148,7 +148,7 @@ export async function mergeWorktree(_controller: Controller, request: MergeWorkt
 		// Delete worktree if requested
 		if (deleteAfterMerge) {
 			try {
-				await execAsync(`git worktree remove "${worktreePath}" --force`, { cwd })
+				await git.raw(["worktree", "remove", worktreePath, "--force"])
 			} catch (error) {
 				// Merge succeeded but deletion failed - still return success
 				const errorMessage = error instanceof Error ? error.message : String(error)
@@ -164,7 +164,7 @@ export async function mergeWorktree(_controller: Controller, request: MergeWorkt
 
 			// Optionally delete the branch too
 			try {
-				await execAsync(`git branch -d "${sourceBranch}"`, { cwd })
+				await git.deleteLocalBranch(sourceBranch)
 			} catch {
 				// Branch deletion is optional, don't fail if it doesn't work
 			}
