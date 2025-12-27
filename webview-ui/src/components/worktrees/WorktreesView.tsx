@@ -278,10 +278,12 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 			// Create a new task with this prompt
 			await TaskServiceClient.newTask(NewTaskRequest.create({ text: prompt }))
 			closeMergeModal()
+			// Close worktrees view to show the chat with the new task
+			onDone()
 		} catch (err) {
 			setMergeError(err instanceof Error ? err.message : "Failed to create task for Cline")
 		}
-	}, [mergeResult, mergeWorktree, closeMergeModal])
+	}, [mergeResult, mergeWorktree, closeMergeModal, onDone])
 
 	return (
 		<div className="fixed inset-0 flex flex-col overflow-hidden">
@@ -674,18 +676,20 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 									<AlertCircle className="w-5 h-5 flex-shrink-0 text-[var(--vscode-inputValidation-warningForeground)] mt-0.5" />
 									<div>
 										<p className="text-sm font-medium m-0 mb-1">Merge conflicts detected</p>
-										<p className="text-sm text-[var(--vscode-descriptionForeground)] m-0">
-											The following files have conflicts that need to be resolved:
+										<p className="text-sm text-[var(--vscode-descriptionForeground)] m-0 mb-2">
+											The following files have conflicts:
 										</p>
+										<ul className="m-0 pl-4 text-sm font-mono text-[var(--vscode-descriptionForeground)]">
+											{mergeResult.conflictingFiles.slice(0, 3).map((file) => (
+												<li key={file}>{file}</li>
+											))}
+											{mergeResult.conflictingFiles.length > 3 && (
+												<li className="text-[var(--vscode-descriptionForeground)]">
+													...and {mergeResult.conflictingFiles.length - 3} more
+												</li>
+											)}
+										</ul>
 									</div>
-								</div>
-
-								<div className="bg-[var(--vscode-textCodeBlock-background)] rounded p-3 max-h-32 overflow-y-auto">
-									<ul className="m-0 pl-4 text-sm font-mono">
-										{mergeResult.conflictingFiles.map((file) => (
-											<li key={file}>{file}</li>
-										))}
-									</ul>
 								</div>
 
 								<div className="flex flex-col gap-2">
