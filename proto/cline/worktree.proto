@@ -27,6 +27,12 @@ service WorktreeService {
 
   // Gets suggested defaults for creating a new worktree (auto-generated branch name and path)
   rpc getWorktreeDefaults(EmptyRequest) returns (WorktreeDefaults);
+
+  // Gets the status of .worktreeinclude file and .gitignore contents for creating one
+  rpc getWorktreeIncludeStatus(EmptyRequest) returns (WorktreeIncludeStatus);
+
+  // Creates a .worktreeinclude file with the provided content
+  rpc createWorktreeInclude(CreateWorktreeIncludeRequest) returns (WorktreeResult);
 }
 
 // Represents a single git worktree
@@ -89,5 +95,17 @@ message BranchList {
 message WorktreeDefaults {
   string suggested_branch = 1;  // Auto-generated branch name like "worktree/cline-abc12"
   string suggested_path = 2;    // Path in Documents/Cline/Worktrees/<project>-<suffix>
+}
+
+// Status of .worktreeinclude file
+message WorktreeIncludeStatus {
+  bool exists = 1;              // Whether .worktreeinclude exists
+  string gitignore_content = 2; // Content of .gitignore (for prefilling)
+  bool has_gitignore = 3;       // Whether .gitignore exists
+}
+
+// Request to create .worktreeinclude file
+message CreateWorktreeIncludeRequest {
+  string content = 1;           // Content for the .worktreeinclude file
 }
 
