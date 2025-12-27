@@ -146,6 +146,21 @@ The Worktrees view will show a tip if you don't have a `.worktreeinclude` file. 
   For most JavaScript/TypeScript projects, just including `node_modules/` in your `.worktreeinclude` saves significant setup time for each new worktree.
 </Tip>
 
+### Pro Tip: Symlink to .gitignore
+
+Since `.gitignore` usually contains most of the files you'd want copied to new worktrees (dependencies, environment files, build caches, etc.), you can create a symlink so they stay in sync automatically:
+
+```bash
+# In your repository root
+ln -s .gitignore .worktreeinclude
+```
+
+Now whenever you update your `.gitignore`, your `.worktreeinclude` will have the same patterns. This is especially useful for projects where gitignored files are exactly what you want copied—no need to maintain two separate files.
+
+<Note>
+  If you need different patterns than your `.gitignore`, create a regular `.worktreeinclude` file instead of a symlink.
+</Note>
+
 ## Best Practices
 
 <AccordionGroup>
