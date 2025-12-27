@@ -1,10 +1,7 @@
 import { CheckoutBranchRequest, WorktreeResult } from "@shared/proto/cline/worktree"
 import { getWorkspacePath } from "@utils/path"
-import { exec } from "child_process"
-import { promisify } from "util"
+import simpleGit from "simple-git"
 import { Controller } from ".."
-
-const execAsync = promisify(exec)
 
 /**
  * Checks out a branch in the current worktree (git checkout)
@@ -31,7 +28,8 @@ export async function checkoutBranch(_controller: Controller, request: CheckoutB
 	}
 
 	try {
-		await execAsync(`git checkout "${branch}"`, { cwd })
+		const git = simpleGit(cwd)
+		await git.checkout(branch)
 
 		return WorktreeResult.create({
 			success: true,
