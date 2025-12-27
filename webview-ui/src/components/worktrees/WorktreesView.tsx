@@ -283,48 +283,36 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 					</div>
 				)}
 
-				{/* New Worktree Button */}
-				{isGitRepo && (
-					<div className="mt-4">
-						<VSCodeButton disabled={isLoading} onClick={() => setShowCreateForm(true)}>
-							<Plus className="w-4 h-4 mr-1" />
-							New Worktree
+				{/* Loading/Error States */}
+				{isLoading ? (
+					<div className="flex items-center justify-center h-32">
+						<Loader2 className="w-6 h-6 animate-spin text-[var(--vscode-descriptionForeground)]" />
+						<span className="ml-2 text-[var(--vscode-descriptionForeground)]">Loading...</span>
+					</div>
+				) : !isGitRepo ? (
+					<div className="flex flex-col items-center justify-center h-32 text-center">
+						<AlertCircle className="w-8 h-8 text-[var(--vscode-descriptionForeground)] mb-2" />
+						<p className="text-[var(--vscode-descriptionForeground)]">
+							Not a git repository. Worktrees require a git repository.
+						</p>
+					</div>
+				) : error ? (
+					<div className="flex flex-col items-center justify-center h-32 text-center">
+						<AlertCircle className="w-8 h-8 text-[var(--vscode-errorForeground)] mb-2" />
+						<p className="text-[var(--vscode-errorForeground)]">{error}</p>
+						<VSCodeButton appearance="secondary" className="mt-3" onClick={loadWorktrees}>
+							Retry
 						</VSCodeButton>
 					</div>
-				)}
-
-				{/* Worktrees List */}
-				<div className="mt-4">
-					{isLoading ? (
-						<div className="flex items-center justify-center h-32">
-							<Loader2 className="w-6 h-6 animate-spin text-[var(--vscode-descriptionForeground)]" />
-							<span className="ml-2 text-[var(--vscode-descriptionForeground)]">Loading worktrees...</span>
-						</div>
-					) : !isGitRepo ? (
-						<div className="flex flex-col items-center justify-center h-32 text-center">
-							<AlertCircle className="w-8 h-8 text-[var(--vscode-descriptionForeground)] mb-2" />
-							<p className="text-[var(--vscode-descriptionForeground)]">
-								Not a git repository. Worktrees require a git repository.
-							</p>
-						</div>
-					) : error ? (
-						<div className="flex flex-col items-center justify-center h-32 text-center">
-							<AlertCircle className="w-8 h-8 text-[var(--vscode-errorForeground)] mb-2" />
-							<p className="text-[var(--vscode-errorForeground)]">{error}</p>
-							<VSCodeButton appearance="secondary" className="mt-3" onClick={loadWorktrees}>
-								Retry
-							</VSCodeButton>
-						</div>
-					) : worktrees.length === 0 ? (
-						<div className="flex flex-col items-center justify-center h-32 text-center">
-							<GitBranch className="w-8 h-8 text-[var(--vscode-descriptionForeground)] mb-2" />
-							<p className="text-[var(--vscode-descriptionForeground)]">No worktrees found.</p>
-							<p className="text-sm text-[var(--vscode-descriptionForeground)] mt-1">
-								Create a new worktree to work on multiple branches simultaneously.
-							</p>
-						</div>
-					) : (
-						<div className="flex flex-col gap-2">
+				) : worktrees.length === 0 ? (
+					<div className="flex flex-col items-center justify-center h-32 text-center">
+						<GitBranch className="w-8 h-8 text-[var(--vscode-descriptionForeground)] mb-2" />
+						<p className="text-[var(--vscode-descriptionForeground)]">No worktrees found.</p>
+					</div>
+				) : (
+					<>
+						{/* Worktrees List - current worktree first, then others */}
+						<div className="mt-4 flex flex-col gap-2">
 							{worktrees.map((worktree) => (
 								<div
 									className={`p-4 rounded border ${
@@ -333,30 +321,42 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 											: "border-[var(--vscode-panel-border)]"
 									}`}
 									key={worktree.path}>
-									{/* Row 1: Branch name, badges, and action buttons */}
-									<div className="flex items-center justify-between gap-2 mb-1">
-										<div className="flex items-center gap-2 min-w-0 flex-1">
-											<GitBranch className="w-4 h-4 flex-shrink-0 text-[var(--vscode-button-background)]" />
-											<span className="font-medium truncate">
-												{worktree.branch || (worktree.isDetached ? "HEAD (detached)" : "unknown")}
-											</span>
-											{isMainWorktree(worktree) && (
-												<span className="text-xs px-1.5 py-0.5 rounded bg-[var(--vscode-badge-background)] text-[var(--vscode-badge-foreground)] flex-shrink-0">
-													Main
+									{/* Branch name, badges, and action buttons - wraps on small screens */}
+									<div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+										{/* Left side: branch name and badges */}
+										<div className="flex flex-wrap items-center gap-2">
+											<div className="flex items-center gap-2">
+												<GitBranch className="w-4 h-4 flex-shrink-0 text-[var(--vscode-button-background)]" />
+												<span className="font-medium">
+													{worktree.branch || (worktree.isDetached ? "HEAD (detached)" : "unknown")}
 												</span>
+											</div>
+											{isMainWorktree(worktree) && (
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<span className="text-xs px-1.5 py-0.5 rounded bg-[var(--vscode-badge-background)] text-[var(--vscode-badge-foreground)] cursor-help">
+															Main
+														</span>
+													</TooltipTrigger>
+													<TooltipContent side="bottom">
+														The primary worktree where your .git directory lives. This cannot be
+														deleted.
+													</TooltipContent>
+												</Tooltip>
 											)}
 											{worktree.isCurrent && (
-												<span className="text-xs px-1.5 py-0.5 rounded bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] flex-shrink-0">
+												<span className="text-xs px-1.5 py-0.5 rounded bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]">
 													Current
 												</span>
 											)}
 											{worktree.isLocked && (
-												<span className="text-xs px-1.5 py-0.5 rounded bg-[var(--vscode-inputValidation-warningBackground)] text-[var(--vscode-inputValidation-warningForeground)] flex-shrink-0">
+												<span className="text-xs px-1.5 py-0.5 rounded bg-[var(--vscode-inputValidation-warningBackground)] text-[var(--vscode-inputValidation-warningForeground)]">
 													Locked
 												</span>
 											)}
 										</div>
-										<div className="flex items-center gap-1 flex-shrink-0">
+										{/* Right side: action buttons */}
+										<div className="flex items-center gap-1">
 											{!worktree.isCurrent && (
 												<>
 													<Tooltip>
@@ -413,12 +413,12 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 											)}
 										</div>
 									</div>
-									{/* Row 2: Path */}
+									{/* Path */}
 									<div className="flex items-center gap-1 text-sm text-[var(--vscode-descriptionForeground)]">
 										<FolderOpen className="w-3 h-3 flex-shrink-0" />
 										<span className="truncate">{worktree.path}</span>
 									</div>
-									{/* Row 3: Commit hash */}
+									{/* Commit hash */}
 									{worktree.commitHash && (
 										<div className="text-xs text-[var(--vscode-descriptionForeground)] mt-1 font-mono">
 											{worktree.commitHash.substring(0, 8)}
@@ -427,8 +427,16 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 								</div>
 							))}
 						</div>
-					)}
-				</div>
+
+						{/* New Worktree Button - at bottom */}
+						<div className="mt-4 pt-4 border-t border-[var(--vscode-panel-border)]">
+							<VSCodeButton disabled={isLoading} onClick={() => setShowCreateForm(true)}>
+								<Plus className="w-4 h-4 mr-1" />
+								New Worktree
+							</VSCodeButton>
+						</div>
+					</>
+				)}
 			</div>
 
 			{/* Create Worktree Modal */}

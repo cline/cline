@@ -33,6 +33,9 @@ service WorktreeService {
 
   // Creates a .worktreeinclude file with the provided content
   rpc createWorktreeInclude(CreateWorktreeIncludeRequest) returns (WorktreeResult);
+
+  // Switches to a different branch in the current worktree (git checkout)
+  rpc checkoutBranch(CheckoutBranchRequest) returns (WorktreeResult);
 }
 
 // Represents a single git worktree
@@ -107,5 +110,11 @@ message WorktreeIncludeStatus {
 // Request to create .worktreeinclude file
 message CreateWorktreeIncludeRequest {
   string content = 1;           // Content for the .worktreeinclude file
+}
+
+// Request to checkout a branch in the current worktree
+message CheckoutBranchRequest {
+  Metadata metadata = 1;
+  string branch = 2;            // Branch name to checkout
 }
 
