@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package cline;
+
+import "cline/common.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+// Service for git worktree operations
+service WorktreeService {
+  // Lists all worktrees in the current repository
+  rpc listWorktrees(EmptyRequest) returns (WorktreeList);
+
+  // Creates a new worktree
+  rpc createWorktree(CreateWorktreeRequest) returns (WorktreeResult);
+
+  // Deletes an existing worktree
+  rpc deleteWorktree(DeleteWorktreeRequest) returns (WorktreeResult);
+
+  // Switches to a different worktree (opens in VS Code)
+  rpc switchWorktree(SwitchWorktreeRequest) returns (WorktreeResult);
+
+  // Gets available branches for creating worktrees
+  rpc getAvailableBranches(EmptyRequest) returns (BranchList);
+}
+
+// Represents a single git worktree
+message Worktree {
+  string path = 1;           // Absolute path to the worktree
+  string branch = 2;         // Branch name (empty if detached)
+  string commit_hash = 3;    // Current commit hash
+  bool is_current = 4;       // Whether this is the current worktree
+  bool is_bare = 5;          // Whether this is the bare repository
+  bool is_detached = 6;      // Whether HEAD is detached
+  bool is_locked = 7;        // Whether the worktree is locked
+  optional string lock_reason = 8; // Reason for lock if locked
+}
+
+// Response containing list of worktrees
+message WorktreeList {
+  repeated Worktree worktrees = 1;
+  bool is_git_repo = 2;      // Whether the current workspace is a git repo
+  string error = 3;          // Error message if any
+}
+
+// Request to create a new worktree
+message CreateWorktreeRequest {
+  Metadata metadata = 1;
+  string path = 2;           // Path for the new worktree
+  optional string branch = 3; // Branch name (creates new if doesn't exist)
+  optional string base_branch = 4; // Base branch for new branch creation
+  bool create_new_branch = 5; // Whether to create a new branch
+}
+
+// Request to delete a worktree
+message DeleteWorktreeRequest {
+  Metadata metadata = 1;
+  string path = 2;           // Path of the worktree to delete
+  bool force = 3;            // Force deletion even if dirty
+}
+
+// Request to switch to a worktree
+message SwitchWorktreeRequest {
+  Metadata metadata = 1;
+  string path = 2;           // Path of the worktree to switch to
+  bool new_window = 3;       // Whether to open in a new window
+}
+
+// Result of worktree operations
+message WorktreeResult {
+  bool success = 1;
+  string message = 2;        // Success or error message
+  optional Worktree worktree = 3; // The affected worktree (for create)
+}
+
+// List of available branches
+message BranchList {
+  repeated string local_branches = 1;
+  repeated string remote_branches = 2;
+  string current_branch = 3;
+}
+
