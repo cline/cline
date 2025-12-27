@@ -300,7 +300,7 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 				{/* Description */}
 				<p className="text-sm text-[var(--vscode-descriptionForeground)] m-0 mb-4">
 					Git worktrees let you work on multiple branches at the same time, each in its own folder. Open worktrees in
-					their own VS Code windows so Cline can work on multiple tasks in parallel.{" "}
+					their own windows so Cline can work on multiple tasks in parallel.{" "}
 					<a
 						className="text-[var(--vscode-textLink-foreground)] hover:text-[var(--vscode-textLink-activeForeground)]"
 						href="https://docs.cline.bot/features/worktrees"
@@ -435,9 +435,16 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 												</Tooltip>
 											)}
 											{worktree.isCurrent && (
-												<span className="text-xs px-1.5 py-0.5 rounded bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]">
-													Current
-												</span>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<span className="text-xs px-1.5 py-0.5 rounded bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] cursor-help">
+															Current
+														</span>
+													</TooltipTrigger>
+													<TooltipContent side="bottom">
+														This is the worktree currently open in this window.
+													</TooltipContent>
+												</Tooltip>
 											)}
 											{worktree.isLocked && (
 												<span className="text-xs px-1.5 py-0.5 rounded bg-[var(--vscode-inputValidation-warningBackground)] text-[var(--vscode-inputValidation-warningForeground)]">
@@ -520,12 +527,6 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 										<FolderOpen className="w-3 h-3 flex-shrink-0" />
 										<span className="truncate">{worktree.path}</span>
 									</div>
-									{/* Commit hash */}
-									{worktree.commitHash && (
-										<div className="text-xs text-[var(--vscode-descriptionForeground)] mt-1 font-mono">
-											{worktree.commitHash.substring(0, 8)}
-										</div>
-									)}
 								</div>
 							))}
 						</div>
