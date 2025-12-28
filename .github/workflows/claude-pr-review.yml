@@ -235,8 +235,14 @@ jobs:
             - In-depth explanation of what the PR does - Be comprehensive. A maintainer should be able to read this section and fully understand the author's intent, why they made the changes, how they implemented it, and what files/systems are affected. Don't just summarize - explain.
             - Related issues/PRs you found that provide useful context (link to them)
             - Your review findings (issues to address, suggestions, etc.)
-            - SME table - who should review this and why
             - Clear next steps for the author
+
+            Include a "For Maintainers" section with:
+            - Anything else useful to help the maintainer resolve this PR
+            - Related issues/PRs with context on why they're relevant
+            - Open issues this PR might fix that weren't linked in the description
+            - Your recommendation: merge as-is, needs changes, needs discussion, close, etc.
+            - SME table - who should review this and why
 
             For the SME table:
             | SME | Reason |
