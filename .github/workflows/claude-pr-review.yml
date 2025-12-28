@@ -89,36 +89,6 @@ jobs:
             Read your previous comments carefully. Understand what you asked for before.
             Check if new commits or comments address your previous feedback.
 
-            ## Check for stale PRs
-
-            This is critical for old PRs. Check if this PR is still relevant:
-
-            ```bash
-            # Get PR age and merge status
-            gh pr view ${{ steps.pr.outputs.number }} --json createdAt,mergeable,mergeStateStatus
-
-            # Get files changed in this PR
-            gh pr diff ${{ steps.pr.outputs.number }} --name-only
-
-            # For each file the PR touches, check recent commits on main since the PR was created
-            # This helps identify if the problem was already fixed or the code has changed significantly
-            git log --oneline --since="<PR created date>" -- <file paths> | head -20
-            ```
-
-            Stale PR indicators:
-            - PR is more than 30 days old with no recent activity
-            - Merge conflicts (mergeable: CONFLICTING or mergeStateStatus: DIRTY)
-            - Files touched by PR have been significantly modified on main since PR was created
-            - The issue the PR was trying to fix has already been resolved in main
-            - The approach is outdated given how the codebase has evolved
-
-            If a PR is stale:
-            - Check if the problem it solves still exists by examining current main
-            - Search for commits/PRs that may have already fixed this: `git log --oneline --all --grep="<keywords>"`
-            - Assess how much work it would take to rebase vs. just re-implementing from scratch
-            - If still worth merging but has conflicts: ask the author to rebase on main or open a fresh PR
-            - If the changes are no longer needed, politely explain why and recommend the maintainer close this PR
-
             ## Check contributing guidelines
 
             Flag (but don't block) if:
