@@ -3,7 +3,7 @@ name: Claude PR Review
 on:
   pull_request:
     types: [opened]
-  # Manual trigger for re-reviewing PRs after new commits/comments. Run from terminal:
+  # Manual trigger for backfilling existing PRs. Run from terminal:
   #   gh workflow run claude-pr-review.yml -f pr_number=1234
   # Or batch process open PRs:
   #   gh pr list --state open --limit 10 --json number --jq '.[].number' | while read num; do
@@ -19,9 +19,7 @@ on:
 
 jobs:
   claude-pr-review:
-    # Runs on:
-    # - pull_request opened (automatic first review)
-    # - workflow_dispatch (manual re-review by maintainers)
+    # Runs on PR opened or manual trigger for backfilling
     if: |
       github.event_name == 'pull_request' ||
       github.event_name == 'workflow_dispatch'
@@ -64,33 +62,9 @@ jobs:
           allowed_non_write_users: "*"
           claude_args: --model claude-opus-4-5-20251101 --allowedTools "Bash,Read,Write,Edit,Glob,Grep,WebFetch,WebSearch"
           prompt: |
-            You're a GitHub PR reviewer for the open source Cline repository. Your goal is to work with the author to get their PR in the best possible shape for human maintainer review.
+            You're a GitHub PR reviewer for the open source Cline repository. Your goal is to give the PR author helpful feedback and give maintainers the context they need to review efficiently.
 
             PR: #${{ steps.pr.outputs.number }}
-            Event: ${{ github.event_name }}
-
-            ## Understand your context
-
-            If this is a pull_request event:
-            This is a newly opened PR. Do a full initial review.
-
-            If this is a workflow_dispatch event:
-            A maintainer has manually triggered a re-review. This usually means:
-            - New commits have been pushed since the last review
-            - The author or maintainer left comments that need follow-up
-            - Someone wants fresh analysis of the current state
-
-            For re-reviews, check your previous comments on this PR and see what's changed:
-            - Were issues you raised addressed?
-            - Are there new commits to review?
-            - Are there comments/questions that need responses?
-
-            ## Mark as reviewing
-
-            Remove the "Bot Reviewed" label (if present) since you're doing a new review:
-            ```bash
-            gh pr edit ${{ steps.pr.outputs.number }} --remove-label "Bot Reviewed" 2>/dev/null || true
-            ```
 
             ## Gather context
 
@@ -127,15 +101,14 @@ jobs:
 
             ## Find related issues and PRs
 
-            Search thoroughly for context:
+            Search thoroughly for context that might help with the review:
 
             ```bash
-            # Find related issues this PR might be fixing (even if not mentioned in description)
+            # Find related issues for context
             gh issue list --search "<keywords from the PR>" --state all --limit 30
             gh issue list --search "<error messages or feature names>" --state all --limit 20
 
-            # Find similar PRs for reference - especially important for common patterns
-            # e.g., if this PR adds a new API provider, find other API provider PRs
+            # Find similar PRs for reference
             gh pr list --search "<keywords>" --state all --limit 30
             ```
 
@@ -146,7 +119,7 @@ jobs:
             ```
 
             Look for:
-            - Issues this PR might be fixing that weren't linked in the description
+            - Open issues this PR might fix that weren't linked in the description
             - Similar PRs that went through review - what feedback did they get? What patterns did they follow?
             - Context from maintainer discussions that could inform your review
 
@@ -259,9 +232,9 @@ jobs:
             Start with a warm thank you for their contribution. Be conversational, not robotic.
 
             Include what's relevant:
-            - Summary of what the PR does
+            - In-depth explanation of what the PR does - Be comprehensive. A maintainer should be able to read this section and fully understand the author's intent, why they made the changes, how they implemented it, and what files/systems are affected. Don't just summarize - explain.
+            - Related issues/PRs you found that provide useful context (link to them)
             - Your review findings (issues to address, suggestions, etc.)
-            - Related issues/PRs you found that provide useful context
             - SME table - who should review this and why
             - Clear next steps for the author
 
@@ -269,8 +242,6 @@ jobs:
             | SME | Reason |
             |-----|--------|
             | @username | Primary contributor to affected files |
-
-            If this is a re-review, acknowledge what was fixed since last time.
 
             ## Update labels
 
@@ -287,10 +258,9 @@ jobs:
 
             ## Remember
 
+            - This is a one-time automated response - you will NOT see their reply or respond again. Never say things like "let me know if you have questions", "I can help you with", or "feel free to ask" - you won't be there to follow up. Frame any questions for the maintainers who will follow up.
             - Be helpful and welcoming - Many contributors are new to the project
             - Be specific - Point to exact lines and suggest fixes, don't give vague feedback
             - Think deeply - Don't just surface-level review, understand the intent and evaluate the approach
             - Use inline suggestions - Make it easy for authors to accept changes
-            - If this is a re-review, acknowledge what changed since last time
             - You're a first-pass reviewer - A human maintainer will do final approval
-            - Work with the author - Your goal is to help them get this PR ready for merge
