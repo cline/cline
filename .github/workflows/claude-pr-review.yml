@@ -2,7 +2,7 @@ name: Claude PR Review
 
 on:
   pull_request:
-    types: [opened]
+    types: [opened, ready_for_review]
   # Manual trigger for backfilling existing PRs. Run from terminal:
   #   gh workflow run claude-pr-review.yml -f pr_number=1234
   # Or batch process open PRs:
@@ -19,9 +19,9 @@ on:
 
 jobs:
   claude-pr-review:
-    # Runs on PR opened or manual trigger for backfilling
+    # Runs on PR opened/ready_for_review (skips drafts) or manual trigger for backfilling
     if: |
-      github.event_name == 'pull_request' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
       github.event_name == 'workflow_dispatch'
 
     runs-on: ubuntu-latest
