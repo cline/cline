@@ -2,11 +2,8 @@ name: Claude PR Review
 
 on:
   pull_request:
-    types: [opened, synchronize]
-  # Re-trigger on ANY comment - agent decides whether to engage based on content
-  issue_comment:
-    types: [created]
-  # Manual trigger for reviewing existing PRs. Run from terminal:
+    types: [opened]
+  # Manual trigger for re-reviewing PRs after new commits/comments. Run from terminal:
   #   gh workflow run claude-pr-review.yml -f pr_number=1234
   # Or batch process open PRs:
   #   gh pr list --state open --limit 10 --json number --jq '.[].number' | while read num; do
@@ -22,14 +19,12 @@ on:
 
 jobs:
   claude-pr-review:
-    # Only run on:
-    # - pull_request events (opened, synchronize)
-    # - issue_comment events that are on PRs (not issues)
-    # - workflow_dispatch (manual trigger)
+    # Runs on:
+    # - pull_request opened (automatic first review)
+    # - workflow_dispatch (manual re-review by maintainers)
     if: |
       github.event_name == 'pull_request' ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'issue_comment' && github.event.issue.pull_request)
+      github.event_name == 'workflow_dispatch'
 
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -56,8 +51,6 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "number=${{ inputs.pr_number }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event_name }}" == "issue_comment" ]; then
-            echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
           else
             echo "number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
           fi
@@ -75,39 +68,26 @@ jobs:
 
             PR: #${{ steps.pr.outputs.number }}
             Event: ${{ github.event_name }}
-            Commenter (if applicable): ${{ github.event.comment.user.login || 'N/A' }}
-            Comment body (if applicable): ${{ github.event.comment.body || 'N/A' }}
 
-            ## Determine if you should engage
+            ## Understand your context
 
-            If this is a pull_request event (opened/synchronize):
-            ALWAYS engage - this is a new PR or new commits were pushed. Do a full review.
+            If this is a pull_request event:
+            This is a newly opened PR. Do a full initial review.
 
             If this is a workflow_dispatch event:
-            ALWAYS engage - manual trigger means someone wants a review.
+            A maintainer has manually triggered a re-review. This usually means:
+            - New commits have been pushed since the last review
+            - The author or maintainer left comments that need follow-up
+            - Someone wants fresh analysis of the current state
 
-            If this is an issue_comment event:
-            Read the comment and decide whether to engage. The comment is:
-            > ${{ github.event.comment.body || 'N/A' }}
-
-            ENGAGE if the comment:
-            - Is from the PR author saying they made changes ("fixed", "updated", "addressed", "done", etc.)
-            - Is from a maintainer asking for re-review ("please review", "can you check", "re-review", etc.)
-            - Is from a maintainer saying they made changes ("I fixed", "pushed a fix", etc.)
-            - Asks a question you can help answer about the code or review
-            - Mentions you or asks for bot feedback
-
-            DO NOT ENGAGE if the comment:
-            - Is just a thank you, emoji reaction, or general chatter ("great!", "thanks!", "lgtm", etc.)
-            - Is discussion between humans that doesn't need your input
-            - Is from a bot (check if user login ends in `[bot]` or is `github-actions`)
-            - Is your own previous comment
-
-            If you decide NOT to engage, simply exit without posting any comment. Do not post "I won't engage" messages.
+            For re-reviews, check your previous comments on this PR and see what's changed:
+            - Were issues you raised addressed?
+            - Are there new commits to review?
+            - Are there comments/questions that need responses?
 
             ## Mark as reviewing
 
-            If you're engaging, remove the "Bot Reviewed" label (if present) since you're doing a new review:
+            Remove the "Bot Reviewed" label (if present) since you're doing a new review:
             ```bash
             gh pr edit ${{ steps.pr.outputs.number }} --remove-label "Bot Reviewed" 2>/dev/null || true
             ```
@@ -131,9 +111,9 @@ jobs:
             gh pr view ${{ steps.pr.outputs.number }} --comments
             ```
 
-            If this is a follow-up (issue_comment event):
+            If this is a re-review (workflow_dispatch event):
             Read your previous comments carefully. Understand what you asked for before.
-            Check if the new commits or the comment address your previous feedback.
+            Check if new commits or comments address your previous feedback.
 
             ## Check contributing guidelines
 
@@ -293,11 +273,11 @@ jobs:
                | @username | Primary contributor to affected files |
 
             6. Next steps - Be clear:
-               - If changes needed: List them clearly. Say "Once you've addressed these, leave a comment and I'll take another look!"
+               - If changes needed: List them clearly. Say "Once you've addressed these, a maintainer will review."
                - If looks good: "This looks ready for human maintainer review!" and tag the SMEs.
 
-            If this is a follow-up review:
-            - Acknowledge what was fixed
+            If this is a re-review (workflow_dispatch):
+            - Acknowledge what was fixed since the last review
             - Note any remaining issues
             - If everything is addressed: "Thanks for addressing the feedback! This looks ready for human maintainer review."
 
@@ -320,6 +300,6 @@ jobs:
             - Be specific - Point to exact lines and suggest fixes, don't give vague feedback
             - Think deeply - Don't just surface-level review, understand the intent and evaluate the approach
             - Use inline suggestions - Make it easy for authors to accept changes
-            - This is conversational - If this is a follow-up, acknowledge progress
+            - If this is a re-review, acknowledge what changed since last time
             - You're a first-pass reviewer - A human maintainer will do final approval
             - Work with the author - Your goal is to help them get this PR ready for merge
