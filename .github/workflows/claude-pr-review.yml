@@ -223,7 +223,7 @@ jobs:
               -X POST \
               -f commit_id="$(gh pr view ${{ steps.pr.outputs.number }} --json headRefOid -q .headRefOid)" \
               -f event="COMMENT" \
-              -f body="Review from Claude" \
+              -f body="" \
               -F comments='[
                 {
                   "path": "src/example.ts",
@@ -239,7 +239,7 @@ jobs:
               -X POST \
               -f commit_id="$(gh pr view ${{ steps.pr.outputs.number }} --json headRefOid -q .headRefOid)" \
               -f event="COMMENT" \
-              -f body="Review from Claude" \
+              -f body="" \
               -F comments='[
                 {
                   "path": "src/example.ts",
@@ -254,32 +254,23 @@ jobs:
 
             ## Post your review
 
-            After your investigation, post a review comment using `gh pr comment`. Structure it as:
+            After your investigation, post a single helpful comment that helps the author and gives maintainers context.
 
-            1. Summary - What does this PR do? (1-2 sentences)
+            Start with a warm thank you for their contribution. Be conversational, not robotic.
 
-            2. Contributing guidelines - Note any issues (missing changeset, no linked issue, etc.). Be friendly.
+            Include what's relevant:
+            - Summary of what the PR does
+            - Your review findings (issues to address, suggestions, etc.)
+            - Related issues/PRs you found that provide useful context
+            - SME table - who should review this and why
+            - Clear next steps for the author
 
-            3. Related context - Link any issues this might fix, or similar PRs that are useful reference.
+            For the SME table:
+            | SME | Reason |
+            |-----|--------|
+            | @username | Primary contributor to affected files |
 
-            4. Review findings - Group by importance:
-               - Things to address - Bugs, security concerns, logic errors, missing pieces
-               - Suggestions - Better approaches, improvements (use inline suggestions for specific code changes)
-               - Minor items - Style, naming, optional improvements
-
-            5. SME table - Who should review this:
-               | SME | Reason |
-               |-----|--------|
-               | @username | Primary contributor to affected files |
-
-            6. Next steps - Be clear:
-               - If changes needed: List them clearly. Say "Once you've addressed these, a maintainer will review."
-               - If looks good: "This looks ready for human maintainer review!" and tag the SMEs.
-
-            If this is a re-review (workflow_dispatch):
-            - Acknowledge what was fixed since the last review
-            - Note any remaining issues
-            - If everything is addressed: "Thanks for addressing the feedback! This looks ready for human maintainer review."
+            If this is a re-review, acknowledge what was fixed since last time.
 
             ## Update labels
 
