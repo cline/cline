@@ -137,18 +137,12 @@ jobs:
 
             ## Check contributing guidelines
 
-            Read the contributing guidelines:
-            ```bash
-            cat CONTRIBUTING.md
-            ```
-
             Flag (but don't block) if:
-            - No linked issue - Features should ideally have an approved issue first
             - Missing changeset - For user-facing changes, check if there's a `.changeset/` file:
               ```bash
               gh pr diff ${{ steps.pr.outputs.number }} --name-only | grep '.changeset/' || echo "No changeset found"
               ```
-            - Large unfocused PR - If touching many unrelated files, suggest splitting
+              If missing, ask them to run `npm run changeset`
             - Missing tests - New features should have tests
 
             ## Find related issues and PRs
