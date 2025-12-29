@@ -128,7 +128,9 @@ export const ExtensionStateContextProvider: React.FC<{
 	// UI view state
 	const [showMcp, setShowMcp] = useState(false)
 	const [mcpTab, setMcpTab] = useState<McpViewTab | undefined>(undefined)
-	const [showSettings, setShowSettings] = useState(false)
+	// Check if this is a settings-only panel
+	const isSettingsPanel = typeof window !== "undefined" && (window as any).CLINE_SETTINGS_PANEL === true
+	const [showSettings, setShowSettings] = useState(isSettingsPanel)
 	const [settingsTargetSection, setSettingsTargetSection] = useState<string | undefined>(undefined)
 	const [showHistory, setShowHistory] = useState(false)
 	const [showAccount, setShowAccount] = useState(false)
