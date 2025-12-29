@@ -1,5 +1,5 @@
 import { openFile as openFileIntegration } from "@integrations/misc/open-file"
-import { telemetryService } from "../../../services/posthog/PostHogClientProvider"
+import { telemetryService } from "../../../services/telemetry"
 import { Empty, StringRequest } from "../../../shared/proto/cline/common"
 import { ensureFocusChainFile, extractFocusChainListFromText } from "../../task/focus-chain/file-utils"
 import { Controller } from ".."
@@ -32,7 +32,7 @@ export async function openFocusChainFile(controller: Controller, request: String
 		}
 	}
 
-	const focusChainFilePath = await ensureFocusChainFile(controller.context, taskId, initialFocusChainContent)
+	const focusChainFilePath = await ensureFocusChainFile(taskId, initialFocusChainContent)
 	telemetryService.captureFocusChainListOpened(taskId)
 	await openFileIntegration(focusChainFilePath)
 

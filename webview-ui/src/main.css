@@ -1,0 +1,219 @@
+textarea:focus {
+	outline: 1.5px solid var(--vscode-focusBorder, #007fd4);
+}
+
+vscode-button::part(control):focus {
+	outline: none;
+}
+
+/*
+Use vscode native scrollbar styles
+https://github.com/gitkraken/vscode-gitlens/blob/b1d71d4844523e8b2ef16f9e007068e91f46fd88/src/webviews/apps/home/home.scss
+*/
+
+html {
+	height: 100%;
+	width: 100%;
+}
+
+body {
+	margin: 0;
+	padding: 0;
+	line-height: 1.25;
+	height: 100%;
+	width: 100%;
+	background-color: var(--vscode-sideBar-background);
+}
+
+#root {
+	height: 100%;
+	width: 100%;
+}
+
+body.scrollable,
+.scrollable,
+body.code-block-scrollable,
+.code-block-scrollable {
+	border-color: transparent;
+	transition: border-color 0.7s linear;
+}
+
+body:hover.scrollable,
+body:hover .scrollable,
+body:focus-within.scrollable,
+body:focus-within .scrollable,
+body:hover.code-block-scrollable,
+body:hover .code-block-scrollable,
+body:focus-within.code-block-scrollable,
+body:focus-within .code-block-scrollable {
+	border-color: var(--vscode-scrollbarSlider-background);
+	transition: none;
+}
+
+.scrollable::-webkit-scrollbar-corner {
+	background-color: transparent;
+}
+
+.scrollable::-webkit-scrollbar-thumb {
+	background-color: transparent;
+	border-color: inherit;
+	border-right-style: inset;
+	border-right-width: calc(100vw + 100vh);
+	border-radius: unset;
+}
+
+.scrollable::-webkit-scrollbar-thumb:hover {
+	border-color: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.scrollable::-webkit-scrollbar-thumb:active {
+	border-color: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+/*
+Fix VSCode ignoring webkit scrollbar modifiers
+https://github.com/microsoft/vscode/issues/213045
+*/
+@supports selector(::-webkit-scrollbar) {
+	html {
+		scrollbar-color: unset;
+	}
+}
+
+/*
+The above scrollbar styling uses some transparent background color magic to accomplish its animation. However this doesn't play nicely with SyntaxHighlighter, so we need to set a background color for the code blocks' horizontal scrollbar. This actually has the unintended consequence of always showing the scrollbar which I prefer since it makes it more obvious that there is more content to scroll to.
+*/
+
+.code-block-scrollable::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.code-block-scrollable::-webkit-scrollbar-thumb {
+	background-color: var(--vscode-scrollbarSlider-background);
+	border-radius: 5px;
+	border: 2px solid transparent;
+	background-clip: content-box;
+}
+
+.code-block-scrollable::-webkit-scrollbar-thumb:hover {
+	background-color: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.code-block-scrollable::-webkit-scrollbar-thumb:active {
+	background-color: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+.code-block-scrollable::-webkit-scrollbar-corner {
+	background-color: transparent;
+}
+
+/*
+Dropdown label
+https://github.com/microsoft/vscode-webview-ui-toolkit/tree/main/src/dropdown#with-label
+*/
+.dropdown-container {
+	box-sizing: border-box;
+	display: flex;
+	flex-flow: column nowrap;
+	align-items: flex-start;
+	justify-content: flex-start;
+}
+.dropdown-container label {
+	display: block;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	font-size: var(--vscode-font-size);
+	line-height: normal;
+	margin-bottom: 2px;
+}
+
+/* Fix scrollbar in dropdown */
+
+vscode-dropdown::part(listbox) {
+	border-color: var(--vscode-scrollbarSlider-background);
+	transition: none;
+	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+}
+
+/* Faded icon buttons in textfields */
+
+.input-icon-button {
+	cursor: pointer;
+	opacity: 0.65;
+}
+.input-icon-button:hover {
+	opacity: 1;
+}
+.input-icon-button.disabled {
+	cursor: not-allowed;
+	opacity: 0.4;
+}
+.input-icon-button.disabled:hover {
+	opacity: 0.4;
+}
+
+/* Context mentions */
+
+/* Needs to match the highlightLayerRef in ChatTextArea for proper positioning */
+.mention-context-textarea-highlight,
+.mention-context-highlight,
+.mention-context-highlight-with-shadow,
+.slash-command-match-textarea-highlight {
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-editor-font-size);
+	line-height: var(--vscode-editor-line-height);
+}
+
+.mention-context-textarea-highlight {
+	background-color: color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
+	border-radius: 3px;
+	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
+	color: transparent;
+	/* padding: 0.5px;
+	margin: -0.5px;
+	position: relative;
+	bottom: -0.5px; */
+}
+
+.mention-context-highlight {
+	background-color: color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
+	border-radius: 3px;
+}
+
+.mention-context-highlight-with-shadow {
+	background-color: color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
+	border-radius: 3px;
+	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
+}
+
+.slash-command-match-textarea-highlight {
+	background-color: color-mix(in srgb, var(--vscode-focusBorder) 30%, transparent);
+	border-radius: 3px;
+	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-focusBorder) 30%, transparent);
+	color: transparent;
+}
+
+/* Pulse animation for running command indicator */
+@keyframes pulse {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.5;
+	}
+}
+
+/* Fix tooltip arrow lag - disable animations on tooltips */
+[data-slot="tooltip-content"],
+[data-slot="tooltip-content"] * {
+	animation: none !important;
+	transition: none !important;
+}
+
+/* Fix popover arrow lag - disable animations on popovers */
+[data-slot="popover-content"],
+[data-slot="popover-content"] * {
+	animation: none !important;
+	transition: none !important;
+}

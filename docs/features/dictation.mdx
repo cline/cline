@@ -1,0 +1,152 @@
+---
+title: "Dictation"
+description: "Communicate with Cline using your voice for faster, more natural AI collaboration"
+---
+
+Dictation transforms how you work with AI. Instead of typing out complex thoughts, you speak naturally and share your complete intent. This isn't just about speed - though voice is faster - it's about enabling fluid collaboration that typing can't match.
+
+## Why Voice Changes Everything
+
+When you type, you edit yourself. You simplify complex ideas, skip context, and lose nuance. When you speak, you share everything on your mind - the full problem, the constraints, the edge cases you're worried about.
+
+Use Dictation constantly in [Plan mode](/features/plan-and-act) for rapid back-and-forth discussions. Instead of typing careful, structured prompts, think about a problem. Cline asks clarifying questions, respond immediately, and iterate until having a solid plan.
+
+The friction of typing was holding back real collaboration. Voice removes that friction.
+
+## Getting Started
+
+**Enable Dictation:**
+1. Go to Settings → Features → Dictation
+2. Toggle "Enable Dictation" on
+3. Sign into your Cline account when prompted
+4. Install FFmpeg if you haven't already (Cline will guide you)
+
+Once enabled, you'll see a microphone button in the chat input area.
+
+**Using Dictation:**
+- Click the microphone button to start recording
+- Speak naturally
+- Click again to stop recording
+- Wait for transcription to appear in the chat
+
+<Tip>
+Dictation works with any AI model you've configured. The transcription happens through Cline's service, but your conversation continues with whatever model you're using.
+</Tip>
+
+## System Requirements
+
+<Note>
+Dictation is currently not available on Windows. Support for Windows is planned for a future release.
+</Note>
+
+Dictation uses FFmpeg to capture your voice across all platforms:
+
+- **macOS**: FFmpeg (via Homebrew: `brew install ffmpeg`)
+- **Linux**: FFmpeg (via apt: `sudo apt-get install ffmpeg`)
+
+If you don't have FFmpeg installed, Cline will automatically detect this and prompt you to install it with a single click.
+
+## Where Dictation Shines
+
+### Plan Mode Conversations
+
+Dictation is perfect for [Plan mode](/features/plan-and-act) discussions. Instead of carefully crafting prompts, you can:
+
+- Dictate your entire problem context in one go
+- Respond to Cline's questions immediately
+- Iterate on ideas without typing friction
+- Think out loud while Cline listens
+
+Start a planning session by speaking for 2-3 minutes straight, explaining the full context of what you're trying to build, the constraints you're working with, and the specific challenges you're facing.
+
+### Complex Problem Explanation
+
+Some problems are hard to type out. When you're dealing with:
+- Multi-step workflows with edge cases
+- Integration challenges across multiple systems  
+- Performance issues with specific reproduction steps
+- UI/UX problems that need detailed context
+
+Speaking lets you explain the full situation naturally, including all the "oh, and also..." details that matter.
+
+### Code Review and Debugging
+
+When reviewing code or explaining bugs, voice lets you walk through your thought process:
+- "This function looks fine, but I'm worried about what happens when..."
+- "The issue might be in this section, or possibly this other area..."
+- "I tried X and Y, but neither worked because..."
+
+You can share your complete debugging journey instead of just the final question.
+
+## Technical Requirements
+
+**System Requirements:**
+- FFmpeg installed on your system
+- Active internet connection
+- Cline account with transcription credits
+
+**Audio Quality:**
+- Records in WebM format with Opus codec
+- Mono audio at 16kHz sample rate
+- Optimized for voice recognition
+
+**Privacy:**
+- Audio recorded locally on your machine
+- Only audio files sent for transcription
+- No audio stored after transcription
+- Temporary files automatically cleaned up
+
+## Cost and Credits
+
+Voice transcription costs $0.006 per minute through your Cline account. For most users, this works out to pennies per session.
+
+A typical 5-minute planning conversation costs about 3 cents. Even heavy voice users rarely spend more than a few dollars per month.
+
+<Note>
+Pricing is experimental and may change as we refine the service.
+</Note>
+
+## Best Practices
+
+**Speak Naturally**
+Don't try to speak like you type. Use your normal conversational tone and don't worry about perfect grammar.
+
+**Give Context First**
+Start with the big picture, then drill down into specifics. "I'm building a React app that needs to handle real-time data, and I'm running into performance issues with the WebSocket connection..."
+
+**Use Voice for Exploration**
+Dictation is perfect for exploratory conversations where you're not sure exactly what you need. Start talking through the problem and let the conversation evolve.
+
+**Combine with Text**
+You don't have to use voice for everything. Use voice for complex explanations and context, then switch to text for quick follow-ups or code snippets.
+
+## Troubleshooting
+
+**Microphone Not Working**
+- Check your IDE permissions for microphone access
+- Ensure FFmpeg is properly installed
+- Try refreshing VSCode/your editor
+
+**Poor Transcription Quality**
+- Speak clearly and at normal volume
+- Reduce background noise if possible
+- Check your microphone settings
+
+**Connection Issues**
+- Verify internet connection
+- Check if firewall is blocking Cline's servers
+- Try signing out and back into your Cline account
+
+**Authentication Issues**
+- Sign out and back into your Cline account if you see authentication errors
+- Check that your account has sufficient transcription credits
+- Verify your internet connection is stable
+
+**Audio Recording Issues**
+- Ensure FFmpeg is properly installed and accessible
+- Check that your browser/IDE has microphone permissions
+- Try restarting your editor if audio capture fails
+
+## The Future of AI Collaboration
+
+When you can speak your thoughts as fast as you think them, you stop self-editing. You share the full context, the edge cases, the "what if" scenarios that matter. This leads to better solutions and fewer back-and-forth clarifications.

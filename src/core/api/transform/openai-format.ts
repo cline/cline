@@ -1,8 +1,26 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
+import {
+	ClineAssistantRedactedThinkingBlock,
+	ClineAssistantThinkingBlock,
+	ClineAssistantToolUseBlock,
+	ClineImageContentBlock,
+	ClineStorageMessage,
+	ClineTextContentBlock,
+	ClineUserToolResultContentBlock,
+} from "@/shared/messages/content"
 
+/**
+ * Converts an array of ClineStorageMessage objects to OpenAI's Completions API format.
+ *
+ * Handles conversion of Cline-specific content types (tool uses, tool results, images, reasoning details)
+ * into OpenAI's expected message structure, including tool_calls and tool_call_id fields.
+ *
+ * @param anthropicMessages - Array of ClineStorageMessage objects to be converted
+ * @returns Array of OpenAI.Chat.ChatCompletionMessageParam objects
+ */
 export function convertToOpenAiMessages(
-	anthropicMessages: Anthropic.Messages.MessageParam[],
+	anthropicMessages: Omit<ClineStorageMessage, "modelInfo">[],
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
 	const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = []
 
@@ -23,8 +41,8 @@ export function convertToOpenAiMessages(
          */
 			if (anthropicMessage.role === "user") {
 				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
-					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
-					toolMessages: Anthropic.ToolResultBlockParam[]
+					nonToolMessages: (ClineTextContentBlock | ClineImageContentBlock)[]
+					toolMessages: ClineUserToolResultContentBlock[]
 				}>(
 					(acc, part) => {
 						if (part.type === "tool_result") {
@@ -38,14 +56,14 @@ export function convertToOpenAiMessages(
 				)
 
 				// Process tool result messages FIRST since they must follow the tool use messages
-				const toolResultImages: Anthropic.Messages.ImageBlockParam[] = []
+				const toolResultImages: ClineImageContentBlock[] = []
 				toolMessages.forEach((toolMessage) => {
 					// The Anthropic SDK allows tool results to be a string or an array of text and image blocks, enabling rich and structured content. In contrast, the OpenAI SDK only supports tool results as a single string, so we map the Anthropic tool result parts into one concatenated string to maintain compatibility.
 					let content: string
 
 					if (typeof toolMessage.content === "string") {
 						content = toolMessage.content
-					} else {
+					} else if (Array.isArray(toolMessage.content)) {
 						content =
 							toolMessage.content
 								?.map((part) => {
@@ -56,6 +74,9 @@ export function convertToOpenAiMessages(
 									return part.text
 								})
 								.join("\n") ?? ""
+					} else {
+						// Handle undefined content
+						content = ""
 					}
 					openAiMessages.push({
 						role: "tool",
@@ -70,15 +91,15 @@ export function convertToOpenAiMessages(
 				// Therefore we need to send these images after the tool result messages
 				// NOTE: it's actually okay to have multiple user messages in a row, the model will treat them as a continuation of the same input (this way works better than combining them into one message, since the tool result specifically mentions (see following user message for image)
 				// UPDATE v2.0: we don't use tools anymore, but if we did it's important to note that the openrouter prompt caching mechanism requires one user message at a time, so we would need to add these images to the user content array instead.
-				// if (toolResultImages.length > 0) {
-				// 	openAiMessages.push({
-				// 		role: "user",
-				// 		content: toolResultImages.map((part) => ({
-				// 			type: "image_url",
-				// 			image_url: { url: `data:${part.source.media_type};base64,${part.source.data}` },
-				// 		})),
-				// 	})
-				// }
+				if (toolResultImages.length > 0) {
+					openAiMessages.push({
+						role: "user",
+						content: toolResultImages.map((part) => ({
+							type: "image_url",
+							image_url: { url: `data:${part.source.media_type};base64,${part.source.data}` },
+						})),
+					})
+				}
 
 				// Process non-tool messages
 				if (nonToolMessages.length > 0) {
@@ -99,8 +120,13 @@ export function convertToOpenAiMessages(
 				}
 			} else if (anthropicMessage.role === "assistant") {
 				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
-					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
-					toolMessages: Anthropic.ToolUseBlockParam[]
+					nonToolMessages: (
+						| ClineTextContentBlock
+						| ClineImageContentBlock
+						| ClineAssistantThinkingBlock
+						| ClineAssistantRedactedThinkingBlock
+					)[]
+					toolMessages: ClineAssistantToolUseBlock[]
 				}>(
 					(acc, part) => {
 						if (part.type === "tool_use") {
@@ -115,33 +141,83 @@ export function convertToOpenAiMessages(
 
 				// Process non-tool messages
 				let content: string | undefined
+				const reasoningDetails: any[] = []
+				const thinkingBlock = []
 				if (nonToolMessages.length > 0) {
+					nonToolMessages.forEach((part) => {
+						// @ts-ignore-next-line
+						if (part.type === "text" && part.reasoning_details) {
+							// @ts-ignore-next-line
+							if (Array.isArray(part.reasoning_details)) {
+								// @ts-ignore-next-line
+								reasoningDetails.push(...part.reasoning_details)
+							} else {
+								// @ts-ignore-next-line
+								reasoningDetails.push(part.reasoning_details)
+							}
+							// @ts-ignore-next-line
+							// delete part.reasoning_details
+						}
+						if (part.type === "thinking" && part.thinking) {
+							// Reasoning details should have been moved to the text block
+							thinkingBlock.push(part)
+						}
+					})
 					content = nonToolMessages
 						.map((part) => {
-							if (part.type === "image") {
-								return "" // impossible as the assistant cannot send images
+							if (part.type === "text" && part.text) {
+								return part.text
 							}
-							return part.text
+							return ""
 						})
 						.join("\n")
 				}
 
 				// Process tool use messages
-				const tool_calls: OpenAI.Chat.ChatCompletionMessageToolCall[] = toolMessages.map((toolMessage) => ({
-					id: toolMessage.id,
-					type: "function",
-					function: {
-						name: toolMessage.name,
-						// json string
-						arguments: JSON.stringify(toolMessage.input),
-					},
-				}))
+				const tool_calls: OpenAI.Chat.ChatCompletionMessageToolCall[] = toolMessages.map((toolMessage) => {
+					const toolDetails = toolMessage.reasoning_details
+					if (toolDetails) {
+						if (Array.isArray(toolDetails)) {
+							// For Gemini: reasoning details must be linkable back to the tool call.
+							// Sometimes OpenRouter/Gemini returns entries without `id`; those poison the next request.
+							// Keep only entries with an id matching the tool call id.
+							// See: https://github.com/cline/cline/issues/8214
+							const validDetails = toolDetails.filter((detail: any) => detail?.id === toolMessage.id)
+							if (validDetails.length > 0) reasoningDetails.push(...validDetails)
+						} else {
+							// Single reasoning detail - only include if it has matching id
+							const detail = toolDetails as any
+							if (detail?.id === toolMessage.id) reasoningDetails.push(toolDetails)
+						}
+					}
+
+					return {
+						id: toolMessage.id,
+						type: "function",
+						function: {
+							name: toolMessage.name,
+							// json string
+							arguments: JSON.stringify(toolMessage.input),
+						},
+					}
+				})
+
+				// Set content to blank when tool_calls are present but content has no text, per OpenAI API spec
+				const hasToolCalls = tool_calls.length > 0
+				const hasMeaningfulContent = content !== undefined && content.trim() !== ""
+				const finalContent = hasMeaningfulContent ? content : hasToolCalls ? null : undefined
+
+				const consolidatedReasoningDetails =
+					reasoningDetails.length > 0 ? consolidateReasoningDetails(reasoningDetails as any) : []
 
 				openAiMessages.push({
 					role: "assistant",
-					content,
+					content: finalContent,
 					// Cannot be an empty array. API expects an array with minimum length 1, and will respond with an error if it's empty
-					tool_calls: tool_calls.length > 0 ? tool_calls : undefined,
+					tool_calls: tool_calls?.length > 0 ? tool_calls : undefined,
+					// Only include reasoning_details when non-empty; sending [] can trigger provider validation issues.
+					// @ts-ignore-next-line
+					reasoning_details: consolidatedReasoningDetails.length > 0 ? consolidatedReasoningDetails : undefined,
 				})
 			}
 		}
@@ -149,6 +225,118 @@ export function convertToOpenAiMessages(
 
 	return openAiMessages
 }
+
+// Type for OpenRouter's reasoning detail elements
+// https://openrouter.ai/docs/use-cases/reasoning-tokens#streaming-response
+type ReasoningDetail = {
+	// https://openrouter.ai/docs/use-cases/reasoning-tokens#reasoning-detail-types
+	type: string // "reasoning.summary" | "reasoning.encrypted" | "reasoning.text"
+	text?: string
+	data?: string // Encrypted reasoning data
+	signature?: string | null
+	id?: string | null // Unique identifier for the reasoning detail
+	/*
+	 The format of the reasoning detail, with possible values:
+	 	"unknown" - Format is not specified
+		"openai-responses-v1" - OpenAI responses format version 1
+		"anthropic-claude-v1" - Anthropic Claude format version 1 (default)
+	 */
+	format: string //"unknown" | "openai-responses-v1" | "anthropic-claude-v1" | "xai-responses-v1"
+	index?: number // Sequential index of the reasoning detail
+}
+
+// Helper function to convert reasoning_details array to the format OpenRouter API expects
+// Takes an array of reasoning detail objects and consolidates them by index
+function consolidateReasoningDetails(reasoningDetails: ReasoningDetail[]): ReasoningDetail[] {
+	if (!reasoningDetails || reasoningDetails.length === 0) {
+		return []
+	}
+
+	// Group by index
+	const groupedByIndex = new Map<number, ReasoningDetail[]>()
+
+	for (const detail of reasoningDetails) {
+		// Drop corrupted encrypted reasoning blocks that would otherwise trigger:
+		// "Invalid input: expected string, received undefined" for reasoning_details.*.data
+		// See: https://github.com/cline/cline/issues/8214
+		if (detail.type === "reasoning.encrypted" && !detail.data) continue
+
+		const index = detail.index ?? 0
+		if (!groupedByIndex.has(index)) {
+			groupedByIndex.set(index, [])
+		}
+		groupedByIndex.get(index)!.push(detail)
+	}
+
+	// Consolidate each group
+	const consolidated: ReasoningDetail[] = []
+
+	for (const [index, details] of groupedByIndex.entries()) {
+		// Concatenate all text parts
+		let concatenatedText = ""
+		let signature: string | undefined
+		let id: string | undefined
+		let format = "unknown"
+		let type = "reasoning.text"
+
+		for (const detail of details) {
+			if (detail.text) {
+				concatenatedText += detail.text
+			}
+			// Keep the signature from the last item that has one
+			if (detail.signature) {
+				signature = detail.signature
+			}
+			// Keep the id from the last item that has one
+			if (detail.id) {
+				id = detail.id
+			}
+			// Keep format and type from any item (they should all be the same)
+			if (detail.format) {
+				format = detail.format
+			}
+			if (detail.type) {
+				type = detail.type
+			}
+		}
+
+		// Create consolidated entry for text
+		if (concatenatedText) {
+			const consolidatedEntry: ReasoningDetail = {
+				type: type,
+				text: concatenatedText,
+				signature: signature,
+				id: id,
+				format: format,
+				index: index,
+			}
+			consolidated.push(consolidatedEntry)
+		}
+
+		// For encrypted chunks (data), only keep the last one
+		let lastDataEntry: ReasoningDetail | undefined
+		for (const detail of details) {
+			if (detail.data) {
+				lastDataEntry = {
+					type: detail.type,
+					data: detail.data,
+					signature: detail.signature,
+					id: detail.id,
+					format: detail.format,
+					index: index,
+				}
+			}
+		}
+		if (lastDataEntry) {
+			consolidated.push(lastDataEntry)
+		}
+	}
+
+	return consolidated
+}
+
+// Unique name to use to filter out tool call that cannot be parsed correctly
+const UNIQUE_ERROR_TOOL_NAME = "_cline_error_unknown_function_"
 
 // Convert OpenAI response to Anthropic format
 export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.ChatCompletion): Anthropic.Messages.Message {
@@ -186,24 +374,33 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 			cache_read_input_tokens: null,
 		},
 	}
+	try {
+		if (openAiMessage?.tool_calls?.length) {
+			const functionCalls = openAiMessage.tool_calls.filter((tc: any) => tc?.type === "function" && tc.function)
+			if (functionCalls.length > 0) {
+				anthropicMessage.content.push(
+					...functionCalls.map((toolCall: any): Anthropic.ToolUseBlock => {
+						let parsedInput = {}
+						try {
+							parsedInput = JSON.parse(toolCall.function?.arguments || "{}")
+						} catch (error) {
+							console.error("Failed to parse tool arguments:", error)
+						}
+						return {
+							type: "tool_use",
+							id: toolCall.id,
+							name: toolCall.function?.name || UNIQUE_ERROR_TOOL_NAME,
+							input: parsedInput,
+						}
+					}),
+				)
+			}
 
-	if (openAiMessage.tool_calls && openAiMessage.tool_calls.length > 0) {
-		anthropicMessage.content.push(
-			...openAiMessage.tool_calls.map((toolCall): Anthropic.ToolUseBlock => {
-				let parsedInput = {}
-				try {
-					parsedInput = JSON.parse(toolCall.function.arguments || "{}")
-				} catch (error) {
-					console.error("Failed to parse tool arguments:", error)
-				}
-				return {
-					type: "tool_use",
-					id: toolCall.id,
-					name: toolCall.function.name,
-					input: parsedInput,
-				}
-			}),
-		)
+			return anthropicMessage
+		}
+	} catch (error) {
+		console.error("Error converting OpenAI message to Anthropic format:", error)
 	}
+
 	return anthropicMessage
 }

@@ -15,6 +15,7 @@ export async function getUserInstructions(variant: PromptVariant, context: Syste
 		context.localCursorRulesFileInstructions,
 		context.localCursorRulesDirInstructions,
 		context.localWindsurfRulesFileInstructions,
+		context.localAgentsRulesFileInstructions,
 		context.clineIgnoreInstructions,
 		context.preferredLanguageInstructions,
 	)
@@ -26,7 +27,7 @@ export async function getUserInstructions(variant: PromptVariant, context: Syste
 	const template =
 		variant.componentOverrides?.[SystemPromptSection.USER_INSTRUCTIONS]?.template || USER_CUSTOM_INSTRUCTIONS_TEMPLATE_TEXT
 
-	return new TemplateEngine().resolve(template, {
+	return new TemplateEngine().resolve(template, context, {
 		CUSTOM_INSTRUCTIONS: customInstructions,
 	})
 }
@@ -37,6 +38,7 @@ function buildUserInstructions(
 	localCursorRulesFileInstructions?: string,
 	localCursorRulesDirInstructions?: string,
 	localWindsurfRulesFileInstructions?: string,
+	localAgentsRulesFileInstructions?: string,
 	clineIgnoreInstructions?: string,
 	preferredLanguageInstructions?: string,
 ): string | undefined {
@@ -58,6 +60,9 @@ function buildUserInstructions(
 	}
 	if (localWindsurfRulesFileInstructions) {
 		customInstructions.push(localWindsurfRulesFileInstructions)
+	}
+	if (localAgentsRulesFileInstructions) {
+		customInstructions.push(localAgentsRulesFileInstructions)
 	}
 	if (clineIgnoreInstructions) {
 		customInstructions.push(clineIgnoreInstructions)

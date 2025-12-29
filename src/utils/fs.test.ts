@@ -256,4 +256,61 @@ describe("Filesystem Utilities", () => {
 
 		multiExcludeFiles.sort().should.deepEqual(rootOnlyFiles.sort())
 	})
+
+	it("should exclude .clinerules/hooks directory specifically", async () => {
+		// Create a test directory structure
+		const clinerulesDirTest = path.join(tmpDir, "clinerules-hooks-test")
+		const clinerulesDirPath = path.join(clinerulesDirTest, ".clinerules")
+
+		// Create .clinerules directory and root files
+		await fs.mkdir(clinerulesDirPath, { recursive: true })
+		await fs.writeFile(path.join(clinerulesDirPath, "config.json"), "{}")
+		await fs.writeFile(path.join(clinerulesDirPath, "settings.js"), "// settings")
+
+		// Create .clinerules/workflows directory and files
+		const workflowsDirPath = path.join(clinerulesDirPath, "workflows")
+		await fs.mkdir(workflowsDirPath, { recursive: true })
+		await fs.writeFile(path.join(workflowsDirPath, "workflow1.js"), "// workflow1")
+
+		// Create .clinerules/hooks directory and files
+		const hooksDirPath = path.join(clinerulesDirPath, "hooks")
+		await fs.mkdir(hooksDirPath, { recursive: true })
+		await fs.writeFile(path.join(hooksDirPath, "PreToolUse"), "#!/usr/bin/env bash")
+		await fs.writeFile(path.join(hooksDirPath, "PostToolUse"), "#!/usr/bin/env bash")
+
+		// Get all files WITHOUT exclusion
+		const allFiles = await readDirectory(clinerulesDirPath)
+
+		// Verify all files are included
+		allFiles.length.should.equal(5) // 2 in root + 1 in workflows + 2 in hooks
+		allFiles.some((file) => file.includes("PreToolUse")).should.be.true()
+		allFiles.some((file) => file.includes("PostToolUse")).should.be.true()
+
+		// Get files WITH hooks directory excluded
+		const filteredFiles = await readDirectory(clinerulesDirPath, [[".clinerules", "hooks"]])
+
+		// Verify hooks files are excluded but others remain
+		filteredFiles.length.should.equal(3) // 2 in root + 1 in workflows
+
+		const expectedFiles = [
+			path.resolve(clinerulesDirPath, "config.json"),
+			path.resolve(clinerulesDirPath, "settings.js"),
+			path.resolve(workflowsDirPath, "workflow1.js"),
+		]
+
+		filteredFiles.sort().should.deepEqual(expectedFiles.sort())
+
+		// Test with multiple exclusions (both workflows and hooks)
+		const multiExcludeFiles = await readDirectory(clinerulesDirPath, [
+			[".clinerules", "workflows"],
+			[".clinerules", "hooks"],
+		])
+
+		// Verify both workflows and hooks directories are excluded
+		multiExcludeFiles.length.should.equal(2) // only the 2 files in root
+
+		const rootOnlyFiles = [path.resolve(clinerulesDirPath, "config.json"), path.resolve(clinerulesDirPath, "settings.js")]
+
+		multiExcludeFiles.sort().should.deepEqual(rootOnlyFiles.sort())
+	})
 })

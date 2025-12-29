@@ -2,17 +2,18 @@ import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
-import { ClineAsk } from "@shared/ExtensionMessage"
 import { createAndOpenGitHubIssue } from "@utils/github-url-utils"
 import * as os from "os"
-import * as vscode from "vscode"
+import { HostProvider } from "@/hosts/host-provider"
+import { ExtensionRegistryInfo } from "@/registry"
+import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 
 export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
-	readonly name = "report_bug"
+	readonly name = ClineDefaultTool.REPORT_BUG
 
 	constructor() {}
 
@@ -29,16 +30,10 @@ export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
 			additional_context: uiHelpers.removeClosingTag(block, "additional_context", block.params.additional_context),
 		})
 
-		await uiHelpers.removeLastPartialMessageIfExistsWithType("say", "report_bug")
-		await uiHelpers.ask("report_bug" as ClineAsk, partialMessage, block.partial).catch(() => {})
+		await uiHelpers.ask(this.name, partialMessage, block.partial).catch(() => {})
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, don't execute yet
-		if (block.partial) {
-			return ""
-		}
-
 		const title = block.params.title
 		const what_happened = block.params.what_happened
 		const steps_to_reproduce = block.params.steps_to_reproduce
@@ -48,29 +43,29 @@ export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
 		// Validate required parameters
 		if (!title) {
 			config.taskState.consecutiveMistakeCount++
-			return "Missing required parameter: title"
+			return await config.callbacks.sayAndCreateMissingParamError(block.name, "title")
 		}
 		if (!what_happened) {
 			config.taskState.consecutiveMistakeCount++
-			return "Missing required parameter: what_happened"
+			return await config.callbacks.sayAndCreateMissingParamError(block.name, "what_happened")
 		}
 		if (!steps_to_reproduce) {
 			config.taskState.consecutiveMistakeCount++
-			return "Missing required parameter: steps_to_reproduce"
+			return await config.callbacks.sayAndCreateMissingParamError(block.name, "steps_to_reproduce")
 		}
 		if (!api_request_output) {
 			config.taskState.consecutiveMistakeCount++
-			return "Missing required parameter: api_request_output"
+			return await config.callbacks.sayAndCreateMissingParamError(block.name, "api_request_output")
 		}
 		if (!additional_context) {
 			config.taskState.consecutiveMistakeCount++
-			return "Missing required parameter: additional_context"
+			return await config.callbacks.sayAndCreateMissingParamError(block.name, "additional_context")
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
 
-		// Show notification if auto-approval is enabled
-		if (config.autoApprovalSettings.enabled && config.autoApprovalSettings.enableNotifications) {
+		// Show notification if enabled
+		if (config.autoApprovalSettings.enableNotifications) {
 			showSystemNotification({
 				subtitle: "Cline wants to create a github issue...",
 				message: `Cline is suggesting to create a github issue with the title: ${title}`,
@@ -79,9 +74,10 @@ export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
 
 		// Derive system information values algorithmically
 		const operatingSystem = os.platform() + " " + os.release()
-		const clineVersion = vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
-		const systemInfo = `VSCode: ${vscode.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
 		const currentMode = config.mode
+		const clineVersion = ExtensionRegistryInfo.version
+		const host = await HostProvider.env.getHostVersion({})
+		const systemInfo = `${host.platform}: ${host.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
 		const apiConfig = config.services.stateManager.getApiConfiguration()
 		const apiProvider = currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
 		const providerAndModel = `${apiProvider} / ${config.api.getModel().id}`
@@ -100,7 +96,7 @@ export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
 			cline_version: clineVersion,
 		})
 
-		const { text, images, files: reportBugFiles } = await config.callbacks.ask("report_bug", bugReportData, false)
+		const { text, images, files: reportBugFiles } = await config.callbacks.ask(this.name, bugReportData, false)
 
 		// If the user provided a response, treat it as feedback
 		if (text || (images && images.length > 0) || (reportBugFiles && reportBugFiles.length > 0)) {

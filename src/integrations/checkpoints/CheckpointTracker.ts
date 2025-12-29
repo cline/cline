@@ -1,9 +1,17 @@
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
+import { sendCheckpointEvent } from "@core/controller/checkpoints/subscribeToCheckpoints"
 import fs from "fs/promises"
 import * as path from "path"
 import simpleGit from "simple-git"
+import type { FolderLockWithRetryResult } from "@/core/locks/types"
+import { telemetryService } from "@/services/telemetry"
 import { GitOperations } from "./CheckpointGitOperations"
-import { getShadowGitPath, getWorkingDirectory, hashWorkingDir } from "./CheckpointUtils"
+import { releaseCheckpointLock, tryAcquireCheckpointLockWithRetry } from "./CheckpointLockUtils"
+import { getShadowGitPath, hashWorkingDir } from "./CheckpointUtils"
+
+/**
+ * Operation types for checkpoint events
+ */
+type CheckpointOperation = "CHECKPOINT_INIT" | "CHECKPOINT_COMMIT" | "CHECKPOINT_RESTORE"
 
 /**
  * CheckpointTracker Module
@@ -38,7 +46,6 @@ import { getShadowGitPath, getWorkingDirectory, hashWorkingDir } from "./Checkpo
  */
 
 class CheckpointTracker {
-	private globalStoragePath: string
 	private taskId: string
 	private cwd: string
 	private cwdHash: string
@@ -54,6 +61,31 @@ class CheckpointTracker {
 	}
 
 	/**
+	 * Send a checkpoint event to all subscribers.
+	 *
+	 * @param operation - The operation type (CHECKPOINT_INIT, CHECKPOINT_COMMIT, or CHECKPOINT_RESTORE)
+	 * @param isActive - true when operation starts, false when complete
+	 * @param commitHash - Optional commit hash for CHECKPOINT_COMMIT and CHECKPOINT_RESTORE operations
+	 */
+	private async sendCheckpointSubscriptionEvent(
+		operation: CheckpointOperation,
+		isActive: boolean,
+		commitHash?: string,
+	): Promise<void> {
+		try {
+			await sendCheckpointEvent({
+				operation,
+				cwdHash: this.cwdHash,
+				isActive,
+				taskId: this.taskId,
+				commitHash,
+			})
+		} catch (error) {
+			console.debug("Failed to send checkpoint event:", error)
+		}
+	}
+
+	/**
 	 * Creates a new CheckpointTracker instance to manage checkpoints for a specific task.
 	 * The constructor is private - use the static create() method to instantiate.
 	 *
@@ -61,8 +93,7 @@ class CheckpointTracker {
 	 * @param cwd - The current working directory to track files in
 	 * @param cwdHash - Hash of the working directory path for shadow git organization
 	 */
-	private constructor(globalStoragePath: string, taskId: string, cwd: string, cwdHash: string) {
-		this.globalStoragePath = globalStoragePath
+	private constructor(taskId: string, cwd: string, cwdHash: string) {
 		this.taskId = taskId
 		this.cwd = cwd
 		this.cwdHash = cwdHash
@@ -75,6 +106,8 @@ class CheckpointTracker {
 	 *
 	 * @param taskId - Unique identifier for the task to track
 	 * @param globalStoragePath - the globalStorage path
+	 * @param enableCheckpointsSetting - Whether checkpoints are enabled in settings
+	 * @param workspacePaths - The workspace directory path(s) to track (string or array of strings)
 	 * @returns Promise resolving to new CheckpointTracker instance, or undefined if checkpoints are disabled
 	 * @throws Error if:
 	 * - globalStoragePath is not supplied
@@ -91,12 +124,9 @@ class CheckpointTracker {
 	 */
 	public static async create(
 		taskId: string,
-		globalStoragePath: string | undefined,
 		enableCheckpointsSetting: boolean,
+		workspacePaths: string | string[],
 	): Promise<CheckpointTracker | undefined> {
-		if (!globalStoragePath) {
-			throw new Error("Global storage path is required to create a checkpoint tracker")
-		}
 		try {
 			console.info(`Creating new CheckpointTracker for task ${taskId}`)
 			const startTime = performance.now()
@@ -114,14 +144,30 @@ class CheckpointTracker {
 				throw new Error("Git must be installed to use checkpoints.") // FIXME: must match what we check for in TaskHeader to show link
 			}
 
-			const workingDir = await getWorkingDirectory()
+			// Validate and normalize workspace paths - for now, we just use the first valid path
+			const pathsToValidate = Array.isArray(workspacePaths) ? workspacePaths : [workspacePaths]
+			const { validateWorkspacePath } = await import("./CheckpointUtils")
+
+			for (const workspacePath of pathsToValidate) {
+				if (!workspacePath) {
+					throw new Error("At least one workspace path must be provided")
+				}
+
+				await validateWorkspacePath(workspacePath)
+			}
+
+			// For now, we just use the first valid path
+			const workingDir = Array.isArray(workspacePaths) ? workspacePaths[0] : workspacePaths
+
 			const cwdHash = hashWorkingDir(workingDir)
 			console.debug(`Repository ID (cwdHash): ${cwdHash}`)
 
-			const newTracker = new CheckpointTracker(globalStoragePath, taskId, workingDir, cwdHash)
+			const newTracker = new CheckpointTracker(taskId, workingDir, cwdHash)
+			await newTracker.sendCheckpointSubscriptionEvent("CHECKPOINT_INIT", true)
 
-			const gitPath = await getShadowGitPath(newTracker.globalStoragePath, newTracker.taskId, newTracker.cwdHash)
+			const gitPath = await getShadowGitPath(newTracker.cwdHash)
 			await newTracker.gitOperations.initShadowGit(gitPath, workingDir, taskId)
+			await newTracker.sendCheckpointSubscriptionEvent("CHECKPOINT_INIT", false)
 
 			const durationMs = Math.round(performance.now() - startTime)
 			telemetryService.captureCheckpointUsage(taskId, "shadow_git_initialized", durationMs)
@@ -137,7 +183,9 @@ class CheckpointTracker {
 	 * Creates a new checkpoint commit in the shadow git repository.
 	 *
 	 * Key behaviors:
+	 * - Acquires folder lock before proceeding to prevent conflicts
 	 * - Creates commit with checkpoint files in shadow git repo
+	 * - Releases folder lock after completion
 	 * - Caches the created commit hash
 	 *
 	 * Commit structure:
@@ -150,6 +198,7 @@ class CheckpointTracker {
 	 * - Relies on git's native exclusion handling via the exclude file
 	 *
 	 * @returns Promise<string | undefined> The created commit hash, or undefined if:
+	 * - Folder lock acquisition fails or times out
 	 * - Shadow git access fails
 	 * - Staging files fails
 	 * - Commit creation fails
@@ -159,11 +208,32 @@ class CheckpointTracker {
 	 * - Stage or commit files
 	 */
 	public async commit(): Promise<string | undefined> {
+		let lockAcquired: boolean = false
+
 		try {
+			await this.sendCheckpointSubscriptionEvent("CHECKPOINT_COMMIT", true)
 			console.info(`Creating new checkpoint commit for task ${this.taskId}`)
 			const startTime = performance.now()
 
-			const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
+			const lockResult: FolderLockWithRetryResult = await tryAcquireCheckpointLockWithRetry(this.cwdHash, this.taskId)
+
+			// Locking failed due to conflicting lock
+			if (!lockResult.acquired && !lockResult.skipped) {
+				throw new Error(
+					"Failed to acquire checkpoint folder lock - another Cline instance may be performing checkpoint operations",
+				)
+			}
+
+			// Locking skipped as we are in VS Code
+			if (!lockResult.acquired && lockResult.skipped) {
+				console.log("Skipping Checkpoints lock - VS Code")
+			}
+
+			if (lockResult.acquired) {
+				lockAcquired = true
+			}
+
+			const gitPath = await getShadowGitPath(this.cwdHash)
 			const git = simpleGit(path.dirname(gitPath))
 
 			console.info(`Using shadow git at: ${gitPath}`)
@@ -184,6 +254,7 @@ class CheckpointTracker {
 			console.warn(`Checkpoint commit created: `, commitHash)
 
 			const durationMs = Math.round(performance.now() - startTime)
+			await this.sendCheckpointSubscriptionEvent("CHECKPOINT_COMMIT", false, commitHash)
 			telemetryService.captureCheckpointUsage(this.taskId, "commit_created", durationMs)
 
 			return commitHash
@@ -193,6 +264,11 @@ class CheckpointTracker {
 				error,
 			})
 			throw new Error(`Failed to create checkpoint: ${error instanceof Error ? error.message : String(error)}`)
+		} finally {
+			if (lockAcquired) {
+				console.info("Releasing checkpoint folder lock")
+				await releaseCheckpointLock(this.cwdHash, this.taskId)
+			}
 		}
 	}
 
@@ -224,7 +300,7 @@ class CheckpointTracker {
 			return this.lastRetrievedShadowGitConfigWorkTree
 		}
 		try {
-			const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
+			const gitPath = await getShadowGitPath(this.cwdHash)
 			this.lastRetrievedShadowGitConfigWorkTree = await this.gitOperations.getShadowGitConfigWorkTree(gitPath)
 			return this.lastRetrievedShadowGitConfigWorkTree
 		} catch (error) {
@@ -238,6 +314,11 @@ class CheckpointTracker {
 	 * This will discard all changes after the target commit and restore the
 	 * working directory to that checkpoint's state.
 	 *
+	 * Key behaviors:
+	 * - Acquires folder lock before proceeding to prevent conflicts
+	 * - Performs hard reset to target commit
+	 * - Releases folder lock after completion
+	 *
 	 * Dependencies:
 	 * - Requires initialized shadow git (getShadowGitPath)
 	 * - Must be called with a valid commit hash from this task's history
@@ -245,22 +326,57 @@ class CheckpointTracker {
 	 * @param commitHash - The hash of the checkpoint commit to reset to
 	 * @returns Promise<void> Resolves when reset is complete
 	 * @throws Error if unable to:
+	 * - Acquire folder lock (timeout or conflict)
 	 * - Access shadow git path
 	 * - Initialize simple-git
 	 * - Reset to target commit
 	 */
 	public async resetHead(commitHash: string): Promise<void> {
-		console.info(`Resetting to checkpoint: ${commitHash}`)
-		const startTime = performance.now()
+		let lockAcquired: boolean = false
 
-		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
-		const git = simpleGit(path.dirname(gitPath))
-		console.debug(`Using shadow git at: ${gitPath}`)
-		await git.reset(["--hard", this.cleanCommitHash(commitHash)]) // Hard reset to target commit
-		console.debug(`Successfully reset to checkpoint: ${commitHash}`)
+		try {
+			console.info(`Resetting to checkpoint: ${commitHash}`)
+			const startTime = performance.now()
+			await this.sendCheckpointSubscriptionEvent("CHECKPOINT_RESTORE", true, commitHash)
+			const lockResult: FolderLockWithRetryResult = await tryAcquireCheckpointLockWithRetry(this.cwdHash, this.taskId)
 
-		const durationMs = Math.round(performance.now() - startTime)
-		telemetryService.captureCheckpointUsage(this.taskId, "restored", durationMs)
+			// Locking failed due to conflicting lock
+			if (!lockResult.acquired && !lockResult.skipped) {
+				throw new Error(
+					"Failed to acquire checkpoint folder lock - another Cline instance may be performing checkpoint operations",
+				)
+			}
+
+			// Locking skipped as we are in VS Code
+			if (!lockResult.acquired && lockResult.skipped) {
+				console.log("Skipping Checkpoints lock - VS Code")
+			}
+
+			if (lockResult.acquired) {
+				lockAcquired = true
+			}
+
+			const gitPath = await getShadowGitPath(this.cwdHash)
+			const git = simpleGit(path.dirname(gitPath))
+			console.debug(`Using shadow git at: ${gitPath}`)
+			await git.reset(["--hard", this.cleanCommitHash(commitHash)]) // Hard reset to target commit
+			console.debug(`Successfully reset to checkpoint: ${commitHash}`)
+
+			const durationMs = Math.round(performance.now() - startTime)
+			await this.sendCheckpointSubscriptionEvent("CHECKPOINT_RESTORE", false, commitHash)
+			telemetryService.captureCheckpointUsage(this.taskId, "restored", durationMs)
+		} catch (error) {
+			console.error("Failed to reset to checkpoint:", {
+				taskId: this.taskId,
+				commitHash,
+				error,
+			})
+			throw error
+		} finally {
+			if (lockAcquired) {
+				await releaseCheckpointLock(this.cwdHash, this.taskId)
+			}
+		}
 	}
 
 	/**
@@ -289,7 +405,7 @@ class CheckpointTracker {
 	> {
 		const startTime = performance.now()
 
-		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
+		const gitPath = await getShadowGitPath(this.cwdHash)
 		const git = simpleGit(path.dirname(gitPath))
 
 		console.info(`Getting diff between commits: ${lhsHash || "initial"} -> ${rhsHash || "working directory"}`)
@@ -354,7 +470,7 @@ class CheckpointTracker {
 	public async getDiffCount(lhsHash: string, rhsHash?: string): Promise<number> {
 		const startTime = performance.now()
 
-		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
+		const gitPath = await getShadowGitPath(this.cwdHash)
 		const git = simpleGit(path.dirname(gitPath))
 
 		console.info(`Getting diff count between commits: ${lhsHash || "initial"} -> ${rhsHash || "working directory"}`)

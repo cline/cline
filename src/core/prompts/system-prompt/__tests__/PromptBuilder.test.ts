@@ -10,6 +10,7 @@ import { mockProviderInfo } from "./integration.test"
 describe("PromptBuilder", () => {
 	const mockContext: SystemPromptContext = {
 		cwd: "/test/project",
+		ide: "TestIde",
 		supportsBrowserUse: true,
 		mcpHub: {
 			getServers: () => [],
@@ -30,6 +31,7 @@ describe("PromptBuilder", () => {
 		},
 		isTesting: true,
 		providerInfo: mockProviderInfo,
+		yoloModeToggled: false,
 	}
 
 	const mockComponents: ComponentRegistry = {
@@ -42,6 +44,7 @@ describe("PromptBuilder", () => {
 	const baseVariant: PromptVariant = {
 		id: "test-model",
 		family: ModelFamily.GENERIC,
+		matcher: () => true,
 		version: 1,
 		description: "A test model",
 		tags: ["test"],
@@ -125,7 +128,12 @@ describe("PromptBuilder", () => {
 			const customComponents: ComponentRegistry = {
 				...mockComponents,
 				SYSTEM_INFO_SECTION: async (variant) => {
-					const template = variant.componentOverrides?.SYSTEM_INFO_SECTION?.template || "DEFAULT"
+					let template = variant.componentOverrides?.SYSTEM_INFO_SECTION?.template || "DEFAULT"
+
+					if (typeof template === "function") {
+						const mockContext = { cwd: "/test", yoloModeToggled: false } as SystemPromptContext
+						template = template(mockContext)
+					}
 					return template.replace("{{os}}", "Linux").replace("{{shell}}", "bash")
 				},
 			}
@@ -252,6 +260,7 @@ describe("PromptBuilder", () => {
 					SystemPromptSection.CAPABILITIES,
 					SystemPromptSection.RULES,
 				)
+				.matcher(() => true)
 				.build()
 
 			// Should have auto-generated a baseTemplate
@@ -288,6 +297,7 @@ describe("PromptBuilder", () => {
 				.description("Test variant with explicit template")
 				.version(1)
 				.template(customTemplate)
+				.matcher(() => true)
 				.components(SystemPromptSection.AGENT_ROLE, SystemPromptSection.TOOL_USE)
 				.build()
 
@@ -300,6 +310,7 @@ describe("PromptBuilder", () => {
 				createVariant(ModelFamily.GENERIC)
 					.description("Test variant with empty components")
 					.version(1)
+					.matcher(() => true)
 					.components() // Empty components
 					.build()
 			}).to.throw("Component order is required")

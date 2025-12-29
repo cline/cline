@@ -1,16 +1,19 @@
 import { strict as assert } from "assert"
+import * as fs from "fs/promises"
 import { afterEach, beforeEach, describe, it } from "mocha"
+import * as os from "os"
 import pWaitFor from "p-wait-for"
+import * as path from "path"
 import * as vscode from "vscode"
 import { getOpenTabs } from "@/hosts/vscode/hostbridge/window/getOpenTabs"
 import { GetOpenTabsRequest } from "@/shared/proto/host/window"
 
 describe("Hostbridge - Window - getOpenTabs", () => {
-	async function createAndOpenTestDocument(fileNumber: number, column: vscode.ViewColumn): Promise<void> {
-		const content = `// Test file ${fileNumber}\nconsole.log('Hello from file ${fileNumber}');`
+	async function createAndOpenTestDocument(name: string, column: vscode.ViewColumn): Promise<void> {
+		const content = `// Test file ${name}\nconsole.log('Hello from file ${name}');`
 
 		// Create an untitled document with a custom name
-		const uri = vscode.Uri.parse(`untitled:test-file-${fileNumber}.js`)
+		const uri = vscode.Uri.parse(`untitled:test-file-${name}.js`)
 
 		const doc = await vscode.workspace.openTextDocument(uri)
 
@@ -51,18 +54,21 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 
 	it("should return paths of open text document tabs", async () => {
 		// Open the documents in editors (this creates the tabs)
-		await createAndOpenTestDocument(1, vscode.ViewColumn.One)
-		await createAndOpenTestDocument(2, vscode.ViewColumn.Two)
+		await createAndOpenTestDocument("open-tabs-1", vscode.ViewColumn.One)
+		await createAndOpenTestDocument("open-tabs-2", vscode.ViewColumn.Two)
 
 		// Wait for tabs to be fully created
 		await pWaitFor(
 			async () => {
 				const request = GetOpenTabsRequest.create({})
 				const response = await getOpenTabs(request)
+				console.log(
+					`[DEBUG] Waiting for 2 tabs, currently found ${response.paths.length}: ${JSON.stringify(response.paths)}`,
+				)
 				return response.paths.length === 2
 			},
 			{
-				timeout: 4000,
+				timeout: 8000,
 				interval: 50,
 			},
 		)
@@ -80,19 +86,22 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 
 	it("should return all open tabs even when multiple files are opened in the same ViewColumn", async () => {
 		// Open all documents in the same column (only the last one will be visible, but all are open as tabs)
-		await createAndOpenTestDocument(1, vscode.ViewColumn.One)
-		await createAndOpenTestDocument(2, vscode.ViewColumn.One)
-		await createAndOpenTestDocument(3, vscode.ViewColumn.One)
+		await createAndOpenTestDocument("same-column-1", vscode.ViewColumn.One)
+		await createAndOpenTestDocument("same-column-2", vscode.ViewColumn.One)
+		await createAndOpenTestDocument("same-column-3", vscode.ViewColumn.One)
 
 		// Wait for tabs to be fully created
 		await pWaitFor(
 			async () => {
 				const request = GetOpenTabsRequest.create({})
 				const response = await getOpenTabs(request)
+				console.log(
+					`[DEBUG] Waiting for 3 tabs, currently found ${response.paths.length}: ${JSON.stringify(response.paths)}`,
+				)
 				return response.paths.length === 3
 			},
 			{
-				timeout: 4000,
+				timeout: 8000,
 				interval: 50,
 			},
 		)
@@ -106,5 +115,55 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 			3,
 			`Expected 3 open tabs, got ${response.paths.length}. Found: ${JSON.stringify(response.paths)}`,
 		)
+	})
+
+	it("should return all tabs including deleted files", async () => {
+		// Create a temporary file on disk
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "vscode-test-"))
+		const testFilePath = path.join(tempDir, "test-file.js")
+		await fs.writeFile(testFilePath, "console.log('test file');")
+
+		// Open the file as a tab
+		const document = await vscode.workspace.openTextDocument(testFilePath)
+		await vscode.window.showTextDocument(document, { preview: false })
+
+		// Also open an untitled document
+		await createAndOpenTestDocument("includes-deleted", vscode.ViewColumn.One)
+
+		// Wait for tabs to be created
+		await pWaitFor(
+			async () => {
+				const request = GetOpenTabsRequest.create({})
+				const response = await getOpenTabs(request)
+				console.log(
+					`[DEBUG] Waiting for 2 tabs (temp file + untitled), currently found ${response.paths.length}: ${JSON.stringify(response.paths)}`,
+				)
+				return response.paths.length === 2
+			},
+			{
+				timeout: 8000,
+				interval: 50,
+			},
+		)
+
+		// Delete the file from disk
+		await fs.unlink(testFilePath)
+
+		// Get open tabs - should still return both tabs
+		const request = GetOpenTabsRequest.create({})
+		const response = await getOpenTabs(request)
+
+		// Should still have 2 tabs (host bridge returns all tabs regardless of file existence)
+		assert.strictEqual(
+			response.paths.length,
+			2,
+			`Host bridge should return all tabs including deleted files. Found tabs: ${JSON.stringify(response.paths)}`,
+		)
+		try {
+			// Clean up temp directory
+			await fs.rm(tempDir, { recursive: true })
+		} catch (error) {
+			console.error(error)
+		}
 	})
 })

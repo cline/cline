@@ -5,20 +5,9 @@ import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
 import path from "path"
+import { ensureCacheDirectoryExists } from "@/core/storage/disk"
+import { getAxiosSettings } from "@/shared/net"
 import { Controller } from ".."
-
-/**
- * Ensures the cache directory exists and returns its path
- */
-async function ensureCacheDirectoryExists(controller: Controller): Promise<string> {
-	const cacheDir = path.join(controller.context.globalStorageUri.fsPath, "cache")
-	try {
-		await fs.mkdir(cacheDir, { recursive: true })
-	} catch (_error) {
-		// Directory might already exist
-	}
-	return cacheDir
-}
 
 /**
  * Refreshes the Hugging Face models and returns the updated model list
@@ -27,10 +16,10 @@ async function ensureCacheDirectoryExists(controller: Controller): Promise<strin
  * @returns Response containing the Hugging Face models
  */
 export async function refreshHuggingFaceModels(
-	controller: Controller,
+	_controller: Controller,
 	_request: EmptyRequest,
 ): Promise<OpenRouterCompatibleModelInfo> {
-	const huggingFaceModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), "huggingface_models.json")
+	const huggingFaceModelsFilePath = path.join(await ensureCacheDirectoryExists(), "huggingface_models.json")
 
 	let models: Record<string, OpenRouterModelInfo> = {}
 
@@ -38,6 +27,7 @@ export async function refreshHuggingFaceModels(
 		// Fetch models from Hugging Face API
 		const response = await axios.get("https://router.huggingface.co/v1/models", {
 			timeout: 10000,
+			...getAxiosSettings(),
 		})
 
 		if (response.data?.data) {

@@ -1,3 +1,4 @@
+import { workspaceResolver } from "@core/workspace"
 import { arePathsEqual } from "@utils/path"
 import { globby, Options } from "globby"
 import * as os from "os"
@@ -39,7 +40,7 @@ function isRestrictedPath(absolutePath: string): boolean {
 }
 
 function isTargetingHiddenDirectory(absolutePath: string): boolean {
-	const dirName = path.basename(absolutePath)
+	const dirName = workspaceResolver.getBasename(absolutePath, "Services.glob.isTargetingHiddenDirectory")
 	return dirName.startsWith(".")
 }
 
@@ -57,7 +58,8 @@ function buildIgnorePatterns(absolutePath: string): string[] {
 }
 
 export async function listFiles(dirPath: string, recursive: boolean, limit: number): Promise<[string[], boolean]> {
-	const absolutePath = path.resolve(dirPath)
+	const absolutePathResult = workspaceResolver.resolveWorkspacePath(dirPath, "", "Services.glob.listFiles")
+	const absolutePath = typeof absolutePathResult === "string" ? absolutePathResult : absolutePathResult.absolutePath
 
 	// Do not allow listing files in root or home directory
 	if (isRestrictedPath(absolutePath)) {

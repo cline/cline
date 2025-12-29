@@ -20,7 +20,7 @@ export interface ClineAuthContextType {
 	activeOrganization: UserOrganization | null
 }
 
-const ClineAuthContext = createContext<ClineAuthContextType | undefined>(undefined)
+export const ClineAuthContext = createContext<ClineAuthContextType | undefined>(undefined)
 
 export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 	const [user, setUser] = useState<ClineUser | null>(null)
@@ -94,14 +94,26 @@ export const useClineAuth = () => {
 	return context
 }
 
-export const handleSignIn = async () => {
-	try {
-		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
-			console.error("Failed to get login URL:", err),
-		)
-	} catch (error) {
-		console.error("Error signing in:", error)
-		throw error
+export const useClineSignIn = () => {
+	const [isLoading, setIsLoading] = useState(false)
+
+	const handleSignIn = useCallback(() => {
+		try {
+			setIsLoading(true)
+
+			AccountServiceClient.accountLoginClicked(EmptyRequest.create())
+				.catch((err) => console.error("Failed to get login URL:", err))
+				.finally(() => {
+					setIsLoading(false)
+				})
+		} catch (error) {
+			console.error("Error signing in:", error)
+		}
+	}, [])
+
+	return {
+		isLoginLoading: isLoading,
+		handleSignIn,
 	}
 }
 

@@ -8,22 +8,29 @@ tmp
 
 .DS_Store
 .idea
+.husky/_/
 
 pnpm-lock.yaml
 
 .clineignore
 .venv
 .actrc
+CLAUDE.local.md
 
 webview-ui/src/**/*.js
 webview-ui/src/**/*.js.map
 
 # Ignore coverage directories and files
 coverage
+coverage-unit
+.nyc_output
 # But don't ignore the coverage scripts in .github/scripts/
 !.github/scripts/coverage/
 
 *evals.env
+.env
+
+.worktrees
 
 ## Generated files ##
 src/generated/
@@ -32,6 +39,3 @@ webview-ui/src/services/grpc-client.ts
 
 # E2E Tests
 test-results
-
-## CLI pre-release  ##
-/cli 

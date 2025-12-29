@@ -1,8 +1,18 @@
+import type { SystemPromptContext } from "../types"
+
 export class TemplateEngine {
 	/**
 	 * Resolves template placeholders in the format {{PLACEHOLDER}} with provided values
 	 */
-	resolve(template: string, placeholders: Record<string, unknown>): string {
+	resolve(
+		template: string | ((context: SystemPromptContext) => string),
+		context: SystemPromptContext,
+		placeholders: Record<string, unknown>,
+	): string {
+		if (typeof template === "function") {
+			template = template(context)
+		}
+
 		return template.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
 			const trimmedKey = key.trim()
 

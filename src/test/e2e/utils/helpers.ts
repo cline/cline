@@ -8,8 +8,14 @@ import { ClineApiServerMock } from "../fixtures/server"
 
 interface E2ETestDirectories {
 	workspaceDir: string
+	multiRootWorkspaceDir: string
 	userDataDir: string
 	extensionsDir: string
+}
+
+export interface E2ETestConfigs {
+	workspaceType: "single" | "multi"
+	channel: "stable" | "insiders"
 }
 
 export class E2ETestHelper {
@@ -35,7 +41,23 @@ export class E2ETestHelper {
 		return label ? path.join(testDir, label) : testDir
 	}
 
-	public static async waitUntil(predicate: () => boolean | Promise<boolean>, maxDelay = 5000): Promise<void> {
+	/**
+	 * Generates a filename for gRPC recorder logs based on test information
+	 * @param testTitle The title of the test
+	 * @param projectName The name of the test project (optional)
+	 * @returns A sanitized filename suitable for gRPC recorder logs
+	 */
+	public static generateTestFileName(testTitle: string, projectName?: string): string {
+		// Create a base name from the test title
+		const baseName = E2ETestHelper.escapeToPath(testTitle)
+
+		// Add project name if provided and different from default
+		const projectSuffix = projectName && projectName !== "e2e tests" ? `_${E2ETestHelper.escapeToPath(projectName)}` : ""
+
+		return `${baseName}${projectSuffix}`
+	}
+
+	public static async waitUntil(predicate: () => boolean | Promise<boolean>, maxDelay = 10000): Promise<void> {
 		let delay = 10
 		const start = Date.now()
 
@@ -96,23 +118,12 @@ export class E2ETestHelper {
 	}
 
 	public async signin(webview: Frame): Promise<void> {
-		const byokButton = webview.getByRole("button", {
-			name: "Use your own API key",
-		})
-		await expect(byokButton).toBeVisible()
-
-		await byokButton.click()
-
-		// Complete setup with OpenRouter
-		const apiKeyInput = webview.getByRole("textbox", {
-			name: "OpenRouter API Key",
-		})
-		await apiKeyInput.fill("test-api-key")
-		await webview.getByRole("button", { name: "Let's go!" }).click()
+		await webview.getByRole("button", { name: "Login to Cline" }).click({ delay: 100 })
 
 		// Verify start up page is no longer visible
-		await expect(webview.locator("#api-provider div").first()).not.toBeVisible()
-		await expect(byokButton).not.toBeVisible()
+		await expect(webview.getByRole("button", { name: "Login to Cline" })).not.toBeVisible()
+
+		await webview.getByRole("button", { name: "Close" }).click({ delay: 50 })
 	}
 
 	public static async openClineSidebar(page: Page): Promise<void> {
@@ -143,6 +154,8 @@ export class E2ETestHelper {
  *
  * This test configuration provides a comprehensive setup for end-to-end testing of the Cline VS Code extension,
  * including server mocking, temporary directories, VS Code instance management, and helper utilities.
+ *
+ * NOTE: Default to run in single-root workspace; use `e2eMultiRoot` for multi-root workspace tests.
  *
  * @extends test - Base Playwright test with multiple fixture extensions
  *
@@ -185,14 +198,9 @@ export class E2ETestHelper {
 export const e2e = test
 	.extend<{ server: ClineApiServerMock | null }>({
 		server: async ({}, use) => {
-			console.log("=== SERVER FIXTURE CALLED ===")
 			// Start server if it doesn't exist
 			if (!ClineApiServerMock.globalSharedServer) {
-				console.log("Starting global server...")
 				await ClineApiServerMock.startGlobalServer()
-				console.log("Global server started successfully")
-			} else {
-				console.log("Using existing global server")
 			}
 			await use(ClineApiServerMock.globalSharedServer)
 		},
@@ -201,6 +209,10 @@ export const e2e = test
 		workspaceDir: async ({}, use) => {
 			await use(path.join(E2ETestHelper.E2E_TESTS_DIR, "fixtures", "workspace"))
 		},
+		multiRootWorkspaceDir: async ({}, use) => {
+			// DOCS: https://code.visualstudio.com/docs/editing/workspaces/multi-root-workspaces
+			await use(path.join(E2ETestHelper.E2E_TESTS_DIR, "fixtures", "multiroots.code-workspace"))
+		},
 		userDataDir: async ({}, use) => {
 			await use(mkdtempSync(path.join(os.tmpdir(), "vsce")))
 		},
@@ -208,11 +220,15 @@ export const e2e = test
 			await use(mkdtempSync(path.join(os.tmpdir(), "vsce")))
 		},
 	})
-	.extend<{ openVSCode: () => Promise<ElectronApplication> }>({
-		openVSCode: async ({ workspaceDir, userDataDir, extensionsDir }, use, testInfo) => {
-			const executablePath = await downloadAndUnzipVSCode("stable", undefined, new SilentReporter())
+	.extend<E2ETestConfigs>({
+		workspaceType: "single",
+		channel: "stable",
+	})
+	.extend<{ openVSCode: (workspacePath: string) => Promise<ElectronApplication> }>({
+		openVSCode: async ({ userDataDir, channel }, use, testInfo) => {
+			const executablePath = await downloadAndUnzipVSCode(channel, undefined, new SilentReporter())
 
-			await use(async () => {
+			await use(async (workspacePath: string) => {
 				const app = await _electron.launch({
 					executablePath,
 					env: {
@@ -220,6 +236,9 @@ export const e2e = test
 						TEMP_PROFILE: "true",
 						E2E_TEST: "true",
 						CLINE_ENVIRONMENT: "local",
+						GRPC_RECORDER_FILE_NAME: E2ETestHelper.generateTestFileName(testInfo.title, testInfo.project.name),
+						// GRPC_RECORDER_ENABLED: "true",
+						// GRPC_RECORDER_TESTS_FILTERS_ENABLED: "true"
 						// IS_DEV: "true",
 						// DEV_WORKSPACE_FOLDER: E2ETestHelper.CODEBASE_ROOT_DIR,
 					},
@@ -230,13 +249,13 @@ export const e2e = test
 						"--no-sandbox",
 						"--disable-updates",
 						"--disable-workspace-trust",
+						"--disable-extensions", // Run VS Code with all extensions disabled other than the one under test.
 						"--skip-welcome",
 						"--skip-release-notes",
 						`--user-data-dir=${userDataDir}`,
-						`--extensions-dir=${extensionsDir}`,
 						`--install-extension=${path.join(E2ETestHelper.CODEBASE_ROOT_DIR, "dist", "e2e.vsix")}`,
 						`--extensionDevelopmentPath=${E2ETestHelper.CODEBASE_ROOT_DIR}`,
-						workspaceDir,
+						workspacePath,
 					],
 				})
 				await E2ETestHelper.waitUntil(() => app.windows().length > 0)
@@ -245,8 +264,9 @@ export const e2e = test
 		},
 	})
 	.extend<{ app: ElectronApplication }>({
-		app: async ({ openVSCode, userDataDir, extensionsDir }, use) => {
-			const app = await openVSCode()
+		app: async ({ openVSCode, userDataDir, extensionsDir, workspaceType, workspaceDir, multiRootWorkspaceDir }, use) => {
+			const workspacePath = workspaceType === "single" ? workspaceDir : multiRootWorkspaceDir
+			const app = await openVSCode(workspacePath)
 
 			try {
 				await use(app)
@@ -269,7 +289,15 @@ export const e2e = test
 	.extend({
 		page: async ({ app }, use) => {
 			const page = await app.firstWindow()
-			await use(page)
+			try {
+				await use(page)
+			} finally {
+				// Ensure proper cleanup: Close the page if it's still open and not already closed by app.close()
+				// This provides a common teardown mechanism for all e2e tests without requiring explicit page.close() calls
+				if (!page.isClosed()) {
+					await page.close()
+				}
+			}
 		},
 	})
 	.extend<{ sidebar: Frame }>({
@@ -280,5 +308,7 @@ export const e2e = test
 		},
 	})
 
-// Backward compatibility exports
-export const getResultsDir = E2ETestHelper.getResultsDir
+export const E2E_WORKSPACE_TYPES = [
+	{ title: "Single Root", workspaceType: "single" },
+	{ title: "Multi-Roots", workspaceType: "multi" },
+] as const

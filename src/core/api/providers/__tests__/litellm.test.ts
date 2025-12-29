@@ -1,8 +1,9 @@
-import Anthropic from "@anthropic-ai/sdk"
 import { LiteLlmHandler, type LiteLlmModelInfoResponse } from "@core/api/providers/litellm"
 import { convertToOpenAiMessages } from "@core/api/transform/openai-format"
 import { expect } from "chai"
 import sinon from "sinon"
+import { ClineStorageMessage } from "@/shared/messages/content"
+import { mockFetchForTesting } from "@/shared/net"
 
 const fakeClient = {
 	chat: {
@@ -10,12 +11,12 @@ const fakeClient = {
 			create: sinon.stub(),
 		},
 	},
-	baseURL: "fake",
+	baseURL: "https://fake.example",
 }
 
 describe("LiteLlmHandler", () => {
-	const originalFetch = global.fetch
 	const mockFetch = sinon.stub()
+	let doneMockingFetch: (value: any) => void = () => {}
 
 	const mockModelFetch = (modelInfo: LiteLlmModelInfoResponse["data"][number]) => {
 		mockFetch.resolves({
@@ -45,7 +46,11 @@ describe("LiteLlmHandler", () => {
 	}
 
 	beforeEach(() => {
-		global.fetch = mockFetch
+		mockFetchForTesting(mockFetch, () => {
+			return new Promise((resolve) => {
+				doneMockingFetch = resolve
+			})
+		})
 
 		// Configure the stub to return a stream that closes immediately with usage data
 		fakeClient.chat.completions.create.resolves(
@@ -68,8 +73,7 @@ describe("LiteLlmHandler", () => {
 
 	afterEach(() => {
 		sinon.reset()
-
-		global.fetch = originalFetch
+		doneMockingFetch(void 0)
 	})
 
 	const createAsyncIterable = (data: any[] = []) => {
@@ -105,7 +109,7 @@ describe("LiteLlmHandler", () => {
 
 			it("sends the system prompt and messages with the openai format", async () => {
 				const systemPrompt = "Test System Prompt"
-				const messages: Anthropic.Messages.MessageParam[] = [
+				const messages: ClineStorageMessage[] = [
 					{
 						role: "user",
 						content: "first message",
@@ -157,7 +161,7 @@ describe("LiteLlmHandler", () => {
 
 			it("inserts the cache control in the system prompt and the last two user messages", async () => {
 				const systemPrompt = "Test System Prompt"
-				const messages: Anthropic.Messages.MessageParam[] = [
+				const messages: ClineStorageMessage[] = [
 					{
 						role: "user",
 						content: "first message",

@@ -41,9 +41,9 @@ describe("context-mentions", () => {
 			const position = 10
 			const value = "/path with spaces/file.txt"
 
-			const result = insertMention(text, position, value)
+			const result = insertMention(text, position, value, 3)
 
-			expect(result.newValue).toBe('Check @"/path with spaces/file.txt"  and more')
+			expect(result.newValue).toBe('Check @"/path with spaces/file.txt" and more')
 			expect(result.mentionIndex).toBe(6)
 		})
 

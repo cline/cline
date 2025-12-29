@@ -1,13 +1,16 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { BasetenModelId, basetenDefaultModelId, basetenModels, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
-import { ApiHandler } from "../"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { ClineStorageMessage } from "@/shared/messages/content"
+import { fetch } from "@/shared/net"
+import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { ToolCallProcessor } from "../transform/tool-call-processor"
 
-interface BasetenHandlerOptions {
+interface BasetenHandlerOptions extends CommonApiHandlerOptions {
 	basetenApiKey?: string
 	basetenModelId?: string
 	basetenModelInfo?: ModelInfo
@@ -31,6 +34,7 @@ export class BasetenHandler implements ApiHandler {
 				this.client = new OpenAI({
 					baseURL: "https://inference.baseten.co/v1",
 					apiKey: this.options.basetenApiKey,
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {
 				throw new Error(`Error creating Baseten client: ${error.message}`)
@@ -96,10 +100,11 @@ export class BasetenHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
 		const maxTokens = this.getOptimalMaxTokens(model)
+		const toolCallProcessor = new ToolCallProcessor()
 
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
@@ -113,21 +118,22 @@ export class BasetenHandler implements ApiHandler {
 			stream: true,
 			stream_options: { include_usage: true },
 			temperature: 0,
+			tools,
+			tool_choice: tools && tools.length > 0 ? "auto" : undefined,
 		})
 
 		let didOutputUsage = false
 
 		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
+			const delta = chunk?.choices?.[0]?.delta
 
 			// Handle reasoning field if present (for reasoning models with parsed output)
-			if ((delta as any)?.reasoning) {
-				const reasoningContent = (delta as any).reasoning as string
+			if (delta && "reasoning" in delta && delta?.reasoning) {
+				const reasoning = typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning)
 				yield {
 					type: "reasoning",
-					reasoning: reasoningContent,
+					reasoning,
 				}
-				continue
 			}
 
 			// Handle content field
@@ -136,6 +142,10 @@ export class BasetenHandler implements ApiHandler {
 					type: "text",
 					text: delta.content,
 				}
+			}
+
+			if (delta?.tool_calls) {
+				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 			}
 
 			// Handle usage information - only output once
@@ -147,19 +157,14 @@ export class BasetenHandler implements ApiHandler {
 	}
 
 	/**
-	 * Checks if the current model supports vision/images
-	 */
-	supportsImages(): boolean {
-		const model = this.getModel()
-		return model.info.supportsImages === true
-	}
-
-	/**
 	 * Checks if the current model supports tools
 	 */
 	supportsTools(): boolean {
-		const _model = this.getModel()
-		// Baseten models support tools via OpenAI-compatible API
-		return true
+		const model = this.getModel()
+		const modelInfo = model.info as any
+
+		// Use dynamic API data when available, fallback to true since all current Baseten models support tools
+		// (as of 2025-09-16 - could change if Baseten add non-tool models in future, currently no plans to do so)
+		return modelInfo.supportedFeatures ? modelInfo.supportedFeatures.includes("tools") : true
 	}
 }

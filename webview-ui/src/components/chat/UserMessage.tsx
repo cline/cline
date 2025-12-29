@@ -1,11 +1,11 @@
 import { CheckpointRestoreRequest } from "@shared/proto/cline/checkpoints"
 import { ClineCheckpointRestore } from "@shared/WebviewMessage"
-import React, { forwardRef, useRef, useState } from "react"
+import React, { forwardRef, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
 import Thumbnails from "@/components/common/Thumbnails"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { CheckpointsServiceClient } from "@/services/grpc-client"
-import { highlightText } from "./task-header/TaskHeader"
+import { highlightText } from "./task-header/Highlights"
 
 interface UserMessageProps {
 	text?: string
@@ -19,7 +19,9 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedText, setEditedText] = useState(text || "")
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
-	const { checkpointTrackerErrorMessage } = useExtensionState()
+	const { checkpointManagerErrorMessage } = useExtensionState()
+
+	const highlightedText = useMemo(() => highlightText(editedText || text), [editedText, text])
 
 	// Create refs for the buttons to check in the blur handler
 	const restoreAllButtonRef = useRef<HTMLButtonElement>(null)
@@ -77,7 +79,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 		if (e.key === "Escape") {
 			setIsEditing(false)
-		} else if (e.key === "Enter" && e.metaKey && !checkpointTrackerErrorMessage) {
+		} else if (e.key === "Enter" && e.metaKey && !checkpointManagerErrorMessage) {
 			handleRestoreWorkspace("taskAndWorkspace")
 		} else if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) {
 			e.preventDefault()
@@ -87,12 +89,12 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 
 	return (
 		<div
+			className="py-2 px-2.5"
 			onClick={handleClick}
 			style={{
 				backgroundColor: isEditing ? "unset" : "var(--vscode-badge-background)",
 				color: "var(--vscode-badge-foreground)",
 				borderRadius: "3px",
-				padding: "9px",
 				whiteSpace: "pre-line",
 				wordWrap: "break-word",
 			}}>
@@ -124,7 +126,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 						value={editedText}
 					/>
 					<div style={{ display: "flex", gap: "8px", marginTop: "8px", justifyContent: "flex-end" }}>
-						{!checkpointTrackerErrorMessage && (
+						{!checkpointManagerErrorMessage && (
 							<RestoreButton
 								isPrimary={false}
 								label="Restore All"
@@ -145,8 +147,8 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 					</div>
 				</>
 			) : (
-				<span className="ph-no-capture" style={{ display: "block" }}>
-					{highlightText(editedText || text)}
+				<span className="ph-no-capture text-sm" style={{ display: "block" }}>
+					{highlightedText}
 				</span>
 			)}
 			{((images && images.length > 0) || (files && files.length > 0)) && (

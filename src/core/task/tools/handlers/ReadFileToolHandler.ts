@@ -1,18 +1,22 @@
+import path from "node:path"
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
+import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { extractFileContent } from "@integrations/misc/extract-file-content"
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
-import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
-import * as path from "path"
+import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
+import { telemetryService } from "@/services/telemetry"
+import { ClineSayTool } from "@/shared/ExtensionMessage"
+import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
-import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
+import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class ReadFileToolHandler implements IFullyManagedTool {
-	readonly name = "read_file"
+	readonly name = ClineDefaultTool.FILE_READ
 
 	constructor(private validator: ToolValidator) {}
 
@@ -23,28 +27,13 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
 		const relPath = block.params.path
 
-		// Early return if we don't have enough data yet
-		if (!relPath) {
-			return
-		}
-
-		// Get config access for services
 		const config = uiHelpers.getConfig()
 
-		// Check clineignore access first
-		const accessValidation = this.validator.checkClineIgnorePath(relPath)
-		if (!accessValidation.ok) {
-			// Show error and return early
-			await uiHelpers.say("clineignore_error", relPath)
-			return
-		}
-
 		// Create and show partial UI message
-		const absolutePath = path.resolve(config.cwd, relPath)
 		const sharedMessageProps = {
 			tool: "readFile",
 			path: getReadablePath(config.cwd, uiHelpers.removeClosingTag(block, "path", relPath)),
-			content: absolutePath,
+			content: undefined,
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 		}
 
@@ -61,18 +50,18 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		// For partial blocks, return empty string to let coordinator handle UI
-		if (block.partial) {
-			return ""
-		}
-
 		const relPath: string | undefined = block.params.path
+
+		// Extract provider information for telemetry
+		const apiConfig = config.services.stateManager.getApiConfiguration()
+		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
 
 		// Validate required parameters
 		const pathValidation = this.validator.assertRequiredParams(block, "path")
 		if (!pathValidation.ok) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError("read_file", "path")
+			return await config.callbacks.sayAndCreateMissingParamError(this.name, "path")
 		}
 
 		// Check clineignore access
@@ -83,15 +72,28 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
-		const absolutePath = path.resolve(config.cwd, relPath!)
+
+		// Resolve the absolute path based on multi-workspace configuration
+		const pathResult = resolveWorkspacePath(config, relPath!, "ReadFileToolHandler.execute")
+		const { absolutePath, displayPath } =
+			typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relPath! } : pathResult
+
+		// Determine workspace context for telemetry
+		const fallbackAbsolutePath = path.resolve(config.cwd, relPath ?? "")
+		const workspaceContext = {
+			isMultiRootEnabled: config.isMultiRootEnabled || false,
+			usedWorkspaceHint: typeof pathResult !== "string", // multi-root path result indicates hint usage
+			resolvedToNonPrimary: !arePathsEqual(absolutePath, fallbackAbsolutePath),
+			resolutionMethod: (typeof pathResult !== "string" ? "hint" : "primary_fallback") as "hint" | "primary_fallback",
+		}
 
 		// Handle approval flow
 		const sharedMessageProps = {
 			tool: "readFile",
-			path: getReadablePath(config.cwd, relPath!),
+			path: getReadablePath(config.cwd, displayPath),
 			content: absolutePath,
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath!),
-		}
+		} satisfies ClineSayTool
 
 		const completeMessage = JSON.stringify(sharedMessageProps)
 
@@ -99,48 +101,78 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			// Auto-approval flow
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
 			await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
-			config.taskState.consecutiveAutoApprovedRequestsCount++
 
 			// Capture telemetry
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
+			telemetryService.captureToolUsage(
+				config.ulid,
+				block.name,
+				config.api.getModel().id,
+				provider,
+				true,
+				true,
+				workspaceContext,
+				block.isNativeToolCall,
+			)
 		} else {
 			// Manual approval flow
-			const notificationMessage = `Cline wants to read ${path.basename(absolutePath)}`
+			const notificationMessage = `Cline wants to read ${getWorkspaceBasename(absolutePath, "ReadFileToolHandler.notification")}`
 
 			// Show notification
-			showNotificationForApprovalIfAutoApprovalEnabled(
-				notificationMessage,
-				config.autoApprovalSettings.enabled,
-				config.autoApprovalSettings.enableNotifications,
-			)
+			showNotificationForApproval(notificationMessage, config.autoApprovalSettings.enableNotifications)
 
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
 
-			// Ask for approval
-			const { response } = await config.callbacks.ask("tool", completeMessage, false)
-
-			if (response !== "yesButtonClicked") {
-				// Handle rejection
-				config.taskState.didRejectTool = true
-				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
-				return "The user denied this operation."
+			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
+			if (!didApprove) {
+				telemetryService.captureToolUsage(
+					config.ulid,
+					block.name,
+					config.api.getModel().id,
+					provider,
+					false,
+					false,
+					workspaceContext,
+					block.isNativeToolCall,
+				)
+				return formatResponse.toolDenied()
 			} else {
-				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
+				telemetryService.captureToolUsage(
+					config.ulid,
+					block.name,
+					config.api.getModel().id,
+					provider,
+					false,
+					true,
+					workspaceContext,
+					block.isNativeToolCall,
+				)
 			}
+		}
+
+		// Run PreToolUse hook after approval but before execution
+		try {
+			const { ToolHookUtils } = await import("../utils/ToolHookUtils")
+			await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+		} catch (error) {
+			const { PreToolUseHookCancellationError } = await import("@core/hooks/PreToolUseHookCancellationError")
+			if (error instanceof PreToolUseHookCancellationError) {
+				return formatResponse.toolDenied()
+			}
+			throw error
 		}
 
 		// Execute the actual file read operation
 		const supportsImages = config.api.getModel().info.supportsImages ?? false
-		const result = await extractFileContent(absolutePath, supportsImages)
+		const fileContent = await extractFileContent(absolutePath, supportsImages)
 
 		// Track file read operation
 		await config.services.fileContextTracker.trackFileContext(relPath!, "read_tool")
 
 		// Handle image blocks separately - they need to be pushed to userMessageContent
-		if (result.imageBlock) {
-			config.taskState.userMessageContent.push(result.imageBlock)
+		if (fileContent.imageBlock) {
+			config.taskState.userMessageContent.push(fileContent.imageBlock)
 		}
 
-		return result.text
+		return fileContent.text
 	}
 }

@@ -1,5 +1,4 @@
 import { Mode } from "@shared/storage/types"
-import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
@@ -40,7 +39,7 @@ export const DifyProvider = ({ showModelOptions, isPopup, currentMode }: DifyPro
 					}}
 					placeholder={"Enter base URL..."}
 					style={{ width: "100%", marginBottom: 10 }}
-					type="url">
+					type="text">
 					<span style={{ fontWeight: 500 }}>Base URL</span>
 				</DebouncedTextField>
 

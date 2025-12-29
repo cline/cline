@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package cline;
+
+import "cline/common.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+service DictationService {
+  rpc startRecording(EmptyRequest) returns (RecordingResult);
+  rpc stopRecording(EmptyRequest) returns (RecordedAudio);
+  rpc cancelRecording(EmptyRequest) returns (RecordingResult);
+  rpc getRecordingStatus(EmptyRequest) returns (RecordingStatus);
+  rpc transcribeAudio(TranscribeAudioRequest) returns (Transcription);
+}
+
+message TranscribeAudioRequest {
+  string audio_base64 = 2;
+  string language = 3;
+}
+
+message RecordingResult {
+  bool success = 1;
+  string error = 2;
+}
+
+message RecordedAudio {
+  bool success = 1;
+  string audio_base64 = 2;
+  string error = 3;
+}
+
+message RecordingStatus {
+  bool is_recording = 1;
+  double duration_seconds = 2;
+  string error = 3;
+}
+
+message Transcription {
+  string text = 1;
+  string error = 2;
+}

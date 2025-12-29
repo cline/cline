@@ -2,41 +2,44 @@ import { Controller } from "@core/controller"
 import { StreamingResponseHandler } from "@core/controller/grpc-handler"
 import { addProtobusServices } from "@generated/hosts/standalone/protobus-server-setup"
 import * as grpc from "@grpc/grpc-js"
-import * as protoLoader from "@grpc/proto-loader"
+
 import { ReflectionService } from "@grpc/reflection"
 import { GrpcHandler, GrpcStreamingResponseHandler } from "@hosts/external/grpc-types"
 import * as health from "grpc-health-check"
 import { getPackageDefinition, log } from "./utils"
 
 export const PROTOBUS_PORT = 26040
-export const HOSTBRIDGE_PORT = 26041
 
-export function startProtobusService(controller: Controller) {
-	const server = new grpc.Server()
+export function startProtobusService(controller: Controller): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const server = new grpc.Server()
 
-	// Set up health check.
-	const healthImpl = new health.HealthImplementation({ "": "SERVING" })
-	healthImpl.addToServer(server)
+		// Set up health check.
+		const healthImpl = new health.HealthImplementation({ "": "SERVING" })
+		healthImpl.addToServer(server)
 
-	// Add all the handlers for the ProtoBus services to the server.
-	addProtobusServices(server, controller, wrapHandler, wrapStreamingResponseHandler)
+		// Add all the handlers for the ProtoBus services to the server.
+		addProtobusServices(server, controller, wrapHandler, wrapStreamingResponseHandler)
 
-	// Create reflection service with protobus service names
-	const packageDefinition = getPackageDefinition()
-	const reflection = new ReflectionService(packageDefinition, {
-		services: getProtobusServiceNames(packageDefinition),
-	})
-	reflection.addToServer(server)
+		// Create reflection service with protobus service names
+		const packageDefinition = getPackageDefinition()
+		const reflection = new ReflectionService(packageDefinition, {
+			services: getProtobusServiceNames(packageDefinition),
+		})
+		reflection.addToServer(server)
 
-	// Start the server.
-	const host = process.env.PROTOBUS_ADDRESS || `127.0.0.1:${PROTOBUS_PORT}`
-	server.bindAsync(host, grpc.ServerCredentials.createInsecure(), (err) => {
-		if (err) {
-			log(`Could not start ProtoBus service: Failed to bind to ${host}, port may be unavailable. ${err.message}`)
-			process.exit(1)
-		}
-		server.start()
-		log(`ProtoBus gRPC server listening on ${host}`)
+		// Start the server.
+		const host = process.env.PROTOBUS_ADDRESS || `127.0.0.1:${PROTOBUS_PORT}`
+		server.bindAsync(host, grpc.ServerCredentials.createInsecure(), (err) => {
+			if (err) {
+				log(`Could not start ProtoBus service: Failed to bind to ${host}, port may be unavailable. ${err.message}`)
+				reject(new Error(`Failed to bind ProtoBus to ${host}: ${err.message}`))
+				return
+			}
+			server.start()
+			log(`ProtoBus gRPC server listening on ${host}`)
+			resolve(host)
+		})
 	})
 }
 
@@ -109,47 +112,4 @@ function wrapStreamingResponseHandler<TRequest, TResponse>(
 			} as grpc.ServiceError)
 		}
 	}
-}
-
-// Client-side health check for the hostbridge service (kept at bottom for clarity)
-const SERVING_STATUS = 1
-function createHealthClient(address?: string) {
-	const healthDef = protoLoader.loadSync(health.protoPath)
-	const grpcObj = grpc.loadPackageDefinition(healthDef) as unknown as any
-	const Health = grpcObj.grpc.health.v1.Health
-	const target = address || process.env.HOST_BRIDGE_ADDRESS || `localhost:${HOSTBRIDGE_PORT}`
-	return new Health(target, grpc.credentials.createInsecure())
-}
-
-async function checkHealthOnce(client: any): Promise<boolean> {
-	return new Promise<boolean>((resolve) => {
-		client.check({ service: "" }, (err: unknown, resp: any) => {
-			if (err) {
-				return resolve(false)
-			}
-			return resolve(resp?.status === SERVING_STATUS)
-		})
-	})
-}
-
-export async function waitForHostBridgeReady(timeoutMs = 60000, intervalMs = 500, address?: string): Promise<void> {
-	const client = createHealthClient(address)
-	const deadline = Date.now() + timeoutMs
-	while (Date.now() < deadline) {
-		// eslint-disable-next-line no-await-in-loop
-		const ok = await checkHealthOnce(client)
-		if (ok) {
-			try {
-				client.close?.()
-			} catch {}
-			return
-		}
-		log("Waiting for hostbridge to be ready...")
-		// eslint-disable-next-line no-await-in-loop
-		await new Promise((r) => setTimeout(r, intervalMs))
-	}
-	try {
-		client.close?.()
-	} catch {}
-	throw new Error("HostBridge health check timed out")
 }

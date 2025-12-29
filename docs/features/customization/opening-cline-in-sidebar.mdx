@@ -1,0 +1,60 @@
+---
+title: "Opening Cline in the Right Sidebar"
+description: "Learn how to open Cline in the right sidebar in VS Code and Cursor"
+---
+
+By default, when you first install Cline, it appears in VS Code's left sidebar alongside your file explorer and other extensions. However, for a better coding experience, we recommend moving Cline to the right sidebar. This allows you to keep your project files visible in the left sidebar while chatting with Cline on the right, giving you full visibility of your codebase as Cline works on your project.
+
+## VS Code
+
+To open Cline in the right sidebar:
+
+<Steps>
+  <Step title="Align Extension View">
+    Make sure your extension view is aligned vertically to the left
+  </Step>
+  <Step title="Open Right Side View">
+    Click the button that opens the right side panel in VS Code (typically used to open GitHub Copilot chat). Optionally use the `Option + CMD/Ctrl + B` shortcut.
+  </Step>
+  <Step title="Drag Cline Icon">
+    Drag the Cline icon over to the nav panel at the top of that right view
+  </Step>
+</Steps>
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/vscode_right_view.gif"
+		alt="VS Code Right Sidebar Setup"
+	/>
+</Frame>
+
+## Cursor
+
+To open Cline in the right sidebar:
+
+<Steps>
+  <Step title="Align Extensions">
+    Cursor uses a horizontal activity bar by default to optimize space for the AI chat interface ([see here for details](https://cursor.com/docs/configuration/migrations/vscode#activity-bar-orientation)). To switch to vertical:
+    
+    1. Open the Command Palette (`CMD/Ctrl + Shift + P`)
+    2. Search for "Preferences: Open Settings (UI)"
+    3. Search for `workbench.activityBar.orientation`
+    4. Set the value to `vertical`
+    5. Restart Cursor for the changes to take effect
+  </Step>
+  <Step title="Open the AI Pane">
+    Click the Cursor cube icon button (AI Pane) that opens Cursor's agent (right side view panel)
+  </Step>
+  <Step title="Drag Cline to the AI Pane Sidebar">
+    Drag the Cline icon directly into the AI Pane sidebar.
+  </Step>
+</Steps>
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/Cursor-sidebar.gif"
+		alt="Cursor Right Sidebar Setup"
+	/>
+</Frame>
+
+Once set up, Cline will load on the right side and you can use it as normal.

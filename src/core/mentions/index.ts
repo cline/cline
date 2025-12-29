@@ -1,21 +1,23 @@
 import { diagnosticsToProblemsString } from "@integrations/diagnostics"
 import { extractTextFromFile } from "@integrations/misc/extract-text"
 import { openFile } from "@integrations/misc/open-file"
-import { getLatestTerminalOutput } from "@integrations/terminal/get-latest-output"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import { telemetryService } from "@services/telemetry"
 import { mentionRegexGlobal } from "@shared/context-mentions"
+import { WorkspaceRoot } from "@shared/multi-root/types"
 import { openExternal } from "@utils/env"
 import { getCommitInfo, getWorkingState } from "@utils/git"
 import fs from "fs/promises"
 import { isBinaryFile } from "isbinaryfile"
 import * as path from "path"
-import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
+import { getLatestTerminalOutput } from "@/hosts/vscode/terminal/get-latest-output"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { DiagnosticSeverity } from "@/shared/proto/index.cline"
 import { isDirectory } from "@/utils/fs"
 import { getCwd } from "@/utils/path"
 import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
+import type { WorkspaceRootManager } from "../workspace"
 
 export async function openMention(mention?: string): Promise<void> {
 	if (!mention) {
@@ -38,7 +40,7 @@ export async function openMention(mention?: string): Promise<void> {
 	} else if (mention === "problems") {
 		await HostProvider.workspace.openProblemsPanel({})
 	} else if (mention === "terminal") {
-		vscode.commands.executeCommand("workbench.action.terminal.focus")
+		await HostProvider.workspace.openTerminalPanel({})
 	} else if (mention.startsWith("http")) {
 		await openExternal(mention)
 	}
@@ -58,6 +60,7 @@ export async function parseMentions(
 	cwd: string,
 	urlContentFetcher: UrlContentFetcher,
 	fileContextTracker?: FileContextTracker,
+	workspaceManager?: WorkspaceRootManager,
 ): Promise<string> {
 	const mentions: Set<string> = new Set()
 	let parsedText = text.replace(mentionRegexGlobal, (match, mention) => {
@@ -66,6 +69,13 @@ export async function parseMentions(
 			return `'${mention}' (see below for site content)`
 		} else if (isFileMention(mention)) {
 			const mentionPath = getFilePathFromMention(mention)
+			const workspaceHint = getWorkspaceHintFromMention(mention)
+			// For workspace-prefixed mentions, include the workspace name in the same format the model uses for tool calls
+			if (workspaceHint) {
+				return mentionPath.endsWith("/")
+					? `'${workspaceHint}:${mentionPath}' (see below for folder content)`
+					: `'${workspaceHint}:${mentionPath}' (see below for file content)`
+			}
 			return mentionPath.endsWith("/")
 				? `'${mentionPath}' (see below for folder content)`
 				: `'${mentionPath}' (see below for file content)`
@@ -111,66 +121,196 @@ export async function parseMentions(
 			let result: string
 			if (launchBrowserError) {
 				result = `Error fetching content: ${launchBrowserError.message}`
+				// Track failed URL mention
+				telemetryService.captureMentionFailed("url", "network_error", launchBrowserError?.message || "")
 			} else {
 				try {
 					const markdown = await urlContentFetcher.urlToMarkdown(mention)
 					result = markdown
+					// Track successful URL mention
+					telemetryService.captureMentionUsed("url", markdown.length)
 				} catch (error) {
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
 						message: `Error fetching content for ${mention}: ${error.message}`,
 					})
 					result = `Error fetching content: ${error.message}`
+					// Track failed URL mention
+					telemetryService.captureMentionFailed("url", "network_error", error.message)
 				}
 			}
 			parsedText += `\n\n<url_content url="${mention}">\n${result}\n</url_content>`
 		} else if (isFileMention(mention)) {
 			const mentionPath = getFilePathFromMention(mention)
-			try {
-				const content = await getFileOrFolderContent(mentionPath, cwd)
-				if (mention.endsWith("/")) {
-					parsedText += `\n\n<folder_content path="${mentionPath}">\n${content}\n</folder_content>`
+			const mentionType = mention.endsWith("/") ? "folder" : "file"
+			const workspaceHint = getWorkspaceHintFromMention(mention)
+
+			const isMultiRoot = workspaceManager && workspaceManager.getRoots().length > 1
+			if (isMultiRoot && !workspaceHint) {
+				// Parallel search across all workspaces
+				const workspaceRoots = workspaceManager.getRoots()
+				const searchPromises = workspaceRoots.map(async (root: WorkspaceRoot) => {
+					try {
+						const content = await getFileOrFolderContent(mentionPath, root.path)
+						return {
+							workspaceName: root.name || path.basename(root.path),
+							content,
+							success: true,
+						}
+					} catch (error) {
+						return {
+							workspaceName: root.name || path.basename(root.path),
+							content: null,
+							success: false,
+							error: error.message,
+						}
+					}
+				})
+
+				const results = await Promise.all(searchPromises)
+				const successfulResults = results.filter((r) => r.success && r.content)
+
+				if (successfulResults.length === 0) {
+					const errorMsg = `File not found in any workspace. Searched: ${results.map((r) => r.workspaceName).join(", ")}`
+					if (mention.endsWith("/")) {
+						parsedText += `\n\n<folder_content path="${mentionPath}">\nError fetching content: ${errorMsg}\n</folder_content>`
+					} else {
+						parsedText += `\n\n<file_content path="${mentionPath}">\nError fetching content: ${errorMsg}\n</file_content>`
+					}
+					telemetryService.captureMentionFailed(mentionType, "not_found", errorMsg)
+				} else if (successfulResults.length === 1) {
+					// Found in exactly one workspace
+					const result = successfulResults[0]
+					if (mention.endsWith("/")) {
+						parsedText += `\n\n<folder_content path="${mentionPath}" workspace="${result.workspaceName}">\n${result.content}\n</folder_content>`
+					} else {
+						parsedText += `\n\n<file_content path="${mentionPath}" workspace="${result.workspaceName}">\n${result.content}\n</file_content>`
+						if (fileContextTracker) {
+							await fileContextTracker.trackFileContext(mentionPath, "file_mentioned")
+						}
+					}
+					telemetryService.captureMentionUsed(mentionType, result.content!.length)
 				} else {
-					parsedText += `\n\n<file_content path="${mentionPath}">\n${content}\n</file_content>`
-					// Track that this file was mentioned and its content was included
-					if (fileContextTracker) {
-						await fileContextTracker.trackFileContext(mentionPath, "file_mentioned")
+					// Found in multiple workspaces - include all candidates with workspace name
+					for (const result of successfulResults) {
+						if (mention.endsWith("/")) {
+							parsedText += `\n\n<folder_content path="${mentionPath}" workspace="${result.workspaceName}">\n${result.content}\n</folder_content>`
+						} else {
+							parsedText += `\n\n<file_content path="${mentionPath}" workspace="${result.workspaceName}">\n${result.content}\n</file_content>`
+						}
+					}
+					const totalLength = successfulResults.reduce((sum, r) => sum + (r.content?.length || 0), 0)
+					telemetryService.captureMentionUsed(mentionType, totalLength)
+				}
+			} else if (isMultiRoot && workspaceHint) {
+				// Search only in specified workspace
+				const targetRoot = workspaceManager.getRootByName(workspaceHint)
+				if (!targetRoot) {
+					const errorMsg = `Workspace '${workspaceHint}' not found`
+					if (mention.endsWith("/")) {
+						parsedText += `\n\n<folder_content path="${mentionPath}" workspace="${workspaceHint}">\nError fetching content: ${errorMsg}\n</folder_content>`
+					} else {
+						parsedText += `\n\n<file_content path="${mentionPath}" workspace="${workspaceHint}">\nError fetching content: ${errorMsg}\n</file_content>`
+					}
+					telemetryService.captureMentionFailed(mentionType, "not_found", errorMsg)
+				} else {
+					try {
+						const content = await getFileOrFolderContent(mentionPath, targetRoot.path)
+						if (mention.endsWith("/")) {
+							parsedText += `\n\n<folder_content path="${mentionPath}" workspace="${workspaceHint}">\n${content}\n</folder_content>`
+						} else {
+							parsedText += `\n\n<file_content path="${mentionPath}" workspace="${workspaceHint}">\n${content}\n</file_content>`
+							if (fileContextTracker) {
+								await fileContextTracker.trackFileContext(mentionPath, "file_mentioned")
+							}
+						}
+						telemetryService.captureMentionUsed(mentionType, content.length)
+					} catch (error) {
+						if (mention.endsWith("/")) {
+							parsedText += `\n\n<folder_content path="${mentionPath}" workspace="${workspaceHint}">\nError fetching content: ${error.message}\n</folder_content>`
+						} else {
+							parsedText += `\n\n<file_content path="${mentionPath}" workspace="${workspaceHint}">\nError fetching content: ${error.message}\n</file_content>`
+						}
+						let errorType: "not_found" | "permission_denied" | "unknown" = "unknown"
+						if (error.message.includes("ENOENT") || error.message.includes("Failed to access")) {
+							errorType = "not_found"
+						} else if (error.message.includes("EACCES") || error.message.includes("permission")) {
+							errorType = "permission_denied"
+						}
+						telemetryService.captureMentionFailed(mentionType, errorType, error.message)
 					}
 				}
-			} catch (error) {
-				if (mention.endsWith("/")) {
-					parsedText += `\n\n<folder_content path="${mentionPath}">\nError fetching content: ${error.message}\n</folder_content>`
-				} else {
-					parsedText += `\n\n<file_content path="${mentionPath}">\nError fetching content: ${error.message}\n</file_content>`
+			} else {
+				// Legacy single workspace mode
+				try {
+					const content = await getFileOrFolderContent(mentionPath, cwd)
+					if (mention.endsWith("/")) {
+						parsedText += `\n\n<folder_content path="${mentionPath}">\n${content}\n</folder_content>`
+					} else {
+						parsedText += `\n\n<file_content path="${mentionPath}">\n${content}\n</file_content>`
+						if (fileContextTracker) {
+							await fileContextTracker.trackFileContext(mentionPath, "file_mentioned")
+						}
+					}
+					telemetryService.captureMentionUsed(mentionType, content.length)
+				} catch (error) {
+					if (mention.endsWith("/")) {
+						parsedText += `\n\n<folder_content path="${mentionPath}">\nError fetching content: ${error.message}\n</folder_content>`
+					} else {
+						parsedText += `\n\n<file_content path="${mentionPath}">\nError fetching content: ${error.message}\n</file_content>`
+					}
+					let errorType: "not_found" | "permission_denied" | "unknown" = "unknown"
+					if (error.message.includes("ENOENT") || error.message.includes("Failed to access")) {
+						errorType = "not_found"
+					} else if (error.message.includes("EACCES") || error.message.includes("permission")) {
+						errorType = "permission_denied"
+					}
+					telemetryService.captureMentionFailed(mentionType, errorType, error.message)
 				}
 			}
 		} else if (mention === "problems") {
 			try {
 				const problems = await getWorkspaceProblems()
 				parsedText += `\n\n<workspace_diagnostics>\n${problems}\n</workspace_diagnostics>`
+				// Track successful problems mention
+				telemetryService.captureMentionUsed("problems", problems.length)
 			} catch (error) {
 				parsedText += `\n\n<workspace_diagnostics>\nError fetching diagnostics: ${error.message}\n</workspace_diagnostics>`
+				// Track failed problems mention
+				telemetryService.captureMentionFailed("problems", "unknown", error.message)
 			}
 		} else if (mention === "terminal") {
 			try {
 				const terminalOutput = await getLatestTerminalOutput()
 				parsedText += `\n\n<terminal_output>\n${terminalOutput}\n</terminal_output>`
+				// Track successful terminal mention
+				telemetryService.captureMentionUsed("terminal", terminalOutput.length)
 			} catch (error) {
 				parsedText += `\n\n<terminal_output>\nError fetching terminal output: ${error.message}\n</terminal_output>`
+				// Track failed terminal mention
+				telemetryService.captureMentionFailed("terminal", "unknown", error.message)
 			}
 		} else if (mention === "git-changes") {
 			try {
 				const workingState = await getWorkingState(cwd)
 				parsedText += `\n\n<git_working_state>\n${workingState}\n</git_working_state>`
+				// Track successful git-changes mention
+				telemetryService.captureMentionUsed("git-changes", workingState.length)
 			} catch (error) {
 				parsedText += `\n\n<git_working_state>\nError fetching working state: ${error.message}\n</git_working_state>`
+				// Track failed git-changes mention
+				telemetryService.captureMentionFailed("git-changes", "unknown", error.message)
 			}
 		} else if (/^[a-f0-9]{7,40}$/.test(mention)) {
 			try {
 				const commitInfo = await getCommitInfo(mention, cwd)
 				parsedText += `\n\n<git_commit hash="${mention}">\n${commitInfo}\n</git_commit>`
+				// Track successful commit mention
+				telemetryService.captureMentionUsed("commit", commitInfo.length)
 			} catch (error) {
 				parsedText += `\n\n<git_commit hash="${mention}">\nError fetching commit info: ${error.message}\n</git_commit>`
+				// Track failed commit mention
+				telemetryService.captureMentionFailed("commit", "unknown", error.message)
 			}
 		}
 	}
@@ -253,14 +393,57 @@ async function getWorkspaceProblems(): Promise<string> {
 	])
 }
 
+/**
+ * Parse a workspace mention to extract workspace hint and path
+ * @param mention The raw mention string (e.g., "workspace:name/path/to/file")
+ * @returns Object with workspaceHint and path, or null if not a workspace mention
+ */
+function parseWorkspaceMention(mention: string): { workspaceHint: string; path: string } | null {
+	// Match workspace:name/path or workspace:"name/path with spaces"
+	const workspaceMatch = mention.match(/^([\w-]+):(.+)$/)
+	if (!workspaceMatch) {
+		return null
+	}
+
+	const [, workspaceHint, pathPart] = workspaceMatch
+
+	// Check if it's actually a URL (has ://)
+	if (mention.includes("://")) {
+		return null
+	}
+
+	// Remove quotes from path if present
+	const quotedPathMatch = pathPart.match(/^"(.*)"$/)
+	const cleanPath = quotedPathMatch ? quotedPathMatch[1] : pathPart
+
+	return { workspaceHint, path: cleanPath }
+}
+
 function isFileMention(mention: string): boolean {
+	// Check for workspace-prefixed mentions first
+	if (parseWorkspaceMention(mention)) {
+		return true
+	}
+	// Check for regular file mentions
 	return mention.startsWith("/") || mention.startsWith('"/')
 }
 
 function getFilePathFromMention(mention: string): string {
+	// Check for workspace-prefixed mentions first
+	const workspaceMention = parseWorkspaceMention(mention)
+	if (workspaceMention) {
+		// Return path without leading slash (already cleaned)
+		return workspaceMention.path.startsWith("/") ? workspaceMention.path.slice(1) : workspaceMention.path
+	}
+
 	// Remove quotes
 	const match = mention.match(/^"(.*)"$/)
 	const filePath = match ? match[1] : mention
 	// Remove leading slash
 	return filePath.slice(1)
+}
+
+function getWorkspaceHintFromMention(mention: string): string | undefined {
+	const workspaceMention = parseWorkspaceMention(mention)
+	return workspaceMention?.workspaceHint
 }

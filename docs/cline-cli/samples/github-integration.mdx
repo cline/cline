@@ -1,0 +1,324 @@
+---
+title: "GitHub Actions Integration"
+description: "Automatically respond to GitHub issues by mentioning @cline in comments using Cline CLI in GitHub Actions."
+---
+
+# GitHub Integration Sample
+
+Automate GitHub issue analysis with AI. Mention `@cline` in any issue comment to trigger an autonomous investigation that reads files, analyzes code, and provides actionable insights - all running automatically in GitHub Actions.
+
+
+<Note>
+**New to Cline CLI?** This sample assumes you understand Cline CLI basics and have completed the [Installation Guide](https://docs.cline.bot/cline-cli/installation). If you're new to Cline CLI, we recommend starting with the [GitHub RCA sample](./github-issue-rca) first, as it's simpler and will help you understand the fundamentals before setting up GitHub Actions.
+</Note>
+
+## The Workflow
+
+Trigger Cline by mentioning `@cline` in any issue comment:
+
+<Frame>
+  <img src="https://storage.googleapis.com/cline_public_images/ss0a-comment.png" alt="Issue comment with @cline mention" width="600" />
+</Frame>
+
+Cline's automated analysis appears as a new comment, with insights drawn from your actual codebase:
+
+<Frame>
+  <img src="https://storage.googleapis.com/cline_public_images/ss0b-final.png" alt="Automated analysis response from Cline" width="600" />
+</Frame>
+
+The entire investigation runs autonomously in GitHub Actions - from file exploration to posting results.
+
+Let's configure your repository.
+
+## Prerequisites
+
+Before you begin, you'll need:
+
+- **Cline CLI knowledge** - Completed the [Installation Guide](https://docs.cline.bot/cline-cli/installation) and understand basic usage
+- **GitHub repository** - With admin access to configure Actions and secrets
+- **GitHub Actions familiarity** - Basic understanding of workflows and CI/CD
+- **API provider account** - OpenRouter, Anthropic, or similar with API key
+
+## Setup
+
+### 1. Copy the Workflow File
+
+
+
+Copy the workflow file from this sample to your repository. The workflow file must be placed in the `.github/workflows/` directory in your repository root for GitHub Actions to detect and run it. In this case, we'll name it `cline-responder.yml`.
+
+```bash
+# In your repository root
+mkdir -p .github/workflows
+curl -o .github/workflows/cline-responder.yml https://raw.githubusercontent.com/cline/cline/main/src/samples/cli/github-integration/cline-responder.yml
+```
+
+Alternatively, you can copy the full workflow file directly into `.github/workflows/cline-responder.yml`:
+
+<Accordion title="Click to view the complete cline-responder.yml workflow">
+```yaml
+name: Cline Issue Assistant
+
+on:
+  issue_comment:
+    types: [created, edited]
+
+permissions:
+  issues: write
+
+jobs:
+  respond:
+    runs-on: ubuntu-latest
+    environment: cline-actions
+    steps:
+      - name: Check for @cline mention
+        id: detect
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.comment?.body || "";
+            const isPR = !!context.payload.issue?.pull_request;
+            const hit = body.toLowerCase().includes("@cline");
+            core.setOutput("hit", (!isPR && hit) ? "true" : "false");
+            core.setOutput("issue_number", String(context.payload.issue?.number || ""));
+            core.setOutput("issue_url", context.payload.issue?.html_url || "");
+            core.setOutput("comment_body", body);
+
+      - name: Checkout repository
+        if: steps.detect.outputs.hit == 'true'
+        uses: actions/checkout@v4
+
+      # Node v20 is needed for Cline CLI on GitHub Actions Linux
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Cline CLI
+        if: steps.detect.outputs.hit == 'true'
+        run: |
+          # Install the Cline CLI
+          sudo npm install -g cline
+
+      - name: Create Cline Instance
+        if: steps.detect.outputs.hit == 'true'
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          CLINE_DIR: ${{ runner.temp }}/cline
+        run: |
+          # Create instance and capture output
+          INSTANCE_OUTPUT=$(cline instance new 2>&1)
+          
+          # Parse address from output (format: "  Address: 127.0.0.1:36733")
+          CLINE_ADDRESS=$(echo "$INSTANCE_OUTPUT" | grep "Address:" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]+')
+          echo "CLINE_ADDRESS=$CLINE_ADDRESS" >> $GITHUB_ENV
+          
+          # Configure API key
+          cline config set open-router-api-key=$OPENROUTER_API_KEY --address $CLINE_ADDRESS -v
+
+      - name: Download analyze script
+        if: steps.detect.outputs.hit == 'true'
+        run: |
+          export GITORG="YOUR-GITHUB-ORG"
+          export GITREPO="YOUR-GITHUB-REPO"
+
+          curl -L https://raw.githubusercontent.com/${GITORG}/${GITREPO}/refs/heads/main/git-scripts/analyze-issue.sh -o analyze-issue.sh
+          chmod +x analyze-issue.sh
+
+      - name: Run analysis
+        if: steps.detect.outputs.hit == 'true'
+        id: analyze
+        env:
+          ISSUE_URL: ${{ steps.detect.outputs.issue_url }}
+          COMMENT: ${{ steps.detect.outputs.comment_body }}
+          CLINE_ADDRESS: ${{ env.CLINE_ADDRESS }}
+        run: |
+          set -euo pipefail
+          
+          RESULT=$(./analyze-issue.sh "${ISSUE_URL}" "Analyze this issue. The user asked: ${COMMENT}" "$CLINE_ADDRESS")
+          
+          {
+            echo 'result<<EOF'
+            printf "%s\n" "$RESULT"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Post response
+        if: steps.detect.outputs.hit == 'true'
+        uses: actions/github-script@v7
+        env:
+          ISSUE_NUMBER: ${{ steps.detect.outputs.issue_number }}
+          RESULT: ${{ steps.analyze.outputs.result }}
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(process.env.ISSUE_NUMBER),
+              body: process.env.RESULT || "(no output)"
+            });
+```
+</Accordion>
+
+<Warning>
+**You MUST edit the workflow file before committing!**
+
+Open `.github/workflows/cline-responder.yml` and update the "Download analyze script" step within the workflow to specify your GitHub organization and repository where the analysis script is stored:
+
+```yaml
+export GITORG="YOUR-GITHUB-ORG"      # Change this!
+export GITREPO="YOUR-GITHUB-REPO"    # Change this!
+```
+
+**Example:** If your repository is `github.com/acme/myproject`, set:
+```yaml
+export GITORG="acme"
+export GITREPO="myproject"
+```
+
+This tells the workflow where to download the analysis script from your repository after you commit it in step 3.
+</Warning>
+
+The workflow will look for new or updated issues, check for `@cline` mentions, and then
+start up an instance of the Cline CLI to dig into the issue, providing feedback
+as a reply to the issue.
+
+### 2. Configure API Keys
+
+Add your AI provider API keys as repository secrets:
+
+1. Go to your GitHub repository
+2. Navigate to **Settings** → **Environment** and Add a new environment.
+
+   <Frame>
+     <img src="https://storage.googleapis.com/cline_public_images/ss01-environment.png" alt="Navigate to Actions secrets" width="600" />
+   </Frame>
+
+   Make sure to name it "cline-actions" so that it matches the `environment`
+   value at the top of the `cline-responder.yml` file.
+
+3. Click **New repository secret**
+4. Add a secret for the `OPENROUTER_API_KEY` with a value of an API key from
+   [openrouter.com](https://openrouter.com).
+
+   <Frame>
+     <img src="https://storage.googleapis.com/cline_public_images/ss02-api-key.png" alt="Add API key secret" width="600" />
+   </Frame>
+
+5. Verify your secret is configured:
+
+   <Frame>
+     <img src="https://storage.googleapis.com/cline_public_images/ss03-ready.png" alt="API key configured" width="600" />
+   </Frame>
+
+Now you're ready to supply Cline with the credentials it needs in a GitHub Action.
+
+### 3. Add Analysis Script
+
+Add the analysis script from the `github-issue-rca` sample to your repository. **First, you'll need to create a `git-scripts` directory in your repository root where the script will be located.** Choose one of these options:
+
+**Option A: Download directly (Recommended)**
+
+```bash
+# In your repository root, create the directory and download the script
+mkdir -p git-scripts
+curl -o git-scripts/analyze-issue.sh https://raw.githubusercontent.com/cline/cline/main/src/samples/cli/github-issue-rca/analyze-issue.sh
+chmod +x git-scripts/analyze-issue.sh
+```
+
+**Option B: Manual copy-paste**
+
+Create the directory and file manually, then paste the script content:
+
+```bash
+# In your repository root
+mkdir -p git-scripts
+# Create and edit the file with your preferred editor
+nano git-scripts/analyze-issue.sh  # or use vim, code, etc.
+```
+
+<Accordion title="Click to view the complete analyze-issue.sh script">
+```bash
+#!/bin/bash
+# Analyze a GitHub issue using Cline CLI
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 <github-issue-url> [prompt] [address]"
+    echo "Example: $0 https://github.com/owner/repo/issues/123"
+    echo "Example: $0 https://github.com/owner/repo/issues/123 'What is the root cause of this issue?'"
+    echo "Example: $0 https://github.com/owner/repo/issues/123 'What is the root cause of this issue?' 127.0.0.1:46529"
+    exit 1
+fi
+
+# Gather the args
+ISSUE_URL="$1"
+PROMPT="${2:-What is the root cause of this issue?}"
+if [ -n "$3" ]; then
+    ADDRESS="--address $3"
+fi
+
+# Ask Cline for its analysis, showing only the summary
+cline -y "$PROMPT: $ISSUE_URL" --mode act $ADDRESS -F json | \
+    sed -n '/^{/,$p' | \
+    jq -r 'select(.say == "completion_result") | .text' | \
+    sed 's/\\n/\n/g'
+```
+
+After pasting the script content, make it executable:
+```bash
+chmod +x git-scripts/analyze-issue.sh
+```
+</Accordion>
+
+This analysis script calls Cline to execute a prompt on a GitHub issue,
+summarizing the output to populate the reply to the issue.
+
+### 4. Commit and Push
+
+```bash
+git add .github/workflows/cline-responder.yml
+git add git-scripts/analyze-issue.sh
+git commit -m "Add Cline issue assistant workflow"
+git push
+```
+
+## Usage
+
+Once set up, simply mention `@cline` in any issue comment:
+
+```
+@cline what's causing this error?
+
+@cline analyze the root cause
+
+@cline what are the security implications?
+```
+
+GitHub Actions will:
+1. Detect the `@cline` mention
+2. Start a Cline CLI instance
+3. Download the analysis script
+4. Analyze the issue using act mode with yolo (fully autonomous)
+5. Post Cline's analysis as a new comment
+
+**Note**: The workflow only triggers on issue comments, not pull request
+comments.
+
+## How It Works
+
+The workflow (`cline-responder.yml`):
+
+1. **Triggers** on issue comments (created or edited)
+2. **Detects** `@cline` mentions (case-insensitive)
+3. **Installs** Cline CLI globally using npm
+4. **Creates** a Cline instance using `cline instance new`
+5. **Configures** authentication using `cline config set open-router-api-key=...
+   --address ...`
+6. **Downloads** the reusable `analyze-issue.sh` script from the
+   `github-issue-rca` sample
+7. **Runs** analysis with the instance address
+8. **Posts** the analysis result as a comment
+
+## Related Samples
+
+- **[github-issue-rca](./github-issue-rca)**: The reusable script that powers this integration

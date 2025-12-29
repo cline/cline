@@ -1,13 +1,19 @@
 syntax = "proto3";
 
 package cline;
+
 import "cline/common.proto";
-option java_package = "bot.cline.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
 option java_multiple_files = true;
+option java_package = "bot.cline.proto";
 
 service CheckpointsService {
   rpc checkpointDiff(Int64Request) returns (Empty);
   rpc checkpointRestore(CheckpointRestoreRequest) returns (Empty);
+  rpc subscribeToCheckpoints(CheckpointSubscriptionRequest) returns (stream CheckpointEvent);
+  rpc getCwdHash(StringArrayRequest) returns (PathHashMap);
 }
 
 message CheckpointRestoreRequest {
@@ -15,4 +21,27 @@ message CheckpointRestoreRequest {
   int64 number = 2;
   string restore_type = 3;
   optional int64 offset = 4;
+}
+
+message CheckpointSubscriptionRequest {
+  string cwd_hash = 1;
+}
+
+message CheckpointEvent {
+  enum OperationType {
+    CHECKPOINT_INIT = 0;
+    CHECKPOINT_COMMIT = 1;
+    CHECKPOINT_RESTORE = 2;
+  }
+
+  OperationType operation = 1;
+  string cwd_hash = 2;
+  bool is_active = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  optional string task_id = 5;
+  optional string commit_hash = 6;
+}
+
+message PathHashMap {
+  map<string, string> path_hash = 1;
 }

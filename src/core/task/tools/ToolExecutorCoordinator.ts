@@ -1,10 +1,12 @@
 import type { ToolUse } from "@core/assistant-message"
+import { CLINE_MCP_TOOL_IDENTIFIER } from "@/shared/mcp"
+import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../index"
 import type { TaskConfig } from "./types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "./types/UIHelpers"
 
 export interface IToolHandler {
-	readonly name: string
+	readonly name: ClineDefaultTool
 	execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse>
 	getDescription(block: ToolUse): string
 }
@@ -23,7 +25,7 @@ export interface IFullyManagedTool extends IToolHandler, IPartialBlockHandler {
  */
 export class SharedToolHandler implements IFullyManagedTool {
 	constructor(
-		public readonly name: string,
+		public readonly name: ClineDefaultTool,
 		private baseHandler: IFullyManagedTool,
 	) {}
 
@@ -65,6 +67,10 @@ export class ToolExecutorCoordinator {
 	 * Get a handler for the given tool name
 	 */
 	getHandler(toolName: string): IToolHandler | undefined {
+		// HACK: Normalize MCP tool names to the standard handler
+		if (toolName.includes(CLINE_MCP_TOOL_IDENTIFIER)) {
+			toolName = ClineDefaultTool.MCP_USE
+		}
 		return this.handlers.get(toolName)
 	}
 
