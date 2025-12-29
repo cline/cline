@@ -188,7 +188,22 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		return this.webview?.webview.postMessage(message)
 	}
 
+	override canOpenSettingsInSeparateWindow(): boolean {
+		// VS Code supports opening settings in a separate panel
+		return true
+	}
+
+	override async openSettingsInSeparateWindow(): Promise<void> {
+		// Import the panel class dynamically to avoid circular dependencies
+		const { VscodeSettingsWebviewPanel } = await import("./VscodeSettingsWebviewPanel")
+		VscodeSettingsWebviewPanel.createOrShow(this.context, this.controller)
+	}
+
 	override async dispose() {
+		// Clean up settings panel if it exists
+		const { VscodeSettingsWebviewPanel } = await import("./VscodeSettingsWebviewPanel")
+		VscodeSettingsWebviewPanel.dispose()
+
 		// WebviewView doesn't have a dispose method, it's managed by VSCode
 		// We just need to clean up our disposables
 		while (this.disposables.length) {

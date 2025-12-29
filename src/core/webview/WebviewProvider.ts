@@ -63,6 +63,22 @@ export abstract class WebviewProvider {
 	abstract isVisible(): boolean
 
 	/**
+	 * Checks if this platform supports opening settings in a separate window.
+	 *
+	 * @returns True if the platform can open settings in a separate window, false otherwise
+	 */
+	abstract canOpenSettingsInSeparateWindow(): boolean
+
+	/**
+	 * Opens the settings view in a separate window/panel.
+	 * If the window is already open, it will be focused.
+	 * If the platform doesn't support this feature, it should fall back to in-pane navigation.
+	 *
+	 * @returns A promise that resolves when the window has been opened or focused
+	 */
+	abstract openSettingsInSeparateWindow(): Promise<void>
+
+	/**
 	 * Defines and returns the HTML that should be rendered within the webview panel.
 	 *
 	 * @remarks This is also the place where references to the React webview build files

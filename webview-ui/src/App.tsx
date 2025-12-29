@@ -37,6 +37,9 @@ const AppContent = () => {
 
 	const { clineUser, organizations, activeOrganization } = useClineAuth()
 
+	// Check if this is a settings-only panel
+	const isSettingsPanel = typeof window !== "undefined" && (window as any).CLINE_SETTINGS_PANEL === true
+
 	useEffect(() => {
 		if (shouldShowAnnouncement) {
 			setShowAnnouncement(true)
@@ -51,6 +54,30 @@ const AppContent = () => {
 				})
 		}
 	}, [shouldShowAnnouncement, setShouldShowAnnouncement, setShowAnnouncement])
+
+	// If this is a settings panel, show settings immediately (even before state hydrates)
+	if (isSettingsPanel) {
+		return (
+			<div className="flex h-screen w-full flex-col">
+				<SettingsView
+					onDone={() => {
+						// Use the platform config to send dispose message
+						console.log("Done button clicked - using PLATFORM_CONFIG")
+						import("./config/platform.config")
+							.then(({ PLATFORM_CONFIG }) => {
+								PLATFORM_CONFIG.postMessage({
+									type: "dispose_panel",
+								})
+							})
+							.catch((error) => {
+								console.error("Failed to send dispose message:", error)
+							})
+					}}
+					targetSection={settingsTargetSection}
+				/>
+			</div>
+		)
+	}
 
 	if (!didHydrateState) {
 		return null

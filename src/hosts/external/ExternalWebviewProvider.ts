@@ -1,3 +1,4 @@
+import { sendSettingsButtonClickedEvent } from "@/core/controller/ui/subscribeToSettingsButtonClicked"
 import { WebviewProvider } from "@/core/webview"
 
 export class ExternalWebviewProvider extends WebviewProvider {
@@ -14,5 +15,16 @@ export class ExternalWebviewProvider extends WebviewProvider {
 	}
 	override isVisible() {
 		return true
+	}
+
+	override canOpenSettingsInSeparateWindow(): boolean {
+		// JetBrains/CLI currently doesn't support separate windows
+		// This could be enhanced in the future via host bridge protocol
+		return false
+	}
+
+	override async openSettingsInSeparateWindow(): Promise<void> {
+		// Fall back to in-pane navigation for platforms that don't support separate windows
+		await sendSettingsButtonClickedEvent()
 	}
 }
