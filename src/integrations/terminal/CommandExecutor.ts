@@ -18,6 +18,7 @@
 import { isSubagentCommand, transformClineCommand } from "@integrations/cli-subagents/subagent_command"
 import { Logger } from "@services/logging/Logger"
 import { telemetryService } from "@services/telemetry"
+import { findLastIndex } from "@shared/array"
 import { ClineToolResponseContent } from "@shared/messages"
 import { orchestrateCommandExecution } from "./CommandOrchestrator"
 import { StandaloneTerminalManager } from "./standalone/StandaloneTerminalManager"
@@ -215,7 +216,7 @@ export class CommandExecutor {
 
 			// Find the last command_output message and update it
 			const messages = this.callbacks.getClineMessages()
-			const lastCommandOutputIndex = this.findLastIndex(messages, (m) => m.ask === "command_output")
+			const lastCommandOutputIndex = findLastIndex(messages, (m) => m.ask === "command_output")
 			if (lastCommandOutputIndex !== -1) {
 				const existingText = messages[lastCommandOutputIndex].text || ""
 				const cancellationNotice = "\n\nCommand(s) cancelled by user."
@@ -226,19 +227,6 @@ export class CommandExecutor {
 		}
 
 		return cancelled
-	}
-
-	/**
-	 * Find the last index of an element in an array that matches a predicate.
-	 * Helper method since Array.prototype.findLastIndex may not be available in all environments.
-	 */
-	private findLastIndex<T>(array: T[], predicate: (item: T) => boolean): number {
-		for (let i = array.length - 1; i >= 0; i--) {
-			if (predicate(array[i])) {
-				return i
-			}
-		}
-		return -1
 	}
 
 	/**
