@@ -119,6 +119,7 @@ const getProviderInfo = (
 
 const OPENROUTER_MODEL_PROVIDERS: ApiProvider[] = ["cline", "openrouter", "vercel-ai-gateway"]
 
+import { basetenDefaultModelId, basetenModels } from "@shared/api"
 import { freeModels, recommendedModels } from "@/components/settings/OpenRouterModelPicker"
 import { SUPPORTED_ANTHROPIC_THINKING_MODELS } from "@/components/settings/providers/AnthropicProvider"
 import { SUPPORTED_BEDROCK_THINKING_MODELS } from "@/components/settings/providers/BedrockProvider"
@@ -176,6 +177,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 	const {
 		apiConfiguration,
 		openRouterModels,
+		basetenModels: dynamicBasetenModels,
 		navigateToSettings,
 		planActSeparateModelsSetting,
 		showSettings,
@@ -269,6 +271,18 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 				name: id.split("/").pop() || id,
 				provider: id.split("/")[0],
 				info: openRouterModels[id],
+			}))
+		}
+
+		// Baseten uses provider-specific model fields and can be dynamically refreshed.
+		// The chat modal should list the dynamic models when available (settings picker does this too).
+		if (selectedProvider === "baseten") {
+			const merged = { ...basetenModels, ...(dynamicBasetenModels || {}) }
+			return Object.entries(merged).map(([id, info]) => ({
+				id,
+				name: id,
+				provider: selectedProvider,
+				info,
 			}))
 		}
 
@@ -369,6 +383,26 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 					{
 						openRouterModelId: modelId,
 						openRouterModelInfo: modelInfoToUse,
+					},
+					modeToUse,
+				)
+			} else if (selectedProvider === "baseten") {
+				// Baseten uses provider-specific model fields; writing apiModelId here will not change the actual model.
+				const modelInfoToUse =
+					modelInfo ||
+					(dynamicBasetenModels?.[modelId] as ModelInfoType | undefined) ||
+					(basetenModels[modelId as keyof typeof basetenModels] as ModelInfoType | undefined) ||
+					(dynamicBasetenModels?.[basetenDefaultModelId] as ModelInfoType | undefined) ||
+					(basetenModels[basetenDefaultModelId] as ModelInfoType)
+
+				handleModeFieldsChange(
+					{
+						basetenModelId: { plan: "planModeBasetenModelId", act: "actModeBasetenModelId" },
+						basetenModelInfo: { plan: "planModeBasetenModelInfo", act: "actModeBasetenModelInfo" },
+					},
+					{
+						basetenModelId: modelId,
+						basetenModelInfo: modelInfoToUse,
 					},
 					modeToUse,
 				)
