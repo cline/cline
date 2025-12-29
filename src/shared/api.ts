@@ -4059,7 +4059,7 @@ export const basetenModels = {
 		outputPrice: 2.5,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description: "State of the art language model for agentic and coding tasks. Septemeber Update.",
+		description: "State of the art language model for agentic and coding tasks. September Update.",
 		supportsReasoning: false,
 	},
 } as const satisfies Record<string, ModelInfo>
