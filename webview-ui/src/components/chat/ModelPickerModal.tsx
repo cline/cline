@@ -154,18 +154,6 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		[handleModeFieldChange, currentMode],
 	)
 
-	// Handle thinking budget slider change
-	const handleThinkingBudgetChange = useCallback(
-		(value: number) => {
-			handleModeFieldChange(
-				{ plan: "planModeThinkingBudgetTokens", act: "actModeThinkingBudgetTokens" },
-				value,
-				currentMode,
-			)
-		},
-		[handleModeFieldChange, currentMode],
-	)
-
 	// Get configured providers
 	const configuredProviders = useMemo(() => {
 		return getConfiguredProviders(apiConfiguration)
@@ -687,7 +675,9 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 									return (
 										<CurrentModelRow onClick={() => onOpenChange(false)}>
 											<ModelInfoRow>
-												<ModelName>{selectedModelId.split("/").pop() || selectedModelId}</ModelName>
+												<div className="text-[11px] text-foreground whitespace-nowrap overflow-hidden text-ellipsis">
+													{selectedModelId.split("/").pop() || selectedModelId}
+												</div>
 												<ModelProvider>
 													{OPENROUTER_MODEL_PROVIDERS.includes(selectedProvider)
 														? selectedModelId.split("/")[0]
@@ -765,20 +755,26 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 										<SettingsOnlyContainer>
 											{/* Show configured model if exists */}
 											{providerInfo.modelId && (
-												<ConfiguredModelRow>
-													<ConfiguredModelLabel>Current model:</ConfiguredModelLabel>
+												<div className="flex items-center gap-1.5">
+													<div className="text-[10px] text-description shrink-0">Current model:</div>
 													<ConfiguredModelName>{providerInfo.modelId}</ConfiguredModelName>
-												</ConfiguredModelRow>
+												</div>
 											)}
 											{/* Show base URL if configured */}
 											{providerInfo.baseUrl && (
-												<ConfiguredModelRow>
-													<ConfiguredModelLabel>Endpoint:</ConfiguredModelLabel>
-													<ConfiguredModelUrl>{providerInfo.baseUrl}</ConfiguredModelUrl>
-												</ConfiguredModelRow>
+												<div className="flex items-center gap-1.5">
+													<div className="text-[10px] text-description shrink-0">Endpoint:</div>
+													<div className="text-[10px] text-description whitespace-nowrap overflow-hidden text-ellipsis font-editor">
+														{providerInfo.baseUrl}
+													</div>
+												</div>
 											)}
 											{/* Help text / empty state guidance */}
-											{!providerInfo.modelId && <HelpTextRow>{providerInfo.helpText}</HelpTextRow>}
+											{!providerInfo.modelId && (
+												<div className="text-center text-[11px] text-description py-1 px-0">
+													{providerInfo.helpText}
+												</div>
+											)}
 											{/* Configure link */}
 											<SettingsOnlyLink onClick={handleConfigureClick}>
 												<Settings size={12} />
@@ -1071,18 +1067,6 @@ const SettingsOnlyContainer = styled.div`
 	padding: 12px 10px;
 `
 
-const ConfiguredModelRow = styled.div`
-	display: flex;
-	align-items: center;
-	gap: 6px;
-`
-
-const ConfiguredModelLabel = styled.span`
-	font-size: 10px;
-	color: var(--vscode-descriptionForeground);
-	flex-shrink: 0;
-`
-
 const ConfiguredModelName = styled.span`
 	font-size: 11px;
 	color: var(--vscode-foreground);
@@ -1090,22 +1074,6 @@ const ConfiguredModelName = styled.span`
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-`
-
-const ConfiguredModelUrl = styled.span`
-	font-size: 10px;
-	color: var(--vscode-descriptionForeground);
-	font-family: var(--vscode-editor-font-family);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-`
-
-const HelpTextRow = styled.div`
-	font-size: 11px;
-	color: var(--vscode-descriptionForeground);
-	text-align: center;
-	padding: 4px 0;
 `
 
 const SettingsOnlyLink = styled.div`
