@@ -50,7 +50,7 @@ export async function refreshBasetenModels(controller: Controller): Promise<Reco
 
 					// Check if we have static pricing information for this model
 					const staticModelInfo = basetenModels[rawModel.id as keyof typeof basetenModels]
-					const supportThinking = rawModel.supported_features?.some(
+					const supportThinking = rawModel?.supported_features?.some(
 						(p: string) => p === "reasoning_effort" || p === "reasoning",
 					)
 
@@ -65,7 +65,7 @@ export async function refreshBasetenModels(controller: Controller): Promise<Reco
 						cacheReadsPrice: staticModelInfo?.cacheReadsPrice || 0,
 						description: generateModelDescription(rawModel, staticModelInfo),
 						supportedFeatures: rawModel.supported_features || [],
-						supportsReasoning: supportThinking || staticModelInfo?.supportsReasoning || false,
+						supportsReasoning: supportThinking || false,
 						// If thinking is supported, set maxBudget with a default value as a placeholder
 						// to ensure it has a valid thinkingConfig that lets the application know thinking is supported.
 						thinkingConfig: supportThinking ? { maxBudget: ANTHROPIC_MAX_THINKING_BUDGET } : undefined,
