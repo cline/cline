@@ -30,13 +30,17 @@ export function convertAnthropicContentToGemini(content: string | ClineStorageMe
 						},
 					}
 				case "tool_use":
+					// For Gemini: tool calls require thought signatures. If missing, drop the block.
+					// See: https://github.com/cline/cline/issues/8214
+					if (!block.signature) {
+						return undefined
+					}
 					return {
 						functionCall: {
 							name: block.name,
 							args: block.input as Record<string, unknown>,
 						},
-						// Thought signature is required, so provide a dummy one if not present
-						thoughtSignature: block.signature || GEMINI_DUMMY_THOUGHT_SIGNATURE,
+						thoughtSignature: block.signature,
 					}
 				case "tool_result":
 					return {
@@ -48,6 +52,11 @@ export function convertAnthropicContentToGemini(content: string | ClineStorageMe
 						},
 					}
 				case "thinking":
+					// For Gemini: thought signatures are required. If missing, drop the block.
+					// See: https://github.com/cline/cline/issues/8214
+					if (!block.signature) {
+						return undefined
+					}
 					return { text: block.thinking, thought: true, thoughtSignature: block.signature }
 				default:
 					return undefined
