@@ -27,8 +27,11 @@ export type GlobalStateAndSettings = GlobalState & Settings
 export interface RemoteConfigExtraFields {
 	remoteConfiguredProviders: string[]
 	allowedMCPServers: Array<{ id: string }>
+	remoteMCPServers?: Array<{ name: string; url: string }>
 	remoteGlobalRules?: GlobalInstructionsFile[]
 	remoteGlobalWorkflows?: GlobalInstructionsFile[]
+	blockPersonalRemoteMCPServers?: boolean
+	openTelemetryOtlpHeaders: Record<string, string> | undefined
 }
 
 export type RemoteConfigFields = GlobalStateAndSettings & RemoteConfigExtraFields
@@ -126,8 +129,11 @@ export interface Settings {
 	aihubmixAppCode: string | undefined
 	hooksEnabled: boolean
 	subagentsEnabled: boolean
-	hicapModelId: string | undefined
+	enableParallelToolCalling: boolean
+	backgroundEditEnabled: boolean
 
+	// Model-specific settings
+	hicapModelId: string | undefined
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
 	planModeApiModelId: string | undefined

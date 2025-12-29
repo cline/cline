@@ -1,4 +1,4 @@
-import { isGPT51Model, isNextGenModelProvider } from "@utils/model-utils"
+import { isGPT51Model, isGPT52Model, isNextGenModelProvider } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -9,16 +9,16 @@ import { GPT_5_1_TEMPLATE_OVERRIDES } from "./template"
 
 // Type-safe variant configuration using the builder pattern
 export const config = createVariant(ModelFamily.NATIVE_GPT_5_1)
-	.description("Prompt tailored to GPT-5-1 with native tool use support")
+	.description("Prompt tailored to GPT-5.1 and GPT-5.2 with native tool use support")
 	.version(1)
-	.tags("gpt", "gpt-5-1", "advanced", "production", "native_tools")
+	.tags("gpt", "gpt-5-1", "gpt-5-2", "advanced", "production", "native_tools")
 	.labels({
 		stable: 1,
 		production: 1,
 		advanced: 1,
 		use_native_tools: 1,
 	})
-	// Match GPT-5-1 models from providers that support native tools
+	// Match GPT-5.1 and GPT-5.2 models from providers that support native tools
 	.matcher((context) => {
 		if (!context.enableNativeToolCalls) {
 			return false
@@ -32,8 +32,8 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5_1)
 			return false
 		}
 
-		// gpt-5-1-chat models do not support native tool use
-		return isGPT51Model(modelId) && isNextGenModelProvider(providerInfo)
+		// gpt-5.1 and gpt-5.2 chat models do not support native tool use
+		return (isGPT51Model(modelId) || isGPT52Model(modelId)) && isNextGenModelProvider(providerInfo)
 	})
 	.template(GPT_5_1_TEMPLATE_OVERRIDES.BASE)
 	.components(
@@ -53,9 +53,7 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5_1)
 		ClineDefaultTool.BASH,
 		ClineDefaultTool.FILE_READ,
 		// Should disable FILE_NEW and FILE_EDIT when enabled
-		// ClineDefaultTool.APPLY_PATCH,
-		ClineDefaultTool.FILE_NEW,
-		ClineDefaultTool.FILE_EDIT,
+		ClineDefaultTool.APPLY_PATCH,
 		ClineDefaultTool.SEARCH,
 		ClineDefaultTool.LIST_FILES,
 		ClineDefaultTool.LIST_CODE_DEF,

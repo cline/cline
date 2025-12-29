@@ -146,7 +146,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 								style={{
 									display: "flex",
 									alignItems: "center",
-									justifyContent: "flex-start",
+									justifyContent: "center",
 								}}>
 								<VSCodeButton
 									appearance="icon"
