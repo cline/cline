@@ -8,6 +8,7 @@ tmp
 
 .DS_Store
 .idea
+.husky/_/
 
 pnpm-lock.yaml
 
@@ -28,6 +29,8 @@ coverage-unit
 
 *evals.env
 .env
+
+.worktrees
 
 ## Generated files ##
 src/generated/
