@@ -310,14 +310,31 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 	 * @returns Array of shell arguments
 	 */
 	private getShellArgs(shell: string, command: string): string[] {
-		if (process.platform === "win32") {
-			if (shell.toLowerCase().includes("powershell") || shell.toLowerCase().includes("pwsh")) {
-				return ["-Command", command]
-			} else {
-				return ["/c", command]
-			}
-		} else {
+		const shellLower = shell.toLowerCase()
+
+		// Check for PowerShell (works on all platforms)
+		if (shellLower.includes("powershell") || shellLower.includes("pwsh")) {
+			return ["-Command", command]
+		}
+
+		// Check for bash-like shells (Git Bash, WSL Bash, Cygwin, etc.)
+		// These use Unix-style arguments even on Windows
+		if (shellLower.includes("bash") || shellLower.includes("sh")) {
 			// Use -l for login shell, -c for command
+			return ["-l", "-c", command]
+		}
+
+		// Check for zsh
+		if (shellLower.includes("zsh")) {
+			return ["-l", "-c", command]
+		}
+
+		// Platform-specific defaults
+		if (process.platform === "win32") {
+			// Default to cmd.exe style on Windows
+			return ["/c", command]
+		} else {
+			// Default to Unix shell style
 			return ["-l", "-c", command]
 		}
 	}

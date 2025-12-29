@@ -12,6 +12,7 @@
  * - Provides summary for environment details
  */
 
+import { getShell, getShellForProfile } from "@utils/shell"
 import * as fs from "fs"
 import * as os from "os"
 import * as path from "path"
@@ -136,16 +137,33 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	}
 
 	/**
+	 * Get the shell path to use for new terminals.
+	 * Uses the configured terminal profile or falls back to the default shell.
+	 * @returns The shell path to use
+	 */
+	private getShellPath(): string {
+		if (this.defaultTerminalProfile !== "default") {
+			return getShellForProfile(this.defaultTerminalProfile)
+		}
+		return getShell()
+	}
+
+	/**
 	 * Get or create a terminal for the specified working directory.
 	 * @param cwd The working directory for the terminal
 	 * @returns The terminal info for an available terminal
 	 */
 	async getOrCreateTerminal(cwd: string): Promise<TerminalInfo> {
 		const terminals = this.registry.getAllTerminals()
+		const expectedShellPath = this.getShellPath()
 
-		// Find available terminal with matching CWD
+		// Find available terminal with matching CWD and shell path
 		const matchingTerminal = terminals.find((t) => {
 			if (t.busy) {
+				return false
+			}
+			// Also check shell path matches to ensure we use the correct shell
+			if (t.shellPath !== expectedShellPath) {
 				return false
 			}
 			return (t.terminal as any)._cwd === cwd
@@ -158,7 +176,7 @@ export class StandaloneTerminalManager implements ITerminalManager {
 
 		// Find any available terminal if reuse is enabled
 		if (this.terminalReuseEnabled) {
-			const availableTerminal = terminals.find((t) => !t.busy)
+			const availableTerminal = terminals.find((t) => !t.busy && t.shellPath === expectedShellPath)
 			if (availableTerminal) {
 				// Change directory
 				await this.runCommand(availableTerminal, `cd "${cwd}"`)
@@ -171,10 +189,11 @@ export class StandaloneTerminalManager implements ITerminalManager {
 			}
 		}
 
-		// Create new terminal
+		// Create new terminal with the correct shell path
 		const newTerminalInfo = this.registry.createTerminal({
 			cwd: cwd,
 			name: `Cline Terminal ${this.registry.size + 1}`,
+			shellPath: expectedShellPath,
 		})
 		this.terminalIds.add(newTerminalInfo.id)
 		return newTerminalInfo
