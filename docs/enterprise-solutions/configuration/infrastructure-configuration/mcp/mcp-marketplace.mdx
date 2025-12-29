@@ -1,0 +1,565 @@
+---
+title: "MCP Marketplace"
+sidebarTitle: "MCP Marketplace"
+description: "Deploy pre-built enterprise MCP servers from the Cline marketplace with one-click configuration"
+---
+
+The MCP Marketplace provides curated, enterprise-ready integrations with popular development tools and services. All marketplace servers are built with enterprise security, compliance, and scalability in mind.
+
+## Enterprise Marketplace Benefits
+
+<CardGroup cols={2}>
+  <Card title="One-Click Deployment" icon="rocket">
+    Deploy complex integrations instantly with pre-configured enterprise settings.
+  </Card>
+  
+  <Card title="Security Hardened" icon="shield-check">
+    All servers include enterprise security features, audit logging, and compliance controls.
+  </Card>
+  
+  <Card title="Maintained & Updated" icon="sync">
+    Regular security updates and feature enhancements managed by Cline Enterprise team.
+  </Card>
+  
+  <Card title="Enterprise Support" icon="headset">
+    Dedicated support channels for marketplace integration issues and customization.
+  </Card>
+</CardGroup>
+
+## Available Integrations
+
+### Development Tools
+
+<CardGroup cols={3}>
+  <Card title="GitHub Enterprise" icon="github">
+    Repository management, issue tracking, PR workflows, and code analysis
+  </Card>
+  
+  <Card title="GitLab Enterprise" icon="gitlab">
+    Project management, CI/CD pipelines, merge requests, and security scanning
+  </Card>
+  
+  <Card title="Bitbucket Enterprise" icon="bitbucket">  
+    Source code management, build pipelines, and deployment automation
+  </Card>
+</CardGroup>
+
+### Project Management
+
+<CardGroup cols={3}>
+  <Card title="Jira Enterprise" icon="jira">
+    Issue tracking, sprint management, custom fields, and workflow automation
+  </Card>
+  
+  <Card title="Azure DevOps" icon="microsoft">
+    Work items, boards, repos, pipelines, and test management
+  </Card>
+  
+  <Card title="Linear" icon="linear">
+    Issue tracking, project planning, and development workflow integration
+  </Card>
+</CardGroup>
+
+### Communication & Collaboration
+
+<CardGroup cols={3}>
+  <Card title="Slack Enterprise Grid" icon="slack">
+    Notifications, bot interactions, file sharing, and workflow automation
+  </Card>
+  
+  <Card title="Microsoft Teams" icon="microsoft-teams">
+    Chat notifications, meeting integration, and collaborative workflows
+  </Card>
+  
+  <Card title="Discord" icon="discord">
+    Community management, bot interactions, and developer notifications
+  </Card>
+</CardGroup>
+
+### Cloud Services
+
+<CardGroup cols={3}>
+  <Card title="AWS Services" icon="aws">
+    EC2, S3, Lambda, RDS, CloudWatch, and other AWS service integrations
+  </Card>
+  
+  <Card title="Google Cloud" icon="google-cloud">
+    Compute Engine, Cloud Storage, BigQuery, and GCP service management
+  </Card>
+  
+  <Card title="Azure Services" icon="azure">
+    Virtual Machines, Storage Accounts, Functions, and Azure resource management
+  </Card>
+</CardGroup>
+
+## Installing Marketplace Servers
+
+### Via Cline Enterprise Dashboard
+
+1. **Access Marketplace**: Navigate to `Settings > Enterprise > MCP Marketplace`
+2. **Browse Integrations**: Filter by category, popularity, or search by name
+3. **Review Details**: Check compatibility, permissions, and configuration requirements
+4. **Install**: Click "Install" and configure required settings
+5. **Deploy**: Approve deployment to your selected environment
+
+### Via Configuration File
+
+Install marketplace servers through enterprise configuration:
+
+```yaml
+# enterprise-mcp-config.yaml
+mcp:
+  marketplace_servers:
+    - name: "github-enterprise"
+      package: "@cline/mcp-github-enterprise"
+      version: "2.1.0"
+      environment: "production"
+      
+      config:
+        github:
+          base_url: "https://github.company.com/api/v3"
+          token: "${GITHUB_ENTERPRISE_TOKEN}"
+          organization: "company"
+          
+        features:
+          issue_management: true
+          pull_request_automation: true
+          code_analysis: true
+          security_scanning: true
+          
+        permissions:
+          repositories: "read-write"
+          issues: "write"
+          pull_requests: "write"
+          
+        compliance:
+          audit_logging: true
+          data_retention_days: 365
+          encryption_at_rest: true
+          
+    - name: "jira-enterprise"
+      package: "@cline/mcp-jira-enterprise"
+      version: "1.8.3"
+      environment: "production"
+      
+      config:
+        jira:
+          base_url: "https://company.atlassian.net"
+          username: "${JIRA_USERNAME}"
+          api_token: "${JIRA_API_TOKEN}"
+          
+        projects:
+          - key: "DEV"
+            permissions: ["read", "write", "transition"]
+          - key: "OPS"
+            permissions: ["read", "comment"]
+            
+        compliance:
+          field_encryption: ["description", "comments"]
+          audit_trail: true
+```
+
+### Via CLI
+
+Deploy using the Cline Enterprise CLI:
+
+```bash
+# Install GitHub Enterprise integration
+cline-enterprise mcp install github-enterprise \
+  --version 2.1.0 \
+  --config-file github-config.yaml \
+  --environment production
+
+# Install Slack Enterprise Grid integration  
+cline-enterprise mcp install slack-enterprise-grid \
+  --version 1.5.2 \
+  --config workspace_id=T1234567890 \
+  --config bot_token=${SLACK_BOT_TOKEN} \
+  --environment production
+
+# List installed marketplace servers
+cline-enterprise mcp list --environment production
+
+# Check server status
+cline-enterprise mcp status github-enterprise --environment production
+```
+
+## Configuration Examples
+
+### GitHub Enterprise Integration
+
+```yaml
+# github-enterprise-config.yaml
+github:
+  base_url: "https://github.company.com/api/v3"
+  token: "${GITHUB_ENTERPRISE_TOKEN}"
+  organization: "company"
+  
+  # Repository access controls
+  repositories:
+    allowed_patterns:
+      - "company/*"
+      - "internal/*"
+    blocked_patterns:
+      - "*/secrets"
+      - "*/private-keys"
+      
+  # Feature configuration
+  features:
+    issue_management:
+      enabled: true
+      auto_assign: true
+      labels:
+        - "ai-generated"
+        - "cline-task"
+        
+    pull_requests:
+      enabled: true
+      auto_review_request: true
+      required_approvals: 2
+      enforce_branch_protection: true
+      
+    code_analysis:
+      enabled: true
+      languages: ["typescript", "python", "go", "rust"]
+      security_scan: true
+      
+  # Security and compliance
+  security:
+    webhook_secret: "${GITHUB_WEBHOOK_SECRET}"
+    rate_limiting:
+      requests_per_hour: 5000
+      burst_limit: 100
+    ip_whitelist:
+      - "10.0.0.0/8"
+      - "192.168.0.0/16"
+      
+  audit:
+    log_level: "INFO"
+    include_payloads: false
+    retention_days: 365
+    destinations: ["datadog", "splunk"]
+```
+
+### Jira Enterprise Integration
+
+```yaml
+# jira-enterprise-config.yaml
+jira:
+  base_url: "https://company.atlassian.net"
+  username: "${JIRA_USERNAME}"
+  api_token: "${JIRA_API_TOKEN}"
+  
+  # Project access configuration
+  projects:
+    - key: "DEV"
+      name: "Development"
+      permissions: ["read", "write", "transition", "assign"]
+      issue_types: ["Story", "Bug", "Task", "Subtask"]
+      
+    - key: "OPS"
+      name: "Operations"  
+      permissions: ["read", "comment", "watch"]
+      
+  # Custom field mappings
+  custom_fields:
+    story_points: "customfield_10002"
+    epic_link: "customfield_10014"
+    sprint: "customfield_10020"
+    
+  # Workflow automation
+  automation:
+    auto_transition:
+      enabled: true
+      rules:
+        - from_status: "To Do"
+          to_status: "In Progress"
+          condition: "assignee_changed"
+          
+    auto_assign:
+      enabled: true
+      rules:
+        - issue_type: "Bug"
+          component: "Frontend"
+          assignee: "frontend-team-lead"
+          
+  # Security and compliance
+  security:
+    encrypt_fields: ["description", "comment"]
+    mask_sensitive_data: true
+    audit_changes: true
+    
+  compliance:
+    gdpr_compliant: true
+    data_retention_policy: "365_days"
+    audit_log_retention: "7_years"
+```
+
+### Slack Enterprise Grid Integration
+
+```yaml
+# slack-enterprise-config.yaml
+slack:
+  workspace_id: "T1234567890"
+  bot_token: "${SLACK_BOT_TOKEN}"
+  signing_secret: "${SLACK_SIGNING_SECRET}"
+  
+  # Channel management
+  channels:
+    notifications:
+      - name: "#dev-alerts"
+        types: ["deployments", "errors", "security"]
+      - name: "#ai-activity"
+        types: ["cline-tasks", "completions"]
+        
+    private_channels:
+      - name: "#security-incidents"
+        members: ["security-team"]
+        types: ["security-alerts", "compliance-issues"]
+        
+  # Bot behavior
+  bot:
+    display_name: "Cline Enterprise"
+    default_channel: "#general"
+    response_delay_ms: 1000
+    
+    commands:
+      - command: "/cline-status"
+        description: "Check Cline Enterprise status"
+        permission: "all"
+        
+      - command: "/cline-deploy"
+        description: "Trigger deployment"
+        permission: "admin"
+        
+  # Enterprise features
+  enterprise:
+    app_approval_required: true
+    data_residency: "US"
+    compliance_export: true
+    
+    dlp:
+      enabled: true
+      scan_messages: true
+      block_sensitive_data: true
+      
+  # Security settings
+  security:
+    require_app_approval: true
+    audit_api_calls: true
+    encrypt_messages: true
+    retain_audit_logs_days: 2555  # 7 years
+```
+
+## Enterprise Management
+
+### Multi-Environment Deployment
+
+Deploy marketplace servers across environments:
+
+```yaml
+# environments-config.yaml
+environments:
+  development:
+    marketplace_servers:
+      - github-enterprise:
+          version: "2.1.0-beta"
+          config_override:
+            github:
+              base_url: "https://github-dev.company.com/api/v3"
+              organization: "company-dev"
+              
+  staging:
+    marketplace_servers:
+      - github-enterprise:
+          version: "2.1.0-rc1"  
+          config_override:
+            github:
+              base_url: "https://github-staging.company.com/api/v3"
+              organization: "company-staging"
+              
+  production:
+    marketplace_servers:
+      - github-enterprise:
+          version: "2.1.0"
+          config_override:
+            github:
+              base_url: "https://github.company.com/api/v3"
+              organization: "company"
+```
+
+### Version Management
+
+Control marketplace server versions:
+
+```bash
+# List available versions
+cline-enterprise mcp versions github-enterprise
+
+# Upgrade to latest version
+cline-enterprise mcp upgrade github-enterprise --version 2.2.0 --environment staging
+
+# Rollback to previous version
+cline-enterprise mcp rollback github-enterprise --version 2.1.0 --environment staging
+
+# Pin to specific version (disable auto-updates)
+cline-enterprise mcp pin github-enterprise --version 2.1.0
+```
+
+### Health Monitoring
+
+Monitor marketplace server health:
+
+```yaml
+# monitoring-config.yaml
+monitoring:
+  marketplace_servers:
+    health_checks:
+      interval_seconds: 30
+      timeout_seconds: 10
+      
+    metrics:
+      - server_status
+      - request_latency
+      - error_rate
+      - resource_usage
+      
+    alerts:
+      - name: "marketplace-server-down"
+        condition: "server_status != 1"
+        severity: "critical"
+        
+      - name: "high-error-rate"
+        condition: "error_rate > 0.05"  
+        severity: "warning"
+        
+      - name: "performance-degradation"
+        condition: "request_latency > 5s"
+        severity: "warning"
+```
+
+## Security & Compliance
+
+### Enterprise Security Features
+
+All marketplace servers include:
+
+- **Authentication Integration**: SSO, SAML, OAuth2 support
+- **Authorization Controls**: RBAC and fine-grained permissions
+- **Audit Logging**: Comprehensive activity tracking
+- **Data Encryption**: At-rest and in-transit encryption
+- **Network Security**: VPN, IP whitelisting, private endpoints
+- **Compliance**: SOC2, GDPR, HIPAA compliance frameworks
+
+### Data Governance
+
+Configure data handling policies:
+
+```yaml
+# data-governance-config.yaml
+data_governance:
+  classification:
+    public:
+      retention_days: 90
+      backup_required: false
+      
+    internal:
+      retention_days: 365
+      backup_required: true
+      encryption_required: false
+      
+    confidential:
+      retention_days: 2555  # 7 years
+      backup_required: true
+      encryption_required: true
+      audit_access: true
+      
+    restricted:
+      retention_days: 2555
+      backup_required: true  
+      encryption_required: true
+      audit_access: true
+      approval_required: true
+      
+  privacy:
+    pii_detection: true
+    pii_masking: true
+    gdpr_compliance: true
+    data_subject_requests: true
+    
+  compliance:
+    frameworks: ["SOC2", "GDPR", "CCPA", "HIPAA"]
+    audit_frequency: "quarterly"
+    certification_renewal: "annual"
+```
+
+## Best Practices
+
+### Installation
+1. **Review Permissions**: Always review required permissions before installation
+2. **Test in Staging**: Deploy to staging environment first
+3. **Configuration Validation**: Validate configuration files before deployment
+4. **Backup Current State**: Create configuration backups before changes
+5. **Monitor Deployment**: Watch health metrics during rollout
+
+### Configuration  
+1. **Environment Separation**: Use different configurations per environment
+2. **Secret Management**: Store sensitive data in secure secret stores
+3. **Version Pinning**: Pin versions for production deployments
+4. **Access Controls**: Implement least-privilege access policies
+5. **Regular Updates**: Schedule regular security and feature updates
+
+### Monitoring
+1. **Health Checks**: Monitor server health continuously
+2. **Performance Metrics**: Track latency and throughput
+3. **Error Tracking**: Alert on error rates and failure patterns
+4. **Resource Usage**: Monitor CPU, memory, and network usage
+5. **Audit Reviews**: Regular review of audit logs and access patterns
+
+## Troubleshooting
+
+### Common Issues
+
+**Installation Failures**:
+```bash
+# Check marketplace connectivity
+cline-enterprise mcp marketplace-status
+
+# Verify authentication
+cline-enterprise auth verify --service marketplace
+
+# Check installation logs
+cline-enterprise logs mcp-installer --lines 100
+```
+
+**Configuration Errors**:
+```bash
+# Validate configuration
+cline-enterprise mcp validate-config --file config.yaml
+
+# Test connectivity 
+cline-enterprise mcp test-connection github-enterprise --environment staging
+
+# Check server status
+cline-enterprise mcp status --all
+```
+
+**Performance Issues**:
+```bash
+# Check server metrics
+cline-enterprise mcp metrics github-enterprise --duration 1h
+
+# View recent error logs
+cline-enterprise logs github-enterprise --level error --lines 50
+```
+
+## Support
+
+For marketplace server issues:
+
+- **Documentation**: Check server-specific documentation in the dashboard
+- **Community**: Join the Cline Enterprise community forum
+- **Support Tickets**: Create support tickets for critical issues
+- **Professional Services**: Engage professional services for custom configurations
+
+Enterprise customers have access to dedicated support channels with SLA guarantees.

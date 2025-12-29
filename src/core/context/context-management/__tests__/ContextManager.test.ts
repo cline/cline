@@ -100,6 +100,190 @@ describe("ContextManager", () => {
 		})
 	})
 
+	describe("applyContextOptimizations", () => {
+		let contextManager: ContextManager
+
+		beforeEach(() => {
+			contextManager = new ContextManager()
+		})
+
+		it("detects duplicate file reads across write_to_file, replace_in_file, and file mentions (normal tool calling)", () => {
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: "Initial task" },
+				{ role: "assistant", content: "Response" },
+				{
+					role: "user",
+					content: [
+						{
+							type: "text",
+							text: "[write_to_file for 'test.txt'] Result:\nThe content was successfully saved to test.txt.\n\nHere is the full, updated content of the file that was saved:\n\n<final_file_content path=\"test.txt\">\ntest\n\n</final_file_content>",
+						},
+						{
+							type: "text",
+							text: "<environment_details>\n# Visual Studio Code Visible Files\ntest.txt\n\n# Current Mode\nACT MODE\n</environment_details>",
+						},
+					],
+				},
+				{ role: "assistant", content: "Response" },
+				{
+					role: "user",
+					content: [
+						{
+							type: "text",
+							text: "[replace_in_file for 'test.txt'] Result:\nThe content was successfully saved to test.txt.\n\nHere is the full, updated content of the file that was saved:\n\n<final_file_content path=\"test.txt\">\ntest 2\n\n</final_file_content>",
+						},
+						{
+							type: "text",
+							text: "<environment_details>\n# Visual Studio Code Visible Files\ntest.txt\n\n# Current Mode\nACT MODE\n</environment_details>",
+						},
+					],
+				},
+				{ role: "assistant", content: "Response" },
+				{
+					role: "user",
+					content: [
+						{
+							type: "text",
+							text: "[TASK RESUMPTION] This task was interrupted just now. The conversation may have been incomplete.",
+						},
+						{
+							type: "text",
+							text: "New message to respond to:\n<user_message>\n'test.txt' (see below for file content) tell me whats in this file\n</user_message>\n\n<file_content path=\"test.txt\">\ntest 2\n\n</file_content>",
+						},
+					],
+				},
+			]
+
+			const timestamp = Date.now()
+			const [didUpdate, indices] = contextManager.applyContextOptimizations(messages, 2, timestamp)
+
+			expect(didUpdate).to.equal(true)
+			expect(indices.size).to.equal(2)
+			expect(indices.has(2)).to.equal(true)
+			expect(indices.has(4)).to.equal(true)
+			expect(indices.has(6)).to.equal(false)
+		})
+
+		it("returns false when no duplicate file reads exist", () => {
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: "Initial task" },
+				{ role: "assistant", content: "Response" },
+				{
+					role: "user",
+					content: [
+						{
+							type: "text",
+							text: "[write_to_file for 'test.txt'] Result:\n<final_file_content path=\"test.txt\">\ntest\n\n</final_file_content>",
+						},
+					],
+				},
+				{ role: "assistant", content: "Response" },
+				{
+					role: "user",
+					content: [
+						{
+							type: "text",
+							text: "[write_to_file for 'other.txt'] Result:\n<final_file_content path=\"other.txt\">\nother content\n\n</final_file_content>",
+						},
+					],
+				},
+			]
+
+			const [didUpdate, indices] = contextManager.applyContextOptimizations(messages, 2, Date.now())
+
+			expect(didUpdate).to.equal(false)
+			expect(indices.size).to.equal(0)
+		})
+
+		it("returns false for empty messages beyond startFromIndex", () => {
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: "Initial task" },
+				{ role: "assistant", content: "Response" },
+			]
+
+			const [didUpdate, indices] = contextManager.applyContextOptimizations(messages, 2, Date.now())
+
+			expect(didUpdate).to.equal(false)
+			expect(indices.size).to.equal(0)
+		})
+
+		it("detects duplicate file reads with native tool calling format (tool_result blocks)", () => {
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: "Initial task" },
+				{ role: "assistant", content: [{ type: "tool_use", id: "toolu_001", name: "plan_mode_respond", input: {} }] },
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "toolu_001",
+							content: [
+								{
+									type: "text",
+									text: "[plan_mode_respond] Result:\n<user_message>\n'test2.txt' (see below for file content)\n</user_message>\n\n<file_content path=\"/Users/toshi/Desktop/cline_testing_repo/test2.txt\">\ntest\n\n</file_content>",
+								},
+							],
+						},
+					],
+				},
+				{ role: "assistant", content: [{ type: "tool_use", id: "toolu_002", name: "write_to_file", input: {} }] },
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "toolu_002",
+							content: [
+								{
+									type: "text",
+									text: "[write_to_file for '/Users/toshi/Desktop/cline_testing_repo/test2.txt'] Result:\nThe content was successfully saved.\n\n<final_file_content path=\"/Users/toshi/Desktop/cline_testing_repo/test2.txt\">\ntest\n\n</final_file_content>",
+								},
+							],
+						},
+						{ type: "text", text: "<environment_details>\n# Current Mode\nACT MODE\n</environment_details>" },
+					],
+				},
+				{ role: "assistant", content: [{ type: "tool_use", id: "toolu_003", name: "text", input: {} }] },
+				{
+					role: "user",
+					content: [
+						{
+							type: "text",
+							text: "[TASK RESUMPTION] This task was interrupted just now. The conversation may have been incomplete.",
+						},
+						{ type: "text", text: "New message to respond to with plan_mode_respond tool" },
+					],
+				},
+				{ role: "assistant", content: [{ type: "tool_use", id: "toolu_004", name: "replace_in_file", input: {} }] },
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "toolu_004",
+							content: [
+								{
+									type: "text",
+									text: "[replace_in_file for '/Users/toshi/Desktop/cline_testing_repo/test2.txt'] Result:\nThe content was successfully saved.\n\n<final_file_content path=\"/Users/toshi/Desktop/cline_testing_repo/test2.txt\">\ntest2\n\n</final_file_content>",
+								},
+							],
+						},
+						{ type: "text", text: "<environment_details>\n# Current Mode\nACT MODE\n</environment_details>" },
+					],
+				},
+			]
+
+			const timestamp = Date.now()
+			const [didUpdate, indices] = contextManager.applyContextOptimizations(messages, 2, timestamp)
+
+			expect(didUpdate).to.equal(true)
+			expect(indices.size).to.equal(2)
+			expect(indices.has(2)).to.equal(true)
+			expect(indices.has(4)).to.equal(true)
+			expect(indices.has(8)).to.equal(false)
+		})
+	})
+
 	describe("getTruncatedMessages", () => {
 		let contextManager: ContextManager
 

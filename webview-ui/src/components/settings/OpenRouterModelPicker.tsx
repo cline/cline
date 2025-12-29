@@ -15,7 +15,7 @@ import { ModelInfoView } from "./common/ModelInfoView"
 import { DropdownContainer } from "./common/ModelSelector"
 import FeaturedModelCard from "./FeaturedModelCard"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
-import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
+import { filterOpenRouterModelIds, getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Star icon for favorites
@@ -42,24 +42,30 @@ const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: R
 export interface OpenRouterModelPickerProps {
 	isPopup?: boolean
 	currentMode: Mode
+	showProviderRouting?: boolean
 }
 
 // Featured models for Cline provider organized by tabs
-const recommendedModels = [
+export const recommendedModels = [
 	{
 		id: "anthropic/claude-sonnet-4.5",
 		description: "Best balance of speed, cost, and quality",
 		label: "BEST",
 	},
 	{
-		id: "anthropic/claude-opus-4.5",
-		description: "State-of-the-art for complex coding",
+		id: "google/gemini-3-flash-preview",
+		description: "Intelligent model built for speed and price efficiency",
 		label: "NEW",
 	},
 	{
-		id: "openai/gpt-5.1",
-		description: "OpenAI's latest with strong coding abilities",
+		id: "anthropic/claude-opus-4.5",
+		description: "State-of-the-art for complex coding",
 		label: "HOT",
+	},
+	{
+		id: "openai/gpt-5.2",
+		description: "OpenAI's latest with strong coding abilities",
+		label: "NEW",
 	},
 	{
 		id: "google/gemini-3-pro-preview",
@@ -68,7 +74,7 @@ const recommendedModels = [
 	},
 ]
 
-const freeModels = [
+export const freeModels = [
 	{
 		id: "x-ai/grok-code-fast-1",
 		description: "Fast inference with strong coding performance",
@@ -80,16 +86,21 @@ const freeModels = [
 		label: "FREE",
 	},
 	{
-		id: "stealth/microwave",
-		description: "A stealth model for agentic coding tasks",
+		id: "kwaipilot/kat-coder-pro:free",
+		description: "KwaiKAT's most advanced agentic coding model in the KAT-Coder series",
+		label: "FREE",
+	},
+	{
+		id: "mistralai/devstral-2512:free",
+		description: "Mistral's latest model with strong coding abilities",
 		label: "FREE",
 	},
 ]
 
 const FREE_CLINE_MODELS = freeModels.map((m) => m.id)
 
-const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode }) => {
-	const { handleModeFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
+const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode, showProviderRouting }) => {
+	const { handleModeFieldChange, handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds, openRouterModels, refreshOpenRouterModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
@@ -163,20 +174,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 
 	const modelIds = useMemo(() => {
 		const unfilteredModelIds = Object.keys(openRouterModels).sort((a, b) => a.localeCompare(b))
-
-		if (modeFields.apiProvider === "cline") {
-			// For Cline provider: exclude :free models, but keep Minimax models
-			return unfilteredModelIds.filter((id) => {
-				// Keep all Minimax models regardless of :free suffix
-				if (id.toLowerCase().includes("minimax-m2")) {
-					return true
-				}
-				// Filter out other :free models
-				return !id.includes(":free")
-			})
-		}
-		// For OpenRouter and Vercel AI Gateway providers: exclude Cline-specific models
-		return unfilteredModelIds.filter((id) => !id.startsWith("cline/"))
+		return filterOpenRouterModelIds(unfilteredModelIds, modeFields.apiProvider || "openrouter")
 	}, [openRouterModels, modeFields.apiProvider])
 
 	const searchableItems = useMemo(() => {
@@ -475,7 +473,14 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 						</DropdownContainer>
 					)}
 
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					<ModelInfoView
+						isPopup={isPopup}
+						modelInfo={selectedModelInfo}
+						onProviderSortingChange={(value) => handleFieldChange("openRouterProviderSorting", value)}
+						providerSorting={apiConfiguration?.openRouterProviderSorting}
+						selectedModelId={selectedModelId}
+						showProviderRouting={showProviderRouting}
+					/>
 				</>
 			) : isOpenRouterPreset ? (
 				<p

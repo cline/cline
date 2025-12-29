@@ -10,7 +10,7 @@ import { ClineContent } from "@shared/messages/content"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
-import { modelDoesntSupportWebp } from "@/utils/model-utils"
+import { isGPT5ModelFamily, modelDoesntSupportWebp } from "@/utils/model-utils"
 import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
 import { formatResponse } from "../prompts/responses"
@@ -40,6 +40,7 @@ import { SearchFilesToolHandler } from "./tools/handlers/SearchFilesToolHandler"
 import { SummarizeTaskHandler } from "./tools/handlers/SummarizeTaskHandler"
 import { UseMcpToolHandler } from "./tools/handlers/UseMcpToolHandler"
 import { WebFetchToolHandler } from "./tools/handlers/WebFetchToolHandler"
+import { WebSearchToolHandler } from "./tools/handlers/WebSearchToolHandler"
 import { WriteToFileToolHandler } from "./tools/handlers/WriteToFileToolHandler"
 import { IPartialBlockHandler, SharedToolHandler, ToolExecutorCoordinator } from "./tools/ToolExecutorCoordinator"
 import { ToolValidator } from "./tools/ToolValidator"
@@ -144,6 +145,7 @@ export class ToolExecutor {
 			strictPlanModeEnabled: this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled"),
 			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
 			vscodeTerminalExecutionMode: this.vscodeTerminalExecutionMode,
+			enableParallelToolCalling: this.isParallelToolCallingEnabled(),
 			cwd: this.cwd,
 			workspaceManager: this.workspaceManager,
 			isMultiRootEnabled: this.isMultiRootEnabled,
@@ -206,6 +208,7 @@ export class ToolExecutor {
 		this.coordinator.register(new BrowserToolHandler())
 		this.coordinator.register(new AskFollowupQuestionToolHandler())
 		this.coordinator.register(new WebFetchToolHandler())
+		this.coordinator.register(new WebSearchToolHandler())
 
 		// Register WriteToFileToolHandler for all three file tools with proper typing
 		const writeHandler = new WriteToFileToolHandler(validator)
@@ -287,12 +290,24 @@ export class ToolExecutor {
 			this.taskState.userMessageContent,
 			(block: ToolUse) => ToolDisplayUtils.getToolDescription(block),
 			this.api,
-			() => {
-				this.taskState.didAlreadyUseTool = true
-			},
 			this.coordinator,
 			this.taskState.toolUseIdMap,
 		)
+		// Mark that a tool has been used (only matters when parallel tool calling is disabled)
+		if (!this.isParallelToolCallingEnabled()) {
+			this.taskState.didAlreadyUseTool = true
+		}
+	}
+
+	/**
+	 * Check if parallel tool calling is enabled.
+	 * Parallel tool calling is enabled if:
+	 * 1. User has enabled it in settings, OR
+	 * 2. The current model is GPT-5 (which handles parallel tools well)
+	 */
+	private isParallelToolCallingEnabled(): boolean {
+		const modelId = this.api.getModel().id
+		return this.stateManager.getGlobalSettingsKey("enableParallelToolCalling") || isGPT5ModelFamily(modelId)
 	}
 
 	/**
@@ -339,8 +354,8 @@ export class ToolExecutor {
 				return true
 			}
 
-			// Check if a tool has already been used in this message
-			if (this.taskState.didAlreadyUseTool) {
+			// Check if a tool has already been used in this message (only enforced when parallel tool calling is disabled)
+			if (!this.isParallelToolCallingEnabled() && this.taskState.didAlreadyUseTool) {
 				this.taskState.userMessageContent.push({
 					type: "text",
 					text: formatResponse.toolAlreadyUsed(block.name),
@@ -358,7 +373,6 @@ export class ToolExecutor {
 				const errorMessage = `Tool '${block.name}' is not available in PLAN MODE. This tool is restricted to ACT MODE for file modifications. Only use tools available for PLAN MODE when in that mode.`
 				await this.say("error", errorMessage)
 				this.pushToolResult(formatResponse.toolError(errorMessage), block)
-				await this.saveCheckpoint()
 				return true
 			}
 
@@ -375,11 +389,9 @@ export class ToolExecutor {
 
 			// Handle complete blocks
 			await this.handleCompleteBlock(block, config)
-			await this.saveCheckpoint()
 			return true
 		} catch (error) {
 			await this.handleError(`executing ${block.name}`, error as Error, block)
-			await this.saveCheckpoint()
 			return true
 		}
 	}

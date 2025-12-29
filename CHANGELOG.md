@@ -1,5 +1,134 @@
 # Changelog
 
+## [3.46.1]
+
+### Fixed
+
+- Remove GLM 4.6 from free models
+
+
+## [3.46.0]
+
+### Added
+
+- Added GLM 4.7 model
+- Enhanced background terminal execution with command tracking, log file output, zombie process prevention (10-minute timeout), and clickable log paths in UI
+- Apply Patch tool for GPT-5+ models (replacing current diff edit tools)
+
+### Fixed
+
+- Duplicate error messages during streaming for Diff Edit tool when Parallel Tool Calling is not enabled
+- Banner carousel styling and dismiss functionality
+- Typos in Gemini system prompt overrides
+- Model picker favorites ordering, star toggle, and keyboard navigation for OpenRouter and Vercel AI Gateway providers
+- Fetch remote config values from the cache
+
+### Refactored
+
+- Anthropic handler to use metadata for reasoning support
+- Bedrock provider to use metadata for reasoning support
+
+## [3.45.1]
+
+- Fixed MCP settings race condition where toggling auto-approve or changing timeout settings would cause the UI to flash and revert
+
+## [3.45.0]
+
+- Added Gemini 3 Flash Preview model
+
+## [3.44.2]
+
+- Polished the model picker UI with checkmarks for selected models, tooltips on Plan/Act tabs, and consistent arrow pointers across all popup modals
+- Improved WhatsNew modal responsiveness and cleaned up redundant UI elements
+- Fixed GLM models outputting garbled text in thinking tags—reasoning is now properly disabled for these models
+
+## [3.44.1]
+
+- Fixed a critical bug where local MCP servers stopped connecting after v3.42.0—all user-configured stdio-based MCP servers should now work again
+- Fixed remotely configured API keys not being extracted correctly for enterprise users
+- Added support for dynamic tool instructions that adapt based on runtime context, laying groundwork for future context-aware features
+
+## [3.44.0]
+
+## Added
+
+- Updating minor version to show a proper banner for the release
+
+## [3.43.1]
+
+### Patch Changes
+
+- Fix GLM-4.6 Model reference id
+
+## [3.43.0]
+
+### Added
+
+- GLM-4.6
+- kat-coder-pro
+- Add parsing of env variable patterns to the mcpconfig.json
+
+### Fixed
+
+- TLS Proxy support issues for VSCode
+- Add supportsReasoning flag to OpenAI reasoning models
+- Fix thinking not available for some models in the OpenAI provider
+- Fix invalid signature field issues when switching between Gemini and Anthropic providers
+- Extract OpenRouter model filtering into reusable utility and use it in different model pickers
+- Fix a11y for auto approve checkbox
+- Improve ModelPickerModal provider list layout
+
+### Refactored
+
+- Migrate WhatsNewModal to new shared dialogue component
+
+## [3.42.0]
+
+### Added
+
+- Expose `getAvailableSlashCommands` rpc endpoint to UI clients
+- Made slash command menu and context menu accessible and screenreader-friendly
+- Made expanding/collapsing UI components accessible
+
+### Fixed
+
+- Devstral OpenRouter model ID and routing issues
+- Incorrect pricing display for Devstral model in the extension
+
+## [3.41.0]
+
+### Added
+
+- OpenAI GPT-5.2
+- Devstral-2512 (formerly stealth model "Microwave")
+- Improvements to chat modal model picker
+- Amazon Nova 2 Lite
+- DeepSeek 3.2 to native tool calling allow list
+- Responses API support for Codex models in OpenAI provider (requires native tool calling)
+- Xmas Special Santa Cline
+- Welcome screen UI enhancements
+
+### Fixed
+
+- Initial checkpoint commit now non-blocking for improved responsiveness in large repositories
+- Gemini Vertex models erroring when thinking parameters are not supported
+- Restrictive file permissions for secrets.json
+- Ollama streaming requests not aborting when task is cancelled
+
+### Refactored
+
+- OpenAI provider to centralize temperature configuration and include missing GPT-5 model settings
+- OpenAI native handler to use metadata for model capabilities
+- Vertex provider to use metadata for model capabilities
+
+## [3.40.2]
+
+- Fix logout on network errors during token refresh (e.g., opening laptop while offline)
+
+## [3.40.1]
+
+- Fix cost calculation display for Anthropic API requests
+
 ## [3.40.0]
 
 - Fix highlighted text flashing when task header is collapsed
