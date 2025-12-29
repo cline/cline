@@ -124,7 +124,7 @@ export class ClineAuthProvider implements IAuthProvider {
 		this.refreshRetryCount = 0
 		this.lastRefreshAttempt = 0
 		return {
-			authenticated: false,
+			hasSessionData: false,
 			pending: false,
 		}
 	}
@@ -172,7 +172,7 @@ export class ClineAuthProvider implements IAuthProvider {
 				this.refreshRetryCount = 0
 				this.lastRefreshAttempt = 0
 				return {
-					authenticated: false,
+					hasSessionData: false,
 					pending: false,
 				}
 			}
@@ -203,7 +203,7 @@ export class ClineAuthProvider implements IAuthProvider {
 					this.lastRefreshAttempt = 0
 					return {
 						authInfo: storedAuthData,
-						authenticated: true,
+						hasSessionData: true,
 						pending: false,
 					}
 				}
@@ -217,7 +217,7 @@ export class ClineAuthProvider implements IAuthProvider {
 					)
 
 					return {
-						authenticated: true,
+						hasSessionData: true,
 						pending: true,
 						nextRetryAt: now + this.RETRY_DELAY_MS - timeSinceLastAttempt,
 					}
@@ -232,7 +232,7 @@ export class ClineAuthProvider implements IAuthProvider {
 					}, waitTime)
 
 					return {
-						authenticated: true,
+						hasSessionData: true,
 						pending: false,
 						error: "Failed to fetch user information. Waiting before retrying again.",
 						nextRetryAt: now + waitTime,
@@ -260,7 +260,7 @@ export class ClineAuthProvider implements IAuthProvider {
 
 					return {
 						authInfo: authInfo,
-						authenticated: true,
+						hasSessionData: true,
 						pending: false,
 					}
 				} catch (refreshError) {
@@ -279,7 +279,7 @@ export class ClineAuthProvider implements IAuthProvider {
 					// For network errors, return stored data - let the API request fail later
 					// when the user actually tries to use Cline, not at startup
 					return {
-						authenticated: true,
+						hasSessionData: true,
 						error: "Unknown network error.",
 						pending: true,
 						nextRetryAt: now + this.RETRY_DELAY_MS,
@@ -295,7 +295,7 @@ export class ClineAuthProvider implements IAuthProvider {
 			if (storedAuthData.idToken && storedAuthData.refreshToken && storedAuthData.userInfo.id) {
 				return {
 					authInfo: storedAuthData,
-					authenticated: true,
+					hasSessionData: true,
 					pending: false,
 				}
 			}
@@ -314,7 +314,7 @@ export class ClineAuthProvider implements IAuthProvider {
 
 			return {
 				authInfo: storedAuthData,
-				authenticated: true,
+				hasSessionData: true,
 				pending: false,
 			}
 		} catch (error) {
@@ -325,7 +325,7 @@ export class ClineAuthProvider implements IAuthProvider {
 				this.lastRefreshAttempt = 0
 			}
 			return {
-				authenticated: true,
+				hasSessionData: true,
 				pending: false,
 				error: "Unexpected error.",
 				nextRetryAt: Date.now() + this.RETRY_DELAY_MS,
@@ -488,7 +488,7 @@ export class ClineAuthProvider implements IAuthProvider {
 
 			return {
 				authInfo: clineAuthInfo,
-				authenticated: true,
+				hasSessionData: true,
 				pending: false,
 			}
 		} catch (error) {

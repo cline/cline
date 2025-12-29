@@ -6,9 +6,9 @@ import { ClineAuthStatus } from "./ClineAuthStatus"
 
 export const AccountWelcomeView = () => {
 	const { environment } = useExtensionState()
-	const { isAuthenticated } = useClineAuth()
+	const { hasSessionData } = useClineAuth()
 
-	if (!isAuthenticated) {
+	if (!hasSessionData) {
 		return (
 			<div className="flex flex-col items-center pr-3 gap-2.5">
 				<ClineLogoVariable className="size-16 mb-4" environment={environment} />

@@ -49,7 +49,7 @@ export class AuthServiceMock extends AuthService {
 		const authUrl = new URL(ClineEnv.config().apiBaseUrl)
 		const authUrlString = authUrl.toString()
 		// Call the parent implementation
-		if (this.authState.authenticated && this.authState.authInfo) {
+		if (this.authState.hasSessionData && this.authState.authInfo) {
 			console.log("Already authenticated with mock server")
 			return String.create({ value: authUrlString })
 		}
@@ -113,7 +113,7 @@ export class AuthServiceMock extends AuthService {
 			await visibleWebview?.controller.handleAuthCallback(authData.accessToken, providerName)
 		} catch (error) {
 			console.error("Error signing in with mock server:", error)
-			this.authState.authenticated = false
+			this.authState.hasSessionData = false
 			this.authState.authInfo = undefined
 			throw error
 		}
@@ -123,7 +123,7 @@ export class AuthServiceMock extends AuthService {
 
 	override async handleAuthCallback(_token: string, _provider: string): Promise<void> {
 		try {
-			this.authState.authenticated = true
+			this.authState.hasSessionData = true
 			this.authState.pending = false
 			await setWelcomeViewCompleted(this._controller, { value: true })
 			await this.sendAuthStatusUpdate()
@@ -138,16 +138,16 @@ export class AuthServiceMock extends AuthService {
 			this.authState.pending = false
 
 			if (this.authState.authInfo) {
-				this.authState.authenticated = true
+				this.authState.hasSessionData = true
 				await this.sendAuthStatusUpdate()
 			} else {
 				console.warn("No user found after restoring auth token")
-				this.authState.authenticated = false
+				this.authState.hasSessionData = false
 				this.authState.authInfo = undefined
 			}
 		} catch (error) {
 			console.error("Error restoring auth token:", error)
-			this.authState.authenticated = false
+			this.authState.hasSessionData = false
 			this.authState.authInfo = undefined
 			return
 		}

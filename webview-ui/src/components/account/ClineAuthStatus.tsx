@@ -17,7 +17,7 @@ type ClineAuthStatusProps = {
 }
 
 export function ClineAuthStatus({ authButtonText = "Sign in to Cline" }: ClineAuthStatusProps) {
-	const { isAuthenticated, isPending, error, nextRetryAt } = useClineAuth()
+	const { hasSessionData, isPending, error, nextRetryAt } = useClineAuth()
 	const { isLoginLoading, handleSignIn } = useClineSignIn()
 	const [isFetching, setIsFetching] = useState(false)
 	const [secondsUntilNextRetry, setSecondsUntilNextRetry] = useState<number | null>(null)
@@ -42,7 +42,7 @@ export function ClineAuthStatus({ authButtonText = "Sign in to Cline" }: ClineAu
 		}
 	}, [nextRetryAt])
 
-	const hasValidAuthSession = isAuthenticated && !error && !isPending
+	const hasValidAuthSession = hasSessionData && !error && !isPending
 
 	/* The user is signed in or not using cline provider */
 	if (hasValidAuthSession) {

@@ -18,7 +18,7 @@ export interface ClineAuthContextType {
 	clineUser: ClineUser | null
 	organizations: UserOrganization[] | null
 	activeOrganization: UserOrganization | null
-	isAuthenticated: boolean
+	hasSessionData: boolean
 	isPending: boolean
 	error: string | null
 	nextRetryAt: number | null
@@ -31,7 +31,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	const [userOrganizations, setUserOrganizations] = useState<UserOrganization[] | null>(null)
 	const [isPending, setIsPending] = useState(false)
 	const [error, setError] = useState<string | null>(null)
-	const [isAuthenticated, setIsAuthenticated] = useState(false)
+	const [hasSessionData, setHasSessionData] = useState(false)
 	const [nextRetryAt, setNextRetryAt] = useState<number | null>(null)
 
 	const getUserOrganizations = useCallback(async () => {
@@ -57,7 +57,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	useEffect(() => {
 		const cancelSubscription = AccountServiceClient.subscribeToAuthStatusUpdate(EmptyRequest.create(), {
 			onResponse: async (response) => {
-				setIsAuthenticated(!!response.authenticated)
+				setHasSessionData(!!response.hasSessionData)
 				setIsPending(!!response.pending)
 				setError(response.error || null)
 				setNextRetryAt(response.nextRetryAt || null)
@@ -93,7 +93,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				organizations: userOrganizations,
 				activeOrganization,
 				error,
-				isAuthenticated,
+				hasSessionData,
 				isPending,
 				nextRetryAt,
 			}}>
