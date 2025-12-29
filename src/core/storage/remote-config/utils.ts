@@ -299,13 +299,12 @@ const canDisableRemoteConfig = (orgId: string) => {
 	// Check if they're an admin/owner
 	const authService = AuthService.getInstance()
 	const userOrgs = authService.getUserOrganizations()
-	const remotelyConfiguredOrgId = orgId || authService.getActiveOrganizationId()
 
-	if (!userOrgs || !remotelyConfiguredOrgId) {
+	if (!userOrgs) {
 		return false
 	}
 
-	const org = userOrgs.find((org) => org.organizationId === remotelyConfiguredOrgId)
+	const org = userOrgs.find((org) => org.organizationId === orgId)
 	const isAdminOrOwner = org?.roles?.some((role) => role === "admin" || role === "owner")
 
 	return isAdminOrOwner
