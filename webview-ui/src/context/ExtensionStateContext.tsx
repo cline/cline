@@ -1,7 +1,6 @@
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { findLastIndex } from "@shared/array"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
-import { ClineFeatureSetting } from "@shared/ClineFeatureSetting"
 import { DEFAULT_DICTATION_SETTINGS, DictationSettings } from "@shared/DictationSettings"
 import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
@@ -51,7 +50,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 	// View state
 	showMcp: boolean
-	hooksEnabled?: ClineFeatureSetting
 	mcpTab?: McpViewTab
 	showSettings: boolean
 	settingsTargetSection?: string
@@ -233,6 +231,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		yoloModeToggled: false,
 		customPrompt: undefined,
 		useAutoCondense: false,
+		clineWebToolsEnabled: { user: true, featureFlag: false },
 		autoCondenseThreshold: undefined,
 		favoritedModelIds: [],
 		lastDismissedInfoBannerVersion: 0,
@@ -242,14 +241,16 @@ export const ExtensionStateContextProvider: React.FC<{
 		backgroundCommandTaskId: undefined,
 		lastDismissedCliBannerVersion: 0,
 		subagentsEnabled: false,
+		backgroundEditEnabled: false,
 
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],
 		primaryRootIndex: 0,
 		isMultiRootWorkspace: false,
 		multiRootSetting: { user: false, featureFlag: false },
-		hooksEnabled: { user: false, featureFlag: false },
+		hooksEnabled: false,
 		nativeToolCallSetting: false,
+		enableParallelToolCalling: false,
 	})
 	const [expandTaskHeader, setExpandTaskHeader] = useState(true)
 	const [didHydrateState, setDidHydrateState] = useState(false)
