@@ -5,7 +5,7 @@ import {
 	type Message as BedrockMessage,
 } from "@aws-sdk/client-bedrock-runtime"
 import { ChatMessage, OrchestrationClient, OrchestrationModuleConfig } from "@sap-ai-sdk/orchestration"
-import { transformServiceBindingToDestination } from "@sap-cloud-sdk/connectivity"
+import { HttpDestination, transformServiceBindingToDestination } from "@sap-cloud-sdk/connectivity"
 import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels } from "@shared/api"
 import axios from "axios"
 import JSON5 from "json5"
@@ -356,7 +356,7 @@ export class SapAiCoreHandler implements ApiHandler {
 	private options: SapAiCoreHandlerOptions
 	private token?: Token
 	private deployments?: Deployment[]
-	private aiCoreDestination?: any
+	private aiCoreDestination?: HttpDestination
 	private destinationExpiresAt?: number
 
 	constructor(options: SapAiCoreHandlerOptions) {
@@ -389,7 +389,7 @@ export class SapAiCoreHandler implements ApiHandler {
 		}
 	}
 
-	private async createAiCoreDestination() {
+	private async createAiCoreDestination(): Promise<HttpDestination> {
 		try {
 			const aiCoreServiceCredentials = {
 				clientid: this.options.sapAiCoreClientId!,
@@ -517,11 +517,11 @@ export class SapAiCoreHandler implements ApiHandler {
 			this.aiCoreDestination = await this.createAiCoreDestination()
 
 			// Extract expiration from the destination's auth token
-			const expiresIn = this.aiCoreDestination.authTokens[0].expiresIn
+			const expiresIn = this.aiCoreDestination.authTokens?.[0]?.expiresIn
 			if (!expiresIn) {
-				throw new Error("Destination authTokens missing expiresIn field")
+				throw new Error("Destination is missing required authTokens with expiresIn")
 			}
-			this.destinationExpiresAt = Date.now() + parseInt(expiresIn) * 1000
+			this.destinationExpiresAt = Date.now() + parseInt(expiresIn, 10) * 1000
 		}
 	}
 
