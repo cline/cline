@@ -35,6 +35,7 @@ export async function refreshBasetenModels(controller: Controller): Promise<Reco
 					cacheWritesPrice: (modelInfo as any).cacheWritesPrice || 0,
 					cacheReadsPrice: (modelInfo as any).cacheReadsPrice || 0,
 					description: (modelInfo as any).description || `${modelId} model`,
+					supportsReasoning: modelInfo.supportsReasoning || false,
 				}
 			}
 		} else {
@@ -65,6 +66,9 @@ export async function refreshBasetenModels(controller: Controller): Promise<Reco
 
 					// Check if we have static pricing information for this model
 					const staticModelInfo = basetenModels[rawModel.id as keyof typeof basetenModels]
+					const supportThinking = rawModel.supported_parameters?.some(
+						(p: string) => p === "include_reasoning" || p === "reasoning",
+					)
 
 					const modelInfo: Partial<ModelInfo> & { supportedFeatures?: string[] } = {
 						maxTokens: rawModel.max_completion_tokens || staticModelInfo?.maxTokens,
@@ -77,6 +81,7 @@ export async function refreshBasetenModels(controller: Controller): Promise<Reco
 						cacheReadsPrice: staticModelInfo?.cacheReadsPrice || 0,
 						description: generateModelDescription(rawModel, staticModelInfo),
 						supportedFeatures: rawModel.supported_features || [],
+						supportsReasoning: staticModelInfo?.supportsReasoning || supportThinking || false,
 					}
 
 					models[rawModel.id] = modelInfo
@@ -129,6 +134,7 @@ export async function refreshBasetenModels(controller: Controller): Promise<Reco
 					cacheWritesPrice: (modelInfo as any).cacheWritesPrice || 0,
 					cacheReadsPrice: (modelInfo as any).cacheReadsPrice || 0,
 					description: (modelInfo as any).description || `${modelId} model`,
+					supportsReasoning: modelInfo.supportsReasoning || false,
 				}
 			}
 		}
