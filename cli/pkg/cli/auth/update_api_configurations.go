@@ -54,6 +54,7 @@ type ProviderFields struct {
 	// Provider-specific additional model ID fields
 	PlanModeProviderSpecificModelIDField string // e.g., "planModeOpenRouterModelId"
 	ActModeProviderSpecificModelIDField  string // e.g., "actModeOpenRouterModelId"
+	UseProfileField                      string // e.g., "awsUseProfile" (for bedrock) (optional, empty if not applicable)
 }
 
 // GetProviderFields returns the field mapping for a given provider
@@ -96,6 +97,7 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 
 	case cline.ApiProvider_BEDROCK:
 		return ProviderFields{
+			UseProfileField:                      "awsUseProfile",
 			APIKeyField:                          "awsAccessKey",
 			PlanModeModelIDField:                 "planModeApiModelId",
 			ActModeModelIDField:                  "actModeApiModelId",

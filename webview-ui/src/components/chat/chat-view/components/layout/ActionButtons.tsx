@@ -120,6 +120,14 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 				behavior: "smooth",
 			})
 			disableAutoScrollRef.current = true
+			// Virtual rendering may not have all items rendered when at bottom,
+			// so scroll again after a delay to ensure we reach the true top
+			setTimeout(() => {
+				scrollBehavior.virtuosoRef.current?.scrollTo({
+					top: 0,
+					behavior: "smooth",
+				})
+			}, 300)
 		}
 
 		return (

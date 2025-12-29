@@ -415,6 +415,11 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					!block.partial, // Pass the partial flag correctly
 				)
 			} catch (error) {
+				// As we set the didAlreadyUseTool flag when the tool has failed once, we don't want to add the error message to the
+				// userMessages array again on each new streaming chunk received.
+				if (!config.enableParallelToolCalling && config.taskState.didAlreadyUseTool) {
+					return
+				}
 				// Full original behavior - comprehensive error handling even for partial blocks
 				await config.callbacks.say("diff_error", relPath)
 

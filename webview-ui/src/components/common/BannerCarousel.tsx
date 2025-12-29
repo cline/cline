@@ -1,11 +1,11 @@
 import { ChevronLeft, ChevronRight, XIcon } from "lucide-react"
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useRemark } from "react-remark"
 import { Button } from "@/components/ui/button"
 
-interface BannerAction {
+interface BannerActions {
 	label: string
 	onClick: () => void
-	variant?: "primary" | "secondary"
 	disabled?: boolean
 }
 
@@ -14,12 +14,62 @@ export interface BannerData {
 	icon?: React.ReactNode
 	title: string
 	description: string | React.ReactNode
-	actions?: BannerAction[]
+	actions?: BannerActions[]
 	onDismiss?: () => void
 }
 
 interface BannerCarouselProps {
 	banners: BannerData[]
+}
+
+interface BannerCardContentProps {
+	banner: BannerData
+	isActive: boolean
+	isTransitioning: boolean
+	showDismissButton: boolean
+}
+
+const BannerCardContent: React.FC<BannerCardContentProps> = ({ banner, isActive, isTransitioning, showDismissButton }) => {
+	const [markdownContent, setMarkdown] = useRemark()
+
+	useEffect(() => {
+		setMarkdown(typeof banner.description === "string" ? banner.description : "")
+	}, [banner.description, setMarkdown])
+
+	return (
+		<div
+			className="p-3"
+			style={{
+				gridArea: "stack",
+				opacity: isActive && !isTransitioning ? 1 : 0,
+				transition: "opacity 0.4s ease-in-out",
+				pointerEvents: isActive ? "auto" : "none",
+			}}>
+			{/* Title with optional icon */}
+			<h3
+				className="font-semibold mb-2 flex items-center gap-2 text-base"
+				style={{ paddingRight: showDismissButton ? "24px" : "0" }}>
+				<span className="shrink-0">{banner.icon}</span>
+				{banner.title}
+			</h3>
+
+			{/* Description */}
+			<div className="text-sm text-description leading-relaxed [&>*:last-child]:mb-0 [&_a]:hover:underline">
+				{markdownContent}
+			</div>
+
+			{/* Action buttons */}
+			{banner.actions?.length ? (
+				<div className="flex flex-wrap gap-2 mt-3">
+					{banner.actions.map((action) => (
+						<Button disabled={action.disabled} key={action.label} onClick={action.onClick} size="sm">
+							{action.label}
+						</Button>
+					))}
+				</div>
+			) : null}
+		</div>
+	)
 }
 
 export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
@@ -29,7 +79,10 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 	const autoPlayIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
 	// Compute a safe index that's always within bounds
-	const safeCurrentIndex = banners.length === 0 ? 0 : Math.min(currentIndex, banners.length - 1)
+	const safeCurrentIndex = useMemo(
+		() => (banners.length === 0 ? 0 : Math.min(currentIndex, banners.length - 1)),
+		[currentIndex, banners.length],
+	)
 
 	const transitionToIndex = useCallback((newIndex: number) => {
 		setIsTransitioning(true)
@@ -89,27 +142,24 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 		return null
 	}
 
+	const showDismissButton = safeCurrentIndex === banners.length - 1 && currentBanner.onDismiss
+
 	return (
 		<div
 			aria-label="Announcements"
 			aria-live="polite"
 			aria-roledescription="carousel"
-			className="mx-4 mb-4 mt-9"
+			className="mx-3 mb-3"
 			onMouseEnter={() => setIsPaused(true)}
 			onMouseLeave={() => setIsPaused(false)}
 			role="region">
-			{/* Card container with unified styling */}
-			<div
-				className="relative"
-				style={{
-					backgroundColor: "color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 65%, transparent)",
-					borderRadius: "4px",
-				}}>
+			{/* Card container */}
+			<div className="relative bg-muted rounded-sm">
 				{/* Dismiss button - only show on last card, dismisses ALL banners */}
-				{safeCurrentIndex === banners.length - 1 && currentBanner.onDismiss && (
+				{showDismissButton && (
 					<Button
 						aria-label="Dismiss all banners"
-						className="absolute top-2 right-2 z-10"
+						className="absolute top-2.5 right-2 z-10"
 						data-testid="banner-dismiss-button"
 						onClick={(e) => {
 							e.stopPropagation()
@@ -122,86 +172,40 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 					</Button>
 				)}
 
-				{/* Card content with fixed height and fade transition */}
-				<div
-					className="px-4 pt-4 pb-3"
-					style={{
-						height: "144px",
-						overflow: "hidden",
-						opacity: isTransitioning ? 0 : 1,
-						transition: "opacity 0.4s ease-in-out",
-					}}>
-					{/* Title with optional icon */}
-					<h3
-						className="font-semibold mb-3 flex items-center gap-2"
-						style={{
-							fontSize: "16px",
-							paddingRight: safeCurrentIndex === banners.length - 1 && currentBanner.onDismiss ? "24px" : "0",
-						}}>
-						{currentBanner.icon}
-						{currentBanner.title}
-					</h3>
+				{/* Card content - grid stack makes container size to tallest */}
+				<div className="grid" style={{ gridTemplateAreas: "'stack'" }}>
+					{banners.map((banner, idx) => {
+						const isActive = idx === safeCurrentIndex
+						const isLastBanner = idx === banners.length - 1
+						const showDismiss = isLastBanner && banner.onDismiss
 
-					{/* Description */}
-					<div className="text-base mb-4" style={{ color: "var(--vscode-descriptionForeground)" }}>
-						{currentBanner.description}
-					</div>
-
-					{/* Action buttons */}
-					{currentBanner.actions && currentBanner.actions.length > 0 && (
-						<div className="flex gap-3 mt-4">
-							{currentBanner.actions.map((action, idx) => (
-								<Button
-									disabled={action.disabled}
-									key={idx}
-									onClick={action.onClick}
-									variant={action.variant === "secondary" ? "secondary" : "default"}>
-									{action.label}
-								</Button>
-							))}
-						</div>
-					)}
+						return (
+							<BannerCardContent
+								banner={banner}
+								isActive={isActive}
+								isTransitioning={isTransitioning}
+								key={banner.id}
+								showDismissButton={!!showDismiss}
+							/>
+						)
+					})}
 				</div>
 
 				{/* Navigation footer - only show if more than 1 banner */}
 				{banners.length > 1 && (
-					<div
-						className="flex justify-between items-center px-4 py-1"
-						style={{
-							borderTop: "1px solid rgba(255, 255, 255, 0.1)",
-						}}>
+					<div className="flex justify-between items-center px-3 py-1.5 border-t border-description/15">
 						{/* Page indicator */}
-						<div className="text-base font-medium" style={{ color: "var(--vscode-descriptionForeground)" }}>
-							{safeCurrentIndex + 1}/{banners.length}
+						<div className="text-sm text-description">
+							{safeCurrentIndex + 1} / {banners.length}
 						</div>
 
 						{/* Navigation arrows */}
-						<div className="flex -mr-3">
-							<Button
-								aria-label="Previous banner"
-								onClick={handlePrevious}
-								size="icon"
-								style={{
-									width: "40px",
-									height: "40px",
-									padding: "0",
-									backgroundColor: "transparent",
-								}}
-								variant="icon">
-								<ChevronLeft style={{ width: "18px", height: "18px" }} />
+						<div className="flex gap-0.5">
+							<Button aria-label="Previous banner" onClick={handlePrevious} size="icon" variant="icon">
+								<ChevronLeft className="size-4" />
 							</Button>
-							<Button
-								aria-label="Next banner"
-								onClick={handleNext}
-								size="icon"
-								style={{
-									width: "40px",
-									height: "40px",
-									padding: "0",
-									backgroundColor: "transparent",
-								}}
-								variant="icon">
-								<ChevronRight style={{ width: "18px", height: "18px" }} />
+							<Button aria-label="Next banner" onClick={handleNext} size="icon" variant="icon">
+								<ChevronRight className="size-4" />
 							</Button>
 						</div>
 					</div>
