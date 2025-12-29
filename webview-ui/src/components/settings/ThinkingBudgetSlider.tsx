@@ -135,7 +135,7 @@ const ThinkingBudgetSlider = ({ currentMode, maxBudget, showEnableToggle = true 
 						aria-describedby="thinking-budget-description"
 						aria-label={`Thinking budget: ${localValue.toLocaleString()} tokens`}
 						aria-valuemax={maxBudget || ANTHROPIC_MAX_THINKING_BUDGET}
-						aria-valuemin={maxBudget || ANTHROPIC_MIN_THINKING_BUDGET}
+						aria-valuemin={ANTHROPIC_MIN_THINKING_BUDGET}
 						aria-valuenow={localValue}
 						id="thinking-budget-slider"
 						max={maxBudget || ANTHROPIC_MAX_THINKING_BUDGET}

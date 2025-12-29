@@ -709,7 +709,7 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	// Auto-refresh model lists on API key availability
 	useEffect(() => {
-		if (!openRouterModels?.length) {
+		if (!openRouterModels || Object.keys(openRouterModels).length <= 1) {
 			refreshOpenRouterModels()
 		}
 		if (state.apiConfiguration?.basetenApiKey) {
