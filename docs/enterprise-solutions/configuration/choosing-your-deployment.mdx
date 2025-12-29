@@ -1,0 +1,105 @@
+---
+title: "Choosing Your Configuration Path"
+sidebarTitle: "Deployment Guide"
+description: "Decide between SaaS and Self-Hosted configuration for your Cline Enterprise deployment"
+---
+
+Choose the right configuration approach for your organization. Most teams start with SaaS for quick deployment, while enterprises with complex requirements opt for self-hosted infrastructure.
+
+## Configuration Paths
+
+<CardGroup cols={2}>
+  <Card title="SaaS Provider Configuration" icon="cloud" href="/enterprise-solutions/configuration/remote-configuration/overview">
+    ### Quick Setup via Web Console
+    
+    ✅ No infrastructure required  
+    ✅ 5-10 minute configuration  
+    ✅ Web-based admin console  
+    ✅ Automatic updates  
+    ✅ Simplified credential management
+    
+    **Best for:**
+    - Small to medium teams (5-50 developers)
+    - Quick deployment needs
+    - Limited DevOps resources
+    - Standard security requirements
+    - Single region deployments
+  </Card>
+  
+  <Card title="Self-Hosted Configuration" icon="server" href="/enterprise-solutions/configuration/infrastructure-configuration/overview">
+    ### Full Infrastructure Control
+    
+    ✅ Your own AWS/GCP/K8s  
+    ✅ VPC endpoints & private connectivity  
+    ✅ Multi-account setups  
+    ✅ Advanced compliance & audit  
+    ✅ GitOps workflows
+    
+    **Best for:**
+    - Large enterprises (50+ developers)
+    - Complex security requirements
+    - Existing cloud infrastructure
+    - Multi-region deployments
+    - Custom compliance needs
+  </Card>
+</CardGroup>
+
+## Detailed Comparison
+
+### Feature Comparison
+
+| Feature | SaaS | Self-Hosted |
+|---------|------|-------------|
+| **Configuration** | Web UI | YAML + Helm/Kubernetes |
+| **Infrastructure** | None required | Full AWS/GCP/K8s |
+| **VPC Endpoints** | Basic | Full private connectivity |
+| **Multi-Account** | ❌ | ✅ |
+| **IAM** | Standard RBAC roles | Standard RBAC roles |
+| **Compliance** | Standard | Custom frameworks |
+| **GitOps** | ❌ | ✅ |
+| **Maintenance** | Managed by Cline | Self-managed |
+| **Updates** | Automatic (extension) | Automatic (extension) + Infrastructure control |
+
+### Security & Compliance
+
+| Capability | SaaS | Self-Hosted |
+|------------|------|-------------|
+| **Network Encryption** | HTTPS/TLS | HTTPS/TLS |
+| **Network** | Public internet | Private VPC endpoints |
+| **Access Control** | Standard RBAC | Standard RBAC |
+| **Audit Logs** | OpenTelemetry traces | OpenTelemetry traces + Infrastructure logs |
+| **Data Residency** | Cline-managed deployment | Customer-controlled deployment |
+
+### Cost Structure
+
+| Cost Category | SaaS | Self-Hosted |
+|---------------|------|-------------|
+| **Cline Subscription** | Fixed enterprise fee | Fixed enterprise fee |
+| **Inference Provider Costs** | Usage-based | Usage-based |
+| **Infrastructure** | ✅ None required | Kubernetes, networking, storage |
+| **Personnel** | ✅ None required | DevOps team needed |
+| **Total Cost Profile** | Predictable and simple | Variable based on scale |
+
+## Migration Path
+
+<Note>
+Most organizations start with SaaS configuration for quick deployment, then migrate to self-hosted later as requirements grow. This minimizes risk and ensures your infrastructure meets actual usage patterns.
+</Note>
+
+## Getting Started
+
+<CardGroup cols={2}>
+  <Card title="Start with SaaS" icon="rocket" href="/enterprise-solutions/configuration/remote-configuration/overview">
+    Begin with quick SaaS setup
+  </Card>
+  
+  <Card title="Deploy Self-Hosted" icon="server" href="/enterprise-solutions/configuration/infrastructure-configuration/overview">
+    Plan your infrastructure deployment
+  </Card>
+</CardGroup>
+
+## Need Help Deciding?
+
+- [**Contact Cline Enterprise Sales**](https://cline.bot/contact-sales) for a consultation on your specific requirements
+- [**Start with SaaS**](/enterprise-solutions/configuration/remote-configuration/overview) if unsure - it's lower risk and you can always migrate later
+- [**Review Self-Hosted Requirements**](/enterprise-solutions/configuration/infrastructure-configuration/overview) if you have existing infrastructure that could benefit from self-hosted deployment

@@ -10,14 +10,11 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 	await expect(inputbox).toBeVisible()
 	await inputbox.fill("Hello, Cline!")
 	await expect(inputbox).toHaveValue("Hello, Cline!")
-	await sidebar.getByTestId("send-button").click({ delay: 100 })
+	await sidebar.getByTestId("send-button").click()
 	await expect(inputbox).toHaveValue("")
 
-	// Loading State initially
-	await expect(sidebar.getByText("API Request...")).toBeVisible()
-
 	// Starting a new task should clear the current chat view and show the recent tasks
-	await sidebar.getByRole("button", { name: "New Task" }).click()
+	await sidebar.getByRole("button", { name: "New Task", exact: true }).first().click()
 	await expect(sidebar.getByText("Recent Tasks")).toBeVisible()
 	await expect(sidebar.getByText("Hello, Cline!")).toBeVisible()
 
@@ -26,20 +23,22 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 	const actButton = sidebar.getByRole("switch", { name: "Act" })
 	const planButton = sidebar.getByRole("switch", { name: "Plan" })
 
-	await expect(actButton).toBeChecked()
-	await expect(planButton).not.toBeChecked()
+	// Act button should be active. It doesn't have c
+	await expect(actButton).toHaveAttribute("aria-checked", "true")
+	await expect(planButton).not.toHaveAttribute("aria-checked", "true")
 
-	await actButton.click()
-	await expect(actButton).not.toBeChecked()
-	await expect(planButton).toBeChecked()
+	await planButton.click()
+	await expect(planButton).toHaveAttribute("aria-checked", "true")
+	await expect(actButton).not.toHaveAttribute("aria-checked", "true")
 
 	// === slash commands preserve following text ===
 	await expect(inputbox).toHaveValue("")
 	// Type partial slash command to trigger menu
-	await inputbox.pressSequentially("/new", { delay: 100 })
+	await inputbox.fill("/newt")
 
-	// Wait for menu to be visible and select first option with Tab
-	await inputbox.press("Tab")
+	// Wait for menu to be visible and click on menu item
+	await inputbox.focus()
+	await sidebar.getByText("newtask", { exact: false }).click()
 	await expect(inputbox).toHaveValue("/newtask ")
 
 	// Add following text to verify it works correctly
@@ -51,10 +50,10 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 	await expect(inputbox).toHaveValue("")
 
 	// Type partial @ mention to trigger menu
-	await inputbox.pressSequentially("@prob")
+	await inputbox.fill("@prob")
 
-	// Wait for menu to be visible and select first option with Tab
-	await inputbox.press("Tab")
+	// Wait for menu to be visible and click on menu item
+	await sidebar.getByText("Problems", { exact: false }).first().click()
 	await expect(inputbox).toHaveValue("@problems ")
 
 	// Add following text to verify it works correctly

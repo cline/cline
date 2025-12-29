@@ -4,9 +4,11 @@ import axios from "axios"
 import { HostProvider } from "@/hosts/host-provider"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { DEFAULT_EXTERNAL_OCA_BASE_URL, DEFAULT_INTERNAL_OCA_BASE_URL } from "@/services/auth/oca/utils/constants"
-import { createOcaHeaders, getAxiosSettings } from "@/services/auth/oca/utils/utils"
+import { createOcaHeaders } from "@/services/auth/oca/utils/utils"
 import { Logger } from "@/services/logging/Logger"
+import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/index.host"
+import { GlobalStateAndSettings } from "@/shared/storage/state-keys"
 import { Controller } from ".."
 
 /**
@@ -75,13 +77,11 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 			}
 			console.log("OCA models fetched", models)
 
-			// Fetch current config
+			// Fetch current config to determine existing model selections
 			const apiConfiguration = controller.stateManager.getApiConfiguration()
-			const updatedConfig = { ...apiConfiguration }
-
-			// Which mode(s) to update?
 			const planActSeparateModelsSetting = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
+
 			const planModeSelectedModelId =
 				apiConfiguration?.planModeOcaModelId && models[apiConfiguration.planModeOcaModelId]
 					? apiConfiguration.planModeOcaModelId
@@ -91,23 +91,26 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 					? apiConfiguration.actModeOcaModelId
 					: defaultModelId!
 
-			// Save new model selection(s) to configuration object, per plan/act mode setting
+			// Build updates object based on plan/act mode setting
+			const updates: Partial<GlobalStateAndSettings> = {}
+
 			if (planActSeparateModelsSetting) {
 				if (currentMode === "plan") {
-					updatedConfig.planModeOcaModelId = planModeSelectedModelId
-					updatedConfig.planModeOcaModelInfo = models[planModeSelectedModelId]
+					updates.planModeOcaModelId = planModeSelectedModelId
+					updates.planModeOcaModelInfo = models[planModeSelectedModelId]
 				} else {
-					updatedConfig.actModeOcaModelId = actModeSelectedModelId
-					updatedConfig.actModeOcaModelInfo = models[actModeSelectedModelId]
+					updates.actModeOcaModelId = actModeSelectedModelId
+					updates.actModeOcaModelInfo = models[actModeSelectedModelId]
 				}
 			} else {
-				updatedConfig.planModeOcaModelId = planModeSelectedModelId
-				updatedConfig.planModeOcaModelInfo = models[planModeSelectedModelId]
-				updatedConfig.actModeOcaModelId = actModeSelectedModelId
-				updatedConfig.actModeOcaModelInfo = models[actModeSelectedModelId]
+				updates.planModeOcaModelId = planModeSelectedModelId
+				updates.planModeOcaModelInfo = models[planModeSelectedModelId]
+				updates.actModeOcaModelId = actModeSelectedModelId
+				updates.actModeOcaModelInfo = models[actModeSelectedModelId]
 			}
 
-			controller.stateManager.setApiConfiguration(updatedConfig)
+			// Update state directly using batch method
+			controller.stateManager.setGlobalStateBatch(updates)
 
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,

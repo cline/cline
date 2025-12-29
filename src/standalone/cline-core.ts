@@ -1,3 +1,4 @@
+import { ExternalCommentReviewController } from "@hosts/external/ExternalCommentReviewController"
 import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvider"
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
 import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-client-manager"
@@ -9,7 +10,9 @@ import { WebviewProvider } from "@/core/webview"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
+import { StandaloneTerminalManager } from "@/integrations/terminal"
 import { HOSTBRIDGE_PORT, waitForHostBridgeReady } from "./hostbridge-client"
+import { setLockManager } from "./lock-manager"
 import { PROTOBUS_PORT, startProtobusService } from "./protobus-service"
 import { log } from "./utils"
 import { initializeContext } from "./vscode-context"
@@ -29,6 +32,9 @@ async function main() {
 		process.exit(0)
 	}
 
+	// Resource loading assumes cwd is the installation directory
+	process.chdir(__dirname)
+
 	// Initialize context with optional custom directory from CLI
 	const { extensionContext, DATA_DIR, EXTENSION_DIR } = initializeContext(args.config)
 
@@ -45,8 +51,6 @@ async function main() {
 	}
 
 	try {
-		log("\n\n\nStarting cline-core service...\n\n\n")
-
 		// Set up error handlers FIRST (before any service starts)
 		setupGlobalErrorHandlers()
 
@@ -70,15 +74,21 @@ async function main() {
 			instanceAddress: protobusAddress,
 		})
 
+		// Make lock manager available to other modules
+		setLockManager(globalLockManager)
+
 		await globalLockManager.registerInstance({
 			hostAddress,
 		})
 		log(`Registered instance in SQLite locks: ${protobusAddress}`)
 
+		// Clean up any orphaned folder locks from dead instances
+		globalLockManager.cleanupOrphanedFolderLocks()
+
 		// Mark instance healthy after services are up
 		globalLockManager.touchInstance()
 
-		log("✅ All services started successfully")
+		log("All services started successfully")
 	} catch (err) {
 		log(`FATAL ERROR during startup: ${err}`)
 		log(`Cleaning up and shutting down...`)
@@ -94,6 +104,8 @@ function setupHostProvider(extensionContext: any, extensionDir: string, dataDir:
 	const createDiffView = (): DiffViewProvider => {
 		return new ExternalDiffViewProvider()
 	}
+	const createCommentReview = () => new ExternalCommentReviewController()
+	const createTerminalManager = () => new StandaloneTerminalManager()
 	const getCallbackUrl = (): Promise<string> => {
 		return AuthHandler.getInstance().getCallbackUrl()
 	}
@@ -103,6 +115,8 @@ function setupHostProvider(extensionContext: any, extensionDir: string, dataDir:
 	HostProvider.initialize(
 		createWebview,
 		createDiffView,
+		createCommentReview,
+		createTerminalManager,
 		new ExternalHostBridgeClientManager(),
 		log,
 		getCallbackUrl,
@@ -192,7 +206,10 @@ async function shutdownGracefully(lockManager?: SqliteLockManager) {
 		// Step 2: Clean up lock manager entry
 		log("Cleaning up lock manager entry...")
 		try {
+			// First unregister the instance
 			lockManager?.unregisterInstance()
+			// Then clean up any folder locks held by this instance
+			lockManager?.cleanupOrphanedFolderLocks()
 			lockManager?.close()
 			log("Lock manager entry cleaned up successfully")
 		} catch (error) {

@@ -1,20 +1,24 @@
+import { getValidOpenTelemetryConfig } from "@/shared/services/config/otel-config"
 import { isPostHogConfigValid, posthogConfig } from "@/shared/services/config/posthog-config"
 import { Logger } from "../logging/Logger"
-import type { ITelemetryProvider } from "./providers/ITelemetryProvider"
+import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "./providers/ITelemetryProvider"
+import { OpenTelemetryClientProvider } from "./providers/opentelemetry/OpenTelemetryClientProvider"
+import { OpenTelemetryTelemetryProvider } from "./providers/opentelemetry/OpenTelemetryTelemetryProvider"
 import { PostHogClientProvider } from "./providers/posthog/PostHogClientProvider"
 import { PostHogTelemetryProvider } from "./providers/posthog/PostHogTelemetryProvider"
 
 /**
  * Supported telemetry provider types
  */
-export type TelemetryProviderType = "posthog" | "no-op"
+export type TelemetryProviderType = "posthog" | "no-op" | "opentelemetry"
 
 /**
  * Configuration for telemetry providers
  */
-export interface TelemetryProviderConfig {
-	type: TelemetryProviderType
-}
+export type TelemetryProviderConfig =
+	| { type: "posthog"; apiKey?: string; host?: string }
+	| { type: "opentelemetry"; enabled?: boolean }
+	| { type: "no-op" }
 
 /**
  * Factory class for creating telemetry providers
@@ -24,31 +28,26 @@ export class TelemetryProviderFactory {
 	/**
 	 * Creates multiple telemetry providers based on configuration
 	 * Supports dual tracking during transition period
-	 * @returns Array of ITelemetryProvider instances
 	 */
 	public static async createProviders(): Promise<ITelemetryProvider[]> {
+		const configs = TelemetryProviderFactory.getDefaultConfigs()
 		const providers: ITelemetryProvider[] = []
 
-		// Add PostHog if enabled and configured
-		if (isPostHogConfigValid(posthogConfig)) {
+		for (const config of configs) {
 			try {
-				const sharedClient = PostHogClientProvider.getClient()
-				if (sharedClient) {
-					const posthogProvider = await new PostHogTelemetryProvider(sharedClient).initialize()
-					providers.push(posthogProvider)
-					Logger.info("TelemetryProviderFactory: PostHog provider initialized")
-				}
+				const provider = await TelemetryProviderFactory.createProvider(config)
+				providers.push(provider)
 			} catch (error) {
-				console.error("TelemetryProviderFactory: Failed to initialize PostHog provider:", error)
+				Logger.error(`Failed to create telemetry provider: ${config.type}`, error)
 			}
 		}
 
-		// Fallback to no-op if no providers available
+		// Always have at least a no-op provider
 		if (providers.length === 0) {
 			providers.push(new NoOpTelemetryProvider())
-			Logger.info("TelemetryProviderFactory: Using NoOp provider (no valid configs)")
 		}
 
+		Logger.info("TelemetryProviderFactory: Created providers - " + providers.map((p) => p.name).join(", "))
 		return providers
 	}
 
@@ -56,9 +55,8 @@ export class TelemetryProviderFactory {
 	 * Creates a single telemetry provider based on the provided configuration
 	 * @param config Configuration for the telemetry provider
 	 * @returns ITelemetryProvider instance
-	 * @deprecated Use createProviders() for multi-provider support
 	 */
-	public static async createProvider(config: TelemetryProviderConfig): Promise<ITelemetryProvider> {
+	private static async createProvider(config: TelemetryProviderConfig): Promise<ITelemetryProvider> {
 		switch (config.type) {
 			case "posthog": {
 				const sharedClient = PostHogClientProvider.getClient()
@@ -67,8 +65,24 @@ export class TelemetryProviderFactory {
 				}
 				return new NoOpTelemetryProvider()
 			}
+			case "opentelemetry": {
+				const otelConfig = getValidOpenTelemetryConfig()
+				if (!otelConfig) {
+					return new NoOpTelemetryProvider()
+				}
+				const client = new OpenTelemetryClientProvider(otelConfig)
+				if (client.meterProvider || client.loggerProvider) {
+					return await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider, {
+						bypassUserSettings: false,
+					}).initialize()
+				}
+				Logger.info("TelemetryProviderFactory: OpenTelemetry providers not available")
+				return new NoOpTelemetryProvider()
+			}
+			case "no-op":
+				return new NoOpTelemetryProvider()
 			default:
-				console.error(`Unsupported telemetry provider type: ${config.type}`)
+				Logger.error(`Unsupported telemetry provider type: ${(config as { type?: string }).type ?? "unknown"}`)
 				return new NoOpTelemetryProvider()
 		}
 	}
@@ -77,11 +91,19 @@ export class TelemetryProviderFactory {
 	 * Gets the default telemetry provider configuration
 	 * @returns Default configuration using available providers
 	 */
-	public static getDefaultConfig(): TelemetryProviderConfig {
+	public static getDefaultConfigs(): TelemetryProviderConfig[] {
+		const configs: TelemetryProviderConfig[] = []
+
 		if (isPostHogConfigValid(posthogConfig)) {
-			return { type: "posthog" }
+			configs.push({ type: "posthog", ...posthogConfig })
 		}
-		return { type: "no-op" }
+
+		const otelConfig = getValidOpenTelemetryConfig()
+		if (otelConfig) {
+			configs.push({ type: "opentelemetry", ...otelConfig })
+		}
+
+		return configs.length > 0 ? configs : [{ type: "no-op" }]
 	}
 }
 
@@ -90,38 +112,60 @@ export class TelemetryProviderFactory {
  * or for testing purposes
  */
 export class NoOpTelemetryProvider implements ITelemetryProvider {
-	public isOptIn = true
+	readonly name = "NoOpTelemetryProvider"
+	private isOptIn = true
 
-	public log(event: string, properties?: Record<string, unknown>): void {
-		Logger.log(`[NoOpTelemetryProvider] ${event}: ${JSON.stringify(properties)}`)
+	log(_event: string, _properties?: TelemetryProperties): void {
+		Logger.log(`[NoOpTelemetryProvider] ${_event}: ${JSON.stringify(_properties)}`)
 	}
-
-	public logRequired(event: string, properties?: Record<string, unknown>): void {
-		Logger.log(`[NoOpTelemetryProvider] REQUIRED ${event}: ${JSON.stringify(properties)}`)
+	logRequired(_event: string, _properties?: TelemetryProperties): void {
+		Logger.log(`[NoOpTelemetryProvider] REQUIRED ${_event}: ${JSON.stringify(_properties)}`)
 	}
-
-	public identifyUser(userInfo: any, properties?: Record<string, unknown>): void {
-		Logger.info(`[NoOpTelemetryProvider] identifyUser - ${JSON.stringify(userInfo)} - ${JSON.stringify(properties)}`)
+	identifyUser(_userInfo: any, _properties?: TelemetryProperties): void {
+		Logger.info(`[NoOpTelemetryProvider] identifyUser - ${JSON.stringify(_userInfo)} - ${JSON.stringify(_properties)}`)
 	}
-
-	public setOptIn(optIn: boolean): void {
-		Logger.info(`[NoOpTelemetryProvider] setOptIn(${optIn})`)
-		this.isOptIn = optIn
+	setOptIn(_optIn: boolean): void {
+		Logger.info(`[NoOpTelemetryProvider] setOptIn(${_optIn})`)
+		this.isOptIn = _optIn
 	}
-
-	public isEnabled(): boolean {
+	isEnabled(): boolean {
 		return false
 	}
-
-	public getSettings() {
+	getSettings(): TelemetrySettings {
 		return {
 			extensionEnabled: false,
 			hostEnabled: false,
-			level: "off" as const,
+			level: "off",
 		}
 	}
-
-	public async dispose(): Promise<void> {
-		Logger.info("[NoOpTelemetryProvider] Disposing")
+	recordCounter(
+		_name: string,
+		_value: number,
+		_attributes?: TelemetryProperties,
+		_description?: string,
+		_required = false,
+	): void {
+		// no-op
+	}
+	recordHistogram(
+		_name: string,
+		_value: number,
+		_attributes?: TelemetryProperties,
+		_description?: string,
+		_required = false,
+	): void {
+		// no-op
+	}
+	recordGauge(
+		_name: string,
+		_value: number | null,
+		_attributes?: TelemetryProperties,
+		_description?: string,
+		_required = false,
+	): void {
+		// no-op
+	}
+	async dispose(): Promise<void> {
+		Logger.info(`[NoOpTelemetryProvider] Disposing (optIn=${this.isOptIn})`)
 	}
 }

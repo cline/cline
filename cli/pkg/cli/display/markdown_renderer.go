@@ -2,7 +2,10 @@ package display
 
 import (
 	"os"
+	"strconv"
 	"strings"
+
+	"fmt"
 
 	"github.com/charmbracelet/glamour"
 	"golang.org/x/term"
@@ -13,12 +16,71 @@ type MarkdownRenderer struct {
 	width    int
 }
 
+// i went back and forth on whether or not to enable word wrap
+// setting line width to 0 enables the terminal to handle wrapping
+// setting it to a terminal width enables glamour's word wrap
+// the thing is, glamour's nice indentation looks really good, and
+// won't work without glamour's word wrap - if you use the terminal's
+// word wrap, the indentation looks weird so you have to turn it off
+// and everything will be right next to the left margin
+// but if you DO use glamours word wrap, it also means if you resize the terminal,
+// it will scuff everything. but given that this is the case for the input anyway, 
+// i figure we just make things as beautiful as possible 
+// and if you resize the terminal, you'll learn real quick.
+// anyway, you can set this to true or false to experiment
+const USETERMINALWORDWRAP = true
+
+
+// seems like a reliable way to check for terminals
+// for now i'm keeping everything as auto
+// eventually we can define a custom glamour style for ghostty / iterm
+// https://github.com/charmbracelet/glamour/blob/master/styles/README.md)
+func detectTerminalTheme() string {
+	switch os.Getenv("TERM_PROGRAM") {
+	case "iTerm.app", "Ghostty":
+		return "dark"
+	}
+	if os.Getenv("GHOSTTY_VERSION") != "" {
+		return "dark"
+	}
+	return "dark"
+}
+
+func glamourStyleJSON(terminalWrap bool) string {
+	const tmpl = `{
+		"document": {
+			"block_prefix": "\n",
+			"block_suffix": "\n",
+			"color": "252",
+			"margin": %s
+		},
+		"code_block": {
+			"margin": 0
+		}
+	}`
+	if terminalWrap {
+		return fmt.Sprintf(tmpl, "0")
+	}
+	return fmt.Sprintf(tmpl, "2")
+}
+
+
+
+
 func NewMarkdownRenderer() (*MarkdownRenderer, error) {
-	width := getTerminalWidth()
+	var wordWrap int
+	if USETERMINALWORDWRAP {
+		// terminal handles wrapping -> disable glamour wrap
+		wordWrap = 0
+	} else {
+		// glamour handles wrapping -> set to current width
+		wordWrap = terminalWidthOr(0)
+	}
 
 	r, err := glamour.NewTermRenderer(
-		glamour.WithStandardStyle("tokyo-night"),
-		glamour.WithWordWrap(width),
+		glamour.WithStandardStyle(detectTerminalTheme()),              	 					 // Load full auto style first
+		glamour.WithStylesFromJSONBytes([]byte(glamourStyleJSON(USETERMINALWORDWRAP))),  	 // Then override just margins
+		glamour.WithWordWrap(wordWrap),                        
 		glamour.WithPreservedNewLines(),
 	)
 	if err != nil {
@@ -27,8 +89,45 @@ func NewMarkdownRenderer() (*MarkdownRenderer, error) {
 
 	return &MarkdownRenderer{
 		renderer: r,
-		width:    width,
+		width:    0, // Unlimited width
 	}, nil
+}
+
+// terminalWidthOr returns the terminal width or the provided fallback.
+// It first tries term.GetSize, then falls back to $COLUMNS if set.
+func terminalWidthOr(fallback int) int {
+	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 0 {
+		return w
+	}
+	if cols := os.Getenv("COLUMNS"); cols != "" {
+		if n, err := strconv.Atoi(cols); err == nil && n > 0 {
+			return n
+		}
+	}
+	return fallback
+}
+
+// NewMarkdownRendererWithWidth creates a markdown renderer with a specific width.
+// Useful for tables and other content that should fit within terminal bounds.
+func NewMarkdownRendererWithWidth(width int) (*MarkdownRenderer, error) {
+	r, err := glamour.NewTermRenderer(
+		glamour.WithStandardStyle(detectTerminalTheme()),
+		glamour.WithStylesFromJSONBytes([]byte(glamourStyleJSON(false))),
+		glamour.WithWordWrap(width),
+		glamour.WithPreservedNewLines(),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &MarkdownRenderer{renderer: r, width: width}, nil
+}
+
+
+// NewMarkdownRendererForTerminal creates a markdown renderer using the actual terminal width.
+// Falls back to 120 if terminal width cannot be determined.
+func NewMarkdownRendererForTerminal() (*MarkdownRenderer, error) {
+	width := terminalWidthOr(120)
+	return NewMarkdownRendererWithWidth(width)
 }
 
 func (mr *MarkdownRenderer) Render(markdown string) (string, error) {
@@ -36,69 +135,5 @@ func (mr *MarkdownRenderer) Render(markdown string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimRight(rendered, "\n"), nil
-}
-
-func (mr *MarkdownRenderer) CountLines(text string) int {
-	if text == "" {
-		return 0
-	}
-	
-	// Split by newlines to get logical lines
-	lines := strings.Split(text, "\n")
-	visualLines := 0
-	
-	// Count visual lines accounting for terminal width wrapping
-	for _, line := range lines {
-		// Strip ANSI codes to get actual visual width
-		visualWidth := stripAnsiLen(line)
-		
-		if visualWidth == 0 {
-			// Empty line still takes up one visual line
-			visualLines++
-		} else {
-			// Calculate how many visual lines this logical line will take
-			// when wrapped at terminal width
-			visualLines += (visualWidth + mr.width - 1) / mr.width
-		}
-	}
-	
-	return visualLines
-}
-
-// stripAnsiLen returns the visual length of a string after stripping ANSI escape codes
-func stripAnsiLen(s string) int {
-	length := 0
-	inEscape := false
-	
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\033' && i+1 < len(s) && s[i+1] == '[' {
-			inEscape = true
-			i++ // Skip the '['
-			continue
-		}
-		
-		if inEscape {
-			// Skip until we find the end of escape sequence (a letter)
-			if (s[i] >= 'A' && s[i] <= 'Z') || (s[i] >= 'a' && s[i] <= 'z') {
-				inEscape = false
-			}
-			continue
-		}
-		
-		length++
-	}
-	
-	return length
-}
-
-func getTerminalWidth() int {
-	width, _, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil || width == 0 {
-		return 120
-	}
-	if width > 150 {
-		return 150
-	}
-	return width
+	return strings.TrimLeft(strings.TrimRight(rendered, "\n"), "\n"), nil
 }

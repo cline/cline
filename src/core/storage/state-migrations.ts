@@ -585,6 +585,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 			const sambanovaApiKey = await context.secrets.get("sambanovaApiKey")
 			const sapAiCoreClientId = await context.secrets.get("sapAiCoreClientId")
 			const difyApiKey = await context.secrets.get("difyApiKey")
+			const hicapApiKey = await context.secrets.get("hicapApiKey")
 
 			// Fetch configuration values from global state
 			const awsRegion = context.globalState.get("awsRegion")
@@ -626,6 +627,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 				sambanovaApiKey,
 				sapAiCoreClientId,
 				difyApiKey,
+				hicapApiKey,
 			].some((key) => key !== undefined)
 
 			// Set welcomeViewCompleted based on whether user has keys
@@ -655,5 +657,38 @@ export async function cleanupMcpMarketplaceCatalogFromGlobalState(context: vscod
 	} catch (error) {
 		console.error("Failed to cleanup mcpMarketplaceCatalog from global state:", error)
 		// Continue execution - cleanup failure shouldn't break extension startup
+	}
+}
+
+/**
+ * Legacy type definition for the old ClineFeatureSetting structure
+ */
+type LegacyHooksEnabled = { user?: boolean; featureFlag?: boolean }
+
+/**
+ * Migrates hooksEnabled from ClineFeatureSetting {user: boolean, featureFlag: boolean} to boolean
+ */
+export async function migrateHooksEnabledToBoolean(context: vscode.ExtensionContext) {
+	try {
+		const hooksEnabled = await context.globalState.get("hooksEnabled")
+
+		// Check if hooksEnabled exists and is an object (the old ClineFeatureSetting structure)
+		if (hooksEnabled !== undefined && typeof hooksEnabled === "object" && hooksEnabled !== null) {
+			console.log("Migrating hooksEnabled from ClineFeatureSetting to boolean...")
+
+			// Cast to the legacy type to access properties safely
+			const legacySetting = hooksEnabled as LegacyHooksEnabled
+
+			// Extract the boolean value from the 'user' field
+			const booleanValue = legacySetting.user === true
+
+			// Update with the new boolean value
+			await context.globalState.update("hooksEnabled", booleanValue)
+
+			console.log(`Successfully migrated hooksEnabled to boolean: ${booleanValue}`)
+		}
+	} catch (error) {
+		console.error("Failed to migrate hooksEnabled to boolean:", error)
+		// Continue execution - migration failure shouldn't break extension startup
 	}
 }

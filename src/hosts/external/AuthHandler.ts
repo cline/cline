@@ -158,12 +158,22 @@ export class AuthHandler {
 		}
 
 		try {
-			// Convert HTTP URL to vscode.Uri and use shared handler directly
 			const fullUrl = `http://127.0.0.1:${this.port}${req.url}`
 
 			// Use SharedUriHandler directly - it handles all validation and processing
 			const success = await SharedUriHandler.handleUri(fullUrl)
-			const redirectUri = (await HostProvider.env.getIdeRedirectUri({})).value
+
+			// Try to get redirect URI, but don't fail if not implemented (CLI/JetBrains)
+			let redirectUri: string | undefined
+			try {
+				redirectUri = (await HostProvider.env.getIdeRedirectUri({})).value
+				console.log("AuthHandler: Got redirect URI:", redirectUri)
+			} catch (error) {
+				// CLI or JetBrains mode - redirect not available
+				console.log("AuthHandler: No redirect URI available (CLI/JetBrains mode)")
+				redirectUri = undefined
+			}
+
 			const html = createAuthSucceededHtml(redirectUri)
 
 			if (success) {
@@ -207,6 +217,8 @@ export class AuthHandler {
 
 function createAuthSucceededHtml(redirectUri?: string): string {
 	const redirect = redirectUri ? `<script>setTimeout(() => { window.location.href = '${redirectUri}'; }, 1000);</script>` : ""
+	// Use "terminal" for CLI (no redirect), "IDE" for VSCode/JetBrains (with redirect)
+	const platform = redirectUri ? "IDE" : "terminal"
 
 	const html = `<!DOCTYPE html>
 <html lang="en">
@@ -216,7 +228,7 @@ function createAuthSucceededHtml(redirectUri?: string): string {
     <title>Cline - Authentication Success</title>
 	${redirect}
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@300;400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Azeret:wght@300;400;700&display=swap');
         
         * {
             margin: 0;
@@ -225,7 +237,7 @@ function createAuthSucceededHtml(redirectUri?: string): string {
         }
         
         body {
-            font-family: 'Azeret Mono', monospace;
+            font-family: 'Azeret', sans-serif;
             background-color: #ffffff;
             color: #333333;
             height: 100vh;
@@ -306,8 +318,8 @@ function createAuthSucceededHtml(redirectUri?: string): string {
     <div class="container">
         <div class="checkmark"></div>
         <h1>Authentication Successful</h1>
-        <p>Your authentication token has been securely sent back to your IDE. You can now return to your development environment to continue working.</p>
-        <div class="countdown">Feel free to close this window and continue in your IDE</div>
+        <p>Your authentication token has been securely sent back to your ${platform}. You can now return to your development environment to continue working.</p>
+        <div class="countdown">Feel free to close this window and continue in your ${platform}</div>
     </div>
 </body>
 </html>`

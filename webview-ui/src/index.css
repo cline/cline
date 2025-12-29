@@ -1,215 +1,64 @@
-@layer theme, base, components, utilities;
-
-/*
-Import order matters for Tailwind CSS v4 compatibility
-
-External @import statements MUST come before Tailwind imports because:
-1. CSS spec requires ALL @import statements to precede other CSS rules (except @charset/@layer)
-2. Tailwind CSS v4 expands its imports into thousands of lines of generated utility CSS
-3. If external imports come after Tailwind imports, they end up after the generated CSS
-4. This causes PostCSS to throw: "@import must precede all other statements"
-
-The correct order is:
-- @layer declarations (empty)
-- External @import statements (fonts, icons, etc.)
-- Tailwind @import statements (theme, utilities)
-- @config directives
-- Regular CSS rules
-*/
-
-/* External imports must come first, before Tailwind imports */
+/* Import external CSS files */
 @import url("../../node_modules/@vscode/codicons/dist/codicon.css");
 @import url("../node_modules/@fontsource/azeret-mono/index.css");
 
-/* Tailwind imports come after external imports */
-@import "tailwindcss/theme.css" layer(theme);
-/* Disable Tailwind's CSS reset to preserve existing styles */
-/* @import "tailwindcss/preflight.css" layer(base); */
-@import "tailwindcss/utilities.css" layer(utilities);
+/* Tailwind CSS */
+@import "tailwindcss";
+@import "./theme.css";
+@plugin "tailwindcss-animate";
+@custom-variant dark (&:is(.dark *));
 
-/* Configuration directives come after all imports */
-@config "../tailwind.config.mjs";
-
-textarea:focus {
-	outline: 1.5px solid var(--vscode-focusBorder, #007fd4);
-}
-
-vscode-button::part(control):focus {
-	outline: none;
-}
-
-/*
-Use vscode native scrollbar styles
-https://github.com/gitkraken/vscode-gitlens/blob/b1d71d4844523e8b2ef16f9e007068e91f46fd88/src/webviews/apps/home/home.scss
-*/
-
-html {
-	height: 100%;
-	width: 100%;
-}
-
-body {
-	margin: 0;
-	padding: 0;
-	line-height: 1.25;
-	height: 100%;
-	width: 100%;
-}
-
-#root {
-	height: 100%;
-	width: 100%;
-}
-
-body.scrollable,
-.scrollable,
-body.code-block-scrollable,
-.code-block-scrollable {
-	border-color: transparent;
-	transition: border-color 0.7s linear;
-}
-
-body:hover.scrollable,
-body:hover .scrollable,
-body:focus-within.scrollable,
-body:focus-within .scrollable,
-body:hover.code-block-scrollable,
-body:hover .code-block-scrollable,
-body:focus-within.code-block-scrollable,
-body:focus-within .code-block-scrollable {
-	border-color: var(--vscode-scrollbarSlider-background);
-	transition: none;
-}
-
-.scrollable::-webkit-scrollbar-corner {
-	background-color: transparent !important;
-}
-
-.scrollable::-webkit-scrollbar-thumb {
-	background-color: transparent;
-	border-color: inherit;
-	border-right-style: inset;
-	border-right-width: calc(100vw + 100vh);
-	border-radius: unset !important;
-}
-
-.scrollable::-webkit-scrollbar-thumb:hover {
-	border-color: var(--vscode-scrollbarSlider-hoverBackground);
-}
-
-.scrollable::-webkit-scrollbar-thumb:active {
-	border-color: var(--vscode-scrollbarSlider-activeBackground);
-}
-
-/*
-Fix VSCode ignoring webkit scrollbar modifiers
-https://github.com/microsoft/vscode/issues/213045
-*/
-@supports selector(::-webkit-scrollbar) {
-	html {
-		scrollbar-color: unset;
+/**
+ * The default styles for each defined element.
+ * This ensures all the elements are rendered with the expected styles consistently without affecting by the parent element / host.
+ */
+@layer base {
+	* {
+		@apply border-border outline-ring/50 text-base;
 	}
-}
-
-/*
-The above scrollbar styling uses some transparent background color magic to accomplish its animation. However this doesn't play nicely with SyntaxHighlighter, so we need to set a background color for the code blocks' horizontal scrollbar. This actually has the unintended consequence of always showing the scrollbar which I prefer since it makes it more obvious that there is more content to scroll to.
-*/
-
-.code-block-scrollable::-webkit-scrollbar-track {
-	background: transparent;
-}
-
-.code-block-scrollable::-webkit-scrollbar-thumb {
-	background-color: var(--vscode-scrollbarSlider-background);
-	border-radius: 5px;
-	border: 2px solid transparent;
-	background-clip: content-box;
-}
-
-.code-block-scrollable::-webkit-scrollbar-thumb:hover {
-	background-color: var(--vscode-scrollbarSlider-hoverBackground);
-}
-
-.code-block-scrollable::-webkit-scrollbar-thumb:active {
-	background-color: var(--vscode-scrollbarSlider-activeBackground);
-}
-
-.code-block-scrollable::-webkit-scrollbar-corner {
-	background-color: transparent;
-}
-
-/*
-Dropdown label
-https://github.com/microsoft/vscode-webview-ui-toolkit/tree/main/src/dropdown#with-label
-*/
-.dropdown-container {
-	box-sizing: border-box;
-	display: flex;
-	flex-flow: column nowrap;
-	align-items: flex-start;
-	justify-content: flex-start;
-}
-.dropdown-container label {
-	display: block;
-	color: var(--vscode-foreground);
-	cursor: pointer;
-	font-size: var(--vscode-font-size);
-	line-height: normal;
-	margin-bottom: 2px;
-}
-
-/* Fix scrollbar in dropdown */
-
-vscode-dropdown::part(listbox) {
-	border-color: var(--vscode-scrollbarSlider-background);
-	transition: none;
-	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
-}
-
-/* Faded icon buttons in textfields */
-
-.input-icon-button {
-	cursor: pointer;
-	opacity: 0.65;
-}
-.input-icon-button:hover {
-	opacity: 1;
-}
-.input-icon-button.disabled {
-	cursor: not-allowed;
-	opacity: 0.4;
-}
-.input-icon-button.disabled:hover {
-	opacity: 0.4;
-}
-
-/* Context mentions */
-
-.mention-context-textarea-highlight {
-	background-color: color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
-	border-radius: 3px;
-	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
-	color: transparent;
-	/* padding: 0.5px;
-	margin: -0.5px;
-	position: relative;
-	bottom: -0.5px; */
-}
-
-.mention-context-highlight {
-	background-color: color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
-	border-radius: 3px;
-}
-
-.mention-context-highlight-with-shadow {
-	background-color: color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
-	border-radius: 3px;
-	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
-}
-
-.slash-command-match-textarea-highlight {
-	background-color: color-mix(in srgb, var(--vscode-focusBorder) 30%, transparent);
-	border-radius: 3px;
-	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-focusBorder) 30%, transparent);
-	color: transparent;
+	body {
+		@apply bg-background text-foreground;
+	}
+	p {
+		@apply my-0 py-0 text-inherit leading-5 block line-clamp-3;
+		margin-block-start: 1em;
+		margin-block-end: 1em;
+		margin-inline-start: 0px;
+		margin-inline-end: 0px;
+		unicode-bidi: isolate;
+	}
+	span {
+		@apply leading-5;
+		font-size: inherit;
+		color: inherit;
+	}
+	h1 {
+		font-size: var(--text-lg);
+		font-weight: var(--font-weight-semibold);
+	}
+	h2 {
+		font-size: var(--text-md);
+		font-weight: var(--font-weight-semibold);
+	}
+	h3 {
+		font-size: var(--text-sm);
+		font-weight: var(--font-weight-semibold);
+	}
+	h4 {
+		font-size: var(--text-base);
+		font-weight: var(--font-weight-bold);
+	}
+	a {
+		@apply text-link hover:text-link-hover;
+	}
+	ol {
+		@apply list-decimal pl-3;
+	}
+	ul {
+		@apply list-disc pl-3;
+	}
+	[role="radio"],
+	[role="checkbox"] {
+		margin: calc(var(--design-unit) * 1px) 0;
+	}
 }

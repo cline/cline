@@ -1,0 +1,121 @@
+syntax = "proto3";
+
+package cline;
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+// Input message for all hooks
+message HookInput {
+  string cline_version = 1;
+  string hook_name = 2;
+  string timestamp = 3;
+  string task_id = 4;
+  repeated string workspace_roots = 5;
+  string user_id = 6;
+  oneof data {
+    PreToolUseData pre_tool_use = 10;
+    PostToolUseData post_tool_use = 11;
+    UserPromptSubmitData user_prompt_submit = 12;
+    TaskStartData task_start = 13;
+    TaskResumeData task_resume = 14;
+    TaskCancelData task_cancel = 15;
+    TaskCompleteData task_complete = 16;
+    PreCompactData pre_compact = 17;
+  }
+}
+
+// Output message for all hooks
+message HookOutput {
+  string context_modification = 1;
+  bool cancel = 2;
+  string error_message = 3;
+}
+
+// Data for PreToolUse hook
+message PreToolUseData {
+  string tool_name = 1;
+  map<string, string> parameters = 2;
+}
+
+// Data for PostToolUse hook
+message PostToolUseData {
+  string tool_name = 1;
+  map<string, string> parameters = 2;
+  string result = 3;
+  bool success = 4;
+  int64 execution_time_ms = 5;
+}
+
+// Data for UserPromptSubmit hook
+message UserPromptSubmitData {
+  string prompt = 1;
+  repeated string attachments = 2;
+}
+
+// Data for TaskStart hook
+message TaskStartData {
+  map<string, string> task_metadata = 1;
+}
+
+// Data for TaskResume hook
+message TaskResumeData {
+  map<string, string> task_metadata = 1;
+  map<string, string> previous_state = 2;
+}
+
+// Data for TaskCancel hook
+message TaskCancelData {
+  map<string, string> task_metadata = 1;
+}
+
+// Data for TaskComplete hook
+message TaskCompleteData {
+  map<string, string> task_metadata = 1;
+}
+
+// Data for PreCompact hook
+message PreCompactData {
+  // Task identification
+  string task_id = 1;
+  string ulid = 2;
+
+  // Context size information
+  int64 context_size = 3; // Number of messages in API conversation history
+
+  // Compaction strategy indicating how conversation history is managed:
+  // * auto-condense:                   AI-powered compression using summarize_task tool
+  // * standard-truncation-firstpair:   Keep only the original task (used during auto-condense)
+  // * standard-truncation-lasthalf:    Keep first pair + most recent 50% of conversation
+  // * standard-truncation-lastquarter: Keep first pair + most recent 25% of conversation (aggressive)
+  string compaction_strategy = 4;
+
+  // API request tracking
+  int64 previous_api_req_index = 5; // Index of last API request in clineMessages
+
+  // Token usage data from last API request
+  int64 tokens_in = 6;
+  int64 tokens_out = 7;
+  int64 tokens_in_cache = 8;
+  int64 tokens_out_cache = 9;
+
+  // Truncation information (if applicable)
+  int32 deleted_range_start = 10; // Start index of deleted conversation range
+  int32 deleted_range_end = 11; // End index of deleted conversation range
+
+  // Context JSON file path
+  // Path to a temporary JSON file containing the full API conversation history
+  // The file contains an array of message objects with role and content
+  // Hooks can read this file to analyze conversation contents before compaction
+  // This file will be automatically cleaned up after the hook completes
+  string context_json_path = 12;
+
+  // Context raw/formatted file path
+  // Path to a temporary text file containing the complete context window sent to the LLM
+  // This includes the system prompt, environment details, conversation history, and all formatting
+  // Represents the actual input the LLM receives (format varies by provider)
+  // Use this to analyze total context size, overhead, and exactly what the model sees
+  // This file will be automatically cleaned up after the hook completes
+  string context_raw_path = 13;
+}

@@ -1,10 +1,9 @@
 import { String } from "@shared/proto/cline/common"
 import { PlanActMode, OpenaiReasoningEffort as ProtoOpenaiReasoningEffort } from "@shared/proto/cline/state"
 import { NewTaskRequest } from "@shared/proto/cline/task"
-import { Settings } from "@/core/storage/state-keys"
+import { Settings } from "@shared/storage/state-keys"
 import { convertProtoToApiProvider } from "@/shared/proto-conversions/models/api-configuration-conversion"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../shared/BrowserSettings"
-import { convertProtoToAutoApprovalSettings } from "../../../shared/proto-conversions/models/auto-approval-settings-conversion"
 import { Controller } from ".."
 
 /**
@@ -37,10 +36,24 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 		Object.entries({
 			...request.taskSettings,
 			...(request.taskSettings?.autoApprovalSettings && {
-				autoApprovalSettings: convertProtoToAutoApprovalSettings({
-					...request.taskSettings.autoApprovalSettings,
-					metadata: {},
-				}),
+				autoApprovalSettings: (() => {
+					// Merge with global settings to ensure complete settings for new task
+					const globalSettings = controller.stateManager.getGlobalSettingsKey("autoApprovalSettings")
+					const incomingSettings = request.taskSettings.autoApprovalSettings
+					return {
+						...globalSettings,
+						...(incomingSettings.version !== undefined && { version: incomingSettings.version }),
+						...(incomingSettings.enableNotifications !== undefined && {
+							enableNotifications: incomingSettings.enableNotifications,
+						}),
+						actions: {
+							...globalSettings.actions,
+							...(incomingSettings.actions
+								? Object.fromEntries(Object.entries(incomingSettings.actions).filter(([_, v]) => v !== undefined))
+								: {}),
+						},
+					}
+				})(),
 			}),
 			...(request.taskSettings?.browserSettings && {
 				browserSettings: {
@@ -66,6 +79,18 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 			}),
 			...(request.taskSettings?.actModeApiProvider !== undefined && {
 				actModeApiProvider: convertProtoToApiProvider(request.taskSettings.actModeApiProvider),
+			}),
+			...(request.taskSettings?.hooksEnabled !== undefined && {
+				hooksEnabled: (() => {
+					const isEnabled = !!request.taskSettings.hooksEnabled
+
+					// Platform validation: Only allow enabling hooks on macOS and Linux
+					if (isEnabled && process.platform === "win32") {
+						throw new Error("Hooks are not yet supported on Windows")
+					}
+
+					return isEnabled
+				})(),
 			}),
 		}).filter(([_, value]) => value !== undefined),
 	)
