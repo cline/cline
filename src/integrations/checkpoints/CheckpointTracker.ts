@@ -420,6 +420,11 @@ class CheckpointTracker {
 
 		const result = []
 		for (const file of diffSummary.files) {
+			// Exclude files with no extension from diff results
+			if (!path.extname(file.file)) {
+				continue
+			}
+
 			const filePath = file.file
 			const absolutePath = path.join(this.cwd, filePath)
 
