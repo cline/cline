@@ -1783,6 +1783,7 @@ export class Task {
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
 			enableNativeToolCalls: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
+			terminalExecutionMode: this.terminalExecutionMode,
 		}
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
