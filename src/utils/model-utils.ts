@@ -44,6 +44,12 @@ export function isAnthropicModelId(modelId: string): modelId is AnthropicModelId
 
 export function isClaude4PlusModelFamily(id: string): boolean {
 	const modelId = normalize(id)
+	// Claude Code short aliases are always Claude 4+
+	// These are used by ClaudeCodeHandler.getModel() when user selects "sonnet" or "opus"
+	// Check before isAnthropicModelId to avoid type guard narrowing issues
+	if (modelId === "sonnet" || modelId === "opus") {
+		return true
+	}
 	if (!isAnthropicModelId(modelId)) {
 		return false
 	}
