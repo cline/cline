@@ -1,5 +1,87 @@
 # Changelog
 
+## [3.46.1]
+
+### Fixed
+
+- Remove GLM 4.6 from free models
+
+
+## [3.46.0]
+
+### Added
+
+- Added GLM 4.7 model
+- Enhanced background terminal execution with command tracking, log file output, zombie process prevention (10-minute timeout), and clickable log paths in UI
+- Apply Patch tool for GPT-5+ models (replacing current diff edit tools)
+
+### Fixed
+
+- Duplicate error messages during streaming for Diff Edit tool when Parallel Tool Calling is not enabled
+- Banner carousel styling and dismiss functionality
+- Typos in Gemini system prompt overrides
+- Model picker favorites ordering, star toggle, and keyboard navigation for OpenRouter and Vercel AI Gateway providers
+- Fetch remote config values from the cache
+
+### Refactored
+
+- Anthropic handler to use metadata for reasoning support
+- Bedrock provider to use metadata for reasoning support
+
+## [3.45.1]
+
+- Fixed MCP settings race condition where toggling auto-approve or changing timeout settings would cause the UI to flash and revert
+
+## [3.45.0]
+
+- Added Gemini 3 Flash Preview model
+
+## [3.44.2]
+
+- Polished the model picker UI with checkmarks for selected models, tooltips on Plan/Act tabs, and consistent arrow pointers across all popup modals
+- Improved WhatsNew modal responsiveness and cleaned up redundant UI elements
+- Fixed GLM models outputting garbled text in thinking tags—reasoning is now properly disabled for these models
+
+## [3.44.1]
+
+- Fixed a critical bug where local MCP servers stopped connecting after v3.42.0—all user-configured stdio-based MCP servers should now work again
+- Fixed remotely configured API keys not being extracted correctly for enterprise users
+- Added support for dynamic tool instructions that adapt based on runtime context, laying groundwork for future context-aware features
+
+## [3.44.0]
+
+## Added
+
+- Updating minor version to show a proper banner for the release
+
+## [3.43.1]
+
+### Patch Changes
+
+- Fix GLM-4.6 Model reference id
+
+## [3.43.0]
+
+### Added
+
+- GLM-4.6
+- kat-coder-pro
+- Add parsing of env variable patterns to the mcpconfig.json
+
+### Fixed
+
+- TLS Proxy support issues for VSCode
+- Add supportsReasoning flag to OpenAI reasoning models
+- Fix thinking not available for some models in the OpenAI provider
+- Fix invalid signature field issues when switching between Gemini and Anthropic providers
+- Extract OpenRouter model filtering into reusable utility and use it in different model pickers
+- Fix a11y for auto approve checkbox
+- Improve ModelPickerModal provider list layout
+
+### Refactored
+
+- Migrate WhatsNewModal to new shared dialogue component
+
 ## [3.42.0]
 
 ### Added

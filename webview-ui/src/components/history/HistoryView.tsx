@@ -16,35 +16,6 @@ type HistoryViewProps = {
 
 type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRelevant"
 
-// Tailwind-styled radio with custom icon support - works independently of VSCodeRadioGroup but looks the same
-// Used for workspace and favorites filters
-
-interface CustomFilterRadioProps {
-	checked: boolean
-	onChange: () => void
-	icon: string
-	label: string
-}
-
-const CustomFilterRadio = ({ checked, onChange, icon, label }: CustomFilterRadioProps) => {
-	return (
-		<div
-			className="flex items-center cursor-pointer py-[0.3em] px-0 mr-[10px] text-(--vscode-font-size) select-none"
-			onClick={onChange}>
-			<div
-				className={`w-[14px] h-[14px] rounded-full border border-(--vscode-checkbox-border) relative flex justify-center items-center mr-[6px] ${
-					checked ? "bg-(--vscode-checkbox-background)" : "bg-transparent"
-				}`}>
-				{checked && <div className="w-[6px] h-[6px] rounded-full bg-(--vscode-checkbox-foreground)" />}
-			</div>
-			<span className="flex items-center gap-[3px]">
-				<div className={`codicon codicon-${icon} text-(--vscode-button-background) text-base`} />
-				{label}
-			</span>
-		</div>
-	)
-}
-
 const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const extensionStateContext = useExtensionState()
 	const { taskHistory, onRelinquishControl, environment } = extensionStateContext
@@ -363,23 +334,22 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							<VSCodeRadio disabled={!searchQuery} style={{ opacity: searchQuery ? 1 : 0.5 }} value="mostRelevant">
 								Most Relevant
 							</VSCodeRadio>
-							<CustomFilterRadio
-								checked={showCurrentWorkspaceOnly}
-								icon="workspace"
-								label="Workspace"
-								onChange={() => setShowCurrentWorkspaceOnly(!showCurrentWorkspaceOnly)}
-							/>
-							<CustomFilterRadio
-								checked={showFavoritesOnly}
-								icon="star-full"
-								label="Favorites"
-								onChange={() => setShowFavoritesOnly(!showFavoritesOnly)}
-							/>
 						</VSCodeRadioGroup>
-
-						<div className="flex justify-end gap-2.5">
-							<VSCodeButton onClick={() => handleBatchHistorySelect(true)}>Select All</VSCodeButton>
-							<VSCodeButton onClick={() => handleBatchHistorySelect(false)}>Select None</VSCodeButton>
+						<div className="flex flex-wrap" style={{ marginTop: -8 }}>
+							<VSCodeRadio
+								checked={showCurrentWorkspaceOnly}
+								onClick={() => setShowCurrentWorkspaceOnly(!showCurrentWorkspaceOnly)}>
+								<span className="flex items-center gap-[3px]">
+									<span className="codicon codicon-folder text-(--vscode-button-background)" />
+									Workspace
+								</span>
+							</VSCodeRadio>
+							<VSCodeRadio checked={showFavoritesOnly} onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}>
+								<span className="flex items-center gap-[3px]">
+									<span className="codicon codicon-star-full text-(--vscode-button-background)" />
+									Favorites
+								</span>
+							</VSCodeRadio>
 						</div>
 					</div>
 				</div>
@@ -676,6 +646,14 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						padding: "10px 10px",
 						borderTop: "1px solid var(--vscode-panel-border)",
 					}}>
+					<div className="flex gap-2.5 mb-2.5">
+						<VSCodeButton appearance="secondary" onClick={() => handleBatchHistorySelect(true)} style={{ flex: 1 }}>
+							Select All
+						</VSCodeButton>
+						<VSCodeButton appearance="secondary" onClick={() => handleBatchHistorySelect(false)} style={{ flex: 1 }}>
+							Select None
+						</VSCodeButton>
+					</div>
 					{selectedItems.length > 0 ? (
 						<DangerButton
 							aria-label="Delete selected items"

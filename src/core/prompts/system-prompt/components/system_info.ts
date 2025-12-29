@@ -14,6 +14,24 @@ Default Shell: {{shell}}
 Home Directory: {{homeDir}}
 {{WORKSPACE_TITLE}}: {{workingDir}}`
 
+/**
+ * Get the shell that will actually be used for command execution.
+ * When using background exec mode, commands run in the system default shell
+ * (cmd.exe on Windows, /bin/bash on Unix), not the VS Code configured shell.
+ */
+function getEffectiveShell(context: SystemPromptContext): string {
+	if (context.terminalExecutionMode === "backgroundExec") {
+		// Background exec uses the system default shell, not VS Code config
+		if (process.platform === "win32") {
+			return process.env.COMSPEC || "cmd.exe"
+		} else {
+			return process.env.SHELL || "/bin/bash"
+		}
+	}
+	// VS Code terminal mode (or undefined) uses the VS Code configured shell
+	return getShell()
+}
+
 export async function getSystemEnv(context: SystemPromptContext, isTesting = false) {
 	const currentWorkDir = context.cwd || process.cwd()
 	const workspaces = (await getWorkspacePaths({}))?.paths || [currentWorkDir]
@@ -30,7 +48,7 @@ export async function getSystemEnv(context: SystemPromptContext, isTesting = fal
 		: {
 				os: osName(),
 				ide: context.ide,
-				shell: getShell(),
+				shell: getEffectiveShell(context),
 				homeDir: osModule.homedir(),
 				workingDir: currentWorkDir,
 				workspaces: workspaces,

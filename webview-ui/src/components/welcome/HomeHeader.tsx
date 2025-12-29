@@ -51,7 +51,7 @@ const HomeHeader = ({ shouldShowQuickWins = false }: HomeHeaderProps) => {
 			<div className="my-7 logo-animate">
 				<LogoComponent className="size-20" environment={environment} />
 			</div>
-			<div className="text-center flex items-center justify-center">
+			<div className="text-center flex items-center justify-center px-4">
 				<h1 className="m-0 font-bold">What can I do for you?</h1>
 				<Tooltip>
 					<TooltipContent side="bottom">
@@ -59,7 +59,7 @@ const HomeHeader = ({ shouldShowQuickWins = false }: HomeHeaderProps) => {
 						browsers. I can even extend my capabilities with MCP tools to assist beyond basic code completion.
 					</TooltipContent>
 					<TooltipTrigger asChild>
-						<InfoIcon className="ml-2 cursor-pointer text-link text-sm size-2" />
+						<InfoIcon className="ml-2 cursor-pointer text-link text-sm size-2 shrink-0" />
 					</TooltipTrigger>
 				</Tooltip>
 			</div>

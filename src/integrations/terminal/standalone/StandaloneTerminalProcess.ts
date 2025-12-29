@@ -8,9 +8,19 @@
  * Implements ITerminalProcess interface for polymorphic usage with CommandExecutor.
  */
 
+import { telemetryService } from "@services/telemetry"
 import { ChildProcess, spawn } from "child_process"
 import { EventEmitter } from "events"
+import { terminateProcessTree } from "@/utils/process-termination"
 
+import {
+	isCompilingOutput,
+	MAX_FULL_OUTPUT_SIZE,
+	MAX_UNRETRIEVED_LINES,
+	PROCESS_HOT_TIMEOUT_COMPILING,
+	PROCESS_HOT_TIMEOUT_NORMAL,
+	TRUNCATE_KEEP_LINES,
+} from "../constants"
 import type { ITerminal, ITerminalProcess, TerminalProcessEvents } from "../types"
 
 /**
@@ -67,8 +77,6 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 	 * @param command The command to execute
 	 */
 	async run(terminal: ITerminal, command: string): Promise<void> {
-		console.log(`[StandaloneTerminal] Running command: ${command}`)
-
 		// Get shell and working directory from terminal
 		const shell = (terminal as any)._shellPath || this.getDefaultShell()
 		const cwd = (terminal as any)._cwd || process.cwd()
@@ -104,8 +112,12 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 				// Spawn the process with special handling for "cmd.exe"
 				this.childProcess = spawn("cmd.exe", shellArgs, shellOptions)
 			} else {
-				// Spawn the process
-				this.childProcess = spawn(shell, shellArgs, shellOptions)
+				// Spawn the process with detached: true to create a process group
+				// This allows us to kill the entire process tree when terminating
+				this.childProcess = spawn(shell, shellArgs, {
+					...shellOptions,
+					detached: true,
+				})
 			}
 
 			// Track process state
@@ -132,8 +144,7 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 			})
 
 			// Handle process completion
-			this.childProcess.on("close", (code: number | null, signal: NodeJS.Signals | null) => {
-				console.log(`[StandaloneTerminal] Process closed with code ${code}, signal ${signal}`)
+			this.childProcess.on("close", (code: number | null, _signal: NodeJS.Signals | null) => {
 				this.exitCode = code
 				this.isCompleted = true
 				this.emitRemainingBuffer()
@@ -144,13 +155,18 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 					this.isHot = false
 				}
 
+				// Track terminal execution telemetry
+				const success = code === 0 || code === null
+				telemetryService.captureTerminalExecution(success, "standalone", "child_process")
+
 				this.emit("completed")
 				this.emit("continue")
 			})
 
 			// Handle process errors
 			this.childProcess.on("error", (error: Error) => {
-				console.error(`[StandaloneTerminal] Process error:`, error)
+				// Track terminal execution error telemetry
+				telemetryService.captureTerminalExecution(false, "standalone", "child_process_error")
 				this.emit("error", error)
 			})
 
@@ -158,7 +174,6 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 			;(terminal as any)._process = this.childProcess
 			;(terminal as any)._processId = this.childProcess.pid
 		} catch (error) {
-			console.error(`[StandaloneTerminal] Failed to spawn process:`, error)
 			this.emit("error", error)
 		}
 	}
@@ -176,37 +191,25 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 		}
 
 		// Check for compilation markers to adjust hot timeout
-		const compilingMarkers = ["compiling", "building", "bundling", "transpiling", "generating", "starting"]
-		const markerNullifiers = [
-			"compiled",
-			"success",
-			"finish",
-			"complete",
-			"succeed",
-			"done",
-			"end",
-			"stop",
-			"exit",
-			"terminate",
-			"error",
-			"fail",
-		]
-
-		const isCompiling =
-			compilingMarkers.some((marker) => data.toLowerCase().includes(marker.toLowerCase())) &&
-			!markerNullifiers.some((nullifier) => data.toLowerCase().includes(nullifier.toLowerCase()))
-
-		const hotTimeout = isCompiling ? 15000 : 2000
+		const isCompiling = isCompilingOutput(data)
+		const hotTimeout = isCompiling ? PROCESS_HOT_TIMEOUT_COMPILING : PROCESS_HOT_TIMEOUT_NORMAL
 		this.hotTimer = setTimeout(() => {
 			this.isHot = false
 		}, hotTimeout)
 
-		// Store full output
+		// Store full output with size cap to prevent memory exhaustion
 		this.fullOutput += data
+
+		// Cap fullOutput at MAX_FULL_OUTPUT_SIZE to prevent memory exhaustion
+		if (this.fullOutput.length > MAX_FULL_OUTPUT_SIZE) {
+			// Keep last half of max size
+			this.fullOutput = this.fullOutput.slice(-MAX_FULL_OUTPUT_SIZE / 2)
+			// Reset lastRetrievedIndex since we truncated the beginning
+			this.lastRetrievedIndex = 0
+		}
 
 		if (this.isListening) {
 			this.emitLines(data)
-			this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
 		}
 	}
 
@@ -240,22 +243,37 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 
 	/**
 	 * Continue execution without waiting for completion.
-	 * Stops event emission and resolves the promise.
+	 * Emits "continue" event but keeps emitting "line" events for background tracking.
+	 *
+	 * Note: We intentionally do NOT call removeAllListeners("line") or set isListening=false
+	 * because background command tracking needs to continue receiving output lines
+	 * after the user clicks "Proceed While Running".
 	 */
 	continue(): void {
 		this.emitRemainingBuffer()
-		this.isListening = false
-		this.removeAllListeners("line")
+		// Keep isListening = true so we continue emitting "line" events
+		// This is needed for background command tracking to log output to file
 		this.emit("continue")
 	}
 
 	/**
 	 * Get output that hasn't been retrieved yet.
-	 * @returns The unretrieved output
+	 * Truncates if output is too large to prevent context window overflow.
+	 * @returns The unretrieved output (truncated if necessary)
 	 */
 	getUnretrievedOutput(): string {
 		const unretrieved = this.fullOutput.slice(this.lastRetrievedIndex)
 		this.lastRetrievedIndex = this.fullOutput.length
+
+		// Truncate if too many lines to prevent context overflow
+		const lines = unretrieved.split("\n")
+		if (lines.length > MAX_UNRETRIEVED_LINES) {
+			const first = lines.slice(0, TRUNCATE_KEEP_LINES)
+			const last = lines.slice(-TRUNCATE_KEEP_LINES)
+			const skipped = lines.length - first.length - last.length
+			return this.removeLastLineArtifacts([...first, `\n... (${skipped} lines truncated) ...\n`, ...last].join("\n"))
+		}
+
 		return this.removeLastLineArtifacts(unretrieved)
 	}
 
@@ -305,41 +323,29 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 	}
 
 	/**
-	 * Terminate the process if it's still running.
+	 * Terminate the process and all its children.
+	 *
+	 * Uses terminateProcessTree utility which handles:
+	 * - Cross-platform process tree termination via tree-kill
+	 * - Graceful shutdown with SIGTERM
+	 * - SIGKILL fallback after 2 second timeout
 	 */
-	terminate(): void {
+	async terminate(): Promise<void> {
 		if (!this.childProcess || this.isCompleted) {
-			console.log(`[StandaloneTerminal] Process already completed or doesn't exist, skipping termination`)
 			return
 		}
 
 		const pid = this.childProcess.pid
-		console.log(`[StandaloneTerminal] Terminating process ${pid} with SIGTERM`)
-
-		try {
+		if (!pid) {
+			// Fallback: try to kill the process directly if PID is unavailable
 			this.childProcess.kill("SIGTERM")
-
-			// Force kill after timeout if process doesn't exit gracefully
-			setTimeout(() => {
-				if (!this.isCompleted && this.childProcess) {
-					console.log(`[StandaloneTerminal] Process ${pid} did not exit gracefully, force killing with SIGKILL`)
-					try {
-						this.childProcess.kill("SIGKILL")
-					} catch (killError) {
-						console.error(`[StandaloneTerminal] Failed to force kill process ${pid}:`, killError)
-					}
-				} else {
-					console.log(`[StandaloneTerminal] Process ${pid} exited gracefully`)
-				}
-			}, 5000)
-		} catch (error) {
-			console.error(`[StandaloneTerminal] Failed to send SIGTERM to process ${pid}:`, error)
-			// Try SIGKILL immediately if SIGTERM fails
-			try {
-				this.childProcess.kill("SIGKILL")
-			} catch (killError) {
-				console.error(`[StandaloneTerminal] Failed to send SIGKILL to process ${pid}:`, killError)
-			}
+			return
 		}
+
+		await terminateProcessTree({
+			pid,
+			childProcess: this.childProcess,
+			isCompleted: () => this.isCompleted,
+		})
 	}
 }
