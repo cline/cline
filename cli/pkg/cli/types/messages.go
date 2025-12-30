@@ -113,6 +113,7 @@ const (
 	ToolTypeListCodeDefinitionNames ToolType = "listCodeDefinitionNames"
 	ToolTypeSearchFiles             ToolType = "searchFiles"
 	ToolTypeWebFetch                ToolType = "webFetch"
+	ToolTypeWebSearch               ToolType = "webSearch"
 	ToolTypeSummarizeTask           ToolType = "summarizeTask"
 )
 

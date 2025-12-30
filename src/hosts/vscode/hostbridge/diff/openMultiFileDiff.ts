@@ -26,5 +26,8 @@ export async function openMultiFileDiff(request: OpenMultiFileDiffRequest): Prom
 		}),
 	)
 
+	// Hide the bottom panel to give more room for the diff view
+	vscode.commands.executeCommand("workbench.action.closePanel")
+
 	return {}
 }
