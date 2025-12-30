@@ -248,10 +248,9 @@ func startClineHost(hostPort int, workspaces []string) (*exec.Cmd, error) {
 		fmt.Printf("Starting cline-host on port %d\n", hostPort)
 	}
 
-	// Get the directory where the cline binary is located.
-	// IMPORTANT: When running via `go run`, os.Executable() points at a transient
-	// go-build cache path that will NOT contain a sibling `cline-host` binary.
-	// In dev mode we fall back to repo-local dist-standalone binaries.
+	// Resolve cline-host next to the current executable.
+	// In `go run`, os.Executable() points at a temp build dir, so fall back to repo-local
+	// dist-standalone binaries.
 	execPath, err := os.Executable()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get executable path: %w", err)
@@ -261,8 +260,7 @@ func startClineHost(hostPort int, workspaces []string) (*exec.Cmd, error) {
 	clineHostPath := path.Join(binDir, "cline-host")
 
 	// Dev fallback: use repo-local dist-standalone/bin/cline-host if sibling binary doesn't exist.
-	// Note: In `go run` mode, binDir will be a go-build cache directory, so we must
-	// resolve relative to the CLI repo (cli/..
+	// In `go run` mode, resolve relative to repo root.
 	if _, statErr := os.Stat(clineHostPath); os.IsNotExist(statErr) {
 		// Log that we're entering dev fallback resolution (helps debug path issues)
 		if Config.Verbose {

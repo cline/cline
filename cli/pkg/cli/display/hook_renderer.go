@@ -7,17 +7,13 @@ import (
 	"github.com/cline/cli/pkg/cli/types"
 )
 
-// HookRenderer provides consistent, CLI-native rendering for hook status messages.
+// HookRenderer renders hook status messages in a CLI-native style.
 //
-// Design goals:
-// - Match the look/feel of existing CLI output (markdown headers like ToolRenderer)
-// - Keep each hook execution as a separate entry (no grouping)
-// - Do not render hook output streaming (hook_output_stream) in this iteration
+// Goals: match ToolRenderer’s markdown look, keep executions ungrouped, and (for now)
+// don’t stream hook output.
 //
-// Note: This renderer returns markdown strings. The caller should print the result
-// via output.Print / output.Printf after passing through the markdown renderer.
-// We use the same strategy as ToolRenderer: render markdown when possible, fallback
-// to plaintext when markdown rendering is disabled.
+// It returns markdown (or rendered markdown when enabled); callers should print the
+// returned string.
 
 type HookRenderer struct {
 	mdRenderer   *MarkdownRenderer
@@ -34,7 +30,7 @@ func (hr *HookRenderer) RenderHookStatus(h types.HookMessage) string {
 		statusText = "unknown"
 	}
 
-	// Build header: "### Hook <status>: <HookName> (tool: <ToolName>) (exit <code>)"
+	// Header: "### Hook <status>: <HookName> (tool: <ToolName>) (exit <code>)"
 	headerParts := []string{fmt.Sprintf("### Hook %s: %s", statusText, h.HookName)}
 	if h.ToolName != "" {
 		headerParts = append(headerParts, fmt.Sprintf("(tool: %s)", h.ToolName))
@@ -47,7 +43,7 @@ func (hr *HookRenderer) RenderHookStatus(h types.HookMessage) string {
 	var lines []string
 	lines = append(lines, header)
 
-	// Paths: keep it readable without verbose; list each path on its own line.
+	// Script paths: one per line.
 	paths := make([]string, 0, len(h.ScriptPaths))
 	for _, p := range h.ScriptPaths {
 		p = strings.TrimSpace(p)
@@ -57,7 +53,7 @@ func (hr *HookRenderer) RenderHookStatus(h types.HookMessage) string {
 	}
 
 	if len(paths) == 0 {
-		// Fallback when no script paths are provided (shouldn't happen in normal operation)
+		// Fallback when no script paths are provided.
 		lines = append(lines, "- *(no hook scripts found)*")
 	} else {
 		for _, p := range paths {
@@ -65,8 +61,7 @@ func (hr *HookRenderer) RenderHookStatus(h types.HookMessage) string {
 		}
 	}
 
-	// Surface failures prominently (minimal, human-readable).
-	// Details (stack traces, full stderr, etc.) should be reserved for verbose output.
+	// On failure, show a minimal summary (full stderr reserved for verbose).
 	if statusText == "failed" && h.Error != nil {
 		if msg := strings.TrimSpace(h.Error.Message); msg != "" {
 			lines = append(lines, fmt.Sprintf("- Error: %s", msg))
@@ -82,8 +77,7 @@ func (hr *HookRenderer) RenderHookStatus(h types.HookMessage) string {
 }
 
 func (hr *HookRenderer) renderMarkdown(markdown string) string {
-	// Keep behavior aligned with ToolRenderer: if plain mode or not TTY,
-	// caller will just get markdown as-is.
+	// Align with ToolRenderer: in plain mode or non-TTY, return markdown as-is.
 	if hr.outputFormat == "plain" || !isTTY() {
 		return markdown
 	}

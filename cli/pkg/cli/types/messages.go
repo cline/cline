@@ -93,8 +93,7 @@ const (
 	SayTypeHookOutput SayType = "hook_output_stream"
 )
 
-// normalizeSayType preserves backward compatibility with older say strings.
-// Some clients/recordings may still emit/contain "hook" and "hook_output".
+// normalizeSayType maps legacy say strings ("hook", "hook_output") to current values.
 func normalizeSayType(s string) string {
 	switch s {
 	case "hook":
