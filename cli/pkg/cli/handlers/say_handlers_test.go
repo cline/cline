@@ -1,12 +1,14 @@
 package handlers
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func TestFormatHookPath_HomeDirToTilde(t *testing.T) {
-	// NOTE: this test relies on HOME being set by the test environment.
-	home, err := getHomeDir()
+	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
-		t.Skip("HOME not set; skipping")
+		t.Skip("home dir not available; skipping")
 	}
 
 	got := formatHookPath(home + "/Documents/Cline/Hooks/TaskStart")
@@ -31,4 +33,3 @@ func TestFormatHookPath_FallbackLast3Components(t *testing.T) {
 		t.Fatalf("expected %q, got %q", want, got)
 	}
 }
-

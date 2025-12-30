@@ -39,6 +39,12 @@ func (s *StreamingDisplay) HandlePartialMessage(msg *types.ClineMessage) error {
 	defer s.mu.Unlock()
 
 	// Render hooks from the state stream only (not partial stream) to avoid duplicates.
+	//
+	// Rationale: hook status messages are often updated/reordered by the backend (e.g. PreToolUse
+	// hooks are moved above the corresponding tool message). The state stream represents the
+	// authoritative, “final” message ordering, while the partial stream is best-effort for
+	// incremental display.
+	//
 	// Only suppress *partial* hook messages; complete ones still flow through dedupe.
 	if msg.Partial && msg.Say == string(types.SayTypeHook) {
 		return nil
