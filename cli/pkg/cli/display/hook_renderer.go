@@ -9,8 +9,14 @@ import (
 
 // HookRenderer renders hook status messages in a CLI-native style.
 //
-// Goals: match ToolRenderer’s markdown look, keep executions ungrouped, and (for now)
-// don’t stream hook output.
+// Goals:
+// - Match ToolRenderer’s markdown look
+// - Keep executions ungrouped
+// - Render status + high-signal metadata (script paths, error summary)
+//
+// Note: hook stdout/stderr currently arrives as separate `hook_output_stream` messages.
+// The CLI suppresses those by default and prints them only in --verbose mode.
+// Future work could group streamed output under the corresponding hook block.
 //
 // It returns markdown (or rendered markdown when enabled); callers should print the
 // returned string.
@@ -30,8 +36,9 @@ func (hr *HookRenderer) RenderHookStatus(h types.HookMessage) string {
 		statusText = "unknown"
 	}
 
-	// Header: "### Hook <status>: <HookName> (tool: <ToolName>) (exit <code>)"
-	headerParts := []string{fmt.Sprintf("### Hook %s: %s", statusText, h.HookName)}
+	// Header: aligned with ToolRenderer’s phrasing so transcripts scan consistently.
+	// Example: "### Cline hook completed: PreToolUse (tool: read_file) (exit 0)"
+	headerParts := []string{fmt.Sprintf("### Cline hook %s: %s", statusText, h.HookName)}
 	if h.ToolName != "" {
 		headerParts = append(headerParts, fmt.Sprintf("(tool: %s)", h.ToolName))
 	}

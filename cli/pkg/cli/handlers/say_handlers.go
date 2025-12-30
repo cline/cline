@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/cline/cli/pkg/cli/clerror"
@@ -533,8 +534,15 @@ func (h *SayHandler) handleHookStatus(msg *types.ClineMessage, dc *DisplayContex
 	return renderHookStatus(hook, dc)
 }
 
-// handleHookOutputStream handles streaming output from hooks
-// This is a placeholder for future enhancement when we want to stream hook stdout/stderr
+// handleHookOutputStream handles streaming output from hooks.
+//
+// Hook stdout/stderr currently arrives line-by-line from the backend as
+// `hook_output_stream` messages. The CLI intentionally suppresses these by default
+// to keep the transcript high-signal.
+//
+// In --verbose mode, we print each non-empty line prefixed with "HOOK>" for easy grepping.
+// Future work could associate these lines with a specific hook execution and render them
+// as a grouped section under the hook status header.
 func (h *SayHandler) handleHookOutputStream(msg *types.ClineMessage, dc *DisplayContext) error {
 	// Default behavior: suppress hook output streaming to keep CLI output clean.
 	// When --verbose is enabled, print hook output lines for debugging.
@@ -586,6 +594,8 @@ func formatHookPaths(paths []string) []string {
 func renderHookStatus(hook types.HookMessage, dc *DisplayContext) error {
 	if dc.HookRenderer != nil {
 		rendered := dc.HookRenderer.RenderHookStatus(hook)
+		// Match ToolRenderer’s spacing: one leading newline, one trailing newline.
+		// This helps avoid “double blank lines” when hooks appear frequently.
 		output.Print("\n")
 		output.Print(rendered)
 		output.Print("\n")
@@ -599,6 +609,11 @@ func renderHookStatus(hook types.HookMessage, dc *DisplayContext) error {
 func formatHookPath(fullPath string) string {
 	normalized := normalizeSlashes(fullPath)
 
+	// Prefer workspace-relative paths first for readability, since most hook scripts
+	// live inside the current project.
+	if p, ok := tryWorkspaceRelativeHookPath(normalized); ok {
+		return p
+	}
 	if p, ok := tryHomeTildePath(normalized); ok {
 		return p
 	}
@@ -633,6 +648,27 @@ func tryRepoRelativeHookPath(normalizedPath string) (string, bool) {
 			repoName := parts[i-1]
 			return repoName + "/" + strings.Join(parts[i:], "/"), true
 		}
+	}
+	return "", false
+}
+
+func tryWorkspaceRelativeHookPath(normalizedPath string) (string, bool) {
+	root, err := os.Getwd()
+	if err != nil {
+		return "", false
+	}
+	root = normalizeSlashes(filepath.Clean(root))
+	if root == "" {
+		return "", false
+	}
+
+	// Ensure prefix match only on path boundary.
+	if normalizedPath == root {
+		return ".", true
+	}
+	if strings.HasPrefix(normalizedPath, root+"/") {
+		rel := strings.TrimPrefix(normalizedPath, root+"/")
+		return rel, true
 	}
 	return "", false
 }

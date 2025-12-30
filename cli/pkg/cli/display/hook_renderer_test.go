@@ -22,7 +22,7 @@ func TestHookRenderer_RenderHookStatus_FailedShowsErrorAndScript(t *testing.T) {
 		},
 	})
 
-	if !strings.Contains(msg, "### Hook failed: PreToolUse") {
+	if !strings.Contains(msg, "### Cline hook failed: PreToolUse") {
 		t.Fatalf("expected header in rendered output, got: %q", msg)
 	}
 	if !strings.Contains(msg, "- Error: boom") {
