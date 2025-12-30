@@ -82,7 +82,7 @@ export const ToolGroupRenderer = memo(
 
 				{/* Expanded content - files/folders with reasoning in tooltip */}
 				{isExpanded && (
-					<div className="ml-[18px] mt-0.5">
+					<div className="ml-[18px] mt-0.5 min-w-0">
 						{toolsWithReasoning.map(({ tool, parsedTool, reasoning }) => {
 							const info = getToolDisplayInfo(parsedTool)
 							if (!info) {
@@ -94,21 +94,25 @@ export const ToolGroupRenderer = memo(
 							const content = parsedTool.content || null
 
 							return (
-								<div key={tool.ts}>
+								<div className="min-w-0" key={tool.ts}>
 									<Tooltip>
-										<TooltipTrigger disabled={!reasoning}>
+										<TooltipTrigger className="block min-w-0 max-w-full" disabled={!reasoning}>
 											<Button
-												className="flex items-center gap-1.5 cursor-pointer text-description font-editor text-[12px] py-0.5 hover:text-link"
+												className="flex items-center gap-1.5 cursor-pointer text-sm text-description font-editor py-0.5 hover:text-link min-w-0 max-w-full"
 												onClick={() =>
 													isExpandable ? handleItemToggle(tool.ts) : handleOpenFile(info.path)
 												}
 												size="icon"
 												title={reasoning}
 												variant="text">
-												<info.icon className="opacity-70" />
+												<info.icon className="opacity-70 shrink-0" />
 												<span
-													className="flex-1 whitespace-nowrap overflow-hidden text-ellipsis text-left"
-													style={{ direction: info.displayText ? "ltr" : "rtl" }}>
+													className={cn(
+														"flex-1 min-w-0 whitespace-nowrap overflow-hidden text-ellipsis text-left [direction:rtl]",
+														{
+															"[direction:ltr]": !!info.displayText,
+														},
+													)}>
 													{(info.displayText || cleanPathPrefix(info.path)) + "\u200E"}
 												</span>
 											</Button>
@@ -119,7 +123,7 @@ export const ToolGroupRenderer = memo(
 									</Tooltip>
 									{/* Expanded content for folders/search/definitions - raw text */}
 									{isExpandable && isItemExpanded && content && (
-										<pre className="m-1 ml-4 text-[11px] opacity-80 whitespace-pre-wrap break-words p-2">
+										<pre className="m-1 ml-4 text-xs opacity-80 whitespace-pre-wrap break-words p-2 max-h-40 overflow-auto rounded-xs">
 											{content}
 										</pre>
 									)}

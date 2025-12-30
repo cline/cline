@@ -16,10 +16,12 @@ import {
 	CircleXIcon,
 	FilePlus2Icon,
 	FoldVerticalIcon,
+	Link2Icon,
 	LoaderCircleIcon,
 	LucideIcon,
 	MessageSquareTextIcon,
 	PencilIcon,
+	SearchIcon,
 	SquareMinusIcon,
 	TerminalIcon,
 } from "lucide-react"
@@ -318,12 +320,12 @@ export const ChatRowContent = memo(
 					]
 				case "mistake_limit_reached":
 					return [
-						<CircleXIcon className="mb-[-1.5px] text-error size-3 stroke-1" />,
+						<CircleXIcon className="text-error size-3" />,
 						<span className="text-error font-bold">Cline is having trouble...</span>,
 					]
 				case "command":
 					return [
-						<TerminalIcon className="mb-[-1.5px] text-foreground size-3 stroke-1" />,
+						<TerminalIcon className="text-foreground size-3" />,
 						<span className="font-bold text-foreground">Cline wants to execute this command:</span>,
 					]
 				case "use_mcp_server":
@@ -411,7 +413,7 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div className={HEADER_CLASSNAMES}>
-								<PencilIcon className="mb-[-1.5px] size-3 stroke-1" />
+								<PencilIcon className="mb-[-1.5px] size-3" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>{editToolTitle}</span>
@@ -433,7 +435,7 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div className={HEADER_CLASSNAMES}>
-								<SquareMinusIcon className="mb-[-1.5px] size-3 stroke-1" />
+								<SquareMinusIcon className="mb-[-1.5px] size-3" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>Cline wants to delete this file:</span>
@@ -451,7 +453,7 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div className={HEADER_CLASSNAMES}>
-								<FilePlus2Icon className="size-3 stroke-1" />
+								<FilePlus2Icon className="size-3" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span className="font-bold">Cline wants to create a new file:</span>
@@ -626,16 +628,10 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div className={HEADER_CLASSNAMES}>
-								<span className="text-foreground mb-[-1.5px]">
-									<FoldVerticalIcon size={16} />
-								</span>
+								<FoldVerticalIcon className="size-3" />
 								<span className="font-bold">Cline is condensing the conversation:</span>
 							</div>
-							<div
-								className="bg-code overflow-hidden border border-editor-group-border"
-								style={{
-									borderRadius: 3,
-								}}>
+							<div className="bg-code overflow-hidden border border-editor-group-border rounded-[3px]">
 								<div
 									aria-label={isExpanded ? "Collapse summary" : "Expand summary"}
 									onClick={handleToggle}
@@ -660,41 +656,17 @@ export const ChatRowContent = memo(
 										<div>
 											<div className="flex items-center mb-2">
 												<span className="font-bold mr-1">Summary:</span>
-												<div style={{ flexGrow: 1 }}></div>
-												<span
-													className="codicon codicon-chevron-up"
-													style={{
-														fontSize: 13.5,
-														margin: "1px 0",
-													}}></span>
+												<div className="grow" />
+												<span className="codicon codicon-chevron-up my-0.5 shrink-0" />
 											</div>
-											<span
-												className="ph-no-capture"
-												style={{
-													whiteSpace: "pre-wrap",
-													wordBreak: "break-word",
-													overflowWrap: "anywhere",
-												}}>
-												{tool.content}
-											</span>
+											<span className="ph-no-capture break-words whitespace-pre-wrap">{tool.content}</span>
 										</div>
 									) : (
 										<div className="flex items-center">
-											<span
-												className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis text-left flex-1 mr-2"
-												style={{
-													direction: "rtl",
-												}}>
+											<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis text-left flex-1 mr-2 [direction:rtl]">
 												{tool.content + "\u200E"}
 											</span>
-											<span
-												className="codicon codicon-chevron-down"
-												style={{
-													fontSize: 13.5,
-													margin: "1px 0",
-													flexShrink: 0,
-												}}
-											/>
+											<span className="codicon codicon-chevron-down my-0.5 shrink-0" />
 										</div>
 									)}
 								</div>
@@ -705,10 +677,10 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div className={HEADER_CLASSNAMES}>
-								<span className="codicon codicon-link color-foreground mb-[-1.5px]" />
+								<Link2Icon className="size-3" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This URL is external")}
-								<span style={{ fontWeight: "bold" }}>
+								<span className="font-bold">
 									{message.type === "ask"
 										? "Cline wants to fetch content from this URL:"
 										: "Cline fetched content from this URL:"}
@@ -758,37 +730,17 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div className={HEADER_CLASSNAMES}>
-								<span className="codicon codicon-search text-foreground mb-[-1.5px]" />
+								<SearchIcon className="size-3 rotate-90" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This search is external")}
-								<span className="text-foreground font-bold">
+								<span className="font-bold">
 									{message.type === "ask"
 										? "Cline wants to search the web for:"
 										: "Cline searched the web for:"}
 								</span>
 							</div>
-							<div
-								className="bg-code"
-								style={{
-									borderRadius: 3,
-									overflow: "hidden",
-									border: "1px solid var(--vscode-editorGroup-border)",
-									padding: "9px 10px",
-									userSelect: "text",
-									WebkitUserSelect: "text",
-									MozUserSelect: "text",
-									msUserSelect: "text",
-								}}>
-								<span
-									className="ph-no-capture"
-									style={{
-										whiteSpace: "nowrap",
-										overflow: "hidden",
-										textOverflow: "ellipsis",
-										marginRight: "8px",
-										direction: "rtl",
-										textAlign: "left",
-									}}>
+							<div className="bg-code border border-editor-group-border overflow-hidden rounded-xs select-text py-[9px] px-2.5">
+								<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis mr-2 text-left [direction:rtl]">
 									{tool.path + "\u200E"}
 								</span>
 							</div>
@@ -1374,7 +1326,7 @@ export const ChatRowContent = memo(
 												)
 											}}
 											variant="success">
-											<FilePlus2Icon className="mb-[-1.5px] size-3 stroke-1 mr-1.5" />
+											<FilePlus2Icon className="mb-[-1.5px] size-3 mr-1.5" />
 											View Changes
 										</Button>
 										{PLATFORM_CONFIG.type === PlatformType.VSCODE && (
@@ -1631,7 +1583,7 @@ export const ChatRowContent = memo(
 													)
 												}}
 												variant="success">
-												<FilePlus2Icon className="mb-[-1.5px] size-3 stroke-1 mr-1.5" />
+												<FilePlus2Icon className="mb-[-1.5px] size-3 mr-1.5" />
 												View Changes
 											</Button>
 											{PLATFORM_CONFIG.type === PlatformType.VSCODE && (
@@ -1654,7 +1606,7 @@ export const ChatRowContent = memo(
 														})
 													}}
 													variant="success">
-													<MessageSquareTextIcon className="mb-[-1.5px] size-3 stroke-1 mr-1.5" />
+													<MessageSquareTextIcon className="mb-[-1.5px] size-3 mr-1.5" />
 													{explainChangesDisabled ? "Explaining..." : "Explain Changes"}
 												</Button>
 											)}
@@ -1719,7 +1671,7 @@ export const ChatRowContent = memo(
 						return (
 							<>
 								<div className={HEADER_CLASSNAMES}>
-									<FilePlus2Icon className="mb-[-1.5px] size-3 stroke-1" />
+									<FilePlus2Icon className="size-3" />
 									<span className="text-foreground font-bold">Cline wants to start a new task:</span>
 								</div>
 								<NewTaskPreview context={message.text || ""} />
@@ -1729,7 +1681,7 @@ export const ChatRowContent = memo(
 						return (
 							<>
 								<div className={HEADER_CLASSNAMES}>
-									<FilePlus2Icon className="mb-[-1.5px] size-3 stroke-1" />
+									<FilePlus2Icon className="size-3" />
 									<span className="text-foreground font-bold">Cline wants to condense your conversation:</span>
 								</div>
 								<NewTaskPreview context={message.text || ""} />
@@ -1739,7 +1691,7 @@ export const ChatRowContent = memo(
 						return (
 							<>
 								<div className={HEADER_CLASSNAMES}>
-									<FilePlus2Icon className="mb-[-1.5px] size-3 stroke-1" />
+									<FilePlus2Icon className="size-3" />
 									<span className="text-foreground font-bold">Cline wants to create a Github issue:</span>
 								</div>
 								<ReportBugPreview data={message.text || ""} />
