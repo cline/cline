@@ -22,6 +22,7 @@ import {
 	MessageSquareTextIcon,
 	PencilIcon,
 	SearchIcon,
+	SquareArrowOutUpRightIcon,
 	SquareMinusIcon,
 	TerminalIcon,
 } from "lucide-react"
@@ -492,49 +493,23 @@ export const ChatRowContent = memo(
 									border: "1px solid var(--vscode-editorGroup-border)",
 								}}>
 								<div
-									onClick={
-										isImage
-											? undefined
-											: () => {
-													FileServiceClient.openFile(
-														StringRequest.create({ value: tool.content }),
-													).catch((err) => console.error("Failed to open file:", err))
-												}
-									}
-									style={{
-										color: "var(--vscode-descriptionForeground)",
-										display: "flex",
-										alignItems: "center",
-										padding: "9px 10px",
-										cursor: isImage ? "default" : "pointer",
-										userSelect: isImage ? "text" : "none",
-										WebkitUserSelect: isImage ? "text" : "none",
-										MozUserSelect: isImage ? "text" : "none",
-										msUserSelect: isImage ? "text" : "none",
+									className={cn("text-description flex items-center cursor-pointer select-none", {
+										"cursor-default select-text": isImage,
+									})}
+									onClick={() => {
+										if (!isImage) {
+											FileServiceClient.openFile(StringRequest.create({ value: tool.content })).catch(
+												(err) => console.error("Failed to open file:", err),
+											)
+										}
 									}}>
 									{tool.path?.startsWith(".") && <span>.</span>}
 									{tool.path && !tool.path.startsWith(".") && <span>/</span>}
-									<span
-										className="ph-no-capture"
-										style={{
-											whiteSpace: "nowrap",
-											overflow: "hidden",
-											textOverflow: "ellipsis",
-											marginRight: "8px",
-											direction: "rtl",
-											textAlign: "left",
-										}}>
+									<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis mr-2 text-left [direction: rtl]">
 										{cleanPathPrefix(tool.path ?? "") + "\u200E"}
 									</span>
-									<div style={{ flexGrow: 1 }}></div>
-									{!isImage && (
-										<span
-											className={`codicon codicon-link-external`}
-											style={{
-												fontSize: 13.5,
-												margin: "1px 0",
-											}}></span>
-									)}
+									<div className="grow" />
+									{!isImage && <SquareArrowOutUpRightIcon className="size-3" />}
 								</div>
 							</div>
 						</>

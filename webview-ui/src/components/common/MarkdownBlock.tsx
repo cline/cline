@@ -1,5 +1,6 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
+import { SquareArrowOutUpRightIcon } from "lucide-react"
 import type { ComponentProps } from "react"
 import React, { memo, useEffect, useRef } from "react"
 import { useRemark } from "react-remark"
@@ -11,6 +12,7 @@ import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import MermaidBlock from "@/components/common/MermaidBlock"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { Button } from "../ui/button"
 import { WithCopyButton } from "./CopyButton"
 
 // Styled component for Act Mode text with more specific styling
@@ -429,15 +431,16 @@ const MarkdownBlock = memo(({ markdown, compact, showCursor }: MarkdownBlockProp
 						const filePath = typeof props.children === "string" ? props.children : String(props.children || "")
 
 						return (
-							<>
+							<Button
+								className="p-0 ml-0.5 mt-0.5 leading-none align-middle transition-opacity relative top-px text-(--vscode-textPreformat-foreground) translate-y-[-2px] gap-0.5"
+								onClick={() => FileServiceClient.openFileRelativePath({ value: filePath })}
+								size="icon"
+								title={`Open ${filePath} in editor`}
+								type="button"
+								variant="icon">
 								<code {...props} />
-								<button
-									className="codicon codicon-link-external bg-transparent border-0 appearance-none p-0 ml-0.5 leading-none align-middle opacity-70 hover:opacity-100 transition-opacity text-[1em] relative top-px text-(--vscode-textPreformat-foreground) translate-y-[-2px]"
-									onClick={() => FileServiceClient.openFileRelativePath({ value: filePath })}
-									title={`Open ${filePath} in editor`}
-									type="button"
-								/>
-							</>
+								<SquareArrowOutUpRightIcon />
+							</Button>
 						)
 					}
 
