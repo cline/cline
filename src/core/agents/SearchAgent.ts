@@ -259,11 +259,13 @@ export class SearchAgent extends ClineAgent<SearchContext> {
 				regex,
 				undefined,
 				this.taskConfig.services.clineIgnoreController,
+				false, // exclude hidden files
 			)
 
 			const firstLine = workspaceResults.split("\n")[0]
-			const resultMatch = firstLine.match(/Found (\d+) result/)
-			const resultCount = resultMatch ? parseInt(resultMatch[1], 10) : 0
+			// Match either "Found X result(s)" or "Showing first X of X+ results"
+			const resultMatch = firstLine.match(/Found (\d+) result|Showing first (\d+) of/)
+			const resultCount = resultMatch ? parseInt(resultMatch[1] || resultMatch[2], 10) : 0
 
 			return {
 				workspaceName: undefined,
