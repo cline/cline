@@ -692,6 +692,15 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 
 		const message = item
 		const messageType = message.say
+		const isLast = i === groupedMessages.length - 1
+
+		// Ask-type messages - commit current work and render separately
+		if (message.type === "ask" && isLowStakesTool(message) && !message.partial && isLast) {
+			commitToolGroup()
+			flushPending()
+			result.push(message)
+			continue
+		}
 
 		// Low-stakes tool - absorb pending and add to group
 		if (isLowStakesTool(message)) {

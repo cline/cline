@@ -416,7 +416,7 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div className={HEADER_CLASSNAMES}>
-								<PencilIcon className="mb-[-1.5px] size-3" />
+								<PencilIcon className="size-3" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>{editToolTitle}</span>
