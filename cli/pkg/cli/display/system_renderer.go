@@ -264,6 +264,6 @@ func (sr *SystemMessageRenderer) RenderInfo(title, message string) error {
 func (sr *SystemMessageRenderer) RenderCheckpoint(timestamp string, id int64) error {
 	markdown := fmt.Sprintf("## [%s] Checkpoint created `%d`", timestamp, id)
 	rendered := sr.renderer.RenderMarkdown(markdown)
-	fmt.Print(rendered)
+	fmt.Printf(rendered)
 	return nil
 }

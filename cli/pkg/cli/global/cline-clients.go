@@ -567,6 +567,8 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 	return cmd, nil
 }
 
+// resolveRepoRootDistStandaloneCore is a dev fallback for locating dist-standalone/cline-core.js
+// that works under `go run` (where os.Executable() may point at a temp build dir).
 func resolveRepoRootDistStandaloneCore() (coreJsPath string, installDir string, ok bool) {
 	_, file, _, _ := runtime.Caller(0)
 	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", "..", ".."))

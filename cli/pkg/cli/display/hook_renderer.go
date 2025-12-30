@@ -50,6 +50,13 @@ func (hr *HookRenderer) RenderHookStatus(h types.HookMessage) string {
 	var lines []string
 	lines = append(lines, header)
 
+	// Pending tool info (PreToolUse): show one high-signal line directly under the header.
+	if h.PendingToolInfo != nil {
+		if pending := hr.formatPendingToolInfo(h.PendingToolInfo); pending != "" {
+			lines = append(lines, fmt.Sprintf("- Pending: %s", pending))
+		}
+	}
+
 	// Script paths: one per line.
 	paths := make([]string, 0, len(h.ScriptPaths))
 	for _, p := range h.ScriptPaths {
@@ -81,6 +88,41 @@ func (hr *HookRenderer) RenderHookStatus(h types.HookMessage) string {
 
 	markdown := strings.Join(lines, "\n")
 	return hr.renderMarkdown(markdown)
+}
+
+func (hr *HookRenderer) formatPendingToolInfo(info *types.ToolInfo) string {
+	if info == nil {
+		return ""
+	}
+	tool := strings.TrimSpace(info.Tool)
+	if tool == "" {
+		return ""
+	}
+
+	// Keep this intentionally compact and readable.
+	// Format: "<tool> <identifier>" where identifier is the most relevant param.
+	var ident string
+	switch {
+	case strings.TrimSpace(info.Path) != "":
+		ident = strings.TrimSpace(info.Path)
+	case strings.TrimSpace(info.Command) != "":
+		ident = strings.TrimSpace(info.Command)
+	case strings.TrimSpace(info.Url) != "":
+		ident = strings.TrimSpace(info.Url)
+	case strings.TrimSpace(info.McpTool) != "" && strings.TrimSpace(info.McpServer) != "":
+		ident = fmt.Sprintf("%s %s", strings.TrimSpace(info.McpServer), strings.TrimSpace(info.McpTool))
+	case strings.TrimSpace(info.ResourceUri) != "":
+		ident = strings.TrimSpace(info.ResourceUri)
+	case strings.TrimSpace(info.Regex) != "":
+		ident = strings.TrimSpace(info.Regex)
+	default:
+		ident = ""
+	}
+
+	if ident != "" {
+		return fmt.Sprintf("%s %s", tool, ident)
+	}
+	return tool
 }
 
 func (hr *HookRenderer) renderMarkdown(markdown string) string {

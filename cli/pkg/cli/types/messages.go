@@ -167,9 +167,26 @@ type HookMessage struct {
 	ToolName        string     `json:"toolName,omitempty"`        // Optional tool name for tool-specific hooks
 	Status          string     `json:"status"`                    // "running", "completed", "cancelled", or "failed"
 	ScriptPaths     []string   `json:"scriptPaths,omitempty"`     // Full paths to hook script(s)
+	PendingToolInfo *ToolInfo  `json:"pendingToolInfo,omitempty"` // Metadata about the pending tool execution (PreToolUse)
 	ExitCode        int        `json:"exitCode,omitempty"`        // Exit code for completed/failed hooks
 	HasJsonResponse bool       `json:"hasJsonResponse,omitempty"` // Whether hook returned JSON
 	Error           *HookError `json:"error,omitempty"`           // Error details if hook failed
+}
+
+// ToolInfo represents a compact subset of tool parameters for UI display.
+// This mirrors the extension's pendingToolInfo shape and is used by the CLI to
+// show what tool the PreToolUse hook is gating.
+type ToolInfo struct {
+	Tool        string `json:"tool"`
+	Path        string `json:"path,omitempty"`
+	Command     string `json:"command,omitempty"`
+	Content     string `json:"content,omitempty"`
+	Diff        string `json:"diff,omitempty"`
+	Regex       string `json:"regex,omitempty"`
+	Url         string `json:"url,omitempty"`
+	McpTool     string `json:"mcpTool,omitempty"`
+	McpServer   string `json:"mcpServer,omitempty"`
+	ResourceUri string `json:"resourceUri,omitempty"`
 }
 
 // HookError represents structured error information from a failed hook
