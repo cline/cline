@@ -52,6 +52,9 @@ export const GlobalFileNames = {
 	clineRules: ".clinerules",
 	workflows: ".clinerules/workflows",
 	hooksDir: ".clinerules/hooks",
+	clineruleSkillsDir: ".clinerules/skills",
+	clineSkillsDir: ".cline/skills",
+	claudeSkillsDir: ".claude/skills",
 	cursorRulesDir: ".cursor/rules",
 	cursorRulesFile: ".cursorrules",
 	windsurfRules: ".windsurfrules",
@@ -143,6 +146,17 @@ export async function ensureHooksDirectoryExists(): Promise<string> {
 		return path.join(os.homedir(), "Documents", "Cline", "Hooks") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine because we will fail gracefully with a path that does not exist
 	}
 	return clineHooksDir
+}
+
+export async function ensureSkillsDirectoryExists(): Promise<string> {
+	const userDocumentsPath = await getDocumentsPath()
+	const clineSkillsDir = path.join(userDocumentsPath, "Cline", "Skills")
+	try {
+		await fs.mkdir(clineSkillsDir, { recursive: true })
+	} catch (_error) {
+		return path.join(os.homedir(), "Documents", "Cline", "Skills")
+	}
+	return clineSkillsDir
 }
 
 export async function ensureSettingsDirectoryExists(): Promise<string> {
