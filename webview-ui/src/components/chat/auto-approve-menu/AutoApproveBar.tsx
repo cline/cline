@@ -1,7 +1,5 @@
-import { StringRequest } from "@shared/proto/cline/common"
 import { useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { UiServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import AutoApproveModal from "./AutoApproveModal"
 import { ACTION_METADATA } from "./constants"
@@ -16,19 +14,10 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 	const [isModalVisible, setIsModalVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
 
-	const handleNavigateToFeatures = async (e: React.MouseEvent) => {
+	const handleNavigateToFeatures = (e: React.MouseEvent) => {
 		e.preventDefault()
 		e.stopPropagation()
-
-		navigateToSettings()
-
-		setTimeout(async () => {
-			try {
-				await UiServiceClient.scrollToSettings(StringRequest.create({ value: "features" }))
-			} catch (error) {
-				console.error("Error scrolling to features settings:", error)
-			}
-		}, 300)
+		navigateToSettings("features")
 	}
 
 	const getEnabledActionsText = () => {
@@ -154,11 +143,20 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 			/>
 
 			<div
+				aria-label={isModalVisible ? "Close auto-approve settings" : "Open auto-approve settings"}
 				className="group cursor-pointer pt-3 pb-3.5 pr-2 px-3.5 flex items-center justify-between gap-0"
 				onClick={() => {
 					setIsModalVisible((prev) => !prev)
 				}}
-				ref={buttonRef}>
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault()
+						e.stopPropagation()
+						setIsModalVisible((prev) => !prev)
+					}
+				}}
+				ref={buttonRef}
+				tabIndex={0}>
 				<div className="flex flex-nowrap items-center gap-1 min-w-0 flex-1">
 					<span className="whitespace-nowrap">Auto-approve:</span>
 					{getEnabledActionsText()}

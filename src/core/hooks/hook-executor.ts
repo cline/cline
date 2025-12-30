@@ -79,6 +79,12 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 		}
 		hookMessageTs = await say("hook", JSON.stringify(hookMetadata))
 
+		// Reorder messages immediately so hook UI appears above tool UI
+		// This must happen right after creating the hook message, before the hook runs
+		if (hookName === "PreToolUse") {
+			await reorderHookAndToolMessages(messageStateHandler)
+		}
+
 		// Track active hook execution for cancellation (only if cancellable and message was created)
 		if (isCancellable && hookMessageTs !== undefined && setActiveHookExecution) {
 			await setActiveHookExecution({
@@ -99,6 +105,8 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 			hookName,
 			streamCallback,
 			isCancellable ? abortController.signal : undefined,
+			taskId,
+			options.toolName,
 		)
 
 		const result = await hook.run({
@@ -223,4 +231,57 @@ async function updateHookMessage(
 			text: JSON.stringify(metadata),
 		})
 	}
+}
+
+/**
+ * Reorders hook and tool messages so hook UI appears before tool UI.
+ * This is called immediately after a hook message is created.
+ *
+ * The algorithm:
+ * 1. Find the most recent tool message (ask or say with type "tool", "command", "use_mcp_server", or "browser_action_launch")
+ * 2. Find any hook messages that came after it
+ * 3. Delete the tool message
+ * 4. Re-add the tool message at the end (after hook messages)
+ */
+async function reorderHookAndToolMessages(messageStateHandler: MessageStateHandler): Promise<void> {
+	const clineMessages = messageStateHandler.getClineMessages()
+
+	// Define all message types that represent tool executions with PreToolUse hooks
+	const toolMessageTypes = ["tool", "command", "use_mcp_server", "browser_action_launch"]
+
+	// Find the most recent tool message
+	let lastToolMessageIndex = -1
+	for (let i = clineMessages.length - 1; i >= 0; i--) {
+		const msgType = clineMessages[i].ask || clineMessages[i].say
+		if (msgType && toolMessageTypes.includes(msgType)) {
+			lastToolMessageIndex = i
+			break
+		}
+	}
+
+	if (lastToolMessageIndex === -1) {
+		return // No tool message found, nothing to reorder
+	}
+
+	// Check if there are any hook messages after the tool message
+	let hasHookMessagesAfterTool = false
+	for (let i = lastToolMessageIndex + 1; i < clineMessages.length; i++) {
+		if (clineMessages[i].say === "hook" || clineMessages[i].say === "hook_output") {
+			hasHookMessagesAfterTool = true
+			break
+		}
+	}
+
+	if (!hasHookMessagesAfterTool) {
+		return // No reordering needed
+	}
+
+	// Store the tool message (deep copy to preserve all properties)
+	const toolMessage = { ...clineMessages[lastToolMessageIndex] }
+
+	// Delete the tool message at its current position
+	await messageStateHandler.deleteClineMessage(lastToolMessageIndex)
+
+	// Re-add the tool message at the end (after hook messages)
+	await messageStateHandler.addToClineMessages(toolMessage)
 }

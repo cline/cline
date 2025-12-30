@@ -77,6 +77,7 @@ function createMockService<T extends grpc.UntypedServiceImplementation>(serviceN
 					case "getTelemetrySettings":
 						callback(null, {
 							isEnabled: 2, // Setting.DISABLED
+							errorLevel: "all",
 						})
 						return
 

@@ -47,10 +47,10 @@ export const config = createVariant(ModelFamily.GLM)
 		ClineDefaultTool.MCP_ACCESS,
 		ClineDefaultTool.ASK,
 		ClineDefaultTool.ATTEMPT,
-		ClineDefaultTool.NEW_TASK,
 		ClineDefaultTool.PLAN_MODE,
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
+		ClineDefaultTool.GENERATE_EXPLANATION,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.GLM,

@@ -1,11 +1,11 @@
-import { StringRequest } from "@shared/proto/cline/common"
+import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useRef, useState } from "react"
 import { useClickAway } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useAutoApproveActions } from "@/hooks/useAutoApproveActions"
-import { UiServiceClient } from "@/services/grpc-client"
-import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
+import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import AutoApproveMenuItem from "./AutoApproveMenuItem"
+import { updateAutoApproveSettings } from "./AutoApproveSettingsAPI"
 import { ActionMetadata } from "./types"
 
 const breakpoint = 500
@@ -18,26 +18,8 @@ interface AutoApproveModalProps {
 }
 
 const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVisible, buttonRef, ACTION_METADATA }) => {
-	const { navigateToSettings } = useExtensionState()
+	const { autoApprovalSettings } = useExtensionState()
 	const { isChecked, updateAction } = useAutoApproveActions()
-
-	const handleNotificationsLinkClick = async (e: React.MouseEvent) => {
-		e.preventDefault()
-		e.stopPropagation()
-
-		// Navigate to settings
-		navigateToSettings()
-
-		// Scroll to general section
-		setTimeout(async () => {
-			try {
-				await UiServiceClient.scrollToSettings(StringRequest.create({ value: "general" }))
-			} catch (error) {
-				console.error("Error scrolling to general settings:", error)
-			}
-		}, 300)
-	}
-
 	const modalRef = useRef<HTMLDivElement>(null)
 	const itemsContainerRef = useRef<HTMLDivElement>(null)
 	const [containerWidth, setContainerWidth] = useState(0)
@@ -91,12 +73,14 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVis
 				}}>
 				<div className="mb-2.5 text-muted-foreground text-xs cursor-pointer" onClick={() => setIsVisible(false)}>
 					Let Cline take these actions without asking for approval.{" "}
-					<span
-						className="underline cursor-pointer hover:text-foreground"
-						onClick={handleNotificationsLinkClick}
-						style={{ textDecoration: "underline" }}>
-						Configure notification settings
-					</span>
+					<a
+						className="text-link hover:text-link-hover"
+						href="https://docs.cline.bot/features/auto-approve#auto-approve"
+						rel="noopener"
+						style={{ fontSize: "inherit" }}
+						target="_blank">
+						Docs
+					</a>
 				</div>
 
 				<div
@@ -121,6 +105,32 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVis
 					{ACTION_METADATA.map((action) => (
 						<AutoApproveMenuItem action={action} isChecked={isChecked} key={action.id} onToggle={updateAction} />
 					))}
+				</div>
+
+				{/* Separator line */}
+				<div
+					style={{
+						height: "0.5px",
+						background: getAsVar(VSC_DESCRIPTION_FOREGROUND),
+						opacity: 0.1,
+						margin: "8px 0",
+					}}
+				/>
+
+				{/* Notifications toggle */}
+				<div className="flex items-center gap-2">
+					<VSCodeCheckbox
+						checked={autoApprovalSettings.enableNotifications}
+						onChange={async (e: any) => {
+							const checked = e.target.checked === true
+							await updateAutoApproveSettings({
+								...autoApprovalSettings,
+								version: (autoApprovalSettings.version ?? 1) + 1,
+								enableNotifications: checked,
+							})
+						}}>
+						<span className="text-sm">Enable notifications</span>
+					</VSCodeCheckbox>
 				</div>
 			</div>
 		</div>

@@ -87,22 +87,42 @@ export interface ITelemetryProvider {
 	getSettings(): TelemetrySettings
 
 	/**
-	 * (Optional) Increment a counter metric.
-	 * Providers that don't support metrics may implement this as a no-op.
-	 * @param name Metric name
-	 * @param value Amount to increment by (default 1)
-	 * @param attributes Optional metric attributes (JSON-serializable)
+	 * The name of the telemetry provider.
 	 */
-	incrementCounter?(name: string, value?: number, attributes?: TelemetryProperties): void
+	readonly name: string
 
 	/**
-	 * (Optional) Record a value in a histogram metric.
+	 * Record a counter metric (cumulative value that only increases)
 	 * Providers that don't support metrics may implement this as a no-op.
-	 * @param name Metric name
-	 * @param value Value to record
-	 * @param attributes Optional metric attributes (JSON-serializable)
+	 * @param name Metric name (e.g., "cline.tokens.input")
+	 * @param value Amount to increment by (default 1)
+	 * @param attributes Optional metric attributes including userId, ulid (JSON-serializable)
 	 */
-	recordHistogram?(name: string, value: number, attributes?: TelemetryProperties): void
+	recordCounter(name: string, value: number, attributes?: TelemetryProperties, description?: string, required?: boolean): void
+
+	/**
+	 * Record a histogram metric (distribution of values for percentile analysis)
+	 * Providers that don't support metrics may implement this as a no-op.
+	 * @param name Metric name (e.g., "cline.api.duration_seconds")
+	 * @param value Value to record
+	 * @param attributes Optional metric attributes including userId, ulid (JSON-serializable)
+	 */
+	recordHistogram(name: string, value: number, attributes?: TelemetryProperties, description?: string, required?: boolean): void
+
+	/**
+	 * Record a gauge metric (point-in-time value that can go up or down)
+	 * Providers that don't support metrics may implement this as a no-op.
+	 * @param name Metric name (e.g., "cline.workspace.active_roots")
+	 * @param value Current value, or null to retire the series identified by name + attributes
+	 * @param attributes Optional metric attributes including userId, ulid (JSON-serializable). When retiring a series pass the same attribute set that was used when recording it.
+	 */
+	recordGauge(
+		name: string,
+		value: number | null,
+		attributes?: TelemetryProperties,
+		description?: string,
+		required?: boolean,
+	): void
 
 	/**
 	 * Clean up resources when the provider is disposed

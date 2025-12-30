@@ -1,7 +1,7 @@
-import type { Anthropic } from "@anthropic-ai/sdk"
 import { filterMessagesForClaudeCode } from "@/integrations/claude-code/message-filter"
 import { runClaudeCode } from "@/integrations/claude-code/run"
 import { ClaudeCodeModelId, claudeCodeDefaultModelId, claudeCodeModels } from "@/shared/api"
+import { ClineStorageMessage } from "@/shared/messages/content"
 import { type ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { type ApiStream, ApiStreamUsageChunk } from "../transform/stream"
@@ -24,7 +24,7 @@ export class ClaudeCodeHandler implements ApiHandler {
 		baseDelay: 2000,
 		maxDelay: 15000,
 	})
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
 		// Filter out image blocks since Claude Code doesn't support them
 		const filteredMessages = filterMessagesForClaudeCode(messages)
 
@@ -121,7 +121,7 @@ export class ClaudeCodeHandler implements ApiHandler {
 									function: {
 										id: content.id,
 										name: content.name,
-										arguments: content.input,
+										arguments: JSON.stringify(content.input),
 									},
 								},
 							}

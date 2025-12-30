@@ -1,25 +1,36 @@
 import { HeroUIProvider } from "@heroui/react"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import type { ApiConfiguration } from "@shared/api"
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import { type ApiConfiguration, bedrockModels } from "@shared/api"
+import { CLINE_ONBOARDING_MODELS } from "@shared/cline/onboarding"
+import type { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { Meta, StoryObj } from "@storybook/react-vite"
-import { useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { expect, userEvent, within } from "storybook/test"
 import { ExtensionStateContext, useExtensionState } from "@/context/ExtensionStateContext"
 import ChatView from "./components/chat/ChatView"
+import OnboardingView from "./components/onboarding/OnboardingView"
 import WelcomeView from "./components/welcome/WelcomeView"
 
 // Mock component that mimics App behavior but works in Storybook
 const MockApp = () => {
-	const { showWelcome } = useExtensionState()
+	const { showWelcome, onboardingModels, showAnnouncement } = useExtensionState()
 
 	return (
 		<HeroUIProvider>
 			{showWelcome ? (
-				<WelcomeView />
+				onboardingModels ? (
+					<OnboardingView onboardingModels={onboardingModels} />
+				) : (
+					<WelcomeView />
+				)
 			) : (
-				<ChatView hideAnnouncement={() => {}} isHidden={false} showAnnouncement={false} showHistoryView={() => {}} />
+				<ChatView
+					hideAnnouncement={() => {}}
+					isHidden={false}
+					showAnnouncement={showAnnouncement}
+					showHistoryView={() => {}}
+				/>
 			)}
 		</HeroUIProvider>
 	)
@@ -61,7 +72,7 @@ The ChatView component is the main interface for interacting with Cline. It prov
 - Learning and exploration
 
 **Note**: In Storybook, some features like file operations, command execution, and API calls are mocked for demonstration purposes.
-        `,
+		`,
 			},
 		},
 	},
@@ -146,6 +157,21 @@ const createMessage = (
 	...overrides,
 })
 
+const createSayToolMessage = (
+	minutesAgo: number,
+	sayTool: ClineSayTool,
+	overrides: Partial<ClineMessage> = {},
+): ClineMessage => ({
+	ts: Date.now() - minutesAgo * 60000,
+	type: "say",
+	say: "tool",
+	text: JSON.stringify({
+		operationIsLocatedInWorkspace: true,
+		...sayTool,
+	}),
+	...overrides,
+})
+
 const createApiReqMessage = (minutesAgo: number, request: string, metrics: any = {}) =>
 	createMessage(
 		minutesAgo,
@@ -215,11 +241,16 @@ const createMockState = (overrides: any = {}) => ({
 	...useExtensionState(),
 	useAutoCondense: true,
 	autoCondenseThreshold: 0.5,
+	version: "0.0.1-stories",
 	welcomeViewCompleted: true,
 	showWelcome: false,
 	clineMessages: mockActiveMessages,
 	taskHistory: mockTaskHistory,
 	apiConfiguration: mockApiConfiguration,
+	onboardingModels: undefined,
+	openRouterModels: bedrockModels,
+	showAnnouncement: false,
+	backgroundEditEnabled: false,
 	...overrides,
 })
 
@@ -238,7 +269,7 @@ const createStoryDecorator =
 		)
 	}
 
-export const WelcomeScreen: Story = {
+export const Welcome: Story = {
 	decorators: [createStoryDecorator({ welcomeViewCompleted: false, showWelcome: true, clineMessages: [] })],
 	parameters: {
 		docs: {
@@ -259,6 +290,120 @@ export const WelcomeScreen: Story = {
 		await userEvent.click(byokButton)
 		await expect(getStartedButton).toBeInTheDocument()
 		await expect(byokButton).not.toBeInTheDocument()
+	},
+}
+
+export const Onboarding: Story = {
+	decorators: [
+		createStoryDecorator({
+			welcomeViewCompleted: false,
+			showWelcome: true,
+			clineMessages: [],
+			onboardingModels: { models: CLINE_ONBOARDING_MODELS },
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "The onboarding flow shown to new users, allowing them to select their preferred AI models and configure initial settings.",
+			},
+		},
+	},
+	args: {
+		onboardingModels: { models: CLINE_ONBOARDING_MODELS },
+	},
+	argTypes: {
+		onboardingModels: {
+			control: { type: "object" },
+		},
+	},
+	// More on component testing: https://storybook.js.org/docs/writing-tests/interaction-testing
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement)
+
+		// Step 0: User type selection should be visible
+		const title = canvas.getByText("How will you use Cline?")
+		await expect(title).toBeInTheDocument()
+		const freeUserOption = canvas.getByText("Absolutely Free")
+		const powerUserOption = canvas.getByText("Frontier Model")
+		await expect(freeUserOption).toBeInTheDocument()
+		await expect(powerUserOption).toBeInTheDocument()
+
+		// Select "Free User" option
+		await userEvent.click(freeUserOption)
+
+		// Verify the next button appears
+		const nextButton = canvas.getByText("Continue")
+		await expect(nextButton).toBeInTheDocument()
+
+		// Click next to go to model selection
+		await userEvent.click(nextButton)
+
+		// Step 1: Model selection should be visible
+		// Check for model group headers
+		const otherOptionsHeader = canvas.getByText("Select a free model")
+
+		// At least one should be visible
+		await expect(otherOptionsHeader).toBeInTheDocument()
+
+		// Test search functionality
+		const searchInput = canvas.getByPlaceholderText("Search model...")
+		await expect(searchInput).toBeInTheDocument()
+
+		// Type in search box
+		await userEvent.type(searchInput, "claude")
+
+		// Verify search term is in the input
+		await expect(searchInput).toHaveValue("claude")
+
+		// Clear search
+		await userEvent.clear(searchInput)
+
+		// Verify sign in button appears after model selection
+		const signInButton = canvas.getByText("Create my Account")
+		await expect(signInButton).toBeInTheDocument()
+
+		// Test back navigation
+		const backButton = canvas.getByText("Back")
+		await expect(backButton).toBeInTheDocument()
+		await userEvent.click(backButton)
+
+		// Should be back to user type selection
+		await expect(canvas.getByText("How will you use Cline?")).toBeInTheDocument()
+
+		// Test power user flow
+		await userEvent.click(powerUserOption)
+
+		const continueButton = canvas.getByText("Continue")
+		await userEvent.click(continueButton)
+
+		// Should see model selection again
+		await expect(canvas.getByPlaceholderText("Search model...")).toBeInTheDocument()
+		await userEvent.click(canvas.getByText("Back"))
+	},
+}
+
+export const EmptyState: Story = {
+	decorators: [createStoryDecorator({ clineMessages: [], taskHistory: [], isNewUser: true, showAnnouncement: true })],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows the empty state for first-time users with no conversation history or active tasks.",
+			},
+		},
+	},
+}
+
+export const ReturnUser: Story = {
+	decorators: [
+		createStoryDecorator({ clineMessages: [], taskHistory: mockTaskHistory, isNewUser: true, showAnnouncement: false }),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows the home screen populated with conversation history for returning users.",
+			},
+		},
 	},
 }
 
@@ -440,17 +585,6 @@ export const PlanMode: Story = {
 		docs: {
 			description: {
 				story: "Shows Cline in Plan mode, where it focuses on creating detailed plans and discussing approaches before implementation.",
-			},
-		},
-	},
-}
-
-export const EmptyState: Story = {
-	decorators: [createStoryDecorator({ clineMessages: [], taskHistory: [], isNewUser: true })],
-	parameters: {
-		docs: {
-			description: {
-				story: "Shows the empty state for first-time users with no conversation history or active tasks.",
 			},
 		},
 	},
@@ -659,3 +793,336 @@ export const ResumeCompletedTask = quickStory(
 	"The previous task has been completed. Would you like to start a new task?",
 	"Shows Start New Task option for resume completed task.",
 )
+
+// Diff Edit Stories - New Format
+const createNewFormatMultiFileMessages = () => [
+	createMessage(5, "say", "task", "Help me refactor the authentication module"),
+	createMessage(4.7, "say", "text", "I'll help you refactor the authentication module. Let me make the necessary changes."),
+	createSayToolMessage(4.3, {
+		tool: "editedExistingFile",
+		path: "src/auth/types.ts",
+		content: `*** Begin Patch
+*** Add File: src/auth/types.ts
++export interface User {
++  id: string
++  email: string
++  role: 'admin' | 'user'
++}
++
++export interface AuthState {
++  user: User | null
++  isAuthenticated: boolean
++}
+
+*** Update File: src/auth/login.ts
+@@
+-function login(email, password) {
+-  return fetch('/api/login', {
++function login(email: string, password: string): Promise<AuthState> {
++  return fetch('/api/login', {
+	 method: 'POST',
+-    body: { email, password }
++    body: JSON.stringify({ email, password }),
++    headers: { 'Content-Type': 'application/json' }
+   })
+ }
+@@
+-export default login
++export { login }
+
+*** Delete File: src/auth/old-utils.js
+-function deprecatedHelper() {
+-  console.log('This is deprecated')
+-}
+-
+-module.exports = { deprecatedHelper }
+*** End Patch`,
+	}),
+	{ partial: false },
+]
+
+export const DiffEditNewFormat: Story = {
+	decorators: [createStoryDecorator({ backgroundEditEnabled: true, clineMessages: createNewFormatMultiFileMessages() })],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows the new diff edit format with multiple file operations (Add, Update, Delete) displayed in an organized, expandable view.",
+			},
+		},
+	},
+}
+
+export const DiffEditNewFormatStreaming: Story = {
+	decorators: [
+		(Story) => {
+			const [messages, setMessages] = useState<ClineMessage[]>([
+				createMessage(5, "say", "task", "Add TypeScript types to the user module"),
+				createMessage(4.7, "say", "text", "I'll add TypeScript types to improve type safety."),
+			])
+			const mockState = useMemo(() => createMockState({ backgroundEditEnabled: true, clineMessages: messages }), [messages])
+
+			useEffect(() => {
+				// Simulate streaming: progressively add more content
+				const partialPatch = `*** Begin Patch
+*** Update File: src/user/profile.ts
+@@
+-interface UserProfile {
+-  name: string
++interface UserProfile {
++  id: string
++  name: string`
+
+				const morePatch =
+					partialPatch +
+					`
++  email: string
++  createdAt: Date`
+
+				const completePatch =
+					morePatch +
+					`
++}
+*** End Patch`
+
+				// Add initial partial message
+				const timer1 = setTimeout(() => {
+					setMessages((prev: ClineMessage[]) => [
+						...prev,
+						createSayToolMessage(
+							4.3,
+							{
+								tool: "editedExistingFile",
+								path: "src/user/profile.ts",
+								content: partialPatch,
+							},
+							{ partial: true },
+						),
+					])
+				}, 500)
+
+				// Add more content
+				const timer2 = setTimeout(() => {
+					setMessages((prev: ClineMessage[]) => {
+						const updated = [...prev]
+						updated[updated.length - 1] = createSayToolMessage(
+							4.3,
+							{
+								tool: "editedExistingFile",
+								path: "src/user/profile.ts",
+								content: morePatch,
+							},
+							{ partial: true },
+						)
+						return updated
+					})
+				}, 1500)
+
+				// Complete the patch
+				const timer3 = setTimeout(() => {
+					setMessages((prev: ClineMessage[]) => {
+						const updated = [...prev]
+						updated[updated.length - 1] = createSayToolMessage(
+							4.3,
+							{
+								tool: "editedExistingFile",
+								path: "src/user/profile.ts",
+								content: completePatch,
+							},
+							{ partial: false },
+						)
+						return updated
+					})
+				}, 2500)
+
+				return () => {
+					clearTimeout(timer1)
+					clearTimeout(timer2)
+					clearTimeout(timer3)
+				}
+			}, [])
+
+			return (
+				<ExtensionStateProviderMock value={mockState}>
+					<div className="w-full h-full flex justify-center items-center overflow-hidden">
+						<div className={SIDEBAR_CLASS}>
+							<Story />
+						</div>
+					</div>
+				</ExtensionStateProviderMock>
+			)
+		},
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows the new diff edit format while streaming (incomplete patch without End Patch marker).",
+			},
+		},
+	},
+}
+
+// Diff Edit Stories - Replace Diff Edit Format
+const createReplaceDiffFormatPatchMessages = () => [
+	createMessage(5, "say", "task", "Fix the validation logic in the form"),
+	createMessage(4.7, "say", "text", "I'll fix the validation logic using the updated pattern."),
+	createSayToolMessage(4.3, {
+		tool: "editedExistingFile",
+		path: "src/auth/types.ts",
+		content: `------- SEARCH
+function validateEmail(email) {
+  return email.includes('@')
+}
+=======
+function validateEmail(email: string): boolean {
+  const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/
+  return emailRegex.test(email)
+}
++++++++ REPLACE`,
+	}),
+]
+
+export const DiffEditReplaceDiffFormat: Story = {
+	decorators: [createStoryDecorator({ backgroundEditEnabled: true, clineMessages: createReplaceDiffFormatPatchMessages() })],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows the old SEARCH/REPLACE diff format (backward compatibility) with complete markers, automatically converted to the new format display.",
+			},
+		},
+	},
+}
+
+export const DiffEditReplaceDiffFormatStreaming: Story = {
+	decorators: [
+		(Story) => {
+			const [messages, setMessages] = useState<ClineMessage[]>([
+				createMessage(5, "say", "task", "Update error handling"),
+				createMessage(4.7, "say", "text", "I'll improve the error handling in the API client."),
+			])
+			const mockState = useMemo(() => createMockState({ backgroundEditEnabled: true, clineMessages: messages }), [messages])
+
+			useEffect(() => {
+				const completePatch = `------- SEARCH
+try {
+  const response = await fetch(url)
+  return response.json()
+} catch (error) {
+  console.error(error)
+}
+=======
+try {
+  const response = await fetch(url)
+  if (!response.ok) {
+	throw new Error(\`HTTP error! status: \${response.status}\`)
+  }
+  return response.json()
+} catch (error) {
+  console.error('API request failed:', error)
+  throw error
+}
++++++++ REPLACE`
+
+				const patchChunks = completePatch.split("\n")
+				let currentIndex = 0
+
+				const intervalId = setInterval(() => {
+					if (currentIndex >= patchChunks.length) {
+						clearInterval(intervalId)
+						return
+					}
+
+					setMessages((prev: ClineMessage[]) => {
+						const updated = [...prev]
+						updated[updated.length - 1] = createSayToolMessage(
+							4.3,
+							{
+								tool: "editedExistingFile",
+								path: "src/auth/types.ts",
+								content: patchChunks.slice(0, currentIndex + 1).join("\n"),
+							},
+							{ partial: currentIndex !== patchChunks.length - 1 },
+						)
+						return updated
+					})
+
+					currentIndex++
+				}, 500)
+
+				return () => clearInterval(intervalId)
+			}, [])
+
+			return (
+				<ExtensionStateProviderMock value={mockState}>
+					<div className="w-full h-full flex justify-center items-center overflow-hidden">
+						<div className={SIDEBAR_CLASS}>
+							<Story />
+						</div>
+					</div>
+				</ExtensionStateProviderMock>
+			)
+		},
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows the old SEARCH/REPLACE diff format while streaming (incomplete, missing REPLACE marker), demonstrating graceful handling of partial content.",
+			},
+		},
+	},
+}
+
+// Combined example showing both formats in one conversation
+const createMixedFormatMessages = () => [
+	createMessage(5, "say", "task", "Refactor the entire authentication system"),
+	createMessage(4.7, "say", "text", "I'll refactor the authentication system. Starting with the login function."),
+	createSayToolMessage(4.5, {
+		tool: "editedExistingFile",
+		path: "src/auth/types.ts",
+		content: `------- SEARCH
+function login(username, password) {
+  return authenticateUser(username, password)
+}
+=======
+async function login(username: string, password: string): Promise<AuthResult> {
+  return await authenticateUser(username, password)
+}
++++++++ REPLACE`,
+	}),
+	createMessage(4.3, "say", "text", "Great! Now let me add the type definitions and update the authentication module."),
+	createSayToolMessage(4.0, {
+		tool: "editedExistingFile",
+		path: "src/auth/types.ts",
+		content: `*** Begin Patch
+*** Add File: src/auth/types.ts
++export interface AuthResult {
++  success: boolean
++  token?: string
++  error?: string
++}
++
++export interface LoginCredentials {
++  username: string
++  password: string
++}
+
+*** Update File: src/auth/authenticate.ts
+@@
+-function authenticateUser(username, password) {
++async function authenticateUser(username: string, password: string): Promise<AuthResult> {
+   // Authentication logic
++  return { success: true, token: 'mock-token' }
+ }
+*** End Patch`,
+	}),
+]
+
+export const DiffEditMixedFormats: Story = {
+	decorators: [createStoryDecorator({ clineMessages: createMixedFormatMessages() })],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows a conversation using both search / replace and apply patch diff formats, demonstrating seamless backward compatibility and format detection.",
+			},
+		},
+	},
+}

@@ -314,6 +314,7 @@ describe("Remote Config Schema", () => {
 				version: "v1",
 				telemetryEnabled: true,
 				mcpMarketplaceEnabled: false,
+				blockPersonalRemoteMCPServers: true,
 				allowedMCPServers: [{ id: "https://github.com/mcp/filesystem" }, { id: "https://github.com/mcp/github" }],
 				yoloModeAllowed: true,
 				openTelemetryEnabled: true,
@@ -330,6 +331,7 @@ describe("Remote Config Schema", () => {
 				openTelemetryLogBatchSize: 512,
 				openTelemetryLogBatchTimeout: 5000,
 				openTelemetryLogMaxQueueSize: 2048,
+				openTelemetryOtlpHeaders: { test: "string" },
 				globalRules: [
 					{
 						alwaysEnabled: true,
@@ -469,6 +471,7 @@ describe("Remote Config Schema", () => {
 			expect(result.openTelemetryLogBatchSize).to.equal(512)
 			expect(result.openTelemetryLogBatchTimeout).to.equal(5000)
 			expect(result.openTelemetryLogMaxQueueSize).to.equal(2048)
+			expect(result.openTelemetryOtlpHeaders).to.deep.equal({ test: "string" })
 
 			// Verify Global Instructions settings
 			expect(result.globalRules).to.have.lengthOf(2)

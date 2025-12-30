@@ -20,10 +20,11 @@ const AppContent = () => {
 		showMcp,
 		mcpTab,
 		showSettings,
+		settingsTargetSection,
 		showHistory,
 		showAccount,
 		showAnnouncement,
-		showOnboardingFlow,
+		onboardingModels,
 		setShowAnnouncement,
 		setShouldShowAnnouncement,
 		closeMcpView,
@@ -56,12 +57,12 @@ const AppContent = () => {
 	}
 
 	if (showWelcome) {
-		return showOnboardingFlow ? <OnboardingView /> : <WelcomeView />
+		return onboardingModels ? <OnboardingView onboardingModels={onboardingModels} /> : <WelcomeView />
 	}
 
 	return (
 		<div className="flex h-screen w-full flex-col">
-			{showSettings && <SettingsView onDone={hideSettings} />}
+			{showSettings && <SettingsView onDone={hideSettings} targetSection={settingsTargetSection} />}
 			{showHistory && <HistoryView onDone={hideHistory} />}
 			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
 			{showAccount && (

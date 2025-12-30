@@ -1,0 +1,1025 @@
+---
+title: "Remote MCP Servers"
+sidebarTitle: "Remote MCP Servers"
+description: "Deploy and manage custom MCP servers across your enterprise infrastructure with centralized configuration"
+---
+
+Remote MCP servers enable you to deploy custom integrations and connect to internal systems while maintaining enterprise security, governance, and scalability requirements. Unlike marketplace servers, remote servers give you complete control over the implementation and deployment.
+
+## Enterprise Remote Server Benefits
+
+<CardGroup cols={2}>
+  <Card title="Custom Integrations" icon="code">
+    Build integrations for proprietary systems, internal APIs, and custom workflows.
+  </Card>
+  
+  <Card title="Infrastructure Control" icon="server">
+    Deploy on your own infrastructure with full control over networking and security.
+  </Card>
+  
+  <Card title="Enterprise Security" icon="lock">
+    Implement custom authentication, encryption, and audit logging specific to your requirements.
+  </Card>
+  
+  <Card title="Scalable Architecture" icon="chart-line">
+    Auto-scaling, load balancing, and high availability across multiple regions.
+  </Card>
+</CardGroup>
+
+## Architecture Overview
+
+```mermaid
+graph TB
+    A[Cline Enterprise] --> B[MCP Gateway]
+    B --> C[Load Balancer]
+    C --> D[Remote MCP Server 1]
+    C --> E[Remote MCP Server 2] 
+    C --> F[Remote MCP Server N]
+    
+    D --> G[Internal API]
+    E --> H[Legacy System]
+    F --> I[Custom Database]
+    
+    J[Kubernetes Cluster] --> C
+    K[Docker Swarm] --> C
+    L[VM Infrastructure] --> C
+    
+    M[Monitoring] --> C
+    N[Logging] --> C
+    O[Security] --> C
+```
+
+## Deployment Options
+
+### Kubernetes Deployment
+
+Deploy remote MCP servers using Kubernetes manifests:
+
+```yaml
+# remote-mcp-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: custom-api-mcp-server
+  namespace: cline-enterprise
+  labels:
+    app: custom-api-mcp
+    version: v1.2.0
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: custom-api-mcp
+  template:
+    metadata:
+      labels:
+        app: custom-api-mcp
+        version: v1.2.0
+    spec:
+      serviceAccountName: mcp-server-sa
+      containers:
+      - name: mcp-server
+        image: company/custom-api-mcp:v1.2.0
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 9090
+          name: metrics
+          
+        env:
+        - name: MCP_SERVER_PORT
+          value: "8080"
+        - name: METRICS_PORT
+          value: "9090"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: mcp-secrets
+              key: database-url
+        - name: API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: mcp-secrets
+              key: api-token
+              
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+            
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1001
+          capabilities:
+            drop:
+            - ALL
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: custom-api-mcp-service
+  namespace: cline-enterprise
+spec:
+  selector:
+    app: custom-api-mcp
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+  type: ClusterIP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: custom-api-mcp-ingress
+  namespace: cline-enterprise
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+  - hosts:
+    - mcp-custom-api.company.com
+    secretName: mcp-custom-api-tls
+  rules:
+  - host: mcp-custom-api.company.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: custom-api-mcp-service
+            port:
+              number: 80
+```
+
+### Docker Compose Deployment
+
+For smaller deployments or development environments:
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+
+services:
+  custom-api-mcp:
+    image: company/custom-api-mcp:v1.2.0
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    environment:
+      - MCP_SERVER_PORT=8080
+      - METRICS_PORT=9090
+      - LOG_LEVEL=INFO
+      - DATABASE_URL=${DATABASE_URL}
+      - API_TOKEN=${API_TOKEN}
+    volumes:
+      - ./config:/app/config:ro
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+
+  nginx-load-balancer:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/ssl/certs:ro
+    depends_on:
+      - custom-api-mcp
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--web.external-url=http://localhost:9091'
+    restart: unless-stopped
+```
+
+### Virtual Machine Deployment
+
+Deploy using infrastructure automation tools:
+
+<Tabs>
+<Tab title="Terraform">
+```hcl
+# main.tf
+resource "aws_instance" "mcp_server" {
+  count                  = var.instance_count
+  ami                    = var.ami_id
+  instance_type         = var.instance_type
+  key_name              = var.key_name
+  vpc_security_group_ids = [aws_security_group.mcp_server.id]
+  subnet_id             = var.subnet_ids[count.index % length(var.subnet_ids)]
+  
+  user_data = templatefile("${path.module}/user_data.sh", {
+    mcp_image    = var.mcp_server_image
+    database_url = var.database_url
+    api_token    = var.api_token
+  })
+  
+  tags = {
+    Name = "mcp-server-${count.index + 1}"
+    Environment = var.environment
+    Project = "cline-enterprise"
+  }
+}
+
+resource "aws_security_group" "mcp_server" {
+  name_prefix = "mcp-server-"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = var.allowed_cidrs
+  }
+  
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = var.admin_cidrs
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_lb" "mcp_server" {
+  name               = "mcp-server-alb"
+  internal           = false
+  load_balancer_type = "application" 
+  security_groups    = [aws_security_group.mcp_alb.id]
+  subnets           = var.subnet_ids
+
+  enable_deletion_protection = var.environment == "production"
+}
+```
+</Tab>
+
+<Tab title="Ansible">
+```yaml
+# deploy-mcp-server.yml
+---
+- name: Deploy MCP Server
+  hosts: mcp_servers
+  become: yes
+  vars:
+    mcp_image: "company/custom-api-mcp:v1.2.0"
+    mcp_port: 8080
+    metrics_port: 9090
+    
+  tasks:
+    - name: Install Docker
+      yum:
+        name: docker
+        state: present
+        
+    - name: Start Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+        
+    - name: Create MCP user
+      user:
+        name: mcp
+        shell: /bin/false
+        home: /opt/mcp
+        system: yes
+        
+    - name: Create MCP directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: mcp
+        group: mcp
+        mode: '0755'
+      loop:
+        - /opt/mcp
+        - /opt/mcp/config
+        - /opt/mcp/logs
+        - /opt/mcp/data
+        
+    - name: Copy MCP configuration
+      template:
+        src: mcp-config.yml.j2
+        dest: /opt/mcp/config/mcp-config.yml
+        owner: mcp
+        group: mcp
+        mode: '0600'
+      notify: restart mcp
+      
+    - name: Pull MCP Docker image
+      docker_image:
+        name: "{{ mcp_image }}"
+        source: pull
+        
+    - name: Create MCP container
+      docker_container:
+        name: mcp-server
+        image: "{{ mcp_image }}"
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "{{ mcp_port }}:8080"
+          - "{{ metrics_port }}:9090"
+        volumes:
+          - "/opt/mcp/config:/app/config:ro"
+          - "/opt/mcp/logs:/app/logs"
+          - "/opt/mcp/data:/app/data"
+        env:
+          MCP_CONFIG_PATH: "/app/config/mcp-config.yml"
+          LOG_LEVEL: "{{ log_level | default('INFO') }}"
+        healthcheck:
+          test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+          interval: 30s
+          timeout: 10s
+          retries: 3
+          
+  handlers:
+    - name: restart mcp
+      docker_container:
+        name: mcp-server
+        restart: yes
+```
+</Tab>
+</Tabs>
+
+## Server Configuration
+
+### Basic Configuration
+
+Configure your custom MCP server:
+
+```yaml
+# mcp-server-config.yaml
+server:
+  name: "custom-api-mcp-server"
+  version: "1.2.0"  
+  description: "Custom API integration server"
+  port: 8080
+  
+  # Authentication configuration
+  auth:
+    method: "jwt"
+    jwt_secret: "${JWT_SECRET}"
+    token_expiry: "24h"
+    
+    # Optional: mTLS authentication
+    mtls:
+      enabled: false
+      cert_path: "/certs/server.crt"
+      key_path: "/certs/server.key"
+      ca_path: "/certs/ca.crt"
+      
+  # Rate limiting
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 1000
+    burst_size: 100
+    
+  # CORS configuration
+  cors:
+    enabled: true
+    allowed_origins: ["https://*.company.com"]
+    allowed_methods: ["GET", "POST", "PUT", "DELETE"]
+    allowed_headers: ["Authorization", "Content-Type"]
+
+# Tool configurations
+tools:
+  - name: "query_database" 
+    description: "Query the company database"
+    timeout: "30s"
+    parameters:
+      - name: "query"
+        type: "string"
+        required: true
+        description: "SQL query to execute"
+        validation: "^SELECT.*"  # Only allow SELECT queries
+        
+  - name: "create_ticket"
+    description: "Create a support ticket"
+    timeout: "10s"
+    parameters:
+      - name: "title"
+        type: "string" 
+        required: true
+      - name: "description"
+        type: "string"
+        required: true
+      - name: "priority"
+        type: "string"
+        enum: ["low", "medium", "high", "critical"]
+        default: "medium"
+
+# Resource configurations
+resources:
+  - name: "user_profiles"
+    description: "User profile data"
+    type: "collection"
+    endpoint: "/api/users"
+    
+  - name: "project_data"
+    description: "Project information"
+    type: "collection"
+    endpoint: "/api/projects"
+
+# External service connections
+services:
+  database:
+    type: "postgresql"
+    host: "${DB_HOST}"
+    port: 5432
+    database: "${DB_NAME}"
+    username: "${DB_USERNAME}"
+    password: "${DB_PASSWORD}"
+    ssl_mode: "require"
+    max_connections: 10
+    
+  api:
+    type: "rest"
+    base_url: "https://api.internal.company.com"
+    timeout: "30s"
+    authentication:
+      type: "bearer_token"
+      token: "${API_TOKEN}"
+      
+# Monitoring and observability
+monitoring:
+  metrics:
+    enabled: true
+    port: 9090
+    path: "/metrics"
+    
+  health_checks:
+    enabled: true
+    endpoint: "/health"
+    checks:
+      - name: "database"
+        type: "database_connection"
+      - name: "api"
+        type: "http_request"
+        url: "https://api.internal.company.com/health"
+        
+  logging:
+    level: "INFO"
+    format: "json"
+    destinations: ["stdout", "file"]
+    file_path: "/app/logs/mcp-server.log"
+    max_file_size: "100MB"
+    max_files: 10
+    
+# Security settings
+security:
+  audit_logging: true
+  request_validation: true  
+  response_sanitization: true
+  
+  # Input validation
+  validation:
+    max_request_size: "10MB"
+    allowed_content_types: ["application/json"]
+    sanitize_html: true
+    
+  # Network security
+  network:
+    bind_address: "0.0.0.0"
+    trusted_proxies: ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+```
+
+### Advanced Configuration
+
+Enterprise-grade configuration with high availability:
+
+```yaml
+# enterprise-mcp-config.yaml  
+server:
+  cluster:
+    enabled: true
+    node_id: "${NODE_ID}"
+    discovery:
+      method: "kubernetes"
+      service_name: "mcp-server-cluster"
+      
+  high_availability:
+    enabled: true
+    leader_election: true
+    health_check_interval: "10s"
+    failover_timeout: "30s"
+    
+  scaling:
+    auto_scaling: true
+    min_replicas: 2
+    max_replicas: 10
+    target_cpu_utilization: 70
+    target_memory_utilization: 80
+    
+  performance:
+    connection_pooling: true
+    max_connections: 1000
+    keep_alive_timeout: "60s"
+    request_timeout: "30s"
+    
+    caching:
+      enabled: true
+      type: "redis"
+      redis_url: "${REDIS_URL}"
+      ttl: "300s"
+      
+# Enterprise authentication
+authentication:
+  providers:
+    - name: "enterprise_sso"
+      type: "oidc"
+      issuer: "https://sso.company.com"
+      client_id: "${OIDC_CLIENT_ID}"
+      client_secret: "${OIDC_CLIENT_SECRET}"
+      
+    - name: "service_accounts"
+      type: "jwt"
+      signing_key: "${SERVICE_ACCOUNT_KEY}"
+      
+  authorization:
+    rbac:
+      enabled: true
+      policy_file: "/app/config/rbac-policy.json"
+      
+# Enterprise monitoring
+monitoring:
+  observability:
+    tracing:
+      enabled: true
+      exporter: "jaeger"
+      jaeger_endpoint: "${JAEGER_ENDPOINT}"
+      
+    metrics:
+      exporters: ["prometheus", "datadog"]
+      custom_metrics: true
+      
+  alerting:
+    enabled: true
+    rules:
+      - name: "high_error_rate"
+        condition: "error_rate > 0.05"
+        severity: "warning"
+        notification: ["slack", "email"]
+        
+      - name: "service_down"
+        condition: "health_check_failures > 3"
+        severity: "critical"
+        notification: ["pagerduty", "slack"]
+        
+# Enterprise compliance
+compliance:
+  data_governance:
+    classification: "internal"
+    retention_policy: "365d"
+    encryption:
+      at_rest: true
+      in_transit: true
+      key_rotation: "90d"
+      
+  audit:
+    enabled: true
+    log_all_requests: true
+    log_responses: false  # Don't log sensitive response data
+    retention: "7y"
+    destinations: ["elasticsearch", "s3"]
+    
+  privacy:
+    pii_detection: true
+    data_masking: true
+    gdpr_compliance: true
+```
+
+## Custom Server Development
+
+### Server Implementation
+
+Create a custom MCP server using the enterprise SDK:
+
+```typescript
+// src/custom-mcp-server.ts
+import { 
+  MCPServer, 
+  Tool, 
+  Resource, 
+  ServerConfig 
+} from '@cline/mcp-enterprise-sdk';
+import { DatabaseService } from './services/database';
+import { APIService } from './services/api';
+import { AuditLogger } from './utils/audit-logger';
+
+class CustomAPIMCPServer extends MCPServer {
+  private database: DatabaseService;
+  private apiService: APIService;
+  private auditLogger: AuditLogger;
+  
+  constructor(config: ServerConfig) {
+    super({
+      name: 'custom-api-mcp-server',
+      version: '1.2.0',
+      description: 'Custom API integration server for enterprise'
+    });
+    
+    this.database = new DatabaseService(config.database);
+    this.apiService = new APIService(config.api);
+    this.auditLogger = new AuditLogger(config.audit);
+    
+    this.setupTools();
+    this.setupResources();
+  }
+  
+  private setupTools(): void {
+    this.addTool(new DatabaseQueryTool(this.database, this.auditLogger));
+    this.addTool(new CreateTicketTool(this.apiService, this.auditLogger));
+    this.addTool(new UserLookupTool(this.database, this.auditLogger));
+  }
+  
+  private setupResources(): void {
+    this.addResource(new UserProfilesResource(this.database));
+    this.addResource(new ProjectDataResource(this.apiService));
+  }
+  
+  async start(): Promise<void> {
+    await this.database.connect();
+    await this.apiService.initialize();
+    await super.start();
+    
+    this.auditLogger.info('Custom MCP Server started successfully');
+  }
+  
+  async stop(): Promise<void> {
+    await this.database.disconnect();
+    await super.stop();
+    
+    this.auditLogger.info('Custom MCP Server stopped');
+  }
+}
+
+// Tool implementations
+class DatabaseQueryTool implements Tool {
+  name = 'query_database';
+  description = 'Execute SQL queries against the company database';
+  
+  constructor(
+    private database: DatabaseService,
+    private auditLogger: AuditLogger
+  ) {}
+  
+  async execute(params: any, context: any): Promise<any> {
+    // Validate user permissions
+    if (!context.user.hasPermission('database:query')) {
+      throw new Error('Insufficient permissions for database queries');
+    }
+    
+    // Validate SQL query
+    const { query } = params;
+    if (!this.isValidQuery(query)) {
+      throw new Error('Invalid or unsafe SQL query');
+    }
+    
+    // Execute query
+    const startTime = Date.now();
+    const result = await this.database.query(query);
+    const duration = Date.now() - startTime;
+    
+    // Audit log
+    await this.auditLogger.logToolExecution({
+      tool: this.name,
+      user: context.user.id,
+      parameters: { query: this.sanitizeQuery(query) },
+      result_count: Array.isArray(result) ? result.length : 1,
+      duration_ms: duration,
+      success: true
+    });
+    
+    return {
+      data: result,
+      metadata: {
+        row_count: Array.isArray(result) ? result.length : 1,
+        execution_time_ms: duration
+      }
+    };
+  }
+  
+  private isValidQuery(query: string): boolean {
+    // Implement SQL validation logic
+    const allowedOps = ['SELECT', 'SHOW', 'DESCRIBE', 'EXPLAIN'];
+    const upperQuery = query.trim().toUpperCase();
+    return allowedOps.some(op => upperQuery.startsWith(op));
+  }
+  
+  private sanitizeQuery(query: string): string {
+    // Remove potentially sensitive data from query for logging
+    return query.replace(/password\s*=\s*'[^']*'/gi, "password='****'");
+  }
+}
+
+class CreateTicketTool implements Tool {
+  name = 'create_ticket';
+  description = 'Create a support ticket in the ticketing system';
+  
+  constructor(
+    private apiService: APIService,
+    private auditLogger: AuditLogger
+  ) {}
+  
+  async execute(params: any, context: any): Promise<any> {
+    const { title, description, priority = 'medium' } = params;
+    
+    // Create ticket via API
+    const ticket = await this.apiService.createTicket({
+      title,
+      description,
+      priority,
+      reporter: context.user.email,
+      source: 'cline-mcp'
+    });
+    
+    // Audit log
+    await this.auditLogger.logToolExecution({
+      tool: this.name,
+      user: context.user.id,
+      parameters: { title, priority },
+      result: { ticket_id: ticket.id },
+      success: true
+    });
+    
+    return {
+      ticket_id: ticket.id,
+      ticket_url: `https://support.company.com/tickets/${ticket.id}`,
+      status: ticket.status
+    };
+  }
+}
+
+// Export server factory
+export function createCustomMCPServer(config: ServerConfig): CustomAPIMCPServer {
+  return new CustomAPIMCPServer(config);
+}
+```
+
+### Dockerfile
+
+Create a containerized deployment:
+
+```dockerfile
+# Dockerfile
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY tsconfig.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy source code
+COPY src/ ./src/
+
+# Build TypeScript
+RUN npm run build
+
+FROM node:18-alpine AS runtime
+
+# Create non-root user
+RUN addgroup -g 1001 mcp && \
+    adduser -S -u 1001 -G mcp mcp
+
+WORKDIR /app
+
+# Copy built application
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package*.json ./
+
+# Create required directories
+RUN mkdir -p /app/logs /app/data && \
+    chown -R mcp:mcp /app
+
+# Switch to non-root user
+USER mcp
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8080/health || exit 1
+
+# Expose ports
+EXPOSE 8080 9090
+
+# Start server
+CMD ["node", "dist/index.js"]
+```
+
+## Monitoring & Operations
+
+### Health Checks
+
+Implement comprehensive health checks:
+
+```typescript
+// src/health/health-checker.ts
+export class HealthChecker {
+  private checks: Map<string, HealthCheck> = new Map();
+  
+  addCheck(name: string, check: HealthCheck): void {
+    this.checks.set(name, check);
+  }
+  
+  async runAllChecks(): Promise<HealthReport> {
+    const results = new Map<string, HealthCheckResult>();
+    let overallStatus = 'healthy';
+    
+    for (const [name, check] of this.checks) {
+      try {
+        const result = await check.execute();
+        results.set(name, result);
+        
+        if (result.status !== 'healthy') {
+          overallStatus = result.status === 'critical' ? 'critical' : 'degraded';
+        }
+      } catch (error) {
+        results.set(name, {
+          status: 'critical',
+          message: error.message,
+          timestamp: new Date().toISOString()
+        });
+        overallStatus = 'critical';
+      }
+    }
+    
+    return {
+      status: overallStatus,
+      checks: Object.fromEntries(results),
+      timestamp: new Date().toISOString()
+    };
+  }
+}
+
+// Database health check
+export class DatabaseHealthCheck implements HealthCheck {
+  constructor(private database: DatabaseService) {}
+  
+  async execute(): Promise<HealthCheckResult> {
+    try {
+      await this.database.query('SELECT 1');
+      return {
+        status: 'healthy',
+        message: 'Database connection successful',
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      return {
+        status: 'critical',
+        message: `Database connection failed: ${error.message}`,
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+}
+```
+
+### Metrics Collection
+
+Export Prometheus metrics:
+
+```typescript
+// src/metrics/metrics-collector.ts
+import { register, Counter, Histogram, Gauge } from 'prom-client';
+
+export class MetricsCollector {
+  private requestCounter = new Counter({
+    name: 'mcp_requests_total',
+    help: 'Total number of MCP requests',
+    labelNames: ['method', 'tool', 'status']
+  });
+  
+  private requestDuration = new Histogram({
+    name: 'mcp_request_duration_seconds',
+    help: 'MCP request duration in seconds',
+    labelNames: ['method', 'tool'],
+    buckets: [0.1, 0.3, 0.5, 0.7, 1, 3, 5, 7, 10]
+  });
+  
+  private activeConnections = new Gauge({
+    name: 'mcp_active_connections',
+    help: 'Number of active MCP connections'
+  });
+  
+  recordRequest(method: string, tool: string, status: string, duration: number): void {
+    this.requestCounter.inc({ method, tool, status });
+    this.requestDuration.observe({ method, tool }, duration);
+  }
+  
+  setActiveConnections(count: number): void {
+    this.activeConnections.set(count);
+  }
+  
+  getMetrics(): string {
+    return register.metrics();
+  }
+}
+```
+
+## Best Practices
+
+### Security
+1. **Authentication**: Implement robust authentication (JWT, mTLS, OIDC)
+2. **Authorization**: Use RBAC for fine-grained access control
+3. **Input Validation**: Validate and sanitize all inputs
+4. **Output Sanitization**: Sanitize responses to prevent data leakage
+5. **Network Security**: Use TLS, firewalls, and network policies
+
+### Performance
+1. **Connection Pooling**: Reuse database and API connections
+2. **Caching**: Implement intelligent caching strategies
+3. **Async Operations**: Use non-blocking I/O for better concurrency
+4. **Resource Limits**: Set appropriate CPU and memory limits
+5. **Load Testing**: Test under realistic load conditions
+
+### Reliability
+1. **Health Checks**: Implement comprehensive health monitoring
+2. **Circuit Breakers**: Fail fast when dependencies are unavailable
+3. **Retry Logic**: Implement exponential backoff for transient failures
+4. **Graceful Shutdown**: Handle shutdown signals properly
+5. **Data Consistency**: Ensure data integrity across operations
+
+### Observability
+1. **Structured Logging**: Use JSON logging for better parsing
+2. **Distributed Tracing**: Implement tracing for request flow
+3. **Metrics**: Export comprehensive metrics to monitoring systems
+4. **Alerting**: Set up proactive alerts for critical issues
+5. **Dashboards**: Create operational dashboards for monitoring
+
+## Production Checklist
+
+Before deploying remote MCP servers to production:
+
+- [ ] Security review and penetration testing completed
+- [ ] Authentication and authorization properly configured
+- [ ] Input validation and output sanitization implemented
+- [ ] Comprehensive monitoring and alerting set up
+- [ ] Load testing completed under realistic conditions
+- [ ] Disaster recovery and backup procedures documented
+- [ ] Health checks and readiness probes configured
+- [ ] Resource limits and scaling policies defined
+- [ ] Audit logging and compliance requirements met
+- [ ] Documentation updated and team training completed
+
+Remote MCP servers provide the flexibility to integrate with any system while maintaining enterprise-grade security and reliability. Start with the deployment option that best fits your infrastructure and scale as needed.

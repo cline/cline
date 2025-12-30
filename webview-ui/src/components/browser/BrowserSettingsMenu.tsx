@@ -1,8 +1,8 @@
-import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { BrowserServiceClient, UiServiceClient } from "../../services/grpc-client"
+import { BrowserServiceClient } from "../../services/grpc-client"
 
 interface ConnectionInfo {
 	isConnected: boolean
@@ -63,17 +63,7 @@ export const BrowserSettingsMenu = () => {
 	}, [showInfoPopover])
 
 	const openBrowserSettings = () => {
-		// First open the settings panel using direct navigation
-		navigateToSettings()
-
-		// After a short delay, send a message to scroll to browser settings
-		setTimeout(async () => {
-			try {
-				await UiServiceClient.scrollToSettings(StringRequest.create({ value: "browser" }))
-			} catch (error) {
-				console.error("Error scrolling to browser settings:", error)
-			}
-		}, 300) // Give the settings panel time to open
+		navigateToSettings("browser")
 	}
 
 	const toggleInfoPopover = () => {

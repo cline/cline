@@ -1,6 +1,7 @@
 import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { FunctionDeclaration as GoogleTool, Type as GoogleToolParamType } from "@google/genai"
 import { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { FunctionTool as OpenAIResponseFunctionTool, Tool as OpenAIResponseTool } from "openai/resources/responses/responses"
 import { ModelFamily } from "@/shared/prompts"
 import type { ClineDefaultTool } from "@/shared/tools"
 import type { SystemPromptContext } from "./types"
@@ -18,7 +19,7 @@ export interface ClineToolSpec {
 interface ClineToolSpecParameter {
 	name: string
 	required: boolean
-	instruction: string
+	instruction: string | ((context: SystemPromptContext) => string)
 	usage?: string
 	dependencies?: ClineDefaultTool[]
 	description?: string
@@ -76,7 +77,7 @@ export function toolSpecFunctionDefinition(tool: ClineToolSpec, context: SystemP
 			// Build parameter schema
 			const paramSchema: any = {
 				type: paramType,
-				description: replacer(param.instruction, context),
+				description: replacer(resolveInstruction(param.instruction, context), context),
 			}
 
 			// Add items for array types
@@ -169,7 +170,7 @@ export function toolSpecInputSchema(tool: ClineToolSpec, context: SystemPromptCo
 			// Build parameter schema
 			const paramSchema: any = {
 				type: paramType,
-				description: replacer(param.instruction, context),
+				description: replacer(resolveInstruction(param.instruction, context), context),
 			}
 
 			// Add items for array types
@@ -277,7 +278,7 @@ export function toolSpecFunctionDeclarations(tool: ClineToolSpec, context: Syste
 					}
 					paramSchema.properties[key] = {
 						type: GOOGLE_TOOL_PARAM_MAP[prop.type || "string"] || GoogleToolParamType.OBJECT,
-						description: replacer(param.instruction, context),
+						description: replacer(resolveInstruction(param.instruction, context), context),
 					}
 
 					// Handle enum values
@@ -308,55 +309,103 @@ export function toolSpecFunctionDeclarations(tool: ClineToolSpec, context: Syste
  * Converts an OpenAI ChatCompletionTool into an Anthropic Tool definition
  */
 export function openAIToolToAnthropic(openAITool: OpenAITool): AnthropicTool {
-	const func = openAITool.function
+	if (openAITool.type === "function") {
+		const func = openAITool.function
+		return {
+			name: func.name,
+			description: func.description || "",
+			input_schema: {
+				type: "object",
+				properties: func.parameters?.properties || {},
+				required: func.parameters?.required || [],
+			},
+		}
+	}
 
 	return {
-		name: func.name,
-		description: func.description || "",
+		name: openAITool.custom.name,
+		description: openAITool.custom.description || "",
 		input_schema: {
 			type: "object",
-			properties: func.parameters?.properties || {},
-			required: func.parameters?.required || [],
+			required: openAITool.custom.format?.type === "text" ? ["text"] : [],
+			properties:
+				openAITool.custom.format?.type === "text" ? { text: { type: "string" } } : { grammar: { type: "object" } },
 		},
 	}
 }
 
-type OpenAIResponseTool = {
-	type: "function"
-	function: {
-		name: string
-		description: string
-		strict: boolean
-		parameters: {
-			type: "object"
-			properties: Record<string, any>
-			required: string[]
-			additionalProperties?: boolean
-		}
+/**
+ * Converts OpenAI tools to Response API format.
+ * Filters for function-type tools and applies Response API defaults.
+ */
+export function toOpenAIResponseTools(openAITools: OpenAITool[]): OpenAIResponseTool[] {
+	if (!openAITools) {
+		return []
 	}
+
+	return openAITools
+		.filter((tool): tool is OpenAITool & { type: "function" } => tool.type === "function")
+		.map((tool) => ({
+			type: "function" as const,
+			name: tool.function.name,
+			description: tool.function.description,
+			parameters: (tool.function.parameters as { [key: string]: unknown } | null) ?? null,
+			strict: tool.function.strict ?? true,
+		}))
 }
 
 /**
  * Converts an OpenAI ChatCompletionTool into Response API format.
  */
 export function toOpenAIResponsesAPITool(openAITool: OpenAITool): OpenAIResponseTool {
-	return {
-		type: "function",
-		function: {
-			name: openAITool.function.name,
-			description: openAITool.function.description || "",
-			strict: openAITool.function.strict || false,
+	if (openAITool.type === "function") {
+		const fn = openAITool.function
+		return {
+			type: "function",
+			name: fn.name,
+			description: fn.description || "",
+			strict: fn.strict || false,
 			parameters: {
 				type: "object",
-				properties: openAITool.function.parameters?.properties || {},
-				required: openAITool.function.parameters?.required ? (openAITool.function.parameters?.required as string[]) : [],
+				properties: fn.parameters?.properties || {},
+				required: (fn.parameters?.required as string[]) || [],
 			},
+		} satisfies OpenAIResponseFunctionTool
+	}
+
+	// Handle custom tool type
+	const custom = openAITool.custom
+	const isTextFormat = custom.format?.type === "text"
+
+	return {
+		type: "function",
+		name: custom.name,
+		description: custom.description || "",
+		strict: false,
+		parameters: {
+			type: "object",
+			properties: isTextFormat ? { text: { type: "string" } } : { grammar: { type: "object" } },
+			required: ["text"],
 		},
 	} satisfies OpenAIResponseTool
 }
 
-function replacer(description: string, context: SystemPromptContext) {
-	return description
-		.replace("{{BROWSER_VIEWPORT_WIDTH}}", `${context.browserSettings?.viewport?.width || 900}`)
-		.replace("{{BROWSER_VIEWPORT_HEIGHT}}", `${context.browserSettings?.viewport?.height || 600}`)
+/**
+ * Replaces template placeholders in description with viewport dimensions.
+ */
+function replacer(description: string, context: SystemPromptContext): string {
+	const width = context.browserSettings?.viewport?.width || 900
+	const height = context.browserSettings?.viewport?.height || 600
+
+	return description.replace("{{BROWSER_VIEWPORT_WIDTH}}", String(width)).replace("{{BROWSER_VIEWPORT_HEIGHT}}", String(height))
+}
+
+/**
+ * Resolves an instruction that may be a string or a function.
+ */
+export function resolveInstruction(
+	instruction: string | ((context: SystemPromptContext) => string),
+	context: SystemPromptContext,
+): string {
+	return typeof instruction === "function" ? instruction(context) : instruction
 }
