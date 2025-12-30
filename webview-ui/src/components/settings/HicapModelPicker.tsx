@@ -33,7 +33,7 @@ const HicapModelPicker: React.FC<HicapModelPickerProps> = ({ isPopup, currentMod
 	const { apiConfiguration, favoritedModelIds, hicapModels, refreshHicapModels } = useExtensionState()
 
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
-	const [searchTerm, setSearchTerm] = useState(modeFields.hicapModelId || "gpt-5")
+	const [searchTerm, setSearchTerm] = useState(modeFields.hicapModelId || "")
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const dropdownRef = useRef<HTMLDivElement>(null)
@@ -60,7 +60,7 @@ const HicapModelPicker: React.FC<HicapModelPickerProps> = ({ isPopup, currentMod
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {
-		const currentModelId = modeFields.hicapModelId || "gpt-5"
+		const currentModelId = modeFields.hicapModelId || ""
 		setSearchTerm(currentModelId)
 	}, [modeFields.hicapModelId])
 
