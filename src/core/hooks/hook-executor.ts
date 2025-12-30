@@ -116,8 +116,27 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 		}
 
 		// Create streaming callback
-		const streamCallback = async (line: string) => {
-			await say("hook_output_stream", line)
+		const streamCallback = async (
+			line: string,
+			stream: "stdout" | "stderr",
+			meta?: { source: "global" | "workspace"; scriptPath: string },
+		) => {
+			// Preserve script identity for multi-hook (global + workspace) scenarios.
+			// Without this, concurrent hooks interleave output and it's hard to tell which
+			// script produced which line (and can look like only one hook is printing).
+			//
+			// NOTE: We keep backward compatibility by encoding metadata into the string.
+			// The CLI prints this as-is in verbose mode.
+			const prefixParts: string[] = []
+			if (meta?.source) prefixParts.push(meta.source)
+			prefixParts.push(stream)
+			// Use a shortened path for readability; full path is still available in hook_status.
+			if (meta?.scriptPath) {
+				const parts = meta.scriptPath.split(/[/\\]/).filter(Boolean)
+				prefixParts.push(parts.slice(-3).join("/"))
+			}
+			const prefix = prefixParts.length ? `[${prefixParts.join(" ")}] ` : ""
+			await say("hook_output_stream", prefix + line)
 		}
 
 		// Create and execute hook

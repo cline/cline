@@ -224,7 +224,14 @@ class NoOpRunner<Name extends HookName> extends HookRunner<Name> {
 /**
  * Callback type for streaming hook output
  */
-export type HookStreamCallback = (line: string, stream: "stdout" | "stderr") => void
+export type HookStreamCallback = (
+	line: string,
+	stream: "stdout" | "stderr",
+	meta?: {
+		source: "global" | "workspace"
+		scriptPath: string
+	},
+) => void
 
 /**
  * Executes a hook script as a child process with real-time output streaming.
@@ -300,7 +307,12 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 		if (this.streamCallback) {
 			const callback = this.streamCallback
 			hookProcess.on("line", (line: string, stream: "stdout" | "stderr") => {
-				callback(line, stream)
+				// NOTE: HookProcess emits a synthetic empty line (""), used as a "start of output" marker.
+				// Preserve it for now so downstream can keep existing behavior.
+				callback(line, stream, {
+					source: this.source,
+					scriptPath: this.scriptPath,
+				})
 			})
 		}
 

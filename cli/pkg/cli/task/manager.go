@@ -1055,6 +1055,17 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
+		case msg.Say == string(types.SayTypeHookOutput):
+			// Hook stdout/stderr streaming arrives as hook_output_stream messages.
+			// These are intentionally suppressed unless verbose (see SayHandler.handleHookOutputStream),
+			// but we still need to route them through the normal handler pipeline in streaming/follow
+			// mode so verbose users actually see `HOOK> ...` lines.
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				m.displayMessage(msg, false, false, i)
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
+			}
+
 		case msg.Say == string(types.SayTypeAPIReqStarted):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			apiInfo := types.APIRequestInfo{Cost: -1}
