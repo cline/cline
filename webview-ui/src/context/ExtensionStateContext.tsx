@@ -274,6 +274,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		[groqDefaultModelId]: groqModels[groqDefaultModelId],
 	})
 	const [basetenModelsState, setBasetenModels] = useState<Record<string, ModelInfo>>({
+		...basetenModels,
 		[basetenDefaultModelId]: basetenModels[basetenDefaultModelId],
 	})
 	const [huggingFaceModels, setHuggingFaceModels] = useState<Record<string, ModelInfo>>({})
@@ -694,6 +695,27 @@ export const ExtensionStateContextProvider: React.FC<{
 			})
 			.catch((error: Error) => console.error("Failed to refresh LiteLLM models:", error))
 	}, [])
+
+	const refreshBasetenModels = useCallback(() => {
+		ModelsServiceClient.refreshBasetenModelsRpc(EmptyRequest.create({}))
+			.then((response) => {
+				setBasetenModels({
+					[basetenDefaultModelId]: basetenModels[basetenDefaultModelId],
+					...fromProtobufModels(response.models),
+				})
+			})
+			.catch((err) => console.error("Failed to refresh Baseten models:", err))
+	}, [])
+
+	// Auto-refresh model lists on API key availability
+	useEffect(() => {
+		if (!openRouterModels || Object.keys(openRouterModels).length <= 1) {
+			refreshOpenRouterModels()
+		}
+		if (state.apiConfiguration?.basetenApiKey) {
+			refreshBasetenModels()
+		}
+	}, [refreshOpenRouterModels, state?.apiConfiguration?.basetenApiKey, refreshBasetenModels])
 
 	const contextValue: ExtensionStateContextType = {
 		...state,

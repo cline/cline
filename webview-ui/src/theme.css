@@ -53,6 +53,7 @@
 	--color-warning: var(--vscode-charts-yellow);
 	--font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 	--font-azeret-mono: Azeret Mono, monospace;
+	--font-editor: var(--vscode-editor-font-family);
 	--text-2xl: calc(2.25 * var(--vscode-font-size));
 	--text-xl: calc(2 * var(--vscode-font-size));
 	--text-lg: calc(1.5 * var(--vscode-font-size));
