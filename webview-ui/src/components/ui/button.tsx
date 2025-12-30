@@ -16,7 +16,7 @@ const buttonVariants = cva(
 				"outline-primary":
 					"!bg-transparent !border-[var(--vscode-button-background)] !border-[1px] !border-solid !text-[var(--vscode-button-background)] !hover:bg-[color-mix(in_srgb,var(--vscode-button-background)_15%,transparent)] !active:bg-[color-mix(in_srgb,var(--vscode-button-background)_25%,transparent)]",
 				ghost: "hover:bg-accent/10",
-				link: "text-link underline-offset-4 hover:underline p-0 m-0 cursor-text select-text",
+				link: "text-link underline-offset-4 hover:underline p-0 m-0 cursor-text select-text hover:text-link-hover",
 				text: "text-foreground cursor-text select-text p-0 m-0",
 				icon: "hover:opacity-80 p-0 m-0 border-0 cursor-pointer hover:shadow-none focus:ring-0 focus:ring-offset-0",
 				cline: "bg-cline border-foreground/20 text-cline-foreground",

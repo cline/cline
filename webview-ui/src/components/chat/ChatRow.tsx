@@ -17,6 +17,7 @@ import {
 	FilePlus2Icon,
 	FoldVerticalIcon,
 	LoaderCircleIcon,
+	LucideIcon,
 	MessageSquareTextIcon,
 	PencilIcon,
 	SquareMinusIcon,
@@ -41,6 +42,7 @@ import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
 import { CompletionOutputRow } from "./CompletionOutputRow"
+import { getIconByToolName } from "./chat-view"
 import { DiffEditRow } from "./DiffEditRow"
 import ErrorRow from "./ErrorRow"
 import HookMessage from "./HookMessage"
@@ -679,15 +681,9 @@ export const ChatRowContent = memo(
 									) : (
 										<div className="flex items-center">
 											<span
-												className="ph-no-capture"
+												className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis text-left flex-1 mr-2"
 												style={{
-													whiteSpace: "nowrap",
-													overflow: "hidden",
-													textOverflow: "ellipsis",
-													marginRight: "8px",
 													direction: "rtl",
-													textAlign: "left",
-													flex: 1,
 												}}>
 												{tool.content + "\u200E"}
 											</span>
@@ -949,7 +945,7 @@ export const ChatRowContent = memo(
 						// Includes action verbiage and icons for each tool type.
 						// Memoized to avoid iterating through all messages on every render.
 						const currentActivities = useMemo(() => {
-							const activities: { icon: string; text: string }[] = []
+							const activities: { icon: LucideIcon; text: string }[] = []
 
 							// Helper to format search regex for display - show all terms separated by |
 							const formatSearchRegex = (regex: string, path: string, filePattern?: string): string => {
@@ -1009,30 +1005,31 @@ export const ChatRowContent = memo(
 								if (msg.say === "tool" || msg.ask === "tool") {
 									try {
 										const tool = JSON.parse(msg.text || "{}") as ClineSayTool
+										const toolIcon = getIconByToolName(tool.tool)
 										// Exploratory tools - collect activity with icon and action verbiage
 										if (tool.tool === "readFile" && tool.path) {
 											activities.push({
-												icon: "file-code",
+												icon: toolIcon,
 												text: `Reading ${cleanPathPrefix(tool.path)}...`,
 											})
 										} else if (tool.tool === "listFilesTopLevel" && tool.path) {
 											activities.push({
-												icon: "folder-opened",
+												icon: toolIcon,
 												text: `Exploring ${cleanPathPrefix(tool.path)}/...`,
 											})
 										} else if (tool.tool === "listFilesRecursive" && tool.path) {
 											activities.push({
-												icon: "folder-opened",
+												icon: toolIcon,
 												text: `Exploring ${cleanPathPrefix(tool.path)}/...`,
 											})
 										} else if (tool.tool === "searchFiles" && tool.regex && tool.path) {
 											activities.push({
-												icon: "search",
+												icon: toolIcon,
 												text: `Searching ${formatSearchRegex(tool.regex, tool.path, tool.filePattern)}...`,
 											})
 										} else if (tool.tool === "listCodeDefinitionNames" && tool.path) {
 											activities.push({
-												icon: "symbol-class",
+												icon: toolIcon,
 												text: `Analyzing ${cleanPathPrefix(tool.path)}/...`,
 											})
 										}
@@ -1053,12 +1050,7 @@ export const ChatRowContent = memo(
 										<div className="mt-1 flex-shrink-0">
 											<ClineLogoWhite className="size-3.5 scale-[1.1]" />
 										</div>
-										<div
-											style={{
-												paddingLeft: "8px",
-												borderLeft: "1px solid rgba(255, 255, 255, 0.1)",
-												flex: 1,
-											}}>
+										<div className="pl-2 border-l border-white/10 flex-1">
 											{currentActivities.length > 0 ? (
 												<div className="flex flex-col gap-0.5">
 													{currentActivities.map((activity, i) => (
@@ -1086,6 +1078,7 @@ export const ChatRowContent = memo(
 										isVisible={true}
 										reasoningContent={reasoningContent}
 										showCursor={true}
+										showIcon={isLast}
 									/>
 								)}
 
@@ -1200,9 +1193,6 @@ export const ChatRowContent = memo(
 						)
 					}
 					case "reasoning":
-						if (!message.text) {
-							return null
-						}
 						return (
 							<>
 								<div
@@ -1263,16 +1253,8 @@ export const ChatRowContent = memo(
 						return <CheckmarkControl isCheckpointCheckedOut={message.isCheckpointCheckedOut} messageTs={message.ts} />
 					case "load_mcp_documentation":
 						return (
-							<div
-								style={{
-									display: "flex",
-									alignItems: "center",
-									color: "var(--vscode-foreground)",
-									opacity: 0.7,
-									fontSize: 12,
-									padding: "4px 0",
-								}}>
-								<i className="codicon codicon-book" style={{ marginRight: 6 }} />
+							<div className="text-foreground flex items-center opacity-70 text-[12px] py-1 px-0">
+								<i className="codicon codicon-book mr-1.5" />
 								Loading MCP documentation
 							</div>
 						)
@@ -1308,11 +1290,7 @@ export const ChatRowContent = memo(
 									padding: "10px 12px",
 									fontSize: 12,
 								}}>
-								<div
-									style={{
-										display: "flex",
-										alignItems: "center",
-									}}>
+								<div className="flex items-center">
 									{isGenerating ? (
 										<span style={{ marginRight: 8 }}>
 											<ProgressIndicator />
@@ -1335,44 +1313,18 @@ export const ChatRowContent = memo(
 									</span>
 								</div>
 								{isError && explanationInfo.error && (
-									<div
-										style={{
-											opacity: 0.8,
-											marginLeft: 24,
-											marginTop: 6,
-											color: "var(--vscode-errorForeground)",
-											wordBreak: "break-word",
-										}}>
-										{explanationInfo.error}
-									</div>
+									<div className="opacity-80 ml-6 mt-1.5 text-error break-words">{explanationInfo.error}</div>
 								)}
 								{!isError && (explanationInfo.title || explanationInfo.fromRef) && (
 									<div className="opacity-80 ml-6 mt-1.5">
 										<div>{explanationInfo.title}</div>
 										{explanationInfo.fromRef && (
-											<div
-												style={{
-													fontSize: 11,
-													opacity: 0.7,
-													marginTop: 4,
-													marginLeft: -3,
-													wordBreak: "break-all",
-												}}>
-												<code
-													style={{
-														background: "var(--vscode-textBlockQuote-background)",
-														padding: "2px 6px",
-														borderRadius: 3,
-													}}>
+											<div className="opacity-70 mt-1.5 break-all -ml-[3px] text-[11px]">
+												<code className="bg-quote rounded-sm py-0.5 px-1.5">
 													{explanationInfo.fromRef}
 												</code>
-												<span style={{ margin: "0 6px" }}>→</span>
-												<code
-													style={{
-														background: "var(--vscode-textBlockQuote-background)",
-														padding: "2px 6px",
-														borderRadius: 3,
-													}}>
+												<span className="mx-1.5 my-0">→</span>
+												<code className="bg-quote rounded-sm py-0.5 px-1.5">
 													{explanationInfo.toRef || "working directory"}
 												</code>
 											</div>
@@ -1508,37 +1460,18 @@ export const ChatRowContent = memo(
 							const isFailed = failed === true
 
 							return (
-								<div
-									style={{
-										display: "flex",
-										flexDirection: "column",
-										backgroundColor: "var(--vscode-textBlockQuote-background)",
-										padding: 8,
-										borderRadius: 3,
-										fontSize: 12,
-									}}>
-									<div
-										style={{
-											display: "flex",
-											alignItems: "center",
-											marginBottom: 4,
-										}}>
+								<div className="flex flex-col bg-quote p-0 rounded-[3px] text-[12px]">
+									<div className="flex items-center mb-1">
 										<i
-											className={isFailed ? "codicon codicon-warning" : "codicon codicon-sync"}
-											style={{
-												marginRight: 8,
-												fontSize: 14,
-												color: "var(--vscode-descriptionForeground)",
-											}}></i>
-										<span
-											style={{
-												fontWeight: 500,
-												color: "var(--vscode-foreground)",
-											}}>
+											className={cn("text-description text-base mr-2 codicon ", {
+												"codicon-warning": isFailed,
+												"codicon-sync": !isFailed,
+											})}></i>
+										<span className="font-medium text-foreground">
 											{isFailed ? "Auto-Retry Failed" : "Auto-Retry in Progress"}
 										</span>
 									</div>
-									<div style={{ color: "var(--vscode-foreground)", opacity: 0.8 }}>
+									<div className="text-foreground opacity-80">
 										{isFailed ? (
 											<>
 												Auto-retry failed after <strong>{maxAttempts}</strong> attempts. Manual
@@ -1602,6 +1535,12 @@ export const ChatRowContent = memo(
 									Background Terminal mode for better reliability.
 								</div>
 								<button
+									className={cn(
+										"bg-button-background text-button-foreground border-0 rounded-xs py-1.5 px-3 text-[12px] flex items-center gap-1.5 cursor-pointer hover:bg-button-hover",
+										{
+											"cursor-default opacity-80 bg-success": isBackgroundModeEnabled,
+										},
+									)}
 									disabled={isBackgroundModeEnabled}
 									onClick={async () => {
 										try {
@@ -1610,34 +1549,6 @@ export const ChatRowContent = memo(
 										} catch (error) {
 											console.error("Failed to enable background terminal:", error)
 										}
-									}}
-									onMouseEnter={(e) => {
-										if (!isBackgroundModeEnabled) {
-											e.currentTarget.style.background = "var(--vscode-button-hoverBackground)"
-										}
-									}}
-									onMouseLeave={(e) => {
-										if (!isBackgroundModeEnabled) {
-											e.currentTarget.style.background = isBackgroundModeEnabled
-												? "var(--vscode-charts-green)"
-												: "var(--vscode-button-background)"
-										}
-									}}
-									style={{
-										background: isBackgroundModeEnabled
-											? "var(--vscode-charts-green)"
-											: "var(--vscode-button-background)",
-										color: "var(--vscode-button-foreground)",
-										border: "none",
-										borderRadius: 2,
-										padding: "6px 12px",
-										fontSize: 12,
-										cursor: isBackgroundModeEnabled ? "default" : "pointer",
-										fontFamily: "inherit",
-										display: "flex",
-										alignItems: "center",
-										gap: 6,
-										opacity: isBackgroundModeEnabled ? 0.8 : 1,
 									}}>
 									<i className="codicon codicon-settings-gear"></i>
 									{isBackgroundModeEnabled

@@ -10,6 +10,8 @@
 	--color-code-foreground: var(--vscode-editor-foreground);
 	--color-code-border: var(--vscode-editor-border);
 	--color-code-block-background: var(--vscode-editor-background, --vscode-sideBar-background, rgb(30 30 30));
+	--color-quote: var(--vscode-textBlockQuote-background);
+	--color-quote-foreground: var(--vscode-textBlockQuote-foreground);
 	--color-text-block-background: var(--vscode-textCodeBlock-background);
 	--color-editor-group-border: var(--vscode-editorGroup-border);
 	--color-editor-widget-border: var(--vscode-editorWidget-border, #cccccc);
