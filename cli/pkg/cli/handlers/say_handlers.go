@@ -521,41 +521,16 @@ func (h *SayHandler) handleTaskProgress(msg *types.ClineMessage, dc *DisplayCont
 
 // handleHookStatus handles hook execution status messages
 func (h *SayHandler) handleHookStatus(msg *types.ClineMessage, dc *DisplayContext) error {
-	var hook types.HookMessage
-	if err := json.Unmarshal([]byte(msg.Text), &hook); err != nil {
+	hook, err := parseHookMessage(msg.Text)
+	if err != nil {
 		// Fallback to basic output if JSON parsing fails
 		return dc.Renderer.RenderMessage("HOOK", msg.Text, true)
 	}
 
-	// Debug: log the parsed hook data using output.Printf for CLI consistency
-	if dc.Verbose {
-		output.Printf("[DEBUG] Hook parsed: name=%s, status=%s, toolName=%s, scriptPaths=%v\n",
-			hook.HookName, hook.Status, hook.ToolName, hook.ScriptPaths)
-	}
+	logHookDebug(hook, dc)
+	hook.ScriptPaths = formatHookPaths(hook.ScriptPaths)
 
-	// Format script paths for display (tilde for home, repo-relative for workspace)
-	if len(hook.ScriptPaths) > 0 {
-		formatted := make([]string, 0, len(hook.ScriptPaths))
-		for _, p := range hook.ScriptPaths {
-			if strings.TrimSpace(p) == "" {
-				continue
-			}
-			formatted = append(formatted, formatHookPath(p))
-		}
-		hook.ScriptPaths = formatted
-	}
-
-	// Render using HookRenderer for consistent CLI-native output
-	if dc.HookRenderer != nil {
-		rendered := dc.HookRenderer.RenderHookStatus(hook)
-		output.Print("\n")
-		output.Print(rendered)
-		output.Print("\n")
-		return nil
-	}
-
-	// Fallback: if HookRenderer not available
-	return dc.Renderer.RenderMessage("HOOK", fmt.Sprintf("%s %s", hook.HookName, hook.Status), true)
+	return renderHookStatus(hook, dc)
 }
 
 // handleHookOutputStream handles streaming output from hooks
@@ -579,45 +554,93 @@ func (h *SayHandler) handleHookOutputStream(msg *types.ClineMessage, dc *Display
 	return nil
 }
 
-// formatHookPath converts a full hook path to the display format:
-// - Global hooks: "~/Documents/Cline/Hooks/TaskStart"
-// - Workspace hooks: "repo-name/.clinerules/hooks/TaskStart"
+func parseHookMessage(jsonText string) (types.HookMessage, error) {
+	var hook types.HookMessage
+	if err := json.Unmarshal([]byte(jsonText), &hook); err != nil {
+		return types.HookMessage{}, err
+	}
+	return hook, nil
+}
+
+func logHookDebug(hook types.HookMessage, dc *DisplayContext) {
+	if dc.Verbose {
+		output.Printf("[DEBUG] Hook parsed: name=%s, status=%s, toolName=%s, scriptPaths=%v\n",
+			hook.HookName, hook.Status, hook.ToolName, hook.ScriptPaths)
+	}
+}
+
+func formatHookPaths(paths []string) []string {
+	if len(paths) == 0 {
+		return paths
+	}
+	formatted := make([]string, 0, len(paths))
+	for _, p := range paths {
+		if strings.TrimSpace(p) == "" {
+			continue
+		}
+		formatted = append(formatted, formatHookPath(p))
+	}
+	return formatted
+}
+
+func renderHookStatus(hook types.HookMessage, dc *DisplayContext) error {
+	if dc.HookRenderer != nil {
+		rendered := dc.HookRenderer.RenderHookStatus(hook)
+		output.Print("\n")
+		output.Print(rendered)
+		output.Print("\n")
+		return nil
+	}
+
+	// Fallback: if HookRenderer not available
+	return dc.Renderer.RenderMessage("HOOK", fmt.Sprintf("%s %s", hook.HookName, hook.Status), true)
+}
+
 func formatHookPath(fullPath string) string {
-	// Normalize to forward slashes for consistent processing
-	normalizedPath := strings.ReplaceAll(fullPath, "\\", "/")
+	normalized := normalizeSlashes(fullPath)
 
-	// Get home directory for tilde expansion
-	homeDir := ""
-	if h, err := getHomeDir(); err == nil {
-		homeDir = strings.ReplaceAll(h, "\\", "/")
+	if p, ok := tryHomeTildePath(normalized); ok {
+		return p
 	}
-
-	// Check if path starts with home directory
-	if homeDir != "" && strings.HasPrefix(normalizedPath, homeDir) {
-		// Replace home directory with tilde
-		relativePath := strings.TrimPrefix(normalizedPath, homeDir)
-		relativePath = strings.TrimPrefix(relativePath, "/")
-		return "~/" + relativePath
+	if p, ok := tryRepoRelativeHookPath(normalized); ok {
+		return p
 	}
+	return fallbackLastComponents(normalized, 3)
+}
 
-	// Workspace hook: find the repo name and .clinerules portion
-	// Expected path format: /absolute/path/to/repo-name/.clinerules/hooks/HookName
+func normalizeSlashes(p string) string {
+	return strings.ReplaceAll(p, "\\", "/")
+}
+
+func tryHomeTildePath(normalizedPath string) (string, bool) {
+	home, err := getHomeDir()
+	if err != nil || strings.TrimSpace(home) == "" {
+		return "", false
+	}
+	home = normalizeSlashes(home)
+	if !strings.HasPrefix(normalizedPath, home) {
+		return "", false
+	}
+	rel := strings.TrimPrefix(normalizedPath, home)
+	rel = strings.TrimPrefix(rel, "/")
+	return "~/" + rel, true
+}
+
+func tryRepoRelativeHookPath(normalizedPath string) (string, bool) {
 	parts := strings.Split(normalizedPath, "/")
-
 	for i, part := range parts {
 		if part == ".clinerules" && i > 0 {
-			// Get repo name (directory immediately before .clinerules)
 			repoName := parts[i-1]
-			// Build display path: "repo-name/.clinerules/hooks/HookName"
-			remaining := parts[i:]
-			return repoName + "/" + strings.Join(remaining, "/")
+			return repoName + "/" + strings.Join(parts[i:], "/"), true
 		}
 	}
+	return "", false
+}
 
-	// Fallback: if we can't identify the pattern, show last 3 components
-	// or just the full normalized path if it's too short
-	if len(parts) >= 3 {
-		return strings.Join(parts[len(parts)-3:], "/")
+func fallbackLastComponents(normalizedPath string, n int) string {
+	parts := strings.Split(normalizedPath, "/")
+	if len(parts) >= n {
+		return strings.Join(parts[len(parts)-n:], "/")
 	}
 	return normalizedPath
 }

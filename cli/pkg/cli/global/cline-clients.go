@@ -464,14 +464,11 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 
 		if _, err := os.Stat(devClineCorePath); os.IsNotExist(err) {
 			// Try repo-root-relative path (works for go run)
-			_, file, _, _ := runtime.Caller(0)
-			repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", "..", ".."))
-			devClineCorePath2 := filepath.Join(repoRoot, "dist-standalone", "cline-core.js")
-			devInstallDir2 := filepath.Join(repoRoot, "dist-standalone")
+			devClineCorePath2, devInstallDir2, ok := resolveRepoRootDistStandaloneCore()
 			if Config.Verbose {
 				fmt.Printf("Legacy dev path not found, trying repo-root dev path: %s\n", devClineCorePath2)
 			}
-			if _, err2 := os.Stat(devClineCorePath2); os.IsNotExist(err2) {
+			if !ok {
 				return nil, fmt.Errorf("cline-core.js not found at '%s', '%s', or '%s'. Please ensure you're running from the correct location or reinstall with 'npm install -g cline'", clineCorePath, devClineCorePath, devClineCorePath2)
 			}
 			finalClineCorePath = devClineCorePath2
@@ -563,4 +560,15 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 		fmt.Printf("Logging cline-core output to: %s\n", logFilePath)
 	}
 	return cmd, nil
+}
+
+func resolveRepoRootDistStandaloneCore() (coreJsPath string, installDir string, ok bool) {
+	_, file, _, _ := runtime.Caller(0)
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", "..", ".."))
+	coreJsPath = filepath.Join(repoRoot, "dist-standalone", "cline-core.js")
+	installDir = filepath.Join(repoRoot, "dist-standalone")
+	if _, err := os.Stat(coreJsPath); err == nil {
+		return coreJsPath, installDir, true
+	}
+	return coreJsPath, installDir, false
 }
