@@ -20,7 +20,7 @@ export const AccountWelcomeView = () => {
 
 				<ClineAuthStatus authButtonText="Sign up with Cline" />
 
-				<p className="text-(--vscode-descriptionForeground) text-xs text-center m-0">
+				<p className="text-description text-xs text-center m-0">
 					By continuing, you agree to the <VSCodeLink href="https://cline.bot/tos">Terms of Service</VSCodeLink> and{" "}
 					<VSCodeLink href="https://cline.bot/privacy">Privacy Policy.</VSCodeLink>
 				</p>
