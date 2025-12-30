@@ -468,7 +468,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 					changes[path] = {
 						type: PatchActionType.UPDATE,
 						oldContent: originalFiles[path],
-						newContent: this.applyChunks(originalFiles[path]!, action.chunks, path).trimEnd(),
+						newContent: this.applyChunks(originalFiles[path]!, action.chunks, path),
 						movePath: action.movePath,
 					}
 					break
