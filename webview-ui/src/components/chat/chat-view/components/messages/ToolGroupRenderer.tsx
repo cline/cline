@@ -103,7 +103,6 @@ export const ToolGroupRenderer = memo(
 													isExpandable ? handleItemToggle(tool.ts) : handleOpenFile(info.path)
 												}
 												size="icon"
-												title={reasoning}
 												variant="text">
 												<info.icon className="opacity-70 shrink-0" />
 												<span
@@ -118,7 +117,7 @@ export const ToolGroupRenderer = memo(
 											</Button>
 										</TooltipTrigger>
 										<TooltipContent side="bottom">
-											<span>Reason: {reasoning}</span>
+											{reasoning && <span>Reason: {reasoning}</span>}
 										</TooltipContent>
 									</Tooltip>
 									{/* Expanded content for folders/search/definitions - raw text */}
@@ -252,18 +251,20 @@ function getToolGroupSummary(messages: ClineMessage[]): string {
 	}
 
 	const parts: string[] = []
+	const action = counts.read > 0 || counts.list > 0 ? " read " : " "
+
 	if (counts.read > 0) {
 		parts.push(`${counts.read} file${counts.read > 1 ? "s" : ""}`)
 	}
 	if (counts.list > 0) {
 		parts.push(`${counts.list} folder${counts.list > 1 ? "s" : ""}`)
 	}
-	if (counts.search > 0) {
-		parts.push(`${counts.search} search${counts.search > 1 ? "es" : ""}`)
-	}
 	if (counts.def > 0) {
 		parts.push(`${counts.def} definition${counts.def > 1 ? "s" : ""}`)
 	}
+	if (counts.search > 0) {
+		parts.push(`performed ${counts.search} search${counts.search > 1 ? "es" : ""}`)
+	}
 
-	return parts.length === 0 ? "Context" : parts.join(", ") + " in context"
+	return parts.length === 0 ? "Context" : "Cline" + action + parts.join(", ")
 }

@@ -13,6 +13,8 @@ import { BooleanRequest, Int64Request, StringRequest } from "@shared/proto/cline
 import { Mode } from "@shared/storage/types"
 import deepEqual from "fast-deep-equal"
 import {
+	ChevronDownIcon,
+	ChevronRightIcon,
 	CircleXIcon,
 	FilePlus2Icon,
 	FoldVerticalIcon,
@@ -81,7 +83,7 @@ interface ChatRowProps {
 	isRequestInProgress?: boolean
 }
 
-interface QuoteButtonState {
+export interface QuoteButtonState {
 	visible: boolean
 	top: number
 	left: number
@@ -485,15 +487,9 @@ export const ChatRowContent = memo(
 									Cline wants to read this file:
 								</span>
 							</div>
-							<div
-								className="bg-code"
-								style={{
-									borderRadius: 3,
-									overflow: "hidden",
-									border: "1px solid var(--vscode-editorGroup-border)",
-								}}>
+							<div className="bg-code rounded-sm overflow-hidden border border-editor-group-border">
 								<div
-									className={cn("text-description flex items-center cursor-pointer select-none", {
+									className={cn("text-description flex items-center cursor-pointer select-none py-2 px-2.5", {
 										"cursor-default select-text": isImage,
 									})}
 									onClick={() => {
@@ -509,7 +505,7 @@ export const ChatRowContent = memo(
 										{cleanPathPrefix(tool.path ?? "") + "\u200E"}
 									</span>
 									<div className="grow" />
-									{!isImage && <SquareArrowOutUpRightIcon className="size-3" />}
+									{!isImage && <SquareArrowOutUpRightIcon className="size-2" />}
 								</div>
 							</div>
 						</>
@@ -1009,24 +1005,25 @@ export const ChatRowContent = memo(
 									/>
 								)}
 
-								{showCollapsedThinking && (
+								{showCollapsedThinking && reasoningContent && (
 									<>
-										<div
-											className={cn(
-												"flex items-center gap-2 select-none mt-0 mb-0 text-description cursor-pointer",
-												{
-													"mt-2": apiReqState === "pre",
-													"mb-2": hasError,
-												},
-											)}
+										<Button
+											className="flex items-center gap-1 select-none cursor-pointer text-description px-0 w-full"
 											onClick={handleToggle}
-											title="Click to view reasoning">
+											variant="icon">
+											{isExpanded ? (
+												<ChevronDownIcon className="opacity-70" />
+											) : (
+												<ChevronRightIcon className="opacity-70" />
+											)}
 											<span className="font-semibold">Thinking</span>
-											<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}></span>
-										</div>
+											<span className="italic break-words truncate [direction:rtl] w-full">
+												{!isExpanded ? reasoningContent : ""}
+											</span>
+										</Button>
 
-										{isExpanded && reasoningContent && (
-											<div className="ph-no-capture mt-2 cursor-pointer" onClick={handleToggle}>
+										{isExpanded && (
+											<div className="ph-no-capture mt-2 cursor-pointer ml-5" onClick={handleToggle}>
 												<ThinkingRow
 													isVisible={true}
 													reasoningContent={reasoningContent}
@@ -1122,18 +1119,23 @@ export const ChatRowContent = memo(
 					case "reasoning":
 						return (
 							<>
-								<div
-									className={cn(
-										"flex items-center gap-2 select-none mt-0 mb-0 text-description cursor-pointer",
-									)}
+								<Button
+									className="flex items-center gap-1 select-none cursor-pointer text-description px-0 w-full"
 									onClick={handleToggle}
-									title="Click to view reasoning">
+									variant="icon">
+									{isExpanded ? (
+										<ChevronDownIcon className="opacity-70" />
+									) : (
+										<ChevronRightIcon className="opacity-70" />
+									)}
 									<span className="font-semibold">Thinking</span>
-									<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`} />
-								</div>
+									<span className="italic break-words truncate [direction:rtl] w-full">
+										{!isExpanded ? message.text : ""}
+									</span>
+								</Button>
 
-								{isExpanded && message.text && (
-									<div className="ph-no-capture mt-2 cursor-pointer" onClick={handleToggle}>
+								{isExpanded && (
+									<div className="ph-no-capture mt-2 cursor-pointer ml-5" onClick={handleToggle}>
 										<ThinkingRow
 											isVisible={true}
 											reasoningContent={message.text}
@@ -1264,19 +1266,22 @@ export const ChatRowContent = memo(
 					case "completion_result":
 						const hasChanges = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
 						const text = hasChanges ? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
+
 						return (
-							<>
-								<div className="rounded-sm border border-editor-group-border overflow-visible bg-code transition-border duration-300 ease-in-out hover:border-success">
-									<div className="flex items-center justify-between px-3 py-2 bg-code rounded-0 rounded-tl-sm rounded-tr-sm">
-										<div className="flex items-center gap-2 flex-1 min-w-0">
-											<div className="w-2 h-2 rounded-full bg-success shrink-0" />
-											<span className="text-success font-semibold text-sm shrink-0">Task Completed</span>
+							<div>
+								<div className="rounded-sm border border-editor-group-border overflow-visible bg-success/10 transition-border duration-300 ease-in-out hover:border-success py-2 px-3">
+									<div className={cn(HEADER_CLASSNAMES, "justify-between")}>
+										<div className="flex gap-2">
+											{icon}
+											{title}
 										</div>
-										<CopyButton className="px-0" textToCopy={text || ""} />
+										<CopyButton textToCopy={text} />
 									</div>
 									<CompletionOutputRow
+										handleQuoteClick={handleQuoteClick}
 										isOutputFullyExpanded={isCompletionOutputExpanded}
 										onToggle={() => setIsCompletionOutputExpanded(!isCompletionOutputExpanded)}
+										quoteButtonState={quoteButtonState}
 										text={text || ""}
 									/>
 								</div>
@@ -1330,7 +1335,7 @@ export const ChatRowContent = memo(
 										)}
 									</div>
 								)}
-							</>
+							</div>
 						)
 					case "shell_integration_warning":
 						return (
@@ -1511,16 +1516,13 @@ export const ChatRowContent = memo(
 							const text = hasChanges ? message.text.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 							return (
 								<div>
-									<div className="rounded-sm border border-editor-group-border hover:border-success overflow-visible bg-code transition-all duration-300 ease-in-out">
-										<div className="flex items-center justify-between py-2 rounded-t-sm bg-code">
-											<div className="flex items-center gap-2 flex-1 min-w-0">
-												<div className="w-2 h-2 rounded-full bg-success flex-shrink-0" />
-												<span className="text-success font-bold text-sm flex-shrink-0">
-													Task Completed
-												</span>
+									<div className="rounded-sm border border-editor-group-border overflow-visible bg-success/10 transition-border duration-300 ease-in-out hover:border-success py-2 px-3">
+										<div className={cn(HEADER_CLASSNAMES, "justify-between")}>
+											<div className="flex gap-2">
+												{icon}
+												{title}
 											</div>
-											<div className="flex items-center gap-2 flex-shrink-0">
-												<CopyButton textToCopy={text || ""} />
+											<div className="flex gap-2">
 												<TaskFeedbackButtons
 													isFromHistory={
 														!isLast ||
@@ -1529,11 +1531,14 @@ export const ChatRowContent = memo(
 													}
 													messageTs={message.ts}
 												/>
+												<CopyButton textToCopy={text} />
 											</div>
 										</div>
 										<CompletionOutputRow
+											handleQuoteClick={handleQuoteClick}
 											isOutputFullyExpanded={isCompletionOutputExpanded}
 											onToggle={() => setIsCompletionOutputExpanded(!isCompletionOutputExpanded)}
+											quoteButtonState={quoteButtonState}
 											text={text || ""}
 										/>
 									</div>
