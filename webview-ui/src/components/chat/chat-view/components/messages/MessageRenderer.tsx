@@ -102,8 +102,7 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	// BUT: Only absorb if this isn't the last/only message (to avoid hiding completed task api_reqs)
 	if (
 		messageOrGroup.say === "api_req_started" &&
-		!isLastMessageOrGroup &&
-		isApiReqAbsorbable(messageOrGroup.ts, modifiedMessages)
+		(!isLastMessageOrGroup || isApiReqAbsorbable(messageOrGroup.ts, modifiedMessages))
 	) {
 		return null
 	}

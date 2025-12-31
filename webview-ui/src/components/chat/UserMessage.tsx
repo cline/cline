@@ -89,7 +89,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 
 	return (
 		<div
-			className="py-2 px-2.5"
+			className="p-2.5 my-1"
 			onClick={handleClick}
 			style={{
 				backgroundColor: isEditing ? "unset" : "var(--vscode-badge-background)",

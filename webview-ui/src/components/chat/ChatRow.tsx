@@ -9,7 +9,7 @@ import {
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
-import { BooleanRequest, Int64Request, StringRequest } from "@shared/proto/cline/common"
+import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import deepEqual from "fast-deep-equal"
 import {
@@ -21,7 +21,6 @@ import {
 	Link2Icon,
 	LoaderCircleIcon,
 	LucideIcon,
-	MessageSquareTextIcon,
 	PencilIcon,
 	SearchIcon,
 	SquareArrowOutUpRightIcon,
@@ -32,17 +31,15 @@ import { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } f
 import { useSize } from "react-use"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
-import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
-import { CopyButton, WithCopyButton } from "@/components/common/CopyButton"
+import { WithCopyButton } from "@/components/common/CopyButton"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
 import { Button } from "@/components/ui/button"
-import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
-import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
@@ -106,7 +103,7 @@ const ChatRow = memo(
 		const prevHeightRef = useRef(0)
 
 		const [chatrow, { height }] = useSize(
-			<div className="relative py-2.5 px-4">
+			<div className="relative py-2.5 px-4 first:mt-2">
 				<ChatRowContent {...props} />
 			</div>,
 		)
@@ -323,12 +320,12 @@ export const ChatRowContent = memo(
 					]
 				case "mistake_limit_reached":
 					return [
-						<CircleXIcon className="text-error size-3" />,
+						<CircleXIcon className="text-error size-2" />,
 						<span className="text-error font-bold">Cline is having trouble...</span>,
 					]
 				case "command":
 					return [
-						<TerminalIcon className="text-foreground size-3" />,
+						<TerminalIcon className="text-foreground size-2" />,
 						<span className="font-bold text-foreground">Cline wants to execute this command:</span>,
 					]
 				case "use_mcp_server":
@@ -416,7 +413,7 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div className={HEADER_CLASSNAMES}>
-								<PencilIcon className="size-3" />
+								<PencilIcon className="size-2" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>{editToolTitle}</span>
@@ -438,7 +435,7 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div className={HEADER_CLASSNAMES}>
-								<SquareMinusIcon className="mb-[-1.5px] size-3" />
+								<SquareMinusIcon className="size-2" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>Cline wants to delete this file:</span>
@@ -599,7 +596,7 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div className={HEADER_CLASSNAMES}>
-								<FoldVerticalIcon className="size-3" />
+								<FoldVerticalIcon className="size-2" />
 								<span className="font-bold">Cline is condensing the conversation:</span>
 							</div>
 							<div className="bg-code overflow-hidden border border-editor-group-border rounded-[3px]">
@@ -648,7 +645,7 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div className={HEADER_CLASSNAMES}>
-								<Link2Icon className="size-3" />
+								<Link2Icon className="size-2" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This URL is external")}
 								<span className="font-bold">
@@ -701,7 +698,7 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div className={HEADER_CLASSNAMES}>
-								<SearchIcon className="size-3 rotate-90" />
+								<SearchIcon className="size-2 rotate-90" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This search is external")}
 								<span className="font-bold">
@@ -1268,74 +1265,20 @@ export const ChatRowContent = memo(
 						const text = hasChanges ? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 
 						return (
-							<div>
-								<div className="rounded-sm border border-editor-group-border overflow-visible bg-success/10 transition-border duration-300 ease-in-out hover:border-success py-2 px-3">
-									<div className={cn(HEADER_CLASSNAMES, "justify-between")}>
-										<div className="flex gap-2">
-											{icon}
-											{title}
-										</div>
-										<CopyButton textToCopy={text} />
-									</div>
-									<CompletionOutputRow
-										handleQuoteClick={handleQuoteClick}
-										isOutputFullyExpanded={isCompletionOutputExpanded}
-										onToggle={() => setIsCompletionOutputExpanded(!isCompletionOutputExpanded)}
-										quoteButtonState={quoteButtonState}
-										text={text || ""}
-									/>
-								</div>
-								{message.partial !== true && hasChanges && (
-									<div className="mt-4 flex flex-row gap-2">
-										<Button
-											className={cn(
-												"flex-1 bg-code cursor-pointer border border-editor-group-border text-success rounded-xs px-3 py-2 flex items-center justify-center transition-border duration-200 ease-in-out hover:border-success",
-												{
-													"cursor-wait": seeNewChangesDisabled,
-												},
-											)}
-											disabled={seeNewChangesDisabled}
-											onClick={() => {
-												setSeeNewChangesDisabled(true)
-												TaskServiceClient.taskCompletionViewChanges(
-													Int64Request.create({
-														value: message.ts,
-													}),
-												).catch((err) =>
-													console.error("Failed to show task completion view changes:", err),
-												)
-											}}
-											variant="success">
-											<FilePlus2Icon className="mb-[-1.5px] size-3 mr-1.5" />
-											View Changes
-										</Button>
-										{PLATFORM_CONFIG.type === PlatformType.VSCODE && (
-											<Button
-												className={cn(
-													"flex-1 bg-code cursor-pointer border border-editor-group-border text-success rounded-xs px-3 py-2 flex items-center justify-center transition-border duration-200 ease-in-out hover:border-success",
-													{
-														"cursor-wait": explainChangesDisabled,
-													},
-												)}
-												disabled={explainChangesDisabled}
-												onClick={() => {
-													setExplainChangesDisabled(true)
-													TaskServiceClient.explainChanges({
-														metadata: {},
-														messageTs: message.ts,
-													}).catch((err) => {
-														console.error("Failed to explain changes:", err)
-														setExplainChangesDisabled(false)
-													})
-												}}
-												variant="success">
-												<i className="codicon codicon-comment-discussion mr-1.5" />
-												{explainChangesDisabled ? "Explaining..." : "Explain Changes"}
-											</Button>
-										)}
-									</div>
-								)}
-							</div>
+							<CompletionOutputRow
+								classNames={HEADER_CLASSNAMES}
+								explainChangesDisabled={explainChangesDisabled}
+								handleQuoteClick={handleQuoteClick}
+								isOutputFullyExpanded={isCompletionOutputExpanded}
+								messageTs={message.ts}
+								onToggle={() => setIsCompletionOutputExpanded(!isCompletionOutputExpanded)}
+								quoteButtonState={quoteButtonState}
+								seeNewChangesDisabled={seeNewChangesDisabled}
+								setExplainChangesDisabled={setExplainChangesDisabled}
+								setSeeNewChangesDisabled={setSeeNewChangesDisabled}
+								showActionRow={message.partial !== true && hasChanges}
+								text={text || ""}
+							/>
 						)
 					case "shell_integration_warning":
 						return (
@@ -1515,84 +1458,20 @@ export const ChatRowContent = memo(
 							const hasChanges = message.text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
 							const text = hasChanges ? message.text.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 							return (
-								<div>
-									<div className="rounded-sm border border-editor-group-border overflow-visible bg-success/10 transition-border duration-300 ease-in-out hover:border-success py-2 px-3">
-										<div className={cn(HEADER_CLASSNAMES, "justify-between")}>
-											<div className="flex gap-2">
-												{icon}
-												{title}
-											</div>
-											<div className="flex gap-2">
-												<TaskFeedbackButtons
-													isFromHistory={
-														!isLast ||
-														lastModifiedMessage?.ask === "resume_completed_task" ||
-														lastModifiedMessage?.ask === "resume_task"
-													}
-													messageTs={message.ts}
-												/>
-												<CopyButton textToCopy={text} />
-											</div>
-										</div>
-										<CompletionOutputRow
-											handleQuoteClick={handleQuoteClick}
-											isOutputFullyExpanded={isCompletionOutputExpanded}
-											onToggle={() => setIsCompletionOutputExpanded(!isCompletionOutputExpanded)}
-											quoteButtonState={quoteButtonState}
-											text={text || ""}
-										/>
-									</div>
-									{message.partial !== true && hasChanges && (
-										<div className="mt-4 flex flex-row gap-2">
-											<Button
-												className={cn(
-													"flex-1 bg-code border border-editor-group-border text-success rounded-xs px-3 py-2 flex items-center justify-center transition-border duration-200 ease-in-out hover:border-success",
-													{
-														"cursor-wait": seeNewChangesDisabled,
-													},
-												)}
-												disabled={seeNewChangesDisabled}
-												onClick={() => {
-													setSeeNewChangesDisabled(true)
-													TaskServiceClient.taskCompletionViewChanges(
-														Int64Request.create({
-															value: message.ts,
-														}),
-													).catch((err) =>
-														console.error("Failed to show task completion view changes:", err),
-													)
-												}}
-												variant="success">
-												<FilePlus2Icon className="mb-[-1.5px] size-3 mr-1.5" />
-												View Changes
-											</Button>
-											{PLATFORM_CONFIG.type === PlatformType.VSCODE && (
-												<Button
-													className={cn(
-														"flex-1 bg-code border border-editor-group-border text-success rounded-xs px-3 py-2 flex items-center justify-center transition-border duration-200 ease-in-out hover:border-success",
-														{
-															"cursor-wait": explainChangesDisabled,
-														},
-													)}
-													disabled={explainChangesDisabled}
-													onClick={() => {
-														setExplainChangesDisabled(true)
-														TaskServiceClient.explainChanges({
-															metadata: {},
-															messageTs: message.ts,
-														}).catch((err) => {
-															console.error("Failed to explain changes:", err)
-															setExplainChangesDisabled(false)
-														})
-													}}
-													variant="success">
-													<MessageSquareTextIcon className="mb-[-1.5px] size-3 mr-1.5" />
-													{explainChangesDisabled ? "Explaining..." : "Explain Changes"}
-												</Button>
-											)}
-										</div>
-									)}
-								</div>
+								<CompletionOutputRow
+									classNames={HEADER_CLASSNAMES}
+									explainChangesDisabled={explainChangesDisabled}
+									handleQuoteClick={handleQuoteClick}
+									isOutputFullyExpanded={isCompletionOutputExpanded}
+									messageTs={message.ts}
+									onToggle={() => setIsCompletionOutputExpanded(!isCompletionOutputExpanded)}
+									quoteButtonState={quoteButtonState}
+									seeNewChangesDisabled={seeNewChangesDisabled}
+									setExplainChangesDisabled={setExplainChangesDisabled}
+									setSeeNewChangesDisabled={setSeeNewChangesDisabled}
+									showActionRow={message.partial !== true && hasChanges}
+									text={text || ""}
+								/>
 							)
 						} else {
 							return null // Don't render anything when we get a completion_result ask without text
@@ -1692,7 +1571,10 @@ export const ChatRowContent = memo(
 						}
 						return (
 							<div>
-								<PlanCompletionOutputRow text={response || message.text || ""} />
+								<PlanCompletionOutputRow
+									headClassNames={HEADER_CLASSNAMES}
+									text={response || message.text || ""}
+								/>
 								<OptionsButtons
 									inputValue={inputValue}
 									isActive={
