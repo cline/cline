@@ -54,7 +54,7 @@ export const ThinkingRow = memo(
 				} ${instant ? "" : "transition-[max-height] duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] [transition:max-height_250ms_cubic-bezier(0.4,0,0.2,1),opacity_150ms_ease-out]"}`}>
 				{showIcon && (
 					<div className="mt-1 shrink-0">
-						<ClineLogoWhite className="size-3.5 scale-110 animate-icon-pulse" />
+						<ClineLogoWhite className="size-3.5 scale-110" />
 					</div>
 				)}
 				<div
