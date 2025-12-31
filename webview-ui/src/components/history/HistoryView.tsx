@@ -344,9 +344,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 									Workspace
 								</span>
 							</VSCodeRadio>
-							<VSCodeRadio
-								checked={showFavoritesOnly}
-								onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}>
+							<VSCodeRadio checked={showFavoritesOnly} onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}>
 								<span className="flex items-center gap-[3px]">
 									<span className="codicon codicon-star-full text-(--vscode-button-background)" />
 									Favorites

@@ -191,6 +191,7 @@ export interface ClineSayTool {
 		| "listFilesTopLevel"
 		| "listFilesRecursive"
 		| "listCodeDefinitionNames"
+		| "searchAgent"
 		| "searchFiles"
 		| "webFetch"
 		| "webSearch"

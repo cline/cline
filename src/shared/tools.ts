@@ -13,6 +13,7 @@ export enum ClineDefaultTool {
 	FILE_READ = "read_file",
 	FILE_NEW = "write_to_file",
 	SEARCH = "search_files",
+	SEARCH_AGENT = "search_subagent",
 	LIST_FILES = "list_files",
 	LIST_CODE_DEF = "list_code_definition_names",
 	BROWSER = "browser_action",

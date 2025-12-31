@@ -3,6 +3,7 @@ import * as childProcess from "child_process"
 import * as path from "path"
 import * as readline from "readline"
 import { getBinaryLocation } from "@/utils/fs"
+import "@/utils/path" // necessary to have access to String.prototype.toPosix
 
 /*
 This file provides functionality to perform regex searches on files using ripgrep.
@@ -104,8 +105,13 @@ export async function regexSearchFiles(
 	regex: string,
 	filePattern?: string,
 	clineIgnoreController?: ClineIgnoreController,
+	includesHiddenFiles = true, // Includes hidden files and ignored files by default
 ): Promise<string> {
 	const args = ["--json", "-e", regex, "--glob", filePattern || "*", "--context", "1", directoryPath]
+
+	if (!includesHiddenFiles) {
+		args.push("--no-hidden")
+	}
 
 	let output: string
 	try {
