@@ -94,7 +94,7 @@ export const Interactive: StoryObj<StoryProps> = {
 						<SelectTrigger size={args.size}>
 							<SelectValue placeholder={args.placeholder} />
 						</SelectTrigger>
-						<SelectContent>
+						<SelectContent position="popper">
 							{args.showGroups ? (
 								<>
 									<SelectGroup>
@@ -181,7 +181,7 @@ export const Overview = () => {
 							<SelectTrigger size={variant.size}>
 								<SelectValue placeholder={variant.placeholder} />
 							</SelectTrigger>
-							<SelectContent>
+							<SelectContent position="popper">
 								{variant.hasGroups && "groups" in variant ? (
 									variant?.groups?.map((group, groupIndex) => (
 										<>
