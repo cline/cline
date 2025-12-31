@@ -94,6 +94,7 @@
  */
 
 import { EnvHttpProxyAgent, setGlobalDispatcher, fetch as undiciFetch } from "undici"
+import { BUILD_CONSTANTS } from "./constants"
 
 let mockFetch: typeof globalThis.fetch | undefined
 
@@ -111,10 +112,8 @@ export const fetch: typeof globalThis.fetch = (() => {
 	// Note: Don't use Logger here; it may not be initialized.
 
 	let baseFetch: typeof globalThis.fetch = globalThis.fetch
-	// Note: See esbuild.mjs, process.env.IS_STANDALONE is statically rewritten
-	// to "true" or "false" (as strings) in the JetBrains/CLI build.
 	// We must use explicit string comparison because "false" is truthy in JS.
-	if (process.env.IS_STANDALONE === "true") {
+	if (BUILD_CONSTANTS.IS_STANDALONE === "true") {
 		// Configure undici with ProxyAgent
 		const agent = new EnvHttpProxyAgent({})
 		setGlobalDispatcher(agent)

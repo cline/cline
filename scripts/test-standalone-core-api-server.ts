@@ -130,7 +130,7 @@ async function main(): Promise<void> {
 			PROTOBUS_ADDRESS: `127.0.0.1:${PROTOBUS_PORT}`,
 			HOST_BRIDGE_ADDRESS: `localhost:${HOSTBRIDGE_PORT}`,
 			E2E_TEST,
-			CLINE_ENVIRONMENT,
+			CLINE_ENVIRONMENT_OVERRIDE: CLINE_ENVIRONMENT,
 			CLINE_DIR: userDataDir,
 			INSTALL_DIR: extensionsDir,
 		},
