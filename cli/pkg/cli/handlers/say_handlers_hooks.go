@@ -118,7 +118,7 @@ func formatHookPath(fullPath string) string {
 }
 
 func normalizeSlashes(p string) string {
-	return strings.ReplaceAll(p, "\\", "/")
+	return filepath.ToSlash(p)
 }
 
 func tryWorkspaceRelativeHookPath(normalizedPath string) (string, bool) {
@@ -126,21 +126,16 @@ func tryWorkspaceRelativeHookPath(normalizedPath string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	root = normalizeSlashes(filepath.Clean(root))
-	if root == "" {
-		return "", false
-	}
-
-	// Prefer filepath.Rel for correctness around path boundaries.
-	// Use cleaned OS paths for Rel, then normalize slashes for display.
-	rootOS := filepath.Clean(root)
-	targetOS := filepath.Clean(normalizedPath)
-	rel, err := filepath.Rel(rootOS, targetOS)
+	
+	// filepath.Rel expects OS-native paths, so we need to convert the normalized path
+	// back to OS-native format before calling Rel, then normalize the result for display.
+	targetOS := filepath.FromSlash(normalizedPath)
+	rel, err := filepath.Rel(root, targetOS)
 	if err != nil {
 		return "", false
 	}
 	// If it's not within the workspace, Rel will start with "..".
-	if rel == ".." || strings.HasPrefix(rel, "../") {
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", false
 	}
 	return normalizeSlashes(rel), true
