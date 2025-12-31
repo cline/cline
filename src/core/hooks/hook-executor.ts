@@ -1,3 +1,4 @@
+import type { HookOutputStreamMeta } from "@shared/ExtensionMessage"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { MessageStateHandler } from "../task/message-state"
 import { HookExecutionError } from "./HookError"
@@ -116,11 +117,7 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 		}
 
 		// Create streaming callback
-		const streamCallback = async (
-			line: string,
-			stream: "stdout" | "stderr",
-			meta?: { source: "global" | "workspace"; scriptPath: string },
-		) => {
+		const streamCallback = async (line: string, stream: "stdout" | "stderr", meta?: HookOutputStreamMeta) => {
 			// Preserve script identity for multi-hook (global + workspace) scenarios.
 			// Without this, concurrent hooks interleave output and it's hard to tell which
 			// script produced which line (and can look like only one hook is printing).

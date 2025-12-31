@@ -231,6 +231,13 @@ export interface ClineSayHook {
 	}
 }
 
+export type HookOutputStreamMeta = {
+	/** Which hook configuration the script originated from (global vs workspace). */
+	source: "global" | "workspace"
+	/** Full path to the hook script that emitted the output. */
+	scriptPath: string
+}
+
 // must keep in sync with system prompt
 export const browserActions = ["launch", "click", "type", "scroll_down", "scroll_up", "close"] as const
 export type BrowserAction = (typeof browserActions)[number]
