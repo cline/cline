@@ -1,3 +1,4 @@
+import { CheckIcon } from "lucide-react"
 import { memo, useMemo, useState } from "react"
 import { CopyButton } from "@/components/common/CopyButton"
 import MarkdownBlock from "@/components/common/MarkdownBlock"
@@ -7,13 +8,14 @@ import ExpandHandle from "./ExpandHandle"
 interface PlanCompletionOutputProps {
 	text: string
 	onCopy?: () => void
+	headClassNames?: string
 }
 
 /**
  * Styled completion output for Plan Mode responses
  * Uses grayscale colors to distinguish from Act Mode's green success theme
  */
-const PlanCompletionOutputRow = memo(({ text, onCopy }: PlanCompletionOutputProps) => {
+const PlanCompletionOutputRow = memo(({ text, headClassNames }: PlanCompletionOutputProps) => {
 	const [isExpanded, setIsExpanded] = useState(true) // Auto-expand by default
 
 	const { lineCount, shouldAutoShow } = useMemo(() => {
@@ -23,52 +25,32 @@ const PlanCompletionOutputRow = memo(({ text, onCopy }: PlanCompletionOutputProp
 	}, [text])
 
 	return (
-		<div
-			className="bg border rounded-sm overflow-visible border-[rgba(var(--vscode-editorGroup-border-rgb, 128, 128, 128), 0.5)] hover:border-[rgba(var(--vscode-descriptionForeground-rgb, 128, 128, 128), 0.5)]"
-			style={{
-				transition: "border-color 0.2s ease",
-			}}>
+		<div className="rounded-sm bg-code/80 border border-editor-group-border overflow-visible transition-border duration-300 ease-in-out hover:border-description">
 			{/* Header */}
 			<div
-				className="flex items-center justify-between px-3 py-2 bg-code border-b border-border rounded-tl-md rounded-tr-md"
-				style={{
-					borderBottom: "1px solid rgba(var(--vscode-editorGroup-border-rgb, 128, 128, 128), 0.5)",
-					borderTopLeftRadius: "6px",
-					borderTopRightRadius: "6px",
-					borderBottomLeftRadius: 0,
-					borderBottomRightRadius: 0,
-				}}>
-				<div className="flex items-center gap-2 flex-1 min-w-0">
-					<div className="w-2 h-2 rounded-full bg-description shrink-0" />
-					<span className="text-foreground font-medium text-sm shrink-0">Plan Complete</span>
+				className={cn(
+					"flex items-center justify-between px-3 py-2 border-b-1 border-description/50 rounded-sm",
+					headClassNames,
+				)}>
+				<div className="flex gap-2 items-center">
+					<CheckIcon className="size-3" />
+					<span className="text-foreground font-bold">Plan Created</span>
 				</div>
 				<CopyButton textToCopy={text || ""} />
 			</div>
 
 			{/* Content */}
 			<div
-				className={cn("w-full relative overflow-visible bg-code pb-0", {
-					"pb-2": lineCount > 5,
-				})}
-				style={{
-					borderTop: "1px solid rgba(255,255,255,.5)",
-					borderBottomLeftRadius: "6px",
-					borderBottomRightRadius: "6px",
-				}}>
+				className={cn("w-full relative pb-0 overflow-visible rounded-sm", {
+					"pb-2": !shouldAutoShow,
+				})}>
 				<div
 					className={cn("plan-completion-content scroll-smooth px-3 pt-4 pb-3 overflow-y-auto", {
 						"overflow-y-visible": shouldAutoShow,
 						"max-h-[400px]": isExpanded && !shouldAutoShow,
 						"max-h-[150px]": !isExpanded && !shouldAutoShow,
 					})}>
-					<div className="wrap-anywhere -mb-4 -mt-4 overflow-hidden">
-						<style>
-							{`
-								.plan-completion-content hr {
-									opacity: 0.2;
-								}
-							`}
-						</style>
+					<div className="wrap-anywhere -mb-4 -mt-4 overflow-hidden [&_hr]:opacity-20">
 						<MarkdownBlock markdown={text} />
 					</div>
 				</div>
