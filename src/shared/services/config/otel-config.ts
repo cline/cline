@@ -136,6 +136,65 @@ function getOtelConfig(): OpenTelemetryClientConfig {
 	return otelConfig
 }
 
+/**
+ * Gets or creates the OpenTelemetry configuration from environment variables.
+ * Configuration is cached after first access for performance.
+ *
+ * Configuration Sources:
+ * - **Production Build**: Environment variables injected by esbuild at build time
+ *   via .github/workflows/publish.yml
+ * - **Development**: Environment variables from .env file loaded by VSCode
+ *
+ * Supported Environment Variables:
+ * - CLINE_OTEL_TELEMETRY_ENABLED: "1" to enable OpenTelemetry (default: off)
+ * - CLINE_OTEL_METRICS_EXPORTER: Comma-separated list: "console", "otlp", "prometheus"
+ * - CLINE_OTEL_LOGS_EXPORTER: Comma-separated list: "console", "otlp"
+ * - CLINE_OTEL_EXPORTER_OTLP_PROTOCOL: "grpc", "http/json", or "http/protobuf"
+ * - CLINE_OTEL_EXPORTER_OTLP_ENDPOINT: OTLP collector endpoint (if not using specific endpoints)
+ * - CLINE_OTEL_EXPORTER_OTLP_METRICS_PROTOCOL: Metrics-specific protocol override
+ * - CLINE_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: Metrics-specific endpoint override
+ * - CLINE_OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: Logs-specific protocol override
+ * - CLINE_OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: Logs-specific endpoint override
+ * - CLINE_OTEL_METRIC_EXPORT_INTERVAL: Milliseconds between metric exports (default: 60000)
+ * - CLINE_OTEL_EXPORTER_OTLP_INSECURE: "true" to disable TLS for gRPC (for local development)
+ * - CLINE_OTEL_LOG_BATCH_SIZE: Maximum batch size for log records (default: 512)
+ * - CLINE_OTEL_LOG_BATCH_TIMEOUT: Maximum time to wait before exporting logs in ms (default: 5000)
+ * - CLINE_OTEL_LOG_MAX_QUEUE_SIZE: Maximum queue size for log records (default: 2048)
+ *
+ * @private
+ * @see .env.example for development setup
+ * @see .github/workflows/publish.yml for production environment variable injection
+ */
+function getRuntimeOtelConfig(): OpenTelemetryClientConfig {
+	if (!otelConfig) {
+		otelConfig = {
+			enabled: process.env.CLINE_OTEL_TELEMETRY_ENABLED === "1",
+			metricsExporter: process.env.CLINE_OTEL_METRICS_EXPORTER,
+			logsExporter: process.env.CLINE_OTEL_LOGS_EXPORTER,
+			otlpProtocol: process.env.CLINE_OTEL_EXPORTER_OTLP_PROTOCOL,
+			otlpEndpoint: process.env.CLINE_OTEL_EXPORTER_OTLP_ENDPOINT,
+			otlpMetricsProtocol: process.env.CLINE_OTEL_EXPORTER_OTLP_METRICS_PROTOCOL,
+			otlpMetricsEndpoint: process.env.CLINE_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT,
+			otlpLogsProtocol: process.env.CLINE_OTEL_EXPORTER_OTLP_LOGS_PROTOCOL,
+			otlpLogsEndpoint: process.env.CLINE_OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,
+			metricExportInterval: process.env.CLINE_OTEL_METRIC_EXPORT_INTERVAL
+				? parseInt(process.env.CLINE_OTEL_METRIC_EXPORT_INTERVAL, 10)
+				: undefined,
+			otlpInsecure: process.env.CLINE_OTEL_EXPORTER_OTLP_INSECURE === "true",
+			logBatchSize: process.env.CLINE_OTEL_LOG_BATCH_SIZE
+				? Math.max(1, parseInt(process.env.CLINE_OTEL_LOG_BATCH_SIZE, 10))
+				: undefined,
+			logBatchTimeout: process.env.CLINE_OTEL_LOG_BATCH_TIMEOUT
+				? Math.max(1, parseInt(process.env.CLINE_OTEL_LOG_BATCH_TIMEOUT, 10))
+				: undefined,
+			logMaxQueueSize: process.env.CLINE_OTEL_LOG_MAX_QUEUE_SIZE
+				? Math.max(1, parseInt(process.env.CLINE_OTEL_LOG_MAX_QUEUE_SIZE, 10))
+				: undefined,
+		}
+	}
+	return otelConfig
+}
+
 export function isOpenTelemetryConfigValid(config: OpenTelemetryClientConfig): config is OpenTelemetryClientValidConfig {
 	// Disable in test environment to enable mocking and stubbing
 	if (isTestEnv) {
@@ -161,5 +220,10 @@ export function isOpenTelemetryConfigValid(config: OpenTelemetryClientConfig): c
  */
 export function getValidOpenTelemetryConfig(): OpenTelemetryClientValidConfig | null {
 	const config = getOtelConfig()
+	return isOpenTelemetryConfigValid(config) ? config : null
+}
+
+export function getValidRuntimeOpenTelemetryConfig(): OpenTelemetryClientValidConfig | null {
+	const config = getRuntimeOtelConfig()
 	return isOpenTelemetryConfigValid(config) ? config : null
 }

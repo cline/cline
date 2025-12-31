@@ -1,4 +1,8 @@
-import { getValidOpenTelemetryConfig } from "@/shared/services/config/otel-config"
+import {
+	getValidOpenTelemetryConfig,
+	getValidRuntimeOpenTelemetryConfig,
+	OpenTelemetryClientValidConfig,
+} from "@/shared/services/config/otel-config"
 import { isPostHogConfigValid, posthogConfig } from "@/shared/services/config/posthog-config"
 import { Logger } from "../logging/Logger"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "./providers/ITelemetryProvider"
@@ -17,7 +21,7 @@ export type TelemetryProviderType = "posthog" | "no-op" | "opentelemetry"
  */
 export type TelemetryProviderConfig =
 	| { type: "posthog"; apiKey?: string; host?: string }
-	| { type: "opentelemetry"; enabled?: boolean }
+	| { type: "opentelemetry"; enabled: boolean; config: OpenTelemetryClientValidConfig; bypassUserSettings: boolean }
 	| { type: "no-op" }
 
 /**
@@ -66,7 +70,7 @@ export class TelemetryProviderFactory {
 				return new NoOpTelemetryProvider()
 			}
 			case "opentelemetry": {
-				const otelConfig = getValidOpenTelemetryConfig()
+				const otelConfig = config.config
 				if (!otelConfig) {
 					return new NoOpTelemetryProvider()
 				}
@@ -100,7 +104,24 @@ export class TelemetryProviderFactory {
 
 		const otelConfig = getValidOpenTelemetryConfig()
 		if (otelConfig) {
-			configs.push({ type: "opentelemetry", ...otelConfig })
+			configs.push({
+				type: "opentelemetry",
+				enabled: otelConfig.enabled,
+				config: otelConfig,
+				bypassUserSettings: false,
+			})
+		}
+
+		const runtimeOtelConfig = getValidRuntimeOpenTelemetryConfig()
+		if (runtimeOtelConfig) {
+			configs.push({
+				type: "opentelemetry",
+				enabled: runtimeOtelConfig.enabled,
+				config: runtimeOtelConfig,
+				// If the user has `CLINE_OTEL_TELEMETRY_ENABLED` in his environment, enable
+				// OTEL regardless of his Cline telemetry settings
+				bypassUserSettings: true,
+			})
 		}
 
 		return configs.length > 0 ? configs : [{ type: "no-op" }]
