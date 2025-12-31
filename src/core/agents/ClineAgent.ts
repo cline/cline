@@ -5,76 +5,9 @@ import { Logger } from "@/services/logging/Logger"
 import type { ClineStorageMessage } from "@/shared/messages/content"
 import type { ToolResponse } from "../task"
 import type { TaskConfig } from "../task/tools/types/TaskConfig"
-import type { ToolDefinition } from "./SubAgentTools"
-
-export interface SearchResult {
-	workspaceName?: string
-	workspaceResults: string
-	resultCount: number
-	success: boolean
-}
-
-export interface AgentContext {
-	filePaths: Set<string>
-	searchResults: Map<string, SearchResult>
-	fileContents: Map<string, string>
-}
-
-export interface FileReadResult {
-	filePath: string
-	content: string
-	success: boolean
-}
-
-/**
- * Represents actions extracted from an agent's response
- */
-export interface AgentActions {
-	/** Tool calls to execute (e.g., search queries, file reads) */
-	toolCalls: unknown[]
-	/** Context files the agent wants to use in the final answer */
-	contextFiles: string[]
-	/** Whether the agent is ready to provide a final answer */
-	isReadyToAnswer: boolean
-}
-
-/**
- * Progress update sent during agent iteration
- */
-export interface AgentIterationUpdate {
-	/** Current iteration number (0-indexed) */
-	iteration: number
-	/** Maximum iterations allowed */
-	maxIterations: number
-	/** Actions extracted from the agent's response */
-	actions?: AgentActions
-	/** Current context state */
-	context?: unknown
-	/** Cost incurred in this iteration */
-	cost?: number
-	/** Message describing the current status etc */
-	message?: string
-}
-
-/**
- * Configuration for creating a ClineAgent instance
- */
-export interface ClineAgentConfig {
-	/** Model ID to use (e.g., "x-ai/grok-code-fast-1") */
-	modelId: string
-	/** Maximum number of iterations in the agentic loop */
-	maxIterations?: number
-	/** Callback for iteration progress updates */
-	onIterationUpdate: (update: AgentIterationUpdate) => void | Promise<void>
-	/** System Prompt for the agent */
-	systemPrompt?: string
-	/** Starting messages for the agent */
-	messages?: ClineStorageMessage[]
-	/** API Request Params */
-	apiParams?: Record<string, unknown>
-	/** Optional API client to use instead of the default ClineHandler */
-	client?: ApiHandler
-}
+import { AgentActions, AgentContext, AgentIterationUpdate, ClineAgentConfig, SearchResult } from "."
+import { SubAgentToolDefinition } from "./SubAgentTools"
+import { extractTagContent } from "./utils"
 
 /**
  * Abstract base class for agentic loops using ClineHandler.
@@ -86,52 +19,37 @@ export abstract class ClineAgent {
 	protected readonly maxIterations: number
 	protected readonly onIterationUpdate: (update: AgentIterationUpdate) => void | Promise<void>
 	protected cost = 0
-	protected tools: Map<string, ToolDefinition> = new Map()
+	protected readonly tools: Map<string, SubAgentToolDefinition> = new Map()
 	protected taskConfig?: TaskConfig
 
-	private static agents: ClineAgent[] = []
+	private static activeAgents = new Set<ClineAgent>()
 
 	constructor(private config: ClineAgentConfig) {
-		// Move this to individual subclasses to allow for different client configurations
 		this.client = config.client ?? new ClineHandler({ openRouterModelId: config.modelId, ...config.apiParams })
 		this.maxIterations = config.maxIterations ?? 3
 		this.onIterationUpdate = config.onIterationUpdate
-		ClineAgent.registerAgent(this)
+		ClineAgent.activeAgents.add(this)
 	}
 
-	private static registerAgent(agent: ClineAgent): void {
-		ClineAgent.agents.push(agent)
-	}
-
+	/**
+	 * Collects and resets costs from all active agents
+	 */
 	static getAllAgentCosts(): number {
 		let totalCost = 0
-		for (const agent of ClineAgent.agents) {
-			totalCost += agent.getCost()
-			agent.resetCost()
+		for (const agent of ClineAgent.activeAgents) {
+			totalCost += agent.cost
+			agent.cost = 0
 		}
+		ClineAgent.activeAgents.clear()
 		Logger.debug(`Total cost across all agents: $${totalCost.toFixed(4)}`)
 		return totalCost
-	}
-
-	/**
-	 * Gets the accumulated cost from this agent execution
-	 */
-	public getCost(): number {
-		return this.cost
-	}
-
-	/**
-	 * Resets the cost counter
-	 */
-	private resetCost(): void {
-		this.cost = 0
 	}
 
 	/**
 	 * Registers tools for this agent
 	 * @param toolDefinitions - Array of tool definitions to register
 	 */
-	protected registerTools(toolDefinitions: ToolDefinition[]): void {
+	protected registerTools(toolDefinitions: SubAgentToolDefinition[]): void {
 		for (const tool of toolDefinitions) {
 			this.tools.set(tool.tag, tool)
 		}
@@ -150,32 +68,23 @@ export abstract class ClineAgent {
 	 * Parses the response for tool tags and extracts subtag values.
 	 * @param response - The agent's response text
 	 * @returns Map of tool tag to array of extracted input values
-	 * @example
 	 */
 	protected extractToolCalls(response: string): Map<string, string[]> {
 		const toolCallsMap = new Map<string, string[]>()
 
 		for (const [toolTag, toolDef] of this.tools) {
-			const inputs: string[] = []
 			const toolPattern = new RegExp(`<${toolTag}>(.*?)</${toolTag}>`, "gs")
-			let toolMatch: RegExpExecArray | null
+			const subTagPattern = new RegExp(`<${toolDef.subTag}>(.*?)</${toolDef.subTag}>`, "gs")
+			const inputs: string[] = []
 
-			toolMatch = toolPattern.exec(response)
-			while (toolMatch !== null) {
+			for (const toolMatch of response.matchAll(toolPattern)) {
 				const toolContent = toolMatch[1]
-				const subTagPattern = new RegExp(`<${toolDef.subTag}>(.*?)</${toolDef.subTag}>`, "gs")
-				let subTagMatch: RegExpExecArray | null
-
-				subTagMatch = subTagPattern.exec(toolContent)
-				while (subTagMatch !== null) {
+				for (const subTagMatch of toolContent.matchAll(subTagPattern)) {
 					const value = subTagMatch[1].trim()
 					if (value) {
 						inputs.push(value)
 					}
-					subTagMatch = subTagPattern.exec(toolContent)
 				}
-
-				toolMatch = toolPattern.exec(response)
 			}
 
 			if (inputs.length > 0) {
@@ -218,10 +127,34 @@ export abstract class ClineAgent {
 	abstract buildContextPrompt(context: AgentContext, iteration: number): string
 
 	/**
-	 * Extracts actions (tool calls, context files, ready status) from the agent's response
+	 * Generic implementation of extractActions using registered tools and config tags.
+	 * Extracts tool calls based on registered tools, context files, and ready-to-answer status.
 	 * @param response - The full response text from the agent
 	 */
-	abstract extractActions(response: string): AgentActions
+	protected extractActions(response: string): AgentActions {
+		// Extract context files if contextTag is configured
+		const contextFiles = this.config.contextTag ? extractTagContent(response, this.config.contextTag) : []
+
+		// Check if ready to answer if answerTag is configured
+		const isReadyToAnswer = this.config.answerTag ? response.includes(`<${this.config.answerTag}>`) : false
+
+		// Extract tool calls based on registered tools
+		const toolCallsMap = this.extractToolCalls(response)
+
+		// Convert tool calls map to array format
+		const toolCalls: unknown[] = []
+		for (const [toolTag, inputs] of toolCallsMap) {
+			for (const input of inputs) {
+				toolCalls.push({ toolTag, input })
+			}
+		}
+
+		return {
+			toolCalls,
+			contextFiles,
+			isReadyToAnswer,
+		}
+	}
 
 	/**
 	 * Generic tool execution that groups tool calls by tag and executes them in parallel.
@@ -231,27 +164,20 @@ export abstract class ClineAgent {
 	 */
 	protected async executeToolsByTag(toolCallsMap: Map<string, string[]>): Promise<Map<string, unknown>> {
 		const startTime = performance.now()
+		const entries = Array.from(toolCallsMap.entries())
 
 		// Execute all tools in parallel
-		const toolExecutionPromises = Array.from(toolCallsMap.entries()).map(([toolTag, inputs]) =>
-			this.executeToolByTag(toolTag, inputs),
-		)
-		const toolExecutionResults = await Promise.all(toolExecutionPromises)
+		const results = await Promise.all(entries.map(([toolTag, inputs]) => this.executeToolByTag(toolTag, inputs)))
 
-		// Create a map of tool results by tag
-		const resultsByTag = new Map<string, unknown>()
-		let resultIndex = 0
-		for (const [toolTag] of toolCallsMap.entries()) {
-			resultsByTag.set(toolTag, toolExecutionResults[resultIndex++])
-		}
+		// Build result map
+		const resultsByTag = new Map(entries.map(([toolTag], i) => [toolTag, results[i]]))
 
-		const endTime = performance.now()
-		const totalCalls = Array.from(toolCallsMap.values()).reduce((sum, arr) => sum + arr.length, 0)
-		const msg = `Executed ${totalCalls} tool calls across ${toolCallsMap.size} tool types in ${endTime - startTime}ms`
+		const totalCalls = entries.reduce((sum, [, inputs]) => sum + inputs.length, 0)
+		const duration = performance.now() - startTime
 		await this.onIterationUpdate({
 			iteration: this.currentIteration,
 			maxIterations: this.maxIterations,
-			message: msg,
+			message: `Executed ${totalCalls} tool calls across ${toolCallsMap.size} tool types in ${duration.toFixed(0)}ms`,
 		})
 
 		return resultsByTag
@@ -285,11 +211,9 @@ export abstract class ClineAgent {
 	 * @param context - Current context
 	 * @param fileContents - Map of file path to content
 	 */
-	private updateContextWithFiles(context: AgentContext, fileContents: Map<string, string>): void {
+	protected updateContextWithFiles(context: AgentContext, fileContents: Map<string, string>): void {
 		for (const [filePath, content] of fileContents) {
-			if (!context.fileContents.has(filePath)) {
-				context.fileContents.set(filePath, content)
-			}
+			context.fileContents.set(filePath, content)
 		}
 	}
 
@@ -332,7 +256,7 @@ export abstract class ClineAgent {
 
 			if (msg.type === "usage" && msg.totalCost) {
 				this.cost += msg.totalCost
-				await this.onIterationUpdate?.({
+				await this.onIterationUpdate({
 					iteration: this.currentIteration,
 					maxIterations: this.maxIterations,
 					cost: msg.totalCost,
@@ -374,7 +298,7 @@ export abstract class ClineAgent {
 			const actions = this.extractActions(fullResponse)
 
 			// Send iteration update
-			await this.onIterationUpdate?.({
+			await this.onIterationUpdate({
 				iteration,
 				maxIterations: this.maxIterations,
 				actions,

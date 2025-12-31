@@ -10,16 +10,9 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 
 export class SearchSubAgentHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.SEARCH_AGENT
-	private static subagentCost = 0
 
 	getDescription(block: ToolUse): string {
 		return `[${block.name}]`
-	}
-
-	static getCost(): number {
-		const cost = SearchSubAgentHandler.subagentCost
-		SearchSubAgentHandler.subagentCost = 0
-		return cost
 	}
 
 	private async buildToolMessage(config: TaskConfig, block: ToolUse, content: string, parsedPath: string): Promise<string> {
@@ -75,9 +68,6 @@ export class SearchSubAgentHandler implements IFullyManagedTool {
 	private async performNaturalLanguageSearch(config: TaskConfig, block: ToolUse, searchInput: string): Promise<ToolResponse> {
 		try {
 			const agent = new SearchAgent(config, 3, async (update) => {
-				if (update.cost) {
-					SearchSubAgentHandler.subagentCost = update.cost + SearchSubAgentHandler.subagentCost
-				}
 				// Build a partial message showing the progress
 				const progress = `[${update.iteration + 1}/${update.maxIterations}]`
 				let statusText = progress

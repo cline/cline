@@ -7,7 +7,7 @@ import { resolveWorkspacePath } from "../workspace"
  * Tool definition for SearchAgent.
  * To add a new tool, simply add a new entry to SEARCH_AGENT_TOOLS array below.
  */
-export interface ToolDefinition {
+export interface SubAgentToolDefinition {
 	tag: string
 	subTag: string
 	instruction: string
@@ -16,7 +16,7 @@ export interface ToolDefinition {
 	execute: (inputs: string[], taskConfig: TaskConfig) => Promise<unknown>
 }
 
-const TOOLFILE: ToolDefinition = {
+const TOOLFILE: SubAgentToolDefinition = {
 	tag: "TOOLFILE",
 	subTag: "name",
 	instruction:
@@ -53,7 +53,7 @@ const TOOLFILE: ToolDefinition = {
 	},
 }
 
-const TOOLSEARCH: ToolDefinition = {
+const TOOLSEARCH: SubAgentToolDefinition = {
 	tag: "TOOLSEARCH",
 	subTag: "query",
 	instruction:
@@ -121,29 +121,4 @@ const TOOLSEARCH: ToolDefinition = {
 /**
  * Tools configuration for SearchAgent.
  */
-export const SEARCH_AGENT_TOOLS: ToolDefinition[] = [TOOLFILE, TOOLSEARCH]
-
-/**
- * Builds the tools placeholder string for the system prompt.
- * Formats all tool definitions into a readable instruction format.
- */
-export function buildToolsPlaceholder(tools: ToolDefinition[]): string {
-	const toolsPrompts: string[] = []
-
-	for (const tool of tools) {
-		const prompt = `\`<${tool.tag}><${tool.subTag}>${tool.placeholder}</${tool.subTag}></${tool.tag}>\`: ${tool.instruction}.`
-
-		if (tool.examples && tool.examples.length > 0) {
-			toolsPrompts.push(`${prompt}\n\t- ${tool.examples.join("\n\t- ")}`)
-		} else {
-			toolsPrompts.push(prompt)
-		}
-	}
-
-	return toolsPrompts.join("\n")
-}
-
-export function extractTagContent(response: string, tag: string): string[] {
-	const tagLength = tag.length
-	return response.match(new RegExp(`<${tag}>(.*?)</${tag}>`, "g"))?.map((m) => m.slice(tagLength + 2, -(tagLength + 3))) || []
-}
+export const SEARCH_AGENT_TOOLS: SubAgentToolDefinition[] = [TOOLFILE, TOOLSEARCH]

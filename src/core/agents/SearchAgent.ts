@@ -1,7 +1,9 @@
 import { ToolResponse } from "../task"
 import type { TaskConfig } from "../task/tools/types/TaskConfig"
-import { type AgentActions, AgentContext, AgentIterationUpdate, ClineAgent, FileReadResult, SearchResult } from "./ClineAgent"
-import { buildToolsPlaceholder, extractTagContent, SEARCH_AGENT_TOOLS } from "./SubAgentTools"
+import { AgentContext, AgentIterationUpdate, FileReadResult, SearchResult } from "./"
+import { ClineAgent } from "./ClineAgent"
+import { SEARCH_AGENT_TOOLS } from "./SubAgentTools"
+import { buildToolsPlaceholder } from "./utils"
 
 export const ACTIONS_TAGS = {
 	ANSWER: `next_step`,
@@ -25,7 +27,14 @@ export class SearchAgent extends ClineAgent {
 		systemPrompt?: string,
 		modelId: string = SEARCH_MODELS.gemini,
 	) {
-		super({ modelId, maxIterations, onIterationUpdate, systemPrompt })
+		super({
+			modelId,
+			maxIterations,
+			onIterationUpdate,
+			systemPrompt,
+			contextTag: ACTIONS_TAGS.CONTEXT,
+			answerTag: ACTIONS_TAGS.ANSWER,
+		})
 		this.setTaskConfig(taskConfig)
 		this.registerTools(SEARCH_AGENT_TOOLS)
 	}
@@ -39,32 +48,24 @@ export class SearchAgent extends ClineAgent {
 			return "No context retrieved yet."
 		}
 
-		// Build a comprehensive context summary with search results and file contents
+		const MAX_RESULTS_TO_SHOW = 5
 		const contextParts: string[] = []
-		const MAX_RESULTS_TO_SHOW = 5 // Show details for first 5 searches
-
-		// Track all queries that have been searched
-		const allSearchedQueries: string[] = []
 		const successfulQueries: string[] = []
 		const unsuccessfulQueries: string[] = []
 
-		// Add search results
-		let resultIndex = 0
+		// Process search results
+		let shownResults = 0
 		for (const [query, result] of context.searchResults) {
-			allSearchedQueries.push(query)
-
 			if (result.success && result.resultCount > 0) {
 				successfulQueries.push(query)
-				if (resultIndex < MAX_RESULTS_TO_SHOW) {
-					// Include the full search results for the first few queries
+				if (shownResults < MAX_RESULTS_TO_SHOW) {
 					contextParts.push(`### Search: "${query}"\n${result.workspaceResults}`)
+					shownResults++
 				} else {
-					// For remaining queries, just show summary
 					contextParts.push(
 						`### Search: "${query}"\nFound ${result.resultCount} result${result.resultCount > 1 ? "s" : ""}`,
 					)
 				}
-				resultIndex++
 			} else {
 				unsuccessfulQueries.push(query)
 			}
@@ -75,85 +76,53 @@ export class SearchAgent extends ClineAgent {
 			contextParts.push(`### File: ${filePath}\n\`\`\`\n${content}\n\`\`\``)
 		}
 
-		// Build header with search history
+		// Build header
+		const totalSearches = context.searchResults.size
 		const totalFiles = context.filePaths.size
 		const totalFileContents = context.fileContents.size
-		let header = `Retrieved context from ${context.searchResults.size} search${context.searchResults.size > 1 ? "es" : ""} (${totalFiles} unique file${totalFiles > 1 ? "s" : ""}) and ${totalFileContents} file content${totalFileContents > 1 ? "s" : ""}:\n\n`
+		const parts = [
+			`Retrieved context from ${totalSearches} search${totalSearches > 1 ? "es" : ""} (${totalFiles} unique file${totalFiles > 1 ? "s" : ""}) and ${totalFileContents} file content${totalFileContents > 1 ? "s" : ""}:\n`,
+		]
 
-		// Add list of previously searched queries to prevent duplicates
-		if (allSearchedQueries.length > 0) {
-			header += `**Previously searched queries (DO NOT search these again):**\n`
-			for (const query of successfulQueries) {
-				header += `- "${query}" ✓ (found results)\n`
-			}
-			for (const query of unsuccessfulQueries) {
-				header += `- "${query}" ✗ (no results)\n`
-			}
-			header += `\n`
+		// Add search history
+		if (successfulQueries.length > 0 || unsuccessfulQueries.length > 0) {
+			parts.push("\n**Previously searched queries (DO NOT search these again):**")
+			successfulQueries.forEach((q) => parts.push(`- "${q}" ✓ (found results)`))
+			unsuccessfulQueries.forEach((q) => parts.push(`- "${q}" ✗ (no results)`))
+			parts.push("")
 		}
 
-		return header + contextParts.join("\n\n")
-	}
-
-	extractActions(response: string): AgentActions {
-		// Extract context files first (these are the files the agent wants to use in the final answer)
-		const contextFilePaths = extractTagContent(response, ACTIONS_TAGS.CONTEXT)
-
-		// Check if ready to answer
-		const isReadyToAnswer = response.includes(`<${ACTIONS_TAGS.ANSWER}>`)
-
-		// Use the shared method to extract tool calls
-		const toolCallsMap = this.extractToolCalls(response)
-
-		// Combine all tool calls into a unified format
-		const toolCalls: Array<{ type: "search" | "file"; value: string }> = []
-
-		const searchQueries = toolCallsMap.get("TOOLSEARCH") ?? []
-		for (const query of searchQueries) {
-			toolCalls.push({ type: "search", value: query })
-		}
-
-		const filePaths = toolCallsMap.get("TOOLFILE") ?? []
-		for (const filePath of filePaths) {
-			toolCalls.push({ type: "file", value: filePath })
-		}
-
-		return {
-			toolCalls,
-			contextFiles: contextFilePaths,
-			isReadyToAnswer,
-		}
+		return parts.join("\n") + contextParts.join("\n\n")
 	}
 
 	async executeTools(toolCalls: unknown[]): Promise<unknown[]> {
-		// Group tool calls by type
-		const toolsByType = new Map<string, string[]>()
+		// Group tool calls by toolTag
+		const toolsByTag = new Map<string, string[]>()
 		for (const toolCall of toolCalls) {
 			if (typeof toolCall === "object" && toolCall !== null) {
-				const call = toolCall as { type: "search" | "file"; value: string }
-				const toolTag = call.type === "search" ? "TOOLSEARCH" : "TOOLFILE"
-				if (!toolsByType.has(toolTag)) {
-					toolsByType.set(toolTag, [])
+				const { toolTag, input } = toolCall as { toolTag: string; input: string }
+				const existing = toolsByTag.get(toolTag)
+				if (existing) {
+					existing.push(input)
+				} else {
+					toolsByTag.set(toolTag, [input])
 				}
-				toolsByType.get(toolTag)!.push(call.value)
 			}
 		}
 
-		// Use the shared execution method
-		const resultsByTag = await this.executeToolsByTag(toolsByType)
+		// Execute all tools in parallel
+		const resultsByTag = await this.executeToolsByTag(toolsByTag)
 
-		// Reconstruct results in original order (maintain compatibility with existing code)
+		// Reconstruct results in original order
 		const results: unknown[] = []
-		const indexByType = new Map<string, number>()
+		const indexByTag = new Map<string, number>()
 		for (const toolCall of toolCalls) {
 			if (typeof toolCall === "object" && toolCall !== null) {
-				const call = toolCall as { type: "search" | "file"; value: string }
-				const toolTag = call.type === "search" ? "TOOLSEARCH" : "TOOLFILE"
-				const currentIndex = indexByType.get(toolTag) ?? 0
-				const toolResults = resultsByTag.get(toolTag)
-				const toolResultsArray = Array.isArray(toolResults) ? toolResults : []
-				results.push(toolResultsArray[currentIndex])
-				indexByType.set(toolTag, currentIndex + 1)
+				const { toolTag } = toolCall as { toolTag: string; input: string }
+				const index = indexByTag.get(toolTag) ?? 0
+				const toolResults = resultsByTag.get(toolTag) as unknown[]
+				results.push(toolResults[index])
+				indexByTag.set(toolTag, index + 1)
 			}
 		}
 
@@ -174,103 +143,66 @@ export class SearchAgent extends ClineAgent {
 	}
 
 	public updateContextWithToolResults(context: AgentContext, toolCalls: unknown[], toolResults: unknown[]): boolean {
-		let foundNewContext = false
+		const initialFileCount = context.filePaths.size
+		const initialContentCount = context.fileContents.size
 
 		for (let i = 0; i < toolCalls.length; i++) {
 			const toolCall = toolCalls[i]
 			const toolResult = toolResults[i]
 
 			if (typeof toolCall === "object" && toolCall !== null) {
-				const call = toolCall as { type: "search" | "file"; value: string }
+				const { toolTag, input } = toolCall as { toolTag: string; input: string }
 
-				if (call.type === "search" && toolResult) {
+				if (toolTag === "TOOLSEARCH" && toolResult) {
 					const result = toolResult as SearchResult
 					if (result.success && result.resultCount > 0) {
-						// Extract file paths from this result
-						const filePaths = this.extractFilePathsFromResult(result)
-						const initialSize = context.filePaths.size
-
-						filePaths.forEach((fp) => context.filePaths.add(fp))
-
-						// Check if we found new files
-						if (context.filePaths.size > initialSize) {
-							foundNewContext = true
-						}
-
-						context.searchResults.set(call.value, result)
+						this.extractFilePathsFromResult(result).forEach((fp) => context.filePaths.add(fp))
+						context.searchResults.set(input, result)
 					}
-				} else if (call.type === "file" && toolResult) {
+				} else if (toolTag === "TOOLFILE" && toolResult) {
 					const fileResult = toolResult as FileReadResult
-					if (fileResult.success) {
-						// Only add if we haven't read this file before
-						if (!context.fileContents.has(fileResult.filePath)) {
-							context.fileContents.set(fileResult.filePath, fileResult.content)
-							foundNewContext = true
-						}
+					if (fileResult.success && !context.fileContents.has(fileResult.filePath)) {
+						context.fileContents.set(fileResult.filePath, fileResult.content)
 					}
 				}
 			}
 		}
 
-		return foundNewContext
+		return context.filePaths.size > initialFileCount || context.fileContents.size > initialContentCount
 	}
 
 	public shouldContinue(_context: AgentContext, foundNewContext: boolean, isReadyToAnswer: boolean): boolean {
-		// Stop if ready to answer
-		if (isReadyToAnswer) {
-			return false
-		}
-
-		// Stop if no new context was found
-		if (!foundNewContext) {
-			return false
-		}
-
-		// Continue if we have iterations left
-		return this.currentIteration < this.maxIterations - 1
+		return !isReadyToAnswer && foundNewContext && this.currentIteration < this.maxIterations - 1
 	}
 
 	public formatResult(context: AgentContext, pathOnly = true): ToolResponse {
-		// If we have file contents, return those (these are the context files the agent selected)
+		// Return file contents if available
 		if (context.fileContents.size > 0) {
+			const paths = Array.from(context.fileContents.keys())
 			if (pathOnly) {
-				const filePathsArray = Array.from(context.fileContents.keys())
-				const resultLabel = filePathsArray.length === 1 ? "1 file" : `${filePathsArray.length} files`
-				const formattedPaths = filePathsArray.map((filePath, _i) => `- ${filePath}`).join("\n")
-
-				return `Search Agent returned ${resultLabel}:\n${formattedPaths}`
+				const count = paths.length
+				const label = count === 1 ? "1 file" : `${count} files`
+				return `Search Agent returned ${label}:\n${paths.map((p) => `- ${p}`).join("\n")}`
 			}
-
 			return [...context.fileContents].map(([filePath, content]) => ({ type: "text", text: `${filePath}\n${content}` }))
 		}
 
-		// Otherwise, return the search results
+		// Return search results
 		if (context.filePaths.size === 0) {
 			return "No results found after searching."
 		}
 
-		const filePathsArray = Array.from(context.filePaths)
-		const resultLabel = filePathsArray.length === 1 ? "1 file" : `${filePathsArray.length} files`
-		const formattedPaths = filePathsArray.map((filePath, _i) => `- ${filePath}`).join("\n")
-
-		return `Found ${resultLabel} across multiple searches:\n${formattedPaths}`
+		const paths = Array.from(context.filePaths)
+		const count = paths.length
+		const label = count === 1 ? "1 file" : `${count} files`
+		return `Found ${label} across multiple searches:\n${paths.map((p) => `- ${p}`).join("\n")}`
 	}
 
 	private extractFilePathsFromResult(result: SearchResult): string[] {
-		const filePaths: string[] = []
-		const lines = result.workspaceResults.split("\n")
-
-		for (const line of lines) {
-			// File paths don't start with │ and are not empty or header lines
-			if (line && !line.startsWith("│") && !line.startsWith("Found ") && !line.startsWith("Showing ")) {
-				const trimmed = line.trim()
-				if (trimmed) {
-					filePaths.push(trimmed)
-				}
-			}
-		}
-
-		return filePaths
+		return result.workspaceResults
+			.split("\n")
+			.map((line) => line.trim())
+			.filter((line) => line && !line.startsWith("│") && !line.startsWith("Found ") && !line.startsWith("Showing "))
 	}
 }
 
