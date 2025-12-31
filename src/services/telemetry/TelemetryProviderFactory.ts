@@ -77,7 +77,7 @@ export class TelemetryProviderFactory {
 				const client = new OpenTelemetryClientProvider(otelConfig)
 				if (client.meterProvider || client.loggerProvider) {
 					return await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider, {
-						bypassUserSettings: false,
+						bypassUserSettings: config.bypassUserSettings,
 					}).initialize()
 				}
 				Logger.info("TelemetryProviderFactory: OpenTelemetry providers not available")
