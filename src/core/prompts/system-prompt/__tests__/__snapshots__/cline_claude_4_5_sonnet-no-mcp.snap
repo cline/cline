@@ -69,7 +69,6 @@ When user is providing you with feedback on how you could improve, you can let t
 RULES
 
 - The current working directory is `/test/project` - this is the directory where all the tools will be executed from. Then if you want to test your work, you might use browser_action to launch the site, wait for the user's response confirming the site was launched along with a screenshot, then perhaps e.g., click a button to test functionality if needed, wait for the user's response confirming the button was clicked along with a screenshot of the new state, before finally closing the browser.
-- MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations.
 
 ====
 
