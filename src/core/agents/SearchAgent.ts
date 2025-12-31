@@ -1,37 +1,11 @@
-import { extractFileContent } from "@integrations/misc/extract-file-content"
-import { regexSearchFiles } from "@services/ripgrep"
-import { resolveWorkspacePath } from "@/core/workspace/WorkspaceResolver"
 import { ToolResponse } from "../task"
 import type { TaskConfig } from "../task/tools/types/TaskConfig"
-import { type AgentActions, AgentIterationUpdate, ClineAgent } from "./ClineAgent"
-
-interface SearchResult {
-	workspaceName?: string
-	workspaceResults: string
-	resultCount: number
-	success: boolean
-}
-
-interface SearchContext {
-	filePaths: Set<string>
-	searchResults: Map<string, SearchResult>
-	fileContents: Map<string, string>
-}
-
-interface FileReadResult {
-	filePath: string
-	content: string
-	success: boolean
-}
+import { type AgentActions, AgentContext, AgentIterationUpdate, ClineAgent, FileReadResult, SearchResult } from "./ClineAgent"
+import { buildToolsPlaceholder, extractTagContent, SEARCH_AGENT_TOOLS } from "./SubAgentTools"
 
 export const ACTIONS_TAGS = {
 	ANSWER: `next_step`,
 	CONTEXT: `context_list`,
-}
-
-function extractTagContent(response: string, tag: string): string[] {
-	const tagLength = tag.length
-	return response.match(new RegExp(`<${tag}>(.*?)</${tag}>`, "g"))?.map((m) => m.slice(tagLength + 2, -(tagLength + 3))) || []
 }
 
 const SEARCH_MODELS = {
@@ -43,22 +17,24 @@ const SEARCH_MODELS = {
  * SearchAgent extends ClineAgent to provide natural language search functionality
  * across codebases using an agentic loop.
  */
-export class SearchAgent extends ClineAgent<SearchContext> {
+export class SearchAgent extends ClineAgent {
 	constructor(
-		private taskConfig: TaskConfig,
+		taskConfig: TaskConfig,
 		maxIterations: number = 3,
 		onIterationUpdate: (update: AgentIterationUpdate) => void | Promise<void>,
 		systemPrompt?: string,
 		modelId: string = SEARCH_MODELS.gemini,
 	) {
 		super({ modelId, maxIterations, onIterationUpdate, systemPrompt })
+		this.setTaskConfig(taskConfig)
+		this.registerTools(SEARCH_AGENT_TOOLS)
 	}
 
 	buildSystemPrompt(userInput: string, contextPrompt: string): string {
 		return buildSearchAgentSystemPrompt(userInput, contextPrompt, ACTIONS_TAGS)
 	}
 
-	buildContextPrompt(context: SearchContext, iteration: number): string {
+	buildContextPrompt(context: AgentContext, iteration: number): string {
 		if (iteration === 0 || (context.searchResults.size === 0 && context.fileContents.size === 0)) {
 			return "No context retrieved yet."
 		}
@@ -126,16 +102,19 @@ export class SearchAgent extends ClineAgent<SearchContext> {
 		// Check if ready to answer
 		const isReadyToAnswer = response.includes(`<${ACTIONS_TAGS.ANSWER}>`)
 
-		// Extract search queries and file paths from the response
-		const searchQueries = this.extractSearchQueries(response)
-		const filePathsToRead = this.extractFilePaths(response)
+		// Use the shared method to extract tool calls
+		const toolCallsMap = this.extractToolCalls(response)
 
-		// Combine search queries and file paths as tool calls
+		// Combine all tool calls into a unified format
 		const toolCalls: Array<{ type: "search" | "file"; value: string }> = []
+
+		const searchQueries = toolCallsMap.get("TOOLSEARCH") ?? []
 		for (const query of searchQueries) {
 			toolCalls.push({ type: "search", value: query })
 		}
-		for (const filePath of filePathsToRead) {
+
+		const filePaths = toolCallsMap.get("TOOLFILE") ?? []
+		for (const filePath of filePaths) {
 			toolCalls.push({ type: "file", value: filePath })
 		}
 
@@ -146,146 +125,43 @@ export class SearchAgent extends ClineAgent<SearchContext> {
 		}
 	}
 
-	private extractSearchQueries(response: string): string[] {
-		const searchQueries: string[] = []
-		const toolSearchPattern = /<TOOLSEARCH>(.*?)<\/TOOLSEARCH>/gs
-		let toolSearchMatch: RegExpExecArray | null = null
-
-		while ((toolSearchMatch = toolSearchPattern.exec(response)) !== null) {
-			const toolSearchContent = toolSearchMatch[1]
-			const queryMatch = toolSearchContent.match(/<query>(.*?)<\/query>/s)
-			if (queryMatch) {
-				searchQueries.push(queryMatch[1].trim())
-			}
-		}
-
-		return searchQueries
-	}
-
-	private extractFilePaths(response: string): string[] {
-		const filePaths: string[] = []
-		const toolFilePattern = /<TOOLFILE>(.*?)<\/TOOLFILE>/gs
-		let toolFileMatch: RegExpExecArray | null = null
-
-		while ((toolFileMatch = toolFilePattern.exec(response)) !== null) {
-			const toolFileContent = toolFileMatch[1]
-			const namePattern = /<name>(.*?)<\/name>/gs
-			let nameMatch: RegExpExecArray | null = null
-
-			while ((nameMatch = namePattern.exec(toolFileContent)) !== null) {
-				const filePath = nameMatch[1].trim()
-				if (filePath) {
-					filePaths.push(filePath)
-				}
-			}
-		}
-
-		console.log(`Extracted ${filePaths.length} file paths from response.`)
-
-		return filePaths
-	}
-
 	async executeTools(toolCalls: unknown[]): Promise<unknown[]> {
-		const searchQueries: string[] = []
-		const filePaths: string[] = []
-
-		// Separate search queries from file paths
+		// Group tool calls by type
+		const toolsByType = new Map<string, string[]>()
 		for (const toolCall of toolCalls) {
 			if (typeof toolCall === "object" && toolCall !== null) {
 				const call = toolCall as { type: "search" | "file"; value: string }
-				if (call.type === "search") {
-					searchQueries.push(call.value)
-				} else if (call.type === "file") {
-					filePaths.push(call.value)
+				const toolTag = call.type === "search" ? "TOOLSEARCH" : "TOOLFILE"
+				if (!toolsByType.has(toolTag)) {
+					toolsByType.set(toolTag, [])
 				}
+				toolsByType.get(toolTag)!.push(call.value)
 			}
 		}
 
-		const searchStartTime = performance.now()
+		// Use the shared execution method
+		const resultsByTag = await this.executeToolsByTag(toolsByType)
 
-		// Execute searches and file reads in parallel
-		const [searchResults, fileResults] = await Promise.all([
-			searchQueries.length > 0 ? this.executeParallelSearches(searchQueries) : Promise.resolve([]),
-			filePaths.length > 0 ? this.executeParallelFileReads(filePaths) : Promise.resolve([]),
-		])
-
-		// Combine results maintaining order
+		// Reconstruct results in original order (maintain compatibility with existing code)
 		const results: unknown[] = []
-		let searchIndex = 0
-		let fileIndex = 0
-
+		const indexByType = new Map<string, number>()
 		for (const toolCall of toolCalls) {
 			if (typeof toolCall === "object" && toolCall !== null) {
 				const call = toolCall as { type: "search" | "file"; value: string }
-				if (call.type === "search") {
-					results.push(searchResults[searchIndex++])
-				} else if (call.type === "file") {
-					results.push(fileResults[fileIndex++])
-				}
+				const toolTag = call.type === "search" ? "TOOLSEARCH" : "TOOLFILE"
+				const currentIndex = indexByType.get(toolTag) ?? 0
+				const toolResults = resultsByTag.get(toolTag)
+				const toolResultsArray = Array.isArray(toolResults) ? toolResults : []
+				results.push(toolResultsArray[currentIndex])
+				indexByType.set(toolTag, currentIndex + 1)
 			}
 		}
-
-		const searchEndTime = performance.now()
-		const msg = `Searches executed in ${searchEndTime - searchStartTime} ms. with ${searchQueries.length} queries and ${filePaths.length} file reads. Total results: ${results.length}`
-		this.onIterationUpdate({ iteration: this.currentIteration, maxIterations: this.maxIterations, message: msg })
 
 		return results
 	}
 
-	private async executeParallelSearches(queries: string[]): Promise<SearchResult[]> {
-		const searchPromises = queries.map(async (query) => {
-			try {
-				const searchPath = this.taskConfig.cwd
-				return await this.executeSearch(searchPath, query)
-			} catch (error) {
-				console.error(`Search failed for query "${query}":`, error)
-				return {
-					workspaceName: undefined,
-					workspaceResults: "",
-					resultCount: 0,
-					success: false,
-				}
-			}
-		})
-
-		return await Promise.all(searchPromises)
-	}
-
-	private async executeSearch(absolutePath: string, regex: string): Promise<SearchResult> {
-		try {
-			const workspaceResults = await regexSearchFiles(
-				this.taskConfig.cwd,
-				absolutePath,
-				regex,
-				undefined,
-				this.taskConfig.services.clineIgnoreController,
-				false, // exclude hidden files
-			)
-
-			const firstLine = workspaceResults.split("\n")[0]
-			// Match either "Found X result(s)" or "Showing first X of X+ results"
-			const resultMatch = firstLine.match(/Found (\d+) result|Showing first (\d+) of/)
-			const resultCount = resultMatch ? parseInt(resultMatch[1] || resultMatch[2], 10) : 0
-
-			return {
-				workspaceName: undefined,
-				workspaceResults,
-				resultCount,
-				success: true,
-			}
-		} catch (error) {
-			console.error(`Search failed in ${absolutePath}:`, error)
-			return {
-				workspaceName: undefined,
-				workspaceResults: "",
-				resultCount: 0,
-				success: false,
-			}
-		}
-	}
-
 	async readContextFiles(filePaths: string[]): Promise<Map<string, string>> {
-		const fileResults = await this.executeParallelFileReads(filePaths)
+		const fileResults = (await this.executeToolByTag("TOOLFILE", filePaths)) as FileReadResult[]
 		const fileContents = new Map<string, string>()
 
 		for (const fileResult of fileResults) {
@@ -297,36 +173,7 @@ export class SearchAgent extends ClineAgent<SearchContext> {
 		return fileContents
 	}
 
-	private async executeParallelFileReads(filePaths: string[]): Promise<FileReadResult[]> {
-		const fileReadPromises = filePaths.map(async (filePath) => {
-			try {
-				// Resolve the file path relative to the workspace
-				const pathResult = resolveWorkspacePath(this.taskConfig, filePath, "SearchAgent.executeParallelFileReads")
-				const absolutePath = typeof pathResult === "string" ? pathResult : pathResult.absolutePath
-
-				// Read the file content
-				const supportsImages = this.taskConfig.api.getModel().info.supportsImages ?? false
-				const fileContent = await extractFileContent(absolutePath, supportsImages)
-
-				return {
-					filePath,
-					content: fileContent.text,
-					success: true,
-				}
-			} catch (error) {
-				console.error(`File read failed for "${filePath}":`, error)
-				return {
-					filePath,
-					content: `Error reading file: ${error instanceof Error ? error.message : String(error)}`,
-					success: false,
-				}
-			}
-		})
-
-		return await Promise.all(fileReadPromises)
-	}
-
-	public updateContextWithToolResults(context: SearchContext, toolCalls: unknown[], toolResults: unknown[]): boolean {
+	public updateContextWithToolResults(context: AgentContext, toolCalls: unknown[], toolResults: unknown[]): boolean {
 		let foundNewContext = false
 
 		for (let i = 0; i < toolCalls.length; i++) {
@@ -368,15 +215,7 @@ export class SearchAgent extends ClineAgent<SearchContext> {
 		return foundNewContext
 	}
 
-	public updateContextWithFiles(context: SearchContext, fileContents: Map<string, string>): void {
-		for (const [filePath, content] of fileContents) {
-			if (!context.fileContents.has(filePath)) {
-				context.fileContents.set(filePath, content)
-			}
-		}
-	}
-
-	public shouldContinue(_context: SearchContext, foundNewContext: boolean, isReadyToAnswer: boolean): boolean {
+	public shouldContinue(_context: AgentContext, foundNewContext: boolean, isReadyToAnswer: boolean): boolean {
 		// Stop if ready to answer
 		if (isReadyToAnswer) {
 			return false
@@ -391,7 +230,7 @@ export class SearchAgent extends ClineAgent<SearchContext> {
 		return this.currentIteration < this.maxIterations - 1
 	}
 
-	public formatResult(context: SearchContext, pathOnly = true): ToolResponse {
+	public formatResult(context: AgentContext, pathOnly = true): ToolResponse {
 		// If we have file contents, return those (these are the context files the agent selected)
 		if (context.fileContents.size > 0) {
 			if (pathOnly) {
@@ -417,14 +256,6 @@ export class SearchAgent extends ClineAgent<SearchContext> {
 		return `Found ${resultLabel} across multiple searches:\n${formattedPaths}`
 	}
 
-	public createInitialContext(): SearchContext {
-		return {
-			filePaths: new Set<string>(),
-			searchResults: new Map<string, SearchResult>(),
-			fileContents: new Map<string, string>(),
-		}
-	}
-
 	private extractFilePathsFromResult(result: SearchResult): string[] {
 		const filePaths: string[] = []
 		const lines = result.workspaceResults.split("\n")
@@ -448,73 +279,11 @@ export class SearchAgent extends ClineAgent<SearchContext> {
 // ============================================================================
 
 /**
- * Tool definition for SearchAgent.
- * To add a new tool, simply add a new entry to SEARCH_AGENT_TOOLS array below.
- */
-interface ToolDefinition {
-	tag: string
-	subTag: string
-	instruction: string
-	placeholder: string
-	examples?: string[]
-}
-
-/**
- * Tools configuration for SearchAgent.
- * Add new tools here by extending this array with a new ToolDefinition.
- */
-const SEARCH_AGENT_TOOLS: ToolDefinition[] = [
-	{
-		tag: "TOOLFILE",
-		subTag: "name",
-		instruction:
-			"To retrieve full content of a codebase file using absolute path filename-DO NOT retrieve files that may contain secrets",
-		placeholder: "ABSOLUTE_PATH",
-		examples: [
-			`See the content of different files: \`<TOOLFILE><name>path/foo.ts</name><name>path/bar.ts</name></TOOLFILE>\``,
-		],
-	},
-	{
-		tag: "TOOLSEARCH",
-		subTag: "query",
-		instruction:
-			"Perform regex pattern searches across the codebase. Supports multiple parallel searches by including multiple query tags. All searches will execute simultaneously for faster results",
-		placeholder: "SEARCH_QUERY",
-		examples: [
-			`Single search: \`<TOOLSEARCH><query>symbol name</query></TOOLSEARCH>\``,
-			`Single search with REGEX query: \`<TOOLSEARCH><query>class \w+Handler.*ApiHandler|export.*ApiHandler|ApiProvider|ModelProvider</query></TOOLSEARCH>\``,
-			`Multiple parallel searches: \`<TOOLSEARCH><query>getController</query></TOOLSEARCH><TOOLSEARCH><query>AuthService</query></TOOLSEARCH>\``,
-			`Search for a class definition: \`<TOOLSEARCH><query>class UserController</query></TOOLSEARCH>\``,
-		],
-	},
-]
-
-/**
- * Builds the tools placeholder string for the system prompt.
- * Formats all tool definitions into a readable instruction format.
- */
-function buildToolsPlaceholder(): string {
-	const toolsPrompts: string[] = []
-
-	for (const tool of SEARCH_AGENT_TOOLS) {
-		const prompt = `\`<${tool.tag}><${tool.subTag}>${tool.placeholder}</${tool.subTag}></${tool.tag}>\`: ${tool.instruction}.`
-
-		if (tool.examples && tool.examples.length > 0) {
-			toolsPrompts.push(`${prompt}\n\t- ${tool.examples.join("\n\t- ")}`)
-		} else {
-			toolsPrompts.push(prompt)
-		}
-	}
-
-	return toolsPrompts.join("\n")
-}
-
-/**
  * Builds the complete system prompt for SearchAgent.
  * Replaces all template placeholders with actual values.
  */
 function buildSearchAgentSystemPrompt(userInput: string, contextPrompt: string, actionsTags: typeof ACTIONS_TAGS): string {
-	const toolsPlaceholder = buildToolsPlaceholder()
+	const toolsPlaceholder = buildToolsPlaceholder(SEARCH_AGENT_TOOLS)
 
 	return `You are a context review agent. Evaluate the shared context and determine if you can answer the user's request.
 

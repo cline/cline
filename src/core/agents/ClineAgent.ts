@@ -4,6 +4,27 @@ import type { ApiStream } from "@/core/api/transform/stream"
 import { Logger } from "@/services/logging/Logger"
 import type { ClineStorageMessage } from "@/shared/messages/content"
 import type { ToolResponse } from "../task"
+import type { TaskConfig } from "../task/tools/types/TaskConfig"
+import type { ToolDefinition } from "./SubAgentTools"
+
+export interface SearchResult {
+	workspaceName?: string
+	workspaceResults: string
+	resultCount: number
+	success: boolean
+}
+
+export interface AgentContext {
+	filePaths: Set<string>
+	searchResults: Map<string, SearchResult>
+	fileContents: Map<string, string>
+}
+
+export interface FileReadResult {
+	filePath: string
+	content: string
+	success: boolean
+}
 
 /**
  * Represents actions extracted from an agent's response
@@ -59,14 +80,16 @@ export interface ClineAgentConfig {
  * Abstract base class for agentic loops using ClineHandler.
  * Subclasses implement domain-specific logic for context management, tool execution, and result formatting.
  */
-export abstract class ClineAgent<TContext> {
+export abstract class ClineAgent {
 	protected readonly client: ApiHandler
 	protected currentIteration: number = 0
 	protected readonly maxIterations: number
 	protected readonly onIterationUpdate: (update: AgentIterationUpdate) => void | Promise<void>
 	protected cost = 0
+	protected tools: Map<string, ToolDefinition> = new Map()
+	protected taskConfig?: TaskConfig
 
-	private static agents: ClineAgent<unknown>[] = []
+	private static agents: ClineAgent[] = []
 
 	constructor(private config: ClineAgentConfig) {
 		// Move this to individual subclasses to allow for different client configurations
@@ -76,7 +99,7 @@ export abstract class ClineAgent<TContext> {
 		ClineAgent.registerAgent(this)
 	}
 
-	private static registerAgent<TContext>(agent: ClineAgent<TContext>): void {
+	private static registerAgent(agent: ClineAgent): void {
 		ClineAgent.agents.push(agent)
 	}
 
@@ -86,6 +109,7 @@ export abstract class ClineAgent<TContext> {
 			totalCost += agent.getCost()
 			agent.resetCost()
 		}
+		Logger.debug(`Total cost across all agents: $${totalCost.toFixed(4)}`)
 		return totalCost
 	}
 
@@ -104,6 +128,82 @@ export abstract class ClineAgent<TContext> {
 	}
 
 	/**
+	 * Registers tools for this agent
+	 * @param toolDefinitions - Array of tool definitions to register
+	 */
+	protected registerTools(toolDefinitions: ToolDefinition[]): void {
+		for (const tool of toolDefinitions) {
+			this.tools.set(tool.tag, tool)
+		}
+	}
+
+	/**
+	 * Sets the task config for this agent (required for tool execution)
+	 * @param taskConfig - The task configuration
+	 */
+	public setTaskConfig(taskConfig: TaskConfig): void {
+		this.taskConfig = taskConfig
+	}
+
+	/**
+	 * Extracts tool calls from agent response based on registered tools.
+	 * Parses the response for tool tags and extracts subtag values.
+	 * @param response - The agent's response text
+	 * @returns Map of tool tag to array of extracted input values
+	 * @example
+	 */
+	protected extractToolCalls(response: string): Map<string, string[]> {
+		const toolCallsMap = new Map<string, string[]>()
+
+		for (const [toolTag, toolDef] of this.tools) {
+			const inputs: string[] = []
+			const toolPattern = new RegExp(`<${toolTag}>(.*?)</${toolTag}>`, "gs")
+			let toolMatch: RegExpExecArray | null
+
+			toolMatch = toolPattern.exec(response)
+			while (toolMatch !== null) {
+				const toolContent = toolMatch[1]
+				const subTagPattern = new RegExp(`<${toolDef.subTag}>(.*?)</${toolDef.subTag}>`, "gs")
+				let subTagMatch: RegExpExecArray | null
+
+				subTagMatch = subTagPattern.exec(toolContent)
+				while (subTagMatch !== null) {
+					const value = subTagMatch[1].trim()
+					if (value) {
+						inputs.push(value)
+					}
+					subTagMatch = subTagPattern.exec(toolContent)
+				}
+
+				toolMatch = toolPattern.exec(response)
+			}
+
+			if (inputs.length > 0) {
+				toolCallsMap.set(toolTag, inputs)
+			}
+		}
+
+		return toolCallsMap
+	}
+
+	/**
+	 * Executes a tool by its tag name
+	 * @param toolTag - The tool tag (e.g., "TOOLFILE", "TOOLSEARCH")
+	 * @param inputs - Array of input values for the tool
+	 * @returns Promise resolving to the tool execution result
+	 */
+	protected async executeToolByTag(toolTag: string, inputs: string[]): Promise<unknown> {
+		const tool = this.tools.get(toolTag)
+		if (!tool) {
+			throw new Error(`Tool with tag "${toolTag}" not found in registered tools`)
+		}
+		if (!this.taskConfig) {
+			throw new Error(`TaskConfig not set. Call setTaskConfig() before executing tools.`)
+		}
+		return await tool.execute(inputs, this.taskConfig)
+	}
+
+	/**
 	 * Builds the system prompt for the agent
 	 * @param userInput - The user's input/query
 	 * @param contextPrompt - The current context prompt
@@ -115,13 +215,47 @@ export abstract class ClineAgent<TContext> {
 	 * @param context - The current agent context
 	 * @param iteration - Current iteration number (0-indexed)
 	 */
-	abstract buildContextPrompt(context: TContext, iteration: number): string
+	abstract buildContextPrompt(context: AgentContext, iteration: number): string
 
 	/**
 	 * Extracts actions (tool calls, context files, ready status) from the agent's response
 	 * @param response - The full response text from the agent
 	 */
 	abstract extractActions(response: string): AgentActions
+
+	/**
+	 * Generic tool execution that groups tool calls by tag and executes them in parallel.
+	 * This is the recommended implementation for most agents.
+	 * @param toolCallsMap - Map of tool tag to array of input values (use extractToolCalls to get this)
+	 * @returns Promise resolving to map of tool tag to results
+	 */
+	protected async executeToolsByTag(toolCallsMap: Map<string, string[]>): Promise<Map<string, unknown>> {
+		const startTime = performance.now()
+
+		// Execute all tools in parallel
+		const toolExecutionPromises = Array.from(toolCallsMap.entries()).map(([toolTag, inputs]) =>
+			this.executeToolByTag(toolTag, inputs),
+		)
+		const toolExecutionResults = await Promise.all(toolExecutionPromises)
+
+		// Create a map of tool results by tag
+		const resultsByTag = new Map<string, unknown>()
+		let resultIndex = 0
+		for (const [toolTag] of toolCallsMap.entries()) {
+			resultsByTag.set(toolTag, toolExecutionResults[resultIndex++])
+		}
+
+		const endTime = performance.now()
+		const totalCalls = Array.from(toolCallsMap.values()).reduce((sum, arr) => sum + arr.length, 0)
+		const msg = `Executed ${totalCalls} tool calls across ${toolCallsMap.size} tool types in ${endTime - startTime}ms`
+		await this.onIterationUpdate({
+			iteration: this.currentIteration,
+			maxIterations: this.maxIterations,
+			message: msg,
+		})
+
+		return resultsByTag
+	}
 
 	/**
 	 * Executes tool calls in parallel
@@ -144,14 +278,20 @@ export abstract class ClineAgent<TContext> {
 	 * @param toolResults - Results from tool execution
 	 * @returns Whether new context was found
 	 */
-	abstract updateContextWithToolResults(context: TContext, toolCalls: unknown[], toolResults: unknown[]): boolean
+	abstract updateContextWithToolResults(context: AgentContext, toolCalls: unknown[], toolResults: unknown[]): boolean
 
 	/**
 	 * Updates the context with file contents
 	 * @param context - Current context
 	 * @param fileContents - Map of file path to content
 	 */
-	abstract updateContextWithFiles(context: TContext, fileContents: Map<string, string>): void
+	private updateContextWithFiles(context: AgentContext, fileContents: Map<string, string>): void {
+		for (const [filePath, content] of fileContents) {
+			if (!context.fileContents.has(filePath)) {
+				context.fileContents.set(filePath, content)
+			}
+		}
+	}
 
 	/**
 	 * Determines if the agent should continue iterating
@@ -160,18 +300,24 @@ export abstract class ClineAgent<TContext> {
 	 * @param foundNewContext - Whether new context was found in this iteration
 	 * @param isReadyToAnswer - Whether the agent is ready to answer
 	 */
-	abstract shouldContinue(context: TContext, foundNewContext: boolean, isReadyToAnswer: boolean): boolean
+	abstract shouldContinue(context: AgentContext, foundNewContext: boolean, isReadyToAnswer: boolean): boolean
 
 	/**
 	 * Formats the final result from the context
 	 * @param context - Final context state
 	 */
-	abstract formatResult(context: TContext): ToolResponse
+	abstract formatResult(context: AgentContext): ToolResponse
 
 	/**
 	 * Creates the initial context for the agent
 	 */
-	abstract createInitialContext(): TContext
+	private createInitialContext(): AgentContext {
+		return {
+			filePaths: new Set<string>(),
+			searchResults: new Map<string, SearchResult>(),
+			fileContents: new Map<string, string>(),
+		}
+	}
 
 	/**
 	 * Processes a streaming response and accumulates text and cost
