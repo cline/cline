@@ -56,7 +56,8 @@ jobs:
               "action": "${{ github.event.action }}",
               "sha": "${{ github.event.pull_request.head.sha }}",
               "pr_title": $PR_TITLE,
-              "pr_url": "${{ github.event.pull_request.html_url }}"
+              "pr_url": "${{ github.event.pull_request.html_url }}",
+              "repo_url": "${{ github.event.pull_request.head.repo.clone_url }}"
             }
           }
           EOF
