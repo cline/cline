@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
-	"runtime"
 	"syscall"
 	"time"
 
@@ -247,58 +247,13 @@ func startClineHost(hostPort int, workspaces []string) (*exec.Cmd, error) {
 		fmt.Printf("Starting cline-host on port %d\n", hostPort)
 	}
 
-	// Resolve cline-host next to the current executable.
-	// In `go run`, os.Executable() points at a temp build dir, so fall back to repo-local
-	// dist-standalone binaries.
+	// Get the directory where the cline binary is located
 	execPath, err := os.Executable()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get executable path: %w", err)
 	}
-
-	binDir := filepath.Dir(execPath)
-	clineHostPath := filepath.Join(binDir, "cline-host")
-
-	// Dev fallback: use repo-local dist-standalone/bin/cline-host if sibling binary doesn't exist.
-	// In `go run` mode, resolve relative to repo root.
-	if _, statErr := os.Stat(clineHostPath); os.IsNotExist(statErr) {
-		// Log that we're entering dev fallback resolution (helps debug path issues)
-		if Config.Verbose {
-			fmt.Printf("cline-host not found at %s, attempting dev fallback resolution...\n", clineHostPath)
-		}
-
-		// First try: resolve relative to this file's location (cli/pkg/cli/global -> cli/..)
-		// so it works regardless of the current working directory.
-		_, file, _, _ := runtime.Caller(0)
-		repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", "..", ".."))
-		devClineHostPath := filepath.Join(repoRoot, "dist-standalone", "bin", "cline-host")
-		if _, devErr := os.Stat(devClineHostPath); devErr == nil {
-			clineHostPath = devClineHostPath
-			if Config.Verbose {
-				fmt.Printf("Using development cline-host at: %s\n", clineHostPath)
-			}
-		} else {
-			if Config.Verbose {
-				fmt.Printf("Dev path %s not found, trying cwd fallback...\n", devClineHostPath)
-			}
-			// Fallback: try cwd if caller-based path doesn't work
-			wd, wdErr := os.Getwd()
-			if wdErr != nil {
-				if Config.Verbose {
-					fmt.Printf("Warning: failed to get working directory for dev fallback: %v\n", wdErr)
-				}
-			} else {
-				devClineHostPath2 := filepath.Join(wd, "dist-standalone", "bin", "cline-host")
-				if _, devErr2 := os.Stat(devClineHostPath2); devErr2 == nil {
-					clineHostPath = devClineHostPath2
-					if Config.Verbose {
-						fmt.Printf("Using development cline-host at: %s\n", clineHostPath)
-					}
-				} else if Config.Verbose {
-					fmt.Printf("Warning: cwd fallback %s also not found; will use original path %s\n", devClineHostPath2, clineHostPath)
-				}
-			}
-		}
-	}
+	binDir := path.Dir(execPath)
+	clineHostPath := path.Join(binDir, "cline-host")
 
 	// Build command arguments
 	args := []string{
@@ -314,7 +269,7 @@ func startClineHost(hostPort int, workspaces []string) (*exec.Cmd, error) {
 	cmd := exec.Command(clineHostPath, args...)
 
 	// Create logs directory in ~/.cline/logs
-	logsDir := filepath.Join(Config.ConfigPath, "logs")
+	logsDir := path.Join(Config.ConfigPath, "logs")
 	if err := os.MkdirAll(logsDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create logs directory: %w", err)
 	}
@@ -322,7 +277,7 @@ func startClineHost(hostPort int, workspaces []string) (*exec.Cmd, error) {
 	// Create timestamped log file
 	timestamp := time.Now().Format("2006-01-02-15-04-05")
 	logFileName := fmt.Sprintf("cline-host-%s-localhost-%d.log", timestamp, hostPort)
-	logFilePath := filepath.Join(logsDir, logFileName)
+	logFilePath := path.Join(logsDir, logFileName)
 	logFile, err := os.Create(logFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create log file: %w", err)
@@ -439,9 +394,9 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 		}
 	}
 
-	binDir := filepath.Dir(realPath)
-	installDir := filepath.Dir(binDir)
-	clineCorePath := filepath.Join(installDir, "cline-core.js")
+	binDir := path.Dir(realPath)
+	installDir := path.Dir(binDir)
+	clineCorePath := path.Join(installDir, "cline-core.js")
 
 	if Config.Verbose {
 		fmt.Printf("Executable path: %s\n", execPath)
@@ -457,36 +412,23 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 	var finalClineCorePath string
 	var finalInstallDir string
 	if _, err := os.Stat(clineCorePath); os.IsNotExist(err) {
-		// Development mode:
-		// 1) Legacy: Try ../../dist-standalone/cline-core.js (works when running from cli/bin/cline)
-		// 2) Robust: Resolve repo root via runtime.Caller so it works under `go run`
-		devClineCorePath := filepath.Join(binDir, "..", "..", "dist-standalone", "cline-core.js")
-		devInstallDir := filepath.Join(binDir, "..", "..", "dist-standalone")
+		// Development mode: Try ../../dist-standalone/cline-core.js
+		// This handles the case where we're running from cli/bin/cline
+		devClineCorePath := path.Join(binDir, "..", "..", "dist-standalone", "cline-core.js")
+		devInstallDir := path.Join(binDir, "..", "..", "dist-standalone")
 
 		if Config.Verbose {
 			fmt.Printf("Primary location not found, trying development path: %s\n", devClineCorePath)
 		}
 
 		if _, err := os.Stat(devClineCorePath); os.IsNotExist(err) {
-			// Try repo-root-relative path (works for go run)
-			devClineCorePath2, devInstallDir2, ok := resolveRepoRootDistStandaloneCore()
-			if Config.Verbose {
-				fmt.Printf("Legacy dev path not found, trying repo-root dev path: %s\n", devClineCorePath2)
-			}
-			if !ok {
-				return nil, fmt.Errorf("cline-core.js not found at '%s', '%s', or '%s'. Please ensure you're running from the correct location or reinstall with 'npm install -g cline'", clineCorePath, devClineCorePath, devClineCorePath2)
-			}
-			finalClineCorePath = devClineCorePath2
-			finalInstallDir = devInstallDir2
-			if Config.Verbose {
-				fmt.Printf("Using development mode: cline-core.js found at %s\n", finalClineCorePath)
-			}
-		} else {
-			finalClineCorePath = devClineCorePath
-			finalInstallDir = devInstallDir
-			if Config.Verbose {
-				fmt.Printf("Using development mode: cline-core.js found at %s\n", finalClineCorePath)
-			}
+			return nil, fmt.Errorf("cline-core.js not found at '%s' or '%s'. Please ensure you're running from the correct location or reinstall with 'npm install -g cline'", clineCorePath, devClineCorePath)
+		}
+
+		finalClineCorePath = devClineCorePath
+		finalInstallDir = devInstallDir
+		if Config.Verbose {
+			fmt.Printf("Using development mode: cline-core.js found at %s\n", finalClineCorePath)
 		}
 	} else {
 		finalClineCorePath = clineCorePath
@@ -497,7 +439,7 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 	}
 
 	// Create logs directory in ~/.cline/logs
-	logsDir := filepath.Join(Config.ConfigPath, "logs")
+	logsDir := path.Join(Config.ConfigPath, "logs")
 	if err := os.MkdirAll(logsDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create logs directory: %w", err)
 	}
@@ -505,7 +447,7 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 	// Create timestamped log file
 	timestamp := time.Now().Format("2006-01-02-15-04-05")
 	logFileName := fmt.Sprintf("cline-core-%s-localhost-%d.log", timestamp, corePort)
-	logFilePath := filepath.Join(logsDir, logFileName)
+	logFilePath := path.Join(logsDir, logFileName)
 	logFile, err := os.Create(logFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create log file: %w", err)
@@ -538,8 +480,8 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 	// Set environment variables with NODE_PATH for both real and fake node_modules
 	// The fake node_modules contains the vscode stub that can't be in the real node_modules
 	env := os.Environ()
-	realNodeModules := filepath.Join(finalInstallDir, "node_modules")
-	fakeNodeModules := filepath.Join(finalInstallDir, "fake_node_modules")
+	realNodeModules := path.Join(finalInstallDir, "node_modules")
+	fakeNodeModules := path.Join(finalInstallDir, "fake_node_modules")
 	nodePath := fmt.Sprintf("%s%c%s", realNodeModules, os.PathListSeparator, fakeNodeModules)
 
 	env = append(env,
@@ -565,17 +507,4 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 		fmt.Printf("Logging cline-core output to: %s\n", logFilePath)
 	}
 	return cmd, nil
-}
-
-// resolveRepoRootDistStandaloneCore is a dev fallback for locating dist-standalone/cline-core.js
-// that works under `go run` (where os.Executable() may point at a temp build dir).
-func resolveRepoRootDistStandaloneCore() (coreJsPath string, installDir string, ok bool) {
-	_, file, _, _ := runtime.Caller(0)
-	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", "..", ".."))
-	coreJsPath = filepath.Join(repoRoot, "dist-standalone", "cline-core.js")
-	installDir = filepath.Join(repoRoot, "dist-standalone")
-	if _, err := os.Stat(coreJsPath); err == nil {
-		return coreJsPath, installDir, true
-	}
-	return coreJsPath, installDir, false
 }
