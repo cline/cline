@@ -93,18 +93,6 @@ const (
 	SayTypeHookOutput SayType = "hook_output_stream"
 )
 
-// normalizeSayType maps legacy say strings ("hook", "hook_output") to current values.
-func normalizeSayType(s string) string {
-	switch s {
-	case "hook":
-		return string(SayTypeHook)
-	case "hook_output":
-		return string(SayTypeHookOutput)
-	default:
-		return s
-	}
-}
-
 // ToolMessage represents a tool-related message
 type ToolMessage struct {
 	Tool                          string `json:"tool"`
@@ -268,7 +256,7 @@ func ConvertProtoToMessage(protoMsg *cline.ClineMessage) *ClineMessage {
 		Text:                        protoMsg.Text,
 		Timestamp:                   protoMsg.Ts,
 		Reasoning:                   protoMsg.Reasoning,
-		Say:                         normalizeSayType(say),
+		Say:                         say,
 		Ask:                         ask,
 		Partial:                     protoMsg.Partial,
 		LastCheckpointHash:          protoMsg.LastCheckpointHash,
