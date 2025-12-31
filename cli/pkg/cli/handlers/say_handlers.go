@@ -90,9 +90,9 @@ func (h *SayHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
 		return h.handleInfo(msg, dc)
 	case string(types.SayTypeTaskProgress):
 		return h.handleTaskProgress(msg, dc)
-	case string(types.SayTypeHook):
+	case string(types.SayTypeHookStatus):
 		return h.handleHookStatus(msg, dc)
-	case string(types.SayTypeHookOutput):
+	case string(types.SayTypeHookOutputStream):
 		return h.handleHookOutputStream(msg, dc)
 	default:
 		return h.handleDefault(msg, dc)

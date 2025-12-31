@@ -113,7 +113,7 @@ func (ss *StreamingSegment) renderFinal(currentBuffer string) {
 		if err := json.Unmarshal([]byte(currentBuffer), &tool); err == nil {
 			bodyContent = ss.toolRenderer.GenerateToolContentBody(&tool)
 		}
-	} else if ss.sayType == string(types.SayTypeHook) {
+	} else if ss.sayType == string(types.SayTypeHookStatus) {
 		// Hooks are rendered via the state stream; nothing to render here.
 		bodyContent = ""
 	} else if ss.sayType == string(types.SayTypeCommand) {
@@ -167,7 +167,7 @@ func (ss *StreamingSegment) generateRichHeader() string {
 	case string(types.SayTypeTool):
 		return ss.generateToolHeader()
 
-	case string(types.SayTypeHook):
+	case string(types.SayTypeHookStatus):
 		// Hooks are rendered from the state stream; don’t emit a partial-stream header.
 		return ""
 		

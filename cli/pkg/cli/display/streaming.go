@@ -46,7 +46,7 @@ func (s *StreamingDisplay) HandlePartialMessage(msg *types.ClineMessage) error {
 	// incremental display.
 	//
 	// Only suppress *partial* hook messages; complete ones still flow through dedupe.
-	if msg.Partial && msg.Say == string(types.SayTypeHook) {
+	if msg.Partial && msg.Say == string(types.SayTypeHookStatus) {
 		return nil
 	}
 
@@ -126,7 +126,7 @@ func (s *StreamingDisplay) getPrefix(sayType string) string {
 		return "ASK"
 	case string(types.SayTypeCommand):
 		return "TERMINAL"
-	case string(types.SayTypeHook):
+	case string(types.SayTypeHookStatus):
 		return "HOOK"
 	default:
 		return strings.ToUpper(sayType)

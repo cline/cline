@@ -1046,7 +1046,7 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
-		case msg.Say == string(types.SayTypeHook):
+		case msg.Say == string(types.SayTypeHookStatus):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
 				fmt.Println()
@@ -1055,7 +1055,7 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
-		case msg.Say == string(types.SayTypeHookOutput):
+		case msg.Say == string(types.SayTypeHookOutputStream):
 			// Hook stdout/stderr streaming arrives as hook_output_stream messages.
 			// These are intentionally suppressed unless verbose (see SayHandler.handleHookOutputStream),
 			// but we still need to route them through the normal handler pipeline in streaming/follow

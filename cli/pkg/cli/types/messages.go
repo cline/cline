@@ -89,8 +89,8 @@ const (
 	SayTypeTaskProgress            SayType = "task_progress"
 	// Hook status streaming from the backend.
 	// These values must match the backend "say" strings emitted by the extension.
-	SayTypeHook       SayType = "hook_status"
-	SayTypeHookOutput SayType = "hook_output_stream"
+	SayTypeHookStatus       SayType = "hook_status"
+	SayTypeHookOutputStream SayType = "hook_output_stream"
 )
 
 // ToolMessage represents a tool-related message
@@ -365,9 +365,9 @@ func convertProtoSayType(sayType cline.ClineSay) string {
 	case cline.ClineSay_TASK_PROGRESS:
 		return string(SayTypeTaskProgress)
 	case cline.ClineSay_HOOK_STATUS:
-		return string(SayTypeHook)
+		return string(SayTypeHookStatus)
 	case cline.ClineSay_HOOK_OUTPUT_STREAM:
-		return string(SayTypeHookOutput)
+		return string(SayTypeHookOutputStream)
 	default:
 		return "unknown"
 	}

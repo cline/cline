@@ -8,7 +8,7 @@ import (
 
 func TestStreamingSegment_generateRichHeader_HookIsEmpty(t *testing.T) {
 	ss := &StreamingSegment{
-		sayType: string(types.SayTypeHook),
+		sayType: string(types.SayTypeHookStatus),
 		prefix:  "HOOK",
 		msg:     &types.ClineMessage{},
 	}
@@ -18,4 +18,3 @@ func TestStreamingSegment_generateRichHeader_HookIsEmpty(t *testing.T) {
 		t.Fatalf("expected empty header for hook segments to avoid double-render, got: %q", header)
 	}
 }
-
