@@ -105,16 +105,18 @@
 		}
 	}
 
-	--animate-shimmer: shine 2s infinite linear;
-	@keyframes shine {
+	--animate-shimmer: shimmer 2s infinite linear;
+	@keyframes shimmer {
 		0%,
 		100% {
 			background-size: 200% 100%;
 			background-position: left center;
+			color: var(--color-description);
 		}
 		50% {
 			background-size: 200% 100%;
 			background-position: right center;
+			color: var(--color-foreground);
 		}
 	}
 

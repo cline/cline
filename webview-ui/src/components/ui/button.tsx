@@ -21,7 +21,7 @@ const buttonVariants = cva(
 				icon: "hover:opacity-80 p-0 m-0 border-0 cursor-pointer hover:shadow-none focus:ring-0 focus:ring-offset-0",
 				cline: "bg-cline border-foreground/20 text-cline-foreground",
 				success:
-					"bg-[#176f2c] border-[#176f2c] text-white hover:bg-[#197f31] hover:border-[#197f31] active:bg-[#156528] active:border-[#156528]",
+					"bg-success/10 text-success border-[#176f2c] text-white hover:bg-[#197f31] hover:border-[#197f31] active:bg-[#156528] active:border-[#156528] hover:text-white",
 			},
 			size: {
 				default: "py-1.5 px-4 [&_svg]:size-3",
