@@ -21,7 +21,7 @@ export type TelemetryProviderType = "posthog" | "no-op" | "opentelemetry"
  */
 export type TelemetryProviderConfig =
 	| { type: "posthog"; apiKey?: string; host?: string }
-	| { type: "opentelemetry"; enabled: boolean; config: OpenTelemetryClientValidConfig; bypassUserSettings: boolean }
+	| { type: "opentelemetry"; config: OpenTelemetryClientValidConfig; bypassUserSettings: boolean }
 	| { type: "no-op" }
 
 /**
@@ -106,7 +106,6 @@ export class TelemetryProviderFactory {
 		if (otelConfig) {
 			configs.push({
 				type: "opentelemetry",
-				enabled: otelConfig.enabled,
 				config: otelConfig,
 				bypassUserSettings: false,
 			})
@@ -116,7 +115,6 @@ export class TelemetryProviderFactory {
 		if (runtimeOtelConfig) {
 			configs.push({
 				type: "opentelemetry",
-				enabled: runtimeOtelConfig.enabled,
 				config: runtimeOtelConfig,
 				// If the user has `CLINE_OTEL_TELEMETRY_ENABLED` in his environment, enable
 				// OTEL regardless of his Cline telemetry settings

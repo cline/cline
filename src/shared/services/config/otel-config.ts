@@ -92,12 +92,6 @@ export interface OpenTelemetryClientValidConfig extends OpenTelemetryClientConfi
 
 const isTestEnv = process.env.E2E_TEST === "true" || process.env.IS_TEST === "true"
 
-/**
- * Cached OpenTelemetry configuration.
- * Lazily initialized on first access to avoid race conditions with environment variable loading.
- */
-let otelConfig: OpenTelemetryClientConfig | null = null
-
 export function remoteConfigToOtelConfig(settings: Partial<RemoteConfigFields>): OpenTelemetryClientConfig {
 	return {
 		enabled: !!settings.openTelemetryEnabled,
@@ -121,19 +115,16 @@ export function remoteConfigToOtelConfig(settings: Partial<RemoteConfigFields>):
 }
 
 function getOtelConfig(): OpenTelemetryClientConfig {
-	if (!otelConfig) {
-		otelConfig = {
-			enabled: BUILD_CONSTANTS.OTEL_TELEMETRY_ENABLED === "1",
-			metricsExporter: BUILD_CONSTANTS.OTEL_METRICS_EXPORTER,
-			logsExporter: BUILD_CONSTANTS.OTEL_LOGS_EXPORTER,
-			otlpProtocol: BUILD_CONSTANTS.OTEL_EXPORTER_OTLP_PROTOCOL,
-			otlpEndpoint: BUILD_CONSTANTS.OTEL_EXPORTER_OTLP_ENDPOINT,
-			metricExportInterval: BUILD_CONSTANTS.OTEL_METRIC_EXPORT_INTERVAL
-				? parseInt(BUILD_CONSTANTS.OTEL_METRIC_EXPORT_INTERVAL, 10)
-				: undefined,
-		}
+	return {
+		enabled: BUILD_CONSTANTS.OTEL_TELEMETRY_ENABLED === "1",
+		metricsExporter: BUILD_CONSTANTS.OTEL_METRICS_EXPORTER,
+		logsExporter: BUILD_CONSTANTS.OTEL_LOGS_EXPORTER,
+		otlpProtocol: BUILD_CONSTANTS.OTEL_EXPORTER_OTLP_PROTOCOL,
+		otlpEndpoint: BUILD_CONSTANTS.OTEL_EXPORTER_OTLP_ENDPOINT,
+		metricExportInterval: BUILD_CONSTANTS.OTEL_METRIC_EXPORT_INTERVAL
+			? parseInt(BUILD_CONSTANTS.OTEL_METRIC_EXPORT_INTERVAL, 10)
+			: undefined,
 	}
-	return otelConfig
 }
 
 /**
@@ -166,33 +157,30 @@ function getOtelConfig(): OpenTelemetryClientConfig {
  * @see .github/workflows/publish.yml for production environment variable injection
  */
 function getRuntimeOtelConfig(): OpenTelemetryClientConfig {
-	if (!otelConfig) {
-		otelConfig = {
-			enabled: process.env.CLINE_OTEL_TELEMETRY_ENABLED === "1",
-			metricsExporter: process.env.CLINE_OTEL_METRICS_EXPORTER,
-			logsExporter: process.env.CLINE_OTEL_LOGS_EXPORTER,
-			otlpProtocol: process.env.CLINE_OTEL_EXPORTER_OTLP_PROTOCOL,
-			otlpEndpoint: process.env.CLINE_OTEL_EXPORTER_OTLP_ENDPOINT,
-			otlpMetricsProtocol: process.env.CLINE_OTEL_EXPORTER_OTLP_METRICS_PROTOCOL,
-			otlpMetricsEndpoint: process.env.CLINE_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT,
-			otlpLogsProtocol: process.env.CLINE_OTEL_EXPORTER_OTLP_LOGS_PROTOCOL,
-			otlpLogsEndpoint: process.env.CLINE_OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,
-			metricExportInterval: process.env.CLINE_OTEL_METRIC_EXPORT_INTERVAL
-				? parseInt(process.env.CLINE_OTEL_METRIC_EXPORT_INTERVAL, 10)
-				: undefined,
-			otlpInsecure: process.env.CLINE_OTEL_EXPORTER_OTLP_INSECURE === "true",
-			logBatchSize: process.env.CLINE_OTEL_LOG_BATCH_SIZE
-				? Math.max(1, parseInt(process.env.CLINE_OTEL_LOG_BATCH_SIZE, 10))
-				: undefined,
-			logBatchTimeout: process.env.CLINE_OTEL_LOG_BATCH_TIMEOUT
-				? Math.max(1, parseInt(process.env.CLINE_OTEL_LOG_BATCH_TIMEOUT, 10))
-				: undefined,
-			logMaxQueueSize: process.env.CLINE_OTEL_LOG_MAX_QUEUE_SIZE
-				? Math.max(1, parseInt(process.env.CLINE_OTEL_LOG_MAX_QUEUE_SIZE, 10))
-				: undefined,
-		}
+	return {
+		enabled: process.env.CLINE_OTEL_TELEMETRY_ENABLED === "1",
+		metricsExporter: process.env.CLINE_OTEL_METRICS_EXPORTER,
+		logsExporter: process.env.CLINE_OTEL_LOGS_EXPORTER,
+		otlpProtocol: process.env.CLINE_OTEL_EXPORTER_OTLP_PROTOCOL,
+		otlpEndpoint: process.env.CLINE_OTEL_EXPORTER_OTLP_ENDPOINT,
+		otlpMetricsProtocol: process.env.CLINE_OTEL_EXPORTER_OTLP_METRICS_PROTOCOL,
+		otlpMetricsEndpoint: process.env.CLINE_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT,
+		otlpLogsProtocol: process.env.CLINE_OTEL_EXPORTER_OTLP_LOGS_PROTOCOL,
+		otlpLogsEndpoint: process.env.CLINE_OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,
+		metricExportInterval: process.env.CLINE_OTEL_METRIC_EXPORT_INTERVAL
+			? parseInt(process.env.CLINE_OTEL_METRIC_EXPORT_INTERVAL, 10)
+			: undefined,
+		otlpInsecure: process.env.CLINE_OTEL_EXPORTER_OTLP_INSECURE === "true",
+		logBatchSize: process.env.CLINE_OTEL_LOG_BATCH_SIZE
+			? Math.max(1, parseInt(process.env.CLINE_OTEL_LOG_BATCH_SIZE, 10))
+			: undefined,
+		logBatchTimeout: process.env.CLINE_OTEL_LOG_BATCH_TIMEOUT
+			? Math.max(1, parseInt(process.env.CLINE_OTEL_LOG_BATCH_TIMEOUT, 10))
+			: undefined,
+		logMaxQueueSize: process.env.CLINE_OTEL_LOG_MAX_QUEUE_SIZE
+			? Math.max(1, parseInt(process.env.CLINE_OTEL_LOG_MAX_QUEUE_SIZE, 10))
+			: undefined,
 	}
-	return otelConfig
 }
 
 export function isOpenTelemetryConfigValid(config: OpenTelemetryClientConfig): config is OpenTelemetryClientValidConfig {
