@@ -113,7 +113,7 @@ export interface TaskCallbacks {
 	// Additional callbacks for task management
 	postStateToWebview: () => Promise<void>
 	reinitExistingTaskFromId: (taskId: string) => Promise<void>
-	cancelTask: () => Promise<void>
+	cancelTask: (id: string) => Promise<void>
 	updateTaskHistory: (update: any) => Promise<any[]>
 
 	applyLatestBrowserSettings: () => Promise<BrowserSession>

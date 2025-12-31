@@ -42,6 +42,12 @@ service TaskService {
   rpc deleteAllTaskHistory(EmptyRequest) returns (DeleteAllTaskHistoryCount);
   // Explains changes with AI and adds inline comments to the diff view
   rpc explainChanges(ExplainChangesRequest) returns (Empty);
+  // Switches to a different active task
+  rpc switchTask(StringRequest) returns (BooleanResponse);
+  // Gets all currently active tasks
+  rpc getActiveTasks(EmptyRequest) returns (ActiveTasksResponse);
+  // Cancels a specific task by ID
+  rpc cancelTaskById(StringRequest) returns (Empty);
 }
 
 // Request message for creating a new task
@@ -131,4 +137,18 @@ message ExplainChangesRequest {
   Metadata metadata = 1;
   // Timestamp of the completion message to explain changes for
   int64 message_ts = 2;
+}
+
+// Response for active tasks list
+message ActiveTasksResponse {
+  repeated ActiveTaskInfo tasks = 1;
+  string current_task_id = 2;
+}
+
+// Information about an active task
+message ActiveTaskInfo {
+  string task_id = 1;
+  string task_description = 2;
+  int64 ts = 3;
+  bool is_streaming = 4;
 }

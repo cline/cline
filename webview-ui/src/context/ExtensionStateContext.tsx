@@ -27,7 +27,13 @@ import {
 	requestyDefaultModelInfo,
 } from "../../../src/shared/api"
 import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
-import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
+import {
+	McpServiceClient,
+	ModelsServiceClient,
+	StateServiceClient,
+	TaskServiceClient,
+	UiServiceClient,
+} from "../services/grpc-client"
 
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -716,6 +722,12 @@ export const ExtensionStateContextProvider: React.FC<{
 			refreshBasetenModels()
 		}
 	}, [refreshOpenRouterModels, state?.apiConfiguration?.basetenApiKey, refreshBasetenModels])
+
+	useEffect(() => {
+		TaskServiceClient.getActiveTasks({}).then((response) => {
+			console.log("[DEBUG] Fetched active tasks on launch:", response.tasks)
+		})
+	}, [state?.taskHistory])
 
 	const contextValue: ExtensionStateContextType = {
 		...state,

@@ -72,6 +72,9 @@ export interface ExtensionState {
 	backgroundCommandTaskId?: string
 	lastCompletedCommandTs?: number
 	userInfo?: UserInfo
+	// Multi-task support
+	activeTasks?: Array<{ taskId: string; isStreaming: boolean }>
+	currentTaskId?: string
 	version: string
 	distinctId: string
 	globalClineRulesToggles: ClineRulesToggles
