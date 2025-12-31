@@ -38,14 +38,17 @@ func (hr *HookRenderer) RenderHookStatus(h types.HookMessage) string {
 
 	// Header: aligned with ToolRenderer’s phrasing so transcripts scan consistently.
 	// Example: "### Cline hook completed: PreToolUse (tool: read_file) (exit 0)"
-	headerParts := []string{fmt.Sprintf("### Cline hook %s: %s", statusText, h.HookName)}
+	var headerBuilder strings.Builder
+	headerBuilder.WriteString(fmt.Sprintf("### Cline hook %s: %s", statusText, h.HookName))
 	if h.ToolName != "" {
-		headerParts = append(headerParts, fmt.Sprintf("(tool: %s)", h.ToolName))
+		headerBuilder.WriteString(" ")
+		headerBuilder.WriteString(fmt.Sprintf("(tool: %s)", h.ToolName))
 	}
 	if statusText == "failed" && h.ExitCode != 0 {
-		headerParts = append(headerParts, fmt.Sprintf("(exit %d)", h.ExitCode))
+		headerBuilder.WriteString(" ")
+		headerBuilder.WriteString(fmt.Sprintf("(exit %d)", h.ExitCode))
 	}
-	header := strings.Join(headerParts, " ")
+	header := headerBuilder.String()
 
 	var lines []string
 	lines = append(lines, header)
