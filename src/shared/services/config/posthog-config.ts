@@ -1,4 +1,4 @@
-import { BUILD_CONSTANTS } from "@/shared/constants"
+import { BUILD_CONSTANTS } from "../../constants"
 
 export interface PostHogClientConfig {
 	/**
