@@ -90,11 +90,12 @@ export const ToolGroupRenderer = memo(({ messages, expandedRows, onToggleExpand,
 						const isExpandable = EXPANDABLE_TOOLS.has(parsedTool.tool)
 						const isItemExpanded = expandedItems[tool.ts] ?? false
 						const content = parsedTool.content || null
+						const hasReasoning = !!reasoning?.length
 
 						return (
 							<div className="min-w-0" key={tool.ts}>
 								<Tooltip>
-									<TooltipTrigger className="block min-w-0 max-w-full" disabled={!reasoning}>
+									<TooltipTrigger className="block min-w-0 max-w-full" disabled={!hasReasoning}>
 										<Button
 											className="flex items-center gap-1.5 cursor-pointer text-sm text-description font-editor py-0.5 hover:text-link min-w-0 max-w-full"
 											onClick={() => (isExpandable ? handleItemToggle(tool.ts) : handleOpenFile(info.path))}
@@ -103,7 +104,7 @@ export const ToolGroupRenderer = memo(({ messages, expandedRows, onToggleExpand,
 											<info.icon className="opacity-70 shrink-0" />
 											<span
 												className={cn(
-													"flex-1 min-w-0 whitespace-nowrap overflow-hidden text-ellipsis text-left [direction:rtl]",
+													"flex-1 min-w-0 whitespace-nowrap overflow-hidden text-ellipsis text-left [direction:rtl] text-xs",
 													{
 														"[direction:ltr]": !!info.displayText,
 													},
@@ -112,9 +113,7 @@ export const ToolGroupRenderer = memo(({ messages, expandedRows, onToggleExpand,
 											</span>
 										</Button>
 									</TooltipTrigger>
-									<TooltipContent side="bottom">
-										{reasoning && <span>Thinking: {reasoning}</span>}
-									</TooltipContent>
+									{hasReasoning && <TooltipContent side="bottom">Thinking: {reasoning}</TooltipContent>}
 								</Tooltip>
 								{/* Expanded content for folders/search/definitions - raw text */}
 								{isExpandable && isItemExpanded && content && (

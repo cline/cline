@@ -47,12 +47,12 @@ export const CompletionOutputRow = memo(
 		const shouldAutoShow = lineCount <= 5
 		return (
 			<div>
-				<div className="rounded-sm border border-editor-group-border overflow-visible bg-success/10 transition-border duration-300 ease-in-out hover:border-success py-2 px-3">
+				<div className="rounded-sm border border-success/20 overflow-visible bg-success/10 transition-border duration-300 ease-in-out hover:border-success p-2">
 					{/* Title */}
 					<div className={cn(classNames, "justify-between")}>
 						<div className="flex gap-2 items-center">
 							<CheckIcon className="size-3 text-success" />
-							Task Completed
+							<span className="text-success font-bold">Task Completed</span>
 						</div>
 						<CopyButton textToCopy={text} />
 					</div>
@@ -62,11 +62,15 @@ export const CompletionOutputRow = memo(
 							"pb-2": !shouldAutoShow,
 						})}>
 						<div
-							className={cn("completion-output-content", "scroll-smooth p-2 overflow-y-auto w-full", {
-								"max-h-[400px]": !shouldAutoShow && isOutputFullyExpanded,
-								"max-h-[150px]": !shouldAutoShow && !isOutputFullyExpanded,
-								"overflow-y-visible": shouldAutoShow,
-							})}>
+							className={cn(
+								"completion-output-content",
+								"scroll-smooth p-2 overflow-y-auto w-full [&_hr]:opacity-20",
+								{
+									"max-h-[400px]": !shouldAutoShow && isOutputFullyExpanded,
+									"max-h-[150px]": !shouldAutoShow && !isOutputFullyExpanded,
+									"overflow-y-visible": shouldAutoShow,
+								},
+							)}>
 							<MarkdownRow markdown={text} />
 							{quoteButtonState.visible && (
 								<QuoteButton left={quoteButtonState.left} onClick={handleQuoteClick} top={quoteButtonState.top} />

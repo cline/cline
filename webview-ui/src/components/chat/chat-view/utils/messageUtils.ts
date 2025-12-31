@@ -649,6 +649,7 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 	let pendingReasoning: ClineMessage[] = []
 	let pendingApiReq: ClineMessage[] = []
 	let hasTools = false
+	const pendingTools: ClineMessage[] = []
 
 	const flushPending = () => {
 		pendingApiReq.forEach((m) => result.push(m))
@@ -694,19 +695,16 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 		const messageType = message.say
 		const isLast = i === groupedMessages.length - 1
 
-		// Ask-type messages - commit current work and render separately
-		if (message.type === "ask" && isLowStakesTool(message) && !message.partial && isLast) {
-			commitToolGroup()
-			flushPending()
-			result.push(message)
-			continue
-		}
-
 		// Low-stakes tool - absorb pending and add to group
 		if (isLowStakesTool(message)) {
 			absorbPending()
 			hasTools = true
 			toolGroup.push(message)
+			// If the streaming has stopped and the last message is still an ask,
+			// this means the tool requires user approval - show the old tool block UI.
+			if (message.type === "ask" && !message.partial && isLast) {
+				pendingTools.push(message)
+			}
 			continue
 		}
 
@@ -754,6 +752,10 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 	// Finalize any remaining work
 	commitToolGroup()
 	flushPending()
+
+	if (pendingTools.length > 0) {
+		result.push(...pendingTools)
+	}
 
 	return result
 }

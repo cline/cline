@@ -107,7 +107,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const environmentBorderColor = getEnvironmentColor(environment, "border")
 
 	return (
-		<div className="pt-2 pb-2 pl-[15px] pr-[14px] flex flex-col gap-2">
+		<div className="py-2 px-4 flex flex-col gap-2">
 			{/* Display Checkpoint Error */}
 			<CheckpointError
 				checkpointManagerErrorMessage={checkpointManagerErrorMessage}

@@ -1087,12 +1087,7 @@ export const ChatRowContent = memo(
 								{isRequestInProgress ? (
 									<div className="flex items-center gap-2">
 										<div className="mt-[1px] shrink-0">
-											<ClineLogoWhite
-												className="size-3.5 animate-icon-pulse"
-												style={{
-													transform: "scale(1.1)",
-												}}
-											/>
+											<ClineLogoWhite className="size-3.5 scale-110" />
 										</div>
 										<div className="flex-1 min-w-0 pl-2 border-l border-white/10">
 											<MarkdownRow markdown={message.text} showCursor={true} />
@@ -1104,9 +1099,7 @@ export const ChatRowContent = memo(
 								{quoteButtonState.visible && (
 									<QuoteButton
 										left={quoteButtonState.left}
-										onClick={() => {
-											handleQuoteClick()
-										}}
+										onClick={handleQuoteClick}
 										top={quoteButtonState.top}
 									/>
 								)}

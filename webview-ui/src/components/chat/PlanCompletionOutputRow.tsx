@@ -1,4 +1,4 @@
-import { CheckIcon } from "lucide-react"
+import { NotepadTextIcon } from "lucide-react"
 import { memo, useMemo, useState } from "react"
 import { CopyButton } from "@/components/common/CopyButton"
 import MarkdownBlock from "@/components/common/MarkdownBlock"
@@ -25,15 +25,11 @@ const PlanCompletionOutputRow = memo(({ text, headClassNames }: PlanCompletionOu
 	}, [text])
 
 	return (
-		<div className="rounded-sm bg-code/80 border border-editor-group-border overflow-visible transition-border duration-300 ease-in-out hover:border-description">
+		<div className="rounded-sm border border-description/50 overflow-visible bg-code transition-border duration-300 ease-in-out hover:border-description p-2">
 			{/* Header */}
-			<div
-				className={cn(
-					"flex items-center justify-between px-3 py-2 border-b-1 border-description/50 rounded-sm",
-					headClassNames,
-				)}>
+			<div className={cn(headClassNames, "justify-between")}>
 				<div className="flex gap-2 items-center">
-					<CheckIcon className="size-3" />
+					<NotepadTextIcon className="size-2" />
 					<span className="text-foreground font-bold">Plan Created</span>
 				</div>
 				<CopyButton textToCopy={text || ""} />
@@ -41,21 +37,27 @@ const PlanCompletionOutputRow = memo(({ text, headClassNames }: PlanCompletionOu
 
 			{/* Content */}
 			<div
-				className={cn("w-full relative pb-0 overflow-visible rounded-sm", {
+				className={cn("w-full relative pb-0 overflow-visible border-t-1 border-description/20 rounded-b-sm", {
 					"pb-2": !shouldAutoShow,
 				})}>
 				<div
-					className={cn("plan-completion-content scroll-smooth px-3 pt-4 pb-3 overflow-y-auto", {
+					className={cn("plan-completion-content", "scroll-smooth p-2 overflow-y-auto w-full [&_hr]:opacity-20", {
 						"overflow-y-visible": shouldAutoShow,
 						"max-h-[400px]": isExpanded && !shouldAutoShow,
 						"max-h-[150px]": !isExpanded && !shouldAutoShow,
 					})}>
-					<div className="wrap-anywhere -mb-4 -mt-4 overflow-hidden [&_hr]:opacity-20">
+					<div className="wrap-anywhere -my-4 overflow-hidden [&_hr]:opacity-20">
 						<MarkdownBlock markdown={text} />
 					</div>
 				</div>
 				{/* Expand/collapse notch - only show if there's more than 5 lines */}
-				{lineCount > 5 ? <ExpandHandle isExpanded={isExpanded} onToggle={() => setIsExpanded(!isExpanded)} /> : null}
+				{lineCount > 5 ? (
+					<ExpandHandle
+						className="bg-foreground -bottom-4"
+						isExpanded={isExpanded}
+						onToggle={() => setIsExpanded(!isExpanded)}
+					/>
+				) : null}
 			</div>
 		</div>
 	)

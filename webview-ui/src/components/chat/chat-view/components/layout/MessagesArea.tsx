@@ -110,7 +110,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 					atBottomThreshold={10} // trick to make sure virtuoso re-renders when task changes, and we use initialTopMostItemIndex to start at the bottom
 					className="scrollable grow overflow-y-scroll"
 					components={{
-						Footer: () => <div style={{ height: 5 }} />, // Add empty padding at the bottom
+						Footer: () => <div className="min-h-1" />, // Add empty padding at the bottom
 					}}
 					data={groupedMessages}
 					// increasing top by 3_000 to prevent jumping around when user collapses a row

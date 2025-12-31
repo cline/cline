@@ -25,7 +25,7 @@ const COPIED_TIMEOUT = 1500
 
 const POSITION_CLASSES = {
 	"top-right": "top-5 right-5",
-	"bottom-right": "bottom-2 right-2",
+	"bottom-right": "bottom-1 right-2",
 } as const
 
 /**
