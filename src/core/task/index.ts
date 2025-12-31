@@ -93,6 +93,7 @@ import {
 } from "@/shared/messages"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
+import { ClineAgent } from "../agents/ClineAgent"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
@@ -2430,6 +2431,10 @@ export class Task {
 					console.log("updating partial message", lastMessage)
 					// await this.saveClineMessagesAndUpdateHistory()
 				}
+				const subAgentCosts = ClineAgent.getAllAgentCosts()
+				if (subAgentCosts) {
+					taskMetrics.totalCost = (taskMetrics.totalCost ?? 0) + subAgentCosts
+				}
 				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
 				await updateApiReqMsg({
 					messageStateHandler: this.messageStateHandler,
@@ -2528,6 +2533,7 @@ export class Task {
 							taskMetrics.cacheWriteTokens += chunk.cacheWriteTokens ?? 0
 							taskMetrics.cacheReadTokens += chunk.cacheReadTokens ?? 0
 							taskMetrics.totalCost = chunk.totalCost ?? taskMetrics.totalCost
+
 							break
 						case "reasoning": {
 							// Process the reasoning delta through the handler
@@ -2600,6 +2606,11 @@ export class Task {
 							this.presentAssistantMessage()
 							break
 						}
+					}
+
+					const subAgentCosts = ClineAgent.getAllAgentCosts()
+					if (subAgentCosts) {
+						taskMetrics.totalCost = (taskMetrics.totalCost ?? 0) + subAgentCosts
 					}
 
 					// present content to user - we don't want the stream to break if present fails, so we catch errors here
@@ -2700,6 +2711,11 @@ export class Task {
 						taskMetrics.totalCost = apiStreamUsage.totalCost ?? taskMetrics.totalCost
 					}
 				})
+			}
+
+			const subAgentCosts = ClineAgent.getAllAgentCosts()
+			if (subAgentCosts) {
+				taskMetrics.totalCost = (taskMetrics.totalCost ?? 0) + subAgentCosts
 			}
 
 			// Update the api_req_started message with final usage and cost details

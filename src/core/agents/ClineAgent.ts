@@ -66,24 +66,40 @@ export abstract class ClineAgent<TContext> {
 	protected readonly onIterationUpdate: (update: AgentIterationUpdate) => void | Promise<void>
 	protected cost = 0
 
+	private static agents: ClineAgent<unknown>[] = []
+
 	constructor(private config: ClineAgentConfig) {
 		// Move this to individual subclasses to allow for different client configurations
 		this.client = config.client ?? new ClineHandler({ openRouterModelId: config.modelId, ...config.apiParams })
 		this.maxIterations = config.maxIterations ?? 3
 		this.onIterationUpdate = config.onIterationUpdate
+		ClineAgent.registerAgent(this)
+	}
+
+	private static registerAgent<TContext>(agent: ClineAgent<TContext>): void {
+		ClineAgent.agents.push(agent)
+	}
+
+	static getAllAgentCosts(): number {
+		let totalCost = 0
+		for (const agent of ClineAgent.agents) {
+			totalCost += agent.getCost()
+			agent.resetCost()
+		}
+		return totalCost
 	}
 
 	/**
 	 * Gets the accumulated cost from this agent execution
 	 */
-	getCost(): number {
+	public getCost(): number {
 		return this.cost
 	}
 
 	/**
 	 * Resets the cost counter
 	 */
-	resetCost(): void {
+	private resetCost(): void {
 		this.cost = 0
 	}
 
@@ -167,6 +183,7 @@ export abstract class ClineAgent<TContext> {
 			if (msg.type === "text") {
 				parts.push(msg.text)
 			}
+
 			if (msg.type === "usage" && msg.totalCost) {
 				this.cost += msg.totalCost
 				await this.onIterationUpdate?.({
@@ -185,7 +202,7 @@ export abstract class ClineAgent<TContext> {
 	 * @param userInput - The user's input/query
 	 * @returns Promise resolving to the final result
 	 */
-	async execute(userInput: string): Promise<ToolResponse> {
+	public async execute(userInput: string): Promise<ToolResponse> {
 		const startTime = performance.now()
 		const context = this.createInitialContext()
 
@@ -205,7 +222,7 @@ export abstract class ClineAgent<TContext> {
 			const stream = this.client.createMessage(systemPrompt, messages)
 			const fullResponse = await this.processStream(stream)
 
-			console.log(`Iteration ${this.currentIteration} response:`, fullResponse.substring(0, 200))
+			Logger.log(`Iteration ${this.currentIteration} response: ${fullResponse.substring(0, 200)}`)
 
 			// Extract actions from response
 			const actions = this.extractActions(fullResponse)
@@ -220,27 +237,29 @@ export abstract class ClineAgent<TContext> {
 
 			// If ready to answer and has context files, read them first
 			if (actions.isReadyToAnswer && actions.contextFiles.length > 0) {
-				console.log(`Reading ${actions.contextFiles.length} context files before answering:`, actions.contextFiles)
+				Logger.log(
+					`Reading ${actions.contextFiles.length} context files before answering: ${actions.contextFiles.join(", ")}`,
+				)
 				const fileContents = await this.readContextFiles(actions.contextFiles)
 				this.updateContextWithFiles(context, fileContents)
-				console.log("Agent determined it has enough context to answer.")
+				Logger.log("Agent determined it has enough context to answer.")
 				break
 			}
 
 			// If ready to answer without context files, break immediately
 			if (actions.isReadyToAnswer) {
-				console.log("Agent determined it has enough context to answer.")
+				Logger.log("Agent determined it has enough context to answer.")
 				break
 			}
 
 			// If no tool calls, end the loop
 			if (actions.toolCalls.length === 0) {
-				console.log("No tool calls generated, ending loop.")
+				Logger.log("No tool calls generated, ending loop.")
 				break
 			}
 
 			// Execute tools in parallel
-			console.log(`Executing ${actions.toolCalls.length} tool calls`)
+			Logger.log(`Executing ${actions.toolCalls.length} tool calls`)
 			const toolResults = await this.executeTools(actions.toolCalls)
 
 			// Update context with tool results
@@ -248,7 +267,7 @@ export abstract class ClineAgent<TContext> {
 
 			// Check if we should continue
 			if (!this.shouldContinue(context, foundNewContext, false)) {
-				console.log("Agent determined it should stop iterating.")
+				Logger.log("Agent determined it should stop iterating.")
 				break
 			}
 		}
