@@ -1,5 +1,6 @@
 import type { HookOutputStreamMeta } from "@shared/ExtensionMessage"
 import { ClineMessage } from "@shared/ExtensionMessage"
+import type { HookOutput } from "@shared/proto/cline/hooks"
 import { MessageStateHandler } from "../task/message-state"
 import { HookExecutionError } from "./HookError"
 import { HookFactory } from "./hook-factory"
@@ -33,7 +34,7 @@ export interface HookExecutionResult {
 	wasCancelled: boolean
 }
 
-function fromHookOutput(output: import("@shared/proto/cline/hooks").HookOutput): HookExecutionResult {
+function fromHookOutput(output: HookOutput): HookExecutionResult {
 	// HookOutput is protobuf-generated, so fields are defaulted (e.g. ""). Treat empty
 	// strings as “unset” in the hook executor API.
 	const contextModification = output.contextModification?.trim() ? output.contextModification : undefined
