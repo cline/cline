@@ -98,6 +98,15 @@ func formatHookPath(fullPath string) string {
 	// Normalize for display and prefix checks. This is display-only; do not use for IO.
 	normalized := normalizeSlashes(fullPath)
 
+	// If this is a repo-scoped hook script (i.e. lives under <repo>/.clinerules/hooks/),
+	// always include the repo name for disambiguation even in single-repo workspaces.
+	//
+	// This intentionally runs before workspace-relative formatting, which would otherwise
+	// collapse to ".clinerules/hooks/..." and lose the repo context.
+	if p, ok := tryRepoScopedHooksPath(normalized); ok {
+		return p
+	}
+
 	// Prefer workspace-relative paths first for readability, since most hook scripts
 	// live inside the current project.
 	if p, ok := tryWorkspaceRelativeHookPath(normalized); ok {
@@ -164,6 +173,20 @@ func tryRepoRelativeHookPath(normalizedPath string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// tryRepoScopedHooksPath returns a repo-prefixed path like
+// "myrepo/.clinerules/hooks/PreToolUse" when the given path points to a hook script
+// under a repo's .clinerules/hooks directory.
+//
+// This is more specific than tryRepoRelativeHookPath and is used to ensure hook script
+// paths always include repo context.
+func tryRepoScopedHooksPath(normalizedPath string) (string, bool) {
+	// Fast path check to avoid split work.
+	if !strings.Contains(normalizedPath, "/.clinerules/hooks/") {
+		return "", false
+	}
+	return tryRepoRelativeHookPath(normalizedPath)
 }
 
 func fallbackLastComponents(normalizedPath string, n int) string {

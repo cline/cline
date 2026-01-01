@@ -3,7 +3,6 @@ package handlers
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -25,13 +24,11 @@ func TestFormatHookPath_PrefersWorkspaceRelative(t *testing.T) {
 
 	inside := filepath.Join(root, ".clinerules", "hooks", "pre.sh")
 	got := formatHookPath(inside)
-	// The unit under test uses os.Getwd() which, under `go test`, can be
-	// different from the chdir performed inside the test (depending on the runner).
-	// Assert the more important invariant: the formatted path ends in the
-	// workspace-relative suffix.
-	suffix := filepath.ToSlash(filepath.Join(".clinerules", "hooks", "pre.sh"))
-	if !strings.HasSuffix(got, suffix) {
-		t.Fatalf("expected formatted path to end with %q. got=%q", suffix, got)
+	// Repo-scoped hook scripts should always include the repo name (the directory
+	// immediately containing .clinerules) even when running inside that repo.
+	expected := "workspace/" + filepath.ToSlash(filepath.Join(".clinerules", "hooks", "pre.sh"))
+	if got != expected {
+		t.Fatalf("expected formatted path to be %q. got=%q", expected, got)
 	}
 }
 
