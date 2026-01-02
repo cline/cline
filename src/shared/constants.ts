@@ -6,7 +6,6 @@
  * @see {@link https://esbuild.github.io/api/#define|docs}
  */
 export const BUILD_CONSTANTS = {
-	IS_STANDALONE: process.env.IS_STANDALONE,
 	TELEMETRY_SERVICE_API_KEY: process.env.TELEMETRY_SERVICE_API_KEY,
 	ERROR_SERVICE_API_KEY: process.env.ERROR_SERVICE_API_KEY,
 	OTEL_TELEMETRY_ENABLED: process.env.OTEL_TELEMETRY_ENABLED,
