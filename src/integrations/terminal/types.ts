@@ -325,10 +325,13 @@ export interface CommandExecutorCallbacks {
 	ask: (type: string, text?: string, partial?: boolean) => Promise<AskResponse>
 	/** Update the background command running state in the controller */
 	updateBackgroundCommandState: (running: boolean) => void
-	/** Update a cline message by index */
-	updateClineMessage: (index: number, updates: { commandCompleted?: boolean }) => Promise<void>
+	/**
+	 * Update a cline message by index
+	 * Supports updating commandCompleted status and/or text content
+	 */
+	updateClineMessage: (index: number, updates: { commandCompleted?: boolean; text?: string }) => Promise<void>
 	/** Get cline messages array */
-	getClineMessages: () => Array<{ ask?: string; say?: string }>
+	getClineMessages: () => Array<{ ask?: string; say?: string; text?: string }>
 	/** Add content to user message for next API request */
 	addToUserMessageContent: (content: { type: string; text: string }) => void
 }
@@ -375,6 +378,11 @@ export interface OrchestrationOptions {
 	 * @returns The log file path if tracking was started, undefined otherwise
 	 */
 	onProceedWhileRunning?: (existingOutput: string[]) => { logFilePath: string } | undefined
+	/**
+	 * The type of terminal being used for telemetry tracking.
+	 * Defaults to "vscode" for backward compatibility.
+	 */
+	terminalType?: "vscode" | "standalone"
 }
 
 /**

@@ -55,7 +55,13 @@ export async function orchestrateCommandExecution(
 	callbacks: CommandExecutorCallbacks,
 	options: OrchestrationOptions,
 ): Promise<OrchestrationResult> {
-	const { timeoutSeconds, onOutputLine, showShellIntegrationSuggestion, onProceedWhileRunning } = options
+	const {
+		timeoutSeconds,
+		onOutputLine,
+		showShellIntegrationSuggestion,
+		onProceedWhileRunning,
+		terminalType = "vscode",
+	} = options
 
 	// Track command execution state
 	callbacks.updateBackgroundCommandState(true)
@@ -108,7 +114,7 @@ export async function orchestrateCommandExecution(
 		if (!didContinue) {
 			// Start timer to detect if buffer gets stuck
 			bufferStuckTimer = setTimeout(() => {
-				telemetryService.captureTerminalHang(TerminalHangStage.BUFFER_STUCK)
+				telemetryService.captureTerminalHang(TerminalHangStage.BUFFER_STUCK, terminalType)
 				bufferStuckTimer = null
 			}, BUFFER_STUCK_TIMEOUT_MS)
 
@@ -119,7 +125,10 @@ export async function orchestrateCommandExecution(
 
 				if (response === "yesButtonClicked") {
 					// Track when user clicks "Proceed While Running"
-					telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.PROCESS_WHILE_RUNNING)
+					telemetryService.captureTerminalUserIntervention(
+						TerminalUserInterventionAction.PROCESS_WHILE_RUNNING,
+						terminalType,
+					)
 					// Proceed while running - but still capture user feedback if provided
 					if (text || (images && images.length > 0) || (files && files.length > 0)) {
 						userFeedback = { text, images, files }
@@ -168,7 +177,7 @@ export async function orchestrateCommandExecution(
 
 					process.continue()
 				} else if (response === "noButtonClicked" && text === COMMAND_CANCEL_TOKEN) {
-					telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.CANCELLED)
+					telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.CANCELLED, terminalType)
 					// Set flags BEFORE resuming the process to prevent new lines from being processed
 					didCancelViaUi = true
 					userFeedback = undefined
@@ -348,7 +357,7 @@ export async function orchestrateCommandExecution(
 	// Start timer to detect if waiting for completion takes too long
 	completionTimer = setTimeout(() => {
 		if (!completed) {
-			telemetryService.captureTerminalHang(TerminalHangStage.WAITING_FOR_COMPLETION)
+			telemetryService.captureTerminalHang(TerminalHangStage.WAITING_FOR_COMPLETION, terminalType)
 			completionTimer = null
 		}
 	}, COMPLETION_TIMEOUT_MS)
@@ -432,6 +441,8 @@ export async function orchestrateCommandExecution(
 
 						// Now resume the process - any new lines will be handled by the background tracker
 						process.continue()
+						// Clean up file-based logging if active before returning
+						cleanupFileBased()
 						return backgroundTrackingResult
 					}
 
@@ -463,6 +474,8 @@ export async function orchestrateCommandExecution(
 	// Check if we returned early due to background tracking
 	// This happens when user clicks "Proceed While Running" with background tracking enabled
 	if (backgroundTrackingResult) {
+		// Clean up file-based logging if active before returning
+		cleanupFileBased()
 		return backgroundTrackingResult
 	}
 

@@ -334,6 +334,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							<VSCodeRadio disabled={!searchQuery} style={{ opacity: searchQuery ? 1 : 0.5 }} value="mostRelevant">
 								Most Relevant
 							</VSCodeRadio>
+						</VSCodeRadioGroup>
+						<div className="flex flex-wrap" style={{ marginTop: -8 }}>
 							<VSCodeRadio
 								checked={showCurrentWorkspaceOnly}
 								onClick={() => setShowCurrentWorkspaceOnly(!showCurrentWorkspaceOnly)}>
@@ -342,13 +344,15 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 									Workspace
 								</span>
 							</VSCodeRadio>
-							<VSCodeRadio checked={showFavoritesOnly} onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}>
+							<VSCodeRadio
+								checked={showFavoritesOnly}
+								onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}>
 								<span className="flex items-center gap-[3px]">
 									<span className="codicon codicon-star-full text-(--vscode-button-background)" />
 									Favorites
 								</span>
 							</VSCodeRadio>
-						</VSCodeRadioGroup>
+						</div>
 					</div>
 				</div>
 				<div style={{ flexGrow: 1, overflowY: "auto", margin: 0 }}>

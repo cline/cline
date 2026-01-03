@@ -8,9 +8,9 @@
  * Implements ITerminalProcess interface for polymorphic usage with CommandExecutor.
  */
 
+import { telemetryService } from "@services/telemetry"
 import { ChildProcess, spawn } from "child_process"
 import { EventEmitter } from "events"
-
 import { terminateProcessTree } from "@/utils/process-termination"
 
 import {
@@ -155,12 +155,18 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 					this.isHot = false
 				}
 
+				// Track terminal execution telemetry
+				const success = code === 0 || code === null
+				telemetryService.captureTerminalExecution(success, "standalone", "child_process")
+
 				this.emit("completed")
 				this.emit("continue")
 			})
 
 			// Handle process errors
 			this.childProcess.on("error", (error: Error) => {
+				// Track terminal execution error telemetry
+				telemetryService.captureTerminalExecution(false, "standalone", "child_process_error")
 				this.emit("error", error)
 			})
 
