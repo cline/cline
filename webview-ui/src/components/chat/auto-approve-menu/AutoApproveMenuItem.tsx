@@ -1,8 +1,5 @@
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
-import { Button } from "@/components/ui/button"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { cn } from "@/lib/utils"
 import { ActionMetadata } from "./types"
 
 interface AutoApproveMenuItemProps {
@@ -13,25 +10,28 @@ interface AutoApproveMenuItemProps {
 	disabled?: boolean
 }
 
-const SubOptionAnimateIn = styled.div<{ show: boolean }>`
-	position: relative;
-	transform: ${(props) => (props.show ? "scaleY(1)" : "scaleY(0)")};
-	transform-origin: top;
-	padding-left: 24px;
-	opacity: ${(props) => (props.show ? "1" : "0")};
-	height: ${(props) => (props.show ? "auto" : "0")}; /* Manage height for layout */
-	overflow: visible; /* Allow tooltips to escape */
-	transition: transform 0.2s ease-in-out;
+const SubOptionAnimateIn = styled.div<{ show: boolean; inert?: string }>`
+  position: relative;
+  transform: ${(props) => (props.show ? "scaleY(1)" : "scaleY(0)")};
+  transform-origin: top;
+  padding-left: 24px;
+  opacity: ${(props) => (props.show ? "1" : "0")};
+  height: ${(props) => (props.show ? "auto" : "0")}; /* Manage height for layout */
+  overflow: visible; /* Allow tooltips to escape */
+  transition: transform 0.2s ease-in-out;
 `
 
-const ActionButtonContainer = styled.div`
-	padding: 2px;
+const CheckboxWrapper = styled.div<{ $disabled: boolean }>`
+  padding: 2px 0.125rem;
+  margin: 0;
+  width: 100%;
+  cursor: ${(props) => (props.$disabled ? "not-allowed" : "pointer")};
 `
 
 const AutoApproveMenuItem = ({ action, isChecked, onToggle, showIcon = true, disabled = false }: AutoApproveMenuItemProps) => {
 	const checked = isChecked(action)
 
-	const onChange = async (e: Event) => {
+	const onChange = async (e: React.MouseEvent) => {
 		if (disabled) {
 			return
 		}
@@ -41,26 +41,16 @@ const AutoApproveMenuItem = ({ action, isChecked, onToggle, showIcon = true, dis
 
 	const content = (
 		<div className="w-full" style={{ opacity: disabled ? 0.5 : 1 }}>
-			<ActionButtonContainer className="w-full">
-				<Tooltip>
-					<TooltipContent showArrow={false}>{action.description}</TooltipContent>
-					<TooltipTrigger asChild>
-						<Button
-							className={cn("w-full flex text-sm items-center justify-start text-foreground gap-2")}
-							disabled={disabled}
-							onClick={(e) => onChange(e as unknown as Event)}
-							size="icon"
-							style={{ cursor: disabled ? "not-allowed" : "pointer" }}
-							variant="icon">
-							<VSCodeCheckbox checked={checked} disabled={disabled} />
-							{showIcon && <span className={`codicon ${action.icon} icon`}></span>}
-							<span className="label">{action.label}</span>
-						</Button>
-					</TooltipTrigger>
-				</Tooltip>
-			</ActionButtonContainer>
+			<CheckboxWrapper $disabled={disabled} className="w-full" onClick={onChange}>
+				<VSCodeCheckbox checked={checked} disabled={disabled}>
+					<div className="w-full flex text-sm items-center justify-start text-foreground gap-2">
+						{showIcon && <span className={`codicon ${action.icon} icon`}></span>}
+						<span className="label">{action.label}</span>
+					</div>
+				</VSCodeCheckbox>
+			</CheckboxWrapper>
 			{action.subAction && (
-				<SubOptionAnimateIn show={checked}>
+				<SubOptionAnimateIn inert={!checked ? "" : undefined} show={checked}>
 					<AutoApproveMenuItem action={action.subAction} isChecked={isChecked} onToggle={onToggle} />
 				</SubOptionAnimateIn>
 			)}

@@ -25,11 +25,13 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration with model info
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode, liteLlmModels)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
-	// Refresh models on mount
+	// Refresh models when both base URL and API key are configured
 	useEffect(() => {
-		refreshLiteLlmModels()
+		if (apiConfiguration?.liteLlmBaseUrl && apiConfiguration?.liteLlmApiKey) {
+			refreshLiteLlmModels()
+		}
 	}, [refreshLiteLlmModels, apiConfiguration?.liteLlmApiKey, apiConfiguration?.liteLlmBaseUrl])
 
 	// Handle model change

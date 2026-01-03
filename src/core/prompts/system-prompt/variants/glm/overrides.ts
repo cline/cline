@@ -1,8 +1,9 @@
+import { hasEnabledMcpServers } from "../../components/mcp"
 import { SystemPromptSection } from "../../templates/placeholders"
 import type { SystemPromptContext } from "../../types"
 
 const GLM_TOOL_USE_TEMPLATE = (context: SystemPromptContext) => {
-	const hasMcpServers = (context.mcpHub?.getServers() || []).length > 0
+	const hasMcpServers = hasEnabledMcpServers(context)
 
 	return `Begin every task by exploring the codebase (e.g., list_files, search_files, read_file) and outlining the required changes. Do not implement until exploration yields enough context to state objectives, approach, affected files, and risks. Briefly summarize the plan, then proceed with implementation.
 

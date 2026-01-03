@@ -1,59 +1,104 @@
-The Auto Approve menu lets you set fine-grained permissions on what you allow Cline to do in an automated way.
+---
+title: "Auto Approve"
+sidebarTitle: "Auto Approve"
+description: "Let Cline take specific actions without asking for approval every time."
+---
+
+Auto Approve lets you decide which actions Cline can take without prompting you each time. It keeps you out of approval popups during routine work, while still letting you keep tight control over high-risk actions.
+
+If you find yourself repeatedly clicking approve for the same safe operations, Auto Approve is the setting that fixes that. The goal is fewer interruptions without losing the ability to review changes when it matters.
 
 <Frame>
-	<img src="https://storage.googleapis.com/cline_public_images/docs/assets/auto-approve.png" alt="Auto Approve" />
+	<video
+		style={{ width: "100%" }}
+		src="https://storage.googleapis.com/cline_public_images/autoapprove.mp4"
+		autoPlay
+		controls
+		playsInline
+	/>
 </Frame>
 
 ## How it works
 
-By default, Cline will ask for your permission before calling any tool, including reading or writing files.
+Auto Approve is evaluated per tool call. When Cline is about to read a file, edit a file, run a command, or use the browser, Cline checks your Auto Approve settings for that category.
 
-If you want to allow Cline to do something without asking, you can set the Auto Approve permission for that tool.
+A few details matter in practice:
 
-## Permission Options
+- **Workspace vs outside your workspace**: “Read all files” and “Edit all files” only extend the base toggle. If the base toggle is off, the “all files” option does nothing.
 
--   **Read project files**
+- **Terminal commands**: Cline treats terminal commands as either safe or requiring approval. “Execute safe commands” covers the first category. “Execute all commands” extends this to commands flagged as requiring approval.
 
-    -   Allows Cline to read files within your current workspace without asking
-    -   **Read all files**
-        -   Extends read permission to files outside your workspace (system files, config files, etc.)
+- **Notifications**: If enabled, Cline sends OS-level notifications when approval is required, and when an auto-approved terminal command has been running for 30 seconds and may need attention.
 
--   **Edit project files**
+<Note>
+	[YOLO mode](/features/yolo-mode) bypasses these granular approvals.
+</Note>
 
-    -   Allows Cline to modify files within your current workspace without confirmation
-    -   **Edit all files**
-        -   Extends modification permission to files outside your workspace
+## Permissions
 
--   **Execute safe commands**
+These labels match what you see in the Auto Approve menu.
 
-    -   Allows execution of terminal commands that the model deems non-destructive
-    -   **Execute all commands**
-        -   Permits execution of any terminal command without asking
+| Setting | What it allows | Notes |
+|--------|-----------------|------|
+| Read project files | Read files, list files, search in your workspace | Good default for most tasks |
+| Read all files | Read files outside your workspace | Requires “Read project files” |
+| Edit project files | Create and edit files in your workspace | Consider using checkpoints |
+| Edit all files | Edit files outside your workspace | Requires “Edit project files” |
+| Execute safe commands | Run terminal commands marked safe | Can still run long |
+| Execute all commands | Run commands marked as requiring approval | Requires “Execute safe commands” |
+| Use the browser | Allows use of the browser tool for web fetching and searching | Proxy issues can apply |
+| Use MCP servers | Use MCP tools and access MCP resources | Some servers also have per-tool auto-approve |
+| Enable notifications | Notifies you about long-running auto-approved commands | Helpful for terminal work |
 
--   **Use the browser**
+<Warning>
+	“Read all files” and “Edit all files” only matter if their base toggle is enabled. They extend access outside your workspace.
+</Warning>
 
-    -   Allows Cline to use the browser tool to fetch web content
+<Card title="Networking & proxies" icon="globe" href="/troubleshooting/networking-and-proxies">
+	If browser-based tools fail in corporate networks, this page covers the common fixes.
+</Card>
 
--   **Use MCP servers**
+## Safe vs approval-required command examples
 
-    -   Permits connection to and usage of MCP servers for extended functionality
+Cline does not use a fixed allowlist of safe or unsafe commands. The model marks each command with a `requires_approval` flag based on the command and its arguments, and Auto Approve uses that flag.
 
--   **Maximum requests**
-    -   Sets the number of consecutive automated actions Cline can take before requiring your input
+These are examples, not guarantees.
 
-## Best Practices
+### Commonly treated as safe
 
-Personally, I like to keep auto-editing disabled because it gives me a chance to review changes every step of the way.
+| Example | Why it is usually safe |
+|--------|-------------------------|
+| `npm run build` | Build output, no direct file deletions |
+| `npm test` | Runs tests |
+| `git status` | Read-only |
+| `ls -la` | Read-only |
+| `cat package.json` | Read-only |
 
-For most serious development workflows, I recommend starting with:
+### Commonly requires approval
 
--   Auto-approving read access to project files
--   Setting a reasonable maximum request limit (10-20)
+| Example | Why it often needs approval |
+|--------|------------------------------|
+| `npm install <pkg>` | Modifies dependencies and lockfiles |
+| `rm -rf <path>` | Deletes files |
+| `mv <a> <b>` | Moves files (can overwrite) |
+| `sed -i ...` | In-place file edits |
+| `curl https://...` | Downloads and executes remote code |
 
-This gives Cline enough freedom to explore your codebase without constant interruptions, while still requiring permission for edits or potentially destructive actions.
+<Note>
+	Whether a command is treated as safe depends on the exact command, flags, and the current task. When in doubt, keep command auto-approval off and approve commands manually.
+</Note>
 
-As you build more trust in Cline's capabilities with your specific projects, you can gradually increase the permissions to match your comfort level.
+## Enable notifications
 
-Remember that you can always adjust these settings as your needs change - tighten permissions for critical production work, or loosen them when prototyping and exploring.
+Auto-approved actions can run for a while, especially long terminal commands. If you enable notifications, Cline can notify you when an auto-approved command has been running for a while and may need attention.
 
-You can even use the quick "star" actions to quickly toggle your auto-approved selections on and off as you go.
+## Recommendations
+
+A good default setup is:
+
+- Enable **Read project files**
+- Leave **Edit project files**, **Execute safe commands**, **Use the browser**, and **Use MCP servers** off until you have a specific reason to enable them
+
+If you enable edits, use [Checkpoints](/features/checkpoints) so you can roll back quickly.
+
+If you’re working in a sensitive environment (production credentials, personal files, corporate devices), keep external file access and command execution locked down and approve actions manually as you go.
