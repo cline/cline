@@ -1,7 +1,7 @@
 import { type ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { type Config, type Message, Ollama } from "ollama"
+import { EnvHttpProxyAgent, fetch as undiciFetch } from "undici"
 import { ClineStorageMessage } from "@/shared/messages/content"
-import { Agent, fetch as undiciFetch } from "undici"
 import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOllamaMessages } from "../transform/ollama-format"
@@ -36,7 +36,7 @@ export class OllamaHandler implements ApiHandler {
 			return this.client
 		}
 
-		const dispatcher = new Agent({
+		const dispatcher = new EnvHttpProxyAgent({
 			headersTimeout: 0,
 			bodyTimeout: 0,
 		})
@@ -93,17 +93,17 @@ export class OllamaHandler implements ApiHandler {
 			})
 
 			for await (const chunk of stream) {
-				if (typeof (chunk as any)?.message?.content === "string") {
+				if (typeof chunk.message?.content === "string") {
 					yield {
 						type: "text",
-						text: (chunk as any).message.content,
+						text: chunk.message.content,
 					}
 				}
-				if ((chunk as any).eval_count !== undefined || (chunk as any).prompt_eval_count !== undefined) {
+				if (chunk.eval_count !== undefined || chunk.prompt_eval_count !== undefined) {
 					yield {
 						type: "usage",
-						inputTokens: (chunk as any).prompt_eval_count || 0,
-						outputTokens: (chunk as any).eval_count || 0,
+						inputTokens: chunk.prompt_eval_count || 0,
+						outputTokens: chunk.eval_count || 0,
 					}
 				}
 			}
