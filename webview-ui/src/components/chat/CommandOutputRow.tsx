@@ -67,10 +67,10 @@ export const CommandOutputContent = memo(
 			const fileName = logFilePath.split("/").pop() || logFilePath
 
 			return (
-				<>
+				<div className="border border-editor-group-border rounded-sm">
 					{beforeLogPath && <CodeBlock forceWrap={true} source={`${"```"}shell\n${beforeLogPath}\n${"```"}`} />}
 					<div
-						className="flex flex-wrap items-center gap-1.5 px-3 py-2 mx-2 my-1.5 rounded bg-banner-background cursor-pointer hover:brightness-110 transition-colors"
+						className="flex flex-wrap items-center gap-1.5 px-3 py-2 mx-2 my-1.5 rounded-sm bg-banner-background cursor-pointer hover:brightness-110 transition-colors"
 						onClick={() => {
 							FileServiceClient.openFile(StringRequest.create({ value: logFilePath })).catch((err) =>
 								console.error("Failed to open log file:", err),
@@ -81,18 +81,15 @@ export const CommandOutputContent = memo(
 						<span className="text-vscode-textLink-foreground underline break-all">{fileName}</span>
 					</div>
 					{afterLogPath && <CodeBlock forceWrap={true} source={`${"```"}shell\n${afterLogPath}\n${"```"}`} />}
-				</>
+				</div>
 			)
 		}
 
 		return (
 			<div
-				className={cn(
-					"w-full relative pb-0 overflow-visible border-t border-[rgba(255,255,255,.07)] bg-code rounded-b-lg",
-					{
-						"rounded-b-none": lineCount > 5,
-					},
-				)}>
+				className={cn("w-full relative pb-0 overflow-visible border-t border-editor-group-border bg-code rounded-sm", {
+					"rounded-b-none": lineCount > 5,
+				})}>
 				<div
 					className={cn("text-white scroll-smooth bg-code overflow-y-auto", {
 						"max-h-[75px]": !shouldAutoShow && !isOutputFullyExpanded,
@@ -100,7 +97,7 @@ export const CommandOutputContent = memo(
 						"overflow-y-visible": shouldAutoShow,
 					})}
 					ref={outputRef}>
-					<div className="bg-coder">{renderOutput()}</div>
+					<div className="bg-code">{renderOutput()}</div>
 				</div>
 				{/* Show notch only if there's more than 5 lines */}
 				{lineCount > 5 && <ExpandHandle isExpanded={isOutputFullyExpanded} onToggle={onToggle} />}
@@ -217,7 +214,7 @@ export const CommandOutputRow = memo(
 						transition: "all 0.3s ease-in-out",
 					}}>
 					{command && (
-						<div className="bg-code flex items-center justify-between px-2 py-2.5 border-b border-editor-group-border rounded-b-none overflow-hidden">
+						<div className="bg-code flex items-center justify-between px-2 py-2.5 border-b border-editor-group-border rounded-sm rounded-b-none overflow-hidden">
 							<div className="flex items-center gap-2 flex-1 m-w-0">
 								<div
 									className={cn("bg-description rounded-full w-2 h-2 shrink-0", {

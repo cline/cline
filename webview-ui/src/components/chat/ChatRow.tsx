@@ -13,19 +13,27 @@ import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import deepEqual from "fast-deep-equal"
 import {
-	ChevronDownIcon,
-	ChevronRightIcon,
+	ArrowRightIcon,
+	BellIcon,
+	CheckIcon,
+	CircleSlashIcon,
 	CircleXIcon,
+	FileCode2Icon,
 	FilePlus2Icon,
 	FoldVerticalIcon,
+	ImageUpIcon,
+	LightbulbIcon,
 	Link2Icon,
 	LoaderCircleIcon,
 	LucideIcon,
 	PencilIcon,
+	RefreshCwIcon,
 	SearchIcon,
+	SettingsIcon,
 	SquareArrowOutUpRightIcon,
 	SquareMinusIcon,
 	TerminalIcon,
+	TriangleAlertIcon,
 } from "lucide-react"
 import { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
@@ -36,7 +44,6 @@ import { WithCopyButton } from "@/components/common/CopyButton"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
-import { Button } from "@/components/ui/button"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
@@ -89,11 +96,7 @@ export interface QuoteButtonState {
 
 interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
 
-export const ProgressIndicator = () => (
-	<div className="w-4 h-4 flex items-center justify-center">
-		<LoaderCircleIcon className="animate-spin" />
-	</div>
-)
+export const ProgressIndicator = () => <LoaderCircleIcon className="size-2 mr-2 animate-spin" />
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
@@ -103,7 +106,7 @@ const ChatRow = memo(
 		const prevHeightRef = useRef(0)
 
 		const [chatrow, { height }] = useSize(
-			<div className="relative py-2.5 px-4 first:mt-2">
+			<div className="relative pt-2.5 px-4">
 				<ChatRowContent {...props} />
 			</div>,
 		)
@@ -453,7 +456,7 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div className={HEADER_CLASSNAMES}>
-								<FilePlus2Icon className="size-3" />
+								<FilePlus2Icon className="size-2" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span className="font-bold">Cline wants to create a new file:</span>
@@ -476,13 +479,10 @@ export const ChatRowContent = memo(
 					return (
 						<>
 							<div className={HEADER_CLASSNAMES}>
-								{toolIcon(isImage ? "file-media" : "file-code")}
+								{isImage ? <ImageUpIcon className="size-2" /> : <FileCode2Icon className="size-2" />}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>
-									{/* {message.type === "ask" ? "" : "Cline read this file:"} */}
-									Cline wants to read this file:
-								</span>
+								<span className="font-bold">Cline wants to read this file:</span>
 							</div>
 							<div className="bg-code rounded-sm overflow-hidden border border-editor-group-border">
 								<div
@@ -770,13 +770,7 @@ export const ChatRowContent = memo(
 						{title}
 					</div>
 
-					<div
-						style={{
-							background: "var(--vscode-textCodeBlock-background)",
-							borderRadius: "3px",
-							padding: "8px 10px",
-							marginTop: "8px",
-						}}>
+					<div className="bg-code rounded-xs py-2 px-2.5 mt-2">
 						{useMcpServer.type === "access_mcp_resource" && (
 							<McpResourceRow
 								item={{
@@ -811,16 +805,8 @@ export const ChatRowContent = memo(
 									/>
 								</div>
 								{useMcpServer.arguments && useMcpServer.arguments !== "{}" && (
-									<div style={{ marginTop: "8px" }}>
-										<div
-											style={{
-												marginBottom: "4px",
-												opacity: 0.8,
-												fontSize: "12px",
-												textTransform: "uppercase",
-											}}>
-											Arguments
-										</div>
+									<div className="mt-2">
+										<div className="mb-1 opacity-80 uppercase">Arguments</div>
 										<CodeAccordian
 											code={useMcpServer.arguments}
 											isExpanded={true}
@@ -992,44 +978,16 @@ export const ChatRowContent = memo(
 									</div>
 								)}
 
-								{showStreamingThinking && (
+								{reasoningContent && (
 									<ThinkingRow
-										instant={true}
+										isExpanded={isExpanded || showStreamingThinking || showCollapsedThinking}
 										isVisible={true}
+										onToggle={handleToggle}
 										reasoningContent={reasoningContent}
-										showCursor={true}
-										showIcon={isLast}
+										showCursor={showStreamingThinking}
+										showIcon={showStreamingThinking}
+										showTitle={true}
 									/>
-								)}
-
-								{showCollapsedThinking && reasoningContent && (
-									<>
-										<Button
-											className="flex items-center gap-1 select-none cursor-pointer text-description px-0 w-full"
-											onClick={handleToggle}
-											variant="icon">
-											{isExpanded ? (
-												<ChevronDownIcon className="opacity-70" />
-											) : (
-												<ChevronRightIcon className="opacity-70" />
-											)}
-											<span className="font-semibold">Thinking</span>
-											<span className="italic break-words truncate [direction:rtl] w-full">
-												{!isExpanded ? reasoningContent : ""}
-											</span>
-										</Button>
-
-										{isExpanded && (
-											<div className="ph-no-capture mt-2 cursor-pointer ml-5" onClick={handleToggle}>
-												<ThinkingRow
-													isVisible={true}
-													reasoningContent={reasoningContent}
-													showCursor={false}
-													showIcon={false}
-												/>
-											</div>
-										)}
-									</>
 								)}
 
 								{apiReqState === "error" && (
@@ -1049,30 +1007,10 @@ export const ChatRowContent = memo(
 						return <McpResponseDisplay responseText={message.text || ""} />
 					case "mcp_notification":
 						return (
-							<div
-								style={{
-									display: "flex",
-									alignItems: "flex-start",
-									gap: "8px",
-									padding: "8px 12px",
-									backgroundColor: "var(--vscode-textBlockQuote-background)",
-									borderRadius: "4px",
-									fontSize: "13px",
-									color: "var(--vscode-foreground)",
-									opacity: 0.9,
-									marginBottom: "8px",
-								}}>
-								<i
-									className="codicon codicon-bell"
-									style={{
-										marginTop: "2px",
-										fontSize: "14px",
-										color: "var(--vscode-notificationsInfoIcon-foreground)",
-										flexShrink: 0,
-									}}
-								/>
-								<div style={{ flex: 1, wordBreak: "break-word" }}>
-									<span style={{ fontWeight: 500 }}>MCP Notification: </span>
+							<div className="flex items-start gap-2 py-2.5 px-3 bg-quote rounded-sm text-base text-foreground opacity-90 mb-2">
+								<BellIcon className="mt-0.5 size-2 text-notification-foreground shrink-0" />
+								<div className="break-words flex-1">
+									<span className="font-medium">MCP Notification: </span>
 									<span className="ph-no-capture">{message.text}</span>
 								</div>
 							</div>
@@ -1108,33 +1046,15 @@ export const ChatRowContent = memo(
 					}
 					case "reasoning":
 						return (
-							<>
-								<Button
-									className="flex items-center gap-1 select-none cursor-pointer text-description px-0 w-full"
-									onClick={handleToggle}
-									variant="icon">
-									{isExpanded ? (
-										<ChevronDownIcon className="opacity-70" />
-									) : (
-										<ChevronRightIcon className="opacity-70" />
-									)}
-									<span className="font-semibold">Thinking</span>
-									<span className="italic break-words truncate [direction:rtl] w-full">
-										{!isExpanded ? message.text : ""}
-									</span>
-								</Button>
-
-								{isExpanded && (
-									<div className="ph-no-capture mt-2 cursor-pointer ml-5" onClick={handleToggle}>
-										<ThinkingRow
-											isVisible={true}
-											reasoningContent={message.text}
-											showCursor={false}
-											showIcon={false}
-										/>
-									</div>
-								)}
-							</>
+							<ThinkingRow
+								isExpanded={isExpanded}
+								isVisible={true}
+								onToggle={handleToggle}
+								reasoningContent={message.text}
+								showCursor={false}
+								showIcon={false}
+								showTitle={true}
+							/>
 						)
 					case "user_feedback":
 						return (
@@ -1202,24 +1122,16 @@ export const ChatRowContent = memo(
 						const isGenerating = explanationInfo.status === "generating" && !wasCancelled
 						const isError = explanationInfo.status === "error"
 						return (
-							<div
-								className="bg-code flex flex-col border border-editor-group-border"
-								style={{
-									borderRadius: 5,
-									padding: "10px 12px",
-									fontSize: 12,
-								}}>
+							<div className="bg-code flex flex-col border border-editor-group-border rounded-sm py-2.5 px-3">
 								<div className="flex items-center">
 									{isGenerating ? (
-										<span style={{ marginRight: 8 }}>
-											<ProgressIndicator />
-										</span>
+										<ProgressIndicator />
 									) : isError ? (
-										<i className="codicon codicon-error mr-2 text-error" />
+										<CircleXIcon className="size-2 mr-2 text-error" />
 									) : wasCancelled ? (
-										<i className="codicon codicon-circle-slash mr-2 text-description" />
+										<CircleSlashIcon className="size-2 mr-2" />
 									) : (
-										<i className="codicon codicon-check mr-2 text-success" />
+										<CheckIcon className="size-2 mr-2 text-success" />
 									)}
 									<span className="font-semibold">
 										{isGenerating
@@ -1238,11 +1150,11 @@ export const ChatRowContent = memo(
 									<div className="opacity-80 ml-6 mt-1.5">
 										<div>{explanationInfo.title}</div>
 										{explanationInfo.fromRef && (
-											<div className="opacity-70 mt-1.5 break-all -ml-[3px] text-[11px]">
-												<code className="bg-quote rounded-sm py-0.5 px-1.5">
+											<div className="opacity-70 mt-1.5 break-all text-xs">
+												<code className="bg-quote rounded-sm py-0.5 pr-1.5">
 													{explanationInfo.fromRef}
 												</code>
-												<span className="mx-1.5 my-0">→</span>
+												<ArrowRightIcon className="inline size-2 mx-1" />
 												<code className="bg-quote rounded-sm py-0.5 px-1.5">
 													{explanationInfo.toRef || "working directory"}
 												</code>
@@ -1259,9 +1171,9 @@ export const ChatRowContent = memo(
 
 						return (
 							<CompletionOutputRow
-								classNames={HEADER_CLASSNAMES}
 								explainChangesDisabled={explainChangesDisabled}
 								handleQuoteClick={handleQuoteClick}
+								headClassNames={HEADER_CLASSNAMES}
 								isOutputFullyExpanded={isCompletionOutputExpanded}
 								messageTs={message.ts}
 								onToggle={() => setIsCompletionOutputExpanded(!isCompletionOutputExpanded)}
@@ -1275,47 +1187,19 @@ export const ChatRowContent = memo(
 						)
 					case "shell_integration_warning":
 						return (
-							<div
-								style={{
-									display: "flex",
-									flexDirection: "column",
-									backgroundColor: "var(--vscode-textBlockQuote-background)",
-									padding: 8,
-									borderRadius: 3,
-									fontSize: 12,
-								}}>
-								<div
-									style={{
-										display: "flex",
-										alignItems: "center",
-										marginBottom: 4,
-									}}>
-									<i
-										className="codicon codicon-warning"
-										style={{
-											marginRight: 8,
-											fontSize: 14,
-											color: "var(--vscode-descriptionForeground)",
-										}}></i>
-									<span
-										style={{
-											fontWeight: 500,
-											color: "var(--vscode-foreground)",
-										}}>
-										Shell Integration Unavailable
-									</span>
+							<div className="flex flex-col bg-quote p-2 rounded-xs border">
+								<div className="flex items-center mb-1">
+									<TriangleAlertIcon className="mr-2 size-2 text-description" />
+									<span className="font-medium text-foreground">Shell Integration Unavailable</span>
 								</div>
-								<div style={{ color: "var(--vscode-foreground)", opacity: 0.8 }}>
+								<div className="text-foreground opacity-80">
 									Cline may have trouble viewing the command's output. Please update VSCode (
 									<code>CMD/CTRL + Shift + P</code> → "Update") and make sure you're using a supported shell:
 									zsh, bash, fish, or PowerShell (<code>CMD/CTRL + Shift + P</code> → "Terminal: Select Default
-									Profile").{" "}
+									Profile").
 									<a
-										href="https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Shell-Integration-Unavailable"
-										style={{
-											color: "inherit",
-											textDecoration: "underline",
-										}}>
+										className="px-1"
+										href="https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Shell-Integration-Unavailable">
 										Still having trouble?
 									</a>
 								</div>
@@ -1330,26 +1214,26 @@ export const ChatRowContent = memo(
 							return (
 								<div className="flex flex-col bg-quote p-0 rounded-[3px] text-[12px]">
 									<div className="flex items-center mb-1">
-										<i
-											className={cn("text-description text-base mr-2 codicon ", {
-												"codicon-warning": isFailed,
-												"codicon-sync": !isFailed,
-											})}></i>
+										{isFailed ? (
+											<TriangleAlertIcon className="mr-2 size-2" />
+										) : (
+											<RefreshCwIcon className="mr-2 size-2 animate-spin" />
+										)}
 										<span className="font-medium text-foreground">
 											{isFailed ? "Auto-Retry Failed" : "Auto-Retry in Progress"}
 										</span>
 									</div>
 									<div className="text-foreground opacity-80">
 										{isFailed ? (
-											<>
+											<span>
 												Auto-retry failed after <strong>{maxAttempts}</strong> attempts. Manual
 												intervention required.
-											</>
+											</span>
 										) : (
-											<>
+											<span>
 												Attempt <strong>{attempt}</strong> of <strong>{maxAttempts}</strong> - Retrying in{" "}
 												{delaySeconds} seconds...
-											</>
+											</span>
 										)}
 									</div>
 								</div>
@@ -1357,7 +1241,7 @@ export const ChatRowContent = memo(
 						} catch (_e) {
 							// Fallback if JSON parsing fails
 							return (
-								<div style={{ color: "var(--vscode-foreground)" }}>
+								<div className="text-foreground">
 									<MarkdownRow markdown={message.text} />
 								</div>
 							)
@@ -1370,35 +1254,12 @@ export const ChatRowContent = memo(
 					case "shell_integration_warning_with_suggestion":
 						const isBackgroundModeEnabled = vscodeTerminalExecutionMode === "backgroundExec"
 						return (
-							<div
-								style={{
-									padding: 8,
-									backgroundColor: "color-mix(in srgb, var(--vscode-textLink-foreground) 10%, transparent)",
-									borderRadius: 3,
-									border: "1px solid color-mix(in srgb, var(--vscode-textLink-foreground) 30%, transparent)",
-								}}>
-								<div
-									style={{
-										display: "flex",
-										alignItems: "center",
-										marginBottom: 4,
-									}}>
-									<i
-										className="codicon codicon-lightbulb"
-										style={{
-											marginRight: 6,
-											fontSize: 14,
-											color: "var(--vscode-textLink-foreground)",
-										}}></i>
-									<span
-										style={{
-											fontWeight: 500,
-											color: "var(--vscode-foreground)",
-										}}>
-										Shell integration issues
-									</span>
+							<div className="p-2 bg-link/10 border border-link/30 rounded-xs">
+								<div className="flex items-center mb-1">
+									<LightbulbIcon className="mr-1.5 size-2 text-link" />
+									<span className="font-medium text-foreground">Shell integration issues</span>
 								</div>
-								<div style={{ color: "var(--vscode-foreground)", opacity: 0.9, marginBottom: 8 }}>
+								<div className="text-foreground opacity-90 mb-2">
 									Since you're experiencing repeated shell integration issues, we recommend switching to
 									Background Terminal mode for better reliability.
 								</div>
@@ -1418,7 +1279,7 @@ export const ChatRowContent = memo(
 											console.error("Failed to enable background terminal:", error)
 										}
 									}}>
-									<i className="codicon codicon-settings-gear"></i>
+									<SettingsIcon className="size-2" />
 									{isBackgroundModeEnabled
 										? "Background Terminal Enabled"
 										: "Enable Background Terminal (Recommended)"}
@@ -1452,9 +1313,9 @@ export const ChatRowContent = memo(
 							const text = hasChanges ? message.text.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 							return (
 								<CompletionOutputRow
-									classNames={HEADER_CLASSNAMES}
 									explainChangesDisabled={explainChangesDisabled}
 									handleQuoteClick={handleQuoteClick}
+									headClassNames={HEADER_CLASSNAMES}
 									isOutputFullyExpanded={isCompletionOutputExpanded}
 									messageTs={message.ts}
 									onToggle={() => setIsCompletionOutputExpanded(!isCompletionOutputExpanded)}
@@ -1523,7 +1384,7 @@ export const ChatRowContent = memo(
 						return (
 							<>
 								<div className={HEADER_CLASSNAMES}>
-									<FilePlus2Icon className="size-3" />
+									<FilePlus2Icon className="size-2" />
 									<span className="text-foreground font-bold">Cline wants to start a new task:</span>
 								</div>
 								<NewTaskPreview context={message.text || ""} />
@@ -1533,7 +1394,7 @@ export const ChatRowContent = memo(
 						return (
 							<>
 								<div className={HEADER_CLASSNAMES}>
-									<FilePlus2Icon className="size-3" />
+									<FilePlus2Icon className="size-2" />
 									<span className="text-foreground font-bold">Cline wants to condense your conversation:</span>
 								</div>
 								<NewTaskPreview context={message.text || ""} />
@@ -1543,7 +1404,7 @@ export const ChatRowContent = memo(
 						return (
 							<>
 								<div className={HEADER_CLASSNAMES}>
-									<FilePlus2Icon className="size-3" />
+									<FilePlus2Icon className="size-2" />
 									<span className="text-foreground font-bold">Cline wants to create a Github issue:</span>
 								</div>
 								<ReportBugPreview data={message.text || ""} />

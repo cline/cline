@@ -630,7 +630,7 @@ export const BrowserAutomation: Story = {
 const createToolApprovalMessages = () => [
 	createMessage(5, "say", "task", "Help me read the configuration file"),
 	createMessage(4.7, "say", "text", "I need to read a file to understand your configuration."),
-	createAskMessage("tool", JSON.stringify({ tool: "read_file", path: "config.json" })),
+	createAskMessage("tool", JSON.stringify({ tool: "readFile", path: "config.json" })),
 ]
 
 export const ToolApproval: Story = {
@@ -794,6 +794,231 @@ export const ResumeCompletedTask = quickStory(
 	"The previous task has been completed. Would you like to start a new task?",
 	"Shows Start New Task option for resume completed task.",
 )
+
+export const ShellIntegrationWarningWithSuggestion: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Run a command"),
+				createMessage(4.7, "say", "text", "I'll run the command for you."),
+				createMessage(4.5, "say", "shell_integration_warning_with_suggestion", ""),
+			],
+			vscodeTerminalExecutionMode: "integrated",
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows shell integration warning with suggestion to enable Background Terminal mode.",
+			},
+		},
+	},
+}
+
+export const ShellIntegrationWarningBackgroundEnabled: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Run a command"),
+				createMessage(4.7, "say", "text", "I'll run the command for you."),
+				createMessage(4.5, "say", "shell_integration_warning_with_suggestion", ""),
+			],
+			vscodeTerminalExecutionMode: "backgroundExec",
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows shell integration warning when Background Terminal mode is already enabled.",
+			},
+		},
+	},
+}
+
+export const ShellIntegrationWarning: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Run a command"),
+				createMessage(4.7, "say", "text", "I'll run the command for you."),
+				createMessage(4.5, "say", "shell_integration_warning", ""),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows shell integration unavailable warning with instructions to update VSCode and select a supported shell.",
+			},
+		},
+	},
+}
+
+export const ErrorRetryInProgress: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Process a request"),
+				createMessage(4.7, "say", "text", "Attempting to process your request."),
+				createMessage(
+					4.5,
+					"say",
+					"error_retry",
+					JSON.stringify({ attempt: 2, maxAttempts: 5, delaySeconds: 10, failed: false }),
+				),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows auto-retry in progress with attempt count and delay.",
+			},
+		},
+	},
+}
+
+export const ErrorRetryFailed: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Process a request"),
+				createMessage(4.7, "say", "text", "Attempting to process your request."),
+				createMessage(
+					4.5,
+					"say",
+					"error_retry",
+					JSON.stringify({ attempt: 5, maxAttempts: 5, delaySeconds: 0, failed: true }),
+				),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows auto-retry failed after max attempts with manual intervention required.",
+			},
+		},
+	},
+}
+
+export const GenerateExplanationInProgress: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Explain my recent changes"),
+				createMessage(4.7, "say", "text", "I'll generate an explanation of your changes."),
+				createMessage(
+					4.5,
+					"say",
+					"generate_explanation",
+					JSON.stringify({
+						title: "Authentication refactor",
+						fromRef: "abc123def",
+						toRef: "working directory",
+						status: "generating",
+					}),
+				),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows explanation generation in progress with spinner.",
+			},
+		},
+	},
+}
+
+export const GenerateExplanationComplete: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Explain my recent changes"),
+				createMessage(4.7, "say", "text", "I'll generate an explanation of your changes."),
+				createMessage(
+					4.5,
+					"say",
+					"generate_explanation",
+					JSON.stringify({
+						title: "Authentication refactor",
+						fromRef: "abc123def",
+						toRef: "xyz789ghi",
+						status: "complete",
+					}),
+				),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows successfully generated explanation with git refs.",
+			},
+		},
+	},
+}
+
+export const GenerateExplanationError: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Explain my recent changes"),
+				createMessage(4.7, "say", "text", "I'll generate an explanation of your changes."),
+				createMessage(
+					4.5,
+					"say",
+					"generate_explanation",
+					JSON.stringify({
+						title: "Authentication refactor",
+						fromRef: "abc123def",
+						toRef: "",
+						status: "error",
+						error: "Failed to generate explanation: Git repository not found",
+					}),
+				),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows explanation generation error with error message.",
+			},
+		},
+	},
+}
+
+export const GenerateExplanationCancelled: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Explain my recent changes"),
+				createMessage(4.7, "say", "text", "I'll generate an explanation of your changes."),
+				createMessage(
+					4.5,
+					"say",
+					"generate_explanation",
+					JSON.stringify({
+						title: "Authentication refactor",
+						fromRef: "abc123def",
+						toRef: "",
+						status: "generating",
+					}),
+				),
+				createMessage(4.3, "ask", undefined, "Task was cancelled", { ask: "resume_task" }),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows explanation generation cancelled state (detected via resume_task message).",
+			},
+		},
+	},
+}
 
 // Diff Edit Stories - New Format
 const createNewFormatMultiFileMessages = () => [

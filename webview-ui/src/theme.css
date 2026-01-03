@@ -48,6 +48,7 @@
 	--color-banner-foreground: var(--vscode-banner-foreground);
 	--color-banner-icon: var(--vscode-banner-iconForeground);
 	--color-icon-foreground: var(--vscode-icon-foreground);
+	--color-notification-foreground: var(--vscode-notificationsInfoIcon-foreground);
 	--color-toolbar-default: var(--vscode-toolbar-background);
 	--color-toolbar-hover: var(--vscode-toolbar-hoverBackground);
 	--color-error: var(--vscode-errorForeground);

@@ -18,7 +18,7 @@ interface CompletionOutputRowProps {
 	onToggle: () => void
 	quoteButtonState: QuoteButtonState
 	handleQuoteClick: () => void
-	classNames?: string
+	headClassNames?: string
 	showActionRow?: boolean
 	seeNewChangesDisabled: boolean
 	setSeeNewChangesDisabled: (value: boolean) => void
@@ -29,7 +29,7 @@ interface CompletionOutputRowProps {
 
 export const CompletionOutputRow = memo(
 	({
-		classNames,
+		headClassNames,
 		text,
 		isOutputFullyExpanded,
 		onToggle,
@@ -46,10 +46,10 @@ export const CompletionOutputRow = memo(
 		const lineCount = outputLines.length
 		const shouldAutoShow = lineCount <= 5
 		return (
-			<div>
+			<div className="rounded-sm border border-success/20">
 				<div className="rounded-sm border border-success/20 overflow-visible bg-success/10 transition-border duration-300 ease-in-out hover:border-success p-2">
 					{/* Title */}
-					<div className={cn(classNames, "justify-between")}>
+					<div className={cn(headClassNames, "justify-between")}>
 						<div className="flex gap-2 items-center">
 							<CheckIcon className="size-3 text-success" />
 							<span className="text-success font-bold">Task Completed</span>
@@ -64,7 +64,7 @@ export const CompletionOutputRow = memo(
 						<div
 							className={cn(
 								"completion-output-content",
-								"scroll-smooth p-2 overflow-y-auto w-full [&_hr]:opacity-20",
+								"scroll-smooth p-2 overflow-y-auto w-full [&_hr]:opacity-20 rounded-sm",
 								{
 									"max-h-[400px]": !shouldAutoShow && isOutputFullyExpanded,
 									"max-h-[150px]": !shouldAutoShow && !isOutputFullyExpanded,
