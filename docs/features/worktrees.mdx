@@ -36,21 +36,30 @@ Worktrees solve a common problem: **Cline takes over your VS Code window while w
 
 ## Getting Started
 
+### Quick Launch (Recommended)
+
+The fastest way to start using worktrees is the **New Worktree Window** button on Cline's home screen:
+
+1. Click **New Worktree Window** on the home screen
+2. Enter a branch name and folder path (defaults are auto-filled)
+3. Click **Create & Open**
+
+A new VS Code window opens with your worktree, and Cline automatically opens ready to work.
+
+<Tip>
+  The home screen also shows your current branch and worktree path. Click it to open the full Worktrees view.
+</Tip>
+
+### Full Worktrees View
+
+For more control, open the full Worktrees view by clicking your current branch info on the home screen:
+
 <Steps>
-  <Step title="Open the Worktrees View">
-    Click the **Worktrees** button in the Cline sidebar header to open the Worktrees view.
-  </Step>
   <Step title="Create a New Worktree">
-    Click **New Worktree** at the bottom of the view. You'll need to provide:
-    - **Branch name**: The new branch to create (e.g., `feature/user-auth`)
-    - **Path**: Where to create the worktree folder
-    
-    <Tip>
-      Click **Auto-fill with suggested values** to get a random branch name and a path in your Documents folder.
-    </Tip>
+    Click **New Worktree** at the bottom of the view. Enter a branch name and path (defaults are auto-filled).
   </Step>
   <Step title="Open in New Window">
-    Once created, click the **Open in new window** button to open the worktree in a separate VS Code window. Now you can run Cline independently in that window!
+    Once created, click the **Open in new window** button to open the worktree in a separate VS Code window. Cline will automatically open in the new window.
   </Step>
 </Steps>
 
@@ -70,13 +79,21 @@ Each worktree has two open options:
 - **Open in current window**: Replace your current workspace with the worktree
 - **Open in new window**: Open the worktree in a separate VS Code window (recommended for parallel Cline sessions)
 
+Either way, Cline automatically opens in the new workspace, ready to start a task.
+
 ### Deleting Worktrees
 
-Click the trash icon on any linked worktree to delete it. This removes the worktree folder and unlinks it from your repository. The branch itself is preserved—only the working directory is removed.
+Click the trash icon on any linked worktree to delete it. A confirmation dialog will show you exactly what will be deleted:
+- The branch itself
+- All project files in the worktree folder
 
 <Warning>
-  You cannot delete the main worktree. It's the primary repository where your `.git` directory lives.
+  Deleting a worktree permanently removes the branch and all files in that folder. Make sure any important changes are committed and pushed first.
 </Warning>
+
+<Note>
+  You cannot delete the main worktree. It's the primary repository where your `.git` directory lives.
+</Note>
 
 ### Merging Worktrees
 
@@ -180,6 +197,15 @@ Now whenever you update your `.gitignore`, your `.worktreeinclude` will have the
     3. **Check for stale worktrees** - Periodically review and clean up old worktrees
   </Accordion>
 </AccordionGroup>
+
+## Limitations
+
+Worktrees are not available in certain workspace configurations:
+
+- **Multi-root workspaces**: If you have multiple folders open in VS Code, worktrees are disabled. Open a single repository folder instead.
+- **Subfolder of a repository**: If you've opened a subfolder within a Git repository (not the root), worktrees are disabled. Open the repository root folder instead.
+
+The Worktrees view will display a message explaining the limitation if either of these applies to your workspace.
 
 ## Troubleshooting
 
