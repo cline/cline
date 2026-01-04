@@ -30,9 +30,30 @@ export class OpenAiHandler implements ApiHandler {
 
 	private ensureClient(): OpenAI {
 		if (!this.client) {
-			if (!this.options.openAiApiKey) {
+			// Allow "none" or "noop" as API key for endpoints that don't require authentication
+			const isNoKeyMode = this.options.openAiApiKey === "none" || this.options.openAiApiKey === "noop"
+
+			if (!this.options.openAiApiKey && !isNoKeyMode) {
 				throw new Error("OpenAI API key is required")
 			}
+
+			// Use "noop" as placeholder when no key is needed
+			const apiKey = isNoKeyMode ? "noop" : this.options.openAiApiKey!
+
+			// Create custom fetch that removes Authorization header in no-key mode
+			const customFetch = isNoKeyMode
+				? async (url: RequestInfo | URL, init?: RequestInit) => {
+						// Remove Authorization header
+						if (init?.headers) {
+							const headers = new Headers(init.headers)
+							headers.delete("authorization")
+							headers.delete("Authorization")
+							init = { ...init, headers }
+						}
+						return fetch(url, init)
+					}
+				: fetch
+
 			try {
 				// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
 				// Use azureApiVersion to determine if this is an Azure endpoint, since the URL may not always contain 'azure.com'
@@ -44,17 +65,17 @@ export class OpenAiHandler implements ApiHandler {
 				) {
 					this.client = new AzureOpenAI({
 						baseURL: this.options.openAiBaseUrl,
-						apiKey: this.options.openAiApiKey,
+						apiKey: apiKey,
 						apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
 						defaultHeaders: this.options.openAiHeaders,
-						fetch, // Use configured fetch with proxy support
+						fetch: customFetch, // Use custom fetch to remove Authorization header
 					})
 				} else {
 					this.client = new OpenAI({
 						baseURL: this.options.openAiBaseUrl,
-						apiKey: this.options.openAiApiKey,
+						apiKey: apiKey,
 						defaultHeaders: this.options.openAiHeaders,
-						fetch, // Use configured fetch with proxy support
+						fetch: customFetch, // Use custom fetch to remove Authorization header
 					})
 				}
 			} catch (error: any) {
