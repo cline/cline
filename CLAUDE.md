@@ -18,6 +18,48 @@ This file is the secret sauce for working effectively in this codebase. It captu
 - This is a VS Code extension—check `package.json` for available scripts before trying to verify builds (e.g., `npm run compile`, not `npm run build`).
 - When creating PRs, if the change is user-facing and significant enough to warrant a changelog entry, run `npm run changeset` and create a patch changeset. Never create minor or major version bumps. Skip changesets for trivial fixes, internal refactors, or minor UI tweaks that users wouldn't notice.
 
+## Debug Logging (For Development/Debugging Only)
+**IMPORTANT: These utilities are for debugging purposes only, not production logging.**
+
+The codebase has a unified debug logging system that writes both extension and webview logs to a single file: `~/cline-debug.log`. This makes it easy to troubleshoot issues that span the extension/webview boundary.
+
+**Files:**
+- `src/utils/debugLogger.ts` - Extension-side logger with file writing
+- `webview-ui/src/utils/webviewDebugLogger.ts` - Webview-side logger that intercepts console calls and sends to extension
+
+**Extension usage:**
+```typescript
+import { extensionLog } from '@/utils/debugLogger'
+extensionLog.info('Task started:', taskId)
+extensionLog.error('Failed to load:', error)
+```
+
+**Webview usage:**
+```typescript
+// In your app entry point (e.g., App.tsx or index.tsx):
+import { enableWebviewDebugLogging } from './utils/webviewDebugLogger'
+enableWebviewDebugLogging()
+
+// Then use console normally - it gets logged to file:
+console.log('Button clicked:', buttonId)
+console.error('API failed:', error)
+```
+
+**Monitoring logs in real-time:**
+```bash
+tail -f ~/cline-debug.log
+```
+
+**How it works:**
+1. Extension logs directly write to `~/cline-debug.log` using Node.js fs
+2. Webview logs intercept console calls, stringify args, and send to extension via `postMessage` with type `webview_debug_log`
+3. Extension receives `webview_debug_log` messages and appends them to the same file
+4. Logs are formatted with timestamp, source (EXTENSION/WEBVIEW), level, and message
+5. Automatic log rotation when file exceeds 10MB
+
+**When to add webview message handler:**
+If you're integrating the webview logger, you need to handle the `webview_debug_log` message type in the extension's message handler. Look for where other webview messages are processed and add handling for this type that calls `debugLog('webview', level, ...args)`.
+
 ## gRPC/Protobuf Communication
 The extension and webview communicate via gRPC-like protocol over VS Code message passing.
 
