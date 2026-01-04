@@ -51,7 +51,9 @@ const CreateWorktreeModal = ({ open, onClose, openAfterCreate = false, onSuccess
 	}, [open])
 
 	const handleCreateWorktree = useCallback(async () => {
-		if (!newWorktreePath || !newBranchName) return
+		if (!newWorktreePath || !newBranchName) {
+			return
+		}
 
 		setIsCreating(true)
 		setCreateError(null)
@@ -86,11 +88,16 @@ const CreateWorktreeModal = ({ open, onClose, openAfterCreate = false, onSuccess
 		}
 	}, [newWorktreePath, newBranchName, openAfterCreate, onSuccess, onClose])
 
-	if (!open) return null
+	if (!open) {
+		return null
+	}
 
-	const title = openAfterCreate ? "Create & Open Worktree" : "Create New Worktree"
+	const title = openAfterCreate ? "New Worktree" : "Create New Worktree"
 	const buttonText = openAfterCreate ? "Create & Open" : "Create Worktree"
 	const creatingText = openAfterCreate ? "Creating & Opening..." : "Creating..."
+	const description = openAfterCreate
+		? "This will create a copy of your project on a new branch and open in a separate window."
+		: "This will create a copy of your project on a new branch."
 
 	return (
 		<div
@@ -109,13 +116,8 @@ const CreateWorktreeModal = ({ open, onClose, openAfterCreate = false, onSuccess
 					<X className="w-4 h-4" />
 				</button>
 				<h4 className="mt-0 mb-2 pr-6">{title}</h4>
-				<p className="text-sm text-[var(--vscode-descriptionForeground)] mt-0 mb-4">
-					This will create a new folder with a copy of your code on a new branch.
-					{openAfterCreate
-						? " The new worktree will open in a new window."
-						: " You can work on both branches simultaneously without switching."}
-				</p>
-				<div className="flex flex-col gap-4">
+				<p className="text-sm text-[var(--vscode-descriptionForeground)] mt-0 mb-4">{description}</p>
+				<div className="flex flex-col">
 					<div>
 						<label className="block text-sm font-medium mb-1">Branch Name *</label>
 						<VSCodeTextField
@@ -139,7 +141,7 @@ const CreateWorktreeModal = ({ open, onClose, openAfterCreate = false, onSuccess
 							)}
 						</VSCodeTextField>
 						<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
-							A new branch will be created with this name. This branch will be dedicated to this worktree.
+							Your new copy will be checked out to this branch.
 						</p>
 					</div>
 					<div>
@@ -165,8 +167,7 @@ const CreateWorktreeModal = ({ open, onClose, openAfterCreate = false, onSuccess
 							)}
 						</VSCodeTextField>
 						<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
-							Where to create the new worktree folder. Use a path outside your current project folder (e.g.,
-							"../my-feature" creates a sibling folder).
+							Where the project will be copied for the worktree.
 						</p>
 					</div>
 					{createError && (
@@ -175,7 +176,7 @@ const CreateWorktreeModal = ({ open, onClose, openAfterCreate = false, onSuccess
 							<p className="text-sm text-[var(--vscode-errorForeground)] m-0">{createError}</p>
 						</div>
 					)}
-					<div className="flex justify-end gap-2 mt-2">
+					<div className="flex justify-end gap-2">
 						<VSCodeButton
 							disabled={!newWorktreePath || !newBranchName || isCreating || isLoadingDefaults}
 							onClick={handleCreateWorktree}>
