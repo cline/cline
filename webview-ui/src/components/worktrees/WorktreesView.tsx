@@ -395,12 +395,11 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 												<Tooltip>
 													<TooltipTrigger asChild>
 														<span className="text-xs px-1.5 py-0.5 rounded bg-[var(--vscode-badge-background)] text-[var(--vscode-badge-foreground)] cursor-help">
-															Main
+															Primary
 														</span>
 													</TooltipTrigger>
 													<TooltipContent side="bottom">
-														The primary worktree where your .git directory lives. This cannot be
-														deleted.
+														The original worktree where your .git directory lives.
 													</TooltipContent>
 												</Tooltip>
 											)}
