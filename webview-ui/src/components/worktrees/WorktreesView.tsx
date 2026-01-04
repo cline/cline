@@ -26,6 +26,9 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 	const [isGitRepo, setIsGitRepo] = useState(true)
+	const [isMultiRoot, setIsMultiRoot] = useState(false)
+	const [isSubfolder, setIsSubfolder] = useState(false)
+	const [gitRootPath, setGitRootPath] = useState("")
 	const [showCreateForm, setShowCreateForm] = useState(false)
 	const [newWorktreePath, setNewWorktreePath] = useState("")
 	const [newBranchName, setNewBranchName] = useState("")
@@ -69,6 +72,9 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 				return newData === oldData ? prev : response.worktrees
 			})
 			setIsGitRepo((prev) => (prev === response.isGitRepo ? prev : response.isGitRepo))
+			setIsMultiRoot((prev) => (prev === response.isMultiRoot ? prev : response.isMultiRoot))
+			setIsSubfolder((prev) => (prev === response.isSubfolder ? prev : response.isSubfolder))
+			setGitRootPath((prev) => (prev === response.gitRootPath ? prev : response.gitRootPath))
 			setError((prev) => (response.error ? response.error : prev === null ? null : prev))
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Failed to load worktrees")
@@ -312,7 +318,7 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 				</p>
 
 				{/* .worktreeinclude status */}
-				{isGitRepo && (
+				{isGitRepo && !isMultiRoot && !isSubfolder && (
 					<div
 						className="p-3 rounded-md"
 						style={{
@@ -375,28 +381,49 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 
 				{/* Loading/Error States */}
 				{isLoading ? (
-					<div className="flex items-center justify-center h-32">
+					<div className="flex items-center justify-center min-h-32 py-8">
 						<Loader2 className="w-6 h-6 animate-spin text-[var(--vscode-descriptionForeground)]" />
 						<span className="ml-2 text-[var(--vscode-descriptionForeground)]">Loading...</span>
 					</div>
+				) : isMultiRoot ? (
+					<div className="flex flex-col items-center justify-center min-h-32 py-8 text-center">
+						<AlertCircle className="w-8 h-8 text-[var(--vscode-inputValidation-warningForeground)] mb-2 shrink-0" />
+						<p className="text-[var(--vscode-foreground)] font-medium mb-1">Multi-folder workspace detected</p>
+						<p className="text-[var(--vscode-descriptionForeground)] text-sm">
+							Worktrees are not supported when multiple folders are open in the same workspace. Please open a single
+							repository folder to use this feature.
+						</p>
+					</div>
+				) : isSubfolder ? (
+					<div className="flex flex-col items-center justify-center min-h-32 py-8 text-center">
+						<AlertCircle className="w-8 h-8 text-[var(--vscode-inputValidation-warningForeground)] mb-2 shrink-0" />
+						<p className="text-[var(--vscode-foreground)] font-medium mb-1">Subfolder of a git repository</p>
+						<p className="text-[var(--vscode-descriptionForeground)] text-sm">
+							You have a subfolder open instead of the repository root. Please open the root folder to use
+							worktrees:
+						</p>
+						<code className="mt-2 px-2 py-1 bg-[var(--vscode-textCodeBlock-background)] rounded text-sm break-all">
+							{gitRootPath}
+						</code>
+					</div>
 				) : !isGitRepo ? (
-					<div className="flex flex-col items-center justify-center h-32 text-center">
-						<AlertCircle className="w-8 h-8 text-[var(--vscode-descriptionForeground)] mb-2" />
+					<div className="flex flex-col items-center justify-center min-h-32 py-8 text-center">
+						<AlertCircle className="w-8 h-8 text-[var(--vscode-descriptionForeground)] mb-2 shrink-0" />
 						<p className="text-[var(--vscode-descriptionForeground)]">
 							Not a git repository. Worktrees require a git repository.
 						</p>
 					</div>
 				) : error ? (
-					<div className="flex flex-col items-center justify-center h-32 text-center">
-						<AlertCircle className="w-8 h-8 text-[var(--vscode-errorForeground)] mb-2" />
+					<div className="flex flex-col items-center justify-center min-h-32 py-8 text-center">
+						<AlertCircle className="w-8 h-8 text-[var(--vscode-errorForeground)] mb-2 shrink-0" />
 						<p className="text-[var(--vscode-errorForeground)]">{error}</p>
 						<VSCodeButton appearance="secondary" className="mt-3" onClick={loadWorktrees}>
 							Retry
 						</VSCodeButton>
 					</div>
 				) : worktrees.length === 0 ? (
-					<div className="flex flex-col items-center justify-center h-32 text-center">
-						<GitBranch className="w-8 h-8 text-[var(--vscode-descriptionForeground)] mb-2" />
+					<div className="flex flex-col items-center justify-center min-h-32 py-8 text-center">
+						<GitBranch className="w-8 h-8 text-[var(--vscode-descriptionForeground)] mb-2 shrink-0" />
 						<p className="text-[var(--vscode-descriptionForeground)]">No worktrees found.</p>
 					</div>
 				) : (
@@ -535,7 +562,7 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 			</div>
 
 			{/* Fixed Bottom - New Worktree Button */}
-			{isGitRepo && (
+			{isGitRepo && !isMultiRoot && !isSubfolder && (
 				<div
 					className="flex-none px-5 py-3"
 					style={{
