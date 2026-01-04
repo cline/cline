@@ -3,18 +3,18 @@ import { NewTaskRequest } from "@shared/proto/cline/task"
 import type { MergeWorktreeResult, Worktree as WorktreeProto } from "@shared/proto/cline/worktree"
 import {
 	CreateWorktreeIncludeRequest,
-	CreateWorktreeRequest,
 	DeleteWorktreeRequest,
 	MergeWorktreeRequest,
 	SwitchWorktreeRequest,
 } from "@shared/proto/cline/worktree"
-import { VSCodeButton, VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { AlertCircle, Check, ExternalLink, FolderOpen, GitBranch, GitMerge, Loader2, Plus, Trash2, X } from "lucide-react"
 import { memo, useCallback, useEffect, useState } from "react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, TaskServiceClient, WorktreeServiceClient } from "@/services/grpc-client"
 import { getEnvironmentColor } from "@/utils/environmentColors"
+import CreateWorktreeModal from "./CreateWorktreeModal"
 
 type WorktreesViewProps = {
 	onDone: () => void
@@ -30,12 +30,7 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 	const [isSubfolder, setIsSubfolder] = useState(false)
 	const [gitRootPath, setGitRootPath] = useState("")
 	const [showCreateForm, setShowCreateForm] = useState(false)
-	const [newWorktreePath, setNewWorktreePath] = useState("")
-	const [newBranchName, setNewBranchName] = useState("")
-	const [isCreating, setIsCreating] = useState(false)
-	const [createError, setCreateError] = useState<string | null>(null)
 	const [deleteConfirmPath, setDeleteConfirmPath] = useState<string | null>(null)
-	const [isLoadingDefaults, setIsLoadingDefaults] = useState(false)
 
 	// Merge worktree state
 	const [mergeWorktree, setMergeWorktree] = useState<WorktreeProto | null>(null)
@@ -129,65 +124,6 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 		const interval = setInterval(loadWorktrees, 3000)
 		return () => clearInterval(interval)
 	}, [loadWorktrees])
-
-	// Fetch and apply suggested defaults for branch name and path
-	const loadDefaults = useCallback(async () => {
-		setIsLoadingDefaults(true)
-		try {
-			const defaults = await WorktreeServiceClient.getWorktreeDefaults(EmptyRequest.create({}))
-			setNewBranchName(defaults.suggestedBranch)
-			setNewWorktreePath(defaults.suggestedPath)
-		} catch (err) {
-			console.error("Failed to load worktree defaults:", err)
-		} finally {
-			setIsLoadingDefaults(false)
-		}
-	}, [])
-
-	// Load defaults when create form opens
-	useEffect(() => {
-		if (showCreateForm) {
-			loadDefaults()
-		}
-	}, [showCreateForm, loadDefaults])
-
-	// Close modal and reset form state
-	const closeCreateForm = useCallback(() => {
-		setShowCreateForm(false)
-		setNewWorktreePath("")
-		setNewBranchName("")
-		setCreateError(null)
-	}, [])
-
-	const handleCreateWorktree = useCallback(async () => {
-		if (!newWorktreePath || !newBranchName) return
-
-		setIsCreating(true)
-		setCreateError(null)
-		try {
-			const result = await WorktreeServiceClient.createWorktree(
-				CreateWorktreeRequest.create({
-					path: newWorktreePath,
-					branch: newBranchName,
-					createNewBranch: true,
-				}),
-			)
-
-			if (!result.success) {
-				setCreateError(result.message)
-			} else {
-				await loadWorktrees()
-				setShowCreateForm(false)
-				setNewWorktreePath("")
-				setNewBranchName("")
-				setCreateError(null)
-			}
-		} catch (err) {
-			setCreateError(err instanceof Error ? err.message : "Failed to create worktree")
-		} finally {
-			setIsCreating(false)
-		}
-	}, [newWorktreePath, newBranchName, loadWorktrees])
 
 	const handleDeleteWorktree = useCallback(
 		async (path: string) => {
@@ -583,111 +519,7 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 			)}
 
 			{/* Create Worktree Modal */}
-			{showCreateForm && (
-				<div
-					className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-					onClick={(e) => {
-						// Close when clicking the backdrop (not the modal content)
-						if (e.target === e.currentTarget) {
-							closeCreateForm()
-						}
-					}}>
-					<div className="bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded-lg p-5 w-[450px] max-w-[90vw] relative">
-						{/* Close button */}
-						<button
-							className="absolute top-3 right-3 p-1 rounded hover:bg-[var(--vscode-toolbar-hoverBackground)] text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-foreground)] transition-colors cursor-pointer"
-							onClick={closeCreateForm}
-							type="button">
-							<X className="w-4 h-4" />
-						</button>
-						<h4 className="mt-0 mb-2 pr-6">Create New Worktree</h4>
-						<p className="text-sm text-[var(--vscode-descriptionForeground)] mt-0 mb-4">
-							This will create a new folder with a copy of your code on a new branch. You can work on both branches
-							simultaneously without switching.
-						</p>
-						<div className="flex flex-col gap-4">
-							<div>
-								<label className="block text-sm font-medium mb-1">Branch Name *</label>
-								<VSCodeTextField
-									className="w-full"
-									onInput={(e) => setNewBranchName((e.target as HTMLInputElement).value)}
-									placeholder="feature/my-feature"
-									value={newBranchName}>
-									{newBranchName && (
-										<div
-											aria-label="Clear"
-											className="input-icon-button codicon codicon-close"
-											onClick={() => setNewBranchName("")}
-											slot="end"
-											style={{
-												display: "flex",
-												justifyContent: "center",
-												alignItems: "center",
-												height: "100%",
-											}}
-										/>
-									)}
-								</VSCodeTextField>
-								<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
-									A new branch will be created with this name. This branch will be dedicated to this worktree.
-								</p>
-							</div>
-							<div>
-								<label className="block text-sm font-medium mb-1">Folder Path *</label>
-								<VSCodeTextField
-									className="w-full"
-									onInput={(e) => setNewWorktreePath((e.target as HTMLInputElement).value)}
-									placeholder="../my-feature-worktree"
-									value={newWorktreePath}>
-									{newWorktreePath && (
-										<div
-											aria-label="Clear"
-											className="input-icon-button codicon codicon-close"
-											onClick={() => setNewWorktreePath("")}
-											slot="end"
-											style={{
-												display: "flex",
-												justifyContent: "center",
-												alignItems: "center",
-												height: "100%",
-											}}
-										/>
-									)}
-								</VSCodeTextField>
-								<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
-									Where to create the new worktree folder. Use a path outside your current project folder (e.g.,
-									"../my-feature" creates a sibling folder).
-								</p>
-							</div>
-							{createError && (
-								<div className="flex items-start gap-2 p-3 rounded bg-[var(--vscode-inputValidation-errorBackground)] border border-[var(--vscode-inputValidation-errorBorder)]">
-									<AlertCircle className="w-4 h-4 flex-shrink-0 text-[var(--vscode-errorForeground)] mt-0.5" />
-									<p className="text-sm text-[var(--vscode-errorForeground)] m-0">{createError}</p>
-								</div>
-							)}
-							<div className="flex justify-end gap-2 mt-2">
-								<VSCodeButton
-									disabled={!newWorktreePath || !newBranchName || isCreating || isLoadingDefaults}
-									onClick={handleCreateWorktree}>
-									{isLoadingDefaults ? (
-										<>
-											<Loader2 className="w-4 h-4 mr-1 animate-spin" />
-											Loading...
-										</>
-									) : isCreating ? (
-										<>
-											<Loader2 className="w-4 h-4 mr-1 animate-spin" />
-											Creating...
-										</>
-									) : (
-										"Create Worktree"
-									)}
-								</VSCodeButton>
-							</div>
-						</div>
-					</div>
-				</div>
-			)}
+			<CreateWorktreeModal onClose={() => setShowCreateForm(false)} onSuccess={loadWorktrees} open={showCreateForm} />
 
 			{/* Merge Worktree Modal */}
 			{mergeWorktree && (
