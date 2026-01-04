@@ -1,8 +1,9 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { CreateWorktreeRequest, SwitchWorktreeRequest } from "@shared/proto/cline/worktree"
 import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { AlertCircle, Loader2, X } from "lucide-react"
+import { AlertCircle, Info, Loader2, X } from "lucide-react"
 import { memo, useCallback, useEffect, useState } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { WorktreeServiceClient } from "@/services/grpc-client"
 
 interface CreateWorktreeModalProps {
@@ -15,19 +16,25 @@ interface CreateWorktreeModalProps {
 }
 
 const CreateWorktreeModal = ({ open, onClose, openAfterCreate = false, onSuccess }: CreateWorktreeModalProps) => {
+	const { navigateToWorktrees } = useExtensionState()
 	const [newWorktreePath, setNewWorktreePath] = useState("")
 	const [newBranchName, setNewBranchName] = useState("")
 	const [isCreating, setIsCreating] = useState(false)
 	const [createError, setCreateError] = useState<string | null>(null)
 	const [isLoadingDefaults, setIsLoadingDefaults] = useState(false)
+	const [hasWorktreeInclude, setHasWorktreeInclude] = useState<boolean | null>(null)
 
-	// Load defaults when modal opens
+	// Load defaults and check .worktreeinclude status when modal opens
 	const loadDefaults = useCallback(async () => {
 		setIsLoadingDefaults(true)
 		try {
-			const defaults = await WorktreeServiceClient.getWorktreeDefaults(EmptyRequest.create({}))
+			const [defaults, includeStatus] = await Promise.all([
+				WorktreeServiceClient.getWorktreeDefaults(EmptyRequest.create({})),
+				WorktreeServiceClient.getWorktreeIncludeStatus(EmptyRequest.create({})),
+			])
 			setNewBranchName(defaults.suggestedBranch)
 			setNewWorktreePath(defaults.suggestedPath)
+			setHasWorktreeInclude(includeStatus.exists)
 		} catch (err) {
 			console.error("Failed to load worktree defaults:", err)
 		} finally {
@@ -47,6 +54,7 @@ const CreateWorktreeModal = ({ open, onClose, openAfterCreate = false, onSuccess
 			setNewWorktreePath("")
 			setNewBranchName("")
 			setCreateError(null)
+			setHasWorktreeInclude(null)
 		}
 	}, [open])
 
@@ -117,6 +125,25 @@ const CreateWorktreeModal = ({ open, onClose, openAfterCreate = false, onSuccess
 				</button>
 				<h4 className="mt-0 mb-2 pr-6">{title}</h4>
 				<p className="text-sm text-[var(--vscode-descriptionForeground)] mt-0 mb-4">{description}</p>
+				{hasWorktreeInclude === false && (
+					<div
+						className="flex items-start gap-2 p-2 rounded mb-3"
+						style={{ backgroundColor: "var(--vscode-textBlockQuote-background)" }}>
+						<Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-[var(--vscode-descriptionForeground)]" />
+						<p className="text-xs text-[var(--vscode-foreground)] m-0">
+							No .worktreeinclude detected.{" "}
+							<button
+								className="underline bg-transparent border-none p-0 cursor-pointer text-inherit"
+								onClick={() => {
+									onClose()
+									navigateToWorktrees()
+								}}
+								type="button">
+								Learn more
+							</button>
+						</p>
+					</div>
+				)}
 				<div className="flex flex-col">
 					<div>
 						<label className="block text-sm font-medium mb-1">Branch Name *</label>
