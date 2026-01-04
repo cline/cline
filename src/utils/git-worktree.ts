@@ -50,7 +50,7 @@ async function checkGitRepo(cwd: string): Promise<boolean> {
 }
 
 /**
- * Get the current worktree path
+ * Get the current worktree path (same as git root for main worktree)
  */
 async function getCurrentWorktreePath(cwd: string): Promise<string> {
 	try {
@@ -59,6 +59,29 @@ async function getCurrentWorktreePath(cwd: string): Promise<string> {
 		return root.trim()
 	} catch (_error) {
 		return cwd
+	}
+}
+
+/**
+ * Get the git repository root path for a given directory.
+ * Returns null if not in a git repository.
+ */
+export async function getGitRootPath(cwd: string): Promise<string | null> {
+	const isInstalled = await checkGitInstalled()
+	if (!isInstalled) {
+		return null
+	}
+
+	try {
+		const git = simpleGit(cwd)
+		const isRepo = await git.checkIsRepo()
+		if (!isRepo) {
+			return null
+		}
+		const root = await git.revparse(["--show-toplevel"])
+		return root.trim()
+	} catch (_error) {
+		return null
 	}
 }
 
