@@ -353,7 +353,7 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 					<div className="flex flex-col items-center justify-center min-h-32 py-8 text-center">
 						<AlertCircle className="w-8 h-8 text-[var(--vscode-descriptionForeground)] mb-2 shrink-0" />
 						<p className="text-[var(--vscode-descriptionForeground)]">
-							Not a git repository. Worktrees require a git repository.
+							Worktrees require a git repository. Please initialize git to use worktrees.
 						</p>
 					</div>
 				) : error ? (
