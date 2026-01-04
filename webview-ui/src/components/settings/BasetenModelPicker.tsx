@@ -1,13 +1,9 @@
 import { basetenDefaultModelId, basetenModels } from "@shared/api"
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
 import { Mode } from "@shared/storage/types"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import React, { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
-import { useMount } from "react-use"
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import { ModelsServiceClient } from "../../services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
 import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
@@ -19,7 +15,7 @@ export interface BasetenModelPickerProps {
 }
 
 const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, currentMode }) => {
-	const { apiConfiguration, basetenModels: dynamicBasetenModels, setBasetenModels } = useExtensionState()
+	const { apiConfiguration, basetenModels: dynamicBasetenModels } = useExtensionState()
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.basetenModelId || basetenDefaultModelId)
@@ -52,20 +48,9 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 		return normalizeApiConfiguration(apiConfiguration, currentMode)
 	}, [apiConfiguration, currentMode])
 
-	useMount(() => {
-		ModelsServiceClient.refreshBasetenModelsRpc(EmptyRequest.create({}))
-			.then((response) => {
-				setBasetenModels({
-					[basetenDefaultModelId]: basetenModels[basetenDefaultModelId],
-					...fromProtobufModels(response.models),
-				})
-			})
-			.catch((err) => {
-				console.error("Failed to refresh Baseten models:", err)
-			})
-	})
-
 	// Sync external changes when the modelId changes
+	// NOTE: Model list is refreshed automatically on mount or when the API key is set,
+	// no need to refresh here in this component again on mount.
 	useEffect(() => {
 		const currentModelId = modeFields.basetenModelId || basetenDefaultModelId
 		setSearchTerm(currentModelId)

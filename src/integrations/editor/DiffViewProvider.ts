@@ -182,7 +182,12 @@ export abstract class DiffViewProvider {
 			// Replace all content up to the current line with accumulated lines
 			// This is necessary (as compared to inserting one line at a time) to handle cases where html tags
 			// on previous lines are auto closed for example
-			const contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n") + "\n"
+			let contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n")
+			if (!isFinal) {
+				// During streaming, add trailing newline for cursor positioning
+				contentToReplace += "\n"
+			}
+
 			const rangeToReplace = { startLine: 0, endLine: currentLine + 1 }
 			await this.replaceText(contentToReplace, rangeToReplace, currentLine)
 
@@ -212,15 +217,6 @@ export abstract class DiffViewProvider {
 		if (isFinal) {
 			// Handle any remaining lines if the new content is shorter than the original
 			await this.truncateDocument(this.streamedLines.length)
-
-			// Add empty last line if original content had one
-			const hasEmptyLastLine = this.originalContent?.endsWith("\n")
-			if (hasEmptyLastLine) {
-				const accumulatedLines = accumulatedContent.split("\n")
-				if (accumulatedLines[accumulatedLines.length - 1] !== "") {
-					accumulatedContent += "\n"
-				}
-			}
 		}
 	}
 
@@ -277,10 +273,10 @@ export abstract class DiffViewProvider {
 
 		// If the edited content has different EOL characters, we don't want to show a diff with all the EOL differences.
 		const newContentEOL = this.newContent.includes("\r\n") ? "\r\n" : "\n"
-		const normalizedPreSaveContent = preSaveContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL // trimEnd to fix issue where editor adds in extra new line automatically
-		const normalizedPostSaveContent = postSaveContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL // this is the final content we return to the model to use as the new baseline for future edits
+		const normalizedPreSaveContent = preSaveContent.replace(/\r\n|\n/g, newContentEOL)
+		const normalizedPostSaveContent = postSaveContent.replace(/\r\n|\n/g, newContentEOL) // this is the final content we return to the model to use as the new baseline for future edits
 		// just in case the new content has a mix of varying EOL characters
-		const normalizedNewContent = this.newContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL
+		const normalizedNewContent = this.newContent.replace(/\r\n|\n/g, newContentEOL)
 
 		let userEdits: string | undefined
 		if (normalizedPreSaveContent !== normalizedNewContent) {
