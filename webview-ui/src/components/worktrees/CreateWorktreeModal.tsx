@@ -1,9 +1,8 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { CreateWorktreeRequest, SwitchWorktreeRequest } from "@shared/proto/cline/worktree"
 import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { AlertCircle, Info, Loader2, X } from "lucide-react"
+import { AlertCircle, AlertTriangle, Loader2, X } from "lucide-react"
 import { memo, useCallback, useEffect, useState } from "react"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { WorktreeServiceClient } from "@/services/grpc-client"
 
 interface CreateWorktreeModalProps {
@@ -16,7 +15,6 @@ interface CreateWorktreeModalProps {
 }
 
 const CreateWorktreeModal = ({ open, onClose, openAfterCreate = false, onSuccess }: CreateWorktreeModalProps) => {
-	const { navigateToWorktrees } = useExtensionState()
 	const [newWorktreePath, setNewWorktreePath] = useState("")
 	const [newBranchName, setNewBranchName] = useState("")
 	const [isCreating, setIsCreating] = useState(false)
@@ -118,7 +116,7 @@ const CreateWorktreeModal = ({ open, onClose, openAfterCreate = false, onSuccess
 			<div className="bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded-lg p-5 w-[450px] max-w-[90vw] relative">
 				{/* Close button */}
 				<button
-					className="absolute top-3 right-3 p-1 rounded hover:bg-[var(--vscode-toolbar-hoverBackground)] text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-foreground)] transition-colors cursor-pointer"
+					className="absolute top-3 right-3 p-1 rounded hover:bg-[var(--vscode-toolbar-hoverBackground)] text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-foreground)] cursor-pointer"
 					onClick={onClose}
 					type="button">
 					<X className="w-4 h-4" />
@@ -128,19 +126,18 @@ const CreateWorktreeModal = ({ open, onClose, openAfterCreate = false, onSuccess
 				{hasWorktreeInclude === false && (
 					<div
 						className="flex items-start gap-2 p-2 rounded mb-3"
-						style={{ backgroundColor: "var(--vscode-textBlockQuote-background)" }}>
-						<Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-[var(--vscode-descriptionForeground)]" />
+						style={{ backgroundColor: "var(--vscode-inputValidation-warningBackground)" }}>
+						<AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-[var(--vscode-editorWarning-foreground)]" />
 						<p className="text-xs text-[var(--vscode-foreground)] m-0">
 							No .worktreeinclude detected.{" "}
-							<button
-								className="underline bg-transparent border-none p-0 cursor-pointer text-inherit"
-								onClick={() => {
-									onClose()
-									navigateToWorktrees()
-								}}
-								type="button">
+							<a
+								className="text-[var(--vscode-textLink-foreground)] hover:text-[var(--vscode-textLink-activeForeground)]"
+								href="https://docs.cline.bot/features/worktrees#worktreeinclude"
+								rel="noopener noreferrer"
+								style={{ fontSize: "inherit" }}
+								target="_blank">
 								Learn more
-							</button>
+							</a>
 						</p>
 					</div>
 				)}
