@@ -7,9 +7,10 @@ import HistoryPreview from "@/components/history/HistoryPreview"
 import { useApiConfigurationHandlers } from "@/components/settings/utils/useApiConfigurationHandlers"
 import HomeHeader from "@/components/welcome/HomeHeader"
 import { SuggestedTasks } from "@/components/welcome/SuggestedTasks"
+import CreateWorktreeModal from "@/components/worktrees/CreateWorktreeModal"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { AccountServiceClient, StateServiceClient, WorktreeServiceClient } from "@/services/grpc-client"
 import { convertBannerData } from "@/utils/bannerUtils"
 import { getCurrentPlatform } from "@/utils/platformUtils"
 import { WelcomeSectionProps } from "../../types/chatTypes"
@@ -35,6 +36,19 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	// Track if we've shown the "What's New" modal this session
 	const [hasShownWhatsNewModal, setHasShownWhatsNewModal] = useState(false)
 	const [showWhatsNewModal, setShowWhatsNewModal] = useState(false)
+
+	// Quick launch worktree modal
+	const [showCreateWorktreeModal, setShowCreateWorktreeModal] = useState(false)
+	const [isGitRepo, setIsGitRepo] = useState<boolean | null>(null)
+
+	// Check if we're in a git repo on mount
+	useEffect(() => {
+		WorktreeServiceClient.listWorktrees(EmptyRequest.create({}))
+			.then((result) => {
+				setIsGitRepo(result.isGitRepo && !result.isMultiRoot && !result.isSubfolder)
+			})
+			.catch(() => setIsGitRepo(false))
+	}, [])
 
 	const { clineUser } = useClineAuth()
 	const { openRouterModels, setShowChatModelSelector, navigateToSettings, subagentsEnabled } = useExtensionState()
@@ -189,6 +203,18 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 						<div className="animate-fade-in">
 							<BannerCarousel banners={activeBanners} />
 						</div>
+						{/* Quick launch worktree button */}
+						{isGitRepo && (
+							<div className="flex justify-center mt-2 mb-4 animate-fade-in">
+								<button
+									className="flex items-center gap-2 px-4 py-2 rounded-full border border-border-panel bg-white/2 hover:bg-list-background-hover transition-colors duration-150 ease-in-out text-code-foreground text-sm font-medium cursor-pointer"
+									onClick={() => setShowCreateWorktreeModal(true)}
+									type="button">
+									<span className="codicon codicon-git-branch scale-90"></span>
+									New Worktree Window
+								</button>
+							</div>
+						)}
 						{!shouldShowQuickWins && taskHistory.length > 0 && (
 							<div className="animate-fade-in opacity-0">
 								<HistoryPreview showHistoryView={showHistoryView} />
@@ -198,6 +224,13 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 				)}
 			</div>
 			<SuggestedTasks shouldShowQuickWins={shouldShowQuickWins} />
+
+			{/* Quick launch worktree modal */}
+			<CreateWorktreeModal
+				onClose={() => setShowCreateWorktreeModal(false)}
+				open={showCreateWorktreeModal}
+				openAfterCreate={true}
+			/>
 		</div>
 	)
 }
