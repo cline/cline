@@ -235,7 +235,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 											New Worktree Window
 										</button>
 									</TooltipTrigger>
-									<TooltipContent side="bottom">
+									<TooltipContent side="top">
 										Create a new git worktree and open it in a separate window. Great for running parallel
 										Cline tasks.
 									</TooltipContent>
