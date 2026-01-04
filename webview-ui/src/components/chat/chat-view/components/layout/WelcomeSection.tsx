@@ -60,7 +60,8 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	}, [])
 
 	const { clineUser } = useClineAuth()
-	const { openRouterModels, setShowChatModelSelector, navigateToSettings, subagentsEnabled } = useExtensionState()
+	const { openRouterModels, setShowChatModelSelector, navigateToSettings, navigateToWorktrees, subagentsEnabled } =
+		useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	// Show modal when there's a new announcement and we haven't shown it this session
@@ -230,16 +231,19 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 									</TooltipContent>
 								</Tooltip>
 								{currentWorktree && (
-									<div className="flex flex-col items-center gap-0.5 text-xs text-[var(--vscode-descriptionForeground)]">
+									<button
+										className="flex flex-col items-center gap-0.5 text-xs text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-foreground)] cursor-pointer bg-transparent border-none p-1 rounded"
+										onClick={navigateToWorktrees}
+										type="button">
 										<div className="flex items-center gap-1.5 text-xs">
-											<GitBranch className="w-3 h-3 stroke-[2.5]" />
-											<span>
+											<GitBranch className="w-3 h-3 stroke-[2.5] flex-shrink-0" />
+											<span className="break-all text-center">
 												<span className="font-semibold">Current:</span>{" "}
 												{currentWorktree.branch || "detached HEAD"}
 											</span>
 										</div>
-										<span className="truncate max-w-[250px]">{currentWorktree.path}</span>
-									</div>
+										<span className="break-all text-center max-w-[300px]">{currentWorktree.path}</span>
+									</button>
 								)}
 							</div>
 						)}
