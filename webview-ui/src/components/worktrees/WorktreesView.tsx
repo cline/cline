@@ -387,7 +387,7 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 										<div className="flex flex-wrap items-center gap-2">
 											<div className="flex items-center gap-2">
 												<GitBranch className="w-4 h-4 flex-shrink-0 text-[var(--vscode-button-background)]" />
-												<span className="font-medium">
+												<span className="font-medium break-all">
 													{worktree.branch || (worktree.isDetached ? "HEAD (detached)" : "unknown")}
 												</span>
 											</div>
@@ -458,7 +458,7 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 															</VSCodeButton>
 														</TooltipTrigger>
 														<TooltipContent side="bottom">
-															Merge into {getMainBranch()} and close
+															Merge into {getMainBranch()}
 														</TooltipContent>
 													</Tooltip>
 													<Tooltip>
@@ -534,7 +534,7 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 
 						<div className="flex items-center gap-2 mb-2">
 							<GitMerge className="w-5 h-5 text-[var(--vscode-testing-iconPassed)]" />
-							<h4 className="m-0 pr-6">Merge & Close Worktree</h4>
+							<h4 className="m-0 pr-6">Merge Worktree</h4>
 						</div>
 
 						{/* Success state */}
