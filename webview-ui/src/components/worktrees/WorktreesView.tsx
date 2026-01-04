@@ -15,6 +15,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, TaskServiceClient, WorktreeServiceClient } from "@/services/grpc-client"
 import { getEnvironmentColor } from "@/utils/environmentColors"
 import CreateWorktreeModal from "./CreateWorktreeModal"
+import DeleteWorktreeModal from "./DeleteWorktreeModal"
 
 type WorktreesViewProps = {
 	onDone: () => void
@@ -30,7 +31,7 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 	const [isSubfolder, setIsSubfolder] = useState(false)
 	const [gitRootPath, setGitRootPath] = useState("")
 	const [showCreateForm, setShowCreateForm] = useState(false)
-	const [deleteConfirmPath, setDeleteConfirmPath] = useState<string | null>(null)
+	const [deleteWorktree, setDeleteWorktree] = useState<WorktreeProto | null>(null)
 
 	// Merge worktree state
 	const [mergeWorktree, setMergeWorktree] = useState<WorktreeProto | null>(null)
@@ -140,7 +141,6 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 				} else {
 					await loadWorktrees()
 				}
-				setDeleteConfirmPath(null)
 			} catch (err) {
 				setError(err instanceof Error ? err.message : "Failed to delete worktree")
 			}
@@ -462,32 +462,16 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 															Merge into {getMainBranch()} and close
 														</TooltipContent>
 													</Tooltip>
-													{deleteConfirmPath === worktree.path ? (
-														<div className="flex items-center gap-1">
+													<Tooltip>
+														<TooltipTrigger asChild>
 															<VSCodeButton
-																appearance="secondary"
-																className="text-xs"
-																onClick={() => setDeleteConfirmPath(null)}>
-																Cancel
+																appearance="icon"
+																onClick={() => setDeleteWorktree(worktree)}>
+																<Trash2 className="w-4 h-4 text-[var(--vscode-errorForeground)]" />
 															</VSCodeButton>
-															<VSCodeButton
-																className="text-xs bg-[var(--vscode-inputValidation-errorBackground)]"
-																onClick={() => handleDeleteWorktree(worktree.path)}>
-																Delete
-															</VSCodeButton>
-														</div>
-													) : (
-														<Tooltip>
-															<TooltipTrigger asChild>
-																<VSCodeButton
-																	appearance="icon"
-																	onClick={() => setDeleteConfirmPath(worktree.path)}>
-																	<Trash2 className="w-4 h-4 text-[var(--vscode-errorForeground)]" />
-																</VSCodeButton>
-															</TooltipTrigger>
-															<TooltipContent side="bottom">Remove this worktree</TooltipContent>
-														</Tooltip>
-													)}
+														</TooltipTrigger>
+														<TooltipContent side="bottom">Delete this worktree</TooltipContent>
+													</Tooltip>
 												</>
 											)}
 										</div>
@@ -521,6 +505,15 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 			{/* Create Worktree Modal */}
 			<CreateWorktreeModal onClose={() => setShowCreateForm(false)} onSuccess={loadWorktrees} open={showCreateForm} />
 
+			{/* Delete Worktree Modal */}
+			<DeleteWorktreeModal
+				branchName={deleteWorktree?.branch || ""}
+				onClose={() => setDeleteWorktree(null)}
+				onConfirm={() => handleDeleteWorktree(deleteWorktree!.path)}
+				open={!!deleteWorktree}
+				worktreePath={deleteWorktree?.path || ""}
+			/>
+
 			{/* Merge Worktree Modal */}
 			{mergeWorktree && (
 				<div
@@ -533,7 +526,7 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 					<div className="bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded-lg p-5 w-[450px] max-w-[90vw] relative">
 						{/* Close button */}
 						<button
-							className="absolute top-3 right-3 p-1 rounded hover:bg-[var(--vscode-toolbar-hoverBackground)] text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-foreground)] transition-colors cursor-pointer"
+							className="absolute top-3 right-3 p-1 rounded hover:bg-[var(--vscode-toolbar-hoverBackground)] text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-foreground)] cursor-pointer"
 							disabled={isMerging}
 							onClick={closeMergeModal}
 							type="button">
