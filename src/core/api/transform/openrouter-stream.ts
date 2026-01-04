@@ -105,6 +105,9 @@ export async function createOpenRouterStream(
 		case "anthropic/claude-3-haiku:beta":
 		case "anthropic/claude-3-opus":
 		case "anthropic/claude-3-opus:beta":
+		case "minimax/MiniMax-M2.1":
+		case "minimax/MiniMax-M2.1-lightning":
+		case "minimax/MiniMax-M2":
 			openAiMessages[0] = {
 				role: "system",
 				content: [
