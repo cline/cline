@@ -60,6 +60,8 @@ export interface GlobalState {
 	remoteRulesToggles: ClineRulesToggles
 	remoteWorkflowToggles: ClineRulesToggles
 	dismissedBanners: Array<{ bannerId: string; dismissedAt: number }>
+	// Path to worktree that should auto-open Cline sidebar when launched
+	worktreeAutoOpenPath: string | undefined
 }
 
 export interface Settings {

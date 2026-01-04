@@ -542,6 +542,10 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const remoteWorkflowToggles =
 			context.globalState.get<GlobalStateAndSettings["remoteWorkflowToggles"]>("remoteWorkflowToggles")
 
+		// Worktree auto-open path for quick launch feature
+		const worktreeAutoOpenPath =
+			context.globalState.get<GlobalStateAndSettings["worktreeAutoOpenPath"]>("worktreeAutoOpenPath")
+
 		return {
 			// api configuration fields
 			claudeCodePath,
@@ -744,6 +748,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			openTelemetryLogMaxQueueSize: openTelemetryLogMaxQueueSize ?? 2048,
 			remoteRulesToggles: remoteRulesToggles || {},
 			remoteWorkflowToggles: remoteWorkflowToggles || {},
+			worktreeAutoOpenPath,
 		}
 	} catch (error) {
 		console.error("[StateHelpers] Failed to read global state:", error)

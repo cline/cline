@@ -8,8 +8,17 @@ import { Controller } from ".."
  * @param request The request containing the worktree path
  * @returns WorktreeResult with success status
  */
-export async function switchWorktree(_controller: Controller, request: SwitchWorktreeRequest): Promise<WorktreeResult> {
+export async function switchWorktree(controller: Controller, request: SwitchWorktreeRequest): Promise<WorktreeResult> {
 	try {
+		// Set state so Cline auto-opens when the worktree folder loads
+		controller.stateManager.setGlobalState("worktreeAutoOpenPath", request.path)
+
+		// When opening in current window, the window reloads immediately and StateManager's
+		// 500ms debounce won't complete. Flush to ensure state is persisted before reload.
+		if (!request.newWindow) {
+			await controller.stateManager.flushPendingState()
+		}
+
 		const result = await HostProvider.workspace.openFolder({
 			path: request.path,
 			newWindow: request.newWindow,
