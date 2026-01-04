@@ -612,8 +612,22 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 									className="w-full"
 									onInput={(e) => setNewBranchName((e.target as HTMLInputElement).value)}
 									placeholder="feature/my-feature"
-									value={newBranchName}
-								/>
+									value={newBranchName}>
+									{newBranchName && (
+										<div
+											aria-label="Clear"
+											className="input-icon-button codicon codicon-close"
+											onClick={() => setNewBranchName("")}
+											slot="end"
+											style={{
+												display: "flex",
+												justifyContent: "center",
+												alignItems: "center",
+												height: "100%",
+											}}
+										/>
+									)}
+								</VSCodeTextField>
 								<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
 									A new branch will be created with this name. This branch will be dedicated to this worktree.
 								</p>
@@ -624,8 +638,22 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 									className="w-full"
 									onInput={(e) => setNewWorktreePath((e.target as HTMLInputElement).value)}
 									placeholder="../my-feature-worktree"
-									value={newWorktreePath}
-								/>
+									value={newWorktreePath}>
+									{newWorktreePath && (
+										<div
+											aria-label="Clear"
+											className="input-icon-button codicon codicon-close"
+											onClick={() => setNewWorktreePath("")}
+											slot="end"
+											style={{
+												display: "flex",
+												justifyContent: "center",
+												alignItems: "center",
+												height: "100%",
+											}}
+										/>
+									)}
+								</VSCodeTextField>
 								<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
 									Where to create the new worktree folder. Use a path outside your current project folder (e.g.,
 									"../my-feature" creates a sibling folder).
