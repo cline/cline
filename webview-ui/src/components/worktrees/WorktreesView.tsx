@@ -144,6 +144,13 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 		}
 	}, [])
 
+	// Load defaults when create form opens
+	useEffect(() => {
+		if (showCreateForm) {
+			loadDefaults()
+		}
+	}, [showCreateForm, loadDefaults])
+
 	// Close modal and reset form state
 	const closeCreateForm = useCallback(() => {
 		setShowCreateForm(false)
@@ -632,22 +639,14 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 							)}
 							<div className="flex justify-end gap-2 mt-2">
 								<VSCodeButton
-									appearance="secondary"
-									disabled={isLoadingDefaults || isCreating}
-									onClick={loadDefaults}>
+									disabled={!newWorktreePath || !newBranchName || isCreating || isLoadingDefaults}
+									onClick={handleCreateWorktree}>
 									{isLoadingDefaults ? (
 										<>
 											<Loader2 className="w-4 h-4 mr-1 animate-spin" />
-											Generating...
+											Loading...
 										</>
-									) : (
-										"Auto-fill"
-									)}
-								</VSCodeButton>
-								<VSCodeButton
-									disabled={!newWorktreePath || !newBranchName || isCreating}
-									onClick={handleCreateWorktree}>
-									{isCreating ? (
+									) : isCreating ? (
 										<>
 											<Loader2 className="w-4 h-4 mr-1 animate-spin" />
 											Creating...
