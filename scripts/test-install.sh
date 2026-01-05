@@ -63,7 +63,7 @@ echo ""
 
 # Test 4: Check for platform support
 echo "Test 4: Platform Support Check"
-platforms=("darwin-x64" "darwin-arm64" "linux-x64")
+platforms=("darwin-x64" "darwin-arm64" "linux-x64" "win-amd64")
 for platform in "${platforms[@]}"; do
     if grep -q "$platform" scripts/install.sh; then
         echo "  ✅ PASS: Platform '$platform' supported"

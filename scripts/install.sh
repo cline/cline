@@ -23,6 +23,13 @@ FORCE_INSTALL="${FORCE_INSTALL:-false}"
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
 arch=$(uname -m)
 
+# Check if OS is windows
+WIN=false
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
+    WIN=true
+    INSTALL_DIR="${CLINE_INSTALL_DIR:-$LOCALAPPDATA/.cline/cli}"
+fi
+
 # Normalize architecture names
 if [[ "$arch" == "aarch64" ]]; then
     arch="arm64"
@@ -47,8 +54,11 @@ case "$os" in
         platform="linux-$arch"
         ;;
     *)
+        [[ "$WIN" == true ]] || {
         echo -e "${RED}${BOLD}ERROR${NC} ${RED}Unsupported OS: $os${NC}" >&2
         exit 1
+        }
+        platform="win-$arch"
         ;;
 esac
 
@@ -369,9 +379,17 @@ install_cline() {
     
     # Extract package
     print_step "Extracting package"
-    if ! tar -xzf "$package_file" -C "$INSTALL_DIR" --strip-components=0; then
-        print_error "Failed to extract package"
-        exit 1
+   if ! tar -xzf "$package_file" -C "$INSTALL_DIR" --strip-components=0; then
+        if [[ "$WIN" == true ]]; then
+            echo -e "${RED}${BOLD}TAR command failed. Attempting backup method...${NC}"
+            if ! unzip -oq "$package_file" -d "$INSTALL_DIR"; then
+                print_error "Failed to extract package"
+                exit 1
+            fi
+        else
+            print_error "Failed to extract package"
+            exit 1
+        fi   
     fi
     
     # Make binaries executable
