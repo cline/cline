@@ -36,6 +36,8 @@ jobs:
             - uses: actions/checkout@v4
               with:
                   ref: ${{ github.event.inputs.tag }}
+                  fetch-depth: 0
+                  fetch-tags: true
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -60,11 +62,11 @@ jobs:
 
             - name: Install root dependencies
               if: steps.root-cache.outputs.cache-hit != 'true'
-              run: npm ci --include=optional
+              run: npm install --include=optional
 
             - name: Install webview-ui dependencies
               if: steps.webview-cache.outputs.cache-hit != 'true'
-              run: cd webview-ui && npm ci --include=optional
+              run: cd webview-ui && npm install --include=optional
 
             - name: Install Publishing Tools
               run: npm install -g @vscode/vsce ovsx
@@ -99,8 +101,8 @@ jobs:
                   ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
                   # OpenTelemetry production defaults (can be overridden at runtime)
                   OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
-                  OTEL_LOGS_EXPORTER: console,otlp
-                  OTEL_METRICS_EXPORTER: console,otlp
+                  OTEL_LOGS_EXPORTER: otlp
+                  OTEL_METRICS_EXPORTER: otlp
                   OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
                   OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
                   OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -116,22 +118,31 @@ jobs:
                     echo "Successfully published release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
                   fi
 
-            # - name: Get Changelog Entry
-            #   id: changelog
-            #   uses: mindsers/changelog-reader-action@v2
-            #   with:
-            #       # This expects a standard Keep a Changelog format
-            #       # "latest" means it will read whichever is the most recent version
-            #       # set in "## [1.2.3] - 2025-01-28" style
-            #       version: latest
+            - name: Get Previous Tag
+              id: prev_tag
+              run: |
+                  CURRENT_TAG="${{ steps.validate_tag.outputs.tag }}"
+                  PREV_TAG=$(git describe --tags --abbrev=0 "$CURRENT_TAG^" 2>/dev/null || echo "")
+                  echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+
+            - name: Get Changelog Entry
+              id: changelog
+              run: |
+                  # Get content between first ## [ and second ## [
+                  CONTENT=$(awk '/^## \[/{if(found) exit; found=1; next} found{print}' CHANGELOG.md)
+                  echo "content<<EOF" >> $GITHUB_OUTPUT
+                  echo "$CONTENT" >> $GITHUB_OUTPUT
+                  echo "EOF" >> $GITHUB_OUTPUT
 
             - name: Create GitHub Release
               uses: softprops/action-gh-release@v1
               with:
                   tag_name: ${{ steps.validate_tag.outputs.tag }}
                   files: "*.vsix"
-                  # body: ${{ steps.changelog.outputs.content }}
-                  generate_release_notes: true
+                  body: |
+                      ${{ steps.changelog.outputs.content }}
+
+                      **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.prev_tag.outputs.prev_tag }}...${{ steps.validate_tag.outputs.tag }}
                   prerelease: ${{ github.event.inputs.release-type == 'pre-release' }}
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

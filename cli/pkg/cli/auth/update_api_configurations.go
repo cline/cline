@@ -54,6 +54,7 @@ type ProviderFields struct {
 	// Provider-specific additional model ID fields
 	PlanModeProviderSpecificModelIDField string // e.g., "planModeOpenRouterModelId"
 	ActModeProviderSpecificModelIDField  string // e.g., "actModeOpenRouterModelId"
+	UseProfileField                      string // e.g., "awsUseProfile" (for bedrock) (optional, empty if not applicable)
 }
 
 // GetProviderFields returns the field mapping for a given provider
@@ -96,6 +97,7 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 
 	case cline.ApiProvider_BEDROCK:
 		return ProviderFields{
+			UseProfileField:                      "awsUseProfile",
 			APIKeyField:                          "awsAccessKey",
 			PlanModeModelIDField:                 "planModeApiModelId",
 			ActModeModelIDField:                  "actModeApiModelId",
@@ -153,6 +155,23 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 			ActModeModelInfoField:                "actModeOcaModelInfo",
 			PlanModeProviderSpecificModelIDField: "planModeOcaModelId",
 			ActModeProviderSpecificModelIDField:  "actModeOcaModelId",
+		}, nil
+	case cline.ApiProvider_HICAP:
+		return ProviderFields{
+			APIKeyField:                          "hicapApiKey",
+			PlanModeModelInfoField:               "planModeHicapModelInfo",
+			ActModeModelInfoField:                "actModeHicapModelInfo",
+			PlanModeProviderSpecificModelIDField: "planModeHicapModelId",
+			ActModeProviderSpecificModelIDField:  "actModeHicapModelId",
+		}, nil
+
+	case cline.ApiProvider_NOUSRESEARCH:
+		return ProviderFields{
+			APIKeyField:                          "nousResearchApiKey",
+			PlanModeModelIDField:                 "planModeApiModelId",
+			ActModeModelIDField:                  "actModeApiModelId",
+			PlanModeProviderSpecificModelIDField: "planModeNousResearchModelId",
+			ActModeProviderSpecificModelIDField:  "actModeNousResearchModelId",
 		}, nil
 
 	default:
@@ -268,6 +287,10 @@ func setAPIKeyField(apiConfig *cline.ModelsApiConfiguration, fieldName string, v
 		apiConfig.ClineApiKey = value
 	case "ocaApiKey":
 		apiConfig.OcaApiKey = value
+	case "hicapApiKey":
+		apiConfig.HicapApiKey = value
+	case "nousResearchApiKey":
+		apiConfig.NousResearchApiKey = value
 	}
 }
 
@@ -289,6 +312,12 @@ func setProviderSpecificModelID(apiConfig *cline.ModelsApiConfiguration, fieldNa
 	case "planModeOcaModelId":
 		apiConfig.PlanModeOcaModelId = value
 		apiConfig.ActModeOcaModelId = value
+	case "planModeHicapModelId":
+		apiConfig.PlanModeHicapModelId = value
+		apiConfig.ActModeHicapModelId = value
+	case "planModeNousResearchModelId":
+		apiConfig.PlanModeNousResearchModelId = value
+		apiConfig.ActModeNousResearchModelId = value
 	}
 }
 

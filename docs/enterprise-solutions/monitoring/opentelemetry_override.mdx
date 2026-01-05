@@ -1,0 +1,266 @@
+---
+title: "OpenTelemetry Integration Override"
+sidebarTitle: "OpenTelemetry Override"
+description: "Export Cline telemetry to your observability platform using OpenTelemetry Protocol (OTLP)"
+---
+
+Cline includes opt-in OpenTelemetry support for exporting metrics and logs to your own observability infrastructure using the OpenTelemetry Protocol (OTLP).
+
+<Note>
+OpenTelemetry integration is **optional** and intended for advanced users with existing observability infrastructure. Most users won't need this feature.
+</Note>
+
+## What is OpenTelemetry?
+
+[OpenTelemetry](https://opentelemetry.io/) is an industry-standard observability framework that provides a unified way to collect and export telemetry data (metrics, logs, and traces).
+
+Cline's OpenTelemetry support allows you to:
+- Export telemetry to your own systems
+- Integrate with observability platforms like Datadog, New Relic, Grafana Cloud, etc.
+- Maintain full control over your monitoring data
+- Use your organization's existing monitoring infrastructure
+
+## Supported Features
+
+Cline supports OpenTelemetry's **OTLP (OpenTelemetry Protocol)** export with:
+
+<CardGroup cols={2}>
+  <Card title="Metrics Export" icon="chart-bar">
+    Export metrics about Cline usage, performance, and errors
+  </Card>
+  
+  <Card title="Logs Export" icon="file-lines">
+    Export structured logs for debugging and analysis
+  </Card>
+</CardGroup>
+
+### Export Formats
+
+Cline supports three OTLP export protocols:
+
+- **gRPC** (default, recommended)
+- **HTTP/protobuf**
+- **HTTP/JSON**
+
+### Export Destinations
+
+You can export to:
+- **Console** (for testing)
+- **OTLP endpoint** (your own collector or observability platform)
+
+## Configuration
+
+OpenTelemetry is configured using environment variables before launching Cline.
+
+### Basic Setup
+
+Enable OpenTelemetry and configure an OTLP endpoint:
+
+```bash
+# Enable OpenTelemetry
+export OTEL_TELEMETRY_ENABLED=1
+
+# Configure metrics and logs export
+export OTEL_METRICS_EXPORTER=otlp
+export OTEL_LOGS_EXPORTER=otlp
+
+# Set your OTLP endpoint
+export OTEL_EXPORTER_OTLP_ENDPOINT=https://your-collector:4317
+
+# Optional: Set protocol (default is grpc)
+export OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OTEL_TELEMETRY_ENABLED` | Enable OpenTelemetry (`1` or `true`) | Disabled |
+| `OTEL_METRICS_EXPORTER` | Metrics exporter type (`console`, `otlp`, or both) | None |
+| `OTEL_LOGS_EXPORTER` | Logs exporter type (`console`, `otlp`, or both) | None |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP endpoint URL | None |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | Protocol (`grpc`, `http/protobuf`, `http/json`) | `grpc` |
+| `OTEL_EXPORTER_OTLP_INSECURE` | Allow insecure connections | `false` |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Custom headers (comma-separated `key=value` pairs) | None |
+
+### Advanced Configuration
+
+**Separate endpoints for metrics and logs:**
+```bash
+export OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=https://metrics-collector:4317
+export OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://logs-collector:4317
+```
+
+**Custom headers for authentication:**
+```bash
+export OTEL_EXPORTER_OTLP_HEADERS="api-key=your-key,x-custom-header=value"
+```
+
+**Multiple exporters (console + OTLP):**
+```bash
+export OTEL_METRICS_EXPORTER=console,otlp
+export OTEL_LOGS_EXPORTER=console,otlp
+```
+
+**Export intervals:**
+```bash
+# Metrics export interval in milliseconds (default: 60000)
+export OTEL_METRIC_EXPORT_INTERVAL=30000
+
+# Logs batch size and timeout
+export OTEL_LOG_BATCH_SIZE=512
+export OTEL_LOG_BATCH_TIMEOUT=5000
+export OTEL_LOG_MAX_QUEUE_SIZE=2048
+```
+
+## Integration Examples
+
+### Datadog
+
+Export to Datadog using their OTLP endpoint:
+
+```bash
+export OTEL_TELEMETRY_ENABLED=1
+export OTEL_METRICS_EXPORTER=otlp
+export OTEL_LOGS_EXPORTER=otlp
+export OTEL_EXPORTER_OTLP_ENDPOINT=https://api.datadoghq.com
+export OTEL_EXPORTER_OTLP_HEADERS="dd-api-key=YOUR_DD_API_KEY"
+```
+
+### New Relic
+
+Export to New Relic:
+
+```bash
+export OTEL_TELEMETRY_ENABLED=1
+export OTEL_METRICS_EXPORTER=otlp
+export OTEL_LOGS_EXPORTER=otlp
+export OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net:4317
+export OTEL_EXPORTER_OTLP_HEADERS="api-key=YOUR_NEW_RELIC_LICENSE_KEY"
+```
+
+### Grafana Cloud
+
+Export to Grafana Cloud:
+
+```bash
+export OTEL_TELEMETRY_ENABLED=1
+export OTEL_METRICS_EXPORTER=otlp
+export OTEL_LOGS_EXPORTER=otlp
+export OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-us-central-0.grafana.net/otlp
+export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic YOUR_BASE64_CREDENTIALS"
+```
+
+
+## Testing Configuration
+
+Test your configuration with console output before sending to a real endpoint:
+
+```bash
+# Enable console output to see what data would be exported
+export OTEL_TELEMETRY_ENABLED=1
+export OTEL_METRICS_EXPORTER=console
+export OTEL_LOGS_EXPORTER=console
+```
+
+Then launch Cline and check the console output for metrics and logs.
+
+## Troubleshooting
+
+### No Data Being Exported
+
+1. **Verify OpenTelemetry is enabled:**
+   ```bash
+   echo $OTEL_TELEMETRY_ENABLED
+   ```
+   Should output `1` or `true`
+
+2. **Check exporters are configured:**
+   ```bash
+   echo $OTEL_METRICS_EXPORTER
+   echo $OTEL_LOGS_EXPORTER
+   ```
+
+3. **Test with console exporter first:**
+   ```bash
+   export OTEL_METRICS_EXPORTER=console
+   export OTEL_LOGS_EXPORTER=console
+   ```
+
+### Connection Errors
+
+1. **Verify endpoint is accessible:**
+   ```bash
+   curl -v https://your-otlp-endpoint:4317
+   ```
+
+2. **Check if insecure mode is needed:**
+   ```bash
+   export OTEL_EXPORTER_OTLP_INSECURE=true
+   ```
+
+3. **Verify authentication headers:**
+   Double-check your API keys and authentication headers are correct
+
+### Debug Mode
+
+Enable debug logging to see detailed OpenTelemetry information:
+
+```bash
+export TEL_DEBUG_DIAGNOSTICS=true
+```
+
+This will output detailed information about:
+- Configuration being used
+- Exporters being created
+- Connection attempts
+- Export successes/failures
+
+## What Gets Exported
+
+When OpenTelemetry is enabled, Cline exports:
+
+### Metrics
+- Feature usage counts
+- Task execution metrics 
+- Error rates and types
+- Performance measurements
+
+### Logs
+- System events
+- Error logs with context
+- Operational information
+
+<Warning>
+Exported data is already anonymous and doesn't include code content, file paths, or sensitive information. However, you're responsible for securing the data once exported to your systems.
+</Warning>
+
+## Limitations
+
+Current OpenTelemetry support in Cline:
+- ✅ OTLP metrics export (console, gRPC, HTTP)
+- ✅ OTLP logs export (console, gRPC, HTTP)
+- ✅ Basic configuration via environment variables
+- ❌ Distributed tracing (not yet implemented)
+- ❌ Custom instrumentation API (not yet exposed)
+- ❌ Sampling configuration (uses defaults)
+
+## Best Practices
+
+1. **Test First**: Always test with console exporter before sending to production
+2. **Secure Credentials**: Never hardcode API keys; use secure environment variable management
+3. **Monitor Costs**: Be aware of data ingestion costs with your observability platform
+4. **Start Simple**: Begin with metrics only, add logs if needed
+5. **Use Compression**: OTLP supports compression; check if your endpoint requires it
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Cline Telemetry" icon="chart-simple" href="/enterprise-solutions/monitoring/telemetry">
+    Configure simple built-in telemetry
+  </Card>
+  
+  <Card title="OpenTelemetry Docs" icon="book" href="https://opentelemetry.io/docs/">
+    Learn more about OpenTelemetry
+  </Card>
+</CardGroup>

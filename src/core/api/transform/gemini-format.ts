@@ -1,44 +1,63 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Content, GenerateContentResponse, Part } from "@google/genai"
+import { ClineStorageMessage } from "@/shared/messages/content"
 
-export function convertAnthropicContentToGemini(content: string | Anthropic.ContentBlockParam[]): Part[] {
+// Source: https://ai.google.dev/gemini-api/docs/thought-signatures#faqs
+// While injecting custom function call blocks into the request is strongly discouraged,
+// in cases where it can't be avoided, e.g. providing information to the model on function
+// calls and responses that were executed deterministically by the client, or transferring a
+// trace from a different model that does not include thought signatures, you can set the following dummy signatures of either
+// "context_engineering_is_the_way_to_go" or "skip_thought_signature_validator" in the thought signature field to skip validation.
+const GEMINI_DUMMY_THOUGHT_SIGNATURE = "skip_thought_signature_validator"
+
+export function convertAnthropicContentToGemini(content: string | ClineStorageMessage["content"]): Part[] {
 	if (typeof content === "string") {
 		return [{ text: content }]
 	}
-	return content.flatMap((block): Part => {
-		switch (block.type) {
-			case "text":
-				return { text: block.text }
-			case "image":
-				if (block.source.type !== "base64") {
-					throw new Error("Unsupported image source type")
-				}
-				return {
-					inlineData: {
-						data: block.source.data,
-						mimeType: block.source.media_type,
-					},
-				}
-			case "tool_use":
-				return {
-					functionCall: {
-						name: block.name,
-						args: block.input as Record<string, unknown>,
-					},
-				}
-			case "tool_result":
-				return {
-					functionResponse: {
-						name: block.tool_use_id,
-						response: {
-							result: block.content,
+	return content
+		.flatMap((block): Part | undefined => {
+			switch (block.type) {
+				case "text":
+					return { text: block.text, thoughtSignature: block.signature }
+				case "image":
+					if (block.source.type !== "base64") {
+						throw new Error("Unsupported image source type")
+					}
+					return {
+						inlineData: {
+							data: block.source.data,
+							mimeType: block.source.media_type,
 						},
-					},
-				}
-			default:
-				throw new Error(`Unsupported content block type: ${block.type}`)
-		}
-	})
+					}
+				case "tool_use":
+					return {
+						functionCall: {
+							name: block.name,
+							args: block.input as Record<string, unknown>,
+						},
+						// Thought signature is required, so provide a dummy one if not present
+						thoughtSignature: block.signature || GEMINI_DUMMY_THOUGHT_SIGNATURE,
+					}
+				case "tool_result":
+					return {
+						functionResponse: {
+							name: block.tool_use_id,
+							response: {
+								result: block.content,
+							},
+						},
+					}
+				case "thinking":
+					return {
+						text: block.thinking,
+						thought: true,
+						thoughtSignature: block.signature || GEMINI_DUMMY_THOUGHT_SIGNATURE,
+					}
+				default:
+					return undefined
+			}
+		})
+		.filter((part): part is Part => part !== undefined) // Filter out unsupported blocks
 }
 
 export function convertAnthropicMessageToGemini(message: Anthropic.Messages.MessageParam): Content {

@@ -1,7 +1,6 @@
 import { SystemPromptSection } from "../templates/placeholders"
 import { getActVsPlanModeSection } from "./act_vs_plan_mode"
 import { getAgentRoleSection } from "./agent_role"
-import { getTodoListSection } from "./auto_todo"
 import { getCapabilitiesSection } from "./capabilities"
 import { getCliSubagentsSection } from "./cli_subagents"
 import { getEditingFilesSection } from "./editing_files"
@@ -24,7 +23,6 @@ export function getSystemPromptComponents() {
 		{ id: SystemPromptSection.AGENT_ROLE, fn: getAgentRoleSection },
 		{ id: SystemPromptSection.SYSTEM_INFO, fn: getSystemInfo },
 		{ id: SystemPromptSection.MCP, fn: getMcp },
-		{ id: SystemPromptSection.TODO, fn: getTodoListSection },
 		{
 			id: SystemPromptSection.USER_INSTRUCTIONS,
 			fn: getUserInstructions,

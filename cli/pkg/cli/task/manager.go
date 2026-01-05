@@ -14,6 +14,7 @@ import (
 	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/handlers"
+	"github.com/cline/cli/pkg/cli/slash"
 	"github.com/cline/cli/pkg/cli/types"
 	"github.com/cline/grpc-go/client"
 	"github.com/cline/grpc-go/cline"
@@ -36,6 +37,7 @@ type Manager struct {
 	systemRenderer   *display.SystemMessageRenderer
 	streamingDisplay *display.StreamingDisplay
 	handlerRegistry  *handlers.HandlerRegistry
+	slashRegistry    *slash.Registry
 	isStreamingMode  bool
 	isInteractive    bool
 	currentMode      string // "plan" or "act"
@@ -63,6 +65,7 @@ func NewManager(client *client.ClineClient) *Manager {
 		systemRenderer:   systemRenderer,
 		streamingDisplay: streamingDisplay,
 		handlerRegistry:  registry,
+		slashRegistry:    slash.NewRegistry(),
 		currentMode:      "plan", // Default mode
 	}
 }
@@ -76,6 +79,10 @@ func NewManagerForAddress(ctx context.Context, address string) (*Manager, error)
 
 	manager := NewManager(client)
 	manager.clientAddress = address
+
+	// Fetch slash commands from backend (non-blocking, errors are logged)
+	manager.fetchSlashCommands(ctx)
+
 	return manager, nil
 }
 
@@ -93,7 +100,23 @@ func NewManagerForDefault(ctx context.Context) (*Manager, error) {
 		manager.clientAddress = global.Clients.GetRegistry().GetDefaultInstance()
 	}
 
+	// Fetch slash commands from backend (non-blocking, errors are logged)
+	manager.fetchSlashCommands(ctx)
+
 	return manager, nil
+}
+
+// fetchSlashCommands fetches available slash commands from the backend
+// This is non-blocking and errors are logged but don't prevent manager creation
+func (m *Manager) fetchSlashCommands(ctx context.Context) {
+	if err := m.slashRegistry.FetchFromBackend(ctx, m.client); err != nil {
+		if global.Config.Verbose {
+			m.renderer.RenderDebug("Failed to fetch slash commands: %v", err)
+		}
+		// Non-fatal: CLI-local commands are still available
+	} else if global.Config.Verbose {
+		m.renderer.RenderDebug("Loaded %d slash commands", len(m.slashRegistry.GetCommands()))
+	}
 }
 
 // SwitchToInstance switches the manager to use a different Cline instance
@@ -280,9 +303,8 @@ func (m *Manager) CheckSendEnabled(ctx context.Context) error {
 
 	// Error types which we allow sending on
 	errorTypes := []string{
-		string(types.AskTypeAPIReqFailed),           // "api_req_failed"
-		string(types.AskTypeMistakeLimitReached),    // "mistake_limit_reached"
-		string(types.AskTypeAutoApprovalMaxReached), // "auto_approval_max_req_reached"
+		string(types.AskTypeAPIReqFailed),        // "api_req_failed"
+		string(types.AskTypeMistakeLimitReached), // "mistake_limit_reached"
 	}
 
 	isError := false
@@ -754,7 +776,21 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 }
 
 // FollowConversationUntilCompletion streams conversation updates until task completion
-func (m *Manager) FollowConversationUntilCompletion(ctx context.Context) error {
+func (m *Manager) FollowConversationUntilCompletion(ctx context.Context, opts FollowOptions) error {
+	// Check if there's an active task before entering follow mode
+	// Skip this check if we just created a task (to avoid race condition where task isn't active yet)
+	if !opts.SkipActiveTaskCheck {
+		err := m.CheckSendEnabled(ctx)
+		if err != nil {
+			if errors.Is(err, ErrNoActiveTask) {
+				fmt.Println("No task is currently running.")
+				return nil
+			}
+			// For other errors (like task busy), we can still enter follow mode
+			// as the user may want to observe the task
+		}
+	}
+
 	// Enable streaming mode
 	m.mu.Lock()
 	m.isStreamingMode = true
@@ -971,6 +1007,33 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
+		case msg.Say == string(types.SayTypeMcpServerResponse):
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
+			}
+
+		case msg.Say == string(types.SayTypeMcpNotification):
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
+			}
+
+		case msg.Say == string(types.SayTypeUseMcpServer):
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
+			}
+
 		case msg.Say == string(types.SayTypeCheckpointCreated):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
@@ -992,6 +1055,14 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 					coordinator.CompleteTurn(len(messages))
 					displayedUsage = true
 				}
+			}
+
+		case msg.Say == string(types.SayTypeCompletionResult):
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !msg.Partial && !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Ask == string(types.AskTypeCommandOutput):
@@ -1215,6 +1286,11 @@ func (m *Manager) GetCurrentMode() string {
 	return m.currentMode
 }
 
+// GetSlashRegistry returns the slash command registry
+func (m *Manager) GetSlashRegistry() *slash.Registry {
+	return m.slashRegistry
+}
+
 // extractModeFromState extracts the current mode from state JSON
 func (m *Manager) extractModeFromState(stateJson string) string {
 	var rawState map[string]interface{}
@@ -1240,17 +1316,16 @@ func (m *Manager) updateMode(stateJson string) {
 // UpdateTaskAutoApprovalAction enables a specific auto-approval action for the current task
 func (m *Manager) UpdateTaskAutoApprovalAction(ctx context.Context, actionKey string) error {
 	boolPtr := func(b bool) *bool { return &b }
-	
+
 	settings := &cline.Settings{
 		AutoApprovalSettings: &cline.AutoApprovalSettings{
-			Enabled: boolPtr(true),
 			Actions: &cline.AutoApprovalActions{},
 		},
 	}
 
 	// Set the specific action to true based on actionKey
 	truePtr := boolPtr(true)
-	
+
 	switch actionKey {
 	case "read_files":
 		settings.AutoApprovalSettings.Actions.ReadFiles = truePtr

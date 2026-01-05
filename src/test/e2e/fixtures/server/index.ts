@@ -151,7 +151,6 @@ export class ClineApiServerMock {
 			}
 
 			const sendApiError = (error: string, status = 400) => {
-				console.error("API Error: %s", error, status)
 				sendJson({ success: false, error }, status)
 			}
 
@@ -383,6 +382,12 @@ export class ClineApiServerMock {
 						}
 						if (body.includes("edit_request")) {
 							responseText = E2E_MOCK_API_RESPONSES.EDIT_REQUEST
+						}
+						if (body.includes("[diff.test.ts] Hello, Cline!")) {
+							// The playwright test in diff.test.ts needs the "API Request..." text
+							// to be on the screen long enough to detect it.  This worked at 100ms
+							// too, but setting to 500ms to cover slower CI boxes.
+							await new Promise((resolve) => setTimeout(resolve, 500))
 						}
 
 						const generationId = `gen_${++controller.generationCounter}_${Date.now()}`

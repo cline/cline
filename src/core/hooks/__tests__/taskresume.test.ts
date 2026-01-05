@@ -42,6 +42,12 @@ describe("TaskResume Hook", () => {
 
 	afterEach(async () => {
 		sandbox.restore()
+
+		// Clean up hook discovery cache
+		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
+		HookDiscoveryCache.resetForTesting()
+
+		sandbox.restore()
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
 		} catch (error) {
@@ -61,7 +67,7 @@ const hasRequiredFields =
   typeof input.taskResume.taskMetadata.taskId === 'string' &&
   typeof input.taskResume.previousState.messageCount === 'string';
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: hasRequiredFields ? "All fields present" : "Missing fields"
 }))`
 
@@ -85,7 +91,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.equal("All fields present")
 		})
 
@@ -96,7 +102,7 @@ const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const hasAllFields = input.clineVersion && input.hookName && input.timestamp && 
                      input.taskId && input.workspaceRoots !== undefined;
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: hasAllFields ? "All fields present" : "Missing fields"
 }))`
 
@@ -130,7 +136,7 @@ const lastTs = parseInt(input.taskResume.previousState.lastMessageTs);
 const now = Date.now();
 const minutesAgo = Math.floor((now - lastTs) / 60000);
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "Minutes ago: " + minutesAgo
 }))`
 
@@ -172,7 +178,7 @@ const lastTs = parseInt(input.taskResume.previousState.lastMessageTs);
 const now = Date.now();
 const daysAgo = Math.floor((now - lastTs) / (24 * 60 * 60 * 1000));
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: daysAgo > 0 ? "Days ago: " + daysAgo : "Recent"
 }))`
 
@@ -206,7 +212,7 @@ const lastTs = parseInt(input.taskResume.previousState.lastMessageTs);
 const now = Date.now();
 const isFuture = lastTs > now;
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: isFuture ? "Future timestamp detected" : "Normal timestamp"
 }))`
 
@@ -243,7 +249,7 @@ if (count < 5) category = "short";
 else if (count < 20) category = "medium";
 else category = "long";
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "Conversation length: " + category + " (" + count + " messages)"
 }))`
 
@@ -281,7 +287,7 @@ console.log(JSON.stringify({
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const count = parseInt(input.taskResume.previousState.messageCount);
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: count === 0 ? "Empty conversation" : "Has messages"
 }))`
 
@@ -316,7 +322,7 @@ const count = parseInt(input.taskResume.previousState.messageCount);
 const hoursAgo = Math.floor((Date.now() - lastTs) / (60 * 60 * 1000));
 const isStale = hoursAgo > 24 && count > 20;
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: isStale ? "STALE_TASK: Long conversation paused for extended time" : "Active task"
 }))`
 
@@ -348,7 +354,7 @@ const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const deleted = input.taskResume.previousState.conversationHistoryDeleted === 'true';
 const count = parseInt(input.taskResume.previousState.messageCount);
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: deleted && count > 10 
     ? "CONTEXT_WARNING: Large conversation with truncated history" 
     : "Normal state"
@@ -386,22 +392,22 @@ console.log("not valid json")`
 			const factory = new HookFactory()
 			const runner = await factory.create("TaskResume")
 
-			try {
-				await runner.run({
-					taskId: "test-task",
-					taskResume: {
-						taskMetadata: { taskId: "test-task", ulid: "test-ulid" },
-						previousState: {
-							lastMessageTs: Date.now().toString(),
-							messageCount: "5",
-							conversationHistoryDeleted: "false",
-						},
+			// When hook exits 0 but has malformed JSON, it returns success without context
+			const result = await runner.run({
+				taskId: "test-task",
+				taskResume: {
+					taskMetadata: { taskId: "test-task", ulid: "test-ulid" },
+					previousState: {
+						lastMessageTs: Date.now().toString(),
+						messageCount: "5",
+						conversationHistoryDeleted: "false",
 					},
-				})
-				throw new Error("Should have thrown parse error")
-			} catch (error: any) {
-				error.message.should.match(/Failed to parse hook output/)
-			}
+				},
+			})
+
+			// Hook succeeded (exit 0) but couldn't parse JSON, so returns success without context
+			result.cancel.should.be.false()
+			;(result.contextModification === undefined || result.contextModification === "").should.be.true()
 		})
 
 		it("should handle invalid timestamp gracefully", async () => {
@@ -411,7 +417,7 @@ const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const lastTs = parseInt(input.taskResume.previousState.lastMessageTs);
 const isValid = !isNaN(lastTs) && lastTs > 0;
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: isValid ? "Valid timestamp" : "Invalid timestamp"
 }))`
 
@@ -456,7 +462,7 @@ console.log(JSON.stringify({
 			const globalHookPath = path.join(globalHooksDir, "TaskResume")
 			const globalHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "GLOBAL: Task resumed"
 }))`
 			await writeHookScript(globalHookPath, globalHookScript)
@@ -464,7 +470,7 @@ console.log(JSON.stringify({
 			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "WORKSPACE: Task resumed"
 }))`
 			await writeHookScript(workspaceHookPath, workspaceHookScript)
@@ -484,7 +490,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.match(/GLOBAL: Task resumed/)
 			result.contextModification!.should.match(/WORKSPACE: Task resumed/)
 		})
@@ -498,7 +504,7 @@ const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const lastTs = parseInt(input.taskResume.previousState.lastMessageTs);
 const daysAgo = Math.floor((Date.now() - lastTs) / (24 * 60 * 60 * 1000));
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "GLOBAL_POLICY: " + (daysAgo > 0 ? "Review task context" : "Continue")
 }))`
 			await writeHookScript(globalHookPath, globalHookScript)
@@ -508,7 +514,7 @@ console.log(JSON.stringify({
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const count = parseInt(input.taskResume.previousState.messageCount);
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "PROJECT_NOTE: " + count + " messages in history"
 }))`
 			await writeHookScript(workspaceHookPath, workspaceHookScript)
@@ -550,7 +556,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 		})
 	})
 
@@ -578,7 +584,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.equal("TaskResume hook executed successfully")
 		})
 
@@ -598,7 +604,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.match(/Recently paused task/)
 		})
 
@@ -618,7 +624,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.match(/paused 48 hours ago/)
 		})
 
@@ -637,7 +643,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.match(/truncated/)
 		})
 
@@ -656,7 +662,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.equal("TASK_CONTEXT: Resuming task with 25 previous messages")
 		})
 
@@ -675,7 +681,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.equal("WORKSPACE_RULES: Task test-task resumed - review previous context")
 		})
 

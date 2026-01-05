@@ -106,6 +106,14 @@ func (tr *ToolRenderer) generateToolHeader(tool *types.ToolMessage, verbTense st
 		}
 		return fmt.Sprintf("### Cline %s `%s`", action, tool.Path)
 
+	case string(types.ToolTypeFileDeleted):
+		if verbTense == "wants to" {
+			action = "wants to delete"
+		} else {
+			action = "is deleting"
+		}
+		return fmt.Sprintf("### Cline %s `%s`", action, tool.Path)
+
 	case string(types.ToolTypeListFilesTopLevel):
 		if verbTense == "wants to" {
 			action = "wants to list files in"
@@ -150,6 +158,14 @@ func (tr *ToolRenderer) generateToolHeader(tool *types.ToolMessage, verbTense st
 			action = "wants to fetch"
 		} else {
 			action = "is fetching"
+		}
+		return fmt.Sprintf("### Cline %s `%s`", action, tool.Path)
+
+	case string(types.ToolTypeWebSearch):
+		if verbTense == "wants to" {
+			action = "wants to search for"
+		} else {
+			action = "is searching for"
 		}
 		return fmt.Sprintf("### Cline %s `%s`", action, tool.Path)
 
@@ -199,8 +215,8 @@ func (tr *ToolRenderer) GenerateToolContentPreview(tool *types.ToolMessage) stri
 		previewMd := fmt.Sprintf("```\n%s\n```", preview)
 		return tr.renderMarkdown(previewMd)
 
-	case string(types.ToolTypeReadFile), string(types.ToolTypeWebFetch):
-		// No preview for read/fetch operations
+	case string(types.ToolTypeReadFile), string(types.ToolTypeWebFetch), string(types.ToolTypeWebSearch), string(types.ToolTypeFileDeleted):
+		// No preview for read/fetch/search operations
 		return ""
 
 	default:
@@ -226,7 +242,8 @@ func (tr *ToolRenderer) GenerateToolContentBody(tool *types.ToolMessage) string 
 	toolParser := NewToolResultParser(tr.mdRenderer)
 
 	switch tool.Tool {
-	case string(types.ToolTypeReadFile):
+	case string(types.ToolTypeReadFile),
+		string(types.ToolTypeFileDeleted):
 		// readFile: show header only, no body
 		return ""
 
@@ -234,7 +251,8 @@ func (tr *ToolRenderer) GenerateToolContentBody(tool *types.ToolMessage) string 
 		string(types.ToolTypeListFilesRecursive),
 		string(types.ToolTypeListCodeDefinitionNames),
 		string(types.ToolTypeSearchFiles),
-		string(types.ToolTypeWebFetch):
+		string(types.ToolTypeWebFetch),
+		string(types.ToolTypeWebSearch):
 		// Use parser for structured output
 		preview := toolParser.ParseToolResult(tool)
 		return tr.renderMarkdown(preview)

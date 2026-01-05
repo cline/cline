@@ -1,7 +1,11 @@
+import { hasEnabledMcpServers } from "../../components/mcp"
 import { SystemPromptSection } from "../../templates/placeholders"
 import type { SystemPromptContext } from "../../types"
 
-const GLM_TOOL_USE_TEMPLATE = `Begin every task by exploring the codebase (e.g., list_files, search_files, read_file) and outlining the required changes. Do not implement until exploration yields enough context to state objectives, approach, affected files, and risks. Briefly summarize the plan, then proceed with implementation.
+const GLM_TOOL_USE_TEMPLATE = (context: SystemPromptContext) => {
+	const hasMcpServers = hasEnabledMcpServers(context)
+
+	return `Begin every task by exploring the codebase (e.g., list_files, search_files, read_file) and outlining the required changes. Do not implement until exploration yields enough context to state objectives, approach, affected files, and risks. Briefly summarize the plan, then proceed with implementation.
 
 Tool invocation policy: Invoke tools only in assistant messages; they will not execute if placed inside reasoning blocks. Use reasoning blocks solely for analysis/option-weighing; place all tool XML blocks in assistant messages to execute them.
 
@@ -74,6 +78,40 @@ Params: path, recursive (optional).
 </list_files>
 Key: Rely on returned tool results instead of using list_files to “confirm” writes.
 
+${
+	hasMcpServers
+		? `
+**load_mcp_documentation** - Load documentation about creating MCP servers. This tool should be used when the user requests to create or install an MCP server.
+Parameters: None
+*Example:*
+<load_mcp_documentation>
+</load_mcp_documentation>
+
+
+**use_mcp_tool** - Request to use a tool provided by a connected MCP server. Each MCP server can provide multiple tools with different capabilities. Tools have defined input schemas that specify required and optional parameters.
+Parameters: server_name, tool_name, arguments
+*Example:*
+<use_mcp_tool>
+<server_name>server name here</server_name>
+<tool_name>tool name here</tool_name>
+<arguments>
+{
+  "param1": "value1",
+  "param2": "value2"
+}
+</arguments>
+</use_mcp_tool>
+
+**access_mcp_resource** - Request to access a resource provided by a connected MCP server. Resources represent data sources that can be used as context, such as files, API responses, or system information.
+Parameters: server_name, uri
+*Example:*
+<access_mcp_resource>
+<server_name>server name here</server_name>
+<uri>resource URI here</uri>
+</access_mcp_resource>`
+		: ""
+}
+
 **attempt_completion** — Final result (no questions). Use this tool only when all goals have been completed.
 Params: result, command (optional demonstration of completed work).  
 *Example:*
@@ -100,6 +138,7 @@ Include options/trade-offs when helpful, ask if plan matches, then add the exact
 <needs_more_exploration>true or false (optional, but you MUST set to true if in <response> you need to read files or use other exploration tools)</needs_more_exploration>
 <task_progress>Checklist here (If you have presented the user with concrete steps or requirements, you can optionally include a todo list outlining these steps.)</task_progress>
 </plan_mode_respond>`
+}
 
 const GLM_OBJECTIVE_TEMPLATE = `OBJECTIVE
 

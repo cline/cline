@@ -3,6 +3,7 @@ import { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { ToolResponse } from "@core/task"
 import { processFilesIntoText } from "@/integrations/misc/extract-text"
+import { Logger } from "@/services/logging/Logger"
 import { ClineAsk } from "@/shared/ExtensionMessage"
 import type { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
 import { TaskConfig } from "../types/TaskConfig"
@@ -20,7 +21,6 @@ export class ToolResultUtils {
 		userMessageContent: any[],
 		toolDescription: (block: ToolUse) => string,
 		_api: ApiHandler,
-		markToolAsUsed: () => void,
 		coordinator?: ToolExecutorCoordinator,
 		toolUseIdMap?: Map<string, string>,
 	): void {
@@ -35,25 +35,40 @@ export class ToolResultUtils {
 					})()
 				: toolDescription(block)
 
-			// Get tool_use_id from map, or use "cline" as fallback for backward compatibility
-			const toolUseId = toolUseIdMap?.get(block.name) || "cline"
+			// Get tool_use_id from map using call_id, or use "cline" as fallback for backward compatibility
+			const toolUseId = toolUseIdMap?.get(block.call_id || "") || "cline"
+
+			// If we have already added a tool result for this tool use, skip adding another one
+			if (
+				userMessageContent.some((item) => item.type === "tool_result" && item.tool_use_id === toolUseId && item.content)
+			) {
+				Logger.warn(`ToolResultUtils: Tool result for tool_use_id ${toolUseId} already exists. Skipping duplicate.`)
+				return
+			}
 
 			// Create ToolResultBlockParam with description and result
-			userMessageContent.push(ToolResultUtils.createToolResultBlock(`${description} Result:\n${resultText}`, toolUseId))
+			userMessageContent.push(
+				ToolResultUtils.createToolResultBlock(`${description} Result:\n${resultText}`, toolUseId, block.call_id),
+			)
 		} else {
 			// For complex content (arrays with text/image blocks), pass it through directly
 			// The content array should already be properly formatted with type, text, source, etc.
-			const toolUseId = toolUseIdMap?.get(block.name) || "cline"
-			userMessageContent.push(ToolResultUtils.createToolResultBlock(content, toolUseId))
+			const toolUseId = toolUseIdMap?.get(block.call_id || "") || "cline"
+
+			// If using backward-compatible "cline" ID and content is an array, spread it directly
+			// instead of wrapping it (which would cause JSON.stringify in createToolResultBlock)
+			if ((toolUseId === "cline" || !toolUseId) && Array.isArray(content)) {
+				userMessageContent.push(...content)
+			} else {
+				userMessageContent.push(ToolResultUtils.createToolResultBlock(content, toolUseId, block.call_id))
+			}
 		}
-		// once a tool result has been collected, ignore all other tool uses since we should only ever present one tool result per message
-		markToolAsUsed()
 	}
 
-	private static createToolResultBlock(content: ToolResponse, id?: string) {
+	private static createToolResultBlock(content: ToolResponse, id?: string, call_id?: string) {
 		// If id is "cline", we treat it as a plain text result for backward compatibility
 		// as we cannot find any existing tool call that matches this id.
-		if (id === "cline") {
+		if (id === "cline" || !id) {
 			return {
 				type: "text",
 				text: typeof content === "string" ? content : JSON.stringify(content, null, 2),
@@ -66,6 +81,7 @@ export class ToolResultUtils {
 		return {
 			type: "tool_result",
 			tool_use_id: id,
+			call_id: call_id,
 			content: typeof content === "string" ? content : content,
 		}
 	}

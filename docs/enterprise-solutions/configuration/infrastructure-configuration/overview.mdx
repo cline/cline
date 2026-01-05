@@ -1,0 +1,95 @@
+---
+title: "Self-Hosted Configuration"
+sidebarTitle: "Overview"
+description: "Deploy and configure Cline on your own infrastructure with enterprise-grade security and compliance"
+---
+
+<Warning>
+**Self-Hosted Configuration Path**
+
+This section is for enterprises deploying **self-hosted Cline infrastructure** with complex security, compliance, and multi-environment requirements. Configuration is done through YAML files, Kubernetes/Helm deployments, and infrastructure-as-code.
+
+**Looking for simple setup?** See [SaaS Provider Configuration](/enterprise-solutions/configuration/remote-configuration/overview) for quick configuration through the app.cline.bot admin console - no infrastructure deployment required, just web-based settings.
+</Warning>
+
+Self-Hosted Configuration provides centralized control over all aspects of your Cline deployment on your own infrastructure, from AI providers to custom workflows. This section covers how to configure, manage, and optimize your enterprise Cline installation with advanced security, compliance, and operational features.
+
+## Configuration Categories
+
+<CardGroup cols={2}>
+  <Card title="Providers" icon="cloud" href="/enterprise-solutions/configuration/infrastructure-configuration/providers/overview">
+    Configure AI providers including AWS Bedrock, LiteLLM, and Google Vertex AI with enterprise-grade security and governance.
+  </Card>
+  
+  <Card title="MCP Integration" icon="plug" href="/enterprise-solutions/configuration/infrastructure-configuration/mcp/overview">
+    Manage Model Context Protocol servers, marketplace integrations, and remote MCP server configurations.
+  </Card>
+  
+  <Card title="Rules Engine" icon="shield-check" href="/enterprise-solutions/configuration/infrastructure-configuration/rules">
+    Define and enforce enterprise governance rules, security policies, and compliance requirements.
+  </Card>
+  
+  <Card title="Workflows" icon="workflow" href="/enterprise-solutions/configuration/infrastructure-configuration/workflows">
+    Create automated workflows for development processes, approval chains, and integration pipelines.
+  </Card>
+</CardGroup>
+
+## Advanced Controls
+
+<CardGroup cols={2}>
+  <Card title="Control Other Cline Features" icon="toggles" href="/enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/overview">
+    Enable or disable specific Cline features across your organization with granular permission controls.
+  </Card>
+  
+  <Card title="Monitoring" icon="chart-line" href="/enterprise-solutions/monitoring/overview">
+    Configure OpenTelemetry integration for comprehensive monitoring, logging, and analytics.
+  </Card>
+</CardGroup>
+
+## Getting Started
+
+1. **Assessment**: Review your current infrastructure and integration requirements
+2. **Provider Setup**: Configure your preferred AI providers with enterprise credentials
+3. **Security Configuration**: Implement rules and access controls
+4. **Monitoring Setup**: Enable telemetry and monitoring for operational visibility
+5. **User Onboarding**: Deploy configurations to your development teams
+
+## Enterprise Architecture Considerations
+
+### Security & Compliance
+- **Zero Trust Architecture**: All configurations support zero-trust security models
+- **Audit Logging**: Complete audit trails for all configuration changes
+- **Role-Based Access**: Granular permissions for different administrative roles
+- **Data Sovereignty**: Keep sensitive data within your infrastructure boundaries
+
+### Scalability & Performance
+- **Multi-Region Support**: Deploy configurations across multiple geographic regions  
+- **Load Balancing**: Distribute AI provider requests across multiple endpoints
+- **Caching Strategies**: Optimize performance with intelligent caching
+- **Rate Limiting**: Prevent abuse with configurable rate limits
+
+### Integration & Automation
+- **GitOps Integration**: Version control your configurations alongside code
+- **CI/CD Pipeline Integration**: Automate configuration deployment
+- **Webhook Support**: React to configuration changes with custom automation
+- **API-First Design**: Programmatically manage all configurations
+
+## Configuration Management
+
+All enterprise configurations support:
+
+- **Version Control**: Track changes with full revision history
+- **Environment Promotion**: Deploy configurations from dev → staging → production
+- **Rollback Capabilities**: Quickly revert problematic configurations
+- **Configuration Validation**: Automated testing of configuration changes
+- **Drift Detection**: Monitor and alert on configuration drift
+
+## Next Steps
+
+Ready to configure your enterprise deployment? Start with:
+
+1. [Provider Configuration](/enterprise-solutions/configuration/infrastructure-configuration/providers/overview) - Set up your AI providers
+2. [Security Rules](/enterprise-solutions/configuration/infrastructure-configuration/rules) - Implement governance policies
+3. [Monitoring Setup](/enterprise-solutions/monitoring/overview) - Enable operational visibility
+
+For hands-on configuration assistance, contact your Cline Enterprise support team or refer to our implementation guides.

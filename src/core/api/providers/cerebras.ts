@@ -1,6 +1,7 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import Cerebras from "@cerebras/cerebras_cloud_sdk"
 import { CerebrasModelId, cerebrasDefaultModelId, cerebrasModels, ModelInfo } from "@shared/api"
+import { ClineStorageMessage } from "@/shared/messages/content"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
@@ -9,6 +10,12 @@ interface CerebrasHandlerOptions extends CommonApiHandlerOptions {
 	cerebrasApiKey?: string
 	apiModelId?: string
 }
+
+// Conservative max_tokens for Cerebras to avoid premature rate limiting.
+// Cerebras rate limiter estimates token consumption using max_completion_tokens upfront,
+// so requesting the model maximum (e.g., 64K) reserves that quota even if actual usage is low.
+// 16K is sufficient for most agentic tool use while preserving rate limit headroom.
+const CEREBRAS_DEFAULT_MAX_TOKENS = 16_384
 
 export class CerebrasHandler implements ApiHandler {
 	private options: CerebrasHandlerOptions
@@ -31,6 +38,10 @@ export class CerebrasHandler implements ApiHandler {
 				this.client = new Cerebras({
 					apiKey: cleanApiKey,
 					timeout: 30000, // 30 second timeout
+					fetch, // Use configured fetch with proxy support
+					defaultHeaders: {
+						"X-Cerebras-3rd-Party-Integration": "cline",
+					},
 				})
 			} catch (error) {
 				throw new Error(`Error creating Cerebras client: ${error.message}`)
@@ -44,7 +55,7 @@ export class CerebrasHandler implements ApiHandler {
 		baseDelay: 5000, // Start with 5 second delay
 		maxDelay: 60000, // Allow up to 60 second delays to respect rate limits
 	})
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
 		const client = this.ensureClient()
 
 		// Convert Anthropic messages to Cerebras format
@@ -106,7 +117,7 @@ export class CerebrasHandler implements ApiHandler {
 				messages: cerebrasMessages,
 				temperature: 0,
 				stream: true,
-				max_tokens: this.getModel().info.maxTokens,
+				max_tokens: CEREBRAS_DEFAULT_MAX_TOKENS,
 			})
 
 			// Handle streaming response

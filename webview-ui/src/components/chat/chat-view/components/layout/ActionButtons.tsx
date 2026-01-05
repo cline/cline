@@ -68,6 +68,12 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 				return
 			}
 			setIsProcessing(true)
+
+			// Special handling for cancel action
+			if (action === "cancel") {
+				setIsProcessing(false)
+			}
+
 			messageHandlers.executeButtonAction(action, text, images, files)
 		},
 		[messageHandlers, isProcessing],
@@ -114,6 +120,14 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 				behavior: "smooth",
 			})
 			disableAutoScrollRef.current = true
+			// Virtual rendering may not have all items rendered when at bottom,
+			// so scroll again after a delay to ensure we reach the true top
+			setTimeout(() => {
+				scrollBehavior.virtuosoRef.current?.scrollTo({
+					top: 0,
+					behavior: "smooth",
+				})
+			}, 300)
 		}
 
 		return (

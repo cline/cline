@@ -13,7 +13,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import * as posthogConfigModule from "@/shared/services/config/posthog-config"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import { NoOpTelemetryProvider, TelemetryProviderFactory } from "./TelemetryProviderFactory"
-import { TelemetryService } from "./TelemetryService"
+import { TelemetryMetadata, TelemetryService } from "./TelemetryService"
 
 describe("Telemetry system is abstracted and can easily switch between providers", () => {
 	// Setup and teardown for HostProvider mocking
@@ -27,13 +27,14 @@ describe("Telemetry system is abstracted and can easily switch between providers
 	})
 	const MOCK_USER_INFO = {
 		id: "test-user-123",
-		email: "test@example.com",
 		displayName: "Test User",
+		email: "test@example.com",
 		createdAt: new Date().toISOString(),
 		organizations: [],
 	}
-	const MOCK_METADATA = {
+	const MOCK_METADATA: TelemetryMetadata = {
 		extension_version: "1.2.3",
+		cline_type: "cline-unit-test",
 		platform: "Test-IDE",
 		platform_version: "9.8.7-abc",
 		os_type: "win32",
@@ -193,7 +194,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			noOpTelemetryService.identifyAccount(MOCK_USER_INFO)
 			noOpTelemetryService.captureTaskCompleted("task-789")
 			noOpTelemetryService.captureModelSelected("gpt-4", "openai", "task-789")
-			noOpTelemetryService.captureToolUsage("task-789", "write_to_file", "gpt-4", false, true)
+			noOpTelemetryService.captureToolUsage("task-789", "write_to_file", "gpt-4", "openai", false, true)
 
 			// Test provider methods directly
 			noOpProvider.log("test_event", { test: "property" })

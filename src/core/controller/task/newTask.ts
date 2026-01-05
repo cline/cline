@@ -43,13 +43,9 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 					return {
 						...globalSettings,
 						...(incomingSettings.version !== undefined && { version: incomingSettings.version }),
-						...(incomingSettings.enabled !== undefined && { enabled: incomingSettings.enabled }),
-						...(incomingSettings.maxRequests !== undefined && { maxRequests: incomingSettings.maxRequests }),
 						...(incomingSettings.enableNotifications !== undefined && {
 							enableNotifications: incomingSettings.enableNotifications,
 						}),
-						...(incomingSettings.favorites &&
-							incomingSettings.favorites.length > 0 && { favorites: incomingSettings.favorites }),
 						actions: {
 							...globalSettings.actions,
 							...(incomingSettings.actions
@@ -83,6 +79,18 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 			}),
 			...(request.taskSettings?.actModeApiProvider !== undefined && {
 				actModeApiProvider: convertProtoToApiProvider(request.taskSettings.actModeApiProvider),
+			}),
+			...(request.taskSettings?.hooksEnabled !== undefined && {
+				hooksEnabled: (() => {
+					const isEnabled = !!request.taskSettings.hooksEnabled
+
+					// Platform validation: Only allow enabling hooks on macOS and Linux
+					if (isEnabled && process.platform === "win32") {
+						throw new Error("Hooks are not yet supported on Windows")
+					}
+
+					return isEnabled
+				})(),
 			}),
 		}).filter(([_, value]) => value !== undefined),
 	)

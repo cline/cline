@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.34.1",
+	"version": "3.46.1",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -46,6 +46,15 @@
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
+		"icons": {
+			"cline-icon": {
+				"description": "cline",
+				"default": {
+					"fontPath": "assets/icons/cline-bot.woff",
+					"fontCharacter": "\\e900"
+				}
+			}
+		},
 		"walkthroughs": [
 			{
 				"id": "ClineWalkthrough",
@@ -150,6 +159,12 @@
 				"when": "cline.isDevMode"
 			},
 			{
+				"command": "cline.dev.expireMcpOAuthTokens",
+				"title": "Expire MCP OAuth Tokens (for testing)",
+				"category": "Cline",
+				"when": "cline.isDevMode"
+			},
+			{
 				"command": "cline.addToChat",
 				"title": "Add to Cline",
 				"category": "Cline"
@@ -168,10 +183,7 @@
 				"command": "cline.generateGitCommitMessage",
 				"title": "Generate Commit Message with Cline",
 				"category": "Cline",
-				"icon": {
-					"light": "assets/icons/robot_panel_light.png",
-					"dark": "assets/icons/robot_panel_dark.png"
-				}
+				"icon": "$(cline-icon)"
 			},
 			{
 				"command": "cline.abortGitCommitMessage",
@@ -198,9 +210,26 @@
 				"command": "cline.reconstructTaskHistory",
 				"title": "Reconstruct Task History",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.reviewComment.reply",
+				"title": "Reply",
+				"category": "Cline",
+				"enablement": "!commentIsEmpty"
+			},
+			{
+				"command": "cline.reviewComment.addToChat",
+				"title": "Add to Cline Chat",
+				"category": "Cline",
+				"icon": "$(link-external)"
 			}
 		],
 		"keybindings": [
+			{
+				"command": "editor.action.submitComment",
+				"key": "enter",
+				"when": "commentEditorFocused && commentController == cline-ai-review && !commentIsEmpty"
+			},
 			{
 				"command": "cline.addToChat",
 				"key": "cmd+'",
@@ -278,11 +307,29 @@
 			"commandPalette": [
 				{
 					"command": "cline.generateGitCommitMessage",
-					"when": "config.git.enabled && scmProvider == git && !cline.isGeneratingCommit"
+					"when": "config.git.enabled && !cline.isGeneratingCommit"
 				},
 				{
 					"command": "cline.abortGitCommitMessage",
-					"when": "config.git.enabled && scmProvider == git && cline.isGeneratingCommit"
+					"when": "config.git.enabled && cline.isGeneratingCommit"
+				},
+				{
+					"command": "cline.reviewComment.reply",
+					"when": "false"
+				}
+			],
+			"comments/commentThread/context": [
+				{
+					"command": "cline.reviewComment.reply",
+					"group": "inline",
+					"when": "commentController == cline-ai-review"
+				}
+			],
+			"comments/commentThread/title": [
+				{
+					"command": "cline.reviewComment.addToChat",
+					"group": "inline",
+					"when": "commentController == cline-ai-review"
 				}
 			]
 		},
@@ -304,6 +351,7 @@
 		"dev:cli:watch": "node scripts/dev-cli-watch.mjs",
 		"postcompile-standalone": "node scripts/package-standalone.mjs",
 		"postcompile-standalone-npm": "node scripts/package-standalone.mjs --target=npm",
+		"dev": "npm run protos && npm run watch",
 		"watch": "npm-run-all -p watch:*",
 		"watch:esbuild": "node esbuild.mjs --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
@@ -352,7 +400,8 @@
 		"docs": "cd docs && npm run dev",
 		"docs:check-links": "cd docs && npm run check",
 		"docs:rename-file": "cd docs && npm run rename",
-		"report-issue": "node scripts/report-issue.js"
+		"report-issue": "node scripts/report-issue.js",
+		"storybook": "cd webview-ui && npm run storybook"
 	},
 	"lint-staged": {
 		"*": [
@@ -405,16 +454,16 @@
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.37.0",
 		"@anthropic-ai/vertex-sdk": "^0.6.4",
-		"@aws-sdk/client-bedrock-runtime": "^3.840.0",
-		"@aws-sdk/credential-providers": "^3.840.0",
+		"@aws-sdk/client-bedrock-runtime": "^3.922.0",
+		"@aws-sdk/credential-providers": "^3.922.0",
 		"@bufbuild/protobuf": "^2.2.5",
 		"@cerebras/cerebras_cloud_sdk": "^1.35.0",
 		"@google-cloud/vertexai": "^1.9.3",
-		"@google/genai": "^1.11.0",
+		"@google/genai": "^1.30.0",
 		"@grpc/grpc-js": "^1.9.15",
 		"@grpc/reflection": "^1.0.4",
 		"@mistralai/mistralai": "^1.5.0",
-		"@modelcontextprotocol/sdk": "^1.11.1",
+		"@modelcontextprotocol/sdk": "^1.25.1",
 		"@opentelemetry/api": "^1.9.0",
 		"@opentelemetry/core": "^2.1.0",
 		"@opentelemetry/exporter-logs-otlp-grpc": "^0.56.0",
@@ -435,9 +484,8 @@
 		"@opentelemetry/sdk-trace-node": "^1.30.1",
 		"@opentelemetry/semantic-conventions": "^1.37.0",
 		"@playwright/test": "^1.55.1",
-		"@sap-ai-sdk/ai-api": "^1.17.0",
-		"@sap-ai-sdk/orchestration": "^1.17.0",
-		"@sentry/browser": "^9.12.0",
+		"@sap-ai-sdk/ai-api": "^2.1.0",
+		"@sap-ai-sdk/orchestration": "^2.1.0",
 		"@streamparser/json": "^0.0.22",
 		"@tailwindcss/vite": "^4.1.14",
 		"@types/uuid": "^10.0.0",
@@ -454,26 +502,26 @@
 		"exceljs": "^4.4.0",
 		"execa": "^9.5.2",
 		"fast-deep-equal": "^3.1.3",
-		"firebase": "^11.2.0",
 		"fzf": "^0.5.2",
 		"get-folder-size": "^5.0.0",
 		"globby": "^14.0.2",
 		"grpc-health-check": "^2.0.2",
-		"https-proxy-agent": "^7.0.6",
 		"iconv-lite": "^0.6.3",
 		"ignore": "^7.0.3",
 		"image-size": "^2.0.2",
 		"isbinaryfile": "^5.0.2",
 		"jschardet": "^3.1.4",
-		"jwt-decode": "^4.0.0",
+		"json5": "^2.2.3",
 		"mammoth": "^1.11.0",
+		"nanoid": "^5.1.6",
 		"nice-grpc": "^2.1.12",
 		"node-machine-id": "^1.1.12",
 		"ollama": "^0.5.13",
 		"open": "^10.1.2",
 		"open-graph-scraper": "^6.9.0",
-		"openai": "^4.83.0",
+		"openai": "^6.9.0",
 		"os-name": "^6.0.0",
+		"p-mutex": "^1.0.0",
 		"p-timeout": "^6.1.4",
 		"p-wait-for": "^5.0.2",
 		"pdf-parse": "^1.1.1",
@@ -489,13 +537,17 @@
 		"ts-morph": "^25.0.1",
 		"turndown": "^7.2.0",
 		"ulid": "^2.4.0",
+		"undici": "^7.16.0",
 		"uuid": "^11.1.0",
 		"vscode-uri": "^3.1.0",
 		"web-tree-sitter": "^0.22.6",
 		"zod": "^3.24.2"
 	},
 	"overrides": {
-		"tar-fs": ">=3.1.1"
+		"tar-fs": ">=3.1.1",
+		"tar": "^7.5.2",
+		"vite": "^7.1.11",
+		"js-yaml": "^4.1.1"
 	},
 	"c8": {
 		"reporter": [

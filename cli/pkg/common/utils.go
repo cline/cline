@@ -4,7 +4,11 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc"
@@ -124,6 +128,16 @@ func NormalizeAddressForGRPC(address string) (string, error) {
 	return address, nil
 }
 
+// GetNodeVersion returns the current Node.js version, or "unknown" if unable to detect
+func GetNodeVersion() string {
+	cmd := exec.Command("node", "--version")
+	output, err := cmd.Output()
+	if err != nil {
+		return "unknown"
+	}
+	return strings.TrimSpace(string(output))
+}
+
 // RetryOperation performs an operation with retry logic
 func RetryOperation(maxRetries int, timeoutPerAttempt time.Duration, operation func() error) error {
 	var lastErr error
@@ -155,5 +169,88 @@ func RetryOperation(maxRetries int, timeoutPerAttempt time.Duration, operation f
 		}
 	}
 
-	return fmt.Errorf("operation failed after %d attempts: %w", maxRetries, lastErr)
+	return fmt.Errorf(`operation failed to after %d attempts: %w
+
+This is usually caused by an incompatible Node.js version
+
+REQUIREMENTS:
+• Node.js version 20+ is required
+• Current Node.js version: %s
+
+DEBUGGING STEPS:
+1. View recent logs: cline log list
+2. Logs are available in: ~/.cline/logs/
+3. The most recent cline-core log file is usually valuable
+
+For additional help, visit: https://github.com/cline/cline/issues
+`, maxRetries, lastErr, GetNodeVersion())
+}
+
+// validateDirsExist validates that all workspace paths exist on the filesystem
+func ValidateDirsExist(paths []string) error {
+	for _, p := range paths {
+		info, err := os.Stat(p)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Errorf("path does not exist: %s", p)
+			}
+			return fmt.Errorf("failed to access path %s: %w", p, err)
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("path is not a directory: %s", p)
+		}
+	}
+	return nil
+}
+
+// absPath returns the absolute path, resolving symlinks
+func AbsPath(path string) (string, error) {
+	// First get absolute path
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	// Then resolve any symlinks
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		// If symlink resolution fails, return the absolute path
+		return abs, nil
+	}
+	return resolved, nil
+}
+
+// shortenPath shortens a filesystem path to fit within maxLen
+func ShortenPath(path string, maxLen int) string {
+	// Try to replace home directory with ~ (cross-platform)
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		if strings.HasPrefix(path, homeDir) {
+			shortened := "~" + path[len(homeDir):]
+			// Always use ~ version if we can
+			path = shortened
+		}
+	}
+
+	if len(path) <= maxLen {
+		return path
+	}
+
+	// If still too long, show last few path components
+	if len(path) > maxLen {
+		parts := strings.Split(path, string(filepath.Separator))
+		if len(parts) > 2 {
+			// Show last 2-3 components
+			lastParts := parts[len(parts)-2:]
+			shortened := "..." + string(filepath.Separator) + strings.Join(lastParts, string(filepath.Separator))
+			if len(shortened) <= maxLen {
+				return shortened
+			}
+		}
+	}
+
+	// Last resort: truncate with ellipsis
+	if len(path) > maxLen {
+		return "..." + path[len(path)-maxLen+3:]
+	}
+
+	return path
 }

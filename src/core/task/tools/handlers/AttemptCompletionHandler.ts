@@ -3,11 +3,12 @@ import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
+import { telemetryService } from "@services/telemetry"
 import { findLastIndex } from "@shared/array"
 import { COMPLETION_RESULT_CHANGES_FLAG } from "@shared/ExtensionMessage"
-import { telemetryService } from "@/services/telemetry"
-import { ClineDefaultTool } from "@/shared/tools"
+import { ClineDefaultTool } from "@shared/tools"
 import type { ToolResponse } from "../../index"
+import { buildUserFeedbackContent } from "../../utils/buildUserFeedbackContent"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
@@ -52,8 +53,20 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 
 		config.taskState.consecutiveMistakeCount = 0
 
-		// Show notification if auto-approval is enabled
-		if (config.autoApprovalSettings.enabled && config.autoApprovalSettings.enableNotifications) {
+		// Run PreToolUse hook before execution
+		try {
+			const { ToolHookUtils } = await import("../utils/ToolHookUtils")
+			await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+		} catch (error) {
+			const { PreToolUseHookCancellationError } = await import("@core/hooks/PreToolUseHookCancellationError")
+			if (error instanceof PreToolUseHookCancellationError) {
+				return formatResponse.toolDenied()
+			}
+			throw error
+		}
+
+		// Show notification if enabled
+		if (config.autoApprovalSettings.enableNotifications) {
 			showSystemNotification({
 				subtitle: "Task Completed",
 				message: result.replace(/\n/g, " "),
@@ -78,6 +91,22 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 					text: lastCompletionResultMessage.text + COMPLETION_RESULT_CHANGES_FLAG,
 				})
 			}
+		}
+
+		// Remove any partial completion_result message that may exist
+		// Search backwards since other messages may have been inserted after the partial
+		const clineMessages = config.messageState.getClineMessages()
+		const partialCompletionIndex = findLastIndex(
+			clineMessages,
+			(m) => m.partial === true && m.type === "say" && m.say === "completion_result",
+		)
+		if (partialCompletionIndex !== -1) {
+			const updatedMessages = [
+				...clineMessages.slice(0, partialCompletionIndex),
+				...clineMessages.slice(partialCompletionIndex + 1),
+			]
+			config.messageState.setClineMessages(updatedMessages)
+			await config.messageState.saveClineMessagesAndUpdateHistory()
 		}
 
 		let commandResult: any
@@ -115,6 +144,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 			// user didn't reject, but the command may have output
 			commandResult = execCommandResult
 		} else {
+			// Send the complete completion_result message (partial was already removed above)
 			const completionMessageTs = await config.callbacks.say("completion_result", result, undefined, undefined, false)
 			await config.callbacks.saveCheckpoint(true, completionMessageTs)
 			await addNewChangesFlagToLastCompletionResultMessage()
@@ -131,12 +161,32 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 			await config.callbacks.updateFCListFromToolResponse(block.params.task_progress)
 		}
 
+		// Run TaskComplete hook BEFORE presenting the "Start New Task" button
+		// At this point we know: task is complete, checkpoint saved, result shown to user
+		await this.runTaskCompleteHook(config, block)
+
 		const { response, text, images, files: completionFiles } = await config.callbacks.ask("completion_result", "", false)
+		const prefix = "[attempt_completion] Result: Done"
 		if (response === "yesButtonClicked") {
-			return "" // signals to recursive loop to stop (for now this never happens since yesButtonClicked will trigger a new task)
+			return prefix // signals to recursive loop to stop (for now this never happens since yesButtonClicked will trigger a new task)
 		}
 
 		await config.callbacks.say("user_feedback", text ?? "", images, completionFiles)
+
+		// Run UserPromptSubmit hook when user provides post-completion feedback
+		let hookContextModification: string | undefined
+		if (text || (images && images.length > 0) || (completionFiles && completionFiles.length > 0)) {
+			const userContentForHook = await buildUserFeedbackContent(text, images, completionFiles)
+
+			const hookResult = await config.callbacks.runUserPromptSubmitHook(userContentForHook, "feedback")
+
+			if (hookResult.cancel === true) {
+				return formatResponse.toolDenied()
+			}
+
+			// Capture hook context modification to add to tool results
+			hookContextModification = hookResult.contextModification
+		}
 
 		const toolResults: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = []
 		if (commandResult) {
@@ -149,32 +199,87 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 				toolResults.push(...commandResult)
 			}
 		}
-		toolResults.push({
-			type: "text",
-			text: `The user has provided feedback on the results. Consider their input to continue the task, and then attempt completion again.\n<feedback>\n${text}\n</feedback>`,
-		})
-		toolResults.push(...formatResponse.imageBlocks(images))
 
-		let fileContentString = ""
-		if (completionFiles && completionFiles.length > 0) {
-			fileContentString = await processFilesIntoText(completionFiles)
+		if (text) {
+			toolResults.push(
+				{
+					type: "text",
+					text: "The user has provided feedback on the results. Consider their input to continue the task, and then attempt completion again.",
+				},
+				{
+					type: "text",
+					text: `<feedback>\n${text}\n</feedback>`,
+				},
+			)
+		}
+
+		// Add hook context modification if provided
+		if (hookContextModification) {
+			toolResults.push({
+				type: "text" as const,
+				text: `<hook_context source="UserPromptSubmit">\n${hookContextModification}\n</hook_context>`,
+			})
+		}
+
+		const fileContentString = completionFiles?.length ? await processFilesIntoText(completionFiles) : ""
+		if (fileContentString) {
+			toolResults.push({
+				type: "text" as const,
+				text: fileContentString,
+			})
+		}
+
+		if (images && images.length > 0) {
+			toolResults.push(...formatResponse.imageBlocks(images))
 		}
 
 		// Return the tool results as a complex response
 		return [
 			{
 				type: "text" as const,
-				text: `[attempt_completion] Result:`,
+				text: prefix,
 			},
 			...toolResults,
-			...(fileContentString
-				? [
-						{
-							type: "text" as const,
-							text: fileContentString,
-						},
-					]
-				: []),
 		]
+	}
+
+	/**
+	 * Runs the TaskComplete hook after user confirms task completion.
+	 * This is a non-cancellable, observation-only hook similar to TaskCancel.
+	 * Errors are logged but do not affect task completion.
+	 */
+	private async runTaskCompleteHook(config: TaskConfig, block: ToolUse): Promise<void> {
+		const hooksEnabled = config.services.stateManager.getGlobalSettingsKey("hooksEnabled")
+		if (!hooksEnabled) {
+			return
+		}
+
+		try {
+			const { executeHook } = await import("@core/hooks/hook-executor")
+
+			await executeHook({
+				hookName: "TaskComplete",
+				hookInput: {
+					taskComplete: {
+						taskMetadata: {
+							taskId: config.taskId,
+							ulid: config.ulid,
+							result: block.params.result || "",
+							command: block.params.command || "",
+						},
+					},
+				},
+				isCancellable: false, // Non-cancellable - task is already complete
+				say: config.callbacks.say,
+				setActiveHookExecution: undefined, // Explicitly undefined for non-cancellable hooks
+				clearActiveHookExecution: undefined, // Explicitly undefined for non-cancellable hooks
+				messageStateHandler: config.messageState,
+				taskId: config.taskId,
+				hooksEnabled,
+			})
+		} catch (error) {
+			// TaskComplete hook failed - non-fatal, just log
+			console.error("[TaskComplete Hook] Failed (non-fatal):", error)
+		}
 	}
 }

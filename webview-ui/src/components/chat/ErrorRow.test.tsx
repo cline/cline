@@ -8,7 +8,9 @@ vi.mock("@/context/ClineAuthContext", () => ({
 	useClineAuth: () => ({
 		clineUser: null,
 	}),
-	handleSignIn: vi.fn(),
+	useClineSignIn: () => ({
+		isLoginLoading: false,
+	}),
 	handleSignOut: vi.fn(),
 }))
 
@@ -52,13 +54,6 @@ describe("ErrorRow", () => {
 		render(<ErrorRow errorType="mistake_limit_reached" message={mistakeMessage} />)
 
 		expect(screen.getByText("Mistake limit reached")).toBeInTheDocument()
-	})
-
-	it("renders auto approval max requests error", () => {
-		const maxReqMessage = { ...mockMessage, text: "Max requests reached" }
-		render(<ErrorRow errorType="auto_approval_max_req_reached" message={maxReqMessage} />)
-
-		expect(screen.getByText("Max requests reached")).toBeInTheDocument()
 	})
 
 	it("renders diff error", () => {

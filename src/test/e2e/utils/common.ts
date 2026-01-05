@@ -34,33 +34,3 @@ export const toggleNotifications = async (_page: Page) => {
 	await _page.keyboard.press("Enter")
 	return _page
 }
-
-export const closeBanners = async (sidebar: Page) => {
-	const banners = ["Get Started for Free", "Close banner and enable"]
-
-	for (const banner of banners) {
-		await sidebar.getByRole("button", { name: banner }).click({ delay: 100 })
-	}
-}
-
-export async function cleanChatView(sidebar: Page): Promise<Page> {
-	const signUpBtn = sidebar.getByRole("button", { name: "Get Started for Free" })
-	if (await signUpBtn.isVisible()) {
-		await signUpBtn.click({ delay: 50 })
-	}
-	// Verify the help improve banner is visible and can be closed.
-	const helpBanner = sidebar.getByText("Help Improve Cline")
-	if (await helpBanner.isVisible()) {
-		await sidebar.getByRole("button", { name: "Close banner and enable" }).click()
-	}
-
-	// Verify the release banner is visible for new installs and can be closed.
-	const releaseBanner = sidebar.getByRole("heading", {
-		name: /^🎉 New in v\d/,
-	})
-	if (await releaseBanner.isVisible()) {
-		await sidebar.getByTestId("close-button").locator("span").first().click()
-	}
-
-	return sidebar
-}
