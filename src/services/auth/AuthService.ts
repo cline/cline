@@ -70,7 +70,7 @@ export class AuthService {
 	protected _activeAuthStatusUpdateHandlers = new Set<StreamingResponseHandler<AuthState>>()
 	protected _handlerToController = new Map<StreamingResponseHandler<AuthState>, Controller>()
 	protected _controller: Controller
-	protected _refreshPromise: Promise<void> | null = null
+	protected _refreshPromise: Promise<string | undefined> | null = null
 
 	/**
 	 * Creates an instance of AuthService.
@@ -152,15 +152,12 @@ export class AuthService {
 			}
 
 			// Check if token has expired
-
 			if (await provider.shouldRefreshIdToken(clineAccountAuthToken, this._clineAuthInfo.expiresAt)) {
 				// If a refresh is already in progress, wait for it to complete
 				if (this._refreshPromise) {
 					Logger.info("Token refresh already in progress, waiting for completion")
-					await this._refreshPromise
-					// After waiting, return the updated token
-					clineAccountAuthToken = this._clineAuthInfo?.idToken
-					return clineAccountAuthToken ? `workos:${clineAccountAuthToken}` : null
+					const updatedToken = await this._refreshPromise
+					return updatedToken ? `workos:${updatedToken}` : null
 				}
 
 				// Start a new refresh operation
@@ -170,10 +167,21 @@ export class AuthService {
 					try {
 						const updatedAuthInfo = await provider.retrieveClineAuthInfo(this._controller)
 						if (updatedAuthInfo) {
+							// retrieveClineAuthInfo may return stale data on network errors
+							// Verify the token is not expired after refresh
+							// This prevents 401 errors from using expired tokens
+							const tokenStillExpired = await provider.shouldRefreshIdToken(
+								updatedAuthInfo.idToken,
+								updatedAuthInfo.expiresAt,
+							)
+							if (tokenStillExpired) {
+								clineAccountAuthToken = undefined
+								return undefined
+							}
+
 							this._clineAuthInfo = updatedAuthInfo
 							this._authenticated = true
 							clineAccountAuthToken = updatedAuthInfo.idToken
-							authStatusChanged = true
 						}
 					} catch (error) {
 						// Only log out for permanent auth failures, not network issues
@@ -201,6 +209,8 @@ export class AuthService {
 							})
 						})
 					}
+
+					return clineAccountAuthToken
 				})()
 
 				await this._refreshPromise
