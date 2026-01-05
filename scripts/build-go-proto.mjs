@@ -5,6 +5,7 @@ import { execSync } from "child_process"
 import * as fs from "fs/promises"
 import { globby } from "globby"
 import { createRequire } from "module"
+import { platform } from "os"
 import * as path from "path"
 import { fileURLToPath } from "url"
 import { createServiceNameMap, parseProtoForServices } from "./proto-shared-utils.mjs"
@@ -51,12 +52,26 @@ function checkGoTool(toolName) {
 function installGoTools() {
 	console.log(chalk.yellow("Installing Go protobuf tools..."))
 
+	const OSPREFIX = (() => {
+		if (platform() === "win32") {
+			if (process.env.ComSpec) {
+				if (process.env.PSModulePath && !process.env.SHELL) {
+					return `$Env:GO111MODULE = "on";`
+				}
+				return `set GO111MODULE = "on" &`
+			}
+			return `export GO111MODULE = "on" &&`
+		} else {
+			return `GO111MODULE=on`
+		}
+	})()
+
 	const tools = ["google.golang.org/protobuf/cmd/protoc-gen-go@latest", "google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest"]
 
 	for (const tool of tools) {
 		try {
 			console.log(chalk.cyan(`Installing ${tool}...`))
-			execSync(`GO111MODULE=on go install ${tool}`, {
+			execSync(`${OSPREFIX} go install ${tool}`, {
 				stdio: "inherit",
 				env: { ...process.env, GO111MODULE: "on" },
 			})
@@ -573,7 +588,7 @@ ${methods}
 }
 
 // Main execution block - run if this script is executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (fileURLToPath(import.meta.url) === process.argv[1]) {
 	async function main() {
 		try {
 			console.log(chalk.cyan("Starting Go protobuf code generation..."))
