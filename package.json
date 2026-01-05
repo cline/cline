@@ -487,6 +487,7 @@
 		"@playwright/test": "^1.55.1",
 		"@sap-ai-sdk/ai-api": "^2.1.0",
 		"@sap-ai-sdk/orchestration": "^2.1.0",
+		"@sap-cloud-sdk/connectivity": "^4.2.0",
 		"@streamparser/json": "^0.0.22",
 		"@tailwindcss/vite": "^4.1.14",
 		"@types/uuid": "^10.0.0",
