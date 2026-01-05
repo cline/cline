@@ -121,8 +121,15 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.SettingsButton, () => {
-			sendSettingsButtonClickedEvent()
+		vscode.commands.registerCommand(commands.SettingsButton, async () => {
+			// Check if the webview provider supports opening settings in a separate window
+			const provider = WebviewProvider.getInstance()
+			if (provider.canOpenSettingsInSeparateWindow()) {
+				await provider.openSettingsInSeparateWindow()
+			} else {
+				// Fall back to in-pane navigation
+				sendSettingsButtonClickedEvent()
+			}
 		}),
 	)
 
