@@ -1,6 +1,6 @@
 import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
 import { RemoteConfig } from "@shared/remote-config/schema"
-import { RemoteConfigFields } from "@shared/storage/state-keys"
+import { GlobalStateAndSettings, RemoteConfigFields } from "@shared/storage/state-keys"
 import { getTelemetryService } from "@/services/telemetry"
 import { OpenTelemetryClientProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryClientProvider"
 import { OpenTelemetryTelemetryProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider"
@@ -249,11 +249,30 @@ export async function applyRemoteConfig(remoteConfig?: RemoteConfig): Promise<vo
 	await applyRemoteOTELConfig(transformed, telemetryService)
 }
 
-export const isProviderValid = (provider?: ApiProvider) => {
+const isProviderValid = (provider?: ApiProvider) => {
 	const remoteConfiguredProviders = StateManager.get().getRemoteConfigSettings().remoteConfiguredProviders
 	if (!remoteConfiguredProviders || !remoteConfiguredProviders.length) {
 		return true
 	}
 
 	return provider && remoteConfiguredProviders.includes(provider)
+}
+
+/**
+ * Receives a config and returns the subset of fields that can be overriden in the cache
+ */
+export function validConfig(config: Partial<GlobalStateAndSettings>): Partial<GlobalStateAndSettings> {
+	const updatedFields: Partial<GlobalStateAndSettings> = {}
+
+	const actModeApiProvider = config.actModeApiProvider
+	if (isProviderValid(actModeApiProvider)) {
+		updatedFields.actModeApiProvider = actModeApiProvider
+	}
+
+	const planModeApiProvider = config.planModeApiProvider
+	if (isProviderValid(planModeApiProvider)) {
+		updatedFields.planModeApiProvider = planModeApiProvider
+	}
+
+	return updatedFields
 }

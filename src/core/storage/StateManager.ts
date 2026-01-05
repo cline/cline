@@ -24,6 +24,7 @@ import {
 	writeTaskSettingsToStorage,
 } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
+import { validConfig } from "./remote-config/utils"
 import { readGlobalStateFromDisk, readSecretsFromDisk, readWorkspaceStateFromDisk } from "./utils/state-helpers"
 export interface PersistenceErrorEvent {
 	error: Error
@@ -178,6 +179,19 @@ export class StateManager {
 
 		// Schedule debounced persistence
 		this.scheduleDebouncedPersistence()
+	}
+
+	private setRemoteConfigState(updates: Partial<GlobalStateAndSettings>): void {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+
+		// Update cache in one go
+		const updatedFields = validConfig(updates)
+		this.remoteConfigCache = {
+			...this.remoteConfigCache,
+			...updatedFields,
+		}
 	}
 
 	/**
@@ -642,6 +656,8 @@ export class StateManager {
 			actModeNousResearchModelId,
 			geminiActModeThinkingLevel,
 		} = apiConfiguration
+
+		this.setRemoteConfigState(apiConfiguration)
 
 		// Batch update global state keys
 		this.setGlobalStateBatch({
