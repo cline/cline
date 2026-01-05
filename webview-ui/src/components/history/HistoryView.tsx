@@ -437,7 +437,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 									</div>
 									<div className="flex flex-col gap-1">
 										<div className="flex items-center justify-between">
-											<div className="flex items-cener gap-1 flex-wrap">
+											<div className="flex items-center gap-1 flex-wrap">
 												<span className="font-medium text-description">Tokens:</span>
 												<span className="flex items-center gap-1 text-description">
 													<i
@@ -504,7 +504,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						)}
 					/>
 				</div>
-				<div className="p-2.5 border-t-border-panel">
+				<div className="p-2.5 border-t border-t-border-panel">
 					<div className="flex gap-2.5 mb-2.5">
 						<Button className="flex-1" onClick={() => handleBatchHistorySelect(true)} variant="secondary">
 							Select All

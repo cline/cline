@@ -227,7 +227,7 @@ const ServerRow = ({
 			</div>
 
 			{server.error ? (
-				<div className="text-sm bg-text-block-background rounded-bl-sm">
+				<div className="text-sm bg-text-block-background rounded-b-sm">
 					<div className="text-failed-icon mb-2 px-2.5 break-words">{server.error}</div>
 					{server.oauthRequired && server.oauthAuthStatus === "unauthenticated" ? (
 						<Button
@@ -259,7 +259,7 @@ const ServerRow = ({
 				</div>
 			) : (
 				isExpanded && (
-					<div className="bg-text-block-background p-2.5 pt-0 text-sm rounded-bl-sm">
+					<div className="bg-text-block-background p-2.5 pt-0 text-sm rounded-b-sm">
 						<VSCodePanels>
 							<VSCodePanelTab id="tools">Tools ({server.tools?.length || 0})</VSCodePanelTab>
 							<VSCodePanelTab id="resources">
