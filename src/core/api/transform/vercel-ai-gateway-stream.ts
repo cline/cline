@@ -31,8 +31,9 @@ export async function createVercelAIGatewayStream(
 	}
 
 	const isAnthropicModel = model.id.startsWith("anthropic/")
+	const isMinimaxModel = model.id.startsWith("minimax/")
 
-	if (isAnthropicModel) {
+	if (isAnthropicModel || isMinimaxModel) {
 		openAiMessages[0] = {
 			role: "system",
 			content: systemPrompt,
