@@ -25,6 +25,7 @@ cd cli
 
 # Define target platforms for cross-compilation
 PLATFORMS=(
+  "windows/amd64"
   "darwin/arm64"
   "darwin/amd64"
   "linux/amd64"

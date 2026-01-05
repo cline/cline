@@ -5,6 +5,7 @@ import { execSync } from "child_process"
 import * as fs from "fs/promises"
 import { globby } from "globby"
 import { createRequire } from "module"
+import { platform } from "os"
 import * as path from "path"
 import { fileURLToPath } from "url"
 import { createServiceNameMap, parseProtoForServices } from "./proto-shared-utils.mjs"
@@ -26,7 +27,7 @@ function checkGoInstallation() {
 	try {
 		execSync("go version", { stdio: "pipe" })
 		return true
-	} catch (error) {
+	} catch (_) {
 		return false
 	}
 }
@@ -36,12 +37,12 @@ function checkGoTool(toolName) {
 	try {
 		execSync(`which ${toolName}`, { stdio: "pipe" })
 		return true
-	} catch (error) {
+	} catch (_) {
 		// On Windows, 'which' might not be available, try 'where'
 		try {
 			execSync(`where ${toolName}`, { stdio: "pipe" })
 			return true
-		} catch (windowsError) {
+		} catch (_) {
 			return false
 		}
 	}
@@ -51,12 +52,26 @@ function checkGoTool(toolName) {
 function installGoTools() {
 	console.log(chalk.yellow("Installing Go protobuf tools..."))
 
+	const OSPREFIX = (() => {
+		if (platform() === "win32") {
+			if (process.env.ComSpec) {
+				if (process.env.PSModulePath && !process.env.SHELL) {
+					return `$Env:GO111MODULE="on";`
+				}
+				return `set GO111MODULE=on &&`
+			}
+			return `GO111MODULE=on`
+		} else {
+			return `GO111MODULE=on`
+		}
+	})()
+
 	const tools = ["google.golang.org/protobuf/cmd/protoc-gen-go@latest", "google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest"]
 
 	for (const tool of tools) {
 		try {
 			console.log(chalk.cyan(`Installing ${tool}...`))
-			execSync(`GO111MODULE=on go install ${tool}`, {
+			execSync(`${OSPREFIX} go install ${tool}`, {
 				stdio: "inherit",
 				env: { ...process.env, GO111MODULE: "on" },
 			})
@@ -82,7 +97,9 @@ function checkToolsInPath() {
 
 	if (missingTools.length > 0) {
 		console.log(chalk.yellow("Warning: Some Go protobuf tools are not in your PATH:"))
-		missingTools.forEach((tool) => console.log(chalk.yellow(`  - ${tool}`)))
+		missingTools.forEach((tool) => {
+			console.log(chalk.yellow(`  - ${tool}`))
+		})
 		console.log()
 		console.log(chalk.cyan("To fix this, add your Go bin directory to your PATH:"))
 
@@ -91,7 +108,7 @@ function checkToolsInPath() {
 		try {
 			goPath = execSync("go env GOPATH", { encoding: "utf8" }).trim()
 			goBin = execSync("go env GOBIN", { encoding: "utf8" }).trim()
-		} catch (error) {
+		} catch (_) {
 			console.log(chalk.red("Could not determine Go paths. Please check your Go installation."))
 			process.exit(1)
 		}
@@ -573,7 +590,7 @@ ${methods}
 }
 
 // Main execution block - run if this script is executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (fileURLToPath(import.meta.url) === process.argv[1]) {
 	async function main() {
 		try {
 			console.log(chalk.cyan("Starting Go protobuf code generation..."))
