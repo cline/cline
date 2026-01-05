@@ -1174,10 +1174,10 @@ export class StateManager {
 				this.remoteConfigCache["azureApiVersion"] ||
 				this.taskStateCache["azureApiVersion"] ||
 				this.globalStateCache["azureApiVersion"],
-            azureIdentity:
-                this.remoteConfigCache["azureIdentity"] ||
-                this.taskStateCache["azureIdentity"] ||
-                this.globalStateCache["azureIdentity"],
+			azureIdentity:
+				this.remoteConfigCache["azureIdentity"] ||
+				this.taskStateCache["azureIdentity"] ||
+				this.globalStateCache["azureIdentity"],
 			openRouterProviderSorting:
 				this.taskStateCache["openRouterProviderSorting"] || this.globalStateCache["openRouterProviderSorting"],
 			liteLlmBaseUrl:

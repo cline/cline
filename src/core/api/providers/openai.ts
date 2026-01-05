@@ -32,8 +32,8 @@ export class OpenAiHandler implements ApiHandler {
 
 	private ensureClient(): OpenAI {
 		if (!this.client) {
-			if (!this.options.openAiApiKey) {
-				throw new Error("OpenAI API key is required")
+			if (!this.options.openAiApiKey && !this.options.azureIdentity) {
+				throw new Error("OpenAI API key or Azure Identity Authentication is required")
 			}
 			try {
 				// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
@@ -44,26 +44,26 @@ export class OpenAiHandler implements ApiHandler {
 						this.options.openAiBaseUrl?.toLowerCase().includes("azure.us")) &&
 						!this.options.openAiModelId?.toLowerCase().includes("deepseek"))
 				) {
-                    if (this.options.azureIdentity) {
-                        this.client = new AzureOpenAI({
-                            baseURL: this.options.openAiBaseUrl,
-                            azureADTokenProvider: getBearerTokenProvider(
-                                new DefaultAzureCredential(),
-                                "https://cognitiveservices.azure.com/.default",
-                            ),
-                            apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
-                            defaultHeaders: this.options.openAiHeaders,
-                            fetch, // Use configured fetch with proxy support
-                        })
-                    } else {
-                        this.client = new AzureOpenAI({
-                            baseURL: this.options.openAiBaseUrl,
-                            apiKey: this.options.openAiApiKey,
-                            apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
-                            defaultHeaders: this.options.openAiHeaders,
-                            fetch, // Use configured fetch with proxy support
-                        })
-                    }
+					if (this.options.azureIdentity) {
+						this.client = new AzureOpenAI({
+							baseURL: this.options.openAiBaseUrl,
+							azureADTokenProvider: getBearerTokenProvider(
+								new DefaultAzureCredential(),
+								"https://cognitiveservices.azure.com/.default",
+							),
+							apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
+							defaultHeaders: this.options.openAiHeaders,
+							fetch, // Use configured fetch with proxy support
+						})
+					} else {
+						this.client = new AzureOpenAI({
+							baseURL: this.options.openAiBaseUrl,
+							apiKey: this.options.openAiApiKey,
+							apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
+							defaultHeaders: this.options.openAiHeaders,
+							fetch, // Use configured fetch with proxy support
+						})
+					}
 				} else {
 					this.client = new OpenAI({
 						baseURL: this.options.openAiBaseUrl,
