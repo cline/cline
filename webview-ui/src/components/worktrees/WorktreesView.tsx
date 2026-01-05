@@ -476,10 +476,9 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 										</div>
 									</div>
 									{/* Path */}
-									<div className="flex items-center gap-1 text-sm text-[var(--vscode-descriptionForeground)]">
-										<FolderOpen className="w-3 h-3 flex-shrink-0" />
-										<span className="truncate">{worktree.path}</span>
-									</div>
+									<p className="text-sm text-[var(--vscode-descriptionForeground)] m-0 break-all">
+										{worktree.path}
+									</p>
 								</div>
 							))}
 						</div>
