@@ -2,7 +2,7 @@
  * Shared types and interfaces for the chat view components
  */
 
-import { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
+import { ClineAsk, ClineMessage, QueuedMessage } from "@shared/ExtensionMessage"
 import { ListRange, VirtuosoHandle } from "react-virtuoso"
 import { ButtonActionType } from "../shared/buttonConfig"
 
@@ -42,6 +42,10 @@ export interface ChatState {
 	expandedRows: Record<number, boolean>
 	setExpandedRows: React.Dispatch<React.SetStateAction<Record<number, boolean>>>
 
+	// Message queue state
+	messageQueue: QueuedMessage[]
+	setMessageQueue: React.Dispatch<React.SetStateAction<QueuedMessage[]>>
+
 	// Refs
 	textAreaRef: React.RefObject<HTMLTextAreaElement>
 
@@ -67,7 +71,7 @@ export interface ChatState {
  */
 export interface MessageHandlers {
 	executeButtonAction: (action: ButtonActionType, text?: string, images?: string[], files?: string[]) => Promise<void>
-	handleSendMessage: (text: string, images: string[], files: string[]) => Promise<void>
+	handleSendMessage: (text: string, images: string[], files: string[], fromQueue?: boolean) => Promise<void>
 	handleTaskCloseButtonClick: () => void
 	startNewTask: () => Promise<void>
 }

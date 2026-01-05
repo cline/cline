@@ -1,7 +1,14 @@
 export interface WebviewMessage {
-	type: "grpc_request" | "grpc_request_cancel"
+	type: "grpc_request" | "grpc_request_cancel" | "webview_debug_log"
 	grpc_request?: GrpcRequest
 	grpc_request_cancel?: GrpcCancel
+	webview_debug_log?: WebviewDebugLog
+}
+
+export type WebviewDebugLog = {
+	level: "log" | "warn" | "error" | "debug"
+	args: string[]
+	timestamp: number
 }
 
 export type GrpcRequest = {
