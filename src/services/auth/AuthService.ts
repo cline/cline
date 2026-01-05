@@ -171,7 +171,7 @@ export class AuthService {
 							// Verify the token is not expired after refresh
 							// This prevents 401 errors from using expired tokens
 							const nowInSeconds = Date.now() / 1000
-							if ((updatedAuthInfo.expiresAt || nowInSeconds) < nowInSeconds) {
+							if ((updatedAuthInfo.expiresAt ?? nowInSeconds) < nowInSeconds) {
 								clineAccountAuthToken = undefined
 								return undefined
 							}
