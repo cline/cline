@@ -165,7 +165,6 @@ export class OcaHandler implements ApiHandler {
 	}
 
 	async *createMessageChatApi(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		console.log("Using Chat API")
 		const client = this.ensureClient()
 		const formattedMessages = convertToOpenAiMessages(messages)
 		const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam = {
@@ -303,7 +302,6 @@ export class OcaHandler implements ApiHandler {
 	}
 
 	async *createMessageResponsesApi(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		console.log("Using Responses API")
 		const client = this.ensureClient()
 
 		// Convert messages to Responses API input format
@@ -321,7 +319,6 @@ export class OcaHandler implements ApiHandler {
 				description: tool.function.description,
 				parameters: tool.function.parameters,
 				strict: tool.function.strict ?? true, // Responses API defaults to strict mode
-				reasoning: { effort: "medium", summary: "auto" },
 			}))
 
 		const responsesParams: OpenAI.Responses.ResponseCreateParamsStreaming = {
@@ -338,7 +335,7 @@ export class OcaHandler implements ApiHandler {
 		// Create the response using Responses API
 		const stream = await client.responses.create(responsesParams)
 
-		yield* handleResponsesApiStreamResponse(stream, this.options.ocaModelInfo!, this.calculateCost)
+		yield* handleResponsesApiStreamResponse(stream, this.options.ocaModelInfo!, this.calculateCost.bind(this))
 	}
 
 	getModel() {
