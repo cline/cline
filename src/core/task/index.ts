@@ -1120,6 +1120,7 @@ export class Task {
 
 		this.taskState.isInitialized = true
 		this.taskState.abort = false // Reset abort flag when resuming task
+		this.taskState.abandoned = false // Reset abandoned flag when resuming task
 
 		const { response, text, images, files } = await this.ask(askType) // calls poststatetowebview
 
