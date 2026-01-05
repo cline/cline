@@ -175,13 +175,9 @@ export class AuthService {
 
 					try {
 						const updatedAuthInfo = await provider.retrieveClineAuthInfo(this._controller)
-						if (updatedAuthInfo) {
-							this.authState = updatedAuthInfo
-							clineAccountAuthToken = updatedAuthInfo.authInfo?.idToken
-							if (updatedAuthInfo.authInfo) {
-								authStatusChanged = true
-							}
-						}
+						this.authState = updatedAuthInfo
+						clineAccountAuthToken = updatedAuthInfo.authInfo?.idToken
+						authStatusChanged = true
 					} catch (error) {
 						// Only log out for permanent auth failures, not network issues
 						if (error instanceof AuthInvalidTokenError) {
