@@ -532,8 +532,12 @@ export class SapAiCoreHandler implements ApiHandler {
 
 			const sapMessages = this.convertMessageParamToSAPMessages(messages)
 
+			// messagesHistory: Contains the conversation context (user/assistant messages).
+			// Unlike the `messages` field that validates input, this does not validate
+			// template placeholders such as {{?userResponse}}, allowing content to be
+			// sent directly to the LLM with the Cline system prompt without validation errors.
 			const response = await orchestrationClient.stream({
-				messages: sapMessages,
+				messagesHistory: sapMessages,
 			})
 
 			for await (const chunk of response.stream.toContentStream()) {
