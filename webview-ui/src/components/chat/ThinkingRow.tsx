@@ -1,8 +1,8 @@
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import { memo, useEffect, useRef } from "react"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { Button } from "../ui/button"
 
 const BlinkingCursor = () => (
 	<span className="inline-block w-0.5 h-[1em] bg-current ml-0.5 mt-0.5 align-text-bottom animate-cursor-blink" />

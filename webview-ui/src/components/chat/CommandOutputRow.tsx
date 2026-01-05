@@ -3,11 +3,11 @@ import { ClineMessage } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
 import { memo, useEffect, useRef } from "react"
 import { ClineCompactIcon } from "@/assets/ClineCompactIcon"
+import { Button } from "@/components/ui/button"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
 import CodeBlock from "../common/CodeBlock"
-import { Button } from "../ui/button"
 import ExpandHandle from "./ExpandHandle"
 
 export const CommandOutputContent = memo(
