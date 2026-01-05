@@ -1,5 +1,4 @@
 import type { Preview } from "@storybook/react-vite"
-import "../src/index.css" // Import Tailwind CSS and other global styles
 import { StorybookWebview } from "../src/config/StorybookDecorator"
 
 const preview: Preview = {
