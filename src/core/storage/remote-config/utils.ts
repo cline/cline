@@ -261,7 +261,7 @@ const isProviderValid = (provider?: ApiProvider) => {
 /**
  * Receives a config and returns the subset of fields that can be overriden in the cache
  */
-export function validConfig(config: Partial<GlobalStateAndSettings>): Partial<GlobalStateAndSettings> {
+export function filterAllowedRemoteConfigFields(config: Partial<GlobalStateAndSettings>): Partial<GlobalStateAndSettings> {
 	const updatedFields: Partial<GlobalStateAndSettings> = {}
 
 	const actModeApiProvider = config.actModeApiProvider

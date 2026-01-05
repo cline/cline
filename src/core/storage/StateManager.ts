@@ -24,7 +24,7 @@ import {
 	writeTaskSettingsToStorage,
 } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
-import { validConfig } from "./remote-config/utils"
+import { filterAllowedRemoteConfigFields } from "./remote-config/utils"
 import { readGlobalStateFromDisk, readSecretsFromDisk, readWorkspaceStateFromDisk } from "./utils/state-helpers"
 export interface PersistenceErrorEvent {
 	error: Error
@@ -187,10 +187,9 @@ export class StateManager {
 		}
 
 		// Update cache in one go
-		const updatedFields = validConfig(updates)
 		this.remoteConfigCache = {
 			...this.remoteConfigCache,
-			...updatedFields,
+			...filterAllowedRemoteConfigFields(updates),
 		}
 	}
 
