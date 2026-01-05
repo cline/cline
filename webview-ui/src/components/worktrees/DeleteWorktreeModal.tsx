@@ -1,4 +1,4 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { AlertTriangle, Loader2, X } from "lucide-react"
 import { memo, useCallback, useState } from "react"
 import DangerButton from "@/components/common/DangerButton"
@@ -6,23 +6,25 @@ import DangerButton from "@/components/common/DangerButton"
 interface DeleteWorktreeModalProps {
 	open: boolean
 	onClose: () => void
-	onConfirm: () => Promise<void>
+	onConfirm: (deleteBranch: boolean) => Promise<void>
 	worktreePath: string
 	branchName: string
 }
 
 const DeleteWorktreeModal = ({ open, onClose, onConfirm, worktreePath, branchName }: DeleteWorktreeModalProps) => {
 	const [isDeleting, setIsDeleting] = useState(false)
+	const [deleteBranch, setDeleteBranch] = useState(false)
 
 	const handleDelete = useCallback(async () => {
 		setIsDeleting(true)
 		try {
-			await onConfirm()
+			await onConfirm(deleteBranch)
 			onClose()
 		} finally {
 			setIsDeleting(false)
+			setDeleteBranch(false)
 		}
-	}, [onConfirm, onClose])
+	}, [onConfirm, onClose, deleteBranch])
 
 	if (!open) {
 		return null
@@ -53,16 +55,26 @@ const DeleteWorktreeModal = ({ open, onClose, onConfirm, worktreePath, branchNam
 				</div>
 
 				{/* Content */}
-				<p className="text-sm text-[var(--vscode-descriptionForeground)] mt-0 mb-3">Are you sure? This will:</p>
-				<ul className="text-sm text-[var(--vscode-descriptionForeground)] mt-0 mb-3 pl-5 list-disc">
-					<li>
-						Delete the branch <span className="font-semibold text-[var(--vscode-foreground)]">{branchName}</span>
-					</li>
-					<li className="break-all">
-						Delete all project files at this location:{" "}
-						<span className="font-semibold text-[var(--vscode-foreground)]">{worktreePath}</span>
-					</li>
-				</ul>
+				<p className="text-sm text-[var(--vscode-descriptionForeground)] mt-0 mb-3">
+					This will delete the worktree directory at{" "}
+					<span className="font-semibold text-[var(--vscode-foreground)] break-all">{worktreePath}</span>
+				</p>
+
+				<label className="flex items-center gap-2 cursor-pointer mb-3">
+					<VSCodeCheckbox
+						checked={deleteBranch}
+						onChange={(e) => setDeleteBranch((e.target as HTMLInputElement).checked)}
+					/>
+					<span className="text-sm">
+						Also delete branch <span className="font-semibold">{branchName}</span>
+					</span>
+				</label>
+
+				{deleteBranch && (
+					<p className="text-sm text-[var(--vscode-inputValidation-warningForeground)] mt-0 mb-3">
+						Warning: Unpushed commits on this branch will be lost.
+					</p>
+				)}
 
 				{/* Buttons */}
 				<div className="flex justify-end gap-2">

@@ -77,6 +77,8 @@ message DeleteWorktreeRequest {
   Metadata metadata = 1;
   string path = 2; // Path of the worktree to delete
   bool force = 3; // Force deletion even if dirty
+  bool delete_branch = 4; // Also delete the branch
+  string branch_name = 5; // Name of the branch to delete (required if delete_branch is true)
 }
 
 // Request to switch to a worktree
