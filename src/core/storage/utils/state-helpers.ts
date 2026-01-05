@@ -204,6 +204,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const anthropicBaseUrl = context.globalState.get<GlobalStateAndSettings["anthropicBaseUrl"]>("anthropicBaseUrl")
 		const geminiBaseUrl = context.globalState.get<GlobalStateAndSettings["geminiBaseUrl"]>("geminiBaseUrl")
 		const azureApiVersion = context.globalState.get<GlobalStateAndSettings["azureApiVersion"]>("azureApiVersion")
+		const azureIdentity = context.globalState.get<GlobalStateAndSettings["azureIdentity"]>("azureIdentity")
 		const openRouterProviderSorting =
 			context.globalState.get<GlobalStateAndSettings["openRouterProviderSorting"]>("openRouterProviderSorting")
 		const lastShownAnnouncementId =
@@ -551,6 +552,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			moonshotApiLine,
 			zaiApiLine,
 			azureApiVersion,
+			azureIdentity,
 			openRouterProviderSorting,
 			liteLlmBaseUrl,
 			liteLlmUsePromptCache,
