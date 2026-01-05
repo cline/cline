@@ -30,14 +30,15 @@ export async function updateApiConfigurationProto(
 
 		const convertedApiConfigurationFromProto = {
 			...protoApiConfiguration,
-
 			// Convert proto ApiProvider enums to native string types
-			planModeApiProvider: protoApiConfiguration.planModeApiProvider
-				? convertProtoToApiProvider(protoApiConfiguration.planModeApiProvider)
-				: undefined,
-			actModeApiProvider: protoApiConfiguration.actModeApiProvider
-				? convertProtoToApiProvider(protoApiConfiguration.actModeApiProvider)
-				: undefined,
+			planModeApiProvider:
+				protoApiConfiguration.planModeApiProvider !== undefined
+					? convertProtoToApiProvider(protoApiConfiguration.planModeApiProvider!)
+					: undefined,
+			actModeApiProvider:
+				protoApiConfiguration.actModeApiProvider !== undefined
+					? convertProtoToApiProvider(protoApiConfiguration.actModeApiProvider!)
+					: undefined,
 
 			// Convert ModelInfo objects (empty arrays → undefined)
 			// Plan Mode
