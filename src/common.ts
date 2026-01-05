@@ -12,6 +12,7 @@ import { Logger } from "./services/logging/Logger"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
 import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
 import { StateManager } from "./core/storage/StateManager"
 import { ExtensionRegistryInfo } from "./registry"
@@ -20,20 +21,27 @@ import { audioRecordingService } from "./services/dictation/AudioRecordingServic
 import { ErrorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
 import { initializeDistinctId } from "./services/logging/distinctId"
-import { QuantrelAuthService } from "./services/quantrel"
+import { QuantrelAuthService, QuantrelStatusBar } from "./services/quantrel"
 import { telemetryService } from "./services/telemetry"
 import { PostHogClientProvider } from "./services/telemetry/providers/posthog/PostHogClientProvider"
-import { ShowMessageType } from "./shared/proto/host/window"
 import { getLatestAnnouncementId } from "./utils/announcements"
 
-// Global Quantrel auth service instance
+// Global Quantrel service instances
 let quantrelAuthService: QuantrelAuthService | undefined
+let quantrelStatusBar: QuantrelStatusBar | undefined
 
 /**
  * Get the global Quantrel auth service instance
  */
 export function getQuantrelAuthService(): QuantrelAuthService | undefined {
 	return quantrelAuthService
+}
+
+/**
+ * Get the global Quantrel status bar instance
+ */
+export function getQuantrelStatusBar(): QuantrelStatusBar | undefined {
+	return quantrelStatusBar
 }
 
 /**
@@ -58,6 +66,10 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 		const baseUrl = StateManager.get().getGlobalSettingsKey("quantrelBaseUrl") || "http://localhost:8080"
 		quantrelAuthService = new QuantrelAuthService(StateManager.get(), baseUrl)
 		const isAuthenticated = await quantrelAuthService.initialize()
+
+		// Initialize status bar
+		quantrelStatusBar = new QuantrelStatusBar(StateManager.get(), quantrelAuthService)
+
 		if (isAuthenticated) {
 			Logger.log("Quantrel: Authenticated successfully")
 		} else {
@@ -162,7 +174,11 @@ export async function tearDown(): Promise<void> {
 	// Clean up audio recording service to ensure no orphaned processes
 	audioRecordingService.cleanup()
 
-	// Clean up Quantrel auth service
+	// Clean up Quantrel services
+	if (quantrelStatusBar) {
+		quantrelStatusBar.dispose()
+		quantrelStatusBar = undefined
+	}
 	if (quantrelAuthService) {
 		quantrelAuthService.dispose()
 		quantrelAuthService = undefined

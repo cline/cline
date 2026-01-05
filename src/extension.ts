@@ -19,6 +19,7 @@ import path from "node:path"
 import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import { readTextFromClipboard, writeTextToClipboard } from "@/utils/env"
 import { initialize, tearDown } from "./common"
 import { addToCline } from "./core/controller/commands/addToCline"
@@ -45,7 +46,6 @@ import { AuthService } from "./services/auth/AuthService"
 import { LogoutReason } from "./services/auth/types"
 import { telemetryService } from "./services/telemetry"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
-import { ShowMessageType } from "./shared/proto/host/window"
 import { fileExistsAtPath } from "./utils/fs"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -406,7 +406,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	// Register Quantrel commands
-	const { getQuantrelAuthService } = await import("./common")
+	const { getQuantrelAuthService, getQuantrelStatusBar } = await import("./common")
 	const { QuantrelModelService } = await import("./services/quantrel")
 
 	context.subscriptions.push(
@@ -450,6 +450,8 @@ export async function activate(context: vscode.ExtensionContext) {
 					if (result.success) {
 						const userInfo = await authService.getUserInfo()
 						vscode.window.showInformationMessage(`Logged in to Quantrel as ${userInfo?.email || email}`)
+						// Update status bar
+						getQuantrelStatusBar()?.update()
 					} else {
 						vscode.window.showErrorMessage(`Login failed: ${result.error}`)
 					}
@@ -472,6 +474,8 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (confirm === "Logout") {
 				await authService.logout()
 				vscode.window.showInformationMessage("Logged out from Quantrel")
+				// Update status bar
+				getQuantrelStatusBar()?.update()
 			}
 		}),
 
@@ -512,8 +516,14 @@ export async function activate(context: vscode.ExtensionContext) {
 				})
 
 				if (selected) {
+					// Store selected model
+					webview.controller.stateManager.setGlobalState("quantrelSelectedModelId", selected.agent.id)
+					webview.controller.stateManager.setGlobalState("quantrelSelectedModelName", selected.agent.name)
+
 					vscode.window.showInformationMessage(`Selected model: ${selected.agent.name}`)
-					// TODO: Store selected model for use in provider
+
+					// Update status bar
+					getQuantrelStatusBar()?.update()
 				}
 			} catch (error) {
 				vscode.window.showErrorMessage(

@@ -9,6 +9,8 @@ export { QuantrelAuthService } from "./QuantrelAuthService"
 
 export { QuantrelModelService } from "./QuantrelModelService"
 
+export { QuantrelStatusBar } from "./QuantrelStatusBar"
+
 export type {
 	QuantrelAgent,
 	QuantrelChat,

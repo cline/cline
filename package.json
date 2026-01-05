@@ -1,22 +1,22 @@
 {
 	"name": "claude-dev",
-	"displayName": "Cline",
-	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.46.1",
+	"displayName": "Cline + Quantrel",
+	"description": "Autonomous coding agent powered by Quantrel AI marketplace. Access 500+ AI models with a single login. Fork of Cline with Quantrel integration.",
+	"version": "3.46.1-quantrel.1",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
 	},
 	"author": {
-		"name": "Cline Bot Inc."
+		"name": "Quantrel (Fork of Cline by Cline Bot Inc.)"
 	},
 	"license": "Apache-2.0",
-	"publisher": "saoudrizwan",
+	"publisher": "ashgagan",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/cline/cline"
+		"url": "https://github.com/ashgagan/quantrelcode"
 	},
-	"homepage": "https://cline.bot",
+	"homepage": "https://github.com/ashgagan/quantrelcode",
 	"categories": [
 		"AI",
 		"Chat",
