@@ -1,3 +1,4 @@
+import { Settings } from "@/core/storage/settings"
 import {
 	CommentReviewControllerCreator,
 	DiffViewProviderCreator,
@@ -16,6 +17,7 @@ import { ITerminalManager } from "@/integrations/terminal/types"
  * @param options Optional overrides for the default test configuration
  */
 export function setVscodeHostProviderMock(options?: {
+	settings?: Settings
 	webviewProviderCreator?: WebviewProviderCreator
 	diffViewProviderCreator?: DiffViewProviderCreator
 	commentReviewControllerCreator?: CommentReviewControllerCreator
@@ -29,6 +31,7 @@ export function setVscodeHostProviderMock(options?: {
 }) {
 	HostProvider.reset()
 	HostProvider.initialize(
+		options?.settings ?? ({} as Settings),
 		options?.webviewProviderCreator ?? ((() => {}) as WebviewProviderCreator),
 		options?.diffViewProviderCreator ?? ((() => {}) as DiffViewProviderCreator),
 		options?.commentReviewControllerCreator ?? ((() => {}) as CommentReviewControllerCreator),
