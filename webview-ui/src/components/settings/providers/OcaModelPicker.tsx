@@ -191,7 +191,7 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 					Last refreshed at {lastRefreshedText}
 				</div>
 			) : null}
-			{!loading && selectedModelInfo && selectedModelInfo.supportsReasoning && reasoningEffortOptions.length >= 0 && (
+			{!loading && selectedModelInfo && selectedModelInfo.supportsReasoning && reasoningEffortOptions.length > 0 && (
 				<React.Fragment>
 					<label className="font-medium text-[12px] mt-[10px] mb-[2px]">Reasoning Effort</label>
 					<div className="flex items-center gap-2 mb-1">
