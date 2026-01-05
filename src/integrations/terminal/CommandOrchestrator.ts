@@ -441,6 +441,8 @@ export async function orchestrateCommandExecution(
 
 						// Now resume the process - any new lines will be handled by the background tracker
 						process.continue()
+						// Clean up file-based logging if active before returning
+						cleanupFileBased()
 						return backgroundTrackingResult
 					}
 
@@ -472,6 +474,8 @@ export async function orchestrateCommandExecution(
 	// Check if we returned early due to background tracking
 	// This happens when user clicks "Proceed While Running" with background tracking enabled
 	if (backgroundTrackingResult) {
+		// Clean up file-based logging if active before returning
+		cleanupFileBased()
 		return backgroundTrackingResult
 	}
 
