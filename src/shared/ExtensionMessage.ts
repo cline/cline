@@ -316,3 +316,18 @@ export interface ClineApiReqInfo {
 export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled" | "retries_exhausted"
 
 export const COMPLETION_RESULT_CHANGES_FLAG = "HAS_CHANGES"
+
+/**
+ * QueuedMessage
+ * Represents a message that is queued to be sent when sending is enabled
+ */
+export interface QueuedMessage {
+	/** Unique identifier for the queued message */
+	id: string
+	/** The text content of the message */
+	text: string
+	/** Array of image data URLs attached to the message */
+	images: string[]
+	/** Array of file paths attached to the message */
+	files: string[]
+}

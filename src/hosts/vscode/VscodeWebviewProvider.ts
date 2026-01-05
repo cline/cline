@@ -6,6 +6,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import type { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { WebviewMessage } from "@/shared/WebviewMessage"
+import { debugLog } from "@/utils/debugLogger"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -170,6 +171,16 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 			case "grpc_request_cancel": {
 				if (message.grpc_request_cancel) {
 					await handleGrpcRequestCancel(postMessageToWebview, message.grpc_request_cancel)
+				}
+				break
+			}
+			case "webview_debug_log": {
+				if (message.webview_debug_log) {
+					const { level, args } = message.webview_debug_log
+					// Map webview log levels to debug logger levels ("log" -> "info")
+					const mappedLevel = level === "log" ? "info" : level
+					// Use unified debug logger - writes to ~/cline-debug.log
+					debugLog("webview", mappedLevel, ...args)
 				}
 				break
 			}

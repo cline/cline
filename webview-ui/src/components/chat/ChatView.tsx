@@ -6,7 +6,7 @@ import { combineHookSequences } from "@shared/combineHookSequences"
 import type { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics } from "@shared/getApiMetrics"
 import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
-import { useCallback, useEffect, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useMount } from "react-use"
 import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -31,6 +31,7 @@ import {
 	useScrollBehavior,
 	WelcomeSection,
 } from "./chat-view"
+import QueuedMessages from "./QueuedMessages"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -103,7 +104,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		expandedRows,
 		setExpandedRows,
 		textAreaRef,
+		messageQueue,
+		setMessageQueue,
+		clineAsk,
 	} = chatState
+
+	// Processing lock to prevent race conditions in queue processing
+	const isProcessingQueueRef = useRef(false)
 
 	useEffect(() => {
 		const handleCopy = async (e: ClipboardEvent) => {
@@ -312,6 +319,46 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		}
 	}, [isHidden, sendingDisabled, enableButtons])
 
+	// Queue processing effect - processes queued messages when sending becomes enabled
+	useEffect(() => {
+		// Early return if conditions aren't met
+		// Don't process queue if there's an API error (clineAsk === "api_req_failed")
+		// Don't process if already processing (prevents race condition)
+		if (sendingDisabled || messageQueue.length === 0 || clineAsk === "api_req_failed" || isProcessingQueueRef.current) {
+			return
+		}
+
+		// Set processing lock immediately to prevent race conditions
+		isProcessingQueueRef.current = true
+
+		// Process the first message in the queue
+		const [nextMessage, ...remaining] = messageQueue
+
+		// Update queue immediately to prevent duplicate processing
+		setMessageQueue(remaining)
+
+		// Process the message asynchronously
+		const processMessage = async () => {
+			try {
+				await messageHandlers.handleSendMessage(nextMessage.text, nextMessage.images, nextMessage.files, true)
+			} catch (error) {
+				console.error("[ChatView] Failed to send queued message:", {
+					messageId: nextMessage.id,
+					error,
+				})
+				// On error, re-add the message to the end of the queue for retry
+				setMessageQueue((current) => {
+					return [...current, nextMessage]
+				})
+			} finally {
+				// Release the processing lock
+				isProcessingQueueRef.current = false
+			}
+		}
+
+		processMessage()
+	}, [sendingDisabled, messageQueue, clineAsk, setMessageQueue, messageHandlers])
+
 	const visibleMessages = useMemo(() => {
 		return filterVisibleMessages(modifiedMessages)
 	}, [modifiedMessages])
@@ -379,6 +426,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			</div>
 			<footer className="bg-(--vscode-sidebar-background)" style={{ gridRow: "2" }}>
 				<AutoApproveBar />
+				<QueuedMessages
+					onClearAll={() => chatState.setMessageQueue([])}
+					onRemove={(index) => chatState.setMessageQueue((prev) => prev.filter((_, i) => i !== index))}
+					onUpdate={(index, newText) => {
+						chatState.setMessageQueue((prev) => prev.map((msg, i) => (i === index ? { ...msg, text: newText } : msg)))
+					}}
+					queue={chatState.messageQueue}
+				/>
 				<ActionButtons
 					chatState={chatState}
 					messageHandlers={messageHandlers}

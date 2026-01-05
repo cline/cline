@@ -582,7 +582,7 @@ export class Task {
 		askTs?: number
 	}> {
 		// Allow resume asks even when aborted to enable resume button after cancellation
-		if (this.taskState.abort && type !== "resume_task" && type !== "resume_completed_task") {
+		if ((this.taskState.abort || this.taskState.abandoned) && type !== "resume_task" && type !== "resume_completed_task") {
 			throw new Error("Cline instance aborted")
 		}
 		let askTs: number
@@ -717,7 +717,7 @@ export class Task {
 		partial?: boolean,
 	): Promise<number | undefined> {
 		// Allow hook messages even when aborted to enable proper cleanup
-		if (this.taskState.abort && type !== "hook_status" && type !== "hook_output_stream") {
+		if ((this.taskState.abort || this.taskState.abandoned) && type !== "hook_status" && type !== "hook_output_stream") {
 			throw new Error("Cline instance aborted")
 		}
 
@@ -867,9 +867,6 @@ export class Task {
 
 		// Update UI
 		await this.postStateToWebview()
-
-		// Log for debugging/telemetry
-		console.log(`[Task ${this.taskId}] ${hookName} hook cancelled (userInitiated: ${wasCancelled})`)
 	}
 
 	/**
@@ -1062,10 +1059,15 @@ export class Task {
 
 	public async resumeTaskFromHistory() {
 		try {
-			await this.clineIgnoreController.initialize()
-		} catch (error) {
-			console.error("Failed to initialize ClineIgnoreController:", error)
-			// Optionally, inform the user or handle the error appropriately
+			try {
+				await this.clineIgnoreController.initialize()
+			} catch (error) {
+				console.error("Failed to initialize ClineIgnoreController:", error)
+				// Optionally, inform the user or handle the error appropriately
+			}
+		} catch (outerError) {
+			console.error(`[Task.resumeTaskFromHistory] CRITICAL ERROR at start:`, outerError)
+			throw outerError
 		}
 
 		const savedClineMessages = await getSavedClineMessages(this.taskId)
@@ -1490,9 +1492,8 @@ export class Task {
 					// Present the resume ask - this will show the resume button in the UI
 					// We don't await this because we want to set the abort flag immediately
 					// The ask will be waiting when the user decides to resume
-					this.ask(askType).catch((error) => {
-						// If ask fails (e.g., task was cleared), that's okay - just log it
-						console.log("[TaskCancel] Resume ask failed (task may have been cleared):", error)
+					this.ask(askType).catch(() => {
+						// If ask fails (e.g., task was cleared), that's okay - ignore it
 					})
 				} catch (error) {
 					// TaskCancel hook failed - non-fatal, just log
@@ -2466,7 +2467,6 @@ export class Task {
 					// lastMessage.ts = Date.now() DO NOT update ts since it is used as a key for virtuoso list
 					lastMessage.partial = false
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
-					console.log("updating partial message", lastMessage)
 					// await this.saveClineMessagesAndUpdateHistory()
 				}
 				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
