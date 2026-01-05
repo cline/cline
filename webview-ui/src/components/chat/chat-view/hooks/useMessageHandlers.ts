@@ -65,11 +65,14 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					// The newTask() call triggers a state update from the backend that can
 					// cause a React re-render before newTask() returns, which would leave
 					// the input with stale data if we clear it after the await.
-					setInputValue("")
-					setActiveQuote(null)
+					// BUT: Don't clear if processing from queue - user may have typed new text!
+					if (!fromQueue) {
+						setInputValue("")
+						setActiveQuote(null)
+						setSelectedImages([])
+						setSelectedFiles([])
+					}
 					setSendingDisabled(true)
-					setSelectedImages([])
-					setSelectedFiles([])
 					setEnableButtons(false)
 
 					// Reset auto-scroll
@@ -84,7 +87,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							files,
 						}),
 					)
-					// Input already cleared above, no need to set messageSent
+					// Input already cleared above (if not from queue), no need to set messageSent
 					return
 				} else if (clineAsk) {
 					// For resume_task and resume_completed_task, use yesButtonClicked to match Resume button behavior
@@ -150,11 +153,14 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 
 				// Only clear input and disable UI if message was actually sent
 				if (messageSent) {
-					setInputValue("")
-					setActiveQuote(null)
+					// Don't clear input if processing from queue - user may have typed new text!
+					if (!fromQueue) {
+						setInputValue("")
+						setActiveQuote(null)
+						setSelectedImages([])
+						setSelectedFiles([])
+					}
 					setSendingDisabled(true)
-					setSelectedImages([])
-					setSelectedFiles([])
 					setEnableButtons(false)
 
 					// Reset auto-scroll
