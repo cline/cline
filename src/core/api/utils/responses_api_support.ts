@@ -1,10 +1,11 @@
 import OpenAI from "openai"
-import { Stream } from "openai/core/streaming.mjs"
 import { Logger } from "@/services/logging/Logger"
 import { ModelInfo } from "@/shared/api"
 
+// Type that represents the OpenAI ResponseStream with its private properties
+// The #private property issue can be resolved by using the AsyncIterable interface
 export async function* handleResponsesApiStreamResponse(
-	stream: Stream<OpenAI.Responses.ResponseStreamEvent>,
+	stream: AsyncIterable<OpenAI.Responses.ResponseStreamEvent> & { _request_id?: string | null },
 	modelInfo: ModelInfo,
 	calculateCost: (
 		modelInfo: ModelInfo,
