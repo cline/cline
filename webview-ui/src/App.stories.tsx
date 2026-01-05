@@ -511,7 +511,8 @@ const createErrorMessages = () => [
 		"text",
 		"I can see there are TypeScript errors in your code. Let me examine the files and fix these issues.",
 	),
-	createMessage(3.3, "say", "tool", JSON.stringify({ tool: "readFile", path: "src/components/UserProfile.tsx" })),
+	createMessage(3.3, "say", "tool", JSON.stringify({ tool: "readFile", path: "src/components/UserProfile_1.tsx" })),
+	createMessage(3.3, "say", "tool", JSON.stringify({ tool: "readFile", path: "src/components/UserProfile_2.tsx" })),
 	createMessage(
 		3,
 		"say",
@@ -785,7 +786,10 @@ export const CondenseConversation = quickStory(
 export const ReportBug = quickStory(
 	"Report Bug",
 	"report_bug",
-	"Would you like to report this issue to help improve Cline?",
+	JSON.stringify({
+		steps_to_reproduce: "1. Open Cline\n2. Start a new task\n3. Observe the error",
+		what_happened: "Cline crashes unexpectedly",
+	}),
 	"Shows utility action to report bugs to the GitHub repository.",
 )
 export const ResumeCompletedTask = quickStory(

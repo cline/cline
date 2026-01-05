@@ -59,7 +59,7 @@
 	--color-notification-foreground: var(--vscode-notificationsInfoIcon-foreground);
 	--color-toolbar-default: var(--vscode-toolbar-background);
 	--color-toolbar-hover: var(--vscode-toolbar-hoverBackground);
-	--color-diff-addedd: var(--vscode-diffEditor-insertedTextBackground);
+	--color-diff-added: var(--vscode-diffEditor-insertedTextBackground);
 	--color-diff-removed: var(--vscode-diffEditor-removedTextBackground);
 	--color-error: var(--vscode-errorForeground);
 	--color-error-icon: var(--vscode-problemsErrorIcon-foreground);
@@ -301,7 +301,7 @@
 		}
 
 		pre > code .hljs-addition {
-			@apply inline-block w-full bg-diff-addedd;
+			@apply inline-block w-full bg-diff-added;
 		}
 
 		code span.line:empty {

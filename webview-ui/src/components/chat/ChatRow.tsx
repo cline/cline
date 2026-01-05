@@ -218,7 +218,9 @@ export const ChatRowContent = memo(
 				? lastModifiedMessage?.text
 				: undefined
 
-		const isCommandMessage = message.ask === "command" || message.say === "command"
+		const type = message.type === "ask" ? message.ask : message.say
+
+		const isCommandMessage = type === "command"
 		// Check if command has output to determine if it's actually executing
 		const commandHasOutput = message.text?.includes(COMMAND_OUTPUT_STRING) ?? false
 		// A command is executing if it has output but hasn't completed yet
@@ -228,8 +230,6 @@ export const ChatRowContent = memo(
 		const isCommandCompleted = isCommandMessage && message.commandCompleted === true
 
 		const isMcpServerResponding = isLast && lastModifiedMessage?.say === "mcp_server_request_started"
-
-		const type = message.type === "ask" ? message.ask : message.say
 
 		const handleToggle = useCallback(() => {
 			onToggleExpand(message.ts)
@@ -414,7 +414,7 @@ export const ChatRowContent = memo(
 						? "Cline is creating patches to edit this file:"
 						: "Cline wants to edit this file:"
 					return (
-						<>
+						<div>
 							<div className={HEADER_CLASSNAMES}>
 								<PencilIcon className="size-2" />
 								{tool.operationIsLocatedInWorkspace === false &&
@@ -432,11 +432,11 @@ export const ChatRowContent = memo(
 									path={tool.path!}
 								/>
 							)}
-						</>
+						</div>
 					)
 				case "fileDeleted":
 					return (
-						<>
+						<div>
 							<div className={HEADER_CLASSNAMES}>
 								<SquareMinusIcon className="size-2" />
 								{tool.operationIsLocatedInWorkspace === false &&
@@ -450,11 +450,11 @@ export const ChatRowContent = memo(
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
-						</>
+						</div>
 					)
 				case "newFileCreated":
 					return (
-						<>
+						<div>
 							<div className={HEADER_CLASSNAMES}>
 								<FilePlus2Icon className="size-2" />
 								{tool.operationIsLocatedInWorkspace === false &&
@@ -472,12 +472,12 @@ export const ChatRowContent = memo(
 									path={tool.path!}
 								/>
 							)}
-						</>
+						</div>
 					)
 				case "readFile":
 					const isImage = isImageFile(tool.path || "")
 					return (
-						<>
+						<div>
 							<div className={HEADER_CLASSNAMES}>
 								{isImage ? <ImageUpIcon className="size-2" /> : <FileCode2Icon className="size-2" />}
 								{tool.operationIsLocatedInWorkspace === false &&
@@ -505,11 +505,11 @@ export const ChatRowContent = memo(
 									{!isImage && <SquareArrowOutUpRightIcon className="size-2" />}
 								</div>
 							</div>
-						</>
+						</div>
 					)
 				case "listFilesTopLevel":
 					return (
-						<>
+						<div>
 							<div className={HEADER_CLASSNAMES}>
 								{toolIcon("folder-opened")}
 								{tool.operationIsLocatedInWorkspace === false &&
@@ -527,11 +527,11 @@ export const ChatRowContent = memo(
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
-						</>
+						</div>
 					)
 				case "listFilesRecursive":
 					return (
-						<>
+						<div>
 							<div className={HEADER_CLASSNAMES}>
 								{toolIcon("folder-opened")}
 								{tool.operationIsLocatedInWorkspace === false &&
@@ -549,11 +549,11 @@ export const ChatRowContent = memo(
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
-						</>
+						</div>
 					)
 				case "listCodeDefinitionNames":
 					return (
-						<>
+						<div>
 							<div className={HEADER_CLASSNAMES}>
 								{toolIcon("file-code")}
 								{tool.operationIsLocatedInWorkspace === false &&
@@ -570,11 +570,11 @@ export const ChatRowContent = memo(
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
-						</>
+						</div>
 					)
 				case "searchFiles":
 					return (
-						<>
+						<div>
 							<div className={HEADER_CLASSNAMES}>
 								{toolIcon("search")}
 								{tool.operationIsLocatedInWorkspace === false &&
@@ -590,11 +590,11 @@ export const ChatRowContent = memo(
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
-						</>
+						</div>
 					)
 				case "summarizeTask":
 					return (
-						<>
+						<div>
 							<div className={HEADER_CLASSNAMES}>
 								<FoldVerticalIcon className="size-2" />
 								<span className="font-bold">Cline is condensing the conversation:</span>
@@ -639,11 +639,11 @@ export const ChatRowContent = memo(
 									)}
 								</div>
 							</div>
-						</>
+						</div>
 					)
 				case "webFetch":
 					return (
-						<>
+						<div>
 							<div className={HEADER_CLASSNAMES}>
 								<Link2Icon className="size-2" />
 								{tool.operationIsLocatedInWorkspace === false &&
@@ -655,7 +655,7 @@ export const ChatRowContent = memo(
 								</span>
 							</div>
 							<div
-								className="bg-code"
+								className="bg-code rounded-xs overflow-hidden border border-editor-group-border py-2 px-2.5 cursor-pointer select-none"
 								onClick={() => {
 									// Open the URL in the default browser using gRPC
 									if (tool.path) {
@@ -663,40 +663,16 @@ export const ChatRowContent = memo(
 											console.error("Failed to open URL:", err)
 										})
 									}
-								}}
-								style={{
-									borderRadius: 3,
-									overflow: "hidden",
-									border: "1px solid var(--vscode-editorGroup-border)",
-									padding: "9px 10px",
-									cursor: "pointer",
-									userSelect: "none",
-									WebkitUserSelect: "none",
-									MozUserSelect: "none",
-									msUserSelect: "none",
 								}}>
-								<span
-									className="ph-no-capture"
-									style={{
-										whiteSpace: "nowrap",
-										overflow: "hidden",
-										textOverflow: "ellipsis",
-										marginRight: "8px",
-										direction: "rtl",
-										textAlign: "left",
-										color: "var(--vscode-textLink-foreground)",
-										textDecoration: "underline",
-									}}>
+								<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis mr-2 [direction:rtl] text-left text-link underline">
 									{tool.path + "\u200E"}
 								</span>
 							</div>
-							{/* Displaying the 'content' which now holds "Fetching URL: [URL]" */}
-							{/* <div style={{ paddingTop: 5, fontSize: '0.9em', opacity: 0.8 }}>{tool.content}</div> */}
-						</>
+						</div>
 					)
 				case "webSearch":
 					return (
-						<>
+						<div>
 							<div className={HEADER_CLASSNAMES}>
 								<SearchIcon className="size-2 rotate-90" />
 								{tool.operationIsLocatedInWorkspace === false &&
@@ -712,7 +688,7 @@ export const ChatRowContent = memo(
 									{tool.path + "\u200E"}
 								</span>
 							</div>
-						</>
+						</div>
 					)
 				default:
 					return null
@@ -764,7 +740,7 @@ export const ChatRowContent = memo(
 			const useMcpServer = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
 			const server = mcpServers.find((server) => server.name === useMcpServer.serverName)
 			return (
-				<>
+				<div>
 					<div className={HEADER_CLASSNAMES}>
 						{icon}
 						{title}
@@ -789,7 +765,7 @@ export const ChatRowContent = memo(
 						)}
 
 						{useMcpServer.type === "use_mcp_tool" && (
-							<>
+							<div>
 								<div onClick={(e) => e.stopPropagation()}>
 									<McpToolRow
 										serverName={useMcpServer.serverName}
@@ -815,10 +791,10 @@ export const ChatRowContent = memo(
 										/>
 									</div>
 								)}
-							</>
+							</div>
 						)}
 					</div>
-				</>
+				</div>
 			)
 		}
 
@@ -950,7 +926,7 @@ export const ChatRowContent = memo(
 						}, [clineMessages])
 
 						return (
-							<>
+							<div>
 								{apiReqState === "pre" && (
 									<div className="flex items-start gap-2 text-description">
 										<div className="mt-1 flex-shrink-0">
@@ -998,7 +974,7 @@ export const ChatRowContent = memo(
 										message={message}
 									/>
 								)}
-							</>
+							</div>
 						)
 					}
 					case "api_req_finished":
@@ -1069,11 +1045,7 @@ export const ChatRowContent = memo(
 					case "user_feedback_diff":
 						const tool = JSON.parse(message.text || "{}") as ClineSayTool
 						return (
-							<div
-								style={{
-									marginTop: -10,
-									width: "100%",
-								}}>
+							<div className="w-full -mt-2.5">
 								<CodeAccordian
 									diff={tool.diff!}
 									isExpanded={isExpanded}
@@ -1187,9 +1159,9 @@ export const ChatRowContent = memo(
 						)
 					case "shell_integration_warning":
 						return (
-							<div className="flex flex-col bg-quote p-2 rounded-xs border">
+							<div className="flex flex-col bg-warning/20 p-2 rounded-xs border border-error">
 								<div className="flex items-center mb-1">
-									<TriangleAlertIcon className="mr-2 size-2 text-description" />
+									<TriangleAlertIcon className="mr-2 size-2 stroke-3 text-error" />
 									<span className="font-medium text-foreground">Shell Integration Unavailable</span>
 								</div>
 								<div className="text-foreground opacity-80">
@@ -1290,17 +1262,17 @@ export const ChatRowContent = memo(
 						return null // task_progress messages should be displayed in TaskHeader only, not in chat
 					default:
 						return (
-							<>
+							<div>
 								{title && (
 									<div className={HEADER_CLASSNAMES}>
 										{icon}
 										{title}
 									</div>
 								)}
-								<div style={{ paddingTop: 10 }}>
+								<div className="pt-2.5">
 									<MarkdownRow markdown={message.text} />
 								</div>
-							</>
+							</div>
 						)
 				}
 			case "ask":
@@ -1382,33 +1354,33 @@ export const ChatRowContent = memo(
 						)
 					case "new_task":
 						return (
-							<>
+							<div>
 								<div className={HEADER_CLASSNAMES}>
 									<FilePlus2Icon className="size-2" />
 									<span className="text-foreground font-bold">Cline wants to start a new task:</span>
 								</div>
 								<NewTaskPreview context={message.text || ""} />
-							</>
+							</div>
 						)
 					case "condense":
 						return (
-							<>
+							<div>
 								<div className={HEADER_CLASSNAMES}>
 									<FilePlus2Icon className="size-2" />
 									<span className="text-foreground font-bold">Cline wants to condense your conversation:</span>
 								</div>
 								<NewTaskPreview context={message.text || ""} />
-							</>
+							</div>
 						)
 					case "report_bug":
 						return (
-							<>
+							<div>
 								<div className={HEADER_CLASSNAMES}>
 									<FilePlus2Icon className="size-2" />
 									<span className="text-foreground font-bold">Cline wants to create a Github issue:</span>
 								</div>
 								<ReportBugPreview data={message.text || ""} />
-							</>
+							</div>
 						)
 					case "plan_mode_respond": {
 						let response: string | undefined

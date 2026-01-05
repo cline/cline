@@ -98,7 +98,7 @@ const FileBlock = memo<{ file: Patch; isStreaming: boolean }>(
 		const ActionIcon = actionStyle.icon
 
 		return (
-			<div className="p-1 bg-code rounded-xs border border-editor-group-border">
+			<div className="bg-code rounded-xs border border-editor-group-border">
 				<button
 					className="w-full flex items-center gap-2 p-2 bg-code transition-colors rounded-t-xs justify-between cursor-pointer"
 					onClick={() => setIsExpanded((prev) => !prev)}

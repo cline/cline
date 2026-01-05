@@ -119,7 +119,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					"relative overflow-hidden cursor-pointer rounded-sm flex flex-col gap-1.5 z-10 pt-2 pb-2 px-2 hover:opacity-100 bg-(--vscode-toolbar-hoverBackground)/65",
 					{
 						"opacity-100 border-1": isTaskExpanded, // No hover effects when expanded, add border
-						"hover:bg-(--vscode-toolbar-hoverBackground) border-1": !isTaskExpanded, // Hover effects only when collapsed
+						"hover:bg-toolbar-hover border-1": !isTaskExpanded, // Hover effects only when collapsed
 					},
 				)}
 				style={{
