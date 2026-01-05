@@ -484,7 +484,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			const modelService = new QuantrelModelService(
 				webview.controller.stateManager,
-				webview.controller.stateManager.getState("quantrelBaseUrl"),
+				webview.controller.stateManager.getGlobalSettingsKey("quantrelBaseUrl"),
 			)
 
 			try {
@@ -531,7 +531,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			const modelService = new QuantrelModelService(
 				webview.controller.stateManager,
-				webview.controller.stateManager.getState("quantrelBaseUrl"),
+				webview.controller.stateManager.getGlobalSettingsKey("quantrelBaseUrl"),
 			)
 
 			try {

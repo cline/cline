@@ -123,7 +123,7 @@ export class QuantrelAuthService {
 		// Clear stored tokens
 		this.stateManager.setSecret("quantrelAccessToken", undefined)
 		this.stateManager.setSecret("quantrelRefreshToken", undefined)
-		this.stateManager.setState("quantrelUserEmail", undefined)
+		this.stateManager.setGlobalState("quantrelUserEmail", undefined)
 	}
 
 	/**
@@ -205,7 +205,7 @@ export class QuantrelAuthService {
 			const data: QuantrelAuthResponse = await response.json()
 
 			// Store new tokens (backend rotates refresh token)
-			const email = this.stateManager.getState("quantrelUserEmail")
+			const email = this.stateManager.getGlobalSettingsKey("quantrelUserEmail")
 			await this.storeTokens(data.accessToken, data.refreshToken, email)
 
 			return { success: true }
@@ -232,7 +232,7 @@ export class QuantrelAuthService {
 	 * Get stored user email
 	 */
 	getUserEmail(): string | undefined {
-		return this.stateManager.getState("quantrelUserEmail")
+		return this.stateManager.getGlobalSettingsKey("quantrelUserEmail")
 	}
 
 	/**
@@ -242,7 +242,7 @@ export class QuantrelAuthService {
 		this.stateManager.setSecret("quantrelAccessToken", accessToken)
 		this.stateManager.setSecret("quantrelRefreshToken", refreshToken)
 		if (email) {
-			this.stateManager.setState("quantrelUserEmail", email)
+			this.stateManager.setGlobalState("quantrelUserEmail", email)
 		}
 	}
 

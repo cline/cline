@@ -55,7 +55,7 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 
 	// Initialize Quantrel authentication service
 	try {
-		const baseUrl = StateManager.get().getState("quantrelBaseUrl") || "http://localhost:8080"
+		const baseUrl = StateManager.get().getGlobalSettingsKey("quantrelBaseUrl") || "http://localhost:8080"
 		quantrelAuthService = new QuantrelAuthService(StateManager.get(), baseUrl)
 		const isAuthenticated = await quantrelAuthService.initialize()
 		if (isAuthenticated) {

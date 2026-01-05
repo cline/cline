@@ -57,6 +57,8 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		aihubmixApiKey,
 		mcpOAuthSecrets,
 		nousResearchApiKey,
+		quantrelAccessToken,
+		quantrelRefreshToken,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
 		context.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
@@ -102,6 +104,8 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("aihubmixApiKey") as Promise<Secrets["aihubmixApiKey"]>,
 		context.secrets.get("mcpOAuthSecrets") as Promise<Secrets["mcpOAuthSecrets"]>,
 		context.secrets.get("nousResearchApiKey") as Promise<Secrets["nousResearchApiKey"]>,
+		context.secrets.get("quantrelAccessToken") as Promise<Secrets["quantrelAccessToken"]>,
+		context.secrets.get("quantrelRefreshToken") as Promise<Secrets["quantrelRefreshToken"]>,
 	])
 
 	return {
@@ -149,6 +153,8 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		aihubmixApiKey,
 		mcpOAuthSecrets,
 		nousResearchApiKey,
+		quantrelAccessToken,
+		quantrelRefreshToken,
 	}
 }
 
@@ -524,6 +530,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const remoteRulesToggles = context.globalState.get<GlobalStateAndSettings["remoteRulesToggles"]>("remoteRulesToggles")
 		const remoteWorkflowToggles =
 			context.globalState.get<GlobalStateAndSettings["remoteWorkflowToggles"]>("remoteWorkflowToggles")
+		const quantrelBaseUrl = context.globalState.get<GlobalStateAndSettings["quantrelBaseUrl"]>("quantrelBaseUrl")
+		const quantrelUserEmail = context.globalState.get<GlobalStateAndSettings["quantrelUserEmail"]>("quantrelUserEmail")
 
 		return {
 			// api configuration fields
@@ -718,6 +726,9 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			openTelemetryLogMaxQueueSize: openTelemetryLogMaxQueueSize ?? 2048,
 			remoteRulesToggles: remoteRulesToggles || {},
 			remoteWorkflowToggles: remoteWorkflowToggles || {},
+			// Quantrel settings
+			quantrelBaseUrl,
+			quantrelUserEmail,
 		}
 	} catch (error) {
 		console.error("[StateHelpers] Failed to read global state:", error)
