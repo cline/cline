@@ -324,7 +324,16 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		// Early return if conditions aren't met
 		// Don't process queue if there's an API error (clineAsk === "api_req_failed")
 		// Don't process if already processing (prevents race condition)
-		if (sendingDisabled || messageQueue.length === 0 || clineAsk === "api_req_failed" || isProcessingQueueRef.current) {
+		// Don't process if messages is empty - this means user clicked "New Task" and we shouldn't
+		// auto-start with queued messages (the queue clearing effect hasn't taken effect yet due to
+		// React's batched state updates, so we check messages.length as a synchronous guard)
+		if (
+			sendingDisabled ||
+			messageQueue.length === 0 ||
+			clineAsk === "api_req_failed" ||
+			isProcessingQueueRef.current ||
+			messages.length === 0
+		) {
 			return
 		}
 
@@ -357,7 +366,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		}
 
 		processMessage()
-	}, [sendingDisabled, messageQueue, clineAsk, setMessageQueue, messageHandlers])
+	}, [sendingDisabled, messageQueue, clineAsk, setMessageQueue, messageHandlers, messages.length])
 
 	const visibleMessages = useMemo(() => {
 		return filterVisibleMessages(modifiedMessages)
