@@ -127,12 +127,14 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 	}, [loadWorktrees])
 
 	const handleDeleteWorktree = useCallback(
-		async (path: string) => {
+		async (path: string, deleteBranch: boolean, branchName: string) => {
 			try {
 				const result = await WorktreeServiceClient.deleteWorktree(
 					DeleteWorktreeRequest.create({
 						path,
 						force: false,
+						deleteBranch,
+						branchName,
 					}),
 				)
 
@@ -507,7 +509,7 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 			<DeleteWorktreeModal
 				branchName={deleteWorktree?.branch || ""}
 				onClose={() => setDeleteWorktree(null)}
-				onConfirm={() => handleDeleteWorktree(deleteWorktree!.path)}
+				onConfirm={(deleteBranch) => handleDeleteWorktree(deleteWorktree!.path, deleteBranch, deleteWorktree!.branch)}
 				open={!!deleteWorktree}
 				worktreePath={deleteWorktree?.path || ""}
 			/>
