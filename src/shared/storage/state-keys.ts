@@ -132,6 +132,10 @@ export interface Settings {
 	enableParallelToolCalling: boolean
 	backgroundEditEnabled: boolean
 
+	// Quantrel settings
+	quantrelBaseUrl: string | undefined
+	quantrelUserEmail: string | undefined
+
 	// Model-specific settings
 	hicapModelId: string | undefined
 	// Plan mode configurations
@@ -273,6 +277,9 @@ export interface Secrets {
 	aihubmixApiKey: string | undefined
 	mcpOAuthSecrets: string | undefined
 	nousResearchApiKey: string | undefined
+	// Quantrel authentication
+	quantrelAccessToken: string | undefined
+	quantrelRefreshToken: string | undefined
 }
 
 export interface LocalState {

@@ -405,6 +405,156 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	// Register Quantrel commands
+	const { getQuantrelAuthService } = await import("./common")
+	const { QuantrelModelService } = await import("./services/quantrel")
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("quantrel.login", async () => {
+			const authService = getQuantrelAuthService()
+			if (!authService) {
+				vscode.window.showErrorMessage("Quantrel authentication service not initialized")
+				return
+			}
+
+			// Show input boxes for email and password
+			const email = await vscode.window.showInputBox({
+				prompt: "Enter your Quantrel email",
+				placeHolder: "user@example.com",
+				ignoreFocusOut: true,
+			})
+
+			if (!email) {
+				return
+			}
+
+			const password = await vscode.window.showInputBox({
+				prompt: "Enter your Quantrel password",
+				password: true,
+				ignoreFocusOut: true,
+			})
+
+			if (!password) {
+				return
+			}
+
+			// Show progress
+			await vscode.window.withProgress(
+				{
+					location: vscode.ProgressLocation.Notification,
+					title: "Logging in to Quantrel...",
+					cancellable: false,
+				},
+				async () => {
+					const result = await authService.login(email, password)
+					if (result.success) {
+						const userInfo = await authService.getUserInfo()
+						vscode.window.showInformationMessage(`Logged in to Quantrel as ${userInfo?.email || email}`)
+					} else {
+						vscode.window.showErrorMessage(`Login failed: ${result.error}`)
+					}
+				},
+			)
+		}),
+
+		vscode.commands.registerCommand("quantrel.logout", async () => {
+			const authService = getQuantrelAuthService()
+			if (!authService) {
+				return
+			}
+
+			const confirm = await vscode.window.showWarningMessage(
+				"Are you sure you want to logout from Quantrel?",
+				{ modal: true },
+				"Logout",
+			)
+
+			if (confirm === "Logout") {
+				await authService.logout()
+				vscode.window.showInformationMessage("Logged out from Quantrel")
+			}
+		}),
+
+		vscode.commands.registerCommand("quantrel.selectModel", async () => {
+			const authService = getQuantrelAuthService()
+			if (!authService || !authService.isAuthenticated()) {
+				vscode.window.showErrorMessage("Please login to Quantrel first")
+				return
+			}
+
+			const modelService = new QuantrelModelService(
+				webview.controller.stateManager,
+				webview.controller.stateManager.getState("quantrelBaseUrl"),
+			)
+
+			try {
+				const agents = await vscode.window.withProgress(
+					{
+						location: vscode.ProgressLocation.Notification,
+						title: "Fetching models from Quantrel...",
+						cancellable: false,
+					},
+					async () => await modelService.fetchAgents(),
+				)
+
+				// Create quick pick items
+				const items = agents.slice(0, 50).map((agent) => ({
+					label: agent.name,
+					description: agent.publisher,
+					detail: `${agent.briefDescription} | $${agent.inputPrice}/1M in, $${agent.outputPrice}/1M out | ${agent.contextWindow.toLocaleString()} tokens`,
+					agent,
+				}))
+
+				const selected = await vscode.window.showQuickPick(items, {
+					placeHolder: "Search and select an AI model (showing top 50)",
+					matchOnDescription: true,
+					matchOnDetail: true,
+				})
+
+				if (selected) {
+					vscode.window.showInformationMessage(`Selected model: ${selected.agent.name}`)
+					// TODO: Store selected model for use in provider
+				}
+			} catch (error) {
+				vscode.window.showErrorMessage(
+					`Failed to fetch models: ${error instanceof Error ? error.message : String(error)}`,
+				)
+			}
+		}),
+
+		vscode.commands.registerCommand("quantrel.refreshModels", async () => {
+			const authService = getQuantrelAuthService()
+			if (!authService || !authService.isAuthenticated()) {
+				vscode.window.showErrorMessage("Please login to Quantrel first")
+				return
+			}
+
+			const modelService = new QuantrelModelService(
+				webview.controller.stateManager,
+				webview.controller.stateManager.getState("quantrelBaseUrl"),
+			)
+
+			try {
+				await vscode.window.withProgress(
+					{
+						location: vscode.ProgressLocation.Notification,
+						title: "Refreshing Quantrel models...",
+						cancellable: false,
+					},
+					async () => {
+						await modelService.fetchAgents(true) // force refresh
+					},
+				)
+
+				vscode.window.showInformationMessage("Model list refreshed successfully")
+			} catch (error) {
+				vscode.window.showErrorMessage(
+					`Failed to refresh models: ${error instanceof Error ? error.message : String(error)}`,
+				)
+			}
+		}),
+	)
+
 	context.subscriptions.push(
 		context.secrets.onDidChange(async (event) => {
 			if (event.key === "cline:clineAccountId") {

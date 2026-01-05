@@ -222,6 +222,26 @@
 				"title": "Add to Cline Chat",
 				"category": "Cline",
 				"icon": "$(link-external)"
+			},
+			{
+				"command": "quantrel.login",
+				"title": "Quantrel: Login",
+				"category": "Quantrel"
+			},
+			{
+				"command": "quantrel.logout",
+				"title": "Quantrel: Logout",
+				"category": "Quantrel"
+			},
+			{
+				"command": "quantrel.selectModel",
+				"title": "Quantrel: Select AI Model",
+				"category": "Quantrel"
+			},
+			{
+				"command": "quantrel.refreshModels",
+				"title": "Quantrel: Refresh Model List",
+				"category": "Quantrel"
 			}
 		],
 		"keybindings": [
