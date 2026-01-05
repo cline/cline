@@ -7,6 +7,7 @@ import {
 import { ChatMessage, OrchestrationClient, OrchestrationModuleConfig } from "@sap-ai-sdk/orchestration"
 import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels } from "@shared/api"
 import axios from "axios"
+import JSON5 from "json5"
 import OpenAI from "openai"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { getAxiosSettings } from "@/shared/net"
@@ -531,8 +532,12 @@ export class SapAiCoreHandler implements ApiHandler {
 
 			const sapMessages = this.convertMessageParamToSAPMessages(messages)
 
+			// messagesHistory: Contains the conversation context (user/assistant messages).
+			// Unlike the `messages` field that validates input, this does not validate
+			// template placeholders such as {{?userResponse}}, allowing content to be
+			// sent directly to the LLM with the Cline system prompt without validation errors.
 			const response = await orchestrationClient.stream({
-				messages: sapMessages,
+				messagesHistory: sapMessages,
 			})
 
 			for await (const chunk of response.stream.toContentStream()) {
@@ -878,12 +883,6 @@ export class SapAiCoreHandler implements ApiHandler {
 		stream: any,
 		_model: { id: SapAiCoreModelId; info: ModelInfo },
 	): AsyncGenerator<any, void, unknown> {
-		function toStrictJson(str: string): string {
-			// Wrap it in parentheses so JS will treat it as an expression
-			const obj = new Function("return " + str)()
-			return JSON.stringify(obj)
-		}
-
 		const _usage = { input_tokens: 0, output_tokens: 0 }
 
 		try {
@@ -898,7 +897,8 @@ export class SapAiCoreHandler implements ApiHandler {
 
 						try {
 							// Parse the incoming JSON data from the stream
-							const data = JSON.parse(toStrictJson(jsonData))
+							// Using JSON5 to handle relaxed JSON syntax (e.g., single quotes)
+							const data = JSON5.parse(jsonData)
 
 							// Handle metadata (token usage)
 							if (data.metadata?.usage) {

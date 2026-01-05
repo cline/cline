@@ -48,7 +48,11 @@ export function convertAnthropicContentToGemini(content: string | ClineStorageMe
 						},
 					}
 				case "thinking":
-					return { text: block.thinking, thought: true, thoughtSignature: block.signature }
+					return {
+						text: block.thinking,
+						thought: true,
+						thoughtSignature: block.signature || GEMINI_DUMMY_THOUGHT_SIGNATURE,
+					}
 				default:
 					return undefined
 			}
