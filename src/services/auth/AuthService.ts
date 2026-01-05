@@ -170,11 +170,8 @@ export class AuthService {
 							// retrieveClineAuthInfo may return stale data on network errors
 							// Verify the token is not expired after refresh
 							// This prevents 401 errors from using expired tokens
-							const tokenStillExpired = await provider.shouldRefreshIdToken(
-								updatedAuthInfo.idToken,
-								updatedAuthInfo.expiresAt,
-							)
-							if (tokenStillExpired) {
+							const nowInSeconds = Date.now() / 1000
+							if ((updatedAuthInfo.expiresAt || nowInSeconds) < nowInSeconds) {
 								clineAccountAuthToken = undefined
 								return undefined
 							}
@@ -182,6 +179,7 @@ export class AuthService {
 							this._clineAuthInfo = updatedAuthInfo
 							this._authenticated = true
 							clineAccountAuthToken = updatedAuthInfo.idToken
+							authStatusChanged = true
 						}
 					} catch (error) {
 						// Only log out for permanent auth failures, not network issues
