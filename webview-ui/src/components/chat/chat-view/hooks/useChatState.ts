@@ -55,23 +55,21 @@ export function useChatState(messages: ClineMessage[]): ChatState {
 		setIsTextAreaFocused(isFocused)
 	}, [])
 
-	// Clear message queue when a NEW task starts
-	// This handles: undefined → Task B, Task A → Task B
+	// Clear message queue when task changes
+	// This handles: undefined → Task B, Task A → Task B, Task A → undefined
 	// Does NOT clear on: Task A → Task A (mode switch), undefined → undefined (no task)
 	useEffect(() => {
 		const currentTaskTs = task?.ts
 		const prevTaskTs = prevTaskTsRef.current
 
-		console.log("[CANCEL_FLOW] [useChatState] Task change detected:", {
-			currentTaskTs,
-			prevTaskTs,
-			willClearQueue: currentTaskTs !== undefined && prevTaskTs !== currentTaskTs,
-		})
+		// Clear queue when:
+		// 1. A new task starts (undefined → Task B, Task A → Task B)
+		// 2. Task is explicitly cleared via "New Task" button (Task A → undefined)
+		// Don't clear when: undefined → undefined (no task, stays no task)
+		const newTaskStarted = currentTaskTs !== undefined && prevTaskTs !== currentTaskTs
+		const taskCleared = currentTaskTs === undefined && prevTaskTs !== undefined
 
-		// Clear queue if we have a CURRENT task AND it's different from prev
-		// This works for: cancel → new task (undefined → 2000) and direct switch (1000 → 2000)
-		if (currentTaskTs !== undefined && prevTaskTs !== currentTaskTs) {
-			console.log("[CANCEL_FLOW] [useChatState] Clearing message queue due to new task")
+		if (newTaskStarted || taskCleared) {
 			setMessageQueue([])
 		}
 
