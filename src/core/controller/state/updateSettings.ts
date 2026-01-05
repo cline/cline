@@ -11,6 +11,7 @@ import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { ClineEnv } from "@/config"
+import { isProviderValid } from "@/core/storage/remote-config/utils"
 import { HostProvider } from "@/hosts/host-provider"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -35,15 +36,19 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		if (request.apiConfiguration) {
 			const protoApiConfiguration = request.apiConfiguration
 
+			const planModeApiProvider = protoApiConfiguration.planModeApiProvider
+				? convertProtoToApiProvider(protoApiConfiguration.planModeApiProvider)
+				: undefined
+
+			const actModeApiProvider = protoApiConfiguration.actModeApiProvider
+				? convertProtoToApiProvider(protoApiConfiguration.actModeApiProvider)
+				: undefined
+
 			const convertedApiConfigurationFromProto = {
 				...protoApiConfiguration,
 				// Convert proto ApiProvider enums to native string types
-				planModeApiProvider: protoApiConfiguration.planModeApiProvider
-					? convertProtoToApiProvider(protoApiConfiguration.planModeApiProvider)
-					: undefined,
-				actModeApiProvider: protoApiConfiguration.actModeApiProvider
-					? convertProtoToApiProvider(protoApiConfiguration.actModeApiProvider)
-					: undefined,
+				planModeApiProvider: isProviderValid(planModeApiProvider) ? planModeApiProvider : undefined,
+				actModeApiProvider: isProviderValid(actModeApiProvider) ? actModeApiProvider : undefined,
 			}
 
 			controller.stateManager.setApiConfiguration(convertedApiConfigurationFromProto)

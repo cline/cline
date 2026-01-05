@@ -248,3 +248,12 @@ export async function applyRemoteConfig(remoteConfig?: RemoteConfig): Promise<vo
 
 	await applyRemoteOTELConfig(transformed, telemetryService)
 }
+
+export const isProviderValid = (provider?: ApiProvider) => {
+	const remoteConfiguredProviders = StateManager.get().getRemoteConfigSettings().remoteConfiguredProviders
+	if (!remoteConfiguredProviders || !remoteConfiguredProviders.length) {
+		return true
+	}
+
+	return provider && remoteConfiguredProviders.includes(provider)
+}

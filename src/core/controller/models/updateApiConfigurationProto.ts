@@ -8,6 +8,7 @@ import {
 	fromProtobufOpenAiCompatibleModelInfo,
 } from "@shared/proto-conversions/models/typeConversion"
 import { buildApiHandler } from "@/core/api"
+import { isProviderValid } from "@/core/storage/remote-config/utils"
 import type { Controller } from "../index"
 
 /**
@@ -28,17 +29,19 @@ export async function updateApiConfigurationProto(
 
 		const protoApiConfiguration = request.apiConfiguration
 
+		// Convert proto ApiProvider enums to native string types
+		const planModeApiProvider = protoApiConfiguration.planModeApiProvider
+			? convertProtoToApiProvider(protoApiConfiguration.planModeApiProvider)
+			: undefined
+		const actModeApiProvider = protoApiConfiguration.actModeApiProvider
+			? convertProtoToApiProvider(protoApiConfiguration.actModeApiProvider)
+			: undefined
+
 		const convertedApiConfigurationFromProto = {
 			...protoApiConfiguration,
-			// Convert proto ApiProvider enums to native string types
-			planModeApiProvider:
-				protoApiConfiguration.planModeApiProvider !== undefined
-					? convertProtoToApiProvider(protoApiConfiguration.planModeApiProvider!)
-					: undefined,
-			actModeApiProvider:
-				protoApiConfiguration.actModeApiProvider !== undefined
-					? convertProtoToApiProvider(protoApiConfiguration.actModeApiProvider!)
-					: undefined,
+
+			planModeApiProvider: isProviderValid(planModeApiProvider) ? planModeApiProvider : undefined,
+			actModeApiProvider: isProviderValid(actModeApiProvider) ? actModeApiProvider : undefined,
 
 			// Convert ModelInfo objects (empty arrays → undefined)
 			// Plan Mode
