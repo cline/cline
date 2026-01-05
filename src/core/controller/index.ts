@@ -470,6 +470,10 @@ export class Controller {
 				// Task was saved to disk - reload messages from disk and show resume button
 				// DON'T call initTask() here because it calls clearTask() which wipes messages!
 				try {
+					// Clear cancelInProgress BEFORE resumeTaskFromHistory() because it blocks
+					// waiting for user to click Resume. If we don't clear it here, user can't
+					// cancel again if something goes wrong with parallel tool calls.
+					this.cancelInProgress = false
 					await this.task.resumeTaskFromHistory()
 					// resumeTaskFromHistory() calls ask("resume_task") which posts state to webview
 					// So we don't need to call postStateToWebview() here

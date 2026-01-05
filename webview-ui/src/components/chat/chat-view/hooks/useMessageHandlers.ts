@@ -286,15 +286,18 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					break
 
 				case "cancel":
+					// Clear state IMMEDIATELY before async call, not after
+					// The cancelTask() call blocks until user clicks Resume, so we must
+					// clear the queue before calling it, otherwise the queue stays visible
+					setSendingDisabled(false)
+					setEnableButtons(true)
+					setMessageQueue([]) // Clear queue on cancel
+
 					if (backgroundCommandRunning) {
 						await TaskServiceClient.cancelBackgroundCommand(EmptyRequest.create({}))
 					} else {
 						await TaskServiceClient.cancelTask(EmptyRequest.create({}))
 					}
-					// Clear any pending state that might interfere with resume
-					setSendingDisabled(false)
-					setEnableButtons(true)
-					setMessageQueue([]) // Clear queue on cancel
 					break
 
 				case "utility":
