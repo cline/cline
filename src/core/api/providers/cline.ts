@@ -1,4 +1,4 @@
-import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
+import { ModelInfo } from "@shared/api"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
 import OpenAI from "openai"
@@ -13,9 +13,9 @@ import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch, getAxiosSettings } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
-import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { ToolCallProcessor } from "../transform/tool-call-processor"
+import { createVercelAIGatewayStream } from "../transform/vercel-ai-gateway-stream"
 import { OpenRouterErrorResponse } from "./types"
 
 interface ClineHandlerOptions extends CommonApiHandlerOptions {
@@ -23,9 +23,8 @@ interface ClineHandlerOptions extends CommonApiHandlerOptions {
 	taskId?: string
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
-	openRouterProviderSorting?: string
-	openRouterModelId?: string
-	openRouterModelInfo?: ModelInfo
+	vercelAiGatewayModelId?: string
+	vercelAiGatewayModelInfo?: ModelInfo
 	clineAccountId?: string
 	geminiThinkingLevel?: string
 }
@@ -107,14 +106,13 @@ export class ClineHandler implements ApiHandler {
 
 			let didOutputUsage: boolean = false
 
-			const stream = await createOpenRouterStream(
+			const stream = await createVercelAIGatewayStream(
 				client,
 				systemPrompt,
 				messages,
 				this.getModel(),
 				this.options.reasoningEffort,
 				this.options.thinkingBudgetTokens,
-				this.options.openRouterProviderSorting,
 				tools,
 				this.options.geminiThinkingLevel,
 			)
@@ -167,7 +165,11 @@ export class ClineHandler implements ApiHandler {
 
 				// Reasoning tokens are returned separately from the content
 				// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
-				if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
+				if (
+					"reasoning" in delta &&
+					delta.reasoning &&
+					!shouldSkipReasoningForModel(this.options.vercelAiGatewayModelId)
+				) {
 					yield {
 						type: "reasoning",
 						reasoning: typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning),
@@ -186,7 +188,7 @@ export class ClineHandler implements ApiHandler {
 					delta.reasoning_details &&
 					// @ts-ignore-next-line
 					delta?.reasoning_details?.length && // exists and non-0
-					!shouldSkipReasoningForModel(this.options.openRouterModelId)
+					!shouldSkipReasoningForModel(this.options.vercelAiGatewayModelId)
 				) {
 					yield {
 						type: "reasoning",
@@ -272,11 +274,11 @@ export class ClineHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.openRouterModelId
-		const modelInfo = this.options.openRouterModelInfo
+		const modelId = this.options.vercelAiGatewayModelId
+		const modelInfo = this.options.vercelAiGatewayModelInfo
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }
 		}
-		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
+		throw new Error("No Vercel AI Gateway model configured. Please select a model in settings.")
 	}
 }

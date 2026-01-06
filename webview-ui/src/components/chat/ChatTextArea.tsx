@@ -265,6 +265,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			mode,
 			apiConfiguration,
 			openRouterModels,
+			vercelAiGatewayModels,
 			platform,
 			localWorkflowToggles,
 			globalWorkflowToggles,
@@ -1046,7 +1047,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		// Separate the API config submission logic
 		const submitApiConfig = useCallback(async () => {
 			const apiValidationResult = validateApiConfiguration(mode, apiConfiguration)
-			const modelIdValidationResult = validateModelId(mode, apiConfiguration, openRouterModels)
+			const modelIdValidationResult = validateModelId(mode, apiConfiguration, openRouterModels, vercelAiGatewayModels)
 
 			if (!apiValidationResult && !modelIdValidationResult && apiConfiguration) {
 				try {
@@ -1067,7 +1068,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						console.error("Error refreshing state:", error)
 					})
 			}
-		}, [apiConfiguration, openRouterModels])
+		}, [apiConfiguration, openRouterModels, vercelAiGatewayModels])
 
 		const onModeToggle = useCallback(() => {
 			// if (textAreaDisabled) return

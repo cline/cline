@@ -215,6 +215,8 @@ export async function createVercelAIGatewayStream(
 		...(model.id.includes("gemini") && geminiThinkingLevel
 			? { thinking_config: { thinking_level: geminiThinkingLevel, include_thoughts: true } }
 			: {}),
+		// Claude Sonnet 1M provider routing - prefer Anthropic, fallback to Google Vertex
+		...(isClaudeSonnet1m ? { providerOptions: { providers: { order: ["anthropic", "google-vertex"] } } } : {}),
 	})
 
 	return stream

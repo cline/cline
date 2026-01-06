@@ -177,21 +177,31 @@ export function validateModelId(
 	currentMode: Mode,
 	apiConfiguration?: ApiConfiguration,
 	openRouterModels?: Record<string, ModelInfo>,
+	vercelAiGatewayModels?: Record<string, ModelInfo>,
 ): string | undefined {
 	if (apiConfiguration) {
-		const { apiProvider, openRouterModelId } = getModeSpecificFields(apiConfiguration, currentMode)
+		const { apiProvider, openRouterModelId, vercelAiGatewayModelId } = getModeSpecificFields(apiConfiguration, currentMode)
 		switch (apiProvider) {
 			case "openrouter":
-			case "cline":
-				const modelId = openRouterModelId || openRouterDefaultModelId // in case the user hasn't changed the model id, it will be undefined by default
-				if (!modelId) {
+				const orModelId = openRouterModelId || openRouterDefaultModelId // in case the user hasn't changed the model id, it will be undefined by default
+				if (!orModelId) {
 					return "You must provide a model ID."
 				}
-				if (modelId.startsWith("@preset/")) {
+				if (orModelId.startsWith("@preset/")) {
 					break
 				}
-				if (openRouterModels && !Object.keys(openRouterModels).includes(modelId)) {
+				if (openRouterModels && !Object.keys(openRouterModels).includes(orModelId)) {
 					// even if the model list endpoint failed, extensionstatecontext will always have the default model info
+					return "The model ID you provided is not available. Please choose a different model."
+				}
+				break
+			case "cline":
+				// Cline uses Vercel AI Gateway models
+				const clineModelId = vercelAiGatewayModelId
+				if (!clineModelId) {
+					return "You must select a model."
+				}
+				if (vercelAiGatewayModels && !Object.keys(vercelAiGatewayModels).includes(clineModelId)) {
 					return "The model ID you provided is not available. Please choose a different model."
 				}
 				break

@@ -258,18 +258,19 @@ export function normalizeApiConfiguration(
 				selectedModelInfo: requestyModelInfo || requestyDefaultModelInfo,
 			}
 		case "cline":
-			const clineOpenRouterModelId =
-				(currentMode === "plan"
-					? apiConfiguration?.planModeOpenRouterModelId
-					: apiConfiguration?.actModeOpenRouterModelId) || openRouterDefaultModelId
-			const clineOpenRouterModelInfo =
-				(currentMode === "plan"
-					? apiConfiguration?.planModeOpenRouterModelInfo
-					: apiConfiguration?.actModeOpenRouterModelInfo) || openRouterDefaultModelInfo
+			// Cline uses Vercel AI Gateway model fields
+			const clineVercelModelId =
+				currentMode === "plan"
+					? apiConfiguration?.planModeVercelAiGatewayModelId
+					: apiConfiguration?.actModeVercelAiGatewayModelId
+			const clineVercelModelInfo =
+				currentMode === "plan"
+					? apiConfiguration?.planModeVercelAiGatewayModelInfo
+					: apiConfiguration?.actModeVercelAiGatewayModelInfo
 			return {
 				selectedProvider: provider,
-				selectedModelId: clineOpenRouterModelId,
-				selectedModelInfo: clineOpenRouterModelInfo,
+				selectedModelId: clineVercelModelId || "",
+				selectedModelInfo: clineVercelModelInfo || openRouterDefaultModelInfo,
 			}
 		case "openai":
 			const openAiModelId =
@@ -649,11 +650,18 @@ export async function syncModeConfigurations(
 	// Handle provider-specific fields
 	switch (apiProvider) {
 		case "openrouter":
-		case "cline":
 			updates.planModeOpenRouterModelId = sourceFields.openRouterModelId
 			updates.actModeOpenRouterModelId = sourceFields.openRouterModelId
 			updates.planModeOpenRouterModelInfo = sourceFields.openRouterModelInfo
 			updates.actModeOpenRouterModelInfo = sourceFields.openRouterModelInfo
+			break
+
+		case "cline":
+			// Cline uses Vercel AI Gateway model fields
+			updates.planModeVercelAiGatewayModelId = sourceFields.vercelAiGatewayModelId
+			updates.actModeVercelAiGatewayModelId = sourceFields.vercelAiGatewayModelId
+			updates.planModeVercelAiGatewayModelInfo = sourceFields.vercelAiGatewayModelInfo
+			updates.actModeVercelAiGatewayModelInfo = sourceFields.vercelAiGatewayModelInfo
 			break
 
 		case "requesty":

@@ -163,8 +163,11 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 	// Get models for current provider
 	const allModels = useMemo((): ModelItem[] => {
 		if (OPENROUTER_MODEL_PROVIDERS.includes(selectedProvider)) {
-			// Use vercelAiGatewayModels for Vercel provider, openRouterModels for others
-			const modelsSource = selectedProvider === "vercel-ai-gateway" ? vercelAiGatewayModels : openRouterModels
+			// Use vercelAiGatewayModels for Vercel and Cline providers, openRouterModels for OpenRouter
+			const modelsSource =
+				selectedProvider === "vercel-ai-gateway" || selectedProvider === "cline"
+					? vercelAiGatewayModels
+					: openRouterModels
 			const modelIds = Object.keys(modelsSource || {})
 			const filteredIds = filterOpenRouterModelIds(modelIds, selectedProvider)
 
@@ -269,8 +272,8 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		(modelId: string, modelInfo?: ModelInfoType) => {
 			const modeToUse = isSplit ? activeEditMode : currentMode
 
-			if (selectedProvider === "vercel-ai-gateway") {
-				// Vercel AI Gateway uses its own model fields
+			if (selectedProvider === "vercel-ai-gateway" || selectedProvider === "cline") {
+				// Vercel AI Gateway and Cline use Vercel model fields
 				const modelInfoToUse = modelInfo || vercelAiGatewayModels[modelId]
 				handleModeFieldsChange(
 					{
@@ -287,7 +290,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 					modeToUse,
 				)
 			} else if (OPENROUTER_MODEL_PROVIDERS.includes(selectedProvider)) {
-				// Cline and OpenRouter use openRouter fields
+				// OpenRouter uses openRouter fields
 				const modelInfoToUse = modelInfo || openRouterModels[modelId]
 				handleModeFieldsChange(
 					{
@@ -396,7 +399,8 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 						// Determine which list the index falls into
 						if (selectedIndex < featuredModels.length) {
 							const model = featuredModels[selectedIndex]
-							handleSelectModel(model.id, openRouterModels[model.id])
+							// Featured models are for Cline provider which uses Vercel models
+							handleSelectModel(model.id, vercelAiGatewayModels[model.id])
 						} else {
 							const model = filteredModels[selectedIndex - featuredModels.length]
 							handleSelectModel(model.id, model.info)
@@ -409,7 +413,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 					break
 			}
 		},
-		[filteredModels, featuredModels, selectedIndex, handleSelectModel, openRouterModels, onOpenChange],
+		[filteredModels, featuredModels, selectedIndex, handleSelectModel, vercelAiGatewayModels, onOpenChange],
 	)
 
 	// Reset selectedIndex and clear refs when search/provider changes
@@ -727,7 +731,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 									<ModelItemContainer
 										$isSelected={index === selectedIndex}
 										key={model.id}
-										onClick={() => handleSelectModel(model.id, openRouterModels[model.id])}
+										onClick={() => handleSelectModel(model.id, vercelAiGatewayModels[model.id])}
 										onMouseEnter={() => setSelectedIndex(index)}
 										ref={(el) => (itemRefs.current[index] = el)}>
 										<ModelInfoRow>
