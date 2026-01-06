@@ -751,11 +751,11 @@ export async function syncModeConfigurations(
 			break
 
 		case "vercel-ai-gateway":
-			// Vercel AI Gateway uses OpenRouter model fields
-			updates.planModeOpenRouterModelId = sourceFields.openRouterModelId
-			updates.actModeOpenRouterModelId = sourceFields.openRouterModelId
-			updates.planModeOpenRouterModelInfo = sourceFields.openRouterModelInfo
-			updates.actModeOpenRouterModelInfo = sourceFields.openRouterModelInfo
+			// Vercel AI Gateway uses its own model fields
+			updates.planModeVercelAiGatewayModelId = sourceFields.vercelAiGatewayModelId
+			updates.actModeVercelAiGatewayModelId = sourceFields.vercelAiGatewayModelId
+			updates.planModeVercelAiGatewayModelInfo = sourceFields.vercelAiGatewayModelInfo
+			updates.actModeVercelAiGatewayModelInfo = sourceFields.vercelAiGatewayModelInfo
 			break
 		case "oca":
 			updates.planModeOcaModelId = sourceFields.ocaModelId
