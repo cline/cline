@@ -45,6 +45,32 @@ import { McpOAuthManager } from "./McpOAuthManager"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
 import { McpConnection, McpServerConfig, Transport } from "./types"
 export class McpHub {
+	// Track reconnect backoff per server
+	private reconnectBackoff: Map<string, number> = new Map();
+	private readonly MIN_RECONNECT_DELAY = 1000; // 1s
+	private readonly MAX_RECONNECT_DELAY = 30000; // 30s
+
+	/**
+	 * Schedule an automatic reconnect with exponential backoff for a given MCP server.
+	 * Resets backoff on success, increases on failure up to max.
+	 */
+	private scheduleReconnect(serverName: string) {
+		if (this.isConnecting) return;
+		let delay = this.reconnectBackoff.get(serverName) || this.MIN_RECONNECT_DELAY;
+		setTimeout(async () => {
+			this.isConnecting = true;
+			try {
+				await this.restartConnection(serverName);
+				this.reconnectBackoff.set(serverName, this.MIN_RECONNECT_DELAY); // Reset on success
+			} catch (e) {
+				delay = Math.min(delay * 2, this.MAX_RECONNECT_DELAY);
+				this.reconnectBackoff.set(serverName, delay);
+				this.scheduleReconnect(serverName); // Try again
+			} finally {
+				this.isConnecting = false;
+			}
+		}, delay);
+	}
 	getMcpServersPath: () => Promise<string>
 	private getSettingsDirectoryPath: () => Promise<string>
 	private clientVersion: string
@@ -470,6 +496,7 @@ export class McpHub {
 							this.appendErrorMessage(connection, error instanceof Error ? error.message : `${error}`)
 						}
 						await this.notifyWebviewOfServerChanges()
+            			this.scheduleReconnect(name)
 					}
 					break
 				}
