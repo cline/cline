@@ -1,0 +1,121 @@
+---
+title: "Cline Rules"
+sidebarTitle: "Cline Rules"
+description: "Define specific instructions and coding standards for Cline."
+---
+
+Cline Rules are markdown files that provide persistent instructions across all conversations. Instead of repeating the same preferences every time you start a new task, rules let you define them once and have Cline follow them automatically.
+
+Use rules when you want Cline to:
+- Follow your team's coding standards (naming conventions, file organization, error handling patterns)
+- Understand project-specific context (tech stack, architecture decisions, dependencies)
+- Apply consistent documentation or testing requirements
+- Remember constraints like "don't modify files in /legacy" or "always use TypeScript"
+
+<Tip>
+  **New to Cline Rules?** Watch [Cline Rules Explained](https://youtu.be/xQwsy2vkK5M) to see them in action.
+</Tip>
+
+## Creating Rules
+
+<Steps>
+  <Step title="Open the Rules menu">
+    At the bottom of the Cline panel, right below the chat input box, click the scale icon to the left of the model selector (labeled "Manage Cline Rules & Workflows"). You'll see two tabs: Rules and Workflows.
+  </Step>
+  <Step title="Select the Rules tab">
+    Make sure you're on the Rules tab. You'll see your existing global and workspace rules listed here, each with a toggle to enable or disable it.
+  </Step>
+  <Step title="Create a new rule file">
+    Click "New rule file..." and enter a filename (e.g., `coding-standards`). The file will be created with a `.md` extension.
+  </Step>
+  <Step title="Write your rule">
+    Add your instructions in markdown format. Keep each rule file focused on a single concern.
+  </Step>
+</Steps>
+
+Once saved, workspace rules go in your project's `.clinerules/` directory and global rules go in your system's Cline Rules directory.
+
+You can also use the [`/newrule` slash command](/features/slash-commands/new-rule) to have Cline create a rule interactively.
+
+### Toggling Rules
+
+Every rule in the popover has a toggle to enable or disable it. This gives you fine-grained control over which rules apply to your current task without deleting the rule file.
+
+For example, you might have a strict testing rule that you want to disable when prototyping, or a client-specific rule you only need when working on that client's features. Toggle rules off when they're not relevant and back on when you need them.
+
+### Global vs Workspace Rules
+
+Choosing where to put a rule determines when it applies. Getting this right means less repetition and more relevant context for Cline.
+
+| | Global Rules | Workspace Rules |
+|---|---|---|
+| **Scope** | Every project | Single project |
+| **Location** | System Cline Rules directory | `.clinerules/` in project root |
+| **Best for** | Personal coding style, communication preferences, general constraints | Tech stack, team conventions, project-specific constraints |
+
+When both exist, Cline combines them. Workspace rules can override or extend global rules for that specific project.
+
+### Global Rules Directory
+
+| Operating System | Default Location |
+|------------------|------------------|
+| Windows | `Documents\Cline\Rules` |
+| macOS | `~/Documents/Cline/Rules` |
+| Linux/WSL | `~/Documents/Cline/Rules` |
+
+<Note>
+Linux/WSL users: If you don't find global rules in `~/Documents/Cline/Rules`, check `~/Cline/Rules`.
+</Note>
+
+## Directory Structure
+
+Place rules in your project's root:
+
+```
+your-project/
+├── .clinerules/              # Folder containing active rules
+│   ├── 01-coding.md          # Core coding standards
+│   ├── 02-documentation.md   # Documentation requirements
+│   └── current-sprint.md     # Rules specific to current work
+├── src/
+└── ...
+```
+
+Cline processes all `.md` and `.txt` files inside `.clinerules/`, combining them into a unified set of rules. Numeric prefixes help organize files logically but are optional.
+
+## Example Rule
+
+```markdown
+# Project Guidelines
+
+## Code Style
+- Use TypeScript for all new files
+- Prefer composition over inheritance
+- Use repository pattern for data access
+- Follow error handling pattern in /src/utils/errors.ts
+
+## Documentation
+- Update relevant docs when modifying features
+- Keep README.md in sync with new capabilities
+
+## Testing
+- Unit tests required for business logic
+- Integration tests for API endpoints
+- E2E tests for critical user flows
+```
+
+I keep my rules focused on one concern per file. A `coding.md` for style, `testing.md` for test requirements, and `project-context.md` for architecture decisions. This makes it easy to toggle specific rules on or off depending on what I'm working on.
+
+## Supported Rule Types
+
+Cline recognizes rules from multiple sources:
+
+| Rule Type | Location | Description |
+|-----------|----------|-------------|
+| Cline Rules | `.clinerules/` | Primary rule format |
+| Cursor Rules | `.cursorrules` | Automatically detected |
+| Windsurf Rules | `.windsurfrules` | Automatically detected |
+| AGENTS.md | `AGENTS.md` | [Standard format](https://agents.md/) for cross-tool compatibility |
+
+All detected rule types appear in the Rules popover, where you can toggle them individually.
+

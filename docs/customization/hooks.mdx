@@ -1,0 +1,96 @@
+---
+title: "Hooks"
+sidebarTitle: "Hooks"
+description: "Inject custom logic into Cline's workflow to validate operations and shape AI decisions."
+---
+
+Hooks let you inject custom logic into Cline's workflow at key moments. They run automatically when specific events happen during development. You can validate operations before they execute, monitor tool usage, and shape how Cline makes decisions.
+
+<Frame>
+	<img src="https://storage.googleapis.com/cline_public_images/hooks.gif" alt="Hooks in action" />
+</Frame>
+
+## What You Can Build
+
+- Stop operations before they cause problems (like creating `.js` files in a TypeScript project)
+- Run linters or custom validators before files get saved
+- Prevent operations that violate security policies
+- Track everything for analytics or compliance
+- Trigger external tools or services at the right moments
+
+## Hook Types
+
+| Hook Type | When It Runs |
+|-----------|--------------|
+| TaskStart | When you start a new task |
+| PreToolUse | Before Cline executes tools like file editing |
+| PostToolUse | After tool execution completes |
+| UserPromptSubmit | When you submit a message to Cline |
+
+## Hook Locations
+
+**Global Hooks** apply to all workspaces:
+- Stored in `~/Documents/Cline/Hooks/`
+- Perfect for personal coding standards
+
+**Project-Specific Hooks** apply only to current project:
+- Stored in `.clinerules/hooks/` within your repo
+- Great for team workflows
+- Can be committed to version control
+
+## Creating a Hook
+
+1. Open Cline and click the **Hooks** tab
+2. Choose between Global Hooks or project-specific hooks
+3. Click **"New hook..."** dropdown and select a hook type
+4. Review the hook's code with the pencil icon
+5. Toggle the switch to activate once you understand the behavior
+
+<Frame>
+  <img src="/assets/hooks/hook-controls.png" alt="Hook controls" />
+</Frame>
+
+<Warning>
+Always review a hook's code before enabling it. Hooks execute automatically during your workflow.
+</Warning>
+
+## Example: TypeScript Enforcement
+
+This hook blocks creation of `.js` files in a TypeScript project:
+
+```bash
+#!/bin/bash
+# PreToolUse hook to enforce TypeScript
+
+TOOL_NAME=$(echo "$CLINE_TOOL_NAME")
+FILE_PATH=$(echo "$CLINE_TOOL_PARAMS" | jq -r '.path // empty')
+
+if [[ "$TOOL_NAME" == "write_to_file" && "$FILE_PATH" == *.js ]]; then
+  echo '{"action": "block", "message": "Use .ts files instead of .js in this TypeScript project"}'
+  exit 0
+fi
+
+echo '{"action": "approve"}'
+```
+
+## CLI Support
+
+Hooks are available in the [Cline CLI](/cline-cli/getting-started):
+
+```bash
+# Enable hooks for a task
+cline "What does this repo do?" -s hooks_enabled=true
+
+# Configure hooks globally
+cline config set hooks-enabled=true
+```
+
+<Note>
+CLI hooks are only supported on macOS and Linux.
+</Note>
+
+## Related Features
+
+- [.clinerules](/customization/cline-rules) define high-level guidance that hooks can enforce
+- [Checkpoints](/core-workflows/checkpoints) let you roll back if a hook didn't catch an issue
+- [Auto-Approve](/customization/auto-approve) works well with hooks as safety nets
