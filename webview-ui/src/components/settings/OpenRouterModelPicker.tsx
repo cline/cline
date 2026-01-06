@@ -81,7 +81,7 @@ export const freeModels = [
 		label: "FREE",
 	},
 	{
-		id: "minimax/minimax-m2",
+		id: "minimax/minimax-m2.1",
 		description: "Open source model with solid performance",
 		label: "FREE",
 	},
