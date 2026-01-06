@@ -89,6 +89,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 	const {
 		apiConfiguration,
 		openRouterModels,
+		vercelAiGatewayModels,
 		navigateToSettings,
 		planActSeparateModelsSetting,
 		showSettings,
@@ -162,14 +163,16 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 	// Get models for current provider
 	const allModels = useMemo((): ModelItem[] => {
 		if (OPENROUTER_MODEL_PROVIDERS.includes(selectedProvider)) {
-			const modelIds = Object.keys(openRouterModels || {})
+			// Use vercelAiGatewayModels for Vercel provider, openRouterModels for others
+			const modelsSource = selectedProvider === "vercel-ai-gateway" ? vercelAiGatewayModels : openRouterModels
+			const modelIds = Object.keys(modelsSource || {})
 			const filteredIds = filterOpenRouterModelIds(modelIds, selectedProvider)
 
 			return filteredIds.map((id) => ({
 				id,
 				name: id.split("/").pop() || id,
 				provider: id.split("/")[0],
-				info: openRouterModels[id],
+				info: modelsSource[id],
 			}))
 		}
 
@@ -185,7 +188,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		}
 
 		return []
-	}, [selectedProvider, openRouterModels, apiConfiguration])
+	}, [selectedProvider, openRouterModels, vercelAiGatewayModels, apiConfiguration])
 
 	// Multi-word substring search - all words must match somewhere in id/name/provider
 	const matchesSearch = useCallback((model: ModelItem, query: string): boolean => {
@@ -266,7 +269,25 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		(modelId: string, modelInfo?: ModelInfoType) => {
 			const modeToUse = isSplit ? activeEditMode : currentMode
 
-			if (OPENROUTER_MODEL_PROVIDERS.includes(selectedProvider)) {
+			if (selectedProvider === "vercel-ai-gateway") {
+				// Vercel AI Gateway uses its own model fields
+				const modelInfoToUse = modelInfo || vercelAiGatewayModels[modelId]
+				handleModeFieldsChange(
+					{
+						vercelAiGatewayModelId: { plan: "planModeVercelAiGatewayModelId", act: "actModeVercelAiGatewayModelId" },
+						vercelAiGatewayModelInfo: {
+							plan: "planModeVercelAiGatewayModelInfo",
+							act: "actModeVercelAiGatewayModelInfo",
+						},
+					},
+					{
+						vercelAiGatewayModelId: modelId,
+						vercelAiGatewayModelInfo: modelInfoToUse,
+					},
+					modeToUse,
+				)
+			} else if (OPENROUTER_MODEL_PROVIDERS.includes(selectedProvider)) {
+				// Cline and OpenRouter use openRouter fields
 				const modelInfoToUse = modelInfo || openRouterModels[modelId]
 				handleModeFieldsChange(
 					{
@@ -309,6 +330,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 			isSplit,
 			activeEditMode,
 			openRouterModels,
+			vercelAiGatewayModels,
 			onOpenChange,
 		],
 	)
