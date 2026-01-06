@@ -133,10 +133,8 @@ export class ClineAccountService {
 				console.error("Failed to fetch user ID for usage transactions")
 				return undefined
 			}
-			const data = await this.authenticatedRequest<{ paymentTransactions: PaymentTransaction[] }>(
-				`/api/v1/users/${me.id}/payments`,
-			)
-			return data.paymentTransactions
+			const data = await this.authenticatedRequest<{ items: PaymentTransaction[] }>(`/api/v1/users/${me.id}/payments`)
+			return data.items
 		} catch (error) {
 			console.error("Failed to fetch payment transactions (RPC):", error)
 			return undefined
