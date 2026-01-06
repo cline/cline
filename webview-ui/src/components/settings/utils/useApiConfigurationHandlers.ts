@@ -86,6 +86,7 @@ export const useApiConfigurationHandlers = () => {
 		values: T,
 		currentMode: Mode,
 	) => {
+		console.log("[handleModeFieldsChange] called with:", { fieldPairs, values, currentMode, planActSeparateModelsSetting })
 		if (planActSeparateModelsSetting) {
 			// Update only the current mode's fields
 			const updates: Partial<ApiConfiguration> = {}
@@ -93,6 +94,7 @@ export const useApiConfigurationHandlers = () => {
 				const targetField = currentMode === "plan" ? plan : act
 				updates[targetField] = values[key]
 			})
+			console.log("[handleModeFieldsChange] updates (separate mode):", updates)
 			await handleFieldsChange(updates)
 		} else {
 			// Update both modes' fields
@@ -101,6 +103,7 @@ export const useApiConfigurationHandlers = () => {
 				updates[plan] = values[key]
 				updates[act] = values[key]
 			})
+			console.log("[handleModeFieldsChange] updates (both modes):", updates)
 			await handleFieldsChange(updates)
 		}
 	}

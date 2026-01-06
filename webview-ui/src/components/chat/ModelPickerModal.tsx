@@ -268,8 +268,10 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 	const handleSelectModel = useCallback(
 		(modelId: string, modelInfo?: ModelInfoType) => {
 			const modeToUse = isSplit ? activeEditMode : currentMode
+			console.log("[ModelPickerModal] handleSelectModel called:", { modelId, modelInfo, selectedProvider, modeToUse })
 
 			if (selectedProvider === "vercel-ai-gateway") {
+				console.log("[ModelPickerModal] Vercel AI Gateway branch - calling handleModeFieldsChange")
 				// Vercel AI Gateway uses its own model fields
 				const modelInfoToUse = modelInfo || vercelAiGatewayModels[modelId]
 				handleModeFieldsChange(
@@ -686,9 +688,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 										</TooltipContent>
 									</Tooltip>
 								</SplitModeRow>
-							) : (
-								selectedModelId &&
-								modelBelongsToProvider &&
+							) : selectedModelId && modelBelongsToProvider ? (
 								(() => {
 									// Check if current model has a featured label (only for Cline provider)
 									const currentFeaturedModel = isClineProvider
@@ -717,7 +717,11 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 										</CurrentModelRow>
 									)
 								})()
-							)}
+							) : !selectedModelId && selectedProvider === "vercel-ai-gateway" ? (
+								<EmptyModelRow>
+									<span className="text-[11px] text-description">Select a model below</span>
+								</EmptyModelRow>
+							) : null}
 
 							{/* For Cline: Show recommended models */}
 							{isClineProvider &&
@@ -1015,6 +1019,21 @@ const EmptyState = styled.div`
 	text-align: center;
 	font-size: 11px;
 	color: var(--vscode-descriptionForeground);
+`
+
+// Empty model row - shown when no model is selected for providers like Vercel
+const EmptyModelRow = styled.div`
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 8px 10px;
+	min-height: 28px;
+	box-sizing: border-box;
+	background: ${CODE_BLOCK_BG_COLOR};
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	border-bottom: 1px solid var(--vscode-editorGroup-border);
 `
 
 // Current model row - highlighted, sticky at top when scrolling, clickable to close

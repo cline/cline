@@ -1149,9 +1149,29 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		// Get model display name
 		const modelDisplayName = useMemo(() => {
 			const { selectedProvider, selectedModelId } = normalizeApiConfiguration(apiConfiguration, mode)
-			const { vsCodeLmModelSelector, togetherModelId, lmStudioModelId, ollamaModelId, liteLlmModelId, requestyModelId } =
-				getModeSpecificFields(apiConfiguration, mode)
+			const {
+				vsCodeLmModelSelector,
+				togetherModelId,
+				lmStudioModelId,
+				ollamaModelId,
+				liteLlmModelId,
+				requestyModelId,
+				vercelAiGatewayModelId,
+			} = getModeSpecificFields(apiConfiguration, mode)
 			const unknownModel = "unknown"
+
+			// Debug logging for Vercel
+			if (selectedProvider === "vercel-ai-gateway") {
+				console.log("[ChatTextArea] modelDisplayName for vercel-ai-gateway:", {
+					selectedProvider,
+					selectedModelId,
+					vercelAiGatewayModelId,
+					planModeVercelAiGatewayModelId: apiConfiguration?.planModeVercelAiGatewayModelId,
+					actModeVercelAiGatewayModelId: apiConfiguration?.actModeVercelAiGatewayModelId,
+					mode,
+				})
+			}
+
 			if (!apiConfiguration) {
 				return unknownModel
 			}
@@ -1172,6 +1192,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return `${selectedProvider}:${liteLlmModelId}`
 				case "requesty":
 					return `${selectedProvider}:${requestyModelId}`
+				case "vercel-ai-gateway":
+					return `${selectedProvider}:${vercelAiGatewayModelId || selectedModelId}`
 				case "anthropic":
 				case "openrouter":
 				default:

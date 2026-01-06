@@ -427,7 +427,7 @@ export function normalizeApiConfiguration(
 					: apiConfiguration?.actModeVercelAiGatewayModelInfo
 			return {
 				selectedProvider: provider,
-				selectedModelId: vercelModelId || openRouterDefaultModelId,
+				selectedModelId: vercelModelId || "",
 				selectedModelInfo: vercelModelInfo || openRouterDefaultModelInfo,
 			}
 		case "zai":
