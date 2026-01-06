@@ -115,6 +115,7 @@
 							},
 							"features/auto-approve",
 							"features/auto-compact",
+							"features/background-edit",
 							"features/checkpoints",
 							"features/cline-rules",
 							{
