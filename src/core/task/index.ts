@@ -712,7 +712,7 @@ export class Task {
 		partial?: boolean,
 	): Promise<number | undefined> {
 		// Allow hook messages even when aborted to enable proper cleanup
-		if (this.taskState.abort && type !== "hook" && type !== "hook_output") {
+		if (this.taskState.abort && type !== "hook_status" && type !== "hook_output_stream") {
 			throw new Error("Cline instance aborted")
 		}
 
@@ -1596,7 +1596,7 @@ export class Task {
 			}
 
 			// Notify UI that hook was cancelled
-			await this.say("hook_output", "\nHook execution cancelled by user")
+			await this.say("hook_output_stream", "\nHook execution cancelled by user")
 
 			// Return success - let caller (abortTask) handle next steps
 			// DON'T call abortTask() here to avoid infinite recursion
