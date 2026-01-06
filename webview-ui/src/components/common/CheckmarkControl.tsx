@@ -301,7 +301,7 @@ const Container = styled.div<{ isMenuOpen?: boolean; $isCheckedOut?: boolean }>`
 	min-width: 0;
 	min-height: 17px;
 	margin-top: -2px;
-	margin-bottom: -10px;
+	margin-bottom: 1px;
 	opacity: ${(props) => (props.$isCheckedOut ? 1 : props.isMenuOpen ? 1 : 0.5)};
 	height: 0.5rem;
 	&:hover {

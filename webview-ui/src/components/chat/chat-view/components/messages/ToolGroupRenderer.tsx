@@ -95,7 +95,7 @@ export const ToolGroupRenderer = memo(({ messages, expandedRows, onToggleExpand,
 						return (
 							<div className="min-w-0" key={tool.ts}>
 								<Tooltip>
-									<TooltipTrigger className="block min-w-0 max-w-full" disabled={!hasReasoning}>
+									<TooltipTrigger asChild>
 										<Button
 											className="flex items-center gap-1.5 cursor-pointer text-sm text-description font-editor py-0.5 hover:text-link min-w-0 max-w-full"
 											onClick={() => (isExpandable ? handleItemToggle(tool.ts) : handleOpenFile(info.path))}

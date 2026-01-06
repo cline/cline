@@ -916,17 +916,14 @@ export const ChatRowContent = memo(
 						return (
 							<div>
 								{apiReqState === "pre" && (
-									<div className="flex items-center gap-2 text-description">
-										<ClineLogoWhite className="w-5 h-auto shrink-0" />
-										<div className="pl-2 border-l border-white/10 flex-1">
+									<div className="flex items-center text-description">
+										<ClineLogoWhite className="w-5 h-auto shrink-0 scale-80" />
+										<div className="pl-2  flex-1">
 											{currentActivities.length > 0 ? (
 												<div className="flex flex-col gap-0.5">
 													{currentActivities.map((activity, i) => (
 														<div className="flex items-start gap-2" key={`activity-${i}`}>
-															<span
-																className={`codicon codicon-${activity.icon} opacity-70 shrink-0`}
-																style={{ fontSize: "12px" }}
-															/>
+															<activity.icon className="size-2 self-center text-foreground" />
 															<span className="flex-1">
 																<TypewriterText speed={15} text={activity.text} />
 															</span>
@@ -982,7 +979,7 @@ export const ChatRowContent = memo(
 								position="bottom-right"
 								ref={contentRef}
 								textToCopy={message.text}>
-								<div className="flex items-center gap-2">
+								<div className="flex items-center">
 									<ClineLogoWhite className="scale-80 w-5 h-auto shrink-0 self-start" />
 									<div className="flex-1 min-w-0 pl-2">
 										<MarkdownRow markdown={message.text} showCursor={false} />

@@ -48,6 +48,7 @@ export const ThinkingRow = memo(
 					<Button
 						className={cn(
 							"flex gap-0 overflow-hidden w-full min-w-0 max-h-0 opacity-0 items-baseline justify-baseline text-left",
+							"disabled:cursor-text disabled:opacity-100",
 							{
 								"max-h-[200px] opacity-100": isVisible,
 								"transition-[max-height] duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] [transition:max-height_250ms_cubic-bezier(0.4,0,0.2,1),opacity_150ms_ease-out]":
@@ -59,7 +60,7 @@ export const ThinkingRow = memo(
 						onClick={onToggle}
 						variant="text">
 						{showIcon ? (
-							<div className="flex items-start gap-2 text-description mr-4">
+							<div className="flex items-start text-description mr-4">
 								<ClineLogoWhite className="scale-80 shrink-0" />
 							</div>
 						) : null}
