@@ -3433,12 +3433,22 @@ export const cerebrasDefaultModelId: CerebrasModelId = "zai-glm-4.6"
 export const cerebrasModels = {
 	"zai-glm-4.6": {
 		maxTokens: 40000,
-		contextWindow: 128000,
+		contextWindow: 131072,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
-		description: "Intelligent general purpose model with 1,000 tokens/s",
+		description: "Fast general-purpose model on Cerebras (up to 1,000 tokens/s). To be deprecated soon.",
+	},
+	"zai-glm-4.7": {
+		maxTokens: 40000,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description:
+			"Highly capable general-purpose model on Cerebras (up to 1,000 tokens/s), competitive with leading proprietary models on coding tasks.",
 	},
 	"gpt-oss-120b": {
 		maxTokens: 65536,
