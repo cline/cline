@@ -279,8 +279,6 @@ export interface OcaModelInfo extends OpenAiCompatibleModelInfo {
 	surveyId?: string
 	banner?: string
 	surveyContent?: string
-	supportsChatApi?: boolean
-	supportsResponsesApi?: boolean
 	supportsReasoning?: boolean
 	reasoningEffortOptions: string[]
 }

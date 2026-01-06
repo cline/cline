@@ -12,6 +12,7 @@ import { Logger } from "@/services/logging/Logger"
 import { OcaModelInfo } from "@/shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
+import { ApiFormat } from "@/shared/proto/index.cline"
 import { ApiHandler, type CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -157,7 +158,7 @@ export class OcaHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		if (this.options.ocaModelInfo?.supportsResponsesApi) {
+		if (this.options.ocaModelInfo?.apiFormat == ApiFormat.OPENAI_RESPONSES) {
 			yield* this.createMessageResponsesApi(systemPrompt, messages, tools)
 		} else {
 			yield* this.createMessageChatApi(systemPrompt, messages, tools)
@@ -302,6 +303,7 @@ export class OcaHandler implements ApiHandler {
 	}
 
 	async *createMessageResponsesApi(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
+		console.log("Uses Responses API")
 		const client = this.ensureClient()
 
 		// Convert messages to Responses API input format

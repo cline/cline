@@ -1,5 +1,5 @@
 import { StringRequest } from "@shared/proto/cline/common"
-import { OcaCompatibleModelInfo, OcaModelInfo } from "@shared/proto/cline/models"
+import { ApiFormat, OcaCompatibleModelInfo, OcaModelInfo } from "@shared/proto/cline/models"
 import axios from "axios"
 import { HostProvider } from "@/hosts/host-provider"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
@@ -63,6 +63,10 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 				}
 				const modelInfo = model.model_info
 				const supportedApiList = modelInfo.supported_api_list ?? [CHAT_COMPLETIONS_API]
+				const apiFormat: ApiFormat = supportedApiList.includes(RESPONSES_API)
+					? ApiFormat.OPENAI_RESPONSES
+					: ApiFormat.OPENAI_CHAT
+				console.log(modelId, supportedApiList)
 				models[modelId] = OcaModelInfo.create({
 					maxTokens: model.litellm_params?.max_tokens || -1,
 					contextWindow: modelInfo.context_window,
@@ -79,8 +83,7 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 					temperature: modelInfo.temperature || 0,
 					banner: modelInfo.banner,
 					modelName: modelId,
-					supportsChatApi: supportedApiList.includes(CHAT_COMPLETIONS_API),
-					supportsResponsesApi: supportedApiList.includes(RESPONSES_API),
+					apiFormat: apiFormat,
 					supportsReasoning: modelInfo.is_reasoning_model || false,
 					reasoningEffortOptions: modelInfo.reasoning_effort_options || [],
 				})
