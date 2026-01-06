@@ -1160,18 +1160,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			} = getModeSpecificFields(apiConfiguration, mode)
 			const unknownModel = "unknown"
 
-			// Debug logging for Vercel
-			if (selectedProvider === "vercel-ai-gateway") {
-				console.log("[ChatTextArea] modelDisplayName for vercel-ai-gateway:", {
-					selectedProvider,
-					selectedModelId,
-					vercelAiGatewayModelId,
-					planModeVercelAiGatewayModelId: apiConfiguration?.planModeVercelAiGatewayModelId,
-					actModeVercelAiGatewayModelId: apiConfiguration?.actModeVercelAiGatewayModelId,
-					mode,
-				})
-			}
-
 			if (!apiConfiguration) {
 				return unknownModel
 			}

@@ -268,10 +268,8 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 	const handleSelectModel = useCallback(
 		(modelId: string, modelInfo?: ModelInfoType) => {
 			const modeToUse = isSplit ? activeEditMode : currentMode
-			console.log("[ModelPickerModal] handleSelectModel called:", { modelId, modelInfo, selectedProvider, modeToUse })
 
 			if (selectedProvider === "vercel-ai-gateway") {
-				console.log("[ModelPickerModal] Vercel AI Gateway branch - calling handleModeFieldsChange")
 				// Vercel AI Gateway uses its own model fields
 				const modelInfoToUse = modelInfo || vercelAiGatewayModels[modelId]
 				handleModeFieldsChange(
