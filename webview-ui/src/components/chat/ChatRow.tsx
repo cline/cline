@@ -997,7 +997,7 @@ export const ChatRowContent = memo(
 								textToCopy={message.text}>
 								{isRequestInProgress ? (
 									<div className="flex items-center gap-2">
-										<ClineLogoWhite className="scale-80 w-5 shrink-0 self-end" />
+										<ClineLogoWhite className="scale-80 w-5 shrink-0 self-start" />
 										<div className="flex-1 min-w-0 pl-2 border-l border-white/10">
 											<MarkdownRow markdown={message.text} showCursor={false} />
 										</div>
