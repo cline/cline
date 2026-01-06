@@ -97,6 +97,7 @@ export interface QuoteButtonState {
 interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
 
 export const ProgressIndicator = () => <LoaderCircleIcon className="size-2 mr-2 animate-spin" />
+const InvisibleSpacer = () => <div aria-hidden className="h-px" />
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
@@ -147,7 +148,6 @@ export const ChatRowContent = memo(
 		mode,
 		reasoningContent,
 		responseStarted,
-		isRequestInProgress,
 	}: ChatRowContentProps) => {
 		const {
 			backgroundEditEnabled,
@@ -171,8 +171,6 @@ export const ChatRowContent = memo(
 		const [isOutputFullyExpanded, setIsOutputFullyExpanded] = useState(false)
 		const prevCommandExecutingRef = useRef<boolean>(false)
 
-		// Completion output expansion state
-		const [isCompletionOutputExpanded, setIsCompletionOutputExpanded] = useState(false)
 		const hasAutoExpandedRef = useRef(false)
 		const hasAutoCollapsedRef = useRef(false)
 		const prevIsLastRef = useRef(isLast)
@@ -183,7 +181,6 @@ export const ChatRowContent = memo(
 
 			// Auto-expand if it's last and we haven't already auto-expanded
 			if (isLast && isCompletionResult && !hasAutoExpandedRef.current) {
-				setIsCompletionOutputExpanded(true)
 				hasAutoExpandedRef.current = true
 				hasAutoCollapsedRef.current = false // Reset the auto-collapse flag when expanding
 			}
@@ -196,7 +193,6 @@ export const ChatRowContent = memo(
 
 			// Only auto-collapse if transitioning from last to not-last, and we haven't already auto-collapsed
 			if (wasLast && !isLast && isCompletionResult && !hasAutoCollapsedRef.current) {
-				setIsCompletionOutputExpanded(false)
 				hasAutoCollapsedRef.current = true
 				hasAutoExpandedRef.current = false // Reset the auto-expand flag when collapsing
 			}
@@ -602,6 +598,7 @@ export const ChatRowContent = memo(
 							<div className="bg-code overflow-hidden border border-editor-group-border rounded-[3px]">
 								<div
 									aria-label={isExpanded ? "Collapse summary" : "Expand summary"}
+									className="text-description py-2 px-2.5 cursor-pointer select-none"
 									onClick={handleToggle}
 									onKeyDown={(e) => {
 										if (e.key === "Enter" || e.key === " ") {
@@ -609,15 +606,6 @@ export const ChatRowContent = memo(
 											e.stopPropagation()
 											handleToggle()
 										}
-									}}
-									style={{
-										color: "var(--vscode-descriptionForeground)",
-										padding: "9px 10px",
-										cursor: "pointer",
-										userSelect: "none",
-										WebkitUserSelect: "none",
-										MozUserSelect: "none",
-										msUserSelect: "none",
 									}}
 									tabIndex={0}>
 									{isExpanded ? (
@@ -691,7 +679,7 @@ export const ChatRowContent = memo(
 						</div>
 					)
 				default:
-					return null
+					return <InvisibleSpacer />
 			}
 		}
 
@@ -951,7 +939,6 @@ export const ChatRowContent = memo(
 										</div>
 									</div>
 								)}
-
 								{reasoningContent && (
 									<ThinkingRow
 										isExpanded={isExpanded || showStreamingThinking || showCollapsedThinking}
@@ -975,7 +962,7 @@ export const ChatRowContent = memo(
 						)
 					}
 					case "api_req_finished":
-						return null // we should never see this message type
+						return <InvisibleSpacer /> // we should never see this message type
 					case "mcp_server_response":
 						return <McpResponseDisplay responseText={message.text || ""} />
 					case "mcp_notification":
@@ -1011,7 +998,7 @@ export const ChatRowContent = memo(
 							</WithCopyButton>
 						)
 					}
-					case "reasoning":
+					case "reasoning": {
 						return (
 							<ThinkingRow
 								isExpanded={isExpanded}
@@ -1022,6 +1009,7 @@ export const ChatRowContent = memo(
 								showTitle={true}
 							/>
 						)
+					}
 					case "user_feedback":
 						return (
 							<UserMessage
@@ -1210,7 +1198,7 @@ export const ChatRowContent = memo(
 						return <HookMessage CommandOutput={CommandOutputContent} message={message} />
 					case "hook_output":
 						// hook_output messages are combined with hook messages, so we don't render them separately
-						return null
+						return <InvisibleSpacer />
 					case "shell_integration_warning_with_suggestion":
 						const isBackgroundModeEnabled = vscodeTerminalExecutionMode === "backgroundExec"
 						return (
@@ -1247,7 +1235,7 @@ export const ChatRowContent = memo(
 							</div>
 						)
 					case "task_progress":
-						return null // task_progress messages should be displayed in TaskHeader only, not in chat
+						return <InvisibleSpacer /> // task_progress messages should be displayed in TaskHeader only, not in chat
 					default:
 						return (
 							<div>
@@ -1286,7 +1274,8 @@ export const ChatRowContent = memo(
 								/>
 							)
 						} else {
-							return null // Don't render anything when we get a completion_result ask without text
+							// Virtuoso cannot handle zero-height items; render a spacer instead of null
+							return <InvisibleSpacer />
 						}
 					case "followup":
 						let question: string | undefined
@@ -1400,7 +1389,7 @@ export const ChatRowContent = memo(
 						)
 					}
 					default:
-						return null
+						return <InvisibleSpacer />
 				}
 		}
 	},

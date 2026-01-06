@@ -14,7 +14,7 @@ interface ThinkingRowProps {
 }
 
 export const ThinkingRow = memo(
-	({ showTitle, reasoningContent, isVisible, showIcon = true, isExpanded, onToggle }: ThinkingRowProps) => {
+	({ showTitle = false, reasoningContent, isVisible, showIcon = true, isExpanded, onToggle }: ThinkingRowProps) => {
 		const scrollRef = useRef<HTMLDivElement>(null)
 
 		// Only auto-scroll to bottom during streaming (showCursor=true)
@@ -55,6 +55,7 @@ export const ThinkingRow = memo(
 								"m-0 p-0": showIcon,
 							},
 						)}
+						disabled={!showTitle}
 						onClick={onToggle}
 						variant="text">
 						{showIcon ? (
