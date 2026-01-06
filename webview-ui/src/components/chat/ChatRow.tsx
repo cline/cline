@@ -146,6 +146,7 @@ export const ChatRowContent = memo(
 		onSetQuote,
 		onCancelCommand,
 		mode,
+		isRequestInProgress,
 		reasoningContent,
 		responseStarted,
 	}: ChatRowContentProps) => {
@@ -980,8 +981,10 @@ export const ChatRowContent = memo(
 								ref={contentRef}
 								textToCopy={message.text}>
 								<div className="flex items-center">
-									<ClineLogoWhite className="scale-80 w-5 h-auto shrink-0 self-start" />
-									<div className="flex-1 min-w-0 pl-2">
+									{isRequestInProgress && (
+										<ClineLogoWhite className="scale-80 w-5 h-auto shrink-0 self-start mr-1" />
+									)}
+									<div className={cn("flex-1 min-w-0 pl-1")}>
 										<MarkdownRow markdown={message.text} showCursor={false} />
 									</div>
 								</div>
