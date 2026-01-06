@@ -929,7 +929,7 @@ export const ChatRowContent = memo(
 							<div>
 								{apiReqState === "pre" && (
 									<div className="flex items-center gap-2 text-description">
-										<ClineLogoWhite className="h-4 w-5 shrink-0" />
+										<ClineLogoWhite className="w-5 h-auto shrink-0" />
 										<div className="pl-2 border-l border-white/10 flex-1">
 											{currentActivities.length > 0 ? (
 												<div className="flex flex-col gap-0.5">
@@ -995,16 +995,12 @@ export const ChatRowContent = memo(
 								position="bottom-right"
 								ref={contentRef}
 								textToCopy={message.text}>
-								{isRequestInProgress ? (
-									<div className="flex items-center gap-2">
-										<ClineLogoWhite className="scale-80 w-5 shrink-0 self-start" />
-										<div className="flex-1 min-w-0 pl-2 border-l border-white/10">
-											<MarkdownRow markdown={message.text} showCursor={false} />
-										</div>
+								<div className="flex items-center gap-2">
+									<ClineLogoWhite className="scale-80 w-5 h-auto shrink-0 self-start" />
+									<div className="flex-1 min-w-0 pl-2">
+										<MarkdownRow markdown={message.text} showCursor={false} />
 									</div>
-								) : (
-									<MarkdownRow markdown={message.text} showCursor={false} />
-								)}
+								</div>
 								{quoteButtonState.visible && (
 									<QuoteButton
 										left={quoteButtonState.left}
