@@ -319,11 +319,11 @@
 		hr,
 		ul,
 		ol {
-			@apply my-3 ml-4;
+			@apply my-3 ml-5;
 		}
 		li > ul,
 		li > ol {
-			@apply my-1;
+			@apply my-1 ml-2;
 		}
 
 		code:not(pre > code) {

@@ -928,10 +928,8 @@ export const ChatRowContent = memo(
 						return (
 							<div>
 								{apiReqState === "pre" && (
-									<div className="flex items-start gap-2 text-description">
-										<div className="mt-1 flex-shrink-0">
-											<ClineLogoWhite className="size-3.5 scale-[1.1]" />
-										</div>
+									<div className="flex items-center gap-2 text-description">
+										<ClineLogoWhite className="h-4 w-5 shrink-0" />
 										<div className="pl-2 border-l border-white/10 flex-1">
 											{currentActivities.length > 0 ? (
 												<div className="flex flex-col gap-0.5">
@@ -960,9 +958,8 @@ export const ChatRowContent = memo(
 										isVisible={true}
 										onToggle={handleToggle}
 										reasoningContent={reasoningContent}
-										showCursor={showStreamingThinking}
 										showIcon={showStreamingThinking}
-										showTitle={true}
+										showTitle={!showStreamingThinking}
 									/>
 								)}
 
@@ -1000,11 +997,9 @@ export const ChatRowContent = memo(
 								textToCopy={message.text}>
 								{isRequestInProgress ? (
 									<div className="flex items-center gap-2">
-										<div className="mt-[1px] shrink-0">
-											<ClineLogoWhite className="size-3.5 scale-110" />
-										</div>
+										<ClineLogoWhite className="scale-80 w-5 shrink-0 self-end" />
 										<div className="flex-1 min-w-0 pl-2 border-l border-white/10">
-											<MarkdownRow markdown={message.text} showCursor={true} />
+											<MarkdownRow markdown={message.text} showCursor={false} />
 										</div>
 									</div>
 								) : (
@@ -1027,7 +1022,6 @@ export const ChatRowContent = memo(
 								isVisible={true}
 								onToggle={handleToggle}
 								reasoningContent={message.text}
-								showCursor={false}
 								showIcon={false}
 								showTitle={true}
 							/>
@@ -1146,9 +1140,7 @@ export const ChatRowContent = memo(
 								explainChangesDisabled={explainChangesDisabled}
 								handleQuoteClick={handleQuoteClick}
 								headClassNames={HEADER_CLASSNAMES}
-								isOutputFullyExpanded={isCompletionOutputExpanded}
 								messageTs={message.ts}
-								onToggle={() => setIsCompletionOutputExpanded(!isCompletionOutputExpanded)}
 								quoteButtonState={quoteButtonState}
 								seeNewChangesDisabled={seeNewChangesDisabled}
 								setExplainChangesDisabled={setExplainChangesDisabled}
@@ -1288,9 +1280,7 @@ export const ChatRowContent = memo(
 									explainChangesDisabled={explainChangesDisabled}
 									handleQuoteClick={handleQuoteClick}
 									headClassNames={HEADER_CLASSNAMES}
-									isOutputFullyExpanded={isCompletionOutputExpanded}
 									messageTs={message.ts}
-									onToggle={() => setIsCompletionOutputExpanded(!isCompletionOutputExpanded)}
 									quoteButtonState={quoteButtonState}
 									seeNewChangesDisabled={seeNewChangesDisabled}
 									setExplainChangesDisabled={setExplainChangesDisabled}
