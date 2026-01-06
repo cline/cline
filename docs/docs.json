@@ -149,6 +149,7 @@
 							},
 							"features/multiroot-workspace",
 							"features/plan-and-act",
+							"features/web-tools",
 							{
 								"group": "Slash Commands",
 								"pages": [
