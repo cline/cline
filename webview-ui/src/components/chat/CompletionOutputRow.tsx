@@ -9,13 +9,10 @@ import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { CopyButton } from "../common/CopyButton"
 import { QuoteButtonState } from "./ChatRow"
-import ExpandHandle from "./ExpandHandle"
 import QuoteButton from "./QuoteButton"
 
 interface CompletionOutputRowProps {
 	text: string
-	isOutputFullyExpanded: boolean
-	onToggle: () => void
 	quoteButtonState: QuoteButtonState
 	handleQuoteClick: () => void
 	headClassNames?: string
@@ -31,8 +28,6 @@ export const CompletionOutputRow = memo(
 	({
 		headClassNames,
 		text,
-		isOutputFullyExpanded,
-		onToggle,
 		quoteButtonState,
 		showActionRow,
 		seeNewChangesDisabled,
@@ -64,10 +59,8 @@ export const CompletionOutputRow = memo(
 						<div
 							className={cn(
 								"completion-output-content",
-								"scroll-smooth p-2 overflow-y-auto w-full [&_hr]:opacity-20 rounded-sm",
+								"scroll-smooth p-2 overflow-y-auto w-full [&_hr]:opacity-20 rounded-sm max-h-[400px]",
 								{
-									"max-h-[400px]": !shouldAutoShow && isOutputFullyExpanded,
-									"max-h-[150px]": !shouldAutoShow && !isOutputFullyExpanded,
 									"overflow-y-visible": shouldAutoShow,
 								},
 							)}>
@@ -76,14 +69,6 @@ export const CompletionOutputRow = memo(
 								<QuoteButton left={quoteButtonState.left} onClick={handleQuoteClick} top={quoteButtonState.top} />
 							)}
 						</div>
-						{/* Show notch only if there's more than 5 lines */}
-						{!shouldAutoShow ? (
-							<ExpandHandle
-								className="bg-success -bottom-4"
-								isExpanded={isOutputFullyExpanded}
-								onToggle={onToggle}
-							/>
-						) : null}
 					</div>
 				</div>
 				{/* Action Buttons */}

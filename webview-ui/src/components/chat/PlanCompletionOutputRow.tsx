@@ -1,9 +1,8 @@
 import { NotepadTextIcon } from "lucide-react"
-import { memo, useMemo, useState } from "react"
+import { memo, useMemo } from "react"
 import { CopyButton } from "@/components/common/CopyButton"
 import MarkdownBlock from "@/components/common/MarkdownBlock"
 import { cn } from "@/lib/utils"
-import ExpandHandle from "./ExpandHandle"
 
 interface PlanCompletionOutputProps {
 	text: string
@@ -16,9 +15,7 @@ interface PlanCompletionOutputProps {
  * Uses grayscale colors to distinguish from Act Mode's green success theme
  */
 const PlanCompletionOutputRow = memo(({ text, headClassNames }: PlanCompletionOutputProps) => {
-	const [isExpanded, setIsExpanded] = useState(true) // Auto-expand by default
-
-	const { lineCount, shouldAutoShow } = useMemo(() => {
+	const { shouldAutoShow } = useMemo(() => {
 		const lineCount = text?.split("\n")?.length || 0
 		const shouldAutoShow = lineCount <= 5
 		return { lineCount, shouldAutoShow }
@@ -41,23 +38,17 @@ const PlanCompletionOutputRow = memo(({ text, headClassNames }: PlanCompletionOu
 					"pb-2": !shouldAutoShow,
 				})}>
 				<div
-					className={cn("plan-completion-content", "scroll-smooth p-2 overflow-y-auto w-full [&_hr]:opacity-20", {
-						"overflow-y-visible": shouldAutoShow,
-						"max-h-[400px]": isExpanded && !shouldAutoShow,
-						"max-h-[150px]": !isExpanded && !shouldAutoShow,
-					})}>
+					className={cn(
+						"plan-completion-content",
+						"scroll-smooth p-2 overflow-y-auto w-full [&_hr]:opacity-20 max-h-[400px]",
+						{
+							"overflow-y-visible": shouldAutoShow,
+						},
+					)}>
 					<div className="wrap-anywhere -my-4 overflow-hidden [&_hr]:opacity-20">
 						<MarkdownBlock markdown={text} />
 					</div>
 				</div>
-				{/* Expand/collapse notch - only show if there's more than 5 lines */}
-				{lineCount > 5 ? (
-					<ExpandHandle
-						className="bg-foreground -bottom-4"
-						isExpanded={isExpanded}
-						onToggle={() => setIsExpanded(!isExpanded)}
-					/>
-				) : null}
 			</div>
 		</div>
 	)
