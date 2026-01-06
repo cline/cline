@@ -229,6 +229,7 @@ message ModelsApiOptions {
   optional string minimax_api_line = 41;
   optional string aihubmix_base_url = 42;
   optional string aihubmix_app_code = 43;
+  optional bool azure_identity = 44;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -567,6 +568,7 @@ message ModelsApiConfiguration {
   optional string aihubmix_base_url = 83;
   optional string aihubmix_app_code = 84;
   optional string nous_research_api_key = 85;
+  optional bool azure_identity = 86;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;

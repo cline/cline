@@ -106,6 +106,9 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		if (openAiSettings.azureApiVersion !== undefined) {
 			transformed.azureApiVersion = openAiSettings.azureApiVersion
 		}
+		if (openAiSettings.azureIdentity !== undefined) {
+			transformed.azureIdentity = openAiSettings.azureIdentity
+		}
 	}
 
 	// Map AwsBedrock provider settings
