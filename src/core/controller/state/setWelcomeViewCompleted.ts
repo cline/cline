@@ -1,7 +1,6 @@
 import type { BooleanRequest } from "@shared/proto/cline/common"
 import { Empty } from "@shared/proto/cline/common"
 import type { Controller } from "../index"
-import { clearOnboardingModelsCache } from "../models/getClineOnboardingModels"
 
 /**
  * Sets the welcomeViewCompleted flag to the specified boolean value
@@ -21,7 +20,5 @@ export async function setWelcomeViewCompleted(controller: Controller, request: B
 	} catch (error) {
 		console.error("Failed to set welcome view completed:", error)
 		throw error
-	} finally {
-		clearOnboardingModelsCache()
 	}
 }

@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.37.1",
+	"version": "3.46.1",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -46,6 +46,15 @@
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
+		"icons": {
+			"cline-icon": {
+				"description": "cline",
+				"default": {
+					"fontPath": "assets/icons/cline-bot.woff",
+					"fontCharacter": "\\e900"
+				}
+			}
+		},
 		"walkthroughs": [
 			{
 				"id": "ClineWalkthrough",
@@ -174,10 +183,7 @@
 				"command": "cline.generateGitCommitMessage",
 				"title": "Generate Commit Message with Cline",
 				"category": "Cline",
-				"icon": {
-					"light": "assets/icons/robot_panel_light.png",
-					"dark": "assets/icons/robot_panel_dark.png"
-				}
+				"icon": "$(cline-icon)"
 			},
 			{
 				"command": "cline.abortGitCommitMessage",
@@ -204,9 +210,26 @@
 				"command": "cline.reconstructTaskHistory",
 				"title": "Reconstruct Task History",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.reviewComment.reply",
+				"title": "Reply",
+				"category": "Cline",
+				"enablement": "!commentIsEmpty"
+			},
+			{
+				"command": "cline.reviewComment.addToChat",
+				"title": "Add to Cline Chat",
+				"category": "Cline",
+				"icon": "$(link-external)"
 			}
 		],
 		"keybindings": [
+			{
+				"command": "editor.action.submitComment",
+				"key": "enter",
+				"when": "commentEditorFocused && commentController == cline-ai-review && !commentIsEmpty"
+			},
 			{
 				"command": "cline.addToChat",
 				"key": "cmd+'",
@@ -289,6 +312,24 @@
 				{
 					"command": "cline.abortGitCommitMessage",
 					"when": "config.git.enabled && cline.isGeneratingCommit"
+				},
+				{
+					"command": "cline.reviewComment.reply",
+					"when": "false"
+				}
+			],
+			"comments/commentThread/context": [
+				{
+					"command": "cline.reviewComment.reply",
+					"group": "inline",
+					"when": "commentController == cline-ai-review"
+				}
+			],
+			"comments/commentThread/title": [
+				{
+					"command": "cline.reviewComment.addToChat",
+					"group": "inline",
+					"when": "commentController == cline-ai-review"
 				}
 			]
 		},
@@ -337,7 +378,7 @@
 		"pretest": "npm run compile && npm run compile-tests && npm run compile-standalone && npm run lint",
 		"test": "npm-run-all test:unit test:integration",
 		"test:integration": "vscode-test",
-		"test:unit": "cross-env TS_NODE_PROJECT=./tsconfig.unit-test.json mocha # Use `UPDATE_SNAPSHOTS=true npm run test:unit` to rebuild prompt snapshots",
+		"test:unit": "cross-env TS_NODE_PROJECT=./tsconfig.unit-test.json mocha",
 		"test:coverage": "vscode-test --coverage",
 		"test:sca-server": "npx tsx watch scripts/test-standalone-core-api-server.ts",
 		"test:tp-orchestrator": "npx tsx scripts/testing-platform-orchestrator.ts",
@@ -359,7 +400,8 @@
 		"docs": "cd docs && npm run dev",
 		"docs:check-links": "cd docs && npm run check",
 		"docs:rename-file": "cd docs && npm run rename",
-		"report-issue": "node scripts/report-issue.js"
+		"report-issue": "node scripts/report-issue.js",
+		"storybook": "cd webview-ui && npm run storybook"
 	},
 	"lint-staged": {
 		"*": [
@@ -414,14 +456,15 @@
 		"@anthropic-ai/vertex-sdk": "^0.6.4",
 		"@aws-sdk/client-bedrock-runtime": "^3.922.0",
 		"@aws-sdk/credential-providers": "^3.922.0",
+		"@azure/identity": "^4.13.0",
 		"@bufbuild/protobuf": "^2.2.5",
 		"@cerebras/cerebras_cloud_sdk": "^1.35.0",
 		"@google-cloud/vertexai": "^1.9.3",
-		"@google/genai": "^1.11.0",
+		"@google/genai": "^1.30.0",
 		"@grpc/grpc-js": "^1.9.15",
 		"@grpc/reflection": "^1.0.4",
 		"@mistralai/mistralai": "^1.5.0",
-		"@modelcontextprotocol/sdk": "^1.11.1",
+		"@modelcontextprotocol/sdk": "^1.25.1",
 		"@opentelemetry/api": "^1.9.0",
 		"@opentelemetry/core": "^2.1.0",
 		"@opentelemetry/exporter-logs-otlp-grpc": "^0.56.0",
@@ -444,7 +487,7 @@
 		"@playwright/test": "^1.55.1",
 		"@sap-ai-sdk/ai-api": "^2.1.0",
 		"@sap-ai-sdk/orchestration": "^2.1.0",
-		"@sentry/browser": "^9.12.0",
+		"@sap-cloud-sdk/connectivity": "^4.2.0",
 		"@streamparser/json": "^0.0.22",
 		"@tailwindcss/vite": "^4.1.14",
 		"@types/uuid": "^10.0.0",
@@ -470,6 +513,7 @@
 		"image-size": "^2.0.2",
 		"isbinaryfile": "^5.0.2",
 		"jschardet": "^3.1.4",
+		"json5": "^2.2.3",
 		"mammoth": "^1.11.0",
 		"nanoid": "^5.1.6",
 		"nice-grpc": "^2.1.12",
@@ -477,7 +521,7 @@
 		"ollama": "^0.5.13",
 		"open": "^10.1.2",
 		"open-graph-scraper": "^6.9.0",
-		"openai": "^4.83.0",
+		"openai": "^6.9.0",
 		"os-name": "^6.0.0",
 		"p-mutex": "^1.0.0",
 		"p-timeout": "^6.1.4",

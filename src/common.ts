@@ -2,6 +2,7 @@ import * as vscode from "vscode"
 import {
 	cleanupMcpMarketplaceCatalogFromGlobalState,
 	migrateCustomInstructionsToGlobalRules,
+	migrateHooksEnabledToBoolean,
 	migrateTaskHistoryToFile,
 	migrateWelcomeViewCompleted,
 	migrateWorkspaceToGlobalStorage,
@@ -62,6 +63,9 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	// Ensure taskHistory.json exists and migrate legacy state (runs once)
 	await migrateTaskHistoryToFile(context)
 
+	// Migrate hooksEnabled from ClineFeatureSetting to boolean (one-time cleanup)
+	await migrateHooksEnabledToBoolean(context)
+
 	// Clean up MCP marketplace catalog from global state (moved to disk cache)
 	await cleanupMcpMarketplaceCatalogFromGlobalState(context)
 
@@ -100,17 +104,15 @@ async function showVersionUpdateAnnouncement(context: vscode.ExtensionContext) {
 		if (!previousVersion || currentVersion !== previousVersion) {
 			Logger.log(`Cline version changed: ${previousVersion} -> ${currentVersion}. First run or update detected.`)
 
-			// Use the same condition as announcements: focus when there's a new announcement to show
+			// Check if there's a new announcement to show
 			const lastShownAnnouncementId = context.globalState.get<string>("lastShownAnnouncementId")
 			const latestAnnouncementId = getLatestAnnouncementId()
 
 			if (lastShownAnnouncementId !== latestAnnouncementId) {
-				// Focus Cline when there's a new announcement to show (major/minor updates or fresh installs)
+				// Show notification when there's a new announcement (major/minor updates or fresh installs)
 				const message = previousVersion
 					? `Cline has been updated to v${currentVersion}`
 					: `Welcome to Cline v${currentVersion}`
-				await HostProvider.workspace.openClineSidebarPanel({})
-				await new Promise((resolve) => setTimeout(resolve, 200))
 				HostProvider.window.showMessage({
 					type: ShowMessageType.INFORMATION,
 					message,

@@ -1,10 +1,8 @@
 import type { ApiProviderInfo } from "@/core/api"
 import { getDeepPlanningPrompt } from "./commands/deep-planning"
 
-export const newTaskToolResponse = (enableNativeToolCalls?: boolean) => {
-	const xmlExample = enableNativeToolCalls
-		? ""
-		: `
+export const newTaskToolResponse = (willUseNativeTools: boolean) => {
+	const xmlExample = `
 Example:
 <new_task>
 <context>1. Current Work:
@@ -36,7 +34,7 @@ Example:
 
 	return `<explicit_instructions type="new_task">
 The user has explicitly asked you to help them create a new task with preloaded context, which you will generate. The user may have provided instructions or additional information for you to consider when summarizing existing work and creating the context for the new task.
-Irrespective of whether additional information or instructions are given, you are ONLY allowed to respond to this message by calling the new_task tool.
+Irrespective of whether additional information or instructions are given, you are ONLY allowed to respond to this message by calling the new_task tool.${willUseNativeTools ? " You MUST call the new_task tool EVEN if it's not in your existing toolset." : ""}
 
 The new_task tool is defined below:
 
@@ -237,12 +235,95 @@ cline "<prompt>"
 </explicit_instructions>\n
 `
 
+export const explainChangesToolResponse = () =>
+	`<explicit_instructions type="explain_changes">
+The user has asked you to explain code changes. You have access to a tool called **generate_explanation** that opens a multi-file diff view with AI-generated inline comments explaining code changes between two git references.
+
+# Important: Use Non-Interactive Commands
+
+When running git or gh commands, always use non-interactive variants to ensure output is returned immediately without requiring user interaction:
+
+- **For git commands**: Use \`git --no-pager\` prefix to disable the pager (e.g., \`git --no-pager log\`, \`git --no-pager diff\`, \`git --no-pager show\`)
+- **For gh commands**: Use \`--json\` flag when possible for structured output, or pipe to \`cat\` if needed (e.g., \`gh pr diff 123 | cat\`)
+
+This prevents commands from entering interactive/pager mode which would hang waiting for user input.
+
+# Workflow
+
+Follow these steps to explain code changes:
+
+## 1. Gather Information About the Changes
+
+First, use git or gh CLI tools to understand what changes exist. **Always get the full unified diff output**, not just stats:
+
+- For commits: \`git --no-pager show <commit>\` to see a specific commit's full diff
+- For commit ranges: \`git --no-pager log --oneline <from>..<to>\` to see commits in range, then \`git --no-pager diff <from>..<to>\` for full diff
+- For branches: \`git --no-pager diff <branch1>..<branch2>\` to see full diff of all changes
+- For pull requests: \`gh pr view <number> --json commits,files\` for metadata, then \`gh pr diff <number> | cat\` for full diff
+- For staged changes: \`git --no-pager diff --cached\` to see full diff of staged files
+- For working directory: \`git --no-pager diff\` for full diff of unstaged changes
+
+To get a comprehensive overview between two refs, run:
+
+**Bash:**
+\`\`\`bash
+echo "=== COMMITS ==="; git --no-pager log --oneline <from_ref>..<to_ref>; echo "=== CHANGED FILES ==="; git diff <from_ref>..<to_ref> --name-only; echo "=== FULL DIFF ==="; git --no-pager diff <from_ref>..<to_ref>
+\`\`\`
+
+**PowerShell:**
+\`\`\`powershell
+'=== COMMITS ==='; git --no-pager log --oneline <from_ref>..<to_ref>; '=== CHANGED FILES ==='; git diff <from_ref>..<to_ref> --name-only; '=== FULL DIFF ==='; git --no-pager diff <from_ref>..<to_ref>
+\`\`\`
+
+Replace \`<from_ref>\` and \`<to_ref>\` with the appropriate git references (commit hashes, branch names, tags, HEAD~1, etc.).
+
+## 2. Build Context for Better Explanations
+
+Before calling generate_explanation, gather context that will help produce more insightful explanations:
+
+- Read relevant files to understand the codebase structure
+- Look at related code that the changes interact with
+- Check for tests that might explain the intended behavior
+- Review any related documentation or comments
+- If needed, view file contents at different versions: \`git --no-pager show <ref>:<file>\`
+
+The more context you have in your conversation history, the better the explanations will be since generate_explanation uses the full conversation context when generating comments.
+
+## 3. Determine Git References
+
+Identify the appropriate git references for the diff:
+
+- **from_ref**: The "before" state (commit hash, branch name, tag, HEAD~1, etc.)
+- **to_ref**: The "after" state (optional - defaults to working directory if omitted)
+
+Examples of reference combinations:
+- Last commit: from_ref="HEAD~1", to_ref="HEAD"
+- Specific commit: from_ref="abc123^", to_ref="abc123"
+- Branch comparison: from_ref="main", to_ref="feature-branch"
+- Staged changes: from_ref="HEAD" (omit to_ref to compare to working directory with staged changes)
+- PR changes: from_ref="main", to_ref="pr-branch-name"
+
+## 4. Call generate_explanation
+
+Use the generate_explanation tool with:
+- **title**: A descriptive title for the diff view (e.g., "Changes in commit abc123", "PR #42: Add user authentication")
+- **from_ref**: The git reference for the "before" state
+- **to_ref**: The git reference for the "after" state (optional)
+Below is the user's input describing what changes they want explained. If no input is provided, default to analyzing uncommitted changes in the working directory (may or may not be staged).
+</explicit_instructions>\n
+`
+
 /**
  * Generates the deep-planning slash command response with model-family-aware variant selection
  * @param focusChainSettings Optional focus chain settings to include in the prompt
  * @param providerInfo Optional API provider info for model family detection
+ * @param enableNativeToolCalls Optional flag to determine if native tool calling is enabled
  * @returns The deep-planning prompt string with appropriate variant and focus chain settings applied
  */
-export const deepPlanningToolResponse = (focusChainSettings?: { enabled: boolean }, providerInfo?: ApiProviderInfo) => {
-	return getDeepPlanningPrompt(focusChainSettings, providerInfo)
+export const deepPlanningToolResponse = (
+	focusChainSettings?: { enabled: boolean },
+	providerInfo?: ApiProviderInfo,
+	enableNativeToolCalls?: boolean,
+) => {
+	return getDeepPlanningPrompt(focusChainSettings, providerInfo, enableNativeToolCalls)
 }

@@ -16,7 +16,27 @@ import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
  * When adding a new category, add it both here and to the initial values in telemetryCategoryEnabled
  * Ensure `if (!this.isCategoryEnabled('<category_name>')` is added to the capture method
  */
-type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "dictation" | "subagents"
+type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "dictation" | "subagents" | "hooks"
+
+/**
+ * Terminal type for telemetry differentiation
+ */
+export type TerminalType = "vscode" | "standalone"
+
+/**
+ * VSCode-specific output capture methods
+ */
+export type VscodeOutputMethod = "shell_integration" | "clipboard" | "none"
+
+/**
+ * Standalone-specific output capture methods
+ */
+export type StandaloneOutputMethod = "child_process" | "child_process_error"
+
+/**
+ * Combined type for terminal output methods
+ */
+export type TerminalOutputMethod = VscodeOutputMethod | StandaloneOutputMethod
 
 /**
  * Enum for terminal output failure reasons
@@ -46,9 +66,19 @@ export enum TerminalHangStage {
 }
 
 export type TelemetryMetadata = {
-	/** The extension or cline-core version. */
+	/**
+	 * The extension or cline-core version. JetBrains and CLI have different
+	 * versioning than the VSCode Extension, but on those platforms this will be the _cline-core version_
+	 * which uses the same as the versioning as the VSCode extension.
+	 */
 	extension_version: string
-	/** The name of the host IDE or environment e.g. VSCode */
+	/**
+	 * The type of cline distribution, e.g VSCode Extension, JetBrains Plugin or CLI. This
+	 * is different than the `platform` because there are many variants of VSCode and JetBrains but they
+	 * all use the same extension or plugin.
+	 */
+	cline_type: string
+	/** The name of the host IDE or environment e.g. VSCode, Cursor, IntelliJ Professional Edition, etc. */
 	platform: string
 	/** The version of the host environment */
 	platform_version: string
@@ -79,8 +109,53 @@ export class TelemetryService {
 		["dictation", true], // Dictation telemetry enabled
 		["focus_chain", true], // Focus Chain telemetry enabled
 		["subagents", true], // CLI Subagents telemetry enabled
+		["hooks", true], // Hooks telemetry enabled
 	])
 
+	private userId?: string
+	private taskTurnCounts = new Map<string, number>()
+	private taskToolCallCounts = new Map<string, number>()
+	private taskErrorCounts = new Map<string, number>()
+	public static readonly METRICS = {
+		TASK: {
+			TURNS_TOTAL: "cline.turns.total",
+			TURNS_PER_TASK: "cline.turns.per_task",
+			TOKENS_INPUT_TOTAL: "cline.tokens.input.total",
+			TOKENS_INPUT_PER_RESPONSE: "cline.tokens.input.per_response",
+			TOKENS_OUTPUT_TOTAL: "cline.tokens.output.total",
+			TOKENS_OUTPUT_PER_RESPONSE: "cline.tokens.output.per_response",
+			COST_TOTAL: "cline.cost.total",
+			COST_PER_EVENT: "cline.cost.per_event",
+		},
+		CACHE: {
+			WRITE_TOTAL: "cline.cache.write.tokens.total",
+			WRITE_PER_EVENT: "cline.cache.write.tokens.per_event",
+			READ_TOTAL: "cline.cache.read.tokens.total",
+			READ_PER_EVENT: "cline.cache.read.tokens.per_event",
+			HITS_TOTAL: "cline.cache.hits.total",
+		},
+		TOOLS: {
+			CALLS_TOTAL: "cline.tool.calls.total",
+			CALLS_PER_TASK: "cline.tool.calls.per_task",
+		},
+		ERRORS: {
+			TOTAL: "cline.errors.total",
+			PER_TASK: "cline.errors.per_task",
+		},
+		API: {
+			TTFT_SECONDS: "cline.api.ttft.seconds",
+			DURATION_SECONDS: "cline.api.duration.seconds",
+			THROUGHPUT_TOKENS_PER_SECOND: "cline.api.throughput.tokens_per_second",
+		},
+		HOOKS: {
+			EXECUTIONS_TOTAL: "cline.hooks.executions.total",
+			DURATION_SECONDS: "cline.hooks.duration.seconds",
+			FAILURES_TOTAL: "cline.hooks.failures.total",
+			CANCELLATIONS_TOTAL: "cline.hooks.cancellations.total",
+			CONTEXT_MODIFICATIONS_TOTAL: "cline.hooks.context_modifications.total",
+			CACHE_ACCESSES_TOTAL: "cline.hooks.cache.accesses.total",
+		},
+	}
 	// Event constants for tracking user interactions and system events
 	private static readonly EVENTS = {
 		// Task-related events for tracking conversation and execution flow
@@ -89,6 +164,7 @@ export class TelemetryService {
 			OPT_OUT: "user.opt_out",
 			TELEMETRY_ENABLED: "user.telemetry_enabled",
 			EXTENSION_ACTIVATED: "user.extension_activated",
+			EXTENSION_STORAGE_ERROR: "user.extension_storage_error",
 			AUTH_STARTED: "user.auth_started",
 			AUTH_SUCCEEDED: "user.auth_succeeded",
 			AUTH_FAILED: "user.auth_failed",
@@ -188,6 +264,8 @@ export class TelemetryService {
 			AUTO_CONDENSE_TOGGLED: "task.auto_condense_toggled",
 			// Tracks when yolo mode setting is toggled on/off
 			YOLO_MODE_TOGGLED: "task.yolo_mode_toggled",
+			// Tracks when Cline web tools setting is toggled on/off
+			CLINE_WEB_TOOLS_TOGGLED: "task.cline_web_tools_toggled",
 			// Tracks task initialization timing
 			INITIALIZATION: "task.initialization",
 			// Terminal execution telemetry events
@@ -218,6 +296,19 @@ export class TelemetryService {
 			// Tracks when the rules menu button is clicked
 			RULES_MENU_OPENED: "ui.rules_menu_opened",
 		},
+		// Hooks-related events for tracking hook execution
+		HOOKS: {
+			// Tracks when hooks feature is enabled
+			ENABLED: "hooks.enabled",
+			// Tracks when hooks feature is disabled
+			DISABLED: "hooks.disabled",
+			// Tracks when a hook requests task cancellation
+			CANCEL_REQUESTED: "hooks.cancel_requested",
+			// Tracks when a hook modifies context
+			CONTEXT_MODIFIED: "hooks.context_modified",
+			// Tracks when hook discovery completes
+			DISCOVERY_COMPLETED: "hooks.discovery_completed",
+		},
 	}
 
 	public static async create(): Promise<TelemetryService> {
@@ -227,6 +318,7 @@ export class TelemetryService {
 			extension_version: extensionVersion,
 			platform: hostVersion.platform || "unknown",
 			platform_version: hostVersion.version || "unknown",
+			cline_type: hostVersion.clineType || "unknown",
 			os_type: os.platform(),
 			os_version: os.version(),
 			is_dev: process.env.IS_DEV,
@@ -244,6 +336,14 @@ export class TelemetryService {
 	) {
 		this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
 		console.info(`[TelemetryService] Initialized with ${providers.length} telemetry provider(s)`)
+	}
+
+	public addProvider(provider: ITelemetryProvider) {
+		this.providers.push(provider)
+	}
+
+	public removeProvider(name: string) {
+		this.providers = this.providers.filter((p) => p.name !== name)
 	}
 
 	/**
@@ -329,8 +429,97 @@ export class TelemetryService {
 		})
 	}
 
+	private getStandardAttributes(extra?: TelemetryProperties): TelemetryProperties {
+		return {
+			...this.telemetryMetadata,
+			...(this.userId ? { userId: this.userId } : {}),
+			...(extra ?? {}),
+		}
+	}
+
+	private recordCounter(
+		name: string,
+		value: number,
+		attributes?: TelemetryProperties,
+		description?: string,
+		required = false,
+	): void {
+		const attrs = this.getStandardAttributes(attributes)
+		this.providers.forEach((provider) => {
+			try {
+				provider.recordCounter(name, value, attrs, description, required)
+			} catch (error) {
+				console.error(`[TelemetryService] recordCounter failed: ${name}`, error)
+			}
+		})
+	}
+
+	private recordHistogram(
+		name: string,
+		value: number,
+		attributes?: TelemetryProperties,
+		description?: string,
+		required = false,
+	): void {
+		const attrs = this.getStandardAttributes(attributes)
+		this.providers.forEach((provider) => {
+			try {
+				provider.recordHistogram(name, value, attrs, description, required)
+			} catch (error) {
+				console.error(`[TelemetryService] recordHistogram failed: ${name}`, error)
+			}
+		})
+	}
+
+	/**
+	 * Gauge values require explicit cleanup: callers must pass null with the same attribute set
+	 * when the series identified by name+attributes ends to prevent stale metric entries.
+	 */
+	private recordGauge(
+		name: string,
+		value: number | null,
+		attributes?: TelemetryProperties,
+		description?: string,
+		required = false,
+	): void {
+		const attrs = this.getStandardAttributes(attributes)
+		this.providers.forEach((provider) => {
+			try {
+				provider.recordGauge(name, value, attrs, description, required)
+			} catch (error) {
+				console.error(`[TelemetryService] recordGauge failed: ${name}`, error)
+			}
+		})
+	}
+
+	private incrementTaskCounter(store: Map<string, number>, ulid: string): number {
+		const nextValue = (store.get(ulid) ?? 0) + 1
+		store.set(ulid, nextValue)
+		return nextValue
+	}
+
+	private resetTaskAggregates(ulid: string): void {
+		this.taskTurnCounts.delete(ulid)
+		this.taskToolCallCounts.delete(ulid)
+		this.taskErrorCounts.delete(ulid)
+	}
+
 	public captureExtensionActivated() {
 		this.captureToProviders(TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED, {}, false)
+	}
+
+	public captureExtensionStorageError(errorMessage: string, eventName: string) {
+		// Truncate error message to prevent excessive data
+		this.capture({
+			event: TelemetryService.EVENTS.USER.EXTENSION_STORAGE_ERROR,
+			properties: {
+				error:
+					errorMessage.length > MAX_ERROR_MESSAGE_LENGTH
+						? errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH) + "..."
+						: errorMessage,
+				eventName,
+			},
+		})
 	}
 
 	/**
@@ -396,6 +585,7 @@ export class TelemetryService {
 			...this.telemetryMetadata,
 		}
 
+		this.userId = userInfo.id
 		// Update all providers with error isolation
 		this.providers.forEach((provider) => {
 			try {
@@ -539,6 +729,7 @@ export class TelemetryService {
 	 * @param openAiCompatibleDomain Optional domain for OpenAI Compatible providers (e.g., "api.example.com")
 	 */
 	public captureTaskCreated(ulid: string, apiProvider?: string, openAiCompatibleDomain?: string) {
+		this.resetTaskAggregates(ulid)
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.CREATED,
 			properties: { ulid, apiProvider, openAiCompatibleDomain },
@@ -552,6 +743,7 @@ export class TelemetryService {
 	 * @param openAiCompatibleDomain Optional domain for OpenAI Compatible providers (e.g., "api.example.com")
 	 */
 	public captureTaskRestarted(ulid: string, apiProvider?: string, openAiCompatibleDomain?: string) {
+		this.resetTaskAggregates(ulid)
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.RESTARTED,
 			properties: { ulid, apiProvider, openAiCompatibleDomain },
@@ -567,6 +759,7 @@ export class TelemetryService {
 			event: TelemetryService.EVENTS.TASK.COMPLETED,
 			properties: { ulid },
 		})
+		this.resetTaskAggregates(ulid)
 	}
 
 	/**
@@ -612,6 +805,51 @@ export class TelemetryService {
 				isNativeToolCall,
 			},
 		})
+
+		const turnCount = this.incrementTaskCounter(this.taskTurnCounts, ulid)
+
+		const turnAttributes = { ulid, provider, model, source, mode }
+		this.recordCounter(TelemetryService.METRICS.TASK.TURNS_TOTAL, 1, turnAttributes)
+		this.recordHistogram(TelemetryService.METRICS.TASK.TURNS_PER_TASK, turnCount, turnAttributes)
+
+		if (Number.isFinite(tokenUsage.cacheWriteTokens)) {
+			const cacheWriteTokens = tokenUsage.cacheWriteTokens ?? 0
+			this.recordCounter(TelemetryService.METRICS.CACHE.WRITE_TOTAL, cacheWriteTokens, {
+				ulid,
+				provider,
+				model,
+				mode,
+			})
+			this.recordHistogram(TelemetryService.METRICS.CACHE.WRITE_PER_EVENT, cacheWriteTokens, {
+				ulid,
+				provider,
+				model,
+				mode,
+			})
+		}
+
+		if (Number.isFinite(tokenUsage.cacheReadTokens)) {
+			const cacheReadTokens = tokenUsage.cacheReadTokens ?? 0
+			this.recordCounter(TelemetryService.METRICS.CACHE.READ_TOTAL, cacheReadTokens, {
+				ulid,
+				provider,
+				model,
+				mode,
+			})
+			this.recordHistogram(TelemetryService.METRICS.CACHE.READ_PER_EVENT, cacheReadTokens, {
+				ulid,
+				provider,
+				model,
+				mode,
+			})
+		}
+
+		if (Number.isFinite(tokenUsage.totalCost)) {
+			const totalCost = tokenUsage.totalCost ?? 0
+			const costAttributes = { ulid, provider, model, mode, currency: "USD" }
+			this.recordCounter(TelemetryService.METRICS.TASK.COST_TOTAL, totalCost, costAttributes)
+			this.recordHistogram(TelemetryService.METRICS.TASK.COST_PER_EVENT, totalCost, costAttributes)
+		}
 	}
 
 	/**
@@ -631,6 +869,18 @@ export class TelemetryService {
 				model,
 			},
 		})
+
+		if (Number.isFinite(tokensIn)) {
+			const value = tokensIn ?? 0
+			this.recordCounter(TelemetryService.METRICS.TASK.TOKENS_INPUT_TOTAL, value, { ulid, model })
+			this.recordHistogram(TelemetryService.METRICS.TASK.TOKENS_INPUT_PER_RESPONSE, value, { ulid, model })
+		}
+
+		if (Number.isFinite(tokensOut)) {
+			const value = tokensOut ?? 0
+			this.recordCounter(TelemetryService.METRICS.TASK.TOKENS_OUTPUT_TOTAL, value, { ulid, model })
+			this.recordHistogram(TelemetryService.METRICS.TASK.TOKENS_OUTPUT_PER_RESPONSE, value, { ulid, model })
+		}
 	}
 
 	/**
@@ -692,6 +942,7 @@ export class TelemetryService {
 				feedbackType,
 			},
 		})
+		this.resetTaskAggregates(ulid)
 	}
 
 	// Tool events
@@ -739,6 +990,17 @@ export class TelemetryService {
 				isNativeToolCall,
 			},
 		})
+
+		const toolAttributes = {
+			ulid,
+			tool,
+			model: modelId,
+			success,
+			autoApproved,
+		}
+		const toolCallCount = this.incrementTaskCounter(this.taskToolCallCounts, ulid)
+		this.recordCounter(TelemetryService.METRICS.TOOLS.CALLS_TOTAL, 1, toolAttributes)
+		this.recordHistogram(TelemetryService.METRICS.TOOLS.CALLS_PER_TASK, toolCallCount, toolAttributes)
 	}
 
 	/**
@@ -990,6 +1252,34 @@ export class TelemetryService {
 				...data,
 			},
 		})
+
+		if (typeof data.ttftSec === "number") {
+			this.recordHistogram(TelemetryService.METRICS.API.TTFT_SECONDS, data.ttftSec, {
+				ulid,
+				model: modelId,
+				provider: "gemini",
+			})
+		}
+
+		if (typeof data.totalDurationSec === "number") {
+			this.recordHistogram(TelemetryService.METRICS.API.DURATION_SECONDS, data.totalDurationSec, {
+				ulid,
+				model: modelId,
+				provider: "gemini",
+			})
+		}
+
+		if (typeof data.throughputTokensPerSec === "number") {
+			this.recordHistogram(TelemetryService.METRICS.API.THROUGHPUT_TOKENS_PER_SECOND, data.throughputTokensPerSec, {
+				ulid,
+				model: modelId,
+				provider: "gemini",
+			})
+		}
+
+		if (data.cacheHit) {
+			this.recordCounter(TelemetryService.METRICS.CACHE.HITS_TOTAL, 1, { ulid, model: modelId, provider: "gemini" })
+		}
 	}
 
 	/**
@@ -1043,6 +1333,21 @@ export class TelemetryService {
 				timestamp: new Date().toISOString(),
 			},
 		})
+
+		this.recordCounter(TelemetryService.METRICS.ERRORS.TOTAL, 1, {
+			ulid: args.ulid,
+			model: args.model,
+			provider: args.provider,
+			error_status: args.errorStatus,
+		})
+		const errorAttributes = {
+			ulid: args.ulid,
+			model: args.model,
+			provider: args.provider,
+			error_status: args.errorStatus,
+		}
+		const errorCount = this.incrementTaskCounter(this.taskErrorCounts, args.ulid)
+		this.recordHistogram(TelemetryService.METRICS.ERRORS.PER_TASK, errorCount, errorAttributes)
 	}
 
 	/**
@@ -1263,6 +1568,21 @@ export class TelemetryService {
 	}
 
 	/**
+	 * Records when Cline web tools are enabled/disabled by the user
+	 * @param ulid Unique identifier for the task
+	 * @param enabled Whether Cline web tools are enabled (true) or disabled (false)
+	 */
+	public captureClineWebToolsToggle(ulid: string, enabled: boolean) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.CLINE_WEB_TOOLS_TOGGLED,
+			properties: {
+				ulid,
+				enabled,
+			},
+		})
+	}
+
+	/**
 	 * Records task initialization timing and metadata
 	 * @param ulid Unique identifier for the task
 	 * @param taskId Task ID (timestamp in milliseconds when task was created)
@@ -1294,15 +1614,28 @@ export class TelemetryService {
 	// Terminal telemetry methods
 
 	/**
-	 * Records terminal command execution outcomes
+	 * Records terminal command execution outcomes for VSCode terminal
 	 * @param success Whether the command output was successfully captured
-	 * @param method The method used to capture output ("shell_integration" | "clipboard" | "none")
+	 * @param terminalType The type of terminal ("vscode")
+	 * @param method The VSCode-specific method used to capture output
 	 */
-	public captureTerminalExecution(success: boolean, method: "shell_integration" | "clipboard" | "none") {
+	public captureTerminalExecution(success: boolean, terminalType: "vscode", method: VscodeOutputMethod): void
+	/**
+	 * Records terminal command execution outcomes for standalone terminal
+	 * @param success Whether the command output was successfully captured
+	 * @param terminalType The type of terminal ("standalone")
+	 * @param method The standalone-specific method used to capture output
+	 */
+	public captureTerminalExecution(success: boolean, terminalType: "standalone", method: StandaloneOutputMethod): void
+	/**
+	 * Implementation of captureTerminalExecution
+	 */
+	public captureTerminalExecution(success: boolean, terminalType: TerminalType, method: TerminalOutputMethod): void {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_EXECUTION,
 			properties: {
 				success,
+				terminalType,
 				method,
 			},
 		})
@@ -1311,12 +1644,14 @@ export class TelemetryService {
 	/**
 	 * Records when terminal output capture fails
 	 * @param reason The reason for failure
+	 * @param terminalType The type of terminal (defaults to "vscode" for backward compatibility)
 	 */
-	public captureTerminalOutputFailure(reason: TerminalOutputFailureReason) {
+	public captureTerminalOutputFailure(reason: TerminalOutputFailureReason, terminalType: TerminalType = "vscode") {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_OUTPUT_FAILURE,
 			properties: {
 				reason,
+				terminalType,
 			},
 		})
 	}
@@ -1324,12 +1659,14 @@ export class TelemetryService {
 	/**
 	 * Records when user has to intervene with terminal execution
 	 * @param action The user action
+	 * @param terminalType The type of terminal (defaults to "vscode" for backward compatibility)
 	 */
-	public captureTerminalUserIntervention(action: TerminalUserInterventionAction) {
+	public captureTerminalUserIntervention(action: TerminalUserInterventionAction, terminalType: TerminalType = "vscode") {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_USER_INTERVENTION,
 			properties: {
 				action,
+				terminalType,
 			},
 		})
 	}
@@ -1337,12 +1674,14 @@ export class TelemetryService {
 	/**
 	 * Records when terminal execution hangs or gets stuck
 	 * @param stage Where the hang occurred
+	 * @param terminalType The type of terminal (defaults to "vscode" for backward compatibility)
 	 */
-	public captureTerminalHang(stage: TerminalHangStage) {
+	public captureTerminalHang(stage: TerminalHangStage, terminalType: TerminalType = "vscode") {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_HANG,
 			properties: {
 				stage,
+				terminalType,
 			},
 		})
 	}
@@ -1373,6 +1712,15 @@ export class TelemetryService {
 				init_duration_ms: initDurationMs,
 				feature_flag_enabled: featureFlagEnabled,
 			},
+		})
+
+		const isMultiRoot = rootCount > 1
+		this.recordGauge("cline.workspace.active_roots", rootCount, {
+			is_multi_root: isMultiRoot,
+		})
+		// Retire the previous series to avoid leaking gauge entries when the flag flips.
+		this.recordGauge("cline.workspace.active_roots", null, {
+			is_multi_root: !isMultiRoot,
 		})
 	}
 
@@ -1645,6 +1993,171 @@ export class TelemetryService {
 				...args,
 			},
 		})
+	}
+
+	// Hooks telemetry methods
+
+	/**
+	 * Records hook discovery cache access (hit or miss)
+	 * @param hookName The type of hook being accessed
+	 * @param cacheHit Whether the cache had the result (true) or miss (false)
+	 */
+	public captureHookCacheAccess(hookName: string, cacheHit: boolean) {
+		if (!this.isCategoryEnabled("hooks")) {
+			return
+		}
+
+		// Record cache access counter with hit/miss attribute
+		// This allows deriving hit rate: hits / (hits + misses)
+		this.recordCounter(TelemetryService.METRICS.HOOKS.CACHE_ACCESSES_TOTAL, 1, {
+			hookName,
+			cacheHit: cacheHit.toString(),
+		})
+	}
+
+	// Simplified Hook Telemetry API (following MCP pattern)
+
+	/**
+	 * Records hook execution events with a unified status-based approach.
+	 * This is the simplified API that consolidates multiple hook execution methods.
+	 *
+	 * @param ulid Task identifier
+	 * @param hookName Type of hook (PreToolUse, PostToolUse, etc.)
+	 * @param status Current execution status
+	 * @param metadata Optional execution metadata
+	 */
+	public captureHookExecution(
+		ulid: string,
+		hookName: string,
+		status: "started" | "completed" | "failed" | "cancelled",
+		metadata?: {
+			source?: "global" | "workspace"
+			toolName?: string
+			durationMs?: number
+			exitCode?: number
+			errorType?: "timeout" | "execution" | "validation"
+			errorMessage?: string
+			cancelRequested?: boolean
+			contextModified?: boolean
+			contextSize?: number
+		},
+	) {
+		if (!this.isCategoryEnabled("hooks")) {
+			return
+		}
+
+		const properties: TelemetryProperties = {
+			ulid,
+			hookName,
+			status,
+			timestamp: new Date().toISOString(),
+			...(metadata?.source && { source: metadata.source }),
+			...(metadata?.toolName && { toolName: metadata.toolName }),
+			...(metadata?.durationMs !== undefined && { durationMs: metadata.durationMs }),
+			...(metadata?.exitCode !== undefined && { exitCode: metadata.exitCode }),
+			...(metadata?.errorType && { errorType: metadata.errorType }),
+			...(metadata?.errorMessage && {
+				errorMessage: metadata.errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH),
+			}),
+			...(metadata?.cancelRequested !== undefined && { cancelRequested: metadata.cancelRequested }),
+			...(metadata?.contextModified !== undefined && { contextModified: metadata.contextModified }),
+			...(metadata?.contextSize !== undefined && { contextSize: metadata.contextSize }),
+		}
+
+		// Single event for all statuses
+		this.capture({
+			event: "hooks.execution",
+			properties,
+		})
+
+		// Record metrics based on status
+		const hookAttributes = {
+			ulid,
+			hookName,
+			status,
+			...(metadata?.source && { source: metadata.source }),
+			...(metadata?.toolName && { toolName: metadata.toolName }),
+		}
+
+		if (status === "started") {
+			this.recordCounter(TelemetryService.METRICS.HOOKS.EXECUTIONS_TOTAL, 1, hookAttributes)
+		} else if (status === "completed") {
+			if (metadata?.durationMs !== undefined) {
+				this.recordHistogram(TelemetryService.METRICS.HOOKS.DURATION_SECONDS, metadata.durationMs / 1000, hookAttributes)
+			}
+			if (metadata?.cancelRequested) {
+				this.recordCounter(TelemetryService.METRICS.HOOKS.CANCELLATIONS_TOTAL, 1, hookAttributes)
+			}
+			if (metadata?.contextModified) {
+				this.recordCounter(TelemetryService.METRICS.HOOKS.CONTEXT_MODIFICATIONS_TOTAL, 1, hookAttributes)
+			}
+		} else if (status === "failed") {
+			this.recordCounter(TelemetryService.METRICS.HOOKS.FAILURES_TOTAL, 1, {
+				...hookAttributes,
+				errorType: metadata?.errorType || "unknown",
+			})
+		} else if (status === "cancelled") {
+			this.recordCounter(TelemetryService.METRICS.HOOKS.CANCELLATIONS_TOTAL, 1, hookAttributes)
+		}
+	}
+
+	/**
+	 * Records hook discovery results (simplified version).
+	 *
+	 * @param hookName The type of hook being discovered
+	 * @param globalCount Number of global hooks found
+	 * @param workspaceCount Number of workspace-specific hooks found
+	 */
+	public captureHookDiscovery(hookName: string, globalCount: number, workspaceCount: number) {
+		if (!this.isCategoryEnabled("hooks")) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.HOOKS.DISCOVERY_COMPLETED,
+			properties: {
+				hookName,
+				globalCount,
+				workspaceCount,
+				totalCount: globalCount + workspaceCount,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Safely executes a telemetry call with error protection.
+	 *
+	 * Use for critical execution paths where telemetry errors could break functionality:
+	 * - Hook execution (during tool execution)
+	 * - Browser automation (during active sessions)
+	 * - Auth flows, task initialization
+	 * - MCP server operations
+	 *
+	 * Not needed for non-critical, fire-and-forget events:
+	 * - UI events (clicks, navigation)
+	 * - Post-completion events
+	 * - Background operations
+	 *
+	 * This wrapper protects against both pre-provider errors (parameter construction,
+	 * property access, calculations) and provider-level errors (network, API failures).
+	 *
+	 * @param telemetryFn The telemetry function to execute
+	 * @param context Optional context string for debugging (e.g., "HookFactory.exec")
+	 *
+	 * @example
+	 * telemetryService.safeCapture(
+	 *   () => telemetryService.captureHookExecution(taskId, hookName, "started", {...}),
+	 *   'HookFactory.exec.started'
+	 * )
+	 */
+	public safeCapture(telemetryFn: () => void, context?: string): void {
+		try {
+			telemetryFn()
+		} catch (error) {
+			const contextStr = context ? ` [Context: ${context}]` : ""
+			console.error(`[Telemetry] Failed to capture telemetry${contextStr}:`, error)
+		}
 	}
 
 	/**

@@ -1,0 +1,132 @@
+---
+title: "Onboarding"
+
+description: "This guide explains how administrators configure SSO provisioning and user management in Cline Enterprise."
+---
+
+## Overview
+Cline Enterprise integrates with your existing identity provider (IdP) via WorkOS to deliver secure SSO and zero-touch user lifecycle management. In this guide, you'll connect your IdP (Okta, Azure AD, Google Workspace, or any SAML/OIDC provider), enable just-in-time (JIT) provisioning so new users are created automatically on first sign-in, and configure role mapping so permissions stay aligned with your directory—no manual invites or seat reconciliations required.
+
+
+## Prerequisites
+
+- [Cline Enterprise License](https://cline.bot/enterprise)
+- Access to your identity provider (IdP) configuration (e.g., Okta, Azure AD, Google Workspace)
+- Knowledge of your organization's SSO requirements
+
+## Configuration Steps
+
+### Step 1: Onboard to Cline Enterprise license
+
+Your IdP administrator will receive an email with a link to register their organization with WorkOS during onboarding.
+
+### Step 2: Configure Your Identity Provider
+
+<Info>
+For a short overview of where SSO configuration lives (Cline dashboard vs WorkOS vs your IdP), see [SSO Setup](/enterprise-solutions/sso-setup).
+</Info>
+
+Connect your identity provider (IdP) to WorkOS:
+
+1. In the WorkOS dashboard, go to **AuthKit → Connections**
+2. Click **Add Connection**
+3. Select your identity provider (e.g., Okta, Azure AD, Google Workspace, Generic SAML/OIDC)
+4. Follow the provider-specific setup instructions
+
+Each identity provider (IdP) will have its own setup process and required fields. Be sure to follow the specific instructions in the WorkOS dashboard for your chosen provider.
+For more explicit instruction on connecting your IdP, refer to the [WorkOS SSO documentation](https://workos.com/docs/authkit/sso)
+
+### Step 3: Configure User Provisioning
+
+Cline Enterprise uses **just-in-time provisioning** that works automatically:
+
+- **Organizations are created automatically**
+- **Users gain access automatically** on their first SSO sign-in, once their credentials have been configured by the IdP administrator.
+- **Roles sync automatically** from your IdP (Admin/Owner → Admin, Member → Member)
+- **No manual user invites or seat management** required
+
+No additional configuration is needed. Users are provisioned automatically when they sign in through SSO.
+
+### Step 4: Configure User Attributes Mapping
+
+User roles are mapped automatically from your IdP:
+
+- **Admin** in IdP → **Admin** role in Cline (Note: The first Owner of the org is created manually during onboarding)
+- **Member** in IdP → **Member** role in Cline
+
+<Info>
+    For what each role can access, see the [Roles and Permissions](/enterprise-solutions/team-management/managing-members) page.
+</Info>
+
+If needed, you can configure additional user attributes in the Cline Admin console:
+
+1. Go to **Settings → Authentication → User Attributes**
+2. Map attributes such as email and name based on your IdP configuration
+
+For information about available user attributes, see the [WorkOS User Object Documentation](https://workos.com/docs/authkit/user-management).
+
+### Step 5: Test SSO Connection
+
+Before allowing users to sign in, test the SSO flow to ensure everything is configured correctly.
+
+**To test the connection:**
+
+1. In the WorkOS dashboard (or Cline Admin console if available), locate and click **Test SSO Connection**
+2. You'll be redirected to your IdP's login page
+3. Enter valid credentials for a test user
+4. After successful authentication, you should be redirected back
+5. Confirm that the user's information (name, email, role) displays correctly
+
+**Expected outcome:** The test user is authenticated, their account details are visible, and their role matches what's configured in your IdP.
+
+**If the test fails:** Double-check your IdP configuration (redirect URIs, SAML certificates, attribute mappings). See the [WorkOS SSO documentation](https://workos.com/docs/authkit/sso) for troubleshooting guidance.
+
+### User Access
+
+Once SSO is configured, users in your IdP can access Cline automatically without manual invites or account setup.
+
+**First-time sign-in flow:**
+
+1. User navigates to Cline and clicks **Sign in with SSO**
+2. User authenticates via your organization's IdP
+3. Cline automatically creates their account in your Organization
+4. Role is assigned based on their IdP role (see [Step 4](#step-4-configure-user-attributes-mapping))
+5. User is redirected to Cline and can begin working
+
+**What happens automatically:**
+- Account creation with correct organization assignment
+- Role and permission assignment
+- Basic profile information (name, email) populated from IdP
+
+**No action required:** Users don't need to request access or wait for approval. Access is granted immediately upon successful IdP authentication.
+
+### Managing Access
+
+All access management and revocation of users is currently handled by your IdP:
+
+- Add users → access granted automatically on first login
+- Change roles → updated on next login
+- Remove users → access revoked automatically
+
+<Info>
+Role changes sync automatically on the user's next sign-in.
+</Info>
+
+### Changing your IdP
+
+In order to change to a different IdP, please contact support and we will guide you through this process.
+
+---
+
+## Verification
+
+Steps to verify successful configuration:
+
+1. **Test User Sign-In**: Have a test user sign in through the SSO flow (access is granted automatically on first login)
+2. **Verify User Provisioning**: Confirm that the user is automatically created and has appropriate role permissions
+3. **Check User Attributes**: Verify that user information (name, email, organization) is correctly populated
+4. **Test Role Changes**: Update a user's role in your IdP and verify it syncs on their next login
+5. **Test User Deprovisioning**: Remove a user from your IdP and verify they lose access to Cline on their next login attempt
+6. **Review Audit Logs**: Check WorkOS audit logs to ensure authentication events are being recorded
+
+---

@@ -61,4 +61,9 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 	variant: ModelFamily.NATIVE_NEXT_GEN,
 }
 
-export const act_mode_respond_variants = [NATIVE_GPT_5, NATIVE_NEXT_GEN]
+const GEMINI_3: ClineToolSpec = {
+	...NATIVE_GPT_5,
+	variant: ModelFamily.GEMINI_3,
+}
+
+export const act_mode_respond_variants = [NATIVE_GPT_5, NATIVE_NEXT_GEN, GEMINI_3]

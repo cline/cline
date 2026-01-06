@@ -5,7 +5,6 @@ import { detectWorkspaceRoots } from "@core/workspace/detection"
 import { setupWorkspaceManager } from "@core/workspace/setup"
 import type { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
-import { downloadTask } from "@integrations/misc/export-markdown"
 import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
 import type { ApiProvider, ModelInfo } from "@shared/api"
@@ -20,6 +19,7 @@ import type { UserInfo } from "@shared/UserInfo"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
+import open from "open"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import type { FolderLockWithRetryResult } from "src/core/locks/types"
@@ -35,9 +35,9 @@ import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
-import type { AuthState } from "@/shared/proto/index.cline"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getCwd, getDesktopDir } from "@/utils/path"
+import { BannerService } from "../../services/banner/BannerService"
 import { PromptRegistry } from "../prompts/system-prompt"
 import {
 	ensureCacheDirectoryExists,
@@ -49,7 +49,6 @@ import {
 import { fetchRemoteConfig } from "../storage/remote-config/fetch"
 import { type PersistenceErrorEvent, StateManager } from "../storage/StateManager"
 import { Task } from "../task"
-import type { StreamingResponseHandler } from "./grpc-handler"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { getClineOnboardingModels } from "./models/getClineOnboardingModels"
 import { appendClineStealthModels } from "./models/refreshOpenRouterModels"
@@ -79,12 +78,6 @@ export class Controller {
 
 	// Flag to prevent duplicate cancellations from spam clicking
 	private cancelInProgress = false
-
-	// Shell integration warning tracker
-	private shellIntegrationWarningTracker: {
-		timestamps: number[]
-		lastSuggestionShown?: number
-	} = { timestamps: [] }
 
 	// Timer for periodic remote config fetching
 	private remoteConfigTimer?: NodeJS.Timeout
@@ -149,13 +142,6 @@ export class Controller {
 		this.authService = AuthService.getInstance(this)
 		this.ocaAuthService = OcaAuthService.initialize(this)
 		this.accountService = ClineAccountService.getInstance()
-
-		const authStatusHandler: StreamingResponseHandler<AuthState> = async (response, _isLast, _seqNumber): Promise<void> => {
-			if (response.user) {
-				fetchRemoteConfig(this)
-			}
-		}
-		this.authService.subscribeToAuthStatusUpdate(this, {}, authStatusHandler, undefined)
 
 		this.authService.restoreRefreshTokenAndRetrieveAuthInfo().then(() => {
 			this.startRemoteConfigTimer()
@@ -251,7 +237,14 @@ export class Controller {
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
 	) {
-		await fetchRemoteConfig(this)
+		// Fire-and-forget: We intentionally don't await fetchRemoteConfig here.
+		// Remote config is already fetched in startRemoteConfigTimer() which runs in the constructor,
+		// so enterprise policies (yoloModeAllowed, allowedMCPServers, etc.) are already applied.
+		// This call just ensures we have the latest state, but we shouldn't block the UI for it.
+		// getGlobalSettingsKey() reads from remoteConfigCache on each call, so any updates
+		// will apply as soon as this fetch completes. The function also calls postStateToWebview()
+		// when done and catches all errors internally.
+		fetchRemoteConfig(this)
 
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 
@@ -505,38 +498,6 @@ export class Controller {
 		if (!didCancel) {
 			this.updateBackgroundCommandState(false)
 		}
-	}
-
-	/**
-	 * Check if we should show the background terminal suggestion based on shell integration warning frequency
-	 * @returns true if we should show the suggestion, false otherwise
-	 */
-	shouldShowBackgroundTerminalSuggestion(): boolean {
-		const oneHourAgo = Date.now() - 60 * 60 * 1000
-
-		// Clean old timestamps (older than 1 hour)
-		this.shellIntegrationWarningTracker.timestamps = this.shellIntegrationWarningTracker.timestamps.filter(
-			(ts) => ts > oneHourAgo,
-		)
-
-		// Add current warning
-		this.shellIntegrationWarningTracker.timestamps.push(Date.now())
-
-		// Check if we've shown suggestion recently (within last hour)
-		if (
-			this.shellIntegrationWarningTracker.lastSuggestionShown &&
-			Date.now() - this.shellIntegrationWarningTracker.lastSuggestionShown < 60 * 60 * 1000
-		) {
-			return false
-		}
-
-		// Show suggestion if 3+ warnings in last hour
-		if (this.shellIntegrationWarningTracker.timestamps.length >= 3) {
-			this.shellIntegrationWarningTracker.lastSuggestionShown = Date.now()
-			return true
-		}
-
-		return false
 	}
 
 	async handleAuthCallback(customToken: string, provider: string | null = null) {
@@ -824,8 +785,9 @@ export class Controller {
 	}
 
 	async exportTaskWithId(id: string) {
-		const { historyItem, apiConversationHistory } = await this.getTaskWithId(id)
-		await downloadTask(historyItem.ts, apiConversationHistory)
+		const { taskDirPath } = await this.getTaskWithId(id)
+		console.log(`[EXPORT] Opening task directory: ${taskDirPath}`)
+		await open(taskDirPath)
 	}
 
 	async deleteTaskFromState(id: string) {
@@ -980,19 +942,19 @@ export class Controller {
 				user: this.stateManager.getGlobalStateKey("multiRootEnabled"),
 				featureFlag: true, // Multi-root workspace is now always enabled
 			},
-			hooksEnabled: {
-				user: this.stateManager.getGlobalStateKey("hooksEnabled"),
-				featureFlag: true, // Hooks feature is now always available
+			clineWebToolsEnabled: {
+				user: this.stateManager.getGlobalSettingsKey("clineWebToolsEnabled"),
+				featureFlag: featureFlagsService.getWebtoolsEnabled(),
 			},
+			hooksEnabled: this.stateManager.getGlobalSettingsKey("hooksEnabled"),
 			lastDismissedInfoBannerVersion,
 			lastDismissedModelBannerVersion,
 			remoteConfigSettings: this.stateManager.getRemoteConfigSettings(),
 			lastDismissedCliBannerVersion,
 			subagentsEnabled,
-			nativeToolCallSetting: {
-				user: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
-				featureFlag: featureFlagsService.getNativeToolCallEnabled(),
-			},
+			nativeToolCallSetting: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
+			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
+			backgroundEditEnabled: this.stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
 		}
 	}
 
@@ -1033,5 +995,66 @@ export class Controller {
 		}
 		this.stateManager.setGlobalState("taskHistory", history)
 		return history
+	}
+
+	/**
+	 * Initializes the BannerService if not already initialized
+	 */
+	private async ensureBannerService() {
+		if (!BannerService.isInitialized()) {
+			try {
+				BannerService.initialize(this)
+			} catch (error) {
+				console.error("Failed to initialize BannerService:", error)
+			}
+		}
+	}
+
+	/**
+	 * Fetches non-dismissed banners for display
+	 * @returns Array of banners that haven't been dismissed
+	 */
+	async fetchBannersForDisplay(): Promise<any[]> {
+		try {
+			await this.ensureBannerService()
+			if (BannerService.isInitialized()) {
+				return await BannerService.get().getNonDismissedBanners()
+			}
+		} catch (error) {
+			console.error("Failed to fetch banners:", error)
+		}
+		return []
+	}
+
+	/**
+	 * Dismisses a banner and sends telemetry
+	 * @param bannerId The ID of the banner to dismiss
+	 */
+	async dismissBanner(bannerId: string): Promise<void> {
+		try {
+			await this.ensureBannerService()
+			if (BannerService.isInitialized()) {
+				await BannerService.get().dismissBanner(bannerId)
+				await this.postStateToWebview()
+			}
+		} catch (error) {
+			console.error("Failed to dismiss banner:", error)
+		}
+	}
+
+	/**
+	 * Sends a banner event for telemetry tracking
+	 * @param bannerId The ID of the banner
+	 * @param eventType The type of event (seen, dismiss, click)
+	 */
+	async trackBannerEvent(bannerId: string, eventType: "dismiss"): Promise<void> {
+		try {
+			await this.ensureBannerService()
+			if (BannerService.isInitialized()) {
+				await BannerService.get().sendBannerEvent(bannerId, eventType)
+			}
+		} catch (error) {
+			console.error("Failed to track banner event:", error)
+		}
 	}
 }

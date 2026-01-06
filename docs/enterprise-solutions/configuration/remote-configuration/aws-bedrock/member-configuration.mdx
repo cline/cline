@@ -1,0 +1,131 @@
+---
+title: "Configure AWS Bedrock in VS Code (Members)"
+sidebarTitle: "Configure AWS Bedrock (Member)"
+description: "Guide for engineers configuring AWS Bedrock credentials in VS Code after admin setup"
+---
+
+As a team member, you can connect your local development environment to your organization's AWS Bedrock setup. This guide walks you through configuring your AWS credentials in VS Code so you can start using models through your organization's Bedrock infrastructure. Your administrator has already configured the provider settings—you just need to add your credentials to get started.
+
+## Before You Begin
+
+To successfully connect to your organization's AWS Bedrock setup, you'll need a few things ready.
+
+**Cline extension installed and configured**  
+The Cline extension must be installed in VS Code and you need to be signed into your organization account. If you haven't installed Cline yet, follow our [installation guide](/getting-started/installing-cline).
+
+<Info>
+**Quick Check**: Open the Cline panel in VS Code. If you see your organization name in the bottom left, you're signed in correctly.
+</Info>
+
+**AWS credentials with Bedrock access**  
+You need AWS credentials that have permission to access Bedrock in your organization's configured region.
+
+<Note>
+If you don't have AWS credentials yet, reach out to your IT or cloud team to get access keys or AWS CLI profiles configured with the necessary Bedrock permissions.
+</Note>
+
+
+<Frame>
+	<img
+		src="https://assets.int.cline.bot/assets/VS%20Code%20Bedrock%20API%20Key.gif"
+	/>
+</Frame>
+
+## Configuration Steps
+
+<Steps>
+<Step title="Open Cline Settings">
+Open VS Code and access the Cline settings panel using either of these methods:
+
+- Click the settings icon (⚙️) in the Cline panel
+- Click on the API Provider dropdown located directly below the chat area (it will display as `bedrock.anthropic.claude-sonnet-4-20250514-v1:0` or similar)
+
+</Step>
+
+<Step title="Select Your Authentication Method">
+Choose one of the following credential methods to authenticate with AWS Bedrock:
+
+<AccordionGroup>
+<Accordion title="AWS Bedrock API Key">
+Use dedicated AWS access keys specifically for Bedrock access.
+
+[Learn more about AWS Bedrock API Keys](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html)
+
+1. Select the **API Key** radio button
+2. Enter your AWS Access Key ID and Secret Access Key
+3. These credentials are stored locally and used only by the VS Code extension
+</Accordion>
+
+<Accordion title="AWS Profile">
+Use an existing AWS CLI profile configured on your machine.
+
+[Learn more about AWS CLI Profiles](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-profiles.html)
+
+1. Select the **AWS Profile** radio button
+2. Choose or enter the profile name from your `~/.aws/credentials` file
+3. Cline will use the credentials associated with that profile
+</Accordion>
+
+<Accordion title="AWS Credentials">
+Use your default AWS credential chain (environment variables, EC2 instance roles, etc.).
+
+1. Select the **AWS Credentials** radio button
+2. Cline will automatically detect credentials from your environment using the standard AWS credential provider chain
+</Accordion>
+</AccordionGroup>
+
+<Note>
+The AWS Region is preconfigured by your administrator and does not need to be set in the extension.
+</Note>
+</Step>
+
+<Step title="Verify Configuration">
+After selecting your authentication method, the extension will display checkmarks for enabled features:
+
+- ✓ Supports images
+- ✓ Supports browser use
+- ✓ Supports prompt caching
+
+Additional settings like cross-region inference and global inference profile will be locked (shown with a lock icon 🔒) as they're controlled by your administrator.
+</Step>
+
+<Step title="Test the Connection">
+Send a test message in Cline to verify your credentials work correctly with the configured Bedrock region.
+
+<Tip>
+**Testing Recommendation**
+
+It is recommended to test the connection in plan mode to verify everything works correctly before using it for actual tasks.
+</Tip>
+</Step>
+</Steps>
+
+
+## Troubleshooting
+
+**Authentication errors ("Access Denied" or "Invalid Credentials")**  
+Verify your chosen credential method has the necessary IAM permissions to call Bedrock in the configured region. Required permissions include `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream`. For more information, refer to [AWS Bedrock IAM Permissions](https://docs.aws.amazon.com/bedrock/latest/userguide/security-iam.html).
+
+**Region-related errors or "model not available"**  
+Ask your administrator to confirm which region is configured for your organization. Ensure your AWS credentials have access to Bedrock in that specific region. [View AWS Global Infrastructure](https://aws.amazon.com/about-aws/global-infrastructure/regions_az/)
+
+**Don't see AWS Bedrock as an option**  
+Confirm you're signed into the correct Cline organization. Verify your administrator has saved the Bedrock configuration. Try signing out and back into the extension.
+
+**AWS Credentials option not finding credentials**  
+Verify AWS CLI is installed and configured with `aws configure` ([AWS CLI Installation Guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)). Check that credentials are present in `~/.aws/credentials`. For EC2/ECS environments, ensure IAM roles are properly attached. If using environment variables, set `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+
+
+## Security Best Practices
+
+When configuring your AWS credentials, follow these security guidelines:
+
+- Use IAM roles with minimum required permissions ([AWS IAM Best Practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html))
+- Rotate access keys regularly if using the API Key method
+- Never store credentials in code or version control
+- Prefer AWS Profile method for better credential management
+- Consider using AWS SSO/federated roles for enhanced security
+
+Your organization administrator controls which models are available. The extension will automatically display available models based on your region's Bedrock configuration. For more information about available models, refer to the [AWS Bedrock Model Access documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html).
+
+For further assistance, consult the [AWS Bedrock Documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html) and coordinate with your organization's cloud administrator.

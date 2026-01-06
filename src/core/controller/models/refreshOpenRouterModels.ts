@@ -4,6 +4,7 @@ import axios from "axios"
 import cloneDeep from "clone-deep"
 import fs from "fs/promises"
 import path from "path"
+import { StateManager } from "@/core/storage/StateManager"
 import {
 	ANTHROPIC_MAX_THINKING_BUDGET,
 	CLAUDE_SONNET_1M_TIERS,
@@ -78,7 +79,7 @@ interface OpenRouterRawModelInfo {
 export async function refreshOpenRouterModels(controller: Controller): Promise<Record<string, ModelInfo>> {
 	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
 
-	const models: Record<string, ModelInfo> = {}
+	let models: Record<string, ModelInfo> = {}
 	try {
 		const response = await axios.get("https://openrouter.ai/api/v1/models", getAxiosSettings())
 
@@ -132,6 +133,11 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 						modelInfo.supportsPromptCache = true
 						modelInfo.cacheWritesPrice = 3.75
 						modelInfo.cacheReadsPrice = 0.3
+						break
+					case "anthropic/claude-opus-4.5":
+						modelInfo.supportsPromptCache = true
+						modelInfo.cacheWritesPrice = 6.25
+						modelInfo.cacheReadsPrice = 0.5
 						break
 					case "anthropic/claude-opus-4.1":
 					case "anthropic/claude-opus-4":
@@ -242,21 +248,23 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 		// If we failed to fetch models, try to read cached models
 		const cachedModels = await controller.readOpenRouterModels()
 		if (cachedModels) {
-			// Cached models are already in application format (ModelInfo)
-			return appendClineStealthModels(cachedModels as Record<string, ModelInfo>)
+			models = cachedModels
 		}
 	}
+
 	// Append stealth models if any
-	return appendClineStealthModels(models)
+	const finalModels = appendClineStealthModels(models)
+
+	// Store in StateManager's in-memory cache
+	StateManager.get().setModelsCache("openRouter", finalModels)
+
+	return finalModels
 }
 
 /**
  * Stealth models are models that are compatible with the OpenRouter API but not listed on the OpenRouter website or API.
  */
-const CLINE_STEALTH_MODELS: Record<string, ModelInfo> = {
-	// Add more stealth models here as needed
-	// Right now this list is empty as the latest stealth model was removed
-}
+const CLINE_STEALTH_MODELS: Record<string, ModelInfo> = {}
 
 export function appendClineStealthModels(currentModels: Record<string, ModelInfo>): Record<string, ModelInfo> {
 	// Create a shallow clone of the current models to avoid mutating the original object

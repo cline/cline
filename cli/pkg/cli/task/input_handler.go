@@ -38,13 +38,13 @@ type InputHandler struct {
 // NewInputHandler creates a new input handler
 func NewInputHandler(manager *Manager, coordinator *StreamCoordinator, cancelFunc context.CancelFunc) *InputHandler {
 	return &InputHandler{
-		manager:      manager,
-		coordinator:  coordinator,
-		cancelFunc:   cancelFunc,
-		isRunning:    false,
-		pollTicker:   time.NewTicker(500 * time.Millisecond),
-		resultChan:   make(chan output.InputSubmitMsg, 1),
-		cancelChan:   make(chan struct{}, 1),
+		manager:     manager,
+		coordinator: coordinator,
+		cancelFunc:  cancelFunc,
+		isRunning:   false,
+		pollTicker:  time.NewTicker(500 * time.Millisecond),
+		resultChan:  make(chan output.InputSubmitMsg, 1),
+		cancelChan:  make(chan struct{}, 1),
 	}
 }
 
@@ -251,7 +251,8 @@ func determineAutoApprovalAction(msg *types.ClineMessage) (string, error) {
 			types.ToolTypeListFilesRecursive,
 			types.ToolTypeListCodeDefinitionNames,
 			types.ToolTypeSearchFiles,
-			types.ToolTypeWebFetch:
+			types.ToolTypeWebFetch,
+			types.ToolTypeWebSearch:
 			return "read_files", nil
 		case types.ToolTypeEditedExistingFile,
 			types.ToolTypeNewFileCreated:
@@ -280,11 +281,12 @@ func determineAutoApprovalAction(msg *types.ClineMessage) (string, error) {
 func (ih *InputHandler) promptForInput(ctx context.Context) (string, bool, error) {
 	currentMode := ih.manager.GetCurrentMode()
 
-	model := output.NewInputModel(
+	model := output.NewInputModelWithRegistry(
 		output.InputTypeMessage,
 		"Cline is ready for your message...",
-		"/plan or /act to switch modes\nctrl+e to open editor",
+		"/plan or /act to switch modes\nctrl+e to open editor\ntab to autocomplete commands",
 		currentMode,
+		ih.manager.GetSlashRegistry(),
 	)
 
 	return ih.runInputProgram(ctx, model)
@@ -294,12 +296,13 @@ func (ih *InputHandler) promptForInput(ctx context.Context) (string, bool, error
 func (ih *InputHandler) promptForApproval(ctx context.Context, msg *types.ClineMessage) (bool, string, error) {
 	// Store the approval message for later use in determining auto-approval action
 	ih.approvalMessage = msg
-	
-	model := output.NewInputModel(
+
+	model := output.NewInputModelWithRegistry(
 		output.InputTypeApproval,
 		"Let Cline use this tool?",
 		"",
 		ih.manager.GetCurrentMode(),
+		ih.manager.GetSlashRegistry(), // Pass registry for feedback input after approval
 	)
 
 	message, shouldSend, err := ih.runInputProgram(ctx, model)
@@ -394,7 +397,7 @@ func (ih *InputHandler) runInputProgram(ctx context.Context, model output.InputM
 				// Need to collect feedback - will be handled by model state change
 				return "", false, nil
 			}
-			
+
 			// Check if NoAskAgain was selected
 			if result.NoAskAgain && result.Approved && ih.approvalMessage != nil {
 				// Determine which auto-approval action to enable
@@ -410,7 +413,7 @@ func (ih *InputHandler) runInputProgram(ctx context.Context, model output.InputM
 					}
 				}
 			}
-			
+
 			// Store approval state for when feedback comes back
 			ih.feedbackApproval = false
 			ih.feedbackApproved = result.Approved
@@ -440,6 +443,7 @@ func (w *inputProgramWrapper) Init() tea.Cmd {
 }
 
 func (w *inputProgramWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+
 	switch msg := msg.(type) {
 	case output.InputSubmitMsg:
 		// Handle input submission - clear the screen before quitting

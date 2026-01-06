@@ -1,0 +1,239 @@
+---
+title: "Rules"
+sidebarTitle: "Rules"
+description: "Custom instruction files that guide Cline's behavior in your enterprise deployment"
+---
+
+Rules are custom instruction files that provide Cline with guidelines about your coding preferences, standards, and best practices. These instructions get added to Cline's context when working on tasks.
+
+## What are Rules?
+
+Rules are simple markdown files stored in a `.clinerules/` directory that contain your team's conventions, preferences, and guidelines. They help Cline understand your:
+
+- Coding style and conventions
+- Preferred libraries and frameworks
+- Architectural patterns
+- Testing strategies
+- Documentation standards
+- Communication preferences
+
+<Tip>
+Rules are just `.md` files - no complex configuration needed!
+</Tip>
+
+## Quick Example
+
+Here's a simple rule file that guides TypeScript development:
+
+```markdown
+# TypeScript Conventions
+
+## Code Style
+- Use 2-space indentation
+- Prefer `const` over `let`
+- Always use explicit return types for functions
+- Use named exports instead of default exports
+
+## Testing
+- Write unit tests for all utility functions
+- Use Vitest as the testing framework
+- Aim for 80%+ code coverage
+
+## Dependencies
+- Prefer native TypeScript features over external libraries
+- Use Zod for runtime type validation
+- Use date-fns for date manipulation
+```
+
+## Creating Rules
+
+<Tabs>
+  <Tab title="Using /newrule Command">
+    The easiest way to create a rule is with the `/newrule` command:
+    
+    1. During a conversation with Cline, type `/newrule`
+    2. Cline will analyze your conversation and preferences
+    3. It creates an appropriately named `.md` file in `.clinerules/`
+    
+    **Example:**
+    ```
+    /newrule
+    
+    Based on our conversation, create a rule for React component structure
+    ```
+  </Tab>
+  
+  <Tab title="Manual Creation">
+    You can also create rule files manually:
+    
+    1. Create a `.clinerules/` directory in your repository root
+    2. Add markdown files with your guidelines
+    3. Use descriptive names like `react-patterns.md` or `api-conventions.md`
+    
+    **File structure:**
+    ```
+    your-repo/
+    ├── .clinerules/
+    │   ├── typescript-style.md
+    │   ├── testing-standards.md
+    │   └── code-review-checklist.md
+    └── src/
+    ```
+  </Tab>
+</Tabs>
+
+## Global vs Workspace Rules
+
+<CardGroup cols={2}>
+  <Card title="Workspace Rules" icon="folder">
+    **Location:** `.clinerules/` in your repository
+    
+    **Scope:** Specific to that project
+    
+    **Use for:** Project-specific conventions and patterns
+  </Card>
+  
+  <Card title="Global Rules" icon="globe">
+    **Location:** `Documents/Cline/` directory
+    
+    **Scope:** All your projects
+    
+    **Use for:** Personal preferences that apply everywhere
+  </Card>
+</CardGroup>
+
+## Managing Rules
+
+### Toggling Rules
+
+You can enable or disable individual rule files:
+
+1. Click the rules icon in Cline's interface
+2. Toggle rules on/off as needed
+3. Changes apply immediately to new tasks
+
+<Note>
+Disabling a rule removes it from Cline's context, but keeps the file intact. You can re-enable it anytime.
+</Note>
+
+### Enterprise Remote Rules
+
+<Info>
+Enterprise deployments can configure **remote global rules** that apply to all team members. These are managed through your infrastructure configuration and cannot be toggled off by individual developers.
+
+See [Self-Hosted Configuration](/enterprise-solutions/configuration/infrastructure-configuration/overview) for details on remote rules.
+</Info>
+
+## Compatible Formats
+
+Cline also respects rules from other AI coding tools:
+
+| File/Directory | Tool | Location |
+|----------------|------|----------|
+| `.cursorrules` | Cursor | Workspace root (single file) |
+| `.cursor/rules/` | Cursor | Workspace directory (`.mdc` files) |
+| `.windsurfrules` | Windsurf | Workspace root (single file) |
+| `AGENTS.md` | Various | Workspace root + recursive search |
+
+<Note>
+**AGENTS.md behavior:** Cline only searches for nested `AGENTS.md` files recursively if a top-level `AGENTS.md` exists in your workspace root. If found, all `AGENTS.md` files are combined with their relative paths as headers.
+</Note>
+
+These files work the same way as `.clinerules/` files and can be toggled on/off independently.
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep Rules Focused" icon="bullseye">
+    Each rule file should focus on one topic:
+    - ✅ `typescript-conventions.md`
+    - ✅ `react-component-structure.md`
+    - ❌ `everything-about-our-codebase.md`
+  </Accordion>
+  
+  <Accordion title="Be Specific, Not Generic" icon="crosshairs">
+    Base rules on actual team preferences, not assumptions:
+    - ✅ "We use React Query for server state management"
+    - ❌ "Use best practices for state management"
+  </Accordion>
+  
+  <Accordion title="Update Rules as Projects Evolve" icon="rotate">
+    Review and update rules periodically:
+    - When adopting new technologies
+    - After major architectural changes
+    - When team conventions evolve
+  </Accordion>
+  
+  <Accordion title="Don't Overdo It" icon="gauge-simple-high">
+    Too many rules can overwhelm Cline's context:
+    - Start with 3-5 essential rules
+    - Add more only when truly needed
+    - Remove outdated rules promptly
+  </Accordion>
+</AccordionGroup>
+
+## Example Rule Files
+
+<AccordionGroup>
+  <Accordion title="API Design Standards" icon="code">
+```markdown
+# API Design Standards
+
+## REST Conventions
+- Use plural nouns for endpoints (`/users`, not `/user`)
+- Use HTTP methods semantically (GET, POST, PUT, DELETE)
+- Return appropriate status codes
+
+## Response Format
+\`\`\`typescript
+{
+  data: T,
+  error?: string,
+  metadata?: {
+    page: number,
+    total: number
+  }
+}
+\`\`\`
+
+## Error Handling
+- Always return error messages in `error` field
+- Use 4xx for client errors, 5xx for server errors
+- Include request ID in error responses
+```
+  </Accordion>
+  
+  <Accordion title="Testing Requirements" icon="vial">
+```markdown
+# Testing Requirements
+
+## Test Organization
+- Place tests next to source files (`Button.test.tsx`)
+- Use `describe` blocks to group related tests
+- Write descriptive test names
+
+## Coverage Requirements
+- Unit tests for all utility functions
+- Integration tests for API endpoints
+- E2E tests for critical user flows
+- Minimum 80% coverage for new code
+
+## Mocking Strategy
+- Mock external API calls
+- Use test fixtures for complex data
+- Prefer dependency injection for testability
+```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Workflows" icon="diagram-project" href="/enterprise-solutions/configuration/infrastructure-configuration/workflows">
+    Combine rules with automated workflows
+  </Card>
+  
+  <Card title="Remote Configuration" icon="cloud" href="/enterprise-solutions/configuration/remote-configuration/overview">
+    Deploy global rules for your team
+  </Card>
+</CardGroup>
