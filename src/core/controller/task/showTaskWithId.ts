@@ -19,11 +19,14 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 
 		// We need to initialize the task before returning data
 		if (historyItem) {
-			// Always initialize the task with the history item
-			await controller.initTask(undefined, undefined, undefined, historyItem)
-
-			// Send UI update to show the chat view
+			// Send UI update to show the chat view FIRST
+			// This must happen BEFORE initTask() because initTask() calls resumeTaskFromHistory()
+			// which blocks on ask("resume_task") waiting for user to click Resume.
+			// If we don't navigate to chat view first, user can't see the Resume button!
 			await sendChatButtonClickedEvent()
+
+			// Now initialize the task with the history item
+			await controller.initTask(undefined, undefined, undefined, historyItem)
 
 			// Return task data for gRPC response
 			return TaskResponse.create({
@@ -43,11 +46,11 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 		// If not in global state, fetch from storage
 		const { historyItem: fetchedItem } = await controller.getTaskWithId(id)
 
+		// Send UI update to show the chat view FIRST (same reason as above)
+		await sendChatButtonClickedEvent()
+
 		// Initialize the task with the fetched item
 		await controller.initTask(undefined, undefined, undefined, fetchedItem)
-
-		// Send UI update to show the chat view
-		await sendChatButtonClickedEvent()
 
 		return TaskResponse.create({
 			id: fetchedItem.id,
