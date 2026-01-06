@@ -38,10 +38,10 @@ export class AuthServiceMock extends AuthService {
 	}
 
 	override async getAuthToken(): Promise<string | null> {
-		if (!this._clineAuthInfo) {
+		if (!this.authState.authInfo) {
 			return null
 		}
-		return this._clineAuthInfo.idToken
+		return this.authState.authInfo.idToken
 	}
 
 	override async createAuthRequest(): Promise<String> {
@@ -49,10 +49,12 @@ export class AuthServiceMock extends AuthService {
 		const authUrl = new URL(ClineEnv.config().apiBaseUrl)
 		const authUrlString = authUrl.toString()
 		// Call the parent implementation
-		if (this._authenticated && this._clineAuthInfo) {
+		if (this.authState.hasSessionData && this.authState.authInfo) {
 			console.log("Already authenticated with mock server")
 			return String.create({ value: authUrlString })
 		}
+
+		this.authState.pending = false
 
 		try {
 			// Use token exchange endpoint like ClineAuthProvider
@@ -84,7 +86,7 @@ export class AuthServiceMock extends AuthService {
 			const authData = responseData.data
 
 			// Convert to ClineAuthInfo format matching ClineAuthProvider
-			this._clineAuthInfo = {
+			this.authState.authInfo = {
 				idToken: authData.accessToken,
 				refreshToken: authData.refreshToken,
 				expiresAt: new Date(authData.expiresAt).getTime() / 1000,
@@ -97,21 +99,22 @@ export class AuthServiceMock extends AuthService {
 					appBaseUrl: ClineEnv.config().appBaseUrl,
 					subject: authData.userInfo.subject,
 				},
-				provider: this._provider?.name || "mock",
+				provider: this.provider?.name || "mock",
 			}
+			this.authState.pending = false
 
 			console.log(`Successfully authenticated with mock server as ${authData.userInfo.name} (${authData.userInfo.email})`)
 
 			const visibleWebview = WebviewProvider.getVisibleInstance()
 
 			// Use appropriate provider name for callback
-			const providerName = this._provider?.name || "mock"
+			const providerName = this.provider?.name || "mock"
 			// Simulate handling the auth callback as if from a real provider
 			await visibleWebview?.controller.handleAuthCallback(authData.accessToken, providerName)
 		} catch (error) {
 			console.error("Error signing in with mock server:", error)
-			this._authenticated = false
-			this._clineAuthInfo = null
+			this.authState.hasSessionData = false
+			this.authState.authInfo = undefined
 			throw error
 		}
 
@@ -120,7 +123,8 @@ export class AuthServiceMock extends AuthService {
 
 	override async handleAuthCallback(_token: string, _provider: string): Promise<void> {
 		try {
-			this._authenticated = true
+			this.authState.hasSessionData = true
+			this.authState.pending = false
 			await setWelcomeViewCompleted(this._controller, { value: true })
 			await this.sendAuthStatusUpdate()
 		} catch (error) {
@@ -131,18 +135,20 @@ export class AuthServiceMock extends AuthService {
 
 	override async restoreRefreshTokenAndRetrieveAuthInfo(): Promise<void> {
 		try {
-			if (this._clineAuthInfo) {
-				this._authenticated = true
+			this.authState.pending = false
+
+			if (this.authState.authInfo) {
+				this.authState.hasSessionData = true
 				await this.sendAuthStatusUpdate()
 			} else {
 				console.warn("No user found after restoring auth token")
-				this._authenticated = false
-				this._clineAuthInfo = null
+				this.authState.hasSessionData = false
+				this.authState.authInfo = undefined
 			}
 		} catch (error) {
 			console.error("Error restoring auth token:", error)
-			this._authenticated = false
-			this._clineAuthInfo = null
+			this.authState.hasSessionData = false
+			this.authState.authInfo = undefined
 			return
 		}
 	}
