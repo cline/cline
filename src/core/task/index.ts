@@ -322,6 +322,7 @@ export class Task {
 			this.ulid = historyItem.ulid ?? ulid()
 			this.taskIsFavorited = historyItem.isFavorited
 			this.taskState.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
+			this.taskState.conversationHistoryDeletedRanges = historyItem.conversationHistoryDeletedRanges
 			if (historyItem.checkpointManagerErrorMessage) {
 				this.taskState.checkpointManagerErrorMessage = historyItem.checkpointManagerErrorMessage
 			}
@@ -382,6 +383,7 @@ export class Task {
 					cancelTask: this.cancelTask,
 					postStateToWebview: this.postStateToWebview,
 					initialConversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
+					initialConversationHistoryDeletedRanges: this.taskState.conversationHistoryDeletedRanges,
 					initialCheckpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
 					stateManager: this.stateManager,
 				})

@@ -195,6 +195,11 @@ export function convertClineMessageToProto(message: AppClineMessage): ProtoCline
 					endIndex: message.conversationHistoryDeletedRange[1],
 				}
 			: undefined,
+		conversationHistoryDeletedRanges:
+			message.conversationHistoryDeletedRanges?.map((range) => ({
+				startIndex: range[0],
+				endIndex: range[1],
+			})) ?? [],
 		// Additional optional fields for specific ask/say types
 		sayTool: undefined,
 		sayBrowserAction: undefined,
@@ -270,6 +275,14 @@ export function convertProtoToClineMessage(protoMessage: ProtoClineMessage): App
 			protoMessage.conversationHistoryDeletedRange.startIndex,
 			protoMessage.conversationHistoryDeletedRange.endIndex,
 		]
+	}
+
+	// Convert conversationHistoryDeletedRanges from array of objects to array of tuples
+	if (protoMessage.conversationHistoryDeletedRanges.length > 0) {
+		message.conversationHistoryDeletedRanges = protoMessage.conversationHistoryDeletedRanges.map((range) => [
+			range.startIndex,
+			range.endIndex,
+		])
 	}
 
 	return message

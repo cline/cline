@@ -218,6 +218,8 @@ message ClineMessage {
   ClineAskNewTask ask_new_task = 21;
   ClineApiReqInfo api_req_info = 22;
   ClineModelInfo model_info = 23;
+
+  repeated ConversationHistoryDeletedRange conversation_history_deleted_ranges = 24;
 }
 
 // UiService provides methods for managing UI interactions

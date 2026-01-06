@@ -124,6 +124,8 @@ export interface PreCompactHookParams {
 	apiConversationHistory: ClineStorageMessage[]
 	/** Current deleted range (if any) */
 	conversationHistoryDeletedRange?: [number, number]
+	/** Multiple non-contiguous deleted ranges (if any) */
+	conversationHistoryDeletedRanges?: Array<[number, number]>
 	/** Cline messages for extracting token usage */
 	clineMessages: ClineMessage[]
 
@@ -231,6 +233,11 @@ export async function executePreCompactHookWithCleanup(params: PreCompactHookPar
 					deletedRangeEnd,
 					contextJsonPath: contextJsonPath,
 					contextRawPath: contextRawPath,
+					deletedRanges:
+						params.conversationHistoryDeletedRanges?.map((range) => ({
+							startIndex: range[0],
+							endIndex: range[1],
+						})) ?? [],
 				},
 			},
 			isCancellable: true,
