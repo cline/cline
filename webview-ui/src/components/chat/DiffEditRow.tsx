@@ -103,10 +103,10 @@ const FileBlock = memo<{ file: Patch; isStreaming: boolean }>(
 					className="w-full flex items-center gap-2 p-2 bg-code transition-colors rounded-t-xs justify-between cursor-pointer"
 					onClick={() => setIsExpanded((prev) => !prev)}
 					type="button">
-					<div className="flex items-center gap-3">
-						<div className={cn("flex items-center gap-2", actionStyle.borderClass)}>
+					<div className="flex items-center gap-3 flex-1 w-full overflow-hidden">
+						<div className={cn("flex items-center gap-2 w-full", actionStyle.borderClass)}>
 							<ActionIcon className={cn("w-5 h-5", actionStyle.iconClass)} />
-							<span className="font-medium">{file.path}</span>
+							<span className="font-medium truncate">{file.path}</span>
 						</div>
 					</div>
 					<DiffStats additions={file.additions} deletions={file.deletions} />
