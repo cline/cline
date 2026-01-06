@@ -76,13 +76,13 @@ export const recommendedModels = [
 
 export const freeModels = [
 	{
-		id: "x-ai/grok-code-fast-1",
-		description: "Fast inference with strong coding performance",
+		id: "minimax/minimax-m2.1",
+		description: "Open source model with solid performance",
 		label: "FREE",
 	},
 	{
-		id: "minimax/minimax-m2.1",
-		description: "Open source model with solid performance",
+		id: "x-ai/grok-code-fast-1",
+		description: "Fast inference with strong coding performance",
 		label: "FREE",
 	},
 	{
