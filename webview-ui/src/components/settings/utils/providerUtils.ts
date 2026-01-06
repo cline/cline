@@ -416,13 +416,15 @@ export function normalizeApiConfiguration(
 				},
 			}
 		case "vercel-ai-gateway":
-			// Vercel AI Gateway uses OpenRouter model fields
+			// Vercel AI Gateway uses its own model fields
 			const vercelModelId =
-				currentMode === "plan" ? apiConfiguration?.planModeOpenRouterModelId : apiConfiguration?.actModeOpenRouterModelId
+				currentMode === "plan"
+					? apiConfiguration?.planModeVercelAiGatewayModelId
+					: apiConfiguration?.actModeVercelAiGatewayModelId
 			const vercelModelInfo =
 				currentMode === "plan"
-					? apiConfiguration?.planModeOpenRouterModelInfo
-					: apiConfiguration?.actModeOpenRouterModelInfo
+					? apiConfiguration?.planModeVercelAiGatewayModelInfo
+					: apiConfiguration?.actModeVercelAiGatewayModelInfo
 			return {
 				selectedProvider: provider,
 				selectedModelId: vercelModelId || openRouterDefaultModelId,
@@ -512,6 +514,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			hicapModelId: undefined,
 			aihubmixModelId: undefined,
 			nousResearchModelId: undefined,
+			vercelAiGatewayModelId: undefined,
 
 			// Model info objects
 			openAiModelInfo: undefined,
@@ -563,6 +566,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		aihubmixModelId: mode === "plan" ? apiConfiguration.planModeAihubmixModelId : apiConfiguration.actModeAihubmixModelId,
 		nousResearchModelId:
 			mode === "plan" ? apiConfiguration.planModeNousResearchModelId : apiConfiguration.actModeNousResearchModelId,
+		vercelAiGatewayModelId:
+			mode === "plan" ? apiConfiguration.planModeVercelAiGatewayModelId : apiConfiguration.actModeVercelAiGatewayModelId,
 
 		// Model info objects
 		openAiModelInfo: mode === "plan" ? apiConfiguration.planModeOpenAiModelInfo : apiConfiguration.actModeOpenAiModelInfo,
@@ -580,6 +585,10 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		hicapModelInfo: mode === "plan" ? apiConfiguration.planModeHicapModelInfo : apiConfiguration.actModeHicapModelInfo,
 		aihubmixModelInfo:
 			mode === "plan" ? apiConfiguration.planModeAihubmixModelInfo : apiConfiguration.actModeAihubmixModelInfo,
+		vercelAiGatewayModelInfo:
+			mode === "plan"
+				? apiConfiguration.planModeVercelAiGatewayModelInfo
+				: apiConfiguration.actModeVercelAiGatewayModelInfo,
 
 		// AWS Bedrock fields
 		awsBedrockCustomSelected:

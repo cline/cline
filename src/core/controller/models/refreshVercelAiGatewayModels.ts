@@ -18,7 +18,7 @@ export async function refreshVercelAiGatewayModels(_controller: Controller): Pro
 	let models: Record<string, ModelInfo> = {}
 
 	try {
-		const response = await axios.get("https://ai-gateway.vercel.sh/v1/models", getAxiosSettings())
+		const response = await axios.get("https://ai-gateway.vercel.sh/v1/models?include_mappings=true", getAxiosSettings())
 
 		if (response.data?.data) {
 			const rawModels = response.data.data
