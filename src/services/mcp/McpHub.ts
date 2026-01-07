@@ -47,6 +47,7 @@ import { McpConnection, McpServerConfig, Transport } from "./types"
 export class McpHub {
 	// Track reconnect backoff per server
 	private reconnectBackoff: Map<string, number> = new Map()
+	private reconnectTimers: Map<string, NodeJS.Timeout> = new Map()
 	private readonly MIN_RECONNECT_DELAY = 1000 // 1s
 	private readonly MAX_RECONNECT_DELAY = 30000 // 30s
 
@@ -55,14 +56,22 @@ export class McpHub {
 	 * Resets backoff on success, increases on failure up to max.
 	 */
 	private scheduleReconnect(serverName: string) {
-		if (this.isConnecting) return
+		if (this.isConnecting || this.reconnectTimers.has(serverName)) {
+			return
+		}
 		let delay = this.reconnectBackoff.get(serverName) || this.MIN_RECONNECT_DELAY
-		setTimeout(async () => {
+		const timer = setTimeout(async () => {
 			this.isConnecting = true
 			try {
 				await this.restartConnection(serverName)
 				this.reconnectBackoff.set(serverName, this.MIN_RECONNECT_DELAY) // Reset on success
-			} catch (e) {
+				// On success, clear timer
+				const t = this.reconnectTimers.get(serverName)
+				if (t) {
+					clearTimeout(t)
+				}
+				this.reconnectTimers.delete(serverName)
+			} catch (_e) {
 				delay = Math.min(delay * 2, this.MAX_RECONNECT_DELAY)
 				this.reconnectBackoff.set(serverName, delay)
 				this.scheduleReconnect(serverName) // Try again
@@ -70,6 +79,7 @@ export class McpHub {
 				this.isConnecting = false
 			}
 		}, delay)
+		this.reconnectTimers.set(serverName, timer)
 	}
 	getMcpServersPath: () => Promise<string>
 	private getSettingsDirectoryPath: () => Promise<string>
@@ -269,6 +279,12 @@ export class McpHub {
 	): Promise<void> {
 		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
 		this.connections = this.connections.filter((conn) => conn.server.name !== name)
+		// Cancel any pending reconnect timer for this server
+		const t = this.reconnectTimers.get(name)
+		if (t) {
+			clearTimeout(t)
+		}
+		this.reconnectTimers.delete(name)
 
 		// Validate remote MCP server URL against remote config if blockPersonalRemoteMCPServers is enabled
 		if (config.type !== "stdio" && "url" in config && config.url) {
