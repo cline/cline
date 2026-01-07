@@ -1,5 +1,6 @@
 import type { LanguageModelChatSelector } from "../core/api/providers/types"
 import { ApiFormat } from "./proto/cline/models"
+import { ApiHandlerSecrets } from "./storage/state-keys"
 
 export type ApiProvider =
 	| "anthropic"
@@ -43,50 +44,7 @@ export type ApiProvider =
 	| "hicap"
 	| "nousResearch"
 
-export interface ApiHandlerSecrets {
-	apiKey?: string // anthropic
-	liteLlmApiKey?: string
-	awsAccessKey?: string
-	awsSecretKey?: string
-	openRouterApiKey?: string
-	aihubmixApiKey?: string
-	aihubmixBaseUrl?: string
-	aihubmixAppCode?: string
-
-	clineAccountId?: string
-	awsSessionToken?: string
-	awsBedrockApiKey?: string
-	openAiApiKey?: string
-	geminiApiKey?: string
-	openAiNativeApiKey?: string
-	ollamaApiKey?: string
-	deepSeekApiKey?: string
-	requestyApiKey?: string
-	togetherApiKey?: string
-	fireworksApiKey?: string
-	qwenApiKey?: string
-	doubaoApiKey?: string
-	mistralApiKey?: string
-	authNonce?: string
-	asksageApiKey?: string
-	xaiApiKey?: string
-	moonshotApiKey?: string
-	zaiApiKey?: string
-	huggingFaceApiKey?: string
-	nebiusApiKey?: string
-	sambanovaApiKey?: string
-	cerebrasApiKey?: string
-	sapAiCoreClientId?: string
-	sapAiCoreClientSecret?: string
-	groqApiKey?: string
-	huaweiCloudMaasApiKey?: string
-	basetenApiKey?: string
-	vercelAiGatewayApiKey?: string
-	difyApiKey?: string
-	minimaxApiKey?: string
-	hicapApiKey?: string
-	nousResearchApiKey?: string
-}
+export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 
 export interface ApiHandlerOptions {
 	// Global configuration (not mode-specific)
@@ -220,7 +178,7 @@ export interface ApiHandlerOptions {
 }
 
 export type ApiConfiguration = ApiHandlerOptions &
-	ApiHandlerSecrets & {
+	Partial<ApiHandlerSecrets> & {
 		planModeApiProvider?: ApiProvider
 		actModeApiProvider?: ApiProvider
 	}

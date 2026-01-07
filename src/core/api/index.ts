@@ -71,11 +71,7 @@ export interface SingleCompletionHandler {
 	completePrompt(prompt: string): Promise<string>
 }
 
-function createHandlerForProvider(
-	apiProvider: string | undefined,
-	options: Omit<ApiConfiguration, "apiProvider">,
-	mode: Mode,
-): ApiHandler {
+function createHandlerForProvider(apiProvider: string | undefined, options: Partial<ApiConfiguration>, mode: Mode): ApiHandler {
 	switch (apiProvider) {
 		case "anthropic":
 			return new AnthropicHandler({
@@ -443,7 +439,7 @@ function createHandlerForProvider(
 	}
 }
 
-export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): ApiHandler {
+export function buildApiHandler(configuration: Partial<ApiConfiguration>, mode: Mode): ApiHandler {
 	const { planModeApiProvider, actModeApiProvider, ...options } = configuration
 
 	const apiProvider = mode === "plan" ? planModeApiProvider : actModeApiProvider

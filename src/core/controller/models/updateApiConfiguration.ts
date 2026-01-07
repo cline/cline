@@ -1,8 +1,9 @@
 import { Empty } from "@shared/proto/cline/common"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { buildApiHandler } from "@/core/api"
-import { ApiHandlerOptions, ApiHandlerSecrets, ApiProvider } from "@/shared/api"
+import { ApiHandlerOptions, ApiProvider } from "@/shared/api"
 import { UpdateApiConfigurationRequestNew } from "@/shared/proto/index.cline"
+import { ApiHandlerSecrets } from "@/shared/storage/state-keys"
 import type { Controller } from "../index"
 
 /**
