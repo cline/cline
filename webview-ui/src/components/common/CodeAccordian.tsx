@@ -48,11 +48,11 @@ const CodeAccordian = ({
 	}, [code])
 
 	return (
-		<div className="bg-code space-y-4 rounded-xs border border-editor-group-border">
+		<div className="bg-code overflow-hidden rounded-xs border border-editor-group-border">
 			{(path || isFeedback || isConsoleLogs) && (
 				<Button
 					aria-label={isExpanded ? "Collapse code block" : "Expand code block"}
-					className={cn("text-description flex items-center cursor-pointer select-none w-full", {
+					className={cn("text-description flex items-center cursor-pointer select-none w-full py-[9px] px-2.5", {
 						"cursor-wait opacity-70": isLoading,
 					})}
 					onClick={isLoading ? undefined : onToggleExpand}
