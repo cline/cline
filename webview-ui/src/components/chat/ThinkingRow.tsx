@@ -56,7 +56,12 @@ export const ThinkingRow = memo(({ showTitle = false, reasoningContent, isVisibl
 					onClick={onToggle}
 					variant="text">
 					<div
-						className="flex max-h-[150px] overflow-y-auto text-description leading-normal truncated whitespace-pre-wrap break-words flex-1 [scrollbar-width:none] [-ms-overflow-style:none] pl-2 border-l border-description/50 [&::-webkit-scrollbar]:hidden [direction:ltr]"
+						className={cn(
+							"flex max-h-[150px] overflow-y-auto text-description leading-normal truncated whitespace-pre-wrap break-words flex-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [direction:ltr]",
+							{
+								"pl-2 border-l border-description/50": showTitle,
+							},
+						)}
 						ref={scrollRef}>
 						<span>{reasoningContent}</span>
 					</div>
