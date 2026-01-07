@@ -105,24 +105,26 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		const document = this.activeDiffEditor.document
 		const edit = new vscode.WorkspaceEdit()
 
-		// IMPORTANT: VS Code may treat an out-of-bounds end position as an insertion instead of a
-		// replacement. Always validate the range against the current document to keep edits
-		// strictly within the real end-of-file.
+		// Calculate the range to replace.
+		// When endLine is at or beyond document.lineCount, we need to replace to the actual
+		// end of the document (last character of last line). Otherwise, we use the original
+		// semantics of (startLine, 0) to (endLine, 0) which means "up to the START of endLine".
 		const startLine = Math.max(0, Math.min(rangeToReplace.startLine, document.lineCount - 1))
-		const desiredEndLine = Math.max(rangeToReplace.startLine, rangeToReplace.endLine)
-		const validatedRange = document.validateRange(
-			new vscode.Range(new vscode.Position(startLine, 0), new vscode.Position(desiredEndLine, 0)),
-		)
+		const endLine = rangeToReplace.endLine
 
-		edit.replace(document.uri, validatedRange, content)
-		await vscode.workspace.applyEdit(edit)
-
-		// Preserve trailing newline: if content ends with newline, ensure document does too
-		if (content.endsWith("\n") && !document.getText().endsWith("\n")) {
-			const fixEdit = new vscode.WorkspaceEdit()
-			fixEdit.insert(document.uri, document.lineAt(Math.max(0, document.lineCount - 1)).range.end, "\n")
-			await vscode.workspace.applyEdit(fixEdit)
+		let range: vscode.Range
+		if (endLine >= document.lineCount) {
+			// Replacing to end of document - use document's actual end position
+			const lastLine = Math.max(0, document.lineCount - 1)
+			const lastLineLength = document.lineAt(lastLine).text.length
+			range = new vscode.Range(new vscode.Position(startLine, 0), new vscode.Position(lastLine, lastLineLength))
+		} else {
+			// Replacing a specific range - use start of end line (original semantics)
+			range = new vscode.Range(new vscode.Position(startLine, 0), new vscode.Position(endLine, 0))
 		}
+
+		edit.replace(document.uri, range, content)
+		await vscode.workspace.applyEdit(edit)
 
 		if (currentLine !== undefined) {
 			// Update decorations for the entire changed section
@@ -161,7 +163,11 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		const document = this.activeDiffEditor.document
 		if (lineNumber < document.lineCount) {
 			const edit = new vscode.WorkspaceEdit()
-			edit.delete(document.uri, new vscode.Range(lineNumber, 0, document.lineCount, 0))
+			// Use the actual end of document (last line, last character) instead of
+			// (lineCount, 0) which is an out-of-bounds position
+			const lastLine = document.lineCount - 1
+			const lastLineLength = document.lineAt(lastLine).text.length
+			edit.delete(document.uri, new vscode.Range(lineNumber, 0, lastLine, lastLineLength))
 			await vscode.workspace.applyEdit(edit)
 		}
 		// Clear all decorations at the end (before applying final edit)

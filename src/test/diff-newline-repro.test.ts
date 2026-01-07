@@ -79,4 +79,59 @@ describe("DiffViewProvider Newline handling", () => {
 		assert.strictEqual(result, "new content\n")
 		assert.strictEqual(result?.endsWith("\n"), true)
 	})
+
+	it("does not duplicate content when new content is shorter than original", async () => {
+		// This test covers the bug where content from the end of the original file
+		// would be duplicated/displaced when the new content has fewer lines.
+		const provider = new TestDiffViewProvider()
+		const originalContent = "line1\nline2\nline3\nline4\nline5\n"
+		provider.setup(originalContent)
+
+		// Replace entire file with shorter content
+		await provider.update("new1\nnew2\nnew3\n", true)
+		const result = await provider.getDocumentText()
+
+		// Should only contain the new content, no old content leftover
+		assert.strictEqual(result, "new1\nnew2\nnew3\n")
+		assert.ok(!result?.includes("line4"), "Old content should not be present")
+		assert.ok(!result?.includes("line5"), "Old content should not be present")
+	})
+
+	it("does not leave old content when replacing 20 lines with 5 lines (exact bug scenario)", async () => {
+		// This is the exact scenario reported in production:
+		// Original file has 20 lines, replaced with 5 lines
+		// Bug: "original line 7" was appearing at the end of the file
+		const provider = new TestDiffViewProvider()
+		let originalContent = ""
+		for (let i = 1; i <= 20; i++) {
+			originalContent += `original line ${i}\n`
+		}
+		provider.setup(originalContent)
+
+		// Replace entire file with 5 lines
+		await provider.update("new1\nnew2\nnew3\nnew4\nnew5\n", true)
+		const result = await provider.getDocumentText()
+
+		// Should only contain the 5 new lines
+		assert.strictEqual(result, "new1\nnew2\nnew3\nnew4\nnew5\n")
+		// Critical: NO original content should remain
+		assert.ok(!result?.includes("original"), "Original content should not be present")
+	})
+
+	it("handles streaming updates correctly without content duplication", async () => {
+		const provider = new TestDiffViewProvider()
+		const originalContent = "original1\noriginal2\noriginal3\noriginal4\noriginal5\n"
+		provider.setup(originalContent)
+
+		// Simulate streaming: multiple non-final updates followed by a final update
+		await provider.update("new1\n", false) // streaming
+		await provider.update("new1\nnew2\n", false) // streaming
+		await provider.update("new1\nnew2\nnew3\n", true) // final
+
+		const result = await provider.getDocumentText()
+
+		// Should only contain the final new content
+		assert.strictEqual(result, "new1\nnew2\nnew3\n")
+		assert.ok(!result?.includes("original"), "Original content should not be present")
+	})
 })

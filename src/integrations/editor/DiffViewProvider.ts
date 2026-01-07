@@ -188,7 +188,13 @@ export abstract class DiffViewProvider {
 				contentToReplace += "\n"
 			}
 
-			const rangeToReplace = { startLine: 0, endLine: currentLine + 1 }
+			// On final update, replace the ENTIRE document to avoid leftover content.
+			// When new content is shorter than original, replacing only up to currentLine+1
+			// would leave old content that "shifts up" after replacement.
+			// Use Infinity to trigger end-of-document handling in replaceText.
+			const rangeToReplace = isFinal
+				? { startLine: 0, endLine: Number.MAX_SAFE_INTEGER }
+				: { startLine: 0, endLine: currentLine + 1 }
 			await this.replaceText(contentToReplace, rangeToReplace, currentLine)
 
 			// Scroll to the actual change location if provided.
