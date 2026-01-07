@@ -444,7 +444,7 @@ function createHandlerForProvider(
 	}
 }
 
-export function buildApiHandler(configuration: Partial<ApiConfiguration>, mode: Mode): ApiHandler {
+export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): ApiHandler {
 	const { planModeApiProvider, actModeApiProvider, ...options } = configuration
 
 	const apiProvider = mode === "plan" ? planModeApiProvider : actModeApiProvider

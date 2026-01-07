@@ -484,7 +484,7 @@ export class StateManager {
 	 * Convenience method for setting API configuration
 	 * Automatically categorizes keys based on STATE_DEFINITION and SecretKeys
 	 */
-	setApiConfiguration(apiConfiguration: Partial<ApiConfiguration>): void {
+	setApiConfiguration(apiConfiguration: ApiConfiguration): void {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
