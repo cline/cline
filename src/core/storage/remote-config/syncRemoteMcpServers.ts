@@ -88,6 +88,5 @@ export async function syncRemoteMcpServersToSettings(
 		}
 	} catch (error) {
 		console.error("[RemoteConfig] Failed to sync remote MCP servers:", error)
-		throw error
 	}
 }
