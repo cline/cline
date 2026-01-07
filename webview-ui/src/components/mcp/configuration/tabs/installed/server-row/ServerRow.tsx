@@ -49,7 +49,7 @@ const ServerRow = ({
 	isExpandable?: boolean
 	hasTrashIcon?: boolean
 }) => {
-	const { mcpMarketplaceCatalog, autoApprovalSettings, setMcpServers } = useExtensionState()
+	const { mcpMarketplaceCatalog, autoApprovalSettings, setMcpServers, remoteConfigSettings } = useExtensionState()
 
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isDeleting, setIsDeleting] = useState(false)
@@ -163,6 +163,26 @@ const ServerRow = ({
 			})
 	}
 
+	// Helper to extract server URL from config
+	const getServerUrl = (server: McpServer): string | null => {
+		try {
+			const config = JSON.parse(server.config)
+			return config.url || null
+		} catch {
+			return null
+		}
+	}
+
+	// Check if this server is always-enabled via remote config
+	const isAlwaysEnabled = (() => {
+		const remoteMCPServers = remoteConfigSettings?.remoteMCPServers || []
+		const serverUrl = getServerUrl(server)
+		if (!serverUrl) return false
+
+		const remoteServer = remoteMCPServers.find((remote) => remote.url === serverUrl)
+		return remoteServer?.alwaysEnabled === true
+	})()
+
 	return (
 		<div className="mb-2.5">
 			<div
@@ -209,14 +229,17 @@ const ServerRow = ({
 					</Button>
 				)}
 				{/* Toggle Switch */}
-				<Switch
-					checked={!server.disabled}
-					key={server.name}
-					onClick={(e) => {
-						e.stopPropagation()
-						handleToggleMcpServer()
-					}}
-				/>
+				<div title={isAlwaysEnabled ? "This server can't be disabled because it is enabled by your organization" : ""}>
+					<Switch
+						checked={!server.disabled}
+						disabled={isAlwaysEnabled}
+						key={server.name}
+						onClick={(e) => {
+							e.stopPropagation()
+							handleToggleMcpServer()
+						}}
+					/>
+				</div>
 				<div
 					className={cn("h-2 w-2 ml-0.5 rounded-full", {
 						"bg-success": server.status === "connected",
