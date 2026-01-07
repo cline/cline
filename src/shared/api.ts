@@ -130,6 +130,7 @@ export interface ApiHandlerOptions {
 	planModeHuaweiCloudMaasModelInfo?: ModelInfo
 	planModeOcaModelId?: string
 	planModeOcaModelInfo?: OcaModelInfo
+	planModeOcaReasoningEffort?: string
 	planModeAihubmixModelId?: string
 	planModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
 	planModeHicapModelId?: string
@@ -170,6 +171,7 @@ export interface ApiHandlerOptions {
 	actModeHuaweiCloudMaasModelInfo?: ModelInfo
 	actModeOcaModelId?: string
 	actModeOcaModelInfo?: OcaModelInfo
+	actModeOcaReasoningEffort?: string
 	actModeAihubmixModelId?: string
 	actModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
 	actModeHicapModelId?: string
@@ -235,6 +237,8 @@ export interface OcaModelInfo extends OpenAiCompatibleModelInfo {
 	surveyId?: string
 	banner?: string
 	surveyContent?: string
+	supportsReasoning?: boolean
+	reasoningEffortOptions: string[]
 }
 
 export const CLAUDE_SONNET_1M_SUFFIX = ":1m"

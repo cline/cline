@@ -371,6 +371,7 @@ message UpdateSettingsRequest {
   optional bool cline_web_tools_enabled = 34;
   optional bool enable_parallel_tool_calling = 35;
   optional bool background_edit_enabled = 36;
+  optional string oca_reasoning_effort = 37;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {
