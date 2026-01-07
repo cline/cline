@@ -1,9 +1,6 @@
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { useEffect, useState } from "react"
-import { formatSize } from "@/utils/format"
 import { PLATFORM_CONFIG, PlatformType } from "../../../config/platform.config"
 import { FileServiceClient } from "../../../services/grpc-client"
-import { UnsavedChangesDialog } from "../../common/AlertDialog"
 import { Button } from "../../ui/button"
 import Section from "../Section"
 
@@ -12,27 +9,6 @@ interface AboutSectionProps {
 	renderSectionHeader: (tabId: string) => JSX.Element | null
 }
 const AboutSection = ({ version, renderSectionHeader }: AboutSectionProps) => {
-	const [logsSize, setLogsSize] = useState<number>(0)
-	const [showClearDialog, setShowClearDialog] = useState(false)
-
-	useEffect(() => {
-		if (PLATFORM_CONFIG.type === PlatformType.VSCODE) {
-			FileServiceClient.getLogsSize({})
-				.then((response) => setLogsSize(response.value || 0))
-				.catch((err) => console.error("Failed to get logs size:", err))
-		}
-	}, [])
-
-	const handleClearLogs = async () => {
-		try {
-			await FileServiceClient.clearLogs({})
-			setLogsSize(0)
-			setShowClearDialog(false)
-		} catch (err) {
-			console.error("Failed to clear logs:", err)
-		}
-	}
-
 	return (
 		<div>
 			{renderSectionHeader("about")}
@@ -80,6 +56,7 @@ const AboutSection = ({ version, renderSectionHeader }: AboutSectionProps) => {
 								Cline writes detailed logs to help diagnose issues. Each session creates a separate log file. If
 								you encounter an error, these logs can be shared with the Cline team for troubleshooting.
 							</p>
+							<p className="text-xs text-(--vscode-descriptionForeground)">Old logs are automatically removed.</p>
 
 							<div className="flex flex-col gap-2 max-w-md">
 								<Button
@@ -101,32 +78,7 @@ const AboutSection = ({ version, renderSectionHeader }: AboutSectionProps) => {
 								<p className="text-xs text-(--vscode-descriptionForeground) -mt-1 ml-1">
 									Browse all session logs in your file manager
 								</p>
-
-								{logsSize > 0 && (
-									<>
-										<Button
-											className="w-full mt-1 whitespace-normal min-h-[32px]"
-											onClick={() => setShowClearDialog(true)}
-											variant="danger">
-											Clear Logs ({formatSize(logsSize)})
-										</Button>
-										<p className="text-xs text-(--vscode-descriptionForeground) -mt-1 ml-1">
-											Permanently delete all log files
-										</p>
-									</>
-								)}
 							</div>
-
-							<UnsavedChangesDialog
-								confirmText="Clear Logs"
-								description="This will permanently delete all log files for this extension. CLI and other platform logs will not be affected. This action cannot be undone."
-								onCancel={() => setShowClearDialog(false)}
-								onConfirm={handleClearLogs}
-								onOpenChange={setShowClearDialog}
-								open={showClearDialog}
-								showSaveOption={false}
-								title="Clear Logs"
-							/>
 						</>
 					)}
 				</div>

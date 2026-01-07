@@ -3,6 +3,7 @@ import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ErrorService } from "../error"
 import { getVSCodeLogsDir } from "./constants"
+import { cleanupLogsOlderThan, LOG_RETENTION_MS } from "./retention"
 import { formatLogFilenameTimestamp, formatLogMessageTimestamp } from "./timestamp"
 
 /**
@@ -15,14 +16,12 @@ export class Logger {
 	private static fileStream?: fs.WriteStream
 	private static logFilePath?: string
 
-	// TODO (celestial-vault): This does not handle the case where log files are deleted while the logger
-	// is active (either manually by the user or via clearLogs()). The WriteStream will
-	// continue writing to the unlinked file descriptor, which means logs appear to work
-	// but are not actually being persisted to disk. A proper solution would need to handle
-	// effectively checking for the existence of the log file before writing to it.
 	/**
 	 * Ensures log file is ready for writing. Creates a new log file if needed.
 	 * This method is called automatically on first use.
+	 *
+	 * Note: If the active log file is deleted during the session, the WriteStream may keep writing to
+	 * an unlinked file descriptor (so logs stop persisting to disk).
 	 */
 	private static ensureLogFileReady(): void {
 		// Skip file logging in standalone mode - console is redirected by parent process
@@ -46,6 +45,11 @@ export class Logger {
 
 			Logger.logFilePath = path.join(logsDir, logFileName)
 			Logger.fileStream = fs.createWriteStream(Logger.logFilePath, { flags: "a" })
+
+			cleanupLogsOlderThan({
+				logsDir,
+				retentionMs: LOG_RETENTION_MS,
+			})
 
 			console.log(`Logger initialized - logs will be written to: ${Logger.logFilePath}`)
 		} catch (error) {
