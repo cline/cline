@@ -420,7 +420,10 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				if (!config.enableParallelToolCalling && config.taskState.didAlreadyUseTool) {
 					return
 				}
+
 				// Full original behavior - comprehensive error handling even for partial blocks
+				// Removes any existing diff_error messages to avoid duplicates.
+				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "diff_error")
 				await config.callbacks.say("diff_error", relPath)
 
 				// Extract provider information for telemetry
