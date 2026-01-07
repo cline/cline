@@ -49,11 +49,29 @@ const ServerRow = ({
 	isExpandable?: boolean
 	hasTrashIcon?: boolean
 }) => {
-	const { mcpMarketplaceCatalog, autoApprovalSettings, setMcpServers } = useExtensionState()
+	const { mcpMarketplaceCatalog, autoApprovalSettings, setMcpServers, remoteConfigSettings } = useExtensionState()
 
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isDeleting, setIsDeleting] = useState(false)
 	const [isRestarting, setIsRestarting] = useState(false)
+
+	// Check if user is managed by remote config and if this server is remote-managed.
+	// Remote MCP servers from enterprise config are always URL-based (SSE/HTTP).
+	// stdio-based local servers are never in remoteMCPServers, so URL matching is sufficient.
+	const isRemoteManagedServer = (() => {
+		const remoteMCPServers = remoteConfigSettings?.remoteMCPServers
+		if (!remoteMCPServers || remoteMCPServers.length === 0) {
+			return false
+		}
+		try {
+			const serverConfig = JSON.parse(server.config)
+			return remoteMCPServers.some(
+				(remoteServer: { url: string }) => serverConfig.url && serverConfig.url === remoteServer.url,
+			)
+		} catch {
+			return false
+		}
+	})()
 
 	const handleRowClick = () => {
 		if (!server.error && isExpandable) {
@@ -249,13 +267,15 @@ const ServerRow = ({
 						</Button>
 					)}
 
-					<Button
-						className="m-2.5 mt-0 max-w-[calc(100%-20px)]"
-						disabled={isDeleting}
-						onClick={handleDelete}
-						variant="danger">
-						{isDeleting ? "Deleting..." : "Delete Server"}
-					</Button>
+					{!isRemoteManagedServer && (
+						<Button
+							className="m-2.5 mt-0 max-w-[calc(100%-20px)]"
+							disabled={isDeleting}
+							onClick={handleDelete}
+							variant="danger">
+							{isDeleting ? "Deleting..." : "Delete Server"}
+						</Button>
+					)}
 				</div>
 			) : (
 				isExpanded && (
@@ -318,13 +338,15 @@ const ServerRow = ({
 							{server.status === "connecting" || isRestarting ? "Restarting..." : "Restart Server"}
 						</Button>
 
-						<Button
-							className="w-[calc(100%-14px)] mt-1 mx-1.5 mb-3"
-							disabled={isDeleting}
-							onClick={handleDelete}
-							variant="danger">
-							{isDeleting ? "Deleting..." : "Delete Server"}
-						</Button>
+						{!isRemoteManagedServer && (
+							<Button
+								className="w-[calc(100%-14px)] mt-1 mx-1.5 mb-3"
+								disabled={isDeleting}
+								onClick={handleDelete}
+								variant="danger">
+								{isDeleting ? "Deleting..." : "Delete Server"}
+							</Button>
+						)}
 					</div>
 				)
 			)}
