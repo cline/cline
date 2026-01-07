@@ -3,6 +3,7 @@ import { type JwtPayload } from "jwt-decode"
 import { ClineEnv, EnvironmentConfig } from "@/config"
 import { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
+import { buildBasicClineHeaders } from "@/services/EnvUtils"
 import { AuthInvalidTokenError, AuthNetworkError } from "@/services/error/ClineError"
 import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
@@ -295,7 +296,7 @@ export class ClineAuthProvider implements IAuthProvider {
 			const endpoint = new URL(CLINE_API_ENDPOINT.REFRESH_TOKEN, this.config.apiBaseUrl)
 			const response = await fetch(endpoint.toString(), {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
+				headers: await this.headers(),
 				body: JSON.stringify({
 					refreshToken: storedData.refreshToken,
 					grantType: "refresh_token",
@@ -358,10 +359,7 @@ export class ClineAuthProvider implements IAuthProvider {
 				method: "GET",
 				redirect: "manual",
 				credentials: "include", // Important for cookies if needed
-				headers: {
-					Accept: "application/json",
-					"Content-Type": "application/json",
-				},
+				headers: await this.headers(),
 			})
 
 			// If we get a redirect status (3xx), get the Location header
@@ -398,10 +396,7 @@ export class ClineAuthProvider implements IAuthProvider {
 
 			const response = await fetch(tokenUrl.toString(), {
 				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Accept: "application/json",
-				},
+				headers: await this.headers(),
 				body: JSON.stringify({
 					grant_type: "authorization_code",
 					code: authorizationCode,
@@ -450,6 +445,7 @@ export class ClineAuthProvider implements IAuthProvider {
 			const userResponse = await axios.get(`${ClineEnv.config().apiBaseUrl}/api/v1/users/me`, {
 				headers: {
 					Authorization: `Bearer workos:${tokenData.accessToken}`,
+					...(await this.headers()),
 				},
 				...getAxiosSettings(),
 			})
@@ -466,6 +462,14 @@ export class ClineAuthProvider implements IAuthProvider {
 				createdAt: new Date().toISOString(),
 				organizations: [],
 			}
+		}
+	}
+
+	private async headers() {
+		return {
+			Accept: "application/json",
+			"Content-Type": "application/json",
+			...(await buildBasicClineHeaders()),
 		}
 	}
 }

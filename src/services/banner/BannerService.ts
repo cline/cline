@@ -5,6 +5,7 @@ import type { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
 import { getAxiosSettings } from "@/shared/net"
 import { AuthService } from "../auth/AuthService"
+import { buildBasicClineHeaders } from "../EnvUtils"
 import { getDistinctId } from "../logging/distinctId"
 import { Logger } from "../logging/Logger"
 
@@ -109,6 +110,7 @@ export class BannerService {
 
 			const headers: Record<string, string> = {
 				"Content-Type": "application/json",
+				...(await buildBasicClineHeaders()),
 			}
 			if (token) {
 				headers["Authorization"] = `Bearer ${token}`
@@ -325,6 +327,7 @@ export class BannerService {
 				timeout: 10000,
 				headers: {
 					"Content-Type": "application/json",
+					...(await buildBasicClineHeaders()),
 				},
 				...getAxiosSettings(),
 			})

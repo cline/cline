@@ -5,6 +5,7 @@ import { setWelcomeViewCompleted } from "@/core/controller/state/setWelcomeViewC
 import { WebviewProvider } from "@/core/webview"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { fetch } from "@/shared/net"
+import { buildBasicClineHeaders } from "../EnvUtils"
 import { AuthService } from "./AuthService"
 
 // TODO: Consider adding a mock auth provider implementing IAuthProvider for more realistic testing
@@ -64,6 +65,7 @@ export class AuthServiceMock extends AuthService {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
+					...(await buildBasicClineHeaders()),
 				},
 				body: JSON.stringify({
 					code: testCode,
