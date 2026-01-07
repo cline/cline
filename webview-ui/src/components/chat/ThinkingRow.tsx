@@ -27,7 +27,7 @@ export const ThinkingRow = memo(({ showTitle = false, reasoningContent, isVisibl
 	}
 
 	return (
-		<div>
+		<div className="ml-1">
 			{showTitle ? (
 				<Button
 					className="inline-flex justify-baseline gap-0.5 text-left select-none cursor-pointer text-description px-0 w-full"
@@ -44,7 +44,7 @@ export const ThinkingRow = memo(({ showTitle = false, reasoningContent, isVisibl
 			{isExpanded && (
 				<Button
 					className={cn(
-						"flex gap-0 overflow-hidden w-full min-w-0 max-h-0 opacity-0 items-baseline justify-baseline text-left",
+						"flex gap-0 overflow-hidden w-full min-w-0 max-h-0 opacity-0 items-baseline justify-baseline text-left p-0",
 						"disabled:cursor-text disabled:opacity-100",
 						{
 							"max-h-[200px] opacity-100": isVisible,
