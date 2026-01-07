@@ -140,6 +140,7 @@ function createHandlerForProvider(
 				openAiApiKey: options.openAiApiKey,
 				openAiBaseUrl: options.openAiBaseUrl,
 				azureApiVersion: options.azureApiVersion,
+				azureIdentity: options.azureIdentity,
 				openAiHeaders: options.openAiHeaders,
 				openAiModelId: mode === "plan" ? options.planModeOpenAiModelId : options.actModeOpenAiModelId,
 				openAiModelInfo: mode === "plan" ? options.planModeOpenAiModelInfo : options.actModeOpenAiModelInfo,
@@ -393,6 +394,7 @@ function createHandlerForProvider(
 				ocaBaseUrl: options.ocaBaseUrl,
 				ocaModelId: mode === "plan" ? options.planModeOcaModelId : options.actModeOcaModelId,
 				ocaModelInfo: mode === "plan" ? options.planModeOcaModelInfo : options.actModeOcaModelInfo,
+				ocaReasoningEffort: mode === "plan" ? options.planModeOcaReasoningEffort : options.actModeOcaReasoningEffort,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 				ocaUsePromptCache:

@@ -441,11 +441,30 @@ export class McpHub {
 					break
 				}
 				case "streamableHttp": {
+					// Custom fetch wrapper that treats 404 as 405 for GET requests.
+					// The MCP SDK sends a GET request to check for SSE stream support.
+					// Per MCP spec, servers should return 405 if they don't support SSE,
+					// but many servers (incorrectly) return 404. The SDK only handles 405
+					// gracefully, so we normalize 404 -> 405 to fix compatibility.
+					// See: https://github.com/modelcontextprotocol/typescript-sdk/issues/1150
+					const streamableHttpFetch: typeof fetch = async (url, init) => {
+						const response = await fetch(url, init)
+						if (init?.method === "GET" && response.status === 404) {
+							return new Response(response.body, {
+								status: 405,
+								statusText: "Method Not Allowed",
+								headers: response.headers,
+							})
+						}
+						return response
+					}
+
 					transport = new StreamableHTTPClientTransport(new URL(expandedConfig.url), {
 						authProvider,
 						requestInit: {
 							headers: expandedConfig.headers ?? undefined,
 						},
+						fetch: streamableHttpFetch,
 					})
 					transport.onerror = async (error) => {
 						console.error(`Transport error for "${name}":`, error)
