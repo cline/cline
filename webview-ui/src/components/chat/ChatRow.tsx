@@ -1238,7 +1238,7 @@ export const ChatRowContent = memo(
 										{title}
 									</div>
 								)}
-								<div className="pt-2.5">
+								<div className="pt-1">
 									<MarkdownRow markdown={message.text} />
 								</div>
 							</div>
@@ -1293,7 +1293,7 @@ export const ChatRowContent = memo(
 									</div>
 								)}
 								<WithCopyButton
-									className="pt-2.5"
+									className="pt-1"
 									onMouseUp={handleMouseUp}
 									position="bottom-right"
 									ref={contentRef}
