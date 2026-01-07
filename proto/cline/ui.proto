@@ -67,6 +67,8 @@ enum ClineSay {
   TASK_PROGRESS = 27;
   ERROR_RETRY = 28;
   GENERATE_EXPLANATION = 29;
+  HOOK_STATUS = 30;
+  HOOK_OUTPUT_STREAM = 31;
 }
 
 // Enum for ClineSayTool tool types

@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.46.1",
+	"version": "3.47.0",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -456,6 +456,7 @@
 		"@anthropic-ai/vertex-sdk": "^0.6.4",
 		"@aws-sdk/client-bedrock-runtime": "^3.922.0",
 		"@aws-sdk/credential-providers": "^3.922.0",
+		"@azure/identity": "^4.13.0",
 		"@bufbuild/protobuf": "^2.2.5",
 		"@cerebras/cerebras_cloud_sdk": "^1.35.0",
 		"@google-cloud/vertexai": "^1.9.3",
@@ -486,6 +487,7 @@
 		"@playwright/test": "^1.55.1",
 		"@sap-ai-sdk/ai-api": "^2.1.0",
 		"@sap-ai-sdk/orchestration": "^2.1.0",
+		"@sap-cloud-sdk/connectivity": "^4.2.0",
 		"@streamparser/json": "^0.0.22",
 		"@tailwindcss/vite": "^4.1.14",
 		"@types/uuid": "^10.0.0",

@@ -33,6 +33,7 @@ export const OpenAiCompatibleSchema = z.object({
 	openAiBaseUrl: z.string().optional(),
 	openAiHeaders: z.record(z.string(), z.string()).optional(),
 	azureApiVersion: z.string().optional(),
+	azureIdentity: z.boolean().optional(),
 })
 
 // AWS Bedrock model schema with per-model settings
