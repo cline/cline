@@ -2,8 +2,8 @@ import { Mode } from "@shared/storage/types"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DebouncedTextField } from "../common/DebouncedTextField"
-import OpenRouterModelPicker from "../OpenRouterModelPicker"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import VercelModelPicker from "../VercelModelPicker"
 
 /**
  * Props for the VercelAIGatewayProvider component
@@ -53,11 +53,7 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 				</p>
 			</div>
 
-			{showModelOptions && (
-				<>
-					<OpenRouterModelPicker currentMode={currentMode} isPopup={isPopup} />
-				</>
-			)}
+			{showModelOptions && <VercelModelPicker currentMode={currentMode} isPopup={isPopup} />}
 		</div>
 	)
 }
