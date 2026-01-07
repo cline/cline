@@ -59,7 +59,7 @@ export class ClineAccountService {
 			headers: {
 				Authorization: `Bearer ${clineAccountAuthToken}`,
 				"Content-Type": "application/json",
-				...(await buildBasicClineHeaders),
+				...(await buildBasicClineHeaders()),
 				...config.headers,
 			},
 			...getAxiosSettings(),
