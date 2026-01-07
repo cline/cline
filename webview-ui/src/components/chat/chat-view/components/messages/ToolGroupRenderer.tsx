@@ -1,6 +1,5 @@
 import { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import { memo, useCallback, useMemo, useState } from "react"
 import { cleanPathPrefix } from "@/components/common/CodeAccordian"
 import { Button } from "@/components/ui/button"
@@ -11,10 +10,6 @@ import { getIconByToolName, getToolsNotInCurrentActivities, isLowStakesTool } fr
 
 interface ToolGroupRendererProps {
 	messages: ClineMessage[]
-	expandedRows: Record<number, boolean>
-	onToggleExpand: (ts: number) => void
-	index: number
-	groupedMessages: (ClineMessage | ClineMessage[])[]
 	allMessages: ClineMessage[]
 }
 
@@ -30,7 +25,7 @@ const EXPANDABLE_TOOLS = new Set(["listFilesTopLevel", "listFilesRecursive", "li
  * Renders a collapsible group of low-stakes tool calls.
  * Only shows tools that are NOT in the "current activities" range (PAST tools only).
  */
-export const ToolGroupRenderer = memo(({ messages, expandedRows, onToggleExpand, allMessages }: ToolGroupRendererProps) => {
+export const ToolGroupRenderer = memo(({ messages, allMessages }: ToolGroupRendererProps) => {
 	const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({})
 
 	// Filter out tools in the "current activities" range (being shown in loading state)
@@ -40,16 +35,6 @@ export const ToolGroupRenderer = memo(({ messages, expandedRows, onToggleExpand,
 	const toolsWithReasoning = useMemo(() => buildToolsWithReasoning(filteredMessages), [filteredMessages])
 
 	const summary = getToolGroupSummary(filteredMessages)
-
-	const { groupTs, isExpanded } = useMemo(() => {
-		const groupTs = messages[0]?.ts || 0
-		const isExpanded = expandedRows[groupTs] ?? true
-		return { groupTs, isExpanded }
-	}, [messages, expandedRows])
-
-	const handleToggle = useCallback(() => {
-		onToggleExpand(groupTs)
-	}, [onToggleExpand, groupTs])
 
 	const handleOpenFile = useCallback((filePath: string) => {
 		FileServiceClient.openFileRelativePath(StringRequest.create({ value: filePath })).catch((err) =>
@@ -67,65 +52,56 @@ export const ToolGroupRenderer = memo(({ messages, expandedRows, onToggleExpand,
 	}
 
 	return (
-		<div className={cn("px-4 text-description")}>
-			{/* Collapsible header */}
-			<Button
-				className="flex items-center gap-1.5 select-none cursor-pointer text-[13px] px-0"
-				id={`tool-group-toggle-${groupTs}`}
-				onClick={handleToggle}
-				variant="icon">
-				{isExpanded ? <ChevronDownIcon className="opacity-70" /> : <ChevronRightIcon className="opacity-70" />}
-				<span className="opacity-90 flex-1">{summary}</span>
-			</Button>
+		<div className={cn("px-4 py-2 text-description")}>
+			{/* Header */}
+			<div className="text-[13px] opacity-90 mb-1">{summary}:</div>
 
-			{/* Expanded content - files/folders with reasoning in tooltip */}
-			{isExpanded ? (
-				<div className="ml-[18px] min-w-0">
-					{toolsWithReasoning.map(({ tool, parsedTool, reasoning }) => {
-						const info = getToolDisplayInfo(parsedTool)
-						if (!info) {
-							return null
-						}
+			{/* Content - files/folders with reasoning in tooltip */}
+			<div className="min-w-0">
+				{toolsWithReasoning.map(({ tool, parsedTool, reasoning }) => {
+					const info = getToolDisplayInfo(parsedTool)
+					if (!info) {
+						return null
+					}
 
-						const isExpandable = EXPANDABLE_TOOLS.has(parsedTool.tool)
-						const isItemExpanded = expandedItems[tool.ts] ?? false
-						const content = parsedTool.content || null
-						const hasReasoning = !!reasoning?.length
+					const isExpandable = EXPANDABLE_TOOLS.has(parsedTool.tool)
+					const isItemExpanded = expandedItems[tool.ts] ?? false
+					const content = parsedTool.content || null
+					const hasReasoning = !!reasoning?.length
 
-						return (
-							<div className="min-w-0" key={tool.ts}>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											className="flex items-center gap-1.5 cursor-pointer text-sm text-description font-editor py-0.5 hover:text-link min-w-0 max-w-full"
-											onClick={() => (isExpandable ? handleItemToggle(tool.ts) : handleOpenFile(info.path))}
-											size="icon"
-											variant="text">
-											<info.icon className="opacity-70 shrink-0" />
-											<span
-												className={cn(
-													"flex-1 min-w-0 whitespace-nowrap overflow-hidden text-ellipsis text-left [direction:rtl] text-xs",
-													{
-														"[direction:ltr]": !!info.displayText,
-													},
-												)}>
-												{(info.displayText || cleanPathPrefix(info.path)) + "\u200E"}
-											</span>
-										</Button>
-									</TooltipTrigger>
-									{hasReasoning && <TooltipContent side="bottom">Thinking: {reasoning}</TooltipContent>}
-								</Tooltip>
-								{/* Expanded content for folders/search/definitions - raw text */}
-								{isExpandable && isItemExpanded && content && (
-									<pre className="m-1 ml-4 text-xs opacity-80 whitespace-pre-wrap break-words p-2 max-h-40 overflow-auto rounded-xs">
-										{content}
-									</pre>
-								)}
-							</div>
-						)
-					})}
-				</div>
-			) : null}
+					return (
+						<div className="min-w-0" key={tool.ts}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button
+										className="flex items-center gap-1.5 cursor-pointer text-[13px] text-description py-0.5 hover:text-link min-w-0 max-w-full px-0"
+										onClick={() => (isExpandable ? handleItemToggle(tool.ts) : handleOpenFile(info.path))}
+										size="icon"
+										variant="text">
+										<info.icon className="opacity-70 shrink-0 size-[13px]" />
+										<span
+											className={cn(
+												"flex-1 min-w-0 whitespace-nowrap overflow-hidden text-ellipsis text-left [direction:rtl] text-[13px]",
+												{
+													"[direction:ltr]": !!info.displayText,
+												},
+											)}>
+											{(info.displayText || cleanPathPrefix(info.path)) + "\u200E"}
+										</span>
+									</Button>
+								</TooltipTrigger>
+								{hasReasoning && <TooltipContent side="bottom">{reasoning}</TooltipContent>}
+							</Tooltip>
+							{/* Expanded content for folders/search/definitions - raw text */}
+							{isExpandable && isItemExpanded && content && (
+								<pre className="m-1 ml-4 text-xs opacity-80 whitespace-pre-wrap break-words p-2 max-h-40 overflow-auto rounded-xs">
+									{content}
+								</pre>
+							)}
+						</div>
+					)
+				})}
+			</div>
 		</div>
 	)
 })

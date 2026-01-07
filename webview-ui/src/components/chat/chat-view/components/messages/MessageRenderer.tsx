@@ -62,16 +62,7 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	// Always render - the loading state in ChatRow shows current activities,
 	// while ToolGroupRenderer shows what's in context. Overlap is fine.
 	if (isToolGroup(messageOrGroup)) {
-		return (
-			<ToolGroupRenderer
-				allMessages={modifiedMessages}
-				expandedRows={expandedRows}
-				groupedMessages={groupedMessages}
-				index={index}
-				messages={messageOrGroup}
-				onToggleExpand={onToggleExpand}
-			/>
-		)
+		return <ToolGroupRenderer allMessages={modifiedMessages} messages={messageOrGroup} />
 	}
 
 	// Browser session group
