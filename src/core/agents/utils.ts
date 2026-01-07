@@ -1,4 +1,4 @@
-import { SubAgentToolDefinition } from "./SubAgentTools"
+import { SubAgentToolDefinition } from "./tools"
 
 /**
  * Builds the tools placeholder string for the system prompt.
@@ -8,7 +8,7 @@ export function buildToolsPlaceholder(tools: SubAgentToolDefinition[]): string {
 	const toolsPrompts: string[] = []
 
 	for (const tool of tools) {
-		const prompt = `\`<${tool.tag}><${tool.subTag}>${tool.placeholder}</${tool.subTag}></${tool.tag}>\`: ${tool.instruction}.`
+		const prompt = `\`<${tool.title}><${tool.tag}>${tool.placeholder}</${tool.tag}></${tool.title}>\`: ${tool.instruction}.`
 
 		if (tool.examples && tool.examples.length > 0) {
 			toolsPrompts.push(`${prompt}\n\t- ${tool.examples.join("\n\t- ")}`)

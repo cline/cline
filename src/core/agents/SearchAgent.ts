@@ -1,8 +1,8 @@
+import { AgentContext, AgentIterationUpdate, FileReadResult, SearchResult } from "@/shared/cline/subagent"
 import { ToolResponse } from "../task"
 import type { TaskConfig } from "../task/tools/types/TaskConfig"
-import { AgentContext, AgentIterationUpdate, FileReadResult, SearchResult } from "./"
 import { ClineAgent } from "./ClineAgent"
-import { SEARCH_AGENT_TOOLS } from "./SubAgentTools"
+import { SEARCH_AGENT_TOOLS } from "./tools"
 import { buildToolsPlaceholder } from "./utils"
 
 export const ACTIONS_TAGS = {
@@ -95,47 +95,13 @@ export class SearchAgent extends ClineAgent {
 		return parts.join("\n") + contextParts.join("\n\n")
 	}
 
-	async executeTools(toolCalls: unknown[]): Promise<unknown[]> {
-		// Group tool calls by toolTag
-		const toolsByTag = new Map<string, string[]>()
-		for (const toolCall of toolCalls) {
-			if (typeof toolCall === "object" && toolCall !== null) {
-				const { toolTag, input } = toolCall as { toolTag: string; input: string }
-				const existing = toolsByTag.get(toolTag)
-				if (existing) {
-					existing.push(input)
-				} else {
-					toolsByTag.set(toolTag, [input])
-				}
-			}
-		}
-
-		// Execute all tools in parallel
-		const resultsByTag = await this.executeToolsByTag(toolsByTag)
-
-		// Reconstruct results in original order
-		const results: unknown[] = []
-		const indexByTag = new Map<string, number>()
-		for (const toolCall of toolCalls) {
-			if (typeof toolCall === "object" && toolCall !== null) {
-				const { toolTag } = toolCall as { toolTag: string; input: string }
-				const index = indexByTag.get(toolTag) ?? 0
-				const toolResults = resultsByTag.get(toolTag) as unknown[]
-				results.push(toolResults[index])
-				indexByTag.set(toolTag, index + 1)
-			}
-		}
-
-		return results
-	}
-
 	async readContextFiles(filePaths: string[]): Promise<Map<string, string>> {
 		const fileResults = (await this.executeToolByTag("TOOLFILE", filePaths)) as FileReadResult[]
 		const fileContents = new Map<string, string>()
 
 		for (const fileResult of fileResults) {
 			if (fileResult.success) {
-				fileContents.set(fileResult.filePath, fileResult.content)
+				fileContents.set(fileResult.path, fileResult.content)
 			}
 		}
 
@@ -161,8 +127,8 @@ export class SearchAgent extends ClineAgent {
 					}
 				} else if (toolTag === "TOOLFILE" && toolResult) {
 					const fileResult = toolResult as FileReadResult
-					if (fileResult.success && !context.fileContents.has(fileResult.filePath)) {
-						context.fileContents.set(fileResult.filePath, fileResult.content)
+					if (fileResult.success && !context.fileContents.has(fileResult.path)) {
+						context.fileContents.set(fileResult.path, fileResult.content)
 					}
 				}
 			}
@@ -205,10 +171,6 @@ export class SearchAgent extends ClineAgent {
 			.filter((line) => line && !line.startsWith("│") && !line.startsWith("Found ") && !line.startsWith("Showing "))
 	}
 }
-
-// ============================================================================
-// Helper Functions for System Prompt and Tools Configuration
-// ============================================================================
 
 /**
  * Builds the complete system prompt for SearchAgent.

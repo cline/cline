@@ -1,12 +1,5 @@
+import { ApiHandler } from "@/core/api"
 import { ClineStorageMessage } from "@/shared/messages"
-import { ApiHandler } from "../api"
-
-export interface SearchResult {
-	workspaceName?: string
-	workspaceResults: string
-	resultCount: number
-	success: boolean
-}
 
 export interface AgentContext {
 	filePaths: Set<string>
@@ -14,8 +7,16 @@ export interface AgentContext {
 	fileContents: Map<string, string>
 }
 
+export interface SearchResult {
+	query: string
+	workspaceName?: string
+	workspaceResults: string
+	resultCount: number
+	success: boolean
+}
+
 export interface FileReadResult {
-	filePath: string
+	path: string
 	content: string
 	success: boolean
 }

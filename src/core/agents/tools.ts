@@ -1,48 +1,50 @@
 import { extractFileContent } from "@/integrations/misc/extract-file-content"
+import { Logger } from "@/services/logging/Logger"
 import { regexSearchFiles } from "@/services/ripgrep"
+import { FileReadResult, SearchResult } from "@/shared/cline/subagent"
 import { TaskConfig } from "../task/tools/types/TaskConfig"
 import { resolveWorkspacePath } from "../workspace"
 
-/**
- * Tool definition for SearchAgent.
- * To add a new tool, simply add a new entry to SEARCH_AGENT_TOOLS array below.
- */
+export type SubAgentToolResult = FileReadResult[] | SearchResult[]
+
 export interface SubAgentToolDefinition {
+	title: string
 	tag: string
-	subTag: string
 	instruction: string
 	placeholder: string
 	examples?: string[]
-	execute: (inputs: string[], taskConfig: TaskConfig) => Promise<unknown>
+	execute: (inputs: string[], taskConfig: TaskConfig) => Promise<SubAgentToolResult>
 }
 
 const TOOLFILE: SubAgentToolDefinition = {
-	tag: "TOOLFILE",
-	subTag: "name",
+	title: "TOOLFILE",
+	tag: "name",
 	instruction:
 		"To retrieve full content of a codebase file using absolute path filename-DO NOT retrieve files that may contain secrets",
 	placeholder: "ABSOLUTE_PATH",
 	examples: [`See the content of different files: \`<TOOLFILE><name>path/foo.ts</name><name>path/bar.ts</name></TOOLFILE>\``],
-	execute: async (filePaths: string[], taskConfig: TaskConfig) => {
+	execute: async (filePaths: string[], taskConfig: TaskConfig): Promise<SubAgentToolResult> => {
 		const fileReadPromises = filePaths.map(async (filePath) => {
 			try {
 				// Resolve the file path relative to the workspace
-				const pathResult = resolveWorkspacePath(taskConfig, filePath, "SearchAgent.executeParallelFileReads")
+				const pathResult = resolveWorkspacePath(taskConfig, filePath, "SubAgent.executeParallelFileReads")
 				const absolutePath = typeof pathResult === "string" ? pathResult : pathResult.absolutePath
 
 				// Read the file content
 				const supportsImages = taskConfig.api.getModel().info.supportsImages ?? false
 				const fileContent = await extractFileContent(absolutePath, supportsImages)
 
+				Logger.info(`Read file content for "${filePath}" successfully.`)
+
 				return {
-					filePath,
+					path: filePath,
 					content: fileContent.text,
 					success: true,
 				}
 			} catch (error) {
-				console.error(`File read failed for "${filePath}":`, error)
+				Logger.error(`File read failed for "${filePath}": ${error instanceof Error ? error.message : String(error)}`)
 				return {
-					filePath,
+					path: filePath,
 					content: `Error reading file: ${error instanceof Error ? error.message : String(error)}`,
 					success: false,
 				}
@@ -54,8 +56,8 @@ const TOOLFILE: SubAgentToolDefinition = {
 }
 
 const TOOLSEARCH: SubAgentToolDefinition = {
-	tag: "TOOLSEARCH",
-	subTag: "query",
+	title: "TOOLSEARCH",
+	tag: "query",
 	instruction:
 		"Perform regex pattern searches across the codebase. Supports multiple parallel searches by including multiple query tags. All searches will execute simultaneously for faster results",
 	placeholder: "SEARCH_QUERY",
@@ -65,13 +67,13 @@ const TOOLSEARCH: SubAgentToolDefinition = {
 		`Multiple parallel searches: \`<TOOLSEARCH><query>getController</query></TOOLSEARCH><TOOLSEARCH><query>AuthService</query></TOOLSEARCH>\``,
 		`Search for a class definition: \`<TOOLSEARCH><query>class UserController</query></TOOLSEARCH>\``,
 	],
-	execute: async (queries: string[], taskConfig: TaskConfig) => {
-		const executeSearch = async (absolutePath: string, regex: string) => {
+	execute: async (queries: string[], taskConfig: TaskConfig): Promise<SubAgentToolResult> => {
+		const executeSearch = async (absolutePath: string, query: string) => {
 			try {
 				const workspaceResults = await regexSearchFiles(
 					taskConfig.cwd,
 					absolutePath,
-					regex,
+					query,
 					undefined,
 					taskConfig.services.clineIgnoreController,
 					false, // exclude hidden files
@@ -81,17 +83,17 @@ const TOOLSEARCH: SubAgentToolDefinition = {
 				// Match either "Found X result(s)" or "Showing first X of X+ results"
 				const resultMatch = firstLine.match(/Found (\d+) result|Showing first (\d+) of/)
 				const resultCount = resultMatch ? parseInt(resultMatch[1] || resultMatch[2], 10) : 0
-
+				Logger.info(`Search for "${query}" found ${resultCount} results in ${absolutePath}`)
 				return {
-					workspaceName: undefined,
+					query,
 					workspaceResults,
 					resultCount,
 					success: true,
 				}
 			} catch (error) {
-				console.error(`Search failed in ${absolutePath}:`, error)
+				Logger.error(`Search failed in ${absolutePath}: ${error instanceof Error ? error.message : String(error)}`)
 				return {
-					workspaceName: undefined,
+					query,
 					workspaceResults: "",
 					resultCount: 0,
 					success: false,
@@ -104,9 +106,9 @@ const TOOLSEARCH: SubAgentToolDefinition = {
 				const searchPath = taskConfig.cwd
 				return await executeSearch(searchPath, query)
 			} catch (error) {
-				console.error(`Search failed for query "${query}":`, error)
+				Logger.error(`Search failed for query "${query}": ${error instanceof Error ? error.message : String(error)}`)
 				return {
-					workspaceName: undefined,
+					query,
 					workspaceResults: "",
 					resultCount: 0,
 					success: false,

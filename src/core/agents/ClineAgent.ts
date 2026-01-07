@@ -2,11 +2,11 @@ import { ApiHandler } from "@/core/api"
 import { ClineHandler } from "@/core/api/providers/cline"
 import type { ApiStream } from "@/core/api/transform/stream"
 import { Logger } from "@/services/logging/Logger"
+import { AgentActions, AgentContext, AgentIterationUpdate, ClineAgentConfig, SearchResult } from "@/shared/cline/subagent"
 import type { ClineStorageMessage } from "@/shared/messages/content"
 import type { ToolResponse } from "../task"
 import type { TaskConfig } from "../task/tools/types/TaskConfig"
-import { AgentActions, AgentContext, AgentIterationUpdate, ClineAgentConfig, SearchResult } from "."
-import { SubAgentToolDefinition } from "./SubAgentTools"
+import { SubAgentToolDefinition, SubAgentToolResult } from "./tools"
 import { extractTagContent } from "./utils"
 
 /**
@@ -41,7 +41,9 @@ export abstract class ClineAgent {
 			agent.cost = 0
 		}
 		ClineAgent.activeAgents.clear()
-		Logger.debug(`Total cost across all agents: $${totalCost.toFixed(4)}`)
+		if (totalCost > 0) {
+			Logger.debug(`Total cost across all agents: $${totalCost.toFixed(4)}`)
+		}
 		return totalCost
 	}
 
@@ -51,7 +53,7 @@ export abstract class ClineAgent {
 	 */
 	protected registerTools(toolDefinitions: SubAgentToolDefinition[]): void {
 		for (const tool of toolDefinitions) {
-			this.tools.set(tool.tag, tool)
+			this.tools.set(tool.title, tool)
 		}
 	}
 
@@ -74,7 +76,7 @@ export abstract class ClineAgent {
 
 		for (const [toolTag, toolDef] of this.tools) {
 			const toolPattern = new RegExp(`<${toolTag}>(.*?)</${toolTag}>`, "gs")
-			const subTagPattern = new RegExp(`<${toolDef.subTag}>(.*?)</${toolDef.subTag}>`, "gs")
+			const subTagPattern = new RegExp(`<${toolDef.tag}>(.*?)</${toolDef.tag}>`, "gs")
 			const inputs: string[] = []
 
 			for (const toolMatch of response.matchAll(toolPattern)) {
@@ -101,7 +103,7 @@ export abstract class ClineAgent {
 	 * @param inputs - Array of input values for the tool
 	 * @returns Promise resolving to the tool execution result
 	 */
-	protected async executeToolByTag(toolTag: string, inputs: string[]): Promise<unknown> {
+	protected async executeToolByTag(toolTag: string, inputs: string[]): Promise<SubAgentToolResult> {
 		const tool = this.tools.get(toolTag)
 		if (!tool) {
 			throw new Error(`Tool with tag "${toolTag}" not found in registered tools`)
@@ -177,7 +179,7 @@ export abstract class ClineAgent {
 		await this.onIterationUpdate({
 			iteration: this.currentIteration,
 			maxIterations: this.maxIterations,
-			message: `Executed ${totalCalls} tool calls across ${toolCallsMap.size} tool types in ${duration.toFixed(0)}ms`,
+			message: `Executed ${totalCalls} tool calls in ${duration.toFixed(0)}ms`,
 		})
 
 		return resultsByTag
@@ -188,7 +190,39 @@ export abstract class ClineAgent {
 	 * @param toolCalls - Array of tool calls to execute
 	 * @returns Promise resolving to array of tool results
 	 */
-	abstract executeTools(toolCalls: unknown[]): Promise<unknown[]>
+	async executeTools(toolCalls: unknown[]): Promise<unknown[]> {
+		// Group tool calls by toolTag
+		const toolsByTag = new Map<string, string[]>()
+		for (const toolCall of toolCalls) {
+			if (typeof toolCall === "object" && toolCall !== null) {
+				const { toolTag, input } = toolCall as { toolTag: string; input: string }
+				const existing = toolsByTag.get(toolTag)
+				if (existing) {
+					existing.push(input)
+				} else {
+					toolsByTag.set(toolTag, [input])
+				}
+			}
+		}
+
+		// Execute all tools in parallel
+		const resultsByTag = await this.executeToolsByTag(toolsByTag)
+
+		// Reconstruct results in original order
+		const results: unknown[] = []
+		const indexByTag = new Map<string, number>()
+		for (const toolCall of toolCalls) {
+			if (typeof toolCall === "object" && toolCall !== null) {
+				const { toolTag } = toolCall as { toolTag: string; input: string }
+				const index = indexByTag.get(toolTag) ?? 0
+				const toolResults = resultsByTag.get(toolTag) as unknown[]
+				results.push(toolResults[index])
+				indexByTag.set(toolTag, index + 1)
+			}
+		}
+
+		return results
+	}
 
 	/**
 	 * Reads context files in parallel

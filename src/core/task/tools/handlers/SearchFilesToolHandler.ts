@@ -7,6 +7,7 @@ import { parseWorkspaceInlinePath } from "@/core/workspace/utils/parseWorkspaceI
 import { WorkspacePathAdapter } from "@/core/workspace/WorkspacePathAdapter"
 import { resolveWorkspacePath } from "@/core/workspace/WorkspaceResolver"
 import { telemetryService } from "@/services/telemetry"
+import { SearchResult } from "@/shared/cline/subagent"
 import { ClineSayTool } from "@/shared/ExtensionMessage"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
@@ -77,7 +78,7 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 		absolutePath: string,
 		workspaceName: string | undefined,
 		workspaceRoot: string | undefined,
-		regex: string,
+		query: string,
 		filePattern: string | undefined,
 	) {
 		try {
@@ -87,7 +88,7 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 			const workspaceResults = await regexSearchFiles(
 				basePathForRelative,
 				absolutePath,
-				regex,
+				query,
 				filePattern,
 				config.services.clineIgnoreController,
 			)
@@ -98,6 +99,7 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 			const resultCount = resultMatch ? parseInt(resultMatch[1], 10) : 0
 
 			return {
+				query,
 				workspaceName,
 				workspaceResults,
 				resultCount,
@@ -107,6 +109,7 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 			// If search fails in one workspace, return error info
 			console.error(`Search failed in ${absolutePath}:`, error)
 			return {
+				query,
 				workspaceName,
 				workspaceResults: "",
 				resultCount: 0,
@@ -120,12 +123,7 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 	 */
 	private formatSearchResults(
 		config: TaskConfig,
-		searchResults: Array<{
-			workspaceName?: string
-			workspaceResults: string
-			resultCount: number
-			success: boolean
-		}>,
+		searchResults: Array<SearchResult>,
 		searchPaths: Array<{ absolutePath: string; workspaceName?: string }>,
 	): string {
 		const allResults: string[] = []
