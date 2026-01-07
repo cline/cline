@@ -119,6 +119,7 @@ export interface ApiHandlerOptions {
 	fireworksModelMaxTokens?: number
 	qwenCodeOauthPath?: string
 	azureApiVersion?: string
+	azureIdentity?: boolean
 	qwenApiLine?: string
 	moonshotApiLine?: string
 	asksageApiUrl?: string

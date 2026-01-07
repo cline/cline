@@ -520,6 +520,7 @@ export class StateManager {
 			doubaoApiKey,
 			mistralApiKey,
 			azureApiVersion,
+			azureIdentity,
 			openRouterProviderSorting,
 			liteLlmBaseUrl,
 			liteLlmApiKey,
@@ -744,6 +745,7 @@ export class StateManager {
 			anthropicBaseUrl,
 			geminiBaseUrl,
 			azureApiVersion,
+			azureIdentity,
 			openRouterProviderSorting,
 			liteLlmBaseUrl,
 			liteLlmUsePromptCache,
@@ -1172,6 +1174,10 @@ export class StateManager {
 				this.remoteConfigCache["azureApiVersion"] ||
 				this.taskStateCache["azureApiVersion"] ||
 				this.globalStateCache["azureApiVersion"],
+			azureIdentity:
+				this.remoteConfigCache["azureIdentity"] ||
+				this.taskStateCache["azureIdentity"] ||
+				this.globalStateCache["azureIdentity"],
 			openRouterProviderSorting:
 				this.taskStateCache["openRouterProviderSorting"] || this.globalStateCache["openRouterProviderSorting"],
 			liteLlmBaseUrl:

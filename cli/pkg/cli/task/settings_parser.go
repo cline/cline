@@ -296,6 +296,12 @@ func setSimpleField(settings *cline.Settings, key, value string) error {
 			return err
 		}
 		settings.HooksEnabled = boolPtr(val)
+	case "azure_identity":
+		val, err := parseBool(value)
+		if err != nil {
+			return err
+		}
+		settings.AzureIdentity = boolPtr(val)
 
 	// Integer fields
 	case "request_timeout_ms":
