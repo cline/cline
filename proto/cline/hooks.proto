@@ -106,7 +106,7 @@ message PreCompactData {
   int64 tokens_in_cache = 8;
   int64 tokens_out_cache = 9;
 
-  // DEPRECIATED
+  // DEPRECATED
   // Truncation information (if applicable)
   // int32 deleted_range_start = 10; // Start index of deleted conversation range
   // int32 deleted_range_end = 11; // End index of deleted conversation range
