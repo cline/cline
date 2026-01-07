@@ -221,7 +221,7 @@ message ClineMessage {
 }
 
 message ShowWebviewEvent {
-  bool preserve_editor_focus = 1;  // When true, webview should not steal focus from editor
+  bool preserve_editor_focus = 1; // When true, webview should not steal focus from editor
 }
 
 // UiService provides methods for managing UI interactions

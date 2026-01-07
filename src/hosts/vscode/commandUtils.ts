@@ -14,6 +14,13 @@ import { convertVscodeDiagnostics } from "./hostbridge/workspace/getDiagnostics"
 export async function getContextForCommand(
 	range?: vscode.Range,
 	vscodeDiagnostics?: vscode.Diagnostic[],
+	options?: {
+		/**
+		 * When true, the editor keeps focus when showing the sidebar webview.
+		 * Use this for non-interruptive flows (e.g. copy terminal output to Cline).
+		 */
+		preserveEditorFocus?: boolean
+	},
 ): Promise<
 	| undefined
 	| {
@@ -21,7 +28,7 @@ export async function getContextForCommand(
 			commandContext: CommandContext
 	  }
 > {
-	const activeWebview = await showWebview(true)
+	const activeWebview = await showWebview(options?.preserveEditorFocus ?? false)
 	// Use the controller from the active instance
 	const controller = activeWebview.controller
 
