@@ -916,16 +916,14 @@ export const ChatRowContent = memo(
 						return (
 							<div>
 								{apiReqState === "pre" && (
-									<div className="flex items-center text-description w-full">
-										<div className="pl-2 flex-1 w-full overflow-hidden">
+									<div className="flex items-center text-description w-full text-sm overflow-hidden">
+										<div className="ml-2 flex-1 w-full h-full">
 											{currentActivities.length > 0 ? (
-												<div className="flex flex-col gap-0.5 w-full">
-													{currentActivities.map((activity, i) => (
-														<div className="flex items-start gap-2 w-full" key={`activity-${i}`}>
-															<activity.icon className="size-2 self-center text-foreground" />
-															<span className="flex-1 self-start w-full">
-																<TypewriterText speed={15} text={activity.text} />
-															</span>
+												<div className="flex flex-col gap-0.5 w-full h-full">
+													{currentActivities.map((activity, _) => (
+														<div className="flex items-center gap-2 h-4" key={activity.text}>
+															<activity.icon className="size-2 text-foreground shrink-0" />
+															<TypewriterText speed={15} text={activity.text} />
 														</div>
 													))}
 												</div>
