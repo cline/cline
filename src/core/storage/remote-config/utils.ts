@@ -1,12 +1,12 @@
 import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
 import { RemoteConfig } from "@shared/remote-config/schema"
 import { RemoteConfigFields } from "@shared/storage/state-keys"
-import { ensureSettingsDirectoryExists } from "../disk"
 import { getTelemetryService } from "@/services/telemetry"
 import { OpenTelemetryClientProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryClientProvider"
 import { OpenTelemetryTelemetryProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider"
 import { type TelemetryService } from "@/services/telemetry/TelemetryService"
 import { OpenTelemetryClientValidConfig, remoteConfigToOtelConfig } from "@/shared/services/config/otel-config"
+import { ensureSettingsDirectoryExists } from "../disk"
 import { StateManager } from "../StateManager"
 import { syncRemoteMcpServersToSettings } from "./syncRemoteMcpServers"
 
@@ -209,8 +209,13 @@ async function applyRemoteOTELConfig(transformed: Partial<RemoteConfigFields>, t
  * Applies remote config to the StateManager's remote config cache
  * @param remoteConfig The remote configuration object to apply
  * @param settingsDirectoryPath Path to the settings directory
+ * @param mcpHub Optional McpHub instance to prevent watcher triggers during sync
  */
-export async function applyRemoteConfig(remoteConfig?: RemoteConfig, settingsDirectoryPath?: string): Promise<void> {
+export async function applyRemoteConfig(
+	remoteConfig?: RemoteConfig,
+	settingsDirectoryPath?: string,
+	mcpHub?: any,
+): Promise<void> {
 	const stateManager = StateManager.get()
 	const telemetryService = await getTelemetryService()
 
@@ -261,7 +266,7 @@ export async function applyRemoteConfig(remoteConfig?: RemoteConfig, settingsDir
 		try {
 			// Get settings directory path - use provided path or get it from disk helper
 			const settingsPath = settingsDirectoryPath || (await ensureSettingsDirectoryExists())
-			await syncRemoteMcpServersToSettings(remoteConfig.remoteMCPServers, settingsPath)
+			await syncRemoteMcpServersToSettings(remoteConfig.remoteMCPServers, settingsPath, mcpHub)
 			// Store current remote servers list for next sync to detect removals
 			stateManager.setRemoteConfigField("previousRemoteMCPServers", remoteConfig.remoteMCPServers)
 		} catch (error) {

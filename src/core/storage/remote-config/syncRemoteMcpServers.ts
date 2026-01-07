@@ -2,6 +2,7 @@ import { getMcpSettingsFilePath } from "@core/storage/disk"
 import { StateManager } from "@core/storage/StateManager"
 import { RemoteMCPServer } from "@shared/remote-config/schema"
 import * as fs from "fs/promises"
+import type { McpHub } from "@/services/mcp/McpHub"
 
 /**
  * Synchronizes remote MCP servers from remote config to the local MCP settings file
@@ -14,10 +15,12 @@ import * as fs from "fs/promises"
  *
  * @param remoteMCPServers Array of remote MCP servers from remote config
  * @param settingsDirectoryPath Path to the settings directory
+ * @param mcpHub Optional McpHub instance to set flag preventing watcher triggers
  */
 export async function syncRemoteMcpServersToSettings(
 	remoteMCPServers: RemoteMCPServer[],
 	settingsDirectoryPath: string,
+	mcpHub?: McpHub,
 ): Promise<void> {
 	try {
 		// Get or create the MCP settings file
@@ -69,8 +72,20 @@ export async function syncRemoteMcpServersToSettings(
 			}
 		}
 
-		// Write back to file
-		await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
+		// Set flag to prevent watcher from triggering
+		if (mcpHub) {
+			mcpHub.setIsUpdatingFromRemoteConfig(true)
+		}
+
+		try {
+			// Write back to file
+			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
+		} finally {
+			// Always clear flag, even if write fails
+			if (mcpHub) {
+				mcpHub.setIsUpdatingFromRemoteConfig(false)
+			}
+		}
 	} catch (error) {
 		console.error("[RemoteConfig] Failed to sync remote MCP servers:", error)
 		throw error

@@ -54,6 +54,9 @@ export class McpHub {
 	connections: McpConnection[] = []
 	isConnecting: boolean = false
 
+	// Track when remote config is updating to prevent unnecessary watcher triggers
+	private isUpdatingFromRemoteConfig: boolean = false
+
 	/**
 	 * Map of unique keys to each connected server names
 	 */
@@ -126,6 +129,21 @@ export class McpHub {
 		return getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 	}
 
+	/**
+	 * Sets the flag to indicate remote config is updating
+	 * Used to prevent watcher from triggering on remote config writes
+	 */
+	setIsUpdatingFromRemoteConfig(value: boolean): void {
+		this.isUpdatingFromRemoteConfig = value
+	}
+
+	/**
+	 * Gets whether remote config is currently updating
+	 */
+	getIsUpdatingFromRemoteConfig(): boolean {
+		return this.isUpdatingFromRemoteConfig
+	}
+
 	private async readAndValidateMcpSettingsFile(): Promise<z.infer<typeof McpSettingsSchema> | undefined> {
 		try {
 			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
@@ -180,6 +198,12 @@ export class McpHub {
 		})
 
 		this.settingsWatcher.on("change", async () => {
+			// Skip if remote config is currently updating to prevent unnecessary reconnections
+			if (this.isUpdatingFromRemoteConfig) {
+				console.log("[McpHub] Ignoring settings change from remote config sync")
+				return
+			}
+
 			const settings = await this.readAndValidateMcpSettingsFile()
 			if (settings) {
 				try {
