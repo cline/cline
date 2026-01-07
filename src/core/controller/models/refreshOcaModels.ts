@@ -66,7 +66,6 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 				const apiFormat: ApiFormat = supportedApiList.includes(RESPONSES_API)
 					? ApiFormat.OPENAI_RESPONSES
 					: ApiFormat.OPENAI_CHAT
-				console.log(modelId, supportedApiList)
 				models[modelId] = OcaModelInfo.create({
 					maxTokens: model.litellm_params?.max_tokens || -1,
 					contextWindow: modelInfo.context_window,
