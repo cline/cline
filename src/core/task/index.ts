@@ -23,6 +23,7 @@ import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialM
 import { executePreCompactHookWithCleanup, HookCancellationError, HookExecution } from "@core/hooks/precompact-executor"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { parseMentions } from "@core/mentions"
+import { CommandPermissionController } from "@core/permissions"
 import { summarizeTask } from "@core/prompts/contextManagement"
 import { formatResponse } from "@core/prompts/responses"
 import { parseSlashCommands } from "@core/slash-commands"
@@ -200,6 +201,7 @@ export class Task {
 	public checkpointManager?: ICheckpointManager
 	private initialCheckpointCommitPromise?: Promise<string | undefined>
 	private clineIgnoreController: ClineIgnoreController
+	private commandPermissionController: CommandPermissionController
 	private toolExecutor: ToolExecutor
 	/**
 	 * Whether the task is using native tool calls.
@@ -275,6 +277,7 @@ export class Task {
 		this.reinitExistingTaskFromId = reinitExistingTaskFromId
 		this.cancelTask = cancelTask
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
+		this.commandPermissionController = new CommandPermissionController()
 		this.taskLockAcquired = taskLockAcquired
 		// Determine terminal execution mode and create appropriate terminal manager
 		this.terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
@@ -536,6 +539,7 @@ export class Task {
 			this.mcpHub,
 			this.fileContextTracker,
 			this.clineIgnoreController,
+			this.commandPermissionController,
 			this.contextManager,
 			this.stateManager,
 			cwd,
