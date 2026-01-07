@@ -46,7 +46,7 @@ export class Logger {
 			Logger.logFilePath = path.join(logsDir, logFileName)
 			Logger.fileStream = fs.createWriteStream(Logger.logFilePath, { flags: "a" })
 
-			cleanupLogsOlderThan({
+			void cleanupLogsOlderThan({
 				logsDir,
 				retentionMs: LOG_RETENTION_MS,
 			})
