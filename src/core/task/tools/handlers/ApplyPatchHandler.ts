@@ -300,6 +300,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 					this.config = undefined
 					config.taskState.didRejectTool = true
 					await provider.revertChanges()
+					await provider.reset()
 					return "The user denied this patch operation."
 				}
 
@@ -317,13 +318,16 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 					}
 				}
 
-				for (const changedFilePath of changedFiles) {
-					config.services.fileContextTracker.markFileAsEditedByCline(changedFilePath)
-					await config.services.fileContextTracker.trackFileContext(changedFilePath, "cline_edited")
-				}
+				// Reset provider state to ensure clean state for the next file operation
+				await provider.reset()
 
-				config.taskState.didEditFile = true
 				finalResponses.push(messagePath)
+			}
+
+			// Track all changed files once after all operations are complete
+			for (const changedFilePath of changedFiles) {
+				config.services.fileContextTracker.markFileAsEditedByCline(changedFilePath)
+				await config.services.fileContextTracker.trackFileContext(changedFilePath, "cline_edited")
 			}
 
 			this.config = undefined
@@ -333,6 +337,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 			for (const [path, result] of Object.entries(applyResults)) {
 				if (result.deleted) {
+					config.taskState.didEditFile = true
 					responseLines.push(`\n${path}: [deleted]`)
 				} else {
 					// Format response similar to WriteToFileToolHandler
