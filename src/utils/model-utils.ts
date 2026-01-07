@@ -16,6 +16,7 @@ export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 		"openai-native",
 		"baseten",
 		"vercel-ai-gateway",
+		"oca",
 	].some((id) => providerId === id)
 }
 
@@ -26,13 +27,15 @@ export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel): boolea
 
 /**
  * Determines if reasoning content should be skipped for a given model
- * Currently skips reasoning for Grok-4 models since they only display "thinking" without useful information
+ * Currently skips reasoning for:
+ * - Grok-4 models since they only display "thinking" without useful information
+ * - Devstral models since they don't support reasoning_details field
  */
 export function shouldSkipReasoningForModel(modelId?: string): boolean {
 	if (!modelId) {
 		return false
 	}
-	return modelId.includes("grok-4")
+	return modelId.includes("grok-4") || modelId.includes("devstral") || modelId.includes("glm")
 }
 
 export function isAnthropicModelId(modelId: string): modelId is AnthropicModelId {
@@ -42,6 +45,12 @@ export function isAnthropicModelId(modelId: string): modelId is AnthropicModelId
 
 export function isClaude4PlusModelFamily(id: string): boolean {
 	const modelId = normalize(id)
+	// Claude Code short aliases are always Claude 4+
+	// These are used by ClaudeCodeHandler.getModel() when user selects "sonnet" or "opus"
+	// Check before isAnthropicModelId to avoid type guard narrowing issues
+	if (modelId === "sonnet" || modelId === "opus") {
+		return true
+	}
 	if (!isAnthropicModelId(modelId)) {
 		return false
 	}
@@ -73,6 +82,11 @@ export function isGPT5ModelFamily(id: string): boolean {
 export function isGPT51Model(id: string): boolean {
 	const modelId = normalize(id)
 	return modelId.includes("gpt-5.1") || modelId.includes("gpt-5-1")
+}
+
+export function isGPT52Model(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("gpt-5.2") || modelId.includes("gpt-5-2")
 }
 
 export function isGLMModelFamily(id: string): boolean {
@@ -109,9 +123,19 @@ export function isNextGenOpenSourceModelFamily(id: string): boolean {
 	return ["kimi-k2"].some((substring) => modelId.includes(substring))
 }
 
+export function isDevstralModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("devstral")
+}
+
 export function isGemini3ModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return modelId.includes("gemini3") || modelId.includes("gemini-3")
+}
+
+function isDeepSeek32ModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("deepseek") && modelId.includes("3.2") && !modelId.includes("speciale")
 }
 
 export function isNextGenModelFamily(id: string): boolean {
@@ -123,7 +147,8 @@ export function isNextGenModelFamily(id: string): boolean {
 		isGPT5ModelFamily(modelId) ||
 		isMinimaxModelFamily(modelId) ||
 		isGemini3ModelFamily(modelId) ||
-		isNextGenOpenSourceModelFamily(modelId)
+		isNextGenOpenSourceModelFamily(modelId) ||
+		isDeepSeek32ModelFamily(modelId)
 	)
 }
 

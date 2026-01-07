@@ -17,6 +17,7 @@ export const TASK_CONFIG_KEYS = [
 	"strictPlanModeEnabled",
 	"yoloModeToggled",
 	"vscodeTerminalExecutionMode",
+	"enableParallelToolCalling",
 	"context",
 	"taskState",
 	"messageState",
@@ -41,6 +42,7 @@ export const TASK_SERVICES_KEYS = [
 	"diffViewProvider",
 	"fileContextTracker",
 	"clineIgnoreController",
+	"commandPermissionController",
 	"contextManager",
 	"stateManager",
 ] as const
@@ -67,6 +69,7 @@ export const TASK_CALLBACKS_KEYS = [
 	"setActiveHookExecution",
 	"clearActiveHookExecution",
 	"getActiveHookExecution",
+	"runUserPromptSubmitHook",
 ] as const
 
 /**

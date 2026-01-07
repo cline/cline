@@ -1,41 +1,8 @@
-export interface SlashCommand {
-	name: string
-	description?: string
-	section?: "default" | "custom"
-}
+import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
+import { BASE_SLASH_COMMANDS, type SlashCommand, VSCODE_ONLY_COMMANDS } from "../../../src/shared/slashCommands.ts"
 
-export const DEFAULT_SLASH_COMMANDS: SlashCommand[] = [
-	{
-		name: "newtask",
-		description: "Create a new task with context from the current task",
-		section: "default",
-	},
-	{
-		name: "smol",
-		description: "Condenses your current context window",
-		section: "default",
-	},
-	{
-		name: "newrule",
-		description: "Create a new Cline rule based on your conversation",
-		section: "default",
-	},
-	{
-		name: "reportbug",
-		description: "Create a Github issue with Cline",
-		section: "default",
-	},
-	{
-		name: "deep-planning",
-		description: "Create a comprehensive implementation plan before coding",
-		section: "default",
-	},
-	{
-		name: "subagent",
-		description: "Invoke a Cline CLI subagent for focused research tasks",
-		section: "default",
-	},
-]
+export const DEFAULT_SLASH_COMMANDS: SlashCommand[] =
+	PLATFORM_CONFIG.type === PlatformType.VSCODE ? [...BASE_SLASH_COMMANDS, ...VSCODE_ONLY_COMMANDS] : BASE_SLASH_COMMANDS
 
 export function getWorkflowCommands(
 	localWorkflowToggles: Record<string, boolean>,

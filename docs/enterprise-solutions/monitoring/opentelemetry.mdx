@@ -1,0 +1,205 @@
+---
+title: "OpenTelemetry Integration"
+sidebarTitle: "OpenTelemetry"
+description: "Export Cline telemetry to your observability platform using OpenTelemetry Protocol (OTLP)"
+---
+
+Cline includes opt-in OpenTelemetry support for exporting metrics and logs to your own observability infrastructure using the OpenTelemetry Protocol (OTLP).
+
+<Note>
+OpenTelemetry integration is **optional** and intended for advanced users with existing observability infrastructure. Most users won't need this feature.
+</Note>
+
+## What is OpenTelemetry?
+
+[OpenTelemetry](https://opentelemetry.io/) is an industry-standard observability framework that provides a unified way to collect and export telemetry data (metrics, logs, and traces).
+
+Cline's OpenTelemetry support allows you to:
+- Export telemetry to your own systems
+- Integrate with observability platforms like Datadog, New Relic, Grafana Cloud, etc.
+- Maintain full control over your monitoring data
+- Use your organization's existing monitoring infrastructure
+
+## Supported Features
+
+Cline supports OpenTelemetry's **OTLP (OpenTelemetry Protocol)** export with:
+
+<CardGroup cols={2}>
+  <Card title="Metrics Export" icon="chart-bar">
+    Export metrics about Cline usage, performance, and errors
+  </Card>
+  
+  <Card title="Logs Export" icon="file-lines">
+    Export structured logs for debugging and analysis
+  </Card>
+</CardGroup>
+
+### Export Formats
+
+Cline supports three OTLP export protocols:
+
+- **gRPC** (default, recommended)
+- **HTTP/protobuf**
+- **HTTP/JSON**
+
+## Configuration
+
+OpenTelemetry is configured using [Remote Configuration](/enterprise-solutions/configuration/remote-configuration/overview#how-remote-configuration-works) from the [dashboard](https://app.cline.bot/dashboard/organization?tab=settings).
+
+### Basic Setup
+
+Enable OpenTelemetry, configure an OTLP endpoint and select a protocol:
+
+<Frame>
+	<img
+		src="https://assets.int.cline.bot/assets/open_telemetry_main_options.png"
+	/>
+</Frame>
+
+If you're using gRPC, you can opt out of TLS.
+
+Once the collector has been configured, you can enable logs and/or metrics collection. At least one of them needs to be enabled.
+
+You only need to configure it further if you need an advanced configuration.
+
+### Advanced Configuration
+
+You can add custom protocols and endpoints for both, logs and metrics. You can also configure the metrics export interval, and the logs batch size, batch timeout and max queue size.
+
+<Frame>
+	<img
+		src="https://assets.int.cline.bot/assets/open_telemetry_metrics_and_logs.png"
+	/>
+</Frame>
+
+**Custom headers for authentication:**
+
+Finally, if your collector needs authentication headers, you can add key value pairs in the headers section.
+
+<Frame>
+	<img
+		src="https://assets.int.cline.bot/assets/open_telemetry_headers.png"
+	/>
+</Frame>
+
+## Integration Examples
+
+### Datadog
+
+Export to Datadog using their OTLP endpoint:
+
+<Frame>
+	<img
+		src="https://assets.int.cline.bot/assets/open_telemetry_datadog_example.png"
+	/>
+</Frame>
+
+### New Relic
+
+Export to New Relic:
+
+<Frame>
+	<img
+		src="https://assets.int.cline.bot/assets/open_telemetry_relic_example.png"
+	/>
+</Frame>
+
+### Grafana Cloud
+
+Export to Grafana Cloud:
+
+<Frame>
+	<img
+		src="https://assets.int.cline.bot/assets/open_telemetry_grafana_example.png"
+	/>
+</Frame>
+
+## Testing Configuration
+
+To test your configuration, log in to your account, perform some actions in a task, wait for the export interval, and verify that the data has arrived at your collector.
+
+## Troubleshooting
+
+If you aren’t getting any data in your collector, the easiest way to verify your integration is to enable the developer tools in your editor.
+
+To do this, open the [webview developer tools](https://code.visualstudio.com/api/extension-guides/webview#inspecting-and-debugging-webviews).
+
+Once you’ve done so, if you perform some actions that trigger metrics and/or logs (such as doing a task with Cline), 
+you will see error logs if any error occurs when sending the data to your collector.
+
+If you don't see any logs, enable [debug mode](#debug-mode).
+
+### Connection Errors
+
+1. **Verify endpoint is accessible:**
+   ```bash
+   curl -v https://your-otlp-endpoint:4317
+   ```
+
+2. **Check if insecure mode is needed** by opting out of TLS
+
+3. **Verify authentication headers:**
+   Double-check your API keys and authentication headers are correct
+
+### Debug Mode
+
+Enable debug logging to see detailed OpenTelemetry information:
+
+```bash
+TEL_DEBUG_DIAGNOSTICS=true code .
+```
+
+This will output detailed information about:
+- Configuration being used
+- Exporters being created
+- Connection attempts
+- Export successes/failures
+
+## What Gets Exported
+
+When OpenTelemetry is enabled, Cline exports:
+
+### Metrics
+- Feature usage counts
+- Task execution metrics 
+- Error rates and types
+- Performance measurements
+
+### Logs
+- System events
+- Error logs with context
+- Operational information
+
+<Warning>
+Exported data is already anonymous and doesn't include code content, file paths, or sensitive information. However, you're responsible for securing the data once exported to your systems.
+</Warning>
+
+## Limitations
+
+Current OpenTelemetry support in Cline:
+- ✅ OTLP metrics export (gRPC, HTTP)
+- ✅ OTLP logs export (gRPC, HTTP)
+- ✅ Basic configuration via [Remote Configuration](/enterprise-solutions/configuration/remote-configuration/overview#how-remote-configuration-works)
+- ❌ Distributed tracing (not yet implemented)
+- ❌ Custom instrumentation API (not yet exposed)
+- ❌ Sampling configuration (uses defaults)
+
+## Best Practices
+
+1. **Test First**: Always test with console exporter before sending to production
+2. **Secure Credentials**: Never hardcode API keys; use secure environment variable management
+3. **Monitor Costs**: Be aware of data ingestion costs with your observability platform
+4. **Start Simple**: Begin with metrics only, add logs if needed
+5. **Use Compression**: OTLP supports compression; check if your endpoint requires it
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Cline Telemetry" icon="chart-simple" href="/enterprise-solutions/monitoring/telemetry">
+    Configure simple built-in telemetry
+  </Card>
+  
+  <Card title="OpenTelemetry Docs" icon="book" href="https://opentelemetry.io/docs/">
+    Learn more about OpenTelemetry
+  </Card>
+</CardGroup>

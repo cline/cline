@@ -6,6 +6,7 @@
  * and use cases.
  */
 
+export { config as devstralConfig, type DevstralVariantConfig } from "./devstral/config"
 export { config as Gemini3Config, type Gemini3VariantConfig } from "./gemini-3/config"
 export { config as genericConfig, type GenericVariantConfig } from "./generic/config"
 export { config as glmConfig, type GLMVariantConfig } from "./glm/config"
@@ -18,6 +19,7 @@ export { config as nextGenConfig, type NextGenVariantConfig } from "./next-gen/c
 export { config as xsConfig, type XsVariantConfig } from "./xs/config"
 
 import { ModelFamily } from "@/shared/prompts"
+import { config as devstralConfig } from "./devstral/config"
 import { config as Gemini3Config } from "./gemini-3/config"
 import { config as genericConfig } from "./generic/config"
 import { config as glmConfig } from "./glm/config"
@@ -65,6 +67,10 @@ export const VARIANT_CONFIGS = {
 	 * Configured for advanced agentic coding capabilities
 	 */
 	[ModelFamily.HERMES]: hermesConfig,
+	/*** Devstral variant - Optimized for DEVSTRAL stealth model family
+	 * Configured for vendor specific message
+	 */
+	[ModelFamily.DEVSTRAL]: devstralConfig,
 	/**
 	 * Next-gen variant - Advanced models with enhanced capabilities
 	 * Includes additional features like feedback loops and web fetching

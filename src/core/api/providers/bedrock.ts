@@ -104,6 +104,7 @@ interface CachePointContentBlock {
 
 // Define provider options type based on AWS SDK patterns
 interface ProviderChainOptions {
+	clientConfig?: { userAgentAppId?: string }
 	ignoreCache?: boolean
 	profile?: string
 }
@@ -211,7 +212,12 @@ export class AwsBedrockHandler implements ApiHandler {
 		sessionToken?: string
 	}> {
 		// Configure provider options
-		const providerOptions: ProviderChainOptions = {}
+		const providerOptions: ProviderChainOptions = {
+			clientConfig: {
+				// set the inner sts client userAgentAppId
+				userAgentAppId: `cline#${ExtensionRegistryInfo.version}`,
+			},
+		}
 		const useProfile =
 			(this.options.awsAuthentication === undefined && this.options.awsUseProfile) ||
 			this.options.awsAuthentication === "profile"
@@ -749,10 +755,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		// For Anthropic models with thinking enabled, temperature must be 1
 		if (modelType === "anthropic") {
 			const budget_tokens = this.options.thinkingBudgetTokens || 0
-			const baseModelId =
-				(this.options.awsBedrockCustomSelected ? this.options.awsBedrockCustomModelBaseId : this.getModel().id) ||
-				this.getModel().id
-			const reasoningOn = this.shouldEnableReasoning(baseModelId, budget_tokens)
+			const reasoningOn = modelInfo.supportsReasoning && budget_tokens > 0
 
 			return {
 				maxTokens: modelInfo.maxTokens || 8192,
@@ -764,20 +767,6 @@ export class AwsBedrockHandler implements ApiHandler {
 			maxTokens: modelInfo.maxTokens || (modelType === "nova" ? 5000 : 8192),
 			temperature: 0,
 		}
-	}
-
-	/**
-	 * Determines if reasoning should be enabled for Claude models
-	 */
-	private shouldEnableReasoning(baseModelId: string, budgetTokens: number): boolean {
-		return (
-			(baseModelId.includes("3-7") ||
-				baseModelId.includes("sonnet-4") ||
-				baseModelId.includes("opus-4") ||
-				baseModelId.includes("haiku-4-5") ||
-				baseModelId.includes("sonnet-4-5")) &&
-			budgetTokens !== 0
-		)
 	}
 
 	/**
@@ -809,10 +798,7 @@ export class AwsBedrockHandler implements ApiHandler {
 
 		// Get thinking configuration
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
-		const baseModelId =
-			(this.options.awsBedrockCustomSelected ? this.options.awsBedrockCustomModelBaseId : this.getModel().id) ||
-			this.getModel().id
-		const reasoningOn = this.shouldEnableReasoning(baseModelId, budget_tokens)
+		const reasoningOn = model.info.supportsReasoning && budget_tokens > 0
 
 		// Prepare request for Anthropic model using Converse API
 		const command = new ConverseStreamCommand({

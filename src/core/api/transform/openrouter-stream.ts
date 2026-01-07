@@ -6,6 +6,7 @@ import {
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 } from "@shared/api"
+import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import OpenAI from "openai"
 import { ChatCompletionTool } from "openai/resources/chat/completions"
 import { convertToOpenAiMessages } from "./openai-format"
@@ -33,6 +34,46 @@ export async function createOpenRouterStream(
 	if (isClaudeSonnet1m) {
 		// remove the custom :1m suffix, to create the model id openrouter API expects
 		model.id = model.id.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
+	}
+
+	// Gemini models require thought signatures for tool calls. When switching providers mid-conversation,
+	// historical tool calls may not include Gemini/OpenRouter reasoning details, which can poison the next request.
+	// Bandaid: for Gemini only, drop tool_calls that lack reasoning_details and their paired tool messages.
+	if (model.id.includes("gemini")) {
+		const droppedToolCallIds = new Set<string>()
+		const sanitized: OpenAI.Chat.ChatCompletionMessageParam[] = []
+
+		for (const msg of openAiMessages) {
+			if (msg.role === "assistant") {
+				const anyMsg = msg as any
+				const toolCalls = anyMsg.tool_calls
+				if (Array.isArray(toolCalls) && toolCalls.length > 0) {
+					const reasoningDetails = anyMsg.reasoning_details
+					const hasReasoningDetails = Array.isArray(reasoningDetails) && reasoningDetails.length > 0
+					if (!hasReasoningDetails) {
+						for (const tc of toolCalls) {
+							if (tc?.id) droppedToolCallIds.add(tc.id)
+						}
+						// Keep any textual content, but drop the tool_calls themselves.
+						if (anyMsg.content) {
+							sanitized.push({ role: "assistant", content: anyMsg.content } as any)
+						}
+						continue
+					}
+				}
+			}
+
+			if (msg.role === "tool") {
+				const anyMsg = msg as any
+				if (anyMsg.tool_call_id && droppedToolCallIds.has(anyMsg.tool_call_id)) {
+					continue
+				}
+			}
+
+			sanitized.push(msg)
+		}
+
+		openAiMessages = sanitized
 	}
 
 	// prompt caching: https://openrouter.ai/docs/prompt-caching
@@ -64,6 +105,9 @@ export async function createOpenRouterStream(
 		case "anthropic/claude-3-haiku:beta":
 		case "anthropic/claude-3-opus":
 		case "anthropic/claude-3-opus:beta":
+		case "minimax/minimax-m2":
+		case "minimax/minimax-m2.1":
+		case "minimax/minimax-m2.1-lightning":
 			openAiMessages[0] = {
 				role: "system",
 				content: [
@@ -186,6 +230,9 @@ export async function createOpenRouterStream(
 		openRouterProviderSorting = undefined
 	}
 
+	// Skip reasoning for models that don't support it (e.g., devstral, grok-4)
+	const includeReasoning = !shouldSkipReasoningForModel(model.id)
+
 	// @ts-ignore-next-line
 	const stream = await client.chat.completions.create({
 		model: model.id,
@@ -195,7 +242,7 @@ export async function createOpenRouterStream(
 		messages: openAiMessages,
 		stream: true,
 		stream_options: { include_usage: true },
-		include_reasoning: true,
+		include_reasoning: includeReasoning,
 		...(model.id.startsWith("openai/o") ? { reasoning_effort: reasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),
 		...(openRouterProviderSorting && !providerPreferences ? { provider: { sort: openRouterProviderSorting } } : {}),

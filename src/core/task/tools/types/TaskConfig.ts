@@ -1,6 +1,7 @@
 import type { ApiHandler } from "@core/api"
 import type { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import type { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
+import type { CommandPermissionController } from "@core/permissions"
 import type { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import type { BrowserSession } from "@services/browser/BrowserSession"
 import type { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
@@ -9,6 +10,7 @@ import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import type { BrowserSettings } from "@shared/BrowserSettings"
 import type { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import type { FocusChainSettings } from "@shared/FocusChainSettings"
+import type { ClineContent } from "@shared/messages/content"
 import type { Mode } from "@shared/storage/types"
 import type { ClineDefaultTool } from "@shared/tools"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
@@ -35,6 +37,7 @@ export interface TaskConfig {
 	strictPlanModeEnabled: boolean
 	yoloModeToggled: boolean
 	vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec"
+	enableParallelToolCalling: boolean
 	context: vscode.ExtensionContext
 
 	// Multi-workspace support (optional for backward compatibility)
@@ -72,6 +75,7 @@ export interface TaskServices {
 	diffViewProvider: DiffViewProvider
 	fileContextTracker: FileContextTracker
 	clineIgnoreController: ClineIgnoreController
+	commandPermissionController: CommandPermissionController
 	contextManager: ContextManager
 	stateManager: StateManager
 }
@@ -122,6 +126,12 @@ export interface TaskCallbacks {
 	setActiveHookExecution: (hookExecution: HookExecution) => Promise<void>
 	clearActiveHookExecution: () => Promise<void>
 	getActiveHookExecution: () => Promise<HookExecution | undefined>
+
+	// User prompt hook callback
+	runUserPromptSubmitHook: (
+		userContent: ClineContent[],
+		context: "initial_task" | "resume" | "feedback",
+	) => Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }>
 }
 
 /**

@@ -8,7 +8,9 @@ vi.mock("@/context/ClineAuthContext", () => ({
 	useClineAuth: () => ({
 		clineUser: null,
 	}),
-	handleSignIn: vi.fn(),
+	useClineSignIn: () => ({
+		isLoginLoading: false,
+	}),
 	handleSignOut: vi.fn(),
 }))
 

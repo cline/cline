@@ -32,6 +32,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		mistralApiKey,
 		fireworksApiKey,
 		liteLlmApiKey,
+		remoteLiteLlmApiKey,
 		asksageApiKey,
 		xaiApiKey,
 		sambanovaApiKey,
@@ -76,6 +77,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("mistralApiKey") as Promise<Secrets["mistralApiKey"]>,
 		context.secrets.get("fireworksApiKey") as Promise<Secrets["fireworksApiKey"]>,
 		context.secrets.get("liteLlmApiKey") as Promise<Secrets["liteLlmApiKey"]>,
+		context.secrets.get("remoteLiteLlmApiKey") as Promise<Secrets["remoteLiteLlmApiKey"]>,
 		context.secrets.get("asksageApiKey") as Promise<Secrets["asksageApiKey"]>,
 		context.secrets.get("xaiApiKey") as Promise<Secrets["xaiApiKey"]>,
 		context.secrets.get("sambanovaApiKey") as Promise<Secrets["sambanovaApiKey"]>,
@@ -126,6 +128,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		asksageApiKey,
 		fireworksApiKey,
 		liteLlmApiKey,
+		remoteLiteLlmApiKey,
 		doubaoApiKey,
 		mistralApiKey,
 		openAiNativeApiKey,
@@ -201,6 +204,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const anthropicBaseUrl = context.globalState.get<GlobalStateAndSettings["anthropicBaseUrl"]>("anthropicBaseUrl")
 		const geminiBaseUrl = context.globalState.get<GlobalStateAndSettings["geminiBaseUrl"]>("geminiBaseUrl")
 		const azureApiVersion = context.globalState.get<GlobalStateAndSettings["azureApiVersion"]>("azureApiVersion")
+		const azureIdentity = context.globalState.get<GlobalStateAndSettings["azureIdentity"]>("azureIdentity")
 		const openRouterProviderSorting =
 			context.globalState.get<GlobalStateAndSettings["openRouterProviderSorting"]>("openRouterProviderSorting")
 		const lastShownAnnouncementId =
@@ -274,11 +278,14 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		>("lastDismissedModelBannerVersion")
 		const lastDismissedCliBannerVersion =
 			context.globalState.get<GlobalStateAndSettings["lastDismissedCliBannerVersion"]>("lastDismissedCliBannerVersion")
+		const dismissedBanners = context.globalState.get<GlobalStateAndSettings["dismissedBanners"]>("dismissedBanners")
 		const qwenCodeOauthPath = context.globalState.get<GlobalStateAndSettings["qwenCodeOauthPath"]>("qwenCodeOauthPath")
 		const customPrompt = context.globalState.get<GlobalStateAndSettings["customPrompt"]>("customPrompt")
 		const autoCondenseThreshold =
 			context.globalState.get<GlobalStateAndSettings["autoCondenseThreshold"]>("autoCondenseThreshold") // number from 0 to 1
 		const hooksEnabled = context.globalState.get<GlobalStateAndSettings["hooksEnabled"]>("hooksEnabled")
+		const enableParallelToolCalling =
+			context.globalState.get<GlobalStateAndSettings["enableParallelToolCalling"]>("enableParallelToolCalling")
 		const hicapModelId = context.globalState.get<GlobalStateAndSettings["hicapModelId"]>("hicapModelId")
 		const aihubmixBaseUrl = context.globalState.get<GlobalStateAndSettings["aihubmixBaseUrl"]>("aihubmixBaseUrl")
 		const aihubmixAppCode = context.globalState.get<GlobalStateAndSettings["aihubmixAppCode"]>("aihubmixAppCode")
@@ -316,6 +323,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const openTelemetryLogMaxQueueSize =
 			context.globalState.get<GlobalStateAndSettings["openTelemetryLogMaxQueueSize"]>("openTelemetryLogMaxQueueSize")
 		const subagentsEnabled = context.globalState.get<GlobalStateAndSettings["subagentsEnabled"]>("subagentsEnabled")
+		const backgroundEditEnabled =
+			context.globalState.get<GlobalStateAndSettings["backgroundEditEnabled"]>("backgroundEditEnabled")
 
 		// Get mode-related configurations
 		const mode = context.globalState.get<GlobalStateAndSettings["mode"]>("mode")
@@ -383,6 +392,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["planModeBasetenModelInfo"]>("planModeBasetenModelInfo")
 		const planModeOcaModelId = context.globalState.get("planModeOcaModelId") as string | undefined
 		const planModeOcaModelInfo = context.globalState.get("planModeOcaModelInfo") as OcaModelInfo | undefined
+		const planModeOcaReasoningEffort = context.globalState.get("planModeOcaReasoningEffort") as string | undefined
 		const planModeHicapModelId =
 			context.globalState.get<GlobalStateAndSettings["planModeHicapModelId"]>("planModeHicapModelId")
 		const planModeHicapModelInfo =
@@ -456,6 +466,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["actModeBasetenModelInfo"]>("actModeBasetenModelInfo")
 		const actModeOcaModelId = context.globalState.get("actModeOcaModelId") as string | undefined
 		const actModeOcaModelInfo = context.globalState.get("actModeOcaModelInfo") as OcaModelInfo | undefined
+		const actModeOcaReasoningEffort = context.globalState.get("actModeOcaReasoningEffort") as string | undefined
 		const actModeNousResearchModelId =
 			context.globalState.get<GlobalStateAndSettings["actModeNousResearchModelId"]>("actModeNousResearchModelId")
 		const sapAiCoreUseOrchestrationMode =
@@ -488,6 +499,16 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planActSeparateModelsSetting = false
 		}
 
+		// Read task history from disk
+		// Note: If this throws (e.g., filesystem I/O error), StateManager initialization will fail
+		// and the extension will not start. This is intentional to prevent data loss - better to
+		// fail visibly than silently wipe history. The readTaskHistoryFromState function handles:
+		// - File doesn't exist → returns []
+		// - Parse errors → attempts reconstruction, returns [] only if reconstruction fails
+		// - I/O errors → throws (caught here, causing initialization to fail)
+
+		// So, any errors thrown here are true IO errors, which should be exceptionally rare.
+		// The state manager tries once more to start on any failure. So if there is truly an I/O error happening twice that is not due to the file not existing or being corrupted, then something is truly wrong and it is correct to not start the application.
 		const taskHistory = await readTaskHistoryFromState()
 
 		// Multi-root workspace support
@@ -533,6 +554,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			moonshotApiLine,
 			zaiApiLine,
 			azureApiVersion,
+			azureIdentity,
 			openRouterProviderSorting,
 			liteLlmBaseUrl,
 			liteLlmUsePromptCache,
@@ -586,6 +608,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeBasetenModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
+			planModeOcaReasoningEffort,
 			planModeHicapModelId,
 			planModeHicapModelInfo,
 			planModeAihubmixModelId,
@@ -624,6 +647,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeBasetenModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
+			actModeOcaReasoningEffort,
 			actModeHicapModelId,
 			actModeHicapModelInfo,
 			actModeAihubmixModelId,
@@ -666,13 +690,16 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			qwenCodeOauthPath,
 			customPrompt,
 			autoCondenseThreshold: autoCondenseThreshold || 0.75, // default to 0.75 if not set
+			backgroundEditEnabled: backgroundEditEnabled ?? false,
 			// Hooks require explicit user opt-in and are only supported on macOS/Linux
 			hooksEnabled: getHooksEnabledSafe(hooksEnabled),
 			subagentsEnabled: subagentsEnabled ?? false,
+			enableParallelToolCalling: enableParallelToolCalling ?? false,
 			lastDismissedInfoBannerVersion: lastDismissedInfoBannerVersion ?? 0,
 			lastDismissedModelBannerVersion: lastDismissedModelBannerVersion ?? 0,
 			lastDismissedCliBannerVersion: lastDismissedCliBannerVersion ?? 0,
-			nativeToolCallEnabled: nativeToolCallEnabled ?? false,
+			dismissedBanners: dismissedBanners || [],
+			nativeToolCallEnabled: nativeToolCallEnabled ?? true,
 			// Multi-root workspace support
 			workspaceRoots,
 			primaryRootIndex: primaryRootIndex ?? 0,
@@ -735,6 +762,7 @@ export async function resetGlobalState(controller: Controller) {
 		"mistralApiKey",
 		"clineAccountId",
 		"liteLlmApiKey",
+		"remoteLiteLlmApiKey",
 		"fireworksApiKey",
 		"asksageApiKey",
 		"xaiApiKey",
