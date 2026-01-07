@@ -1,5 +1,5 @@
 import { StringRequest } from "@shared/proto/cline/common"
-import { RuleFileRequest } from "@shared/proto/index.cline"
+import { DeleteSkillRequest, RuleFileRequest } from "@shared/proto/index.cline"
 import { REMOTE_URI_SCHEME } from "@shared/remote-config/constants"
 import { EyeIcon, InfoIcon, PenIcon, Trash2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -15,14 +15,22 @@ const RuleRow: React.FC<{
 	toggleRule: (rulePath: string, enabled: boolean) => void
 	isRemote?: boolean
 	alwaysEnabled?: boolean
-}> = ({ rulePath, enabled, isGlobal, toggleRule, ruleType, isRemote = false, alwaysEnabled = false }) => {
+	onDeleteSkill?: () => void
+}> = ({ rulePath, enabled, isGlobal, toggleRule, ruleType, isRemote = false, alwaysEnabled = false, onDeleteSkill }) => {
 	// Check if the path type is Windows
 	const win32Path = /^[a-zA-Z]:\\/.test(rulePath)
 	// Get the filename from the path for display
 	const displayName = rulePath.split(win32Path ? "\\" : "/").pop() || rulePath
 
+	// For skills, show the directory name (skill name) instead of SKILL.md
+	const getSkillDisplayName = () => {
+		const parts = rulePath.split(win32Path ? "\\" : "/")
+		// Path is like /path/to/skill-name/SKILL.md, we want skill-name
+		return parts[parts.length - 2] || displayName
+	}
+
 	// For remote rules, the rulePath is already the display name
-	const finalDisplayName = isRemote ? rulePath : displayName
+	const finalDisplayName = isRemote ? rulePath : ruleType === "skill" ? getSkillDisplayName() : displayName
 	const isDisabled = isRemote && alwaysEnabled
 
 	const getRuleTypeIcon = () => {
@@ -89,13 +97,24 @@ const RuleRow: React.FC<{
 	}
 
 	const handleDeleteClick = () => {
-		FileServiceClient.deleteRuleFile(
-			RuleFileRequest.create({
-				rulePath,
-				isGlobal,
-				type: ruleType || "cline",
-			}),
-		).catch((err) => console.error("Failed to delete rule file:", err))
+		if (ruleType === "skill") {
+			FileServiceClient.deleteSkillFile(
+				DeleteSkillRequest.create({
+					skillPath: rulePath,
+					isGlobal,
+				}),
+			)
+				.then(() => onDeleteSkill?.())
+				.catch((err) => console.error("Failed to delete skill:", err))
+		} else {
+			FileServiceClient.deleteRuleFile(
+				RuleFileRequest.create({
+					rulePath,
+					isGlobal,
+					type: ruleType || "cline",
+				}),
+			).catch((err) => console.error("Failed to delete rule file:", err))
+		}
 	}
 
 	return (

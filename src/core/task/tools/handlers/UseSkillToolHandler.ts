@@ -49,12 +49,12 @@ export class UseSkillToolHandler implements IToolHandler, IPartialBlockHandler {
 				return `Error: Skill "${skillName}" not found. Available skills: ${availableNames || "none"}`
 			}
 
-			return `# Skill: ${skillContent.name}
+			return `# Skill "${skillContent.name}" is now active
 
 ${skillContent.instructions}
 
 ---
-Note: Follow the instructions above to complete the user's request. You may access other files in the skill directory at: ${skillContent.path.replace(/SKILL\.md$/, "")}`
+IMPORTANT: The skill is now loaded. Do NOT call use_skill again for this task. Simply follow the instructions above to complete the user's request. You may access other files in the skill directory at: ${skillContent.path.replace(/SKILL\.md$/, "")}`
 		} catch (error) {
 			return `Error loading skill "${skillName}": ${(error as Error)?.message}`
 		}

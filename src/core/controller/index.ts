@@ -831,6 +831,8 @@ export class Controller {
 		const enableCheckpointsSetting = this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
 		const globalClineRulesToggles = this.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
 		const globalWorkflowToggles = this.stateManager.getGlobalSettingsKey("globalWorkflowToggles")
+		const globalSkillsToggles = this.stateManager.getGlobalSettingsKey("globalSkillsToggles")
+		const localSkillsToggles = this.stateManager.getWorkspaceStateKey("localSkillsToggles")
 		const remoteRulesToggles = this.stateManager.getGlobalStateKey("remoteRulesToggles")
 		const remoteWorkflowToggles = this.stateManager.getGlobalStateKey("remoteWorkflowToggles")
 		const shellIntegrationTimeout = this.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
@@ -915,6 +917,8 @@ export class Controller {
 			localAgentsRulesToggles: localAgentsRulesToggles || {},
 			localWorkflowToggles: workflowToggles || {},
 			globalWorkflowToggles: globalWorkflowToggles || {},
+			globalSkillsToggles: globalSkillsToggles || {},
+			localSkillsToggles: localSkillsToggles || {},
 			remoteRulesToggles: remoteRulesToggles,
 			remoteWorkflowToggles: remoteWorkflowToggles,
 			shellIntegrationTimeout,

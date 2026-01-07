@@ -141,6 +141,14 @@ export class ToolExecutor {
 		this.registerToolHandlers()
 	}
 
+	/**
+	 * Updates the available skills for use_skill tool execution.
+	 * Called by Task after skills are discovered and filtered.
+	 */
+	public setSkills(skills: SkillMetadata[]): void {
+		this.skills = skills
+	}
+
 	// Create a properly typed TaskConfig object for handlers
 	// NOTE: modifying this object in the tool handlers is okay since these are all references to the singular ToolExecutor instance's variables. However, be careful modifying this object assuming it will update the ToolExecutor instance, e.g. config.browserSession = ... will not update the ToolExecutor.browserSession instance variable. Use applyLatestBrowserSettings() instead.
 	private asToolConfig(): TaskConfig {
