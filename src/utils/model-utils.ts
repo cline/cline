@@ -16,6 +16,7 @@ export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 		"openai-native",
 		"baseten",
 		"vercel-ai-gateway",
+		"deepseek",
 	].some((id) => providerId === id)
 }
 
@@ -137,6 +138,11 @@ function isDeepSeek32ModelFamily(id: string): boolean {
 	return modelId.includes("deepseek") && modelId.includes("3.2") && !modelId.includes("speciale")
 }
 
+export function isDeepSeekNativeModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("deepseek-chat") || modelId.includes("deepseek-reasoner")
+}
+
 export function isNextGenModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return (
@@ -147,7 +153,8 @@ export function isNextGenModelFamily(id: string): boolean {
 		isMinimaxModelFamily(modelId) ||
 		isGemini3ModelFamily(modelId) ||
 		isNextGenOpenSourceModelFamily(modelId) ||
-		isDeepSeek32ModelFamily(modelId)
+		isDeepSeek32ModelFamily(modelId) ||
+		isDeepSeekNativeModelFamily(modelId)
 	)
 }
 
