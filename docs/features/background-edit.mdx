@@ -1,0 +1,51 @@
+---
+title: "Background Edit"
+sidebarTitle: "Background Edit"
+---
+
+Background Edit lets Cline make file changes without opening the diff editor, so you can keep writing code while Cline works on other files in the background.
+
+<Note>
+  This feature is marked as experimental.
+</Note>
+
+## How It Works
+
+By default, Cline opens a side-by-side diff editor tab for each file it modifies. With Background Edit enabled:
+
+- Edits write directly to your files without opening new tabs
+- Changes appear as collapsible diff blocks in the chat panel
+- Your editor focus stays on whatever file you had open
+
+## Enabling Background Edit
+
+1. Click the settings icon (gear) in the top-right corner of the Cline panel
+2. Go to "**Feature Settings**"
+3. Toggle "**Enable Background Edit**" on
+
+## Viewing Changes
+
+File changes display directly in the chat panel with:
+
+- **File action icons** showing whether the file was added, updated, or deleted
+- **Stats** showing additions (+) and deletions (-) at a glance
+- **Collapsible diffs** you can expand or collapse by clicking the file header
+- **Real-time streaming** as changes appear line-by-line
+
+Green highlights additions, red highlights deletions.
+
+## When to Use It
+
+This feature works well when you:
+
+- Use [auto-approve mode](/features/auto-approve) and prefer reviewing changes after the fact
+- Work on tasks with many small file changes
+- Want to stay focused on your current file
+
+Stick with the default diff editor if you prefer reviewing each change before it saves, or need to make inline edits to Cline's proposed changes.
+
+## Relationship with Other Features
+
+- **Checkpoints**: Still created after each file operation
+- **Auto-approve**: Pairs well for uninterrupted workflows
+- **Message editing**: Restoring from a previous message works as expected

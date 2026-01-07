@@ -520,6 +520,7 @@ export class StateManager {
 			doubaoApiKey,
 			mistralApiKey,
 			azureApiVersion,
+			azureIdentity,
 			openRouterProviderSorting,
 			liteLlmBaseUrl,
 			liteLlmApiKey,
@@ -597,6 +598,7 @@ export class StateManager {
 			planModeHuaweiCloudMaasModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
+			planModeOcaReasoningEffort,
 			planModeHicapModelId,
 			planModeHicapModelInfo,
 			planModeAihubmixModelId,
@@ -635,6 +637,7 @@ export class StateManager {
 			actModeHuaweiCloudMaasModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
+			actModeOcaReasoningEffort,
 			actModeHicapModelId,
 			actModeHicapModelInfo,
 			actModeAihubmixModelId,
@@ -677,6 +680,7 @@ export class StateManager {
 			planModeHuaweiCloudMaasModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
+			planModeOcaReasoningEffort,
 			planModeHicapModelId,
 			planModeHicapModelInfo,
 			planModeAihubmixModelId,
@@ -716,6 +720,7 @@ export class StateManager {
 			actModeHuaweiCloudMaasModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
+			actModeOcaReasoningEffort,
 			actModeHicapModelId,
 			actModeHicapModelInfo,
 			actModeAihubmixModelId,
@@ -744,6 +749,7 @@ export class StateManager {
 			anthropicBaseUrl,
 			geminiBaseUrl,
 			azureApiVersion,
+			azureIdentity,
 			openRouterProviderSorting,
 			liteLlmBaseUrl,
 			liteLlmUsePromptCache,
@@ -1172,6 +1178,10 @@ export class StateManager {
 				this.remoteConfigCache["azureApiVersion"] ||
 				this.taskStateCache["azureApiVersion"] ||
 				this.globalStateCache["azureApiVersion"],
+			azureIdentity:
+				this.remoteConfigCache["azureIdentity"] ||
+				this.taskStateCache["azureIdentity"] ||
+				this.globalStateCache["azureIdentity"],
 			openRouterProviderSorting:
 				this.taskStateCache["openRouterProviderSorting"] || this.globalStateCache["openRouterProviderSorting"],
 			liteLlmBaseUrl:
@@ -1265,6 +1275,7 @@ export class StateManager {
 				this.globalStateCache["planModeHuaweiCloudMaasModelInfo"],
 			planModeOcaModelId: this.globalStateCache["planModeOcaModelId"],
 			planModeOcaModelInfo: this.globalStateCache["planModeOcaModelInfo"],
+			planModeOcaReasoningEffort: this.globalStateCache["planModeOcaReasoningEffort"],
 			planModeHicapModelId: this.taskStateCache["planModeHicapModelId"] || this.globalStateCache["planModeHicapModelId"],
 			planModeHicapModelInfo:
 				this.taskStateCache["planModeHicapModelInfo"] || this.globalStateCache["planModeHicapModelInfo"],
@@ -1336,6 +1347,7 @@ export class StateManager {
 				this.globalStateCache["actModeHuaweiCloudMaasModelInfo"],
 			actModeOcaModelId: this.globalStateCache["actModeOcaModelId"],
 			actModeOcaModelInfo: this.globalStateCache["actModeOcaModelInfo"],
+			actModeOcaReasoningEffort: this.globalStateCache["actModeOcaReasoningEffort"],
 			actModeHicapModelId: this.globalStateCache["actModeHicapModelId"],
 			actModeHicapModelInfo: this.globalStateCache["actModeHicapModelInfo"],
 			actModeAihubmixModelId:

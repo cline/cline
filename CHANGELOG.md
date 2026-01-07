@@ -1,5 +1,61 @@
 # Changelog
 
+## [3.47.0]
+
+### Added
+- Added experimental support for Background Edits (allows editing files in background without opening the diff view)
+- Updated free model to MiniMax M2.1 (replacing MiniMax M2)
+- Added support for Azure based identity authentication in OpenAI Compatible provider and Azure OpenAI
+- Add `supportsReasoning` property to Baseten models
+
+### Fixed
+
+- Prevent expired token usage in authenticated requests
+- Exclude binary files without extensions from diffs
+- Preserve file endings and trailing newlines
+- Fix Cerebras rate limiting
+- Fix Auto Compact for Claude Code provider
+- Make Workspace and Favorites history filters independent
+- Fix remote MCP server connection failures (404 response handling)
+- Disable native tool calling for Deepseek 3.2 speciale
+- Show notification instead of opening sidebar on update
+- Fix Baseten model selector
+
+### Refactored
+
+- Modify prompts for parallel tool usage in Claude and Gemini 3 models
+
+## [3.46.1]
+
+### Fixed
+
+- Remove GLM 4.6 from free models
+
+## [3.46.0]
+
+### Added
+
+- Added GLM 4.7 model
+- Enhanced background terminal execution with command tracking, log file output, zombie process prevention (10-minute timeout), and clickable log paths in UI
+- Apply Patch tool for GPT-5+ models (replacing current diff edit tools)
+
+### Fixed
+
+- Duplicate error messages during streaming for Diff Edit tool when Parallel Tool Calling is not enabled
+- Banner carousel styling and dismiss functionality
+- Typos in Gemini system prompt overrides
+- Model picker favorites ordering, star toggle, and keyboard navigation for OpenRouter and Vercel AI Gateway providers
+- Fetch remote config values from the cache
+
+### Refactored
+
+- Anthropic handler to use metadata for reasoning support
+- Bedrock provider to use metadata for reasoning support
+
+## [3.45.1]
+
+- Fixed MCP settings race condition where toggling auto-approve or changing timeout settings would cause the UI to flash and revert
+
 ## [3.45.0]
 
 - Added Gemini 3 Flash Preview model

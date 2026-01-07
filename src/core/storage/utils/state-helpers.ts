@@ -204,6 +204,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const anthropicBaseUrl = context.globalState.get<GlobalStateAndSettings["anthropicBaseUrl"]>("anthropicBaseUrl")
 		const geminiBaseUrl = context.globalState.get<GlobalStateAndSettings["geminiBaseUrl"]>("geminiBaseUrl")
 		const azureApiVersion = context.globalState.get<GlobalStateAndSettings["azureApiVersion"]>("azureApiVersion")
+		const azureIdentity = context.globalState.get<GlobalStateAndSettings["azureIdentity"]>("azureIdentity")
 		const openRouterProviderSorting =
 			context.globalState.get<GlobalStateAndSettings["openRouterProviderSorting"]>("openRouterProviderSorting")
 		const lastShownAnnouncementId =
@@ -322,6 +323,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const openTelemetryLogMaxQueueSize =
 			context.globalState.get<GlobalStateAndSettings["openTelemetryLogMaxQueueSize"]>("openTelemetryLogMaxQueueSize")
 		const subagentsEnabled = context.globalState.get<GlobalStateAndSettings["subagentsEnabled"]>("subagentsEnabled")
+		const backgroundEditEnabled =
+			context.globalState.get<GlobalStateAndSettings["backgroundEditEnabled"]>("backgroundEditEnabled")
 
 		// Get mode-related configurations
 		const mode = context.globalState.get<GlobalStateAndSettings["mode"]>("mode")
@@ -389,6 +392,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["planModeBasetenModelInfo"]>("planModeBasetenModelInfo")
 		const planModeOcaModelId = context.globalState.get("planModeOcaModelId") as string | undefined
 		const planModeOcaModelInfo = context.globalState.get("planModeOcaModelInfo") as OcaModelInfo | undefined
+		const planModeOcaReasoningEffort = context.globalState.get("planModeOcaReasoningEffort") as string | undefined
 		const planModeHicapModelId =
 			context.globalState.get<GlobalStateAndSettings["planModeHicapModelId"]>("planModeHicapModelId")
 		const planModeHicapModelInfo =
@@ -462,6 +466,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["actModeBasetenModelInfo"]>("actModeBasetenModelInfo")
 		const actModeOcaModelId = context.globalState.get("actModeOcaModelId") as string | undefined
 		const actModeOcaModelInfo = context.globalState.get("actModeOcaModelInfo") as OcaModelInfo | undefined
+		const actModeOcaReasoningEffort = context.globalState.get("actModeOcaReasoningEffort") as string | undefined
 		const actModeNousResearchModelId =
 			context.globalState.get<GlobalStateAndSettings["actModeNousResearchModelId"]>("actModeNousResearchModelId")
 		const sapAiCoreUseOrchestrationMode =
@@ -549,6 +554,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			moonshotApiLine,
 			zaiApiLine,
 			azureApiVersion,
+			azureIdentity,
 			openRouterProviderSorting,
 			liteLlmBaseUrl,
 			liteLlmUsePromptCache,
@@ -602,6 +608,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeBasetenModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
+			planModeOcaReasoningEffort,
 			planModeHicapModelId,
 			planModeHicapModelInfo,
 			planModeAihubmixModelId,
@@ -640,6 +647,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeBasetenModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
+			actModeOcaReasoningEffort,
 			actModeHicapModelId,
 			actModeHicapModelInfo,
 			actModeAihubmixModelId,
@@ -682,6 +690,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			qwenCodeOauthPath,
 			customPrompt,
 			autoCondenseThreshold: autoCondenseThreshold || 0.75, // default to 0.75 if not set
+			backgroundEditEnabled: backgroundEditEnabled ?? false,
 			// Hooks require explicit user opt-in and are only supported on macOS/Linux
 			hooksEnabled: getHooksEnabledSafe(hooksEnabled),
 			subagentsEnabled: subagentsEnabled ?? false,

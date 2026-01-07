@@ -87,27 +87,18 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					{/* Description */}
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						<li className="mb-2">
-							<strong>Cline provider</strong> now runs on the Vercel AI Gateway for better latency and fewer errors.
-						</li>
-						<li className="mb-2">
-							To celebrate, we're offering free <strong>GLM-4.6</strong> for a limited time!
-							<br />
-							<AuthButton>
-								<ModelButton label="Try GLM-4.6" modelId="z-ai/glm-4.6" />
-							</AuthButton>
+							<strong>Background Edits:</strong> Cline can now edit files without interrupting your cursor.{" "}
+							<a
+								href="https://docs.cline.bot/features/background-edit"
+								style={{ color: "var(--vscode-textLink-foreground)" }}>
+								Learn more
+							</a>
 						</li>
 						<li>
-							<strong>Kat-Coder Pro</strong>, free for a limited time!
+							<strong>MiniMax M2.1</strong> is now free (replacing MiniMax M2)!
 							<br />
 							<AuthButton>
-								<ModelButton label="Try Kat-Coder Pro" modelId="kwaipilot/kat-coder-pro:free" />
-							</AuthButton>
-						</li>
-						<li>
-							<strong>Gemini 3 Flash Preview</strong> now available!
-							<br />
-							<AuthButton>
-								<ModelButton label="Try Gemini 3 Flash Preview" modelId="google/gemini-3-flash-preview" />
+								<ModelButton label="Try MiniMax M2.1" modelId="minimax/minimax-m2.1" />
 							</AuthButton>
 						</li>
 					</ul>

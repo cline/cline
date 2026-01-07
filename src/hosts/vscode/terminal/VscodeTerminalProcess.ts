@@ -3,11 +3,15 @@ import { EventEmitter } from "events"
 import * as vscode from "vscode"
 import { stripAnsi } from "@/hosts/vscode/terminal/ansiUtils"
 import { getLatestTerminalOutput } from "@/hosts/vscode/terminal/get-latest-output"
+import {
+	isCompilingOutput,
+	MAX_FULL_OUTPUT_SIZE,
+	MAX_UNRETRIEVED_LINES,
+	PROCESS_HOT_TIMEOUT_COMPILING,
+	PROCESS_HOT_TIMEOUT_NORMAL,
+	TRUNCATE_KEEP_LINES,
+} from "@/integrations/terminal/constants"
 import type { ITerminalProcess, TerminalProcessEvents } from "@/integrations/terminal/types"
-
-// how long to wait after a process outputs anything before we consider it "cool" again
-const PROCESS_HOT_TIMEOUT_NORMAL = 2_000
-const PROCESS_HOT_TIMEOUT_COMPILING = 15_000
 
 /**
  * VscodeTerminalProcess - Manages command execution in VSCode's integrated terminal.
@@ -156,24 +160,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 					clearTimeout(this.hotTimer)
 				}
 				// these markers indicate the command is some kind of local dev server recompiling the app, which we want to wait for output of before sending request to cline
-				const compilingMarkers = ["compiling", "building", "bundling", "transpiling", "generating", "starting"]
-				const markerNullifiers = [
-					"compiled",
-					"success",
-					"finish",
-					"complete",
-					"succeed",
-					"done",
-					"end",
-					"stop",
-					"exit",
-					"terminate",
-					"error",
-					"fail",
-				]
-				const isCompiling =
-					compilingMarkers.some((marker) => data.toLowerCase().includes(marker.toLowerCase())) &&
-					!markerNullifiers.some((nullifier) => data.toLowerCase().includes(nullifier.toLowerCase()))
+				const isCompiling = isCompilingOutput(data)
 				this.hotTimer = setTimeout(
 					() => {
 						this.isHot = false
@@ -189,6 +176,15 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 				}
 
 				this.fullOutput += data
+
+				// Cap fullOutput at MAX_FULL_OUTPUT_SIZE to prevent memory exhaustion
+				if (this.fullOutput.length > MAX_FULL_OUTPUT_SIZE) {
+					// Keep last half of max size
+					this.fullOutput = this.fullOutput.slice(-MAX_FULL_OUTPUT_SIZE / 2)
+					// Reset lastRetrievedIndex since we truncated the beginning
+					this.lastRetrievedIndex = 0
+				}
+
 				if (this.isListening) {
 					this.emitIfEol(data)
 					this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
@@ -200,18 +196,18 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			// the command process is finished, let's check the output to see if we need to use the terminal capture fallback
 			if (!this.fullOutput.trim()) {
 				// No output captured via shell integration, trying fallback
-				telemetryService.captureTerminalOutputFailure(TerminalOutputFailureReason.TIMEOUT)
+				telemetryService.captureTerminalOutputFailure(TerminalOutputFailureReason.TIMEOUT, "vscode")
 				await returnCurrentTerminalContents()
 				// Check if fallback worked
 				const terminalSnapshot = await getLatestTerminalOutput()
 				if (terminalSnapshot && terminalSnapshot.trim()) {
-					telemetryService.captureTerminalExecution(true, "clipboard")
+					telemetryService.captureTerminalExecution(true, "vscode", "clipboard")
 				} else {
-					telemetryService.captureTerminalExecution(false, "none")
+					telemetryService.captureTerminalExecution(false, "vscode", "none")
 				}
 			} else {
 				// Shell integration worked
-				telemetryService.captureTerminalExecution(true, "shell_integration")
+				telemetryService.captureTerminalExecution(true, "vscode", "shell_integration")
 			}
 
 			// for now we don't want this delaying requests since we don't send diagnostics automatically anymore (previous: "even though the command is finished, we still want to consider it 'hot' in case so that api request stalls to let diagnostics catch up")
@@ -225,7 +221,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			this.emit("continue")
 		} else {
 			// no shell integration detected, we'll fallback to running the command and capturing the terminal's output after some time
-			telemetryService.captureTerminalOutputFailure(TerminalOutputFailureReason.NO_SHELL_INTEGRATION)
+			telemetryService.captureTerminalOutputFailure(TerminalOutputFailureReason.NO_SHELL_INTEGRATION, "vscode")
 			terminal.sendText(command, true)
 
 			// wait 3 seconds for the command to run
@@ -236,9 +232,9 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			// Check if clipboard fallback worked
 			const terminalSnapshot = await getLatestTerminalOutput()
 			if (terminalSnapshot && terminalSnapshot.trim()) {
-				telemetryService.captureTerminalExecution(true, "clipboard")
+				telemetryService.captureTerminalExecution(true, "vscode", "clipboard")
 			} else {
-				telemetryService.captureTerminalExecution(false, "none")
+				telemetryService.captureTerminalExecution(false, "vscode", "none")
 			}
 			// For terminals without shell integration, we can't know when the command completes
 			// So we'll just emit the continue event after a delay
@@ -285,9 +281,24 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 		this.emit("continue")
 	}
 
+	/**
+	 * Get output that hasn't been retrieved yet.
+	 * Truncates if output is too large to prevent context window overflow.
+	 * @returns The unretrieved output (truncated if necessary)
+	 */
 	getUnretrievedOutput(): string {
 		const unretrieved = this.fullOutput.slice(this.lastRetrievedIndex)
 		this.lastRetrievedIndex = this.fullOutput.length
+
+		// Truncate if too many lines to prevent context overflow
+		const lines = unretrieved.split("\n")
+		if (lines.length > MAX_UNRETRIEVED_LINES) {
+			const first = lines.slice(0, TRUNCATE_KEEP_LINES)
+			const last = lines.slice(-TRUNCATE_KEEP_LINES)
+			const skipped = lines.length - first.length - last.length
+			return this.removeLastLineArtifacts([...first, `\n... (${skipped} lines truncated) ...\n`, ...last].join("\n"))
+		}
+
 		return this.removeLastLineArtifacts(unretrieved)
 	}
 
