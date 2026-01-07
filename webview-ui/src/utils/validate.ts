@@ -73,7 +73,11 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 			case "cline":
 				break
 			case "openai":
-				if (!apiConfiguration.openAiBaseUrl || !apiConfiguration.openAiApiKey || !openAiModelId) {
+				if (
+					!apiConfiguration.openAiBaseUrl ||
+					(!apiConfiguration.openAiApiKey && !apiConfiguration.azureIdentity) ||
+					!openAiModelId
+				) {
 					return "You must provide a valid base URL, API key, and model ID."
 				}
 				break

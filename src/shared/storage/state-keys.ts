@@ -83,6 +83,7 @@ export interface Settings {
 	anthropicBaseUrl: string | undefined
 	geminiBaseUrl: string | undefined
 	azureApiVersion: string | undefined
+	azureIdentity: boolean | undefined
 	openRouterProviderSorting: string | undefined
 	autoApprovalSettings: AutoApprovalSettings
 	globalClineRulesToggles: ClineRulesToggles
@@ -168,6 +169,7 @@ export interface Settings {
 	planModeHuaweiCloudMaasModelInfo: ModelInfo | undefined
 	planModeOcaModelId: string | undefined
 	planModeOcaModelInfo: OcaModelInfo | undefined
+	planModeOcaReasoningEffort: string | undefined
 	planModeHicapModelId: string | undefined
 	planModeHicapModelInfo: ModelInfo | undefined
 	planModeAihubmixModelId: string | undefined
@@ -206,6 +208,7 @@ export interface Settings {
 	actModeHuaweiCloudMaasModelInfo: ModelInfo | undefined
 	actModeOcaModelId: string | undefined
 	actModeOcaModelInfo: OcaModelInfo | undefined
+	actModeOcaReasoningEffort: string | undefined
 	actModeHicapModelId: string | undefined
 	actModeHicapModelInfo: ModelInfo | undefined
 	actModeAihubmixModelId: string | undefined

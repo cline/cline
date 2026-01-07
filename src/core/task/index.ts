@@ -23,6 +23,7 @@ import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialM
 import { executePreCompactHookWithCleanup, HookCancellationError, HookExecution } from "@core/hooks/precompact-executor"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { parseMentions } from "@core/mentions"
+import { CommandPermissionController } from "@core/permissions"
 import { summarizeTask } from "@core/prompts/contextManagement"
 import { formatResponse } from "@core/prompts/responses"
 import { parseSlashCommands } from "@core/slash-commands"
@@ -73,8 +74,12 @@ import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
 import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
-import { CommandExecutorCallbacks, StandaloneTerminalManager } from "@/integrations/terminal"
-import { CommandExecutor, FullCommandExecutorConfig } from "@/integrations/terminal/CommandExecutor"
+import {
+	CommandExecutor,
+	CommandExecutorCallbacks,
+	FullCommandExecutorConfig,
+	StandaloneTerminalManager,
+} from "@/integrations/terminal"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
 import { telemetryService } from "@/services/telemetry"
 import {
@@ -196,6 +201,7 @@ export class Task {
 	public checkpointManager?: ICheckpointManager
 	private initialCheckpointCommitPromise?: Promise<string | undefined>
 	private clineIgnoreController: ClineIgnoreController
+	private commandPermissionController: CommandPermissionController
 	private toolExecutor: ToolExecutor
 	/**
 	 * Whether the task is using native tool calls.
@@ -271,8 +277,8 @@ export class Task {
 		this.reinitExistingTaskFromId = reinitExistingTaskFromId
 		this.cancelTask = cancelTask
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
+		this.commandPermissionController = new CommandPermissionController()
 		this.taskLockAcquired = taskLockAcquired
-
 		// Determine terminal execution mode and create appropriate terminal manager
 		this.terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
 
@@ -510,7 +516,7 @@ export class Task {
 			},
 			updateBackgroundCommandState: (isRunning: boolean) =>
 				this.controller.updateBackgroundCommandState(isRunning, this.taskId),
-			updateClineMessage: async (index: number, updates: { commandCompleted?: boolean }) => {
+			updateClineMessage: async (index: number, updates: { commandCompleted?: boolean; text?: string }) => {
 				await this.messageStateHandler.updateClineMessage(index, updates)
 			},
 			getClineMessages: () => this.messageStateHandler.getClineMessages() as Array<{ ask?: string; say?: string }>,
@@ -533,6 +539,7 @@ export class Task {
 			this.mcpHub,
 			this.fileContextTracker,
 			this.clineIgnoreController,
+			this.commandPermissionController,
 			this.contextManager,
 			this.stateManager,
 			cwd,
@@ -709,7 +716,7 @@ export class Task {
 		partial?: boolean,
 	): Promise<number | undefined> {
 		// Allow hook messages even when aborted to enable proper cleanup
-		if (this.taskState.abort && type !== "hook" && type !== "hook_output") {
+		if (this.taskState.abort && type !== "hook_status" && type !== "hook_output_stream") {
 			throw new Error("Cline instance aborted")
 		}
 
@@ -1593,7 +1600,7 @@ export class Task {
 			}
 
 			// Notify UI that hook was cancelled
-			await this.say("hook_output", "\nHook execution cancelled by user")
+			await this.say("hook_output_stream", "\nHook execution cancelled by user")
 
 			// Return success - let caller (abortTask) handle next steps
 			// DON'T call abortTask() here to avoid infinite recursion
@@ -1780,6 +1787,8 @@ export class Task {
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
 			enableNativeToolCalls: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
+			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
+			terminalExecutionMode: this.terminalExecutionMode,
 		}
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)

@@ -1,6 +1,7 @@
 import { ApiHandler } from "@core/api"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
+import { CommandPermissionController } from "@core/permissions"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
@@ -77,6 +78,7 @@ export class ToolExecutor {
 		private mcpHub: McpHub,
 		private fileContextTracker: FileContextTracker,
 		private clineIgnoreController: ClineIgnoreController,
+		private commandPermissionController: CommandPermissionController,
 		private contextManager: ContextManager,
 		private stateManager: StateManager,
 
@@ -163,6 +165,7 @@ export class ToolExecutor {
 				diffViewProvider: this.diffViewProvider,
 				fileContextTracker: this.fileContextTracker,
 				clineIgnoreController: this.clineIgnoreController,
+				commandPermissionController: this.commandPermissionController,
 				contextManager: this.contextManager,
 				stateManager: this.stateManager,
 			},

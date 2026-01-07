@@ -426,11 +426,30 @@ export class McpHub {
 					break
 				}
 				case "streamableHttp": {
+					// Custom fetch wrapper that treats 404 as 405 for GET requests.
+					// The MCP SDK sends a GET request to check for SSE stream support.
+					// Per MCP spec, servers should return 405 if they don't support SSE,
+					// but many servers (incorrectly) return 404. The SDK only handles 405
+					// gracefully, so we normalize 404 -> 405 to fix compatibility.
+					// See: https://github.com/modelcontextprotocol/typescript-sdk/issues/1150
+					const streamableHttpFetch: typeof fetch = async (url, init) => {
+						const response = await fetch(url, init)
+						if (init?.method === "GET" && response.status === 404) {
+							return new Response(response.body, {
+								status: 405,
+								statusText: "Method Not Allowed",
+								headers: response.headers,
+							})
+						}
+						return response
+					}
+
 					transport = new StreamableHTTPClientTransport(new URL(expandedConfig.url), {
 						authProvider,
 						requestInit: {
 							headers: expandedConfig.headers ?? undefined,
 						},
+						fetch: streamableHttpFetch,
 					})
 					transport.onerror = async (error) => {
 						console.error(`Transport error for "${name}":`, error)
@@ -799,6 +818,11 @@ export class McpHub {
 			} else if (this.configsRequireRestart(JSON.parse(currentConnection.server.config), config)) {
 				// Existing server with changed connection config (excludes Cline-specific settings)
 				try {
+					// Set status to "connecting" and notify webview before restart (same pattern as restartConnection)
+					currentConnection.server.status = "connecting"
+					currentConnection.server.error = ""
+					await this.notifyWebviewOfServerChanges()
+
 					if (config.type === "stdio") {
 						this.setupFileWatcher(name, config)
 					}
@@ -1017,6 +1041,11 @@ export class McpHub {
 				const connection = this.connections.find((conn) => conn.server.name === serverName)
 				if (connection) {
 					connection.server.disabled = disabled
+					// When enabling a server, set status to "connecting" so UI shows yellow indicator
+					if (!disabled) {
+						connection.server.status = "connecting"
+						connection.server.error = ""
+					}
 				}
 
 				const serverOrder = Object.keys(config.mcpServers || {})

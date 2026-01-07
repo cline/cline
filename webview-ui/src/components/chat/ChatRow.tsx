@@ -166,6 +166,44 @@ const CommandOutput = memo(
 			return null
 		}
 
+		// Check if output contains a log file path indicator
+		const logFilePathMatch = output.match(/📋 Output is being logged to: ([^\n]+)/)
+		const logFilePath = logFilePathMatch ? logFilePathMatch[1].trim() : null
+
+		// Render output with clickable log file path
+		const renderOutput = () => {
+			if (!logFilePath) {
+				return <CodeBlock forceWrap={true} source={`${"```"}shell\n${output}\n${"```"}`} />
+			}
+
+			// Split output into parts: before log path, log path line, after log path
+			const logPathLineStart = output.indexOf("📋 Output is being logged to:")
+			const logPathLineEnd = output.indexOf("\n", logPathLineStart)
+			const beforeLogPath = output.substring(0, logPathLineStart)
+			const afterLogPath = logPathLineEnd !== -1 ? output.substring(logPathLineEnd) : ""
+
+			// Extract just the filename from the full path for display
+			const fileName = logFilePath.split("/").pop() || logFilePath
+
+			return (
+				<>
+					{beforeLogPath && <CodeBlock forceWrap={true} source={`${"```"}shell\n${beforeLogPath}\n${"```"}`} />}
+					<div
+						className="flex flex-wrap items-center gap-1.5 px-3 py-2 mx-2 my-1.5 rounded bg-banner-background cursor-pointer hover:brightness-110 transition-colors"
+						onClick={() => {
+							FileServiceClient.openFile(StringRequest.create({ value: logFilePath })).catch((err) =>
+								console.error("Failed to open log file:", err),
+							)
+						}}
+						title={`Click to open: ${logFilePath}`}>
+						<span className="shrink-0">📋 Output is being logged to:</span>
+						<span className="text-vscode-textLink-foreground underline break-all">{fileName}</span>
+					</div>
+					{afterLogPath && <CodeBlock forceWrap={true} source={`${"```"}shell\n${afterLogPath}\n${"```"}`} />}
+				</>
+			)
+		}
+
 		return (
 			<div
 				style={{
@@ -187,9 +225,7 @@ const CommandOutput = memo(
 						scrollBehavior: "smooth",
 						backgroundColor: TERMINAL_CODE_BLOCK_BG_COLOR,
 					}}>
-					<div style={{ backgroundColor: TERMINAL_CODE_BLOCK_BG_COLOR }}>
-						<CodeBlock forceWrap={true} source={`${"```"}shell\n${output}\n${"```"}`} />
-					</div>
+					<div style={{ backgroundColor: TERMINAL_CODE_BLOCK_BG_COLOR }}>{renderOutput()}</div>
 				</div>
 				{/* Show notch only if there's more than 5 lines */}
 				{lineCount > 5 && (
@@ -1129,7 +1165,7 @@ export const ChatRowContent = memo(
 												? "Pending"
 												: isCommandCompleted
 													? "Completed"
-													: "Not Executed"}
+													: "Skipped"}
 									</span>
 								</div>
 								<div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
@@ -1857,10 +1893,10 @@ export const ChatRowContent = memo(
 								</div>
 							)
 						}
-					case "hook":
+					case "hook_status":
 						return <HookMessage CommandOutput={CommandOutput} message={message} />
-					case "hook_output":
-						// hook_output messages are combined with hook messages, so we don't render them separately
+					case "hook_output_stream":
+						// hook_output_stream messages are combined with hook_status messages, so we don't render them separately
 						return null
 					case "shell_integration_warning_with_suggestion":
 						const isBackgroundModeEnabled = vscodeTerminalExecutionMode === "backgroundExec"
@@ -1868,9 +1904,9 @@ export const ChatRowContent = memo(
 							<div
 								style={{
 									padding: 8,
-									backgroundColor: "rgba(0, 122, 204, 0.1)",
+									backgroundColor: "color-mix(in srgb, var(--vscode-textLink-foreground) 10%, transparent)",
 									borderRadius: 3,
-									border: "1px solid rgba(0, 122, 204, 0.3)",
+									border: "1px solid color-mix(in srgb, var(--vscode-textLink-foreground) 30%, transparent)",
 								}}>
 								<div
 									style={{
