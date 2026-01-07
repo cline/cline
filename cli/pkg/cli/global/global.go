@@ -22,8 +22,8 @@ type GlobalConfig struct {
 }
 
 var (
-	Config  *GlobalConfig
-	Clients *ClineClients
+	Config    *GlobalConfig
+	Instances *ClineInstances
 
 	// Version info - set at build time via ldflags
 	// Version is the Cline Core version (from root package.json)
@@ -61,11 +61,11 @@ func InitializeGlobalConfig(cfg *GlobalConfig) error {
 	// Otherwise lipgloss auto-detects terminal capabilities (default behavior)
 
 	Config = cfg
-	Clients = NewClineClients(cfg.ConfigPath)
+	Instances = NewClineInstances(cfg.ConfigPath)
 
 	// Initialize the clients registry
 	ctx := context.Background()
-	if err := Clients.Initialize(ctx); err != nil {
+	if err := Instances.Initialize(ctx); err != nil {
 		return fmt.Errorf("failed to initialize clients: %w", err)
 	}
 
@@ -76,25 +76,25 @@ func InitializeGlobalConfig(cfg *GlobalConfig) error {
 func GetDefaultClient(ctx context.Context) (*client.ClineClient, error) {
 	if Config.CoreAddress != "" && Config.CoreAddress != fmt.Sprintf("localhost:%d", common.DEFAULT_CLINE_CORE_PORT) {
 		// User specified a specific address, use that
-		return Clients.GetRegistry().GetClient(ctx, Config.CoreAddress)
+		return Instances.GetRegistry().GetClient(ctx, Config.CoreAddress)
 	}
 
 	// Use the default instance from registry
-	return Clients.GetRegistry().GetDefaultClient(ctx)
+	return Instances.GetRegistry().GetDefaultClient(ctx)
 }
 
 // GetClientForAddress returns a client for a specific address
 func GetClientForAddress(ctx context.Context, address string) (*client.ClineClient, error) {
-	return Clients.GetRegistry().GetClient(ctx, address)
+	return Instances.GetRegistry().GetClient(ctx, address)
 }
 
 // EnsureDefaultInstance ensures a default instance exists
 func EnsureDefaultInstance(ctx context.Context) error {
-	if Clients == nil {
+	if Instances == nil {
 		return fmt.Errorf("global clients not initialized")
 	}
 
-	registry := Clients.GetRegistry()
+	registry := Instances.GetRegistry()
 
 	// First, check if there are any instances already registered in SQLite
 	instances := registry.ListInstances()
@@ -108,7 +108,7 @@ func EnsureDefaultInstance(ctx context.Context) error {
 	if registry.GetDefaultInstance() == "" {
 		// No instances exist, start a new one
 		// Note: StartNewInstance will automatically set it as default since it's the first instance
-		_, err := Clients.StartNewInstance(ctx)
+		_, err := Instances.StartNewInstance(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to start new default instance: %w", err)
 		}
@@ -116,3 +116,4 @@ func EnsureDefaultInstance(ctx context.Context) error {
 
 	return nil
 }
+

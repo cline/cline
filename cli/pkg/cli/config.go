@@ -40,7 +40,7 @@ func ensureConfigManager(ctx context.Context, address string) error {
 		}
 
 		// Always set the instance we're using as the default
-		registry := global.Clients.GetRegistry()
+		registry := global.Instances.GetRegistry()
 		if err := registry.SetDefaultInstance(instanceAddress); err != nil {
 			// Log warning but don't fail - this is not critical
 			fmt.Printf("Warning: failed to set default instance: %v\n", err)
@@ -123,11 +123,11 @@ func setCommand() *cobra.Command {
 		Use:     "set <key=value> [key=value...]",
 		Aliases: []string{"s"},
 		Short:   "Set configuration variables",
-		Long:    `Set one or more global configuration variables using key=value format.
+		Long: `Set one or more global configuration variables using key=value format.
 		
 This command merges the provided settings with existing values, preserving
 unspecified fields. Only the fields you explicitly set will be updated.`,
-		Args:    cobra.MinimumNArgs(1),
+		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
