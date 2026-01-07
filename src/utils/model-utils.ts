@@ -16,6 +16,7 @@ export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 		"openai-native",
 		"baseten",
 		"vercel-ai-gateway",
+		"oca",
 	].some((id) => providerId === id)
 }
 
