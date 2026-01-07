@@ -32,9 +32,10 @@ export function categorizeApiConfigurationKeys(apiConfiguration: Partial<ApiConf
 		} else if (SettingsKeys.has(key)) {
 			// This is a settings key
 			settingsUpdates[key as keyof Settings] = value as any
+		} else {
+			// If key is neither in secrets nor settings, it's ignored (shouldn't happen with proper typing)
+			Logger.error(`[categorizeApiConfigurationKeys] Uncategorized key: ${key}`)
 		}
-		// If key is neither in secrets nor settings, it's ignored (shouldn't happen with proper typing)
-		Logger.error(`[categorizeApiConfigurationKeys] Uncategorized key: ${key}`)
 	}
 
 	return { settingsUpdates, secretsUpdates }
@@ -44,12 +45,7 @@ export function categorizeApiConfigurationKeys(apiConfiguration: Partial<ApiConf
  * Type-safe helper to get all API configuration keys that should be stored as settings
  */
 export function getApiConfigurationSettingsKeys(): (keyof Settings)[] {
-	return Array.from(SettingsKeys).filter(
-		(_key) =>
-			// Only include keys that could be part of ApiConfiguration
-			// This is a type-safe way to ensure we only get relevant keys
-			true,
-	) as (keyof Settings)[]
+	return Array.from(SettingsKeys) as (keyof Settings)[]
 }
 
 /**

@@ -111,8 +111,8 @@ async function handleComputedProperties(result: any, stateValues: Map<string, an
 	if (planActSeparateModelsSettingRaw === true || planActSeparateModelsSettingRaw === false) {
 		result.planActSeparateModelsSetting = planActSeparateModelsSettingRaw
 	} else {
-		// Default to true for existing users (who have planModeApiProvider set), false for new users
-		result.planActSeparateModelsSetting = !!stateValues.get("planModeApiProvider")
+		// Default to false when not explicitly set
+		result.planActSeparateModelsSetting = false
 	}
 }
 

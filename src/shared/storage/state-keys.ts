@@ -241,11 +241,17 @@ const SETTINGS_FIELDS = {
 // SECRET KEYS AND LOCAL STATE - Static definitions
 // ============================================================================
 
+export const ApiAuthSecretsKeys = [
+	"cline:clineAccountId", // Auth_Provider:AccountId
+	"remoteLiteLlmApiKey", // Remote_LiteLLM:ApiKey
+	"ocaApiKey",
+	"ocaRefreshToken",
+	"mcpOAuthSecrets",
+]
 // Secret keys used in Api Configuration
 export const ApiHandlerSecretsKeys = [
 	"apiKey",
 	"clineAccountId",
-	"cline:clineAccountId", // Auth_Provider:AccountId
 	"openRouterApiKey",
 	"awsAccessKey",
 	"awsSecretKey",
@@ -263,7 +269,6 @@ export const ApiHandlerSecretsKeys = [
 	"doubaoApiKey",
 	"mistralApiKey",
 	"liteLlmApiKey",
-	"remoteLiteLlmApiKey",
 	"authNonce",
 	"asksageApiKey",
 	"xaiApiKey",
@@ -280,16 +285,13 @@ export const ApiHandlerSecretsKeys = [
 	"basetenApiKey",
 	"vercelAiGatewayApiKey",
 	"difyApiKey",
-	"ocaApiKey",
-	"ocaRefreshToken",
 	"minimaxApiKey",
 	"hicapApiKey",
 	"aihubmixApiKey",
-	"mcpOAuthSecrets",
 	"nousResearchApiKey",
 ] as const
 
-export const SecretKeys = [...ApiHandlerSecretsKeys] as const
+export const SecretKeys = [...ApiHandlerSecretsKeys, ...ApiAuthSecretsKeys] as const
 
 export const LocalStateKeys = [
 	"localClineRulesToggles",

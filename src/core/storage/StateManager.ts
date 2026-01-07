@@ -501,11 +501,6 @@ export class StateManager {
 		if (Object.keys(secretsUpdates).length > 0) {
 			this.setSecretsBatch(secretsUpdates)
 		}
-
-		// Batch update secrets
-		if (Object.keys(secretsUpdates).length > 0) {
-			this.setSecretsBatch(secretsUpdates)
-		}
 	}
 
 	/**
@@ -774,11 +769,19 @@ export class StateManager {
 	}
 
 	/**
-	 * Helper to get a setting value with task-specific override support
-	 * Returns task cache value if available, otherwise falls back to global cache
+	 * Helper to get a setting value with override support
+	 * Precedence: remote config > task settings > global settings
 	 */
 	private getSettingWithOverride<K extends keyof Settings>(key: K): Settings[K] {
-		return this.taskStateCache[key] !== undefined ? this.taskStateCache[key] : this.globalStateCache[key]
+		const remoteValue = this.remoteConfigCache?.[key]
+		if (remoteValue !== undefined) {
+			return remoteValue
+		}
+		const taskValue = this.taskStateCache[key]
+		if (taskValue !== undefined) {
+			return taskValue
+		}
+		return this.globalStateCache[key]
 	}
 
 	/**
@@ -804,13 +807,18 @@ export class StateManager {
 			config[key] = this.getSecret(key)
 		}
 
+		// Preserve legacy fallback behavior for LiteLLM API key:
+		// if a remoteLiteLlmApiKey is set (via remote config), it should
+		// take precedence over the local liteLlmApiKey.
+		const remoteLiteLlmApiKey = this.secretsCache["remoteLiteLlmApiKey"]
+		if (remoteLiteLlmApiKey !== undefined && remoteLiteLlmApiKey !== null && remoteLiteLlmApiKey !== "") {
+			config.liteLlmApiKey = remoteLiteLlmApiKey
+		}
+
 		// Add all settings with task override support
 		for (const key of settingsKeys) {
 			config[key] = this.getSettingWithOverride(key)
 		}
-
-		// Add special case for openAiHeaders with default empty object
-		config.openAiHeaders = this.getSettingWithOverride("openAiHeaders") || {}
 
 		return config satisfies ApiConfiguration
 	}
