@@ -322,7 +322,7 @@ export class Task {
 			this.ulid = historyItem.ulid ?? ulid()
 			this.taskIsFavorited = historyItem.isFavorited
 			this.taskState.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
-			// Migration: if singular exists but plural doesn't, convert singular to plural format
+			// Migration: if conversationHistoryDeletedRange exists but conversationHistoryDeletedRanges doesn't, convert
 			if (
 				historyItem.conversationHistoryDeletedRange !== undefined &&
 				historyItem.conversationHistoryDeletedRanges === undefined
