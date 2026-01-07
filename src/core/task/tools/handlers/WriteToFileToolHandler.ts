@@ -424,7 +424,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				// Full original behavior - comprehensive error handling even for partial blocks
 				// Removes any existing diff_error messages to avoid duplicates.
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "diff_error")
-				await config.callbacks.say("diff_error", relPath)
+				await config.callbacks.say("diff_error", relPath, undefined, undefined, true)
 
 				// Extract provider information for telemetry
 				const { providerId, modelId } = this.getModelInfo(config)
