@@ -102,11 +102,6 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 			throw new Error("User closed text editor, unable to edit file...")
 		}
 
-		// For notebook files, add basic logging (full temp file sync can be added later)
-		if (this.isNotebookFile()) {
-			Logger.log("Replacing text in notebook file - basic implementation")
-		}
-
 		// Place cursor at the beginning of the diff editor to keep it out of the way of the stream animation
 		const beginningOfDocument = new vscode.Position(0, 0)
 		this.activeDiffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)
@@ -214,12 +209,107 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 				await jupyterExtension.activate()
 			}
 
-			// For now, just log that we would create a notebook diff view
-			// The full implementation with temporary files can be added later
-			Logger.log("Notebook diff view creation would happen here - basic implementation")
+			// Create a proper notebook diff view by creating temporary files
+			await this.createNotebookDiffView(uri, fileName)
 		} catch (error) {
 			Logger.error("Failed to create notebook diff view, continuing with text editor:", error)
 			// Text editor remains active - no changes needed
+		}
+	}
+
+	/**
+	 * Create a proper notebook diff view using temporary files
+	 */
+	private async createNotebookDiffView(uri: vscode.Uri, fileName: string): Promise<void> {
+		try {
+			Logger.log("Creating notebook diff view with temporary file...")
+
+			// Create temporary directory and file for modified content (right side)
+			const tempDir = require("os").tmpdir()
+			const timestamp = Date.now()
+			const tempModifiedPath = path.join(tempDir, `cline-modified-${timestamp}-${fileName}`)
+
+			// Write current editor content to temporary file
+			const currentContent = this.activeDiffEditor?.document.getText() ?? ""
+
+			try {
+				// Attempt to parse the content as JSON
+				JSON.parse(currentContent)
+			} catch (error) {
+				Logger.error(`Invalid JSON content for notebook file ${fileName}, skipping notebook diff view creation`)
+				Logger.error(`JSON parse error: ${error}`)
+				return
+			}
+
+			await vscode.workspace.fs.writeFile(vscode.Uri.file(tempModifiedPath), new TextEncoder().encode(currentContent))
+
+			// Store temporary file URI for cleanup
+			this.tempModifiedUri = vscode.Uri.file(tempModifiedPath)
+			Logger.log(`Created temporary modified file: ${tempModifiedPath}`)
+
+			// Close current text diff editor
+			// await this.closeCurrentTextDiffEditor()
+
+			// Set up file system watcher for synchronization
+			this.setupTempDocumentListener()
+
+			// Open notebook diff view with original file (left) vs temporary file (right)
+			Logger.log("Opening notebook diff view...")
+			await vscode.commands.executeCommand(
+				"vscode.diff",
+				uri, // Left: original file
+				this.tempModifiedUri, // Right: temporary file with modifications
+				`${fileName}: Original ↔ Cline's Changes (Notebook)`,
+			)
+
+			// Give VS Code a moment to open the notebook diff view
+			await new Promise((resolve) => setTimeout(resolve, 500))
+
+			Logger.log("Notebook diff view opened successfully")
+		} catch (error) {
+			Logger.error(`Error creating notebook diff view: ${error}`)
+			// Clean up on error
+			await this.cleanupTempFiles()
+			return
+		}
+	}
+
+	/**
+	 * Set up file system watcher for temporary file synchronization
+	 */
+	private setupTempDocumentListener(): void {
+		if (this.tempModifiedUri) {
+			this.tempFileWatcher = vscode.workspace.createFileSystemWatcher(
+				new vscode.RelativePattern(this.tempModifiedUri.fsPath, "*"),
+			)
+
+			this.tempFileWatcher.onDidChange(async () => {
+				await this.syncTempFileToActiveDiffEditor()
+			})
+
+			Logger.log(`File system watcher set up for temp file: ${this.tempModifiedUri.fsPath}`)
+		}
+	}
+
+	/**
+	 * Sync changes from temporary file back to active diff editor only
+	 */
+	private async syncTempFileToActiveDiffEditor(): Promise<void> {
+		if (this.tempModifiedUri && this.activeDiffEditor && this.activeDiffEditor.document) {
+			try {
+				const tempContent = await vscode.workspace.fs.readFile(this.tempModifiedUri)
+				const tempContentString = new TextDecoder().decode(tempContent)
+
+				// Update text editor content to match temporary file
+				const edit = new vscode.WorkspaceEdit()
+				const fullRange = new vscode.Range(0, 0, this.activeDiffEditor.document.lineCount, 0)
+				edit.replace(this.activeDiffEditor.document.uri, fullRange, tempContentString)
+				await vscode.workspace.applyEdit(edit)
+
+				Logger.log("Synced temp file changes back to active diff editor")
+			} catch (error) {
+				Logger.error("Failed to sync temp file to active diff editor:", error)
+			}
 		}
 	}
 

@@ -143,19 +143,6 @@ export async function migrateEnableCheckpointsSetting(enableCheckpointsSettingRa
 	return enableCheckpointsSettingRaw ?? true
 }
 
-export async function migrateEnhancedNotebookInteractionSetting(
-	enhancedNotebookInteractionEnabledRaw: boolean | undefined,
-): Promise<boolean> {
-	const config = vscode.workspace.getConfiguration("cline")
-	const enhancedNotebookInteractionEnabled = config.get<boolean>("enhancedNotebookInteractionEnabled")
-	if (enhancedNotebookInteractionEnabled !== undefined) {
-		// Remove from VSCode configuration
-		await config.update("enhancedNotebookInteractionEnabled", undefined, true)
-		return enhancedNotebookInteractionEnabled
-	}
-	return enhancedNotebookInteractionEnabledRaw ?? false
-}
-
 export async function migrateCustomInstructionsToGlobalRules(context: vscode.ExtensionContext) {
 	try {
 		const customInstructions = (await context.globalState.get("customInstructions")) as string | undefined
