@@ -138,8 +138,8 @@ export interface PreCompactHookParams {
 	// Compaction metadata
 	/** Compaction strategy to report in hook data */
 	compactionStrategy: string
-	/** Optional: Pre-calculated deleted range to report */
-	deletedRange?: [number, number]
+	/** Optional: Pre-calculated deleted ranges to report */
+	deletedRanges?: Array<[number, number]>
 
 	// UI callbacks
 	/** Callback to display messages */
@@ -193,7 +193,7 @@ export async function executePreCompactHookWithCleanup(params: PreCompactHookPar
 		// Get current active context (respects previous compactions)
 		const currentContext = params.contextManager.getTruncatedMessages(
 			params.apiConversationHistory,
-			params.conversationHistoryDeletedRange,
+			params.conversationHistoryDeletedRanges,
 		)
 
 		// Write context files for hook access
@@ -206,13 +206,11 @@ export async function executePreCompactHookWithCleanup(params: PreCompactHookPar
 		const previousRequest = previousApiReqIndex !== -1 ? params.clineMessages[previousApiReqIndex] : undefined
 		const { tokensIn, tokensOut, tokensInCache, tokensOutCache } = extractTokenUsageFromMessage(previousRequest)
 
-		// Extract truncation range - use provided range or extract from conversationHistoryDeletedRange
-		let deletedRangeStart = 0
-		let deletedRangeEnd = 0
-		if (params.deletedRange) {
-			;[deletedRangeStart, deletedRangeEnd] = params.deletedRange
-		} else if (params.conversationHistoryDeletedRange) {
-			;[deletedRangeStart, deletedRangeEnd] = params.conversationHistoryDeletedRange
+		let deletedRanges: Array<[number, number]> = []
+		if (params.deletedRanges && params.deletedRanges.length > 0) {
+			deletedRanges = params.deletedRanges
+		} else if (params.conversationHistoryDeletedRanges && params.conversationHistoryDeletedRanges.length > 0) {
+			deletedRanges = params.conversationHistoryDeletedRanges
 		}
 
 		// Execute the hook
@@ -229,15 +227,12 @@ export async function executePreCompactHookWithCleanup(params: PreCompactHookPar
 					tokensOut,
 					tokensInCache,
 					tokensOutCache,
-					deletedRangeStart,
-					deletedRangeEnd,
 					contextJsonPath: contextJsonPath,
 					contextRawPath: contextRawPath,
-					deletedRanges:
-						params.conversationHistoryDeletedRanges?.map((range) => ({
-							startIndex: range[0],
-							endIndex: range[1],
-						})) ?? [],
+					deletedRanges: deletedRanges.map((range) => ({
+						startIndex: range[0],
+						endIndex: range[1],
+					})),
 				},
 			},
 			isCancellable: true,
