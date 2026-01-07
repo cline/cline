@@ -37,7 +37,6 @@ import {
 } from "lucide-react"
 import { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
-import ClineLogoWhite from "@/assets/ClineLogoWhite"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
 import { WithCopyButton } from "@/components/common/CopyButton"
@@ -917,15 +916,14 @@ export const ChatRowContent = memo(
 						return (
 							<div>
 								{apiReqState === "pre" && (
-									<div className="flex items-center text-description">
-										<ClineLogoWhite className="w-5 h-auto shrink-0 scale-80" />
-										<div className="pl-2  flex-1">
+									<div className="flex items-center text-description w-full">
+										<div className="pl-2 flex-1 w-full overflow-hidden">
 											{currentActivities.length > 0 ? (
-												<div className="flex flex-col gap-0.5">
+												<div className="flex flex-col gap-0.5 w-full">
 													{currentActivities.map((activity, i) => (
-														<div className="flex items-start gap-2" key={`activity-${i}`}>
+														<div className="flex items-start gap-2 w-full" key={`activity-${i}`}>
 															<activity.icon className="size-2 self-center text-foreground" />
-															<span className="flex-1">
+															<span className="flex-1 self-start w-full">
 																<TypewriterText speed={15} text={activity.text} />
 															</span>
 														</div>
@@ -943,8 +941,7 @@ export const ChatRowContent = memo(
 										isVisible={true}
 										onToggle={handleToggle}
 										reasoningContent={reasoningContent}
-										showIcon={showStreamingThinking}
-										showTitle={!showStreamingThinking}
+										showTitle={false}
 									/>
 								)}
 
@@ -981,9 +978,6 @@ export const ChatRowContent = memo(
 								ref={contentRef}
 								textToCopy={message.text}>
 								<div className="flex items-center">
-									{isRequestInProgress && (
-										<ClineLogoWhite className="scale-80 w-5 h-auto shrink-0 self-start mr-1" />
-									)}
 									<div className={cn("flex-1 min-w-0 pl-1")}>
 										<MarkdownRow markdown={message.text} showCursor={false} />
 									</div>
@@ -1005,7 +999,6 @@ export const ChatRowContent = memo(
 								isVisible={true}
 								onToggle={handleToggle}
 								reasoningContent={message.text}
-								showIcon={false}
 								showTitle={true}
 							/>
 						)
