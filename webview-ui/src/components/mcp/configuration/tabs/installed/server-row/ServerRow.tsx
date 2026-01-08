@@ -19,6 +19,7 @@ import { RefreshCcwIcon, Trash2Icon } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { McpServiceClient } from "@/services/grpc-client"
@@ -229,17 +230,25 @@ const ServerRow = ({
 					</Button>
 				)}
 				{/* Toggle Switch */}
-				<div title={isAlwaysEnabled ? "This server can't be disabled because it is enabled by your organization" : ""}>
-					<Switch
-						checked={!server.disabled}
-						disabled={isAlwaysEnabled}
-						key={server.name}
-						onClick={(e) => {
-							e.stopPropagation()
-							handleToggleMcpServer()
-						}}
-					/>
-				</div>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<div className="flex items-center gap-2">
+							<Switch
+								checked={!server.disabled}
+								disabled={isAlwaysEnabled}
+								key={server.name}
+								onClick={(e) => {
+									e.stopPropagation()
+									handleToggleMcpServer()
+								}}
+							/>
+							{isAlwaysEnabled && <i className="codicon codicon-lock text-description text-sm" />}
+						</div>
+					</TooltipTrigger>
+					<TooltipContent className="max-w-xs" hidden={!isAlwaysEnabled} side="top">
+						This server can't be disabled because it is enabled by your organization
+					</TooltipContent>
+				</Tooltip>
 				<div
 					className={cn("h-2 w-2 ml-0.5 rounded-full", {
 						"bg-success": server.status === "connected",
