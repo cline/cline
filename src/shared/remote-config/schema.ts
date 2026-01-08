@@ -7,6 +7,14 @@
  *
  * This schema is used by both the extension and the API server for validation.
  * Any changes here require a coordinated deployment to avoid validation errors.
+ * Please test the changes in following scenarios:
+ * - Old version of extension without schema changes + new Dashboard with schema
+ * changes to ensure forward compatibility;
+ * - New version of extension with schema changes + old version of Dashboard without
+ * schema changes to ensure backward compatibility;
+ * - New versions of extension and Dashboard with schema changes;
+ * in order to ensure safe releases, regardless of whether the extension or
+ * Dashboard will be released first.
  *
  * ═══════════════════════════════════════════════════════════════════════════
  */
