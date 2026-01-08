@@ -1,6 +1,11 @@
 import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
 import { RemoteConfig } from "@shared/remote-config/schema"
 import { RemoteConfigFields } from "@shared/storage/state-keys"
+import { getTelemetryService } from "@/services/telemetry"
+import { OpenTelemetryClientProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryClientProvider"
+import { OpenTelemetryTelemetryProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider"
+import { type TelemetryService } from "@/services/telemetry/TelemetryService"
+import { isOpenTelemetryConfigValid, remoteConfigToOtelConfig } from "@/shared/services/config/otel-config"
 import { StateManager } from "../StateManager"
 
 /**
@@ -77,6 +82,9 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	if (remoteConfig.openTelemetryLogMaxQueueSize !== undefined) {
 		transformed.openTelemetryLogMaxQueueSize = remoteConfig.openTelemetryLogMaxQueueSize
 	}
+	if (remoteConfig.openTelemetryOtlpHeaders !== undefined) {
+		transformed.openTelemetryOtlpHeaders = remoteConfig.openTelemetryOtlpHeaders
+	}
 
 	// Map provider settings
 
@@ -97,6 +105,9 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		}
 		if (openAiSettings.azureApiVersion !== undefined) {
 			transformed.azureApiVersion = openAiSettings.azureApiVersion
+		}
+		if (openAiSettings.azureIdentity !== undefined) {
+			transformed.azureIdentity = openAiSettings.azureIdentity
 		}
 	}
 
@@ -174,16 +185,39 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	return transformed
 }
 
+const REMOTE_CONFIG_OTEL_PROVIDER_ID = "OpenTelemetryRemoteConfiguredProvider"
+async function applyRemoteOTELConfig(transformed: Partial<RemoteConfigFields>, telemetryService: TelemetryService) {
+	try {
+		const otelConfig = remoteConfigToOtelConfig(transformed)
+		if (isOpenTelemetryConfigValid(otelConfig)) {
+			const client = new OpenTelemetryClientProvider(otelConfig)
+
+			if (client.meterProvider || client.loggerProvider) {
+				telemetryService.addProvider(
+					await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider, {
+						name: REMOTE_CONFIG_OTEL_PROVIDER_ID,
+						bypassUserSettings: true,
+					}).initialize(),
+				)
+			}
+		}
+	} catch (err) {
+		console.error("[REMOTE CONFIG DEBUG] Failed to apply remote OTEL config", err)
+	}
+}
+
 /**
  * Applies remote config to the StateManager's remote config cache
  * @param remoteConfig The remote configuration object to apply
  */
-export function applyRemoteConfig(remoteConfig?: RemoteConfig): void {
+export async function applyRemoteConfig(remoteConfig?: RemoteConfig): Promise<void> {
 	const stateManager = StateManager.get()
+	const telemetryService = await getTelemetryService()
 
 	// If no remote config provided, clear the cache and relevant state
 	if (!remoteConfig) {
 		stateManager.clearRemoteConfig()
+		telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
 		// the remote config cline rules toggle state is stored in global state
 		stateManager.setGlobalState("remoteRulesToggles", {})
 		stateManager.setGlobalState("remoteWorkflowToggles", {})
@@ -191,6 +225,8 @@ export function applyRemoteConfig(remoteConfig?: RemoteConfig): void {
 	}
 
 	// Transform remote config to state shape
+	// These are then set to the remote config cache in the StateManager
+	// We need to ensure the cache is checked for new fields
 	const transformed = transformRemoteConfigToStateShape(remoteConfig)
 
 	// Synchronize toggle state
@@ -205,9 +241,12 @@ export function applyRemoteConfig(remoteConfig?: RemoteConfig): void {
 
 	// Clear existing remote config cache
 	stateManager.clearRemoteConfig()
+	telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
 
 	// Populate remote config cache with transformed values
 	for (const [key, value] of Object.entries(transformed)) {
 		stateManager.setRemoteConfigField(key as keyof RemoteConfigFields, value)
 	}
+
+	await applyRemoteOTELConfig(transformed, telemetryService)
 }

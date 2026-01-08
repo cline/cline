@@ -14,6 +14,7 @@ import (
 	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/handlers"
+	"github.com/cline/cli/pkg/cli/slash"
 	"github.com/cline/cli/pkg/cli/types"
 	"github.com/cline/grpc-go/client"
 	"github.com/cline/grpc-go/cline"
@@ -32,10 +33,12 @@ type Manager struct {
 	clientAddress    string
 	state            *types.ConversationState
 	renderer         *display.Renderer
+	hookRenderer     *display.HookRenderer
 	toolRenderer     *display.ToolRenderer
 	systemRenderer   *display.SystemMessageRenderer
 	streamingDisplay *display.StreamingDisplay
 	handlerRegistry  *handlers.HandlerRegistry
+	slashRegistry    *slash.Registry
 	isStreamingMode  bool
 	isInteractive    bool
 	currentMode      string // "plan" or "act"
@@ -46,6 +49,7 @@ func NewManager(client *client.ClineClient) *Manager {
 	state := types.NewConversationState()
 	renderer := display.NewRenderer(global.Config.OutputFormat)
 	toolRenderer := display.NewToolRenderer(renderer.GetMdRenderer(), global.Config.OutputFormat)
+	hookRenderer := display.NewHookRenderer(renderer.GetMdRenderer(), global.Config.OutputFormat)
 	systemRenderer := display.NewSystemMessageRenderer(renderer, renderer.GetMdRenderer(), global.Config.OutputFormat)
 	streamingDisplay := display.NewStreamingDisplay(state, renderer)
 
@@ -59,10 +63,12 @@ func NewManager(client *client.ClineClient) *Manager {
 		clientAddress:    "", // Will be set when client is provided
 		state:            state,
 		renderer:         renderer,
+		hookRenderer:     hookRenderer,
 		toolRenderer:     toolRenderer,
 		systemRenderer:   systemRenderer,
 		streamingDisplay: streamingDisplay,
 		handlerRegistry:  registry,
+		slashRegistry:    slash.NewRegistry(),
 		currentMode:      "plan", // Default mode
 	}
 }
@@ -76,6 +82,10 @@ func NewManagerForAddress(ctx context.Context, address string) (*Manager, error)
 
 	manager := NewManager(client)
 	manager.clientAddress = address
+
+	// Fetch slash commands from backend (non-blocking, errors are logged)
+	manager.fetchSlashCommands(ctx)
+
 	return manager, nil
 }
 
@@ -93,7 +103,23 @@ func NewManagerForDefault(ctx context.Context) (*Manager, error) {
 		manager.clientAddress = global.Clients.GetRegistry().GetDefaultInstance()
 	}
 
+	// Fetch slash commands from backend (non-blocking, errors are logged)
+	manager.fetchSlashCommands(ctx)
+
 	return manager, nil
+}
+
+// fetchSlashCommands fetches available slash commands from the backend
+// This is non-blocking and errors are logged but don't prevent manager creation
+func (m *Manager) fetchSlashCommands(ctx context.Context) {
+	if err := m.slashRegistry.FetchFromBackend(ctx, m.client); err != nil {
+		if global.Config.Verbose {
+			m.renderer.RenderDebug("Failed to fetch slash commands: %v", err)
+		}
+		// Non-fatal: CLI-local commands are still available
+	} else if global.Config.Verbose {
+		m.renderer.RenderDebug("Loaded %d slash commands", len(m.slashRegistry.GetCommands()))
+	}
 }
 
 // SwitchToInstance switches the manager to use a different Cline instance
@@ -966,6 +992,15 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
+		case msg.Say == string(types.SayTypeCommandPermissionDenied):
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
+			}
+
 		case msg.Say == string(types.SayTypeBrowserActionLaunch):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
@@ -1017,6 +1052,26 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 				fmt.Println()
 				m.displayMessage(msg, false, false, i)
 
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
+			}
+
+		case msg.Say == string(types.SayTypeHookStatus):
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
+			}
+
+		case msg.Say == string(types.SayTypeHookOutputStream):
+			// Hook stdout/stderr streaming arrives as hook_output_stream messages.
+			// These are intentionally suppressed unless verbose (see SayHandler.handleHookOutputStream),
+			// but we still need to route them through the normal handler pipeline in streaming/follow
+			// mode so verbose users actually see `HOOK> ...` lines.
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				m.displayMessage(msg, false, false, i)
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
@@ -1151,12 +1206,14 @@ func (m *Manager) displayMessage(msg *types.ClineMessage, isLast, isPartial bool
 		m.mu.RUnlock()
 
 		dc := &handlers.DisplayContext{
-			State:           m.state,
-			Renderer:        m.renderer,
-			ToolRenderer:    m.toolRenderer,
-			SystemRenderer:  m.systemRenderer,
+			State:          m.state,
+			Renderer:       m.renderer,
+			ToolRenderer:   m.toolRenderer,
+			HookRenderer:   m.hookRenderer,
+			SystemRenderer: m.systemRenderer,
 			IsLast:          isLast,
 			IsPartial:       isPartial,
+			Verbose:         global.Config.Verbose,
 			MessageIndex:    messageIndex,
 			IsStreamingMode: isStreaming,
 			IsInteractive:   isInteractive,
@@ -1261,6 +1318,11 @@ func (m *Manager) GetCurrentMode() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.currentMode
+}
+
+// GetSlashRegistry returns the slash command registry
+func (m *Manager) GetSlashRegistry() *slash.Registry {
+	return m.slashRegistry
 }
 
 // extractModeFromState extracts the current mode from state JSON

@@ -70,6 +70,10 @@ When using the instant task syntax **cline "prompt"** the following options are 
 
 :   Starting mode. Options: **act** (default), **plan**
 
+**-w**, **\--workspace** *path*
+
+:   Additional workspace paths. Can be specified multiple times to include multiple directories. The current working directory is always included as the first workspace. Example: cline -w /path/to/other/project "refactor shared code"
+
 # GLOBAL OPTIONS
 
 These options apply to all subcommands:
