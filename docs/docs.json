@@ -118,7 +118,6 @@
 							"features/background-edit",
 							"features/checkpoints",
 							"features/cline-rules",
-							"features/skills",
 							{
 								"group": "Commands & Shortcuts",
 								"pages": [
@@ -151,7 +150,7 @@
 							},
 							"features/multiroot-workspace",
 							"features/plan-and-act",
-							"features/web-tools",
+							"features/skills",
 							{
 								"group": "Slash Commands",
 								"pages": [
