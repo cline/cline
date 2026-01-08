@@ -145,17 +145,13 @@ export function convertToOpenAiMessages(
 				const thinkingBlock = []
 				if (nonToolMessages.length > 0) {
 					nonToolMessages.forEach((part) => {
-						// @ts-expect-error - reasoning_details may exist on text parts from providers
-						if (part.type === "text" && part.reasoning_details) {
-							// @ts-expect-error
-							if (Array.isArray(part.reasoning_details)) {
-								// @ts-expect-error
-								reasoningDetails.push(...part.reasoning_details)
+						const anyPart = part as any
+						if (part.type === "text" && anyPart.reasoning_details) {
+							if (Array.isArray(anyPart.reasoning_details)) {
+								reasoningDetails.push(...anyPart.reasoning_details)
 							} else {
-								// @ts-expect-error
-								reasoningDetails.push(part.reasoning_details)
+								reasoningDetails.push(anyPart.reasoning_details)
 							}
-							// delete part.reasoning_details
 						}
 						if (part.type === "thinking" && part.thinking) {
 							// Reasoning details should have been moved to the text block
