@@ -416,6 +416,7 @@
 		"@types/clone-deep": "^4.0.4",
 		"@types/diff": "^5.2.1",
 		"@types/get-folder-size": "^3.0.4",
+		"@types/js-yaml": "^4.0.9",
 		"@types/mocha": "^10.0.7",
 		"@types/node": "20.x",
 		"@types/pdf-parse": "^1.1.4",

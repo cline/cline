@@ -35,6 +35,10 @@ export const BASE = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 ====
 
+{{${SystemPromptSection.SKILLS}}}
+
+====
+
 {{${SystemPromptSection.FEEDBACK}}}
 
 ====
