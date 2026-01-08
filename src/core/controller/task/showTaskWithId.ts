@@ -17,9 +17,34 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 		const taskHistory = controller.stateManager.getGlobalStateKey("taskHistory")
 		const historyItem = taskHistory.find((item) => item.id === id)
 
-		// We need to initialize the task before returning data
+		// Check if this task is already active (running in background)
+		const activeTask = controller.getActiveTask(id)
+		if (activeTask) {
+			// Task is already running - just switch to it without showing resume message
+			await controller.switchTask(id)
+
+			// Send UI update to show the chat view
+			await sendChatButtonClickedEvent()
+
+			// Return task data from history
+			const taskData = historyItem || (await controller.getTaskWithId(id)).historyItem
+			return TaskResponse.create({
+				id,
+				task: taskData.task || "",
+				ts: taskData.ts || 0,
+				isFavorited: taskData.isFavorited || false,
+				size: taskData.size || 0,
+				totalCost: taskData.totalCost || 0,
+				tokensIn: taskData.tokensIn || 0,
+				tokensOut: taskData.tokensOut || 0,
+				cacheWrites: taskData.cacheWrites || 0,
+				cacheReads: taskData.cacheReads || 0,
+			})
+		}
+
+		// Task is not active - load from history (will show resume message)
 		if (historyItem) {
-			// Always initialize the task with the history item
+			// Initialize the task with the history item
 			await controller.initTask(undefined, undefined, undefined, historyItem)
 
 			// Send UI update to show the chat view

@@ -82,6 +82,9 @@ export class Controller {
 	// Timer for periodic remote config fetching
 	private remoteConfigTimer?: NodeJS.Timeout
 
+	// Multi-task support: Track all active tasks
+	private activeTasks: Map<string, Task> = new Map()
+
 	// Public getter for workspace manager with lazy initialization - To get workspaces when task isn't initialized (Used by file mentions)
 	async ensureWorkspaceManager(): Promise<WorkspaceRootManager | undefined> {
 		if (!this.workspaceManager) {
@@ -178,6 +181,13 @@ export class Controller {
 		await this.clearTask()
 		this.mcpHub.dispose()
 
+		for (const [, task] of this.activeTasks) {
+			await task.abortTask().catch((error) => console.error("Failed to abort task during controller dispose:", error))
+		}
+
+		this.activeTasks.clear()
+		this.task = undefined
+
 		console.error("Controller disposed")
 	}
 
@@ -246,7 +256,7 @@ export class Controller {
 		// when done and catches all errors internally.
 		fetchRemoteConfig(this)
 
-		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
+		// await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 		const shellIntegrationTimeout = this.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
@@ -331,6 +341,9 @@ export class Controller {
 			taskLockAcquired,
 		})
 
+		// Track the task in the active tasks map
+		this.activeTasks.set(taskId, this.task)
+
 		if (historyItem) {
 			this.task.resumeTaskFromHistory()
 		} else if (task || images || files) {
@@ -413,14 +426,22 @@ export class Controller {
 		return false
 	}
 
-	async cancelTask() {
+	async cancelTask(taskId?: string) {
 		// Prevent duplicate cancellations from spam clicking
 		if (this.cancelInProgress) {
 			console.log(`[Controller.cancelTask] Cancellation already in progress, ignoring duplicate request`)
 			return
 		}
 
-		if (!this.task) {
+		// Determine which task to cancel
+		const targetTaskId = taskId || this.task?.taskId
+
+		if (targetTaskId && !this.activeTasks.has(targetTaskId) && this.task) {
+			this.activeTasks.set(targetTaskId, this.task)
+		}
+
+		const targetTask = targetTaskId ? this.activeTasks.get(targetTaskId) : undefined
+		if (!targetTask) {
 			return
 		}
 
@@ -428,20 +449,23 @@ export class Controller {
 		this.cancelInProgress = true
 
 		try {
-			this.updateBackgroundCommandState(false)
+			// If canceling current task, clear background command state
+			if (targetTask === this.task) {
+				this.updateBackgroundCommandState(false)
+			}
 
 			try {
-				await this.task.abortTask()
+				await targetTask.abortTask()
 			} catch (error) {
 				console.error("Failed to abort task", error)
 			}
 
 			await pWaitFor(
 				() =>
-					this.task === undefined ||
-					this.task.taskState.isStreaming === false ||
-					this.task.taskState.didFinishAbortingStream ||
-					this.task.taskState.isWaitingForFirstChunk, // if only first chunk is processed, then there's no need to wait for graceful abort (closes edits, browser, etc)
+					targetTask === undefined ||
+					targetTask.taskState.isStreaming === false ||
+					targetTask.taskState.didFinishAbortingStream ||
+					targetTask.taskState.isWaitingForFirstChunk, // if only first chunk is processed, then there's no need to wait for graceful abort (closes edits, browser, etc)
 				{
 					timeout: 3_000,
 				},
@@ -449,18 +473,15 @@ export class Controller {
 				console.error("Failed to abort task")
 			})
 
-			if (this.task) {
+			if (targetTask) {
 				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
-				this.task.taskState.abandoned = true
+				targetTask.taskState.abandoned = true
 			}
-
-			// Small delay to ensure state manager has persisted the history update
-			//await new Promise((resolve) => setTimeout(resolve, 100))
 
 			// NOW try to get history after abort has finished (hook may have saved messages)
 			let historyItem: HistoryItem | undefined
 			try {
-				const result = await this.getTaskWithId(this.task.taskId)
+				const result = await this.getTaskWithId(targetTask.taskId)
 				historyItem = result.historyItem
 			} catch (error) {
 				// Task not in history yet (new task with no messages); catch the
@@ -468,11 +489,16 @@ export class Controller {
 				console.log(`[Controller.cancelTask] Task not found in history: ${error}`)
 			}
 
-			// Only re-initialize if we found a history item, otherwise just clear
-			if (historyItem) {
+			// Remove from active tasks
+			if (targetTaskId) {
+				this.activeTasks.delete(targetTaskId)
+			}
+
+			// Only re-initialize if we found a history item and this is the current task, otherwise just clear
+			if (historyItem && targetTask === this.task) {
 				// Re-initialize task to keep it visible in UI with resume button
 				await this.initTask(undefined, undefined, undefined, historyItem, undefined)
-			} else {
+			} else if (targetTask === this.task) {
 				await this.clearTask()
 			}
 
@@ -859,8 +885,10 @@ export class Controller {
 		const workflowToggles = this.stateManager.getWorkspaceStateKey("workflowToggles")
 		const autoCondenseThreshold = this.stateManager.getGlobalSettingsKey("autoCondenseThreshold")
 
-		const currentTaskItem = this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined
-		const clineMessages = this.task?.messageStateHandler.getClineMessages() || []
+		const currentTaskId = this.task?.taskId
+		const currentTaskItem = currentTaskId ? (taskHistory || []).find((item) => item.id === currentTaskId) : undefined
+		const currentTask = currentTaskItem ? this.activeTasks.get(currentTaskId!) : this.task
+		const clineMessages = currentTask?.messageStateHandler.getClineMessages() || []
 		const checkpointManagerErrorMessage = this.task?.taskState.checkpointManagerErrorMessage
 
 		const processedTaskHistory = (taskHistory || [])
@@ -934,6 +962,14 @@ export class Controller {
 			autoCondenseThreshold,
 			backgroundCommandRunning: this.backgroundCommandRunning,
 			backgroundCommandTaskId: this.backgroundCommandTaskId,
+			// Multi-task support: include all active tasks
+			activeTasks: Array.from(this.activeTasks.entries()).map(([taskId, task]) => {
+				return {
+					taskId,
+					isStreaming: task?.taskState?.isStreaming || false,
+				}
+			}),
+			currentTaskId: this.task?.taskId,
 			// NEW: Add workspace information
 			workspaceRoots: this.workspaceManager?.getRoots() ?? [],
 			primaryRootIndex: this.workspaceManager?.getPrimaryIndex() ?? 0,
@@ -962,9 +998,65 @@ export class Controller {
 		if (this.task) {
 			// Clear task settings cache when task ends
 			await this.stateManager.clearTaskSettings()
+
+			// Remove from active tasks
+			if (this.task.taskId) {
+				this.activeTasks.delete(this.task.taskId)
+			}
 		}
-		await this.task?.abortTask()
+		// await this.task?.abortTask()
 		this.task = undefined // removes reference to it, so once promises end it will be garbage collected
+	}
+
+	/**
+	 * Switches focus to a different active task
+	 * @param taskId - The ID of the task to switch to
+	 * @returns true if switch was successful, false otherwise
+	 */
+	async switchTask(taskId: string): Promise<boolean> {
+		const targetTask = this.activeTasks.get(taskId)
+
+		if (!targetTask) {
+			console.error(`[Controller.switchTask] Task ${taskId} not found in active tasks`)
+			return false
+		}
+
+		// Update current task reference
+		this.task = targetTask
+
+		await this.postStateToWebview()
+		return true
+	}
+
+	/**
+	 * Gets all currently active tasks
+	 * @returns Array of task IDs and their basic info
+	 */
+	getActiveTasks(): Array<{ taskId: string; task: Task }> {
+		return Array.from(this.activeTasks.entries()).map(([taskId, task]) => ({
+			taskId,
+			task,
+		}))
+	}
+
+	/**
+	 * Gets a specific active task by ID
+	 * @param taskId - The task ID to retrieve
+	 * @returns The Task instance or undefined if not found
+	 */
+	getActiveTask(taskId: string): Task | undefined {
+		return this.activeTasks.get(taskId)
+	}
+
+	/**
+	 * Prepares for creating a new task without aborting the current one
+	 * Keeps the current task active in the background (parallel task support)
+	 */
+	async prepareNewTask() {
+		// Just clear the current task reference without aborting
+		// The task remains in activeTasks and can be switched back to
+		this.task = undefined
+		await this.postStateToWebview()
 	}
 
 	// Caching mechanism to keep track of webview messages + API conversation history per provider instance
