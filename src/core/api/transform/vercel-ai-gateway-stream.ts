@@ -116,7 +116,7 @@ export async function createVercelAIGatewayStream(
 		thinkingBudgetTokens &&
 		thinkingBudgetTokens > 0 &&
 		model.info?.thinkingConfig &&
-		!(model.id.includes("gemini") && geminiThinkingLevel)
+		!(model.id.includes("gemini-3") && geminiThinkingLevel)
 	) {
 		// For other models with thinkingConfig, use the standard check
 		temperature = undefined // extended thinking does not support non-1 temperature

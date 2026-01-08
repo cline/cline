@@ -23,7 +23,7 @@ function deriveThinkingConfig(modelId: string, tags?: string[]): ModelInfo["thin
 	}
 
 	// Google Gemini models
-	if (modelId.includes("gemini")) {
+	if (modelId.includes("gemini-3")) {
 		return {
 			maxBudget: 32767,
 			supportsThinkingLevel: true,
