@@ -8,7 +8,7 @@ import {
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
-import { convertToOpenAiMessages } from "../transform/openai-format"
+import { convertToOpenAiMessages, sanitizeGeminiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "./r1-format"
 import { getOpenAIToolParams } from "./tool-call-processor"
 
@@ -34,45 +34,8 @@ export async function createVercelAIGatewayStream(
 		model.id = model.id.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
 	}
 
-	// Gemini models require thought signatures for tool calls. When switching providers mid-conversation,
-	// historical tool calls may not include Gemini reasoning details, which can poison the next request.
-	// Bandaid: for Gemini only, drop tool_calls that lack reasoning_details and their paired tool messages.
-	if (model.id.includes("gemini")) {
-		const droppedToolCallIds = new Set<string>()
-		const sanitized: OpenAI.Chat.ChatCompletionMessageParam[] = []
-
-		for (const msg of openAiMessages) {
-			if (msg.role === "assistant") {
-				const anyMsg = msg as any
-				const toolCalls = anyMsg.tool_calls
-				if (Array.isArray(toolCalls) && toolCalls.length > 0) {
-					const reasoningDetails = anyMsg.reasoning_details
-					const hasReasoningDetails = Array.isArray(reasoningDetails) && reasoningDetails.length > 0
-					if (!hasReasoningDetails) {
-						for (const tc of toolCalls) {
-							if (tc?.id) droppedToolCallIds.add(tc.id)
-						}
-						// Keep any textual content, but drop the tool_calls themselves.
-						if (anyMsg.content) {
-							sanitized.push({ role: "assistant", content: anyMsg.content } as any)
-						}
-						continue
-					}
-				}
-			}
-
-			if (msg.role === "tool") {
-				const anyMsg = msg as any
-				if (anyMsg.tool_call_id && droppedToolCallIds.has(anyMsg.tool_call_id)) {
-					continue
-				}
-			}
-
-			sanitized.push(msg)
-		}
-
-		openAiMessages = sanitized
-	}
+	// Sanitize messages for Gemini models (removes tool_calls without reasoning_details)
+	openAiMessages = sanitizeGeminiMessages(openAiMessages, model.id)
 
 	// Prompt caching for supported models
 	// This handles cache_control for Claude and MiniMax models
@@ -86,7 +49,7 @@ export async function createVercelAIGatewayStream(
 				{
 					type: "text",
 					text: systemPrompt,
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					cache_control: { type: "ephemeral" },
 				},
 			],
@@ -106,7 +69,7 @@ export async function createVercelAIGatewayStream(
 					lastTextPart = { type: "text", text: "..." }
 					msg.content.push(lastTextPart)
 				}
-				// @ts-ignore-next-line
+				// @ts-expect-error-next-line
 				lastTextPart["cache_control"] = { type: "ephemeral" }
 			}
 		})
@@ -159,7 +122,7 @@ export async function createVercelAIGatewayStream(
 	// Skip reasoning for models that don't support it (e.g., devstral, grok-4)
 	const includeReasoning = !shouldSkipReasoningForModel(model.id)
 
-	// @ts-ignore-next-line
+	// @ts-expect-error-next-line
 	const stream = await client.chat.completions.create({
 		model: model.id,
 		max_tokens: maxTokens,
@@ -172,8 +135,8 @@ export async function createVercelAIGatewayStream(
 		...(model.id.startsWith("openai/o") ? { reasoning_effort: reasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),
 		...getOpenAIToolParams(tools),
-		...(model.id.includes("gemini") && geminiThinkingLevel
-			? { thinking_config: { thinking_level: geminiThinkingLevel, include_thoughts: true } }
+		...(model.id.includes("gemini")
+			? { thinking_config: { ...(geminiThinkingLevel && { thinking_level: geminiThinkingLevel }), include_thoughts: true } }
 			: {}),
 	})
 

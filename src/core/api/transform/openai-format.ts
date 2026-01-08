@@ -145,17 +145,17 @@ export function convertToOpenAiMessages(
 				const thinkingBlock = []
 				if (nonToolMessages.length > 0) {
 					nonToolMessages.forEach((part) => {
-						// @ts-ignore-next-line
+						// @ts-expect-error-next-line
 						if (part.type === "text" && part.reasoning_details) {
-							// @ts-ignore-next-line
+							// @ts-expect-error-next-line
 							if (Array.isArray(part.reasoning_details)) {
-								// @ts-ignore-next-line
+								// @ts-expect-error-next-line
 								reasoningDetails.push(...part.reasoning_details)
 							} else {
-								// @ts-ignore-next-line
+								// @ts-expect-error-next-line
 								reasoningDetails.push(part.reasoning_details)
 							}
-							// @ts-ignore-next-line
+							// @ts-expect-error-next-line
 							// delete part.reasoning_details
 						}
 						if (part.type === "thinking" && part.thinking) {
@@ -216,7 +216,7 @@ export function convertToOpenAiMessages(
 					// Cannot be an empty array. API expects an array with minimum length 1, and will respond with an error if it's empty
 					tool_calls: tool_calls?.length > 0 ? tool_calls : undefined,
 					// Only include reasoning_details when non-empty; sending [] can trigger provider validation issues.
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					reasoning_details: consolidatedReasoningDetails.length > 0 ? consolidatedReasoningDetails : undefined,
 				})
 			}
@@ -403,4 +403,61 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 	}
 
 	return anthropicMessage
+}
+
+/**
+ * Sanitizes OpenAI messages for Gemini models by removing tool_calls that lack reasoning_details.
+ *
+ * Gemini models require thought signatures for tool calls. When switching providers mid-conversation,
+ * historical tool calls may not include Gemini reasoning details, which can poison the next request.
+ * This function drops tool_calls that lack reasoning_details and their paired tool messages.
+ *
+ * @param messages - Array of OpenAI chat completion messages
+ * @param modelId - The model ID to check if sanitization is needed
+ * @returns Sanitized array of messages (unchanged if not a Gemini model)
+ */
+export function sanitizeGeminiMessages(
+	messages: OpenAI.Chat.ChatCompletionMessageParam[],
+	modelId: string,
+): OpenAI.Chat.ChatCompletionMessageParam[] {
+	if (!modelId.includes("gemini")) {
+		return messages
+	}
+
+	const droppedToolCallIds = new Set<string>()
+	const sanitized: OpenAI.Chat.ChatCompletionMessageParam[] = []
+
+	for (const msg of messages) {
+		if (msg.role === "assistant") {
+			const anyMsg = msg as any
+			const toolCalls = anyMsg.tool_calls
+			if (Array.isArray(toolCalls) && toolCalls.length > 0) {
+				const reasoningDetails = anyMsg.reasoning_details
+				const hasReasoningDetails = Array.isArray(reasoningDetails) && reasoningDetails.length > 0
+				if (!hasReasoningDetails) {
+					for (const tc of toolCalls) {
+						if (tc?.id) {
+							droppedToolCallIds.add(tc.id)
+						}
+					}
+					// Keep any textual content, but drop the tool_calls themselves.
+					if (anyMsg.content) {
+						sanitized.push({ role: "assistant", content: anyMsg.content } as any)
+					}
+					continue
+				}
+			}
+		}
+
+		if (msg.role === "tool") {
+			const anyMsg = msg as any
+			if (anyMsg.tool_call_id && droppedToolCallIds.has(anyMsg.tool_call_id)) {
+				continue
+			}
+		}
+
+		sanitized.push(msg)
+	}
+
+	return sanitized
 }
