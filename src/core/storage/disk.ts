@@ -100,6 +100,19 @@ export async function getDocumentsPath(): Promise<string> {
 	return path.join(os.homedir(), "Documents")
 }
 
+/**
+ * Returns the cross-platform path to the Cline home directory (~/.cline).
+ * This works on macOS, Linux, and Windows:
+ * - macOS: /Users/username/.cline
+ * - Linux: /home/username/.cline
+ * - Windows: C:\Users\username\.cline
+ *
+ * This is intended to eventually replace ~/Documents/Cline as the global config location.
+ */
+export function getClineHomePath(): string {
+	return path.join(os.homedir(), ".cline")
+}
+
 export async function ensureTaskDirectoryExists(taskId: string): Promise<string> {
 	return getGlobalStorageDir("tasks", taskId)
 }
@@ -148,13 +161,17 @@ export async function ensureHooksDirectoryExists(): Promise<string> {
 	return clineHooksDir
 }
 
+/**
+ * Returns the global skills directory path (~/.cline/skills).
+ * Creates the directory if it doesn't exist.
+ */
 export async function ensureSkillsDirectoryExists(): Promise<string> {
-	const userDocumentsPath = await getDocumentsPath()
-	const clineSkillsDir = path.join(userDocumentsPath, "Cline", "Skills")
+	const clineSkillsDir = path.join(getClineHomePath(), "skills")
 	try {
 		await fs.mkdir(clineSkillsDir, { recursive: true })
 	} catch (_error) {
-		return path.join(os.homedir(), "Documents", "Cline", "Skills")
+		// Fallback - return the path even if mkdir fails, we'll fail gracefully later
+		return clineSkillsDir
 	}
 	return clineSkillsDir
 }

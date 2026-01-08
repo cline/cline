@@ -24,7 +24,7 @@ describe("Skills Utility Functions", () => {
 
 	// Use path.join for OS-independent paths
 	const TEST_CWD = path.join("/test", "project")
-	const GLOBAL_SKILLS_DIR = path.join("/home", "user", "Documents", "Cline", "Skills")
+	const GLOBAL_SKILLS_DIR = path.join("/home", "user", ".cline", "skills")
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
@@ -40,7 +40,7 @@ describe("Skills Utility Functions", () => {
 		readFileStub = sandbox.stub(fs.promises, "readFile")
 		ensureSkillsDirStub = sandbox.stub(disk, "ensureSkillsDirectoryExists")
 
-		// Default: global skills dir exists
+		// Default: global skills dir
 		ensureSkillsDirStub.resolves(GLOBAL_SKILLS_DIR)
 
 		// Default: no directories exist
