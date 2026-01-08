@@ -3,9 +3,11 @@ import {
 	ClineRulesToggles,
 	RefreshedRules,
 	RuleScope,
+	SkillInfo,
 	ToggleAgentsRuleRequest,
 	ToggleClineRuleRequest,
 	ToggleCursorRuleRequest,
+	ToggleSkillRequest,
 	ToggleWindsurfRuleRequest,
 	ToggleWorkflowRequest,
 } from "@shared/proto/cline/file"
@@ -32,10 +34,13 @@ const ClineRulesToggleModal: React.FC = () => {
 		localAgentsRulesToggles = {},
 		localWorkflowToggles = {},
 		globalWorkflowToggles = {},
+		globalSkillsToggles = {},
+		localSkillsToggles = {},
 		remoteRulesToggles = {},
 		remoteWorkflowToggles = {},
 		remoteConfigSettings = {},
 		hooksEnabled,
+		skillsEnabled,
 		setGlobalClineRulesToggles,
 		setLocalClineRulesToggles,
 		setLocalCursorRulesToggles,
@@ -43,6 +48,8 @@ const ClineRulesToggleModal: React.FC = () => {
 		setLocalAgentsRulesToggles,
 		setLocalWorkflowToggles,
 		setGlobalWorkflowToggles,
+		setGlobalSkillsToggles,
+		setLocalSkillsToggles,
 		setRemoteRulesToggles,
 		setRemoteWorkflowToggles,
 	} = useExtensionState()
@@ -50,6 +57,8 @@ const ClineRulesToggleModal: React.FC = () => {
 	const [workspaceHooks, setWorkspaceHooks] = useState<
 		Array<{ workspaceName: string; hooks: Array<{ name: string; enabled: boolean; absolutePath: string }> }>
 	>([])
+	const [globalSkills, setGlobalSkills] = useState<SkillInfo[]>([])
+	const [localSkills, setLocalSkills] = useState<SkillInfo[]>([])
 
 	const isWindows = !isMacOSOrLinux()
 	const [isVisible, setIsVisible] = useState(false)
@@ -58,7 +67,7 @@ const ClineRulesToggleModal: React.FC = () => {
 	const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 	const [arrowPosition, setArrowPosition] = useState(0)
 	const [menuPosition, setMenuPosition] = useState(0)
-	const [currentView, setCurrentView] = useState<"rules" | "workflows" | "hooks">("rules")
+	const [currentView, setCurrentView] = useState<"rules" | "workflows" | "hooks" | "skills">("rules")
 
 	// Auto-switch to rules tab if hooks become disabled while viewing hooks tab
 	useEffect(() => {
@@ -66,6 +75,13 @@ const ClineRulesToggleModal: React.FC = () => {
 			setCurrentView("rules")
 		}
 	}, [currentView, hooksEnabled])
+
+	// Auto-switch to rules tab if skills become disabled while viewing skills tab
+	useEffect(() => {
+		if (currentView === "skills" && !skillsEnabled) {
+			setCurrentView("rules")
+		}
+	}, [currentView, skillsEnabled])
 
 	useEffect(() => {
 		if (isVisible) {
@@ -142,6 +158,43 @@ const ClineRulesToggleModal: React.FC = () => {
 
 		return () => {
 			abortController.abort()
+			clearInterval(pollInterval)
+		}
+	}, [isVisible, currentView])
+
+	// Refresh skills when skills tab becomes visible
+	useEffect(() => {
+		if (!isVisible || currentView !== "skills") {
+			return
+		}
+
+		let isCancelled = false
+
+		const refreshSkills = () => {
+			if (isCancelled) return
+
+			FileServiceClient.refreshSkills({} as EmptyRequest)
+				.then((response) => {
+					if (!isCancelled) {
+						setGlobalSkills(response.globalSkills || [])
+						setLocalSkills(response.localSkills || [])
+					}
+				})
+				.catch((error) => {
+					if (!isCancelled) {
+						console.error("Failed to refresh skills:", error)
+					}
+				})
+		}
+
+		// Refresh immediately
+		refreshSkills()
+
+		// Poll every 1 second to detect filesystem changes
+		const pollInterval = setInterval(refreshSkills, 1000)
+
+		return () => {
+			isCancelled = true
 			clearInterval(pollInterval)
 		}
 	}, [isVisible, currentView])
@@ -341,6 +394,34 @@ const ClineRulesToggleModal: React.FC = () => {
 			})
 	}
 
+	// Handle toggle for skills
+	const toggleSkill = (isGlobal: boolean, skillPath: string, enabled: boolean) => {
+		FileServiceClient.toggleSkill(
+			ToggleSkillRequest.create({
+				skillPath,
+				isGlobal,
+				enabled,
+			}),
+		)
+			.then((response) => {
+				if (response.globalSkillsToggles) {
+					setGlobalSkillsToggles(response.globalSkillsToggles)
+				}
+				if (response.localSkillsToggles) {
+					setLocalSkillsToggles(response.localSkillsToggles)
+				}
+				// Update local skills state
+				if (isGlobal) {
+					setGlobalSkills((prev) => prev.map((s) => (s.path === skillPath ? { ...s, enabled } : s)))
+				} else {
+					setLocalSkills((prev) => prev.map((s) => (s.path === skillPath ? { ...s, enabled } : s)))
+				}
+			})
+			.catch((error) => {
+				console.error("Error toggling skill:", error)
+			})
+	}
+
 	// Close modal when clicking outside
 	useClickAway(modalRef, () => {
 		setIsVisible(false)
@@ -403,6 +484,11 @@ const ClineRulesToggleModal: React.FC = () => {
 										Hooks
 									</TabButton>
 								)}
+								{skillsEnabled && (
+									<TabButton isActive={currentView === "skills"} onClick={() => setCurrentView("skills")}>
+										Skills
+									</TabButton>
+								)}
 							</div>
 						</div>
 
@@ -441,6 +527,12 @@ const ClineRulesToggleModal: React.FC = () => {
 										href="https://docs.cline.bot/features/slash-commands/workflows">
 										Docs
 									</VSCodeLink>
+								</p>
+							) : currentView === "skills" ? (
+								<p>
+									Skills are reusable instruction sets that Cline can activate on-demand. When a task matches a
+									skill's description, Cline uses the <span className="font-bold">use_skill</span> tool to load
+									the full instructions.
 								</p>
 							) : (
 								<p>
@@ -496,7 +588,7 @@ const ClineRulesToggleModal: React.FC = () => {
 								</div>
 
 								{/* Local Rules Section */}
-								<div style={{ marginBottom: -10 }}>
+								<div className="-mb-2.5">
 									<div className="text-sm font-normal mb-2">Workspace Rules</div>
 									<RulesToggleList
 										isGlobal={false}
@@ -581,7 +673,7 @@ const ClineRulesToggleModal: React.FC = () => {
 								</div>
 
 								{/* Local Workflows Section */}
-								<div style={{ marginBottom: -10 }}>
+								<div className="-mb-2.5">
 									<div className="text-sm font-normal mb-2">Workspace Workflows</div>
 									<RulesToggleList
 										isGlobal={false}
@@ -594,7 +686,7 @@ const ClineRulesToggleModal: React.FC = () => {
 									/>
 								</div>
 							</>
-						) : (
+						) : currentView === "hooks" ? (
 							<>
 								<div className="text-xs text-description mb-4">
 									<p>
@@ -654,8 +746,8 @@ const ClineRulesToggleModal: React.FC = () => {
 								{/* Workspace Hooks - one section per workspace */}
 								{workspaceHooks.map((workspace, index) => (
 									<div
-										key={workspace.workspaceName}
-										style={{ marginBottom: index === workspaceHooks.length - 1 ? -10 : 12 }}>
+										className={index === workspaceHooks.length - 1 ? "-mb-2.5" : "mb-3"}
+										key={workspace.workspaceName}>
 										<div className="text-sm font-normal mb-2">
 											{workspace.workspaceName}/.clinerules/hooks/
 										</div>
@@ -691,7 +783,49 @@ const ClineRulesToggleModal: React.FC = () => {
 									</div>
 								))}
 							</>
-						)}
+						) : currentView === "skills" ? (
+							<>
+								{/* Global Skills Section */}
+								<div className="mb-3">
+									<div className="text-sm font-normal mb-2">Global Skills</div>
+									<div className="flex flex-col gap-0">
+										{globalSkills
+											.sort((a, b) => a.name.localeCompare(b.name))
+											.map((skill) => (
+												<RuleRow
+													enabled={skill.enabled}
+													isGlobal={true}
+													key={skill.path}
+													rulePath={skill.path}
+													ruleType="skill"
+													toggleRule={(path, enabled) => toggleSkill(true, path, enabled)}
+												/>
+											))}
+										<NewRuleRow isGlobal={true} ruleType="skill" />
+									</div>
+								</div>
+
+								{/* Workspace Skills Section */}
+								<div className="-mb-2.5">
+									<div className="text-sm font-normal mb-2">Workspace Skills</div>
+									<div className="flex flex-col gap-0">
+										{localSkills
+											.sort((a, b) => a.name.localeCompare(b.name))
+											.map((skill) => (
+												<RuleRow
+													enabled={skill.enabled}
+													isGlobal={false}
+													key={skill.path}
+													rulePath={skill.path}
+													ruleType="skill"
+													toggleRule={(path, enabled) => toggleSkill(false, path, enabled)}
+												/>
+											))}
+										<NewRuleRow isGlobal={false} ruleType="skill" />
+									</div>
+								</div>
+							</>
+						) : null}
 					</div>
 				</PopupModalContainer>
 			)}

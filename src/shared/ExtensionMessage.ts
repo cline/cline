@@ -105,6 +105,8 @@ export interface ExtensionState {
 	remoteConfigSettings?: Partial<RemoteConfigFields>
 	subagentsEnabled?: boolean
 	skillsEnabled?: boolean
+	globalSkillsToggles?: Record<string, boolean>
+	localSkillsToggles?: Record<string, boolean>
 	nativeToolCallSetting?: boolean
 	enableParallelToolCalling?: boolean
 	backgroundEditEnabled?: boolean
