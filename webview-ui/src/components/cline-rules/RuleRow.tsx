@@ -7,6 +7,27 @@ import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { FileServiceClient } from "@/services/grpc-client"
 
+function isWin32Path(filePath: string): boolean {
+	return /^[a-zA-Z]:\\/.test(filePath)
+}
+
+function splitPath(filePath: string): string[] {
+	const win32 = isWin32Path(filePath)
+	return filePath.split(win32 ? "\\" : "/")
+}
+
+function getDisplayNameFromPath(filePath: string): string {
+	const parts = splitPath(filePath)
+	return parts.at(-1) || filePath
+}
+
+function getSkillDisplayNameFromSkillMdPath(filePath: string): string {
+	const parts = splitPath(filePath)
+	const displayName = getDisplayNameFromPath(filePath)
+	// Path is like /path/to/skill-name/SKILL.md, we want skill-name
+	return parts.at(-2) || displayName
+}
+
 const RuleRow: React.FC<{
 	rulePath: string
 	enabled: boolean
@@ -17,20 +38,11 @@ const RuleRow: React.FC<{
 	alwaysEnabled?: boolean
 	onDeleteSkill?: () => void
 }> = ({ rulePath, enabled, isGlobal, toggleRule, ruleType, isRemote = false, alwaysEnabled = false, onDeleteSkill }) => {
-	// Check if the path type is Windows
-	const win32Path = /^[a-zA-Z]:\\/.test(rulePath)
-	// Get the filename from the path for display
-	const displayName = rulePath.split(win32Path ? "\\" : "/").pop() || rulePath
-
-	// For skills, show the directory name (skill name) instead of SKILL.md
-	const getSkillDisplayName = () => {
-		const parts = rulePath.split(win32Path ? "\\" : "/")
-		// Path is like /path/to/skill-name/SKILL.md, we want skill-name
-		return parts[parts.length - 2] || displayName
-	}
+	const displayName = getDisplayNameFromPath(rulePath)
+	const skillDisplayName = getSkillDisplayNameFromSkillMdPath(rulePath)
 
 	// For remote rules, the rulePath is already the display name
-	const finalDisplayName = isRemote ? rulePath : ruleType === "skill" ? getSkillDisplayName() : displayName
+	const finalDisplayName = isRemote ? rulePath : ruleType === "skill" ? skillDisplayName : displayName
 	const isDisabled = isRemote && alwaysEnabled
 
 	const getRuleTypeIcon = () => {

@@ -1,4 +1,4 @@
-import { CreateHookRequest, RuleFileRequest } from "@shared/proto/index.cline"
+import { CreateHookRequest, CreateSkillRequest, RuleFileRequest } from "@shared/proto/index.cline"
 import { PlusIcon } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useClickAway } from "react-use"
@@ -11,7 +11,6 @@ interface NewRuleRowProps {
 	ruleType?: string
 	existingHooks?: string[]
 	workspaceName?: string
-	onCreateSkill?: (skillName: string) => void
 }
 
 const HOOK_TYPES = [
@@ -25,7 +24,7 @@ const HOOK_TYPES = [
 	{ name: "PreCompact", description: "Executes before conversation compaction" },
 ]
 
-const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType, existingHooks = [], workspaceName, onCreateSkill }) => {
+const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType, existingHooks = [], workspaceName }) => {
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [filename, setFilename] = useState("")
 	const inputRef = useRef<HTMLInputElement>(null)
@@ -93,7 +92,17 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType, existingHoo
 					return
 				}
 
-				onCreateSkill?.(trimmedFilename)
+				try {
+					await FileServiceClient.createSkillFile(
+						CreateSkillRequest.create({
+							skillName: trimmedFilename,
+							isGlobal,
+						}),
+					)
+				} catch (err) {
+					console.error("Error creating skill:", err)
+				}
+
 				setFilename("")
 				setError(null)
 				setIsExpanded(false)

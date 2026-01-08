@@ -1,8 +1,6 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import {
 	ClineRulesToggles,
-	CreateSkillRequest,
-	DeleteSkillRequest,
 	RefreshedRules,
 	RuleScope,
 	SkillInfo,
@@ -424,54 +422,6 @@ const ClineRulesToggleModal: React.FC = () => {
 			})
 	}
 
-	// Handle create skill
-	const createSkill = (isGlobal: boolean, skillName: string) => {
-		FileServiceClient.createSkillFile(
-			CreateSkillRequest.create({
-				skillName,
-				isGlobal,
-			}),
-		)
-			.then((response) => {
-				if (response.globalSkillsToggles) {
-					setGlobalSkillsToggles(response.globalSkillsToggles)
-				}
-				if (response.localSkillsToggles) {
-					setLocalSkillsToggles(response.localSkillsToggles)
-				}
-			})
-			.catch((error) => {
-				console.error("Error creating skill:", error)
-			})
-	}
-
-	// Handle delete skill
-	const deleteSkill = (isGlobal: boolean, skillPath: string) => {
-		FileServiceClient.deleteSkillFile(
-			DeleteSkillRequest.create({
-				skillPath,
-				isGlobal,
-			}),
-		)
-			.then((response) => {
-				if (response.globalSkillsToggles) {
-					setGlobalSkillsToggles(response.globalSkillsToggles)
-				}
-				if (response.localSkillsToggles) {
-					setLocalSkillsToggles(response.localSkillsToggles)
-				}
-				// Update local skills state
-				if (isGlobal) {
-					setGlobalSkills((prev) => prev.filter((s) => s.path !== skillPath))
-				} else {
-					setLocalSkills((prev) => prev.filter((s) => s.path !== skillPath))
-				}
-			})
-			.catch((error) => {
-				console.error("Error deleting skill:", error)
-			})
-	}
-
 	// Close modal when clicking outside
 	useClickAway(modalRef, () => {
 		setIsVisible(false)
@@ -851,11 +801,7 @@ const ClineRulesToggleModal: React.FC = () => {
 													toggleRule={(path, enabled) => toggleSkill(true, path, enabled)}
 												/>
 											))}
-										<NewRuleRow
-											isGlobal={true}
-											onCreateSkill={(name) => createSkill(true, name)}
-											ruleType="skill"
-										/>
+										<NewRuleRow isGlobal={true} ruleType="skill" />
 									</div>
 								</div>
 
@@ -875,11 +821,7 @@ const ClineRulesToggleModal: React.FC = () => {
 													toggleRule={(path, enabled) => toggleSkill(false, path, enabled)}
 												/>
 											))}
-										<NewRuleRow
-											isGlobal={false}
-											onCreateSkill={(name) => createSkill(false, name)}
-											ruleType="skill"
-										/>
+										<NewRuleRow isGlobal={false} ruleType="skill" />
 									</div>
 								</div>
 							</>
