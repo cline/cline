@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write  # For committing version bumps back to repo
+  checks: write  # Required by test workflow
+  pull-requests: write  # Required by test workflow
 
 jobs:
   test:
