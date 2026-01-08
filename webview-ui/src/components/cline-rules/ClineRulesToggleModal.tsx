@@ -588,7 +588,7 @@ const ClineRulesToggleModal: React.FC = () => {
 								</div>
 
 								{/* Local Rules Section */}
-								<div style={{ marginBottom: -10 }}>
+								<div className="-mb-2.5">
 									<div className="text-sm font-normal mb-2">Workspace Rules</div>
 									<RulesToggleList
 										isGlobal={false}
@@ -673,7 +673,7 @@ const ClineRulesToggleModal: React.FC = () => {
 								</div>
 
 								{/* Local Workflows Section */}
-								<div style={{ marginBottom: -10 }}>
+								<div className="-mb-2.5">
 									<div className="text-sm font-normal mb-2">Workspace Workflows</div>
 									<RulesToggleList
 										isGlobal={false}
@@ -746,8 +746,8 @@ const ClineRulesToggleModal: React.FC = () => {
 								{/* Workspace Hooks - one section per workspace */}
 								{workspaceHooks.map((workspace, index) => (
 									<div
-										key={workspace.workspaceName}
-										style={{ marginBottom: index === workspaceHooks.length - 1 ? -10 : 12 }}>
+										className={index === workspaceHooks.length - 1 ? "-mb-2.5" : "mb-3"}
+										key={workspace.workspaceName}>
 										<div className="text-sm font-normal mb-2">
 											{workspace.workspaceName}/.clinerules/hooks/
 										</div>
@@ -806,7 +806,7 @@ const ClineRulesToggleModal: React.FC = () => {
 								</div>
 
 								{/* Workspace Skills Section */}
-								<div style={{ marginBottom: -10 }}>
+								<div className="-mb-2.5">
 									<div className="text-sm font-normal mb-2">Workspace Skills</div>
 									<div className="flex flex-col gap-0">
 										{localSkills
