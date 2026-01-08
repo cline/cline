@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write  # For committing version bumps back to repo
+  contents: read
   checks: write  # Required by test workflow
   pull-requests: write  # Required by test workflow
 
@@ -23,9 +23,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
 
       - name: Check for recent commits
         id: check_commits
@@ -78,58 +75,21 @@ jobs:
         if: steps.check_commits.outputs.skip != 'true' && steps.webview-cache.outputs.cache-hit != 'true'
         run: cd webview-ui && npm ci --include=optional
 
-      - name: Configure Git
-        if: steps.check_commits.outputs.skip != 'true'
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Read and increment nightly version
+      - name: Read nightly version
         if: steps.check_commits.outputs.skip != 'true'
         id: version
         run: |
-          # Read current nightly version and stable version
-          CURRENT_NIGHTLY=$(node -p "require('./cli/package-nightly.json').version")
-          STABLE_VERSION=$(node -p "require('./cli/package.json').version")
-          
-          echo "Current nightly version: $CURRENT_NIGHTLY"
-          echo "Current stable version: $STABLE_VERSION"
-          
-          # Extract nightly number from current nightly version
-          NIGHTLY_NUM=$(echo $CURRENT_NIGHTLY | sed 's/.*-nightly\.//')
-          
-          # Increment nightly number (monotonically increasing)
-          NEW_NIGHTLY_NUM=$((NIGHTLY_NUM + 1))
-          
-          # Use stable version as base for new nightly
-          NEW_VERSION="${STABLE_VERSION}-nightly.${NEW_NIGHTLY_NUM}"
-          
-          echo "New nightly version: $NEW_VERSION"
-          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          # Read version from cli/package-nightly.json
+          VERSION=$(node -p "require('./cli/package-nightly.json').version")
+          echo "Nightly version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Update cli/package.json with nightly version
+      - name: Setup cli/package.json for build
         if: steps.check_commits.outputs.skip != 'true'
         run: |
           # Copy nightly package.json to cli/package.json for build
           cp cli/package-nightly.json cli/package.json
-          
-          # Update version in cli/package.json
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('cli/package.json', 'utf8'));
-            pkg.version = '${{ steps.version.outputs.version }}';
-            fs.writeFileSync('cli/package.json', JSON.stringify(pkg, null, '\t') + '\n');
-          "
-          
-          # Also update cli/package-nightly.json for commit
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('cli/package-nightly.json', 'utf8'));
-            pkg.version = '${{ steps.version.outputs.version }}';
-            fs.writeFileSync('cli/package-nightly.json', JSON.stringify(pkg, null, '\t') + '\n');
-          "
-          
-          echo "Updated cli/package.json and cli/package-nightly.json to version ${{ steps.version.outputs.version }}"
+          echo "Using version ${{ steps.version.outputs.version }} for build"
 
       - name: Download ripgrep binaries
         if: steps.check_commits.outputs.skip != 'true'
@@ -190,13 +150,6 @@ jobs:
           echo "Publishing version ${{ steps.version.outputs.version }} to NPM with tag 'nightly'..."
           cd dist-standalone
           npm publish --tag nightly --access public
-
-      - name: Commit version bump
-        if: steps.check_commits.outputs.skip != 'true'
-        run: |
-          git add cli/package-nightly.json
-          git commit -m "chore: bump nightly version to ${{ steps.version.outputs.version }} [skip ci]"
-          git push
 
       - name: Summary
         if: steps.check_commits.outputs.skip != 'true'

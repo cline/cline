@@ -403,6 +403,11 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["planModeAihubmixModelInfo"]>("planModeAihubmixModelInfo")
 		const planModeNousResearchModelId =
 			context.globalState.get<GlobalStateAndSettings["planModeNousResearchModelId"]>("planModeNousResearchModelId")
+		const planModeVercelAiGatewayModelId =
+			context.globalState.get<GlobalStateAndSettings["planModeVercelAiGatewayModelId"]>("planModeVercelAiGatewayModelId")
+		const planModeVercelAiGatewayModelInfo = context.globalState.get<
+			GlobalStateAndSettings["planModeVercelAiGatewayModelInfo"]
+		>("planModeVercelAiGatewayModelInfo")
 		// Act mode configurations
 		const actModeApiProvider = context.globalState.get<GlobalStateAndSettings["actModeApiProvider"]>("actModeApiProvider")
 		const actModeApiModelId = context.globalState.get<GlobalStateAndSettings["actModeApiModelId"]>("actModeApiModelId")
@@ -478,6 +483,11 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["actModeAihubmixModelId"]>("actModeAihubmixModelId")
 		const actModeAihubmixModelInfo =
 			context.globalState.get<GlobalStateAndSettings["actModeAihubmixModelInfo"]>("actModeAihubmixModelInfo")
+		const actModeVercelAiGatewayModelId =
+			context.globalState.get<GlobalStateAndSettings["actModeVercelAiGatewayModelId"]>("actModeVercelAiGatewayModelId")
+		const actModeVercelAiGatewayModelInfo = context.globalState.get<
+			GlobalStateAndSettings["actModeVercelAiGatewayModelInfo"]
+		>("actModeVercelAiGatewayModelInfo")
 
 		let apiProvider: ApiProvider
 		if (planModeApiProvider) {
@@ -614,6 +624,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeAihubmixModelId,
 			planModeAihubmixModelInfo,
 			planModeNousResearchModelId,
+			planModeVercelAiGatewayModelId,
+			planModeVercelAiGatewayModelInfo,
 			geminiPlanModeThinkingLevel,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
@@ -653,6 +665,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeAihubmixModelId,
 			actModeAihubmixModelInfo,
 			actModeNousResearchModelId,
+			actModeVercelAiGatewayModelId,
+			actModeVercelAiGatewayModelInfo,
 			geminiActModeThinkingLevel,
 
 			// Other global fields
