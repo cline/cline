@@ -95,6 +95,7 @@ import {
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
+import { discoverSkills, getAvailableSkills } from "../context/instructions/user-instructions/skills"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
 import { executeHook } from "../hooks/hook-executor"
@@ -1763,12 +1764,18 @@ export class Task {
 			maxConsecutiveMistakes: this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes"),
 		})
 
+		// Discover and filter available skills (gated by skillsEnabled setting)
+		const skillsEnabled = this.stateManager.getGlobalSettingsKey("skillsEnabled") ?? false
+		const allSkills = skillsEnabled ? await discoverSkills(this.cwd) : []
+		const availableSkills = getAvailableSkills(allSkills)
+
 		const promptContext: SystemPromptContext = {
 			cwd: this.cwd,
 			ide,
 			providerInfo,
 			supportsBrowserUse,
 			mcpHub: this.mcpHub,
+			skills: availableSkills,
 			focusChainSettings: this.stateManager.getGlobalSettingsKey("focusChainSettings"),
 			globalClineRulesFileInstructions,
 			localClineRulesFileInstructions,

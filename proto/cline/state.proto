@@ -230,6 +230,7 @@ message Settings {
   optional bool cline_web_tools_enabled = 134;
   optional bool hooks_enabled = 135;
   optional bool azure_identity = 136;
+  optional bool skills_enabled = 137;
 }
 
 message DictationSettings {
@@ -372,6 +373,7 @@ message UpdateSettingsRequest {
   optional bool enable_parallel_tool_calling = 35;
   optional bool background_edit_enabled = 36;
   optional string oca_reasoning_effort = 37;
+  optional bool skills_enabled = 38;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {
