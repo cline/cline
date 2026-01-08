@@ -1,6 +1,5 @@
-import type { LanguageModelChatSelector } from "../core/api/providers/types"
 import { ApiFormat } from "./proto/cline/models"
-import { ApiHandlerSecrets } from "./storage/state-keys"
+import { ApiHandlerSettings } from "./storage/state-keys"
 
 export type ApiProvider =
 	| "anthropic"
@@ -46,144 +45,12 @@ export type ApiProvider =
 
 export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 
-export interface ApiHandlerOptions {
-	// Global configuration (not mode-specific)
+export interface ApiHandlerOptions extends Partial<ApiHandlerSettings> {
 	ulid?: string // Used to identify the task in API requests
-	liteLlmBaseUrl?: string
-	liteLlmUsePromptCache?: boolean
-	openAiHeaders?: Record<string, string> // Custom headers for OpenAI requests
-	anthropicBaseUrl?: string
-	openRouterProviderSorting?: string
-	awsRegion?: string
-	awsUseCrossRegionInference?: boolean
-	awsUseGlobalInference?: boolean
-	awsBedrockUsePromptCache?: boolean
-	awsAuthentication?: string
-	awsUseProfile?: boolean
-	awsProfile?: string
-	awsBedrockEndpoint?: string
-	claudeCodePath?: string
-	vertexProjectId?: string
-	vertexRegion?: string
-	openAiBaseUrl?: string
-	ollamaBaseUrl?: string
-	ollamaApiOptionsCtxNum?: string
-	lmStudioBaseUrl?: string
-	lmStudioModelId?: string
-	lmStudioMaxTokens?: string
-	geminiBaseUrl?: string
-	requestyBaseUrl?: string
-	fireworksModelMaxCompletionTokens?: number
-	fireworksModelMaxTokens?: number
-	qwenCodeOauthPath?: string
-	azureApiVersion?: string
-	azureIdentity?: boolean
-	qwenApiLine?: string
-	moonshotApiLine?: string
-	asksageApiUrl?: string
-	requestTimeoutMs?: number
-	sapAiResourceGroup?: string
-	sapAiCoreTokenUrl?: string
-	sapAiCoreBaseUrl?: string
-	sapAiCoreUseOrchestrationMode?: boolean
-	difyBaseUrl?: string
-	zaiApiLine?: string
-	hicapApiKey?: string
-	hicapModelId?: string
-	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
-	ocaBaseUrl?: string
-	minimaxApiLine?: string
-	ocaMode?: string
-	aihubmixBaseUrl?: string
-	aihubmixAppCode?: string
-
-	// Plan mode configurations
-	planModeApiModelId?: string
-	planModeThinkingBudgetTokens?: number
-	geminiPlanModeThinkingLevel?: string
-	planModeReasoningEffort?: string
-	planModeVerbosity?: string
-	planModeVsCodeLmModelSelector?: LanguageModelChatSelector
-	planModeAwsBedrockCustomSelected?: boolean
-	planModeAwsBedrockCustomModelBaseId?: string
-	planModeOpenRouterModelId?: string
-	planModeOpenRouterModelInfo?: ModelInfo
-	planModeOpenAiModelId?: string
-	planModeOpenAiModelInfo?: OpenAiCompatibleModelInfo
-	planModeOllamaModelId?: string
-	planModeLmStudioModelId?: string
-	planModeLiteLlmModelId?: string
-	planModeLiteLlmModelInfo?: LiteLLMModelInfo
-	planModeRequestyModelId?: string
-	planModeRequestyModelInfo?: ModelInfo
-	planModeTogetherModelId?: string
-	planModeFireworksModelId?: string
-	planModeSapAiCoreModelId?: string
-	planModeSapAiCoreDeploymentId?: string
-	planModeGroqModelId?: string
-	planModeGroqModelInfo?: ModelInfo
-	planModeBasetenModelId?: string
-	planModeBasetenModelInfo?: ModelInfo
-	planModeHuggingFaceModelId?: string
-	planModeHuggingFaceModelInfo?: ModelInfo
-	planModeHuaweiCloudMaasModelId?: string
-	planModeHuaweiCloudMaasModelInfo?: ModelInfo
-	planModeOcaModelId?: string
-	planModeOcaModelInfo?: OcaModelInfo
-	planModeOcaReasoningEffort?: string
-	planModeAihubmixModelId?: string
-	planModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
-	planModeHicapModelId?: string
-	planModeHicapModelInfo?: ModelInfo
-	planModeNousResearchModelId?: string
-	// Act mode configurations
-
-	// Act mode configurations
-	actModeApiModelId?: string
-	actModeThinkingBudgetTokens?: number
-	geminiActModeThinkingLevel?: string
-	actModeReasoningEffort?: string
-	actModeVerbosity?: string
-	actModeVsCodeLmModelSelector?: LanguageModelChatSelector
-	actModeAwsBedrockCustomSelected?: boolean
-	actModeAwsBedrockCustomModelBaseId?: string
-	actModeOpenRouterModelId?: string
-	actModeOpenRouterModelInfo?: ModelInfo
-	actModeOpenAiModelId?: string
-	actModeOpenAiModelInfo?: OpenAiCompatibleModelInfo
-	actModeOllamaModelId?: string
-	actModeLmStudioModelId?: string
-	actModeLiteLlmModelId?: string
-	actModeLiteLlmModelInfo?: LiteLLMModelInfo
-	actModeRequestyModelId?: string
-	actModeRequestyModelInfo?: ModelInfo
-	actModeTogetherModelId?: string
-	actModeFireworksModelId?: string
-	actModeSapAiCoreModelId?: string
-	actModeSapAiCoreDeploymentId?: string
-	actModeGroqModelId?: string
-	actModeGroqModelInfo?: ModelInfo
-	actModeBasetenModelId?: string
-	actModeBasetenModelInfo?: ModelInfo
-	actModeHuggingFaceModelId?: string
-	actModeHuggingFaceModelInfo?: ModelInfo
-	actModeHuaweiCloudMaasModelId?: string
-	actModeHuaweiCloudMaasModelInfo?: ModelInfo
-	actModeOcaModelId?: string
-	actModeOcaModelInfo?: OcaModelInfo
-	actModeOcaReasoningEffort?: string
-	actModeAihubmixModelId?: string
-	actModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
-	actModeHicapModelId?: string
-	actModeHicapModelInfo?: ModelInfo
-	actModeNousResearchModelId?: string
+	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void // Callback function
 }
 
-export type ApiConfiguration = ApiHandlerOptions &
-	Partial<ApiHandlerSecrets> & {
-		planModeApiProvider?: ApiProvider
-		actModeApiProvider?: ApiProvider
-	}
+export type ApiConfiguration = ApiHandlerOptions
 
 // Models
 

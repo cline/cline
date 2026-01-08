@@ -1,8 +1,8 @@
 import { ApiProvider } from "@shared/api"
 import {
 	applyTransform,
+	GlobalStateAndSettingKeys,
 	GlobalStateAndSettings,
-	GlobalStateKeys,
 	getDefaultValue,
 	isAsyncProperty,
 	isComputedProperty,
@@ -10,17 +10,11 @@ import {
 	LocalStateKeys,
 	SecretKeys,
 	Secrets,
-	SettingsKeys,
 } from "@shared/storage/state-keys"
 import { ExtensionContext } from "vscode"
 import { Controller } from "@/core/controller"
 import { ClineRulesToggles } from "@/shared/cline-rules"
 import { readTaskHistoryFromState } from "../disk"
-
-/**
- * Get all state keys for batch processing
- */
-const GlobalStateAndSettingKeys = [...GlobalStateKeys, ...SettingsKeys] as Array<keyof GlobalStateAndSettings>
 
 export async function readSecretsFromDisk(context: ExtensionContext): Promise<Secrets> {
 	const secrets = await Promise.all(SecretKeys.map((key) => context.secrets.get(key)))
@@ -134,7 +128,7 @@ export async function resetGlobalState(controller: Controller) {
 	// TODO: Reset all workspace states?
 	const context = controller.context
 
-	await Promise.all(GlobalStateAndSettingKeys.map((key) => context.globalState.update(key, undefined)))
+	await Promise.all([...GlobalStateAndSettingKeys].map((key) => context.globalState.update(key, undefined)))
 
 	await Promise.all(SecretKeys.map((key) => context.secrets.delete(key)))
 

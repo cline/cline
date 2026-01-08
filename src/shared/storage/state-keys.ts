@@ -22,8 +22,19 @@ import { UserInfo } from "@shared/UserInfo"
 import { LanguageModelChatSelector } from "vscode"
 
 // ============================================================================
-// SINGLE SOURCE OF TRUTH - Property definitions
+// SINGLE SOURCE OF TRUTH FOR STORAGE KEYS
+// Property definitions
 // ============================================================================
+
+const REMOTE_CONFIG_EXTRA_FIELDS = {
+	remoteConfiguredProviders: { type: [] as string[] },
+	allowedMCPServers: { type: [] as Array<{ id: string }> },
+	remoteMCPServers: { type: undefined as Array<{ name: string; url: string }> | undefined },
+	remoteGlobalRules: { type: undefined as GlobalInstructionsFile[] | undefined },
+	remoteGlobalWorkflows: { type: undefined as GlobalInstructionsFile[] | undefined },
+	blockPersonalRemoteMCPServers: { type: false as boolean },
+	openTelemetryOtlpHeaders: { type: undefined as Record<string, string> | undefined },
+}
 
 const GLOBAL_STATE_FIELDS = {
 	lastShownAnnouncementId: { type: undefined as string | undefined },
@@ -51,104 +62,60 @@ const GLOBAL_STATE_FIELDS = {
 	dismissedBanners: { type: [] as Array<{ bannerId: string; dismissedAt: number }> },
 }
 
-const REMOTE_CONFIG_EXTRA_FIELDS = {
-	remoteConfiguredProviders: { type: [] as string[] },
-	allowedMCPServers: { type: [] as Array<{ id: string }> },
-	remoteMCPServers: { type: undefined as Array<{ name: string; url: string }> | undefined },
-	remoteGlobalRules: { type: undefined as GlobalInstructionsFile[] | undefined },
-	remoteGlobalWorkflows: { type: undefined as GlobalInstructionsFile[] | undefined },
-	blockPersonalRemoteMCPServers: { type: false as boolean },
-	openTelemetryOtlpHeaders: { type: undefined as Record<string, string> | undefined },
-}
-
-const SETTINGS_FIELDS = {
+// Fields that map directly to ApiHandlerOptions in @shared/api.ts
+// NOTE: Keep these in sync with ApiHandlerOptions interface
+const API_HANDLER_SETTINGS_FIELDS = {
+	// Global configuration (not mode-specific)
+	liteLlmBaseUrl: { type: undefined as string | undefined },
+	liteLlmUsePromptCache: { type: undefined as boolean | undefined },
+	openAiHeaders: { type: {} as Record<string, string> },
+	anthropicBaseUrl: { type: undefined as string | undefined },
+	openRouterProviderSorting: { type: undefined as string | undefined },
 	awsRegion: { type: undefined as string | undefined },
 	awsUseCrossRegionInference: { type: undefined as boolean | undefined },
 	awsUseGlobalInference: { type: undefined as boolean | undefined },
 	awsBedrockUsePromptCache: { type: undefined as boolean | undefined },
-	awsBedrockEndpoint: { type: undefined as string | undefined },
-	awsProfile: { type: undefined as string | undefined },
 	awsAuthentication: { type: undefined as string | undefined },
 	awsUseProfile: { type: undefined as boolean | undefined },
+	awsProfile: { type: undefined as string | undefined },
+	awsBedrockEndpoint: { type: undefined as string | undefined },
+	claudeCodePath: { type: undefined as string | undefined },
 	vertexProjectId: { type: undefined as string | undefined },
 	vertexRegion: { type: undefined as string | undefined },
-	requestyBaseUrl: { type: undefined as string | undefined },
 	openAiBaseUrl: { type: undefined as string | undefined },
-	openAiHeaders: { type: {} as Record<string, string> },
 	ollamaBaseUrl: { type: undefined as string | undefined },
 	ollamaApiOptionsCtxNum: { type: undefined as string | undefined },
 	lmStudioBaseUrl: { type: undefined as string | undefined },
 	lmStudioMaxTokens: { type: undefined as string | undefined },
-	anthropicBaseUrl: { type: undefined as string | undefined },
 	geminiBaseUrl: { type: undefined as string | undefined },
-	azureApiVersion: { type: undefined as string | undefined },
-	azureIdentity: { type: undefined as boolean | undefined },
-	openRouterProviderSorting: { type: undefined as string | undefined },
-	autoApprovalSettings: {
-		type: DEFAULT_AUTO_APPROVAL_SETTINGS as AutoApprovalSettings,
-	},
-	globalClineRulesToggles: { type: {} as ClineRulesToggles },
-	globalWorkflowToggles: { type: {} as ClineRulesToggles },
-	browserSettings: {
-		type: DEFAULT_BROWSER_SETTINGS as BrowserSettings,
-		transform: (v: any) => ({ ...DEFAULT_BROWSER_SETTINGS, ...v }),
-	},
-	liteLlmBaseUrl: { type: undefined as string | undefined },
-	liteLlmUsePromptCache: { type: undefined as boolean | undefined },
+	requestyBaseUrl: { type: undefined as string | undefined },
 	fireworksModelMaxCompletionTokens: { type: undefined as number | undefined },
 	fireworksModelMaxTokens: { type: undefined as number | undefined },
+	qwenCodeOauthPath: { type: undefined as string | undefined },
+	azureApiVersion: { type: undefined as string | undefined },
+	azureIdentity: { type: undefined as boolean | undefined },
 	qwenApiLine: { type: undefined as string | undefined },
 	moonshotApiLine: { type: undefined as string | undefined },
-	zaiApiLine: { type: undefined as string | undefined },
-	telemetrySetting: { type: "unset" as TelemetrySetting },
 	asksageApiUrl: { type: undefined as string | undefined },
-	planActSeparateModelsSetting: { type: false as boolean, isComputed: true },
-	enableCheckpointsSetting: { type: true as boolean },
 	requestTimeoutMs: { type: undefined as number | undefined },
-	shellIntegrationTimeout: { type: 4000 as number },
-	defaultTerminalProfile: { type: "default" as string },
-	terminalOutputLineLimit: { type: 500 as number },
-	maxConsecutiveMistakes: { type: 3 as number },
-	subagentTerminalOutputLineLimit: { type: 2000 as number },
+	sapAiResourceGroup: { type: undefined as string | undefined },
 	sapAiCoreTokenUrl: { type: undefined as string | undefined },
 	sapAiCoreBaseUrl: { type: undefined as string | undefined },
-	sapAiResourceGroup: { type: undefined as string | undefined },
 	sapAiCoreUseOrchestrationMode: { type: true as boolean },
-	claudeCodePath: { type: undefined as string | undefined },
-	qwenCodeOauthPath: { type: undefined as string | undefined },
-	strictPlanModeEnabled: { type: true as boolean },
-	yoloModeToggled: { type: false as boolean },
-	useAutoCondense: { type: false as boolean },
-	clineWebToolsEnabled: { type: true as boolean },
-	preferredLanguage: { type: "English" as string },
-	openaiReasoningEffort: { type: "medium" as OpenaiReasoningEffort },
-	mode: { type: "act" as Mode },
-	dictationSettings: {
-		type: DEFAULT_DICTATION_SETTINGS as DictationSettings,
-		transform: (v: any) => ({ ...DEFAULT_DICTATION_SETTINGS, ...v }),
-	},
-	focusChainSettings: { type: DEFAULT_FOCUS_CHAIN_SETTINGS as FocusChainSettings },
-	customPrompt: { type: undefined as "compact" | undefined },
 	difyBaseUrl: { type: undefined as string | undefined },
-	autoCondenseThreshold: { type: 0.75 as number }, // number from 0 to 1
+	zaiApiLine: { type: undefined as string | undefined },
 	ocaBaseUrl: { type: undefined as string | undefined },
 	minimaxApiLine: { type: undefined as string | undefined },
 	ocaMode: { type: "internal" as string },
 	aihubmixBaseUrl: { type: undefined as string | undefined },
 	aihubmixAppCode: { type: undefined as string | undefined },
-	hooksEnabled: { type: false as boolean },
-	subagentsEnabled: { type: false as boolean },
-	enableParallelToolCalling: { type: false as boolean },
-	backgroundEditEnabled: { type: false as boolean },
 
-	// Model-specific settings
-	hicapModelId: { type: undefined as string | undefined },
 	// Plan mode configurations
-	planModeApiProvider: { type: DEFAULT_API_PROVIDER as ApiProvider },
 	planModeApiModelId: { type: undefined as string | undefined },
 	planModeThinkingBudgetTokens: { type: ANTHROPIC_MIN_THINKING_BUDGET as number | undefined },
 	geminiPlanModeThinkingLevel: { type: undefined as string | undefined },
 	planModeReasoningEffort: { type: undefined as string | undefined },
+	planModeVerbosity: { type: undefined as string | undefined },
 	planModeVsCodeLmModelSelector: { type: undefined as LanguageModelChatSelector | undefined },
 	planModeAwsBedrockCustomSelected: { type: undefined as boolean | undefined },
 	planModeAwsBedrockCustomModelBaseId: { type: undefined as string | undefined },
@@ -177,17 +144,18 @@ const SETTINGS_FIELDS = {
 	planModeOcaModelId: { type: undefined as string | undefined },
 	planModeOcaModelInfo: { type: undefined as OcaModelInfo | undefined },
 	planModeOcaReasoningEffort: { type: undefined as string | undefined },
-	planModeHicapModelId: { type: undefined as string | undefined },
-	planModeHicapModelInfo: { type: undefined as ModelInfo | undefined },
 	planModeAihubmixModelId: { type: undefined as string | undefined },
 	planModeAihubmixModelInfo: { type: undefined as OpenAiCompatibleModelInfo | undefined },
+	planModeHicapModelId: { type: undefined as string | undefined },
+	planModeHicapModelInfo: { type: undefined as ModelInfo | undefined },
 	planModeNousResearchModelId: { type: undefined as string | undefined },
+
 	// Act mode configurations
-	actModeApiProvider: { type: DEFAULT_API_PROVIDER as ApiProvider },
 	actModeApiModelId: { type: undefined as string | undefined },
 	actModeThinkingBudgetTokens: { type: ANTHROPIC_MIN_THINKING_BUDGET as number | undefined },
 	geminiActModeThinkingLevel: { type: undefined as string | undefined },
 	actModeReasoningEffort: { type: undefined as string | undefined },
+	actModeVerbosity: { type: undefined as string | undefined },
 	actModeVsCodeLmModelSelector: { type: undefined as LanguageModelChatSelector | undefined },
 	actModeAwsBedrockCustomSelected: { type: undefined as boolean | undefined },
 	actModeAwsBedrockCustomModelBaseId: { type: undefined as string | undefined },
@@ -216,11 +184,58 @@ const SETTINGS_FIELDS = {
 	actModeOcaModelId: { type: undefined as string | undefined },
 	actModeOcaModelInfo: { type: undefined as OcaModelInfo | undefined },
 	actModeOcaReasoningEffort: { type: undefined as string | undefined },
-	actModeHicapModelId: { type: undefined as string | undefined },
-	actModeHicapModelInfo: { type: undefined as ModelInfo | undefined },
 	actModeAihubmixModelId: { type: undefined as string | undefined },
 	actModeAihubmixModelInfo: { type: undefined as OpenAiCompatibleModelInfo | undefined },
+	actModeHicapModelId: { type: undefined as string | undefined },
+	actModeHicapModelInfo: { type: undefined as ModelInfo | undefined },
 	actModeNousResearchModelId: { type: undefined as string | undefined },
+
+	// Model-specific settings
+	planModeApiProvider: { type: DEFAULT_API_PROVIDER as ApiProvider },
+	actModeApiProvider: { type: DEFAULT_API_PROVIDER as ApiProvider },
+
+	// Deprecated model settings
+	hicapModelId: { type: undefined as string | undefined },
+	lmStudioModelId: { type: undefined as string | undefined },
+}
+
+const USER_SETTINGS_FIELDS = {
+	// Settings that are NOT part of ApiHandlerOptions
+	autoApprovalSettings: {
+		type: DEFAULT_AUTO_APPROVAL_SETTINGS as AutoApprovalSettings,
+	},
+	globalClineRulesToggles: { type: {} as ClineRulesToggles },
+	globalWorkflowToggles: { type: {} as ClineRulesToggles },
+	browserSettings: {
+		type: DEFAULT_BROWSER_SETTINGS as BrowserSettings,
+		transform: (v: any) => ({ ...DEFAULT_BROWSER_SETTINGS, ...v }),
+	},
+	telemetrySetting: { type: "unset" as TelemetrySetting },
+	planActSeparateModelsSetting: { type: false as boolean, isComputed: true },
+	enableCheckpointsSetting: { type: true as boolean },
+	shellIntegrationTimeout: { type: 4000 as number },
+	defaultTerminalProfile: { type: "default" as string },
+	terminalOutputLineLimit: { type: 500 as number },
+	maxConsecutiveMistakes: { type: 3 as number },
+	subagentTerminalOutputLineLimit: { type: 2000 as number },
+	strictPlanModeEnabled: { type: true as boolean },
+	yoloModeToggled: { type: false as boolean },
+	useAutoCondense: { type: false as boolean },
+	clineWebToolsEnabled: { type: true as boolean },
+	preferredLanguage: { type: "English" as string },
+	openaiReasoningEffort: { type: "medium" as OpenaiReasoningEffort },
+	mode: { type: "act" as Mode },
+	dictationSettings: {
+		type: DEFAULT_DICTATION_SETTINGS as DictationSettings,
+		transform: (v: any) => ({ ...DEFAULT_DICTATION_SETTINGS, ...v }),
+	},
+	focusChainSettings: { type: DEFAULT_FOCUS_CHAIN_SETTINGS as FocusChainSettings },
+	customPrompt: { type: undefined as "compact" | undefined },
+	autoCondenseThreshold: { type: 0.75 as number }, // number from 0 to 1
+	hooksEnabled: { type: false as boolean },
+	subagentsEnabled: { type: false as boolean },
+	enableParallelToolCalling: { type: false as boolean },
+	backgroundEditEnabled: { type: false as boolean },
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: { type: true as boolean },
@@ -239,21 +254,18 @@ const SETTINGS_FIELDS = {
 	openTelemetryLogMaxQueueSize: { type: 2048 as number | undefined },
 }
 
+const SETTINGS_FIELDS = { ...API_HANDLER_SETTINGS_FIELDS, ...USER_SETTINGS_FIELDS }
+const GLOBAL_STATE_AND_SETTINGS_FIELDS = { ...GLOBAL_STATE_FIELDS, ...SETTINGS_FIELDS }
+
 // ============================================================================
 // SECRET KEYS AND LOCAL STATE - Static definitions
 // ============================================================================
 
-export const ApiAuthSecretsKeys = [
-	"cline:clineAccountId", // Auth_Provider:AccountId
-	"remoteLiteLlmApiKey", // Remote_LiteLLM:ApiKey
-	"ocaApiKey",
-	"ocaRefreshToken",
-	"mcpOAuthSecrets",
-]
 // Secret keys used in Api Configuration
-export const ApiHandlerSecretsKeys = [
+const SECRETS_KEYS = [
 	"apiKey",
-	"clineAccountId",
+	"clineAccountId", // Cline Account ID for Firebase
+	"cline:clineAccountId",
 	"openRouterApiKey",
 	"awsAccessKey",
 	"awsSecretKey",
@@ -291,9 +303,12 @@ export const ApiHandlerSecretsKeys = [
 	"hicapApiKey",
 	"aihubmixApiKey",
 	"nousResearchApiKey",
+	"hicapApiKey",
+	"remoteLiteLlmApiKey",
+	"ocaApiKey",
+	"ocaRefreshToken",
+	"mcpOAuthSecrets",
 ] as const
-
-export const SecretKeys = [...ApiHandlerSecretsKeys, ...ApiAuthSecretsKeys] as const
 
 export const LocalStateKeys = [
 	"localClineRulesToggles",
@@ -313,12 +328,71 @@ type BuildInterface<T extends Record<string, { type: any }>> = { [K in keyof T]:
 export type GlobalState = BuildInterface<typeof GLOBAL_STATE_FIELDS>
 export type Settings = BuildInterface<typeof SETTINGS_FIELDS>
 type RemoteConfigExtra = BuildInterface<typeof REMOTE_CONFIG_EXTRA_FIELDS>
+type ApiHandlerOptionSettings = BuildInterface<typeof API_HANDLER_SETTINGS_FIELDS>
+export type ApiHandlerSettings = ApiHandlerOptionSettings & Secrets
 export type GlobalStateAndSettings = GlobalState & Settings
 export type RemoteConfigFields = GlobalStateAndSettings & RemoteConfigExtra
 
 // ============================================================================
+// GENERATED KEYS AND LOOKUP SETS - Auto-generated from property definitions
+// ============================================================================
+
+export const GlobalStateKeys = new Set(Object.keys(GLOBAL_STATE_FIELDS))
+export const SettingsKeys = new Set(Object.keys(SETTINGS_FIELDS))
+const GlobalStateAndSettingsKeySet = new Set(Object.keys(GLOBAL_STATE_AND_SETTINGS_FIELDS))
+const SecretKeysSet = new Set(SECRETS_KEYS)
+const LocalStateKeysSet = new Set(LocalStateKeys)
+
+export const GlobalStateAndSettingKeys = Array.from(GlobalStateAndSettingsKeySet)
+export const SecretKeys = [...SECRETS_KEYS]
+
+// ============================================================================
+// TYPE ALIASES
+// ============================================================================
+
+export type Secrets = { [K in (typeof SecretKeys)[number]]: string | undefined }
+export type LocalState = { [K in (typeof LocalStateKeys)[number]]: ClineRulesToggles }
+export type SecretKey = (typeof SecretKeys)[number]
+export type GlobalStateKey = keyof GlobalState
+export type LocalStateKey = keyof LocalState
+export type SettingsKey = keyof Settings
+export type GlobalStateAndSettingsKey = keyof GlobalStateAndSettings
+
+// ============================================================================
 // GENERATED DEFAULTS - Auto-generated from property definitions
 // ============================================================================
+
+export const GLOBAL_STATE_DEFAULTS = extractDefaults(GLOBAL_STATE_FIELDS)
+export const SETTINGS_DEFAULTS = extractDefaults(SETTINGS_FIELDS)
+export const SETTINGS_TRANSFORMS = extractTransforms(SETTINGS_FIELDS)
+export const ASYNC_PROPERTIES = extractMetadata({ ...GLOBAL_STATE_FIELDS, ...SETTINGS_FIELDS }, "isAsync")
+export const COMPUTED_PROPERTIES = extractMetadata({ ...GLOBAL_STATE_FIELDS, ...SETTINGS_FIELDS }, "isComputed")
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+export const isGlobalStateKey = (key: string): key is GlobalStateKey => GlobalStateKeys.has(key)
+export const isSettingsKey = (key: string): key is SettingsKey => SettingsKeys.has(key)
+export const isSecretKey = (key: string): key is SecretKey => SecretKeysSet.has(key as SecretKey)
+export const isLocalStateKey = (key: string): key is LocalStateKey => LocalStateKeysSet.has(key as LocalStateKey)
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+export const isAsyncProperty = (key: string): boolean => ASYNC_PROPERTIES.has(key)
+export const isComputedProperty = (key: string): boolean => COMPUTED_PROPERTIES.has(key)
+
+export const getDefaultValue = <K extends GlobalStateAndSettingsKey>(key: K): GlobalStateAndSettings[K] | undefined => {
+	return ((GLOBAL_STATE_DEFAULTS as any)[key] ?? (SETTINGS_DEFAULTS as any)[key]) as GlobalStateAndSettings[K] | undefined
+}
+
+export const hasTransform = (key: string): boolean => key in SETTINGS_TRANSFORMS
+export const applyTransform = <T>(key: string, value: T): T => {
+	const transform = SETTINGS_TRANSFORMS[key]
+	return transform ? transform(value) : value
+}
 
 function extractDefaults<T extends Record<string, any>>(props: T): Partial<BuildInterface<T>> {
 	return Object.fromEntries(
@@ -327,13 +401,6 @@ function extractDefaults<T extends Record<string, any>>(props: T): Partial<Build
 			.filter(([_, value]) => value !== undefined),
 	) as Partial<BuildInterface<T>>
 }
-
-export const GLOBAL_STATE_DEFAULTS = extractDefaults(GLOBAL_STATE_FIELDS)
-export const SETTINGS_DEFAULTS = extractDefaults(SETTINGS_FIELDS)
-
-// ============================================================================
-// GENERATED METADATA - Auto-generated from property definitions
-// ============================================================================
 
 function extractTransforms<T extends Record<string, any>>(props: T): Record<string, (value: any) => any> {
 	return Object.fromEntries(
@@ -350,50 +417,3 @@ function extractMetadata<T extends Record<string, any>>(props: T, field: string)
 			.map(([key]) => key),
 	)
 }
-
-export const SETTINGS_TRANSFORMS = extractTransforms(SETTINGS_FIELDS)
-export const ASYNC_PROPERTIES = extractMetadata({ ...GLOBAL_STATE_FIELDS, ...SETTINGS_FIELDS }, "isAsync")
-export const COMPUTED_PROPERTIES = extractMetadata({ ...GLOBAL_STATE_FIELDS, ...SETTINGS_FIELDS }, "isComputed")
-
-// ============================================================================
-// GENERATED KEYS AND LOOKUP SETS - Auto-generated from property definitions
-// ============================================================================
-
-export const GlobalStateKeys = new Set(Object.keys(GLOBAL_STATE_FIELDS))
-export const SettingsKeys = new Set(Object.keys(SETTINGS_FIELDS))
-
-// ============================================================================
-// TYPE ALIASES
-// ============================================================================
-
-export type Secrets = { [K in (typeof SecretKeys)[number]]: string | undefined }
-export type ApiHandlerSecretKey = (typeof ApiHandlerSecretsKeys)[number]
-export type ApiHandlerSecrets = { [K in ApiHandlerSecretKey]: string | undefined }
-export type LocalState = { [K in (typeof LocalStateKeys)[number]]: ClineRulesToggles }
-export type SecretKey = (typeof SecretKeys)[number]
-export type GlobalStateKey = keyof GlobalState
-export type LocalStateKey = keyof LocalState
-export type SettingsKey = keyof Settings
-export type GlobalStateAndSettingsKey = keyof GlobalStateAndSettings
-
-// ============================================================================
-// UTILITY FUNCTIONS
-// ============================================================================
-
-export const isGlobalStateKey = (key: string): key is GlobalStateKey => GlobalStateKeys.has(key)
-export const isSettingsKey = (key: string): key is SettingsKey => SettingsKeys.has(key)
-export const isSecretKey = (key: string): key is SecretKey => SecretKeys.includes(key as SecretKey)
-export const isLocalStateKey = (key: string): key is LocalStateKey => LocalStateKeys.includes(key as LocalStateKey)
-
-export const getDefaultValue = <K extends GlobalStateAndSettingsKey>(key: K): GlobalStateAndSettings[K] | undefined => {
-	return ((GLOBAL_STATE_DEFAULTS as any)[key] ?? (SETTINGS_DEFAULTS as any)[key]) as GlobalStateAndSettings[K] | undefined
-}
-
-export const hasTransform = (key: string): boolean => key in SETTINGS_TRANSFORMS
-export const applyTransform = <T>(key: string, value: T): T => {
-	const transform = SETTINGS_TRANSFORMS[key]
-	return transform ? transform(value) : value
-}
-
-export const isAsyncProperty = (key: string): boolean => ASYNC_PROPERTIES.has(key)
-export const isComputedProperty = (key: string): boolean => COMPUTED_PROPERTIES.has(key)
