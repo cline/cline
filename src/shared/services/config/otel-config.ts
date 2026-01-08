@@ -116,7 +116,7 @@ export function remoteConfigToOtelConfig(settings: Partial<RemoteConfigFields>):
 
 function getOtelConfig(): OpenTelemetryClientConfig {
 	return {
-		enabled: BUILD_CONSTANTS.OTEL_TELEMETRY_ENABLED === "1",
+		enabled: BUILD_CONSTANTS.OTEL_TELEMETRY_ENABLED === "1" || BUILD_CONSTANTS.OTEL_TELEMETRY_ENABLED === "true",
 		metricsExporter: BUILD_CONSTANTS.OTEL_METRICS_EXPORTER,
 		logsExporter: BUILD_CONSTANTS.OTEL_LOGS_EXPORTER,
 		otlpProtocol: BUILD_CONSTANTS.OTEL_EXPORTER_OTLP_PROTOCOL,
@@ -158,7 +158,7 @@ function getOtelConfig(): OpenTelemetryClientConfig {
  */
 function getRuntimeOtelConfig(): OpenTelemetryClientConfig {
 	return {
-		enabled: process.env.CLINE_OTEL_TELEMETRY_ENABLED === "1",
+		enabled: process.env.CLINE_OTEL_TELEMETRY_ENABLED === "true",
 		metricsExporter: process.env.CLINE_OTEL_METRICS_EXPORTER,
 		logsExporter: process.env.CLINE_OTEL_LOGS_EXPORTER,
 		otlpProtocol: process.env.CLINE_OTEL_EXPORTER_OTLP_PROTOCOL,

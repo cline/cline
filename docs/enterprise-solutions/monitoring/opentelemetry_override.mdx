@@ -58,7 +58,7 @@ Enable OpenTelemetry and configure an OTLP endpoint:
 
 ```bash
 # Enable OpenTelemetry
-export CLINE_OTEL_TELEMETRY_ENABLED=1
+export CLINE_OTEL_TELEMETRY_ENABLED=true
 
 # Configure metrics and logs export
 export CLINE_OTEL_METRICS_EXPORTER=otlp
@@ -75,7 +75,7 @@ export CLINE_OTEL_EXPORTER_OTLP_PROTOCOL=grpc
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `CLINE_OTEL_TELEMETRY_ENABLED` | Enable OpenTelemetry (`1`) | Disabled |
+| `CLINE_OTEL_TELEMETRY_ENABLED` | Enable OpenTelemetry (`true`) | Disabled |
 | `CLINE_OTEL_METRICS_EXPORTER` | Metrics exporter type (`console`, `otlp`, or both) | None |
 | `CLINE_OTEL_LOGS_EXPORTER` | Logs exporter type (`console`, `otlp`, or both) | None |
 | `CLINE_OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP endpoint URL | None |
@@ -120,7 +120,7 @@ export CLINE_OTEL_LOG_MAX_QUEUE_SIZE=2048
 Export to Datadog using their OTLP endpoint:
 
 ```bash
-export CLINE_OTEL_TELEMETRY_ENABLED=1
+export CLINE_OTEL_TELEMETRY_ENABLED=true
 export CLINE_OTEL_METRICS_EXPORTER=otlp
 export CLINE_OTEL_LOGS_EXPORTER=otlp
 export CLINE_OTEL_EXPORTER_OTLP_ENDPOINT=https://api.datadoghq.com
@@ -132,7 +132,7 @@ export CLINE_OTEL_EXPORTER_OTLP_HEADERS="dd-api-key=YOUR_DD_API_KEY"
 Export to New Relic:
 
 ```bash
-export CLINE_OTEL_TELEMETRY_ENABLED=1
+export CLINE_OTEL_TELEMETRY_ENABLED=true
 export CLINE_OTEL_METRICS_EXPORTER=otlp
 export CLINE_OTEL_LOGS_EXPORTER=otlp
 export CLINE_OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net:4317
@@ -144,7 +144,7 @@ export CLINE_OTEL_EXPORTER_OTLP_HEADERS="api-key=YOUR_NEW_RELIC_LICENSE_KEY"
 Export to Grafana Cloud:
 
 ```bash
-export CLINE_OTEL_TELEMETRY_ENABLED=1
+export CLINE_OTEL_TELEMETRY_ENABLED=true
 export CLINE_OTEL_METRICS_EXPORTER=otlp
 export CLINE_OTEL_LOGS_EXPORTER=otlp
 export CLINE_OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-us-central-0.grafana.net/otlp
@@ -158,7 +158,7 @@ Test your configuration with console output before sending to a real endpoint:
 
 ```bash
 # Enable console output to see what data would be exported
-export CLINE_OTEL_TELEMETRY_ENABLED=1
+export CLINE_OTEL_TELEMETRY_ENABLED=true
 export CLINE_OTEL_METRICS_EXPORTER=console
 export CLINE_OTEL_LOGS_EXPORTER=console
 ```
@@ -173,7 +173,7 @@ Then launch Cline and check the console output for metrics and logs.
    ```bash
    echo $CLINE_OTEL_TELEMETRY_ENABLED
    ```
-   Should output `1`
+   Should output `true`
 
 2. **Check exporters are configured:**
    ```bash
