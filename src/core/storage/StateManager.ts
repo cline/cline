@@ -4,23 +4,22 @@ import {
 	GlobalStateAndSettings,
 	GlobalStateAndSettingsKey,
 	GlobalStateKey,
+	isSecretKey,
+	isSettingsKey,
 	LocalState,
 	LocalStateKey,
 	RemoteConfigFields,
 	SecretKey,
+	SecretKeys,
 	Secrets,
 	Settings,
 	SettingsKey,
+	SettingsKeys,
 } from "@shared/storage/state-keys"
 import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/index.host"
-import {
-	categorizeApiConfigurationKeys,
-	getApiConfigurationSecretKeys,
-	getApiConfigurationSettingsKeys,
-} from "@/shared/storage/api-configuration-helpers"
 import {
 	getTaskHistoryStateFilePath,
 	readTaskHistoryFromState,
@@ -490,7 +489,24 @@ export class StateManager {
 		}
 
 		// Automatically categorize the API configuration keys
-		const { settingsUpdates, secretsUpdates } = categorizeApiConfigurationKeys(apiConfiguration)
+		const { settingsUpdates, secretsUpdates } = Object.entries(apiConfiguration).reduce(
+			(acc, [key, value]) => {
+				if (key === undefined || value === undefined) {
+					return acc // Skip undefined values
+				}
+
+				if (isSecretKey(key)) {
+					// This is a secret key
+					acc.secretsUpdates[key as keyof Secrets] = value as any
+				} else if (isSettingsKey(key)) {
+					// This is a settings key
+					acc.settingsUpdates[key as keyof Settings] = value as any
+				}
+
+				return acc
+			},
+			{ settingsUpdates: {} as Partial<Settings>, secretsUpdates: {} as Partial<Secrets> },
+		)
 
 		// Batch update settings (stored in global state)
 		if (Object.keys(settingsUpdates).length > 0) {
@@ -795,15 +811,11 @@ export class StateManager {
 	 * Construct API configuration from cached component keys
 	 */
 	private constructApiConfigurationFromCache(): ApiConfiguration {
-		// Get keys dynamically from STATE_DEFINITION and SecretKeys
-		const settingsKeys = getApiConfigurationSettingsKeys()
-		const secretKeys = getApiConfigurationSecretKeys()
-
 		// Build configuration object
 		const config: any = {}
 
 		// Add all secrets
-		for (const key of secretKeys) {
+		for (const key of SecretKeys) {
 			config[key] = this.getSecret(key)
 		}
 
@@ -816,7 +828,7 @@ export class StateManager {
 		}
 
 		// Add all settings with task override support
-		for (const key of settingsKeys) {
+		for (const key of SettingsKeys) {
 			config[key] = this.getSettingWithOverride(key)
 		}
 

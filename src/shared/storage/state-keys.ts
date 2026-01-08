@@ -338,19 +338,6 @@ export type GlobalStateAndSettings = GlobalState & Settings
 export type RemoteConfigFields = GlobalStateAndSettings & RemoteConfigExtra
 
 // ============================================================================
-// GENERATED KEYS AND LOOKUP SETS - Auto-generated from property definitions
-// ============================================================================
-
-export const GlobalStateKeys = new Set(Object.keys(GLOBAL_STATE_FIELDS))
-export const SettingsKeys = new Set(Object.keys(SETTINGS_FIELDS))
-const GlobalStateAndSettingsKeySet = new Set(Object.keys(GLOBAL_STATE_AND_SETTINGS_FIELDS))
-const SecretKeysSet = new Set(SECRETS_KEYS)
-const LocalStateKeysSet = new Set(LocalStateKeys)
-
-export const GlobalStateAndSettingKeys = Array.from(GlobalStateAndSettingsKeySet)
-export const SecretKeys = [...SECRETS_KEYS]
-
-// ============================================================================
 // TYPE ALIASES
 // ============================================================================
 
@@ -363,6 +350,17 @@ export type SettingsKey = keyof Settings
 export type GlobalStateAndSettingsKey = keyof GlobalStateAndSettings
 
 // ============================================================================
+// GENERATED KEYS AND LOOKUP SETS - Auto-generated from property definitions
+// ============================================================================
+
+const GlobalStateKeys = new Set(Object.keys(GLOBAL_STATE_FIELDS))
+const SettingsKeysSet = new Set(Object.keys(SETTINGS_FIELDS))
+const GlobalStateAndSettingsKeySet = new Set(Object.keys(GLOBAL_STATE_AND_SETTINGS_FIELDS))
+
+export const SecretKeys = Array.from(SECRETS_KEYS)
+export const SettingsKeys = Array.from(SettingsKeysSet) as (keyof Settings)[]
+export const GlobalStateAndSettingKeys = Array.from(GlobalStateAndSettingsKeySet) as GlobalStateAndSettingsKey[]
+
 // GENERATED DEFAULTS - Auto-generated from property definitions
 // ============================================================================
 
@@ -377,9 +375,9 @@ export const COMPUTED_PROPERTIES = extractMetadata({ ...GLOBAL_STATE_FIELDS, ...
 // ============================================================================
 
 export const isGlobalStateKey = (key: string): key is GlobalStateKey => GlobalStateKeys.has(key)
-export const isSettingsKey = (key: string): key is SettingsKey => SettingsKeys.has(key)
-export const isSecretKey = (key: string): key is SecretKey => SecretKeysSet.has(key as SecretKey)
-export const isLocalStateKey = (key: string): key is LocalStateKey => LocalStateKeysSet.has(key as LocalStateKey)
+export const isSettingsKey = (key: string): key is SettingsKey => SettingsKeysSet.has(key)
+export const isSecretKey = (key: string): key is SecretKey => new Set(SECRETS_KEYS).has(key as SecretKey)
+export const isLocalStateKey = (key: string): key is LocalStateKey => new Set(LocalStateKeys).has(key as LocalStateKey)
 
 // ============================================================================
 // UTILITY FUNCTIONS
