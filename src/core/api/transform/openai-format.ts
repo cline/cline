@@ -145,17 +145,16 @@ export function convertToOpenAiMessages(
 				const thinkingBlock = []
 				if (nonToolMessages.length > 0) {
 					nonToolMessages.forEach((part) => {
-						// @ts-expect-error-next-line
+						// @ts-expect-error - reasoning_details may exist on text parts from providers
 						if (part.type === "text" && part.reasoning_details) {
-							// @ts-expect-error-next-line
+							// @ts-expect-error
 							if (Array.isArray(part.reasoning_details)) {
-								// @ts-expect-error-next-line
+								// @ts-expect-error
 								reasoningDetails.push(...part.reasoning_details)
 							} else {
-								// @ts-expect-error-next-line
+								// @ts-expect-error
 								reasoningDetails.push(part.reasoning_details)
 							}
-							// @ts-expect-error-next-line
 							// delete part.reasoning_details
 						}
 						if (part.type === "thinking" && part.thinking) {

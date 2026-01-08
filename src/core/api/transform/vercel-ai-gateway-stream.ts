@@ -94,6 +94,10 @@ export async function createVercelAIGatewayStream(
 		topP = 0.95
 		openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 	}
+	if (model.id.startsWith("google/gemini-3.0") || model.id === "google/gemini-3.0") {
+		// Recommended value from google
+		temperature = 1.0
+	}
 
 	// Reasoning/thinking budget configuration
 	let reasoning: { max_tokens: number } | undefined
@@ -135,8 +139,8 @@ export async function createVercelAIGatewayStream(
 		...(model.id.startsWith("openai/o") ? { reasoning_effort: reasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),
 		...getOpenAIToolParams(tools),
-		...(model.id.includes("gemini")
-			? { thinking_config: { ...(geminiThinkingLevel && { thinking_level: geminiThinkingLevel }), include_thoughts: true } }
+		...(model.id.includes("gemini") && geminiThinkingLevel
+			? { thinking_config: { thinking_level: geminiThinkingLevel, include_thoughts: true } }
 			: {}),
 	})
 
