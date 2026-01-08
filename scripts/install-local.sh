@@ -22,7 +22,7 @@ echo ""
 # Always rebuild CLI to ensure latest changes
 echo -e "${CYAN}→${NC} ${DIM}Rebuilding CLI binaries...${NC}"
 cd "$PROJECT_ROOT"
-if npm run compile-cli 2>&1 | grep -E "(built|error|Error)" || true; then
+if npm run build:cli:all-platforms 2>&1 | grep -E "(built|error|Error)" || true; then
     echo -e "${GREEN}✓${NC} CLI binaries rebuilt"
 else
     echo -e "${YELLOW}⚠${NC}  CLI build may have issues - check output above"
