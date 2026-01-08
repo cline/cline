@@ -35,6 +35,16 @@ export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sun
 
 export const DEFAULT_PLATFORM = "unknown"
 
+/**
+ * Task status types representing the current state of a task
+ * - "active": Task is actively streaming/processing
+ * - "done": Task completed successfully
+ * - "error": Task encountered an error
+ * - "cancelled": Task was cancelled/aborted by user
+ * - "pending": Task is waiting for user response/approval
+ */
+export type ActiveTaskStatus = "active" | "done" | "error" | "cancelled" | "pending"
+
 export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__"
 
 export interface ExtensionState {
@@ -73,8 +83,7 @@ export interface ExtensionState {
 	lastCompletedCommandTs?: number
 	userInfo?: UserInfo
 	// Multi-task support
-	activeTasks?: Array<{ taskId: string; isStreaming: boolean }>
-	currentTaskId?: string
+	activeTasks?: Array<{ taskId: string; isStreaming: boolean; status?: ActiveTaskStatus }>
 	version: string
 	distinctId: string
 	globalClineRulesToggles: ClineRulesToggles

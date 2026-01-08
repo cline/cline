@@ -44,8 +44,6 @@ service TaskService {
   rpc explainChanges(ExplainChangesRequest) returns (Empty);
   // Switches to a different active task
   rpc switchTask(StringRequest) returns (BooleanResponse);
-  // Gets all currently active tasks
-  rpc getActiveTasks(EmptyRequest) returns (ActiveTasksResponse);
   // Cancels a specific task by ID
   rpc cancelTaskById(StringRequest) returns (Empty);
 }

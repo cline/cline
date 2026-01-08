@@ -962,14 +962,16 @@ export class Controller {
 			autoCondenseThreshold,
 			backgroundCommandRunning: this.backgroundCommandRunning,
 			backgroundCommandTaskId: this.backgroundCommandTaskId,
-			// Multi-task support: include all active tasks
+			// Multi-task support: include all active tasks with status
 			activeTasks: Array.from(this.activeTasks.entries()).map(([taskId, task]) => {
+				const lastMessage = task?.messageStateHandler?.getClineMessages()?.at(-1)
+				const { getTaskStatus } = require("@core/task/TaskState")
 				return {
 					taskId,
 					isStreaming: task?.taskState?.isStreaming || false,
+					status: task?.taskState ? getTaskStatus(task.taskState, lastMessage) : "pending",
 				}
 			}),
-			currentTaskId: this.task?.taskId,
 			// NEW: Add workspace information
 			workspaceRoots: this.workspaceManager?.getRoots() ?? [],
 			primaryRootIndex: this.workspaceManager?.getPrimaryIndex() ?? 0,
@@ -1026,17 +1028,6 @@ export class Controller {
 
 		await this.postStateToWebview()
 		return true
-	}
-
-	/**
-	 * Gets all currently active tasks
-	 * @returns Array of task IDs and their basic info
-	 */
-	getActiveTasks(): Array<{ taskId: string; task: Task }> {
-		return Array.from(this.activeTasks.entries()).map(([taskId, task]) => ({
-			taskId,
-			task,
-		}))
 	}
 
 	/**
