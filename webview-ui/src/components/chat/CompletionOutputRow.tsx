@@ -3,11 +3,11 @@ import { cn } from "@/lib/utils"
 import { MarkdownRow } from "./MarkdownRow"
 import "./CompletionOutputRow.css"
 import { Int64Request } from "@shared/proto/cline/common"
-import { CheckIcon, FilePlus2Icon, MessageSquareTextIcon } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { CheckIcon } from "lucide-react"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { CopyButton } from "../common/CopyButton"
+import SuccessButton from "../common/SuccessButton"
 import { QuoteButtonState } from "./ChatRow"
 import QuoteButton from "./QuoteButton"
 
@@ -41,7 +41,7 @@ export const CompletionOutputRow = memo(
 		const lineCount = outputLines.length
 		const shouldAutoShow = lineCount <= 5
 		return (
-			<div className="rounded-sm border border-success/20">
+			<div>
 				<div className="rounded-sm border border-success/20 overflow-visible bg-success/10 transition-border duration-300 ease-in-out hover:border-success p-2">
 					{/* Title */}
 					<div className={cn(headClassNames, "justify-between")}>
@@ -88,9 +88,6 @@ export const CompletionOutputRow = memo(
 
 CompletionOutputRow.displayName = "CompletionOutputRow"
 
-const ACTION_BUTTON_CLASSNAMES =
-	"flex-1 border border-editor-group-border rounded-xs px-3 py-2 flex items-center justify-center transition-border duration-200 ease-in-out disabled:cursor-wait py-2"
-
 const CompletionOutputActionRow = memo(
 	({
 		seeNewChangesDisabled,
@@ -106,9 +103,8 @@ const CompletionOutputActionRow = memo(
 		messageTs: number
 	}) => {
 		return (
-			<div className="mt-4 flex flex-row gap-2">
-				<Button
-					className={cn(ACTION_BUTTON_CLASSNAMES)}
+			<div style={{ paddingTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+				<SuccessButton
 					disabled={seeNewChangesDisabled}
 					onClick={() => {
 						setSeeNewChangesDisabled(true)
@@ -118,14 +114,16 @@ const CompletionOutputActionRow = memo(
 							}),
 						).catch((err) => console.error("Failed to show task completion view changes:", err))
 					}}
-					variant="success">
-					<FilePlus2Icon className="size-2" />
+					style={{
+						cursor: seeNewChangesDisabled ? "wait" : "pointer",
+						width: "100%",
+					}}>
+					<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
 					View Changes
-				</Button>
+				</SuccessButton>
 
 				{PLATFORM_CONFIG.type === PlatformType.VSCODE && (
-					<Button
-						className={cn(ACTION_BUTTON_CLASSNAMES)}
+					<SuccessButton
 						disabled={explainChangesDisabled}
 						onClick={() => {
 							setExplainChangesDisabled(true)
@@ -137,10 +135,13 @@ const CompletionOutputActionRow = memo(
 								setExplainChangesDisabled(false)
 							})
 						}}
-						variant="success">
-						<MessageSquareTextIcon className="size-2" />
+						style={{
+							cursor: explainChangesDisabled ? "wait" : "pointer",
+							width: "100%",
+						}}>
+						<i className="codicon codicon-comment-discussion" style={{ marginRight: 6 }} />
 						{explainChangesDisabled ? "Explaining..." : "Explain Changes"}
-					</Button>
+					</SuccessButton>
 				)}
 			</div>
 		)
