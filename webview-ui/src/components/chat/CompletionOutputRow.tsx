@@ -42,9 +42,9 @@ export const CompletionOutputRow = memo(
 		const shouldAutoShow = lineCount <= 5
 		return (
 			<div>
-				<div className="rounded-sm border border-success/20 overflow-visible bg-success/10 transition-border duration-300 ease-in-out hover:border-success p-2">
+				<div className="rounded-sm border border-success/20 overflow-visible bg-success/10 p-2 pt-3">
 					{/* Title */}
-					<div className={cn(headClassNames, "justify-between")}>
+					<div className={cn(headClassNames, "justify-between px-1")}>
 						<div className="flex gap-2 items-center">
 							<CheckIcon className="size-3 text-success" />
 							<span className="text-success font-bold">Task Completed</span>
@@ -52,14 +52,11 @@ export const CompletionOutputRow = memo(
 						<CopyButton textToCopy={text} />
 					</div>
 					{/* Content */}
-					<div
-						className={cn("w-full relative pb-0 overflow-visible border-t-1 border-description/20 rounded-b-sm", {
-							"pb-2": !shouldAutoShow,
-						})}>
+					<div className="w-full relative overflow-visible border-t-1 border-description/20 rounded-b-sm">
 						<div
 							className={cn(
 								"completion-output-content",
-								"scroll-smooth p-2 overflow-y-auto w-full [&_hr]:opacity-20 rounded-sm max-h-[400px]",
+								"scroll-smooth p-2 pt-3 overflow-y-auto w-full [&_hr]:opacity-20 [&_p:last-child]:mb-0 rounded-sm max-h-[400px]",
 								{
 									"overflow-y-visible": shouldAutoShow,
 								},
