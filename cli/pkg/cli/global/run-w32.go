@@ -192,8 +192,8 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 	if _, err := os.Stat(clineCorePath); os.IsNotExist(err) {
 		// Development mode: Try ../../dist-standalone/cline-core.js
 		// This handles the case where we're running from cli/bin/cline
-		devClineCorePath := filepath.Join(binDir, "..", "..", "dist-standalone", "cline-core.js")
-		devInstallDir := filepath.Join(binDir, "..", "..", "dist-standalone")
+		devClineCorePath := filepath.Join(binDir, "..", "dist-standalone", "cline-core.js")
+		devInstallDir := filepath.Join(binDir, "..", "dist-standalone")
 
 		if Config.Verbose {
 			fmt.Printf("Primary location not found, trying development path: %s\n", devClineCorePath)
@@ -273,6 +273,7 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 
 	if Config.Verbose {
 		fmt.Printf("NODE_PATH set to: %s\n", nodePath)
+		fmt.Printf("Attempting to run command: %s\n", cmd)
 	}
 
 	if err := cmd.Start(); err != nil {
