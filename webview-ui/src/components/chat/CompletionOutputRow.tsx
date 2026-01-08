@@ -49,7 +49,7 @@ export const CompletionOutputRow = memo(
 							<CheckIcon className="size-3 text-success" />
 							<span className="text-success font-bold">Task Completed</span>
 						</div>
-						<CopyButton textToCopy={text} />
+						<CopyButton className="text-success" textToCopy={text} />
 					</div>
 					{/* Content */}
 					<div className="w-full relative overflow-visible border-t-1 border-description/20 rounded-b-sm">

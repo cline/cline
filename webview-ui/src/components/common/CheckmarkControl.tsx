@@ -177,7 +177,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 			<DottedLine $isCheckedOut={isCheckpointCheckedOut} className="hover-show-inverse" />
 			<div className="hover-content">
 				<span
-					className={cn("text-xs text-description shrink-0", {
+					className={cn("text-[9px] text-description shrink-0", {
 						"text-link": isCheckpointCheckedOut,
 					})}>
 					{isCheckpointCheckedOut ? "Checkpoint (restored)" : "Checkpoint"}
