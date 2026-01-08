@@ -168,20 +168,20 @@ const ClineRulesToggleModal: React.FC = () => {
 			return
 		}
 
-		const abortController = new AbortController()
+		let isCancelled = false
 
 		const refreshSkills = () => {
-			if (abortController.signal.aborted) return
+			if (isCancelled) return
 
 			FileServiceClient.refreshSkills({} as EmptyRequest)
 				.then((response) => {
-					if (!abortController.signal.aborted) {
+					if (!isCancelled) {
 						setGlobalSkills(response.globalSkills || [])
 						setLocalSkills(response.localSkills || [])
 					}
 				})
 				.catch((error) => {
-					if (!abortController.signal.aborted) {
+					if (!isCancelled) {
 						console.error("Failed to refresh skills:", error)
 					}
 				})
@@ -194,7 +194,7 @@ const ClineRulesToggleModal: React.FC = () => {
 		const pollInterval = setInterval(refreshSkills, 1000)
 
 		return () => {
-			abortController.abort()
+			isCancelled = true
 			clearInterval(pollInterval)
 		}
 	}, [isVisible, currentView])
