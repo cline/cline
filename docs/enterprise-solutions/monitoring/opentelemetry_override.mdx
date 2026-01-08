@@ -75,7 +75,7 @@ export CLINE_OTEL_EXPORTER_OTLP_PROTOCOL=grpc
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `CLINE_OTEL_TELEMETRY_ENABLED` | Enable OpenTelemetry (`1` or `true`) | Disabled |
+| `CLINE_OTEL_TELEMETRY_ENABLED` | Enable OpenTelemetry (`1`) | Disabled |
 | `CLINE_OTEL_METRICS_EXPORTER` | Metrics exporter type (`console`, `otlp`, or both) | None |
 | `CLINE_OTEL_LOGS_EXPORTER` | Logs exporter type (`console`, `otlp`, or both) | None |
 | `CLINE_OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP endpoint URL | None |
@@ -173,7 +173,7 @@ Then launch Cline and check the console output for metrics and logs.
    ```bash
    echo $CLINE_OTEL_TELEMETRY_ENABLED
    ```
-   Should output `1` or `true`
+   Should output `1`
 
 2. **Check exporters are configured:**
    ```bash
