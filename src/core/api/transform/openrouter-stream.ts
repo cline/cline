@@ -36,6 +36,46 @@ export async function createOpenRouterStream(
 		model.id = model.id.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
 	}
 
+	// Gemini models require thought signatures for tool calls. When switching providers mid-conversation,
+	// historical tool calls may not include Gemini/OpenRouter reasoning details, which can poison the next request.
+	// Bandaid: for Gemini only, drop tool_calls that lack reasoning_details and their paired tool messages.
+	if (model.id.includes("gemini")) {
+		const droppedToolCallIds = new Set<string>()
+		const sanitized: OpenAI.Chat.ChatCompletionMessageParam[] = []
+
+		for (const msg of openAiMessages) {
+			if (msg.role === "assistant") {
+				const anyMsg = msg as any
+				const toolCalls = anyMsg.tool_calls
+				if (Array.isArray(toolCalls) && toolCalls.length > 0) {
+					const reasoningDetails = anyMsg.reasoning_details
+					const hasReasoningDetails = Array.isArray(reasoningDetails) && reasoningDetails.length > 0
+					if (!hasReasoningDetails) {
+						for (const tc of toolCalls) {
+							if (tc?.id) droppedToolCallIds.add(tc.id)
+						}
+						// Keep any textual content, but drop the tool_calls themselves.
+						if (anyMsg.content) {
+							sanitized.push({ role: "assistant", content: anyMsg.content } as any)
+						}
+						continue
+					}
+				}
+			}
+
+			if (msg.role === "tool") {
+				const anyMsg = msg as any
+				if (anyMsg.tool_call_id && droppedToolCallIds.has(anyMsg.tool_call_id)) {
+					continue
+				}
+			}
+
+			sanitized.push(msg)
+		}
+
+		openAiMessages = sanitized
+	}
+
 	// prompt caching: https://openrouter.ai/docs/prompt-caching
 	// this was initially specifically for claude models (some models may 'support prompt caching' automatically without this)
 	// handles direct model.id match logic
@@ -87,6 +127,10 @@ export async function createOpenRouterStream(
 		case "openai/o1-preview":
 		case "openai/o1-mini":
 		case "openai/chatgpt-4o-latest":
+		// Minimax models
+		case "minimax/minimax-m2":
+		case "minimax/minimax-m2.1":
+		case "minimax/minimax-m2.1-lightning":
 			openAiMessages[0] = {
 				role: "system",
 				content: [

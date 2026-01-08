@@ -9,12 +9,13 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/cline/cli/pkg/cli/slash"
 )
 
 // InputType represents the type of input being collected
 type InputType int
 
-const INPUT_WIDTH = 46 
+const INPUT_WIDTH = 46
 
 const (
 	InputTypeMessage InputType = iota
@@ -24,11 +25,11 @@ const (
 
 // InputSubmitMsg is sent when the user submits input
 type InputSubmitMsg struct {
-	Value          string
-	InputType      InputType
-	Approved       bool // For approval type
-	NeedsFeedback  bool // For approval type
-	NoAskAgain     bool // For approval type - indicates "don't ask again" was selected
+	Value         string
+	InputType     InputType
+	Approved      bool // For approval type
+	NeedsFeedback bool // For approval type
+	NoAskAgain    bool // For approval type - indicates "don't ask again" was selected
 }
 
 // InputCancelMsg is sent when the user cancels input (Ctrl+C)
@@ -36,8 +37,8 @@ type InputCancelMsg struct{}
 
 // ChangeInputTypeMsg changes the current input type
 type ChangeInputTypeMsg struct {
-	InputType InputType
-	Title     string
+	InputType   InputType
+	Title       string
 	Placeholder string
 }
 
@@ -57,7 +58,7 @@ type InputModel struct {
 	placeholder string
 	currentMode string // "plan" or "act"
 	width       int
-	lastHeight  int    // Track height for cleanup on submit
+	lastHeight  int // Track height for cleanup on submit
 
 	// For approval type
 	approvalOptions []string
@@ -66,6 +67,9 @@ type InputModel struct {
 
 	// Styles (huh-inspired theme)
 	styles fieldStyles
+
+	// Slash command autocomplete dropdown
+	completion CompletionModel
 }
 
 // fieldStyles holds the styling for the input field
@@ -115,12 +119,17 @@ func newFieldStyles() fieldStyles {
 
 // NewInputModel creates a new input model
 func NewInputModel(inputType InputType, title, placeholder, currentMode string) InputModel {
+	return NewInputModelWithRegistry(inputType, title, placeholder, currentMode, nil)
+}
+
+// NewInputModelWithRegistry creates a new input model with slash command autocomplete support
+func NewInputModelWithRegistry(inputType InputType, title, placeholder, currentMode string, registry *slash.Registry) InputModel {
 	ta := textarea.New()
 	ta.Placeholder = placeholder
 	ta.Focus()
 	ta.CharLimit = 0
 	ta.ShowLineNumbers = false
-	ta.Prompt = ""  // Remove prompt prefix (this is what adds the inner border!)
+	ta.Prompt = "" // Remove prompt prefix (this is what adds the inner border!)
 	ta.SetHeight(5)
 	// Don't set width here - let WindowSizeMsg handle it
 	ta.SetWidth(INPUT_WIDTH)
@@ -138,11 +147,11 @@ func NewInputModel(inputType InputType, title, placeholder, currentMode string) 
 		cursorColor = lipgloss.Color("39") // Blue for act
 	}
 
-	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()   // No cursor line highlighting
-	ta.FocusedStyle.EndOfBuffer = lipgloss.NewStyle()  // No end-of-buffer styling
+	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()  // No cursor line highlighting
+	ta.FocusedStyle.EndOfBuffer = lipgloss.NewStyle() // No end-of-buffer styling
 	ta.FocusedStyle.Placeholder = styles.placeholder
 	ta.FocusedStyle.Text = styles.textArea
-	ta.FocusedStyle.Prompt = lipgloss.NewStyle()       // No prompt styling
+	ta.FocusedStyle.Prompt = lipgloss.NewStyle() // No prompt styling
 	ta.Cursor.Style = lipgloss.NewStyle().Foreground(cursorColor)
 	ta.Cursor.TextStyle = styles.textArea
 
@@ -154,6 +163,7 @@ func NewInputModel(inputType InputType, title, placeholder, currentMode string) 
 		currentMode: currentMode,
 		width:       0, // Will be set by first WindowSizeMsg
 		styles:      styles,
+		completion:  NewCompletionModel(registry),
 	}
 
 	// For approval type, set up options
@@ -217,13 +227,6 @@ func (m *InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	default:
-		// Forward all other messages to textarea (including blink ticks)
-		if !m.suspended && (m.inputType == InputTypeMessage || m.inputType == InputTypeFeedback) {
-			m.textarea, cmd = m.textarea.Update(msg)
-			return m, cmd
-		}
-
 	case tea.KeyMsg:
 		if m.suspended {
 			return m, nil
@@ -231,6 +234,31 @@ func (m *InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Handle keys for text input types (Message/Feedback)
 		if m.inputType == InputTypeMessage || m.inputType == InputTypeFeedback {
+			// When completion menu is visible, let it handle navigation keys first
+			if m.completion.Visible() {
+				// ctrl+c always cancels, even with dropdown open
+				if msg.String() == "ctrl+c" {
+					return m, func() tea.Msg { return InputCancelMsg{} }
+				}
+
+				var handled bool
+				m.completion, cmd, handled = m.completion.Update(msg)
+				if handled {
+					// Check if a completion was selected
+					if applied := m.completion.Apply(); applied != "" {
+						m.textarea.SetValue(applied)
+						m.textarea.CursorEnd()
+					}
+					return m, cmd
+				}
+
+				// Key not handled by completion - pass to textarea and update completion
+				m.textarea, cmd = m.textarea.Update(msg)
+				m.completion.CheckInput(m.textarea.Value())
+				return m, cmd
+			}
+
+			// Normal key handling when completion menu is NOT visible
 			switch msg.String() {
 			case "ctrl+c":
 				return m, func() tea.Msg { return InputCancelMsg{} }
@@ -238,6 +266,11 @@ func (m *InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "ctrl+e":
 				// Open external editor (like huh does)
 				return m, m.openEditor()
+
+			case "tab":
+				// Tab without dropdown visible - do nothing special
+				m.textarea, cmd = m.textarea.Update(msg)
+				return m, cmd
 
 			case "enter":
 				// Intercept enter for submit (textarea handles alt+enter and ctrl+j for newlines)
@@ -249,8 +282,9 @@ func (m *InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, cmd
 			}
 
-			// Pass all other keys to textarea (including alt+enter, ctrl+j for newlines)
+			// Pass all other keys to textarea, then check for slash completion
 			m.textarea, cmd = m.textarea.Update(msg)
+			m.completion.CheckInput(m.textarea.Value())
 			return m, cmd
 		}
 
@@ -275,6 +309,13 @@ func (m *InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			}
+		}
+
+	default:
+		// Forward all other messages to textarea (including blink ticks)
+		if !m.suspended && (m.inputType == InputTypeMessage || m.inputType == InputTypeFeedback) {
+			m.textarea, cmd = m.textarea.Update(msg)
+			return m, cmd
 		}
 	}
 
@@ -365,6 +406,11 @@ func (m *InputModel) View() string {
 	case InputTypeMessage, InputTypeFeedback:
 		parts = append(parts, m.textarea.View())
 
+		// Render completion dropdown if visible
+		if m.completion.Visible() {
+			parts = append(parts, m.completion.View())
+		}
+
 	case InputTypeApproval:
 		var options []string
 		for i, option := range m.approvalOptions {
@@ -411,7 +457,7 @@ func (m *InputModel) Clone() *InputModel {
 	ta.ShowLineNumbers = false
 	ta.Prompt = ""
 	ta.SetHeight(5)
-	ta.SetWidth(INPUT_WIDTH) 
+	ta.SetWidth(INPUT_WIDTH)
 	ta.Focus()
 
 	// Configure keybindings
@@ -446,6 +492,7 @@ func (m *InputModel) Clone() *InputModel {
 		selectedOption:  m.selectedOption,
 		pendingApproval: m.pendingApproval, // Preserve approval decision
 		styles:          m.styles,
+		completion:      NewCompletionModel(m.completion.registry), // Preserve registry, start fresh state
 	}
 
 	return clone
@@ -494,4 +541,9 @@ func (m *InputModel) openEditor() tea.Cmd {
 
 		return editorFinishedMsg{content: content, err: err}
 	})
+}
+
+// SetSlashRegistry sets the slash command registry for autocomplete
+func (m *InputModel) SetSlashRegistry(registry *slash.Registry) {
+	m.completion.SetRegistry(registry)
 }

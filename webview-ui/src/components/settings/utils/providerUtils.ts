@@ -76,6 +76,7 @@ import { Mode } from "@shared/storage/types"
 export function getModelsForProvider(
 	provider: ApiProvider,
 	apiConfiguration?: ApiConfiguration,
+	dynamicModels: { liteLlmModels?: Record<string, ModelInfo>; basetenModels?: Record<string, ModelInfo> } = {},
 ): Record<string, ModelInfo> | undefined {
 	switch (provider) {
 		case "anthropic":
@@ -115,7 +116,7 @@ export function getModelsForProvider(
 		case "groq":
 			return groqModels
 		case "baseten":
-			return basetenModels
+			return dynamicModels?.basetenModels || basetenModels
 		case "sapaicore":
 			return sapAiCoreModels
 		case "huawei-cloud-maas":
@@ -165,7 +166,6 @@ export interface NormalizedApiConfig {
 export function normalizeApiConfiguration(
 	apiConfiguration: ApiConfiguration | undefined,
 	currentMode: Mode,
-	liteLlmModels?: Record<string, ModelInfo>,
 ): NormalizedApiConfig {
 	const provider =
 		(currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "anthropic"
@@ -324,16 +324,17 @@ export function normalizeApiConfiguration(
 					supportsImages: false, // VSCode LM API currently doesn't support images
 				},
 			}
-		case "litellm":
+		case "litellm": {
 			const liteLlmModelId =
 				currentMode === "plan" ? apiConfiguration?.planModeLiteLlmModelId : apiConfiguration?.actModeLiteLlmModelId
-			// model info lookup
-			const liteLlmModelInfo = liteLlmModels?.[liteLlmModelId || ""]
+			const liteLlmModelInfo =
+				currentMode === "plan" ? apiConfiguration?.planModeLiteLlmModelInfo : apiConfiguration?.actModeLiteLlmModelInfo
 			return {
 				selectedProvider: provider,
 				selectedModelId: liteLlmModelId || "",
 				selectedModelInfo: liteLlmModelInfo || liteLlmModelInfoSaneDefaults,
 			}
+		}
 		case "xai":
 			return getProviderData(xaiModels, xaiDefaultModelId)
 		case "moonshot":
@@ -368,7 +369,7 @@ export function normalizeApiConfiguration(
 				selectedModelId: groqModelId || groqDefaultModelId,
 				selectedModelInfo: groqModelInfo || groqModels[groqDefaultModelId],
 			}
-		case "baseten":
+		case "baseten": {
 			const basetenModelId =
 				currentMode === "plan" ? apiConfiguration?.planModeBasetenModelId : apiConfiguration?.actModeBasetenModelId
 			const basetenModelInfo =
@@ -383,6 +384,7 @@ export function normalizeApiConfiguration(
 						description: "Baseten model",
 					},
 			}
+		}
 		case "sapaicore":
 			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId)
 		case "huawei-cloud-maas":
@@ -815,4 +817,100 @@ export function filterOpenRouterModelIds(modelIds: string[], provider: ApiProvid
 
 	// For OpenRouter and Vercel AI Gateway providers: exclude Cline-specific models
 	return modelIds.filter((id) => !id.startsWith("cline/"))
+}
+
+// Helper to get provider-specific configuration info and empty state guidance
+export const getProviderInfo = (
+	provider: ApiProvider,
+	apiConfiguration: any,
+	effectiveMode: "plan" | "act",
+): { modelId?: string; baseUrl?: string; helpText: string } => {
+	switch (provider) {
+		case "baseten":
+			return {
+				modelId:
+					effectiveMode === "plan" ? apiConfiguration.planModeBasetenModelId : apiConfiguration.actModeBasetenModelId,
+				baseUrl: apiConfiguration.basetenBaseUrl,
+				helpText: "Start Baseten and load a model to begin",
+			}
+		case "lmstudio":
+			return {
+				modelId:
+					effectiveMode === "plan" ? apiConfiguration.planModeLmStudioModelId : apiConfiguration.actModeLmStudioModelId,
+				baseUrl: apiConfiguration.lmStudioBaseUrl,
+				helpText: "Start LM Studio and load a model to begin",
+			}
+		case "ollama":
+			return {
+				modelId:
+					effectiveMode === "plan" ? apiConfiguration.planModeOllamaModelId : apiConfiguration.actModeOllamaModelId,
+				baseUrl: apiConfiguration.ollamaBaseUrl,
+				helpText: "Run `ollama serve` and pull a model",
+			}
+		case "litellm":
+			return {
+				modelId:
+					effectiveMode === "plan" ? apiConfiguration.planModeLiteLlmModelId : apiConfiguration.actModeLiteLlmModelId,
+				baseUrl: apiConfiguration.liteLlmBaseUrl,
+				helpText: "Add your LiteLLM proxy URL in settings",
+			}
+		case "openai":
+			return {
+				modelId:
+					effectiveMode === "plan" ? apiConfiguration.planModeOpenAiModelId : apiConfiguration.actModeOpenAiModelId,
+				baseUrl: apiConfiguration.openAiBaseUrl,
+				helpText: "Add your OpenAI API key and endpoint",
+			}
+		case "vscode-lm":
+			return {
+				modelId: undefined,
+				baseUrl: undefined,
+				helpText: "Select a VS Code language model from settings",
+			}
+		case "requesty":
+			return {
+				modelId:
+					effectiveMode === "plan" ? apiConfiguration.planModeRequestyModelId : apiConfiguration.actModeRequestyModelId,
+				baseUrl: apiConfiguration.requestyBaseUrl,
+				helpText: "Add your Requesty API key in settings",
+			}
+		case "together":
+			return {
+				modelId:
+					effectiveMode === "plan" ? apiConfiguration.planModeTogetherModelId : apiConfiguration.actModeTogetherModelId,
+				baseUrl: undefined,
+				helpText: "Add your Together AI API key in settings",
+			}
+		case "dify":
+			return {
+				modelId: undefined,
+				baseUrl: apiConfiguration.difyBaseUrl,
+				helpText: "Configure your Dify workflow URL and API key",
+			}
+		case "hicap":
+			return {
+				modelId: effectiveMode === "plan" ? apiConfiguration.planModeHicapModelId : apiConfiguration.actModeHicapModelId,
+				baseUrl: undefined,
+				helpText: "Add your HiCap API key in settings",
+			}
+		case "oca":
+			return {
+				modelId: effectiveMode === "plan" ? apiConfiguration.planModeOcaModelId : apiConfiguration.actModeOcaModelId,
+				baseUrl: apiConfiguration.ocaBaseUrl,
+				helpText: "Configure your OCA endpoint in settings",
+			}
+		case "aihubmix":
+			return {
+				modelId:
+					effectiveMode === "plan" ? apiConfiguration.planModeAihubmixModelId : apiConfiguration.actModeAihubmixModelId,
+				baseUrl: apiConfiguration.aihubmixBaseUrl,
+				helpText: "Add your AIHubMix API key in settings",
+			}
+		default:
+			return {
+				modelId: undefined,
+				baseUrl: undefined,
+				helpText: "Configure this provider in model settings",
+			}
+	}
 }

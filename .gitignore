@@ -8,12 +8,14 @@ tmp
 
 .DS_Store
 .idea
+.husky/_/
 
 pnpm-lock.yaml
 
 .clineignore
 .venv
 .actrc
+CLAUDE.local.md
 
 webview-ui/src/**/*.js
 webview-ui/src/**/*.js.map
@@ -27,6 +29,8 @@ coverage-unit
 
 *evals.env
 .env
+
+.worktrees
 
 ## Generated files ##
 src/generated/

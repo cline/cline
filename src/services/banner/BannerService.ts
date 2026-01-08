@@ -89,12 +89,14 @@ export class BannerService {
 
 			const ideType = await this.getIdeType()
 			const extensionVersion = await this.getExtensionVersion()
+			const osType = await this.getOSType()
 
 			const urlObj = new URL("/banners/v1/messages", this._baseUrl)
 			urlObj.searchParams.set("ide", ideType)
 			if (extensionVersion) {
 				urlObj.searchParams.set("extension_version", extensionVersion)
 			}
+			urlObj.searchParams.set("os", osType)
 
 			const url = urlObj.toString()
 			Logger.log(`BannerService: Fetching banners from ${url}`)
@@ -171,56 +173,67 @@ export class BannerService {
 			}
 
 			const apiConfiguration = this._controller.stateManager.getApiConfiguration()
-			const hasAnyProvider = rules.providers.some((provider) => {
+			const currentMode = this._controller.stateManager.getGlobalSettingsKey("mode")
+			const selectedProvider =
+				currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider
+
+			if (!selectedProvider) {
+				Logger.log(`BannerService: Banner ${banner.id} filtered by client - no provider selected for ${currentMode} mode`)
+				return false
+			}
+
+			const hasMatchingProvider = rules.providers.some((provider) => {
+				// Normalize provider names for comparison
 				switch (provider) {
 					case "anthropic":
 					case "claude-code":
-						return !!apiConfiguration?.apiKey
+						return selectedProvider === "anthropic"
 					case "openai":
 					case "openai-native":
-						return !!apiConfiguration?.openAiApiKey || !!apiConfiguration?.openAiNativeApiKey
-					case "openrouter":
-						return !!apiConfiguration?.openRouterApiKey
-					case "bedrock":
-						return !!apiConfiguration?.awsAccessKey || !!apiConfiguration?.awsBedrockApiKey
-					case "gemini":
-						return !!apiConfiguration?.geminiApiKey
-					case "deepseek":
-						return !!apiConfiguration?.deepSeekApiKey
+						return selectedProvider === "openai" || selectedProvider === "openai-native"
 					case "qwen":
 					case "qwen-code":
-						return !!apiConfiguration?.qwenApiKey
-					case "mistral":
-						return !!apiConfiguration?.mistralApiKey
-					case "ollama":
-						return !!apiConfiguration?.ollamaApiKey
-					case "xai":
-						return !!apiConfiguration?.xaiApiKey
-					case "cerebras":
-						return !!apiConfiguration?.cerebrasApiKey
-					case "groq":
-						return !!apiConfiguration?.groqApiKey
-					case "cline":
-						return (
-							apiConfiguration?.planModeApiProvider === "cline" || apiConfiguration?.actModeApiProvider === "cline"
-						)
+						return selectedProvider === "qwen"
 					default:
-						return false
+						// For any other providers, do a direct string comparison
+						return selectedProvider === provider
 				}
 			})
 
-			if (!hasAnyProvider) {
+			if (!hasMatchingProvider) {
 				Logger.log(
-					`BannerService: Banner ${banner.id} filtered by client - user doesn't have any of these providers configured: ${rules.providers.join(", ")}`,
+					`BannerService: Banner ${banner.id} filtered by client - selected provider '${selectedProvider}' doesn't match any of these required providers: ${rules.providers.join(", ")}`,
 				)
 			}
 
-			return hasAnyProvider
+			return hasMatchingProvider
 		} catch (error) {
 			Logger.log(
 				`BannerService: Error parsing provider rules for banner ${banner.id}: ${error instanceof Error ? error.message : String(error)}`,
 			)
 			return true
+		}
+	}
+
+	/**
+	 * Gets the current Operating System
+	 * @returns OS type (windows, linux, macos or unknown)
+	 */
+	private async getOSType(): Promise<string> {
+		try {
+			switch (process.platform) {
+				case "win32":
+					return "windows"
+				case "linux":
+					return "linux"
+				case "darwin":
+					return "macos"
+				default:
+					return "unknown"
+			}
+		} catch (error) {
+			Logger.error("BannerService: Error getting OS type", error)
+			return "unknown"
 		}
 	}
 

@@ -53,6 +53,11 @@ export const recommendedModels = [
 		label: "BEST",
 	},
 	{
+		id: "google/gemini-3-flash-preview",
+		description: "Intelligent model built for speed and price efficiency",
+		label: "NEW",
+	},
+	{
 		id: "anthropic/claude-opus-4.5",
 		description: "State-of-the-art for complex coding",
 		label: "HOT",
@@ -71,13 +76,13 @@ export const recommendedModels = [
 
 export const freeModels = [
 	{
-		id: "x-ai/grok-code-fast-1",
-		description: "Fast inference with strong coding performance",
+		id: "minimax/minimax-m2.1",
+		description: "Open source model with solid performance",
 		label: "FREE",
 	},
 	{
-		id: "minimax/minimax-m2",
-		description: "Open source model with solid performance",
+		id: "x-ai/grok-code-fast-1",
+		description: "Fast inference with strong coding performance",
 		label: "FREE",
 	},
 	{

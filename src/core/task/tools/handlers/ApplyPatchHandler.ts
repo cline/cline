@@ -43,10 +43,6 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 	private config?: TaskConfig
 	private pathResolver?: PathResolver
 	private providerOps?: FileProviderOperations
-	private partialPreviewState?: {
-		originalFiles: Record<string, string>
-		currentPreviewPath?: string
-	}
 
 	constructor(private validator: ToolValidator) {}
 
@@ -88,19 +84,11 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		}
 	}
 
-	private ensurePartialPreviewState(): { originalFiles: Record<string, string>; currentPreviewPath?: string } {
-		if (!this.partialPreviewState) {
-			this.partialPreviewState = { originalFiles: {} }
-		}
-		return this.partialPreviewState
-	}
-
 	private async previewPatchStream(rawInput: string, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
 		const config = uiHelpers.getConfig()
 		const provider = config.services.diffViewProvider
 		this.initializeHelpers(config)
 
-		const state = this.ensurePartialPreviewState()
 		const lines = this.stripBashWrapper(rawInput.split("\n"))
 
 		// Extract the first operation path and type
@@ -174,17 +162,6 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			)
 			.catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
 
-		const requiresOpen =
-			!provider.isEditing || state.currentPreviewPath !== targetResolution.resolvedPath || provider.editType === undefined
-
-		const needsCreateEditor = actionType === PatchActionType.ADD || (actionType === PatchActionType.UPDATE && !!movePath)
-
-		if (requiresOpen) {
-			provider.editType = needsCreateEditor ? "create" : "modify"
-			await provider.open(targetResolution.absolutePath, { displayPath: targetResolution.resolvedPath })
-			state.currentPreviewPath = targetResolution.resolvedPath
-		}
-
 		const stream: { content: string | undefined } = { content: undefined }
 
 		switch (actionType) {
@@ -225,12 +202,6 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		if (stream.content === undefined) {
 			return
 		}
-
-		try {
-			await provider.update(stream.content, false)
-		} catch {
-			// Ignore streaming errors
-		}
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
@@ -252,7 +223,6 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				// Ignore reset errors
 			}
 		}
-		this.partialPreviewState = undefined
 
 		try {
 			const lines = this.preprocessLines(rawInput)
@@ -339,7 +309,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 					if (result.finalContent) {
 						responseLines.push(`\n<final_file_content path="${path}">`)
 						responseLines.push(result.finalContent)
-						responseLines.push(`\n</final_file_content>`)
+						responseLines.push(`</final_file_content>`)
 					}
 					if (result.newProblemsMessage) {
 						responseLines.push(`\n\n${result.newProblemsMessage}`)
@@ -525,7 +495,6 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			return content
 		}
 
-		const endsWithNewline = content.endsWith("\n")
 		const lines = content.split("\n")
 		const result: string[] = []
 		let currentIndex = 0
@@ -561,9 +530,8 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 		// Copy remaining lines
 		result.push(...lines.slice(currentIndex))
-		const joined = result.join("\n")
 
-		return endsWithNewline && !joined.endsWith("\n") ? `${joined}\n` : joined
+		return result.join("\n")
 	}
 
 	private async applyCommit(commit: Commit): Promise<Record<string, FileOpsResult>> {

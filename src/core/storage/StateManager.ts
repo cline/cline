@@ -520,6 +520,7 @@ export class StateManager {
 			doubaoApiKey,
 			mistralApiKey,
 			azureApiVersion,
+			azureIdentity,
 			openRouterProviderSorting,
 			liteLlmBaseUrl,
 			liteLlmApiKey,
@@ -744,6 +745,7 @@ export class StateManager {
 			anthropicBaseUrl,
 			geminiBaseUrl,
 			azureApiVersion,
+			azureIdentity,
 			openRouterProviderSorting,
 			liteLlmBaseUrl,
 			liteLlmUsePromptCache,
@@ -1143,8 +1145,14 @@ export class StateManager {
 			awsProfile: this.taskStateCache["awsProfile"] || this.globalStateCache["awsProfile"],
 			awsUseProfile: this.taskStateCache["awsUseProfile"] || this.globalStateCache["awsUseProfile"],
 			awsAuthentication: this.taskStateCache["awsAuthentication"] || this.globalStateCache["awsAuthentication"],
-			vertexProjectId: this.taskStateCache["vertexProjectId"] || this.globalStateCache["vertexProjectId"],
-			vertexRegion: this.taskStateCache["vertexRegion"] || this.globalStateCache["vertexRegion"],
+			vertexProjectId:
+				this.remoteConfigCache["vertexProjectId"] ||
+				this.taskStateCache["vertexProjectId"] ||
+				this.globalStateCache["vertexProjectId"],
+			vertexRegion:
+				this.remoteConfigCache["vertexRegion"] ||
+				this.taskStateCache["vertexRegion"] ||
+				this.globalStateCache["vertexRegion"],
 			requestyBaseUrl: this.taskStateCache["requestyBaseUrl"] || this.globalStateCache["requestyBaseUrl"],
 			openAiBaseUrl:
 				this.remoteConfigCache["openAiBaseUrl"] ||
@@ -1166,9 +1174,16 @@ export class StateManager {
 				this.remoteConfigCache["azureApiVersion"] ||
 				this.taskStateCache["azureApiVersion"] ||
 				this.globalStateCache["azureApiVersion"],
+			azureIdentity:
+				this.remoteConfigCache["azureIdentity"] ||
+				this.taskStateCache["azureIdentity"] ||
+				this.globalStateCache["azureIdentity"],
 			openRouterProviderSorting:
 				this.taskStateCache["openRouterProviderSorting"] || this.globalStateCache["openRouterProviderSorting"],
-			liteLlmBaseUrl: this.taskStateCache["liteLlmBaseUrl"] || this.globalStateCache["liteLlmBaseUrl"],
+			liteLlmBaseUrl:
+				this.remoteConfigCache["liteLlmBaseUrl"] ||
+				this.taskStateCache["liteLlmBaseUrl"] ||
+				this.globalStateCache["liteLlmBaseUrl"],
 			liteLlmUsePromptCache: this.taskStateCache["liteLlmUsePromptCache"] || this.globalStateCache["liteLlmUsePromptCache"],
 			qwenApiLine: this.taskStateCache["qwenApiLine"] || this.globalStateCache["qwenApiLine"],
 			moonshotApiLine: this.taskStateCache["moonshotApiLine"] || this.globalStateCache["moonshotApiLine"],

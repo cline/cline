@@ -204,6 +204,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const anthropicBaseUrl = context.globalState.get<GlobalStateAndSettings["anthropicBaseUrl"]>("anthropicBaseUrl")
 		const geminiBaseUrl = context.globalState.get<GlobalStateAndSettings["geminiBaseUrl"]>("geminiBaseUrl")
 		const azureApiVersion = context.globalState.get<GlobalStateAndSettings["azureApiVersion"]>("azureApiVersion")
+		const azureIdentity = context.globalState.get<GlobalStateAndSettings["azureIdentity"]>("azureIdentity")
 		const openRouterProviderSorting =
 			context.globalState.get<GlobalStateAndSettings["openRouterProviderSorting"]>("openRouterProviderSorting")
 		const lastShownAnnouncementId =
@@ -322,6 +323,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const openTelemetryLogMaxQueueSize =
 			context.globalState.get<GlobalStateAndSettings["openTelemetryLogMaxQueueSize"]>("openTelemetryLogMaxQueueSize")
 		const subagentsEnabled = context.globalState.get<GlobalStateAndSettings["subagentsEnabled"]>("subagentsEnabled")
+		const backgroundEditEnabled =
+			context.globalState.get<GlobalStateAndSettings["backgroundEditEnabled"]>("backgroundEditEnabled")
 
 		// Get mode-related configurations
 		const mode = context.globalState.get<GlobalStateAndSettings["mode"]>("mode")
@@ -549,6 +552,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			moonshotApiLine,
 			zaiApiLine,
 			azureApiVersion,
+			azureIdentity,
 			openRouterProviderSorting,
 			liteLlmBaseUrl,
 			liteLlmUsePromptCache,
@@ -682,6 +686,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			qwenCodeOauthPath,
 			customPrompt,
 			autoCondenseThreshold: autoCondenseThreshold || 0.75, // default to 0.75 if not set
+			backgroundEditEnabled: backgroundEditEnabled ?? false,
 			// Hooks require explicit user opt-in and are only supported on macOS/Linux
 			hooksEnabled: getHooksEnabledSafe(hooksEnabled),
 			subagentsEnabled: subagentsEnabled ?? false,

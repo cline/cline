@@ -27,8 +27,11 @@ export type GlobalStateAndSettings = GlobalState & Settings
 export interface RemoteConfigExtraFields {
 	remoteConfiguredProviders: string[]
 	allowedMCPServers: Array<{ id: string }>
+	remoteMCPServers?: Array<{ name: string; url: string }>
 	remoteGlobalRules?: GlobalInstructionsFile[]
 	remoteGlobalWorkflows?: GlobalInstructionsFile[]
+	blockPersonalRemoteMCPServers?: boolean
+	openTelemetryOtlpHeaders: Record<string, string> | undefined
 }
 
 export type RemoteConfigFields = GlobalStateAndSettings & RemoteConfigExtraFields
@@ -79,6 +82,7 @@ export interface Settings {
 	anthropicBaseUrl: string | undefined
 	geminiBaseUrl: string | undefined
 	azureApiVersion: string | undefined
+	azureIdentity: boolean | undefined
 	openRouterProviderSorting: string | undefined
 	autoApprovalSettings: AutoApprovalSettings
 	globalClineRulesToggles: ClineRulesToggles
@@ -127,8 +131,10 @@ export interface Settings {
 	hooksEnabled: boolean
 	subagentsEnabled: boolean
 	enableParallelToolCalling: boolean
-	hicapModelId: string | undefined
+	backgroundEditEnabled: boolean
 
+	// Model-specific settings
+	hicapModelId: string | undefined
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
 	planModeApiModelId: string | undefined

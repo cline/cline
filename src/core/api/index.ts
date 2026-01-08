@@ -140,6 +140,7 @@ function createHandlerForProvider(
 				openAiApiKey: options.openAiApiKey,
 				openAiBaseUrl: options.openAiBaseUrl,
 				azureApiVersion: options.azureApiVersion,
+				azureIdentity: options.azureIdentity,
 				openAiHeaders: options.openAiHeaders,
 				openAiModelId: mode === "plan" ? options.planModeOpenAiModelId : options.actModeOpenAiModelId,
 				openAiModelInfo: mode === "plan" ? options.planModeOpenAiModelInfo : options.actModeOpenAiModelInfo,
@@ -180,6 +181,8 @@ function createHandlerForProvider(
 				openAiNativeApiKey: options.openAiNativeApiKey,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				thinkingBudgetTokens:
+					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 			})
 		case "deepseek":
 			return new DeepSeekHandler({

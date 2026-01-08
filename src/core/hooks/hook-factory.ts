@@ -2,6 +2,7 @@ import fs from "fs/promises"
 import path from "path"
 import { version as clineVersion } from "../../../package.json"
 import { getDistinctId } from "../../services/logging/distinctId"
+import { telemetryService } from "../../services/telemetry"
 import {
 	HookInput,
 	HookOutput,
@@ -24,6 +25,9 @@ const HOOK_EXECUTION_TIMEOUT_MS = 30000
 
 // Maximum size for context modification (to prevent prompt overflow)
 const MAX_CONTEXT_MODIFICATION_SIZE = 50000 // ~50KB
+
+// Exit code indicating cancellation/interruption (Unix SIGINT convention: 128 + signal 2)
+const EXIT_CODE_SIGINT = 130
 
 /**
  * Validates hook output JSON structure.
@@ -211,16 +215,23 @@ class NoOpRunner<Name extends HookName> extends HookRunner<Name> {
 	 * @returns A successful hook output (no cancellation)
 	 */
 	override async [exec](_: HookInput): Promise<HookOutput> {
-		return HookOutput.create({
-			cancel: false,
-		})
+		// HookOutput is a protobuf-generated type with non-optional fields.
+		// Protobuf defaults: cancel=false, contextModification="", errorMessage=""
+		return HookOutput.create({ cancel: false })
 	}
 }
 
 /**
  * Callback type for streaming hook output
  */
-export type HookStreamCallback = (line: string, stream: "stdout" | "stderr") => void
+export type HookStreamCallback = (
+	line: string,
+	stream: "stdout" | "stderr",
+	meta?: {
+		source: "global" | "workspace"
+		scriptPath: string
+	},
+) => void
 
 /**
  * Executes a hook script as a child process with real-time output streaming.
@@ -233,6 +244,7 @@ export type HookStreamCallback = (line: string, stream: "stdout" | "stderr") => 
  * - Parses JSON output from stdout, attempting to extract it even if mixed with debug output
  * - Truncates context modifications that exceed 50KB to prevent prompt overflow
  * - Handles both successful and failed executions gracefully
+ * - Emits per-hook telemetry with source attribution (global or workspace)
  *
  * Error handling:
  * - Treats hooks as "fail-open": only shouldContinue:false blocks tool execution
@@ -245,13 +257,31 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 	constructor(
 		hookName: Name,
 		public readonly scriptPath: string,
+		private readonly source: "global" | "workspace",
 		private readonly streamCallback?: HookStreamCallback,
 		private readonly abortSignal?: AbortSignal,
+		private readonly taskId?: string,
+		private readonly toolName?: string,
 	) {
 		super(hookName)
 	}
 
 	override async [exec](input: HookInput): Promise<HookOutput> {
+		const startTime = performance.now()
+		const taskId = this.taskId // Local const for type narrowing in closures
+
+		// Capture telemetry at the start of individual hook execution
+		if (taskId) {
+			telemetryService.safeCapture(
+				() =>
+					telemetryService.captureHookExecution(taskId, this.hookName, "started", {
+						source: this.source,
+						toolName: this.toolName,
+					}),
+				"HookFactory.exec.started",
+			)
+		}
+
 		// Check if already aborted before starting
 		if (this.abortSignal?.aborted) {
 			throw HookExecutionError.cancellation(this.scriptPath)
@@ -277,7 +307,12 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 		if (this.streamCallback) {
 			const callback = this.streamCallback
 			hookProcess.on("line", (line: string, stream: "stdout" | "stderr") => {
-				callback(line, stream)
+				// NOTE: HookProcess emits a synthetic empty line (""), used as a "start of output" marker.
+				// Preserve it for now so downstream can keep existing behavior.
+				callback(line, stream, {
+					source: this.source,
+					scriptPath: this.scriptPath,
+				})
 			})
 		}
 
@@ -398,11 +433,46 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 			// If we have valid JSON, honor it regardless of exit code
 			if (parsedOutput) {
+				const durationMs = performance.now() - startTime
+
 				// Log warning if non-zero exit but valid JSON (for developers)
 				if (exitCode !== 0) {
 					console.warn(`[Hook ${this.hookName}] Exited with code ${exitCode} but provided valid JSON response`)
 					if (stderr) {
 						console.warn(`[Hook ${this.hookName}] stderr: ${stderr}`)
+					}
+				}
+
+				// Capture success/cancellation telemetry
+				if (taskId) {
+					if (parsedOutput.cancel) {
+						telemetryService.safeCapture(
+							() =>
+								telemetryService.captureHookExecution(taskId, this.hookName, "completed", {
+									source: this.source,
+									toolName: this.toolName,
+									durationMs,
+									exitCode: exitCode ?? EXIT_CODE_SIGINT,
+									cancelRequested: true,
+									contextModified: !!parsedOutput.contextModification,
+									contextSize: parsedOutput.contextModification?.length,
+								}),
+							"HookFactory.exec.completed.cancel",
+						)
+					} else {
+						telemetryService.safeCapture(
+							() =>
+								telemetryService.captureHookExecution(taskId, this.hookName, "completed", {
+									source: this.source,
+									toolName: this.toolName,
+									durationMs,
+									exitCode: exitCode ?? 0,
+									cancelRequested: false,
+									contextModified: !!parsedOutput.contextModification,
+									contextSize: parsedOutput.contextModification?.length,
+								}),
+							"HookFactory.exec.completed.success",
+						)
 					}
 				}
 
@@ -413,6 +483,24 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 			if (exitCode === 0) {
 				// Hook succeeded but didn't provide JSON - allow execution (no cancellation)
 				console.warn(`[Hook ${this.hookName}] Completed successfully but no JSON response found`)
+				const durationMs = performance.now() - startTime
+
+				// Capture success telemetry even without JSON
+				if (taskId) {
+					telemetryService.safeCapture(
+						() =>
+							telemetryService.captureHookExecution(taskId, this.hookName, "completed", {
+								source: this.source,
+								toolName: this.toolName,
+								durationMs,
+								exitCode: 0,
+								cancelRequested: false,
+								contextModified: false,
+							}),
+						"HookFactory.exec.completed.noJson",
+					)
+				}
+
 				return HookOutput.create({
 					cancel: false,
 				})
@@ -421,8 +509,48 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 				throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, stderr, this.hookName)
 			}
 		} catch (error) {
+			const durationMs = performance.now() - startTime
+
 			// If it's already a HookExecutionError, re-throw it
 			if (HookExecutionError.isHookError(error)) {
+				// Capture failure telemetry based on error type
+				if (taskId) {
+					if (error.errorInfo.type === "cancellation") {
+						telemetryService.safeCapture(
+							() =>
+								telemetryService.captureHookExecution(taskId, this.hookName, "cancelled", {
+									source: this.source,
+									toolName: this.toolName,
+								}),
+							"HookFactory.exec.error.cancellation",
+						)
+					} else if (error.errorInfo.type === "timeout") {
+						telemetryService.safeCapture(
+							() =>
+								telemetryService.captureHookExecution(taskId, this.hookName, "failed", {
+									source: this.source,
+									toolName: this.toolName,
+									durationMs,
+									errorType: "timeout",
+									errorMessage: error.message,
+								}),
+							"HookFactory.exec.error.timeout",
+						)
+					} else {
+						telemetryService.safeCapture(
+							() =>
+								telemetryService.captureHookExecution(taskId, this.hookName, "failed", {
+									source: this.source,
+									toolName: this.toolName,
+									durationMs,
+									exitCode: error.errorInfo.exitCode ?? 1,
+									errorType: error.errorInfo.type as "execution" | "timeout" | "validation",
+									errorMessage: error.message,
+								}),
+							"HookFactory.exec.error.failed",
+						)
+					}
+				}
 				throw error
 			}
 
@@ -432,15 +560,52 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 			// Check for timeout
 			if (error instanceof Error && error.message.includes("timed out")) {
+				if (taskId) {
+					telemetryService.safeCapture(
+						() =>
+							telemetryService.captureHookExecution(taskId, this.hookName, "failed", {
+								source: this.source,
+								toolName: this.toolName,
+								durationMs,
+								errorType: "timeout",
+								errorMessage: error.message,
+							}),
+						"HookFactory.exec.catch.timeout",
+					)
+				}
 				throw HookExecutionError.timeout(this.scriptPath, HOOK_EXECUTION_TIMEOUT_MS, stderr, this.hookName)
 			}
 
 			// Check for cancellation
 			if (error instanceof Error && error.message.includes("cancelled")) {
+				if (taskId) {
+					telemetryService.safeCapture(
+						() =>
+							telemetryService.captureHookExecution(taskId, this.hookName, "cancelled", {
+								source: this.source,
+								toolName: this.toolName,
+							}),
+						"HookFactory.exec.catch.cancelled",
+					)
+				}
 				throw HookExecutionError.cancellation(this.scriptPath, this.hookName)
 			}
 
 			// Generic execution error - include hook name
+			if (taskId) {
+				telemetryService.safeCapture(
+					() =>
+						telemetryService.captureHookExecution(taskId, this.hookName, "failed", {
+							source: this.source,
+							toolName: this.toolName,
+							durationMs,
+							exitCode: exitCode ?? 1,
+							errorType: "execution",
+							errorMessage: error instanceof Error ? error.message : String(error),
+						}),
+					"HookFactory.exec.catch.execution",
+				)
+			}
 			throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, stderr, this.hookName)
 		}
 	}
@@ -535,6 +700,21 @@ function isExpectedHookError(error: unknown): boolean {
 
 export class HookFactory {
 	/**
+	 * Get information about discovered hooks including their script paths
+	 * @param hookName The type of hook to query
+	 * @returns Object containing array of script paths
+	 */
+	async getHookInfo<Name extends HookName>(
+		hookName: Name,
+	): Promise<{
+		scriptPaths: string[]
+	}> {
+		const { HookDiscoveryCache } = await import("./HookDiscoveryCache")
+		const scripts = await HookDiscoveryCache.getInstance().get(hookName)
+		return { scriptPaths: scripts }
+	}
+
+	/**
 	 * Check if any hook scripts exist for the given hook name
 	 * @returns true if at least one hook script exists, false otherwise
 	 */
@@ -546,8 +726,8 @@ export class HookFactory {
 	/**
 	 * Create a hook runner without streaming support (backwards compatible)
 	 */
-	async create<Name extends HookName>(hookName: Name): Promise<HookRunner<Name>> {
-		return this.createWithStreaming(hookName)
+	async create<Name extends HookName>(hookName: Name, taskId?: string, toolName?: string): Promise<HookRunner<Name>> {
+		return this.createWithStreaming(hookName, undefined, undefined, taskId, toolName)
 	}
 
 	/**
@@ -566,22 +746,92 @@ export class HookFactory {
 	 * @param hookName The type of hook to create (e.g., "PreToolUse", "PostToolUse")
 	 * @param streamCallback Optional callback for real-time output streaming
 	 * @param abortSignal Optional signal to cancel hook execution
+	 * @param taskId Optional task ID for telemetry context
+	 * @param toolName Optional tool name for telemetry context
 	 * @returns A HookRunner that executes the hook(s), or NoOpRunner if none found
 	 */
 	async createWithStreaming<Name extends HookName>(
 		hookName: Name,
 		streamCallback?: HookStreamCallback,
 		abortSignal?: AbortSignal,
+		taskId?: string,
+		toolName?: string,
 	): Promise<HookRunner<Name>> {
 		// Use cache for hook discovery instead of direct file system scan
 		const { HookDiscoveryCache } = await import("./HookDiscoveryCache")
 		const scripts = await HookDiscoveryCache.getInstance().get(hookName)
 
-		const runners = scripts.map((script) => new StdioHookRunner(hookName, script, streamCallback, abortSignal))
+		// Fetch hooks dirs once for source determination and telemetry
+		const hooksDirs = await getAllHooksDirs()
+
+		// Capture hook discovery telemetry
+		// Categorize scripts by location (global vs workspace)
+		const { globalCount, workspaceCount } = this.categorizeHookScripts(scripts, hooksDirs)
+		if (scripts.length > 0) {
+			telemetryService.safeCapture(
+				() => telemetryService.captureHookDiscovery(hookName, globalCount, workspaceCount),
+				"HookFactory.createWithStreaming.discovery",
+			)
+		}
+
+		// Create runners with source determination for each script
+		const runners = scripts.map((script) => {
+			const source = this.determineScriptSource(script, hooksDirs)
+			return new StdioHookRunner(hookName, script, source, streamCallback, abortSignal, taskId, toolName)
+		})
+
 		if (runners.length === 0) {
 			return new NoOpRunner(hookName)
 		}
 		return runners.length === 1 ? runners[0] : new CombinedHookRunner(hookName, runners)
+	}
+
+	/**
+	 * Checks if a hooks directory is a global hooks directory.
+	 * Global hooks are located in paths containing "Cline/Hooks" or "cline/hooks".
+	 */
+	private static isGlobalHooksDir(dir: string): boolean {
+		return /[/\\][Cc]line[/\\][Hh]ooks/i.test(dir)
+	}
+
+	/**
+	 * Determines if a single script is from global or workspace location
+	 */
+	private determineScriptSource(scriptPath: string, hooksDirs: string[]): "global" | "workspace" {
+		const containingDir = hooksDirs.find((dir) => scriptPath.startsWith(dir))
+		if (containingDir && HookFactory.isGlobalHooksDir(containingDir)) {
+			return "global"
+		}
+		return "workspace" // Default to workspace if uncertain
+	}
+
+	/**
+	 * Categorizes hook scripts by their location (global vs workspace).
+	 * Global hooks are located in ~/Documents/Cline/Hooks/
+	 * Workspace hooks are located in workspace .clinerules/hooks/ directories
+	 *
+	 * @param scripts Array of hook script paths
+	 * @param hooksDirs Array of hooks directories (passed to avoid redundant fetches)
+	 * @returns Object with globalCount and workspaceCount
+	 */
+	private categorizeHookScripts(scripts: string[], hooksDirs: string[]): { globalCount: number; workspaceCount: number } {
+		if (scripts.length === 0) {
+			return { globalCount: 0, workspaceCount: 0 }
+		}
+
+		let globalCount = 0
+		let workspaceCount = 0
+
+		for (const script of scripts) {
+			const containingDir = hooksDirs.find((dir) => script.startsWith(dir))
+			if (containingDir && HookFactory.isGlobalHooksDir(containingDir)) {
+				globalCount++
+			} else {
+				workspaceCount++
+			}
+		}
+
+		return { globalCount, workspaceCount }
 	}
 
 	/**
