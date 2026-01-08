@@ -43,6 +43,13 @@ jobs:
           node-version: '20.x'
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Setup Go
+        if: steps.check_commits.outputs.skip != 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache-dependency-path: cli/go.sum
+
       # Cache root dependencies - only reuse if package-lock.json exactly matches
       - name: Cache root dependencies
         if: steps.check_commits.outputs.skip != 'true'
@@ -121,6 +128,10 @@ jobs:
           "
           
           echo "Updated cli/package.json and cli/package-nightly.json to version ${{ steps.version.outputs.version }}"
+
+      - name: Download ripgrep binaries
+        if: steps.check_commits.outputs.skip != 'true'
+        run: npm run download-ripgrep
 
       - name: Clean previous builds
         if: steps.check_commits.outputs.skip != 'true'
