@@ -152,6 +152,10 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		this.activeLineController?.clear()
 	}
 
+	protected override async getDocumentLineCount(): Promise<number> {
+		return this.activeDiffEditor?.document.lineCount ?? 0
+	}
+
 	protected override async getDocumentText(): Promise<string | undefined> {
 		if (!this.activeDiffEditor || !this.activeDiffEditor.document) {
 			return undefined

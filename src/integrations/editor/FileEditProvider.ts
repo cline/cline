@@ -78,6 +78,13 @@ export class FileEditProvider extends DiffViewProvider {
 		}
 	}
 
+	protected async getDocumentLineCount(): Promise<number> {
+		if (!this.documentContent) {
+			return 0
+		}
+		return this.documentContent.split("\n").length
+	}
+
 	protected async getDocumentText(): Promise<string | undefined> {
 		return this.documentContent
 	}
