@@ -967,6 +967,27 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 		}
 
 		switch {
+		case msg.Say == string(types.SayTypeReasoning):
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !msg.Partial && !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				m.displayMessage(msg, false, false, i)
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
+			}
+
+		case msg.Say == string(types.SayTypeText):
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !msg.Partial && !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				m.displayMessage(msg, false, false, i)
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
+			}
+
+		case msg.Say == string(types.SayTypeTool):
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !msg.Partial && !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				m.displayMessage(msg, false, false, i)
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
+			}
+
 		case msg.Say == string(types.SayTypeUserFeedback):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
