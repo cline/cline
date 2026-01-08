@@ -115,6 +115,7 @@
 							},
 							"features/auto-approve",
 							"features/auto-compact",
+							"features/background-edit",
 							"features/checkpoints",
 							"features/cline-rules",
 							{
@@ -149,6 +150,7 @@
 							},
 							"features/multiroot-workspace",
 							"features/plan-and-act",
+							"features/web-tools",
 							{
 								"group": "Slash Commands",
 								"pages": [
@@ -318,7 +320,8 @@
 								"pages": [
 									"enterprise-solutions/monitoring/overview",
 									"enterprise-solutions/monitoring/telemetry",
-									"enterprise-solutions/monitoring/opentelemetry"
+									"enterprise-solutions/monitoring/opentelemetry",
+									"enterprise-solutions/monitoring/opentelemetry_override"
 								]
 							}
 						]
