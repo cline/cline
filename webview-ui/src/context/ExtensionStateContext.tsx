@@ -34,6 +34,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	showWelcome: boolean
 	onboardingModels: OnboardingModelGroup | undefined
 	openRouterModels: Record<string, ModelInfo>
+	vercelAiGatewayModels: Record<string, ModelInfo>
 	hicapModels: Record<string, ModelInfo>
 	liteLlmModels: Record<string, ModelInfo>
 	openAiModels: string[]
@@ -86,6 +87,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 	// Refresh functions
 	refreshOpenRouterModels: () => void
+	refreshVercelAiGatewayModels: () => void
 	refreshHicapModels: () => void
 	refreshLiteLlmModels: () => void
 	setUserInfo: (userInfo?: UserInfo) => void
@@ -261,6 +263,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
+	const [vercelAiGatewayModels, setVercelAiGatewayModels] = useState<Record<string, ModelInfo>>({})
 	const [hicapModels, setHicapModels] = useState<Record<string, ModelInfo>>({})
 	const [liteLlmModels, setLiteLlmModels] = useState<Record<string, ModelInfo>>({})
 	const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
@@ -707,15 +710,27 @@ export const ExtensionStateContextProvider: React.FC<{
 			.catch((err) => console.error("Failed to refresh Baseten models:", err))
 	}, [])
 
+	const refreshVercelAiGatewayModels = useCallback(() => {
+		ModelsServiceClient.refreshVercelAiGatewayModelsRpc(EmptyRequest.create({}))
+			.then((response: OpenRouterCompatibleModelInfo) => {
+				const models = fromProtobufModels(response.models)
+				setVercelAiGatewayModels(models)
+			})
+			.catch((error: Error) => console.error("Failed to refresh Vercel AI Gateway models:", error))
+	}, [])
+
 	// Auto-refresh model lists on API key availability
 	useEffect(() => {
 		if (!openRouterModels || Object.keys(openRouterModels).length <= 1) {
 			refreshOpenRouterModels()
 		}
+		if (!vercelAiGatewayModels || Object.keys(vercelAiGatewayModels).length === 0) {
+			refreshVercelAiGatewayModels()
+		}
 		if (state.apiConfiguration?.basetenApiKey) {
 			refreshBasetenModels()
 		}
-	}, [refreshOpenRouterModels, state?.apiConfiguration?.basetenApiKey, refreshBasetenModels])
+	}, [refreshOpenRouterModels, refreshVercelAiGatewayModels, state?.apiConfiguration?.basetenApiKey, refreshBasetenModels])
 
 	const contextValue: ExtensionStateContextType = {
 		...state,
@@ -723,6 +738,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		showWelcome,
 		onboardingModels,
 		openRouterModels,
+		vercelAiGatewayModels,
 		hicapModels,
 		liteLlmModels,
 		openAiModels,
@@ -832,6 +848,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setMcpTab,
 		setTotalTasksSize,
 		refreshOpenRouterModels,
+		refreshVercelAiGatewayModels,
 		refreshHicapModels,
 		refreshLiteLlmModels,
 		onRelinquishControl,
