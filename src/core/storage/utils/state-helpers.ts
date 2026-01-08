@@ -392,6 +392,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["planModeBasetenModelInfo"]>("planModeBasetenModelInfo")
 		const planModeOcaModelId = context.globalState.get("planModeOcaModelId") as string | undefined
 		const planModeOcaModelInfo = context.globalState.get("planModeOcaModelInfo") as OcaModelInfo | undefined
+		const planModeOcaReasoningEffort = context.globalState.get("planModeOcaReasoningEffort") as string | undefined
 		const planModeHicapModelId =
 			context.globalState.get<GlobalStateAndSettings["planModeHicapModelId"]>("planModeHicapModelId")
 		const planModeHicapModelInfo =
@@ -402,6 +403,11 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["planModeAihubmixModelInfo"]>("planModeAihubmixModelInfo")
 		const planModeNousResearchModelId =
 			context.globalState.get<GlobalStateAndSettings["planModeNousResearchModelId"]>("planModeNousResearchModelId")
+		const planModeVercelAiGatewayModelId =
+			context.globalState.get<GlobalStateAndSettings["planModeVercelAiGatewayModelId"]>("planModeVercelAiGatewayModelId")
+		const planModeVercelAiGatewayModelInfo = context.globalState.get<
+			GlobalStateAndSettings["planModeVercelAiGatewayModelInfo"]
+		>("planModeVercelAiGatewayModelInfo")
 		// Act mode configurations
 		const actModeApiProvider = context.globalState.get<GlobalStateAndSettings["actModeApiProvider"]>("actModeApiProvider")
 		const actModeApiModelId = context.globalState.get<GlobalStateAndSettings["actModeApiModelId"]>("actModeApiModelId")
@@ -465,6 +471,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["actModeBasetenModelInfo"]>("actModeBasetenModelInfo")
 		const actModeOcaModelId = context.globalState.get("actModeOcaModelId") as string | undefined
 		const actModeOcaModelInfo = context.globalState.get("actModeOcaModelInfo") as OcaModelInfo | undefined
+		const actModeOcaReasoningEffort = context.globalState.get("actModeOcaReasoningEffort") as string | undefined
 		const actModeNousResearchModelId =
 			context.globalState.get<GlobalStateAndSettings["actModeNousResearchModelId"]>("actModeNousResearchModelId")
 		const sapAiCoreUseOrchestrationMode =
@@ -476,6 +483,11 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["actModeAihubmixModelId"]>("actModeAihubmixModelId")
 		const actModeAihubmixModelInfo =
 			context.globalState.get<GlobalStateAndSettings["actModeAihubmixModelInfo"]>("actModeAihubmixModelInfo")
+		const actModeVercelAiGatewayModelId =
+			context.globalState.get<GlobalStateAndSettings["actModeVercelAiGatewayModelId"]>("actModeVercelAiGatewayModelId")
+		const actModeVercelAiGatewayModelInfo = context.globalState.get<
+			GlobalStateAndSettings["actModeVercelAiGatewayModelInfo"]
+		>("actModeVercelAiGatewayModelInfo")
 
 		let apiProvider: ApiProvider
 		if (planModeApiProvider) {
@@ -606,11 +618,14 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeBasetenModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
+			planModeOcaReasoningEffort,
 			planModeHicapModelId,
 			planModeHicapModelInfo,
 			planModeAihubmixModelId,
 			planModeAihubmixModelInfo,
 			planModeNousResearchModelId,
+			planModeVercelAiGatewayModelId,
+			planModeVercelAiGatewayModelInfo,
 			geminiPlanModeThinkingLevel,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
@@ -644,11 +659,14 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeBasetenModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
+			actModeOcaReasoningEffort,
 			actModeHicapModelId,
 			actModeHicapModelInfo,
 			actModeAihubmixModelId,
 			actModeAihubmixModelInfo,
 			actModeNousResearchModelId,
+			actModeVercelAiGatewayModelId,
+			actModeVercelAiGatewayModelInfo,
 			geminiActModeThinkingLevel,
 
 			// Other global fields
