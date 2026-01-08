@@ -11,6 +11,7 @@ import type { BrowserSettings } from "@shared/BrowserSettings"
 import type { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import type { FocusChainSettings } from "@shared/FocusChainSettings"
 import type { ClineContent } from "@shared/messages/content"
+import type { SkillMetadata } from "@shared/skills"
 import type { Mode } from "@shared/storage/types"
 import type { ClineDefaultTool } from "@shared/tools"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
@@ -63,6 +64,9 @@ export interface TaskConfig {
 
 	// Tool coordination
 	coordinator: ToolExecutorCoordinator
+
+	// Skills (discovered at task start, used by UseSkillToolHandler)
+	skills?: SkillMetadata[]
 }
 
 /**

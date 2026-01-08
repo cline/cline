@@ -94,6 +94,8 @@ func (h *SayHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
 		return h.handleHookStatus(msg, dc)
 	case string(types.SayTypeHookOutputStream):
 		return h.handleHookOutputStream(msg, dc)
+	case string(types.SayTypeCommandPermissionDenied):
+		return h.handleCommandPermissionDenied(msg, dc)
 	default:
 		return h.handleDefault(msg, dc)
 	}
@@ -341,6 +343,18 @@ func (h *SayHandler) handleCommandOutput(msg *types.ClineMessage, dc *DisplayCon
 
 	// Use unified ToolRenderer
 	rendered := dc.ToolRenderer.RenderCommandOutput(msg.Text)
+	output.Print(rendered)
+
+	return nil
+}
+
+func (h *SayHandler) handleCommandPermissionDenied(msg *types.ClineMessage, dc *DisplayContext) error {
+	if msg.Text == "" {
+		return nil
+	}
+
+	// Use unified ToolRenderer
+	rendered := dc.ToolRenderer.RenderCommandPermissionDenied(msg.Text)
 	output.Print(rendered)
 
 	return nil

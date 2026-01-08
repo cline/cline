@@ -29,7 +29,7 @@ import { LanguageModelChatSelector } from "vscode"
 const REMOTE_CONFIG_EXTRA_FIELDS = {
 	remoteConfiguredProviders: { type: [] as string[] },
 	allowedMCPServers: { type: [] as Array<{ id: string }> },
-	remoteMCPServers: { type: undefined as Array<{ name: string; url: string }> | undefined },
+	remoteMCPServers: { type: undefined as Array<{ name: string; url: string; alwaysEnabled?: boolean }> | undefined },
 	remoteGlobalRules: { type: undefined as GlobalInstructionsFile[] | undefined },
 	remoteGlobalWorkflows: { type: undefined as GlobalInstructionsFile[] | undefined },
 	blockPersonalRemoteMCPServers: { type: false as boolean },
@@ -149,6 +149,8 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	planModeHicapModelId: { type: undefined as string | undefined },
 	planModeHicapModelInfo: { type: undefined as ModelInfo | undefined },
 	planModeNousResearchModelId: { type: undefined as string | undefined },
+	planModeVercelAiGatewayModelId: { type: undefined as string | undefined },
+	planModeVercelAiGatewayModelInfo: { type: undefined as ModelInfo | undefined },
 
 	// Act mode configurations
 	actModeApiModelId: { type: undefined as string | undefined },
@@ -189,6 +191,8 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	actModeHicapModelId: { type: undefined as string | undefined },
 	actModeHicapModelInfo: { type: undefined as ModelInfo | undefined },
 	actModeNousResearchModelId: { type: undefined as string | undefined },
+	actModeVercelAiGatewayModelId: { type: undefined as string | undefined },
+	actModeVercelAiGatewayModelInfo: { type: undefined as ModelInfo | undefined },
 
 	// Model-specific settings
 	planModeApiProvider: { type: DEFAULT_API_PROVIDER as ApiProvider },
