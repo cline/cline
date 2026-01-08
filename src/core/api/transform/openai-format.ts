@@ -211,7 +211,7 @@ export function convertToOpenAiMessages(
 					// Cannot be an empty array. API expects an array with minimum length 1, and will respond with an error if it's empty
 					tool_calls: tool_calls?.length > 0 ? tool_calls : undefined,
 					// Only include reasoning_details when non-empty; sending [] can trigger provider validation issues.
-					// @ts-expect-error-next-line
+					// @ts-expect-error
 					reasoning_details: consolidatedReasoningDetails.length > 0 ? consolidatedReasoningDetails : undefined,
 				})
 			}
