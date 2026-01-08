@@ -22,14 +22,7 @@ echo ""
 # Always rebuild CLI to ensure latest changes
 echo -e "${CYAN}→${NC} ${DIM}Rebuilding CLI binaries...${NC}"
 cd "$PROJECT_ROOT"
-rm -rf "$PROJECT_ROOT/cli/bin"
-if command -v go >/dev/null 2>&1; then
-    GO_BIN_DIR="$(go env GOPATH 2>/dev/null)/bin"
-    if [ -d "$GO_BIN_DIR" ]; then
-        export PATH="$GO_BIN_DIR:$PATH"
-    fi
-fi
-if npm run compile-cli; then
+if npm run build:cli:all-platforms 2>&1 | grep -E "(built|error|Error)" || true; then
     echo -e "${GREEN}✓${NC} CLI binaries rebuilt"
 else
     echo -e "${YELLOW}⚠${NC}  CLI build failed - aborting install"
