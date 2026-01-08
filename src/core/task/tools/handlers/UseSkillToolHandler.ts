@@ -1,5 +1,6 @@
 import type { ToolUse } from "@core/assistant-message"
-import { getSkillContent } from "@core/context/instructions/user-instructions/skills"
+import { discoverSkills, getAvailableSkills, getSkillContent } from "@core/context/instructions/user-instructions/skills"
+import type { SkillMetadata } from "@shared/skills"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
@@ -30,9 +31,21 @@ export class UseSkillToolHandler implements IToolHandler, IPartialBlockHandler {
 			return `Error: Missing required parameter 'skill_name'. Please provide the name of the skill to activate.`
 		}
 
-		const availableSkills = config.skills
-		if (!availableSkills || availableSkills.length === 0) {
-			return `Error: Skills are not available in this context.`
+		// Discover skills on-demand (lazy loading)
+		const allSkills = await discoverSkills(config.cwd)
+		const resolvedSkills = getAvailableSkills(allSkills)
+
+		// Filter by toggle state
+		const stateManager = config.services.stateManager
+		const globalSkillsToggles = stateManager.getGlobalSettingsKey("globalSkillsToggles") ?? {}
+		const localSkillsToggles = stateManager.getWorkspaceStateKey("localSkillsToggles") ?? {}
+		const availableSkills = resolvedSkills.filter((skill) => {
+			const toggles = skill.source === "global" ? globalSkillsToggles : localSkillsToggles
+			return toggles[skill.path] !== false
+		})
+
+		if (availableSkills.length === 0) {
+			return `Error: No skills are available. Skills may be disabled or not configured.`
 		}
 
 		// Show tool message
@@ -45,7 +58,7 @@ export class UseSkillToolHandler implements IToolHandler, IPartialBlockHandler {
 			const skillContent = await getSkillContent(skillName, availableSkills)
 
 			if (!skillContent) {
-				const availableNames = availableSkills.map((s) => s.name).join(", ")
+				const availableNames = availableSkills.map((s: SkillMetadata) => s.name).join(", ")
 				return `Error: Skill "${skillName}" not found. Available skills: ${availableNames || "none"}`
 			}
 

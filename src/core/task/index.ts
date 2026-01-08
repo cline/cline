@@ -1778,9 +1778,6 @@ export class Task {
 			return toggles[skill.path] !== false
 		})
 
-		// Update ToolExecutor with the filtered skills for use_skill tool execution
-		this.toolExecutor.setSkills(availableSkills)
-
 		const promptContext: SystemPromptContext = {
 			cwd: this.cwd,
 			ide,
