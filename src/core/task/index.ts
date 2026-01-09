@@ -95,7 +95,6 @@ import {
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
-import { discoverSkills, getAvailableSkills } from "../context/instructions/user-instructions/skills"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
 import { executeHook } from "../hooks/hook-executor"
@@ -164,17 +163,6 @@ export class Task {
 		await this.withStateLock(() => {
 			this.taskState.activeHookExecution = hookExecution
 		})
-	}
-
-	/**
-	 * Update the enhanced notebook interaction setting for this task
-	 * PUBLIC: Exposed for Controller to use when settings change
-	 */
-	public updateEnhancedNotebookInteractionEnabled(enabled: boolean): void {
-		// Update the tool executor's config if it exists
-		if (this.toolExecutor) {
-			this.toolExecutor.updateEnhancedNotebookInteractionEnabled(enabled)
-		}
 	}
 
 	/**
@@ -1789,10 +1777,21 @@ export class Task {
 			return toggles[skill.path] !== false
 		})
 
+		// Snapshot editor tabs so prompt tools can decide whether to include
+		// filetype-specific instructions (e.g. notebooks) without adding bespoke flags.
+		const openTabPaths = (await HostProvider.window.getOpenTabs({})).paths || []
+		const visibleTabPaths = (await HostProvider.window.getVisibleTabs({})).paths || []
+		const cap = 50
+		const editorTabs = {
+			open: openTabPaths.slice(0, cap),
+			visible: visibleTabPaths.slice(0, cap),
+		}
+
 		const promptContext: SystemPromptContext = {
 			cwd: this.cwd,
 			ide,
 			providerInfo,
+			editorTabs,
 			supportsBrowserUse,
 			mcpHub: this.mcpHub,
 			skills: availableSkills,
@@ -1814,8 +1813,7 @@ export class Task {
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
 			enableNativeToolCalls: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
-			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
-			terminalExecutionMode: this.terminalExecutionMode,
+			enhancedNotebookInteractionEnabled: this.stateManager.getGlobalSettingsKey("enhancedNotebookInteractionEnabled"),
 		}
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
@@ -2999,15 +2997,12 @@ export class Task {
 		}
 
 		const parseTextBlock = async (text: string): Promise<string> => {
-			const enhancedNotebookInteractionEnabled =
-				this.stateManager.getGlobalSettingsKey("enhancedNotebookInteractionEnabled") ?? false
 			const parsedText = await parseMentions(
 				text,
 				cwd,
 				this.urlContentFetcher,
 				this.fileContextTracker,
 				this.workspaceManager,
-				enhancedNotebookInteractionEnabled,
 			)
 
 			const { processedText, needsClinerulesFileCheck: needsCheck } = await parseSlashCommands(
