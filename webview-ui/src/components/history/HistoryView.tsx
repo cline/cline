@@ -394,7 +394,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 									<div className="flex justify-between items-center">
 										<span className="flex items-center text-description font-medium text-sm uppercase">
 											{activeTasks?.find((task) => task.taskId === item.id)?.status === "active" && (
-												<LoaderIcon className="animate-spin size-2" />
+												<LoaderIcon className="animate-spin size-2 mr-1" />
 											)}
 											{formatDate(item.ts)}
 										</span>
