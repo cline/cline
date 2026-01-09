@@ -7,7 +7,6 @@ import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { fetch } from "@/shared/net"
 import { AuthService } from "./AuthService"
 
-// TODO: Consider adding a mock auth provider implementing IAuthProvider for more realistic testing
 export class AuthServiceMock extends AuthService {
 	protected constructor(controller: Controller) {
 		super(controller)
