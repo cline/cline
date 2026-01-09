@@ -33,6 +33,7 @@ const GENERIC: ClineToolSpec = {
 			usage: "HEAD",
 		},
 	],
+	contextRequirements: (ctx) => ctx.ide === "Visual Studio Code",
 }
 
 export const generate_explanation_variants = [GENERIC]
