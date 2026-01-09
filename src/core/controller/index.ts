@@ -6,6 +6,7 @@ import { setupWorkspaceManager } from "@core/workspace/setup"
 import type { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { ClineAccountService } from "@services/account/ClineAccountService"
+import { BannerService } from "@services/banner/BannerService"
 import { McpHub } from "@services/mcp/McpHub"
 import type { ApiProvider, ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
@@ -30,7 +31,6 @@ import { ExtensionRegistryInfo } from "@/registry"
 import { AuthService } from "@/services/auth/AuthService"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { LogoutReason } from "@/services/auth/types"
-import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
@@ -849,9 +849,6 @@ export class Controller {
 		const maxConsecutiveMistakes = this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")
 		const subagentTerminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("subagentTerminalOutputLineLimit")
 		const favoritedModelIds = this.stateManager.getGlobalStateKey("favoritedModelIds")
-		const lastDismissedInfoBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedInfoBannerVersion") || 0
-		const lastDismissedModelBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedModelBannerVersion") || 0
-		const lastDismissedCliBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedCliBannerVersion") || 0
 		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
 		const skillsEnabled = this.stateManager.getGlobalSettingsKey("skillsEnabled")
 
@@ -877,6 +874,8 @@ export class Controller {
 		const distinctId = getDistinctId()
 		const version = ExtensionRegistryInfo.version
 		const environment = ClineEnv.config().environment
+
+		const activeBanners = await BannerService.getActiveBanners()
 
 		// Set feature flag in dictation settings based on platform
 		const updatedDictationSettings = {
@@ -952,15 +951,13 @@ export class Controller {
 				featureFlag: featureFlagsService.getWebtoolsEnabled(),
 			},
 			hooksEnabled: this.stateManager.getGlobalSettingsKey("hooksEnabled"),
-			lastDismissedInfoBannerVersion,
-			lastDismissedModelBannerVersion,
 			remoteConfigSettings: this.stateManager.getRemoteConfigSettings(),
-			lastDismissedCliBannerVersion,
 			subagentsEnabled,
 			nativeToolCallSetting: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
 			backgroundEditEnabled: this.stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
 			skillsEnabled,
+			activeBanners,
 		}
 	}
 
@@ -1001,34 +998,5 @@ export class Controller {
 		}
 		this.stateManager.setGlobalState("taskHistory", history)
 		return history
-	}
-
-	/**
-	 * Initializes the BannerService if not already initialized
-	 */
-	private async ensureBannerService() {
-		if (!BannerService.isInitialized()) {
-			try {
-				BannerService.initialize(this)
-			} catch (error) {
-				console.error("Failed to initialize BannerService:", error)
-			}
-		}
-	}
-
-	/**
-	 * Fetches non-dismissed banners for display
-	 * @returns Array of banners that haven't been dismissed
-	 */
-	async fetchBannersForDisplay(): Promise<any[]> {
-		try {
-			await this.ensureBannerService()
-			if (BannerService.isInitialized()) {
-				return await BannerService.get().getNonDismissedBanners()
-			}
-		} catch (error) {
-			console.error("Failed to fetch banners:", error)
-		}
-		return []
 	}
 }

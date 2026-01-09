@@ -45,7 +45,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	totalTasksSize: number | null
-	lastDismissedCliBannerVersion: number
 
 	availableTerminalProfiles: TerminalProfile[]
 
@@ -238,17 +237,16 @@ export const ExtensionStateContextProvider: React.FC<{
 		clineWebToolsEnabled: { user: true, featureFlag: false },
 		autoCondenseThreshold: undefined,
 		favoritedModelIds: [],
-		lastDismissedInfoBannerVersion: 0,
-		lastDismissedModelBannerVersion: 0,
 		remoteConfigSettings: {},
 		backgroundCommandRunning: false,
 		backgroundCommandTaskId: undefined,
-		lastDismissedCliBannerVersion: 0,
+
 		subagentsEnabled: false,
 		backgroundEditEnabled: false,
 		skillsEnabled: false,
 		globalSkillsToggles: {},
 		localSkillsToggles: {},
+		activeBanners: [],
 
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],

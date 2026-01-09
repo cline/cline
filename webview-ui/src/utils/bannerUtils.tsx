@@ -15,8 +15,8 @@ export function convertBannerData(
 ): BannerData {
 	const { onAction, onDismiss } = handlers
 
-	// Filter and process actions
-	const filteredActions =
+	// Process actions
+	const actions =
 		banner.actions?.map((action) => ({
 			label: action.title,
 			onClick: () => onAction(action),
@@ -29,7 +29,7 @@ export function convertBannerData(
 		) : undefined,
 		title: banner.title,
 		description: banner.description,
-		actions: filteredActions.length > 0 ? filteredActions : undefined,
+		actions: actions.length > 0 ? actions : undefined,
 		onDismiss: () => onDismiss(banner.id),
 	}
 }

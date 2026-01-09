@@ -7,6 +7,7 @@ import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { ApiConfiguration } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
 import { ClineFeatureSetting } from "./ClineFeatureSetting"
+import { BannerCardData } from "./cline/banner"
 import { ClineRulesToggles } from "./cline-rules"
 import { DictationSettings } from "./DictationSettings"
 import { FocusChainSettings } from "./FocusChainSettings"
@@ -98,9 +99,6 @@ export interface ExtensionState {
 	primaryRootIndex: number
 	isMultiRootWorkspace: boolean
 	multiRootSetting: ClineFeatureSetting
-	lastDismissedInfoBannerVersion: number
-	lastDismissedModelBannerVersion: number
-	lastDismissedCliBannerVersion: number
 	hooksEnabled?: boolean
 	remoteConfigSettings?: Partial<RemoteConfigFields>
 	subagentsEnabled?: boolean
@@ -110,6 +108,7 @@ export interface ExtensionState {
 	nativeToolCallSetting?: boolean
 	enableParallelToolCalling?: boolean
 	backgroundEditEnabled?: boolean
+	activeBanners?: BannerCardData[]
 }
 
 export interface ClineMessage {

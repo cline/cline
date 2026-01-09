@@ -3,6 +3,7 @@ import axios from "axios"
 import { ClineEnv } from "@/config"
 import type { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
+import { BannerActionType, BannerCardData } from "@/shared/cline/banner"
 import { getAxiosSettings } from "@/shared/net"
 import { AuthService } from "../auth/AuthService"
 import { getDistinctId } from "../logging/distinctId"
@@ -18,7 +19,80 @@ export class BannerService {
 	private _lastFetchTime: number = 0
 	private readonly CACHE_DURATION_MS = 5 * 60 * 1000 // 5 minutes
 	private _controller: Controller
-	private _authService?: AuthService
+
+	/**
+	 * The list of predefined banner configs.
+	 */
+	private BANNER_DATA: BannerCardData[] = [
+		// Info banner with inline link
+		{
+			id: "info-banner-v1",
+			icon: "lightbulb",
+			title: "Use Cline in Right Sidebar",
+			description:
+				"For the best experience, drag the Cline icon to your right sidebar. This keeps your file explorer and editor visible while you chat with Cline, making it easier to navigate your codebase and see changes in real-time. [See how →](https://docs.cline.bot/features/customization/opening-cline-in-sidebar)",
+		},
+
+		// Announcement with conditional actions based on user auth state
+		{
+			id: "new-model-opus-4-5-cline-users",
+			icon: "megaphone",
+			title: "Claude Opus 4.5 Now Available",
+			description: "State-of-the-art performance at 3x lower cost than Opus 4.1. Available now in the Cline provider.",
+			actions: [
+				{
+					title: "Try Now",
+					action: BannerActionType.SetModel,
+					arg: "anthropic/claude-opus-4.5",
+				},
+			],
+			isClineUserOnly: true, // Only Cline users see this
+		},
+
+		{
+			id: "new-model-opus-4-5-non-cline-users",
+			icon: "megaphone",
+			title: "Claude Opus 4.5 Now Available",
+			description: "State-of-the-art performance at 3x lower cost than Opus 4.1. Available now in the Cline provider.",
+			actions: [
+				{
+					title: "Get Started",
+					action: BannerActionType.ShowAccount,
+				},
+			],
+			isClineUserOnly: false, // Only non-Cline users see this
+		},
+
+		// Platform-specific banner (macOS/Linux)
+		{
+			id: "cli-install-unix-v1",
+			icon: "terminal",
+			title: "CLI & Subagents Available",
+			platforms: ["mac", "linux"] satisfies BannerCardData["platforms"],
+			description:
+				"Use Cline in your terminal and enable subagent capabilities. [Learn more](https://docs.cline.bot/cline-cli/overview)",
+			actions: [
+				{
+					title: "Install",
+					action: BannerActionType.InstallCli,
+				},
+				{
+					title: "Enable Subagents",
+					action: BannerActionType.ShowFeatureSettings,
+				},
+			],
+		},
+
+		// Platform-specific banner (Windows)
+		{
+			id: "cli-info-windows-v1",
+			icon: "terminal",
+			title: "Cline CLI Info",
+			platforms: ["windows"] satisfies BannerCardData["platforms"],
+			description:
+				"Available for macOS and Linux. Coming soon to other platforms. [Learn more](https://docs.cline.bot/cline-cli/overview)",
+		},
+	]
 
 	private constructor(controller: Controller) {
 		this._controller = controller
@@ -50,25 +124,131 @@ export class BannerService {
 	}
 
 	/**
-	 * Checks if BannerService has been initialized
-	 */
-	public static isInitialized(): boolean {
-		return !!BannerService.instance
-	}
-
-	/**
 	 * Resets the BannerService instance (primarily for testing)
 	 */
 	public static reset(): void {
 		BannerService.instance = null
 	}
 
+	public static async getActiveBanners(): Promise<BannerCardData[]> {
+		try {
+			return BannerService.get().getActiveBanners()
+		} catch (error) {
+			Logger.error("Couldnt get banners", error)
+			return []
+		}
+	}
+
+	private async getActiveBanners(): Promise<BannerCardData[]> {
+		return this.BANNER_DATA.filter(this.shouldShow)
+		// TODO: include banners from the API
+	}
+
 	/**
-	 * Sets the AuthService instance for testing purposes
-	 * In production, AuthService is loaded dynamically when needed
+	 * Clears the banner cache
 	 */
-	public setAuthService(authService: AuthService): void {
-		this._authService = authService
+	public clearCache(): void {
+		this._cachedBanners = []
+		this._lastFetchTime = 0
+		Logger.log("BannerService: Cache cleared")
+	}
+
+	/**
+	 * Checks if a banner should be shown on this IDE and it has not been dismissed by the user
+	 * @param bannerId The ID of the banner to check
+	 * @returns true if the banner has been dismissed
+	 */
+	public shouldShow(banner: BannerCardData): boolean {
+		try {
+			const dismissedBanners = this._controller.stateManager.getGlobalStateKey("dismissedBanners") || []
+			const isDismissed = !dismissedBanners.some((b) => b.bannerId === banner.id)
+			if (isDismissed) {
+				return false
+			}
+			const os = this.getOsType()
+			// This filtering is only required for hard-coded banners.
+			if (banner.platforms && !banner.platforms.some((p) => p === os)) {
+				// Banner is not used on this OS
+				return false
+			}
+			// TODO: Add isClineUser check
+			return true
+		} catch (error) {
+			Logger.error(`BannerService: Error checking if banner is dismissed`, error)
+			return true
+		}
+	}
+
+	/**
+	 * Sends a banner event to the telemetry endpoint
+	 * @param bannerId The ID of the banner
+	 * @param eventType The type of event (now we only support dismiss, in the future we might want to support seen, click...)
+	 */
+	public async sendBannerEvent(bannerId: string, eventType: "dismiss"): Promise<void> {
+		try {
+			const url = new URL("/banners/v1/events", this._baseUrl).toString()
+
+			// Get IDE type for surface
+			const ideType = await this.getIdeType()
+			let surface: string
+			if (ideType === "cli") {
+				surface = "cli"
+			} else if (ideType === "jetbrains") {
+				surface = "jetbrains"
+			} else {
+				surface = "vscode"
+			}
+
+			const instanceId = getDistinctId()
+
+			const payload = {
+				banner_id: bannerId,
+				instance_id: instanceId,
+				surface,
+				event_type: eventType,
+			}
+
+			await axios.post(url, payload, {
+				timeout: 10000,
+				headers: {
+					"Content-Type": "application/json",
+				},
+				...getAxiosSettings(),
+			})
+
+			Logger.log(`BannerService: Sent ${eventType} event for banner ${bannerId}`)
+		} catch (error) {
+			Logger.error(`BannerService: Error sending banner event`, error)
+		}
+	}
+
+	/**
+	 * Marks a banner as dismissed and stores it in state
+	 * @param bannerId The ID of the banner to dismiss
+	 */
+	public async dismissBanner(bannerId: string): Promise<void> {
+		try {
+			const dismissedBanners = this._controller.stateManager.getGlobalStateKey("dismissedBanners") || []
+
+			if (dismissedBanners.some((b) => b.bannerId === bannerId)) {
+				Logger.log(`BannerService: Banner ${bannerId} already dismissed`)
+				return
+			}
+			const newDismissal = {
+				bannerId,
+				dismissedAt: Date.now(),
+			}
+
+			this._controller.stateManager.setGlobalState("dismissedBanners", [...dismissedBanners, newDismissal])
+
+			await this.sendBannerEvent(bannerId, "dismiss")
+
+			this.clearCache()
+
+			Logger.log(`BannerService: Banner ${bannerId} dismissed`)
+		} catch (error) {
+			Logger.error(`BannerService: Error dismissing banner`, error)
+		}
 	}
 
 	/**
@@ -78,7 +258,7 @@ export class BannerService {
 	 * @param forceRefresh If true, bypasses cache and fetches fresh data
 	 * @returns Array of banners that match current environment
 	 */
-	public async fetchActiveBanners(forceRefresh = false): Promise<Banner[]> {
+	async fetchActiveBanners(forceRefresh = false): Promise<Banner[]> {
 		try {
 			// Return cached banners if still valid
 			const now = Date.now()
@@ -89,7 +269,7 @@ export class BannerService {
 
 			const ideType = await this.getIdeType()
 			const extensionVersion = await this.getExtensionVersion()
-			const osType = await this.getOSType()
+			const osType = this.getOsType()
 
 			const urlObj = new URL("/banners/v1/messages", this._baseUrl)
 			urlObj.searchParams.set("ide", ideType)
@@ -101,7 +281,7 @@ export class BannerService {
 			const url = urlObj.toString()
 			Logger.log(`BannerService: Fetching banners from ${url}`)
 
-			const authService = this.getAuthServiceInstance()
+			const authService = AuthService.getInstance(this._controller)
 			let token: string | null = null
 			if (authService) {
 				token = await authService.getAuthToken()
@@ -219,21 +399,16 @@ export class BannerService {
 	 * Gets the current Operating System
 	 * @returns OS type (windows, linux, macos or unknown)
 	 */
-	private async getOSType(): Promise<string> {
-		try {
-			switch (process.platform) {
-				case "win32":
-					return "windows"
-				case "linux":
-					return "linux"
-				case "darwin":
-					return "macos"
-				default:
-					return "unknown"
-			}
-		} catch (error) {
-			Logger.error("BannerService: Error getting OS type", error)
-			return "unknown"
+	private getOsType(): string {
+		switch (process.platform) {
+			case "win32":
+				return "windows"
+			case "linux":
+				return "linux"
+			case "darwin":
+				return "macos"
+			default:
+				return "unknown"
 		}
 	}
 
@@ -261,143 +436,6 @@ export class BannerService {
 			return "unknown"
 		} catch (error) {
 			Logger.error("BannerService: Error getting IDE type", error)
-			return "unknown"
-		}
-	}
-
-	/**
-	 * Gets the AuthService instance
-	 * @returns AuthService instance or undefined if not available
-	 */
-	private getAuthServiceInstance(): AuthService | undefined {
-		// Use injected instance if available (for testing)
-		if (this._authService) {
-			return this._authService
-		}
-
-		// Otherwise, get singleton instance
-		try {
-			return AuthService.getInstance(this._controller)
-		} catch {
-			return undefined
-		}
-	}
-
-	/**
-	 * Clears the banner cache
-	 */
-	public clearCache(): void {
-		this._cachedBanners = []
-		this._lastFetchTime = 0
-		Logger.log("BannerService: Cache cleared")
-	}
-
-	/**
-	 * Sends a banner event to the telemetry endpoint
-	 * @param bannerId The ID of the banner
-	 * @param eventType The type of event (now we only support dismiss, in the future we might want to support seen, click...)
-	 */
-	public async sendBannerEvent(bannerId: string, eventType: "dismiss"): Promise<void> {
-		try {
-			const url = new URL("/banners/v1/events", this._baseUrl).toString()
-
-			// Get IDE type for surface
-			const ideType = await this.getIdeType()
-			let surface: string
-			if (ideType === "cli") {
-				surface = "cli"
-			} else if (ideType === "jetbrains") {
-				surface = "jetbrains"
-			} else {
-				surface = "vscode"
-			}
-
-			const instanceId = this.getInstanceDistinctId()
-
-			const payload = {
-				banner_id: bannerId,
-				instance_id: instanceId,
-				surface,
-				event_type: eventType,
-			}
-
-			await axios.post(url, payload, {
-				timeout: 10000,
-				headers: {
-					"Content-Type": "application/json",
-				},
-				...getAxiosSettings(),
-			})
-
-			Logger.log(`BannerService: Sent ${eventType} event for banner ${bannerId}`)
-		} catch (error) {
-			Logger.error(`BannerService: Error sending banner event`, error)
-		}
-	}
-
-	/**
-	 * Marks a banner as dismissed and stores it in state
-	 * @param bannerId The ID of the banner to dismiss
-	 */
-	public async dismissBanner(bannerId: string): Promise<void> {
-		try {
-			const dismissedBanners = this._controller.stateManager.getGlobalStateKey("dismissedBanners") || []
-
-			if (dismissedBanners.some((b) => b.bannerId === bannerId)) {
-				Logger.log(`BannerService: Banner ${bannerId} already dismissed`)
-				return
-			}
-			const newDismissal = {
-				bannerId,
-				dismissedAt: Date.now(),
-			}
-
-			this._controller.stateManager.setGlobalState("dismissedBanners", [...dismissedBanners, newDismissal])
-
-			await this.sendBannerEvent(bannerId, "dismiss")
-
-			this.clearCache()
-
-			Logger.log(`BannerService: Banner ${bannerId} dismissed`)
-		} catch (error) {
-			Logger.error(`BannerService: Error dismissing banner`, error)
-		}
-	}
-
-	/**
-	 * Checks if a banner has been dismissed by the user
-	 * @param bannerId The ID of the banner to check
-	 * @returns true if the banner has been dismissed
-	 */
-	public isBannerDismissed(bannerId: string): boolean {
-		try {
-			const dismissedBanners = this._controller.stateManager.getGlobalStateKey("dismissedBanners") || []
-			return dismissedBanners.some((b) => b.bannerId === bannerId)
-		} catch (error) {
-			Logger.error(`BannerService: Error checking if banner is dismissed`, error)
-			return false
-		}
-	}
-
-	/**
-	 * Gets banners that haven't been dismissed by the user
-	 * @param forceRefresh If true, bypasses cache and fetches fresh data
-	 * @returns Array of non-dismissed banners
-	 */
-	public async getNonDismissedBanners(forceRefresh = false): Promise<Banner[]> {
-		const allBanners = await this.fetchActiveBanners(forceRefresh)
-		return allBanners.filter((banner) => !this.isBannerDismissed(banner.id))
-	}
-
-	/**
-	 * Gets the distinct ID for the current user
-	 * @returns distinct ID string
-	 */
-	private getInstanceDistinctId(): string {
-		try {
-			return getDistinctId()
-		} catch (error) {
-			Logger.error("BannerService: Error getting distinct ID", error)
 			return "unknown"
 		}
 	}
