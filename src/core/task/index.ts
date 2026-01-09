@@ -1764,9 +1764,19 @@ export class Task {
 			maxConsecutiveMistakes: this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes"),
 		})
 
-		// Discover and filter available skills
-		const allSkills = await discoverSkills(this.cwd)
-		const availableSkills = getAvailableSkills(allSkills)
+		// Discover and filter available skills (gated by skillsEnabled setting)
+		const skillsEnabled = this.stateManager.getGlobalSettingsKey("skillsEnabled") ?? false
+		const allSkills = skillsEnabled ? await discoverSkills(this.cwd) : []
+		const resolvedSkills = getAvailableSkills(allSkills)
+
+		// Filter skills by toggle state (enabled by default)
+		const globalSkillsToggles = this.stateManager.getGlobalSettingsKey("globalSkillsToggles") ?? {}
+		const localSkillsToggles = this.stateManager.getWorkspaceStateKey("localSkillsToggles") ?? {}
+		const availableSkills = resolvedSkills.filter((skill) => {
+			const toggles = skill.source === "global" ? globalSkillsToggles : localSkillsToggles
+			// If toggle exists, use it; otherwise default to enabled (true)
+			return toggles[skill.path] !== false
+		})
 
 		const promptContext: SystemPromptContext = {
 			cwd: this.cwd,

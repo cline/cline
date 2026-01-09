@@ -210,6 +210,7 @@ const USER_SETTINGS_FIELDS = {
 	},
 	globalClineRulesToggles: { type: {} as ClineRulesToggles },
 	globalWorkflowToggles: { type: {} as ClineRulesToggles },
+	globalSkillsToggles: { type: {} as Record<string, boolean> },
 	browserSettings: {
 		type: DEFAULT_BROWSER_SETTINGS as BrowserSettings,
 		transform: (v: any) => ({ ...DEFAULT_BROWSER_SETTINGS, ...v }),
@@ -240,6 +241,7 @@ const USER_SETTINGS_FIELDS = {
 	subagentsEnabled: { type: false as boolean },
 	enableParallelToolCalling: { type: false as boolean },
 	backgroundEditEnabled: { type: false as boolean },
+	skillsEnabled: { type: false as boolean },
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: { type: true as boolean },
@@ -319,6 +321,7 @@ export const LocalStateKeys = [
 	"localCursorRulesToggles",
 	"localWindsurfRulesToggles",
 	"localAgentsRulesToggles",
+	"localSkillsToggles",
 	"workflowToggles",
 ] as const
 

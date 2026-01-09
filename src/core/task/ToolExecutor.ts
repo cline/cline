@@ -8,7 +8,6 @@ import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { McpHub } from "@services/mcp/McpHub"
 import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import { ClineContent } from "@shared/messages/content"
-import type { SkillMetadata } from "@shared/skills"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
@@ -130,9 +129,6 @@ export class ToolExecutor {
 			userContent: ClineContent[],
 			context: "initial_task" | "resume" | "feedback",
 		) => Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }>,
-
-		// Skills (discovered at task start, passed from Task class)
-		private skills?: SkillMetadata[],
 	) {
 		this.autoApprover = new AutoApprove(this.stateManager)
 
@@ -174,7 +170,6 @@ export class ToolExecutor {
 				contextManager: this.contextManager,
 				stateManager: this.stateManager,
 			},
-			skills: this.skills,
 			callbacks: {
 				say: this.say,
 				ask: this.ask,

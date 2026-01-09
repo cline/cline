@@ -831,6 +831,8 @@ export class Controller {
 		const enableCheckpointsSetting = this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
 		const globalClineRulesToggles = this.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
 		const globalWorkflowToggles = this.stateManager.getGlobalSettingsKey("globalWorkflowToggles")
+		const globalSkillsToggles = this.stateManager.getGlobalSettingsKey("globalSkillsToggles")
+		const localSkillsToggles = this.stateManager.getWorkspaceStateKey("localSkillsToggles")
 		const remoteRulesToggles = this.stateManager.getGlobalStateKey("remoteRulesToggles")
 		const remoteWorkflowToggles = this.stateManager.getGlobalStateKey("remoteWorkflowToggles")
 		const shellIntegrationTimeout = this.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
@@ -851,6 +853,7 @@ export class Controller {
 		const lastDismissedModelBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedModelBannerVersion") || 0
 		const lastDismissedCliBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedCliBannerVersion") || 0
 		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
+		const skillsEnabled = this.stateManager.getGlobalSettingsKey("skillsEnabled")
 
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
@@ -914,6 +917,8 @@ export class Controller {
 			localAgentsRulesToggles: localAgentsRulesToggles || {},
 			localWorkflowToggles: workflowToggles || {},
 			globalWorkflowToggles: globalWorkflowToggles || {},
+			globalSkillsToggles: globalSkillsToggles || {},
+			localSkillsToggles: localSkillsToggles || {},
 			remoteRulesToggles: remoteRulesToggles,
 			remoteWorkflowToggles: remoteWorkflowToggles,
 			shellIntegrationTimeout,
@@ -955,6 +960,7 @@ export class Controller {
 			nativeToolCallSetting: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
 			backgroundEditEnabled: this.stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
+			skillsEnabled,
 		}
 	}
 
