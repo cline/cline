@@ -351,9 +351,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							<div
 								className={cn("history-item", "cursor-pointer flex", {
 									"border-b-panel": index < taskHistory.length - 1,
-									"bg-success": activeTasks?.find((task) => task.taskId === item.id)?.status === "active",
-									"bg-warning": activeTasks?.find((task) => task.taskId === item.id)?.status === "pending",
-									"bg-error": activeTasks?.find((task) => task.taskId === item.id)?.status === "error",
+									"bg-success/20": activeTasks?.find((task) => task.taskId === item.id)?.status === "active",
+									"bg-warning/20": activeTasks?.find((task) => task.taskId === item.id)?.status === "pending",
+									"bg-error/20": activeTasks?.find((task) => task.taskId === item.id)?.status === "error",
 								})}
 								key={item.id}>
 								<VSCodeCheckbox
