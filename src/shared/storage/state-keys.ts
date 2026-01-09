@@ -27,7 +27,7 @@ export type GlobalStateAndSettings = GlobalState & Settings
 export interface RemoteConfigExtraFields {
 	remoteConfiguredProviders: string[]
 	allowedMCPServers: Array<{ id: string }>
-	remoteMCPServers?: Array<{ name: string; url: string }>
+	remoteMCPServers?: Array<{ name: string; url: string; alwaysEnabled?: boolean }>
 	remoteGlobalRules?: GlobalInstructionsFile[]
 	remoteGlobalWorkflows?: GlobalInstructionsFile[]
 	blockPersonalRemoteMCPServers?: boolean
@@ -130,6 +130,8 @@ export interface Settings {
 	aihubmixAppCode: string | undefined
 	hooksEnabled: boolean
 	subagentsEnabled: boolean
+	skillsEnabled: boolean
+	globalSkillsToggles: Record<string, boolean>
 	enableParallelToolCalling: boolean
 	backgroundEditEnabled: boolean
 
@@ -288,4 +290,5 @@ export interface LocalState {
 	localWindsurfRulesToggles: ClineRulesToggles
 	localAgentsRulesToggles: ClineRulesToggles
 	workflowToggles: ClineRulesToggles
+	localSkillsToggles: ClineRulesToggles
 }

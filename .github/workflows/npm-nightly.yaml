@@ -75,21 +75,36 @@ jobs:
         if: steps.check_commits.outputs.skip != 'true' && steps.webview-cache.outputs.cache-hit != 'true'
         run: cd webview-ui && npm ci --include=optional
 
-      - name: Read nightly version
+      - name: Generate nightly version with timestamp
         if: steps.check_commits.outputs.skip != 'true'
         id: version
         run: |
-          # Read version from cli/package-nightly.json
-          VERSION=$(node -p "require('./cli/package-nightly.json').version")
-          echo "Nightly version: $VERSION"
+          # Read base version from cli/package.json (e.g., "1.0.9")
+          BASE_VERSION=$(node -p "require('./cli/package.json').version")
+          
+          # Generate timestamp (Unix epoch seconds)
+          TIMESTAMP=$(date +%s)
+          
+          # Create unique nightly version: 1.0.9-nightly.1736365200
+          VERSION="${BASE_VERSION}-nightly.${TIMESTAMP}"
+          
+          echo "Base version: $BASE_VERSION"
+          echo "Generated nightly version: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Setup cli/package.json for build
+      - name: Update cli/package.json with nightly version
         if: steps.check_commits.outputs.skip != 'true'
         run: |
-          # Copy nightly package.json to cli/package.json for build
-          cp cli/package-nightly.json cli/package.json
+          # Update version with timestamp-based nightly version
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('cli/package.json', 'utf8'));
+            pkg.version = '${{ steps.version.outputs.version }}';
+            fs.writeFileSync('cli/package.json', JSON.stringify(pkg, null, '\t'));
+          "
+          
           echo "Using version ${{ steps.version.outputs.version }} for build"
+          cat cli/package.json | grep '"version"'
 
       - name: Download ripgrep binaries
         if: steps.check_commits.outputs.skip != 'true'

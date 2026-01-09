@@ -120,8 +120,38 @@ Controls a built-in browser to interact with websites or local servers. Useful f
 </browser_action>
 ```
 
-### Leverage MCP Tools
-You can use Model Context Protocol (MCP) tools within your workflows to interact with external services like GitHub, Slack, or databases. This allows you to create powerful end-to-end automations.
+### Leveraging MCP Tools
+
+MCP tools allow Cline to interact with external services like GitHub, Slack, or databases. You can reference them in your workflows using natural language or explicit XML tags for deterministic control.
+
+#### Natural Language (Heuristic)
+
+Most of the time, the simplest way to use an MCP tool is to describe the action you want Cline to take.
+
+```markdown
+1. Fetch the latest issues from the github-repo MCP server.
+2. Summarize the critical bugs.
+3. Post the summary to the #engineering channel using the slack-notifications MCP.
+```
+
+#### Explicit XML Tag (Deterministic)
+
+For critical automation where you need exact control over parameters, use the `use_mcp_tool` tag.
+
+```xml
+<use_mcp_tool>
+  <server_name>github-repo-manager</server_name>
+  <tool_name>create_issue</tool_name>
+  <arguments>
+    {
+      "owner": "cline",
+      "repo": "cline",
+      "title": "Automated Bug Report",
+      "body": "Found a regression in the latest build."
+    }
+  </arguments>
+</use_mcp_tool>
+```
 
 ### Manage Context Window
 Be mindful of Cline's context window. If a workflow is too long or processes too much data, it might exceed the token limit.
