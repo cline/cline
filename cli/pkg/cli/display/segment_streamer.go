@@ -82,6 +82,12 @@ func (ss *StreamingSegment) Freeze() {
 }
 
 func (ss *StreamingSegment) renderFinal(currentBuffer string) {
+	// Add blank line separator between segments in plain mode
+	// to prevent consecutive segments from running together
+	if ss.outputFormat == "plain" {
+		output.Println("")
+	}
+
 	var bodyContent string
 
 	// Use ToolRenderer for all body rendering to centralize logic
