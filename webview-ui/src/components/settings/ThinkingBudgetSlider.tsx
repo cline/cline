@@ -121,7 +121,7 @@ const ThinkingBudgetSlider = ({ currentMode, maxBudget, showEnableToggle = true 
 	return (
 		<div className="w-full">
 			{showEnableToggle ? (
-				<VSCodeCheckbox checked={isEnabled} onClick={handleToggleChange}>
+				<VSCodeCheckbox checked={isEnabled} onChange={handleToggleChange}>
 					Enable thinking{localValue && localValue > 0 ? ` (${localValue.toLocaleString()} tokens)` : ""}
 				</VSCodeCheckbox>
 			) : null}
