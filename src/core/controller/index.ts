@@ -64,9 +64,21 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 */
 
 export class Controller {
+	// The task that is currently being displayed in the UI.
 	task?: Task
 
-	// Multi-task support: Track all active tasks
+	/**
+	 * Tracks all tasks that are currently running or awaiting user input in this controller instance.
+	 * Tasks are added when initialized via `initTask()` and should be removed when:
+	 * - The task is cancelled by the user (`cancelTask()`)
+	 * - The task is deleted from history (`deleteTaskFromState()`)
+	 * - The task completes naturally (user starts a new task after completion)
+	 * - The task is cleared (`clearTask()`)
+	 * - The controller is disposed
+	 *
+	 * This map enables parallel task execution where users can start new tasks without
+	 * cancelling existing ones. Tasks remain here until explicitly cleaned up.
+	 */
 	private activeTasks: Map<string, Task> = new Map()
 
 	mcpHub: McpHub
@@ -179,13 +191,14 @@ export class Controller {
 			this.remoteConfigTimer = undefined
 		}
 
-		this.activeTasks.clear()
-		await this.clearTask()
-		this.mcpHub.dispose()
-
+		// Abort all active tasks before clearing
 		for (const [, task] of this.activeTasks) {
 			await task.abortTask().catch((error) => console.error("Failed to abort task during controller dispose:", error))
 		}
+
+		await this.clearTask()
+		this.mcpHub.dispose()
+		this.activeTasks.clear()
 
 		this.task = undefined
 
@@ -446,7 +459,6 @@ export class Controller {
 
 		// Set flag to prevent concurrent cancellations
 		this.cancelInProgress = true
-		this.activeTasks.delete(targetTask.taskId)
 
 		try {
 			// If canceling current task, clear background command state
@@ -835,6 +847,9 @@ export class Controller {
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
+		// Clean up any tasks that are no longer active before reporting state
+		this.cleanupInactiveTasks()
+
 		// Get API configuration from cache for immediate access
 		const onboardingModels = getClineOnboardingModels()
 		const apiConfiguration = this.stateManager.getApiConfiguration()
@@ -1005,7 +1020,6 @@ export class Controller {
 				this.activeTasks.delete(this.task.taskId)
 			}
 		}
-		// await this.task?.abortTask()
 		this.task = undefined // removes reference to it, so once promises end it will be garbage collected
 	}
 
@@ -1047,6 +1061,36 @@ export class Controller {
 		// The task remains in activeTasks and can be switched back to
 		this.task = undefined
 		await this.postStateToWebview()
+	}
+
+	/**
+	 * Removes tasks from activeTasks that are no longer active (aborted, abandoned, or completed).
+	 * A task is considered inactive when getTaskStatus returns undefined.
+	 * This is called automatically when posting state to webview to keep the map clean.
+	 */
+	private cleanupInactiveTasks(): void {
+		// Store the task IDs that needs to be removed
+		// to avoid modifying the activeTasks map while iterating
+		const tasksToRemove: string[] = []
+
+		for (const [taskId, task] of this.activeTasks) {
+			// Skip the current task - we always want to keep it in the map
+			if (taskId === this.task?.taskId) {
+				continue
+			}
+
+			const lastMessage = task.messageStateHandler?.getClineMessages()?.at(-1)
+			const status = getTaskStatus(task.taskState, lastMessage)
+
+			// If status is undefined, the task is no longer active (aborted, abandoned, or completed)
+			if (status === undefined) {
+				tasksToRemove.push(taskId)
+			}
+		}
+
+		for (const taskId of tasksToRemove) {
+			this.activeTasks.delete(taskId)
+		}
 	}
 
 	// Caching mechanism to keep track of webview messages + API conversation history per provider instance
