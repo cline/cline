@@ -136,17 +136,3 @@ message ExplainChangesRequest {
   // Timestamp of the completion message to explain changes for
   int64 message_ts = 2;
 }
-
-// Response for active tasks list
-message ActiveTasksResponse {
-  repeated ActiveTaskInfo tasks = 1;
-  string current_task_id = 2;
-}
-
-// Information about an active task
-message ActiveTaskInfo {
-  string task_id = 1;
-  string task_description = 2;
-  int64 ts = 3;
-  bool is_streaming = 4;
-}
