@@ -27,7 +27,7 @@ export type GlobalStateAndSettings = GlobalState & Settings
 export interface RemoteConfigExtraFields {
 	remoteConfiguredProviders: string[]
 	allowedMCPServers: Array<{ id: string }>
-	remoteMCPServers?: Array<{ name: string; url: string }>
+	remoteMCPServers?: Array<{ name: string; url: string; alwaysEnabled?: boolean }>
 	remoteGlobalRules?: GlobalInstructionsFile[]
 	remoteGlobalWorkflows?: GlobalInstructionsFile[]
 	blockPersonalRemoteMCPServers?: boolean
@@ -82,6 +82,7 @@ export interface Settings {
 	anthropicBaseUrl: string | undefined
 	geminiBaseUrl: string | undefined
 	azureApiVersion: string | undefined
+	azureIdentity: boolean | undefined
 	openRouterProviderSorting: string | undefined
 	autoApprovalSettings: AutoApprovalSettings
 	globalClineRulesToggles: ClineRulesToggles
@@ -129,6 +130,8 @@ export interface Settings {
 	aihubmixAppCode: string | undefined
 	hooksEnabled: boolean
 	subagentsEnabled: boolean
+	skillsEnabled: boolean
+	globalSkillsToggles: Record<string, boolean>
 	enableParallelToolCalling: boolean
 	backgroundEditEnabled: boolean
 
@@ -167,11 +170,14 @@ export interface Settings {
 	planModeHuaweiCloudMaasModelInfo: ModelInfo | undefined
 	planModeOcaModelId: string | undefined
 	planModeOcaModelInfo: OcaModelInfo | undefined
+	planModeOcaReasoningEffort: string | undefined
 	planModeHicapModelId: string | undefined
 	planModeHicapModelInfo: ModelInfo | undefined
 	planModeAihubmixModelId: string | undefined
 	planModeAihubmixModelInfo: ModelInfo | undefined
 	planModeNousResearchModelId: string | undefined
+	planModeVercelAiGatewayModelId: string | undefined
+	planModeVercelAiGatewayModelInfo: ModelInfo | undefined
 	// Act mode configurations
 	actModeApiProvider: ApiProvider
 	actModeApiModelId: string | undefined
@@ -205,11 +211,14 @@ export interface Settings {
 	actModeHuaweiCloudMaasModelInfo: ModelInfo | undefined
 	actModeOcaModelId: string | undefined
 	actModeOcaModelInfo: OcaModelInfo | undefined
+	actModeOcaReasoningEffort: string | undefined
 	actModeHicapModelId: string | undefined
 	actModeHicapModelInfo: ModelInfo | undefined
 	actModeAihubmixModelId: string | undefined
 	actModeAihubmixModelInfo: ModelInfo | undefined
 	actModeNousResearchModelId: string | undefined
+	actModeVercelAiGatewayModelId: string | undefined
+	actModeVercelAiGatewayModelInfo: ModelInfo | undefined
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: boolean
@@ -281,4 +290,5 @@ export interface LocalState {
 	localWindsurfRulesToggles: ClineRulesToggles
 	localAgentsRulesToggles: ClineRulesToggles
 	workflowToggles: ClineRulesToggles
+	localSkillsToggles: ClineRulesToggles
 }

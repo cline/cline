@@ -23,6 +23,7 @@ import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialM
 import { executePreCompactHookWithCleanup, HookCancellationError, HookExecution } from "@core/hooks/precompact-executor"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { parseMentions } from "@core/mentions"
+import { CommandPermissionController } from "@core/permissions"
 import { summarizeTask } from "@core/prompts/contextManagement"
 import { formatResponse } from "@core/prompts/responses"
 import { parseSlashCommands } from "@core/slash-commands"
@@ -94,6 +95,7 @@ import {
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
+import { discoverSkills, getAvailableSkills } from "../context/instructions/user-instructions/skills"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
 import { executeHook } from "../hooks/hook-executor"
@@ -200,6 +202,7 @@ export class Task {
 	public checkpointManager?: ICheckpointManager
 	private initialCheckpointCommitPromise?: Promise<string | undefined>
 	private clineIgnoreController: ClineIgnoreController
+	private commandPermissionController: CommandPermissionController
 	private toolExecutor: ToolExecutor
 	/**
 	 * Whether the task is using native tool calls.
@@ -275,6 +278,7 @@ export class Task {
 		this.reinitExistingTaskFromId = reinitExistingTaskFromId
 		this.cancelTask = cancelTask
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
+		this.commandPermissionController = new CommandPermissionController()
 		this.taskLockAcquired = taskLockAcquired
 		// Determine terminal execution mode and create appropriate terminal manager
 		this.terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
@@ -536,6 +540,7 @@ export class Task {
 			this.mcpHub,
 			this.fileContextTracker,
 			this.clineIgnoreController,
+			this.commandPermissionController,
 			this.contextManager,
 			this.stateManager,
 			cwd,
@@ -712,7 +717,7 @@ export class Task {
 		partial?: boolean,
 	): Promise<number | undefined> {
 		// Allow hook messages even when aborted to enable proper cleanup
-		if (this.taskState.abort && type !== "hook" && type !== "hook_output") {
+		if (this.taskState.abort && type !== "hook_status" && type !== "hook_output_stream") {
 			throw new Error("Cline instance aborted")
 		}
 
@@ -1596,7 +1601,7 @@ export class Task {
 			}
 
 			// Notify UI that hook was cancelled
-			await this.say("hook_output", "\nHook execution cancelled by user")
+			await this.say("hook_output_stream", "\nHook execution cancelled by user")
 
 			// Return success - let caller (abortTask) handle next steps
 			// DON'T call abortTask() here to avoid infinite recursion
@@ -1759,12 +1764,27 @@ export class Task {
 			maxConsecutiveMistakes: this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes"),
 		})
 
+		// Discover and filter available skills (gated by skillsEnabled setting)
+		const skillsEnabled = this.stateManager.getGlobalSettingsKey("skillsEnabled") ?? false
+		const allSkills = skillsEnabled ? await discoverSkills(this.cwd) : []
+		const resolvedSkills = getAvailableSkills(allSkills)
+
+		// Filter skills by toggle state (enabled by default)
+		const globalSkillsToggles = this.stateManager.getGlobalSettingsKey("globalSkillsToggles") ?? {}
+		const localSkillsToggles = this.stateManager.getWorkspaceStateKey("localSkillsToggles") ?? {}
+		const availableSkills = resolvedSkills.filter((skill) => {
+			const toggles = skill.source === "global" ? globalSkillsToggles : localSkillsToggles
+			// If toggle exists, use it; otherwise default to enabled (true)
+			return toggles[skill.path] !== false
+		})
+
 		const promptContext: SystemPromptContext = {
 			cwd: this.cwd,
 			ide,
 			providerInfo,
 			supportsBrowserUse,
 			mcpHub: this.mcpHub,
+			skills: availableSkills,
 			focusChainSettings: this.stateManager.getGlobalSettingsKey("focusChainSettings"),
 			globalClineRulesFileInstructions,
 			localClineRulesFileInstructions,
@@ -1783,6 +1803,7 @@ export class Task {
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
 			enableNativeToolCalls: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
+			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
 			terminalExecutionMode: this.terminalExecutionMode,
 		}
 

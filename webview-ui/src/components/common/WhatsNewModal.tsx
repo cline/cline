@@ -87,27 +87,21 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					{/* Description */}
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						<li className="mb-2">
-							<strong>Cline provider</strong> now runs on the Vercel AI Gateway for better latency and fewer errors.
+							<strong>Skills:</strong> Extend Cline with instruction sets for specialized tasks.{" "}
+							<a
+								href="https://docs.cline.bot/features/skills"
+								style={{ color: "var(--vscode-textLink-foreground)" }}>
+								Learn more
+							</a>
+						</li>
+						<li className="mb-2">
+							<strong>Web Search:</strong> Improved websearch tooling in Cline provider.
 						</li>
 						<li>
-							<strong>GLM 4.7</strong> now available!
+							<strong>MiniMax M-2.1</strong> free offering extended till Friday!
 							<br />
 							<AuthButton>
-								<ModelButton label="Try GLM 4.7" modelId="z-ai/glm-4.7" />
-							</AuthButton>
-						</li>
-						<li>
-							<strong>Kat-Coder Pro</strong>, free for a limited time!
-							<br />
-							<AuthButton>
-								<ModelButton label="Try Kat-Coder Pro" modelId="kwaipilot/kat-coder-pro:free" />
-							</AuthButton>
-						</li>
-						<li>
-							<strong>Gemini 3 Flash Preview</strong> now available!
-							<br />
-							<AuthButton>
-								<ModelButton label="Try Gemini 3 Flash Preview" modelId="google/gemini-3-flash-preview" />
+								<ModelButton label="Try MiniMax M2.1" modelId="minimax/minimax-m2.1" />
 							</AuthButton>
 						</li>
 					</ul>
