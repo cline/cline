@@ -100,6 +100,10 @@ export class FeatureFlagsService {
 		return this.getBooleanFlagEnabled(FeatureFlag.WEBTOOLS)
 	}
 
+	public getWorktreesEnabled(): boolean {
+		return this.getBooleanFlagEnabled(FeatureFlag.WORKTREES)
+	}
+
 	public getOnboardingOverrides() {
 		const payload = this.cache.get(FeatureFlag.ONBOARDING_MODELS)
 		// Check if payload is object

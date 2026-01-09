@@ -56,8 +56,15 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	}, [])
 
 	const { clineUser } = useClineAuth()
-	const { openRouterModels, setShowChatModelSelector, navigateToSettings, navigateToWorktrees, subagentsEnabled, banners } =
-		useExtensionState()
+	const {
+		openRouterModels,
+		setShowChatModelSelector,
+		navigateToSettings,
+		navigateToWorktrees,
+		subagentsEnabled,
+		worktreesEnabled,
+		banners,
+	} = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	// Show modal when there's a new announcement and we haven't shown it this session
@@ -223,7 +230,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 						<BannerCarousel banners={activeBanners} />
 						{!shouldShowQuickWins && taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
 						{/* Quick launch worktree button */}
-						{isGitRepo && (
+						{isGitRepo && worktreesEnabled?.featureFlag && worktreesEnabled?.user && (
 							<div className="flex flex-col items-center gap-3 mt-2 mb-4 px-5">
 								{/* TODO: Re-enable once worktree creation is stable
 								<Tooltip>
