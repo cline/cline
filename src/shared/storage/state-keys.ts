@@ -118,6 +118,7 @@ export interface Settings {
 	yoloModeToggled: boolean
 	useAutoCondense: boolean
 	clineWebToolsEnabled: boolean
+	worktreesEnabled: boolean
 	preferredLanguage: string
 	openaiReasoningEffort: OpenaiReasoningEffort
 	mode: Mode
