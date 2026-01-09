@@ -31,6 +31,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		focusChainSettings,
 		multiRootSetting,
 		hooksEnabled,
+		skillsEnabled,
 		remoteConfigSettings,
 		subagentsEnabled,
 		nativeToolCallSetting,
@@ -431,6 +432,22 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								</span>
 							</p>
 						)}
+					</div>
+					<div className="mt-2.5">
+						<VSCodeCheckbox
+							checked={skillsEnabled}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								updateSetting("skillsEnabled", checked)
+							}}>
+							Enable Skills
+						</VSCodeCheckbox>
+						<p className="text-xs">
+							<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
+							<span className="text-description">
+								Enables Skills for reusable, on-demand agent instructions from .cline/skills/ directories.
+							</span>
+						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
 						<Tooltip>

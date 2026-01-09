@@ -96,33 +96,16 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		if (!this.activeDiffEditor || !this.activeDiffEditor.document) {
 			throw new Error("User closed text editor, unable to edit file...")
 		}
-
 		// Place cursor at the beginning of the diff editor to keep it out of the way of the stream animation
 		const beginningOfDocument = new vscode.Position(0, 0)
 		this.activeDiffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)
 
 		// Replace the text in the diff editor document.
-		const document = this.activeDiffEditor.document
+		const document = this.activeDiffEditor?.document
 		const edit = new vscode.WorkspaceEdit()
-
-		// IMPORTANT: VS Code may treat an out-of-bounds end position as an insertion instead of a
-		// replacement. Always validate the range against the current document to keep edits
-		// strictly within the real end-of-file.
-		const startLine = Math.max(0, Math.min(rangeToReplace.startLine, document.lineCount - 1))
-		const desiredEndLine = Math.max(rangeToReplace.startLine, rangeToReplace.endLine)
-		const validatedRange = document.validateRange(
-			new vscode.Range(new vscode.Position(startLine, 0), new vscode.Position(desiredEndLine, 0)),
-		)
-
-		edit.replace(document.uri, validatedRange, content)
+		const range = new vscode.Range(rangeToReplace.startLine, 0, rangeToReplace.endLine, 0)
+		edit.replace(document.uri, range, content)
 		await vscode.workspace.applyEdit(edit)
-
-		// Preserve trailing newline: if content ends with newline, ensure document does too
-		if (content.endsWith("\n") && !document.getText().endsWith("\n")) {
-			const fixEdit = new vscode.WorkspaceEdit()
-			fixEdit.insert(document.uri, document.lineAt(Math.max(0, document.lineCount - 1)).range.end, "\n")
-			await vscode.workspace.applyEdit(fixEdit)
-		}
 
 		if (currentLine !== undefined) {
 			// Update decorations for the entire changed section
