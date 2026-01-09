@@ -81,13 +81,13 @@ export const freeModels = [
 		label: "FREE",
 	},
 	{
-		id: "x-ai/grok-code-fast-1",
-		description: "Fast inference with strong coding performance",
+		id: "kwaipilot/kat-coder-pro:free",
+		description: "KwaiKAT's most advanced agentic coding model in the KAT-Coder series",
 		label: "FREE",
 	},
 	{
-		id: "kwaipilot/kat-coder-pro:free",
-		description: "KwaiKAT's most advanced agentic coding model in the KAT-Coder series",
+		id: "x-ai/grok-code-fast-1",
+		description: "Fast inference with strong coding performance",
 		label: "FREE",
 	},
 	{
