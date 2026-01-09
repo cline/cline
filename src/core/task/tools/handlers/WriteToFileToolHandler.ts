@@ -373,7 +373,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				block,
 				config.taskState.userMessageContent,
 				ToolDisplayUtils.getToolDescription,
-				config.api,
 				config.coordinator,
 				config.taskState.toolUseIdMap,
 			)
@@ -449,7 +448,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					block,
 					config.taskState.userMessageContent,
 					ToolDisplayUtils.getToolDescription,
-					config.api,
 					config.coordinator,
 					config.taskState.toolUseIdMap,
 				)
