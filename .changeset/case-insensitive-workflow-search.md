@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Fix workflow slash command search to be case-insensitive
+Make workflow search case-insensitive so users can find workflows regardless of letter casing (e.g., /testhook matches Testhook)

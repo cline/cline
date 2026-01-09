@@ -215,13 +215,22 @@ export function validateSlashCommand(
 	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands]
 
 	// case insensitive matching
+<<<<<<< HEAD
 	const exactMatch = allCommands.some((cmd) => cmd.name.toLowerCase() === command.toLowerCase())
+=======
+	const lowerCommand = command.toLowerCase()
+	const exactMatch = allCommands.some((cmd) => cmd.name.toLowerCase() === lowerCommand)
+>>>>>>> 5f345c5ae (fix: make workflow search case-insensitive (issue #7834))
 
 	if (exactMatch) {
 		return "full"
 	}
 
+<<<<<<< HEAD
 	const partialMatch = allCommands.some((cmd) => cmd.name.toLowerCase().startsWith(command.toLowerCase()))
+=======
+	const partialMatch = allCommands.some((cmd) => cmd.name.toLowerCase().startsWith(lowerCommand))
+>>>>>>> 5f345c5ae (fix: make workflow search case-insensitive (issue #7834))
 
 	if (partialMatch) {
 		return "partial"
