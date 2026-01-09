@@ -2,7 +2,7 @@ import { BooleanRequest, EmptyRequest, StringArrayRequest, StringRequest } from 
 import { GetTaskHistoryRequest, TaskFavoriteRequest } from "@shared/proto/cline/task"
 import { VSCodeCheckbox, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse, { FuseResult } from "fuse.js"
-import { RotateCwIcon } from "lucide-react"
+import { LoaderIcon } from "lucide-react"
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
 import { Virtuoso } from "react-virtuoso"
 import { Button } from "@/components/ui/button"
@@ -203,7 +203,32 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const taskHistorySearchResults = useMemo(() => {
 		const results = searchQuery ? highlight(fuse.search(searchQuery)) : tasks
 
+		// Create a map of taskId to its index in activeTasks for quick lookup
+		const reversedActiveTasks = activeTasks ? [...activeTasks].reverse() : []
+		const activeTaskIndexMap = new Map(reversedActiveTasks?.map((task, index) => [task.taskId, index]) || [])
+
 		results.sort((a, b) => {
+			// to prevent reordering while active
+			const aActiveIndex = activeTaskIndexMap.get(a.id)
+			const bActiveIndex = activeTaskIndexMap.get(b.id)
+
+			const aIsActive = aActiveIndex !== undefined
+			const bIsActive = bActiveIndex !== undefined
+
+			// If both are active, preserve their activeTasks order
+			if (aIsActive && bIsActive) {
+				return aActiveIndex - bActiveIndex
+			}
+
+			// If only one is active, active tasks come first
+			if (aIsActive) {
+				return -1
+			}
+			if (bIsActive) {
+				return 1
+			}
+
+			// Neither is active: apply the selected sort option
 			switch (sortOption) {
 				case "oldest":
 					return a.ts - b.ts
@@ -227,7 +252,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		})
 
 		return results
-	}, [tasks, searchQuery, fuse, sortOption])
+	}, [tasks, searchQuery, fuse, sortOption, activeTasks])
 
 	// Calculate total size of selected items
 	const selectedItemsSize = useMemo(() => {
@@ -367,16 +392,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 									className="flex flex-col gap-2 py-3 px-5 pl-4 relative flex-grow"
 									onClick={() => handleShowTaskWithId(item.id)}>
 									<div className="flex justify-between items-center">
-										<span
-											className="flex items-center"
-											style={{
-												color: "var(--vscode-descriptionForeground)",
-												fontWeight: 500,
-												fontSize: "0.85em",
-												textTransform: "uppercase",
-											}}>
+										<span className="flex items-center text-description font-medium text-sm uppercase">
 											{activeTasks?.find((task) => task.taskId === item.id)?.status === "active" && (
-												<RotateCwIcon className="animate-spin size-2" />
+												<LoaderIcon className="animate-spin size-2" />
 											)}
 											{formatDate(item.ts)}
 										</span>
