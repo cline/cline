@@ -89,10 +89,6 @@ export function getTaskStatus(taskState?: TaskState, lastMessage?: ClineMessage)
 		return "active"
 	}
 
-	if (lastMessage?.partial === false) {
-		return undefined
-	}
-
 	if (messageType === "api_req_failed" || messageType === "diff_error") {
 		return "error"
 	}

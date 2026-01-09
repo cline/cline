@@ -40,7 +40,6 @@ export const DEFAULT_PLATFORM = "unknown"
  * - "active": Task is actively streaming/processing
  * - "done": Task completed successfully
  * - "error": Task encountered an error
- * - "cancelled": Task was cancelled/aborted by user
  * - "pending": Task is waiting for user response/approval
  */
 export type ActiveTaskStatus = "active" | "done" | "error" | "pending"
