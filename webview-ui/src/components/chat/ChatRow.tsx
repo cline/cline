@@ -1504,7 +1504,9 @@ export const ChatRowContent = memo(
 														}}
 													/>
 												</span>
-												<span className="ph-no-capture">{message.text}</span>
+												<span className="ph-no-capture" style={{ whiteSpace: "pre-wrap" }}>
+													{message.text}
+												</span>
 											</div>
 										) : (
 											<div style={{ display: "flex", alignItems: "center" }}>
