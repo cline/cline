@@ -126,7 +126,7 @@ export class AuthService {
 			// This prevents 401 errors from using expired tokens
 			return null
 		}
-		return token
+		return `workos:${token}`
 	}
 
 	/**
@@ -163,7 +163,7 @@ export class AuthService {
 				if (this._refreshPromise) {
 					Logger.info("Token refresh already in progress, waiting for completion")
 					const updatedToken = await this._refreshPromise
-					return updatedToken ? `workos:${updatedToken}` : null
+					return updatedToken || null
 				}
 
 				// Start a new refresh operation
@@ -211,7 +211,7 @@ export class AuthService {
 				clineAccountAuthToken = await this._refreshPromise
 			}
 
-			return clineAccountAuthToken ? `workos:${clineAccountAuthToken}` : null
+			return clineAccountAuthToken || null
 		} catch (error) {
 			Logger.error("Error getting auth token:", error)
 			return null
