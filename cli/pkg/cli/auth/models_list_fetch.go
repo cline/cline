@@ -154,3 +154,76 @@ func calculateSelectHeight() int {
 	}
 	return visibleRows
 }
+
+type SapAiCoreDeployment struct {
+	ModelName    string
+	DeploymentID string
+	DisplayName  string
+}
+
+func FetchSapAiCoreModels(ctx context.Context, manager *task.Manager, clientID, clientSecret, baseURL, tokenURL, resourceGroup string) ([]SapAiCoreDeployment, bool, error) {
+	req := &cline.SapAiCoreModelsRequest{
+		ClientId:      clientID,
+		ClientSecret:  clientSecret,
+		BaseUrl:       baseURL,
+		TokenUrl:      tokenURL,
+		ResourceGroup: resourceGroup,
+	}
+
+	resp, err := manager.GetClient().Models.GetSapAiCoreModels(ctx, req)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to fetch SAP AI Core models: %w", err)
+	}
+
+	deployments := make([]SapAiCoreDeployment, len(resp.Deployments))
+
+	for i, deployment := range resp.Deployments {
+		shortDeploymentID := deployment.DeploymentId
+		if len(shortDeploymentID) > 8 {
+			shortDeploymentID = shortDeploymentID[len(shortDeploymentID)-8:]
+		}
+
+		deployments[i] = SapAiCoreDeployment{
+			ModelName:    deployment.ModelName,
+			DeploymentID: deployment.DeploymentId,
+			DisplayName:  fmt.Sprintf("%s (%s)", deployment.ModelName, shortDeploymentID),
+		}
+	}
+
+	return deployments, resp.OrchestrationAvailable, nil
+}
+
+func DisplaySapAiCoreDeploymentSelectionMenu(deployments []SapAiCoreDeployment, providerName string) (SapAiCoreDeployment, error) {
+	if len(deployments) == 0 {
+		return SapAiCoreDeployment{}, fmt.Errorf("no deployments available for selection")
+	}
+
+	sort.Slice(deployments, func(i, j int) bool {
+		return deployments[i].ModelName < deployments[j].ModelName
+	})
+
+	var selectedIndex int
+	options := make([]huh.Option[int], len(deployments))
+	for i, deployment := range deployments {
+		options[i] = huh.NewOption(deployment.DisplayName, i)
+	}
+
+	title := fmt.Sprintf("Select a %s deployment", providerName)
+
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[int]().
+				Title(title).
+				Options(options...).
+				Height(calculateSelectHeight()).
+				Filtering(true).
+				Value(&selectedIndex),
+		),
+	)
+
+	if err := form.Run(); err != nil {
+		return SapAiCoreDeployment{}, fmt.Errorf("failed to select deployment: %w", err)
+	}
+
+	return deployments[selectedIndex], nil
+}

@@ -113,6 +113,11 @@ func (pw *ProviderWizard) handleAddProvider() error {
 		return pw.handleAddOcaProvider()
 	}
 
+	// Step 2c: Special handling for SAP AI Core provider
+	if provider == cline.ApiProvider_SAPAICORE {
+		return pw.handleAddSapAiCoreProvider()
+	}
+
 	// Step 3: Get API key first (for non-Bedrock providers)
 	apiKey, baseURL, err := PromptForAPIKey(provider)
 	if err != nil {
@@ -210,6 +215,19 @@ func (pw *ProviderWizard) handleAddOcaProvider() error {
 	}
 
 	fmt.Println("✓ OCA provider configured successfully!")
+	return nil
+}
+
+func (pw *ProviderWizard) handleAddSapAiCoreProvider() error {
+	if err := SetupSapAiCoreWithDynamicModels(pw.ctx, pw.manager); err != nil {
+		return fmt.Errorf("failed to setup SAP AI Core: %w", err)
+	}
+
+	if err := setWelcomeViewCompleted(pw.ctx, pw.manager); err != nil {
+		verboseLog("Warning: Failed to mark welcome view as completed: %v", err)
+	}
+
+	fmt.Println("SAP AI Core provider configured successfully!")
 	return nil
 }
 
@@ -319,6 +337,9 @@ func (pw *ProviderWizard) fetchModelsForProvider(provider cline.ApiProvider, api
 		}
 		interfaceMap := ConvertOcaModelsToInterface(models)
 		return ConvertModelsMapToSlice(interfaceMap), interfaceMap, nil
+
+	case cline.ApiProvider_SAPAICORE:
+		return pw.fetchSapAiCoreModels()
 	}
 
 	// Fall back to static models for providers that don't support dynamic fetching
@@ -761,4 +782,43 @@ func signOutOca(ctx context.Context) error {
 func setWelcomeViewCompleted(ctx context.Context, manager *task.Manager) error {
 	_, err := manager.GetClient().State.SetWelcomeViewCompleted(ctx, &cline.BooleanRequest{Value: true})
 	return err
+}
+
+func (pw *ProviderWizard) fetchSapAiCoreModels() ([]string, map[string]interface{}, error) {
+	state, err := pw.manager.GetClient().State.GetLatestState(pw.ctx, &cline.EmptyRequest{})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get state for SAP AI Core: %w", err)
+	}
+
+	var stateData map[string]interface{}
+	if err := json.Unmarshal([]byte(state.StateJson), &stateData); err != nil {
+		return nil, nil, fmt.Errorf("failed to parse state JSON: %w", err)
+	}
+
+	apiConfig, ok := stateData["apiConfiguration"].(map[string]interface{})
+	if !ok {
+		return nil, nil, fmt.Errorf("no API configuration found in state")
+	}
+
+	clientID, _ := apiConfig["sapAiCoreClientId"].(string)
+	clientSecret, _ := apiConfig["sapAiCoreClientSecret"].(string)
+	baseURL, _ := apiConfig["sapAiCoreBaseUrl"].(string)
+	tokenURL, _ := apiConfig["sapAiCoreTokenUrl"].(string)
+	resourceGroup, _ := apiConfig["sapAiResourceGroup"].(string)
+
+	if clientID == "" || clientSecret == "" || baseURL == "" || tokenURL == "" {
+		return nil, nil, fmt.Errorf("SAP AI Core credentials not found in configuration")
+	}
+
+	deployments, _, err := FetchSapAiCoreModels(pw.ctx, pw.manager, clientID, clientSecret, baseURL, tokenURL, resourceGroup)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	modelIDs := make([]string, len(deployments))
+	for i, deployment := range deployments {
+		modelIDs[i] = deployment.ModelName
+	}
+
+	return modelIDs, nil, nil
 }

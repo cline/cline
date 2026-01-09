@@ -96,6 +96,7 @@ const ENABLED_PROVIDERS = [
 	"cerebras", // Cerebras models
 	"oca", // Oracle Code Assist
 	"nousResearch", // NousResearch provider
+	"sapaicore", // SAP AI Core
 ]
 
 /**
@@ -937,6 +938,7 @@ function hasDynamicModelsSupport(providerId) {
 		"together",
 		"fireworks",
 		"groq",
+		"sapaicore",
 	]
 
 	return dynamicProviders.includes(providerId)
@@ -964,6 +966,7 @@ function getSetupInstructions(providerId) {
 		groq: "Get your API key from https://console.groq.com/keys",
 		cerebras: "Get your API key from https://cloud.cerebras.ai/",
 		fireworks: "Get your API key from https://fireworks.ai/",
+		sapaicore: "Get your SAP AI Core credentials from your BTP subaccount service key",
 	}
 
 	return instructions[providerId] || `Configure ${getProviderDisplayName(providerId)} API credentials`
