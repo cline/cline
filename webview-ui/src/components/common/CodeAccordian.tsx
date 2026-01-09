@@ -12,6 +12,7 @@ interface CodeAccordianProps {
 	isExpanded: boolean
 	onToggleExpand: () => void
 	isLoading?: boolean
+	forceWrap?: boolean
 }
 
 /*
@@ -32,6 +33,7 @@ const CodeAccordian = ({
 	isExpanded,
 	onToggleExpand,
 	isLoading,
+	forceWrap,
 }: CodeAccordianProps) => {
 	const inferredLanguage = useMemo(
 		() => code && (language ?? (path ? getLanguageFromPath(path) : undefined)),
@@ -132,11 +134,12 @@ const CodeAccordian = ({
 				<div
 					//className="code-block-scrollable" this doesn't seem to be necessary anymore, on silicon macs it shows the native mac scrollbar instead of the vscode styled one
 					style={{
-						overflowX: "auto",
+						overflowX: forceWrap ? "visible" : "auto",
 						overflowY: "hidden",
 						maxWidth: "100%",
 					}}>
 					<CodeBlock
+						forceWrap={forceWrap}
 						source={`${"```"}${diff !== undefined ? "diff" : inferredLanguage}\n${(
 							code ?? diff ?? ""
 						).trim()}\n${"```"}`}
