@@ -604,6 +604,8 @@ export class StateManager {
 			planModeAihubmixModelId,
 			planModeAihubmixModelInfo,
 			planModeNousResearchModelId,
+			planModeVercelAiGatewayModelId,
+			planModeVercelAiGatewayModelInfo,
 			geminiPlanModeThinkingLevel,
 			// Act mode configurations
 			actModeApiProvider,
@@ -643,6 +645,8 @@ export class StateManager {
 			actModeAihubmixModelId,
 			actModeAihubmixModelInfo,
 			actModeNousResearchModelId,
+			actModeVercelAiGatewayModelId,
+			actModeVercelAiGatewayModelInfo,
 			geminiActModeThinkingLevel,
 		} = apiConfiguration
 
@@ -686,6 +690,8 @@ export class StateManager {
 			planModeAihubmixModelId,
 			planModeAihubmixModelInfo,
 			planModeNousResearchModelId,
+			planModeVercelAiGatewayModelId,
+			planModeVercelAiGatewayModelInfo,
 			geminiPlanModeThinkingLevel,
 
 			// Act mode configuration updates
@@ -726,6 +732,8 @@ export class StateManager {
 			actModeAihubmixModelId,
 			actModeAihubmixModelInfo,
 			actModeNousResearchModelId,
+			actModeVercelAiGatewayModelId,
+			actModeVercelAiGatewayModelInfo,
 			geminiActModeThinkingLevel,
 
 			// Global state updates
@@ -1285,6 +1293,11 @@ export class StateManager {
 				this.taskStateCache["planModeAihubmixModelInfo"] || this.globalStateCache["planModeAihubmixModelInfo"],
 			planModeNousResearchModelId:
 				this.taskStateCache["planModeNousResearchModelId"] || this.globalStateCache["planModeNousResearchModelId"],
+			planModeVercelAiGatewayModelId:
+				this.taskStateCache["planModeVercelAiGatewayModelId"] || this.globalStateCache["planModeVercelAiGatewayModelId"],
+			planModeVercelAiGatewayModelInfo:
+				this.taskStateCache["planModeVercelAiGatewayModelInfo"] ||
+				this.globalStateCache["planModeVercelAiGatewayModelInfo"],
 			geminiPlanModeThinkingLevel:
 				this.taskStateCache["geminiPlanModeThinkingLevel"] || this.globalStateCache["geminiPlanModeThinkingLevel"],
 
@@ -1356,6 +1369,11 @@ export class StateManager {
 				this.taskStateCache["actModeAihubmixModelInfo"] || this.globalStateCache["actModeAihubmixModelInfo"],
 			actModeNousResearchModelId:
 				this.taskStateCache["actModeNousResearchModelId"] || this.globalStateCache["actModeNousResearchModelId"],
+			actModeVercelAiGatewayModelId:
+				this.taskStateCache["actModeVercelAiGatewayModelId"] || this.globalStateCache["actModeVercelAiGatewayModelId"],
+			actModeVercelAiGatewayModelInfo:
+				this.taskStateCache["actModeVercelAiGatewayModelInfo"] ||
+				this.globalStateCache["actModeVercelAiGatewayModelInfo"],
 			geminiActModeThinkingLevel:
 				this.taskStateCache["geminiActModeThinkingLevel"] || this.globalStateCache["geminiActModeThinkingLevel"],
 			nousResearchApiKey: this.secretsCache["nousResearchApiKey"],
