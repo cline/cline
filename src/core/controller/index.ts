@@ -49,6 +49,7 @@ import {
 import { fetchRemoteConfig } from "../storage/remote-config/fetch"
 import { type PersistenceErrorEvent, StateManager } from "../storage/StateManager"
 import { Task } from "../task"
+import { getTaskStatus } from "../task/TaskState"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { getClineOnboardingModels } from "./models/getClineOnboardingModels"
 import { appendClineStealthModels } from "./models/refreshOpenRouterModels"
@@ -64,6 +65,9 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 
 export class Controller {
 	task?: Task
+
+	// Multi-task support: Track all active tasks
+	private activeTasks: Map<string, Task> = new Map()
 
 	mcpHub: McpHub
 	accountService: ClineAccountService
@@ -81,9 +85,6 @@ export class Controller {
 
 	// Timer for periodic remote config fetching
 	private remoteConfigTimer?: NodeJS.Timeout
-
-	// Multi-task support: Track all active tasks
-	private activeTasks: Map<string, Task> = new Map()
 
 	// Public getter for workspace manager with lazy initialization - To get workspaces when task isn't initialized (Used by file mentions)
 	async ensureWorkspaceManager(): Promise<WorkspaceRootManager | undefined> {
@@ -178,6 +179,7 @@ export class Controller {
 			this.remoteConfigTimer = undefined
 		}
 
+		this.activeTasks.clear()
 		await this.clearTask()
 		this.mcpHub.dispose()
 
@@ -185,7 +187,6 @@ export class Controller {
 			await task.abortTask().catch((error) => console.error("Failed to abort task during controller dispose:", error))
 		}
 
-		this.activeTasks.clear()
 		this.task = undefined
 
 		console.error("Controller disposed")
@@ -255,9 +256,6 @@ export class Controller {
 		// will apply as soon as this fetch completes. The function also calls postStateToWebview()
 		// when done and catches all errors internally.
 		fetchRemoteConfig(this)
-		this.activeTasks.delete(this.task?.taskId || "")
-
-		// await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 		const shellIntegrationTimeout = this.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
@@ -823,6 +821,7 @@ export class Controller {
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
 		const updatedTaskHistory = taskHistory.filter((task) => task.id !== id)
 		this.stateManager.setGlobalState("taskHistory", updatedTaskHistory)
+		this.activeTasks.delete(id)
 
 		// Notify the webview that the task has been deleted
 		await this.postStateToWebview()
@@ -966,12 +965,10 @@ export class Controller {
 			backgroundCommandTaskId: this.backgroundCommandTaskId,
 			// Multi-task support: include all active tasks with status
 			activeTasks: Array.from(this.activeTasks.entries()).map(([taskId, task]) => {
-				const activeTask = this.task || task
-				const lastMessage = activeTask?.messageStateHandler?.getClineMessages()?.at(-1)
-				const { getTaskStatus } = require("@core/task/TaskState")
+				const lastMessage = task?.messageStateHandler?.getClineMessages()?.at(-1)
 				return {
 					taskId,
-					status: getTaskStatus(activeTask.taskState, lastMessage),
+					status: getTaskStatus(task?.taskState, lastMessage),
 				}
 			}),
 			// NEW: Add workspace information
@@ -1038,7 +1035,7 @@ export class Controller {
 	 * @returns The Task instance or undefined if not found
 	 */
 	getActiveTask(taskId: string): Task | undefined {
-		return this.activeTasks.get(taskId)
+		return this.activeTasks.get(taskId) || this.task
 	}
 
 	/**

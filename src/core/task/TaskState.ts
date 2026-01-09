@@ -4,42 +4,6 @@ import { ActiveTaskStatus, ClineMessage } from "@shared/ExtensionMessage"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import type { HookExecution } from "./types/HookExecution"
 
-/**
- * Determines the status of a task based on its state and the last message
- * @param taskState - The TaskState object containing streaming and abort flags
- * @param lastMessage - The last ClineMessage in the conversation (optional)
- * @returns The current ActiveTaskStatus
- */
-export function getTaskStatus(taskState: TaskState, lastMessage?: ClineMessage): ActiveTaskStatus | undefined {
-	// Check if task was aborted/cancelled
-	if (taskState.abort || taskState.abandoned || !lastMessage) {
-		return undefined
-	}
-
-	const messageType = lastMessage?.say || lastMessage?.ask
-
-	if (!messageType || lastMessage?.partial === true || messageType === "api_req_started" || messageType === "api_req_retried") {
-		return "active"
-	}
-
-	if (lastMessage?.partial === false) {
-		return undefined
-	}
-
-	if (messageType === "api_req_failed" || messageType === "diff_error") {
-		return "error"
-	}
-
-	// Task is waiting for user input/approval (any ask type that requires response)
-	if (lastMessage?.partial === false) {
-		if (messageType === "tool" || messageType === "command" || messageType === "followup") {
-			return "pending"
-		}
-	}
-
-	return "done"
-}
-
 export class TaskState {
 	// Streaming flags
 	isStreaming = false
@@ -105,4 +69,40 @@ export class TaskState {
 	// Auto-context summarization
 	currentlySummarizing: boolean = false
 	lastAutoCompactTriggerIndex?: number
+}
+
+/**
+ * Determines the status of a task based on its state and the last message
+ * @param taskState - The TaskState object containing streaming and abort flags
+ * @param lastMessage - The last ClineMessage in the conversation (optional)
+ * @returns The current ActiveTaskStatus
+ */
+export function getTaskStatus(taskState?: TaskState, lastMessage?: ClineMessage): ActiveTaskStatus | undefined {
+	// Check if task was aborted/cancelled
+	if (!taskState || taskState.abort || taskState.abandoned || !lastMessage) {
+		return undefined
+	}
+
+	const messageType = lastMessage?.say || lastMessage?.ask
+
+	if (!messageType || lastMessage?.partial === true || messageType === "api_req_started" || messageType === "api_req_retried") {
+		return "active"
+	}
+
+	if (lastMessage?.partial === false) {
+		return undefined
+	}
+
+	if (messageType === "api_req_failed" || messageType === "diff_error") {
+		return "error"
+	}
+
+	// Task is waiting for user input/approval (any ask type that requires response)
+	if (lastMessage?.partial === false) {
+		if (messageType === "tool" || messageType === "command" || messageType === "followup") {
+			return "pending"
+		}
+	}
+
+	return "done"
 }
