@@ -2,6 +2,7 @@ import { BooleanRequest, EmptyRequest, StringArrayRequest, StringRequest } from 
 import { GetTaskHistoryRequest, TaskFavoriteRequest } from "@shared/proto/cline/task"
 import { VSCodeCheckbox, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse, { FuseResult } from "fuse.js"
+import { RotateCwIcon } from "lucide-react"
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
 import { Virtuoso } from "react-virtuoso"
 import { Button } from "@/components/ui/button"
@@ -351,9 +352,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							<div
 								className={cn("history-item", "cursor-pointer flex", {
 									"border-b-panel": index < taskHistory.length - 1,
-									"bg-success/20": activeTasks?.find((task) => task.taskId === item.id)?.status === "active",
-									"bg-warning/20": activeTasks?.find((task) => task.taskId === item.id)?.status === "pending",
-									"bg-error/20": activeTasks?.find((task) => task.taskId === item.id)?.status === "error",
 								})}
 								key={item.id}>
 								<VSCodeCheckbox
@@ -370,12 +368,16 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 									onClick={() => handleShowTaskWithId(item.id)}>
 									<div className="flex justify-between items-center">
 										<span
+											className="flex items-center"
 											style={{
 												color: "var(--vscode-descriptionForeground)",
 												fontWeight: 500,
 												fontSize: "0.85em",
 												textTransform: "uppercase",
 											}}>
+											{activeTasks?.find((task) => task.taskId === item.id)?.status === "active" && (
+												<RotateCwIcon className="animate-spin size-2" />
+											)}
 											{formatDate(item.ts)}
 										</span>
 										<div className="flex gap-1">

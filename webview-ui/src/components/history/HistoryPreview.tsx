@@ -2,6 +2,7 @@ import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { cn } from "@/lib/utils"
 import { TaskServiceClient } from "@/services/grpc-client"
 
 type HistoryPreviewProps = {
@@ -9,7 +10,7 @@ type HistoryPreviewProps = {
 }
 
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
-	const { taskHistory } = useExtensionState()
+	const { activeTasks, taskHistory } = useExtensionState()
 	const handleHistorySelect = (id: string) => {
 		TaskServiceClient.showTaskWithId(StringRequest.create({ value: id })).catch((error) =>
 			console.error("Error showing task:", error),
@@ -122,6 +123,12 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 										key={item.id}
 										onClick={() => handleHistorySelect(item.id)}>
 										<div className="history-task-content">
+											<div
+												className={cn("w-2 h-2 rounded-full self-center", {
+													"bg-success":
+														activeTasks?.find((task) => task.taskId === item.id)?.status === "active",
+												})}
+											/>
 											{item.isFavorited && (
 												<span
 													aria-label="Favorited"
