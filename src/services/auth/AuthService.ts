@@ -115,7 +115,18 @@ export class AuthService {
 	 * Refreshing it if necessary.
 	 */
 	async getAuthToken(): Promise<string | null> {
-		return this.internalGetAuthToken(this._provider)
+		const token = await this.internalGetAuthToken(this._provider)
+		if (!token) {
+			return null
+		}
+
+		if (this._provider.timeUntilExpiry(token) <= 0) {
+			// internalGetAuthToken may return stale data on network errors
+			// Verify the token is not expired after refresh - We have a pending larger refactor to prevent this
+			// This prevents 401 errors from using expired tokens
+			return null
+		}
+		return token
 	}
 
 	/**
@@ -162,15 +173,6 @@ export class AuthService {
 					try {
 						const updatedAuthInfo = await provider.retrieveClineAuthInfo(this._controller)
 						if (updatedAuthInfo) {
-							// retrieveClineAuthInfo may return stale data on network errors
-							// Verify the token is not expired after refresh
-							// This prevents 401 errors from using expired tokens
-							const nowInSeconds = Date.now() / 1000
-							if ((updatedAuthInfo.expiresAt ?? nowInSeconds) < nowInSeconds) {
-								clineAccountAuthToken = undefined
-								return undefined
-							}
-
 							this._clineAuthInfo = updatedAuthInfo
 							this._authenticated = true
 							clineAccountAuthToken = updatedAuthInfo.idToken
@@ -206,7 +208,7 @@ export class AuthService {
 					return clineAccountAuthToken
 				})()
 
-				await this._refreshPromise
+				clineAccountAuthToken = await this._refreshPromise
 			}
 
 			return clineAccountAuthToken ? `workos:${clineAccountAuthToken}` : null
