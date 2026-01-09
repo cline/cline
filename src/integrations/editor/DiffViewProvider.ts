@@ -23,7 +23,6 @@ export abstract class DiffViewProvider {
 	protected fileEncoding: string = "utf8"
 	private streamedLines: string[] = []
 	private newContent?: string
-	public enhancedNotebookInteractionEnabled: boolean = false
 
 	constructor() {}
 
@@ -266,15 +265,6 @@ export abstract class DiffViewProvider {
 	 */
 	protected isNotebookFile(): boolean {
 		return this.relPath?.toLowerCase().endsWith(".ipynb") ?? false
-	}
-
-	/**
-	 * Updates the enhanced notebook interaction setting.
-	 *
-	 * @param enabled Whether enhanced notebook interaction is enabled
-	 */
-	public setEnhancedNotebookInteractionEnabled(enabled: boolean): void {
-		this.enhancedNotebookInteractionEnabled = enabled
 	}
 
 	async saveChanges(): Promise<{

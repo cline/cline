@@ -57,7 +57,6 @@ export interface TaskConfig {
 	autoApprover: AutoApprove
 	browserSettings: BrowserSettings
 	focusChainSettings: FocusChainSettings
-	enhancedNotebookInteractionEnabled?: boolean
 
 	// Callbacks (strongly typed)
 	callbacks: TaskCallbacks

@@ -329,9 +329,6 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const skillsEnabled = context.globalState.get<GlobalStateAndSettings["skillsEnabled"]>("skillsEnabled")
 		const backgroundEditEnabled =
 			context.globalState.get<GlobalStateAndSettings["backgroundEditEnabled"]>("backgroundEditEnabled")
-		const enhancedNotebookInteractionEnabled = context.globalState.get<
-			GlobalStateAndSettings["enhancedNotebookInteractionEnabled"]
-		>("enhancedNotebookInteractionEnabled")
 
 		// Get mode-related configurations
 		const mode = context.globalState.get<GlobalStateAndSettings["mode"]>("mode")

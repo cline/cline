@@ -61,7 +61,6 @@ export async function parseMentions(
 	urlContentFetcher: UrlContentFetcher,
 	fileContextTracker?: FileContextTracker,
 	workspaceManager?: WorkspaceRootManager,
-	enhancedNotebookInteractionEnabled: boolean = false,
 ): Promise<string> {
 	const mentions: Set<string> = new Set()
 	let parsedText = text.replace(mentionRegexGlobal, (match, mention) => {
@@ -152,7 +151,7 @@ export async function parseMentions(
 				const workspaceRoots = workspaceManager.getRoots()
 				const searchPromises = workspaceRoots.map(async (root: WorkspaceRoot) => {
 					try {
-						const content = await getFileOrFolderContent(mentionPath, root.path, enhancedNotebookInteractionEnabled)
+						const content = await getFileOrFolderContent(mentionPath, root.path)
 						return {
 							workspaceName: root.name || path.basename(root.path),
 							content,
@@ -216,11 +215,7 @@ export async function parseMentions(
 					telemetryService.captureMentionFailed(mentionType, "not_found", errorMsg)
 				} else {
 					try {
-						const content = await getFileOrFolderContent(
-							mentionPath,
-							targetRoot.path,
-							enhancedNotebookInteractionEnabled,
-						)
+						const content = await getFileOrFolderContent(mentionPath, targetRoot.path)
 						if (mention.endsWith("/")) {
 							parsedText += `\n\n<folder_content path="${mentionPath}" workspace="${workspaceHint}">\n${content}\n</folder_content>`
 						} else {
@@ -248,7 +243,7 @@ export async function parseMentions(
 			} else {
 				// Legacy single workspace mode
 				try {
-					const content = await getFileOrFolderContent(mentionPath, cwd, enhancedNotebookInteractionEnabled)
+					const content = await getFileOrFolderContent(mentionPath, cwd)
 					if (mention.endsWith("/")) {
 						parsedText += `\n\n<folder_content path="${mentionPath}">\n${content}\n</folder_content>`
 					} else {
@@ -331,11 +326,7 @@ export async function parseMentions(
 	return parsedText
 }
 
-async function getFileOrFolderContent(
-	mentionPath: string,
-	cwd: string,
-	enhancedNotebookInteractionEnabled: boolean = false,
-): Promise<string> {
+async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise<string> {
 	const absPath = path.resolve(cwd, mentionPath)
 
 	try {
@@ -346,7 +337,7 @@ async function getFileOrFolderContent(
 			if (isBinary) {
 				return "(Binary file, unable to display content)"
 			}
-			const content = await extractTextFromFile(absPath, enhancedNotebookInteractionEnabled)
+			const content = await extractTextFromFile(absPath)
 			return content
 		} else if (stats.isDirectory()) {
 			const entries = await fs.readdir(absPath, { withFileTypes: true })
@@ -367,7 +358,7 @@ async function getFileOrFolderContent(
 								if (isBinary) {
 									return undefined
 								}
-								const content = await extractTextFromFile(absoluteFilePath, enhancedNotebookInteractionEnabled)
+								const content = await extractTextFromFile(absoluteFilePath)
 								return `<file_content path="${filePath.toPosix()}">\n${content}\n</file_content>`
 							} catch (_error) {
 								return undefined

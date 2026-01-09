@@ -163,7 +163,7 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 
 		// Execute the actual file read operation
 		const supportsImages = config.api.getModel().info.supportsImages ?? false
-		const fileContent = await extractFileContent(absolutePath, supportsImages, config.enhancedNotebookInteractionEnabled)
+		const fileContent = await extractFileContent(absolutePath, supportsImages)
 
 		// Track file read operation
 		await config.services.fileContextTracker.trackFileContext(relPath!, "read_tool")

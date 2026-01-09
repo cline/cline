@@ -360,35 +360,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			resolutionMethod: (typeof pathResult !== "string" ? "hint" : "primary_fallback") as "hint" | "primary_fallback",
 		}
 
-		// Block notebook edits when enhanced notebook interaction is disabled
-		const isNotebookFile = resolvedPath?.toLowerCase().endsWith(".ipynb")
-		if (isNotebookFile && !config.enhancedNotebookInteractionEnabled) {
-			// Prevent pushing the error message repeatedly on each streaming chunk
-			if (!config.enableParallelToolCalling && config.taskState.didAlreadyUseTool) {
-				return
-			}
-			const errorResponse = formatResponse.toolError(
-				`CANNOT EDIT NOTEBOOK: Editing Jupyter notebook (.ipynb) files is disabled. ` +
-					`The user must enable "Enhanced Notebook Interaction" in Cline settings to allow notebook editing. ` +
-					`DO NOT attempt any workarounds - inform the user they need to enable this setting, then use attempt_completion to end the task.`,
-			)
-			ToolResultUtils.pushToolResult(
-				errorResponse,
-				block,
-				config.taskState.userMessageContent,
-				ToolDisplayUtils.getToolDescription,
-				config.api,
-				config.coordinator,
-				config.taskState.toolUseIdMap,
-			)
-			if (!config.enableParallelToolCalling) {
-				config.taskState.didAlreadyUseTool = true
-			}
-			// Mark as rejected so the task knows not to continue with this operation
-			config.taskState.didRejectTool = true
-			return
-		}
-
 		// Check clineignore access first
 		const accessValidation = this.validator.checkClineIgnorePath(resolvedPath)
 		if (!accessValidation.ok) {

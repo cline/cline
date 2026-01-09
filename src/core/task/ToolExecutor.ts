@@ -135,10 +135,6 @@ export class ToolExecutor {
 		// Initialize the coordinator and register all tool handlers
 		this.coordinator = new ToolExecutorCoordinator()
 		this.registerToolHandlers()
-
-		// Initialize the enhanced notebook interaction setting in the DiffViewProvider
-		const enhancedNotebookInteractionEnabled = this.stateManager.getGlobalSettingsKey("enhancedNotebookInteractionEnabled")
-		this.diffViewProvider.setEnhancedNotebookInteractionEnabled(enhancedNotebookInteractionEnabled)
 	}
 
 	// Create a properly typed TaskConfig object for handlers
@@ -163,7 +159,6 @@ export class ToolExecutor {
 			autoApprover: this.autoApprover,
 			browserSettings: this.stateManager.getGlobalSettingsKey("browserSettings"),
 			focusChainSettings: this.stateManager.getGlobalSettingsKey("focusChainSettings"),
-			enhancedNotebookInteractionEnabled: this.stateManager.getGlobalSettingsKey("enhancedNotebookInteractionEnabled"),
 			services: {
 				mcpHub: this.mcpHub,
 				browserSession: this.browserSession,
@@ -248,15 +243,6 @@ export class ToolExecutor {
 	 */
 	public async executeTool(block: ToolUse): Promise<void> {
 		await this.execute(block)
-	}
-
-	/**
-	 * Updates the enhanced notebook interaction setting
-	 * Called when the user changes the setting during an active task
-	 */
-	public updateEnhancedNotebookInteractionEnabled(enabled: boolean): void {
-		// Update the DiffViewProvider with the new setting
-		this.diffViewProvider.setEnhancedNotebookInteractionEnabled(enabled)
 	}
 
 	/**

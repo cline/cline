@@ -26,26 +26,20 @@ export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string)
 	}
 }
 
-export async function extractTextFromFile(
-	filePath: string,
-	enhancedNotebookInteractionEnabled: boolean = false,
-): Promise<string> {
+export async function extractTextFromFile(filePath: string): Promise<string> {
 	try {
 		await fs.access(filePath)
 	} catch (_error) {
 		throw new Error(`File not found: ${filePath}`)
 	}
 
-	return callTextExtractionFunctions(filePath, enhancedNotebookInteractionEnabled)
+	return callTextExtractionFunctions(filePath)
 }
 
 /**
  * Expects the fs.access call to have already been performed prior to calling
  */
-export async function callTextExtractionFunctions(
-	filePath: string,
-	enhancedNotebookInteractionEnabled: boolean = false,
-): Promise<string> {
+export async function callTextExtractionFunctions(filePath: string): Promise<string> {
 	const fileExtension = path.extname(filePath).toLowerCase()
 
 	switch (fileExtension) {
@@ -54,7 +48,7 @@ export async function callTextExtractionFunctions(
 		case ".docx":
 			return extractTextFromDOCX(filePath)
 		case ".ipynb":
-			return extractTextFromIPYNB(filePath, enhancedNotebookInteractionEnabled)
+			return extractTextFromIPYNB(filePath)
 		case ".xlsx":
 			return extractTextFromExcel(filePath)
 		default:
@@ -79,27 +73,13 @@ async function extractTextFromDOCX(filePath: string): Promise<string> {
 	return result.value
 }
 
-async function extractTextFromIPYNB(filePath: string, enhancedNotebookInteractionEnabled: boolean = false): Promise<string> {
+async function extractTextFromIPYNB(filePath: string): Promise<string> {
 	const fileBuffer = await fs.readFile(filePath)
 	const encoding = await detectEncoding(fileBuffer)
 	const data = iconv.decode(fileBuffer, encoding)
 
-	// If enhanced notebook interaction is enabled, return sanitized JSON for proper editing
-	if (enhancedNotebookInteractionEnabled) {
-		return sanitizeNotebookForLLM(data)
-	}
-
-	// Otherwise, extract text content for reading
-	const notebook = JSON.parse(data)
-	let extractedText = ""
-
-	for (const cell of notebook.cells) {
-		if ((cell.cell_type === "markdown" || cell.cell_type === "code") && cell.source) {
-			extractedText += cell.source.join("\n") + "\n"
-		}
-	}
-
-	return extractedText
+	// Return sanitized JSON for proper editing (enhanced notebook behavior is now always enabled)
+	return sanitizeNotebookForLLM(data)
 }
 
 /**

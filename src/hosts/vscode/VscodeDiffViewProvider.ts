@@ -184,13 +184,6 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 			return
 		}
 
-		// Check if enhanced notebook interaction is enabled
-		Logger.log(`switchToSpecializedEditor: Enhanced notebook interaction enabled: ${this.enhancedNotebookInteractionEnabled}`)
-		if (!this.enhancedNotebookInteractionEnabled) {
-			Logger.log("switchToSpecializedEditor: Enhanced notebook interaction is disabled, skipping notebook diff view")
-			return
-		}
-
 		try {
 			const uri = vscode.Uri.file(this.absolutePath)
 			const fileName = path.basename(uri.fsPath)
