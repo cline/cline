@@ -10,65 +10,34 @@ import type { HookExecution } from "./types/HookExecution"
  * @param lastMessage - The last ClineMessage in the conversation (optional)
  * @returns The current ActiveTaskStatus
  */
-export function getTaskStatus(taskState: TaskState, lastMessage?: ClineMessage): ActiveTaskStatus {
-	// Check if task is actively streaming
-	if (taskState.isStreaming || taskState.isWaitingForFirstChunk || lastMessage?.partial) {
+export function getTaskStatus(taskState: TaskState, lastMessage?: ClineMessage): ActiveTaskStatus | undefined {
+	// Check if task was aborted/cancelled
+	if (taskState.abort || taskState.abandoned || !lastMessage) {
+		return undefined
+	}
+
+	const messageType = lastMessage?.say || lastMessage?.ask
+
+	if (!messageType || lastMessage?.partial === true || messageType === "api_req_started" || messageType === "api_req_retried") {
 		return "active"
 	}
 
-	// Check if task was aborted/cancelled
-	if (taskState.abort || taskState.abandoned) {
-		// If showing resume button after cancellation, it's cancelled
-		if (lastMessage?.ask === "resume_task" || lastMessage?.ask === "resume_completed_task") {
-			return "cancelled"
-		}
-		return "cancelled"
+	if (lastMessage?.partial === false) {
+		return undefined
 	}
 
-	// Check last message for specific states
-	if (lastMessage) {
-		// Task completed successfully - showing completion result or resume_completed_task
-		if (lastMessage.ask === "completion_result" || lastMessage.ask === "resume_completed_task") {
-			return "done"
-		}
+	if (messageType === "api_req_failed" || messageType === "diff_error") {
+		return "error"
+	}
 
-		// Task has an error - API request failed
-		if (lastMessage.ask === "api_req_failed") {
-			return "error"
-		}
-
-		// Task is waiting for user input/approval (any ask type that requires response)
-		if (lastMessage.type === "ask" && !lastMessage.partial) {
-			// These are pending states waiting for user action
-			const pendingAskTypes = [
-				"followup",
-				"plan_mode_respond",
-				"act_mode_respond",
-				"command",
-				"command_output",
-				"tool",
-				"mistake_limit_reached",
-				"browser_action_launch",
-				"use_mcp_server",
-				"new_task",
-				"condense",
-				"summarize_task",
-				"report_bug",
-				"resume_task", // Waiting to resume
-			]
-			if (pendingAskTypes.includes(lastMessage.ask!)) {
-				return "pending"
-			}
+	// Task is waiting for user input/approval (any ask type that requires response)
+	if (lastMessage?.partial === false) {
+		if (messageType === "tool" || messageType === "command" || messageType === "followup") {
+			return "pending"
 		}
 	}
 
-	// Default to pending if task is initialized but not actively doing anything
-	if (taskState.isInitialized && !taskState.isStreaming) {
-		return "pending"
-	}
-
-	// Fallback - task is active if none of the above conditions match
-	return "active"
+	return "done"
 }
 
 export class TaskState {

@@ -255,6 +255,7 @@ export class Controller {
 		// will apply as soon as this fetch completes. The function also calls postStateToWebview()
 		// when done and catches all errors internally.
 		fetchRemoteConfig(this)
+		this.activeTasks.delete(this.task?.taskId || "")
 
 		// await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 
@@ -447,6 +448,7 @@ export class Controller {
 
 		// Set flag to prevent concurrent cancellations
 		this.cancelInProgress = true
+		this.activeTasks.delete(targetTask.taskId)
 
 		try {
 			// If canceling current task, clear background command state
@@ -964,12 +966,12 @@ export class Controller {
 			backgroundCommandTaskId: this.backgroundCommandTaskId,
 			// Multi-task support: include all active tasks with status
 			activeTasks: Array.from(this.activeTasks.entries()).map(([taskId, task]) => {
-				const lastMessage = task?.messageStateHandler?.getClineMessages()?.at(-1)
+				const activeTask = this.task || task
+				const lastMessage = activeTask?.messageStateHandler?.getClineMessages()?.at(-1)
 				const { getTaskStatus } = require("@core/task/TaskState")
 				return {
 					taskId,
-					isStreaming: task?.taskState?.isStreaming || false,
-					status: task?.taskState ? getTaskStatus(task.taskState, lastMessage) : "pending",
+					status: getTaskStatus(activeTask.taskState, lastMessage),
 				}
 			}),
 			// NEW: Add workspace information

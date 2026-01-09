@@ -43,7 +43,7 @@ export const DEFAULT_PLATFORM = "unknown"
  * - "cancelled": Task was cancelled/aborted by user
  * - "pending": Task is waiting for user response/approval
  */
-export type ActiveTaskStatus = "active" | "done" | "error" | "cancelled" | "pending"
+export type ActiveTaskStatus = "active" | "done" | "error" | "pending"
 
 export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__"
 
@@ -83,7 +83,7 @@ export interface ExtensionState {
 	lastCompletedCommandTs?: number
 	userInfo?: UserInfo
 	// Multi-task support
-	activeTasks?: Array<{ taskId: string; isStreaming: boolean; status?: ActiveTaskStatus }>
+	activeTasks?: Array<{ taskId: string; status?: ActiveTaskStatus }>
 	version: string
 	distinctId: string
 	globalClineRulesToggles: ClineRulesToggles
