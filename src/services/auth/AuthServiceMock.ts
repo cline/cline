@@ -16,7 +16,6 @@ export class AuthServiceMock extends AuthService {
 			throw new Error("AuthServiceMock should only be used in local environment for testing purposes.")
 		}
 
-		this._initProvider()
 		this._controller = controller
 	}
 
