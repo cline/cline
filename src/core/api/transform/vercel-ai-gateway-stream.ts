@@ -139,7 +139,7 @@ export async function createVercelAIGatewayStream(
 		...(model.id.startsWith("openai/o") ? { reasoning_effort: reasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),
 		...getOpenAIToolParams(tools),
-		...(model.id.includes("gemini") && geminiThinkingLevel
+		...(model.id.includes("gemini-3") && geminiThinkingLevel
 			? { thinking_config: { thinking_level: geminiThinkingLevel, include_thoughts: true } }
 			: {}),
 	})
