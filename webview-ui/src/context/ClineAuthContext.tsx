@@ -81,7 +81,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 		return () => {
 			cancelSubscription()
 		}
-	}, [])
+	}, [getUserOrganizations])
 
 	return (
 		<ClineAuthContext.Provider
