@@ -66,16 +66,18 @@ describe("BannerService", () => {
 			}
 
 			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
+			const banners = await bannerService.getActiveBanners()
 
 			expect(axiosGetStub.calledOnce).to.be.true
 			expect(banners).to.have.lengthOf(1)
 			expect(banners[0].id).to.equal("bnr_test1")
+			expect(banners[0].title).to.equal("Test Banner")
+			expect(banners[0].description).to.equal("This is a test")
 		})
 
 		it("should handle API errors gracefully", async () => {
 			axiosGetStub.rejects(new Error("Network error"))
-			const banners = await bannerService.fetchActiveBanners()
+			const banners = await bannerService.getActiveBanners()
 			expect(banners).to.have.lengthOf(0)
 		})
 
@@ -102,25 +104,25 @@ describe("BannerService", () => {
 			axiosGetStub.resolves(mockResponse)
 
 			// First call fetches from API
-			await bannerService.fetchActiveBanners()
+			await bannerService.getActiveBanners()
 			expect(axiosGetStub.callCount).to.equal(1)
 
 			// Second call within cache window uses cache (no new API call)
-			await bannerService.fetchActiveBanners()
+			await bannerService.getActiveBanners()
 			expect(axiosGetStub.callCount).to.equal(1)
 
 			// After 4 minutes, still uses cache
 			clock.tick(4 * 60 * 1000)
-			await bannerService.fetchActiveBanners()
+			await bannerService.getActiveBanners()
 			expect(axiosGetStub.callCount).to.equal(1)
 
 			// After 6 minutes total, cache expired, makes new API call
 			clock.tick(2 * 60 * 1000)
-			await bannerService.fetchActiveBanners()
+			await bannerService.getActiveBanners()
 			expect(axiosGetStub.callCount).to.equal(2)
 
 			// Force refresh always bypasses cache
-			await bannerService.fetchActiveBanners(true)
+			await bannerService.getActiveBanners(true)
 			expect(axiosGetStub.callCount).to.equal(3)
 		})
 	})
@@ -158,7 +160,7 @@ describe("BannerService", () => {
 			}
 
 			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
+			const banners = await bannerService.getActiveBanners()
 
 			expect(banners).to.have.lengthOf(1)
 			expect(banners[0].id).to.equal("bnr_openai")
@@ -196,7 +198,7 @@ describe("BannerService", () => {
 			}
 
 			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
+			const banners = await bannerService.getActiveBanners()
 
 			expect(banners).to.have.lengthOf(1)
 			expect(banners[0].id).to.equal("bnr_anthropic")
@@ -234,7 +236,7 @@ describe("BannerService", () => {
 			}
 
 			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
+			const banners = await bannerService.getActiveBanners()
 
 			expect(banners).to.have.lengthOf(0)
 		})
@@ -271,7 +273,7 @@ describe("BannerService", () => {
 			}
 
 			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
+			const banners = await bannerService.getActiveBanners()
 
 			expect(banners).to.have.lengthOf(1)
 			expect(banners[0].id).to.equal("bnr_multi")
@@ -307,7 +309,7 @@ describe("BannerService", () => {
 			}
 
 			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
+			const banners = await bannerService.getActiveBanners()
 
 			expect(banners).to.have.lengthOf(0)
 		})
@@ -333,7 +335,7 @@ describe("BannerService", () => {
 			}
 
 			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
+			const banners = await bannerService.getActiveBanners()
 
 			expect(banners).to.have.lengthOf(1)
 		})
@@ -357,7 +359,7 @@ describe("BannerService", () => {
 			}
 
 			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
+			const banners = await bannerService.getActiveBanners()
 
 			expect(banners).to.have.lengthOf(1)
 			expect(banners[0].id).to.equal("bnr_norules")
@@ -385,12 +387,12 @@ describe("BannerService", () => {
 
 			axiosGetStub.resolves(mockResponse)
 
-			await bannerService.fetchActiveBanners()
+			await bannerService.getActiveBanners()
 			expect(axiosGetStub.calledOnce).to.be.true
 
 			bannerService.clearCache()
 
-			await bannerService.fetchActiveBanners()
+			await bannerService.getActiveBanners()
 			expect(axiosGetStub.calledTwice).to.be.true
 		})
 	})
@@ -415,7 +417,7 @@ describe("BannerService", () => {
 			}
 
 			axiosGetStub.resolves(mockResponse)
-			await bannerService.fetchActiveBanners()
+			await bannerService.getActiveBanners()
 
 			expect(axiosGetStub.calledOnce).to.be.true
 			const call = axiosGetStub.getCall(0)
@@ -450,7 +452,7 @@ describe("BannerService", () => {
 			}
 
 			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
+			const banners = await bannerService.getActiveBanners()
 
 			Object.defineProperty(process, "platform", {
 				value: originalPlatform,
@@ -501,7 +503,7 @@ describe("BannerService", () => {
 				// Clear cache to ensure fresh API call for each platform test
 				bannerService.clearCache()
 
-				await bannerService.fetchActiveBanners()
+				await bannerService.getActiveBanners()
 
 				expect(axiosGetStub.called).to.be.true
 				const call = axiosGetStub.lastCall
