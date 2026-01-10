@@ -509,6 +509,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		)
 		const handleKeyDown = useCallback(
 			(event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+				// Safari does not support InputEvent.isComposing (always false), so we need to fallback to keyCode === 229 for it
+				const isComposing = isSafari ? event.nativeEvent.keyCode === 229 : (event.nativeEvent?.isComposing ?? false)
+
 				if (showSlashCommandsMenu) {
 					if (event.key === "Escape") {
 						setShowSlashCommandsMenu(false)
@@ -543,7 +546,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						return
 					}
 
-					if ((event.key === "Enter" || event.key === "Tab") && selectedSlashCommandsIndex !== -1) {
+					if ((event.key === "Enter" || event.key === "Tab") && selectedSlashCommandsIndex !== -1 && !isComposing) {
 						event.preventDefault()
 						const commands = getMatchingSlashCommands(
 							slashCommandsQuery,
@@ -599,7 +602,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						})
 						return
 					}
-					if ((event.key === "Enter" || event.key === "Tab") && selectedMenuIndex !== -1) {
+					if ((event.key === "Enter" || event.key === "Tab") && selectedMenuIndex !== -1 && !isComposing) {
 						event.preventDefault()
 						const selectedOption = getContextMenuOptions(searchQuery, selectedType, queryItems, fileSearchResults)[
 							selectedMenuIndex
@@ -617,8 +620,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 				}
 
-				// Safari does not support InputEvent.isComposing (always false), so we need to fallback to keyCode === 229 for it
-				const isComposing = isSafari ? event.nativeEvent.keyCode === 229 : (event.nativeEvent?.isComposing ?? false)
 				if (event.key === "Enter" && !event.shiftKey && !isComposing) {
 					event.preventDefault()
 
