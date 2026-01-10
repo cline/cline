@@ -18,11 +18,71 @@ Read BUILD.md and merge latest upstream Cline into BCline
 
 ## Prerequisites
 
-### Required Software
-- **Node.js** v20+ (check: `node --version`)
-- **npm** v10+ (check: `npm --version`)
-- **Git** (check: `git --version`)
-- **VS Code** (for testing the extension)
+### Required Tool Versions
+
+These are the **tested and verified versions** used for BCline builds:
+
+| Tool | Required Version | Check Command | Install |
+|------|-----------------|---------------|---------|
+| **Node.js** | v20.11.1+ | `node --version` | [nodejs.org](https://nodejs.org/) |
+| **npm** | v10.2.4+ | `npm --version` | Comes with Node.js |
+| **Git** | v2.40+ | `git --version` | [git-scm.com](https://git-scm.com/) |
+| **VS Code** | v1.93.0+ | `code --version` | [code.visualstudio.com](https://code.visualstudio.com/) |
+| **vsce** | v3.7.0 | `vsce --version` | `npm install -g @vscode/vsce` |
+| **Python** | v3.10+ (optional) | `python --version` | For node-gyp native modules |
+
+### Key npm Package Versions (auto-installed)
+
+These are installed via `npm install` - listed for reference:
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `typescript` | ^5.4.5 | TypeScript compiler |
+| `@biomejs/biome` | ^2.1.4 | Linting and formatting |
+| `esbuild` | ^0.25.12 | JavaScript bundler |
+| `@vscode/vsce` | ^3.6.0 | VS Code extension packaging |
+| `@grpc/grpc-js` | ^1.9.15 | gRPC communication |
+| `nice-grpc` | ^2.1.12 | gRPC client utilities |
+| `@playwright/test` | ^1.55.1 | E2E testing |
+| `ts-node` | ^10.9.2 | TypeScript execution |
+| `rimraf` | ^6.0.1 | Cross-platform rm -rf |
+| `cross-env` | ^10.1.0 | Cross-platform env vars |
+| `npm-run-all` | ^4.1.5 | Run multiple npm scripts |
+
+### VS Code Engine Requirement
+
+The extension requires VS Code `^1.93.0` or higher (defined in `package.json` engines).
+
+### Verify Your Environment
+
+Run this script to check all prerequisites:
+
+```bash
+echo "=== BCline Build Environment Check ==="
+echo ""
+echo "Node.js:  $(node --version 2>/dev/null || echo 'NOT INSTALLED')"
+echo "npm:      $(npm --version 2>/dev/null || echo 'NOT INSTALLED')"
+echo "Git:      $(git --version 2>/dev/null || echo 'NOT INSTALLED')"
+echo "VS Code:  $(code --version 2>/dev/null | head -1 || echo 'NOT INSTALLED or not in PATH')"
+echo "vsce:     $(vsce --version 2>/dev/null || echo 'NOT INSTALLED - run: npm install -g @vscode/vsce')"
+echo "Python:   $(python --version 2>/dev/null || python3 --version 2>/dev/null || echo 'NOT INSTALLED (optional)')"
+echo ""
+echo "=== Minimum Required Versions ==="
+echo "Node.js:  v20.11.1+"
+echo "npm:      v10.2.4+"
+echo "Git:      v2.40+"
+echo "VS Code:  v1.93.0+"
+echo "vsce:     v3.6.0+"
+```
+
+### Windows-Specific Requirements
+
+- **Git Bash** or **WSL2** recommended for running bash scripts
+- **Windows Build Tools** may be needed for native modules:
+  ```powershell
+  npm install -g windows-build-tools
+  ```
+- PowerShell 5.1+ for BCline messaging scripts
 
 ### First-Time Setup
 
