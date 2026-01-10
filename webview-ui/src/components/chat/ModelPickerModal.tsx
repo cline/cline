@@ -36,7 +36,6 @@ const SETTINGS_ONLY_PROVIDERS: ApiProvider[] = [
 	"openai",
 	"ollama",
 	"lmstudio",
-	"vscode-lm",
 	"litellm",
 	"requesty",
 	"hicap",
