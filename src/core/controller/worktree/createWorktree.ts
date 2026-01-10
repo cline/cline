@@ -1,6 +1,7 @@
 import { CreateWorktreeRequest, WorktreeResult } from "@shared/proto/cline/worktree"
-import { createWorktree as createWorktreeUtil } from "@utils/git-worktree"
+import { createWorktree as createWorktreeUtil, listWorktrees } from "@utils/git-worktree"
 import { getWorkspacePath } from "@utils/path"
+import { telemetryService } from "@/services/telemetry"
 import { Controller } from ".."
 
 /**
@@ -24,6 +25,18 @@ export async function createWorktree(_controller: Controller, request: CreateWor
 			baseBranch: request.baseBranch,
 			createNewBranch: request.createNewBranch,
 		})
+
+		// Track worktree creation with count of total worktrees
+		if (result.success) {
+			try {
+				const { worktrees } = await listWorktrees(cwd)
+				telemetryService.captureWorktreeCreated(true, worktrees.length)
+			} catch {
+				telemetryService.captureWorktreeCreated(true)
+			}
+		} else {
+			telemetryService.captureWorktreeCreated(false)
+		}
 
 		return WorktreeResult.create({
 			success: result.success,
