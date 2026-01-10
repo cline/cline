@@ -1,5 +1,4 @@
 import { BANNER_DATA, BannerAction, BannerActionType, BannerCardData } from "@shared/cline/banner"
-import { EmptyRequest, Int64Request } from "@shared/proto/index.cline"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import BannerCarousel from "@/components/common/BannerCarousel"
 import WhatsNewModal from "@/components/common/WhatsNewModal"
@@ -14,6 +13,9 @@ import { convertBannerData } from "@/utils/bannerUtils"
 import { getCurrentPlatform } from "@/utils/platformUtils"
 import { WelcomeSectionProps } from "../../types/chatTypes"
 
+// !! Do not increment these versions or continue using this pattern. !!
+// Banner versions are **deprecated**. Going forward, we are tracking which banners have
+// been dismissed using the **banner ID**.
 const CURRENT_INFO_BANNER_VERSION = 1
 const CURRENT_MODEL_BANNER_VERSION = 1
 const CURRENT_CLI_BANNER_VERSION = 1
@@ -122,9 +124,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 				}
 
 				case BannerActionType.ShowAccount:
-					AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
-						console.error("Failed to get login URL:", err),
-					)
+					AccountServiceClient.accountLoginClicked({}).catch((err) => console.error("Failed to get login URL:", err))
 					break
 
 				case BannerActionType.ShowApiSettings:
@@ -136,7 +136,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 					break
 
 				case BannerActionType.InstallCli:
-					StateServiceClient.installClineCli(EmptyRequest.create()).catch((error) =>
+					StateServiceClient.installClineCli({}).catch((error) =>
 						console.error("Failed to initiate CLI installation:", error),
 					)
 					break
@@ -152,17 +152,16 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	 * Dismissal handler - updates version tracking
 	 */
 	const handleBannerDismiss = useCallback((bannerId: string) => {
-		// Map banner IDs to version updates
+		// !! Banner versions are deprecated. Stop using this pattern. !!
 		if (bannerId.startsWith("info-banner")) {
 			StateServiceClient.updateInfoBannerVersion({ value: CURRENT_INFO_BANNER_VERSION }).catch(console.error)
 		} else if (bannerId.startsWith("new-model")) {
-			StateServiceClient.updateModelBannerVersion(Int64Request.create({ value: CURRENT_MODEL_BANNER_VERSION })).catch(
-				console.error,
-			)
+			StateServiceClient.updateModelBannerVersion({ value: CURRENT_MODEL_BANNER_VERSION }).catch(console.error)
 		} else if (bannerId.startsWith("cli-")) {
-			StateServiceClient.updateCliBannerVersion(Int64Request.create({ value: CURRENT_CLI_BANNER_VERSION })).catch(
-				console.error,
-			)
+			StateServiceClient.updateCliBannerVersion({ value: CURRENT_CLI_BANNER_VERSION }).catch(console.error)
+		} else {
+			// Mark the banner as dismissed by it's ID.
+			StateServiceClient.dismissBanner({ value: bannerId }).catch(console.error)
 		}
 	}, [])
 
