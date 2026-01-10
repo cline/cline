@@ -204,7 +204,10 @@ export class ClineAuthProvider {
 					Logger.debug(
 						`Waiting ${Math.ceil((this.RETRY_DELAY_MS - timeSinceLastAttempt) / 1000)}s before retry attempt ${this.refreshRetryCount + 1}/${this.MAX_REFRESH_RETRIES}`,
 					)
-					return null
+					// Return stored data instead of null to prevent logout during retry delay.
+					// Returning null here causes restoreRefreshTokenAndRetrieveAuthInfo() to
+					// interpret it as "no auth data" and log the user out.
+					return storedAuthData
 				}
 
 				// Check if we've exceeded max retries
