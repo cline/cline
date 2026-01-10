@@ -62,7 +62,7 @@ export async function executeRipgrepForFiles(
 			// Extract and add parent directories to the set
 			let dirPath = path.dirname(normalizedPath)
 			while (dirPath && dirPath !== "." && dirPath !== "/") {
-				dirSet.add(dirPath.replace(/\\/g, "/"))
+				dirSet.add(dirPath)
 				dirPath = path.dirname(dirPath)
 			}
 
