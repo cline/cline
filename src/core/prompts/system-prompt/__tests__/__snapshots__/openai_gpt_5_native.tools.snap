@@ -363,7 +363,7 @@
     "type": "function",
     "function": {
       "name": "focus_chain",
-      "description": "",
+      "description": "Tool for maintaining conversation context across multiple interactions",
       "strict": false,
       "parameters": {
         "type": "object",
