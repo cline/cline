@@ -94,15 +94,8 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 								Learn more
 							</a>
 						</li>
-						<li className="mb-2">
-							<strong>Web Search:</strong> Improved websearch tooling in Cline provider.
-						</li>
 						<li>
-							<strong>MiniMax M-2.1</strong> free offering extended till Friday!
-							<br />
-							<AuthButton>
-								<ModelButton label="Try MiniMax M2.1" modelId="minimax/minimax-m2.1" />
-							</AuthButton>
+							<strong>Web Search:</strong> Improved websearch tooling in Cline provider.
 						</li>
 					</ul>
 				</div>
