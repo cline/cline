@@ -1504,7 +1504,13 @@ export const ChatRowContent = memo(
 														}}
 													/>
 												</span>
-												<span className="ph-no-capture" style={{ whiteSpace: "pre-wrap" }}>
+												<span
+													className="ph-no-capture"
+													style={{
+														whiteSpace: "pre-wrap",
+														wordBreak: "break-word",
+														overflowWrap: "anywhere",
+													}}>
 													{message.text}
 												</span>
 											</div>
