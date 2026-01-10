@@ -154,10 +154,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const handleDeleteHistoryItem = useCallback(
 		(id: string) => {
 			TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: [id] }))
-				.then(() => fetchTotalTasksSize())
+				.then(() => {
+					fetchTotalTasksSize()
+					// Clear from selected items to update button text state after successful deletion
+					setSelectedItems((prev) => prev.filter((itemId) => itemId !== id))
+				})
 				.catch((error) => console.error("Error deleting task:", error))
-			// Clear from selected items to update button text state
-			setSelectedItems((prev) => prev.filter((itemId) => itemId !== id))
 		},
 		[fetchTotalTasksSize],
 	)
