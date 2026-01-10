@@ -1,5 +1,5 @@
 import type { Banner, BannerRules, BannersResponse } from "@shared/ClineBanner"
-import type { BannerActionType, BannerCardData } from "@shared/cline/banner"
+import { BannerActionType, type BannerCardData } from "@shared/cline/banner"
 import axios from "axios"
 import { ClineEnv } from "@/config"
 import type { Controller } from "@/core/controller"
@@ -20,9 +20,11 @@ export class BannerService {
 	private readonly CACHE_DURATION_MS = 5 * 60 * 1000 // 5 minutes
 	private _controller: Controller
 	private _authService?: AuthService
+	private actionTypes: Set<string>
 
 	private constructor(controller: Controller) {
 		this._controller = controller
+		this.actionTypes = new Set<string>(Object.values(BannerActionType))
 	}
 
 	/**
@@ -386,12 +388,21 @@ export class BannerService {
 	/**
 	 * Converts a Banner (API response format) to BannerCardData (UI format)
 	 * @param banner The banner from the API
-	 * @returns BannerCardData suitable for the carousel
+	 * @returns BannerCardData suitable for the carousel, or null if banner is invalid.
 	 */
-	private convertToBannerCardData(banner: Banner): BannerCardData {
+	private convertToBannerCardData(banner: Banner): BannerCardData | null {
+		// Validate all action types before conversion
+		// Each action must have a valid action type - undefined is not allowed
+		for (const action of banner.actions || []) {
+			if (!action.action || !this.actionTypes.has(action.action)) {
+				Logger.error(`BannerService: ${banner.id} has invalid or missing action type '${action.action ?? "undefined"}'.`)
+				return null
+			}
+		}
+
 		const actions = (banner.actions || []).map((action) => ({
 			title: action.title || "",
-			action: action.action as BannerActionType | undefined,
+			action: action.action as BannerActionType,
 			arg: action.arg,
 		}))
 		return {
@@ -411,7 +422,9 @@ export class BannerService {
 	public async getActiveBanners(forceRefresh = false): Promise<BannerCardData[]> {
 		const allBanners = await this.fetchActiveBanners(forceRefresh)
 		const nonDismissedBanners = allBanners.filter((banner) => !this.isBannerDismissed(banner.id))
-		return nonDismissedBanners.map((banner) => this.convertToBannerCardData(banner))
+		return nonDismissedBanners
+			.map((banner) => this.convertToBannerCardData(banner))
+			.filter((banner): banner is BannerCardData => banner !== null)
 	}
 
 	/**
