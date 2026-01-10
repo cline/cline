@@ -54,7 +54,7 @@ export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 							if (!value) {
 								return
 							}
-							// Split on first slash only, preserving any slashes in the family name
+							// Split the value and preserve all slashes in the family name by joining parts after the vendor
 							const parts = value.split("/")
 							const vendor = parts[0]
 							const family = parts.slice(1).join("/")
