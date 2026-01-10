@@ -1414,6 +1414,11 @@ export class Task {
 	}
 
 	async abortTask() {
+		// Guard against double execution - if already aborted, return immediately
+		if (this.taskState.abort) {
+			return
+		}
+
 		try {
 			// PHASE 1: Check if TaskCancel should run BEFORE any cleanup
 			// We must capture this state now because subsequent cleanup will
