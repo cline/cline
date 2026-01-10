@@ -74,7 +74,10 @@ const createServerTypeSchema = () => {
 				// Support both type and transportType fields
 				// Note: legacy transportType was "http" not "streamableHttp"
 				// Also accept "http" as type for VS Code compatibility
-				const finalType = data.type || (data.transportType === "http" ? "streamableHttp" : undefined) || "streamableHttp"
+				const finalType =
+					(data.type === "http" ? "streamableHttp" : data.type) ||
+					(data.transportType === "http" ? "streamableHttp" : undefined) ||
+					"streamableHttp"
 				return {
 					...data,
 					type: finalType as "streamableHttp",
