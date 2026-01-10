@@ -33,9 +33,7 @@ const GENERIC: ClineToolSpec = {
 			usage: "HEAD",
 		},
 	],
-	contextRequirements: (ctx) =>
-		(typeof ctx.clineType === "string" && ctx.clineType.toLowerCase().includes("vscode")) ||
-		(typeof ctx.ide === "string" && ctx.ide.toLowerCase().includes("code")),
+	contextRequirements: (ctx) => ctx.ide?.toLowerCase().includes("code") ?? false,
 }
 
 export const generate_explanation_variants = [GENERIC]
