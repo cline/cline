@@ -117,6 +117,8 @@ async function showVersionUpdateAnnouncement(context: vscode.ExtensionContext) {
 					type: ShowMessageType.INFORMATION,
 					message,
 				})
+				// Update lastShownAnnouncementId immediately to prevent repeated auto-focus on minor updates
+				await context.globalState.update("lastShownAnnouncementId", latestAnnouncementId)
 			}
 			// Always update the main version tracker for the next launch.
 			await context.globalState.update("clineVersion", currentVersion)
