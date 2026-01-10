@@ -37,7 +37,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	const [showWhatsNewModal, setShowWhatsNewModal] = useState(false)
 
 	const { clineUser } = useClineAuth()
-	const { openRouterModels, setShowChatModelSelector, navigateToSettings, subagentsEnabled } = useExtensionState()
+	const { openRouterModels, setShowChatModelSelector, navigateToSettings, subagentsEnabled, banners } = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	// Show modal when there's a new announcement and we haven't shown it this session
@@ -168,16 +168,28 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 
 	/**
 	 * Build array of active banners for carousel
+	 * Combines hardcoded banners (bannerConfig) with dynamic banners from extension state
 	 */
 	const activeBanners = useMemo(() => {
-		// Convert to BannerData format for carousel
-		return bannerConfig.map((banner) =>
+		// Start with the hardcoded banners (bannerConfig)
+		const hardcodedBanners = bannerConfig.map((banner) =>
 			convertBannerData(banner, {
 				onAction: handleBannerAction,
 				onDismiss: handleBannerDismiss,
 			}),
 		)
-	}, [bannerConfig, clineUser, subagentsEnabled, handleBannerAction, handleBannerDismiss])
+
+		// Add banners from extension state (if any)
+		const extensionStateBanners = (banners ?? []).map((banner) =>
+			convertBannerData(banner, {
+				onAction: handleBannerAction,
+				onDismiss: handleBannerDismiss,
+			}),
+		)
+
+		// Combine both sources: extension state banners first, then hardcoded banners
+		return [...extensionStateBanners, ...hardcodedBanners]
+	}, [bannerConfig, banners, clineUser, subagentsEnabled, handleBannerAction, handleBannerDismiss])
 
 	return (
 		<div className="flex flex-col flex-1 w-full h-full p-0 m-0">

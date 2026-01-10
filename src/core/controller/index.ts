@@ -30,7 +30,6 @@ import { ExtensionRegistryInfo } from "@/registry"
 import { AuthService } from "@/services/auth/AuthService"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { LogoutReason } from "@/services/auth/types"
-import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
@@ -1002,34 +1001,5 @@ export class Controller {
 		}
 		this.stateManager.setGlobalState("taskHistory", history)
 		return history
-	}
-
-	/**
-	 * Initializes the BannerService if not already initialized
-	 */
-	private async ensureBannerService() {
-		if (!BannerService.isInitialized()) {
-			try {
-				BannerService.initialize(this)
-			} catch (error) {
-				console.error("Failed to initialize BannerService:", error)
-			}
-		}
-	}
-
-	/**
-	 * Fetches non-dismissed banners for display
-	 * @returns Array of banners that haven't been dismissed
-	 */
-	async fetchBannersForDisplay(): Promise<any[]> {
-		try {
-			await this.ensureBannerService()
-			if (BannerService.isInitialized()) {
-				return await BannerService.get().getNonDismissedBanners()
-			}
-		} catch (error) {
-			console.error("Failed to fetch banners:", error)
-		}
-		return []
 	}
 }

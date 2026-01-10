@@ -1,4 +1,5 @@
 import type { Banner, BannerRules, BannersResponse } from "@shared/ClineBanner"
+import type { BannerActionType, BannerCardData } from "@shared/cline/banner"
 import axios from "axios"
 import { ClineEnv } from "@/config"
 import type { Controller } from "@/core/controller"
@@ -78,7 +79,7 @@ export class BannerService {
 	 * @param forceRefresh If true, bypasses cache and fetches fresh data
 	 * @returns Array of banners that match current environment
 	 */
-	public async fetchActiveBanners(forceRefresh = false): Promise<Banner[]> {
+	private async fetchActiveBanners(forceRefresh = false): Promise<Banner[]> {
 		try {
 			// Return cached banners if still valid
 			const now = Date.now()
@@ -136,6 +137,9 @@ export class BannerService {
 			this._cachedBanners = matchingBanners
 			this._lastFetchTime = now
 
+			if (matchingBanners.length > 0) {
+				Logger.log(`BannerService: ${matchingBanners.length} active banner(s) fetched.`)
+			}
 			return matchingBanners
 		} catch (error) {
 			// Log error but don't throw - banner fetching shouldn't break the extension
@@ -380,13 +384,34 @@ export class BannerService {
 	}
 
 	/**
+	 * Converts a Banner (API response format) to BannerCardData (UI format)
+	 * @param banner The banner from the API
+	 * @returns BannerCardData suitable for the carousel
+	 */
+	private convertToBannerCardData(banner: Banner): BannerCardData {
+		const actions = (banner.actions || []).map((action) => ({
+			title: action.title || "",
+			action: action.action as BannerActionType | undefined,
+			arg: action.arg,
+		}))
+		return {
+			id: banner.id,
+			title: banner.titleMd,
+			description: banner.bodyMd,
+			icon: banner.icon,
+			actions,
+		}
+	}
+
+	/**
 	 * Gets banners that haven't been dismissed by the user
 	 * @param forceRefresh If true, bypasses cache and fetches fresh data
-	 * @returns Array of non-dismissed banners
+	 * @returns Array of non-dismissed banners converted to BannerCardData format
 	 */
-	public async getNonDismissedBanners(forceRefresh = false): Promise<Banner[]> {
+	public async getActiveBanners(forceRefresh = false): Promise<BannerCardData[]> {
 		const allBanners = await this.fetchActiveBanners(forceRefresh)
-		return allBanners.filter((banner) => !this.isBannerDismissed(banner.id))
+		const nonDismissedBanners = allBanners.filter((banner) => !this.isBannerDismissed(banner.id))
+		return nonDismissedBanners.map((banner) => this.convertToBannerCardData(banner))
 	}
 
 	/**
