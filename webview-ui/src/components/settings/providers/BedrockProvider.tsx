@@ -8,6 +8,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer } from "../common/ModelSelector"
+import { buildOrgSetupUrl, ProviderHelpCallout, type ProviderHelpLink } from "../common/ProviderHelpCallout"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
@@ -42,6 +43,32 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [awsEndpointSelected, setAwsEndpointSelected] = useState(!!apiConfiguration?.awsBedrockEndpoint)
+	const awsAuthentication = apiConfiguration?.awsAuthentication ?? (apiConfiguration?.awsProfile ? "profile" : "credentials")
+
+	const bedrockDocsLinks: ProviderHelpLink[] = (() => {
+		const apiKey: ProviderHelpLink = {
+			label: "API key",
+			href: "https://docs.cline.bot/provider-config/aws-bedrock/api-key",
+		}
+		const iamCredentials: ProviderHelpLink = {
+			label: "IAM credentials",
+			href: "https://docs.cline.bot/provider-config/aws-bedrock/iam-credentials",
+		}
+		const cliProfile: ProviderHelpLink = {
+			label: "CLI profile",
+			href: "https://docs.cline.bot/provider-config/aws-bedrock/cli-profile",
+		}
+
+		switch (awsAuthentication) {
+			case "apikey":
+				return [apiKey]
+			case "profile":
+				return [cliProfile]
+			case "credentials":
+			default:
+				return [iamCredentials]
+		}
+	})()
 
 	return (
 		<div className="flex flex-col gap-1">
@@ -55,6 +82,8 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 				<VSCodeRadio value="profile">AWS Profile</VSCodeRadio>
 				<VSCodeRadio value="credentials">AWS Credentials</VSCodeRadio>
 			</VSCodeRadioGroup>
+
+			<ProviderHelpCallout className="mb-2.5" docsLinks={bedrockDocsLinks} orgSetupHref={buildOrgSetupUrl("bedrock")} />
 
 			{(apiConfiguration?.awsAuthentication === undefined && apiConfiguration?.awsUseProfile) ||
 			apiConfiguration?.awsAuthentication === "profile" ? (

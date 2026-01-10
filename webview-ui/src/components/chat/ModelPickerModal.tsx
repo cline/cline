@@ -10,6 +10,7 @@ import { useWindowSize } from "react-use"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import PopupModalContainer from "@/components/common/PopupModalContainer"
+import { buildOrgSetupUrl } from "@/components/settings/common/ProviderHelpCallout"
 
 const PLAN_MODE_COLOR = "var(--vscode-activityWarningBadge-background)"
 const ACT_MODE_COLOR = "var(--vscode-focusBorder)"
@@ -28,7 +29,7 @@ import {
 import { useApiConfigurationHandlers } from "@/components/settings/utils/useApiConfigurationHandlers"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { StateServiceClient } from "@/services/grpc-client"
+import { StateServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { getConfiguredProviders, getProviderLabel } from "@/utils/getConfiguredProviders"
 import ThinkingBudgetSlider from "../settings/ThinkingBudgetSlider"
 
@@ -47,6 +48,7 @@ const SETTINGS_ONLY_PROVIDERS: ApiProvider[] = [
 ]
 
 const OPENROUTER_MODEL_PROVIDERS: ApiProvider[] = ["cline", "openrouter", "vercel-ai-gateway"]
+const TEAM_SETUP_PROVIDERS: ApiProvider[] = ["bedrock", "vertex", "litellm"]
 
 interface ModelPickerModalProps {
 	isOpen: boolean
@@ -639,6 +641,33 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 									</Tooltip>
 								</div>
 							</div>
+							{TEAM_SETUP_PROVIDERS.includes(selectedProvider) && (
+								<div className="mt-1 text-[11px] text-description">
+									<span>Team setup:</span>{" "}
+									<button
+										onClick={(e) => {
+											e.preventDefault()
+											e.stopPropagation()
+											UiServiceClient.openUrl(
+												StringRequest.create({ value: buildOrgSetupUrl(selectedProvider) }),
+											).catch(console.error)
+										}}
+										style={{
+											background: "transparent",
+											border: "none",
+											padding: 0,
+											margin: 0,
+											display: "inline",
+											fontSize: "inherit",
+											fontFamily: "inherit",
+											color: "var(--vscode-textLink-foreground)",
+											cursor: "pointer",
+										}}
+										type="button">
+										Centralized configuration →
+									</button>
+								</div>
+							)}
 							{/* Thinking budget slider - shown when model supports thinking, greyed out when disabled */}
 							{supportsThinking && (
 								<div className="flex items-center gap-2 py-1.5 px-0 mt-0.5 w-full">
@@ -729,7 +758,9 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 										key={model.id}
 										onClick={() => handleSelectModel(model.id, openRouterModels[model.id])}
 										onMouseEnter={() => setSelectedIndex(index)}
-										ref={(el) => (itemRefs.current[index] = el)}>
+										ref={(el) => {
+											itemRefs.current[index] = el
+										}}>
 										<ModelInfoRow>
 											<ModelName>{model.name}</ModelName>
 											<ModelProvider>{model.provider}</ModelProvider>
@@ -749,7 +780,9 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 										key={model.id}
 										onClick={() => handleSelectModel(model.id, model.info)}
 										onMouseEnter={() => setSelectedIndex(globalIndex)}
-										ref={(el) => (itemRefs.current[globalIndex] = el)}>
+										ref={(el) => {
+											itemRefs.current[globalIndex] = el
+										}}>
 										<ModelInfoRow>
 											<ModelName>{model.name}</ModelName>
 											<ModelProvider>{model.provider}</ModelProvider>

@@ -2,6 +2,7 @@ import { Mode } from "@shared/storage/types"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DebouncedTextField } from "../common/DebouncedTextField"
+import { ProviderHelpCallout } from "../common/ProviderHelpCallout"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import VercelModelPicker from "../VercelModelPicker"
 
@@ -52,6 +53,11 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 					)}
 				</p>
 			</div>
+
+			<ProviderHelpCallout
+				className="mt-2"
+				docsLinks={[{ label: "Vercel AI Gateway", href: "https://docs.cline.bot/provider-config/vercel-ai-gateway" }]}
+			/>
 
 			{showModelOptions && <VercelModelPicker currentMode={currentMode} isPopup={isPopup} />}
 		</div>

@@ -7,6 +7,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
+import { ProviderHelpCallout } from "../common/ProviderHelpCallout"
 import RequestyModelPicker from "../RequestyModelPicker"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
@@ -38,6 +39,10 @@ export const RequestyProvider = ({ showModelOptions, isPopup, currentMode }: Req
 				onChange={(value) => handleFieldChange("requestyApiKey", value)}
 				providerName="Requesty"
 				signupUrl={apiKeyUrl}
+			/>
+			<ProviderHelpCallout
+				className="mt-2"
+				docsLinks={[{ label: "Requesty", href: "https://docs.cline.bot/provider-config/requesty" }]}
 			/>
 			{!apiConfiguration?.requestyApiKey && (
 				<VSCodeButton

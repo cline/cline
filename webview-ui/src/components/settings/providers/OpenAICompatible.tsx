@@ -12,6 +12,7 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { ProviderHelpCallout } from "../common/ProviderHelpCallout"
 import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
@@ -71,6 +72,10 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 
 	return (
 		<div>
+			<ProviderHelpCallout
+				className="mb-2.5"
+				docsLinks={[{ label: "OpenAI Compatible", href: "https://docs.cline.bot/provider-config/openai-compatible" }]}
+			/>
 			<Tooltip>
 				<TooltipTrigger>
 					<div className="mb-2.5">
@@ -151,8 +156,8 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 						</div>
 
 						<div>
-							{headerEntries.map(([key, value], index) => (
-								<div key={index} style={{ display: "flex", gap: 5, marginTop: 5 }}>
+							{headerEntries.map(([key, value]) => (
+								<div key={key} style={{ display: "flex", gap: 5, marginTop: 5 }}>
 									<DebouncedTextField
 										disabled={remoteConfigSettings?.openAiHeaders !== undefined}
 										initialValue={key}
