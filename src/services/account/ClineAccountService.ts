@@ -90,12 +90,12 @@ export class ClineAccountService {
 	 */
 	async fetchBalanceRPC(): Promise<BalanceResponse | undefined> {
 		try {
-			const me = await this.fetchMe()
-			if (!me || !me.id) {
+			const me = this.getCurrentUser()
+			if (!me || !me.uid) {
 				console.error("Failed to fetch user ID for usage transactions")
 				return undefined
 			}
-			const data = await this.authenticatedRequest<BalanceResponse>(`/api/v1/users/${me.id}/balance`)
+			const data = await this.authenticatedRequest<BalanceResponse>(`/api/v1/users/${me.uid}/balance`)
 			return data
 		} catch (error) {
 			console.error("Failed to fetch balance (RPC):", error)
@@ -109,12 +109,12 @@ export class ClineAccountService {
 	 */
 	async fetchUsageTransactionsRPC(): Promise<UsageTransaction[] | undefined> {
 		try {
-			const me = await this.fetchMe()
-			if (!me || !me.id) {
+			const me = this.getCurrentUser()
+			if (!me || !me.uid) {
 				console.error("Failed to fetch user ID for usage transactions")
 				return undefined
 			}
-			const data = await this.authenticatedRequest<{ items: UsageTransaction[] }>(`/api/v1/users/${me.id}/usages`)
+			const data = await this.authenticatedRequest<{ items: UsageTransaction[] }>(`/api/v1/users/${me.uid}/usages`)
 			return data.items
 		} catch (error) {
 			console.error("Failed to fetch usage transactions (RPC):", error)
@@ -128,13 +128,13 @@ export class ClineAccountService {
 	 */
 	async fetchPaymentTransactionsRPC(): Promise<PaymentTransaction[] | undefined> {
 		try {
-			const me = await this.fetchMe()
-			if (!me || !me.id) {
+			const me = this.getCurrentUser()
+			if (!me || !me.uid) {
 				console.error("Failed to fetch user ID for usage transactions")
 				return undefined
 			}
 			const data = await this.authenticatedRequest<{ paymentTransactions: PaymentTransaction[] }>(
-				`/api/v1/users/${me.id}/payments`,
+				`/api/v1/users/${me.uid}/payments`,
 			)
 			return data.paymentTransactions
 		} catch (error) {
@@ -197,12 +197,12 @@ export class ClineAccountService {
 	 */
 	async fetchOrganizationUsageTransactionsRPC(organizationId: string): Promise<OrganizationUsageTransaction[] | undefined> {
 		try {
-			const me = await this.fetchMe()
-			if (!me || !me.id) {
-				console.error("Failed to fetch user ID for active organization transactions")
+			const organizations = this._authService.getUserOrganizations()
+			if (!organizations) {
+				console.error("Failed to get users organizations")
 				return undefined
 			}
-			const memberId = me.organizations.find((org) => org.organizationId === organizationId)?.memberId
+			const memberId = organizations.find((org) => org.organizationId === organizationId)?.memberId
 			if (!memberId) {
 				console.error("Failed to find member ID for active organization transactions")
 				return undefined
@@ -261,5 +261,9 @@ export class ClineAccountService {
 		})
 
 		return response
+	}
+
+	private getCurrentUser() {
+		return this._authService.getInfo().user
 	}
 }

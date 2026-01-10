@@ -48,6 +48,7 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5_1)
 		SystemPromptSection.SYSTEM_INFO,
 		SystemPromptSection.OBJECTIVE,
 		SystemPromptSection.USER_INSTRUCTIONS,
+		SystemPromptSection.SKILLS,
 	)
 	.tools(
 		ClineDefaultTool.BASH,
@@ -69,6 +70,7 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5_1)
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
 		ClineDefaultTool.GENERATE_EXPLANATION,
+		ClineDefaultTool.USE_SKILL,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.NATIVE_GPT_5_1,

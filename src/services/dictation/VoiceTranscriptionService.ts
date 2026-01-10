@@ -1,6 +1,7 @@
 import { Logger } from "@services/logging/Logger"
 import axios from "axios"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
+import { AuthService } from "../auth/AuthService"
 
 // Network error matchers using Map for O(1) lookup
 const NETWORK_ERROR_MAP = new Map<string, string>([
@@ -106,9 +107,8 @@ export class VoiceTranscriptionService {
 			Logger.info(`Audio base64 length: ${audioBase64.length} characters`)
 
 			// Check if using organization account for telemetry
-			const userInfo = await this.clineAccountService.fetchMe()
-			Logger.info(`User info fetched: ${userInfo ? "yes" : "no"}, uid: ${userInfo?.id ?? "none"}`)
-			const activeOrg = userInfo?.organizations?.find((org) => org.active)
+			const authService = AuthService.getInstance()
+			const activeOrg = authService.getActiveOrganizationId()
 			const isOrgAccount = !!activeOrg
 
 			const result = await this.clineAccountService.transcribeAudio(audioBase64, language)

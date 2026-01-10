@@ -104,6 +104,9 @@ export interface ExtensionState {
 	hooksEnabled?: boolean
 	remoteConfigSettings?: Partial<RemoteConfigFields>
 	subagentsEnabled?: boolean
+	skillsEnabled?: boolean
+	globalSkillsToggles?: Record<string, boolean>
+	localSkillsToggles?: Record<string, boolean>
 	nativeToolCallSetting?: boolean
 	enableParallelToolCalling?: boolean
 	backgroundEditEnabled?: boolean
@@ -174,6 +177,7 @@ export type ClineSay =
 	| "diff_error"
 	| "deleted_api_reqs"
 	| "clineignore_error"
+	| "command_permission_denied"
 	| "checkpoint_created"
 	| "load_mcp_documentation"
 	| "generate_explanation"

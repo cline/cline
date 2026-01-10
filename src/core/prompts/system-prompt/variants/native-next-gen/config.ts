@@ -41,6 +41,7 @@ export const config = createVariant(ModelFamily.NATIVE_NEXT_GEN)
 		SystemPromptSection.SYSTEM_INFO,
 		SystemPromptSection.OBJECTIVE,
 		SystemPromptSection.USER_INSTRUCTIONS,
+		SystemPromptSection.SKILLS,
 	)
 	.tools(
 		ClineDefaultTool.ASK,
@@ -60,6 +61,7 @@ export const config = createVariant(ModelFamily.NATIVE_NEXT_GEN)
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
 		ClineDefaultTool.GENERATE_EXPLANATION,
+		ClineDefaultTool.USE_SKILL,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.NATIVE_NEXT_GEN,

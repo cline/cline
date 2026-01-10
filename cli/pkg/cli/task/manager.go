@@ -1007,6 +1007,15 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
+		case msg.Say == string(types.SayTypeCommandPermissionDenied):
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
+			}
+
 		case msg.Say == string(types.SayTypeBrowserActionLaunch):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
