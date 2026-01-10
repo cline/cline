@@ -180,6 +180,20 @@ export async function ensureSettingsDirectoryExists(): Promise<string> {
 	return getGlobalStorageDir("settings")
 }
 
+/**
+ * Gets the path to the MCP settings file, creating it if it doesn't exist
+ * @param settingsDirectoryPath Path to the settings directory
+ * @returns Path to the MCP settings file
+ */
+export async function getMcpSettingsFilePath(settingsDirectoryPath: string): Promise<string> {
+	const mcpSettingsFilePath = path.join(settingsDirectoryPath, GlobalFileNames.mcpSettings)
+	const fileExists = await fileExistsAtPath(mcpSettingsFilePath)
+	if (!fileExists) {
+		await fs.writeFile(mcpSettingsFilePath, JSON.stringify({ mcpServers: {} }, null, 2))
+	}
+	return mcpSettingsFilePath
+}
+
 export async function getSavedApiConversationHistory(taskId: string): Promise<Anthropic.MessageParam[]> {
 	const filePath = path.join(await ensureTaskDirectoryExists(taskId), GlobalFileNames.apiConversationHistory)
 	const fileExists = await fileExistsAtPath(filePath)
