@@ -21,7 +21,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 	const {
 		enableCheckpointsSetting,
 		mcpDisplayMode,
-		mcpResponsesCollapsed,
 		openaiReasoningEffort,
 		strictPlanModeEnabled,
 		yoloModeToggled,
@@ -198,19 +197,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
 							Controls how MCP responses are displayed: plain text, rich formatting with links/images, or markdown
 							rendering.
-						</p>
-					</div>
-					<div style={{ marginTop: 10 }}>
-						<VSCodeCheckbox
-							checked={mcpResponsesCollapsed}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								updateSetting("mcpResponsesCollapsed", checked)
-							}}>
-							Collapse MCP Responses
-						</VSCodeCheckbox>
-						<p className="text-xs text-(--vscode-descriptionForeground)">
-							Sets the default display mode for MCP response panels
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>

@@ -18,6 +18,29 @@ export interface DisplaySegment {
 	key: string // Pre-computed key for React
 }
 
+/**
+ * Truncates a single data URI to show prefix + first 20 chars
+ * e.g. "data:image/png;base64,iVBORw0KGgo..." becomes "[IMAGE] data:image/png;base64,iVBORw0KGgoAAAANS..."
+ */
+export const truncateSingleDataUri = (dataUri: string): string => {
+	const commaIndex = dataUri.indexOf(",")
+	if (commaIndex === -1) {
+		return dataUri
+	}
+	const dataStart = commaIndex + 1
+	const data = dataUri.substring(dataStart)
+	const truncatedData = data.length > 20 ? data.substring(0, 20) + "..." : data
+	return `[IMAGE] ${dataUri.substring(0, dataStart)}${truncatedData}`
+}
+
+/**
+ * Truncates all data URIs in text
+ * e.g. "data:image/png;base64,iVBORw0KGgo..." becomes "[IMAGE] data:image/png;base64,iVBORw..."
+ */
+export const truncateDataUris = (text: string): string => {
+	return text.replace(/data:[^;,]+(?:;[^,]+)?,[^\s<>"']+/g, (match) => truncateSingleDataUri(match))
+}
+
 // Safely create a URL object with error handling and ensure HTTPS
 export const safeCreateUrl = (url: string): URL | null => {
 	try {
@@ -371,10 +394,12 @@ export const buildDisplaySegments = (responseText: string, urlMatches: UrlMatch[
 			})
 		}
 
-		// Add the URL text itself
+		// Add the URL text itself (truncate data URIs since they're very long)
+		const isDataUri = url.startsWith("data:")
+		const urlContent = isDataUri ? truncateSingleDataUri(fullMatch) : fullMatch
 		segments.push({
 			type: "url",
-			content: fullMatch,
+			content: urlContent,
 			key: `url-${segmentIndex++}`,
 		})
 
