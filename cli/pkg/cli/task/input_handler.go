@@ -368,6 +368,12 @@ func (ih *InputHandler) getApprovalPrompt(msg *types.ClineMessage) string {
 			command = strings.TrimSpace(command)
 		}
 		return fmt.Sprintf("Let Cline run: %s?", command)
+	} else if msg.Ask == string(types.AskTypeBrowserActionLaunch) {
+		// Browser action launch approval
+		return "Let Cline launch browser?"
+	} else if msg.Ask == string(types.AskTypeUseMcpServer) {
+		// MCP server use approval - could parse server name for more detail
+		return "Let Cline use MCP server?"
 	}
 
 	// Default fallback
