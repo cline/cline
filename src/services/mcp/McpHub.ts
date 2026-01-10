@@ -1053,6 +1053,8 @@ export class McpHub {
 	// Public methods for server management
 
 	public async toggleServerDisabledRPC(serverName: string, disabled: boolean): Promise<McpServer[]> {
+		// Set flag to prevent file watcher from triggering during our update
+		this.isUpdatingClineSettings = true
 		try {
 			const config = await this.readAndValidateMcpSettingsFile()
 			if (!config) {
@@ -1090,6 +1092,12 @@ export class McpHub {
 				message: `Failed to update server state: ${error instanceof Error ? error.message : String(error)}`,
 			})
 			throw error
+		} finally {
+			// Clear flag after a delay to ensure file watcher event has been processed
+			// The file watcher has a 100ms stabilityThreshold, so we wait a bit longer
+			setTimeout(() => {
+				this.isUpdatingClineSettings = false
+			}, 300)
 		}
 	}
 
