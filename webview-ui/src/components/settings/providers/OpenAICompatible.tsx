@@ -334,8 +334,16 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							}
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
-								const shouldPreserveFormat = value.endsWith(".") || (value.includes(".") && value.endsWith("0"))
-								modelInfo.inputPrice = shouldPreserveFormat ? (value as any) : parseFloat(value)
+								// Handle partial decimal input (".", ".5") by preserving string format during typing
+								// Otherwise parse as number for the actual model configuration
+								const trimmed = value.trim()
+								if (trimmed === "" || trimmed === "." || (trimmed.endsWith(".") && trimmed !== ".")) {
+									// Preserve partial input during typing
+									;(modelInfo as any).inputPrice = trimmed
+								} else {
+									const parsed = parseFloat(trimmed)
+									modelInfo.inputPrice = Number.isNaN(parsed) ? undefined : parsed
+								}
 								handleModeFieldChange(
 									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
 									modelInfo,
@@ -354,8 +362,16 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							}
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
-								const shouldPreserveFormat = value.endsWith(".") || (value.includes(".") && value.endsWith("0"))
-								modelInfo.outputPrice = shouldPreserveFormat ? (value as any) : parseFloat(value)
+								// Handle partial decimal input (".", ".5") by preserving string format during typing
+								// Otherwise parse as number for the actual model configuration
+								const trimmed = value.trim()
+								if (trimmed === "" || trimmed === "." || (trimmed.endsWith(".") && trimmed !== ".")) {
+									// Preserve partial input during typing
+									;(modelInfo as any).outputPrice = trimmed
+								} else {
+									const parsed = parseFloat(trimmed)
+									modelInfo.outputPrice = Number.isNaN(parsed) ? undefined : parsed
+								}
 								handleModeFieldChange(
 									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
 									modelInfo,
@@ -377,14 +393,16 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
 
-								const shouldPreserveFormat = value.endsWith(".") || (value.includes(".") && value.endsWith("0"))
-
-								modelInfo.temperature =
-									value === ""
-										? openAiModelInfoSaneDefaults.temperature
-										: shouldPreserveFormat
-											? (value as any)
-											: parseFloat(value)
+								// Handle partial decimal input (".", ".5") by preserving string format during typing
+								// Otherwise parse as number for the actual model configuration
+								const trimmed = value.trim()
+								if (trimmed === "" || trimmed === "." || (trimmed.endsWith(".") && trimmed !== ".")) {
+									// Preserve partial input during typing
+									;(modelInfo as any).temperature = trimmed
+								} else {
+									const parsed = parseFloat(trimmed)
+									modelInfo.temperature = Number.isNaN(parsed) ? undefined : parsed
+								}
 
 								handleModeFieldChange(
 									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
