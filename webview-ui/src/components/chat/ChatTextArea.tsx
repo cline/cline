@@ -38,7 +38,6 @@ import {
 	shouldShowContextMenu,
 } from "@/utils/context-mentions"
 import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
-import { isSafari } from "@/utils/platformUtils"
 import {
 	getMatchingSlashCommands,
 	insertSlashCommand,
@@ -509,8 +508,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		)
 		const handleKeyDown = useCallback(
 			(event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-				// Safari does not support InputEvent.isComposing (always false), so we need to fallback to keyCode === 229 for it
-				const isComposing = isSafari ? event.nativeEvent.keyCode === 229 : (event.nativeEvent?.isComposing ?? false)
+				// Check for IME composition to prevent autocomplete during text input
+				// Match the pattern used in UserMessage.tsx for consistency
+				const isComposing = !event.nativeEvent.isComposing && event.keyCode !== 229
 
 				if (showSlashCommandsMenu) {
 					if (event.key === "Escape") {
