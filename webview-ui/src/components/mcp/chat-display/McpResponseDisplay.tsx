@@ -11,7 +11,7 @@ import { useExtensionState } from "../../../context/ExtensionStateContext"
 import ImagePreview from "./ImagePreview"
 import LinkPreview from "./LinkPreview"
 import McpDisplayModeDropdown from "./McpDisplayModeDropdown"
-import { buildDisplaySegments, DisplaySegment, processResponseUrls, UrlMatch } from "./utils/mcpRichUtil"
+import { buildDisplaySegments, DisplaySegment, processResponseUrls, truncateDataUris, UrlMatch } from "./utils/mcpRichUtil"
 
 // Maximum number of URLs to process in total, per response
 export const MAX_URLS = 50
@@ -88,13 +88,13 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 	}, [])
 
 	const toggleExpand = useCallback(() => {
-		setIsExpanded((prev) => !prev)
+		setIsExpanded((prev) => {
+			const newExpanded = !prev
+			// Save collapsed state so future MCP responses start in the same state
+			updateSetting("mcpResponsesCollapsed", !newExpanded)
+			return newExpanded
+		})
 	}, [])
-
-	// Effect to update isExpanded if mcpResponsesCollapsed changes from context
-	useEffect(() => {
-		setIsExpanded(!mcpResponsesCollapsed)
-	}, [mcpResponsesCollapsed])
 
 	// Find all URLs in the text and determine if they're images
 	useEffect(() => {
@@ -189,11 +189,11 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 		}
 
 		if (mcpDisplayMode === "plain") {
-			return <UrlText>{responseText}</UrlText>
+			return <UrlText>{truncateDataUris(responseText)}</UrlText>
 		}
 
 		if (mcpDisplayMode === "markdown") {
-			return <MarkdownBlock markdown={responseText} />
+			return <MarkdownBlock markdown={truncateDataUris(responseText)} />
 		}
 
 		if (error) {
