@@ -33,6 +33,7 @@ export const config = createVariant(ModelFamily.XS)
 		SystemPromptSection.OBJECTIVE,
 		SystemPromptSection.SYSTEM_INFO,
 		SystemPromptSection.USER_INSTRUCTIONS,
+		SystemPromptSection.SKILLS,
 	)
 	.tools(
 		ClineDefaultTool.BASH,
@@ -46,6 +47,7 @@ export const config = createVariant(ModelFamily.XS)
 		ClineDefaultTool.NEW_TASK,
 		ClineDefaultTool.PLAN_MODE,
 		ClineDefaultTool.GENERATE_EXPLANATION,
+		ClineDefaultTool.USE_SKILL,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.XS,

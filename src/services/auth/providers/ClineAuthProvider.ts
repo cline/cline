@@ -10,7 +10,6 @@ import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { fetch, getAxiosSettings } from "@/shared/net"
 import { type ClineAccountUserInfo, type ClineAuthInfo } from "../AuthService"
 import { parseJwtPayload } from "../oca/utils/utils"
-import { IAuthProvider } from "./IAuthProvider"
 
 interface ClineAuthApiUser {
 	subject: string | null
@@ -61,7 +60,7 @@ export interface ClineAuthApiTokenRefreshResponse {
 	data: ClineAuthResponseData
 }
 
-export class ClineAuthProvider implements IAuthProvider {
+export class ClineAuthProvider {
 	readonly name = "cline"
 	private refreshRetryCount = 0
 	private lastRefreshAttempt = 0

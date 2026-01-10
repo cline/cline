@@ -27,7 +27,8 @@ export type GlobalStateAndSettings = GlobalState & Settings
 export interface RemoteConfigExtraFields {
 	remoteConfiguredProviders: string[]
 	allowedMCPServers: Array<{ id: string }>
-	remoteMCPServers?: Array<{ name: string; url: string }>
+	remoteMCPServers?: Array<{ name: string; url: string; alwaysEnabled?: boolean }>
+	previousRemoteMCPServers?: Array<{ name: string; url: string }>
 	remoteGlobalRules?: GlobalInstructionsFile[]
 	remoteGlobalWorkflows?: GlobalInstructionsFile[]
 	blockPersonalRemoteMCPServers?: boolean
@@ -130,6 +131,8 @@ export interface Settings {
 	aihubmixAppCode: string | undefined
 	hooksEnabled: boolean
 	subagentsEnabled: boolean
+	skillsEnabled: boolean
+	globalSkillsToggles: Record<string, boolean>
 	enableParallelToolCalling: boolean
 	backgroundEditEnabled: boolean
 
@@ -174,6 +177,8 @@ export interface Settings {
 	planModeAihubmixModelId: string | undefined
 	planModeAihubmixModelInfo: ModelInfo | undefined
 	planModeNousResearchModelId: string | undefined
+	planModeVercelAiGatewayModelId: string | undefined
+	planModeVercelAiGatewayModelInfo: ModelInfo | undefined
 	// Act mode configurations
 	actModeApiProvider: ApiProvider
 	actModeApiModelId: string | undefined
@@ -213,6 +218,8 @@ export interface Settings {
 	actModeAihubmixModelId: string | undefined
 	actModeAihubmixModelInfo: ModelInfo | undefined
 	actModeNousResearchModelId: string | undefined
+	actModeVercelAiGatewayModelId: string | undefined
+	actModeVercelAiGatewayModelInfo: ModelInfo | undefined
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: boolean
@@ -284,4 +291,5 @@ export interface LocalState {
 	localWindsurfRulesToggles: ClineRulesToggles
 	localAgentsRulesToggles: ClineRulesToggles
 	workflowToggles: ClineRulesToggles
+	localSkillsToggles: ClineRulesToggles
 }

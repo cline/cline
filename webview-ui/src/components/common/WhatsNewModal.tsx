@@ -87,15 +87,18 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					{/* Description */}
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						<li className="mb-2">
-							<strong>Background Edits:</strong> Cline can now edit files without interrupting your cursor.{" "}
+							<strong>Skills:</strong> Extend Cline with instruction sets for specialized tasks.{" "}
 							<a
-								href="https://docs.cline.bot/features/background-edit"
+								href="https://docs.cline.bot/features/skills"
 								style={{ color: "var(--vscode-textLink-foreground)" }}>
 								Learn more
 							</a>
 						</li>
+						<li className="mb-2">
+							<strong>Web Search:</strong> Improved websearch tooling in Cline provider.
+						</li>
 						<li>
-							<strong>MiniMax M2.1</strong> is now free (replacing MiniMax M2)!
+							<strong>MiniMax M-2.1</strong> free offering extended till Friday!
 							<br />
 							<AuthButton>
 								<ModelButton label="Try MiniMax M2.1" modelId="minimax/minimax-m2.1" />

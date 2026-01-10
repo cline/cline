@@ -43,48 +43,19 @@ export class FileEditProvider extends DiffViewProvider {
 
 		// Split the document into lines
 		const lines = this.documentContent.split("\n")
-		const originalEndsWithNewline = this.documentContent.endsWith("\n")
-
-		// If original ends with newline, split creates a trailing empty string that isn't a real line.
-		// Remove it for line-based operations, we'll add it back at the end if needed.
-		const realLines = originalEndsWithNewline && lines[lines.length - 1] === "" ? lines.slice(0, -1) : lines
 
 		// Replace the specified range with the new content
 		const newContentLines = content.split("\n")
-		const contentEndsWithNewline = content.endsWith("\n")
-
-		// Determine if we're replacing to the end of the document
-		const replacingToEnd = rangeToReplace.endLine >= realLines.length
-
-		// Handle trailing empty string from split:
-		// - If content ends with \n, split creates an empty string at the end
-		// - When replacing to end: this empty string becomes the document's trailing newline - keep it
-		// - When replacing middle: this empty string would create an extra newline - remove it
-		//   (the join operation will naturally add newlines between lines)
-		// - If content doesn't end with \n but split created empty string, remove it
-		if (!contentEndsWithNewline && newContentLines[newContentLines.length - 1] === "") {
-			newContentLines.pop()
-		} else if (contentEndsWithNewline && !replacingToEnd && newContentLines[newContentLines.length - 1] === "") {
-			// Content ends with newline but we're replacing middle section - remove trailing empty string
+		// Remove trailing empty line if present in newContentLines for proper splicing
+		if (newContentLines[newContentLines.length - 1] === "") {
 			newContentLines.pop()
 		}
 
-		// Splice the real lines array to replace the range
-		realLines.splice(rangeToReplace.startLine, rangeToReplace.endLine - rangeToReplace.startLine, ...newContentLines)
+		// Splice the lines array to replace the range
+		lines.splice(rangeToReplace.startLine, rangeToReplace.endLine - rangeToReplace.startLine, ...newContentLines)
 
 		// Join the lines back together
-		let result = realLines.join("\n")
-
-		// Preserve trailing newline: add it back if original had one OR if we replaced to end with content that ends with newline
-		const shouldHaveTrailingNewline = originalEndsWithNewline || (replacingToEnd && contentEndsWithNewline)
-		if (shouldHaveTrailingNewline && !result.endsWith("\n")) {
-			result += "\n"
-		} else if (!shouldHaveTrailingNewline && result.endsWith("\n")) {
-			// Shouldn't have trailing newline but result has one - remove it
-			result = result.slice(0, -1)
-		}
-
-		this.documentContent = result
+		this.documentContent = lines.join("\n")
 	}
 
 	protected async scrollEditorToLine(_line: number): Promise<void> {
