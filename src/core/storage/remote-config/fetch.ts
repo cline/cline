@@ -230,7 +230,7 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 
 		// Cache and apply the remote config
 		await writeRemoteConfigToCache(organizationId, config)
-		await applyRemoteConfig(config)
+		await applyRemoteConfig(config, undefined, controller.mcpHub)
 		controller.postStateToWebview()
 
 		return config

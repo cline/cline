@@ -28,6 +28,7 @@ export interface RemoteConfigExtraFields {
 	remoteConfiguredProviders: string[]
 	allowedMCPServers: Array<{ id: string }>
 	remoteMCPServers?: Array<{ name: string; url: string; alwaysEnabled?: boolean }>
+	previousRemoteMCPServers?: Array<{ name: string; url: string }>
 	remoteGlobalRules?: GlobalInstructionsFile[]
 	remoteGlobalWorkflows?: GlobalInstructionsFile[]
 	blockPersonalRemoteMCPServers?: boolean
