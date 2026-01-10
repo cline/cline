@@ -39,6 +39,9 @@ service WorktreeService {
 
   // Merges a worktree's branch into the target branch and optionally deletes the worktree
   rpc mergeWorktree(MergeWorktreeRequest) returns (MergeWorktreeResult);
+
+  // Tracks when the worktrees view is opened (for telemetry)
+  rpc trackWorktreeViewOpened(TrackWorktreeViewOpenedRequest) returns (Empty);
 }
 
 // Represents a single git worktree
@@ -142,4 +145,9 @@ message MergeWorktreeResult {
   repeated string conflicting_files = 4; // List of files with conflicts
   string source_branch = 5; // The branch that was merged
   string target_branch = 6; // The branch merged into
+}
+
+// Request to track worktree view opened (for telemetry)
+message TrackWorktreeViewOpenedRequest {
+  string source = 1; // Where the view was opened from: "home_page" or "menu_bar"
 }
