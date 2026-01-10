@@ -75,6 +75,11 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 			}
 		}
 
+		// Remove Cline-internal parameters that external MCP servers don't understand
+		if (parsedArguments) {
+			delete parsedArguments.task_progress
+		}
+
 		config.taskState.consecutiveMistakeCount = 0
 
 		// Handle approval flow
