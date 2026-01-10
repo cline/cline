@@ -662,6 +662,12 @@ export class McpHub {
 				return []
 			}
 
+			// Check if server supports resources capability
+			const serverCapabilities = connection.client.getServerCapabilities()
+			if (!serverCapabilities?.resources) {
+				return []
+			}
+
 			const response = await connection.client.request({ method: "resources/list" }, ListResourcesResultSchema, {
 				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
 			})
@@ -678,6 +684,12 @@ export class McpHub {
 
 			// Disabled servers don't have clients, so return empty resource templates list
 			if (!connection || connection.server.disabled || !connection.client) {
+				return []
+			}
+
+			// Check if server supports resources capability (templates are part of resources)
+			const serverCapabilities = connection.client.getServerCapabilities()
+			if (!serverCapabilities?.resources) {
 				return []
 			}
 
