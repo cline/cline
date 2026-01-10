@@ -44,6 +44,7 @@ import { ExtensionRegistryInfo } from "./registry"
 import { AuthService } from "./services/auth/AuthService"
 import { LogoutReason } from "./services/auth/types"
 import { telemetryService } from "./services/telemetry"
+import { ClineTempManager } from "./services/temp"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { fileExistsAtPath } from "./utils/fs"
@@ -86,6 +87,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	const webview = (await initialize(context)) as VscodeWebviewProvider
+
+	// Clean up old temp files in background (non-blocking)
+	ClineTempManager.cleanup().catch((error) => {
+		Logger.error("Failed to clean up temp files", error)
+	})
 
 	Logger.log("Cline extension activated")
 
