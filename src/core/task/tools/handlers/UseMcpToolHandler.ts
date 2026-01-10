@@ -67,11 +67,9 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 		let parsedArguments: Record<string, unknown> | undefined
 		if (mcp_arguments) {
 			try {
-				parsedArguments = JSON.parse(mcp_arguments)
+				parsedArguments = JSON.parse(mcp_arguments) as Record<string, unknown>
 				// Remove Cline-internal parameters that external MCP servers don't understand
-				if (parsedArguments) {
-					delete parsedArguments.task_progress
-				}
+				delete parsedArguments.task_progress
 			} catch (_error) {
 				config.taskState.consecutiveMistakeCount++
 				await config.callbacks.say("error", `Cline tried to use ${tool_name} with an invalid JSON argument. Retrying...`)
