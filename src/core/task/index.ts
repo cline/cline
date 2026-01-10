@@ -1414,6 +1414,13 @@ export class Task {
 	}
 
 	async abortTask() {
+		// Guard against double execution - if already aborted, return immediately
+		// This prevents the TaskCancel hook from running twice when cancelTask()
+		// calls abortTask() and then clearTask() calls it again
+		if (this.taskState.abort) {
+			return
+		}
+
 		try {
 			// PHASE 1: Check if TaskCancel should run BEFORE any cleanup
 			// We must capture this state now because subsequent cleanup will
