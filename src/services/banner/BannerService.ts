@@ -398,6 +398,10 @@ export class BannerService {
 				Logger.error(`BannerService: ${banner.id} has invalid or missing action type '${action.action ?? "undefined"}'.`)
 				return null
 			}
+			if (!action.title) {
+				Logger.error(`BannerService: ${banner.id} is missing an action title: ${JSON.stringify(action)}`)
+				return null
+			}
 		}
 
 		const actions = (banner.actions || []).map((action) => ({
