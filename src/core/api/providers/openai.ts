@@ -132,6 +132,23 @@ export class OpenAiHandler implements ApiHandler {
 		const toolCallProcessor = new ToolCallProcessor()
 
 		for await (const chunk of stream) {
+			// Some OpenAI-compatible APIs send usage chunks with empty choices array
+			// We need to handle these before accessing chunk.choices[0]
+			if (!chunk.choices || chunk.choices.length === 0) {
+				// Handle usage-only chunks (final chunk with usage information)
+				if (chunk.usage) {
+					yield {
+						type: "usage",
+						inputTokens: chunk.usage.prompt_tokens || 0,
+						outputTokens: chunk.usage.completion_tokens || 0,
+						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
+						// @ts-ignore-next-line
+						cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
+					}
+				}
+				continue
+			}
+
 			const delta = chunk.choices[0]?.delta
 			if (delta?.content) {
 				yield {
