@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.49.0]
+
+- Enable configuring an OTEL collector at runtime
+- Removing Minimax-2.1 from free model list as the free trial has ended
+- Improved image display in MCP responses
+- Auto-sync remote MCP servers from remote config to local settings
+
+
 ## [3.48.0]
 
 ### Added
