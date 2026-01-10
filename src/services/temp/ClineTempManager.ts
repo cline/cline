@@ -18,6 +18,7 @@ import * as path from "path"
 const CLINE_FILE_PREFIX = "cline-"
 const MAX_TOTAL_SIZE_BYTES = 2 * 1024 * 1024 * 1024 // 2GB
 const MAX_FILE_AGE_MS = 50 * 60 * 60 * 1000 // 50 hours
+const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000 // 24 hours
 
 interface TempFileInfo {
 	path: string
@@ -30,6 +31,7 @@ interface TempFileInfo {
  */
 class ClineTempManagerImpl {
 	private readonly tempDir: string
+	private cleanupIntervalId: NodeJS.Timeout | null = null
 
 	constructor() {
 		// Uses system temp directly:
@@ -172,6 +174,37 @@ class ClineTempManagerImpl {
 			if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
 				Logger.error(`Failed to delete temp file: ${filePath}`, error)
 			}
+		}
+	}
+
+	/**
+	 * Start periodic cleanup every 24 hours.
+	 * Call this on extension activation.
+	 */
+	startPeriodicCleanup(): void {
+		// Don't start multiple intervals
+		if (this.cleanupIntervalId) {
+			return
+		}
+
+		this.cleanupIntervalId = setInterval(() => {
+			this.cleanup().catch((error) => {
+				Logger.error("Periodic temp cleanup failed", error)
+			})
+		}, CLEANUP_INTERVAL_MS)
+
+		// Use unref() so this interval doesn't prevent Node from exiting
+		this.cleanupIntervalId.unref()
+	}
+
+	/**
+	 * Stop periodic cleanup.
+	 * Call this on extension deactivation.
+	 */
+	stopPeriodicCleanup(): void {
+		if (this.cleanupIntervalId) {
+			clearInterval(this.cleanupIntervalId)
+			this.cleanupIntervalId = null
 		}
 	}
 }

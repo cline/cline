@@ -88,10 +88,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const webview = (await initialize(context)) as VscodeWebviewProvider
 
-	// Clean up old temp files in background (non-blocking)
+	// Clean up old temp files in background (non-blocking) and start periodic cleanup every 24 hours
 	ClineTempManager.cleanup().catch((error) => {
 		Logger.error("Failed to clean up temp files", error)
 	})
+	ClineTempManager.startPeriodicCleanup()
 
 	Logger.log("Cline extension activated")
 
@@ -494,6 +495,9 @@ async function getBinaryLocation(name: string): Promise<string> {
 // This method is called when your extension is deactivated
 export async function deactivate() {
 	Logger.log("Cline extension deactivating, cleaning up resources...")
+
+	// Stop periodic temp file cleanup
+	ClineTempManager.stopPeriodicCleanup()
 
 	tearDown()
 
