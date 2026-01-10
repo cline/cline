@@ -54,7 +54,10 @@ export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 							if (!value) {
 								return
 							}
-							const [vendor, family] = value.split("/")
+							// Split on first slash only, preserving any slashes in the family name
+							const parts = value.split("/")
+							const vendor = parts[0]
+							const family = parts.slice(1).join("/")
 
 							handleModeFieldChange(
 								{ plan: "planModeVsCodeLmModelSelector", act: "actModeVsCodeLmModelSelector" },
