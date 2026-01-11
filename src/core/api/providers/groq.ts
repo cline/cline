@@ -229,7 +229,7 @@ export class GroqHandler implements ApiHandler {
 		const stream = await client.chat.completions.create(requestParams)
 
 		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
+			const delta = chunk.choices?.[0]?.delta
 
 			// Handle reasoning field if present (for reasoning models with parsed output)
 			if ((delta as any)?.reasoning) {
