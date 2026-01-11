@@ -96,8 +96,7 @@ func FetchSapAiCoreModels(ctx context.Context, manager *task.Manager, clientID, 
 	// Extract deployment information
 	deployments := make([]SapAiCoreDeployment, len(resp.Deployments))
 	if len(deployments) == 0 {
-		fmt.Errorf("No running deployments found")
-		return deployments, resp.OrchestrationAvailable, nil
+		return nil, false, fmt.Errorf("no running deployments found")
 	}
 
 	for i, deployment := range resp.Deployments {

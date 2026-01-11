@@ -229,7 +229,7 @@ func (pw *ProviderWizard) handleAddSapAiCoreProvider() error {
 	}
 
 	if err := setWelcomeViewCompleted(pw.ctx, pw.manager); err != nil {
-	verboseLog("Warning: Failed to mark welcome view as completed: %v", err)
+		verboseLog("Warning: Failed to mark welcome view as completed: %v", err)
 	}
 
 	fmt.Println("SAP AI Core provider configured successfully!")
