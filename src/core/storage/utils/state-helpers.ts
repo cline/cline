@@ -57,6 +57,9 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		aihubmixApiKey,
 		mcpOAuthSecrets,
 		nousResearchApiKey,
+		openAiCodexAccessToken,
+		openAiCodexRefreshToken,
+		openAiCodexAccountId,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
 		context.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
@@ -102,6 +105,9 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("aihubmixApiKey") as Promise<Secrets["aihubmixApiKey"]>,
 		context.secrets.get("mcpOAuthSecrets") as Promise<Secrets["mcpOAuthSecrets"]>,
 		context.secrets.get("nousResearchApiKey") as Promise<Secrets["nousResearchApiKey"]>,
+		context.secrets.get("openAiCodexAccessToken") as Promise<Secrets["openAiCodexAccessToken"]>,
+		context.secrets.get("openAiCodexRefreshToken") as Promise<Secrets["openAiCodexRefreshToken"]>,
+		context.secrets.get("openAiCodexAccountId") as Promise<Secrets["openAiCodexAccountId"]>,
 	])
 
 	return {
@@ -149,6 +155,9 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		aihubmixApiKey,
 		mcpOAuthSecrets,
 		nousResearchApiKey,
+		openAiCodexAccessToken,
+		openAiCodexRefreshToken,
+		openAiCodexAccountId,
 	}
 }
 
@@ -292,6 +301,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const hicapModelId = context.globalState.get<GlobalStateAndSettings["hicapModelId"]>("hicapModelId")
 		const aihubmixBaseUrl = context.globalState.get<GlobalStateAndSettings["aihubmixBaseUrl"]>("aihubmixBaseUrl")
 		const aihubmixAppCode = context.globalState.get<GlobalStateAndSettings["aihubmixAppCode"]>("aihubmixAppCode")
+		const openAiCodexTokenExpiry =
+			context.globalState.get<GlobalStateAndSettings["openAiCodexTokenExpiry"]>("openAiCodexTokenExpiry")
 
 		// OpenTelemetry configuration
 		const openTelemetryEnabled =
@@ -588,6 +599,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			hicapModelId,
 			aihubmixBaseUrl,
 			aihubmixAppCode,
+			openAiCodexTokenExpiry,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -804,6 +816,9 @@ export async function resetGlobalState(controller: Controller) {
 		"aihubmixApiKey",
 		"mcpOAuthSecrets",
 		"nousResearchApiKey",
+		"openAiCodexAccessToken",
+		"openAiCodexRefreshToken",
+		"openAiCodexAccountId",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
 	await controller.stateManager.reInitialize()

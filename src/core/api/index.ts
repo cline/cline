@@ -191,6 +191,7 @@ function createHandlerForProvider(
 				openAiCodexAccessToken: options.openAiCodexAccessToken,
 				openAiCodexRefreshToken: options.openAiCodexRefreshToken,
 				openAiCodexAccountId: options.openAiCodexAccountId,
+				openAiCodexTokenExpiry: options.openAiCodexTokenExpiry,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})

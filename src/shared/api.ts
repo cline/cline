@@ -90,6 +90,7 @@ export interface ApiHandlerSecrets {
 	openAiCodexAccessToken?: string
 	openAiCodexRefreshToken?: string
 	openAiCodexAccountId?: string
+	openAiCodexTokenExpiry?: number
 }
 
 export interface ApiHandlerOptions {

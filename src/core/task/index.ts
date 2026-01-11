@@ -454,7 +454,7 @@ export class Task {
 		const currentProvider = mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
 
 		const openaiReasoningEffort = this.stateManager.getGlobalSettingsKey("openaiReasoningEffort")
-		if (currentProvider === "openai" || currentProvider === "openai-native" || currentProvider === "sapaicore") {
+		if (currentProvider === "openai" || currentProvider === "openai-native" || currentProvider === "openai-codex" || currentProvider === "sapaicore") {
 			if (mode === "plan") {
 				effectiveApiConfiguration.planModeReasoningEffort = openaiReasoningEffort
 			} else {

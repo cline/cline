@@ -129,6 +129,7 @@ export interface Settings {
 	ocaMode: string | undefined
 	aihubmixBaseUrl: string | undefined
 	aihubmixAppCode: string | undefined
+	openAiCodexTokenExpiry: number | undefined
 	hooksEnabled: boolean
 	subagentsEnabled: boolean
 	skillsEnabled: boolean
@@ -283,6 +284,9 @@ export interface Secrets {
 	aihubmixApiKey: string | undefined
 	mcpOAuthSecrets: string | undefined
 	nousResearchApiKey: string | undefined
+	openAiCodexAccessToken: string | undefined
+	openAiCodexRefreshToken: string | undefined
+	openAiCodexAccountId: string | undefined
 }
 
 export interface LocalState {

@@ -502,6 +502,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		openaiCodexAccessToken: config.openAiCodexAccessToken,
 		openaiCodexRefreshToken: config.openAiCodexRefreshToken,
 		openaiCodexAccountId: config.openAiCodexAccountId,
+		openaiCodexTokenExpiry: config.openAiCodexTokenExpiry,
 		ocaMode: config.ocaMode,
 		aihubmixApiKey: config.aihubmixApiKey,
 		aihubmixBaseUrl: config.aihubmixBaseUrl,
@@ -685,6 +686,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		openAiCodexAccessToken: protoConfig.openaiCodexAccessToken,
 		openAiCodexRefreshToken: protoConfig.openaiCodexRefreshToken,
 		openAiCodexAccountId: protoConfig.openaiCodexAccountId,
+		openAiCodexTokenExpiry: protoConfig.openaiCodexTokenExpiry,
 
 		// Plan mode configurations
 		planModeApiProvider:

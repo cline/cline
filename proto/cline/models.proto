@@ -582,6 +582,7 @@ message ModelsApiConfiguration {
   optional string openai_codex_access_token = 87;
   optional string openai_codex_refresh_token = 88;
   optional string openai_codex_account_id = 89;
+  optional int64 openai_codex_token_expiry = 90;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
