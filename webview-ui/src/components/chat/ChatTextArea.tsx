@@ -560,7 +560,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				}
 				if (showContextMenu) {
 					if (event.key === "Escape") {
-						// event.preventDefault()
+						setShowContextMenu(false)
 						setSelectedType(null)
 						setSelectedMenuIndex(DEFAULT_CONTEXT_MENU_OPTION)
 						setSearchQuery("")
