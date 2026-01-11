@@ -351,14 +351,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				? { absolutePath: pathResult, resolvedPath: relPath }
 				: { absolutePath: pathResult.absolutePath, resolvedPath: pathResult.resolvedPath }
 
-		// Normalize paths to fix LLM output issues (e.g., VS Code LM API inserting spaces before extensions)
-		// Removes spaces immediately before file extensions while preserving legitimate spaces in filenames
-		// e.g., "file .ts" becomes "file.ts", but "My File.ts" stays as "My File.ts"
-		const normalizedRelPath = relPath.replace(/ (\.[a-zA-Z0-9]+)$/, ".$1")
-		const normalizedResolvedPath = resolvedPath.replace(/ (\.[a-zA-Z0-9]+)$/, ".$1")
-		// Update absolutePath to use normalized path
-		const normalizedAbsolutePath = absolutePath.replace(/ (\.[a-zA-Z0-9]+)$/, ".$1")
-
 		// Determine workspace context for telemetry
 		const fallbackAbsolutePath = path.resolve(config.cwd, relPath)
 		const workspaceContext = {
@@ -369,13 +361,13 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		}
 
 		// Check clineignore access first
-		const accessValidation = this.validator.checkClineIgnorePath(normalizedResolvedPath)
+		const accessValidation = this.validator.checkClineIgnorePath(resolvedPath)
 		if (!accessValidation.ok) {
 			// Show error and return early (full original behavior)
-			await config.callbacks.say("clineignore_error", normalizedResolvedPath)
+			await config.callbacks.say("clineignore_error", resolvedPath)
 
 			// Push tool result and save checkpoint using existing utilities
-			const errorResponse = formatResponse.toolError(formatResponse.clineIgnoreError(normalizedResolvedPath))
+			const errorResponse = formatResponse.toolError(formatResponse.clineIgnoreError(resolvedPath))
 			ToolResultUtils.pushToolResult(
 				errorResponse,
 				block,
@@ -396,7 +388,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		if (config.services.diffViewProvider.editType !== undefined) {
 			fileExists = config.services.diffViewProvider.editType === "modify"
 		} else {
-			fileExists = await fileExistsAtPath(normalizedAbsolutePath)
+			fileExists = await fileExistsAtPath(absolutePath)
 			config.services.diffViewProvider.editType = fileExists ? "modify" : "create"
 		}
 
@@ -407,12 +399,12 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		if (diff) {
 			// Handle replace_in_file with diff construction
 			// Apply model-specific fixes (deepseek models tend to use unescaped html entities in diffs)
-			diff = applyModelContentFixes(diff, config.api.getModel().id, normalizedResolvedPath)
+			diff = applyModelContentFixes(diff, config.api.getModel().id, resolvedPath)
 
 			// open the editor if not done already.  This is to fix diff error when model provides correct search-replace text but Cline throws error
 			// because file is not open.
 			if (!config.services.diffViewProvider.isEditing) {
-				await config.services.diffViewProvider.open(normalizedAbsolutePath, { displayPath: normalizedRelPath })
+				await config.services.diffViewProvider.open(absolutePath, { displayPath: relPath })
 			}
 
 			try {
@@ -483,7 +475,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			}
 
 			// Apply model-specific fixes (llama, gemini, and other models may add escape characters)
-			newContent = applyModelContentFixes(newContent, config.api.getModel().id, normalizedResolvedPath)
+			newContent = applyModelContentFixes(newContent, config.api.getModel().id, resolvedPath)
 		} else {
 			// can't happen, since we already checked for content/diff above. but need to do this for type error
 			return
@@ -491,15 +483,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 		newContent = newContent.trimEnd() // remove any trailing newlines, since it's automatically inserted by the editor
 
-		return {
-			relPath: normalizedRelPath,
-			absolutePath: normalizedAbsolutePath,
-			fileExists,
-			diff,
-			content,
-			newContent,
-			workspaceContext,
-		}
+		return { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext }
 	}
 
 	private getModelInfo(config: TaskConfig) {
