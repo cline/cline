@@ -1,0 +1,215 @@
+---
+title: "LiteLLM Configuration"
+sidebarTitle: "LiteLLM"
+description: "Configure LiteLLM proxy for your Cline deployment"
+---
+
+<Info>
+**Configuration Path: Self-Hosted**
+
+This guide covers LiteLLM configuration for self-hosted deployments. For web-based setup, see [LiteLLM SaaS Configuration](/enterprise-solutions/configuration/remote-configuration/litellm/admin-configuration).
+</Info>
+
+Configure Cline to use an existing LiteLLM proxy for unified access to multiple AI models through a single API endpoint.
+
+## What is LiteLLM?
+
+[LiteLLM](https://github.com/BerriAI/litellm) is an open-source proxy that provides a unified OpenAI-compatible API for accessing 100+ AI models from different providers. Cline connects to your deployed LiteLLM instance.
+
+<Note>
+LiteLLM is a separate service you deploy and manage. This guide covers how to configure Cline to connect to an existing LiteLLM deployment.
+</Note>
+
+## Configuration Format
+
+Configure LiteLLM through your remote configuration JSON using the `providerSettings.OpenAiCompatible` section:
+
+```json
+{
+  "providerSettings": {
+    "OpenAiCompatible": {
+      "models": [
+        {
+          "id": "gpt-4-turbo",
+          "name": "GPT-4 Turbo"
+        }
+      ],
+      "openAiBaseUrl": "https://litellm.yourcompany.com/v1"
+    }
+  }
+}
+```
+
+## Configuration Fields
+
+| Field | Type | Description | Required |
+|-------|------|-------------|----------|
+| `models` | Array | List of model configurations | Yes |
+| `openAiBaseUrl` | String | LiteLLM proxy endpoint URL | Yes |
+| `openAiApiKey` | String | API key for authentication | No |
+
+### Model Configuration
+
+Each model in the `models` array requires:
+
+```json
+{
+  "id": "gpt-4-turbo",
+  "name": "GPT-4 Turbo",
+  "info": {
+    "maxTokens": 4096,
+    "contextWindow": 128000,
+    "supportsImages": true
+  }
+}
+```
+
+<Note>
+Model IDs must match the model names configured in your LiteLLM proxy deployment.
+</Note>
+
+## Example Configurations
+
+### Basic Configuration
+
+```json
+{
+  "providerSettings": {
+    "OpenAiCompatible": {
+      "models": [
+        {
+          "id": "gpt-4-turbo",
+          "name": "GPT-4 Turbo"
+        }
+      ],
+      "openAiBaseUrl": "https://litellm.company.com/v1"
+    }
+  }
+}
+```
+
+### With Authentication
+
+```json
+{
+  "providerSettings": {
+    "OpenAiCompatible": {
+      "models": [
+        {
+          "id": "gpt-4-turbo",
+          "name": "GPT-4 Turbo"
+        }
+      ],
+      "openAiBaseUrl": "https://litellm.company.com/v1",
+      "openAiApiKey": "sk-your-litellm-key"
+    }
+  }
+}
+```
+
+### Multiple Models
+
+```json
+{
+  "providerSettings": {
+    "OpenAiCompatible": {
+      "models": [
+        {
+          "id": "gpt-4-turbo",
+          "name": "GPT-4 Turbo"
+        },
+        {
+          "id": "claude-3-5-sonnet",
+          "name": "Claude 3.5 Sonnet"
+        },
+        {
+          "id": "gemini-pro",
+          "name": "Gemini Pro"
+        }
+      ],
+      "openAiBaseUrl": "https://litellm.company.com/v1",
+      "openAiApiKey": "sk-your-litellm-key"
+    }
+  }
+}
+```
+
+### Internal Network (No Auth)
+
+```json
+{
+  "providerSettings": {
+    "OpenAiCompatible": {
+      "models": [
+        {
+          "id": "gpt-4-turbo",
+          "name": "GPT-4 Turbo"
+        }
+      ],
+      "openAiBaseUrl": "http://litellm.internal:4000/v1"
+    }
+  }
+}
+```
+
+## Prerequisites
+
+Before configuring Cline to use LiteLLM, you need:
+
+1. **LiteLLM Proxy** deployed and accessible
+2. **LiteLLM Configuration** with desired models enabled
+3. **API Key** (if authentication is enabled)
+4. **Network Access** from where Cline is being used
+
+<Tip>
+For LiteLLM deployment and configuration, see the [LiteLLM documentation](https://docs.litellm.ai/docs/proxy/quick_start).
+</Tip>
+
+## Troubleshooting
+
+**Connection Errors**
+
+Verify the LiteLLM proxy is running and accessible:
+```bash
+curl https://litellm.yourcompany.com/health
+```
+
+**Authentication Errors**
+
+Check your API key is valid:
+```bash
+curl -H "Authorization: Bearer sk-your-key" \
+  https://litellm.yourcompany.com/v1/models
+```
+
+**Model Not Found**
+
+Verify the model is configured in your LiteLLM deployment. Model IDs in Cline's config must match the model names in LiteLLM's configuration.
+
+## Benefits of Using LiteLLM
+
+- **Multi-Provider Access**: Connect to multiple AI providers through one endpoint
+- **Load Balancing**: Distribute requests across providers automatically
+- **Fallback Support**: Automatic retry with different models on failure
+- **Cost Tracking**: Monitor usage and costs across all models
+- **Rate Limiting**: Control usage at the proxy level
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="LiteLLM Docs" icon="book" href="https://docs.litellm.ai/">
+    Complete LiteLLM documentation
+  </Card>
+  
+  <Card title="LiteLLM GitHub" icon="github" href="https://github.com/BerriAI/litellm">
+    Source code and deployment examples
+  </Card>
+  
+  <Card title="Proxy Setup" icon="server" href="https://docs.litellm.ai/docs/proxy/quick_start">
+    LiteLLM proxy deployment guide
+  </Card>
+  
+  <Card title="Supported Providers" icon="list" href="https://docs.litellm.ai/docs/providers">
+    List of supported AI providers
+  </Card>
+</CardGroup>

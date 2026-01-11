@@ -3,6 +3,23 @@ import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
 
+/**
+ * Checks if there are any enabled MCP servers in the context.
+ * This is a utility function to standardize MCP server detection across all prompt variants.
+ *
+ * @param context - The system prompt context
+ * @returns true if there are enabled MCP servers, false otherwise
+ *
+ * @example
+ * const hasMcp = hasEnabledMcpServers(context)
+ * if (hasMcp) {
+ *   // Include MCP-specific instructions
+ * }
+ */
+export function hasEnabledMcpServers(context: SystemPromptContext): boolean {
+	return (context.mcpHub?.getServers() || []).length > 0
+}
+
 const MCP_TEMPLATE_TEXT = `MCP SERVERS
 
 The Model Context Protocol (MCP) enables communication between the system and locally running MCP servers that provide additional tools and resources to extend your capabilities.

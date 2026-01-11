@@ -373,13 +373,12 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				block,
 				config.taskState.userMessageContent,
 				ToolDisplayUtils.getToolDescription,
-				config.api,
-				() => {
-					config.taskState.didAlreadyUseTool = true
-				},
 				config.coordinator,
 				config.taskState.toolUseIdMap,
 			)
+			if (!config.enableParallelToolCalling) {
+				config.taskState.didAlreadyUseTool = true
+			}
 
 			return
 		}
@@ -415,8 +414,16 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					!block.partial, // Pass the partial flag correctly
 				)
 			} catch (error) {
+				// As we set the didAlreadyUseTool flag when the tool has failed once, we don't want to add the error message to the
+				// userMessages array again on each new streaming chunk received.
+				if (!config.enableParallelToolCalling && config.taskState.didAlreadyUseTool) {
+					return
+				}
+
 				// Full original behavior - comprehensive error handling even for partial blocks
-				await config.callbacks.say("diff_error", relPath)
+				// Removes any existing diff_error messages to avoid duplicates.
+				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "diff_error")
+				await config.callbacks.say("diff_error", relPath, undefined, undefined, true)
 
 				// Extract provider information for telemetry
 				const { providerId, modelId } = this.getModelInfo(config)
@@ -441,13 +448,12 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					block,
 					config.taskState.userMessageContent,
 					ToolDisplayUtils.getToolDescription,
-					config.api,
-					() => {
-						config.taskState.didAlreadyUseTool = true
-					},
 					config.coordinator,
 					config.taskState.toolUseIdMap,
 				)
+				if (!config.enableParallelToolCalling) {
+					config.taskState.didAlreadyUseTool = true
+				}
 
 				// Revert changes and reset diff view
 				await config.services.diffViewProvider.revertChanges()

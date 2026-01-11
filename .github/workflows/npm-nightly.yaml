@@ -1,0 +1,175 @@
+name: Publish NPM Nightly
+
+on:
+  schedule:
+    - cron: '0 12 * * *'  # 4 AM PST (UTC-8) = 12 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write  # Required by test workflow
+  pull-requests: write  # Required by test workflow
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  publish-npm-nightly:
+    needs: test
+    name: Publish Cline CLI (Nightly) to NPM
+    if: github.repository == 'cline/cline' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for recent commits
+        id: check_commits
+        run: |
+          if [ $(git rev-list --count HEAD --since="24 hours ago") -eq 0 ]; then
+            echo "No commits in last 24 hours, skipping publish"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "Found recent commits, proceeding with publish"
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node.js
+        if: steps.check_commits.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Setup Go
+        if: steps.check_commits.outputs.skip != 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache-dependency-path: cli/go.sum
+
+      # Cache root dependencies - only reuse if package-lock.json exactly matches
+      - name: Cache root dependencies
+        if: steps.check_commits.outputs.skip != 'true'
+        uses: actions/cache@v4
+        id: root-cache
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+
+      # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
+      - name: Cache webview-ui dependencies
+        if: steps.check_commits.outputs.skip != 'true'
+        uses: actions/cache@v4
+        id: webview-cache
+        with:
+          path: webview-ui/node_modules
+          key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+
+      - name: Install root dependencies
+        if: steps.check_commits.outputs.skip != 'true' && steps.root-cache.outputs.cache-hit != 'true'
+        run: npm ci --include=optional
+
+      - name: Install webview-ui dependencies
+        if: steps.check_commits.outputs.skip != 'true' && steps.webview-cache.outputs.cache-hit != 'true'
+        run: cd webview-ui && npm ci --include=optional
+
+      - name: Generate nightly version with timestamp
+        if: steps.check_commits.outputs.skip != 'true'
+        id: version
+        run: |
+          # Read base version from cli/package.json (e.g., "1.0.9")
+          BASE_VERSION=$(node -p "require('./cli/package.json').version")
+          
+          # Generate timestamp (Unix epoch seconds)
+          TIMESTAMP=$(date +%s)
+          
+          # Create unique nightly version: 1.0.9-nightly.1736365200
+          VERSION="${BASE_VERSION}-nightly.${TIMESTAMP}"
+          
+          echo "Base version: $BASE_VERSION"
+          echo "Generated nightly version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update cli/package.json with nightly version
+        if: steps.check_commits.outputs.skip != 'true'
+        run: |
+          # Update version with timestamp-based nightly version
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('cli/package.json', 'utf8'));
+            pkg.version = '${{ steps.version.outputs.version }}';
+            fs.writeFileSync('cli/package.json', JSON.stringify(pkg, null, '\t'));
+          "
+          
+          echo "Using version ${{ steps.version.outputs.version }} for build"
+          cat cli/package.json | grep '"version"'
+
+      - name: Download ripgrep binaries
+        if: steps.check_commits.outputs.skip != 'true'
+        run: npm run download-ripgrep
+
+      - name: Clean previous builds
+        if: steps.check_commits.outputs.skip != 'true'
+        run: rm -rf dist-standalone
+
+      - name: Generate Protos (First Pass)
+        if: steps.check_commits.outputs.skip != 'true'
+        run: npm run protos && npm run protos-go
+
+      - name: Compile CLI
+        if: steps.check_commits.outputs.skip != 'true'
+        run: npm run compile-cli
+
+      - name: Compile CLI for all platforms
+        if: steps.check_commits.outputs.skip != 'true'
+        run: npm run compile-cli-all-platforms
+
+      - name: Build standalone NPM package
+        if: steps.check_commits.outputs.skip != 'true'
+        env:
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          CLINE_ENVIRONMENT: production
+          OTEL_TELEMETRY_ENABLED: "1"
+          OTEL_METRICS_EXPORTER: otlp
+          OTEL_LOGS_EXPORTER: otlp
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+          POSTHOG_TELEMETRY_ENABLED: "true"
+        run: npm run compile-standalone-npm
+
+      - name: Generate Protos (Second Pass - Bug Workaround)
+        if: steps.check_commits.outputs.skip != 'true'
+        run: npm run protos && npm run protos-go
+
+      - name: Verify build output
+        if: steps.check_commits.outputs.skip != 'true'
+        run: |
+          echo "Checking dist-standalone directory..."
+          ls -la dist-standalone/
+          
+          echo "Verifying CLI binaries..."
+          ls -lh cli/bin/cline-* || echo "Warning: CLI binaries not found"
+          
+          echo "Checking package.json in dist-standalone..."
+          cat dist-standalone/package.json | grep version
+
+      - name: Publish to NPM with nightly tag
+        if: steps.check_commits.outputs.skip != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_RELEASE_TOKEN }}
+        run: |
+          echo "Publishing version ${{ steps.version.outputs.version }} to NPM with tag 'nightly'..."
+          cd dist-standalone
+          npm publish --tag nightly --access public
+
+      - name: Summary
+        if: steps.check_commits.outputs.skip != 'true'
+        run: |
+          echo "✅ Successfully published cline@${{ steps.version.outputs.version }} to NPM with tag 'nightly'"
+          echo ""
+          echo "📦 Install with: npm install -g cline@nightly"
+          echo "🔗 NPM: https://www.npmjs.com/package/cline/v/${{ steps.version.outputs.version }}"

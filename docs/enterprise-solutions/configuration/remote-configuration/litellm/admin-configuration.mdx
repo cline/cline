@@ -1,0 +1,120 @@
+---
+title: "Configure LiteLLM Provider (Admin)"
+sidebarTitle: "Configure LiteLLM (Admin)"
+description: "This guide explains how administrators configure LiteLLM as the organization-wide LLM provider for Cline."
+---
+
+
+As an administrator, you can add LiteLLM as the organization-wide LLM provider for all Cline users through the hosted admin console. This centralized approach provides unified access to multiple AI models through your LiteLLM proxy interface.
+
+## Before You Begin
+
+To get started with setting up LiteLLM as your organization's LLM provider, you'll need a few items in place.
+
+**Administrator access to the Cline Admin console**  
+You need admin privileges to enforce provider settings across your organization. If you can navigate to **Settings → Cline Settings** in the admin console at [app.cline.bot](https://app.cline.bot), you have the right access level.
+
+<Info>
+**Quick Check**: Try accessing the settings page now. If you can see the provider configuration options, you're good to go.
+</Info>
+
+**LiteLLM proxy instance running**  
+You need a deployed LiteLLM proxy that your team can access. This can be self-hosted or managed through a cloud provider.
+
+<Note>
+If you haven't deployed LiteLLM yet, work with your infrastructure team to set up a LiteLLM proxy instance.
+</Note>
+
+**LiteLLM endpoint details**  
+You'll need the base URL of your LiteLLM proxy and optionally a master key if your deployment requires authentication.
+
+<Tip>
+Ensure your LiteLLM proxy is accessible from your team's development environments and has the models you want to make available configured.
+</Tip>
+
+## Configuration Steps
+
+<Steps>
+<Step title="Access Cline Settings">
+Navigate to [app.cline.bot](https://app.cline.bot) and sign in with your administrator account. Go to **Settings → Cline Settings**.
+
+<Info>
+You should see the provider configuration options if you have the correct admin access level.
+</Info>
+</Step>
+
+<Step title="Enable Remote Provider Configuration">
+Toggle on **Enable settings** to reveal the remote provider configuration options. This allows you to enforce provider settings across your organization.
+</Step>
+
+<Step title="Select LiteLLM as the API Provider">
+Open the **API Provider** dropdown menu and select **LiteLLM**. This will open the LiteLLM configuration panel where you'll configure all your organization-wide settings.
+</Step>
+
+<Step title="Configure LiteLLM Settings">
+The configuration panel includes settings that control how LiteLLM works for your organization:
+
+<AccordionGroup>
+<Accordion title="Base URL (required)">
+Enter your LiteLLM proxy endpoint URL. This should be the full URL where your LiteLLM proxy is accessible, such as `https://litellm.yourcompany.com` or `http://your-proxy:4000`.
+
+<Tip>
+Use HTTPS endpoints in production for security. Make sure the URL is accessible from your team's development environments.
+</Tip>
+</Accordion>
+
+<Accordion title="Master Key (optional)">
+If your LiteLLM proxy requires authentication, enter the master key here. This will be used to authenticate requests from all organization members.
+
+<Note>
+**Centralized API Key Management**: By configuring the Master Key at the organization level, you enable centralized API key management. Organization members won't need to manage their own individual API keys - access is fully managed through this centralized configuration.
+</Note>
+
+<Warning>
+The master key provides full access to your LiteLLM proxy. Only enter this if your proxy requires authentication and you want centralized key management.
+</Warning>
+</Accordion>
+</AccordionGroup>
+</Step>
+
+<Step title="Save Configuration">
+After configuring your settings, close the provider configuration panel and click **Save** on the settings page to persist your changes.
+
+Once saved, all organization members signed into the Cline extension will automatically use LiteLLM with your configured settings. They won't be able to select other providers or switch to their personal Cline accounts.
+
+<Warning>
+Members can't switch to personal Cline accounts or join other organizations once remote configuration is enabled. This ensures consistent provider usage across your team.
+</Warning>
+</Step>
+</Steps>
+
+## Verification
+
+To verify the configuration:
+
+1. Check that the provider shows as "LiteLLM" in the Enabled provider field
+2. Confirm the settings persist after refreshing the page
+3. Test with a member account to ensure they see only LiteLLM as a provider
+4. Verify that the configured models are available in the model dropdown
+
+## Troubleshooting
+
+**Members don't see the configured provider**  
+Ensure you clicked Save after closing the configuration panel. Verify the member account belongs to the correct organization and that your LiteLLM proxy is accessible from their network.
+
+**Connection errors to LiteLLM proxy**  
+Verify the Base URL is correct and accessible. Check that any firewalls or security groups allow access from your team's IP addresses or development environments.
+
+**Authentication failures**  
+If using a master key, verify it's correctly entered and has proper permissions in your LiteLLM deployment. Check the LiteLLM proxy logs for authentication errors.
+
+**Models not available**  
+Confirm the models are properly configured in your LiteLLM proxy deployment. The available models depend on how your LiteLLM proxy is configured.
+
+**Configuration changes don't persist**  
+Make sure to click the Save button on the main settings page, not just close the configuration panel.
+
+**Need to change endpoint or key later**  
+You can update these settings at any time. Changes take effect immediately for all organization members.
+
+For further details about LiteLLM deployment and configuration, consult the [LiteLLM Documentation](https://docs.litellm.ai/) and coordinate with your infrastructure team.

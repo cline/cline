@@ -125,7 +125,7 @@ const copyWasmFiles = {
 
 const buildEnvVars = {
 	"import.meta.url": "_importMetaUrl",
-	"process.env.IS_STANDALONE": JSON.stringify(standalone),
+	"process.env.IS_STANDALONE": JSON.stringify(standalone ? "true" : "false"),
 }
 
 if (production) {

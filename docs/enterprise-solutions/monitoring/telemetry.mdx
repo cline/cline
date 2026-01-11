@@ -1,0 +1,133 @@
+---
+title: "Cline Telemetry"
+sidebarTitle: "Cline Telemetry"
+description: "Configure usage analytics and event tracking"
+---
+
+Cline includes telemetry to help understand usage patterns and improve the product. Users can control whether to share this data.
+
+## What is Cline Telemetry?
+
+Telemetry captures anonymous usage events such as:
+
+- Features used (which tools, commands, workflows)
+- Task completion rates
+- Error occurrences
+- Performance metrics
+
+<Info>
+All telemetry data is **anonymous** and does not include code content, file contents, or other sensitive information.
+</Info>
+
+## User Controls
+
+### Enabling/Disabling Cline Telemetry
+
+Individual users can control telemetry through Cline settings:
+
+1. Open Cline settings
+2. Find "Cline Telemetry" toggle
+3. Enable or disable as preferred
+
+Changes take effect immediately.
+
+### What Gets Collected
+
+When telemetry is enabled, Cline captures:
+
+<AccordionGroup>
+  <Accordion title="Feature Usage" icon="cursor-click">
+    - Tools executed (e.g., read_file, execute_command)
+    - Slash commands used
+    - Workflows triggered
+    - Settings changed
+  </Accordion>
+  
+  <Accordion title="Task Metrics" icon="tasks">
+    - Task started/completed events
+    - Mode switches (Plan/Act)
+    - Checkpoint usage
+    - Task duration
+  </Accordion>
+  
+  <Accordion title="Error Events" icon="triangle-exclamation">
+    - API failures
+    - Tool execution errors
+    - System errors
+    - Error types and frequencies
+  </Accordion>
+</AccordionGroup>
+
+### What Doesn't Get Collected
+
+Cline Telemetry **never** includes:
+
+- Your code or file contents
+- File paths or names
+- Command arguments or parameters
+- Conversation content
+- Personal information
+- API keys or credentials
+
+## Enterprise Configuration
+
+Administrators can set default telemetry state through remote configuration:
+
+```json
+{
+  "telemetryEnabled": true
+}
+```
+
+<Note>
+Even with enterprise configuration, individual users can still disable Cline Telemetry in their local settings.
+</Note>
+
+## Advanced Monitoring
+
+For organizations needing detailed monitoring, Cline supports optional OpenTelemetry integration to export telemetry data to your own observability systems.
+
+See [Enterprise Monitoring](/enterprise-solutions/monitoring/overview) for details on available monitoring options.
+
+## Privacy
+
+Cline's telemetry is designed with privacy in mind:
+
+<CardGroup cols={2}>
+  <Card title="Anonymous" icon="user-secret">
+    No personal information is collected
+  </Card>
+  
+  <Card title="Optional" icon="toggle-on">
+    Users can disable at any time
+  </Card>
+  
+  <Card title="Local First" icon="laptop">
+    Code never leaves your machine
+  </Card>
+  
+  <Card title="Transparent" icon="eye">
+    Open source - see exactly what's collected
+  </Card>
+</CardGroup>
+
+## Why Telemetry Matters
+
+Anonymous usage data helps:
+
+- **Identify bugs**: Discover issues affecting users
+- **Prioritize features**: Focus on most-used capabilities
+- **Improve performance**: Find and fix slow operations
+- **Enhance reliability**: Track and reduce error rates
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="OpenTelemetry" icon="chart-line" href="/enterprise-solutions/monitoring/opentelemetry">
+    Enterprise monitoring and observability
+  </Card>
+  
+  <Card title="Privacy" icon="shield" href="/more-info/telemetry">
+    Full telemetry documentation
+  </Card>
+</CardGroup>

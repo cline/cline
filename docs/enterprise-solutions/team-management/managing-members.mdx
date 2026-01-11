@@ -1,0 +1,317 @@
+---
+title: "Managing Members"
+sidebarTitle: "Managing Members"
+description: "Complete guide to managing team members, roles, and permissions in your Cline Enterprise organization"
+---
+
+Effective member management is essential for maintaining security and enabling your team to work productively. This guide covers everything you need to know about roles, permissions, and day-to-day member administration.
+
+## Understanding Roles
+
+Choose the right role for each team member to balance security with productivity. Here's what each role is designed for:
+
+<CardGroup cols={3}>
+  <Card title="Owner" icon="crown" color="#9D4EDD">
+    **Primary account holder**
+    
+    Unrestricted access to all settings including billing, security, and ownership transfer. Keep this limited to 1-2 key leaders.
+  </Card>
+  
+  <Card title="Admin" icon="user-gear" color="#7209B7">
+    **Team leads & IT managers**
+    
+    Can manage users and configure providers. Ideal for trusted managers who need operational control without billing access.
+  </Card>
+  
+  <Card title="Member" icon="user" color="#560BAD">
+    **Developers & contributors**
+    
+    Can use Cline with shared resources but cannot change settings. The safest default for most team members.
+  </Card>
+</CardGroup>
+
+## Permissions Matrix
+
+Understand exactly what each role can do with this comprehensive permissions breakdown:
+
+| Permission | Member | Admin | Owner |
+| :--- | :---: | :---: | :---: |
+| **General Usage** | | | |
+| Use Cline | ✅ | ✅ | ✅ |
+| Access Shared API Providers | ✅ | ✅ | ✅ |
+| | | | |
+| **Member Management** | | | |
+| View Members | ❌ | ✅ | ✅ |
+| Invite New Members | ❌ | ✅ | ✅ |
+| Edit Member Roles | ❌ | ✅ | ✅ |
+| Remove Members | ❌ | ✅ | ✅ |
+| Remove Admins | ❌ | ❌ | ✅ |
+| | | | |
+| **Configuration** | | | |
+| Configure API Providers | ❌ | ✅ | ✅ |
+| Manage Security Settings | ❌ | ❌ | ✅ |
+| | | | |
+| **Billing & Ownership** | | | |
+| View Billing Information | ❌ | ❌ | ✅ |
+| Manage Subscription | ❌ | ❌ | ✅ |
+| Transfer Ownership | ❌ | ❌ | ✅ |
+
+<Note>
+**Quick Reference:** Most users should be **Members**. Grant **Admin** only to those managing users or configs. Reserve **Owner** for 1-2 account leaders.
+</Note>
+
+## Member Management Tasks
+
+<Tabs>
+  <Tab title="Adding Members">
+    ### Inviting New Team Members
+    
+    1. **Navigate to Members**
+       - Go to your organization dashboard at app.cline.bot
+       - Click on "Members" in the sidebar
+    
+    2. **Send Invitation**
+       - Click "Invite Member"
+       - Enter the user's email address (must be from your verified domain)
+       - Select the appropriate role (Member, Admin, or Owner)
+       - Click "Send Invite"
+    
+    3. **Invitation Status**
+       - Invited users will receive an email with a join link
+       - Pending invitations show in your member list with "Pending" status
+       - Each pending invitation holds one seat from your license
+    
+    <Tip>
+    **Bulk Invitations:** Need to add multiple users? Contact support@cline.bot for assistance with bulk invite CSV imports.
+    </Tip>
+  </Tab>
+  
+  <Tab title="Editing Roles">
+    ### Changing Member Permissions
+    
+    1. **Locate the Member**
+       - Navigate to the Members page
+       - Find the user you want to modify
+    
+    2. **Change Role**
+       - Click the dropdown next to their current role
+       - Select the new role from the menu
+       - Confirm the change
+    
+    3. **Effective Immediately**
+       - Role changes take effect instantly
+       - The user may need to sign out and back in to see updated permissions
+    
+    <Warning>
+    **Admin to Member:** Downgrading an Admin to Member will immediately revoke their ability to manage users and configurations. Ensure they no longer need these permissions.
+    </Warning>
+  </Tab>
+  
+  <Tab title="Removing Members">
+    ### Offboarding Team Members
+    
+    1. **Access Member List**
+       - Navigate to your organization's Members page
+       - Locate the user to remove
+    
+    2. **Remove User**
+       - Click the menu icon (⋮) next to their name
+       - Select "Remove from Organization"
+       - Confirm the removal
+    
+    3. **Immediate Effects**
+       - User loses access to the organization immediately
+       - Their seat is freed and can be assigned to someone else
+       - Audit logs are preserved for compliance
+    
+    <Info>
+    **Data Retention:** Removing a member does not delete their historical activity logs. All audit trails remain intact for compliance purposes.
+    </Info>
+  </Tab>
+  
+  <Tab title="Revoking Invites">
+    ### Canceling Pending Invitations
+    
+    If an invited user hasn't accepted yet, you can revoke the invitation:
+    
+    1. Find the pending invitation in your Members list
+    2. Click "Revoke Invitation"
+    3. The seat is immediately freed for another user
+    
+    This is useful when:
+    - The wrong email was used
+    - The user no longer needs access
+    - You need to reassign the seat urgently
+  </Tab>
+</Tabs>
+
+## Identity & Access Requirements
+
+For users to successfully join your organization, two conditions must be met:
+
+<Steps>
+  <Step title="Verified Identity Provider">
+    Your organization must use a verified **Identity Provider (IDP)** such as:
+    - Microsoft Entra ID (Azure AD)
+    - Okta
+    - Google Workspace
+    - AWS IAM Identity Center
+    
+    Users must authenticate through your IDP to access the organization.
+  </Step>
+  
+  <Step title="Domain Verification">
+    Your organization must have a **verified domain**. You'll need to verify ownership of your domain through your domain provider (e.g., Google, Microsoft, Cloudflare).
+    
+    Only users with email addresses from verified domains can join.
+  </Step>
+</Steps>
+
+<Note>
+These requirements ensure that only authenticated users from your company can access your Cline organization, preventing unauthorized access.
+</Note>
+
+## Seat Management
+
+Understanding how seats work helps you manage your license effectively:
+
+<AccordionGroup>
+  <Accordion title="How Seats Are Calculated" icon="chair">
+    - Each user (Owner, Admin, or Member) consumes **one seat**
+    - Pending invitations also hold one seat
+    - Removing a member or revoking an invite immediately frees the seat
+    - Your license determines the maximum number of seats available
+  </Accordion>
+  
+  <Accordion title="When Seats Are Used" icon="user-plus">
+    A seat is consumed when:
+    - You send an invitation (marked as "pending")
+    - An invited user accepts and joins
+    - An existing user is granted access through SSO
+  </Accordion>
+  
+  <Accordion title="Freeing Up Seats" icon="user-minus">
+    To free a seat:
+    - Remove an active member from the organization
+    - Revoke a pending invitation
+    - Wait for a pending invite to expire (if configured)
+  </Accordion>
+  
+  <Accordion title="Upgrading Your License" icon="arrow-up">
+    Need more seats?
+    - **Teams Plan:** Contact your account manager or visit app.cline.bot/settings/billing to upgrade your license.
+    - **Enterprise Plan:** Includes unlimited seats with no per-user restrictions.
+  </Accordion>
+</AccordionGroup>
+
+## Security Best Practices
+
+Follow these guidelines to maintain a secure organization:
+
+<CardGroup cols={2}>
+  <Card title="Principle of Least Privilege" icon="shield-check">
+    Always assign the minimum role necessary. Most users should be Members. Only grant Admin or Owner privileges when required for job duties.
+  </Card>
+  
+  <Card title="Limit Owner Roles" icon="user-lock">
+    Keep Owners to 1-2 key individuals who manage billing and security. This centralization prevents accidental or malicious changes to critical settings.
+  </Card>
+  
+  <Card title="Regular Audits" icon="clipboard-check">
+    Review your member list quarterly. Remove inactive users promptly and verify that Admin/Owner roles are still appropriate for each user.
+  </Card>
+  
+  <Card title="Offboarding Process" icon="door-open">
+    Create a standard offboarding checklist: remove from Cline, revoke IDP access, document in audit log, and reassign any critical responsibilities.
+  </Card>
+</CardGroup>
+
+<Warning>
+**Owner Accountability:** Since Owners control billing and can transfer ownership, choose these individuals carefully and document the selection in your organization's security policies.
+</Warning>
+
+## Advanced Scenarios
+
+<AccordionGroup>
+  <Accordion title="Transferring Ownership" icon="exchange">
+    Only the current Owner can transfer ownership:
+    
+    1. Navigate to Organization Settings
+    2. Go to the "Ownership" section
+    3. Select the new Owner from the member list
+    4. Confirm the transfer with your authentication
+    5. The new Owner receives immediate control
+    
+    **Important:** This action cannot be undone by the previous Owner. The new Owner must initiate a reverse transfer if needed.
+  </Accordion>
+  
+  <Accordion title="Managing Multiple Admins" icon="users-gear">
+    When you have multiple Admins:
+    
+    - Document each Admin's area of responsibility
+    - Use audit logs to track configuration changes
+    - Consider creating rotation schedules for large teams
+    - Establish escalation paths for Owner-level decisions
+  </Accordion>
+  
+  <Accordion title="Temporary Access" icon="clock">
+    For contractors or temporary staff:
+    
+    - Create them as Members with expiration calendar reminders
+    - Document their access period in your internal systems
+    - Set calendar reminders to remove them when the contract ends
+    - Consider using time-limited IDP accounts if your IDP supports it
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="User Can't Accept Invitation" icon="circle-exclamation">
+    **Common causes:**
+    - Email domain doesn't match verified domain
+    - User's IDP access hasn't been granted yet
+    - Invitation link expired
+    
+    **Solution:** Verify domain verification is complete and resend the invitation.
+  </Accordion>
+  
+  <Accordion title="Can't Remove an Admin" icon="user-slash">
+    **Cause:** Only Owners can remove Admins.
+    
+    **Solution:** Ask an Owner to perform the removal, or if you need to remove your organization's sole Owner, contact support@cline.bot.
+  </Accordion>
+  
+  <Accordion title="Out of Seats" icon="triangle-exclamation">
+    **When you've reached your license limit:**
+    - Remove inactive members to free seats
+    - Revoke pending invitations that are no longer needed
+    - Upgrade your license to add more seats
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+Now that you understand member management, proceed with configuring your organization:
+
+<CardGroup cols={2}>
+  <Card 
+    title="Configure Providers" 
+    icon="plug" 
+    href="/enterprise-solutions/configuration/choosing-your-deployment"
+  >
+    Set up API providers for your team to use
+  </Card>
+  
+  <Card 
+    title="Monitor Usage" 
+    icon="chart-line" 
+    href="/enterprise-solutions/monitoring/overview"
+  >
+    Track team activity and resource consumption
+  </Card>
+</CardGroup>
+
+<Tip>
+**Getting Started Fast?** The quickest path is: 1) Invite your team as Members, 2) Configure one API provider, 3) Let your team start using Cline. You can refine roles and settings later.
+</Tip>

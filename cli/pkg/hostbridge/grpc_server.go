@@ -16,15 +16,17 @@ import (
 type GrpcServer struct {
 	port       int
 	verbose    bool
+	workspaces []string
 	server     *grpc.Server
 	shutdownCh chan struct{}
 }
 
 // NewGrpcServer creates a new GrpcServer
-func NewGrpcServer(port int, verbose bool) *GrpcServer {
+func NewGrpcServer(port int, verbose bool, workspaces []string) *GrpcServer {
 	return &GrpcServer{
 		port:       port,
 		verbose:    verbose,
+		workspaces: workspaces,
 		shutdownCh: make(chan struct{}),
 	}
 }
@@ -50,7 +52,7 @@ func (s *GrpcServer) Start(ctx context.Context) error {
 	grpc_health_v1.RegisterHealthServer(s.server, healthServer)
 
 	// Register services
-	workspaceService := NewSimpleWorkspaceService(s.verbose)
+	workspaceService := NewSimpleWorkspaceService(s.verbose, s.workspaces)
 	host.RegisterWorkspaceServiceServer(s.server, workspaceService)
 
 	windowService := NewWindowService(s.verbose)

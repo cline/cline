@@ -77,7 +77,45 @@ message TaskCompleteData {
 
 // Data for PreCompact hook
 message PreCompactData {
-  int64 context_size = 1;
-  int32 messages_to_compact = 2;
-  string compaction_strategy = 3;
+  // Task identification
+  string task_id = 1;
+  string ulid = 2;
+
+  // Context size information
+  int64 context_size = 3; // Number of messages in API conversation history
+
+  // Compaction strategy indicating how conversation history is managed:
+  // * auto-condense:                   AI-powered compression using summarize_task tool
+  // * standard-truncation-firstpair:   Keep only the original task (used during auto-condense)
+  // * standard-truncation-lasthalf:    Keep first pair + most recent 50% of conversation
+  // * standard-truncation-lastquarter: Keep first pair + most recent 25% of conversation (aggressive)
+  string compaction_strategy = 4;
+
+  // API request tracking
+  int64 previous_api_req_index = 5; // Index of last API request in clineMessages
+
+  // Token usage data from last API request
+  int64 tokens_in = 6;
+  int64 tokens_out = 7;
+  int64 tokens_in_cache = 8;
+  int64 tokens_out_cache = 9;
+
+  // Truncation information (if applicable)
+  int32 deleted_range_start = 10; // Start index of deleted conversation range
+  int32 deleted_range_end = 11; // End index of deleted conversation range
+
+  // Context JSON file path
+  // Path to a temporary JSON file containing the full API conversation history
+  // The file contains an array of message objects with role and content
+  // Hooks can read this file to analyze conversation contents before compaction
+  // This file will be automatically cleaned up after the hook completes
+  string context_json_path = 12;
+
+  // Context raw/formatted file path
+  // Path to a temporary text file containing the complete context window sent to the LLM
+  // This includes the system prompt, environment details, conversation history, and all formatting
+  // Represents the actual input the LLM receives (format varies by provider)
+  // Use this to analyze total context size, overhead, and exactly what the model sees
+  // This file will be automatically cleaned up after the hook completes
+  string context_raw_path = 13;
 }

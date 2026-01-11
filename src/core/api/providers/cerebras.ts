@@ -11,6 +11,12 @@ interface CerebrasHandlerOptions extends CommonApiHandlerOptions {
 	apiModelId?: string
 }
 
+// Conservative max_tokens for Cerebras to avoid premature rate limiting.
+// Cerebras rate limiter estimates token consumption using max_completion_tokens upfront,
+// so requesting the model maximum (e.g., 64K) reserves that quota even if actual usage is low.
+// 16K is sufficient for most agentic tool use while preserving rate limit headroom.
+const CEREBRAS_DEFAULT_MAX_TOKENS = 16_384
+
 export class CerebrasHandler implements ApiHandler {
 	private options: CerebrasHandlerOptions
 	private client: Cerebras | undefined
@@ -111,7 +117,7 @@ export class CerebrasHandler implements ApiHandler {
 				messages: cerebrasMessages,
 				temperature: 0,
 				stream: true,
-				max_tokens: this.getModel().info.maxTokens,
+				max_tokens: CEREBRAS_DEFAULT_MAX_TOKENS,
 			})
 
 			// Handle streaming response

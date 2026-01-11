@@ -36,7 +36,7 @@ func (c *ClineClients) Initialize(ctx context.Context) error {
 }
 
 // StartNewInstance starts a new Cline instance and waits for cline-core to self-register
-func (c *ClineClients) StartNewInstance(ctx context.Context) (*common.CoreInstanceInfo, error) {
+func (c *ClineClients) StartNewInstance(ctx context.Context, workspaces ...string) (*common.CoreInstanceInfo, error) {
 	// Find available ports
 	corePort, hostPort, err := common.FindAvailablePortPair()
 	if err != nil {
@@ -48,7 +48,7 @@ func (c *ClineClients) StartNewInstance(ctx context.Context) (*common.CoreInstan
 	}
 
 	// Start cline-host first
-	hostCmd, err := startClineHost(hostPort, corePort)
+	hostCmd, err := startClineHost(hostPort, workspaces)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start cline-host: %w", err)
 	}
@@ -120,7 +120,7 @@ func (c *ClineClients) StartNewInstance(ctx context.Context) (*common.CoreInstan
 }
 
 // StartNewInstanceAtPort starts a new Cline instance at the specified port and waits for self-registration
-func (c *ClineClients) StartNewInstanceAtPort(ctx context.Context, corePort int) (*common.CoreInstanceInfo, error) {
+func (c *ClineClients) StartNewInstanceAtPort(ctx context.Context, corePort int, workspaces ...string) (*common.CoreInstanceInfo, error) {
 	// Find available host port (core port + 1000)
 	hostPort := corePort + 1000
 	coreAddress := fmt.Sprintf("localhost:%d", corePort)
@@ -135,7 +135,7 @@ func (c *ClineClients) StartNewInstanceAtPort(ctx context.Context, corePort int)
 	}
 
 	// Start cline-host first
-	hostCmd, err := startClineHost(hostPort, corePort)
+	hostCmd, err := startClineHost(hostPort, workspaces)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start cline-host: %w", err)
 	}
@@ -242,7 +242,7 @@ func (c *ClineClients) EnsureInstanceAtAddress(ctx context.Context, address stri
 	return fmt.Errorf("cannot start remote instance at %s", normalized)
 }
 
-func startClineHost(hostPort, corePort int) (*exec.Cmd, error) {
+func startClineHost(hostPort int, workspaces []string) (*exec.Cmd, error) {
 	if Config.Verbose {
 		fmt.Printf("Starting cline-host on port %d\n", hostPort)
 	}
@@ -255,10 +255,18 @@ func startClineHost(hostPort, corePort int) (*exec.Cmd, error) {
 	binDir := path.Dir(execPath)
 	clineHostPath := path.Join(binDir, "cline-host")
 
-	// Start the cline-host process
-	cmd := exec.Command(clineHostPath,
+	// Build command arguments
+	args := []string{
 		"--verbose",
-		"--port", fmt.Sprintf("%d", hostPort))
+		"--port", fmt.Sprintf("%d", hostPort),
+	}
+
+	for _, ws := range workspaces {
+		args = append(args, "--workspace", ws)
+	}
+
+	// Start the cline-host process
+	cmd := exec.Command(clineHostPath, args...)
 
 	// Create logs directory in ~/.cline/logs
 	logsDir := path.Join(Config.ConfigPath, "logs")
@@ -333,7 +341,7 @@ func KillInstanceByAddress(ctx context.Context, registry *ClientRegistry, addres
 	if Config.Verbose {
 		fmt.Printf("Waiting for instance to clean up registry entry...\n")
 	}
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		time.Sleep(1 * time.Second)
 		if !registry.HasInstanceAtAddress(address) {
 			if Config.Verbose {
@@ -408,15 +416,15 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 		// This handles the case where we're running from cli/bin/cline
 		devClineCorePath := path.Join(binDir, "..", "..", "dist-standalone", "cline-core.js")
 		devInstallDir := path.Join(binDir, "..", "..", "dist-standalone")
-		
+
 		if Config.Verbose {
 			fmt.Printf("Primary location not found, trying development path: %s\n", devClineCorePath)
 		}
-		
+
 		if _, err := os.Stat(devClineCorePath); os.IsNotExist(err) {
 			return nil, fmt.Errorf("cline-core.js not found at '%s' or '%s'. Please ensure you're running from the correct location or reinstall with 'npm install -g cline'", clineCorePath, devClineCorePath)
 		}
-		
+
 		finalClineCorePath = devClineCorePath
 		finalInstallDir = devInstallDir
 		if Config.Verbose {
@@ -475,15 +483,16 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 	realNodeModules := path.Join(finalInstallDir, "node_modules")
 	fakeNodeModules := path.Join(finalInstallDir, "fake_node_modules")
 	nodePath := fmt.Sprintf("%s%c%s", realNodeModules, os.PathListSeparator, fakeNodeModules)
-	
+
 	env = append(env,
 		fmt.Sprintf("NODE_PATH=%s", nodePath),
-		"GRPC_TRACE=all",
-		"GRPC_VERBOSITY=DEBUG",
+		// These control gRPC debug logging
+		//"GRPC_TRACE=all",
+		//"GRPC_VERBOSITY=DEBUG",
 		"NODE_ENV=development",
 	)
 	cmd.Env = env
-	
+
 	if Config.Verbose {
 		fmt.Printf("NODE_PATH set to: %s\n", nodePath)
 	}

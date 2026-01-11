@@ -1,0 +1,55 @@
+---
+title: "Web Tools"
+sidebarTitle: "Web Tools"
+description: "Search the web and fetch content from URLs directly within Cline"
+---
+
+Web Tools give Cline the ability to search the internet and fetch content from specific URLs during your tasks. This is useful when you need up-to-date information, documentation lookups, or research that goes beyond your local codebase and the LLM's internal knowledge.
+
+<Warning>
+	Web Tools require the **Cline provider**. They are not available when using other providers like OpenRouter, Anthropic, AWS Bedrock, etc.
+</Warning>
+
+## How Web Tools Work
+
+Cline has two web tools:
+
+- **web_search**: Searches the web and returns a list of relevant webpages based on your query
+- **web_fetch**: Fetches and analyzes content from a specific URL
+
+When Cline determines that web information would help complete your task, it will use these tools automatically. The tools call Cline's backend API, which handles the search or fetch operation and returns the results.
+
+## Enabling Web Tools
+
+Web Tools are available when using the Cline provider. To use them:
+
+1. Make sure you're signed in to Cline
+2. Ensure you're using the Cline provider
+3. Enable the Web Tools toggle in the Feature Settings menu
+
+<Note>
+	Web tools can be auto-approved using the "Use the browser" setting in [Auto Approve](/features/auto-approve).
+</Note>
+
+## Use Cases
+
+### Looking Up Documentation
+
+When working with unfamiliar libraries or APIs:
+- Search for official documentation
+- Fetch specific API reference pages
+- Get examples and usage patterns
+
+### Research Before Implementation
+
+Before implementing a feature:
+- Search for best practices and common patterns
+- Find recent discussions about approaches
+- Look up known issues or limitations
+
+### Checking Latest Information
+
+For time-sensitive information:
+- Latest release notes and changelogs
+- Recent bug fixes or security updates
+- Current recommended versions

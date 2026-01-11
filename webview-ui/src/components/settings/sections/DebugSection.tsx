@@ -14,10 +14,10 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 		<div>
 			{renderSectionHeader("debug")}
 			<Section>
-				<Button onClick={() => onResetState()} variant="danger">
+				<Button onClick={() => onResetState()} variant="error">
 					Reset Workspace State
 				</Button>
-				<Button onClick={() => onResetState(true)} variant="danger">
+				<Button onClick={() => onResetState(true)} variant="error">
 					Reset Global State
 				</Button>
 				<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">

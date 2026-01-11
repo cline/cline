@@ -19,7 +19,7 @@ export interface ClineToolSpec {
 interface ClineToolSpecParameter {
 	name: string
 	required: boolean
-	instruction: string
+	instruction: string | ((context: SystemPromptContext) => string)
 	usage?: string
 	dependencies?: ClineDefaultTool[]
 	description?: string
@@ -77,7 +77,7 @@ export function toolSpecFunctionDefinition(tool: ClineToolSpec, context: SystemP
 			// Build parameter schema
 			const paramSchema: any = {
 				type: paramType,
-				description: replacer(param.instruction, context),
+				description: replacer(resolveInstruction(param.instruction, context), context),
 			}
 
 			// Add items for array types
@@ -170,7 +170,7 @@ export function toolSpecInputSchema(tool: ClineToolSpec, context: SystemPromptCo
 			// Build parameter schema
 			const paramSchema: any = {
 				type: paramType,
-				description: replacer(param.instruction, context),
+				description: replacer(resolveInstruction(param.instruction, context), context),
 			}
 
 			// Add items for array types
@@ -278,7 +278,7 @@ export function toolSpecFunctionDeclarations(tool: ClineToolSpec, context: Syste
 					}
 					paramSchema.properties[key] = {
 						type: GOOGLE_TOOL_PARAM_MAP[prop.type || "string"] || GoogleToolParamType.OBJECT,
-						description: replacer(param.instruction, context),
+						description: replacer(resolveInstruction(param.instruction, context), context),
 					}
 
 					// Handle enum values
@@ -398,4 +398,14 @@ function replacer(description: string, context: SystemPromptContext): string {
 	const height = context.browserSettings?.viewport?.height || 600
 
 	return description.replace("{{BROWSER_VIEWPORT_WIDTH}}", String(width)).replace("{{BROWSER_VIEWPORT_HEIGHT}}", String(height))
+}
+
+/**
+ * Resolves an instruction that may be a string or a function.
+ */
+export function resolveInstruction(
+	instruction: string | ((context: SystemPromptContext) => string),
+	context: SystemPromptContext,
+): string {
+	return typeof instruction === "function" ? instruction(context) : instruction
 }

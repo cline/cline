@@ -1,0 +1,231 @@
+---
+title: "Skills"
+sidebarTitle: "Skills"
+description: "Extend Cline with reusable, on-demand instruction sets for specialized tasks"
+---
+
+Skills are modular instruction sets that extend Cline's capabilities for specific tasks. Each skill packages detailed guidance, workflows, and optional resources that Cline loads only when relevant to your request.
+
+Unlike rules (which are always active), skills load on-demand. You can install dozens of skills without affecting context or performance because Cline only sees the skill name and description until it's actually needed.
+
+<Note>
+Skills is an experimental feature. Enable it in Settings → Features → Enable Skills.
+</Note>
+
+## Why Skills?
+
+Consider how you'd onboard a new team member: you wouldn't dump every document on them at once. You'd give them a brief overview, then point them to detailed guides when they're working on specific tasks.
+
+Skills work the same way:
+- **At startup**: Cline sees only a brief description of each skill
+- **When triggered**: Cline loads the full instructions for that specific skill
+- **As needed**: Skills can bundle additional files that Cline reads only when referenced
+
+This progressive loading means you can package extensive domain knowledge without burning context tokens on information that isn't relevant to the current task.
+
+## Creating a Skill
+
+Every skill is a directory containing a `SKILL.md` file with YAML frontmatter:
+
+```
+my-skill/
+├── SKILL.md          # Required: main instructions
+├── docs/             # Optional: additional documentation
+│   └── advanced.md
+└── scripts/          # Optional: utility scripts
+    └── helper.sh
+```
+
+The `SKILL.md` file has two parts: metadata and instructions.
+
+```yaml
+---
+name: my-skill
+description: Brief description of what this skill does and when to use it.
+---
+
+# My Skill
+
+Detailed instructions for Cline to follow when this skill is activated.
+
+## Steps
+
+1. First, do this
+2. Then do that
+3. For advanced usage, see [advanced.md](docs/advanced.md)
+```
+
+**Required fields:**
+- `name`: Must exactly match the directory name
+- `description`: Tells Cline when to use this skill (max 1024 characters)
+
+The description is critical because it's how Cline decides whether to activate a skill. Be specific about what the skill does and when it should be used.
+
+## Where Skills Live
+
+Skills can be stored in two locations:
+
+**Global Skills** apply to all your projects:
+- **macOS/Linux:** `~/.cline/skills/`
+- **Windows:** `C:\Users\USERNAME\.cline\skills\`
+
+**Project Skills** apply only to the current workspace:
+- `.cline/skills/` (recommended)
+- `.clinerules/skills/`
+- `.claude/skills/` (for Claude Code compatibility)
+
+When a global skill and project skill have the same name, the global skill takes precedence. This lets you customize skills for your personal workflow while still using project defaults.
+
+## Managing Skills
+
+Click the scale icon below the chat input to open the rules and workflows panel. When skills are enabled, you'll see a Skills tab where you can:
+
+- View all available skills (global and workspace)
+- Toggle individual skills on or off
+- Create new skills from a template
+- Delete skills you no longer need
+
+Skills are enabled by default when discovered. Toggle them off if you want them available but not active for the current project.
+
+## How Cline Uses Skills
+
+When you send a message, Cline sees a list of available skills with their descriptions. If your request matches a skill's description, Cline activates it using the `use_skill` tool, which loads the full instructions.
+
+For example, if you have a skill for deploying to AWS:
+
+```yaml
+---
+name: aws-deploy
+description: Deploy applications to AWS using CDK. Use when deploying, updating infrastructure, or managing AWS resources.
+---
+```
+
+Asking "deploy this to AWS" would trigger Cline to activate the skill, load its detailed instructions, and follow them to complete your request.
+
+## Example: Data Analysis Skill
+
+Here's a practical skill for data analysis tasks. Create a directory called `data-analysis/` with this `SKILL.md`:
+
+```yaml
+---
+name: data-analysis
+description: Analyze data files and generate insights. Use when working with CSV, Excel, or JSON data files that need exploration, cleaning, or visualization.
+---
+```
+
+Then add the instructions in the body of the file:
+
+````markdown
+# Data Analysis
+
+When analyzing data files, follow this workflow:
+
+## 1. Understand the Data
+
+- Read a sample of the file to understand its structure
+- Identify column types and data quality issues
+- Note any missing values or anomalies
+
+## 2. Ask Clarifying Questions
+
+Before diving in, ask the user:
+- What specific insights are they looking for?
+- Are there any known data quality issues?
+- What format do they want for the output?
+
+## 3. Perform Analysis
+
+Use pandas for data manipulation:
+
+```python
+import pandas as pd
+
+# Load and explore
+df = pd.read_csv("data.csv")
+print(df.head())
+print(df.describe())
+print(df.info())
+```
+
+For visualization, prefer matplotlib or seaborn depending on complexity.
+
+## 4. Present Findings
+
+- Start with a summary of key insights
+- Support findings with specific numbers
+- Include visualizations where they add clarity
+- End with recommendations or next steps
+````
+
+## Bundling Supporting Files
+
+Skills can include additional files that Cline accesses only when needed:
+
+```
+complex-skill/
+├── SKILL.md
+├── docs/
+│   ├── setup.md
+│   └── troubleshooting.md
+├── templates/
+│   └── config.yaml
+└── scripts/
+    └── validate.py
+```
+
+Reference these in your instructions:
+
+````markdown
+For initial setup, follow [setup.md](docs/setup.md).
+
+Use the config template at `templates/config.yaml` as a starting point.
+
+Run the validation script to check your configuration:
+```bash
+python scripts/validate.py
+```
+````
+
+Cline reads these files using `read_file` when the instructions reference them. Scripts can be executed directly, with only the output entering the context (not the script code itself).
+
+## Ideas for Skills
+
+Skills shine when you have tasks that:
+- Require detailed, multi-step workflows
+- Need domain-specific knowledge or best practices
+- Would otherwise require repeating the same instructions across conversations
+
+Some possibilities:
+
+- **Release management**: Version bumping, changelog generation, git tagging, and publishing
+- **Code review**: Your team's specific review checklist and quality standards
+- **Database migrations**: Safely evolving schemas with rollback procedures
+- **API integration**: Connecting to specific third-party services with proper error handling
+- **Documentation**: Your preferred structure, style guide, and tooling
+- **Debugging workflows**: Systematic approaches to diagnosing specific types of issues
+- **Infrastructure**: Terraform/CDK patterns for your cloud setup
+
+The best skills encode institutional knowledge that would otherwise live only in experienced developers' heads.
+
+## Skills vs Rules vs Workflows
+
+| Feature | Purpose | When Active |
+|---------|---------|-------------|
+| **Rules** | Define how Cline should behave | Always (or contextually) |
+| **Workflows** | Step-by-step task automation | Invoked with `/workflow.md` |
+| **Skills** | Domain expertise loaded on-demand | Triggered by matching requests |
+
+**Rules** set constraints and preferences (like "always use TypeScript" or "follow this style guide").
+
+**Workflows** are explicit sequences you invoke for specific tasks (like `/release.md` for a release process).
+
+**Skills** are expertise that Cline activates automatically when relevant (like data analysis knowledge when you're working with CSV files).
+
+Use rules for ongoing constraints, workflows for explicit automation, and skills for domain knowledge that should be available but not always active.
+
+## Related Features
+
+- [Cline Rules](/features/cline-rules) for always-active project guidance
+- [Workflows](/features/slash-commands/workflows/index) for explicit task automation
+- [Hooks](/features/hooks/index) for injecting custom logic at key moments
+

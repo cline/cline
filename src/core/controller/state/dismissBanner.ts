@@ -1,9 +1,10 @@
+import { BannerService } from "@/services/banner/BannerService"
 import type { StringRequest } from "@/shared/proto/cline/common"
 import { Empty } from "@/shared/proto/cline/common"
 import type { Controller } from ".."
 
 /**
- * Dismisses a banner by ID
+ * Dismisses a banner and sends telemetry
  * @param controller The controller instance
  * @param request The request containing the banner ID to dismiss
  * @returns Empty response
@@ -11,9 +12,14 @@ import type { Controller } from ".."
 export async function dismissBanner(controller: Controller, request: StringRequest): Promise<Empty> {
 	const bannerId = request.value
 
-	if (bannerId) {
-		await controller.dismissBanner(bannerId)
+	if (!bannerId) {
+		return {}
 	}
-
-	return Empty.create()
+	try {
+		await BannerService.get().dismissBanner(bannerId)
+		await controller.postStateToWebview()
+	} catch (error) {
+		console.error("Failed to dismiss banner:", error)
+	}
+	return {}
 }

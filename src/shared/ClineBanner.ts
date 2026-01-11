@@ -43,6 +43,10 @@ export interface BannerRules {
 	providers?: string[]
 	/** Target specific audience segment */
 	audience?: BannerAudience[]
+	/**  Target team vs enterprise organizations */
+	org_type?: "all" | "team_only" | "enterprise_only" | ""
+	/** Minimum extension version required (e.g., "3.39.2") */
+	min_extension_version?: string
 }
 
 /**

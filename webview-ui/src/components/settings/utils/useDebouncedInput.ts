@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useDebounceEffect } from "@/utils/useDebounceEffect"
 
 /**
@@ -17,6 +17,17 @@ export function useDebouncedInput<T>(
 ): [T, (value: T) => void] {
 	// Local state to prevent jumpy input - initialize once
 	const [localValue, setLocalValue] = useState(initialValue)
+
+	// Track previous initialValue to detect external changes
+	const prevInitialValueRef = useRef<T>(initialValue)
+
+	// Sync local state when initialValue changes externally (e.g., when switching Plan/Act tabs)
+	useEffect(() => {
+		if (prevInitialValueRef.current !== initialValue) {
+			setLocalValue(initialValue)
+			prevInitialValueRef.current = initialValue
+		}
+	}, [initialValue])
 
 	// Debounced backend save - saves after user stops changing value
 	useDebounceEffect(

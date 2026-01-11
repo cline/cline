@@ -1,4 +1,4 @@
-import { CreateHookRequest, RuleFileRequest } from "@shared/proto/index.cline"
+import { CreateHookRequest, CreateSkillRequest, RuleFileRequest } from "@shared/proto/index.cline"
 import { PlusIcon } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useClickAway } from "react-use"
@@ -83,6 +83,32 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType, existingHoo
 
 		if (filename.trim()) {
 			const trimmedFilename = filename.trim()
+
+			// Skills use directory names, not file extensions
+			if (ruleType === "skill") {
+				// Validate skill name - only allow alphanumeric, dashes, underscores
+				if (!/^[a-zA-Z0-9_-]+$/.test(trimmedFilename)) {
+					setError("Skill name can only contain letters, numbers, dashes, and underscores")
+					return
+				}
+
+				try {
+					await FileServiceClient.createSkillFile(
+						CreateSkillRequest.create({
+							skillName: trimmedFilename,
+							isGlobal,
+						}),
+					)
+				} catch (err) {
+					console.error("Error creating skill:", err)
+				}
+
+				setFilename("")
+				setError(null)
+				setIsExpanded(false)
+				return
+			}
+
 			const extension = getExtension(trimmedFilename)
 
 			if (!isValidExtension(extension)) {
@@ -191,10 +217,14 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType, existingHoo
 									isExpanded
 										? ruleType === "workflow"
 											? "workflow-name (.md, .txt, or no extension)"
-											: "rule-name (.md, .txt, or no extension)"
+											: ruleType === "skill"
+												? "skill-name (letters, numbers, dashes, underscores)"
+												: "rule-name (.md, .txt, or no extension)"
 										: ruleType === "workflow"
 											? "New workflow file..."
-											: "New rule file..."
+											: ruleType === "skill"
+												? "New skill..."
+												: "New rule file..."
 								}
 								ref={inputRef}
 								type="text"
@@ -204,10 +234,14 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType, existingHoo
 							<Button
 								aria-label={
 									isExpanded
-										? "Create file"
+										? ruleType === "skill"
+											? "Create skill"
+											: "Create file"
 										: ruleType === "workflow"
 											? "New workflow file..."
-											: "New rule file..."
+											: ruleType === "skill"
+												? "New skill..."
+												: "New rule file..."
 								}
 								className="mx-0.5"
 								onClick={(e) => {
@@ -217,7 +251,7 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType, existingHoo
 									}
 								}}
 								size="icon"
-								title={isExpanded ? "Create file" : "New file"}
+								title={isExpanded ? (ruleType === "skill" ? "Create skill" : "Create file") : "New file"}
 								type={isExpanded ? "submit" : "button"}
 								variant="icon">
 								<PlusIcon />

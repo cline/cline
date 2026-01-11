@@ -1,0 +1,130 @@
+name: Publish NPM Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_publish:
+        description: 'Type "publish" to confirm you want to publish to NPM'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  checks: write  # Required by test workflow
+  pull-requests: write  # Required by test workflow
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  publish-npm-release:
+    needs: test
+    name: Publish Cline CLI to NPM
+    if: github.repository == 'cline/cline' && github.ref == 'refs/heads/main' && github.event.inputs.confirm_publish == 'publish'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache-dependency-path: cli/go.sum
+
+      # Cache root dependencies - only reuse if package-lock.json exactly matches
+      - name: Cache root dependencies
+        uses: actions/cache@v4
+        id: root-cache
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+
+      # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
+      - name: Cache webview-ui dependencies
+        uses: actions/cache@v4
+        id: webview-cache
+        with:
+          path: webview-ui/node_modules
+          key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+
+      - name: Install root dependencies
+        if: steps.root-cache.outputs.cache-hit != 'true'
+        run: npm ci --include=optional
+
+      - name: Install webview-ui dependencies
+        if: steps.webview-cache.outputs.cache-hit != 'true'
+        run: cd webview-ui && npm ci --include=optional
+
+      - name: Read release version
+        id: version
+        run: |
+          # Read version from cli/package.json (stable version)
+          VERSION=$(node -p "require('./cli/package.json').version")
+          echo "Release version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download ripgrep binaries
+        run: npm run download-ripgrep
+
+      - name: Clean previous builds
+        run: rm -rf dist-standalone
+
+      - name: Generate Protos (First Pass)
+        run: npm run protos && npm run protos-go
+
+      - name: Compile CLI
+        run: npm run compile-cli
+
+      - name: Compile CLI for all platforms
+        run: npm run compile-cli-all-platforms
+
+      - name: Build standalone NPM package
+        env:
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          CLINE_ENVIRONMENT: production
+          OTEL_TELEMETRY_ENABLED: "1"
+          OTEL_METRICS_EXPORTER: otlp
+          OTEL_LOGS_EXPORTER: otlp
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+          POSTHOG_TELEMETRY_ENABLED: "true"
+        run: npm run compile-standalone-npm
+
+      - name: Generate Protos (Second Pass - Bug Workaround)
+        run: npm run protos && npm run protos-go
+
+      - name: Verify build output
+        run: |
+          echo "Checking dist-standalone directory..."
+          ls -la dist-standalone/
+          
+          echo "Verifying CLI binaries..."
+          ls -lh cli/bin/cline-* || echo "Warning: CLI binaries not found"
+          
+          echo "Checking package.json in dist-standalone..."
+          cat dist-standalone/package.json | grep version
+
+      - name: Publish to NPM with latest tag
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_RELEASE_TOKEN }}
+        run: |
+          echo "Publishing version ${{ steps.version.outputs.version }} to NPM with tag 'latest'..."
+          cd dist-standalone
+          npm publish --tag latest --access public
+
+      - name: Summary
+        run: |
+          echo "✅ Successfully published cline@${{ steps.version.outputs.version }} to NPM with tag 'latest'"
+          echo ""
+          echo "📦 Install with: npm install -g cline"
+          echo "🔗 NPM: https://www.npmjs.com/package/cline/v/${{ steps.version.outputs.version }}"

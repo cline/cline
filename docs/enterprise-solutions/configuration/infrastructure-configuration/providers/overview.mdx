@@ -1,0 +1,144 @@
+---
+title: "AI Provider Configuration"
+sidebarTitle: "Overview"
+description: "Configure AI provider settings for your Cline deployment"
+---
+
+<Info>
+**Configuration Path: Self-Hosted**
+
+This section covers provider configuration for self-hosted deployments. For web-based configuration through app.cline.bot, see [SaaS Provider Configuration](/enterprise-solutions/configuration/remote-configuration/overview).
+</Info>
+
+Configure which AI providers your team can use and manage provider credentials centrally. Cline supports major AI providers with enterprise-grade authentication options.
+
+## Supported Providers
+
+<CardGroup cols={2}>
+  <Card title="AWS Bedrock" icon="aws" href="/enterprise-solutions/configuration/infrastructure-configuration/providers/aws-bedrock">
+    Amazon's managed service for Claude and other foundation models
+  </Card>
+  
+  <Card title="Google Vertex AI" icon="google" href="/enterprise-solutions/configuration/infrastructure-configuration/providers/google-vertex">
+    Google Cloud's AI platform with Gemini and PaLM models
+  </Card>
+  
+  <Card title="LiteLLM" icon="zap" href="/enterprise-solutions/configuration/infrastructure-configuration/providers/litellm">
+    Universal proxy for accessing 100+ AI models through a unified API
+  </Card>
+  
+  <Card title="Custom Providers" icon="plug" href="/enterprise-solutions/configuration/infrastructure-configuration/providers/custom">
+    OpenAI-compatible APIs and self-hosted models
+  </Card>
+</CardGroup>
+
+## What is Provider Configuration?
+
+Provider configuration in Cline allows administrators to:
+
+1. **Manage Credentials Centrally**: Store API keys and authentication details in one place
+2. **Control Model Access**: Specify which models teams can use
+3. **Enforce Provider Usage**: Direct all team members to approved providers
+
+## How It Works
+
+Provider settings are configured through your remote configuration JSON file:
+
+```json
+{
+  "providerSettings": {
+    "provider": "bedrock",
+    "bedrockRegion": "us-east-1",
+    "bedrockServiceRole": "arn:aws:iam::..."
+  }
+}
+```
+
+When configured, these settings:
+- Apply to all team members automatically
+- Override individual user settings
+- Ensure consistent provider usage across the team
+
+## Configuration Options
+
+### Provider Selection
+
+Choose from supported providers:
+- **bedrock**: Use AWS Bedrock
+- **vertex**: Use Google Vertex AI  
+- **openai**: Use OpenAI API
+- **azure**: Use Azure OpenAI
+- **litellm**: Use a LiteLLM proxy
+
+### Authentication
+
+Each provider supports different authentication methods:
+
+**AWS Bedrock:**
+- IAM roles with cross-account access
+- Access keys (not recommended for production)
+
+**Google Vertex AI:**
+- Service account JSON keys
+- Workload Identity (for GKE deployments)
+
+**OpenAI/Azure:**
+- API keys
+
+**LiteLLM:**
+- Endpoint URL + API key
+
+## Example Configurations
+
+### AWS Bedrock with IAM Role
+```json
+{
+  "providerSettings": {
+    "provider": "bedrock",
+    "bedrockRegion": "us-east-1",
+    "bedrockServiceRole": "arn:aws:iam::123456789012:role/ClineBedrockRole"
+  }
+}
+```
+
+### Google Vertex AI
+```json
+{
+  "providerSettings": {
+    "provider": "vertex",
+    "vertexProject": "my-project-id",
+    "vertexRegion": "us-central1"
+  }
+}
+```
+
+### LiteLLM Proxy
+```json
+{
+  "providerSettings": {
+    "provider": "litellm",
+    "litellmBaseUrl": "https://litellm.company.com",
+    "litellmApiKey": "sk-..."
+  }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configure AWS Bedrock" icon="aws" href="/enterprise-solutions/configuration/infrastructure-configuration/providers/aws-bedrock">
+    Set up AWS Bedrock integration
+  </Card>
+  
+  <Card title="Configure Google Vertex" icon="google" href="/enterprise-solutions/configuration/infrastructure-configuration/providers/google-vertex">
+    Set up Google Vertex AI integration
+  </Card>
+  
+  <Card title="Configure LiteLLM" icon="zap" href="/enterprise-solutions/configuration/infrastructure-configuration/providers/litellm">
+    Set up LiteLLM proxy integration
+  </Card>
+  
+  <Card title="Configure Custom Provider" icon="plug" href="/enterprise-solutions/configuration/infrastructure-configuration/providers/custom">
+    Set up custom OpenAI-compatible provider
+  </Card>
+</CardGroup>

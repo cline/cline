@@ -1,4 +1,5 @@
 import { buildApiHandler } from "@core/api"
+import { isBinaryFile } from "isbinaryfile"
 import { HostProvider } from "@/hosts/host-provider"
 import { formatContentBlockToMarkdown } from "@/integrations/misc/export-markdown"
 import { ApiConfiguration } from "@/shared/api"
@@ -443,9 +444,29 @@ const BINARY_EXTENSIONS = new Set([
 ])
 
 /**
- * Check if a file is binary based on its extension
+ * Check if a file is binary based on its extension or content.
+ * @param filePath - Absolute path to the file to check
+ * @returns Promise<boolean> - true if the file is binary, false if text or if detection fails
  */
-export function isBinaryFile(filePath: string): boolean {
-	const ext = filePath.substring(filePath.lastIndexOf(".")).toLowerCase()
-	return BINARY_EXTENSIONS.has(ext)
+export async function detectBinaryFile(filePath: string): Promise<boolean> {
+	const lastDotIndex = filePath.lastIndexOf(".")
+	const lastSlashIndex = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"))
+	const ext = lastDotIndex > lastSlashIndex ? filePath.substring(lastDotIndex).toLowerCase() : ""
+	const isDotfile = lastDotIndex !== -1 && lastDotIndex === lastSlashIndex + 1
+
+	// Legacy/fast method: Check known binary extensions
+	if (ext && BINARY_EXTENSIONS.has(ext)) {
+		return true
+	}
+
+	// Use actual binary check for dotfiles or files without extensions. Returns true if file is binary.
+	if (!ext || isDotfile) {
+		try {
+			const result = await isBinaryFile(filePath)
+			return result
+		} catch {
+			return false
+		}
+	}
+	return false
 }

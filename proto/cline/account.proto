@@ -113,6 +113,7 @@ message UsageTransaction {
   int32 prompt_tokens = 10;
   int32 total_tokens = 11;
   string user_id = 12;
+  string operation = 13;
 }
 
 message PaymentTransaction {
@@ -135,4 +136,5 @@ message OrganizationUsageTransaction {
   int32 prompt_tokens = 10;
   int32 total_tokens = 11;
   string user_id = 12;
+  string operation = 13;
 }

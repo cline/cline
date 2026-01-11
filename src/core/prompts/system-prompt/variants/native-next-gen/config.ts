@@ -41,6 +41,7 @@ export const config = createVariant(ModelFamily.NATIVE_NEXT_GEN)
 		SystemPromptSection.SYSTEM_INFO,
 		SystemPromptSection.OBJECTIVE,
 		SystemPromptSection.USER_INSTRUCTIONS,
+		SystemPromptSection.SKILLS,
 	)
 	.tools(
 		ClineDefaultTool.ASK,
@@ -53,12 +54,14 @@ export const config = createVariant(ModelFamily.NATIVE_NEXT_GEN)
 		ClineDefaultTool.LIST_CODE_DEF,
 		ClineDefaultTool.BROWSER,
 		ClineDefaultTool.WEB_FETCH,
+		ClineDefaultTool.WEB_SEARCH,
 		ClineDefaultTool.MCP_ACCESS,
 		ClineDefaultTool.ATTEMPT,
 		ClineDefaultTool.PLAN_MODE,
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
 		ClineDefaultTool.GENERATE_EXPLANATION,
+		ClineDefaultTool.USE_SKILL,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.NATIVE_NEXT_GEN,

@@ -40,9 +40,6 @@ buf.yaml
 .changeset/
 .clinerules/
 
-# Include specific file needed for Background Exec mode
-!standalone/runtime-files/vscode/enhanced-terminal.js
-
 # Ignore all webview-ui files except the build directory (https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/frameworks/hello-world-react-cra/.vscodeignore)
 webview-ui/src/**
 webview-ui/public/**

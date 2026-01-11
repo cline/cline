@@ -122,6 +122,8 @@ export class E2ETestHelper {
 
 		// Verify start up page is no longer visible
 		await expect(webview.getByRole("button", { name: "Login to Cline" })).not.toBeVisible()
+
+		await webview.getByRole("button", { name: "Close" }).click({ delay: 50 })
 	}
 
 	public static async openClineSidebar(page: Page): Promise<void> {

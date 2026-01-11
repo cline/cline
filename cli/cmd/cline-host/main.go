@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	port    int
-	verbose bool
+	port       int
+	verbose    bool
+	workspaces []string
 )
 
 func main() {
@@ -28,6 +29,7 @@ func main() {
 
 	rootCmd.Flags().IntVarP(&port, "port", "p", 51052, "port to listen on")
 	rootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "verbose logging")
+	rootCmd.Flags().StringSliceVar(&workspaces, "workspace", nil, "workspace paths")
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -39,7 +41,7 @@ func runServer(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 
 	// Create gRPC hostbridge service
-	service := hostbridge.NewGrpcServer(port, verbose)
+	service := hostbridge.NewGrpcServer(port, verbose, workspaces)
 
 	// Handle graceful shutdown
 	ctx, cancel := context.WithCancel(ctx)

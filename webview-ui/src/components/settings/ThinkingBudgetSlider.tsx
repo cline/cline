@@ -64,9 +64,10 @@ const RangeInput = styled.input<{ $value: number; $min: number; $max: number }>`
 interface ThinkingBudgetSliderProps {
 	maxBudget?: number
 	currentMode: Mode
+	showEnableToggle?: boolean
 }
 
-const ThinkingBudgetSlider = ({ currentMode }: ThinkingBudgetSliderProps) => {
+const ThinkingBudgetSlider = ({ currentMode, maxBudget, showEnableToggle = true }: ThinkingBudgetSliderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
@@ -118,24 +119,26 @@ const ThinkingBudgetSlider = ({ currentMode }: ThinkingBudgetSliderProps) => {
 	}
 
 	return (
-		<>
-			<VSCodeCheckbox checked={isEnabled} onClick={handleToggleChange}>
-				Enable thinking{localValue && localValue > 0 ? ` (${localValue.toLocaleString()} tokens)` : ""}
-			</VSCodeCheckbox>
+		<div className="w-full">
+			{showEnableToggle ? (
+				<VSCodeCheckbox checked={isEnabled} onClick={handleToggleChange}>
+					Enable thinking{localValue && localValue > 0 ? ` (${localValue.toLocaleString()} tokens)` : ""}
+				</VSCodeCheckbox>
+			) : null}
 
 			{isEnabled && (
 				<Container>
 					<RangeInput
-						$max={ANTHROPIC_MAX_THINKING_BUDGET}
+						$max={maxBudget || ANTHROPIC_MAX_THINKING_BUDGET}
 						$min={0}
 						$value={localValue}
 						aria-describedby="thinking-budget-description"
 						aria-label={`Thinking budget: ${localValue.toLocaleString()} tokens`}
-						aria-valuemax={ANTHROPIC_MAX_THINKING_BUDGET}
+						aria-valuemax={maxBudget || ANTHROPIC_MAX_THINKING_BUDGET}
 						aria-valuemin={ANTHROPIC_MIN_THINKING_BUDGET}
 						aria-valuenow={localValue}
 						id="thinking-budget-slider"
-						max={ANTHROPIC_MAX_THINKING_BUDGET}
+						max={maxBudget || ANTHROPIC_MAX_THINKING_BUDGET}
 						min={0}
 						onChange={handleSliderChange}
 						onMouseUp={handleSliderComplete}
@@ -146,7 +149,7 @@ const ThinkingBudgetSlider = ({ currentMode }: ThinkingBudgetSliderProps) => {
 					/>
 				</Container>
 			)}
-		</>
+		</div>
 	)
 }
 

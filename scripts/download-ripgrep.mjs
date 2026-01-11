@@ -44,6 +44,13 @@ const PLATFORMS = [
 		isZip: false,
 	},
 	{
+		name: "linux-arm64",
+		archiveName: `ripgrep-${RIPGREP_VERSION}-aarch64-unknown-linux-gnu.tar.gz`,
+		url: `https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/ripgrep-${RIPGREP_VERSION}-aarch64-unknown-linux-gnu.tar.gz`,
+		binaryPath: "rg",
+		isZip: false,
+	},
+	{
 		name: "win-x64",
 		archiveName: `ripgrep-${RIPGREP_VERSION}-x86_64-pc-windows-msvc.zip`,
 		url: `https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/ripgrep-${RIPGREP_VERSION}-x86_64-pc-windows-msvc.zip`,

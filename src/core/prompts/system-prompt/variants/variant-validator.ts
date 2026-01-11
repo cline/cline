@@ -156,12 +156,7 @@ export class VariantValidator {
 
 	private validateBestPractices(variant: PromptVariant, warnings: string[]): void {
 		// Check for recommended components
-		const recommendedComponents = [
-			SystemPromptSection.AGENT_ROLE,
-			SystemPromptSection.TOOL_USE,
-			SystemPromptSection.RULES,
-			SystemPromptSection.SYSTEM_INFO,
-		]
+		const recommendedComponents = [SystemPromptSection.AGENT_ROLE, SystemPromptSection.RULES, SystemPromptSection.SYSTEM_INFO]
 
 		const missingRecommended = recommendedComponents.filter((c) => !variant.componentOrder.includes(c))
 		if (missingRecommended.length > 0) {

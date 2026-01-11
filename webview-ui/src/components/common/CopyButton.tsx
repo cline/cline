@@ -17,6 +17,7 @@ interface WithCopyButtonProps {
 	onCopy?: () => string | undefined | null
 	position?: "top-right" | "bottom-right"
 	style?: React.CSSProperties
+	copyButtonStyle?: React.CSSProperties
 	className?: string
 	onMouseUp?: (event: React.MouseEvent<HTMLDivElement>) => void
 	ariaLabel?: string
@@ -109,6 +110,7 @@ export const WithCopyButton = forwardRef<HTMLDivElement, WithCopyButtonProps>(
 			onCopy,
 			position = "top-right",
 			style,
+			copyButtonStyle,
 			className,
 			onMouseUp,
 			ariaLabel, // Destructure ariaLabel
@@ -120,7 +122,7 @@ export const WithCopyButton = forwardRef<HTMLDivElement, WithCopyButtonProps>(
 			<ContentContainer className={className} onMouseUp={onMouseUp} ref={ref} style={style} {...props}>
 				{children}
 				{(textToCopy || onCopy) && (
-					<ButtonContainer $position={position}>
+					<ButtonContainer $position={position} style={copyButtonStyle}>
 						<CopyButton
 							ariaLabel={ariaLabel}
 							onCopy={onCopy}

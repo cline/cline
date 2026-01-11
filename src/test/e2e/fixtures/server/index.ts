@@ -151,7 +151,6 @@ export class ClineApiServerMock {
 			}
 
 			const sendApiError = (error: string, status = 400) => {
-				console.error("API Error: %s", error, status)
 				sendJson({ success: false, error }, status)
 			}
 

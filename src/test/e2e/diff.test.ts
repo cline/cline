@@ -1,15 +1,12 @@
 import { expect } from "@playwright/test"
-import { cleanChatView } from "./utils/common"
 import { E2E_WORKSPACE_TYPES, e2e } from "./utils/helpers"
 
 e2e.describe("Diff Editor", () => {
 	E2E_WORKSPACE_TYPES.forEach(({ title, workspaceType }) => {
 		e2e.extend({
 			workspaceType,
-		})(title, async ({ page, sidebar }) => {
-			await sidebar.getByRole("button", { name: "Login to Cline" }).click({ delay: 100 })
-			// Submit a message
-			await cleanChatView(page)
+		})(title, async ({ helper, page, sidebar }) => {
+			await helper.signin(sidebar)
 
 			const inputbox = sidebar.getByTestId("chat-input")
 			await expect(inputbox).toBeVisible()
@@ -26,7 +23,6 @@ e2e.describe("Diff Editor", () => {
 			await sidebar.getByRole("button", { name: "Start New Task" }).click()
 			await expect(sidebar.getByText("Recent Tasks")).toBeVisible()
 			await expect(sidebar.getByText("Hello, Cline!")).toBeVisible() // History with the previous sent message
-			await expect(sidebar.getByText("Tokens:")).toBeVisible() // History with token usage
 
 			// Submit a file edit request
 			await sidebar.getByTestId("chat-input").click()

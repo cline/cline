@@ -1,22 +1,19 @@
 package display
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/cline/cli/pkg/common"
 )
 
 // BannerInfo contains information to display in the session banner
 type BannerInfo struct {
-	Version    string
-	Provider   string
-	ModelID    string
-	Workdir    string
-	Mode       string
+	Version  string
+	Provider string
+	ModelID  string
+	Workdirs []string // workspace directories
+	Mode     string
 }
 
 // RenderSessionBanner renders a nice banner showing version, model, and workspace info
@@ -81,131 +78,22 @@ func RenderSessionBanner(info BannerInfo) string {
 
 	// Model line - dim gray
 	if info.Provider != "" && info.ModelID != "" {
-		lines = append(lines, dimStyle.Render(info.Provider+"/"+shortenPath(info.ModelID, 30)))
+		lines = append(lines, dimStyle.Render(info.Provider+"/"+common.ShortenPath(info.ModelID, 30)))
 	}
 
-	// Workspace line - dim gray
-	if info.Workdir != "" {
-		lines = append(lines, dimStyle.Render(shortenPath(info.Workdir, 45)))
+	for _, wd := range info.Workdirs {
+		lines = append(lines, dimStyle.Render(common.ShortenPath(wd, 45)))
+	}
+
+	// Checkpoint warning for multi-root workspaces
+	if len(info.Workdirs) > 1 {
+		warningStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("3")). // Yellow warning color
+			Italic(true)
+		lines = append(lines, "")
+		lines = append(lines, warningStyle.Render("⚠ Checkpoints disabled for multi-root workspaces"))
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
 	return boxStyle.Render(content)
-}
-
-// shortenPath shortens a filesystem path to fit within maxLen
-func shortenPath(path string, maxLen int) string {
-	// Try to replace home directory with ~ (cross-platform)
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		if strings.HasPrefix(path, homeDir) {
-			shortened := "~" + path[len(homeDir):]
-			// Always use ~ version if we can
-			path = shortened
-		}
-	}
-
-	if len(path) <= maxLen {
-		return path
-	}
-
-	// If still too long, show last few path components
-	if len(path) > maxLen {
-		parts := strings.Split(path, string(filepath.Separator))
-		if len(parts) > 2 {
-			// Show last 2-3 components
-			lastParts := parts[len(parts)-2:]
-			shortened := "..." + string(filepath.Separator) + strings.Join(lastParts, string(filepath.Separator))
-			if len(shortened) <= maxLen {
-				return shortened
-			}
-		}
-	}
-
-	// Last resort: truncate with ellipsis
-	if len(path) > maxLen {
-		return "..." + path[len(path)-maxLen+3:]
-	}
-
-	return path
-}
-
-// ExtractBannerInfoFromState extracts banner info from state JSON
-func ExtractBannerInfoFromState(stateJSON, version string) (BannerInfo, error) {
-	var state map[string]interface{}
-	if err := json.Unmarshal([]byte(stateJSON), &state); err != nil {
-		return BannerInfo{}, fmt.Errorf("failed to parse state JSON: %w", err)
-	}
-
-	info := BannerInfo{
-		Version: version,
-	}
-
-	// Extract mode
-	if mode, ok := state["mode"].(string); ok {
-		info.Mode = mode
-	}
-
-	// Extract workspace roots
-	if workspaceRoots, ok := state["workspaceRoots"].([]interface{}); ok && len(workspaceRoots) > 0 {
-		if root, ok := workspaceRoots[0].(map[string]interface{}); ok {
-			if path, ok := root["path"].(string); ok {
-				info.Workdir = path
-			}
-		}
-	}
-
-	// Extract API configuration to get provider/model
-	if apiConfig, ok := state["apiConfiguration"].(map[string]interface{}); ok {
-		// Try common keys for provider and model (both camelCase and lowercase variants)
-		providerKeys := []string{"apiProvider", "api_provider"}
-		modelKeys := []string{"apiModelId", "api_model_id"}
-
-		// Try to extract provider
-		for _, key := range providerKeys {
-			if provider, ok := apiConfig[key].(string); ok && provider != "" {
-				info.Provider = provider
-				break
-			}
-		}
-
-		// Try to extract model ID
-		for _, key := range modelKeys {
-			if modelID, ok := apiConfig[key].(string); ok && modelID != "" {
-				info.ModelID = shortenModelID(modelID)
-				break
-			}
-		}
-	}
-
-	return info, nil
-}
-
-// shortenModelID shortens long model IDs for display
-func shortenModelID(modelID string) string {
-	// Remove date suffixes only if they're at the end (e.g., -20241022)
-	// Check if the model ID ends with -YYYYMMDD pattern
-	if len(modelID) > 9 {
-		suffix := modelID[len(modelID)-9:] // Last 9 chars: -20241022
-		if suffix[0] == '-' &&
-		   (strings.HasPrefix(suffix[1:], "202") || strings.HasPrefix(suffix[1:], "201")) {
-			// Verify all remaining chars are digits
-			allDigits := true
-			for _, c := range suffix[1:] {
-				if c < '0' || c > '9' {
-					allDigits = false
-					break
-				}
-			}
-			if allDigits {
-				return modelID[:len(modelID)-9]
-			}
-		}
-	}
-
-	// If still too long, show first 40 chars
-	if len(modelID) > 40 {
-		return modelID[:37] + "..."
-	}
-
-	return modelID
 }

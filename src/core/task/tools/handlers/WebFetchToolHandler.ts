@@ -1,7 +1,13 @@
-import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { ClineAsk, ClineSayTool } from "@shared/ExtensionMessage"
 import { ClineDefaultTool } from "@shared/tools"
+import axios from "axios"
+import { ClineEnv } from "@/config"
+import { AuthService } from "@/services/auth/AuthService"
+import { buildClineExtraHeaders } from "@/services/EnvUtils"
+import { featureFlagsService } from "@/services/feature-flags"
 import { telemetryService } from "@/services/telemetry"
+import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
+import { getAxiosSettings } from "@/shared/net"
 import { ToolUse } from "../../../assistant-message"
 import { formatResponse } from "../../../prompts/responses"
 import { ToolResponse } from "../.."
@@ -38,16 +44,28 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
 		try {
 			const url: string | undefined = block.params.url
+			const prompt: string | undefined = block.params.prompt
 
 			// Extract provider information for telemetry
 			const apiConfig = config.services.stateManager.getApiConfiguration()
 			const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
 			const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
 
-			// Validate required parameter
+			// Check if Cline web tools are enabled (both user setting and feature flag)
+			const clineWebToolsEnabled = config.services.stateManager.getGlobalSettingsKey("clineWebToolsEnabled")
+			const featureFlagEnabled = featureFlagsService.getWebtoolsEnabled()
+			if (provider !== "cline" || !clineWebToolsEnabled || !featureFlagEnabled) {
+				return formatResponse.toolError("Cline web tools are currently disabled.")
+			}
+
+			// Validate required parameters
 			if (!url) {
 				config.taskState.consecutiveMistakeCount++
 				return await config.callbacks.sayAndCreateMissingParamError(this.name, "url")
+			}
+			if (!prompt) {
+				config.taskState.consecutiveMistakeCount++
+				return await config.callbacks.sayAndCreateMissingParamError(this.name, "prompt")
 			}
 			config.taskState.consecutiveMistakeCount = 0
 
@@ -122,24 +140,36 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 			}
 
 			// Execute the actual fetch
-			const urlContentFetcher = config.services?.urlContentFetcher as UrlContentFetcher
+			const baseUrl = ClineEnv.config().apiBaseUrl
+			const authToken = await AuthService.getInstance().getAuthToken()
 
-			await urlContentFetcher.launchBrowser()
-			try {
-				// Fetch Markdown content
-				const markdownContent = await urlContentFetcher.urlToMarkdown(url)
-
-				// TODO: Implement secondary AI call to process markdownContent with prompt
-				// For now, returning markdown directly.
-				// This will be a significant sub-task.
-				// Placeholder for processed summary:
-				const processedSummary = `Fetched Markdown for ${url}:\n\n${markdownContent}`
-
-				return formatResponse.toolResult(processedSummary)
-			} finally {
-				// Ensure browser is closed even on error
-				await urlContentFetcher.closeBrowser()
+			if (!authToken) {
+				throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)
 			}
+
+			const response = await axios.post(
+				`${baseUrl}/api/v1/search/webfetch`,
+				{
+					Url: url,
+					Prompt: prompt,
+				},
+				{
+					headers: {
+						Authorization: `Bearer ${authToken}`,
+						"Content-Type": "application/json",
+						"X-Task-ID": config.ulid || "",
+						...(await buildClineExtraHeaders()),
+					},
+					timeout: 15000,
+					...getAxiosSettings(),
+				},
+			)
+
+			// Parse response
+			// Axios will throw on non-200 status, so no need to check fetchStatus
+			const result = response.data.data.result
+
+			return formatResponse.toolResult(result)
 		} catch (error) {
 			return `Error fetching web content: ${(error as Error).message}`
 		}

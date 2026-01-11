@@ -99,7 +99,7 @@ export class RequestyHandler implements ApiHandler {
 		let lastUsage: any
 
 		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
+			const delta = chunk.choices?.[0]?.delta
 			if (delta?.content) {
 				yield {
 					type: "text",

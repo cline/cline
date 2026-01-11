@@ -1,0 +1,364 @@
+[
+  {
+    "name": "execute_command",
+    "description": "Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. When chaining commands, use the shell operator && (not the HTML entity &amp;&amp;). If using search/grep commands, be careful to not use vague search terms that may return thousands of results. When in PLAN MODE, you may use the execute_command tool, but only in a non-destructive manner and in a way that does not alter any files.",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {
+        "command": {
+          "type": "STRING"
+        },
+        "requires_approval": {
+          "type": "BOOLEAN"
+        }
+      },
+      "required": [
+        "command",
+        "requires_approval"
+      ]
+    }
+  },
+  {
+    "name": "read_file",
+    "description": "Request to read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file you do not know the contents of, for example to analyze code, review text files, or extract information from configuration files. Automatically extracts raw text from PDF and DOCX files. May not be suitable for other types of binary files, as it returns the raw content as a string. Do NOT use this tool to list the contents of a directory. Only use this tool on files.",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {
+        "path": {
+          "type": "STRING"
+        },
+        "task_progress": {
+          "type": "STRING"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "write_to_file",
+    "description": "Request to write content to a file at the specified path. If the file exists, it will be overwritten with the provided content. If the file doesn't exist, it will be created. This tool will automatically create any directories needed to write the file.",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {
+        "path": {
+          "type": "STRING"
+        },
+        "content": {
+          "type": "STRING"
+        },
+        "task_progress": {
+          "type": "STRING"
+        }
+      },
+      "required": [
+        "path",
+        "content"
+      ]
+    }
+  },
+  {
+    "name": "replace_in_file",
+    "description": "Request to replace sections of content in an existing file using SEARCH/REPLACE blocks that define exact changes to specific parts of the file. This tool should be used when you need to make targeted changes to specific parts of a file.",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {
+        "path": {
+          "type": "STRING"
+        },
+        "diff": {
+          "type": "STRING"
+        },
+        "task_progress": {
+          "type": "STRING"
+        }
+      },
+      "required": [
+        "path",
+        "diff"
+      ]
+    }
+  },
+  {
+    "name": "search_files",
+    "description": "Request to perform a regex search across files in a specified directory, providing context-rich results. This tool searches for patterns or specific content across multiple files, displaying each match with encapsulating context.",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {
+        "path": {
+          "type": "STRING"
+        },
+        "regex": {
+          "type": "STRING"
+        },
+        "file_pattern": {
+          "type": "STRING"
+        },
+        "task_progress": {
+          "type": "STRING"
+        }
+      },
+      "required": [
+        "path",
+        "regex"
+      ]
+    }
+  },
+  {
+    "name": "list_files",
+    "description": "Request to list files and directories within the specified directory. If recursive is true, it will list all files and directories recursively. If recursive is false or not provided, it will only list the top-level contents. Do not use this tool to confirm the existence of files you may have created, as the user will let you know if the files were created successfully or not.",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {
+        "path": {
+          "type": "STRING"
+        },
+        "recursive": {
+          "type": "BOOLEAN"
+        },
+        "task_progress": {
+          "type": "STRING"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "list_code_definition_names",
+    "description": "Request to list definition names (classes, functions, methods, etc.) used in source code files at the top level of the specified directory. This tool provides insights into the codebase structure and important constructs, encapsulating high-level concepts and relationships that are crucial for understanding the overall architecture.",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {
+        "path": {
+          "type": "STRING"
+        },
+        "task_progress": {
+          "type": "STRING"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "browser_action",
+    "description": "Request to interact with a Puppeteer-controlled browser. Every action, except `close`, will be responded to with a screenshot of the browser's current state, along with any new console logs. You may only perform one browser action per message, and wait for the user's response including a screenshot and logs to determine the next action.\n- The sequence of actions **must always start with** launching the browser at a URL, and **must always end with** closing the browser. If you need to visit a new URL that is not possible to navigate to from the current webpage, you must first close the browser, then launch again at the new URL.\n- While the browser is active, only the `browser_action` tool can be used. No other tools should be called during this time. You may proceed to use other tools only after closing the browser. For example if you run into an error and need to fix a file, you must close the browser, then use other tools to make the necessary changes, then re-launch the browser to verify the result.\n- The browser window has a resolution of **1280x720** pixels. When performing any click actions, ensure the coordinates are within this resolution range.\n- Before clicking on any elements such as icons, links, or buttons, you must consult the provided screenshot of the page to determine the coordinates of the element. The click should be targeted at the **center of the element**, not on its edges.",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {
+        "action": {
+          "type": "STRING"
+        },
+        "url": {
+          "type": "STRING"
+        },
+        "coordinate": {
+          "type": "STRING"
+        },
+        "text": {
+          "type": "STRING"
+        }
+      },
+      "required": [
+        "action"
+      ]
+    }
+  },
+  {
+    "name": "use_mcp_tool",
+    "description": "Request to use a tool provided by a connected MCP server. Each MCP server can provide multiple tools with different capabilities. Tools have defined input schemas that specify required and optional parameters.",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {
+        "server_name": {
+          "type": "STRING"
+        },
+        "tool_name": {
+          "type": "STRING"
+        },
+        "arguments": {
+          "type": "STRING"
+        },
+        "task_progress": {
+          "type": "STRING"
+        }
+      },
+      "required": [
+        "server_name",
+        "tool_name",
+        "arguments"
+      ]
+    }
+  },
+  {
+    "name": "access_mcp_resource",
+    "description": "Request to access a resource provided by a connected MCP server. Resources represent data sources that can be used as context, such as files, API responses, or system information.",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {
+        "server_name": {
+          "type": "STRING"
+        },
+        "uri": {
+          "type": "STRING"
+        },
+        "task_progress": {
+          "type": "STRING"
+        }
+      },
+      "required": [
+        "server_name",
+        "uri"
+      ]
+    }
+  },
+  {
+    "name": "ask_followup_question",
+    "description": "Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {
+        "question": {
+          "type": "STRING"
+        },
+        "options": {
+          "type": "STRING"
+        },
+        "task_progress": {
+          "type": "STRING"
+        }
+      },
+      "required": [
+        "question"
+      ]
+    }
+  },
+  {
+    "name": "attempt_completion",
+    "description": "After each tool use, the user will respond with the result of that tool use, i.e. if it succeeded or failed, along with any reasons for failure. Once you've received the results of tool uses and can confirm that the task is complete, use this tool to present the result of your work to the user. Optionally you may provide a CLI command to showcase the result of your work. The user may respond with feedback if they are not satisfied with the result, which you can use to make improvements and try again.\nIMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the user that any previous tool uses were successful. Failure to do so will result in code corruption and system failure. Before using this tool, you must ask yourself in <thinking></thinking> tags if you've confirmed from the user that any previous tool uses were successful. If not, then DO NOT use this tool.",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {
+        "result": {
+          "type": "STRING"
+        },
+        "command": {
+          "type": "STRING"
+        },
+        "task_progress": {
+          "type": "STRING"
+        }
+      },
+      "required": [
+        "result"
+      ]
+    }
+  },
+  {
+    "name": "new_task",
+    "description": "Request to create a new task with preloaded context covering the conversation with the user up to this point and key information for continuing with the new task. With this tool, you will create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions, with a focus on the most relevant information required for the new task.\nAmong other important areas of focus, this summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing with the new task. The user will be presented with a preview of your generated context and can choose to create a new task or keep chatting in the current conversation. The user may choose to start a new task at any point.",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {
+        "context": {
+          "type": "STRING"
+        }
+      },
+      "required": [
+        "context"
+      ]
+    }
+  },
+  {
+    "name": "plan_mode_respond",
+    "description": "Respond with a plan that outlines a solution to the user's request. This tool should ONLY be used when you have already explored the relevant files and are ready to present a concrete plan. Only use this tool after you have explored relevant files and collected sufficient context to create a detailed, accurate plan. This tool is only available in PLAN MODE, as indicated by the environment_details.\nIf it becomes apparent that additional exploration is required while the plan_mode_respond response is being generated, the optional needs_more_exploration parameter can be toggled to enable further research. This allows you to acknowledge that more exploration is required before the final plan_mode_respond is generated, and signals that your next message will use exploration tools instead.",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {
+        "response": {
+          "type": "STRING"
+        },
+        "needs_more_exploration": {
+          "type": "BOOLEAN"
+        },
+        "task_progress": {
+          "type": "STRING"
+        }
+      },
+      "required": [
+        "response"
+      ]
+    }
+  },
+  {
+    "name": "act_mode_respond",
+    "description": "Provide a progress update or preamble to the user during ACT MODE execution. This tool allows you to communicate your thought process and planned actions without interrupting the execution flow. After displaying your message, execution automatically continues, allowing you to proceed with subsequent tool calls immediately. This tool is only available in ACT MODE. This tool may not be called immediately after a previous act_mode_respond call.\n\nIMPORTANT: Use this tool frequently to create a better user experience. Since it's non-blocking, there's no performance penalty for frequent use.\n\nUse this tool when:\n- After reading files and before making any edits - explain your analysis and what changes you plan to make\n- When starting a new phase of work (e.g., transitioning from backend to frontend, or from one feature to another)\n- During long sequences of operations to provide progress updates\n- When your approach or strategy changes mid-task\n- Before executing complex or potentially risky operations\n- To explain why you're choosing one approach over another\n\nDo NOT use this tool when you have completed all required actions and are ready to present the final output; in that case, use the attempt_completion tool instead.\n\nCRITICAL CONSTRAINT: You MUST NOT call this tool more than once in a row. After using act_mode_respond, your next assistant message MUST either call a different tool or perform additional work without using act_mode_respond again. If you attempt to call act_mode_respond consecutively, the tool call will fail with an explicit error.",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {
+        "response": {
+          "type": "STRING"
+        },
+        "task_progress": {
+          "type": "STRING"
+        }
+      },
+      "required": [
+        "response"
+      ]
+    }
+  },
+  {
+    "name": "load_mcp_documentation",
+    "description": "Load documentation about creating MCP servers. This tool should be used when the user requests to create or install an MCP server (the user may ask you something along the lines of \"add a tool\" that does some function, in other words to create an MCP server that provides tools and resources that may connect to external APIs for example. You have the ability to create an MCP server and add it to a configuration file that will then expose the tools and resources for you to use with `use_mcp_tool` and `access_mcp_resource`). The documentation provides detailed information about the MCP server creation process, including setup instructions, best practices, and examples.",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "focus_chain",
+    "description": "",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "generate_explanation",
+    "description": "Opens a multi-file diff view and generates AI-powered inline comments explaining the changes between two git references. Use this tool to help users understand code changes from git commits, pull requests, branches, or any git refs. The tool uses git to retrieve file contents and displays a side-by-side diff view with explanatory comments.",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {
+        "title": {
+          "type": "STRING"
+        },
+        "from_ref": {
+          "type": "STRING"
+        },
+        "to_ref": {
+          "type": "STRING"
+        }
+      },
+      "required": [
+        "title",
+        "from_ref"
+      ]
+    }
+  },
+  {
+    "name": "12345670mcp0test_tool",
+    "description": "test-server: A test tool",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {},
+      "required": []
+    }
+  }
+]

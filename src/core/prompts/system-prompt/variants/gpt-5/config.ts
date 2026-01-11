@@ -42,6 +42,7 @@ export const config = createVariant(ModelFamily.GPT_5)
 		SystemPromptSection.SYSTEM_INFO,
 		SystemPromptSection.OBJECTIVE,
 		SystemPromptSection.USER_INSTRUCTIONS,
+		SystemPromptSection.SKILLS,
 	)
 	.tools(
 		ClineDefaultTool.BASH,
@@ -53,6 +54,7 @@ export const config = createVariant(ModelFamily.GPT_5)
 		ClineDefaultTool.LIST_CODE_DEF,
 		ClineDefaultTool.BROWSER,
 		ClineDefaultTool.WEB_FETCH,
+		ClineDefaultTool.WEB_SEARCH,
 		ClineDefaultTool.MCP_USE,
 		ClineDefaultTool.MCP_ACCESS,
 		ClineDefaultTool.ASK,
@@ -61,6 +63,7 @@ export const config = createVariant(ModelFamily.GPT_5)
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
 		ClineDefaultTool.GENERATE_EXPLANATION,
+		ClineDefaultTool.USE_SKILL,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.GPT_5,

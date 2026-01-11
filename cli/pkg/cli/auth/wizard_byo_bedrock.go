@@ -15,23 +15,23 @@ import (
 // BedrockConfig holds all AWS Bedrock-specific configuration fields
 type BedrockConfig struct {
 	// Profile authentication fields
-	UseProfile              bool   // Always true for successful config
-	Profile                 string // Optional: AWS profile name (empty = default)
-	Region                  string // Required: AWS region
-	Endpoint                string // Optional: Custom VPC endpoint URL
-	
+	UseProfile bool   // Always true for successful config
+	Profile    string // Optional: AWS profile name (empty = default)
+	Region     string // Required: AWS region
+	Endpoint   string // Optional: Custom VPC endpoint URL
+
 	// Optional features
-	UseCrossRegionInference bool   // Optional: Enable cross-region inference
-	UseGlobalInference      bool   // Optional: Use global inference endpoint
-	UsePromptCache          bool   // Optional: Enable prompt caching
-	
+	UseCrossRegionInference bool // Optional: Enable cross-region inference
+	UseGlobalInference      bool // Optional: Use global inference endpoint
+	UsePromptCache          bool // Optional: Enable prompt caching
+
 	// Authentication method (always "profile")
-	Authentication          string // Always set to "profile"
-	
+	Authentication string // Always set to "profile"
+
 	// Legacy fields (no longer used in profile-only flow)
-	AccessKey               string // No longer used
-	SecretKey               string // No longer used
-	SessionToken            string // No longer used
+	AccessKey    string // No longer used
+	SecretKey    string // No longer used
+	SessionToken string // No longer used
 }
 
 // PromptForBedrockConfig displays a profile-first authentication form for Bedrock configuration
@@ -130,7 +130,12 @@ func ApplyBedrockConfig(ctx context.Context, manager *task.Manager, config *Bedr
 	// Build the API configuration with all Bedrock fields
 	apiConfig := &cline.ModelsApiConfiguration{}
 
-	// Set model ID fields
+	// Set provider for both Plan and Act modes
+	bedrockProvider := cline.ApiProvider_BEDROCK
+	apiConfig.PlanModeApiProvider = &bedrockProvider
+	apiConfig.ActModeApiProvider = &bedrockProvider
+
+	// Set model ID field - this is the primary model ID used by Cline Core
 	apiConfig.PlanModeApiModelId = proto.String(modelID)
 	apiConfig.ActModeApiModelId = proto.String(modelID)
 	apiConfig.PlanModeAwsBedrockCustomModelBaseId = proto.String(modelID)
@@ -166,6 +171,8 @@ func ApplyBedrockConfig(ctx context.Context, manager *task.Manager, config *Bedr
 
 	// Build field mask including all fields we're setting (excluding access keys)
 	fieldPaths := []string{
+		"planModeApiProvider",
+		"actModeApiProvider",
 		"planModeApiModelId",
 		"actModeApiModelId",
 		"planModeAwsBedrockCustomModelBaseId",

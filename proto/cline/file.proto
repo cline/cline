@@ -81,6 +81,18 @@ service FileService {
 
   // Deletes an existing hook file
   rpc deleteHook(DeleteHookRequest) returns (DeleteHookResponse);
+
+  // Refreshes all skill toggles (discovers skills and their enabled state)
+  rpc refreshSkills(EmptyRequest) returns (RefreshedSkills);
+
+  // Toggles a skill on or off
+  rpc toggleSkill(ToggleSkillRequest) returns (SkillsToggles);
+
+  // Creates a new skill from template
+  rpc createSkillFile(CreateSkillRequest) returns (SkillsToggles);
+
+  // Deletes an existing skill directory
+  rpc deleteSkillFile(DeleteSkillRequest) returns (SkillsToggles);
 }
 
 // Response for refreshRules operation
@@ -277,4 +289,46 @@ message DeleteHookRequest {
 // Response for deleteHook operation
 message DeleteHookResponse {
   HooksToggles hooks_toggles = 1;
+}
+
+// Skill information structure
+message SkillInfo {
+  string name = 1; // Name of the skill (matches directory name)
+  string description = 2; // Description from SKILL.md frontmatter
+  string path = 3; // Full path to SKILL.md file
+  bool enabled = 4; // Whether the skill is enabled
+}
+
+// Response for refreshSkills operation
+message RefreshedSkills {
+  repeated SkillInfo global_skills = 1;
+  repeated SkillInfo local_skills = 2;
+}
+
+// Maps from skill path to enabled/disabled status
+message SkillsToggles {
+  map<string, bool> global_skills_toggles = 1;
+  map<string, bool> local_skills_toggles = 2;
+}
+
+// Request to toggle a skill
+message ToggleSkillRequest {
+  Metadata metadata = 1;
+  string skill_path = 2; // Path to the skill directory
+  bool is_global = 3; // Whether this is a global or workspace skill
+  bool enabled = 4; // Whether to enable or disable the skill
+}
+
+// Request to create a skill
+message CreateSkillRequest {
+  Metadata metadata = 1;
+  string skill_name = 2; // Name of the skill to create
+  bool is_global = 3; // Whether to create in global or workspace skills directory
+}
+
+// Request to delete a skill
+message DeleteSkillRequest {
+  Metadata metadata = 1;
+  string skill_path = 2; // Path to the skill directory
+  bool is_global = 3; // Whether this is a global or workspace skill
 }

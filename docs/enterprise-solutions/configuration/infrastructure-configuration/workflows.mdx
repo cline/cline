@@ -1,0 +1,324 @@
+---
+title: "Workflows"
+sidebarTitle: "Workflows"
+description: "Reusable instruction sets that can be invoked on-demand via slash commands"
+---
+
+Workflows are markdown files containing reusable instructions that you can invoke on-demand using slash commands. Think of them as "rules you can call when needed" rather than always-active guidelines.
+
+## What are Workflows?
+
+Workflows are similar to [Rules](/enterprise-solutions/configuration/infrastructure-configuration/rules), but with one key difference:
+
+<CardGroup cols={2}>
+  <Card title="Rules" icon="book">
+    **Always Active**
+    
+    Automatically applied to every task when toggled on
+    
+    Example: Coding standards, style guides
+  </Card>
+  
+  <Card title="Workflows" icon="diagram-project">
+    **On-Demand**
+    
+    Invoked only when you use the slash command
+    
+    Example: Deployment checklists, review processes
+  </Card>
+</CardGroup>
+
+<Tip>
+Workflows are just markdown files, no complex configuration needed!
+</Tip>
+
+## Quick Example
+
+Here's a simple deployment workflow:
+
+**File:** `.clinerules/workflows/deploy.md`
+
+```markdown
+# Deployment Workflow
+
+Before deploying to production, ensure:
+
+## Pre-Deployment Checklist
+1. All tests passing (unit, integration, e2e)
+2. Code review approved by 2+ engineers
+3. Staging environment tested successfully
+4. Database migrations reviewed
+5. Rollback plan documented
+
+## Deployment Steps
+1. Create deployment branch from main
+2. Run final test suite
+3. Deploy to production
+4. Monitor error rates for 30 minutes
+5. Verify key user flows
+
+## Post-Deployment
+1. Update deployment log
+2. Notify team in #deployments channel
+3. Monitor metrics for 24 hours
+```
+
+**Usage:**
+```
+/deploy
+
+I'm ready to deploy the new authentication feature
+```
+
+When invoked, Cline adds the workflow instructions to its context for that specific task.
+
+## Creating Workflows
+
+<Tabs>
+  <Tab title="Manual Creation">
+    Create workflow files in the `.clinerules/workflows/` directory:
+    
+    1. Create `.clinerules/workflows/` in your repository root
+    2. Add markdown files with your workflow instructions
+    3. Use descriptive names matching your slash command
+    
+    **File structure:**
+    ```
+    your-repo/
+    ├── .clinerules/
+    │   └── workflows/
+    │       ├── deploy.md
+    │       ├── code-review.md
+    │       └── bug-triage.md
+    └── src/
+    ```
+  </Tab>
+  
+  <Tab title="Slash Command">
+    You can also create workflows during a conversation:
+    
+    1. Have a conversation about a process you want to codify
+    2. Type `/newrule` and specify it should be a workflow
+    3. Cline creates the workflow file in `.clinerules/workflows/`
+    
+    <Note>
+    The `/newrule` command can create both rules and workflows - just specify your intent clearly.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Using Workflows
+
+### Invoking Workflows
+
+Simply type `/` followed by the workflow filename (without `.md`):
+
+```
+/deploy
+/code-review  
+/bug-triage
+```
+
+The workflow instructions are added to Cline's context for the current task only.
+
+### Workflow Naming
+
+- Use lowercase with hyphens: `deploy.md`, `code-review.md`
+- Keep names short and memorable
+- Name should indicate the workflow's purpose
+
+<Warning>
+Workflow filenames become slash commands, so choose names that are easy to type and remember.
+</Warning>
+
+## Global vs Workspace Workflows
+
+<CardGroup cols={2}>
+  <Card title="Workspace Workflows" icon="folder">
+    **Location:** `.clinerules/workflows/` in your repository
+    
+    **Scope:** Specific to that project
+    
+    **Use for:** Project-specific processes and checklists
+  </Card>
+  
+  <Card title="Global Workflows" icon="globe">
+    **Location:** `Documents/Cline/Workflows/` directory
+    
+    **Scope:** All your projects
+    
+    **Use for:** Personal workflows that apply everywhere
+  </Card>
+</CardGroup>
+
+<Info>
+**Precedence:** Local workflows override global workflows if they have the same name.
+</Info>
+
+## Managing Workflows
+
+### Toggling Workflows
+
+You can enable or disable workflows:
+
+1. Click the rules icon in Cline's interface
+2. Switch to the "Workflows" tab
+3. Toggle workflows on/off as needed
+
+<Note>
+Disabling a workflow prevents it from being invoked, but keeps the file intact. The slash command won't work until you re-enable it.
+</Note>
+
+### Enterprise Remote Workflows
+
+<Info>
+Enterprise deployments can configure **remote global workflows** that are available to all team members. These are managed through your infrastructure configuration.
+
+See [Self-Hosted Configuration](/enterprise-solutions/configuration/infrastructure-configuration/overview) for details on remote workflows.
+</Info>
+
+## Example Workflows
+
+<AccordionGroup>
+  <Accordion title="Code Review Workflow" icon="code-review">
+```markdown
+# Code Review Workflow
+
+## Pre-Review Checklist
+- [ ] Code follows project style guide
+- [ ] All tests pass locally
+- [ ] No console.log or debugging code
+- [ ] Comments explain "why" not "what"
+- [ ] PR description is clear and complete
+
+## Review Focus Areas
+1. **Architecture**: Does this fit our existing patterns?
+2. **Security**: Any potential vulnerabilities?
+3. **Performance**: Any obvious bottlenecks?
+4. **Testing**: Are edge cases covered?
+5. **Documentation**: Is it clear how to use new features?
+
+## Review Response
+- Address all feedback within 24 hours
+- Mark conversations as resolved when addressed
+- Re-request review after major changes
+```
+  </Accordion>
+  
+  <Accordion title="Bug Triage Workflow" icon="bug">
+```markdown
+# Bug Triage Workflow
+
+## Information Gathering
+1. Reproduce the bug in local environment
+2. Identify affected versions/environments
+3. Check if similar issues exist
+4. Gather error logs and stack traces
+
+## Priority Assessment
+**P0 (Critical)**: Production down, data loss, security breach
+**P1 (High)**: Major feature broken, significant user impact
+**P2 (Medium)**: Minor feature broken, workaround available
+**P3 (Low)**: Cosmetic issue, minimal impact
+
+## Create Ticket
+- Use template: "Bug Report"
+- Add reproduction steps
+- Include screenshots/videos if applicable
+- Tag with affected component
+- Assign priority label
+
+## Next Steps
+- P0/P1: Immediate fix required
+- P2: Schedule for current sprint
+- P3: Add to backlog
+```
+  </Accordion>
+  
+  <Accordion title="Feature Planning Workflow" icon="lightbulb">
+```markdown
+# Feature Planning Workflow
+
+## Requirements Gathering
+1. Define the user problem we're solving
+2. List success criteria (measurable)
+3. Identify edge cases and constraints
+4. Document technical dependencies
+
+## Design Considerations
+1. How does this fit existing architecture?
+2. What data models are needed?
+3. What API changes are required?
+4. How will this impact performance?
+
+## Implementation Plan
+1. Break into smaller, shippable pieces
+2. Identify which pieces can be done in parallel
+3. Note any feature flags needed
+4. Plan for backwards compatibility
+
+## Testing Strategy
+1. What unit tests are needed?
+2. What integration tests are needed?
+3. How will we test edge cases?
+4. What manual testing is required?
+```
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep Workflows Action-Oriented" icon="list-check">
+    Workflows should contain **actionable steps**, not general advice:
+    - ✅ "Run `npm test` and verify all tests pass"
+    - ❌ "Make sure testing is done properly"
+  </Accordion>
+  
+  <Accordion title="Use Checklists" icon="square-check">
+    Format workflows as checklists when possible:
+    - Easy to follow step-by-step
+    - Clear progress tracking
+    - Reduces missed steps
+  </Accordion>
+  
+  <Accordion title="Include Context" icon="circle-info">
+    Add **why** behind each step:
+    ```markdown
+    1. Check staging environment first
+       (Catching issues in staging prevents production incidents)
+    ```
+  </Accordion>
+  
+  <Accordion title="Version as Code" icon="code-branch">
+    Workflows live in your repository:
+    - Track changes in git
+    - Review updates in PRs
+    - Maintain history of process evolution
+  </Accordion>
+</AccordionGroup>
+
+## Workflows vs Rules: When to Use Each
+
+| Use Rules When | Use Workflows When |
+|----------------|-------------------|
+| Guidance should apply to every task | Process is invoked occasionally |
+| Standards that rarely change | Checklist for specific scenarios |
+| Always-on coding conventions | On-demand deployment processes |
+| General coding style | Specific review procedures |
+
+**Example:**
+- **Rule**: "Use TypeScript strict mode and explicit return types"
+- **Workflow**: "Follow these 10 steps when deploying to production"
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Rules" icon="book" href="/enterprise-solutions/configuration/infrastructure-configuration/rules">
+    Learn about always-active rules
+  </Card>
+  
+  <Card title="Remote Configuration" icon="cloud" href="/enterprise-solutions/configuration/remote-configuration/overview">
+    Deploy global workflows for your team
+  </Card>
+</CardGroup>

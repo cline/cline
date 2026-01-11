@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/cline/cli/pkg/cli/clerror"
-	"github.com/cline/cli/pkg/cli/types"
 	"github.com/cline/cli/pkg/cli/output"
+	"github.com/cline/cli/pkg/cli/types"
 )
 
 // SayHandler handles SAY type messages
@@ -90,6 +90,12 @@ func (h *SayHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
 		return h.handleInfo(msg, dc)
 	case string(types.SayTypeTaskProgress):
 		return h.handleTaskProgress(msg, dc)
+	case string(types.SayTypeHookStatus):
+		return h.handleHookStatus(msg, dc)
+	case string(types.SayTypeHookOutputStream):
+		return h.handleHookOutputStream(msg, dc)
+	case string(types.SayTypeCommandPermissionDenied):
+		return h.handleCommandPermissionDenied(msg, dc)
 	default:
 		return h.handleDefault(msg, dc)
 	}
@@ -242,18 +248,17 @@ func (h *SayHandler) handleCompletionResult(msg *types.ClineMessage, dc *Display
 }
 
 func formatUserMessage(text string) string {
-    lines := strings.Split(text, "\n")
-    
-    // Wrap each line in backticks
-    for i, line := range lines {
-        if line != "" {
-            lines[i] = fmt.Sprintf("`%s`", line)
-        }
-    }
-    
-    return strings.Join(lines, "\n")
-}
+	lines := strings.Split(text, "\n")
 
+	// Wrap each line in backticks
+	for i, line := range lines {
+		if line != "" {
+			lines[i] = fmt.Sprintf("`%s`", line)
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
 
 // handleUserFeedback handles user feedback messages
 func (h *SayHandler) handleUserFeedback(msg *types.ClineMessage, dc *DisplayContext) error {
@@ -338,6 +343,18 @@ func (h *SayHandler) handleCommandOutput(msg *types.ClineMessage, dc *DisplayCon
 
 	// Use unified ToolRenderer
 	rendered := dc.ToolRenderer.RenderCommandOutput(msg.Text)
+	output.Print(rendered)
+
+	return nil
+}
+
+func (h *SayHandler) handleCommandPermissionDenied(msg *types.ClineMessage, dc *DisplayContext) error {
+	if msg.Text == "" {
+		return nil
+	}
+
+	// Use unified ToolRenderer
+	rendered := dc.ToolRenderer.RenderCommandPermissionDenied(msg.Text)
 	output.Print(rendered)
 
 	return nil
@@ -517,5 +534,16 @@ func (h *SayHandler) handleTaskProgress(msg *types.ClineMessage, dc *DisplayCont
 
 // handleDefault handles unknown SAY message types
 func (h *SayHandler) handleDefault(msg *types.ClineMessage, dc *DisplayContext) error {
+	// Debug: log unhandled say types to help identify missing cases using output.Printf for CLI consistency
+	if dc.Verbose {
+		output.Printf("[DEBUG] Unhandled SAY type: '%s' (text preview: %s)\n", msg.Say, truncateForDisplay(msg.Text, 50))
+	}
 	return dc.Renderer.RenderMessage("SAY", msg.Text, true)
+}
+
+func truncateForDisplay(text string, maxLen int) string {
+	if len(text) <= maxLen {
+		return text
+	}
+	return text[:maxLen] + "..."
 }

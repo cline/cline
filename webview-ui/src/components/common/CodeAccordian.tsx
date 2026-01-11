@@ -55,7 +55,16 @@ const CodeAccordian = ({
 			}}>
 			{(path || isFeedback || isConsoleLogs) && (
 				<div
+					aria-label={isExpanded ? "Collapse code block" : "Expand code block"}
 					onClick={isLoading ? undefined : onToggleExpand}
+					onKeyDown={(e) => {
+						if (isLoading) return
+						if (e.key === "Enter" || e.key === " ") {
+							e.preventDefault()
+							e.stopPropagation()
+							onToggleExpand()
+						}
+					}}
 					style={{
 						color: "var(--vscode-descriptionForeground)",
 						display: "flex",
@@ -68,7 +77,8 @@ const CodeAccordian = ({
 						WebkitUserSelect: "none",
 						MozUserSelect: "none",
 						msUserSelect: "none",
-					}}>
+					}}
+					tabIndex={0}>
 					{isFeedback || isConsoleLogs ? (
 						<div style={{ display: "flex", alignItems: "center" }}>
 							<span

@@ -27,8 +27,12 @@ export type GlobalStateAndSettings = GlobalState & Settings
 export interface RemoteConfigExtraFields {
 	remoteConfiguredProviders: string[]
 	allowedMCPServers: Array<{ id: string }>
+	remoteMCPServers?: Array<{ name: string; url: string; alwaysEnabled?: boolean }>
+	previousRemoteMCPServers?: Array<{ name: string; url: string }>
 	remoteGlobalRules?: GlobalInstructionsFile[]
 	remoteGlobalWorkflows?: GlobalInstructionsFile[]
+	blockPersonalRemoteMCPServers?: boolean
+	openTelemetryOtlpHeaders: Record<string, string> | undefined
 }
 
 export type RemoteConfigFields = GlobalStateAndSettings & RemoteConfigExtraFields
@@ -49,7 +53,6 @@ export interface GlobalState {
 	workspaceRoots: WorkspaceRoot[] | undefined
 	primaryRootIndex: number
 	multiRootEnabled: boolean
-	hooksEnabled: boolean
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
 	lastDismissedCliBannerVersion: number
@@ -80,6 +83,7 @@ export interface Settings {
 	anthropicBaseUrl: string | undefined
 	geminiBaseUrl: string | undefined
 	azureApiVersion: string | undefined
+	azureIdentity: boolean | undefined
 	openRouterProviderSorting: string | undefined
 	autoApprovalSettings: AutoApprovalSettings
 	globalClineRulesToggles: ClineRulesToggles
@@ -127,8 +131,13 @@ export interface Settings {
 	aihubmixAppCode: string | undefined
 	hooksEnabled: boolean
 	subagentsEnabled: boolean
-	hicapModelId: string | undefined
+	skillsEnabled: boolean
+	globalSkillsToggles: Record<string, boolean>
+	enableParallelToolCalling: boolean
+	backgroundEditEnabled: boolean
 
+	// Model-specific settings
+	hicapModelId: string | undefined
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
 	planModeApiModelId: string | undefined
@@ -162,11 +171,14 @@ export interface Settings {
 	planModeHuaweiCloudMaasModelInfo: ModelInfo | undefined
 	planModeOcaModelId: string | undefined
 	planModeOcaModelInfo: OcaModelInfo | undefined
+	planModeOcaReasoningEffort: string | undefined
 	planModeHicapModelId: string | undefined
 	planModeHicapModelInfo: ModelInfo | undefined
 	planModeAihubmixModelId: string | undefined
 	planModeAihubmixModelInfo: ModelInfo | undefined
 	planModeNousResearchModelId: string | undefined
+	planModeVercelAiGatewayModelId: string | undefined
+	planModeVercelAiGatewayModelInfo: ModelInfo | undefined
 	// Act mode configurations
 	actModeApiProvider: ApiProvider
 	actModeApiModelId: string | undefined
@@ -200,11 +212,14 @@ export interface Settings {
 	actModeHuaweiCloudMaasModelInfo: ModelInfo | undefined
 	actModeOcaModelId: string | undefined
 	actModeOcaModelInfo: OcaModelInfo | undefined
+	actModeOcaReasoningEffort: string | undefined
 	actModeHicapModelId: string | undefined
 	actModeHicapModelInfo: ModelInfo | undefined
 	actModeAihubmixModelId: string | undefined
 	actModeAihubmixModelInfo: ModelInfo | undefined
 	actModeNousResearchModelId: string | undefined
+	actModeVercelAiGatewayModelId: string | undefined
+	actModeVercelAiGatewayModelInfo: ModelInfo | undefined
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: boolean
@@ -244,6 +259,7 @@ export interface Secrets {
 	doubaoApiKey: string | undefined
 	mistralApiKey: string | undefined
 	liteLlmApiKey: string | undefined
+	remoteLiteLlmApiKey: string | undefined
 	authNonce: string | undefined
 	asksageApiKey: string | undefined
 	xaiApiKey: string | undefined
@@ -275,4 +291,5 @@ export interface LocalState {
 	localWindsurfRulesToggles: ClineRulesToggles
 	localAgentsRulesToggles: ClineRulesToggles
 	workflowToggles: ClineRulesToggles
+	localSkillsToggles: ClineRulesToggles
 }

@@ -1,0 +1,168 @@
+---
+title: "Configure LiteLLM in VS Code (Members)"
+sidebarTitle: "Configure LiteLLM (Member)"
+description: "Guide for engineers connecting to their organization's LiteLLM proxy through VS Code after admin setup"
+---
+
+As a team member, you can connect your local development environment to your organization's LiteLLM proxy setup. This guide walks you through configuring your connection in VS Code so you can start using multiple AI models through your organization's unified proxy interface. Your administrator has already configured the provider settings—you just need to add your credentials to get started.
+
+## Before You Begin
+
+To successfully connect to your organization's LiteLLM proxy, you'll need a few things ready.
+
+**Cline extension installed and configured**  
+The Cline extension must be installed in VS Code and you need to be signed into your organization account. If you haven't installed Cline yet, follow our [installation guide](/getting-started/installing-cline).
+
+<Info>
+**Quick Check**: Open the Cline panel in VS Code. If you see your organization name in the bottom left, you're signed in correctly.
+</Info>
+
+**Access credentials for your organization's LiteLLM proxy**  
+You need credentials to access your organization's LiteLLM proxy. This might be an API key, or the proxy might be configured for open access within your network.
+
+<Note>
+If you're unsure about the credentials needed, check with your administrator or IT team about how to access your organization's LiteLLM proxy.
+</Note>
+
+## Configuration Steps
+
+<Steps>
+<Step title="Open Cline Settings">
+Open VS Code and access the Cline settings panel using either of these methods:
+
+- Click the settings icon (⚙️) in the Cline panel
+- Click on the API Provider dropdown located directly below the chat area (it will display as `LiteLLM` or show a specific model name)
+
+</Step>
+
+<Step title="Configure LiteLLM Connection">
+The LiteLLM configuration options depend on how your organization has set up the proxy:
+
+<AccordionGroup>
+<Accordion title="API Key Authentication">
+If your organization requires API key authentication:
+
+1. Select or confirm the **LiteLLM** provider is selected
+2. Enter your assigned API key in the **API Key** field
+3. The base URL should already be configured by your administrator
+4. Click **Save** to store your credentials
+
+<Tip>
+API keys are stored locally in VS Code and are only used by the Cline extension.
+</Tip>
+</Accordion>
+
+<Accordion title="Open Access (No Authentication)">
+If your LiteLLM proxy is configured for open access within your network:
+
+1. Select or confirm the **LiteLLM** provider is selected  
+2. Leave the API key field empty
+3. The extension will connect directly to the configured proxy endpoint
+4. No additional authentication is required
+
+<Info>
+Open access is common when the LiteLLM proxy is deployed within a secure network environment.
+</Info>
+</Accordion>
+
+<Accordion title="Custom Configuration">
+If your organization uses custom authentication or specific connection parameters:
+
+1. Follow any custom instructions provided by your administrator
+2. Contact your IT team if you encounter connection issues
+3. Additional configuration may be needed outside of VS Code
+
+<Note>
+Custom configurations might require specific network settings or additional authentication steps.
+</Note>
+</Accordion>
+</AccordionGroup>
+</Step>
+
+<Step title="Select Available Models">
+Once connected, you'll see the models available through your organization's LiteLLM proxy:
+
+- View available models in the model dropdown
+- Models are determined by your administrator's proxy configuration  
+- You can switch between models for different types of tasks
+- Some models may be restricted based on your access level
+
+<Tip>
+**Model Selection**
+
+Choose models based on your task requirements:
+- **Fast models** (like GPT-3.5-turbo) for quick responses
+- **Powerful models** (like GPT-4) for complex reasoning
+- **Specialized models** for code generation or specific domains
+</Tip>
+</Step>
+
+<Step title="Test the Connection">
+Send a test message in Cline to verify your connection works correctly with the LiteLLM proxy.
+
+<Tip>
+**Testing Recommendation**
+
+Test the connection in plan mode first to verify everything works correctly before using it for actual development tasks.
+</Tip>
+</Step>
+</Steps>
+
+## Model Usage
+
+### Available Model Categories
+The models available through your LiteLLM proxy typically include:
+
+**Text Generation Models:**
+- OpenAI GPT-4, GPT-3.5-turbo variants
+- Anthropic Claude 3 Sonnet, Haiku, Opus
+- Open source models like Llama 2, Mistral
+
+**Code-Specific Models:**
+- OpenAI GPT-4 for code
+- CodeLlama variants
+- Specialized code completion models
+
+**Multimodal Models:**
+- GPT-4 Vision for image analysis
+- Claude 3 models with vision capabilities
+
+### Model Selection Strategy
+Choose models based on your development needs:
+
+- **Quick iterations**: Use faster, cost-effective models
+- **Complex problems**: Use more powerful models  
+- **Code-heavy tasks**: Use code-specialized models
+- **Visual content**: Use multimodal models when working with images
+
+## Troubleshooting
+
+**LiteLLM not available as provider option**  
+Confirm you're signed into the correct Cline organization. Verify your administrator has saved the LiteLLM configuration and that you have the latest version of the Cline extension.
+
+**Connection errors or timeouts**  
+Verify your network can reach the LiteLLM proxy endpoint. Check with your IT team about firewall rules or VPN requirements. Ensure the proxy endpoint is accessible from your development environment.
+
+**Authentication failures**  
+If using API key authentication, verify the key is correctly entered and hasn't expired. Contact your administrator to confirm your key is active and has the proper permissions.
+
+**Models not loading or are limited**  
+The available models depend on your organization's LiteLLM configuration. Contact your administrator if you need access to specific models or if expected models aren't available.
+
+**Slow response times**  
+Response times depend on the models being used and proxy load. Try switching to faster models for routine tasks. Contact your administrator if performance is consistently poor.
+
+**Error messages from specific models**  
+Some models may be temporarily unavailable or have specific limitations. Try alternative models or contact your administrator if specific models are consistently failing.
+
+## Security Best Practices
+
+When working with your organization's LiteLLM proxy:
+
+- Keep your API credentials secure and don't share them
+- Use appropriate models for the sensitivity of your data  
+- Follow your organization's usage guidelines
+- Report any suspicious activity or unauthorized access attempts
+- Regularly update the Cline extension for security patches
+
+Your organization administrator controls which models are available and usage policies. The extension will automatically display available models based on your proxy configuration and access level.

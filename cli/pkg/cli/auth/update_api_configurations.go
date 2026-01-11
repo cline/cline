@@ -57,6 +57,7 @@ type ProviderFields struct {
 	// Deployment ID fields (currently only used by SAP AI Core)
 	PlanModeDeploymentIDField string // e.g., "planModeSapAiCoreDeploymentId"
 	ActModeDeploymentIDField  string // e.g., "actModeSapAiCoreDeploymentId"
+	UseProfileField                      string // e.g., "awsUseProfile" (for bedrock) (optional, empty if not applicable)
 }
 
 // GetProviderFields returns the field mapping for a given provider
@@ -99,6 +100,7 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 
 	case cline.ApiProvider_BEDROCK:
 		return ProviderFields{
+			UseProfileField:                      "awsUseProfile",
 			APIKeyField:                          "awsAccessKey",
 			PlanModeModelIDField:                 "planModeApiModelId",
 			ActModeModelIDField:                  "actModeApiModelId",

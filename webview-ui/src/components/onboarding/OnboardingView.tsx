@@ -275,6 +275,7 @@ const OnboardingView = ({ onboardingModels }: { onboardingModels: OnboardingMode
 	const { openRouterModels, hideSettings, hideAccount, setShowWelcome } = useExtensionState()
 
 	const [stepNumber, setStepNumber] = useState(0)
+	const [isActionLoading, setIsActionLoading] = useState(false)
 	const [userType, setUserType] = useState<NEW_USER_TYPE>(NEW_USER_TYPE.FREE)
 
 	const [selectedModelId, setSelectedModelId] = useState("")
@@ -334,11 +335,17 @@ const OnboardingView = ({ onboardingModels }: { onboardingModels: OnboardingMode
 			switch (action) {
 				case "signup":
 					setStepNumber(stepNumber + 1)
-					await AccountServiceClient.accountLoginClicked({}).catch(() => {})
+					setIsActionLoading(true)
+					await AccountServiceClient.accountLoginClicked({})
+						.catch(() => {})
+						.finally(() => setIsActionLoading(false))
 					await finishOnboarding(true, stepNumber + 1)
 					break
 				case "signin":
-					await AccountServiceClient.accountLoginClicked({}).catch(() => {})
+					setIsActionLoading(true)
+					await AccountServiceClient.accountLoginClicked({})
+						.catch(() => {})
+						.finally(() => setIsActionLoading(false))
 					await finishOnboarding(true, stepNumber + 1)
 					break
 				case "next":
@@ -398,7 +405,8 @@ const OnboardingView = ({ onboardingModels }: { onboardingModels: OnboardingMode
 				<footer className="flex w-full max-w-lg flex-col gap-3 my-2 px-2 overflow-hidden flex-shrink-0">
 					{stepDisplayInfo.buttons.map((btn) => (
 						<Button
-							className="w-full rounded-xs"
+							className={`w-full rounded-xs ${isActionLoading ? "animate-pulse" : ""}`}
+							disabled={isActionLoading}
 							key={btn.text}
 							onClick={() => handleFooterAction(btn.action)}
 							variant={btn.variant}>

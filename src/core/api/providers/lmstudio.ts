@@ -60,7 +60,7 @@ export class LmStudioHandler implements ApiHandler {
 			const toolCallProcessor = new ToolCallProcessor()
 
 			for await (const chunk of stream) {
-				const choice = chunk.choices[0]
+				const choice = chunk.choices?.[0]
 				const delta = choice?.delta
 				if (delta?.content) {
 					yield {

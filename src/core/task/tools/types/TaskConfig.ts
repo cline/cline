@@ -1,6 +1,7 @@
 import type { ApiHandler } from "@core/api"
 import type { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import type { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
+import type { CommandPermissionController } from "@core/permissions"
 import type { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import type { BrowserSession } from "@services/browser/BrowserSession"
 import type { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
@@ -36,6 +37,7 @@ export interface TaskConfig {
 	strictPlanModeEnabled: boolean
 	yoloModeToggled: boolean
 	vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec"
+	enableParallelToolCalling: boolean
 	context: vscode.ExtensionContext
 
 	// Multi-workspace support (optional for backward compatibility)
@@ -73,6 +75,7 @@ export interface TaskServices {
 	diffViewProvider: DiffViewProvider
 	fileContextTracker: FileContextTracker
 	clineIgnoreController: ClineIgnoreController
+	commandPermissionController: CommandPermissionController
 	contextManager: ContextManager
 	stateManager: StateManager
 }

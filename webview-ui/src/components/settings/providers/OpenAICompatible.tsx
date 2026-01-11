@@ -220,6 +220,15 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 				/>
 			)}
 
+			<VSCodeCheckbox
+				checked={apiConfiguration?.azureIdentity || false}
+				onChange={(e: any) => {
+					const isChecked = e.target.checked === true
+					return handleFieldChange("azureIdentity", isChecked)
+				}}>
+				Use Azure Identity Authentication
+			</VSCodeCheckbox>
+
 			<div
 				onClick={() => setModelConfigurationSelected((val) => !val)}
 				style={{

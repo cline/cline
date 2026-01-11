@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/huh"
@@ -25,12 +26,13 @@ var (
 	outputFormat string
 
 	// Task creation flags (for root command)
-	images   []string
-	files    []string
-	mode     string
-	settings []string
-	yolo     bool
-	oneshot  bool
+	images     []string
+	files      []string
+	mode       string
+	settings   []string
+	yolo       bool
+	oneshot    bool
+	workspaces []string
 )
 
 func main() {
@@ -70,12 +72,23 @@ see the manual page: man cline`,
 
 			var instanceAddress string
 
+			// Validate workspace paths exist
+			if err := common.ValidateDirsExist(workspaces); err != nil {
+				return err
+			}
+
+			// Build the full workspace list: cwd first, then additional workspaces
+			allWorkspaces, err := buildWorkspaceList(workspaces)
+			if err != nil {
+				return fmt.Errorf("failed to build workspace list: %w", err)
+			}
+
 			// If --address flag not provided, start instance BEFORE getting prompt
 			if !cmd.Flags().Changed("address") {
 				if global.Config.Verbose {
 					fmt.Println("Starting new Cline instance...")
 				}
-				instance, err := global.Clients.StartNewInstance(ctx)
+				instance, err := global.Clients.StartNewInstance(ctx, allWorkspaces...)
 				if err != nil {
 					return fmt.Errorf("failed to start new instance: %w", err)
 				}
@@ -131,8 +144,8 @@ see the manual page: man cline`,
 
 			// If no prompt from args or stdin, show interactive input
 			if prompt == "" {
-				// Pass the mode flag to banner so it shows correct mode
-				prompt, err = promptForInitialTask(ctx, instanceAddress, mode)
+				// Pass the mode flag and workspaces to banner so it shows correct info
+				prompt, err = promptForInitialTask(ctx, instanceAddress, mode, allWorkspaces)
 				if err != nil {
 					// Check if user cancelled - exit cleanly without error
 					if err == huh.ErrUserAborted {
@@ -152,13 +165,14 @@ see the manual page: man cline`,
 			}
 
 			return cli.CreateAndFollowTask(ctx, prompt, cli.TaskOptions{
-				Images:   images,
-				Files:    files,
-				Mode:     mode,
-				Settings: settings,
-				Yolo:     yolo,
-				Address:  instanceAddress,
-				Verbose:  verbose,
+				Images:     images,
+				Files:      files,
+				Mode:       mode,
+				Settings:   settings,
+				Yolo:       yolo,
+				Address:    instanceAddress,
+				Verbose:    verbose,
+				Workspaces: allWorkspaces,
 			})
 		},
 	}
@@ -175,6 +189,7 @@ see the manual page: man cline`,
 	rootCmd.Flags().BoolVarP(&yolo, "yolo", "y", false, "enable yolo mode (non-interactive)")
 	rootCmd.Flags().BoolVar(&yolo, "no-interactive", false, "enable yolo mode (non-interactive)")
 	rootCmd.Flags().BoolVarP(&oneshot, "oneshot", "o", false, "full autonomous mode")
+	rootCmd.Flags().StringSliceVarP(&workspaces, "workspace", "w", nil, "additional workspace paths (can be specified multiple times)")
 
 	rootCmd.AddCommand(cli.NewTaskCommand())
 	rootCmd.AddCommand(cli.NewInstanceCommand())
@@ -189,9 +204,9 @@ see the manual page: man cline`,
 	}
 }
 
-func promptForInitialTask(ctx context.Context, instanceAddress, modeFlag string) (string, error) {
+func promptForInitialTask(ctx context.Context, instanceAddress, modeFlag string, workspaces []string) (string, error) {
 	// Show session banner before the initial input
-	showSessionBanner(ctx, instanceAddress, modeFlag)
+	showSessionBanner(ctx, instanceAddress, modeFlag, workspaces)
 
 	var prompt string
 
@@ -233,7 +248,7 @@ func promptForInitialTask(ctx context.Context, instanceAddress, modeFlag string)
 }
 
 // showSessionBanner displays session info before initial prompt
-func showSessionBanner(ctx context.Context, instanceAddress, modeFlag string) {
+func showSessionBanner(ctx context.Context, instanceAddress, modeFlag string, workspaces []string) {
 	bannerInfo := display.BannerInfo{
 		Version: global.CliVersion,
 		Mode:    modeFlag, // Use the mode from command flag, not state
@@ -244,10 +259,7 @@ func showSessionBanner(ctx context.Context, instanceAddress, modeFlag string) {
 		bannerInfo.Mode = "plan"
 	}
 
-	// Get current working directory (this is what Cline will use)
-	if cwd, err := os.Getwd(); err == nil {
-		bannerInfo.Workdir = cwd
-	}
+	bannerInfo.Workdirs = workspaces
 
 	// Get provider/model using auth functions (same logic as auth menu)
 	manager, err := cli.NewTaskManagerForAddress(ctx, instanceAddress)
@@ -345,4 +357,37 @@ func getContentFromStdinAndArgs(args []string) (string, error) {
 	}
 
 	return content.String(), nil
+}
+
+// buildWorkspaceList builds the full workspace list with cwd as the first entry
+func buildWorkspaceList(additionalWorkspaces []string) ([]string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current working directory: %w", err)
+	}
+
+	// Start with cwd
+	workspaces := []string{cwd}
+
+	// Add additional workspaces, avoiding duplicates
+	for _, ws := range additionalWorkspaces {
+		// Normalize the path
+		absPath, err := common.AbsPath(ws)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve workspace path %s: %w", ws, err)
+		}
+
+		// Skip if it's the same as cwd
+		if absPath == cwd {
+			continue
+		}
+
+		// Check for duplicates
+		isDuplicate := slices.Contains(workspaces, absPath)
+		if !isDuplicate {
+			workspaces = append(workspaces, absPath)
+		}
+	}
+
+	return workspaces, nil
 }

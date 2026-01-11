@@ -1,0 +1,233 @@
+---
+title: "YOLO Mode"
+sidebarTitle: "YOLO Mode"
+description: "Enterprise controls for YOLO Mode autonomous operation"
+---
+
+YOLO Mode enables Cline to operate with complete autonomy, auto-approving all actions without user confirmation. For Enterprise administrators, this page covers how to control access to YOLO Mode across your organization.
+
+<Note>
+For complete details about YOLO Mode functionality, risks, and best practices, see [YOLO Mode in Features](/features/yolo-mode).
+</Note>
+
+## Overview
+
+When YOLO Mode is enabled, Cline automatically approves all operations including file changes, terminal commands, browser actions, and mode transitions. This provides maximum automation speed but removes all safety guardrails.
+
+<Warning>
+YOLO Mode is powerful but potentially dangerous. Administrators should carefully consider which teams or users should have access to this feature.
+</Warning>
+
+## Enterprise Administrator Configuration
+
+As an Enterprise administrator, you can control whether users in your organization can enable YOLO Mode through remote configuration.
+
+### Disabling YOLO Mode for All Users
+
+Add the following to your remote configuration JSON:
+
+```json
+{
+  "yoloModeAllowed": false
+}
+```
+
+When `yoloModeAllowed` is set to `false`:
+- The YOLO Mode toggle is disabled in all user interfaces
+- Users cannot enable YOLO Mode even in their local settings
+- This policy applies immediately to all team members
+- Enterprise policy takes precedence over individual preferences
+
+### Enabling YOLO Mode for All Users
+
+```json
+{
+  "yoloModeAllowed": true
+}
+```
+
+When `yoloModeAllowed` is set to `true` or omitted:
+- Users can enable or disable YOLO Mode in their local Cline settings
+- Individual users make their own decisions about using YOLO Mode
+- No organizational restrictions apply
+
+## Enterprise Policy Recommendations
+
+### Recommended Approach
+
+Most organizations should **disable YOLO Mode by default** for the following reasons:
+
+<AccordionGroup>
+  <Accordion title="Security & Compliance" icon="shield">
+    YOLO Mode removes all approval gates, potentially allowing:
+    - Unreviewed code changes to critical systems
+    - Execution of commands without oversight
+    - Automated actions that may violate compliance policies
+    - Risk of data exposure through unmonitored operations
+  </Accordion>
+  
+  <Accordion title="Code Quality Control" icon="code">
+    Without approval prompts:
+    - Changes happen too quickly to review in real-time
+    - Mistakes can compound before detection
+    - Quality gates are bypassed
+    - Rollback becomes more complex
+  </Accordion>
+  
+  <Accordion title="Audit Requirements" icon="clipboard-check">
+    Many industries require:
+    - Documented approval trails for code changes
+    - Clear accountability for automated actions
+    - Traceable decision-making processes
+    - YOLO Mode may conflict with these requirements
+  </Accordion>
+</AccordionGroup>
+
+### Exceptions: When to Allow YOLO Mode
+
+Consider enabling YOLO Mode for:
+
+**Sandbox/Development Environments**
+- Isolated testing environments
+- Personal development machines
+- Proof-of-concept projects
+- Temporary exploratory work
+
+**Specialized Roles**
+- DevOps automation engineers (with proper monitoring)
+- Research & development teams in sandboxed environments
+- Teams with robust rollback and recovery procedures
+
+**Controlled Use Cases**
+- Scripted CI/CD pipelines with comprehensive logging
+- Automated testing scenarios
+- Demonstration or training environments
+
+## Enterprise Considerations
+
+### Security Implications
+
+When YOLO Mode is enabled in your organization:
+
+**Risk Factors:**
+- All tool executions happen automatically without human review
+- Potential for rapid propagation of mistakes across multiple files
+- Reduced opportunity to catch security vulnerabilities before implementation
+- Automated operations may bypass existing security controls
+
+**Mitigations:**
+- Implement comprehensive logging and monitoring
+- Restrict YOLO Mode to non-production environments
+- Require periodic security reviews for teams using YOLO Mode
+- Ensure version control and rollback procedures are in place
+
+### Monitoring Requirements
+
+When allowing YOLO Mode in your organization, implement:
+
+**Mandatory Monitoring:**
+1. **Real-time Activity Tracking**
+   - Monitor which users enable YOLO Mode
+   - Track when YOLO Mode is active
+   - Log all automated actions taken
+
+2. **Audit Trail Maintenance**
+   - Preserve complete history of YOLO Mode sessions
+   - Document what was automated and when
+   - Maintain records for compliance purposes
+
+3. **Anomaly Detection**
+   - Alert on unusual patterns of automated actions
+   - Flag high-risk operations performed automatically
+   - Monitor for potential security incidents
+
+### Monitoring YOLO Mode Usage
+
+When YOLO Mode is enabled (by policy), track usage through:
+
+**Telemetry Events:**
+- Captures when users toggle YOLO Mode on/off
+- Records which tasks were executed with YOLO Mode enabled
+- Provides aggregate usage statistics across your organization
+
+**Task History:**
+- Task metadata indicates whether YOLO Mode was active
+- Complete action logs show automated approvals
+- Enables post-action review and analysis
+
+**Audit Logs:**
+- Standard logging captures all automated decisions
+- Tool executions are recorded with timestamps
+- Provides compliance trail for regulated environments
+
+## Recommended Policies by Organization Size
+
+### Small Teams (5-20 developers)
+- **Default:** Disabled
+- **Exceptions:** Allow for individual sandbox environments
+- **Monitoring:** Basic telemetry sufficient
+
+### Medium Organizations (20-100 developers)
+- **Default:** Disabled
+- **Exceptions:** Permit for designated dev/test environments only
+- **Monitoring:** Required telemetry + regular audit reviews
+
+### Large Enterprises (100+ developers)
+- **Default:** Strictly disabled
+- **Exceptions:** Require security approval for each use case
+- **Monitoring:** Comprehensive telemetry + real-time alerting + compliance reporting
+
+## Technical Implementation
+
+### Configuration Management
+
+**Centralized Control through Remote Configuration:**
+
+```json
+{
+  "yoloModeAllowed": false,
+  // Other policies...
+}
+```
+
+This setting:
+- Applies instantly to all connected clients
+- Cannot be overridden by individual users
+- Persists across Cline restarts
+- Is synchronized across all team members
+
+### Policy Enforcement
+
+The enforcement mechanism:
+1. Users authenticate with your enterprise configuration server
+2. Remote configuration is downloaded and applied
+3. Local UI respects enterprise policy settings
+4. YOLO Mode toggle is disabled if policy forbids it
+5. Users see a message explaining the enterprise restriction
+
+## Compliance Considerations
+
+For organizations in regulated industries:
+
+**SOC 2 Compliance:**
+- YOLO Mode may conflict with change management controls
+- Document decision to allow/disallow in security policies
+- Implement compensating controls if YOLO Mode is permitted
+
+**GDPR/Data Protection:**
+- Automated operations must still respect data handling policies
+- Ensure YOLO Mode doesn't bypass data protection safeguards
+- Maintain audit trails of automated data processing
+
+**Industry-Specific:**
+- Financial services: Generally incompatible with Reg requirements
+- Healthcare: May violate HIPAA audit trail requirements
+- Government: Often conflicts with approval workflow mandates
+
+## Support & Questions
+
+For help configuring YOLO Mode policies:
+- Review [Remote Configuration Overview](/enterprise-solutions/configuration/remote-configuration/overview)
+- See [Features: YOLO Mode](/features/yolo-mode) for detailed functionality
+- Contact your Enterprise support representative
+- Join our [Discord](https://discord.gg/cline) for community discussion

@@ -56,87 +56,61 @@ export class AnthropicHandler implements ApiHandler {
 
 		// Tools are available only when native tools are enabled.
 		const nativeToolsOn = tools?.length && tools?.length > 0
-		const reasoningOn = !!(
-			(modelId.includes("3-7") || modelId.includes("4-") || modelId.includes("4-5")) &&
-			budget_tokens !== 0
-		)
+		const reasoningOn = (model.info.supportsReasoning ?? false) && budget_tokens !== 0
 
-		switch (modelId) {
-			// 'latest' alias does not support cache_control
-			case "claude-haiku-4-5@20251001":
-			case "claude-sonnet-4-5@20250929":
-			case "claude-sonnet-4@20250514":
-			case "claude-opus-4-5@20251101":
-			case "claude-opus-4-1@20250805":
-			case "claude-opus-4@20250514":
-			case "claude-haiku-4-5-20251001":
-			case "claude-sonnet-4-5-20250929:1m":
-			case "claude-sonnet-4-5-20250929":
-			case "claude-sonnet-4-20250514":
-			case "claude-3-7-sonnet-20250219":
-			case "claude-3-5-sonnet-20241022":
-			case "claude-3-5-haiku-20241022":
-			case "claude-opus-4-5-20251101":
-			case "claude-opus-4-20250514":
-			case "claude-opus-4-1-20250805":
-			case "claude-3-opus-20240229":
-			case "claude-3-haiku-20240307": {
-				const anthropicMessages = sanitizeAnthropicMessages(messages, true)
+		if (model.info.supportsPromptCache) {
+			const anthropicMessages = sanitizeAnthropicMessages(messages, true)
 
-				stream = await client.messages.create(
-					{
-						model: modelId,
-						thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
-						max_tokens: model.info.maxTokens || 8192,
-						// "Thinking isn’t compatible with temperature, top_p, or top_k modifications as well as forced tool use."
-						// (https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations-when-using-extended-thinking)
-						temperature: reasoningOn ? undefined : 0,
-						system: [
-							{
-								text: systemPrompt,
-								type: "text",
-								cache_control: { type: "ephemeral" },
-							},
-						], // setting cache breakpoint for system prompt so new tasks can reuse it
-						messages: anthropicMessages,
-						// tools, // cache breakpoints go from tools > system > messages, and since tools dont change, we can just set the breakpoint at the end of system (this avoids having to set a breakpoint at the end of tools which by itself does not meet min requirements for haiku caching)
-						stream: true,
-						tools: nativeToolsOn ? tools : undefined,
-						// tool_choice options:
-						// - none: disables tool use, even if tools are provided. Claude will not call any tools.
-						// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
-						// - any: tells Claude that it must use one of the provided tools, but doesn’t force a particular tool.
-						// NOTE: Forcing tool use when tools are provided will result in error when thinking is also enabled.
-						tool_choice: nativeToolsOn && !reasoningOn ? { type: "any" } : undefined,
-					},
-					(() => {
-						// 1m context window beta header
-						if (enable1mContextWindow) {
-							return {
-								headers: {
-									"anthropic-beta": "context-1m-2025-08-07",
-								},
-							}
-						} else {
-							return undefined
-						}
-					})(),
-				)
-				break
-			}
-			default: {
-				stream = await client.messages.create({
+			stream = await client.messages.create(
+				{
 					model: modelId,
+					thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
 					max_tokens: model.info.maxTokens || 8192,
-					temperature: 0,
-					system: [{ text: systemPrompt, type: "text" }],
-					messages: sanitizeAnthropicMessages(messages, false),
-					tools: nativeToolsOn ? tools : undefined,
-					tool_choice: { type: "auto" },
+					// "Thinking isn’t compatible with temperature, top_p, or top_k modifications as well as forced tool use."
+					// (https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations-when-using-extended-thinking)
+					temperature: reasoningOn ? undefined : 0,
+					system: [
+						{
+							text: systemPrompt,
+							type: "text",
+							cache_control: { type: "ephemeral" },
+						},
+					], // setting cache breakpoint for system prompt so new tasks can reuse it
+					messages: anthropicMessages,
+					// tools, // cache breakpoints go from tools > system > messages, and since tools dont change, we can just set the breakpoint at the end of system (this avoids having to set a breakpoint at the end of tools which by itself does not meet min requirements for haiku caching)
 					stream: true,
-				})
-				break
-			}
+					tools: nativeToolsOn ? tools : undefined,
+					// tool_choice options:
+					// - none: disables tool use, even if tools are provided. Claude will not call any tools.
+					// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
+					// - any: tells Claude that it must use one of the provided tools, but doesn’t force a particular tool.
+					// NOTE: Forcing tool use when tools are provided will result in error when thinking is also enabled.
+					tool_choice: nativeToolsOn && !reasoningOn ? { type: "any" } : undefined,
+				},
+				(() => {
+					// 1m context window beta header
+					if (enable1mContextWindow) {
+						return {
+							headers: {
+								"anthropic-beta": "context-1m-2025-08-07",
+							},
+						}
+					} else {
+						return undefined
+					}
+				})(),
+			)
+		} else {
+			stream = await client.messages.create({
+				model: modelId,
+				max_tokens: model.info.maxTokens || 8192,
+				temperature: 0,
+				system: [{ text: systemPrompt, type: "text" }],
+				messages: sanitizeAnthropicMessages(messages, false),
+				tools: nativeToolsOn ? tools : undefined,
+				tool_choice: { type: "auto" },
+				stream: true,
+			})
 		}
 
 		const lastStartedToolCall = { id: "", name: "", arguments: "" }

@@ -40,6 +40,19 @@ export class AskFollowupQuestionToolHandler implements IToolHandler, IPartialBlo
 		}
 		config.taskState.consecutiveMistakeCount = 0
 
+		// In yolo mode, don't wait for user input - instruct AI to use tools instead
+		if (config.yoloModeToggled) {
+			// Log the question that was asked but auto-respond
+			await config.callbacks.say(
+				"info",
+				`[YOLO MODE] Auto-responding to question: "${question.substring(0, 100)}${question.length > 100 ? "..." : ""}"`,
+			)
+
+			return formatResponse.toolResult(
+				`[YOLO MODE: User input is not available in non-interactive mode. You must use available tools (read_file, list_files, search_files, etc.) to gather the information you need instead of asking the user. Proceed with using tools to find the answer to your question: "${question}"]`,
+			)
+		}
+
 		// Show notification if enabled
 		if (config.autoApprovalSettings.enableNotifications) {
 			showSystemNotification({

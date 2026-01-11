@@ -83,84 +83,41 @@ export class VertexHandler implements ApiHandler {
 
 		// Claude implementation
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = !!(
-			(modelId.includes("3-7") ||
-				modelId.includes("sonnet-4") ||
-				modelId.includes("opus-4") ||
-				modelId.includes("haiku-4-5")) &&
-			budget_tokens !== 0
-		)
+		// Use model metadata to determine if reasoning should be enabled
+		const reasoningOn = (model.info.supportsReasoning ?? false) && budget_tokens !== 0
+
 		// Tools are available only when native tools are enabled.
 		const nativeToolsOn = tools?.length ? tools?.length > 0 : false
 
-		let stream
+		const anthropicMessages = sanitizeAnthropicMessages(messages, model.info.supportsPromptCache ?? false)
 
-		switch (modelId) {
-			case "claude-haiku-4-5@20251001":
-			case "claude-sonnet-4-5@20250929":
-			case "claude-sonnet-4@20250514":
-			case "claude-opus-4-5@20251101":
-			case "claude-opus-4-1@20250805":
-			case "claude-opus-4@20250514":
-			case "claude-3-7-sonnet@20250219":
-			case "claude-3-5-sonnet-v2@20241022":
-			case "claude-3-5-sonnet@20240620":
-			case "claude-3-5-haiku@20241022":
-			case "claude-3-opus@20240229":
-			case "claude-3-haiku@20240307": {
-				const anthropicMessages = sanitizeAnthropicMessages(messages, true)
-				stream = await clientAnthropic.beta.messages.create(
+		const stream = await clientAnthropic.beta.messages.create(
+			{
+				model: modelId,
+				max_tokens: model.info.maxTokens || 8192,
+				thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
+				temperature: reasoningOn ? undefined : 0,
+				system: [
 					{
-						model: modelId,
-						max_tokens: model.info.maxTokens || 8192,
-						thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
-						temperature: reasoningOn ? undefined : 0,
-						system: [
-							{
-								text: systemPrompt,
-								type: "text",
-								cache_control: { type: "ephemeral" },
-							},
-						],
-						messages: anthropicMessages,
-						stream: true,
-						tools: nativeToolsOn ? (tools as AnthropicTool[]) : undefined,
-						// tool_choice options:
-						// - none: disables tool use, even if tools are provided. Claude will not call any tools.
-						// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
-						// - any: tells Claude that it must use one of the provided tools, but doesn’t force a particular tool.
-						// NOTE: Forcing tool use when tools are provided will result in error when thinking is also enabled.
-						tool_choice: nativeToolsOn && !reasoningOn ? { type: "any" } : undefined,
+						text: systemPrompt,
+						type: "text",
+						cache_control: model.info.supportsPromptCache ? { type: "ephemeral" } : undefined,
 					},
-					{
-						headers: {},
-					},
-				)
-				break
-			}
-			default: {
-				stream = await clientAnthropic.beta.messages.create({
-					model: modelId,
-					max_tokens: model.info.maxTokens || 8192,
-					temperature: 0,
-					system: [
-						{
-							text: systemPrompt,
-							type: "text",
-						},
-					],
-					messages: sanitizeAnthropicMessages(messages, false),
-					stream: true,
-					tools: tools?.length ? (tools as AnthropicTool[]) : undefined,
-					// tool_choice options:
-					// - none: disables tool use, even if tools are provided. Claude will not call any tools.
-					// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
-					// - any: tells Claude that it must use one of the provided tools, but doesn’t force a particular tool.
-					tool_choice: tools ? { type: "any" } : undefined,
-				})
-				break
-			}
-		}
+				],
+				messages: anthropicMessages,
+				stream: true,
+				tools: nativeToolsOn ? (tools as AnthropicTool[]) : undefined,
+				// tool_choice options:
+				// - none: disables tool use, even if tools are provided. Claude will not call any tools.
+				// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
+				// - any: tells Claude that it must use one of the provided tools, but doesn’t force a particular tool.
+				// NOTE: Forcing tool use when tools are provided will result in error when thinking is also enabled.
+				tool_choice: nativeToolsOn && !reasoningOn ? { type: "any" } : undefined,
+			},
+			{
+				headers: {},
+			},
+		)
 
 		const lastStartedToolCall = { id: "", name: "", arguments: "" }
 

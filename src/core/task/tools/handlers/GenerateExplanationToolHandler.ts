@@ -2,7 +2,7 @@ import type { ToolUse } from "@core/assistant-message"
 import {
 	buildDiffContent,
 	type ChangedFile,
-	isBinaryFile,
+	detectBinaryFile,
 	openDiffView,
 	setupCommentController,
 	streamAIExplanationComments,
@@ -160,7 +160,7 @@ export class GenerateExplanationToolHandler implements IToolHandler, IPartialBlo
 				const absolutePath = path.join(cwd, filePath)
 
 				// Skip binary files - they can't be displayed properly in diff view
-				if (isBinaryFile(filePath)) {
+				if (await detectBinaryFile(absolutePath)) {
 					continue
 				}
 

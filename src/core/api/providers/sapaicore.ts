@@ -5,8 +5,10 @@ import {
 	type Message as BedrockMessage,
 } from "@aws-sdk/client-bedrock-runtime"
 import { ChatMessage, OrchestrationClient, OrchestrationModuleConfig } from "@sap-ai-sdk/orchestration"
+import { HttpDestination, transformServiceBindingToDestination } from "@sap-cloud-sdk/connectivity"
 import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels } from "@shared/api"
 import axios from "axios"
+import JSON5 from "json5"
 import OpenAI from "openai"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { getAxiosSettings } from "@/shared/net"
@@ -354,7 +356,8 @@ export class SapAiCoreHandler implements ApiHandler {
 	private options: SapAiCoreHandlerOptions
 	private token?: Token
 	private deployments?: Deployment[]
-	private isAiCoreEnvSetup: boolean = false
+	private aiCoreDestination?: HttpDestination
+	private destinationExpiresAt?: number
 
 	constructor(options: SapAiCoreHandlerOptions) {
 		this.options = options
@@ -383,6 +386,34 @@ export class SapAiCoreHandler implements ApiHandler {
 			!this.options.sapAiCoreBaseUrl
 		) {
 			throw new Error("Missing required SAP AI Core credentials. Please check your configuration.")
+		}
+	}
+
+	private async createAiCoreDestination(): Promise<HttpDestination> {
+		try {
+			const aiCoreServiceCredentials = {
+				clientid: this.options.sapAiCoreClientId!,
+				clientsecret: this.options.sapAiCoreClientSecret!,
+				url: this.options.sapAiCoreTokenUrl!,
+				serviceurls: {
+					AI_API_URL: this.options.sapAiCoreBaseUrl!,
+				},
+			}
+
+			const destination = await transformServiceBindingToDestination({
+				credentials: aiCoreServiceCredentials,
+				name: "aicore",
+				label: "aicore",
+				tags: ["aicore"],
+			})
+
+			return {
+				...destination,
+				url: destination.url || this.options.sapAiCoreBaseUrl!,
+			}
+		} catch (error) {
+			console.error("Failed to create AI Core destination:", error)
+			throw new Error(`Unable to create AI Core destination: ${error instanceof Error ? error.message : String(error)}`)
 		}
 	}
 
@@ -480,33 +511,23 @@ export class SapAiCoreHandler implements ApiHandler {
 	}
 
 	// TODO: support credentials changes after initial setup
-	private ensureAiCoreEnvSetup(): void {
-		// Only set up once to avoid redundant operations
-		if (this.isAiCoreEnvSetup) {
-			return
+	private async ensureAiCoreEnvSetup() {
+		if (!this.aiCoreDestination || !this.destinationExpiresAt || this.destinationExpiresAt < Date.now()) {
+			this.validateCredentials()
+			this.aiCoreDestination = await this.createAiCoreDestination()
+
+			// Extract expiration from the destination's auth token
+			const expiresIn = this.aiCoreDestination.authTokens?.[0]?.expiresIn
+			if (!expiresIn) {
+				throw new Error("Destination is missing required authTokens with expiresIn")
+			}
+			this.destinationExpiresAt = Date.now() + parseInt(expiresIn, 10) * 1000
 		}
-
-		// Validate required credentials
-		this.validateCredentials()
-
-		const aiCoreServiceCredentials = {
-			clientid: this.options.sapAiCoreClientId!,
-			clientsecret: this.options.sapAiCoreClientSecret!,
-			url: this.options.sapAiCoreTokenUrl!,
-			serviceurls: {
-				AI_API_URL: this.options.sapAiCoreBaseUrl!,
-			},
-		}
-		process.env["AICORE_SERVICE_KEY"] = JSON.stringify(aiCoreServiceCredentials)
-
-		// Mark as set up to avoid redundant calls
-		this.isAiCoreEnvSetup = true
 	}
 
 	private async *createMessageWithOrchestration(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
 		try {
-			// Ensure AI Core environment variable is set up (only runs once)
-			this.ensureAiCoreEnvSetup()
+			await this.ensureAiCoreEnvSetup()
 			const model = this.getModel()
 
 			const orchestrationConfig: OrchestrationModuleConfig = {
@@ -525,14 +546,22 @@ export class SapAiCoreHandler implements ApiHandler {
 				},
 			}
 
-			const orchestrationClient = new OrchestrationClient(orchestrationConfig, {
-				resourceGroup: this.options.sapAiResourceGroup || "default",
-			})
+			const orchestrationClient = new OrchestrationClient(
+				orchestrationConfig,
+				{
+					resourceGroup: this.options.sapAiResourceGroup || "default",
+				},
+				this.aiCoreDestination,
+			)
 
 			const sapMessages = this.convertMessageParamToSAPMessages(messages)
 
+			// messagesHistory: Contains the conversation context (user/assistant messages).
+			// Unlike the `messages` field that validates input, this does not validate
+			// template placeholders such as {{?userResponse}}, allowing content to be
+			// sent directly to the LLM with the Cline system prompt without validation errors.
 			const response = await orchestrationClient.stream({
-				messages: sapMessages,
+				messagesHistory: sapMessages,
 			})
 
 			for await (const chunk of response.stream.toContentStream()) {
@@ -878,12 +907,6 @@ export class SapAiCoreHandler implements ApiHandler {
 		stream: any,
 		_model: { id: SapAiCoreModelId; info: ModelInfo },
 	): AsyncGenerator<any, void, unknown> {
-		function toStrictJson(str: string): string {
-			// Wrap it in parentheses so JS will treat it as an expression
-			const obj = new Function("return " + str)()
-			return JSON.stringify(obj)
-		}
-
 		const _usage = { input_tokens: 0, output_tokens: 0 }
 
 		try {
@@ -898,7 +921,8 @@ export class SapAiCoreHandler implements ApiHandler {
 
 						try {
 							// Parse the incoming JSON data from the stream
-							const data = JSON.parse(toStrictJson(jsonData))
+							// Using JSON5 to handle relaxed JSON syntax (e.g., single quotes)
+							const data = JSON5.parse(jsonData)
 
 							// Handle metadata (token usage)
 							if (data.metadata?.usage) {

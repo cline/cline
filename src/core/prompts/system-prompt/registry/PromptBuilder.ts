@@ -1,6 +1,6 @@
 import type { ClineDefaultTool } from "@/shared/tools"
 import { ClineToolSet } from "../registry/ClineToolSet"
-import { type ClineToolSpec } from "../spec"
+import { type ClineToolSpec, resolveInstruction } from "../spec"
 import { STANDARD_PLACEHOLDERS } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { ComponentRegistry, PromptVariant, SystemPromptContext } from "../types"
@@ -207,21 +207,22 @@ export class PromptBuilder {
 		const sections = [
 			title,
 			description.join("\n"),
-			PromptBuilder.buildParametersSection(filteredParams),
+			PromptBuilder.buildParametersSection(filteredParams, context),
 			PromptBuilder.buildUsageSection(config.id, filteredParams),
 		]
 
 		return sections.filter(Boolean).join("\n")
 	}
 
-	private static buildParametersSection(params: any[]): string {
+	private static buildParametersSection(params: any[], context: SystemPromptContext): string {
 		if (!params.length) {
 			return "Parameters: None"
 		}
 
 		const paramList = params.map((p) => {
 			const requiredText = p.required ? "required" : "optional"
-			return `- ${p.name}: (${requiredText}) ${p.instruction}`
+			const instruction = resolveInstruction(p.instruction, context)
+			return `- ${p.name}: (${requiredText}) ${instruction}`
 		})
 
 		return ["Parameters:", ...paramList].join("\n")

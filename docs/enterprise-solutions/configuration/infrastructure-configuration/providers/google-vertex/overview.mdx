@@ -1,0 +1,185 @@
+---
+title: "Google Vertex AI Configuration"
+sidebarTitle: "Google Vertex"
+description: "Configure Google Vertex AI for your Cline deployment"
+---
+
+<Info>
+**Configuration Path: Self-Hosted**
+
+This guide covers Vertex AI configuration for self-hosted deployments. For simple web-based setup, see [Google Vertex SaaS Configuration](/enterprise-solutions/configuration/remote-configuration/google-vertex/admin-configuration).
+</Info>
+
+Configure Cline to use Google Vertex AI for enterprise access to Gemini and other Google AI models through Google Cloud Platform.
+
+## Configuration Format
+
+Configure Vertex AI through your remote configuration JSON using the `providerSettings.Vertex` section:
+
+```json
+{
+  "providerSettings": {
+    "Vertex": {
+      "models": [
+        {
+          "id": "claude-3-5-sonnet-v2@20241022",
+          "name": "Claude 3.5 Sonnet"
+        }
+      ],
+      "vertexProjectId": "my-project-id",
+      "vertexRegion": "us-central1"
+    }
+  }
+}
+```
+
+## Configuration Fields
+
+| Field | Type | Description | Required |
+|-------|------|-------------|----------|
+| `models` | Array | List of model configurations | Yes |
+| `vertexProjectId` | String | Google Cloud project ID | Yes |
+| `vertexRegion` | String | GCP region (e.g., `us-central1`) | Yes |
+
+### Model Configuration
+
+Each model in the `models` array requires:
+
+```json
+{
+  "id": "claude-3-5-sonnet-v2@20241022",
+  "name": "Claude 3.5 Sonnet",
+  "info": {
+    "maxTokens": 8192,
+    "contextWindow": 200000,
+    "supportsImages": true,
+    "supportsPromptCache": true
+  }
+}
+```
+
+## Common Model IDs
+
+| Model ID | Description | Context Window |
+|----------|-------------|----------------|
+| `claude-3-5-sonnet-v2@20241022` | Claude 3.5 Sonnet | 200K tokens |
+| `claude-3-5-haiku@20241022` | Claude 3.5 Haiku | 200K tokens |
+| `claude-3-opus@20240229` | Claude 3 Opus | 200K tokens |
+| `gemini-2.0-flash-exp` | Gemini Flash (experimental) | 1M tokens |
+| `gemini-1.5-pro-002` | Gemini Pro | 2M tokens |
+| `gemini-1.5-flash-002` | Gemini Flash | 1M tokens |
+
+<Note>
+Model availability varies by region. See [Vertex AI documentation](https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models) for region-specific model availability.
+</Note>
+
+## Example Configurations
+
+### Basic Configuration
+
+```json
+{
+  "providerSettings": {
+    "Vertex": {
+      "models": [
+        {
+          "id": "claude-3-5-sonnet-v2@20241022",
+          "name": "Claude 3.5 Sonnet"
+        }
+      ],
+      "vertexProjectId": "my-company-prod",
+      "vertexRegion": "us-central1"
+    }
+  }
+}
+```
+
+### Multiple Models
+
+```json
+{
+  "providerSettings": {
+    "Vertex": {
+      "models": [
+        {
+          "id": "claude-3-5-sonnet-v2@20241022",
+          "name": "Claude 3.5 Sonnet"
+        },
+        {
+          "id": "gemini-1.5-pro-002",
+          "name": "Gemini Pro"
+        }
+      ],
+      "vertexProjectId": "my-company-prod",
+      "vertexRegion": "us-central1"
+    }
+  }
+}
+```
+
+### With Extended Thinking
+
+```json
+{
+  "providerSettings": {
+    "Vertex": {
+      "models": [
+        {
+          "id": "claude-3-5-sonnet-v2@20241022",
+          "name": "Claude 3.5 Sonnet",
+          "thinkingBudgetTokens": 1600
+        }
+      ],
+      "vertexProjectId": "my-company-prod",
+      "vertexRegion": "us-central1"
+    }
+  }
+}
+```
+
+## Prerequisites
+
+Before configuring Cline to use Vertex AI, you need:
+
+1. **Google Cloud Project** with Vertex AI API enabled
+2. **Service Account** with Vertex AI User role (`roles/aiplatform.user`)
+3. **Service Account Credentials** configured for authentication
+4. **Model Access** verified in your project and region
+
+<Tip>
+For Google Cloud setup and authentication configuration, see the [Vertex AI documentation](https://cloud.google.com/vertex-ai/docs/generative-ai/start/quickstarts/quickstart-multimodal).
+</Tip>
+
+## Troubleshooting
+
+**"Permission Denied" Errors**
+
+Ensure your service account has the required Vertex AI permissions. See [Google Cloud IAM documentation](https://cloud.google.com/vertex-ai/docs/general/access-control) for permission requirements.
+
+**"API Not Enabled" Errors**
+
+Verify the Vertex AI API is enabled in your Google Cloud project.
+
+**"Model Not Found" Errors**
+
+Check that the model is available in your configured region and that your project has access to it.
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Vertex AI Docs" icon="book" href="https://cloud.google.com/vertex-ai/docs">
+    Complete Vertex AI documentation
+  </Card>
+  
+  <Card title="Service Accounts" icon="key" href="https://cloud.google.com/iam/docs/service-accounts">
+    Service account best practices
+  </Card>
+  
+  <Card title="Model Guide" icon="brain" href="https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models">
+    Available models and features
+  </Card>
+  
+  <Card title="Pricing" icon="dollar-sign" href="https://cloud.google.com/vertex-ai/pricing">
+    Vertex AI pricing details
+  </Card>
+</CardGroup>

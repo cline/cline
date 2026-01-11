@@ -86,7 +86,7 @@ export class HuaweiCloudMaaSHandler implements ApiHandler {
 		const toolCallProcessor = new ToolCallProcessor()
 
 		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
+			const delta = chunk.choices?.[0]?.delta
 
 			// Handle reasoning content detection
 			if (delta?.content) {

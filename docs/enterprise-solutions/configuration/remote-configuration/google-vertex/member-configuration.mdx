@@ -1,0 +1,177 @@
+---
+title: "Configure Google Vertex AI in VS Code (Members)"
+sidebarTitle: "Configure Google Vertex (Member)"
+description: "Guide for engineers connecting to their organization's Google Vertex AI setup through VS Code after admin setup"
+---
+
+As a team member, you can connect your local development environment to your organization's Google Vertex AI setup. This guide walks you through configuring your Google Cloud credentials in VS Code so you can start using Vertex AI models through your organization's configured project and regional settings. Your administrator has already configured the provider settings—you just need to add your credentials to get started.
+
+## Before You Begin
+
+To successfully connect to your organization's Google Vertex AI setup, you'll need a few things ready.
+
+**Cline extension installed and configured**  
+The Cline extension must be installed in VS Code and you need to be signed into your organization account. If you haven't installed Cline yet, follow our [installation guide](/getting-started/installing-cline).
+
+<Info>
+**Quick Check**: Open the Cline panel in VS Code. If you see your organization name in the bottom left, you're signed in correctly.
+</Info>
+
+**Google Cloud credentials with Vertex AI access**  
+You need Google Cloud credentials that have permission to access Vertex AI in your organization's configured project and region.
+
+<Note>
+If you're unsure which method to use, check with your administrator or IT team about how your organization has configured Google Cloud access.
+</Note>
+
+## Configuration Steps
+
+<Steps>
+<Step title="Open Cline Settings">
+Open VS Code and access the Cline settings panel using either of these methods:
+
+- Click the settings icon (⚙️) in the Cline panel
+- Click on the API Provider dropdown located directly below the chat area (it will display as `vertex_ai/gemini-pro` or similar)
+
+</Step>
+
+<Step title="Select Your Authentication Method">
+Choose one of the following credential methods to authenticate with Google Vertex AI:
+
+<AccordionGroup>
+<Accordion title="Service Account Key">
+Use a service account JSON key file for Vertex AI access.
+
+[Learn more about Service Account Keys](https://cloud.google.com/iam/docs/service-accounts)
+
+1. Select the **Service Account Key** authentication method
+2. Upload or paste your service account JSON key content
+3. The key should have `aiplatform.user` or similar Vertex AI permissions
+4. These credentials are stored locally and used only by the VS Code extension
+</Accordion>
+
+<Accordion title="Google Cloud SDK">
+Use the Google Cloud SDK installed on your machine with your authenticated account.
+
+[Learn more about Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
+
+1. Select the **Google Cloud SDK** authentication method
+2. Ensure you've authenticated with `gcloud auth login`
+3. Verify your account has access to the organization's Vertex AI project
+4. Cline will use your default Google Cloud credentials automatically
+</Accordion>
+
+<Accordion title="Application Default Credentials">
+Use Google Cloud's application default credentials (ADC) chain.
+
+1. Select the **Application Default Credentials** method
+2. Ensure ADC is properly configured in your environment
+3. This works well for environments where Google Cloud credentials are managed centrally
+4. Cline will automatically detect credentials from your environment
+</Accordion>
+</AccordionGroup>
+
+<Note>
+The Google Cloud Project ID and Region are preconfigured by your administrator and do not need to be set in the extension.
+</Note>
+</Step>
+
+<Step title="Verify Configuration">
+After selecting your authentication method, the extension will display checkmarks for enabled features:
+
+- ✓ Supports images (for Gemini Pro Vision and similar models)
+- ✓ Supports multimodal inputs
+- ✓ Supports function calling (for supported models)
+
+The project ID and region settings will be locked (shown with a lock icon 🔒) as they're controlled by your administrator.
+</Step>
+
+<Step title="Test the Connection">
+Send a test message in Cline to verify your credentials work correctly with the configured Vertex AI project and region.
+
+<Tip>
+**Testing Recommendation**
+
+Try a simple test like "Hello" first to verify basic connectivity, then test multimodal capabilities if needed by sharing an image.
+</Tip>
+</Step>
+</Steps>
+
+## Model Usage
+
+### Available Model Families
+The models available through your organization's Vertex AI setup typically include:
+
+**Gemini Models:**
+- **Gemini Pro**: Advanced reasoning, code generation, and multimodal capabilities
+- **Gemini Pro Vision**: Image understanding and visual question answering
+- **Gemini Ultra**: Most capable model for complex reasoning tasks
+
+**PaLM Models:**
+- **PaLM 2 for Text**: Text generation and completion
+- **PaLM 2 for Chat**: Conversational AI interactions
+- **Codey**: Specialized for code generation and explanation
+
+**Specialized Models:**
+- **Text Embedding**: For semantic search and similarity tasks  
+- **Custom Models**: Your organization's fine-tuned variants (if available)
+
+### Model Selection Strategy
+Choose models based on your development needs:
+
+- **General tasks**: Use Gemini Pro for most text and reasoning tasks
+- **Visual content**: Use Gemini Pro Vision when working with images
+- **Code-heavy work**: Use Codey models for programming tasks
+- **Complex reasoning**: Use Gemini Ultra for sophisticated problem-solving
+- **Embedding tasks**: Use Text Embedding models for semantic operations
+
+### Multimodal Capabilities
+Take advantage of Vertex AI's multimodal features:
+
+- **Image Analysis**: Upload images directly in Cline for analysis
+- **Visual Question Answering**: Ask questions about images
+- **Code Screenshots**: Get explanations of code from screenshots
+- **Document Processing**: Analyze charts, graphs, and visual data
+
+## Troubleshooting
+
+**Google Vertex AI not available as provider option**  
+Confirm you're signed into the correct Cline organization. Verify your administrator has saved the Vertex AI configuration and that you have the latest version of the Cline extension.
+
+**Authentication errors ("Access Denied" or "Invalid Credentials")**  
+Verify your chosen credential method has the necessary IAM permissions to access Vertex AI in the configured project and region. Required permissions include `aiplatform.endpoints.predict` and `aiplatform.models.predict`.
+
+**Project access errors**  
+Ask your administrator to confirm which Google Cloud project is configured for your organization. Ensure your Google Cloud credentials have access to that specific project.
+
+**Regional access errors**  
+Verify your credentials have access to Vertex AI in the configured region. Some models may not be available in all regions, so confirm with your administrator about the selected region.
+
+**Google Cloud SDK authentication issues**  
+Ensure Google Cloud SDK is properly installed and authenticated:
+```bash
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+gcloud auth application-default login
+```
+
+**Service account key errors**  
+Verify the service account key is valid and hasn't expired. Check that the service account has the proper Vertex AI permissions in your organization's project. Ensure the JSON key file is properly formatted and contains all required fields.
+
+**Model access errors or "model not found"**  
+Some models may not be enabled in your organization's project or region. Contact your administrator if specific models are not available. Verify that your organization has enabled the models you're trying to use in the Google Cloud Console.
+
+## Security Best Practices
+
+When configuring your Google Cloud credentials, follow these security guidelines:
+
+- Use service accounts with minimal required permissions for Vertex AI access
+- Rotate service account keys regularly (every 90 days recommended)
+- Never store credentials in code or version control
+- Use Google Cloud SDK where possible for better credential management
+- Consider using Workload Identity for containerized development environments
+- Report any suspicious activity or unauthorized access attempts
+
+Your organization administrator controls which models and regions are available. The extension will automatically display available models based on your project's configuration and regional availability.
+
+For more information about Google Cloud authentication and Vertex AI permissions, refer to the [Google Cloud IAM Documentation](https://cloud.google.com/iam/docs) and coordinate with your organization's cloud administrator.

@@ -60,6 +60,8 @@ const mockVSCodeDarkTheme = {
 	"--vscode-widget-shadow": "#00000050",
 	"--vscode-panel-border": "#454545",
 	"--vscode-icon-foreground": "#CCCCCC",
+	"--popover-foreground": "#D4D4D4",
+	"--vscode-problemsErrorIcon-foreground": "#be1100",
 }
 
 const mockVSCodeLightTheme = {
@@ -121,6 +123,7 @@ const mockVSCodeLightTheme = {
 	"--vscode-widget-shadow": "#00000033",
 	"--vscode-panel-border": "#D4D4D4",
 	"--vscode-icon-foreground": "#3E3E42",
+	"--popover-foreground": "#D4D4D4",
 }
 
 // Mock VSCode theme variables for Storybook

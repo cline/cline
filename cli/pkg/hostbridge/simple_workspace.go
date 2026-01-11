@@ -12,13 +12,15 @@ import (
 // SimpleWorkspaceService implements a basic workspace service without complex dependencies
 type SimpleWorkspaceService struct {
 	host.UnimplementedWorkspaceServiceServer
-	verbose bool
+	verbose    bool
+	workspaces []string
 }
 
 // NewSimpleWorkspaceService creates a new SimpleWorkspaceService
-func NewSimpleWorkspaceService(verbose bool) *SimpleWorkspaceService {
+func NewSimpleWorkspaceService(verbose bool, workspaces []string) *SimpleWorkspaceService {
 	return &SimpleWorkspaceService{
-		verbose: verbose,
+		verbose:    verbose,
+		workspaces: workspaces,
 	}
 }
 
@@ -28,14 +30,24 @@ func (s *SimpleWorkspaceService) GetWorkspacePaths(ctx context.Context, req *hos
 		log.Printf("GetWorkspacePaths called")
 	}
 
-	// Get current working directory as the workspace
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, err
+	paths := []string{}
+
+	if len(s.workspaces) == 0 {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+		paths = append(paths, cwd)
+	} else {
+		paths = s.workspaces
+	}
+
+	if s.verbose {
+		log.Printf("Returning configured workspaces: %v", paths)
 	}
 
 	return &host.GetWorkspacePathsResponse{
-		Paths: []string{cwd},
+		Paths: paths,
 	}, nil
 }
 

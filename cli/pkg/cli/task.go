@@ -20,13 +20,14 @@ import (
 
 // TaskOptions contains options for creating a task
 type TaskOptions struct {
-	Images   []string
-	Files    []string
-	Mode     string
-	Settings []string
-	Yolo     bool
-	Address  string
-	Verbose  bool
+	Images     []string
+	Files      []string
+	Mode       string
+	Settings   []string
+	Yolo       bool
+	Address    string
+	Verbose    bool
+	Workspaces []string
 }
 
 func NewTaskCommand() *cobra.Command {

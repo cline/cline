@@ -1,5 +1,6 @@
 import { sendCheckpointEvent } from "@core/controller/checkpoints/subscribeToCheckpoints"
 import fs from "fs/promises"
+import { isBinaryFile } from "isbinaryfile"
 import * as path from "path"
 import simpleGit from "simple-git"
 import type { FolderLockWithRetryResult } from "@/core/locks/types"
@@ -422,6 +423,23 @@ class CheckpointTracker {
 		for (const file of diffSummary.files) {
 			const filePath = file.file
 			const absolutePath = path.join(this.cwd, filePath)
+
+			// For extensionless files or dotfiles: exclude from diff result if binary
+			const lastDotIndex = filePath.lastIndexOf(".")
+			const lastSlashIndex = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"))
+			const ext = lastDotIndex > lastSlashIndex ? filePath.substring(lastDotIndex).toLowerCase() : ""
+			const isDotfile = lastDotIndex !== -1 && lastDotIndex === lastSlashIndex + 1
+
+			if (!ext || isDotfile) {
+				try {
+					const isBinary = await isBinaryFile(absolutePath).catch(() => false)
+					if (isBinary) {
+						continue
+					}
+				} catch {
+					continue
+				}
+			}
 
 			let beforeContent = ""
 			try {

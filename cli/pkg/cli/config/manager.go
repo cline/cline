@@ -92,7 +92,6 @@ func (m *Manager) ListSettings(ctx context.Context) error {
 		"telemetrySetting",
 		"planActSeparateModelsSetting",
 		"enableCheckpointsSetting",
-		"mcpMarketplaceEnabled",
 		"shellIntegrationTimeout",
 		"terminalReuseEnabled",
 		"mcpResponsesCollapsed",
@@ -111,6 +110,7 @@ func (m *Manager) ListSettings(ctx context.Context) error {
 		"dictationSettings",
 		"autoCondenseThreshold",
 		"autoApprovalSettings",
+		"hooksEnabled",
 	}
 
 	// Render each field using the renderer

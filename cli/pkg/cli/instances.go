@@ -407,7 +407,7 @@ func newInstanceListCommand() *cobra.Command {
 
 						fmt.Print(strings.TrimLeft(rendered, "\n"))
 					}
-					fmt.Println("\n")
+					fmt.Println()
 				}
 			}
 
