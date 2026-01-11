@@ -45,6 +45,11 @@ export function getConfiguredProviders(apiConfiguration: ApiConfiguration | unde
 		configured.push("openai-native")
 	}
 
+	// OpenAI Codex - requires OAuth tokens
+	if (apiConfiguration.openAiCodexAccessToken && apiConfiguration.openAiCodexRefreshToken) {
+		configured.push("openai-codex")
+	}
+
 	// DeepSeek - requires API key
 	if (apiConfiguration.deepSeekApiKey) {
 		configured.push("deepseek")

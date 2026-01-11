@@ -259,6 +259,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.GEMINI
 		case "openai-native":
 			return ProtoApiProvider.OPENAI_NATIVE
+		case "openai-codex":
+			return ProtoApiProvider.OPENAI_CODEX
 		case "requesty":
 			return ProtoApiProvider.REQUESTY
 		case "together":
@@ -347,6 +349,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "gemini"
 		case ProtoApiProvider.OPENAI_NATIVE:
 			return "openai-native"
+		case ProtoApiProvider.OPENAI_CODEX:
+			return "openai-codex"
 		case ProtoApiProvider.REQUESTY:
 			return "requesty"
 		case ProtoApiProvider.TOGETHER:
@@ -495,6 +499,9 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		minimaxApiKey: config.minimaxApiKey,
 		minimaxApiLine: config.minimaxApiLine,
 		nousResearchApiKey: config.nousResearchApiKey,
+		openaiCodexAccessToken: config.openAiCodexAccessToken,
+		openaiCodexRefreshToken: config.openAiCodexRefreshToken,
+		openaiCodexAccountId: config.openAiCodexAccountId,
 		ocaMode: config.ocaMode,
 		aihubmixApiKey: config.aihubmixApiKey,
 		aihubmixBaseUrl: config.aihubmixBaseUrl,
@@ -675,6 +682,9 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		hicapApiKey: protoConfig.hicapApiKey,
 		hicapModelId: protoConfig.hicapModelId,
 		nousResearchApiKey: protoConfig.nousResearchApiKey,
+		openAiCodexAccessToken: protoConfig.openaiCodexAccessToken,
+		openAiCodexRefreshToken: protoConfig.openaiCodexRefreshToken,
+		openAiCodexAccountId: protoConfig.openaiCodexAccountId,
 
 		// Plan mode configurations
 		planModeApiProvider:

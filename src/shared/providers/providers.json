@@ -37,6 +37,10 @@
 			"label": "OpenAI"
 		},
 		{
+			"value": "openai-codex",
+			"label": "OpenAI Codex"
+		},
+		{
 			"value": "ollama",
 			"label": "Ollama"
 		},

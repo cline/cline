@@ -44,7 +44,28 @@ service AccountService {
 
   // Returns a link the webview can use to redirect back to the user's IDE.
   rpc getRedirectUrl(EmptyRequest) returns (String);
+
+  // OpenAI Codex OAuth - Sign in with ChatGPT account
+  rpc codexSignIn(EmptyRequest) returns (CodexAuthResult);
+
+  // OpenAI Codex OAuth - Sign out
+  rpc codexSignOut(EmptyRequest) returns (Empty);
+
+  // Subscribe to Codex auth state changes
+  rpc subscribeToCodexAuthState(EmptyRequest) returns (stream CodexAuthState);
 }
+
+// Codex OAuth authentication result
+message CodexAuthResult {
+  bool success = 1;
+  optional string error = 2;
+  optional string email = 3;
+}
+
+// Codex authentication state
+message CodexAuthState {
+  bool authenticated = 1;
+  optional string email = 2;
 
 message AuthStateChangedRequest {
   Metadata metadata = 1;

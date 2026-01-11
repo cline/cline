@@ -45,6 +45,15 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
+			case "openai-codex":
+				if (
+					!apiConfiguration.openAiCodexAccessToken ||
+					!apiConfiguration.openAiCodexRefreshToken ||
+					!apiConfiguration.openAiCodexAccountId
+				) {
+					return "You must sign in with your ChatGPT account to use OpenAI Codex."
+				}
+				break
 			case "deepseek":
 				if (!apiConfiguration.deepSeekApiKey) {
 					return "You must provide a valid API key or choose a different provider."
