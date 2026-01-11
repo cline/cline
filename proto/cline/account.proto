@@ -66,6 +66,7 @@ message CodexAuthResult {
 message CodexAuthState {
   bool authenticated = 1;
   optional string email = 2;
+}
 
 message AuthStateChangedRequest {
   Metadata metadata = 1;
