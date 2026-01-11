@@ -57,7 +57,7 @@ export class NebiusHandler implements ApiHandler {
 		})
 		const toolCallProcessor = new ToolCallProcessor()
 		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
+			const delta = chunk.choices?.[0]?.delta
 			if (delta?.content) {
 				yield {
 					type: "text",
