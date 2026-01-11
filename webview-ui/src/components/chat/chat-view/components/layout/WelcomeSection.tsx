@@ -8,17 +8,10 @@ import HomeHeader from "@/components/welcome/HomeHeader"
 import { SuggestedTasks } from "@/components/welcome/SuggestedTasks"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { AccountServiceClient, StateServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { convertBannerData } from "@/utils/bannerUtils"
 import { getCurrentPlatform } from "@/utils/platformUtils"
 import { WelcomeSectionProps } from "../../types/chatTypes"
-
-// !! Do not increment these versions or continue using this pattern. !!
-// Banner versions are **deprecated**. Going forward, we are tracking which banners have
-// been dismissed using the **banner ID**.
-const CURRENT_INFO_BANNER_VERSION = 1
-const CURRENT_MODEL_BANNER_VERSION = 1
-const CURRENT_CLI_BANNER_VERSION = 1
 
 /**
  * Welcome section shown when there's no active task
@@ -61,14 +54,15 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	 */
 	const isBannerDismissed = useCallback(
 		(bannerId: string): boolean => {
+			// !! Do not keep tracking the banner versions like this. !!
 			if (bannerId.startsWith("info-banner")) {
-				return (lastDismissedInfoBannerVersion ?? 0) >= CURRENT_INFO_BANNER_VERSION
+				return (lastDismissedInfoBannerVersion ?? 0) >= 1
 			}
 			if (bannerId.startsWith("new-model")) {
-				return (lastDismissedModelBannerVersion ?? 0) >= CURRENT_MODEL_BANNER_VERSION
+				return (lastDismissedModelBannerVersion ?? 0) >= 1
 			}
 			if (bannerId.startsWith("cli-")) {
-				return (lastDismissedCliBannerVersion ?? 0) >= CURRENT_CLI_BANNER_VERSION
+				return (lastDismissedCliBannerVersion ?? 0) >= 1
 			}
 			return false
 		},
@@ -106,7 +100,9 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 		(action: BannerAction) => {
 			switch (action.action) {
 				case BannerActionType.Link:
-					// Links are handled by VSCodeLink component
+					if (action.arg) {
+						UiServiceClient.openUrl({ value: action.arg }).catch(console.error)
+					}
 					break
 
 				case BannerActionType.SetModel: {
@@ -152,15 +148,17 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	 * Dismissal handler - updates version tracking
 	 */
 	const handleBannerDismiss = useCallback((bannerId: string) => {
-		// !! Banner versions are deprecated. Stop using this pattern. !!
+		// !! Do not continue use these version numbers or add new banners that don't have unique IDs. !!
+		// Banner versions are **deprecated**. Going forward, we are tracking which banners have
+		// been dismissed using the **banner ID**.
 		if (bannerId.startsWith("info-banner")) {
-			StateServiceClient.updateInfoBannerVersion({ value: CURRENT_INFO_BANNER_VERSION }).catch(console.error)
+			StateServiceClient.updateInfoBannerVersion({ value: 1 }).catch(console.error)
 		} else if (bannerId.startsWith("new-model")) {
-			StateServiceClient.updateModelBannerVersion({ value: CURRENT_MODEL_BANNER_VERSION }).catch(console.error)
+			StateServiceClient.updateModelBannerVersion({ value: 1 }).catch(console.error)
 		} else if (bannerId.startsWith("cli-")) {
-			StateServiceClient.updateCliBannerVersion({ value: CURRENT_CLI_BANNER_VERSION }).catch(console.error)
+			StateServiceClient.updateCliBannerVersion({ value: 1 }).catch(console.error)
 		} else {
-			// Mark the banner as dismissed by it's ID.
+			// Mark the banner as dismissed by its ID.
 			StateServiceClient.dismissBanner({ value: bannerId }).catch(console.error)
 		}
 	}, [])
