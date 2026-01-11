@@ -124,7 +124,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 					break
 
 				case BannerActionType.ShowApiSettings:
-					navigateToSettings("api")
+					navigateToSettings("api-config")
 					break
 
 				case BannerActionType.ShowFeatureSettings:
