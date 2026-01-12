@@ -258,7 +258,7 @@ async function handleGeminiRequest(
 
 		if (errorMessage.includes("command not found") || errorMessage.includes("not recognized")) {
 			stream.markdown(
-				`\n\n💡 **Tip:** Install Gemini CLI with:\n\`\`\`bash\nnpm install -g @anthropic-ai/claude-code\n\`\`\``,
+				`\n\n💡 **Tip:** Install Gemini CLI with:\n\`\`\`bash\nnpm install -g @google/generative-ai-cli\n\`\`\``,
 			)
 		}
 
