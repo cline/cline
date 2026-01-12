@@ -43,10 +43,6 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 	private config?: TaskConfig
 	private pathResolver?: PathResolver
 	private providerOps?: FileProviderOperations
-	private partialPreviewState?: {
-		originalFiles: Record<string, string>
-		currentPreviewPath?: string
-	}
 
 	constructor(private validator: ToolValidator) {}
 
@@ -85,19 +81,11 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		}
 	}
 
-	private ensurePartialPreviewState(): { originalFiles: Record<string, string>; currentPreviewPath?: string } {
-		if (!this.partialPreviewState) {
-			this.partialPreviewState = { originalFiles: {} }
-		}
-		return this.partialPreviewState
-	}
-
 	private async previewPatchStream(rawInput: string, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
 		const config = uiHelpers.getConfig()
 		const provider = config.services.diffViewProvider
 		this.initializeHelpers(config)
 
-		const state = this.ensurePartialPreviewState()
 		const lines = this.stripBashWrapper(rawInput.split("\n"))
 
 		// Extract the first operation path and type
@@ -211,12 +199,6 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		if (stream.content === undefined) {
 			return
 		}
-
-		try {
-			await provider.update(stream.content, false)
-		} catch {
-			// Ignore streaming errors
-		}
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
@@ -238,7 +220,6 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				// Ignore reset errors
 			}
 		}
-		this.partialPreviewState = undefined
 
 		try {
 			const lines = this.preprocessLines(rawInput)

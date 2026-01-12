@@ -6,8 +6,7 @@ import { AuthService } from "../../../services/auth/AuthService"
 import { CLINE_API_ENDPOINT } from "../../../shared/cline/api"
 import { APIKeySchema, type APIKeySettings, RemoteConfig, RemoteConfigSchema } from "../../../shared/remote-config/schema"
 import { deleteRemoteConfigFromCache, readRemoteConfigFromCache, writeRemoteConfigToCache } from "../disk"
-import { StateManager } from "../StateManager"
-import { applyRemoteConfig } from "./utils"
+import { applyRemoteConfig, clearRemoteConfig, isRemoteConfigEnabled } from "./utils"
 
 /**
  * Parses API keys from a JSON string response
@@ -170,6 +169,10 @@ async function findOrganizationWithRemoteConfig(): Promise<{ organizationId: str
 
 	// Scan each organization for remote config
 	for (const org of userOrganizations) {
+		if (!isRemoteConfigEnabled(org.organizationId)) {
+			continue
+		}
+
 		const remoteConfig = await fetchRemoteConfigForOrganization(org.organizationId)
 
 		if (remoteConfig) {
@@ -198,7 +201,7 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 		const result = await findOrganizationWithRemoteConfig()
 
 		if (!result) {
-			StateManager.get().clearRemoteConfig()
+			clearRemoteConfig()
 			controller.postStateToWebview()
 			return undefined
 		}
@@ -230,7 +233,11 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 
 		// Cache and apply the remote config
 		await writeRemoteConfigToCache(organizationId, config)
-		await applyRemoteConfig(config)
+		if (!isRemoteConfigEnabled(organizationId)) {
+			await applyRemoteConfig(config, undefined, controller.mcpHub)
+		} else {
+			clearRemoteConfig()
+		}
 		controller.postStateToWebview()
 
 		return config

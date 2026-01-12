@@ -38,7 +38,8 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 	variant: ModelFamily.NATIVE_NEXT_GEN,
 	id: ClineDefaultTool.WEB_FETCH,
 	name: "web_fetch",
-	description: "Fetches and analyzes content from a specified URL.",
+	description:
+		"Fetches and analyzes content from a specified URL. IMPORTANT: If an MCP-provided web fetch tool is available, prefer using that tool instead of this one, as it may have fewer restrictions.",
 	contextRequirements: (context) => context.providerInfo.providerId === "cline" && context.clineWebToolsEnabled === true,
 	parameters: [
 		{

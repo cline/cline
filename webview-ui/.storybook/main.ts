@@ -8,6 +8,7 @@ const config: StorybookConfig = {
 		// Define environment variables for Storybook
 		config.define = {
 			...config.define,
+			"process.platform": JSON.stringify(process?.platform),
 			"process.env": {
 				...process.env,
 				IS_DEV: JSON.stringify(true),

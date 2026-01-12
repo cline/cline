@@ -1,12 +1,16 @@
 import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
 import { RemoteConfig } from "@shared/remote-config/schema"
 import { RemoteConfigFields } from "@shared/storage/state-keys"
-import { getTelemetryService } from "@/services/telemetry"
+import { AuthService } from "@/services/auth/AuthService"
+import { Logger } from "@/services/logging/Logger"
+import { getTelemetryService, telemetryService } from "@/services/telemetry"
 import { OpenTelemetryClientProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryClientProvider"
 import { OpenTelemetryTelemetryProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider"
 import { type TelemetryService } from "@/services/telemetry/TelemetryService"
-import { OpenTelemetryClientValidConfig, remoteConfigToOtelConfig } from "@/shared/services/config/otel-config"
+import { isOpenTelemetryConfigValid, remoteConfigToOtelConfig } from "@/shared/services/config/otel-config"
+import { ensureSettingsDirectoryExists } from "../disk"
 import { StateManager } from "../StateManager"
+import { syncRemoteMcpServersToSettings } from "./syncRemoteMcpServers"
 
 /**
  * Transforms RemoteConfig schema to RemoteConfigFields shape
@@ -106,6 +110,9 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		if (openAiSettings.azureApiVersion !== undefined) {
 			transformed.azureApiVersion = openAiSettings.azureApiVersion
 		}
+		if (openAiSettings.azureIdentity !== undefined) {
+			transformed.azureIdentity = openAiSettings.azureIdentity
+		}
 	}
 
 	// Map AwsBedrock provider settings
@@ -186,8 +193,8 @@ const REMOTE_CONFIG_OTEL_PROVIDER_ID = "OpenTelemetryRemoteConfiguredProvider"
 async function applyRemoteOTELConfig(transformed: Partial<RemoteConfigFields>, telemetryService: TelemetryService) {
 	try {
 		const otelConfig = remoteConfigToOtelConfig(transformed)
-		if (otelConfig.enabled) {
-			const client = new OpenTelemetryClientProvider(otelConfig as OpenTelemetryClientValidConfig)
+		if (isOpenTelemetryConfigValid(otelConfig)) {
+			const client = new OpenTelemetryClientProvider(otelConfig)
 
 			if (client.meterProvider || client.loggerProvider) {
 				telemetryService.addProvider(
@@ -203,23 +210,45 @@ async function applyRemoteOTELConfig(transformed: Partial<RemoteConfigFields>, t
 	}
 }
 
-/**
- * Applies remote config to the StateManager's remote config cache
- * @param remoteConfig The remote configuration object to apply
- */
-export async function applyRemoteConfig(remoteConfig?: RemoteConfig): Promise<void> {
-	const stateManager = StateManager.get()
-	const telemetryService = await getTelemetryService()
+export function clearRemoteConfig() {
+	try {
+		const stateManager = StateManager.get()
 
-	// If no remote config provided, clear the cache and relevant state
-	if (!remoteConfig) {
 		stateManager.clearRemoteConfig()
 		telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
 		// the remote config cline rules toggle state is stored in global state
 		stateManager.setGlobalState("remoteRulesToggles", {})
 		stateManager.setGlobalState("remoteWorkflowToggles", {})
+
+		// clear secrets
+		stateManager.setSecret("remoteLiteLlmApiKey", undefined)
+	} catch (err) {
+		Logger.error("[REMOTE CONFIG] Failed to clear remote config", err)
+	}
+}
+
+/**
+ * Applies remote config to the StateManager's remote config cache
+ * @param remoteConfig The remote configuration object to apply
+ * @param settingsDirectoryPath Path to the settings directory
+ * @param mcpHub Optional McpHub instance to prevent watcher triggers during sync
+ */
+export async function applyRemoteConfig(
+	remoteConfig?: RemoteConfig,
+	settingsDirectoryPath?: string,
+	mcpHub?: any,
+): Promise<void> {
+	const stateManager = StateManager.get()
+	const telemetryService = await getTelemetryService()
+
+	// If no remote config provided, clear the cache and relevant state
+	if (!remoteConfig) {
+		clearRemoteConfig()
 		return
 	}
+
+	// Save previousRemoteMCPServers before clearing cache, this is needed for next sync to detect removals)
+	const previousRemoteMCPServers = stateManager.getRemoteConfigSettings().previousRemoteMCPServers
 
 	// Transform remote config to state shape
 	// These are then set to the remote config cache in the StateManager
@@ -245,5 +274,47 @@ export async function applyRemoteConfig(remoteConfig?: RemoteConfig): Promise<vo
 		stateManager.setRemoteConfigField(key as keyof RemoteConfigFields, value)
 	}
 
+	// Restore previousRemoteMCPServers across cache clears
+	if (previousRemoteMCPServers !== undefined) {
+		stateManager.setRemoteConfigField("previousRemoteMCPServers", previousRemoteMCPServers)
+	}
+
+	// Sync remote MCP servers to settings file (AFTER cache is populated, so sync can read previous state)
+	if (remoteConfig.remoteMCPServers !== undefined) {
+		try {
+			// Get settings directory path - use provided path or get it from disk helper
+			const settingsPath = settingsDirectoryPath || (await ensureSettingsDirectoryExists())
+			await syncRemoteMcpServersToSettings(remoteConfig.remoteMCPServers, settingsPath, mcpHub)
+			// Store current remote servers list for next sync to detect removals
+			stateManager.setRemoteConfigField("previousRemoteMCPServers", remoteConfig.remoteMCPServers)
+		} catch (error) {
+			console.error("[RemoteConfig] Failed to sync remote MCP servers to settings:", error)
+			// Continue with other config application even if MCP sync fails
+		}
+	}
 	await applyRemoteOTELConfig(transformed, telemetryService)
+}
+
+const canDisableRemoteConfig = (orgId: string) => {
+	// Check if they're an admin/owner
+	const authService = AuthService.getInstance()
+	const userOrgs = authService.getUserOrganizations()
+
+	if (!userOrgs) {
+		return false
+	}
+
+	const org = userOrgs.find((org) => org.organizationId === orgId)
+	const isAdminOrOwner = org?.roles?.some((role) => role === "admin" || role === "owner")
+
+	return isAdminOrOwner
+}
+
+export const isRemoteConfigEnabled = (orgId: string) => {
+	const stateManager = StateManager.get()
+	const hasOptedOut = stateManager.getGlobalSettingsKey("optOutOfRemoteConfig")
+
+	const isDisabled = hasOptedOut && canDisableRemoteConfig(orgId)
+
+	return !isDisabled
 }

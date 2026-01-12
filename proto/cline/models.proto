@@ -49,6 +49,8 @@ service ModelsService {
   rpc refreshOcaModels(StringRequest) returns (OcaCompatibleModelInfo);
   // Fetches available models from AIhubmix
   rpc getAihubmixModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Refreshes and returns Vercel AI Gateway models
+  rpc refreshVercelAiGatewayModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
 }
 
 // List of VS Code LM models
@@ -229,6 +231,7 @@ message ModelsApiOptions {
   optional string minimax_api_line = 41;
   optional string aihubmix_base_url = 42;
   optional string aihubmix_app_code = 43;
+  optional bool azure_identity = 44;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -380,6 +383,10 @@ message OcaModelInfo {
   string model_name = 17;
   // The API format used by this model
   optional ApiFormat api_format = 18;
+  // Supports reasoning
+  optional bool supports_reasoning = 19;
+  // reasoning effort options
+  repeated string reasoning_effort_options = 20;
 }
 
 // Aggregated OCA model catalog keyed by model identifier
@@ -567,6 +574,7 @@ message ModelsApiConfiguration {
   optional string aihubmix_base_url = 83;
   optional string aihubmix_app_code = 84;
   optional string nous_research_api_key = 85;
+  optional bool azure_identity = 86;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -602,12 +610,13 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 130;
   optional string plan_mode_oca_model_id = 131;
   optional OcaModelInfo plan_mode_oca_model_info = 132;
-  optional string plan_mode_hicap_model_id = 133;
-  optional OpenRouterModelInfo plan_mode_hicap_model_info = 134;
-  optional string plan_mode_aihubmix_model_id = 135;
-  optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 136;
-  optional string plan_mode_nous_research_model_id = 137;
-  optional string gemini_plan_mode_thinking_level = 138;
+  optional string plan_mode_oca_reasoning_effort = 133;
+  optional string plan_mode_hicap_model_id = 134;
+  optional OpenRouterModelInfo plan_mode_hicap_model_info = 135;
+  optional string plan_mode_aihubmix_model_id = 136;
+  optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 137;
+  optional string plan_mode_nous_research_model_id = 138;
+  optional string gemini_plan_mode_thinking_level = 139;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -643,10 +652,11 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 230;
   optional string act_mode_oca_model_id = 231;
   optional OcaModelInfo act_mode_oca_model_info = 232;
-  optional string act_mode_hicap_model_id = 233;
-  optional OpenRouterModelInfo act_mode_hicap_model_info = 234;
-  optional string act_mode_aihubmix_model_id = 235;
-  optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 236;
-  optional string act_mode_nous_research_model_id = 237;
-  optional string gemini_act_mode_thinking_level = 238;
+  optional string act_mode_oca_reasoning_effort = 233;
+  optional string act_mode_hicap_model_id = 234;
+  optional OpenRouterModelInfo act_mode_hicap_model_info = 235;
+  optional string act_mode_aihubmix_model_id = 236;
+  optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 237;
+  optional string act_mode_nous_research_model_id = 238;
+  optional string gemini_act_mode_thinking_level = 239;
 }
