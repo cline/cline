@@ -37,7 +37,6 @@ const SETTINGS_ONLY_PROVIDERS: ApiProvider[] = [
 	"ollama",
 	"lmstudio",
 	"vscode-lm",
-	"litellm",
 	"requesty",
 	"hicap",
 	"dify",
@@ -97,6 +96,8 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		showHistory,
 		showAccount,
 		favoritedModelIds,
+		basetenModels,
+		liteLlmModels,
 	} = useExtensionState()
 	const { handleModeFieldChange, handleModeFieldsChange, handleFieldsChange } = useApiConfigurationHandlers()
 
@@ -177,7 +178,10 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		}
 
 		// Use centralized helper for static provider models
-		const models = getModelsForProvider(selectedProvider, apiConfiguration)
+		const models = getModelsForProvider(selectedProvider, apiConfiguration, {
+			basetenModels,
+			liteLlmModels,
+		})
 		if (models) {
 			return Object.entries(models).map(([id, info]) => ({
 				id,
@@ -188,7 +192,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		}
 
 		return []
-	}, [selectedProvider, openRouterModels, vercelAiGatewayModels, apiConfiguration])
+	}, [selectedProvider, openRouterModels, vercelAiGatewayModels, apiConfiguration, basetenModels, liteLlmModels])
 
 	// Multi-word substring search - all words must match somewhere in id/name/provider
 	const matchesSearch = useCallback((model: ModelItem, query: string): boolean => {
