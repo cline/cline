@@ -1,21 +1,33 @@
 import { BooleanRequest, EmptyRequest, StringArrayRequest, StringRequest } from "@shared/proto/cline/common"
 import { GetTaskHistoryRequest, TaskFavoriteRequest } from "@shared/proto/cline/task"
-import { VSCodeCheckbox, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse, { FuseResult } from "fuse.js"
+import { FunnelIcon } from "lucide-react"
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
 import { Virtuoso } from "react-virtuoso"
 import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { cn } from "@/lib/utils"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { getEnvironmentColor } from "@/utils/environmentColors"
-import { formatLargeNumber, formatSize } from "@/utils/format"
+import { formatSize } from "@/utils/format"
+import HistoryViewItem from "./HistoryViewItem"
 
 type HistoryViewProps = {
 	onDone: () => void
 }
 
 type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRelevant"
+
+const HISTORY_FILTERS = {
+	newest: "Newest",
+	oldest: "Oldest",
+	mostExpensive: "Most Expensive",
+	mostTokens: "Most Tokens",
+	mostRelevant: "Most Relevant",
+	workspaceOnly: "Workspace Only",
+	favoritesOnly: "Favorites Only",
+}
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const extensionStateContext = useExtensionState()
@@ -270,7 +282,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					}
 				`}
 			</style>
-			<div className="fixed overflow-hidden inset-0 flex flex-col">
+
+			<div className="fixed overflow-hidden inset-0 flex flex-col w-full">
+				{/* HEADER */}
 				<div className="flex justify-between items-center py-2.5 px-5">
 					<h3
 						className="m-0"
@@ -281,8 +295,11 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					</h3>
 					<Button onClick={() => onDone()}>Done</Button>
 				</div>
+
+				{/* FILTERS */}
 				<div className="py-1.5 px-4">
 					<div className="flex flex-col gap-3">
+						{/* SEARCH BOX */}
 						<VSCodeTextField
 							className="w-full"
 							onInput={(e) => {
@@ -313,197 +330,108 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								/>
 							)}
 						</VSCodeTextField>
-						<VSCodeRadioGroup
-							className="flex flex-wrap"
-							onChange={(e) => setSortOption((e.target as HTMLInputElement).value as SortOption)}
-							value={sortOption}>
-							<VSCodeRadio value="newest">Newest</VSCodeRadio>
-							<VSCodeRadio value="oldest">Oldest</VSCodeRadio>
-							<VSCodeRadio value="mostExpensive">Most Expensive</VSCodeRadio>
-							<VSCodeRadio value="mostTokens">Most Tokens</VSCodeRadio>
-							<VSCodeRadio disabled={!searchQuery} style={{ opacity: searchQuery ? 1 : 0.5 }} value="mostRelevant">
-								Most Relevant
-							</VSCodeRadio>
-						</VSCodeRadioGroup>
-						<div className="flex flex-wrap -mt-2">
-							<VSCodeRadio
-								checked={showCurrentWorkspaceOnly}
-								onClick={() => setShowCurrentWorkspaceOnly(!showCurrentWorkspaceOnly)}>
-								<span className="flex items-center gap-[3px]">
-									<span className="codicon codicon-folder text-button-background" />
-									Workspace
-								</span>
-							</VSCodeRadio>
-							<VSCodeRadio checked={showFavoritesOnly} onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}>
-								<span className="flex items-center gap-[3px]">
-									<span className="codicon codicon-star-full text-button-background" />
-									Favorites
-								</span>
-							</VSCodeRadio>
+						{/* REPLACE VSCODE RADIO GROUP */}
+						<div className="flex justify-between">
+							<div></div>
+							<Select
+								onValueChange={(value) => {
+									// Handle sort options
+									if (
+										value === "newest" ||
+										value === "oldest" ||
+										value === "mostExpensive" ||
+										value === "mostTokens" ||
+										value === "mostRelevant"
+									) {
+										if (value === "mostRelevant" && !searchQuery) {
+											// Don't allow selecting mostRelevant without a search query
+											return
+										}
+										setSortOption(value as SortOption)
+										if (value !== "mostRelevant") {
+											setLastNonRelevantSort(value as SortOption)
+										}
+									}
+									// Handle filter toggles
+									else if (value === "workspaceOnly") {
+										setShowCurrentWorkspaceOnly(!showCurrentWorkspaceOnly)
+									} else if (value === "favoritesOnly") {
+										setShowFavoritesOnly(!showFavoritesOnly)
+									}
+								}}
+								value={sortOption}>
+								<SelectTrigger className="border-0 cursor-pointer" showIcon={false}>
+									<FunnelIcon className="text-foreground" />
+									{/* <span className="text-xs">
+										{HISTORY_FILTERS[sortOption]}
+										{showCurrentWorkspaceOnly && " Workspace"}
+										{showFavoritesOnly && " Favorites"}
+									</span> */}
+								</SelectTrigger>
+								<SelectContent position="popper">
+									{Object.entries(HISTORY_FILTERS).map(([key, value]) => {
+										const isSortOption = [
+											"newest",
+											"oldest",
+											"mostExpensive",
+											"mostTokens",
+											"mostRelevant",
+										].includes(key)
+										const isFilterOption = ["workspaceOnly", "favoritesOnly"].includes(key)
+										const isSelected = isSortOption
+											? sortOption === key
+											: key === "workspaceOnly"
+												? showCurrentWorkspaceOnly
+												: key === "favoritesOnly"
+													? showFavoritesOnly
+													: false
+										const isDisabled = key === "mostRelevant" && !searchQuery
+
+										return (
+											<SelectItem
+												className={isSelected ? "bg-button-background/30" : ""}
+												disabled={isDisabled}
+												key={key}
+												value={key}>
+												<span className="flex items-center gap-2">
+													{isFilterOption && (
+														<span
+															className={`codicon ${
+																key === "workspaceOnly" ? "codicon-folder" : "codicon-star-full"
+															} ${isSelected ? "text-button-background" : ""}`}
+														/>
+													)}
+													{value}
+												</span>
+											</SelectItem>
+										)
+									})}
+								</SelectContent>
+							</Select>
 						</div>
 					</div>
 				</div>
-				<div className="flex-grow overflow-y-auto m-0">
+
+				{/* HISTORY ITEMS */}
+				<div className="flex-grow overflow-y-auto m-0 w-full">
 					<Virtuoso
 						className="flex-grow overflow-y-scroll"
 						data={taskHistorySearchResults}
 						itemContent={(index, item) => (
-							<div
-								className="history-item"
-								key={item.id}
-								style={{
-									cursor: "pointer",
-									borderBottom:
-										index < taskHistory.length - 1 ? "1px solid var(--vscode-panel-border)" : "none",
-									display: "flex",
-								}}>
-								<VSCodeCheckbox
-									checked={selectedItems.includes(item.id)}
-									className="pl-3 pr-1 py-auto"
-									onClick={(e) => {
-										const checked = (e.target as HTMLInputElement).checked
-										handleHistorySelect(item.id, checked)
-										e.stopPropagation()
-									}}
-								/>
-								<div
-									className="flex flex-col gap-2 py-3 px-5 pl-4 relative flex-grow"
-									onClick={() => handleShowTaskWithId(item.id)}>
-									<div className="flex justify-between items-center">
-										<span
-											style={{
-												color: "var(--vscode-descriptionForeground)",
-												fontWeight: 500,
-												fontSize: "0.85em",
-												textTransform: "uppercase",
-											}}>
-											{formatDate(item.ts)}
-										</span>
-										<div className="flex gap-1">
-											{/* only show delete button if task not favorited */}
-											{!(pendingFavoriteToggles[item.id] ?? item.isFavorited) && (
-												<Button
-													aria-label="Delete"
-													className="delete-button p-0"
-													onClick={(e) => {
-														e.stopPropagation()
-														handleDeleteHistoryItem(item.id)
-													}}
-													variant="icon">
-													<div className="flex items-center gap-1 text-xs">
-														<span className="codicon codicon-trash"></span>
-														{formatSize(item.size)}
-													</div>
-												</Button>
-											)}
-											<Button
-												aria-label={item.isFavorited ? "Remove from favorites" : "Add to favorites"}
-												className="p-0"
-												onClick={(e) => {
-													e.stopPropagation()
-													toggleFavorite(item.id, item.isFavorited || false)
-												}}
-												variant="icon">
-												<div
-													className={cn(
-														`opacity-70 codicon ${
-															pendingFavoriteToggles[item.id] !== undefined
-																? pendingFavoriteToggles[item.id]
-																	? "codicon-star-full"
-																	: "codicon-star-empty"
-																: item.isFavorited
-																	? "codicon-star-full"
-																	: "codicon-star-empty"
-														}`,
-														{
-															"text-button-background opacity-100 block":
-																pendingFavoriteToggles[item.id] ?? item.isFavorited,
-														},
-													)}
-												/>
-											</Button>
-										</div>
-									</div>
-
-									<div className="mb-2 relative">
-										<div className="line-clamp-3 overflow-hidden break-words whitespace-pre-wrap">
-											<span
-												className="ph-no-capture"
-												dangerouslySetInnerHTML={{
-													__html: item.task,
-												}}
-											/>
-										</div>
-									</div>
-									<div className="flex flex-col gap-1">
-										<div className="flex items-center justify-between">
-											<div className="flex items-center gap-1 flex-wrap">
-												<span className="font-medium text-description">Tokens:</span>
-												<span className="flex items-center gap-1 text-description">
-													<i
-														className="codicon codicon-arrow-up font-bold -mb-0.5"
-														style={{
-															fontSize: "12px",
-														}}
-													/>
-													{formatLargeNumber(item.tokensIn || 0)}
-												</span>
-												<span className="flex items-center gap-1 text-description">
-													<i
-														className="codicon codicon-arrow-down font-bold -mb-0.5"
-														style={{
-															fontSize: "12px",
-														}}
-													/>
-													{formatLargeNumber(item.tokensOut || 0)}
-												</span>
-											</div>
-											{!item.totalCost && <ExportButton itemId={item.id} />}
-										</div>
-
-										{!!(item.cacheWrites || item.cacheReads) && (
-											<div className="flex items-center gap-1 flex-wrap">
-												<span className="font-medium text-description">Cache:</span>
-												{item.cacheWrites > 0 && (
-													<span className="flex items-center gap-1 text-description">
-														<i
-															className="codicon codicon-arrow-right font-bold -mb-[1px]"
-															style={{
-																fontSize: "12px",
-															}}
-														/>
-														{formatLargeNumber(item.cacheWrites)}
-													</span>
-												)}
-												{item.cacheReads > 0 && (
-													<span className="flex items-center gap-1 text-description">
-														<i
-															className="codicon codicon-arrow-left font-bold mb-0"
-															style={{
-																fontSize: "12px",
-															}}
-														/>
-														{formatLargeNumber(item.cacheReads)}
-													</span>
-												)}
-											</div>
-										)}
-										{item.modelId && <div className="text-description">Model: {item.modelId}</div>}
-										{!!item.totalCost && (
-											<div className="flex justify-between items-center -mt-0.5">
-												<div className="flex items-center gap-1">
-													<span className="font-medium text-description">API Cost:</span>
-													<span className="text-description">${item.totalCost?.toFixed(4)}</span>
-												</div>
-												<ExportButton itemId={item.id} />
-											</div>
-										)}
-									</div>
-								</div>
-							</div>
+							<HistoryViewItem
+								handleDeleteHistoryItem={handleDeleteHistoryItem}
+								handleHistorySelect={handleHistorySelect}
+								index={index}
+								item={item}
+								pendingFavoriteToggles={pendingFavoriteToggles}
+								selectedItems={selectedItems}
+								toggleFavorite={toggleFavorite}
+							/>
 						)}
 					/>
 				</div>
+
+				{/* FOOTER */}
 				<div className="p-2.5 border-t border-t-border-panel">
 					<div className="flex gap-2.5 mb-2.5">
 						<Button className="flex-1" onClick={() => handleBatchHistorySelect(true)} variant="secondary">
@@ -545,21 +473,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		</>
 	)
 }
-
-const ExportButton = ({ itemId }: { itemId: string }) => (
-	<Button
-		aria-label="Export"
-		className="export-button"
-		onClick={(e) => {
-			e.stopPropagation()
-			TaskServiceClient.exportTaskWithId(StringRequest.create({ value: itemId })).catch((err) =>
-				console.error("Failed to export task:", err),
-			)
-		}}
-		variant="icon">
-		<span className="opacity-100 text-sm font-medium">EXPORT</span>
-	</Button>
-)
 
 // https://gist.github.com/evenfrost/1ba123656ded32fb7a0cd4651efd4db0
 export const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassName: string = "history-item-highlight") => {
