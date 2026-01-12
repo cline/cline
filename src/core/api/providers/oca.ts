@@ -303,7 +303,6 @@ export class OcaHandler implements ApiHandler {
 	}
 
 	async *createMessageResponsesApi(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		console.log("Uses Responses API")
 		const client = this.ensureClient()
 
 		// Convert messages to Responses API input format
