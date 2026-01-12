@@ -196,7 +196,10 @@ const baseConfig = {
 // Extension-specific configuration
 const extensionConfig = {
 	...baseConfig,
-	entryPoints: ["src/extension.ts"],
+	entryPoints: {
+		"cline-core": "src/standalone/cline-core.ts",
+		"cline-acp": "src/standalone/cline-acp.ts",
+	},
 	outfile: `${destDir}/extension.js`,
 	external: ["vscode"],
 }

@@ -1,0 +1,75 @@
+
+---
+title: "ACP Integration (Zed + Custom Clients)"
+description: "Run Cline as an Agent Client Protocol (ACP) server and connect it to Zed or any ACP-compatible client."
+---
+
+## Overview
+
+Cline ships an ACP-compatible stdio server so you can run it inside editors like Zed or any client that speaks the Agent Client Protocol.
+
+The ACP entrypoint lives at `dist-standalone/cline-acp.js` after building the standalone bundle.
+
+## Build the ACP server
+
+From the Cline repo root:
+
+```bash
+npm install
+npm run compile-standalone
+```
+
+The ACP server will be available at:
+
+```text
+dist-standalone/cline-acp.js
+```
+
+## Run manually
+
+```bash
+node dist-standalone/cline-acp.js --config ~/.cline
+```
+
+Notes:
+
+- `--config` sets the Cline data directory (same as `CLINE_DIR`). If omitted, Cline defaults to `~/.cline`.
+- Logs go to stderr to keep ACP JSON-RPC traffic clean on stdout.
+
+## Connect to Zed
+
+Add a custom ACP agent to your Zed `settings.json` (open with `zed: open settings`):
+
+```json [settings]
+{
+  "agent_servers": {
+    "Cline (ACP)": {
+      "type": "custom",
+      "command": "node",
+      "args": [
+        "/absolute/path/to/cline/dist-standalone/cline-acp.js",
+        "--config",
+        "/absolute/path/to/.cline"
+      ],
+      "env": {}
+    }
+  }
+}
+```
+
+Then open the Agent Panel in Zed and start a new thread for **Cline (ACP)**.
+
+Zed will:
+
+- Provide the workspace `cwd` for each session.
+- Forward MCP servers you configured in Zed to Cline over ACP.
+
+## Limitations
+
+- Cline currently supports one ACP session at a time; starting a new session closes the previous one.
+- Some Cline UI affordances (like special buttons for "start new task") are represented as standard prompts in ACP clients.
+
+## Troubleshooting
+
+- Check Zed’s ACP logs (`Help` → `Open ACP Logs`) if the agent fails to start.
+- Ensure the path to `cline-acp.js` is absolute and your Node binary is on `PATH`.
