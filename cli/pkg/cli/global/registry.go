@@ -24,7 +24,7 @@ type InstanceRegistry struct {
 	configPath  string
 }
 
-// NewInstanceRegistry creates a new client registry
+// NewInstanceRegistry creates a new instance registry
 func NewInstanceRegistry(configPath string) *InstanceRegistry {
 	lockManager, err := sqlite.NewLockManager(configPath)
 	if err != nil {
