@@ -1,8 +1,23 @@
 # Changelog
 
+## [3.48.0]
+
+### Added
+
+- Add Skills system for reusable, on-demand agent instructions
+- Add new websearch tooling in Cline provider
+- Add zai-glm-4.7 to Cerebras model list
+- Add model refresh and improve reasoning support for Vercel AI Gateway
+
+### Fixed
+
+- Revert #8341 due to regressions in diff view/document truncation (see #8423, #8429)
+- Fixed extension crash when using context menu selector
+
 ## [3.47.0]
 
 ### Added
+
 - Added experimental support for Background Edits (allows editing files in background without opening the diff view)
 - Updated free model to MiniMax M2.1 (replacing MiniMax M2)
 - Added support for Azure based identity authentication in OpenAI Compatible provider and Azure OpenAI

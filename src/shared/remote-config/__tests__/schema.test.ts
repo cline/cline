@@ -214,6 +214,89 @@ describe("Remote Config Schema", () => {
 		})
 	})
 
+	describe("RemoteMCPServersSchema", () => {
+		it("should accept remoteMCPServers with alwaysEnabled true", () => {
+			const config = {
+				version: "v1",
+				remoteMCPServers: [{ name: "always-on-server", url: "https://example.com/mcp", alwaysEnabled: true }],
+			}
+
+			const result = RemoteConfigSchema.parse(config)
+			expect(result.remoteMCPServers).to.have.lengthOf(1)
+			expect(result.remoteMCPServers?.[0].name).to.equal("always-on-server")
+			expect(result.remoteMCPServers?.[0].url).to.equal("https://example.com/mcp")
+			expect(result.remoteMCPServers?.[0].alwaysEnabled).to.equal(true)
+		})
+
+		it("should accept remoteMCPServers with alwaysEnabled false", () => {
+			const config = {
+				version: "v1",
+				remoteMCPServers: [{ name: "toggle-server", url: "https://example.com/mcp", alwaysEnabled: false }],
+			}
+
+			const result = RemoteConfigSchema.parse(config)
+			expect(result.remoteMCPServers).to.have.lengthOf(1)
+			expect(result.remoteMCPServers?.[0].alwaysEnabled).to.equal(false)
+		})
+
+		it("should accept remoteMCPServers without alwaysEnabled (defaults to undefined)", () => {
+			const config = {
+				version: "v1",
+				remoteMCPServers: [{ name: "default-server", url: "https://example.com/mcp" }],
+			}
+
+			const result = RemoteConfigSchema.parse(config)
+			expect(result.remoteMCPServers).to.have.lengthOf(1)
+			expect(result.remoteMCPServers?.[0].name).to.equal("default-server")
+			expect(result.remoteMCPServers?.[0].url).to.equal("https://example.com/mcp")
+			expect(result.remoteMCPServers?.[0].alwaysEnabled).to.be.undefined
+		})
+
+		it("should accept multiple remoteMCPServers with mixed alwaysEnabled values", () => {
+			const config = {
+				version: "v1",
+				remoteMCPServers: [
+					{ name: "always-on", url: "https://example1.com/mcp", alwaysEnabled: true },
+					{ name: "toggle", url: "https://example2.com/mcp", alwaysEnabled: false },
+					{ name: "default", url: "https://example3.com/mcp" },
+				],
+			}
+
+			const result = RemoteConfigSchema.parse(config)
+			expect(result.remoteMCPServers).to.have.lengthOf(3)
+			expect(result.remoteMCPServers?.[0].alwaysEnabled).to.equal(true)
+			expect(result.remoteMCPServers?.[1].alwaysEnabled).to.equal(false)
+			expect(result.remoteMCPServers?.[2].alwaysEnabled).to.be.undefined
+		})
+
+		it("should reject remoteMCPServers with missing name", () => {
+			const config = {
+				version: "v1",
+				remoteMCPServers: [{ url: "https://example.com/mcp", alwaysEnabled: true }],
+			}
+
+			expect(() => RemoteConfigSchema.parse(config)).to.throw()
+		})
+
+		it("should reject remoteMCPServers with missing url", () => {
+			const config = {
+				version: "v1",
+				remoteMCPServers: [{ name: "test-server", alwaysEnabled: true }],
+			}
+
+			expect(() => RemoteConfigSchema.parse(config)).to.throw()
+		})
+
+		it("should reject remoteMCPServers with invalid alwaysEnabled type", () => {
+			const config = {
+				version: "v1",
+				remoteMCPServers: [{ name: "test-server", url: "https://example.com/mcp", alwaysEnabled: "yes" }],
+			}
+
+			expect(() => RemoteConfigSchema.parse(config)).to.throw()
+		})
+	})
+
 	describe("RemoteConfigSchema", () => {
 		it("should accept valid complete remote config", () => {
 			const validConfig: RemoteConfig = {
