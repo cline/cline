@@ -7,10 +7,10 @@ import { ClineEnv } from "@/config"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
 import { buildClineExtraHeaders } from "@/services/EnvUtils"
+import { Logger } from "@/services/logging/Logger"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch, getAxiosSettings } from "@/shared/net"
-import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
@@ -35,12 +35,9 @@ export class ClineHandler implements ApiHandler {
 	private clineAccountService = ClineAccountService.getInstance()
 	private _authService: AuthService
 	private client: OpenAI | undefined
+	private readonly _baseUrl = ClineEnv.config().apiBaseUrl
 	lastGenerationId?: string
 	private lastRequestId?: string
-
-	private get _baseUrl(): string {
-		return ClineEnv.config().apiBaseUrl
-	}
 
 	constructor(options: ClineHandlerOptions) {
 		this.options = options
@@ -129,7 +126,7 @@ export class ClineHandler implements ApiHandler {
 				// openrouter returns an error object instead of the openai sdk throwing an error
 				if ("error" in chunk) {
 					const error = chunk.error as OpenRouterErrorResponse["error"]
-					Logger.error(`Cline API Error: ${error?.code} - ${error?.message}`)
+					console.error(`Cline API Error: ${error?.code} - ${error?.message}`)
 					// Include metadata in the error message if available
 					const metadataStr = error.metadata ? `\nMetadata: ${JSON.stringify(error.metadata, null, 2)}` : ""
 					throw new Error(`Cline API Error ${error.code}: ${error.message}${metadataStr}`)
@@ -146,7 +143,7 @@ export class ClineHandler implements ApiHandler {
 					const choiceWithError = choice as any
 					if (choiceWithError.error) {
 						const error = choiceWithError.error
-						Logger.error(`Cline Mid-Stream Error: ${error.code || error.type || "Unknown"} - ${error.message}`)
+						console.error(`Cline Mid-Stream Error: ${error.code || error.type || "Unknown"} - ${error.message}`)
 						throw new Error(`Cline Mid-Stream Error: ${error.code || error.type || "Unknown"} - ${error.message}`)
 					} else {
 						throw new Error(
@@ -202,7 +199,10 @@ export class ClineHandler implements ApiHandler {
 					// @ts-ignore-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 
-					if (["kwaipilot/kat-coder-pro"].includes(this.getModel().id)) {
+					// Free models should have zero cost (fixes #8182)
+					const modelId = this.getModel().id
+					const freeModelIds = ["x-ai/grok-code-fast-1", "mistralai/devstral-2512:free", "kwaipilot/kat-coder-pro:free"]
+					if (freeModelIds.includes(modelId) || modelId.endsWith(":free")) {
 						totalCost = 0
 					}
 
@@ -220,14 +220,14 @@ export class ClineHandler implements ApiHandler {
 
 			// Fallback to generation endpoint if usage chunk not returned
 			if (!didOutputUsage) {
-				Logger.warn("Cline API did not return usage chunk, fetching from generation endpoint")
+				console.warn("Cline API did not return usage chunk, fetching from generation endpoint")
 				const apiStreamUsage = await this.getApiStreamUsage()
 				if (apiStreamUsage) {
 					yield apiStreamUsage
 				}
 			}
 		} catch (error) {
-			Logger.error("Cline API Error:", error)
+			console.error("Cline API Error:", error)
 			throw error
 		}
 	}
@@ -263,7 +263,7 @@ export class ClineHandler implements ApiHandler {
 				}
 			} catch (error) {
 				// ignore if fails
-				Logger.error("Error fetching cline generation details:", error)
+				console.error("Error fetching cline generation details:", error)
 			}
 		}
 		return undefined
