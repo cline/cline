@@ -1,10 +1,22 @@
 import { Controller } from "@core/controller"
+import { StateManager } from "@core/storage/StateManager"
 import { HistoryItem } from "@shared/HistoryItem"
 import { expect } from "chai"
-import { describe, it } from "mocha"
+import { afterEach, beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
 
 describe("getPreviousUserRequest", () => {
+	let sandbox: sinon.SinonSandbox
+	let stateManagerStub: sinon.SinonStub
+
+	beforeEach(() => {
+		sandbox = sinon.createSandbox()
+	})
+
+	afterEach(() => {
+		sandbox.restore()
+	})
+
 	it("should return the previous user request", () => {
 		const taskHistory: HistoryItem[] = [
 			{
@@ -33,12 +45,22 @@ describe("getPreviousUserRequest", () => {
 			},
 		]
 
-		const stateManagerStub = {
-			getGlobalStateKey: sinon.stub().withArgs("taskHistory").returns(taskHistory),
+		// Stub StateManager.get() BEFORE creating Controller
+		const mockStateManager = {
+			getGlobalStateKey: sinon.stub().callsFake((key: string) => {
+				if (key === "taskHistory") {
+					return taskHistory
+				}
+				return undefined
+			}),
+			getGlobalSettingsKey: sinon.stub().returns(undefined),
+			getApiConfiguration: sinon.stub().returns({}),
+			getRemoteConfigSettings: sinon.stub().returns({}),
+			registerCallbacks: sinon.stub(),
 		}
+		stateManagerStub = sandbox.stub(StateManager, "get").returns(mockStateManager as any)
 
 		const controller = new Controller({} as any)
-		;(controller as any).stateManager = stateManagerStub
 
 		const previousUserRequest = controller.getPreviousUserRequest()
 

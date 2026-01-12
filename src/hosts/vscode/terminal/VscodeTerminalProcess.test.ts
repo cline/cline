@@ -196,17 +196,18 @@ describe("TerminalProcess (Integration Tests)", () => {
 		// Spy on the emit function to verify events
 		const emitSpy = sandbox.spy(process, "emit")
 
-		// Run the command - this returns a promise
-		const runPromise = process.run(terminal, "test-command")
+		// Run the command - use "echo hello" which has a 1500ms timeout (quick command)
+		// Avoid "test" in command name as it triggers 10000ms timeout
+		const runPromise = process.run(terminal, "echo hello")
 
-		// Advance the fake timer by 3 seconds to trigger the setTimeout
-		await sandbox.clock.tickAsync(3000)
+		// Advance the fake timer by 2 seconds to trigger the setTimeout (timeout is 1500ms for echo)
+		await sandbox.clock.tickAsync(2000)
 
 		// Now wait for the promise to resolve
 		await runPromise
 
 		// Check that the correct methods were called and events emitted
-		sendTextStub.calledWith("test-command", true).should.be.true()
+		sendTextStub.calledWith("echo hello", true).should.be.true()
 		;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 		;(emitSpy as sinon.SinonSpy)
 			.calledWith("continue")
