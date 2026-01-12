@@ -233,7 +233,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 			<ScreenReaderAnnounce message={announcement} />
 			<div
 				aria-activedescendant={
-					filteredOptions.length > 0 && isOptionSelectable(filteredOptions[selectedIndex])
+					filteredOptions.length > 0 && selectedIndex > -1 && isOptionSelectable(filteredOptions[selectedIndex])
 						? `context-menu-item-${selectedIndex}`
 						: undefined
 				}

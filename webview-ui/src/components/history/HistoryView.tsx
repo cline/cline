@@ -1,11 +1,12 @@
 import { BooleanRequest, EmptyRequest, StringArrayRequest, StringRequest } from "@shared/proto/cline/common"
 import { GetTaskHistoryRequest, TaskFavoriteRequest } from "@shared/proto/cline/task"
-import { VSCodeButton, VSCodeCheckbox, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeCheckbox, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse, { FuseResult } from "fuse.js"
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
 import { Virtuoso } from "react-virtuoso"
-import DangerButton from "@/components/common/DangerButton"
+import { Button } from "@/components/ui/button"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { cn } from "@/lib/utils"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { getEnvironmentColor } from "@/utils/environmentColors"
 import { formatLargeNumber, formatSize } from "@/utils/format"
@@ -270,25 +271,20 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				`}
 			</style>
 			<div className="fixed overflow-hidden inset-0 flex flex-col">
-				<div
-					style={{
-						display: "flex",
-						justifyContent: "space-between",
-						alignItems: "center",
-						padding: "10px 17px 10px 20px",
-					}}>
+				<div className="flex justify-between items-center py-2.5 px-5">
 					<h3
+						className="m-0"
 						style={{
 							color: getEnvironmentColor(environment),
-							margin: 0,
 						}}>
 						History
 					</h3>
-					<VSCodeButton onClick={() => onDone()}>Done</VSCodeButton>
+					<Button onClick={() => onDone()}>Done</Button>
 				</div>
-				<div style={{ padding: "5px 17px 6px 17px" }}>
+				<div className="py-1.5 px-4">
 					<div className="flex flex-col gap-3">
 						<VSCodeTextField
+							className="w-full"
 							onInput={(e) => {
 								const newValue = (e.target as HTMLInputElement)?.value
 								setSearchQuery(newValue)
@@ -298,7 +294,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								}
 							}}
 							placeholder="Fuzzy search history..."
-							style={{ width: "100%" }}
 							value={searchQuery}>
 							<div
 								className="codicon codicon-search"
@@ -307,19 +302,14 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 									fontSize: 13,
 									marginTop: 2.5,
 									opacity: 0.8,
-								}}></div>
+								}}
+							/>
 							{searchQuery && (
 								<div
 									aria-label="Clear search"
-									className="input-icon-button codicon codicon-close"
+									className="input-icon-button codicon codicon-close flex justify-center items-center h-full"
 									onClick={() => setSearchQuery("")}
 									slot="end"
-									style={{
-										display: "flex",
-										justifyContent: "center",
-										alignItems: "center",
-										height: "100%",
-									}}
 								/>
 							)}
 						</VSCodeTextField>
@@ -335,26 +325,27 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								Most Relevant
 							</VSCodeRadio>
 						</VSCodeRadioGroup>
-						<div className="flex flex-wrap" style={{ marginTop: -8 }}>
+						<div className="flex flex-wrap -mt-2">
 							<VSCodeRadio
 								checked={showCurrentWorkspaceOnly}
 								onClick={() => setShowCurrentWorkspaceOnly(!showCurrentWorkspaceOnly)}>
 								<span className="flex items-center gap-[3px]">
-									<span className="codicon codicon-folder text-(--vscode-button-background)" />
+									<span className="codicon codicon-folder text-button-background" />
 									Workspace
 								</span>
 							</VSCodeRadio>
 							<VSCodeRadio checked={showFavoritesOnly} onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}>
 								<span className="flex items-center gap-[3px]">
-									<span className="codicon codicon-star-full text-(--vscode-button-background)" />
+									<span className="codicon codicon-star-full text-button-background" />
 									Favorites
 								</span>
 							</VSCodeRadio>
 						</div>
 					</div>
 				</div>
-				<div style={{ flexGrow: 1, overflowY: "auto", margin: 0 }}>
+				<div className="flex-grow overflow-y-auto m-0">
 					<Virtuoso
+						className="flex-grow overflow-y-scroll"
 						data={taskHistorySearchResults}
 						itemContent={(index, item) => (
 							<div
@@ -376,22 +367,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 									}}
 								/>
 								<div
-									onClick={() => handleShowTaskWithId(item.id)}
-									style={{
-										display: "flex",
-										flexDirection: "column",
-										gap: "8px",
-										padding: "12px 20px",
-										paddingLeft: "16px",
-										position: "relative",
-										flexGrow: 1,
-									}}>
-									<div
-										style={{
-											display: "flex",
-											justifyContent: "space-between",
-											alignItems: "center",
-										}}>
+									className="flex flex-col gap-2 py-3 px-5 pl-4 relative flex-grow"
+									onClick={() => handleShowTaskWithId(item.id)}>
+									<div className="flex justify-between items-center">
 										<span
 											style={{
 												color: "var(--vscode-descriptionForeground)",
@@ -401,77 +379,54 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											}}>
 											{formatDate(item.ts)}
 										</span>
-										<div style={{ display: "flex", gap: "4px" }}>
+										<div className="flex gap-1">
 											{/* only show delete button if task not favorited */}
 											{!(pendingFavoriteToggles[item.id] ?? item.isFavorited) && (
-												<VSCodeButton
-													appearance="icon"
+												<Button
 													aria-label="Delete"
-													className="delete-button"
+													className="delete-button p-0"
 													onClick={(e) => {
 														e.stopPropagation()
 														handleDeleteHistoryItem(item.id)
 													}}
-													style={{ padding: "0px 0px" }}>
-													<div
-														style={{
-															display: "flex",
-															alignItems: "center",
-															gap: "3px",
-															fontSize: "11px",
-														}}>
+													variant="icon">
+													<div className="flex items-center gap-1 text-xs">
 														<span className="codicon codicon-trash"></span>
 														{formatSize(item.size)}
 													</div>
-												</VSCodeButton>
+												</Button>
 											)}
-											<VSCodeButton
-												appearance="icon"
+											<Button
 												aria-label={item.isFavorited ? "Remove from favorites" : "Add to favorites"}
+												className="p-0"
 												onClick={(e) => {
 													e.stopPropagation()
 													toggleFavorite(item.id, item.isFavorited || false)
 												}}
-												style={{ padding: "0px" }}>
+												variant="icon">
 												<div
-													className={`codicon ${
-														pendingFavoriteToggles[item.id] !== undefined
-															? pendingFavoriteToggles[item.id]
-																? "codicon-star-full"
-																: "codicon-star-empty"
-															: item.isFavorited
-																? "codicon-star-full"
-																: "codicon-star-empty"
-													}`}
-													style={{
-														color:
-															(pendingFavoriteToggles[item.id] ?? item.isFavorited)
-																? "var(--vscode-button-background)"
-																: "inherit",
-														opacity: (pendingFavoriteToggles[item.id] ?? item.isFavorited) ? 1 : 0.7,
-														display:
-															(pendingFavoriteToggles[item.id] ?? item.isFavorited)
-																? "block"
-																: undefined,
-													}}
+													className={cn(
+														`opacity-70 codicon ${
+															pendingFavoriteToggles[item.id] !== undefined
+																? pendingFavoriteToggles[item.id]
+																	? "codicon-star-full"
+																	: "codicon-star-empty"
+																: item.isFavorited
+																	? "codicon-star-full"
+																	: "codicon-star-empty"
+														}`,
+														{
+															"text-button-background opacity-100 block":
+																pendingFavoriteToggles[item.id] ?? item.isFavorited,
+														},
+													)}
 												/>
-											</VSCodeButton>
+											</Button>
 										</div>
 									</div>
 
-									<div style={{ marginBottom: "8px", position: "relative" }}>
-										<div
-											style={{
-												fontSize: "var(--vscode-font-size)",
-												color: "var(--vscode-foreground)",
-												display: "-webkit-box",
-												WebkitLineClamp: 3,
-												WebkitBoxOrient: "vertical",
-												overflow: "hidden",
-												whiteSpace: "pre-wrap",
-												wordBreak: "break-word",
-												overflowWrap: "anywhere",
-											}}>
+									<div className="mb-2 relative">
+										<div className="line-clamp-3 overflow-hidden break-words whitespace-pre-wrap">
 											<span
 												className="ph-no-capture"
 												dangerouslySetInnerHTML={{
@@ -480,62 +435,24 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											/>
 										</div>
 									</div>
-									<div
-										style={{
-											display: "flex",
-											flexDirection: "column",
-											gap: "4px",
-										}}>
-										<div
-											style={{
-												display: "flex",
-												justifyContent: "space-between",
-												alignItems: "center",
-											}}>
-											<div
-												style={{
-													display: "flex",
-													alignItems: "center",
-													gap: "4px",
-													flexWrap: "wrap",
-												}}>
-												<span
-													style={{
-														fontWeight: 500,
-														color: "var(--vscode-descriptionForeground)",
-													}}>
-													Tokens:
-												</span>
-												<span
-													style={{
-														display: "flex",
-														alignItems: "center",
-														gap: "3px",
-														color: "var(--vscode-descriptionForeground)",
-													}}>
+									<div className="flex flex-col gap-1">
+										<div className="flex items-center justify-between">
+											<div className="flex items-center gap-1 flex-wrap">
+												<span className="font-medium text-description">Tokens:</span>
+												<span className="flex items-center gap-1 text-description">
 													<i
-														className="codicon codicon-arrow-up"
+														className="codicon codicon-arrow-up font-bold -mb-0.5"
 														style={{
 															fontSize: "12px",
-															fontWeight: "bold",
-															marginBottom: "-2px",
 														}}
 													/>
 													{formatLargeNumber(item.tokensIn || 0)}
 												</span>
-												<span
-													style={{
-														display: "flex",
-														alignItems: "center",
-														gap: "3px",
-														color: "var(--vscode-descriptionForeground)",
-													}}>
+												<span className="flex items-center gap-1 text-description">
 													<i
-														className="codicon codicon-arrow-down"
+														className="codicon codicon-arrow-down font-bold -mb-0.5"
 														style={{
 															fontSize: "12px",
-															fontWeight: "bold",
-															marginBottom: "-2px",
 														}}
 													/>
 													{formatLargeNumber(item.tokensOut || 0)}
@@ -545,53 +462,25 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 										</div>
 
 										{!!(item.cacheWrites || item.cacheReads) && (
-											<div
-												style={{
-													display: "flex",
-													alignItems: "center",
-													gap: "4px",
-													flexWrap: "wrap",
-												}}>
-												<span
-													style={{
-														fontWeight: 500,
-														color: "var(--vscode-descriptionForeground)",
-													}}>
-													Cache:
-												</span>
+											<div className="flex items-center gap-1 flex-wrap">
+												<span className="font-medium text-description">Cache:</span>
 												{item.cacheWrites > 0 && (
-													<span
-														style={{
-															display: "flex",
-															alignItems: "center",
-															gap: "3px",
-															color: "var(--vscode-descriptionForeground)",
-														}}>
+													<span className="flex items-center gap-1 text-description">
 														<i
-															className="codicon codicon-arrow-right"
+															className="codicon codicon-arrow-right font-bold -mb-[1px]"
 															style={{
 																fontSize: "12px",
-																fontWeight: "bold",
-																marginBottom: "-1px",
 															}}
 														/>
 														{formatLargeNumber(item.cacheWrites)}
 													</span>
 												)}
 												{item.cacheReads > 0 && (
-													<span
-														style={{
-															display: "flex",
-															alignItems: "center",
-															gap: "3px",
-															color: "var(--vscode-descriptionForeground)",
-														}}>
+													<span className="flex items-center gap-1 text-description">
 														<i
-															className="codicon codicon-arrow-left"
+															className="codicon codicon-arrow-left font-bold mb-0"
 															style={{
 																fontSize: "12px",
-																fontWeight: "bold",
-																marginBottom: 0,
 															}}
 														/>
 														{formatLargeNumber(item.cacheReads)}
@@ -601,32 +490,10 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 										)}
 										{item.modelId && <div className="text-description">Model: {item.modelId}</div>}
 										{!!item.totalCost && (
-											<div
-												style={{
-													display: "flex",
-													justifyContent: "space-between",
-													alignItems: "center",
-													marginTop: -2,
-												}}>
-												<div
-													style={{
-														display: "flex",
-														alignItems: "center",
-														gap: "4px",
-													}}>
-													<span
-														style={{
-															fontWeight: 500,
-															color: "var(--vscode-descriptionForeground)",
-														}}>
-														API Cost:
-													</span>
-													<span
-														style={{
-															color: "var(--vscode-descriptionForeground)",
-														}}>
-														${item.totalCost?.toFixed(4)}
-													</span>
+											<div className="flex justify-between items-center -mt-0.5">
+												<div className="flex items-center gap-1">
+													<span className="font-medium text-description">API Cost:</span>
+													<span className="text-description">${item.totalCost?.toFixed(4)}</span>
 												</div>
 												<ExportButton itemId={item.id} />
 											</div>
@@ -635,38 +502,32 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								</div>
 							</div>
 						)}
-						style={{
-							flexGrow: 1,
-							overflowY: "scroll",
-						}}
 					/>
 				</div>
-				<div
-					style={{
-						padding: "10px 10px",
-						borderTop: "1px solid var(--vscode-panel-border)",
-					}}>
+				<div className="p-2.5 border-t border-t-border-panel">
 					<div className="flex gap-2.5 mb-2.5">
-						<VSCodeButton appearance="secondary" onClick={() => handleBatchHistorySelect(true)} style={{ flex: 1 }}>
+						<Button className="flex-1" onClick={() => handleBatchHistorySelect(true)} variant="secondary">
 							Select All
-						</VSCodeButton>
-						<VSCodeButton appearance="secondary" onClick={() => handleBatchHistorySelect(false)} style={{ flex: 1 }}>
+						</Button>
+						<Button className="flex-1" onClick={() => handleBatchHistorySelect(false)} variant="secondary">
 							Select None
-						</VSCodeButton>
+						</Button>
 					</div>
 					{selectedItems.length > 0 ? (
-						<DangerButton
+						<Button
 							aria-label="Delete selected items"
+							className="w-full"
 							onClick={() => {
 								handleDeleteSelectedHistoryItems(selectedItems)
 							}}
-							style={{ width: "100%" }}>
+							variant="danger">
 							Delete {selectedItems.length > 1 ? selectedItems.length : ""} Selected
 							{selectedItemsSize > 0 ? ` (${formatSize(selectedItemsSize)})` : ""}
-						</DangerButton>
+						</Button>
 					) : (
-						<DangerButton
+						<Button
 							aria-label="Delete all history"
+							className="w-full"
 							disabled={deleteAllDisabled || taskHistory.length === 0}
 							onClick={() => {
 								setDeleteAllDisabled(true)
@@ -675,9 +536,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 									.catch((error) => console.error("Error deleting task history:", error))
 									.finally(() => setDeleteAllDisabled(false))
 							}}
-							style={{ width: "100%" }}>
+							variant="danger">
 							Delete All History{totalTasksSize !== null ? ` (${formatSize(totalTasksSize)})` : ""}
-						</DangerButton>
+						</Button>
 					)}
 				</div>
 			</div>
@@ -686,8 +547,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 }
 
 const ExportButton = ({ itemId }: { itemId: string }) => (
-	<VSCodeButton
-		appearance="icon"
+	<Button
 		aria-label="Export"
 		className="export-button"
 		onClick={(e) => {
@@ -695,9 +555,10 @@ const ExportButton = ({ itemId }: { itemId: string }) => (
 			TaskServiceClient.exportTaskWithId(StringRequest.create({ value: itemId })).catch((err) =>
 				console.error("Failed to export task:", err),
 			)
-		}}>
-		<div style={{ fontSize: "11px", fontWeight: 500, opacity: 1 }}>EXPORT</div>
-	</VSCodeButton>
+		}}
+		variant="icon">
+		<span className="opacity-100 text-sm font-medium">EXPORT</span>
+	</Button>
 )
 
 // https://gist.github.com/evenfrost/1ba123656ded32fb7a0cd4651efd4db0

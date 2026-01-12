@@ -33,6 +33,7 @@ export const OpenAiCompatibleSchema = z.object({
 	openAiBaseUrl: z.string().optional(),
 	openAiHeaders: z.record(z.string(), z.string()).optional(),
 	azureApiVersion: z.string().optional(),
+	azureIdentity: z.boolean().optional(),
 })
 
 // AWS Bedrock model schema with per-model settings
@@ -118,6 +119,8 @@ export const RemoteMCPServerSchema = z.object({
 	name: z.string(),
 	// The URL of the MCP server
 	url: z.string(),
+	// When this is true, the user cannot disable this MCP server
+	alwaysEnabled: z.boolean().optional(),
 })
 
 // Settings for a global cline rules or workflow file.

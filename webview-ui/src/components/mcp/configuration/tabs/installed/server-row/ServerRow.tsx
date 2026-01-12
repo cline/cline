@@ -8,7 +8,6 @@ import {
 } from "@shared/proto/cline/mcp"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import {
-	VSCodeButton,
 	VSCodeCheckbox,
 	VSCodeDropdown,
 	VSCodeOption,
@@ -18,9 +17,9 @@ import {
 } from "@vscode/webview-ui-toolkit/react"
 import { RefreshCcwIcon, Trash2Icon } from "lucide-react"
 import { useState } from "react"
-import DangerButton from "@/components/common/DangerButton"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { McpServiceClient } from "@/services/grpc-client"
@@ -51,11 +50,29 @@ const ServerRow = ({
 	isExpandable?: boolean
 	hasTrashIcon?: boolean
 }) => {
-	const { mcpMarketplaceCatalog, autoApprovalSettings, setMcpServers } = useExtensionState()
+	const { mcpMarketplaceCatalog, autoApprovalSettings, setMcpServers, remoteConfigSettings } = useExtensionState()
 
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isDeleting, setIsDeleting] = useState(false)
 	const [isRestarting, setIsRestarting] = useState(false)
+
+	// Check if user is managed by remote config and if this server is remote-managed.
+	// Remote MCP servers from enterprise config are always URL-based (SSE/HTTP).
+	// stdio-based local servers are never in remoteMCPServers, so URL matching is sufficient.
+	const isRemoteManagedServer = (() => {
+		const remoteMCPServers = remoteConfigSettings?.remoteMCPServers
+		if (!remoteMCPServers || remoteMCPServers.length === 0) {
+			return false
+		}
+		try {
+			const serverConfig = JSON.parse(server.config)
+			return remoteMCPServers.some(
+				(remoteServer: { url: string }) => serverConfig.url && serverConfig.url === remoteServer.url,
+			)
+		} catch {
+			return false
+		}
+	})()
 
 	const handleRowClick = () => {
 		if (!server.error && isExpandable) {
@@ -165,6 +182,26 @@ const ServerRow = ({
 			})
 	}
 
+	// Helper to extract server URL from config
+	const getServerUrl = (server: McpServer): string | null => {
+		try {
+			const config = JSON.parse(server.config)
+			return config.url || null
+		} catch {
+			return null
+		}
+	}
+
+	// Check if this server is always-enabled via remote config
+	const isAlwaysEnabled = (() => {
+		const remoteMCPServers = remoteConfigSettings?.remoteMCPServers || []
+		const serverUrl = getServerUrl(server)
+		if (!serverUrl) return false
+
+		const remoteServer = remoteMCPServers.find((remote) => remote.url === serverUrl)
+		return remoteServer?.alwaysEnabled === true
+	})()
+
 	return (
 		<div className="mb-2.5">
 			<div
@@ -211,14 +248,25 @@ const ServerRow = ({
 					</Button>
 				)}
 				{/* Toggle Switch */}
-				<Switch
-					checked={!server.disabled}
-					key={server.name}
-					onClick={(e) => {
-						e.stopPropagation()
-						handleToggleMcpServer()
-					}}
-				/>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<div className="flex items-center gap-2">
+							<Switch
+								checked={!server.disabled}
+								disabled={isAlwaysEnabled}
+								key={server.name}
+								onClick={(e) => {
+									e.stopPropagation()
+									handleToggleMcpServer()
+								}}
+							/>
+							{isAlwaysEnabled && <i className="codicon codicon-lock text-description text-sm" />}
+						</div>
+					</TooltipTrigger>
+					<TooltipContent className="max-w-xs" hidden={!isAlwaysEnabled} side="top">
+						This server can't be disabled because it is enabled by your organization
+					</TooltipContent>
+				</Tooltip>
 				<div
 					className={cn("h-2 w-2 ml-0.5 rounded-full", {
 						"bg-success": server.status === "connected",
@@ -229,65 +277,41 @@ const ServerRow = ({
 			</div>
 
 			{server.error ? (
-				<div
-					style={{
-						fontSize: "13px",
-						background: "var(--vscode-textCodeBlock-background)",
-						borderRadius: "0 0 4px 4px",
-						width: "100%",
-					}}>
-					<div
-						style={{
-							color: "var(--vscode-testing-iconFailed)",
-							marginBottom: "8px",
-							padding: "0 10px",
-							overflowWrap: "break-word",
-							wordBreak: "break-word",
-						}}>
-						{server.error}
-					</div>
+				<div className="text-sm bg-text-block-background rounded-b-sm">
+					<div className="text-failed-icon mb-2 px-2.5 break-words">{server.error}</div>
 					{server.oauthRequired && server.oauthAuthStatus === "unauthenticated" ? (
-						<VSCodeButton
-							appearance="primary"
+						<Button
+							className="m-2.5 mt-0 max-w-[calc(100%-20px)]"
 							onClick={(e) => {
 								e.stopPropagation()
 								McpServiceClient.authenticateMcpServer(StringRequest.create({ value: server.name }))
 							}}
-							style={{
-								width: "calc(100% - 20px)",
-								margin: "0 10px 10px 10px",
-							}}>
+							variant="default">
 							Authenticate
-						</VSCodeButton>
+						</Button>
 					) : (
-						<VSCodeButton
-							appearance="secondary"
+						<Button
+							className="m-2.5 mt-0 max-w-[calc(100%-20px)]"
 							disabled={server.status === "connecting"}
 							onClick={handleRestart}
-							style={{
-								width: "calc(100% - 20px)",
-								margin: "0 10px 10px 10px",
-							}}>
+							variant="secondary">
 							{server.status === "connecting" || isRestarting ? "Retrying..." : "Retry Connection"}
-						</VSCodeButton>
+						</Button>
 					)}
 
-					<DangerButton
-						disabled={isDeleting}
-						onClick={handleDelete}
-						style={{ width: "calc(100% - 20px)", margin: "0 10px 10px 10px" }}>
-						{isDeleting ? "Deleting..." : "Delete Server"}
-					</DangerButton>
+					{!isRemoteManagedServer && (
+						<Button
+							className="m-2.5 mt-0 max-w-[calc(100%-20px)]"
+							disabled={isDeleting}
+							onClick={handleDelete}
+							variant="danger">
+							{isDeleting ? "Deleting..." : "Delete Server"}
+						</Button>
+					)}
 				</div>
 			) : (
 				isExpanded && (
-					<div
-						style={{
-							background: "var(--vscode-textCodeBlock-background)",
-							padding: "0 10px 10px 10px",
-							fontSize: "13px",
-							borderRadius: "0 0 4px 4px",
-						}}>
+					<div className="bg-text-block-background p-2.5 pt-0 text-sm rounded-b-sm">
 						<VSCodePanels>
 							<VSCodePanelTab id="tools">Tools ({server.tools?.length || 0})</VSCodePanelTab>
 							<VSCodePanelTab id="resources">
@@ -296,20 +320,13 @@ const ServerRow = ({
 
 							<VSCodePanelView id="tools-view">
 								{server.tools && server.tools.length > 0 ? (
-									<div
-										style={{
-											display: "flex",
-											flexDirection: "column",
-											gap: "8px",
-											width: "100%",
-											paddingTop: "8px",
-										}}>
+									<div className="flex flex-col gap-2 w-full pt-2">
 										{server.name && autoApprovalSettings.actions.useMcp && (
 											<VSCodeCheckbox
 												checked={server.tools.every((tool) => tool.autoApprove)}
+												className="mb-1 text-xs"
 												data-tool="all-tools"
-												onChange={handleAutoApproveChange}
-												style={{ marginBottom: "4px", fontSize: "11px" }}>
+												onChange={handleAutoApproveChange}>
 												Auto-approve all tools
 											</VSCodeCheckbox>
 										)}
@@ -318,27 +335,14 @@ const ServerRow = ({
 										))}
 									</div>
 								) : (
-									<div
-										style={{
-											padding: "10px 0",
-											color: "var(--vscode-descriptionForeground)",
-										}}>
-										No tools found
-									</div>
+									<div className="text-description py-2.5">No tools found</div>
 								)}
 							</VSCodePanelView>
 
 							<VSCodePanelView id="resources-view">
 								{(server.resources && server.resources.length > 0) ||
 								(server.resourceTemplates && server.resourceTemplates.length > 0) ? (
-									<div
-										style={{
-											display: "flex",
-											flexDirection: "column",
-											gap: "8px",
-											width: "100%",
-											paddingTop: "8px",
-										}}>
+									<div className="flex flex-col gap-2 w-full pt-2">
 										{[...(server.resourceTemplates || []), ...(server.resources || [])].map((item) => (
 											<McpResourceRow
 												item={item}
@@ -347,40 +351,34 @@ const ServerRow = ({
 										))}
 									</div>
 								) : (
-									<div
-										style={{
-											padding: "10px 0",
-											color: "var(--vscode-descriptionForeground)",
-										}}>
-										No resources found
-									</div>
+									<div className="py-2.5 text-description">No resources found</div>
 								)}
 							</VSCodePanelView>
 						</VSCodePanels>
 
-						<div style={{ margin: "10px 7px" }}>
-							<label style={{ display: "block", marginBottom: "4px", fontSize: "13px" }}>Request Timeout</label>
-							<VSCodeDropdown onChange={handleTimeoutChange} style={{ width: "100%" }} value={timeoutValue}>
+						<div className="my-2.5 mx-1.5">
+							<label className="block mb-1 text-[13px]">Request Timeout</label>
+							<VSCodeDropdown className="w-full" onChange={handleTimeoutChange} value={timeoutValue}>
 								{TimeoutOptions}
 							</VSCodeDropdown>
 						</div>
-						<VSCodeButton
-							appearance="secondary"
+						<Button
+							className="w-[calc(100%-14px)] mt-1 mx-1.5 mb-3"
 							disabled={server.status === "connecting" || isRestarting}
 							onClick={handleRestart}
-							style={{
-								width: "calc(100% - 14px)",
-								margin: "0 7px 3px 7px",
-							}}>
+							variant="secondary">
 							{server.status === "connecting" || isRestarting ? "Restarting..." : "Restart Server"}
-						</VSCodeButton>
+						</Button>
 
-						<DangerButton
-							disabled={isDeleting}
-							onClick={handleDelete}
-							style={{ width: "calc(100% - 14px)", margin: "5px 7px 3px 7px" }}>
-							{isDeleting ? "Deleting..." : "Delete Server"}
-						</DangerButton>
+						{!isRemoteManagedServer && (
+							<Button
+								className="w-[calc(100%-14px)] mt-1 mx-1.5 mb-3"
+								disabled={isDeleting}
+								onClick={handleDelete}
+								variant="danger">
+								{isDeleting ? "Deleting..." : "Delete Server"}
+							</Button>
+						)}
 					</div>
 				)
 			)}
