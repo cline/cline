@@ -244,33 +244,30 @@ export class McpHub {
 			const stateManager = StateManager.get()
 			const remoteConfig = stateManager.getRemoteConfigSettings()
 
-			// If marketplace is explicitly disabled by enterprise config, block all local servers
-			if (remoteConfig.mcpMarketplaceEnabled === false) {
-				return
-			}
-
-			// Check if an allowlist is configured
+			// Early exit for non-enterprise users: if no remote config is set, allow all local servers
 			const hasAllowlist = remoteConfig.allowedMCPServers && remoteConfig.allowedMCPServers.length > 0
+			if (remoteConfig.mcpMarketplaceEnabled === undefined && !hasAllowlist) {
+				// No remote config restrictions - proceed with connection (default behavior for non-enterprise users)
+				// This ensures backwards compatibility and that regular users are not affected
+			} else {
+				// Enterprise restrictions apply
 
-			// If marketplace is enabled but no allowlist exists, block all local servers
-			if (remoteConfig.mcpMarketplaceEnabled === true && !hasAllowlist) {
-				return
-			}
-
-			// If allowlist exists, only GitHub servers on the list are allowed
-			if (hasAllowlist) {
-				// Block all non-GitHub (custom) servers when allowlist exists
-				if (!name.startsWith("github.com/")) {
+				// If marketplace is explicitly disabled by enterprise config, block all local servers
+				if (remoteConfig.mcpMarketplaceEnabled === false) {
 					return
 				}
 
-				// Check if GitHub server is on the allowlist
-				const allowedIds = remoteConfig.allowedMCPServers!.map((server: { id: string }) => server.id)
-				if (!allowedIds.includes(name)) {
-					return
+				// If allowlist exists, only servers on the allowlist are allowed
+				if (hasAllowlist) {
+					const allowedIds = remoteConfig.allowedMCPServers!.map((server: { id: string }) => server.id)
+					if (!allowedIds.includes(name)) {
+						return
+					}
 				}
+
+				// If marketplace is enabled with no allowlist, all local servers are allowed
+				// (marketplace will be shown but empty - only org's allowlisted servers appear there)
 			}
-			// If no remote config at all (undefined marketplace setting), allow all local servers (default behavior)
 		}
 
 		if (config.disabled) {
