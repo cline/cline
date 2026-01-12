@@ -93,6 +93,8 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 		.catch((error) => {
 			Logger.error("BannerService: Failed to fetch banners on startup", error)
 		})
+	// Initialize banner service and fetch banners from the API.
+	BannerService.initialize(webview.controller).getActiveBanners(true)
 
 	telemetryService.captureExtensionActivated()
 

@@ -7,6 +7,7 @@ import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { ApiConfiguration } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
 import { ClineFeatureSetting } from "./ClineFeatureSetting"
+import { BannerCardData } from "./cline/banner"
 import { ClineRulesToggles } from "./cline-rules"
 import { DictationSettings } from "./DictationSettings"
 import { FocusChainSettings } from "./FocusChainSettings"
@@ -112,6 +113,7 @@ export interface ExtensionState {
 	enableParallelToolCalling?: boolean
 	backgroundEditEnabled?: boolean
 	optOutOfRemoteConfig?: boolean
+	banners?: BannerCardData[]
 }
 
 export interface ClineMessage {
