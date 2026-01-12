@@ -2,9 +2,6 @@ import { BANNER_DATA, BannerAction, BannerActionType, BannerCardData } from "@sh
 import { EmptyRequest, Int64Request } from "@shared/proto/index.cline"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import BannerCarousel from "@/components/common/BannerCarousel"
-import { CURRENT_CLI_BANNER_VERSION } from "@/components/common/CliInstallBanner"
-import { CURRENT_INFO_BANNER_VERSION } from "@/components/common/InfoBanner"
-import { CURRENT_MODEL_BANNER_VERSION } from "@/components/common/NewModelBanner"
 import WhatsNewModal from "@/components/common/WhatsNewModal"
 import HistoryPreview from "@/components/history/HistoryPreview"
 import { useApiConfigurationHandlers } from "@/components/settings/utils/useApiConfigurationHandlers"
@@ -16,6 +13,10 @@ import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client
 import { convertBannerData } from "@/utils/bannerUtils"
 import { getCurrentPlatform } from "@/utils/platformUtils"
 import { WelcomeSectionProps } from "../../types/chatTypes"
+
+const CURRENT_INFO_BANNER_VERSION = 1
+const CURRENT_MODEL_BANNER_VERSION = 1
+const CURRENT_CLI_BANNER_VERSION = 1
 
 /**
  * Welcome section shown when there's no active task

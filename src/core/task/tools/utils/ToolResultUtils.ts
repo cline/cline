@@ -1,4 +1,3 @@
-import { ApiHandler } from "@core/api"
 import { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { ToolResponse } from "@core/task"
@@ -20,7 +19,6 @@ export class ToolResultUtils {
 		block: ToolUse,
 		userMessageContent: any[],
 		toolDescription: (block: ToolUse) => string,
-		_api: ApiHandler,
 		coordinator?: ToolExecutorCoordinator,
 		toolUseIdMap?: Map<string, string>,
 	): void {
