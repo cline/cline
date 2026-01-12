@@ -259,6 +259,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		favoritedModelIds: [],
 		lastDismissedInfoBannerVersion: 0,
 		lastDismissedModelBannerVersion: 0,
+		optOutOfRemoteConfig: false,
 		remoteConfigSettings: {},
 		backgroundCommandRunning: false,
 		backgroundCommandTaskId: undefined,

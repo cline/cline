@@ -138,6 +138,7 @@ export interface Settings {
 	globalSkillsToggles: Record<string, boolean>
 	enableParallelToolCalling: boolean
 	backgroundEditEnabled: boolean
+	optOutOfRemoteConfig: boolean
 
 	// Model-specific settings
 	hicapModelId: string | undefined

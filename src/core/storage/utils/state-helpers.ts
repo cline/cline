@@ -330,6 +330,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const skillsEnabled = context.globalState.get<GlobalStateAndSettings["skillsEnabled"]>("skillsEnabled")
 		const backgroundEditEnabled =
 			context.globalState.get<GlobalStateAndSettings["backgroundEditEnabled"]>("backgroundEditEnabled")
+		const optOutOfRemoteConfig =
+			context.globalState.get<GlobalStateAndSettings["optOutOfRemoteConfig"]>("optOutOfRemoteConfig")
 
 		// Get mode-related configurations
 		const mode = context.globalState.get<GlobalStateAndSettings["mode"]>("mode")
@@ -720,6 +722,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			hooksEnabled: getHooksEnabledSafe(hooksEnabled),
 			subagentsEnabled: subagentsEnabled ?? false,
 			skillsEnabled: skillsEnabled ?? false,
+			optOutOfRemoteConfig: optOutOfRemoteConfig ?? false,
 			enableParallelToolCalling: enableParallelToolCalling ?? false,
 			lastDismissedInfoBannerVersion: lastDismissedInfoBannerVersion ?? 0,
 			lastDismissedModelBannerVersion: lastDismissedModelBannerVersion ?? 0,
