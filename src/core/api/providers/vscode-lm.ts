@@ -14,14 +14,9 @@ interface VsCodeLmHandlerOptions extends CommonApiHandlerOptions {
 }
 
 // VSCode Language Model API types for proposed features (tool use, streaming)
-// @types/vscode@1.93 has basic types but not the proposed API parts
-// These augment the vscode module with additional proposed API types
+// Note: As of @types/vscode@1.93+, many of these types are now in the stable API
+// We only augment the vscode module with types that are still missing
 declare module "vscode" {
-	// New types not in stable API
-	enum LanguageModelChatToolMode {
-		Auto = 1,
-		Required = 2,
-	}
 	interface LanguageModelChatSelector extends LanguageModelChatSelectorFromTypes {}
 	interface LanguageModelChatTool {
 		name: string
@@ -33,25 +28,6 @@ declare module "vscode" {
 		modelOptions?: { [name: string]: any }
 		tools?: LanguageModelChatTool[]
 		toolMode?: LanguageModelChatToolMode
-	}
-	class LanguageModelTextPart {
-		value: string
-		constructor(value: string)
-	}
-	class LanguageModelToolCallPart {
-		callId: string
-		name: string
-		input: object
-		constructor(callId: string, name: string, input: object)
-	}
-	class LanguageModelPromptTsxPart {
-		value: unknown
-		constructor(value: unknown)
-	}
-	class LanguageModelToolResultPart {
-		callId: string
-		content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | unknown>
-		constructor(callId: string, content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | unknown>)
 	}
 	// Extend existing types with proposed API features
 	interface LanguageModelChatResponse {

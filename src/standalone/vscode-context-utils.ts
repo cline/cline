@@ -26,6 +26,10 @@ export class SecretStore implements vscode.SecretStorage {
 		this._onDidChange.fire({ key })
 		return Promise.resolve()
 	}
+
+	keys(): Thenable<string[]> {
+		return Promise.resolve(Array.from(this.data.keys()))
+	}
 }
 
 // Create a class that implements Memento interface with the required setKeysForSync method
