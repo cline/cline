@@ -10,7 +10,6 @@ import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { fetch, getAxiosSettings } from "@/shared/net"
 import { type ClineAccountUserInfo, type ClineAuthInfo } from "../AuthService"
 import { parseJwtPayload } from "../oca/utils/utils"
-import { IAuthProvider } from "./IAuthProvider"
 
 interface ClineAuthApiUser {
 	subject: string | null
@@ -61,7 +60,7 @@ export interface ClineAuthApiTokenRefreshResponse {
 	data: ClineAuthResponseData
 }
 
-export class ClineAuthProvider implements IAuthProvider {
+export class ClineAuthProvider {
 	readonly name = "cline"
 	private refreshRetryCount = 0
 	private lastRefreshAttempt = 0
@@ -96,9 +95,14 @@ export class ClineAuthProvider implements IAuthProvider {
 	/**
 	 * Returns the time in seconds until token expiry
 	 */
-	private timeUntilExpiry(_refreshToken: string, expiresAt?: number): number {
+	timeUntilExpiry(jwt: string): number {
+		const data = this.extractTokenData(jwt)
+		if (!data.exp) {
+			return 0
+		}
+
 		const currentTime = Date.now() / 1000
-		const expirationTime = expiresAt || 0
+		const expirationTime = data.exp
 
 		return expirationTime - currentTime
 	}
@@ -109,7 +113,7 @@ export class ClineAuthProvider implements IAuthProvider {
 		const startedAt = storedAuthData?.startedAt
 		const timeSinceStarted = Date.now() - (startedAt || 0)
 
-		const tokenData = this.extractTokenData(storedAuthData)
+		const tokenData = this.extractTokenData(storedAuthData?.idToken)
 		telemetryService.capture({
 			event: "extension_logging_user_out",
 			properties: {
@@ -130,7 +134,7 @@ export class ClineAuthProvider implements IAuthProvider {
 		const startedAt = storedAuthData?.startedAt
 		const timeSinceStarted = Date.now() - (startedAt || 0)
 
-		const tokenData = this.extractTokenData(storedAuthData)
+		const tokenData = this.extractTokenData(storedAuthData?.idToken)
 		telemetryService.capture({
 			event: "extension_refresh_attempt_failed",
 			properties: {
@@ -143,14 +147,12 @@ export class ClineAuthProvider implements IAuthProvider {
 		})
 	}
 
-	private extractTokenData(authInfo?: ClineAuthInfo): Partial<TokenData> {
-		if (!authInfo || !authInfo.idToken) {
+	private extractTokenData(token: string | undefined): Partial<TokenData> {
+		if (!token) {
 			return {}
 		}
 
-		const idToken = authInfo.idToken
-
-		return parseJwtPayload<TokenData>(idToken) || {}
+		return parseJwtPayload<TokenData>(token) || {}
 	}
 
 	/**
@@ -189,10 +191,7 @@ export class ClineAuthProvider implements IAuthProvider {
 				// and it failed the first refresh attempt
 				// with something other than invalid token
 				// continue with the request
-				if (
-					this.refreshRetryCount > 0 &&
-					this.timeUntilExpiry(storedAuthData.refreshToken, storedAuthData.expiresAt) > 30
-				) {
+				if (this.refreshRetryCount > 0 && this.timeUntilExpiry(storedAuthData.idToken) > 30) {
 					this.refreshRetryCount = 0
 					this.lastRefreshAttempt = 0
 					return storedAuthData

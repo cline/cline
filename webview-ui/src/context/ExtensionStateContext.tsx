@@ -77,6 +77,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setLocalAgentsRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setGlobalWorkflowToggles: (toggles: Record<string, boolean>) => void
+	setGlobalSkillsToggles: (toggles: Record<string, boolean>) => void
+	setLocalSkillsToggles: (toggles: Record<string, boolean>) => void
 	setRemoteRulesToggles: (toggles: Record<string, boolean>) => void
 	setRemoteWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
@@ -238,12 +240,16 @@ export const ExtensionStateContextProvider: React.FC<{
 		favoritedModelIds: [],
 		lastDismissedInfoBannerVersion: 0,
 		lastDismissedModelBannerVersion: 0,
+		optOutOfRemoteConfig: false,
 		remoteConfigSettings: {},
 		backgroundCommandRunning: false,
 		backgroundCommandTaskId: undefined,
 		lastDismissedCliBannerVersion: 0,
 		subagentsEnabled: false,
 		backgroundEditEnabled: false,
+		skillsEnabled: false,
+		globalSkillsToggles: {},
+		localSkillsToggles: {},
 
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],
@@ -796,6 +802,16 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				globalWorkflowToggles: toggles,
+			})),
+		setGlobalSkillsToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				globalSkillsToggles: toggles,
+			})),
+		setLocalSkillsToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				localSkillsToggles: toggles,
 			})),
 		setRemoteRulesToggles: (toggles) =>
 			setState((prevState) => ({

@@ -18,6 +18,7 @@ import { read_file_variants } from "./read_file"
 import { replace_in_file_variants } from "./replace_in_file"
 import { search_files_variants } from "./search_files"
 import { use_mcp_tool_variants } from "./use_mcp_tool"
+import { use_skill_variants } from "./use_skill"
 import { web_fetch_variants } from "./web_fetch"
 import { web_search_variants } from "./web_search"
 import { write_to_file_variants } from "./write_to_file"
@@ -47,6 +48,7 @@ export function registerClineToolSets(): void {
 		...replace_in_file_variants,
 		...search_files_variants,
 		...use_mcp_tool_variants,
+		...use_skill_variants,
 		...web_fetch_variants,
 		...web_search_variants,
 		...write_to_file_variants,

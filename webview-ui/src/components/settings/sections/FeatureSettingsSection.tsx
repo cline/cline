@@ -21,7 +21,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 	const {
 		enableCheckpointsSetting,
 		mcpDisplayMode,
-		mcpResponsesCollapsed,
 		openaiReasoningEffort,
 		strictPlanModeEnabled,
 		yoloModeToggled,
@@ -31,6 +30,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		focusChainSettings,
 		multiRootSetting,
 		hooksEnabled,
+		skillsEnabled,
 		remoteConfigSettings,
 		subagentsEnabled,
 		nativeToolCallSetting,
@@ -197,19 +197,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
 							Controls how MCP responses are displayed: plain text, rich formatting with links/images, or markdown
 							rendering.
-						</p>
-					</div>
-					<div style={{ marginTop: 10 }}>
-						<VSCodeCheckbox
-							checked={mcpResponsesCollapsed}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								updateSetting("mcpResponsesCollapsed", checked)
-							}}>
-							Collapse MCP Responses
-						</VSCodeCheckbox>
-						<p className="text-xs text-(--vscode-descriptionForeground)">
-							Sets the default display mode for MCP response panels
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
@@ -431,6 +418,22 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								</span>
 							</p>
 						)}
+					</div>
+					<div className="mt-2.5">
+						<VSCodeCheckbox
+							checked={skillsEnabled}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								updateSetting("skillsEnabled", checked)
+							}}>
+							Enable Skills
+						</VSCodeCheckbox>
+						<p className="text-xs">
+							<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
+							<span className="text-description">
+								Enables Skills for reusable, on-demand agent instructions from .cline/skills/ directories.
+							</span>
+						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
 						<Tooltip>

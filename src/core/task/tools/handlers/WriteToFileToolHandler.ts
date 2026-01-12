@@ -373,7 +373,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				block,
 				config.taskState.userMessageContent,
 				ToolDisplayUtils.getToolDescription,
-				config.api,
 				config.coordinator,
 				config.taskState.toolUseIdMap,
 			)
@@ -420,8 +419,11 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				if (!config.enableParallelToolCalling && config.taskState.didAlreadyUseTool) {
 					return
 				}
+
 				// Full original behavior - comprehensive error handling even for partial blocks
-				await config.callbacks.say("diff_error", relPath)
+				// Removes any existing diff_error messages to avoid duplicates.
+				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "diff_error")
+				await config.callbacks.say("diff_error", relPath, undefined, undefined, true)
 
 				// Extract provider information for telemetry
 				const { providerId, modelId } = this.getModelInfo(config)
@@ -446,7 +448,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					block,
 					config.taskState.userMessageContent,
 					ToolDisplayUtils.getToolDescription,
-					config.api,
 					config.coordinator,
 					config.taskState.toolUseIdMap,
 				)
