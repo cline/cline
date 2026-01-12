@@ -44,7 +44,7 @@ func (s *WorkspaceService) GetWorkspacePaths(ctx context.Context, req *host.GetW
 // SaveOpenDocumentIfDirty saves an open document if it has unsaved changes
 func (s *WorkspaceService) SaveOpenDocumentIfDirty(ctx context.Context, req *host.SaveOpenDocumentIfDirtyRequest) (*host.SaveOpenDocumentIfDirtyResponse, error) {
 	if s.verbose {
-		log.Printf("SaveOpenDocumentIfDirty called for path: %s", *req.FilePath)
+		log.Printf("SaveOpenDocumentIfDirty called for path: %v", req.FilePath)
 	}
 
 	// For console implementation, we'll assume the document is already saved
