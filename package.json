@@ -389,7 +389,7 @@
 		}
 	},
 	"scripts": {
-		"vscode:prepublish": "npm run build:webview && node esbuild.mjs --production",
+		"vscode:prepublish": "npm run protos && npm run build:webview && node esbuild.mjs --production",
 		"compile": "npm run check-types && npm run lint && npm run build:webview && node esbuild.mjs",
 		"compile-standalone": "npm run check-types && npm run lint && npm run build:webview && node esbuild.mjs --standalone",
 		"compile-standalone-npm": "npm run protos && npm run protos-go && npm run check-types && npm run lint && npm run build:webview && node esbuild.mjs --standalone",
