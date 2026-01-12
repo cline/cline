@@ -18,16 +18,6 @@ export enum BannerActionType {
 }
 
 /**
- * Backend banner format returned from server API
- */
-export interface BackendBanner {
-	id: string
-	titleMd: string
-	bodyMd: string
-	rulesJson: string
-}
-
-/**
  * Banner data structure for backend-to-frontend communication.
  * Backend constructs this JSON, frontend renders it via BannerCarousel.
  */
