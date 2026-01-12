@@ -8,7 +8,6 @@ import { fetch } from "@/shared/net"
 import { buildBasicClineHeaders } from "../EnvUtils"
 import { AuthService } from "./AuthService"
 
-// TODO: Consider adding a mock auth provider implementing IAuthProvider for more realistic testing
 export class AuthServiceMock extends AuthService {
 	protected constructor(controller: Controller) {
 		super(controller)
@@ -17,7 +16,6 @@ export class AuthServiceMock extends AuthService {
 			throw new Error("AuthServiceMock should only be used in local environment for testing purposes.")
 		}
 
-		this._initProvider()
 		this._controller = controller
 	}
 

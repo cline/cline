@@ -164,8 +164,8 @@ export function getMatchingSlashCommands(
 		return allCommands
 	}
 
-	// filter commands that start with the query (case sensitive)
-	return allCommands.filter((cmd) => cmd.name.startsWith(query))
+	// filter commands that start with the query (case insensitive)
+	return allCommands.filter((cmd) => cmd.name.toLowerCase().startsWith(query.toLowerCase()))
 }
 
 /**
@@ -214,14 +214,14 @@ export function validateSlashCommand(
 	)
 	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands]
 
-	// case sensitive matching
-	const exactMatch = allCommands.some((cmd) => cmd.name === command)
+	// case insensitive matching
+	const exactMatch = allCommands.some((cmd) => cmd.name.toLowerCase() === command.toLowerCase())
 
 	if (exactMatch) {
 		return "full"
 	}
 
-	const partialMatch = allCommands.some((cmd) => cmd.name.startsWith(command))
+	const partialMatch = allCommands.some((cmd) => cmd.name.toLowerCase().startsWith(command.toLowerCase()))
 
 	if (partialMatch) {
 		return "partial"
