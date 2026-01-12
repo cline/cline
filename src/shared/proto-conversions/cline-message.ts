@@ -97,13 +97,14 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		diff_error: ClineSay.DIFF_ERROR,
 		deleted_api_reqs: ClineSay.DELETED_API_REQS,
 		clineignore_error: ClineSay.CLINEIGNORE_ERROR,
+		command_permission_denied: ClineSay.COMMAND_PERMISSION_DENIED,
 		checkpoint_created: ClineSay.CHECKPOINT_CREATED,
 		load_mcp_documentation: ClineSay.LOAD_MCP_DOCUMENTATION,
 		info: ClineSay.INFO,
 		task_progress: ClineSay.TASK_PROGRESS,
 		error_retry: ClineSay.ERROR_RETRY,
-		hook: ClineSay.INFO,
-		hook_output: ClineSay.COMMAND_OUTPUT_SAY,
+		hook_status: ClineSay.HOOK_STATUS,
+		hook_output_stream: ClineSay.HOOK_OUTPUT_STREAM,
 		generate_explanation: ClineSay.GENERATE_EXPLANATION,
 	}
 
@@ -146,12 +147,15 @@ function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 		[ClineSay.DIFF_ERROR]: "diff_error",
 		[ClineSay.DELETED_API_REQS]: "deleted_api_reqs",
 		[ClineSay.CLINEIGNORE_ERROR]: "clineignore_error",
+		[ClineSay.COMMAND_PERMISSION_DENIED]: "command_permission_denied",
 		[ClineSay.CHECKPOINT_CREATED]: "checkpoint_created",
 		[ClineSay.LOAD_MCP_DOCUMENTATION]: "load_mcp_documentation",
 		[ClineSay.INFO]: "info",
 		[ClineSay.TASK_PROGRESS]: "task_progress",
 		[ClineSay.ERROR_RETRY]: "error_retry",
 		[ClineSay.GENERATE_EXPLANATION]: "generate_explanation",
+		[ClineSay.HOOK_STATUS]: "hook_status",
+		[ClineSay.HOOK_OUTPUT_STREAM]: "hook_output_stream",
 	}
 
 	return mapping[say]

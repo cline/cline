@@ -119,6 +119,7 @@ export interface ApiHandlerOptions {
 	fireworksModelMaxTokens?: number
 	qwenCodeOauthPath?: string
 	azureApiVersion?: string
+	azureIdentity?: boolean
 	qwenApiLine?: string
 	moonshotApiLine?: string
 	asksageApiUrl?: string
@@ -171,12 +172,14 @@ export interface ApiHandlerOptions {
 	planModeHuaweiCloudMaasModelInfo?: ModelInfo
 	planModeOcaModelId?: string
 	planModeOcaModelInfo?: OcaModelInfo
+	planModeOcaReasoningEffort?: string
 	planModeAihubmixModelId?: string
 	planModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
 	planModeHicapModelId?: string
 	planModeHicapModelInfo?: ModelInfo
 	planModeNousResearchModelId?: string
-	// Act mode configurations
+	planModeVercelAiGatewayModelId?: string
+	planModeVercelAiGatewayModelInfo?: ModelInfo
 
 	// Act mode configurations
 	actModeApiModelId?: string
@@ -211,11 +214,14 @@ export interface ApiHandlerOptions {
 	actModeHuaweiCloudMaasModelInfo?: ModelInfo
 	actModeOcaModelId?: string
 	actModeOcaModelInfo?: OcaModelInfo
+	actModeOcaReasoningEffort?: string
 	actModeAihubmixModelId?: string
 	actModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
 	actModeHicapModelId?: string
 	actModeHicapModelInfo?: ModelInfo
 	actModeNousResearchModelId?: string
+	actModeVercelAiGatewayModelId?: string
+	actModeVercelAiGatewayModelInfo?: ModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions &
@@ -276,6 +282,8 @@ export interface OcaModelInfo extends OpenAiCompatibleModelInfo {
 	surveyId?: string
 	banner?: string
 	surveyContent?: string
+	supportsReasoning?: boolean
+	reasoningEffortOptions: string[]
 }
 
 export const CLAUDE_SONNET_1M_SUFFIX = ":1m"
@@ -433,7 +441,7 @@ export const anthropicModels = {
 	"claude-3-5-haiku-20241022": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
-		supportsImages: false,
+		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 0.8,
 		outputPrice: 4.0,
@@ -513,7 +521,7 @@ export const claudeCodeModels = {
 	},
 	"claude-3-5-haiku-20241022": {
 		...anthropicModels["claude-3-5-haiku-20241022"],
-		supportsImages: false,
+		supportsImages: true,
 		supportsPromptCache: false,
 	},
 } as const satisfies Record<string, ModelInfo>
@@ -1045,7 +1053,7 @@ export const vertexModels = {
 	"claude-3-5-haiku@20241022": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
-		supportsImages: false,
+		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 1.0,
 		outputPrice: 5.0,
@@ -3432,12 +3440,22 @@ export const cerebrasDefaultModelId: CerebrasModelId = "zai-glm-4.6"
 export const cerebrasModels = {
 	"zai-glm-4.6": {
 		maxTokens: 40000,
-		contextWindow: 128000,
+		contextWindow: 131072,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
-		description: "Intelligent general purpose model with 1,000 tokens/s",
+		description: "Fast general-purpose model on Cerebras (up to 1,000 tokens/s). To be deprecated soon.",
+	},
+	"zai-glm-4.7": {
+		maxTokens: 40000,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description:
+			"Highly capable general-purpose model on Cerebras (up to 1,000 tokens/s), competitive with leading proprietary models on coding tasks.",
 	},
 	"gpt-oss-120b": {
 		maxTokens: 65536,

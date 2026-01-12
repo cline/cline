@@ -1,11 +1,58 @@
 # Changelog
 
+## [3.49.0]
+
+- Enable configuring an OTEL collector at runtime
+- Removing Minimax-2.1 from free model list as the free trial has ended
+- Improved image display in MCP responses
+- Auto-sync remote MCP servers from remote config to local settings
+
+
+## [3.48.0]
+
+### Added
+
+- Add Skills system for reusable, on-demand agent instructions
+- Add new websearch tooling in Cline provider
+- Add zai-glm-4.7 to Cerebras model list
+- Add model refresh and improve reasoning support for Vercel AI Gateway
+
+### Fixed
+
+- Revert #8341 due to regressions in diff view/document truncation (see #8423, #8429)
+- Fixed extension crash when using context menu selector
+
+## [3.47.0]
+
+### Added
+
+- Added experimental support for Background Edits (allows editing files in background without opening the diff view)
+- Updated free model to MiniMax M2.1 (replacing MiniMax M2)
+- Added support for Azure based identity authentication in OpenAI Compatible provider and Azure OpenAI
+- Add `supportsReasoning` property to Baseten models
+
+### Fixed
+
+- Prevent expired token usage in authenticated requests
+- Exclude binary files without extensions from diffs
+- Preserve file endings and trailing newlines
+- Fix Cerebras rate limiting
+- Fix Auto Compact for Claude Code provider
+- Make Workspace and Favorites history filters independent
+- Fix remote MCP server connection failures (404 response handling)
+- Disable native tool calling for Deepseek 3.2 speciale
+- Show notification instead of opening sidebar on update
+- Fix Baseten model selector
+
+### Refactored
+
+- Modify prompts for parallel tool usage in Claude and Gemini 3 models
+
 ## [3.46.1]
 
 ### Fixed
 
 - Remove GLM 4.6 from free models
-
 
 ## [3.46.0]
 
