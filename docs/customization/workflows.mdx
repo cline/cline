@@ -8,79 +8,100 @@ Workflows are Markdown files that define a series of steps to guide Cline throug
 
 Deploying, setting up a new project, running through a release checklist: these tasks often require remembering a dozen steps, running commands in the right order, and updating files manually. Mess up one step and you're debugging for an hour. Workflows turn those multi-step processes into one command. Type `/release.md` and Cline handles the version bump, runs tests, updates the changelog, commits, tags, and pushes. You just review and approve.
 
-## Workflows vs. Rules
+## Workflow Structure
 
-Workflows and [Cline Rules](/customization/cline-rules) serve different purposes:
+A workflow is a markdown file with a title and steps. The filename becomes the command: `demo-workflow.md` is invoked with `/demo-workflow.md`.
 
-| Feature | Purpose | When to Use |
-|---------|---------|-------------|
-| **Rules** | Define *how* Cline behaves generally | Coding standards, tech stack preferences, project constraints |
-| **Workflows** | Define *what* specific task to perform | Automating repetitive tasks on-demand |
+````markdown title="demo-workflow.md"
+# Demo Workflow
 
-Think of rules as the *environment* Cline works in, and workflows as the *scripts* you give Cline to execute.
+Brief description of what this workflow accomplishes.
 
-## Quick Start
+## Step 1: Check prerequisites
+Verify the environment is ready. Look for required tools and dependencies.
 
-Creating a workflow is simpler than you might think. Save the [create-new-workflow.md](https://github.com/cline/prompts/blob/main/workflows/create-new-workflow.md) file to your workspace (e.g., in `.clinerules/workflows/`), then type `/create-new-workflow.md`. Cline will guide you through it:
+## Step 2: Run the build
+Execute the build command:
+```bash
+npm run build
+```
 
-1. It asks for the purpose and a concise name
-2. You describe the objective and expected outputs
-3. You list the major steps (Cline can help determine details)
-4. It generates the properly structured workflow file
+## Step 3: Verify results
+Check that the build completed successfully and report any issues.
+````
+
+Steps can be written at different levels of detail:
+
+- **High-level**: "Run the test suite and fix any failures" lets Cline decide how to accomplish the goal
+- **Specific**: Use XML tool syntax or exact commands when you need precise control
+
+## Creating Workflows
+
+<Steps>
+  <Step title="Open the Workflows menu">
+    Click the scale icon at the bottom of the Cline panel, to the left of the model selector. Switch to the Workflows tab.
+  </Step>
+  <Step title="Create a new workflow file">
+    Click "New workflow file..." and enter a filename (e.g., `deploy`). The file will be created with a `.md` extension.
+  </Step>
+  <Step title="Write your workflow">
+    Add a title and numbered steps in markdown format. Describe what each step should accomplish.
+  </Step>
+</Steps>
 
 <Tip>
-  **Automate Your History:** The best workflows come from tasks you've already done. After completing something you'll need to repeat, tell Cline: "Create a workflow for the process I just completed." It analyzes the conversation, identifies the steps, and generates the workflow file. Your accumulated context becomes reusable automation.
+**Create workflows from completed tasks.** After finishing something you'll need to repeat, tell Cline: "Create a workflow for the process I just completed." Cline analyzes the conversation, identifies the steps, and generates the workflow file. Your accumulated context becomes reusable automation.
 </Tip>
+
+### Invoking Workflows
+
+Type `/` in the chat input to see available workflows. Cline shows autocomplete suggestions as you type, so `/rel` would match `release-prep.md`. Select a workflow and press Enter to start it.
+
+Cline executes each step in sequence, pausing for your approval when needed. You can stop a workflow at any point by rejecting a step.
+
+### Toggling Workflows
+
+Every workflow has a toggle to enable or disable it. This lets you control which workflows appear in the `/` menu without deleting the file.
 
 ## Where Workflows Live
 
-You can store workflows in two locations depending on whether they're project-specific or global.
+Workflows can be stored in two locations: your project workspace or globally on your system.
 
-<Tabs>
-  <Tab title="Project-Specific">
-    Store workflows in `.clinerules/workflows/` in your project root. These workflows are only available when you have this specific project open.
-    
-    ```
-    your-project/
-    ├── .clinerules/
-    │   └── workflows/
-    │       ├── deploy.md
-    │       └── setup-feature.md
-    └── src/
-    ```
-  </Tab>
-  <Tab title="Global">
-    Store workflows you want across all projects in your system's Cline Workflows directory:
-    
-    | Operating System | Location |
-    |------------------|----------|
-    | macOS | `~/Documents/Cline/Workflows/` |
-    | Windows | `Documents\Cline\Workflows` |
-    | Linux/WSL | `~/Documents/Cline/Workflows/` |
-    
-    Global workflows are available in any project you open with Cline.
-  </Tab>
-</Tabs>
+**Workspace workflows** go in `.clinerules/workflows/` at your project root. Use these for project-specific automation like deployment scripts, release processes, or setup procedures that your team shares.
 
-Project workflows take precedence when names match global workflows.
+**Global workflows** go in your system's Cline Workflows directory. Use these for personal productivity workflows you use across all projects.
 
-## Managing Workflows
+### Global Workflows Directory
 
-Click the scale icon next to the model selector at the bottom of the Cline panel to open the Rules & Workflows panel. Switch to the **Workflows** tab to see your workflows organized into three sections:
+| Operating System | Default Location |
+|------------------|------------------|
+| Windows | `Documents\Cline\Workflows` |
+| macOS | `~/Documents/Cline/Workflows` |
+| Linux/WSL | `~/Documents/Cline/Workflows` |
 
-- **Enterprise Workflows** appear if your organization manages workflows through remote configuration
-- **Global Workflows** lists workflows from your system's Cline Workflows directory
-- **Workspace Workflows** shows workflows in your project's `.clinerules/workflows/` folder
-
-Toggle any workflow on or off depending on what you're working on. You can also create new workflow files directly from this panel by clicking "New workflow file..."
+Workspace workflows take precedence when names match global workflows. See [Storage Locations](/customization/overview#storage-locations) for more guidance.
 
 ## What Workflows Can Use
 
-Workflows can leverage three categories of tools:
+Workflows can combine natural language instructions with specific tool calls. This flexibility lets you write workflows that are as simple or as precise as your task requires.
+
+### Natural Language
+Make a full review of the skills documentation. 
+Write steps as plain instructions. Cline interprets them and figures out which tools to use:
+
+```markdown
+## Step 1: Check for uncommitted changes
+Look at the git status. If there are uncommitted changes, ask whether to continue or abort.
+
+## Step 2: Run the test suite
+Execute all tests. If any fail, show the failures and stop.
+```
+
+This approach works well when you want Cline to adapt to the situation rather than follow rigid steps.
 
 ### Cline Tools
 
-Use Cline's built-in tools with XML syntax for precise control. For example:
+For precise control, use Cline's built-in tools with XML syntax. This guarantees specific actions:
 
 ```xml
 <execute_command>
@@ -97,16 +118,16 @@ Use Cline's built-in tools with XML syntax for precise control. For example:
 
 ```xml
 <ask_followup_question>
-  <question>Do you want to deploy to production?</question>
-  <options>["Yes", "No"]</options>
+  <question>Deploy to production or staging?</question>
+  <options>["Production", "Staging", "Cancel"]</options>
 </ask_followup_question>
 ```
 
-See the full list of available tools in the [Cline Tools Reference](/tools-reference/all-cline-tools).
+See the full list in the [Cline Tools Reference](/tools-reference/all-cline-tools).
 
 ### CLI Tools
 
-Instruct Cline to use any command-line tool installed on your machine. Git, npm, docker, gh, make, curl, whatever you have available. You can specify commands directly in your workflow:
+Reference any command-line tool installed on your machine. Git, npm, docker, gh, make, curl: whatever you have available.
 
 ```bash
 git log --author="$(git config user.name)" --since="yesterday" --oneline
@@ -114,63 +135,87 @@ git log --author="$(git config user.name)" --since="yesterday" --oneline
 
 ### MCP Tools
 
-If you have [MCP servers](/mcp/mcp-overview) connected, you can reference their tools in your workflows. This lets you integrate with external services like GitHub, Slack, databases, or any custom tools your team has built.
-
-## Examples
-
-### Daily Changelog
-
-This workflow helps you create a changelog for your daily work:
-
-````markdown daily-changelog.md
-# Daily Changelog Generator
-
-1.  **Check recent git commits:**
-    Run the following command to see commits from today.
-    ```bash
-    git log --author="$(git config user.name)" --since="yesterday" --oneline
-    ```
-
-2.  **Summarize the work:**
-    Present the commits and ask for a summary to add to `changelog.md`.
-
-3.  **Append to changelog:**
-    Append the date, commits, and summary to `changelog.md`.
-````
-
-Notice you don't always need specific tool calls. Cline interprets high-level instructions and figures out how to accomplish them.
-
-### Release Workflow
-
-Without a workflow, releasing manually requires:
-1. Bump version in `package.json`
-2. Run tests
-3. Update `CHANGELOG.md`
-4. Commit and tag
-5. Push with tags
-
-With a workflow, just type `/release.md` and Cline handles it all, pausing only for errors or input.
-
-## Tips
-
-### Be Specific When Needed
-
-You can mix high-level instructions with explicit tool calls. When precision matters, use the XML syntax:
+If you have [MCP servers](/mcp/mcp-overview) connected, use them in your workflows with the `use_mcp_tool` syntax. This lets you integrate with external services like GitHub, Slack, databases, or custom internal tools.
 
 ```xml
-<search_files>
-  <path>src/controllers</path>
-  <regex>UserController</regex>
-  <file_pattern>*.ts</file_pattern>
-</search_files>
+<use_mcp_tool>
+<server_name>github-server</server_name>
+<tool_name>create_release</tool_name>
+<arguments>{"tag": "v1.2.0", "name": "Release v1.2.0", "body": "Changelog content here"}</arguments>
+</use_mcp_tool>
 ```
 
-When flexibility is fine, just describe what you want: "Find all TODO comments in the codebase."
+Or describe the intent in natural language and let Cline figure out the tool call:
 
-### Keep Workflows Modular
+```markdown
+## Step 3: Create GitHub release
+Use the GitHub MCP server to create a release tagged with the version from package.json.
+Include the changelog as the release body.
+```
 
-Instead of one massive workflow file, break complex tasks into smaller, reusable workflows. A `setup-db.md`, `run-tests.md`, and `deploy.md` are easier to maintain than one monolithic `do-everything.md`.
+## Writing Effective Workflows
 
-### Version Control Your Workflows
+**Start simple.** Write natural language steps first. Only add XML tool calls when you need guaranteed behavior.
 
-Store workflows in `.clinerules/workflows/` and commit them to your repository. Your team can share, review, and improve them together.
+**Be specific about decisions.** If a step requires user input, make that explicit: "Ask whether to deploy to production or staging."
+
+**Include failure handling.** Tell Cline what to do when something goes wrong: "If tests fail, show the failures and stop the workflow."
+
+**Keep workflows focused.** A `deploy.md` should deploy. A `setup-db.md` should set up the database. Split complex processes into multiple workflows that can be run independently.
+
+**Version control your workflows.** Store workflows in `.clinerules/workflows/` and commit them. Your team can share, review, and improve them together.
+
+<Warning>
+Workflows execute with your permissions. Review workflows before running them, especially those from external sources.
+</Warning>
+
+## Example: Release Preparation
+
+This workflow automates the tedious pre-release checklist. It verifies your working directory is clean, runs tests and builds, prompts you for the version bump, and generates a changelog from recent commits.
+
+The workflow demonstrates both approaches: XML tool syntax (`<execute_command>`, `<ask_followup_question>`) for steps that need precise control, and natural language for steps where Cline should adapt to the situation.
+
+````markdown title="release-prep.md"
+# Release Preparation
+
+Prepare a new release by running tests, building, and updating version info.
+
+## Step 1: Check for clean working directory
+<execute_command>
+<command>git status --porcelain</command>
+</execute_command>
+
+If there are uncommitted changes, ask whether to continue or stash them first.
+
+## Step 2: Run the test suite
+<execute_command>
+<command>npm run test</command>
+</execute_command>
+
+If any tests fail, stop the workflow and report the failures.
+
+## Step 3: Build the project
+<execute_command>
+<command>npm run build</command>
+</execute_command>
+
+Verify the build completes without errors.
+
+## Step 4: Ask for new version
+<ask_followup_question>
+<question>What should the new version be?</question>
+<options>["Patch (x.x.X)", "Minor (x.X.0)", "Major (X.0.0)", "Custom"]</options>
+</ask_followup_question>
+
+## Step 5: Update version
+Update the version in `package.json` to the new version specified by the user.
+
+## Step 6: Generate changelog entry
+<execute_command>
+<command>git log --oneline $(git describe --tags --abbrev=0)..HEAD</command>
+</execute_command>
+
+Use these commits to write a changelog entry for the new version.
+````
+
+Invoke it with `/release-prep.md` and Cline walks through each step.

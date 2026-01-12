@@ -325,7 +325,7 @@ Adding a personal touch goes a long way. There are great examples in the docs cu
 
 Make sure you crosslink when you're done writing the docs. If there are relevant docs, just link to them.
 
-# Brevity is the soul of wit
+# Brevity is the soul of 
 
 Don't ramble if you don't need to. Use bullet points and numbered lists. Keep things easy to read.
 

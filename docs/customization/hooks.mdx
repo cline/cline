@@ -29,14 +29,10 @@ Hooks let you inject custom logic into Cline's workflow at key moments. They run
 
 ## Hook Locations
 
-**Global Hooks** apply to all workspaces:
-- Stored in `~/Documents/Cline/Hooks/`
-- Perfect for personal coding standards
+Hooks can be stored globally or in a project workspace. See [Storage Locations](/customization/overview#storage-locations) for guidance on when to use each.
 
-**Project-Specific Hooks** apply only to current project:
-- Stored in `.clinerules/hooks/` within your repo
-- Great for team workflows
-- Can be committed to version control
+- **Global hooks**: `~/Documents/Cline/Hooks/`
+- **Project hooks**: `.clinerules/hooks/` in your repo (can be committed to version control)
 
 ## Creating a Hook
 
@@ -91,6 +87,6 @@ CLI hooks are only supported on macOS and Linux.
 
 ## Related Features
 
-- [.clinerules](/customization/cline-rules) define high-level guidance that hooks can enforce
+- [Rules](/customization/cline-rules) define high-level guidance that hooks can enforce
 - [Checkpoints](/core-workflows/checkpoints) let you roll back if a hook didn't catch an issue
-- [Auto-Approve](/customization/auto-approve) works well with hooks as safety nets
+- [Auto-Approve](/features/auto-approve) works well with hooks as safety nets

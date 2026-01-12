@@ -81,20 +81,22 @@
 					{
 						"group": "Customization",
 						"pages": [
+							"customization/overview",
 							"customization/cline-rules",
 							"customization/workflows",
-							"customization/hooks",
-							"features/multiroot-workspace",
-							"customization/memory-bank",
-							"customization/focus-chain",
-							"customization/auto-approve",
-							"customization/auto-compact"
+							"customization/skills",
+							"customization/hooks"
 						]
 					},
 					{
 						"group": "Features",
 						"pages": [
-							"features/dictation"
+							"features/dictation",
+							"features/memory-bank",
+							"features/focus-chain",
+							"features/auto-approve",
+							"features/auto-compact",
+							"features/multiroot-workspace"
 						]
 					},
 					{
@@ -335,7 +337,23 @@
 		},
 		{
 			"source": "/prompting/cline-memory-bank",
-			"destination": "/customization/memory-bank"
+			"destination": "/features/memory-bank"
+		},
+		{
+			"source": "/customization/memory-bank",
+			"destination": "/features/memory-bank"
+		},
+		{
+			"source": "/customization/focus-chain",
+			"destination": "/features/focus-chain"
+		},
+		{
+			"source": "/customization/auto-approve",
+			"destination": "/features/auto-approve"
+		},
+		{
+			"source": "/customization/auto-compact",
+			"destination": "/features/auto-compact"
 		},
 		{
 			"source": "/getting-started/your-first-task",
@@ -378,10 +396,6 @@
 			"destination": "/core-workflows/checkpoints"
 		},
 		{
-			"source": "/features/focus-chain",
-			"destination": "/customization/focus-chain"
-		},
-		{
 			"source": "/features/tasks/understanding-tasks",
 			"destination": "/core-workflows/task-management"
 		},
@@ -422,16 +436,8 @@
 			"destination": "/core-workflows/working-with-files"
 		},
 		{
-			"source": "/features/auto-approve",
-			"destination": "/customization/auto-approve"
-		},
-		{
 			"source": "/features/yolo-mode",
-			"destination": "/customization/auto-approve"
-		},
-		{
-			"source": "/features/auto-compact",
-			"destination": "/customization/auto-compact"
+			"destination": "/features/auto-approve"
 		},
 		{
 			"source": "/features/cline-rules",
@@ -520,6 +526,10 @@
 		{
 			"source": "/enterprise-solutions/team-management/roles-and-permissions",
 			"destination": "/enterprise-solutions/team-management/managing-members"
+		},
+		{
+			"source": "/features/customization/opening-cline-in-sidebar",
+			"destination": "/getting-started/installing-cline"
 		}
 	],
 	"search": {
