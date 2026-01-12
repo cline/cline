@@ -4,7 +4,7 @@
 export interface CommandPermissionConfig {
 	allow?: string[] // Glob patterns for allowed commands
 	deny?: string[] // Glob patterns for denied commands
-	allowOperators?: string[] // Shell operators to allow (e.g., [">", ">>"] to allow file writing)
+	allowRedirects?: boolean // Whether to allow shell redirects (>, >>, <, etc.) - defaults to false
 }
 
 /**
@@ -13,8 +13,17 @@ export interface CommandPermissionConfig {
 export interface PermissionValidationResult {
 	allowed: boolean
 	matchedPattern?: string // The pattern that matched (for error messages)
-	reason: "no_config" | "allowed" | "denied" | "no_match_deny_default" | "shell_operator_detected"
+	reason:
+		| "no_config"
+		| "allowed"
+		| "denied"
+		| "no_match_deny_default"
+		| "shell_operator_detected"
+		| "redirect_detected" // Redirect operators (>, >>, <) were used but not allowed
+		| "segment_denied" // A segment in a chained command matched a deny pattern
+		| "segment_no_match" // A segment in a chained command didn't match any allow pattern
 	detectedOperator?: string // The shell operator that was detected (for error messages)
+	failedSegment?: string // The command segment that failed validation (for chained commands)
 }
 
 /**
