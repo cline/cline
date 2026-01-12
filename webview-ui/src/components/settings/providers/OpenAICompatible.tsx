@@ -156,8 +156,8 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 						</div>
 
 						<div>
-							{headerEntries.map(([key, value]) => (
-								<div key={key} style={{ display: "flex", gap: 5, marginTop: 5 }}>
+							{headerEntries.map(([key, value], index) => (
+								<div key={`${index}-${key}`} style={{ display: "flex", gap: 5, marginTop: 5 }}>
 									<DebouncedTextField
 										disabled={remoteConfigSettings?.openAiHeaders !== undefined}
 										initialValue={key}

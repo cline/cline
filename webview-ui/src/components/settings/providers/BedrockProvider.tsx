@@ -43,7 +43,9 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [awsEndpointSelected, setAwsEndpointSelected] = useState(!!apiConfiguration?.awsBedrockEndpoint)
-	const awsAuthentication = apiConfiguration?.awsAuthentication ?? (apiConfiguration?.awsProfile ? "profile" : "credentials")
+	const awsAuthentication =
+		apiConfiguration?.awsAuthentication ??
+		(apiConfiguration?.awsUseProfile || apiConfiguration?.awsProfile ? "profile" : "credentials")
 
 	const bedrockDocsLinks: ProviderHelpLink[] = (() => {
 		const apiKey: ProviderHelpLink = {
