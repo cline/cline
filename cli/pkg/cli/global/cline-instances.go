@@ -18,7 +18,7 @@ type ClineInstances struct {
 	registry *InstanceRegistry
 }
 
-// NewClineInstances creates a new ClineClients instance
+// NewClineInstances creates a new ClineInstances instance
 func NewClineInstances(configPath string) *ClineInstances {
 	registry := NewInstanceRegistry(configPath)
 	return &ClineInstances{
