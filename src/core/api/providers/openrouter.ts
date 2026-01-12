@@ -113,7 +113,7 @@ export class OpenRouterHandler implements ApiHandler {
 				this.lastGenerationId = chunk.id
 			}
 
-			const delta = chunk.choices[0]?.delta
+			const delta = chunk.choices?.[0]?.delta
 			if (delta?.content) {
 				yield {
 					type: "text",
