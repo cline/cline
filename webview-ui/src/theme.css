@@ -43,6 +43,7 @@
 	--color-banner-background: var(--vscode-banner-background);
 	--color-banner-foreground: var(--vscode-banner-foreground);
 	--color-banner-icon: var(--vscode-banner-iconForeground);
+	--color-editor-match-highlight-background: var(--vscode-editor-findMatchHighlightBackground);
 	--color-icon-foreground: var(--vscode-icon-foreground);
 	--color-failed-icon: var(--vscode-testing-iconFailed);
 	--color-toolbar-default: var(--vscode-toolbar-background);

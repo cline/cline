@@ -1,10 +1,10 @@
-import { BooleanRequest, EmptyRequest, StringArrayRequest, StringRequest } from "@shared/proto/cline/common"
+import { BooleanRequest, EmptyRequest, StringArrayRequest } from "@shared/proto/cline/common"
 import { GetTaskHistoryRequest, TaskFavoriteRequest } from "@shared/proto/cline/task"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse, { FuseResult } from "fuse.js"
 import { FunnelIcon } from "lucide-react"
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
-import { Virtuoso } from "react-virtuoso"
+import { GroupedVirtuoso } from "react-virtuoso"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -18,6 +18,14 @@ type HistoryViewProps = {
 }
 
 type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRelevant"
+
+const isToday = (timestamp: number): boolean => {
+	const date = new Date(timestamp)
+	const today = new Date()
+	return (
+		date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear()
+	)
+}
 
 const HISTORY_FILTERS = {
 	newest: "Newest",
@@ -147,12 +155,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		}
 	}, [searchQuery, sortOption, lastNonRelevantSort])
 
-	const handleShowTaskWithId = useCallback((id: string) => {
-		TaskServiceClient.showTaskWithId(StringRequest.create({ value: id })).catch((error) =>
-			console.error("Error showing task:", error),
-		)
-	}, [])
-
 	const handleHistorySelect = useCallback((itemId: string, checked: boolean) => {
 		setSelectedItems((prev) => {
 			if (checked) {
@@ -183,21 +185,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		},
 		[fetchTotalTasksSize],
 	)
-
-	const formatDate = useCallback((timestamp: number) => {
-		const date = new Date(timestamp)
-		return date
-			?.toLocaleString("en-US", {
-				month: "long",
-				day: "numeric",
-				hour: "numeric",
-				minute: "2-digit",
-				hour12: true,
-			})
-			.replace(", ", " ")
-			.replace(" at", ",")
-			.toUpperCase()
-	}, [])
 
 	const fuse = useMemo(() => {
 		return new Fuse(tasks, {
@@ -239,6 +226,45 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 		return results
 	}, [tasks, searchQuery, fuse, sortOption])
+
+	// Group tasks into "Today" and "Earlier" (only for date-based sorts)
+	const { groupedTasks, groupCounts, groupLabels } = useMemo(() => {
+		const isDateSort = sortOption === "newest" || sortOption === "oldest"
+
+		if (!isDateSort) {
+			// No grouping for non-date sorts
+			return {
+				groupedTasks: taskHistorySearchResults,
+				groupCounts: [taskHistorySearchResults.length],
+				groupLabels: [] as string[],
+			}
+		}
+
+		const todayTasks: any[] = []
+		const earlierTasks: any[] = []
+
+		taskHistorySearchResults.forEach((task) => {
+			if (isToday(task.ts)) {
+				todayTasks.push(task)
+			} else {
+				earlierTasks.push(task)
+			}
+		})
+
+		const groups: { tasks: any[]; label: string }[] = []
+		if (todayTasks.length > 0) {
+			groups.push({ tasks: todayTasks, label: "Today" })
+		}
+		if (earlierTasks.length > 0) {
+			groups.push({ tasks: earlierTasks, label: "Earlier" })
+		}
+
+		return {
+			groupedTasks: groups.flatMap((g) => g.tasks),
+			groupCounts: groups.map((g) => g.tasks.length),
+			groupLabels: groups.map((g) => g.label),
+		}
+	}, [taskHistorySearchResults, sortOption])
 
 	// Calculate total size of selected items
 	const selectedItemsSize = useMemo(() => {
@@ -297,8 +323,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				</div>
 
 				{/* FILTERS */}
-				<div className="py-1.5 px-4">
-					<div className="flex flex-col gap-3">
+				<div className="flex flex-col gap-3 px-3">
+					{/* REPLACE VSCODE RADIO GROUP */}
+					<div className="flex justify-between">
 						{/* SEARCH BOX */}
 						<VSCodeTextField
 							className="w-full"
@@ -330,104 +357,103 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								/>
 							)}
 						</VSCodeTextField>
-						{/* REPLACE VSCODE RADIO GROUP */}
-						<div className="flex justify-between">
-							<div></div>
-							<Select
-								onValueChange={(value) => {
-									// Handle sort options
-									if (
-										value === "newest" ||
-										value === "oldest" ||
-										value === "mostExpensive" ||
-										value === "mostTokens" ||
-										value === "mostRelevant"
-									) {
-										if (value === "mostRelevant" && !searchQuery) {
-											// Don't allow selecting mostRelevant without a search query
-											return
-										}
-										setSortOption(value as SortOption)
-										if (value !== "mostRelevant") {
-											setLastNonRelevantSort(value as SortOption)
-										}
+						<Select
+							onValueChange={(value) => {
+								// Handle sort options
+								if (
+									value === "newest" ||
+									value === "oldest" ||
+									value === "mostExpensive" ||
+									value === "mostTokens" ||
+									value === "mostRelevant"
+								) {
+									if (value === "mostRelevant" && !searchQuery) {
+										// Don't allow selecting mostRelevant without a search query
+										return
 									}
-									// Handle filter toggles
-									else if (value === "workspaceOnly") {
-										setShowCurrentWorkspaceOnly(!showCurrentWorkspaceOnly)
-									} else if (value === "favoritesOnly") {
-										setShowFavoritesOnly(!showFavoritesOnly)
+									setSortOption(value as SortOption)
+									if (value !== "mostRelevant") {
+										setLastNonRelevantSort(value as SortOption)
 									}
-								}}
-								value={sortOption}>
-								<SelectTrigger className="border-0 cursor-pointer" showIcon={false}>
-									<FunnelIcon className="text-foreground" />
-									{/* <span className="text-xs">
-										{HISTORY_FILTERS[sortOption]}
-										{showCurrentWorkspaceOnly && " Workspace"}
-										{showFavoritesOnly && " Favorites"}
-									</span> */}
-								</SelectTrigger>
-								<SelectContent position="popper">
-									{Object.entries(HISTORY_FILTERS).map(([key, value]) => {
-										const isSortOption = [
-											"newest",
-											"oldest",
-											"mostExpensive",
-											"mostTokens",
-											"mostRelevant",
-										].includes(key)
-										const isFilterOption = ["workspaceOnly", "favoritesOnly"].includes(key)
-										const isSelected = isSortOption
-											? sortOption === key
-											: key === "workspaceOnly"
-												? showCurrentWorkspaceOnly
-												: key === "favoritesOnly"
-													? showFavoritesOnly
-													: false
-										const isDisabled = key === "mostRelevant" && !searchQuery
+								}
+								// Handle filter toggles
+								else if (value === "workspaceOnly") {
+									setShowCurrentWorkspaceOnly(!showCurrentWorkspaceOnly)
+								} else if (value === "favoritesOnly") {
+									setShowFavoritesOnly(!showFavoritesOnly)
+								}
+							}}
+							value={sortOption}>
+							<SelectTrigger className="border-0 cursor-pointer" showIcon={false}>
+								<FunnelIcon className="text-foreground" />
+							</SelectTrigger>
+							<SelectContent position="popper">
+								{Object.entries(HISTORY_FILTERS).map(([key, value]) => {
+									const isSortOption = [
+										"newest",
+										"oldest",
+										"mostExpensive",
+										"mostTokens",
+										"mostRelevant",
+									].includes(key)
+									const isFilterOption = ["workspaceOnly", "favoritesOnly"].includes(key)
+									const isSelected = isSortOption
+										? sortOption === key
+										: key === "workspaceOnly"
+											? showCurrentWorkspaceOnly
+											: key === "favoritesOnly"
+												? showFavoritesOnly
+												: false
+									const isDisabled = key === "mostRelevant" && !searchQuery
 
-										return (
-											<SelectItem
-												className={isSelected ? "bg-button-background/30" : ""}
-												disabled={isDisabled}
-												key={key}
-												value={key}>
-												<span className="flex items-center gap-2">
-													{isFilterOption && (
-														<span
-															className={`codicon ${
-																key === "workspaceOnly" ? "codicon-folder" : "codicon-star-full"
-															} ${isSelected ? "text-button-background" : ""}`}
-														/>
-													)}
-													{value}
-												</span>
-											</SelectItem>
-										)
-									})}
-								</SelectContent>
-							</Select>
-						</div>
+									return (
+										<SelectItem
+											className={isSelected ? "bg-button-background/30" : ""}
+											disabled={isDisabled}
+											key={key}
+											value={key}>
+											<span className="flex items-center gap-2">
+												{isFilterOption && (
+													<span
+														className={`codicon ${
+															key === "workspaceOnly" ? "codicon-folder" : "codicon-star-full"
+														} ${isSelected ? "text-button-background" : ""}`}
+													/>
+												)}
+												{value}
+											</span>
+										</SelectItem>
+									)
+								})}
+							</SelectContent>
+						</Select>
 					</div>
 				</div>
 
 				{/* HISTORY ITEMS */}
-				<div className="flex-grow overflow-y-auto m-0 w-full">
-					<Virtuoso
+				<div className="flex-grow overflow-y-auto m-0 w-full py-2">
+					<GroupedVirtuoso
 						className="flex-grow overflow-y-scroll"
-						data={taskHistorySearchResults}
-						itemContent={(index, item) => (
-							<HistoryViewItem
-								handleDeleteHistoryItem={handleDeleteHistoryItem}
-								handleHistorySelect={handleHistorySelect}
-								index={index}
-								item={item}
-								pendingFavoriteToggles={pendingFavoriteToggles}
-								selectedItems={selectedItems}
-								toggleFavorite={toggleFavorite}
-							/>
+						groupContent={(index) => (
+							<div className="px-4 py-2 text-xs font-bold uppercase tracking-wide sticky top-0 z-10 text-description bg-sidebar-background border-b-border-panel">
+								{groupLabels[index]}
+							</div>
 						)}
+						groupCounts={groupCounts}
+						itemContent={(index) => {
+							const item = groupedTasks[index]
+							return (
+								<HistoryViewItem
+									handleDeleteHistoryItem={handleDeleteHistoryItem}
+									handleHistorySelect={handleHistorySelect}
+									index={index}
+									item={item}
+									pendingFavoriteToggles={pendingFavoriteToggles}
+									selectedItems={selectedItems}
+									toggleFavorite={toggleFavorite}
+								/>
+							)
+						}}
 					/>
 				</div>
 
