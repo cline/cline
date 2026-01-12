@@ -363,7 +363,7 @@
     "type": "function",
     "function": {
       "name": "focus_chain",
-      "description": "",
+      "description": "Manage focus chain for task context tracking",
       "strict": false,
       "parameters": {
         "type": "object",
