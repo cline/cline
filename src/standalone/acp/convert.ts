@@ -79,6 +79,57 @@ export function createAcpConversionState(): AcpConversionState {
 	}
 }
 
+/**
+ * Strips internal Cline metadata from text before sending to ACP clients.
+ * This removes:
+ * - <environment_details>...</environment_details> blocks
+ * - <task>...</task> blocks
+ * - # task_progress sections and related hints
+ * - {"request":"..."} JSON wrappers from raw internal messages
+ * - [tool_name for '...'] Result: patterns
+ */
+function sanitizeTextForAcp(text: string | undefined): string | undefined {
+	if (!text) {
+		return undefined
+	}
+
+	let result = text
+
+	// Remove <environment_details>...</environment_details> blocks (handles multiline and escaped)
+	result = result.replace(/<environment_details>[\s\S]*?<\/environment_details>/g, "")
+	result = result.replace(/<environment_details>[\s\S]*$/g, "") // Unclosed block at end
+
+	// Remove <task>...</task> blocks
+	result = result.replace(/<task>[\s\S]*?<\/task>/g, "")
+
+	// Remove # task_progress sections (these are system-level hints)
+	result = result.replace(/# task_progress[\s\S]*?(?=\n\n|\n#|$)/gi, "")
+	result = result.replace(/# TODO LIST UPDATE REQUIRED[\s\S]*?(?=\n\n|\n#|$)/gi, "")
+
+	// Remove {"request":"..."} JSON wrappers - match from {"request" to the next "}
+	// This handles escaped newlines (\n) and quotes within the string
+	result = result.replace(/\{"request":[^}]*\}/g, "")
+
+	// Also handle the more complex case where the JSON spans with escaped content
+	// Match {"request":"...any content including escaped chars..."} patterns
+	result = result.replace(/\{[\s]*"request"[\s]*:[\s]*"(?:[^"\\]|\\.)*"\s*\}/g, "")
+
+	// Remove [tool_name for '...'] Result: patterns
+	result = result.replace(/\[[^\]]+\s+for\s+'[^']+'\]\s*Result:/g, "")
+
+	// Remove "Loading..." status messages that are internal
+	result = result.replace(/Loading\.\.\.$/gm, "")
+	result = result.replace(/\nLoading\.\.\.$/, "")
+
+	// Remove escaped newlines that shouldn't be there
+	result = result.replace(/\\n/g, "\n")
+
+	// Clean up excessive whitespace left behind
+	result = result.replace(/\n{3,}/g, "\n\n").trim()
+
+	return result || undefined
+}
+
 export function isPermissionAskType(ask?: ClineAsk): boolean {
 	return ask ? PERMISSION_ASK_TYPES.has(ask) : false
 }
@@ -101,7 +152,7 @@ export function parseToolPayload(text: string | undefined): ClineSayTool | undef
 	try {
 		const parsed = JSON.parse(text) as Record<string, unknown>
 		if (parsed && typeof parsed === "object" && typeof parsed.tool === "string") {
-			return parsed as ClineSayTool
+			return parsed as unknown as ClineSayTool
 		}
 	} catch (_error) {
 		return undefined
@@ -244,7 +295,8 @@ export function buildNotificationsForMessage(
 			return []
 		}
 		const askText = formatAskText(message.ask, message.text)
-		if (!askText) {
+		const sanitizedAskText = sanitizeTextForAcp(askText)
+		if (!sanitizedAskText) {
 			return []
 		}
 		return [
@@ -252,7 +304,7 @@ export function buildNotificationsForMessage(
 				sessionId,
 				update: {
 					sessionUpdate: "agent_message_chunk",
-					content: { type: "text", text: askText },
+					content: { type: "text", text: sanitizedAskText },
 				},
 			},
 		]
@@ -356,11 +408,16 @@ export function buildNotificationsForPartialMessage(
 		return []
 	}
 
+	const sanitizedDelta = sanitizeTextForAcp(delta)
+	if (!sanitizedDelta) {
+		return []
+	}
+
 	const update: SessionNotification = {
 		sessionId,
 		update: {
 			sessionUpdate: message.say === "reasoning" ? "agent_thought_chunk" : "agent_message_chunk",
-			content: { type: "text", text: delta },
+			content: { type: "text", text: sanitizedDelta },
 		},
 	}
 
@@ -387,7 +444,8 @@ function extractDelta(cache: Map<string, string>, key: string, text: string): st
 }
 
 function buildTextNotification(sessionId: string, text?: string): SessionNotification[] {
-	if (!text) {
+	const sanitizedText = sanitizeTextForAcp(text)
+	if (!sanitizedText) {
 		return []
 	}
 	return [
@@ -395,7 +453,7 @@ function buildTextNotification(sessionId: string, text?: string): SessionNotific
 			sessionId,
 			update: {
 				sessionUpdate: "agent_message_chunk",
-				content: { type: "text", text },
+				content: { type: "text", text: sanitizedText },
 			},
 		},
 	]
@@ -419,7 +477,6 @@ function buildToolCallNotification(sessionId: string, details: ToolCallDetails, 
 
 export function buildPermissionToolCall(details: ToolCallDetails): ToolCallUpdate {
 	return {
-		sessionUpdate: "tool_call_update",
 		toolCallId: details.toolCallId,
 		title: details.title,
 		kind: details.kind,

@@ -1,9 +1,13 @@
+import { type ChildProcess, spawn } from "node:child_process"
 import { randomUUID } from "node:crypto"
+import { existsSync } from "node:fs"
 import * as path from "node:path"
 import { fileURLToPath } from "node:url"
 import {
 	Agent,
 	AgentSideConnection,
+	type AuthenticateRequest,
+	type AuthenticateResponse,
 	CancelNotification,
 	type ContentBlock,
 	InitializeRequest,
@@ -38,7 +42,7 @@ import { EmptyRequest } from "@/shared/proto/cline/common"
 import { State } from "@/shared/proto/cline/state"
 import type { ClineMessage as ProtoClineMessage } from "@/shared/proto/cline/ui"
 import { convertProtoToClineMessage } from "@/shared/proto-conversions/cline-message"
-import { waitForHostBridgeReady } from "@/standalone/hostbridge-client"
+import { HOSTBRIDGE_PORT, waitForHostBridgeReady } from "@/standalone/hostbridge-client"
 import { initializeContext } from "@/standalone/vscode-context"
 import packageJson from "../../../package.json"
 import {
@@ -55,13 +59,14 @@ import {
 import { nodeToWebReadable, nodeToWebWritable } from "./stdio"
 
 const PERMISSION_OPTIONS = [
-	{ optionId: "allow", name: "Allow", kind: "allow_once" },
-	{ optionId: "reject", name: "Reject", kind: "reject_once" },
-	{ optionId: "allow_always", name: "Always Allow", kind: "allow_always" },
+	{ optionId: "allow", name: "Allow", kind: "allow_once" as const },
+	{ optionId: "reject", name: "Reject", kind: "reject_once" as const },
+	{ optionId: "allow_always", name: "Always Allow", kind: "allow_always" as const },
 ]
 
 type ClineAcpRuntime = {
 	controller: Controller
+	hostBridgeProcess?: ChildProcess
 	dispose: () => Promise<void>
 }
 
@@ -204,6 +209,11 @@ export class ClineAcpAgent implements Agent {
 		return {}
 	}
 
+	async authenticate(_params: AuthenticateRequest): Promise<AuthenticateResponse | undefined> {
+		// No authentication required for Cline ACP agent
+		return undefined
+	}
+
 	private async ensureRuntime(cwd: string): Promise<ClineAcpRuntime> {
 		if (this.runtime) {
 			return this.runtime
@@ -216,7 +226,14 @@ export class ClineAcpAgent implements Agent {
 	}
 
 	private async createRuntime(cwd: string): Promise<ClineAcpRuntime> {
-		process.chdir(path.dirname(fileURLToPath(import.meta.url)))
+		// Change to the directory containing this script (dist-standalone)
+		const scriptDir = path.dirname(fileURLToPath(import.meta.url))
+		process.chdir(scriptDir)
+
+		// Start the host bridge process
+		const hostBridgeProcess = await this.startHostBridge(scriptDir, cwd)
+
+		// Wait for host bridge to be ready
 		await waitForHostBridgeReady()
 
 		const { extensionContext, DATA_DIR, EXTENSION_DIR } = initializeContext(undefined)
@@ -226,10 +243,75 @@ export class ClineAcpAgent implements Agent {
 
 		return {
 			controller: webviewProvider.controller,
+			hostBridgeProcess,
 			dispose: async () => {
 				await tearDown()
+				if (hostBridgeProcess && !hostBridgeProcess.killed) {
+					hostBridgeProcess.kill()
+				}
 			},
 		}
+	}
+
+	private async startHostBridge(scriptDir: string, cwd: string): Promise<ChildProcess | undefined> {
+		// Look for platform-specific binary first, then generic
+		const platform = process.platform
+		const arch = process.arch
+		const platformArch = `${platform === "darwin" ? "darwin" : platform}-${arch === "arm64" ? "arm64" : "x64"}`
+
+		const binDir = path.join(scriptDir, "bin")
+		const candidates = [path.join(binDir, `cline-host-${platformArch}`), path.join(binDir, "cline-host")]
+
+		let hostBridgePath: string | undefined
+		for (const candidate of candidates) {
+			if (existsSync(candidate)) {
+				hostBridgePath = candidate
+				break
+			}
+		}
+
+		if (!hostBridgePath) {
+			console.error("[cline-acp] Warning: Could not find cline-host binary. Attempted paths:")
+			for (const candidate of candidates) {
+				console.error(`  - ${candidate}`)
+			}
+			console.error("[cline-acp] The host bridge may need to be started externally.")
+			return undefined
+		}
+
+		console.error(`[cline-acp] Starting host bridge: ${hostBridgePath}`)
+		console.error(`[cline-acp] Working directory: ${cwd}`)
+		console.error(`[cline-acp] Port: ${HOSTBRIDGE_PORT}`)
+
+		const hostBridgeProcess = spawn(hostBridgePath, ["-p", String(HOSTBRIDGE_PORT), "--workspace", cwd, "-v"], {
+			cwd,
+			stdio: ["ignore", "pipe", "pipe"],
+			env: {
+				...process.env,
+			},
+		})
+
+		// Log host bridge output to stderr (so it doesn't interfere with ACP traffic)
+		hostBridgeProcess.stdout?.on("data", (data: Buffer) => {
+			console.error(`[cline-host stdout] ${data.toString().trim()}`)
+		})
+
+		hostBridgeProcess.stderr?.on("data", (data: Buffer) => {
+			console.error(`[cline-host stderr] ${data.toString().trim()}`)
+		})
+
+		hostBridgeProcess.on("error", (err) => {
+			console.error(`[cline-acp] Host bridge process error: ${err.message}`)
+		})
+
+		hostBridgeProcess.on("exit", (code, signal) => {
+			console.error(`[cline-acp] Host bridge exited with code ${code}, signal ${signal}`)
+		})
+
+		// Give the host bridge a moment to start
+		await new Promise((resolve) => setTimeout(resolve, 500))
+
+		return hostBridgeProcess
 	}
 
 	private setupHostProvider(extensionContext: ExtensionContext, extensionDir: string, dataDir: string) {
@@ -260,20 +342,24 @@ export class ClineAcpAgent implements Agent {
 		}
 		const serverConfigs: Record<string, McpServerConfig> = {}
 		for (const server of servers) {
-			if ("type" in server && server.type && server.type !== "stdio") {
+			if ("type" in server && server.type && (server.type === "http" || server.type === "sse")) {
 				const transportType = server.type === "http" ? "streamableHttp" : "sse"
 				serverConfigs[server.name] = {
 					type: transportType,
+					transportType: undefined,
 					url: server.url,
+					timeout: 60000,
 					headers: server.headers ? Object.fromEntries(server.headers.map((h) => [h.name, h.value])) : undefined,
-				}
+				} as McpServerConfig
 			} else {
 				serverConfigs[server.name] = {
 					type: "stdio",
+					transportType: undefined,
 					command: server.command,
 					args: server.args,
+					timeout: 60000,
 					env: server.env ? Object.fromEntries(server.env.map((e) => [e.name, e.value])) : undefined,
-				}
+				} as McpServerConfig
 			}
 		}
 
@@ -489,7 +575,7 @@ export class ClineAcpAgent implements Agent {
 export function runAcp() {
 	const input = nodeToWebWritable(process.stdout)
 	const output = nodeToWebReadable(process.stdin)
-	const stream = ndJsonStream(input, output)
+	const stream = ndJsonStream(input as unknown as WritableStream<Uint8Array>, output as unknown as ReadableStream<Uint8Array>)
 	new AgentSideConnection((client) => new ClineAcpAgent(client), stream)
 }
 
