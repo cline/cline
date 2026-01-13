@@ -95,6 +95,11 @@ import {
 import { ApiFormat } from "@/shared/proto/cline/models"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
+import {
+	extractPathLikeStrings,
+	RuleEvaluationContext,
+	toWorkspaceRelativePosixPath,
+} from "../context/instructions/user-instructions/rule-conditionals"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { discoverSkills, getAvailableSkills } from "../context/instructions/user-instructions/skills"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
@@ -1730,10 +1735,14 @@ export class Task {
 			this.cwd,
 		)
 
-		const globalClineRulesFilePath = await ensureRulesDirectoryExists()
-		const globalClineRulesFileInstructions = await getGlobalClineRules(globalClineRulesFilePath, globalToggles)
+		const evaluationContext = await this.buildRuleEvaluationContext()
 
-		const localClineRulesFileInstructions = await getLocalClineRules(this.cwd, localToggles)
+		const globalClineRulesFilePath = await ensureRulesDirectoryExists()
+		const globalRules = await getGlobalClineRules(globalClineRulesFilePath, globalToggles, { evaluationContext })
+		const globalClineRulesFileInstructions = globalRules.instructions
+
+		const localRules = await getLocalClineRules(this.cwd, localToggles, { evaluationContext })
+		const localClineRulesFileInstructions = localRules.instructions
 		const [localCursorRulesFileInstructions, localCursorRulesDirInstructions] = await getLocalCursorRules(
 			this.cwd,
 			cursorLocalToggles,
@@ -1819,6 +1828,18 @@ export class Task {
 				this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
 			terminalExecutionMode: this.terminalExecutionMode,
+		}
+
+		// Notify user if any conditional rules were applied for this request
+		const activatedConditionalRules = [...globalRules.activatedConditionalRules, ...localRules.activatedConditionalRules]
+		if (activatedConditionalRules.length > 0) {
+			await this.say(
+				"info",
+				JSON.stringify({
+					type: "conditional_rules_applied",
+					rules: activatedConditionalRules,
+				}),
+			)
 		}
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
@@ -2021,6 +2042,70 @@ export class Task {
 		// (needs to be placed outside of try/catch since it we want caller to handle errors not with api_req_failed as that is reserved for first chunk failures only)
 		// this delegates to another generator or iterable object. In this case, it's saying "yield all remaining values from this iterator". This effectively passes along all subsequent chunks from the original stream.
 		yield* iterator
+	}
+
+	private async buildRuleEvaluationContext(): Promise<RuleEvaluationContext> {
+		return {
+			paths: await this.getRulePathContext(),
+		}
+	}
+
+	private async getRulePathContext(): Promise<string[]> {
+		const candidates: string[] = []
+
+		// (1) Mention-based evidence from the current request: parse the current user content
+		// from the most recent api_req_started request block (it contains the userContent in markdown).
+		// We can't reliably access raw unprocessed user prompt here without threading it through,
+		// so we use the latest user message text in clineMessages as a proxy.
+		const clineMessages = this.messageStateHandler.getClineMessages()
+		const lastUserMsg = [...clineMessages].reverse().find((m) => m.type === "say" && m.say === "task")
+		if (lastUserMsg?.text) {
+			candidates.push(...extractPathLikeStrings(lastUserMsg.text))
+		}
+
+		// (2) Visible + open tabs
+		const roots = this.workspaceManager?.getRoots().map((r) => r.path) ?? [this.cwd]
+		const rawVisiblePaths = (await HostProvider.window.getVisibleTabs({})).paths
+		const rawOpenTabPaths = (await HostProvider.window.getOpenTabs({})).paths
+		for (const abs of [...rawVisiblePaths, ...rawOpenTabPaths]) {
+			for (const root of roots) {
+				const rel = toWorkspaceRelativePosixPath(abs, root)
+				if (rel) {
+					candidates.push(rel)
+					break
+				}
+			}
+		}
+
+		// (3) Files edited by Cline during this task: use fileContextTracker metadata heuristics.
+		// We can approximate this by looking for tool messages indicating edits.
+		for (const msg of clineMessages) {
+			if (msg.say !== "tool" || !msg.text) continue
+			try {
+				const tool = JSON.parse(msg.text) as { tool?: string; path?: string }
+				if (
+					(tool.tool === "editedExistingFile" || tool.tool === "newFileCreated" || tool.tool === "fileDeleted") &&
+					tool.path
+				) {
+					candidates.push(tool.path)
+				}
+			} catch {
+				// ignore
+			}
+		}
+
+		// Normalize/dedupe/cap
+		const seen = new Set<string>()
+		const normalized: string[] = []
+		for (const c of candidates) {
+			const posix = c.replace(/\\/g, "/").replace(/^\//, "")
+			if (!posix || posix === "/") continue
+			if (seen.has(posix)) continue
+			seen.add(posix)
+			normalized.push(posix)
+			if (normalized.length >= 100) break
+		}
+		return normalized.sort()
 	}
 
 	async presentAssistantMessage() {

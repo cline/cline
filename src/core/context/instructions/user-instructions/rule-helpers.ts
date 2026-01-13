@@ -164,6 +164,7 @@ export const getRuleFilesTotalContentWithMetadata = async (
 	toggles: ClineRulesToggles,
 	opts?: { evaluationContext?: RuleEvaluationContext },
 ): Promise<RuleLoadResult> => {
+	const activatedConditionalRules: ActivatedConditionalRule[] = []
 	const evaluationContext = opts?.evaluationContext ?? {}
 
 	type RuleLoadPart = {
@@ -171,7 +172,7 @@ export const getRuleFilesTotalContentWithMetadata = async (
 		activatedRule: ActivatedConditionalRule | null
 	}
 
-	const parts: RuleLoadPart[] = await Promise.all(
+	const parts = await Promise.all(
 		rulesFilePaths.map(async (filePath) => {
 			const ruleFilePath = path.resolve(basePath, filePath)
 			const ruleFilePathRelative = path.relative(basePath, ruleFilePath)

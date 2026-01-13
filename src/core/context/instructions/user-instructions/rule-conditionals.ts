@@ -46,6 +46,7 @@ const evaluatePathsConditional: ConditionalEvaluatorWithMatch = (frontmatterValu
 	}
 
 	const patterns = frontmatterValue.map((p) => p.trim()).filter(Boolean)
+
 	// Policy:
 	// - `paths` omitted => universal (because this evaluator is never invoked)
 	// - `paths: []` (or `paths` that trims to no usable patterns) => match nothing (fail-closed)

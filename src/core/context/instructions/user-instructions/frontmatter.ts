@@ -2,6 +2,7 @@ import * as yaml from "js-yaml"
 
 export type FrontmatterParseResult = {
 	data: Record<string, unknown>
+    
 	/**
 	 * The markdown content after stripping the `--- frontmatter ---` block.
 	 *
@@ -18,6 +19,7 @@ export type FrontmatterParseResult = {
 	 * - "frontmatter was provided" (may have semantic meaning in future consumers).
 	 */
 	hadFrontmatter: boolean
+
 	/**
 	 * Present only when YAML frontmatter was detected but failed to parse.
 	 *
