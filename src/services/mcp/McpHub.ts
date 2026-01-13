@@ -245,8 +245,7 @@ export class McpHub {
 			const remoteConfig = stateManager.getRemoteConfigSettings()
 
 			// Early exit for non-enterprise users: if no remote config is set, allow all local servers
-			const hasAllowlist = remoteConfig.allowedMCPServers && remoteConfig.allowedMCPServers.length > 0
-			if (remoteConfig.mcpMarketplaceEnabled === undefined && !hasAllowlist) {
+			if (Object.keys(remoteConfig).length === 0) {
 				// No remote config restrictions - proceed with connection (default behavior for non-enterprise users)
 				// This ensures backwards compatibility and that regular users are not affected
 			} else {
@@ -258,6 +257,7 @@ export class McpHub {
 				}
 
 				// If allowlist exists, only servers on the allowlist are allowed
+				const hasAllowlist = remoteConfig.allowedMCPServers && remoteConfig.allowedMCPServers.length > 0
 				if (hasAllowlist) {
 					const allowedIds = remoteConfig.allowedMCPServers!.map((server: { id: string }) => server.id)
 					if (!allowedIds.includes(name)) {
@@ -266,7 +266,6 @@ export class McpHub {
 				}
 
 				// If marketplace is enabled with no allowlist, all local servers are allowed
-				// (marketplace will be shown but empty - only org's allowlisted servers appear there)
 			}
 		}
 
