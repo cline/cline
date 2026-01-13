@@ -76,7 +76,7 @@ export const recommendedModels = [
 
 export const freeModels = [
 	{
-		id: "kwaipilot/kat-coder-pro:free",
+		id: "kwaipilot/kat-coder-pro",
 		description: "KwaiKAT's most advanced agentic coding model in the KAT-Coder series",
 		label: "FREE",
 	},
