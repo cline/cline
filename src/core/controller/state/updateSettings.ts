@@ -11,6 +11,8 @@ import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { ClineEnv } from "@/config"
+import { fetchRemoteConfig } from "@/core/storage/remote-config/fetch"
+import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { HostProvider } from "@/hosts/host-provider"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -320,6 +322,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			}
 		}
 
+		if (request.backgroundEditEnabled !== undefined) {
+			controller.stateManager.setGlobalState("backgroundEditEnabled", !!request.backgroundEditEnabled)
+		}
+
 		if (request.autoCondenseThreshold !== undefined) {
 			const threshold = Math.min(1, Math.max(0, request.autoCondenseThreshold)) // Clamp to 0-1 range
 			controller.stateManager.setGlobalState("autoCondenseThreshold", threshold)
@@ -359,6 +365,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("subagentsEnabled", !!request.subagentsEnabled)
 		}
 
+		if (request.skillsEnabled !== undefined) {
+			controller.stateManager.setGlobalState("skillsEnabled", !!request.skillsEnabled)
+		}
+
 		if (request.nativeToolCallEnabled !== undefined) {
 			controller.stateManager.setGlobalState("nativeToolCallEnabled", !!request.nativeToolCallEnabled)
 			if (controller.task) {
@@ -373,6 +383,25 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		if (request.enableParallelToolCalling !== undefined) {
 			controller.stateManager.setGlobalState("enableParallelToolCalling", !!request.enableParallelToolCalling)
+		}
+
+		if (request.optOutOfRemoteConfig !== undefined) {
+			const hadOptedOut = controller.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig")
+			const isOptingOut = !!request.optOutOfRemoteConfig
+			const isReenablingRemoteConfig = !isOptingOut && hadOptedOut
+
+			// Update now so any subsequent function can access the updated value
+			controller.stateManager.setGlobalState("optOutOfRemoteConfig", isOptingOut)
+
+			if (isOptingOut && !hadOptedOut) {
+				clearRemoteConfig()
+			} else if (isReenablingRemoteConfig) {
+				// Fire-and-forget: We don't need to await here
+				// The function catches any errors and posts the updated state to the webview
+				// The immediate state update below shows the user's intent (opted-in),
+				// and we apply the actual config afterwards without blocking the settings update
+				fetchRemoteConfig(controller)
+			}
 		}
 
 		// Post updated state to webview

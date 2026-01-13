@@ -76,19 +76,8 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 
 	await showVersionUpdateAnnouncement(context)
 
-	// Initialize banner service
-	BannerService.initialize(webview.controller)
-	BannerService.get()
-		.fetchActiveBanners()
-		.then((banners) => {
-			if (banners.length > 0) {
-				Logger.log(`BannerService: ${banners.length} active banner(s) fetched.`)
-				// Banners are now cached and can be accessed by the frontend when needed
-			}
-		})
-		.catch((error) => {
-			Logger.error("BannerService: Failed to fetch banners on startup", error)
-		})
+	// Initialize banner service and fetch banners from the API.
+	BannerService.initialize(webview.controller).getActiveBanners(true)
 
 	telemetryService.captureExtensionActivated()
 
@@ -104,17 +93,15 @@ async function showVersionUpdateAnnouncement(context: vscode.ExtensionContext) {
 		if (!previousVersion || currentVersion !== previousVersion) {
 			Logger.log(`Cline version changed: ${previousVersion} -> ${currentVersion}. First run or update detected.`)
 
-			// Use the same condition as announcements: focus when there's a new announcement to show
+			// Check if there's a new announcement to show
 			const lastShownAnnouncementId = context.globalState.get<string>("lastShownAnnouncementId")
 			const latestAnnouncementId = getLatestAnnouncementId()
 
 			if (lastShownAnnouncementId !== latestAnnouncementId) {
-				// Focus Cline when there's a new announcement to show (major/minor updates or fresh installs)
+				// Show notification when there's a new announcement (major/minor updates or fresh installs)
 				const message = previousVersion
 					? `Cline has been updated to v${currentVersion}`
 					: `Welcome to Cline v${currentVersion}`
-				await HostProvider.workspace.openClineSidebarPanel({})
-				await new Promise((resolve) => setTimeout(resolve, 200))
 				HostProvider.window.showMessage({
 					type: ShowMessageType.INFORMATION,
 					message,

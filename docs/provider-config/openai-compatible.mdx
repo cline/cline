@@ -16,7 +16,7 @@ This document focuses on setting up providers _other than_ the official OpenAI A
 The key to using an OpenAI-compatible provider with Cline is to configure these main settings:
 
 1.  **Base URL:** This is the API endpoint specific to the provider. It will _not_ be `https://api.openai.com/v1` (that URL is for the official OpenAI API).
-2.  **API Key:** This is the secret key you obtain from your chosen provider.
+2.  **API Key:** This is the secret key you obtain from your chosen provider. (or **Use Azure Identity Authentication**)
 3.  **Model ID:** This is the specific name or identifier for the model you wish to use.
 
 You'll find these settings in the Cline settings panel (click the ⚙️ icon):
@@ -25,6 +25,7 @@ You'll find these settings in the Cline settings panel (click the ⚙️ icon):
 -   **Base URL:** Enter the base URL provided by your chosen provider. **This is a crucial step.**
 -   **API Key:** Enter your API key from the provider.
 -   **Model:** Choose or enter the model ID.
+-   **Use Azure Identity Authentication:** Check the box to authenticate with your Azure managed identity (Note that this will not trigger the authentication, it will use the existing one (e.g., "az login"))
 -   **Model Configuration:** This section allows you to customize advanced parameters for the model, such as:
     -   Max Output Tokens
     -   Context Window size

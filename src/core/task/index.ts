@@ -23,6 +23,7 @@ import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialM
 import { executePreCompactHookWithCleanup, HookCancellationError, HookExecution } from "@core/hooks/precompact-executor"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { parseMentions } from "@core/mentions"
+import { CommandPermissionController } from "@core/permissions"
 import { summarizeTask } from "@core/prompts/contextManagement"
 import { formatResponse } from "@core/prompts/responses"
 import { parseSlashCommands } from "@core/slash-commands"
@@ -69,12 +70,16 @@ import Mutex from "p-mutex"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
-import * as vscode from "vscode"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
-import { CommandExecutorCallbacks, StandaloneTerminalManager } from "@/integrations/terminal"
-import { CommandExecutor, FullCommandExecutorConfig } from "@/integrations/terminal/CommandExecutor"
+import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
+import {
+	CommandExecutor,
+	CommandExecutorCallbacks,
+	FullCommandExecutorConfig,
+	StandaloneTerminalManager,
+} from "@/integrations/terminal"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
 import { telemetryService } from "@/services/telemetry"
 import {
@@ -90,6 +95,7 @@ import {
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
+import { discoverSkills, getAvailableSkills } from "../context/instructions/user-instructions/skills"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
 import { executeHook } from "../hooks/hook-executor"
@@ -196,6 +202,7 @@ export class Task {
 	public checkpointManager?: ICheckpointManager
 	private initialCheckpointCommitPromise?: Promise<string | undefined>
 	private clineIgnoreController: ClineIgnoreController
+	private commandPermissionController: CommandPermissionController
 	private toolExecutor: ToolExecutor
 	/**
 	 * Whether the task is using native tool calls.
@@ -271,8 +278,8 @@ export class Task {
 		this.reinitExistingTaskFromId = reinitExistingTaskFromId
 		this.cancelTask = cancelTask
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
+		this.commandPermissionController = new CommandPermissionController()
 		this.taskLockAcquired = taskLockAcquired
-
 		// Determine terminal execution mode and create appropriate terminal manager
 		this.terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
 
@@ -296,11 +303,15 @@ export class Task {
 		this.urlContentFetcher = new UrlContentFetcher(controller.context)
 		this.browserSession = new BrowserSession(stateManager)
 		this.contextManager = new ContextManager()
-		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
 		this.streamHandler = new StreamResponseHandler()
 		this.cwd = cwd
 		this.stateManager = stateManager
 		this.workspaceManager = workspaceManager
+
+		// DiffViewProvider opens Diff Editor during edits while FileEditProvider performs
+		// edits in the background without stealing user's editor's focus.
+		const backgroundEditEnabled = this.stateManager.getGlobalSettingsKey("backgroundEditEnabled")
+		this.diffViewProvider = backgroundEditEnabled ? new FileEditProvider() : HostProvider.get().createDiffViewProvider()
 
 		// Set up MCP notification callback for real-time notifications
 		this.mcpHub.setNotificationCallback(async (serverName: string, _level: string, message: string) => {
@@ -506,7 +517,7 @@ export class Task {
 			},
 			updateBackgroundCommandState: (isRunning: boolean) =>
 				this.controller.updateBackgroundCommandState(isRunning, this.taskId),
-			updateClineMessage: async (index: number, updates: { commandCompleted?: boolean }) => {
+			updateClineMessage: async (index: number, updates: { commandCompleted?: boolean; text?: string }) => {
 				await this.messageStateHandler.updateClineMessage(index, updates)
 			},
 			getClineMessages: () => this.messageStateHandler.getClineMessages() as Array<{ ask?: string; say?: string }>,
@@ -529,6 +540,7 @@ export class Task {
 			this.mcpHub,
 			this.fileContextTracker,
 			this.clineIgnoreController,
+			this.commandPermissionController,
 			this.contextManager,
 			this.stateManager,
 			cwd,
@@ -705,7 +717,7 @@ export class Task {
 		partial?: boolean,
 	): Promise<number | undefined> {
 		// Allow hook messages even when aborted to enable proper cleanup
-		if (this.taskState.abort && type !== "hook" && type !== "hook_output") {
+		if (this.taskState.abort && type !== "hook_status" && type !== "hook_output_stream") {
 			throw new Error("Cline instance aborted")
 		}
 
@@ -1589,7 +1601,7 @@ export class Task {
 			}
 
 			// Notify UI that hook was cancelled
-			await this.say("hook_output", "\nHook execution cancelled by user")
+			await this.say("hook_output_stream", "\nHook execution cancelled by user")
 
 			// Return success - let caller (abortTask) handle next steps
 			// DON'T call abortTask() here to avoid infinite recursion
@@ -1597,21 +1609,6 @@ export class Task {
 		} catch (error) {
 			Logger.error("Failed to cancel hook execution", error)
 			return false
-		}
-	}
-
-	/**
-	 * Migrates the disableBrowserTool setting from VSCode configuration to browserSettings
-	 */
-	private async migrateDisableBrowserToolSetting(): Promise<void> {
-		const config = vscode.workspace.getConfiguration("cline")
-		const disableBrowserTool = config.get<boolean>("disableBrowserTool")
-
-		if (disableBrowserTool !== undefined) {
-			const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
-			browserSettings.disableToolUse = disableBrowserTool
-			// Remove from VSCode configuration
-			await config.update("disableBrowserTool", undefined, true)
 		}
 	}
 
@@ -1705,7 +1702,6 @@ export class Task {
 
 		const providerInfo = this.getCurrentProviderInfo()
 		const ide = (await HostProvider.env.getHostVersion({})).platform || "Unknown"
-		await this.migrateDisableBrowserToolSetting()
 		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
 		const disableBrowserTool = browserSettings.disableToolUse ?? false
 		// cline browser tool uses image recognition for navigation (requires model image support).
@@ -1768,12 +1764,27 @@ export class Task {
 			maxConsecutiveMistakes: this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes"),
 		})
 
+		// Discover and filter available skills (gated by skillsEnabled setting)
+		const skillsEnabled = this.stateManager.getGlobalSettingsKey("skillsEnabled") ?? false
+		const allSkills = skillsEnabled ? await discoverSkills(this.cwd) : []
+		const resolvedSkills = getAvailableSkills(allSkills)
+
+		// Filter skills by toggle state (enabled by default)
+		const globalSkillsToggles = this.stateManager.getGlobalSettingsKey("globalSkillsToggles") ?? {}
+		const localSkillsToggles = this.stateManager.getWorkspaceStateKey("localSkillsToggles") ?? {}
+		const availableSkills = resolvedSkills.filter((skill) => {
+			const toggles = skill.source === "global" ? globalSkillsToggles : localSkillsToggles
+			// If toggle exists, use it; otherwise default to enabled (true)
+			return toggles[skill.path] !== false
+		})
+
 		const promptContext: SystemPromptContext = {
 			cwd: this.cwd,
 			ide,
 			providerInfo,
 			supportsBrowserUse,
 			mcpHub: this.mcpHub,
+			skills: availableSkills,
 			focusChainSettings: this.stateManager.getGlobalSettingsKey("focusChainSettings"),
 			globalClineRulesFileInstructions,
 			localClineRulesFileInstructions,
@@ -1792,6 +1803,8 @@ export class Task {
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
 			enableNativeToolCalls: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
+			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
+			terminalExecutionMode: this.terminalExecutionMode,
 		}
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
@@ -2225,7 +2238,12 @@ export class Task {
 
 		// Now, if it's the first request AND checkpoints are enabled AND tracker was successfully initialized,
 		// then say "checkpoint_created" and perform the commit.
-		if (isFirstRequest && this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting") && this.checkpointManager) {
+		if (
+			isFirstRequest &&
+			this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting") &&
+			this.checkpointManager &&
+			!this.taskState.checkpointManagerErrorMessage
+		) {
 			await this.say("checkpoint_created") // Now this is conditional
 			const lastCheckpointMessageIndex = findLastIndex(
 				this.messageStateHandler.getClineMessages(),

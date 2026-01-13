@@ -34,6 +34,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	showWelcome: boolean
 	onboardingModels: OnboardingModelGroup | undefined
 	openRouterModels: Record<string, ModelInfo>
+	vercelAiGatewayModels: Record<string, ModelInfo>
 	hicapModels: Record<string, ModelInfo>
 	liteLlmModels: Record<string, ModelInfo>
 	openAiModels: string[]
@@ -76,6 +77,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setLocalAgentsRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setGlobalWorkflowToggles: (toggles: Record<string, boolean>) => void
+	setGlobalSkillsToggles: (toggles: Record<string, boolean>) => void
+	setLocalSkillsToggles: (toggles: Record<string, boolean>) => void
 	setRemoteRulesToggles: (toggles: Record<string, boolean>) => void
 	setRemoteWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
@@ -86,6 +89,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 	// Refresh functions
 	refreshOpenRouterModels: () => void
+	refreshVercelAiGatewayModels: () => void
 	refreshHicapModels: () => void
 	refreshLiteLlmModels: () => void
 	setUserInfo: (userInfo?: UserInfo) => void
@@ -236,11 +240,16 @@ export const ExtensionStateContextProvider: React.FC<{
 		favoritedModelIds: [],
 		lastDismissedInfoBannerVersion: 0,
 		lastDismissedModelBannerVersion: 0,
+		optOutOfRemoteConfig: false,
 		remoteConfigSettings: {},
 		backgroundCommandRunning: false,
 		backgroundCommandTaskId: undefined,
 		lastDismissedCliBannerVersion: 0,
 		subagentsEnabled: false,
+		backgroundEditEnabled: false,
+		skillsEnabled: false,
+		globalSkillsToggles: {},
+		localSkillsToggles: {},
 
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],
@@ -260,6 +269,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
+	const [vercelAiGatewayModels, setVercelAiGatewayModels] = useState<Record<string, ModelInfo>>({})
 	const [hicapModels, setHicapModels] = useState<Record<string, ModelInfo>>({})
 	const [liteLlmModels, setLiteLlmModels] = useState<Record<string, ModelInfo>>({})
 	const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
@@ -273,6 +283,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		[groqDefaultModelId]: groqModels[groqDefaultModelId],
 	})
 	const [basetenModelsState, setBasetenModels] = useState<Record<string, ModelInfo>>({
+		...basetenModels,
 		[basetenDefaultModelId]: basetenModels[basetenDefaultModelId],
 	})
 	const [huggingFaceModels, setHuggingFaceModels] = useState<Record<string, ModelInfo>>({})
@@ -282,8 +293,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	// References to store subscription cancellation functions
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
 
-	// Reference for focusChatInput subscription
-	const focusChatInputUnsubscribeRef = useRef<(() => void) | null>(null)
 	const mcpButtonUnsubscribeRef = useRef<(() => void) | null>(null)
 	const historyButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const chatButtonUnsubscribeRef = useRef<(() => void) | null>(null)
@@ -307,7 +316,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		}
 	}, [])
 	const mcpServersSubscriptionRef = useRef<(() => void) | null>(null)
-	const didBecomeVisibleUnsubscribeRef = useRef<(() => void) | null>(null)
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
@@ -414,18 +422,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				onComplete: () => {},
 			},
 		)
-
-		// Subscribe to didBecomeVisible events
-		didBecomeVisibleUnsubscribeRef.current = UiServiceClient.subscribeToDidBecomeVisible(EmptyRequest.create({}), {
-			onResponse: () => {
-				console.log("[DEBUG] Received didBecomeVisible event from gRPC stream")
-				window.dispatchEvent(new CustomEvent("focusChatInput"))
-			},
-			onError: (error) => {
-				console.error("Error in didBecomeVisible subscription:", error)
-			},
-			onComplete: () => {},
-		})
 
 		// Subscribe to MCP servers updates
 		mcpServersSubscriptionRef.current = McpServiceClient.subscribeToMcpServers(EmptyRequest.create(), {
@@ -582,21 +578,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			onComplete: () => {},
 		})
 
-		// Subscribe to focus chat input events
-		focusChatInputUnsubscribeRef.current = UiServiceClient.subscribeToFocusChatInput(
-			{},
-			{
-				onResponse: () => {
-					// Dispatch a local DOM event within this webview only
-					window.dispatchEvent(new CustomEvent("focusChatInput"))
-				},
-				onError: (error: Error) => {
-					console.error("Error in focusChatInput subscription:", error)
-				},
-				onComplete: () => {},
-			},
-		)
-
 		// Clean up subscriptions when component unmounts
 		return () => {
 			if (stateSubscriptionRef.current) {
@@ -647,17 +628,9 @@ export const ExtensionStateContextProvider: React.FC<{
 				relinquishControlUnsubscribeRef.current()
 				relinquishControlUnsubscribeRef.current = null
 			}
-			if (focusChatInputUnsubscribeRef.current) {
-				focusChatInputUnsubscribeRef.current()
-				focusChatInputUnsubscribeRef.current = null
-			}
 			if (mcpServersSubscriptionRef.current) {
 				mcpServersSubscriptionRef.current()
 				mcpServersSubscriptionRef.current = null
-			}
-			if (didBecomeVisibleUnsubscribeRef.current) {
-				didBecomeVisibleUnsubscribeRef.current()
-				didBecomeVisibleUnsubscribeRef.current = null
 			}
 		}
 	}, [])
@@ -694,12 +667,46 @@ export const ExtensionStateContextProvider: React.FC<{
 			.catch((error: Error) => console.error("Failed to refresh LiteLLM models:", error))
 	}, [])
 
+	const refreshBasetenModels = useCallback(() => {
+		ModelsServiceClient.refreshBasetenModelsRpc(EmptyRequest.create({}))
+			.then((response) => {
+				setBasetenModels({
+					[basetenDefaultModelId]: basetenModels[basetenDefaultModelId],
+					...fromProtobufModels(response.models),
+				})
+			})
+			.catch((err) => console.error("Failed to refresh Baseten models:", err))
+	}, [])
+
+	const refreshVercelAiGatewayModels = useCallback(() => {
+		ModelsServiceClient.refreshVercelAiGatewayModelsRpc(EmptyRequest.create({}))
+			.then((response: OpenRouterCompatibleModelInfo) => {
+				const models = fromProtobufModels(response.models)
+				setVercelAiGatewayModels(models)
+			})
+			.catch((error: Error) => console.error("Failed to refresh Vercel AI Gateway models:", error))
+	}, [])
+
+	// Auto-refresh model lists on API key availability
+	useEffect(() => {
+		if (!openRouterModels || Object.keys(openRouterModels).length <= 1) {
+			refreshOpenRouterModels()
+		}
+		if (!vercelAiGatewayModels || Object.keys(vercelAiGatewayModels).length === 0) {
+			refreshVercelAiGatewayModels()
+		}
+		if (state.apiConfiguration?.basetenApiKey) {
+			refreshBasetenModels()
+		}
+	}, [refreshOpenRouterModels, refreshVercelAiGatewayModels, state?.apiConfiguration?.basetenApiKey, refreshBasetenModels])
+
 	const contextValue: ExtensionStateContextType = {
 		...state,
 		didHydrateState,
 		showWelcome,
 		onboardingModels,
 		openRouterModels,
+		vercelAiGatewayModels,
 		hicapModels,
 		liteLlmModels,
 		openAiModels,
@@ -796,6 +803,16 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				globalWorkflowToggles: toggles,
 			})),
+		setGlobalSkillsToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				globalSkillsToggles: toggles,
+			})),
+		setLocalSkillsToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				localSkillsToggles: toggles,
+			})),
 		setRemoteRulesToggles: (toggles) =>
 			setState((prevState) => ({
 				...prevState,
@@ -809,6 +826,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setMcpTab,
 		setTotalTasksSize,
 		refreshOpenRouterModels,
+		refreshVercelAiGatewayModels,
 		refreshHicapModels,
 		refreshLiteLlmModels,
 		onRelinquishControl,
