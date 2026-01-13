@@ -247,7 +247,7 @@ message Settings {
   optional bool cline_web_tools_enabled = 144;
   optional string preferred_language = 145;
   optional OpenaiReasoningEffort openai_reasoning_effort = 146;
-  optional string mode = 147;
+  optional PlanActMode mode = 147;
   optional DictationSettings dictation_settings = 148;
   optional FocusChainSettings focus_chain_settings = 149;
   optional string custom_prompt = 150;

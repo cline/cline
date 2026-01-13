@@ -46,14 +46,11 @@ function inferProtoType(typeText) {
 		return "int32"
 	}
 
-	// Handle specific string literal unions (treat as string)
-	if (cleanType.includes('"') || cleanType.includes("'")) {
-		return "string"
-	}
-
 	// Handle specific known types that map to proto messages/enums
 	// Order matters! More specific types must come before generic ones
 	// (e.g., OpenAiCompatibleModelInfo before ModelInfo)
+	// Check known types BEFORE string literals, since types like `"act" as Mode`
+	// contain quotes but should map to proto enums
 	const knownTypes = [
 		// Specific model info types first
 		["OpenAiCompatibleModelInfo", "OpenAiCompatibleModelInfo"],
@@ -61,7 +58,7 @@ function inferProtoType(typeText) {
 		["OcaModelInfo", "OcaModelInfo"],
 		// Generic ModelInfo last (catches OpenRouterModelInfo, etc.)
 		["ModelInfo", "OpenRouterModelInfo"],
-		// Other types
+		// Other types - order matters for substring matching
 		["AutoApprovalSettings", "AutoApprovalSettings"],
 		["BrowserSettings", "BrowserSettings"],
 		["DictationSettings", "DictationSettings"],
@@ -69,13 +66,25 @@ function inferProtoType(typeText) {
 		["OpenaiReasoningEffort", "OpenaiReasoningEffort"],
 		["PlanActMode", "PlanActMode"],
 		["ApiProvider", "ApiProvider"],
-		["LanguageModelChatSelector", "LanguageModelChatSelector"],
+		["LanguageModelChatSelector", "LanguageModelChatSelector"], // Must come before "Mode" check
 	]
 
 	for (const [tsType, protoType] of knownTypes) {
 		if (cleanType.includes(tsType)) {
 			return protoType
 		}
+	}
+
+	// Check for Mode type separately with word boundary to avoid matching "VsCodeLmModelSelector"
+	// This handles TS `Mode` type which maps to proto `PlanActMode`
+	if (/\bMode\b/.test(cleanType)) {
+		return "PlanActMode"
+	}
+
+	// Handle specific string literal unions (treat as string)
+	// This comes after known types check since some types like `"act" as Mode` contain quotes
+	if (cleanType.includes('"') || cleanType.includes("'")) {
+		return "string"
 	}
 
 	// Default to string for complex types we can't map
