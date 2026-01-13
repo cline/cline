@@ -37,7 +37,7 @@ import { LanguageModelChatSelector } from "vscode"
  * value of that type, not just the default literal.
  */
 type FieldDefinition<T> = {
-	default: T
+	default: T // The default value for the field with proper type casting using as (e.g., `true as boolean | undefined`)
 	isAsync?: boolean
 	isComputed?: boolean
 	transform?: (value: any) => T
@@ -330,7 +330,6 @@ const SECRETS_KEYS = [
 	"hicapApiKey",
 	"aihubmixApiKey",
 	"nousResearchApiKey",
-	"hicapApiKey",
 	"remoteLiteLlmApiKey",
 	"ocaApiKey",
 	"ocaRefreshToken",
