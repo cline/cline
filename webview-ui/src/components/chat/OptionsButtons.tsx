@@ -46,8 +46,6 @@ export const OptionsButtons = ({
 				display: "flex",
 				flexDirection: "column",
 				gap: "8px",
-				paddingTop: 15,
-				// marginTop: "22px",
 			}}>
 			{/* <div style={{ color: "var(--vscode-descriptionForeground)", fontSize: "11px", textTransform: "uppercase" }}>
 				SELECT ONE:
