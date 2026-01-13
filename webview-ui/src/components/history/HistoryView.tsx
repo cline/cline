@@ -325,7 +325,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				{/* FILTERS */}
 				<div className="flex flex-col gap-3 px-3">
 					{/* REPLACE VSCODE RADIO GROUP */}
-					<div className="flex justify-between">
+					<div className="flex justify-between items-center">
 						{/* SEARCH BOX */}
 						<VSCodeTextField
 							className="w-full"
@@ -339,15 +339,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							}}
 							placeholder="Fuzzy search history..."
 							value={searchQuery}>
-							<div
-								className="codicon codicon-search"
-								slot="start"
-								style={{
-									fontSize: 13,
-									marginTop: 2.5,
-									opacity: 0.8,
-								}}
-							/>
+							<div className="codicon codicon-search opacity-80 mt-0.5 !text-sm" slot="start" />
 							{searchQuery && (
 								<div
 									aria-label="Clear search"
@@ -385,7 +377,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							}}
 							value={sortOption}>
 							<SelectTrigger className="border-0 cursor-pointer" showIcon={false}>
-								<FunnelIcon className="text-foreground" />
+								<FunnelIcon className="!size-2 text-foreground" />
 							</SelectTrigger>
 							<SelectContent position="popper">
 								{Object.entries(HISTORY_FILTERS).map(([key, value]) => {
