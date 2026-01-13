@@ -1,5 +1,6 @@
 import { ApiConfiguration, ModelInfo } from "@shared/api"
 import {
+	ApiHandlerSettingsKeys,
 	GlobalState,
 	GlobalStateAndSettings,
 	GlobalStateAndSettingsKey,
@@ -14,7 +15,6 @@ import {
 	Secrets,
 	Settings,
 	SettingsKey,
-	SettingsKeys,
 } from "@shared/storage/state-keys"
 import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
@@ -811,27 +811,20 @@ export class StateManager {
 	 * Construct API configuration from cached component keys
 	 */
 	private constructApiConfigurationFromCache(): ApiConfiguration {
-		// Build configuration object
-		const config: any = {}
-
-		// Add all secrets
-		for (const key of SecretKeys) {
-			config[key] = this.getSecret(key)
-		}
+		// Build secrets object
+		const secrets = Object.fromEntries(SecretKeys.map((key) => [key, this.getSecret(key)])) as Secrets
 
 		// Preserve legacy fallback behavior for LiteLLM API key:
 		// if a remoteLiteLlmApiKey is set (via remote config), it should
 		// take precedence over the local liteLlmApiKey.
 		const remoteLiteLlmApiKey = this.secretsCache["remoteLiteLlmApiKey"]
 		if (remoteLiteLlmApiKey !== undefined && remoteLiteLlmApiKey !== null && remoteLiteLlmApiKey !== "") {
-			config.liteLlmApiKey = remoteLiteLlmApiKey
+			secrets.liteLlmApiKey = remoteLiteLlmApiKey
 		}
 
-		// Add all settings with task override support
-		for (const key of SettingsKeys) {
-			config[key] = this.getSettingWithOverride(key)
-		}
+		// Build API handler settings object with task override support
+		const settings = Object.fromEntries(ApiHandlerSettingsKeys.map((key) => [key, this.getSettingWithOverride(key)]))
 
-		return config satisfies ApiConfiguration
+		return { ...secrets, ...settings } satisfies ApiConfiguration
 	}
 }

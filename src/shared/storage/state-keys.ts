@@ -355,7 +355,7 @@ type BuildInterface<T extends Record<string, { default: any }>> = { [K in keyof 
 export type GlobalState = BuildInterface<typeof GLOBAL_STATE_FIELDS>
 export type Settings = BuildInterface<typeof SETTINGS_FIELDS>
 type RemoteConfigExtra = BuildInterface<typeof REMOTE_CONFIG_EXTRA_FIELDS>
-type ApiHandlerOptionSettings = BuildInterface<typeof API_HANDLER_SETTINGS_FIELDS>
+export type ApiHandlerOptionSettings = BuildInterface<typeof API_HANDLER_SETTINGS_FIELDS>
 export type ApiHandlerSettings = ApiHandlerOptionSettings & Secrets
 export type GlobalStateAndSettings = GlobalState & Settings
 export type RemoteConfigFields = GlobalStateAndSettings & RemoteConfigExtra
@@ -379,9 +379,11 @@ export type GlobalStateAndSettingsKey = keyof GlobalStateAndSettings
 const GlobalStateKeys = new Set(Object.keys(GLOBAL_STATE_FIELDS))
 const SettingsKeysSet = new Set(Object.keys(SETTINGS_FIELDS))
 const GlobalStateAndSettingsKeySet = new Set(Object.keys(GLOBAL_STATE_AND_SETTINGS_FIELDS))
+const ApiHandlerSettingsKeysSet = new Set(Object.keys(API_HANDLER_SETTINGS_FIELDS))
 
 export const SecretKeys = Array.from(SECRETS_KEYS)
 export const SettingsKeys = Array.from(SettingsKeysSet) as (keyof Settings)[]
+export const ApiHandlerSettingsKeys = Array.from(ApiHandlerSettingsKeysSet) as (keyof ApiHandlerOptionSettings)[]
 export const GlobalStateAndSettingKeys = Array.from(GlobalStateAndSettingsKeySet) as GlobalStateAndSettingsKey[]
 
 // GENERATED DEFAULTS - Auto-generated from property definitions
