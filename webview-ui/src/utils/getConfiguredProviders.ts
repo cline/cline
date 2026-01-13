@@ -194,8 +194,13 @@ export function getConfiguredProviders(apiConfiguration: ApiConfiguration | unde
 		configured.push("lmstudio")
 	}
 
-	// LiteLLM - check base URL OR model configured
-	if (apiConfiguration.liteLlmBaseUrl || apiConfiguration.planModeLiteLlmModelId || apiConfiguration.actModeLiteLlmModelId) {
+	// LiteLLM - check base URL, API key OR model configured
+	if (
+		apiConfiguration.liteLlmBaseUrl ||
+		apiConfiguration.liteLlmApiKey ||
+		apiConfiguration.planModeLiteLlmModelId ||
+		apiConfiguration.actModeLiteLlmModelId
+	) {
 		configured.push("litellm")
 	}
 
