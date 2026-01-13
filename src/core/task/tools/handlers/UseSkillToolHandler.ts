@@ -56,19 +56,6 @@ export class UseSkillToolHandler implements IToolHandler, IPartialBlockHandler {
 		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
 		const provider = currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
 
-		telemetryService.safeCapture(
-			() =>
-				telemetryService.captureSkillUsed({
-					ulid: config.ulid,
-					skillName,
-					skillsAvailableGlobal: globalCount,
-					skillsAvailableProject: projectCount,
-					provider,
-					modelId: config.api.getModel().id,
-				}),
-			"UseSkillToolHandler.execute",
-		)
-
 		// Show tool message
 		const message = JSON.stringify({ tool: "useSkill", path: skillName })
 		await config.callbacks.say("tool", message, undefined, undefined, false)
@@ -82,6 +69,20 @@ export class UseSkillToolHandler implements IToolHandler, IPartialBlockHandler {
 				const availableNames = availableSkills.map((s: SkillMetadata) => s.name).join(", ")
 				return `Error: Skill "${skillName}" not found. Available skills: ${availableNames || "none"}`
 			}
+
+			telemetryService.safeCapture(
+				() =>
+					telemetryService.captureSkillUsed({
+						ulid: config.ulid,
+						skillName,
+						skillSource: skillContent.source === "global" ? "global" : "project",
+						skillsAvailableGlobal: globalCount,
+						skillsAvailableProject: projectCount,
+						provider,
+						modelId: config.api.getModel().id,
+					}),
+				"UseSkillToolHandler.execute",
+			)
 
 			return `# Skill "${skillContent.name}" is now active
 

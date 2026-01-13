@@ -1009,6 +1009,7 @@ export class TelemetryService {
 	public captureSkillUsed(args: {
 		ulid: string
 		skillName: string
+		skillSource: "global" | "project"
 		skillsAvailableGlobal: number
 		skillsAvailableProject: number
 		provider?: string
@@ -1028,6 +1029,7 @@ export class TelemetryService {
 		const properties = {
 			ulid: args.ulid,
 			skillName: args.skillName,
+			skillSource: args.skillSource,
 			skillsAvailableGlobal,
 			skillsAvailableProject,
 			provider: args.provider,

@@ -421,6 +421,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			telemetryService.captureSkillUsed({
 				ulid: "task-123",
 				skillName: "my-skill",
+				skillSource: "global",
 				skillsAvailableGlobal: 2,
 				skillsAvailableProject: 3,
 				provider: "cline",
@@ -433,6 +434,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			assert.ok(properties, "Properties should be defined")
 			assert.strictEqual(properties.ulid, "task-123", "Properties should include task ULID")
 			assert.strictEqual(properties.skillName, "my-skill", "Properties should include skillName")
+			assert.strictEqual(properties.skillSource, "global", "Properties should include skillSource")
 			assert.strictEqual(properties.skillsAvailableGlobal, 2, "Properties should include global skill count")
 			assert.strictEqual(properties.skillsAvailableProject, 3, "Properties should include project skill count")
 			assert.strictEqual(properties.provider, "cline", "Properties should include provider")
