@@ -28,6 +28,9 @@ function camelToSnake(str) {
 // Fields that should use int64 instead of int32
 const INT64_FIELDS = new Set(["planModeThinkingBudgetTokens", "actModeThinkingBudgetTokens"])
 
+// Fields that should use double instead of int32
+const DOUBLE_FIELDS = new Set(["autoCondenseThreshold"])
+
 /**
  * Infer proto type from TypeScript type expression
  * @param {string} typeText - The TypeScript type expression
@@ -48,9 +51,12 @@ function inferProtoType(typeText, fieldName) {
 		return "bool"
 	}
 	if (cleanType === "number") {
-		// Some number fields need int64 for larger values
+		// Some number fields need specific numeric types
 		if (fieldName && INT64_FIELDS.has(fieldName)) {
 			return "int64"
+		}
+		if (fieldName && DOUBLE_FIELDS.has(fieldName)) {
+			return "double"
 		}
 		return "int32"
 	}

@@ -251,7 +251,7 @@ message Settings {
   optional DictationSettings dictation_settings = 148;
   optional FocusChainSettings focus_chain_settings = 149;
   optional string custom_prompt = 150;
-  optional int32 auto_condense_threshold = 151;
+  optional double auto_condense_threshold = 151;
   optional bool hooks_enabled = 152;
   optional bool subagents_enabled = 153;
   optional bool enable_parallel_tool_calling = 154;
