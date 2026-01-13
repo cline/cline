@@ -21,7 +21,7 @@ interface LiteLlmProviderProps {
 }
 
 export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: LiteLlmProviderProps) => {
-	const { apiConfiguration, liteLlmModels, refreshLiteLlmModels } = useExtensionState()
+	const { apiConfiguration, remoteConfigSettings, liteLlmModels, refreshLiteLlmModels } = useExtensionState()
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration with model info
@@ -55,6 +55,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 	return (
 		<div>
 			<DebouncedTextField
+				disabled={remoteConfigSettings?.liteLlmBaseUrl !== undefined}
 				initialValue={apiConfiguration?.liteLlmBaseUrl || ""}
 				onChange={async (value) => {
 					await ModelsServiceClient.updateApiConfiguration(

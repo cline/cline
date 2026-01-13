@@ -40,7 +40,7 @@ const REGIONS = VertexData.regions
  * The GCP Vertex AI provider configuration component
  */
 export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: VertexProviderProps) => {
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
@@ -60,6 +60,7 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 				gap: 5,
 			}}>
 			<DebouncedTextField
+				disabled={remoteConfigSettings?.vertexProjectId !== undefined}
 				initialValue={apiConfiguration?.vertexProjectId || ""}
 				onChange={(value) => handleFieldChange("vertexProjectId", value)}
 				placeholder="Enter Project ID..."
@@ -72,6 +73,7 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 					<span style={{ fontWeight: 500 }}>Google Cloud Region</span>
 				</label>
 				<VSCodeDropdown
+					disabled={remoteConfigSettings?.vertexRegion !== undefined}
 					id="vertex-region-dropdown"
 					onChange={(e: any) => handleFieldChange("vertexRegion", e.target.value)}
 					style={{ width: "100%" }}
