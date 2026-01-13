@@ -28,6 +28,27 @@ export type ToolCallDetails = {
 
 const PERMISSION_ASK_TYPES: Set<ClineAsk> = new Set(["tool", "command", "browser_action_launch", "use_mcp_server"])
 
+// Internal message types that should NOT be sent as agent text to ACP clients
+// These are Cline's internal tracking messages, not user-facing content
+const INTERNAL_SAY_TYPES: Set<string> = new Set([
+	"api_req_started",
+	"api_req_finished",
+	"api_req_retried",
+	"shell_integration_warning",
+	"checkpoint_created",
+	"inspect_site_result",
+	"mcp_server_request_started",
+	"mcp_server_response",
+	"deleted_api_reqs",
+	"clineignore_info",
+	"diff_error",
+	"condense_context",
+	"task_progress",
+	"hook_status",
+	"hook_output",
+	"error_retry",
+])
+
 const TOOL_KIND_BY_CLINE_TOOL: Record<string, ToolKind> = {
 	readFile: "read",
 	listFilesTopLevel: "search",
@@ -311,6 +332,11 @@ export function buildNotificationsForMessage(
 	}
 
 	if (message.type !== "say") {
+		return []
+	}
+
+	// Filter out internal message types that shouldn't be sent to ACP clients
+	if (message.say && INTERNAL_SAY_TYPES.has(message.say)) {
 		return []
 	}
 
