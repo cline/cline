@@ -235,7 +235,7 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 
 		// Cache and apply the remote config
 		await writeRemoteConfigToCache(organizationId, config)
-		if (!isRemoteConfigEnabled(organizationId)) {
+		if (isRemoteConfigEnabled(organizationId)) {
 			await applyRemoteConfig(config, undefined, controller.mcpHub)
 		} else {
 			clearRemoteConfig()
