@@ -128,7 +128,7 @@ export async function resetGlobalState(controller: Controller) {
 	// TODO: Reset all workspace states?
 	const context = controller.context
 
-	await Promise.all([...GlobalStateAndSettingKeys].map((key) => context.globalState.update(key, undefined)))
+	await Promise.all(GlobalStateAndSettingKeys.map((key) => context.globalState.update(key, undefined)))
 
 	await Promise.all(SecretKeys.map((key) => context.secrets.delete(key)))
 

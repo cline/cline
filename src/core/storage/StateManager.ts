@@ -789,7 +789,7 @@ export class StateManager {
 	 * Precedence: remote config > task settings > global settings
 	 */
 	private getSettingWithOverride<K extends keyof Settings>(key: K): Settings[K] {
-		const remoteValue = this.remoteConfigCache?.[key]
+		const remoteValue = this.remoteConfigCache[key]
 		if (remoteValue !== undefined) {
 			return remoteValue
 		}
