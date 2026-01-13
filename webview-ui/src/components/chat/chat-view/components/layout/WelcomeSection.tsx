@@ -1,7 +1,7 @@
 import { BANNER_DATA, BannerAction, BannerActionType, BannerCardData } from "@shared/cline/banner"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import type { Worktree } from "@shared/proto/cline/worktree"
 import { TrackWorktreeViewOpenedRequest } from "@shared/proto/cline/worktree"
-import { EmptyRequest, Int64Request } from "@shared/proto/index.cline"
 import { GitBranch } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import BannerCarousel from "@/components/common/BannerCarousel"
