@@ -97,8 +97,7 @@ export class E2ETestHelper {
 			return null
 		}
 
-		// Use longer timeout (30s) for sidebar - macOS CI runners can be slow
-		await E2ETestHelper.waitUntil(async () => (await findSidebarFrame()) !== null, 30000)
+		await E2ETestHelper.waitUntil(async () => (await findSidebarFrame()) !== null)
 		return (await findSidebarFrame()) || page.mainFrame()
 	}
 
