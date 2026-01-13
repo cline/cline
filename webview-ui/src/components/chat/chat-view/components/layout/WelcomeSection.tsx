@@ -1,4 +1,5 @@
 import { BANNER_DATA, BannerAction, BannerActionType, BannerCardData } from "@shared/cline/banner"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import type { Worktree } from "@shared/proto/cline/worktree"
 import { TrackWorktreeViewOpenedRequest } from "@shared/proto/cline/worktree"
 import { GitBranch } from "lucide-react"
