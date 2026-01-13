@@ -47,32 +47,27 @@ const HistoryViewItem = ({
 	const formatDate = useCallback((timestamp: number) => {
 		const date = new Date(timestamp)
 		const today = new Date()
-		const isToday =
-			date.getDate() === today.getDate() &&
-			date.getMonth() === today.getMonth() &&
-			date.getFullYear() === today.getFullYear()
-
-		if (isToday) {
-			return date
-				.toLocaleString("en-US", {
-					hour: "numeric",
-					minute: "2-digit",
-					hour12: true,
-				})
-				.toUpperCase()
-		}
+		const isToday = today.toDateString() === date.toDateString()
 
 		return date
-			.toLocaleString("en-US", {
-				month: "long",
-				day: "numeric",
-				hour: "numeric",
-				minute: "2-digit",
-				hour12: true,
-			})
+			.toLocaleString(
+				"en-US",
+				isToday
+					? {
+							hour: "numeric",
+							minute: "2-digit",
+							hour12: true,
+						}
+					: {
+							month: "long",
+							day: "numeric",
+							hour: "numeric",
+							minute: "2-digit",
+							hour12: true,
+						},
+			)
 			.replace(", ", " ")
 			.replace(" at", ",")
-			.toUpperCase()
 	}, [])
 
 	return (
