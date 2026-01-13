@@ -1,5 +1,6 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import { Controller } from "@/core/controller"
+import { buildBasicClineHeaders } from "@/services/EnvUtils"
 import { getAxiosSettings } from "@/shared/net"
 import { ClineEnv } from "../../../config"
 import { AuthService } from "../../../services/auth/AuthService"
@@ -50,6 +51,7 @@ async function makeAuthenticatedRequest<T>(endpoint: string, organizationId: str
 		headers: {
 			Authorization: `Bearer ${authToken}`,
 			"Content-Type": "application/json",
+			...(await buildBasicClineHeaders()),
 		},
 		...getAxiosSettings(),
 	}
@@ -233,7 +235,7 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 
 		// Cache and apply the remote config
 		await writeRemoteConfigToCache(organizationId, config)
-		if (!isRemoteConfigEnabled(organizationId)) {
+		if (isRemoteConfigEnabled(organizationId)) {
 			await applyRemoteConfig(config, undefined, controller.mcpHub)
 		} else {
 			clearRemoteConfig()
