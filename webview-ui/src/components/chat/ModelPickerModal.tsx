@@ -317,6 +317,19 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 					},
 					modeToUse,
 				)
+			} else if (selectedProvider === "litellm") {
+				// LiteLLM uses provider-specific model ID and info fields
+				handleModeFieldsChange(
+					{
+						liteLlmModelId: { plan: "planModeLiteLlmModelId", act: "actModeLiteLlmModelId" },
+						liteLlmModelInfo: { plan: "planModeLiteLlmModelInfo", act: "actModeLiteLlmModelInfo" },
+					},
+					{
+						liteLlmModelId: modelId,
+						liteLlmModelInfo: modelInfo,
+					},
+					modeToUse,
+				)
 			} else {
 				// Static model providers use apiModelId
 				handleModeFieldChange({ plan: "planModeApiModelId", act: "actModeApiModelId" }, modelId, modeToUse)
