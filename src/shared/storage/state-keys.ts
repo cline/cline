@@ -27,6 +27,24 @@ import { LanguageModelChatSelector } from "vscode"
 // Property definitions with types, default values, and metadata
 // ============================================================================
 
+/**
+ * Defines the shape of a field definition. Each field must have a `default` value,
+ * and optionally can have `isAsync`, `isComputed`, or `transform` metadata.
+ *
+ * The type casting on `default` (e.g., `true as boolean`) is necessary because
+ * TypeScript would otherwise infer the literal type (`true`) instead of the
+ * wider type (`boolean`). This ensures the generated interfaces allow any
+ * value of that type, not just the default literal.
+ */
+type FieldDefinition<T> = {
+	default: T
+	isAsync?: boolean
+	isComputed?: boolean
+	transform?: (value: any) => T
+}
+
+type FieldDefinitions = Record<string, FieldDefinition<any>>
+
 const REMOTE_CONFIG_EXTRA_FIELDS = {
 	remoteConfiguredProviders: { default: [] as string[] },
 	allowedMCPServers: { default: [] as Array<{ id: string }> },
@@ -36,7 +54,7 @@ const REMOTE_CONFIG_EXTRA_FIELDS = {
 	remoteGlobalWorkflows: { default: undefined as GlobalInstructionsFile[] | undefined },
 	blockPersonalRemoteMCPServers: { default: false as boolean },
 	openTelemetryOtlpHeaders: { default: undefined as Record<string, string> | undefined },
-}
+} satisfies FieldDefinitions
 
 const GLOBAL_STATE_FIELDS = {
 	lastShownAnnouncementId: { default: undefined as string | undefined },
@@ -62,7 +80,7 @@ const GLOBAL_STATE_FIELDS = {
 	remoteRulesToggles: { default: {} as ClineRulesToggles },
 	remoteWorkflowToggles: { default: {} as ClineRulesToggles },
 	dismissedBanners: { default: [] as Array<{ bannerId: string; dismissedAt: number }> },
-}
+} satisfies FieldDefinitions
 
 // Fields that map directly to ApiHandlerOptions in @shared/api.ts
 // NOTE: Keep these in sync with ApiHandlerOptions interface
@@ -203,7 +221,7 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	// Deprecated model settings
 	hicapModelId: { default: undefined as string | undefined },
 	lmStudioModelId: { default: undefined as string | undefined },
-}
+} satisfies FieldDefinitions
 
 const USER_SETTINGS_FIELDS = {
 	// Settings that are NOT part of ApiHandlerOptions
@@ -261,7 +279,7 @@ const USER_SETTINGS_FIELDS = {
 	openTelemetryLogBatchSize: { default: 512 as number | undefined },
 	openTelemetryLogBatchTimeout: { default: 5000 as number | undefined },
 	openTelemetryLogMaxQueueSize: { default: 2048 as number | undefined },
-}
+} satisfies FieldDefinitions
 
 const SETTINGS_FIELDS = { ...API_HANDLER_SETTINGS_FIELDS, ...USER_SETTINGS_FIELDS }
 const GLOBAL_STATE_AND_SETTINGS_FIELDS = { ...GLOBAL_STATE_FIELDS, ...SETTINGS_FIELDS }
@@ -332,8 +350,8 @@ export const LocalStateKeys = [
 // GENERATED TYPES - Auto-generated from property definitions
 // ============================================================================
 
-type ExtractType<T> = T extends { type: infer U } ? U : never
-type BuildInterface<T extends Record<string, { default: any }>> = { [K in keyof T]: ExtractType<T[K]> }
+type ExtractDefault<T> = T extends { default: infer U } ? U : never
+type BuildInterface<T extends Record<string, { default: any }>> = { [K in keyof T]: ExtractDefault<T[K]> }
 
 export type GlobalState = BuildInterface<typeof GLOBAL_STATE_FIELDS>
 export type Settings = BuildInterface<typeof SETTINGS_FIELDS>
@@ -405,7 +423,7 @@ export const applyTransform = <T>(key: string, value: T): T => {
 function extractDefaults<T extends Record<string, any>>(props: T): Partial<BuildInterface<T>> {
 	return Object.fromEntries(
 		Object.entries(props)
-			.map(([key, prop]) => [key, prop.type])
+			.map(([key, prop]) => [key, prop.default])
 			.filter(([_, value]) => value !== undefined),
 	) as Partial<BuildInterface<T>>
 }
