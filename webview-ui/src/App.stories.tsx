@@ -511,7 +511,8 @@ const createErrorMessages = () => [
 		"text",
 		"I can see there are TypeScript errors in your code. Let me examine the files and fix these issues.",
 	),
-	createMessage(3.3, "say", "tool", JSON.stringify({ tool: "readFile", path: "src/components/UserProfile.tsx" })),
+	createMessage(3.3, "say", "tool", JSON.stringify({ tool: "readFile", path: "src/components/UserProfile_1.tsx" })),
+	createMessage(3.3, "say", "tool", JSON.stringify({ tool: "readFile", path: "src/components/UserProfile_2.tsx" })),
 	createMessage(
 		3,
 		"say",
@@ -569,7 +570,7 @@ const createPlanModeMessages = () => [
 	createApiReqMessage(4.5, "Detailed planning request", { tokensIn: 20002, tokensOut: 12500, cost: 0.095 }),
 	createAskMessage(
 		"plan_mode_respond",
-		"Here's my comprehensive plan for refactoring your React application with TypeScript migration and performance optimization phases.",
+		"Here's my comprehensive plan for refactoring your React application with TypeScript migration and performance optimization phases.\n\n\n\n\nPhase 1: TypeScript Migration\n1. Set up TypeScript in the project\n2. Rename .js files to .tsx/.ts\n3. Add type definitions for components and props\n4. Fix type errors and ensure type safety\n\nPhase 2: Performance Optimization\n1. Analyze current performance bottlenecks\n2. Implement code-splitting and lazy loading\n3. Optimize rendering with React.memo and useCallback\n4. Minimize bundle size with tree-shaking and minification\n5. Test performance improvements using profiling tools",
 	),
 ]
 
@@ -630,7 +631,7 @@ export const BrowserAutomation: Story = {
 const createToolApprovalMessages = () => [
 	createMessage(5, "say", "task", "Help me read the configuration file"),
 	createMessage(4.7, "say", "text", "I need to read a file to understand your configuration."),
-	createAskMessage("tool", JSON.stringify({ tool: "read_file", path: "config.json" })),
+	createAskMessage("tool", JSON.stringify({ tool: "readFile", path: "config.json" })),
 ]
 
 export const ToolApproval: Story = {
@@ -676,6 +677,7 @@ const quickStory = (
 			clineMessages: [
 				...createLongMessages(),
 				createMessage(6, "say", "task", `Help with ${name.toLowerCase()}`),
+				createMessage(5, "say", "reasoning", `Thinking about helping user with ${name.toLowerCase()}`),
 				createMessage(4.7, "say", "text", `I'll help you with ${name.toLowerCase()}.`),
 				createAskMessage(askType, text, streamingFailedMessage),
 			],
@@ -725,7 +727,7 @@ export const MistakeLimitReached = quickStory(
 export const CompletionResult = quickStory(
 	"Task Completion",
 	"completion_result",
-	"Task completed successfully! I've implemented all the requested features.",
+	"Task completed successfully! I've implemented all the requested features.\n\nWould you like to start a new task?\n\n- View Changes\n- Start New Task\n- Resume Previous Task HAS_CHANGES",
 	"Shows task completion state with Start New Task button.",
 )
 export const BrowserActionLaunch = quickStory(
@@ -772,7 +774,7 @@ export const ApiRequestActive: Story = {
 export const PlanModeResponse = quickStory(
 	"Plan Mode Response",
 	"plan_mode_respond",
-	"Here's my detailed plan for creating a comprehensive testing strategy.",
+	"Here's my comprehensive plan for refactoring your React application with TypeScript migration and performance optimization phases.\n\n\n\n\nPhase 1: TypeScript Migration\n1. Set up TypeScript in the project\n2. Rename .js files to .tsx/.ts\n3. Add type definitions for components and props\n4. Fix type errors and ensure type safety\n\nPhase 2: Performance Optimization\n1. Analyze current performance bottlenecks\n2. Implement code-splitting and lazy loading\n3. Optimize rendering with React.memo and useCallback\n4. Minimize bundle size with tree-shaking and minification\n5. Test performance improvements using profiling tools",
 	"Shows plan mode response where Cline presents a detailed plan for user approval.",
 )
 export const CondenseConversation = quickStory(
@@ -784,7 +786,10 @@ export const CondenseConversation = quickStory(
 export const ReportBug = quickStory(
 	"Report Bug",
 	"report_bug",
-	"Would you like to report this issue to help improve Cline?",
+	JSON.stringify({
+		steps_to_reproduce: "1. Open Cline\n2. Start a new task\n3. Observe the error",
+		what_happened: "Cline crashes unexpectedly",
+	}),
 	"Shows utility action to report bugs to the GitHub repository.",
 )
 export const ResumeCompletedTask = quickStory(
@@ -793,6 +798,231 @@ export const ResumeCompletedTask = quickStory(
 	"The previous task has been completed. Would you like to start a new task?",
 	"Shows Start New Task option for resume completed task.",
 )
+
+export const ShellIntegrationWarningWithSuggestion: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Run a command"),
+				createMessage(4.7, "say", "text", "I'll run the command for you."),
+				createMessage(4.5, "say", "shell_integration_warning_with_suggestion", ""),
+			],
+			vscodeTerminalExecutionMode: "integrated",
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows shell integration warning with suggestion to enable Background Terminal mode.",
+			},
+		},
+	},
+}
+
+export const ShellIntegrationWarningBackgroundEnabled: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Run a command"),
+				createMessage(4.7, "say", "text", "I'll run the command for you."),
+				createMessage(4.5, "say", "shell_integration_warning_with_suggestion", ""),
+			],
+			vscodeTerminalExecutionMode: "backgroundExec",
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows shell integration warning when Background Terminal mode is already enabled.",
+			},
+		},
+	},
+}
+
+export const ShellIntegrationWarning: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Run a command"),
+				createMessage(4.7, "say", "text", "I'll run the command for you."),
+				createMessage(4.5, "say", "shell_integration_warning", ""),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows shell integration unavailable warning with instructions to update VSCode and select a supported shell.",
+			},
+		},
+	},
+}
+
+export const ErrorRetryInProgress: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Process a request"),
+				createMessage(4.7, "say", "text", "Attempting to process your request."),
+				createMessage(
+					4.5,
+					"say",
+					"error_retry",
+					JSON.stringify({ attempt: 2, maxAttempts: 5, delaySeconds: 10, failed: false }),
+				),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows auto-retry in progress with attempt count and delay.",
+			},
+		},
+	},
+}
+
+export const ErrorRetryFailed: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Process a request"),
+				createMessage(4.7, "say", "text", "Attempting to process your request."),
+				createMessage(
+					4.5,
+					"say",
+					"error_retry",
+					JSON.stringify({ attempt: 5, maxAttempts: 5, delaySeconds: 0, failed: true }),
+				),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows auto-retry failed after max attempts with manual intervention required.",
+			},
+		},
+	},
+}
+
+export const GenerateExplanationInProgress: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Explain my recent changes"),
+				createMessage(4.7, "say", "text", "I'll generate an explanation of your changes."),
+				createMessage(
+					4.5,
+					"say",
+					"generate_explanation",
+					JSON.stringify({
+						title: "Authentication refactor",
+						fromRef: "abc123def",
+						toRef: "working directory",
+						status: "generating",
+					}),
+				),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows explanation generation in progress with spinner.",
+			},
+		},
+	},
+}
+
+export const GenerateExplanationComplete: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Explain my recent changes"),
+				createMessage(4.7, "say", "text", "I'll generate an explanation of your changes."),
+				createMessage(
+					4.5,
+					"say",
+					"generate_explanation",
+					JSON.stringify({
+						title: "Authentication refactor",
+						fromRef: "abc123def",
+						toRef: "xyz789ghi",
+						status: "complete",
+					}),
+				),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows successfully generated explanation with git refs.",
+			},
+		},
+	},
+}
+
+export const GenerateExplanationError: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Explain my recent changes"),
+				createMessage(4.7, "say", "text", "I'll generate an explanation of your changes."),
+				createMessage(
+					4.5,
+					"say",
+					"generate_explanation",
+					JSON.stringify({
+						title: "Authentication refactor",
+						fromRef: "abc123def",
+						toRef: "",
+						status: "error",
+						error: "Failed to generate explanation: Git repository not found",
+					}),
+				),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows explanation generation error with error message.",
+			},
+		},
+	},
+}
+
+export const GenerateExplanationCancelled: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Explain my recent changes"),
+				createMessage(4.7, "say", "text", "I'll generate an explanation of your changes."),
+				createMessage(
+					4.5,
+					"say",
+					"generate_explanation",
+					JSON.stringify({
+						title: "Authentication refactor",
+						fromRef: "abc123def",
+						toRef: "",
+						status: "generating",
+					}),
+				),
+				createMessage(4.3, "ask", undefined, "Task was cancelled", { ask: "resume_task" }),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows explanation generation cancelled state (detected via resume_task message).",
+			},
+		},
+	},
+}
 
 // Diff Edit Stories - New Format
 const createNewFormatMultiFileMessages = () => [

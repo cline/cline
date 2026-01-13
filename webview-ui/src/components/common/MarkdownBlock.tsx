@@ -1,27 +1,31 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
+import { SquareArrowOutUpRightIcon } from "lucide-react"
 import type { ComponentProps } from "react"
-import React, { memo, useEffect, useRef } from "react"
+import React, { memo, useEffect, useRef, useState } from "react"
 import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
-import styled from "styled-components"
 import type { Node } from "unist"
 import { visit } from "unist-util-visit"
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import MermaidBlock from "@/components/common/MermaidBlock"
+import { Button } from "@/components/ui/button"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { cn } from "@/lib/utils"
 import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { WithCopyButton } from "./CopyButton"
 
-// Styled component for Act Mode text with more specific styling
+/**
+ * A component for Act Mode text that contains a clickable toggle and keyboard shortcut hint.
+ */
 const ActModeHighlight: React.FC = () => {
 	const { mode } = useExtensionState()
 
 	return (
 		<span
-			className={`text-(--vscode-textLink-foreground) inline-flex items-center gap-1 ${
-				mode === "plan" ? "hover:opacity-90 cursor-pointer" : "cursor-default opacity-60"
-			}`}
+			className={cn("text-link inline-flex items-center gap-1", {
+				"hover:opacity-90 cursor-pointer": mode === "plan",
+				"cursor-not-allowed opacity-60": mode !== "plan",
+			})}
 			onClick={() => {
 				// Only toggle to Act mode if we're currently in Plan mode
 				if (mode === "plan") {
@@ -33,8 +37,8 @@ const ActModeHighlight: React.FC = () => {
 				}
 			}}
 			title={mode === "plan" ? "Click to toggle to Act Mode" : "Already in Act Mode"}>
-			<div className="p-1 rounded-[12px] bg-(--vscode-editor-background) flex items-center justify-end w-4 border border-(--vscode-input-border)">
-				<div className="rounded-full bg-(--vscode-textLink-foreground) w-2 h-2" />
+			<div className="p-1 rounded-md bg-code flex items-center justify-end w-7 border border-input-border">
+				<div className="rounded-full bg-link w-2 h-2" />
 			</div>
 			Act Mode (⌘⇧A)
 		</span>
@@ -44,6 +48,7 @@ const ActModeHighlight: React.FC = () => {
 interface MarkdownBlockProps {
 	markdown?: string
 	compact?: boolean
+	showCursor?: boolean
 }
 
 /**
@@ -206,106 +211,6 @@ const remarkPreventBoldFilenames = () => {
 	}
 }
 
-const StyledMarkdown = styled.div<{ compact?: boolean }>`
-	pre {
-		background-color: ${CODE_BLOCK_BG_COLOR};
-		border-radius: 3px;
-		margin: 13px 0;
-		padding: 10px 10px;
-		max-width: calc(100vw - 20px);
-		overflow-x: auto;
-		overflow-y: hidden;
-		padding-right: 70px;
-	}
-
-	pre > code {
-		.hljs-deletion {
-			background-color: var(--vscode-diffEditor-removedTextBackground);
-			display: inline-block;
-			width: 100%;
-		}
-		.hljs-addition {
-			background-color: var(--vscode-diffEditor-insertedTextBackground);
-			display: inline-block;
-			width: 100%;
-		}
-	}
-
-	code {
-		span.line:empty {
-			display: none;
-		}
-		word-wrap: break-word;
-		border-radius: 3px;
-		background-color: ${CODE_BLOCK_BG_COLOR};
-		font-size: var(--vscode-editor-font-size, var(--vscode-font-size, 12px));
-		font-family: var(--vscode-editor-font-family);
-	}
-
-	code:not(pre > code) {
-		font-family: var(--vscode-editor-font-family, monospace);
-		color: var(--vscode-textPreformat-foreground, #f78383);
-		background-color: var(--vscode-textCodeBlock-background, #1e1e1e);
-		padding: 0px 2px;
-		border-radius: 3px;
-		border: 1px solid var(--vscode-textSeparator-foreground, #424242);
-		white-space: pre-line;
-		word-break: break-word;
-		overflow-wrap: anywhere;
-	}
-
-	font-family:
-		var(--vscode-font-family),
-		system-ui,
-		-apple-system,
-		BlinkMacSystemFont,
-		"Segoe UI",
-		Roboto,
-		Oxygen,
-		Ubuntu,
-		Cantarell,
-		"Open Sans",
-		"Helvetica Neue",
-		sans-serif;
-	font-size: var(--vscode-font-size, 13px);
-
-	p,
-	li,
-	ol,
-	ul {
-		line-height: 1.25;
-	}
-
-	ol,
-	ul {
-		padding-left: 2.5em;
-		margin-left: 0;
-	}
-
-	p {
-		white-space: pre-wrap;
-		${(props) => props.compact && "margin: 0;"}
-	}
-
-	a {
-		text-decoration: none;
-	}
-	a {
-		&:hover {
-			text-decoration: underline;
-		}
-	}
-
-	hr, ul, ol {
-		margin: 13px 0;
-	}
-
-	li > ul, li > ol {
-		margin: 4px 0; /* or 0 if you want them very tight */
-	}
-
-`
-
 const PreWithCopyButton = ({ children, ...preProps }: React.HTMLAttributes<HTMLPreElement>) => {
 	const preRef = useRef<HTMLPreElement>(null)
 
@@ -331,46 +236,88 @@ const PreWithCopyButton = ({ children, ...preProps }: React.HTMLAttributes<HTMLP
 	)
 }
 
+// Regex to detect potential file paths (used in both remark plugin and component)
+const FILE_PATH_REGEX = /^(?!\/)[\w\-./]+(?<!\/)$/
+
 /**
- * Custom remark plugin that detects file paths in inline code blocks
- * and marks them with metadata for later rendering
+ * Custom remark plugin that marks potential file paths in inline code blocks
+ * This is synchronous - actual file existence checking happens in the React component
  */
-const remarkFilePathDetection = () => {
-	return async (tree: Node) => {
-		const fileNameRegex = /^(?!\/)[\w\-./]+(?<!\/)$/
-		const _inlineCodeNodes: any[] = []
-		const filePathPromises: Promise<void>[] = []
-
-		// Collect all inline code nodes that might be file paths
+const remarkMarkPotentialFilePaths = () => {
+	return (tree: Node) => {
 		visit(tree, "inlineCode", (node: Node & { value: string; data?: any }) => {
-			if (fileNameRegex.test(node.value) && !node.value.includes("\n")) {
-				const promise = FileServiceClient.ifFileExistsRelativePath(StringRequest.create({ value: node.value }))
-					.then((exists) => {
-						if (exists.value) {
-							node.data = node.data || {}
-							node.data.hProperties = node.data.hProperties || {}
-							node.data.hProperties["data-is-file-path"] = "true"
-						}
-					})
-					.catch((err) => {
-						console.debug(`Failed to check file existence for ${node.value}:`, err)
-					})
-
-				filePathPromises.push(promise)
+			if (FILE_PATH_REGEX.test(node.value) && !node.value.includes("\n")) {
+				// Mark as potential file path - actual checking happens in React component
+				node.data = node.data || {}
+				node.data.hProperties = node.data.hProperties || {}
+				node.data.hProperties["data-potential-file-path"] = "true"
 			}
 		})
-
-		await Promise.all(filePathPromises)
 	}
 }
 
-const MarkdownBlock = memo(({ markdown, compact }: MarkdownBlockProps) => {
+/**
+ * Component that renders inline code and checks if it's a valid file path asynchronously
+ * Shows the code immediately, then adds the file link icon when confirmed
+ */
+const InlineCodeWithFileCheck: React.FC<ComponentProps<"code"> & { [key: string]: any }> = (props) => {
+	const [isFilePath, setIsFilePath] = useState<boolean | null>(null)
+	const filePath = typeof props.children === "string" ? props.children : String(props.children || "")
+	const isPotentialFilePath = props["data-potential-file-path"] === "true"
+
+	useEffect(() => {
+		if (!isPotentialFilePath) {
+			return
+		}
+
+		let cancelled = false
+
+		// Check file existence asynchronously
+		FileServiceClient.ifFileExistsRelativePath(StringRequest.create({ value: filePath }))
+			.then((exists) => {
+				if (!cancelled) {
+					setIsFilePath(exists.value)
+				}
+			})
+			.catch((err) => {
+				console.debug(`Failed to check file existence for ${filePath}:`, err)
+				if (!cancelled) {
+					setIsFilePath(false)
+				}
+			})
+
+		return () => {
+			cancelled = true
+		}
+	}, [filePath, isPotentialFilePath])
+
+	// If confirmed as a file path, render as clickable button
+	if (isFilePath) {
+		return (
+			<Button
+				className="p-0 ml-0.5 mt-0.5 leading-none align-middle transition-opacity relative top-px text-preformat translate-y-[-2px] gap-0.5"
+				onClick={() => FileServiceClient.openFileRelativePath({ value: filePath })}
+				size="icon"
+				title={`Open ${filePath} in editor`}
+				type="button"
+				variant="icon">
+				<code {...props} />
+				<SquareArrowOutUpRightIcon />
+			</Button>
+		)
+	}
+
+	// Otherwise render as regular code (shows immediately, before file check completes)
+	return <code {...props} />
+}
+
+const MarkdownBlock = memo(({ markdown, compact, showCursor }: MarkdownBlockProps) => {
 	const [reactContent, setMarkdown] = useRemark({
 		remarkPlugins: [
 			remarkPreventBoldFilenames,
 			remarkUrlToLink,
 			remarkHighlightActMode,
-			remarkFilePathDetection,
+			remarkMarkPotentialFilePaths,
 			() => {
 				return (tree) => {
 					visit(tree, "code", (node: any) => {
@@ -407,25 +354,8 @@ const MarkdownBlock = memo(({ markdown, compact }: MarkdownBlockProps) => {
 						return <MermaidBlock code={codeText} />
 					}
 
-					// Check if this is a file path (metadata is converted to data- attributes by rehype-react)
-					if (props["data-is-file-path"]) {
-						// Extract the file path from the code element's children
-						const filePath = typeof props.children === "string" ? props.children : String(props.children || "")
-
-						return (
-							<>
-								<code {...props} />
-								<button
-									className="codicon codicon-link-external bg-transparent border-0 appearance-none p-0 ml-0.5 leading-none align-middle opacity-70 hover:opacity-100 transition-opacity text-[1em] relative top-px text-(--vscode-textPreformat-foreground) translate-y-[-2px]"
-									onClick={() => FileServiceClient.openFileRelativePath({ value: filePath })}
-									title={`Open ${filePath} in editor`}
-									type="button"
-								/>
-							</>
-						)
-					}
-
-					return <code {...props} />
+					// Use the async file check component for potential file paths
+					return <InlineCodeWithFileCheck {...props} />
 				},
 				strong: (props: ComponentProps<"strong">) => {
 					// Check if this is an "Act Mode" strong element by looking for the keyboard shortcut
@@ -460,10 +390,14 @@ const MarkdownBlock = memo(({ markdown, compact }: MarkdownBlockProps) => {
 	}, [markdown, setMarkdown])
 
 	return (
-		<div>
-			<StyledMarkdown className="ph-no-capture" compact={compact}>
+		<div className="inline-markdown-block">
+			<span
+				className={cn("inline [&>p]:mt-0", {
+					"inline-cursor-container": showCursor,
+					"[&>p]:m-0": compact,
+				})}>
 				{reactContent}
-			</StyledMarkdown>
+			</span>
 		</div>
 	)
 })

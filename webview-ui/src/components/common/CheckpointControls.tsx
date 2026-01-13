@@ -119,7 +119,7 @@ export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 	}
 
 	return (
-		<CheckpointControls onMouseLeave={handleControlsMouseLeave}>
+		<CheckpointControls className="hover:opacity-100" onMouseLeave={handleControlsMouseLeave}>
 			<VSCodeButton
 				appearance="secondary"
 				disabled={compareDisabled}
