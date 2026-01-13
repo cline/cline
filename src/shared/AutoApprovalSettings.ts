@@ -27,18 +27,18 @@ export interface AutoApprovalSettings {
 
 export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 	version: 1,
-	enabled: true, // Legacy field - always true by default
+	enabled: false, // Disabled by default for security
 	favorites: [], // Legacy field - kept as empty array
 	maxRequests: 20, // Legacy field - kept for backward compatibility
 	actions: {
-		readFiles: true,
+		readFiles: false,
 		readFilesExternally: false,
 		editFiles: false,
 		editFilesExternally: false,
-		executeSafeCommands: true,
+		executeSafeCommands: false,
 		executeAllCommands: false,
 		useBrowser: false,
-		useMcp: true,
+		useMcp: false,
 	},
 	enableNotifications: false,
 }

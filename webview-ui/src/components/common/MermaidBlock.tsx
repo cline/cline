@@ -258,6 +258,21 @@ const SvgContainer = styled.div<SvgContainerProps>`
 	cursor: pointer;
 	display: flex;
 	justify-content: center;
+	overflow: visible;
+	padding: 20px;
+
+	/* Fixes #7398: Ensure Mermaid node text labels are not clipped */
+	svg {
+		overflow: visible !important;
+		max-width: 100%;
+		height: auto;
+	}
+
+	/* Prevent text clipping in nodes */
+	text {
+		white-space: normal;
+		overflow: visible;
+	}
 `
 
 const StyledVSCodeButton = styled(VSCodeButton)`

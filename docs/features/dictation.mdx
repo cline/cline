@@ -35,16 +35,17 @@ Dictation works with any AI model you've configured. The transcription happens t
 
 ## System Requirements
 
-<Note>
-Dictation is currently not available on Windows. Support for Windows is planned for a future release.
-</Note>
-
 Dictation uses FFmpeg to capture your voice across all platforms:
 
+- **Windows**: FFmpeg (via winget: `winget install Gyan.FFmpeg`)
 - **macOS**: FFmpeg (via Homebrew: `brew install ffmpeg`)
 - **Linux**: FFmpeg (via apt: `sudo apt-get install ffmpeg`)
 
 If you don't have FFmpeg installed, Cline will automatically detect this and prompt you to install it with a single click.
+
+<Note>
+**Cline Account Required:** Dictation uses Cline's cloud transcription service at $0.0065 credits per minute (5 minutes max per message). You must be signed into your Cline account to use this feature.
+</Note>
 
 ## Where Dictation Shines
 

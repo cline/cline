@@ -26,7 +26,9 @@ async function tryFixEntry(
 	spec: SpecFile,
 	specPath: string,
 ): Promise<boolean> {
-	if (!shouldAttemptFix()) return false
+	if (!shouldAttemptFix()) {
+		return false
+	}
 
 	console.warn(`✏️ Updating response for RequestID: ${entry.requestId}`)
 	entry.response.message = actualResponse

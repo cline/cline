@@ -143,7 +143,9 @@ async function main(): Promise<void> {
 
 		while (childProcesses.length > 0) {
 			const child = childProcesses.pop()
-			if (child && !child.killed) child.kill("SIGINT")
+			if (child && !child.killed) {
+				child.kill("SIGINT")
+			}
 		}
 
 		await ClineApiServerMock.stopGlobalServer()

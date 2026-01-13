@@ -93,8 +93,9 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 			)
 
 			// Parse the result count from the first line
-			const firstLine = workspaceResults.split("\n")[0]
-			const resultMatch = firstLine.match(/Found (\d+) result/)
+			const lines = workspaceResults.split("\n")
+			const firstLine = lines.length > 0 ? lines[0] : ""
+			const resultMatch = firstLine ? firstLine.match(/Found (\d+) result/) : null
 			const resultCount = resultMatch ? parseInt(resultMatch[1], 10) : 0
 
 			return {

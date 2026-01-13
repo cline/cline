@@ -23,6 +23,7 @@ const SHELL_PATHS = {
 
 interface MacTerminalProfile {
 	path?: string
+	env?: Record<string, string>
 }
 
 type MacTerminalProfiles = Record<string, MacTerminalProfile>
@@ -30,12 +31,14 @@ type MacTerminalProfiles = Record<string, MacTerminalProfile>
 interface WindowsTerminalProfile {
 	path?: string
 	source?: "PowerShell" | "WSL"
+	env?: Record<string, string>
 }
 
 type WindowsTerminalProfiles = Record<string, WindowsTerminalProfile>
 
 interface LinuxTerminalProfile {
 	path?: string
+	env?: Record<string, string>
 }
 
 type LinuxTerminalProfiles = Record<string, LinuxTerminalProfile>
@@ -289,6 +292,30 @@ export function getShellForProfile(profileId: string): string {
 
 	// Fallback to default shell if profile not found
 	return getShell()
+}
+
+/**
+ * Gets environment variables from VS Code's terminal profile configuration
+ * Fixes #7793: VSCode Terminal Profile environment variables are not respected
+ */
+export function getEnvironmentVariablesForDefaultProfile(): Record<string, string> | undefined {
+	if (process.platform === "win32") {
+		const { defaultProfileName, profiles } = getWindowsTerminalConfig()
+		if (defaultProfileName && profiles[defaultProfileName]?.env) {
+			return profiles[defaultProfileName].env
+		}
+	} else if (process.platform === "darwin") {
+		const { defaultProfileName, profiles } = getMacTerminalConfig()
+		if (defaultProfileName && profiles[defaultProfileName]?.env) {
+			return profiles[defaultProfileName].env
+		}
+	} else if (process.platform === "linux") {
+		const { defaultProfileName, profiles } = getLinuxTerminalConfig()
+		if (defaultProfileName && profiles[defaultProfileName]?.env) {
+			return profiles[defaultProfileName].env
+		}
+	}
+	return undefined
 }
 
 // -----------------------------------------------------

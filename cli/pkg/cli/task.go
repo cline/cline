@@ -395,7 +395,7 @@ func newTaskViewCommand() *cobra.Command {
 				return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance(), false)
 			} else if followComplete {
 				// Follow until completion
-				return taskManager.FollowConversationUntilCompletion(ctx, task.DefaultFollowOptions())
+				return taskManager.FollowConversationUntilCompletion(ctx)
 			} else {
 				// Default: show snapshot
 				return taskManager.ShowConversation(ctx)
@@ -670,9 +670,7 @@ func CreateAndFollowTask(ctx context.Context, prompt string, opts TaskOptions) e
 	// Otherwise, follow in interactive mode
 	if opts.Yolo {
 		// Skip active task check since we just created the task
-		return taskManager.FollowConversationUntilCompletion(ctx, task.FollowOptions{
-			SkipActiveTaskCheck: true,
-		})
+		return taskManager.FollowConversationUntilCompletion(ctx)
 	} else {
 		return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance(), true)
 	}

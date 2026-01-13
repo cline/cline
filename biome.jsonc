@@ -111,6 +111,11 @@
 			"expand": "always"
 		}
 	},
+	"css": {
+		"parser": {
+			"cssModules": true
+		}
+	},
 	"files": {
 		"includes": [
 			"**",

@@ -79,7 +79,9 @@ export class EventHandlerRegistry {
 	 * This is called once during TelemetryService initialization
 	 */
 	static registerAll(): void {
-		if (EventHandlerRegistry.registered) return
+		if (EventHandlerRegistry.registered) {
+			return
+		}
 
 		// Import and register all handlers
 		// This will be populated as we create the specific handlers

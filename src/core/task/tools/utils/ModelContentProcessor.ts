@@ -1,4 +1,4 @@
-import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
+import { fixCommandEscaping, fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
 
 /**
  * File extensions that use escaped characters (&lt; &gt; &amp;) as valid syntax.
@@ -29,6 +29,31 @@ export function applyModelContentFixes(text: string, modelId?: string, filePath?
 		processed = fixModelHtmlEscaping(processed)
 	}
 
+	processed = removeInvalidChars(processed)
+
+	return processed
+}
+
+/**
+ * Applies model-specific fixes to terminal commands.
+ * Handles over-escaped quotes and backslashes that some models produce.
+ *
+ * @param command The command string to process
+ * @param modelId The model ID to check if fixes are needed (optional - if not provided, applies fixes)
+ * @returns The processed command
+ */
+export function applyModelCommandFixes(command: string, modelId?: string): string {
+	if (modelId?.includes("claude")) {
+		return command
+	}
+
+	// Fix JSON-style escaping that shouldn't be in shell commands
+	let processed = fixCommandEscaping(command)
+
+	// Also fix HTML escaping (some models might use &quot; etc.)
+	processed = fixModelHtmlEscaping(processed)
+
+	// Remove invalid characters
 	processed = removeInvalidChars(processed)
 
 	return processed

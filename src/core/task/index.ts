@@ -564,6 +564,8 @@ export class Task {
 			this.clearActiveHookExecution.bind(this),
 			this.getActiveHookExecution.bind(this),
 			this.runUserPromptSubmitHook.bind(this),
+			// Task completion callback for message queue system
+			this.controller.onTaskComplete,
 		)
 	}
 
@@ -812,12 +814,23 @@ export class Task {
 	}
 
 	async sayAndCreateMissingParamError(toolName: ClineDefaultTool, paramName: string, relPath?: string) {
+		const maxRetries = 3
+		// Treat missing required tool parameters as consecutive mistakes to prevent infinite retry loops.
+		this.taskState.consecutiveMistakeCount++
+		const attempt = this.taskState.consecutiveMistakeCount
+		const retrySuffix =
+			attempt >= maxRetries
+				? `Retry limit reached (${attempt}/${maxRetries}). Aborting task.`
+				: `Retrying (${attempt}/${maxRetries})...`
 		await this.say(
 			"error",
 			`Cline tried to use ${toolName}${
 				relPath ? ` for '${relPath.toPosix()}'` : ""
-			} without value for required parameter '${paramName}'. Retrying...`,
+			} without value for required parameter '${paramName}'. ${retrySuffix}`,
 		)
+		if (attempt >= maxRetries) {
+			await this.cancelTask()
+		}
 		return formatResponse.toolError(formatResponse.missingToolParameterError(paramName))
 	}
 
@@ -1344,6 +1357,22 @@ export class Task {
 			if (didEndLoop) {
 				// For now a task never 'completes'. This will only happen if the user hits max requests and denies resetting the count.
 				//this.say("task_completed", `Task completed. Total API usage cost: ${totalCost}`)
+
+				// Notify completion callback for message queue system
+				const fs = require("fs")
+				const logPath = require("path").join(process.cwd(), "task-completion-debug.log")
+				fs.appendFileSync(logPath, `\n[${new Date().toISOString()}] didEndLoop - Task ending\n`)
+				fs.appendFileSync(
+					logPath,
+					`[${new Date().toISOString()}] onTaskComplete exists: ${!!this.controller.onTaskComplete}\n`,
+				)
+
+				if (this.controller.onTaskComplete) {
+					fs.appendFileSync(logPath, `[${new Date().toISOString()}] Calling onTaskComplete\n`)
+					this.controller.onTaskComplete("Task completed successfully")
+					fs.appendFileSync(logPath, `[${new Date().toISOString()}] onTaskComplete called\n`)
+				}
+
 				break
 			} else {
 				// this.say(
@@ -1444,6 +1473,15 @@ export class Task {
 					await this.commandExecutor.cancelBackgroundCommand()
 				} catch (error) {
 					Logger.error("Failed to cancel background command during task abort", error)
+				}
+			}
+
+			// Cancel ongoing API request if using Ollama
+			if (this.api && typeof (this.api as any).abortCurrentRequest === "function") {
+				try {
+					;(this.api as any).abortCurrentRequest()
+				} catch (error) {
+					Logger.error("Failed to abort API request during task abort", error)
 				}
 			}
 
@@ -3224,7 +3262,10 @@ export class Task {
 			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
 				interval: 100,
 				timeout: 15_000,
-			}).catch(() => {})
+			}).catch((err) => {
+				// Timeout waiting for terminals to cool down - continuing anyway
+				console.warn("[Task] Timeout waiting for terminals to finish (15s), continuing...", err.message)
+			})
 		}
 
 		this.taskState.didEditFile = false // reset, this lets us know when to wait for saved files to update terminals

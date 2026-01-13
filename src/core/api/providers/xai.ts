@@ -47,6 +47,8 @@ export class XAIHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const modelId = this.getModel().id
+		const modelInfo = this.getModel().info
+
 		// ensure reasoning effort is either "low" or "high" for grok-3-mini
 		let reasoningEffort: ChatCompletionReasoningEffort | undefined
 		if (modelId.includes("3-mini")) {
@@ -55,11 +57,54 @@ export class XAIHandler implements ApiHandler {
 				reasoningEffort = undefined
 			}
 		}
+
+		// Prepare messages with prompt caching if supported
+		const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+			{ role: "system", content: systemPrompt },
+			...convertToOpenAiMessages(messages),
+		]
+
+		// Apply prompt caching for models that support it
+		// XAI's prompt caching follows OpenAI's cache_control pattern
+		if (modelInfo.supportsPromptCache) {
+			// Cache the system prompt
+			chatMessages[0] = {
+				role: "system",
+				content: [
+					{
+						type: "text",
+						text: systemPrompt,
+						// @ts-expect-error - cache_control is an extension field
+						cache_control: { type: "ephemeral" },
+					},
+				],
+			}
+
+			// Cache the last two user messages for conversation continuity
+			const lastTwoUserMessages = chatMessages.filter((msg) => msg.role === "user").slice(-2)
+			lastTwoUserMessages.forEach((msg) => {
+				if (typeof msg.content === "string") {
+					msg.content = [{ type: "text", text: msg.content }]
+				}
+				if (Array.isArray(msg.content)) {
+					// Find the last text part to add cache control
+					let lastTextPart = msg.content.filter((part) => part.type === "text").pop()
+
+					if (!lastTextPart) {
+						lastTextPart = { type: "text", text: "..." }
+						msg.content.push(lastTextPart)
+					}
+					// @ts-expect-error - cache_control is an extension field
+					lastTextPart["cache_control"] = { type: "ephemeral" }
+				}
+			})
+		}
+
 		const stream = await client.chat.completions.create({
 			model: modelId,
 			max_completion_tokens: this.getModel().info.maxTokens,
 			temperature: 0,
-			messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+			messages: chatMessages,
 			stream: true,
 			stream_options: { include_usage: true },
 			reasoning_effort: reasoningEffort,
@@ -86,7 +131,7 @@ export class XAIHandler implements ApiHandler {
 				if (!shouldSkipReasoningForModel(modelId)) {
 					yield {
 						type: "reasoning",
-						// @ts-ignore-next-line
+						// @ts-expect-error
 						reasoning: delta.reasoning_content,
 					}
 				}
@@ -97,10 +142,8 @@ export class XAIHandler implements ApiHandler {
 					type: "usage",
 					inputTokens: chunk.usage.prompt_tokens || 0,
 					outputTokens: chunk.usage.completion_tokens || 0,
-					// @ts-ignore-next-line
-					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-					// @ts-ignore-next-line
-					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
+					cacheReadTokens: (chunk.usage as any).prompt_tokens_details?.cached_tokens || 0,
+					cacheWriteTokens: (chunk.usage as any).prompt_cache_miss_tokens || 0,
 				}
 			}
 		}

@@ -1,3 +1,4 @@
+// @ts-nocheck - VSCode proposed API types not in stable @types/vscode
 // This file contains `declare module "vscode"` so we must import it.
 import "../providers/vscode-lm"
 import { describe, it } from "mocha"

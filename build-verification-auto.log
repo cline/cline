@@ -1,0 +1,27 @@
+
+[0;34m╔══════════════════════════════════════════════════╗[0m
+[0;34m║     BCline Automated Build Script v1.0          ║[0m
+[0;34m║     Building: BCline v3.39.2-complete            ║[0m
+[0;34m╚══════════════════════════════════════════════════╝[0m
+
+[0;34m===================================================[0m
+[0;34mStep 0: Checking Prerequisites[0m
+[0;34m===================================================[0m
+Node.js version: v20.11.1
+npm version: 10.2.4
+Current branch: bcline-3.39.2-complete
+[0;32m✅ Prerequisites check passed[0m
+
+[0;34m===================================================[0m
+[0;34mStep 0.5: Verifying Package Versions[0m
+[0;34m===================================================[0m
+Root TypeScript version:
+		"typescript": "^5.4.5"
+Webview TypeScript version:
+		"typescript": "^5.4.5",
+Webview Vite version:
+		"vite": "^5.4.11",
+[1;33m⚠️  TypeScript versions don't match between root and webview[0m
+[1;33m⚠️  This may cause issues![0m
+[0;32m✅ Version check complete[0m
+

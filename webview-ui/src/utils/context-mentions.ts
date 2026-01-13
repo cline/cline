@@ -112,7 +112,7 @@ function getContextMenuEntries(): ContextMenuOptionType[] {
 }
 
 export function getContextMenuOptionIndex(option: ContextMenuOptionType) {
-	return getContextMenuEntries().findIndex((item) => item === option)
+	return getContextMenuEntries().indexOf(option)
 }
 
 export function getContextMenuOptions(

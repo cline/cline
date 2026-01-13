@@ -134,7 +134,9 @@ const ClineRulesToggleModal: React.FC = () => {
 
 		// Initial refresh when tab opens
 		const refreshHooks = () => {
-			if (abortController.signal.aborted) return
+			if (abortController.signal.aborted) {
+				return
+			}
 
 			FileServiceClient.refreshHooks({} as EmptyRequest)
 				.then((response) => {

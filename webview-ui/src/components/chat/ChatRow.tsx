@@ -1445,7 +1445,9 @@ export const ChatRowContent = memo(
 								/>
 								<div style={{ flex: 1, wordBreak: "break-word" }}>
 									<span style={{ fontWeight: 500 }}>MCP Notification: </span>
-									<span className="ph-no-capture">{message.text}</span>
+									<span className="ph-no-capture" style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+										{message.text}
+									</span>
 								</div>
 							</div>
 						)
@@ -1504,7 +1506,11 @@ export const ChatRowContent = memo(
 														}}
 													/>
 												</span>
-												<span className="ph-no-capture">{message.text}</span>
+												<span
+													className="ph-no-capture"
+													style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+													{message.text}
+												</span>
 											</div>
 										) : (
 											<div style={{ display: "flex", alignItems: "center" }}>

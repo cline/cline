@@ -187,7 +187,8 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 
 			// Show the document and scroll to the comment
 			// Use the start of the range so the comment appears in center (not the code block)
-			const commentPosition = new vscode.Range(thread.range.start, thread.range.start)
+			const range = thread.range ?? new vscode.Range(0, 0, 0, 0)
+			const commentPosition = new vscode.Range(range.start, range.start)
 			const editor = await vscode.window.showTextDocument(doc, {
 				selection: commentPosition,
 				preserveFocus: false,
@@ -313,8 +314,9 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 		if (this.onReplyCallback) {
 			// Use stored absolute path (virtual URIs don't contain the full path)
 			const filePath = this.threadFilePaths.get(thread) || thread.uri.fsPath
-			const startLine = thread.range.start.line
-			const endLine = thread.range.end.line
+			const threadRange = thread.range ?? new vscode.Range(0, 0, 0, 0)
+			const startLine = threadRange.start.line
+			const endLine = threadRange.end.line
 
 			// Collect existing comments for context (exclude the user's reply we just added)
 			const existingComments = thread.comments.slice(0, -1).map((c) => {
@@ -382,8 +384,9 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 	 */
 	private async handleAddToChat(thread: vscode.CommentThread): Promise<void> {
 		const filePath = this.threadFilePaths.get(thread) || thread.uri.fsPath
-		const startLine = thread.range.start.line + 1 // Convert to 1-indexed for display
-		const endLine = thread.range.end.line + 1
+		const threadRange = thread.range ?? new vscode.Range(0, 0, 0, 0)
+		const startLine = threadRange.start.line + 1 // Convert to 1-indexed for display
+		const endLine = threadRange.end.line + 1
 
 		// Collect all comments from the thread
 		const conversation = thread.comments

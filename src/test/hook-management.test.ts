@@ -31,7 +31,7 @@ describe("Hook Management", () => {
 	let globalHooksDir: string
 	let workspaceHooksDir: string
 	let mockController: Controller
-	let stateManagerStub: sinon.SinonStub
+	let _stateManagerStub: sinon.SinonStub
 	let getWorkspacePathsStub: sinon.SinonStub
 
 	beforeEach(async () => {
@@ -54,7 +54,7 @@ describe("Hook Management", () => {
 		} as any
 
 		// Mock StateManager to return test workspace
-		stateManagerStub = sinon.stub(StateManager, "get").returns({
+		_stateManagerStub = sinon.stub(StateManager, "get").returns({
 			getGlobalStateKey: (key: string) => {
 				if (key === "workspaceRoots") {
 					return [{ path: path.join(tempDir, "workspace") }]
@@ -76,7 +76,7 @@ describe("Hook Management", () => {
 		// Clean up temporary directory
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
-		} catch (error) {
+		} catch (_error) {
 			// Ignore cleanup errors
 		}
 
@@ -477,7 +477,7 @@ describe("Hook Management", () => {
 			try {
 				await deleteHook(mockController, request, globalHooksDir)
 				// Should throw an error
-			} catch (error) {
+			} catch (_error) {
 				// Expected - permission denied
 			} finally {
 				// Restore permissions for cleanup

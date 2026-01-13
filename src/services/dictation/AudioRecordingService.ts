@@ -1,4 +1,4 @@
-import { ChildProcess, spawn } from "node:child_process"
+import { ChildProcess, execSync, spawn } from "node:child_process"
 import * as fs from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
@@ -14,18 +14,94 @@ function isExecutable(filePath: string): boolean {
 	}
 }
 
+/**
+ * Detects the first available audio input device on Windows using FFmpeg
+ * Returns the device's alternative name (GUID format) which is more reliable
+ */
+function detectWindowsAudioDevice(ffmpegPath: string): string | null {
+	try {
+		Logger.info("Detecting Windows audio devices...")
+		const result = execSync(`"${ffmpegPath}" -list_devices true -f dshow -i dummy 2>&1`, {
+			encoding: "utf8",
+			timeout: 5000,
+		})
+
+		Logger.info(`FFmpeg device list output:\n${result}`)
+
+		// Look for audio devices and their alternative names
+		// Format is:
+		//   "Device Name" (audio)
+		//   Alternative name
+		//   "@device_cm_{...}\wave_{...}"
+		const lines = result.split("\n")
+		let foundAudioDevice = false
+		let waitingForAltName = false
+
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i]
+
+			if (line.includes("(audio)")) {
+				foundAudioDevice = true
+				Logger.info(`Found audio device: ${line.trim()}`)
+				continue
+			}
+
+			if (foundAudioDevice && line.includes("Alternative name")) {
+				waitingForAltName = true
+				continue
+			}
+
+			if (waitingForAltName) {
+				// This line should contain the device ID in quotes
+				const match = line.match(/"([^"]+)"/)
+				if (match) {
+					Logger.info(`Using audio device ID: ${match[1]}`)
+					return match[1]
+				}
+				// Reset if we didn't find a quoted string
+				waitingForAltName = false
+			}
+		}
+
+		// Fallback: try to extract device name directly
+		if (foundAudioDevice) {
+			for (const line of lines) {
+				if (line.includes("(audio)")) {
+					const match = line.match(/"([^"]+)"/)
+					if (match) {
+						Logger.info(`Using audio device name as fallback: ${match[1]}`)
+						return match[1]
+					}
+				}
+			}
+		}
+
+		Logger.warn("No audio device found")
+		return null
+	} catch (error) {
+		Logger.error(`Failed to detect audio devices: ${error instanceof Error ? error.message : String(error)}`)
+		return null
+	}
+}
+
 export class AudioRecordingService {
 	private recordingProcess: ChildProcess | null = null
 	private startTime: number = 0
 	private outputFile: string = ""
+	private _isRecordingActive: boolean = false
 
 	constructor() {}
 
 	/**
-	 * Determines if recording is currently active by checking process state
+	 * Determines if recording is currently active
+	 * Uses explicit flag rather than just process state, since process may exit but recording data is still valid
 	 */
 	private get isRecording(): boolean {
-		return this.recordingProcess !== null && !this.recordingProcess.killed && this.recordingProcess.exitCode === null
+		return this._isRecordingActive
+	}
+
+	private set isRecording(value: boolean) {
+		this._isRecordingActive = value
 	}
 
 	/**
@@ -34,6 +110,7 @@ export class AudioRecordingService {
 	private resetRecordingState(): void {
 		this.recordingProcess = null
 		this.startTime = 0
+		this._isRecordingActive = false
 	}
 
 	/**
@@ -61,12 +138,32 @@ export class AudioRecordingService {
 		}
 
 		Logger.info("Terminating recording process...")
-		this.recordingProcess.kill("SIGINT")
+
+		// On Windows, we need to handle FFmpeg differently
+		// FFmpeg responds to 'q' on stdin to quit gracefully
+		if (process.platform === "win32" && this.recordingProcess.stdin) {
+			try {
+				this.recordingProcess.stdin.write("q")
+				this.recordingProcess.stdin.end()
+				Logger.info("Sent 'q' to FFmpeg stdin for graceful shutdown")
+			} catch (e) {
+				Logger.warn("Failed to write to stdin, falling back to kill: " + (e instanceof Error ? e.message : String(e)))
+				this.recordingProcess.kill()
+			}
+		} else {
+			// Unix-like systems can use SIGINT
+			this.recordingProcess.kill("SIGINT")
+		}
 
 		// Wait for the process to finish with timeout
 		await new Promise<void>((resolve) => {
 			const timeoutId = setTimeout(() => {
-				Logger.warn("Process termination timed out after 5 seconds")
+				Logger.warn("Process termination timed out after 5 seconds, forcing kill...")
+				try {
+					this.recordingProcess?.kill("SIGKILL")
+				} catch (e) {
+					// Ignore - process may already be dead
+				}
 				resolve()
 			}, 5000)
 
@@ -123,12 +220,34 @@ export class AudioRecordingService {
 			}
 			Logger.info(`Using recording program: ${recordProgram.path}`)
 
-			// Set up recording arguments
-			const args = recordProgram.getArgs(this.outputFile)
+			// Set up recording arguments - for Windows, detect device dynamically
+			let args = recordProgram.getArgs(this.outputFile)
+
+			// On Windows, detect the actual audio device
+			if (os.platform() === "win32") {
+				const detectedDevice = detectWindowsAudioDevice(recordProgram.path)
+				if (detectedDevice) {
+					// Replace the placeholder device with the detected one
+					args = args.map((arg) => {
+						if (arg.startsWith("audio=")) {
+							return `audio=${detectedDevice}`
+						}
+						return arg
+					})
+					Logger.info(`Using detected Windows audio device: ${detectedDevice}`)
+				} else {
+					Logger.warn("Could not detect Windows audio device, using default from config")
+				}
+			}
+
+			Logger.info(`FFmpeg args: ${args.join(" ")}`)
+			Logger.info(`Output file will be: ${this.outputFile}`)
 
 			// Spawn the recording process
 			this.recordingProcess = spawn(recordProgram.path, args)
 			this.startTime = Date.now()
+			this._isRecordingActive = true
+			Logger.info(`Recording process spawned with PID: ${this.recordingProcess.pid}`)
 
 			// Handle process errors
 			this.recordingProcess.on("error", (error) => {
@@ -136,18 +255,22 @@ export class AudioRecordingService {
 				this.resetRecordingState()
 			})
 
-			// Handle process exit
+			// Handle process exit - DON'T reset recording state here, let stopRecording handle it
 			this.recordingProcess.on("exit", (code) => {
+				Logger.info(`Recording process exited with code: ${code}`)
 				if (code !== 0 && code !== null) {
-					Logger.warn(`Recording process exited with code: ${code}`)
+					Logger.warn(`Recording process exited with non-zero code: ${code}`)
 				}
 			})
 
 			this.recordingProcess.stderr?.on("data", (data) => {
 				const message = data.toString().trim()
-				if (message && !message.includes("In:") && !message.includes("Out:")) {
-					Logger.info(`Recording stderr: ${message}`)
-				}
+				// Log ALL stderr output for debugging
+				Logger.info(`FFmpeg stderr: ${message}`)
+			})
+
+			this.recordingProcess.stdout?.on("data", (data) => {
+				Logger.info(`FFmpeg stdout: ${data.toString().trim()}`)
 			})
 
 			Logger.info("Audio recording started successfully")
@@ -162,28 +285,45 @@ export class AudioRecordingService {
 
 	async stopRecording(): Promise<{ success: boolean; audioBase64?: string; error?: string }> {
 		try {
+			Logger.info(`stopRecording called. isRecording=${this.isRecording}, outputFile=${this.outputFile}`)
+
 			if (!this.isRecording) {
+				Logger.error("stopRecording: Not currently recording")
 				return { success: false, error: "Not currently recording" }
 			}
 
 			Logger.info("Stopping audio recording...")
 
 			// Terminate the process but keep the file for reading
+			const outputFilePath = this.outputFile // Save before reset
 			await this.terminateProcess()
 			this.resetRecordingState()
 
 			// Wait a moment for file to be fully written
-			await new Promise((resolve) => setTimeout(resolve, 500))
+			Logger.info(`Waiting for file to be written: ${outputFilePath}`)
+			await new Promise((resolve) => setTimeout(resolve, 1000))
 
 			// Read the audio file and convert to base64
-			if (!fs.existsSync(this.outputFile)) {
-				return { success: false, error: "Recording file not found" }
+			Logger.info(`Checking if file exists: ${outputFilePath}`)
+			if (!fs.existsSync(outputFilePath)) {
+				Logger.error(`Recording file not found: ${outputFilePath}`)
+				return { success: false, error: `Recording file not found: ${outputFilePath}` }
 			}
 
-			const audioBuffer = fs.readFileSync(this.outputFile)
+			const stats = fs.statSync(outputFilePath)
+			Logger.info(`Recording file size: ${stats.size} bytes`)
+
+			if (stats.size === 0) {
+				Logger.error("Recording file is empty (0 bytes)")
+				return { success: false, error: "Recording file is empty - no audio was captured" }
+			}
+
+			const audioBuffer = fs.readFileSync(outputFilePath)
 			const audioBase64 = audioBuffer.toString("base64")
+			Logger.info(`Audio file read: ${audioBuffer.length} bytes, base64 length: ${audioBase64.length}`)
 
 			// Clean up temporary file after reading
+			this.outputFile = outputFilePath // Restore for cleanup
 			await this.cleanupTempFile()
 
 			Logger.info("Audio recording stopped and converted to base64")

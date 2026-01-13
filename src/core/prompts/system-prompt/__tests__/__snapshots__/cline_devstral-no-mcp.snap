@@ -297,6 +297,13 @@ Usage:
 <load_mcp_documentation>
 </load_mcp_documentation>
 
+## focus_chain
+Description: Manage focus chain for task context tracking
+Parameters: None
+Usage:
+<focus_chain>
+</focus_chain>
+
 # Tool Use Examples
 
 ## Example 1: Requesting to execute a command

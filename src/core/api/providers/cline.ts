@@ -184,7 +184,7 @@ export class ClineHandler implements ApiHandler {
 				if (
 					"reasoning_details" in delta &&
 					delta.reasoning_details &&
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					delta?.reasoning_details?.length && // exists and non-0
 					!shouldSkipReasoningForModel(this.options.openRouterModelId)
 				) {
@@ -196,10 +196,13 @@ export class ClineHandler implements ApiHandler {
 				}
 
 				if (!didOutputUsage && chunk.usage) {
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 
-					if (["x-ai/grok-code-fast-1"].includes(this.getModel().id)) {
+					// Free models should have zero cost (fixes #8182)
+					const modelId = this.getModel().id
+					const freeModelIds = ["x-ai/grok-code-fast-1", "mistralai/devstral-2512:free", "kwaipilot/kat-coder-pro:free"]
+					if (freeModelIds.includes(modelId) || modelId.endsWith(":free")) {
 						totalCost = 0
 					}
 

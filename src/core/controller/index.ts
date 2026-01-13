@@ -5,6 +5,7 @@ import { detectWorkspaceRoots } from "@core/workspace/detection"
 import { setupWorkspaceManager } from "@core/workspace/setup"
 import type { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
+import { downloadTask } from "@integrations/misc/export-markdown"
 import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
 import type { ApiProvider, ModelInfo } from "@shared/api"
@@ -19,7 +20,6 @@ import type { UserInfo } from "@shared/UserInfo"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
-import open from "open"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import type { FolderLockWithRetryResult } from "src/core/locks/types"
@@ -80,8 +80,24 @@ export class Controller {
 	// Flag to prevent duplicate cancellations from spam clicking
 	private cancelInProgress = false
 
+	// Callback for task completion (used by message queue system)
+	onTaskComplete?: (result: string) => void
+
+	// Shell integration warning tracker
+	private shellIntegrationWarningTracker: {
+		timestamps: number[]
+		lastSuggestionShown?: number
+	} = { timestamps: [] }
+
 	// Timer for periodic remote config fetching
 	private remoteConfigTimer?: NodeJS.Timeout
+
+	// Persistence error rate limiting (fixes #8004)
+	private persistenceErrorState = {
+		lastErrorTime: 0,
+		errorCount: 0,
+		isRecovering: false,
+	}
 
 	// Public getter for workspace manager with lazy initialization - To get workspaces when task isn't initialized (Used by file mentions)
 	async ensureWorkspaceManager(): Promise<WorkspaceRootManager | undefined> {
@@ -120,6 +136,26 @@ export class Controller {
 		this.stateManager = StateManager.get()
 		StateManager.get().registerCallbacks({
 			onPersistenceError: async ({ error }: PersistenceErrorEvent) => {
+				const now = Date.now()
+				const timeSinceLastError = now - this.persistenceErrorState.lastErrorTime
+
+				// Rate limit: ignore errors within 5 seconds of last error (fixes #8004)
+				if (timeSinceLastError < 5000) {
+					this.persistenceErrorState.errorCount++
+					console.warn(`[Controller] Persistence error suppressed (${this.persistenceErrorState.errorCount} in 5s)`)
+					return
+				}
+
+				// Prevent concurrent recovery attempts
+				if (this.persistenceErrorState.isRecovering) {
+					console.warn("[Controller] Recovery already in progress, skipping")
+					return
+				}
+
+				this.persistenceErrorState.lastErrorTime = now
+				this.persistenceErrorState.errorCount = 1
+				this.persistenceErrorState.isRecovering = true
+
 				console.error("[Controller] Cache persistence failed, recovering:", error)
 				try {
 					await StateManager.get().reInitialize(this.task?.taskId)
@@ -134,6 +170,8 @@ export class Controller {
 						type: ShowMessageType.ERROR,
 						message: "Failed to save settings. Please restart the extension.",
 					})
+				} finally {
+					this.persistenceErrorState.isRecovering = false
 				}
 			},
 			onSyncExternalChange: async () => {
@@ -180,6 +218,14 @@ export class Controller {
 		this.mcpHub.dispose()
 
 		console.error("Controller disposed")
+	}
+
+	getPreviousUserRequest(): string | undefined {
+		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
+		if (taskHistory && taskHistory.length > 1) {
+			return taskHistory[taskHistory.length - 2].task
+		}
+		return undefined
 	}
 
 	// Auth methods
@@ -786,9 +832,8 @@ export class Controller {
 	}
 
 	async exportTaskWithId(id: string) {
-		const { taskDirPath } = await this.getTaskWithId(id)
-		console.log(`[EXPORT] Opening task directory: ${taskDirPath}`)
-		await open(taskDirPath)
+		const { historyItem, apiConversationHistory } = await this.getTaskWithId(id)
+		await downloadTask(historyItem, apiConversationHistory)
 	}
 
 	async deleteTaskFromState(id: string) {
@@ -883,7 +928,7 @@ export class Controller {
 		// Set feature flag in dictation settings based on platform
 		const updatedDictationSettings = {
 			...dictationSettings,
-			featureEnabled: process.platform === "darwin" || process.platform === "linux", // Enable dictation on macOS and Linux
+			featureEnabled: true,
 		}
 
 		return {

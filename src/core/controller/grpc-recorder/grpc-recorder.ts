@@ -146,7 +146,9 @@ export class GrpcRecorder implements IRecorder {
 	}
 
 	private async runHooks(entry: GrpcLogEntry): Promise<void> {
-		if (entry.meta?.synthetic) return
+		if (entry.meta?.synthetic) {
+			return
+		}
 		for (const hook of this.postRecordHooks) {
 			await hook(entry)
 		}

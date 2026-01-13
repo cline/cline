@@ -13,18 +13,10 @@ interface VsCodeLmHandlerOptions extends CommonApiHandlerOptions {
 	vsCodeLmModelSelector?: any
 }
 
-// Cline does not update VSCode type definitions or engine requirements to maintain compatibility.
-// This declaration (as seen in src/integrations/TerminalManager.ts) provides types for the Language Model API in newer versions of VSCode.
-// Extracted from https://github.com/microsoft/vscode/blob/131ee0ef660d600cd0a7e6058375b281553abe20/src/vscode-dts/vscode.d.ts
+// VSCode Language Model API types for proposed features (tool use, streaming)
+// Note: As of @types/vscode@1.93+, many of these types are now in the stable API
+// We only augment the vscode module with types that are still missing
 declare module "vscode" {
-	enum LanguageModelChatMessageRole {
-		User = 1,
-		Assistant = 2,
-	}
-	enum LanguageModelChatToolMode {
-		Auto = 1,
-		Required = 2,
-	}
 	interface LanguageModelChatSelector extends LanguageModelChatSelectorFromTypes {}
 	interface LanguageModelChatTool {
 		name: string
@@ -37,68 +29,20 @@ declare module "vscode" {
 		tools?: LanguageModelChatTool[]
 		toolMode?: LanguageModelChatToolMode
 	}
-	class LanguageModelTextPart {
-		value: string
-		constructor(value: string)
-	}
-	class LanguageModelToolCallPart {
-		callId: string
-		name: string
-		input: object
-		constructor(callId: string, name: string, input: object)
-	}
+	// Extend existing types with proposed API features
 	interface LanguageModelChatResponse {
 		stream: AsyncIterable<LanguageModelTextPart | LanguageModelToolCallPart | unknown>
-		text: AsyncIterable<string>
-	}
-	interface LanguageModelChat {
-		readonly name: string
-		readonly id: string
-		readonly vendor: string
-		readonly family: string
-		readonly version: string
-		readonly maxInputTokens: number
-
-		sendRequest(
-			messages: LanguageModelChatMessage[],
-			options?: LanguageModelChatRequestOptions,
-			token?: CancellationToken,
-		): Thenable<LanguageModelChatResponse>
-		countTokens(text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number>
-	}
-	class LanguageModelPromptTsxPart {
-		value: unknown
-		constructor(value: unknown)
-	}
-	class LanguageModelToolResultPart {
-		callId: string
-		content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | unknown>
-		constructor(callId: string, content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | unknown>)
-	}
-	class LanguageModelChatMessage {
-		static User(
-			content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart>,
-			name?: string,
-		): LanguageModelChatMessage
-		static Assistant(
-			content: string | Array<LanguageModelTextPart | LanguageModelToolCallPart>,
-			name?: string,
-		): LanguageModelChatMessage
-
-		role: LanguageModelChatMessageRole
-		content: Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart>
-		name: string | undefined
-
-		constructor(
-			role: LanguageModelChatMessageRole,
-			content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart>,
-			name?: string,
-		)
 	}
 	namespace lm {
 		function selectChatModels(selector?: LanguageModelChatSelector): Thenable<LanguageModelChat[]>
 	}
 }
+
+// Type aliases for the proposed API parts (exported for use in other files)
+type LMTextPart = vscode.LanguageModelTextPart
+type LMToolCallPart = vscode.LanguageModelToolCallPart
+type LMToolResultPart = vscode.LanguageModelToolResultPart
+export type { LMTextPart, LMToolCallPart, LMToolResultPart }
 
 /**
  * Handles interaction with VS Code's Language Model API for chat-based operations.

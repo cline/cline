@@ -1,3 +1,4 @@
+// @ts-nocheck - VSCode proposed API types not in stable @types/vscode
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as vscode from "vscode"
 

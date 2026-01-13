@@ -51,11 +51,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 
 	const startRecording = useCallback(async () => {
 		try {
-			// Show loading state instead of immediately setting recording
+			// Show loading state immediately
 			setIsStarting(true)
-			setError(null) // Clear any previous errors
-			onProcessingStateChange?.(false) // Clear any previous processing state
-			setRecordingDuration(0) // Reset recording duration
+			setError(null)
+			onProcessingStateChange?.(false)
+			setRecordingDuration(0)
 
 			// Call Extension Host to start recording
 			const response = await DictationServiceClient.startRecording(EmptyRequest.create({}))
@@ -68,13 +68,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 
 			// Only set recording state after backend confirms success
 			setIsRecording(true)
-			console.log("Recording started successfully")
 		} catch (error) {
 			console.error("Error starting recording:", error)
 			const errorMessage = error instanceof Error ? error.message : "Failed to start recording"
 			setError(errorMessage)
 		} finally {
-			// Always clear the starting state
 			setIsStarting(false)
 		}
 	}, [onProcessingStateChange])
@@ -128,6 +126,15 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 				setError(null)
 				onTranscription(transcriptionResponse.text)
 				onProcessingStateChange?.(false)
+			} else {
+				// Handle case where both error and text are empty
+				console.warn("Transcription returned empty response - no text or error")
+				setError("No transcription received. Please try speaking more clearly or check your microphone.")
+				onTranscription("")
+				setTimeout(() => {
+					setError(null)
+					onProcessingStateChange?.(false)
+				}, 5000)
 			}
 		} catch (error) {
 			console.error("Error stopping recording:", error)
@@ -201,12 +208,16 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 	}, [onProcessingStateChange, onTranscription])
 
 	const handleStartClick = useCallback(() => {
+		console.log("Voice button clicked!", { disabled, isProcessing, isStarting, error })
 		if (disabled || isProcessing || isStarting) {
+			console.log("Voice button blocked - disabled:", disabled, "isProcessing:", isProcessing, "isStarting:", isStarting)
 			return
 		}
 		if (error) {
+			console.log("Clearing previous error")
 			return setError(null)
 		}
+		console.log("Calling startRecording...")
 		startRecording()
 	}, [startRecording, disabled, isProcessing, isStarting, error])
 
