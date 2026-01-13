@@ -56,14 +56,18 @@ export class UseSkillToolHandler implements IToolHandler, IPartialBlockHandler {
 		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
 		const provider = currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
 
-		await telemetryService.captureSkillUsed({
-			ulid: config.ulid,
-			skillName,
-			skillsAvailableGlobal: globalCount,
-			skillsAvailableProject: projectCount,
-			provider,
-			modelId: config.api.getModel().id,
-		})
+		telemetryService.safeCapture(
+			() =>
+				telemetryService.captureSkillUsed({
+					ulid: config.ulid,
+					skillName,
+					skillsAvailableGlobal: globalCount,
+					skillsAvailableProject: projectCount,
+					provider,
+					modelId: config.api.getModel().id,
+				}),
+			"UseSkillToolHandler.execute",
+		)
 
 		// Show tool message
 		const message = JSON.stringify({ tool: "useSkill", path: skillName })
