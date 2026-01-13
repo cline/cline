@@ -25,10 +25,15 @@ function camelToSnake(str) {
 	return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
 }
 
+// Fields that should use int64 instead of int32
+const INT64_FIELDS = new Set(["planModeThinkingBudgetTokens", "actModeThinkingBudgetTokens"])
+
 /**
  * Infer proto type from TypeScript type expression
+ * @param {string} typeText - The TypeScript type expression
+ * @param {string} [fieldName] - Optional field name for field-specific overrides
  */
-function inferProtoType(typeText) {
+function inferProtoType(typeText, fieldName) {
 	// Remove 'undefined' from union types
 	const cleanType = typeText
 		.replace(/\s*\|\s*undefined/g, "")
@@ -43,6 +48,10 @@ function inferProtoType(typeText) {
 		return "bool"
 	}
 	if (cleanType === "number") {
+		// Some number fields need int64 for larger values
+		if (fieldName && INT64_FIELDS.has(fieldName)) {
+			return "int64"
+		}
 		return "int32"
 	}
 
@@ -196,7 +205,7 @@ function parseFieldDefinitions(sourceFile, variableName) {
 		fields.push({
 			name,
 			tsType: typeText,
-			protoType: inferProtoType(typeText),
+			protoType: inferProtoType(typeText, name),
 		})
 	}
 

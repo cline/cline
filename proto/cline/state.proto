@@ -145,7 +145,7 @@ message Settings {
   optional string aihubmix_base_url = 42;
   optional string aihubmix_app_code = 43;
   optional string plan_mode_api_model_id = 44;
-  optional int32 plan_mode_thinking_budget_tokens = 45;
+  optional int64 plan_mode_thinking_budget_tokens = 45;
   optional string gemini_plan_mode_thinking_level = 46;
   optional string plan_mode_reasoning_effort = 47;
   optional string plan_mode_verbosity = 48;
@@ -185,7 +185,7 @@ message Settings {
   optional string plan_mode_vercel_ai_gateway_model_id = 82;
   optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 83;
   optional string act_mode_api_model_id = 84;
-  optional int32 act_mode_thinking_budget_tokens = 85;
+  optional int64 act_mode_thinking_budget_tokens = 85;
   optional string gemini_act_mode_thinking_level = 86;
   optional string act_mode_reasoning_effort = 87;
   optional string act_mode_verbosity = 88;
