@@ -698,7 +698,17 @@ export const ExtensionStateContextProvider: React.FC<{
 		if (state.apiConfiguration?.basetenApiKey) {
 			refreshBasetenModels()
 		}
-	}, [refreshOpenRouterModels, refreshVercelAiGatewayModels, state?.apiConfiguration?.basetenApiKey, refreshBasetenModels])
+		if (state.apiConfiguration?.liteLlmApiKey) {
+			refreshLiteLlmModels()
+		}
+	}, [
+		refreshOpenRouterModels,
+		refreshVercelAiGatewayModels,
+		state?.apiConfiguration?.basetenApiKey,
+		refreshBasetenModels,
+		state?.apiConfiguration?.liteLlmApiKey,
+		refreshLiteLlmModels,
+	])
 
 	const contextValue: ExtensionStateContextType = {
 		...state,

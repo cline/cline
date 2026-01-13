@@ -131,6 +131,8 @@ export function getModelsForProvider(
 			return huggingFaceModels
 		case "nousResearch":
 			return nousResearchModels
+		case "litellm":
+			return dynamicModels?.liteLlmModels
 		// Providers with dynamic models - return undefined
 		case "openrouter":
 		case "cline":
@@ -138,7 +140,6 @@ export function getModelsForProvider(
 		case "ollama":
 		case "lmstudio":
 		case "vscode-lm":
-		case "litellm":
 		case "requesty":
 		case "hicap":
 		case "dify":
