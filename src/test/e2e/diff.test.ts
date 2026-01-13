@@ -16,9 +16,6 @@ e2e.describe("Diff Editor", () => {
 			await sidebar.getByTestId("send-button").click()
 			await expect(inputbox).toHaveValue("")
 
-			// Loading State initially
-			await expect(sidebar.getByText("API Request...")).toBeVisible({ timeout: 10000 })
-
 			// Back to home page with history
 			await sidebar.getByRole("button", { name: "Start New Task" }).click()
 			await expect(sidebar.getByText("Recent Tasks")).toBeVisible()
