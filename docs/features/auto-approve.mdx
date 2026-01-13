@@ -28,7 +28,7 @@ A few details matter in practice:
 
 - **Terminal commands**: Cline treats terminal commands as either safe or requiring approval. “Execute safe commands” covers the first category. “Execute all commands” extends this to commands flagged as requiring approval.
 
-- **Notifications**: If enabled, Cline sends OS-level notifications when approval is required, and when an auto-approved terminal command has been running for 30 seconds and may need attention.
+- **Notifications**: The notification toggle is located at the bottom of the Auto Approve menu. If enabled, Cline sends OS-level notifications when approval is required, and when an auto-approved terminal command has been running for 30 seconds and may need attention.
 
 <Note>
 	[YOLO mode](/features/yolo-mode) bypasses these granular approvals.
@@ -48,7 +48,7 @@ These labels match what you see in the Auto Approve menu.
 | Execute all commands | Run commands marked as requiring approval | Requires “Execute safe commands” |
 | Use the browser | Allows use of the browser tool for web fetching and searching | Proxy issues can apply |
 | Use MCP servers | Use MCP tools and access MCP resources | Some servers also have per-tool auto-approve |
-| Enable notifications | Notifies you about long-running auto-approved commands | Helpful for terminal work |
+| Enable notifications | Notifies you about long-running auto-approved commands | Found at the bottom of the Auto Approve menu |
 
 <Warning>
 	“Read all files” and “Edit all files” only matter if their base toggle is enabled. They extend access outside your workspace.
@@ -89,6 +89,8 @@ These are examples, not guarantees.
 </Note>
 
 ## Enable notifications
+
+The "Enable notifications" toggle is located at the bottom of the Auto Approve menu, below a separator line. This makes it easy to toggle notifications on or off while configuring your auto-approve settings.
 
 Auto-approved actions can run for a while, especially long terminal commands. If you enable notifications, Cline can notify you when an auto-approved command has been running for a while and may need attention.
 
