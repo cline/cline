@@ -2,12 +2,12 @@
 
 /**
  * NPM Package Builder for Cline CLI
- * 
+ *
  * This script builds the Cline CLI NPM package (dist-standalone/).
  * It is completely independent from package-standalone.mjs (JetBrains build).
- * 
+ *
  * Usage: node scripts/package-npm.mjs
- * 
+ *
  * Prerequisites:
  *   - npm run protos && npm run protos-go
  *   - npm run compile-cli
