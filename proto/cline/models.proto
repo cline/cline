@@ -183,6 +183,11 @@ message ModelsApiSecrets {
   optional string oca_refresh_token = 37;
   optional string minimax_api_key = 38;
   optional string aihubmix_api_key = 39;
+  optional string auth_nonce = 40;
+  optional string hicap_api_key = 41;
+  optional string nous_research_api_key = 42;
+  optional string remote_lite_llm_api_key = 43;
+  optional string mcp_o_auth_secrets = 44;
 }
 
 // API configuration options (non-secret settings)
@@ -209,12 +214,12 @@ message ModelsApiOptions {
   optional string lm_studio_base_url = 19;
   optional string gemini_base_url = 20;
   optional string requesty_base_url = 21;
-  optional int64 fireworks_model_max_completion_tokens = 22;
-  optional int64 fireworks_model_max_tokens = 23;
+  optional int32 fireworks_model_max_completion_tokens = 22;
+  optional int32 fireworks_model_max_tokens = 23;
   optional string azure_api_version = 24;
   optional string qwen_api_line = 25;
   optional string asksage_api_url = 26;
-  optional int64 request_timeout_ms = 27;
+  optional int32 request_timeout_ms = 27;
   optional string sap_ai_resource_group = 28;
   optional string sap_ai_core_token_url = 29;
   optional string sap_ai_core_base_url = 30;
@@ -232,6 +237,10 @@ message ModelsApiOptions {
   optional string aihubmix_base_url = 42;
   optional string aihubmix_app_code = 43;
   optional bool azure_identity = 44;
+  optional string gemini_plan_mode_thinking_level = 45;
+  optional string gemini_act_mode_thinking_level = 46;
+  optional string hicap_model_id = 47;
+  optional string lm_studio_model_id = 48;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -269,6 +278,11 @@ message ModelsApiOptions {
   optional OcaModelInfo plan_mode_oca_model_info = 132;
   optional string plan_mode_aihubmix_model_id = 133;
   optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 134;
+  optional string plan_mode_verbosity = 135;
+  optional string plan_mode_oca_reasoning_effort = 136;
+  optional string plan_mode_hicap_model_id = 137;
+  optional OpenRouterModelInfo plan_mode_hicap_model_info = 138;
+  optional string plan_mode_nous_research_model_id = 139;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -306,6 +320,11 @@ message ModelsApiOptions {
   optional OcaModelInfo act_mode_oca_model_info = 232;
   optional string act_mode_aihubmix_model_id = 233;
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 234;
+  optional string act_mode_verbosity = 235;
+  optional string act_mode_oca_reasoning_effort = 236;
+  optional string act_mode_hicap_model_id = 237;
+  optional OpenRouterModelInfo act_mode_hicap_model_info = 238;
+  optional string act_mode_nous_research_model_id = 239;
 }
 
 // Request for updating API configuration (legacy - uses combined configuration)

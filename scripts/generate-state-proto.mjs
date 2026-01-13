@@ -3,13 +3,23 @@
  * Generates proto message definitions from TypeScript source of truth.
  *
  * This script reads the field definitions from src/shared/storage/state-keys.ts
- * and generates the corresponding proto message definitions for Secrets and Settings.
+ * and generates the corresponding proto message definitions:
+ *
+ * - proto/cline/state.proto:
+ *   - Secrets: Generated from SECRETS_KEYS
+ *   - Settings: Generated from API_HANDLER_SETTINGS_FIELDS + USER_SETTINGS_FIELDS
+ *
+ * - proto/cline/models.proto:
+ *   - ModelsApiSecrets: Generated from SECRETS_KEYS
+ *   - ModelsApiOptions: Generated from API_HANDLER_SETTINGS_FIELDS with:
+ *     - Extra 'ulid' field at position 1 (not from state-keys.ts)
+ *     - Global fields at positions 2-99
+ *     - Plan mode fields at positions 100+
+ *     - Act mode fields at positions 200+
  *
  * Usage: node scripts/generate-state-proto.mjs
  *
- * The generated proto content is written to proto/cline/state.proto,
- * replacing only the Secrets and Settings messages while preserving
- * the rest of the file (services, enums, other messages).
+ * The script preserves existing field numbers to maintain backward compatibility.
  */
 
 import * as fs from "node:fs/promises"
@@ -17,6 +27,7 @@ import { Project, SyntaxKind } from "ts-morph"
 
 const STATE_KEYS_PATH = "src/shared/storage/state-keys.ts"
 const STATE_PROTO_PATH = "proto/cline/state.proto"
+const MODELS_PROTO_PATH = "proto/cline/models.proto"
 
 /**
  * Convert camelCase to snake_case for proto field names
@@ -247,13 +258,24 @@ function parseProtoMessageFieldNumbers(protoContent, messageName) {
 
 	const messageBody = match[1]
 
-	// Match field definitions: optional/required/repeated type name = number;
+	// Match regular field definitions: optional/required/repeated type name = number;
 	const fieldRegex = /(?:optional|required|repeated)?\s*\w+\s+(\w+)\s*=\s*(\d+)\s*;/g
 	const matches = messageBody.matchAll(fieldRegex)
 
 	for (const fieldMatch of matches) {
 		const snakeName = fieldMatch[1]
 		const fieldNum = parseInt(fieldMatch[2], 10)
+		const camelName = snakeToCamel(snakeName)
+		fieldNumbers[camelName] = fieldNum
+	}
+
+	// Match map field definitions: map<type, type> name = number;
+	const mapFieldRegex = /map\s*<[^>]+>\s+(\w+)\s*=\s*(\d+)\s*;/g
+	const mapMatches = messageBody.matchAll(mapFieldRegex)
+
+	for (const mapMatch of mapMatches) {
+		const snakeName = mapMatch[1]
+		const fieldNum = parseInt(mapMatch[2], 10)
 		const camelName = snakeToCamel(snakeName)
 		fieldNumbers[camelName] = fieldNum
 	}
@@ -277,6 +299,25 @@ async function loadFieldNumbersFromProto() {
 	} catch {
 		// Proto file doesn't exist, start fresh
 		return { Secrets: {}, Settings: {} }
+	}
+}
+
+/**
+ * Load field number mappings from existing models.proto file
+ */
+async function loadFieldNumbersFromModelsProto() {
+	try {
+		const protoContent = await fs.readFile(MODELS_PROTO_PATH, "utf-8")
+		const modelsApiSecrets = parseProtoMessageFieldNumbers(protoContent, "ModelsApiSecrets")
+		const modelsApiOptions = parseProtoMessageFieldNumbers(protoContent, "ModelsApiOptions")
+
+		console.log(`  Found ${Object.keys(modelsApiSecrets).length} existing ModelsApiSecrets fields`)
+		console.log(`  Found ${Object.keys(modelsApiOptions).length} existing ModelsApiOptions fields`)
+
+		return { ModelsApiSecrets: modelsApiSecrets, ModelsApiOptions: modelsApiOptions }
+	} catch {
+		// Proto file doesn't exist, start fresh
+		return { ModelsApiSecrets: {}, ModelsApiOptions: {} }
 	}
 }
 
@@ -344,6 +385,149 @@ function generateSecretsMessage(secretsKeys, fieldNumbers) {
 	return generateProtoMessage("Secrets", fields, fieldNumbers)
 }
 
+// Extra fields for ModelsApiSecrets that are not in SECRETS_KEYS
+// These fields exist in the proto but not in the TypeScript source
+const MODELS_API_SECRETS_EXTRA_FIELDS = ["clineApiKey"]
+
+/**
+ * Generate ModelsApiSecrets message from SECRETS_KEYS
+ * This is similar to Secrets but includes extra fields like clineApiKey
+ */
+function generateModelsApiSecretsMessage(secretsKeys, fieldNumbers) {
+	// Start with extra fields that aren't in SECRETS_KEYS
+	const fields = MODELS_API_SECRETS_EXTRA_FIELDS.map((name) => ({
+		name,
+		protoType: "string",
+	}))
+
+	// Add all fields from SECRETS_KEYS
+	for (const key of secretsKeys) {
+		fields.push({
+			name: key,
+			protoType: "string",
+		})
+	}
+
+	return generateProtoMessage("ModelsApiSecrets", fields, fieldNumbers)
+}
+
+/**
+ * Categorize API handler fields into global, plan mode, and act mode
+ */
+function categorizeApiHandlerFields(fields) {
+	const globalFields = []
+	const planModeFields = []
+	const actModeFields = []
+
+	for (const field of fields) {
+		if (field.name.startsWith("planMode")) {
+			planModeFields.push(field)
+		} else if (field.name.startsWith("actMode")) {
+			actModeFields.push(field)
+		} else {
+			globalFields.push(field)
+		}
+	}
+
+	return { globalFields, planModeFields, actModeFields }
+}
+
+/**
+ * Generate ModelsApiOptions message with sections for global, plan mode, and act mode fields
+ * Includes an extra 'ulid' field at position 1 that's not in state-keys.ts
+ */
+function generateModelsApiOptionsMessage(apiHandlerFields, existingFieldNumbers) {
+	const { globalFields, planModeFields, actModeFields } = categorizeApiHandlerFields(apiHandlerFields)
+
+	// Assign field numbers with specific ranges:
+	// - ulid: 1 (extra field not from state-keys.ts)
+	// - Global fields: 2-99
+	// - Plan mode fields: 100+
+	// - Act mode fields: 200+
+
+	const lines = ["message ModelsApiOptions {"]
+	lines.push("  // Global configuration fields (not mode-specific)")
+
+	// Always include ulid as field 1 (extra field)
+	lines.push("  optional string ulid = 1;")
+
+	// Assign numbers to global fields starting at 2
+	const globalFieldNumbers = assignFieldNumbersForSection(globalFields, existingFieldNumbers, 2)
+	const sortedGlobalFields = [...globalFields].sort((a, b) => globalFieldNumbers[a.name] - globalFieldNumbers[b.name])
+
+	for (const field of sortedGlobalFields) {
+		const snakeName = camelToSnake(field.name)
+		const fieldNum = globalFieldNumbers[field.name]
+		const prefix = field.protoType.startsWith("map<") ? "" : "optional "
+		lines.push(`  ${prefix}${field.protoType} ${snakeName} = ${fieldNum};`)
+	}
+
+	lines.push("")
+	lines.push("  // Plan mode configurations")
+
+	// Assign numbers to plan mode fields starting at 100
+	const planFieldNumbers = assignFieldNumbersForSection(planModeFields, existingFieldNumbers, 100)
+	const sortedPlanFields = [...planModeFields].sort((a, b) => planFieldNumbers[a.name] - planFieldNumbers[b.name])
+
+	for (const field of sortedPlanFields) {
+		const snakeName = camelToSnake(field.name)
+		const fieldNum = planFieldNumbers[field.name]
+		const prefix = field.protoType.startsWith("map<") ? "" : "optional "
+		lines.push(`  ${prefix}${field.protoType} ${snakeName} = ${fieldNum};`)
+	}
+
+	lines.push("")
+	lines.push("  // Act mode configurations")
+
+	// Assign numbers to act mode fields starting at 200
+	const actFieldNumbers = assignFieldNumbersForSection(actModeFields, existingFieldNumbers, 200)
+	const sortedActFields = [...actModeFields].sort((a, b) => actFieldNumbers[a.name] - actFieldNumbers[b.name])
+
+	for (const field of sortedActFields) {
+		const snakeName = camelToSnake(field.name)
+		const fieldNum = actFieldNumbers[field.name]
+		const prefix = field.protoType.startsWith("map<") ? "" : "optional "
+		lines.push(`  ${prefix}${field.protoType} ${snakeName} = ${fieldNum};`)
+	}
+
+	lines.push("}")
+	return lines.join("\n")
+}
+
+/**
+ * Assign field numbers for a section, preserving existing assignments
+ */
+function assignFieldNumbersForSection(fields, existingNumbers, startNumber) {
+	const result = {}
+	let nextNumber = startNumber
+
+	// Find the highest existing number in this section's range
+	for (const field of fields) {
+		if (existingNumbers[field.name] !== undefined) {
+			const num = existingNumbers[field.name]
+			if (num >= nextNumber) {
+				nextNumber = num + 1
+			}
+		}
+	}
+
+	// Preserve existing assignments
+	for (const field of fields) {
+		if (existingNumbers[field.name] !== undefined) {
+			result[field.name] = existingNumbers[field.name]
+		}
+	}
+
+	// Assign new numbers for new fields
+	for (const field of fields) {
+		if (result[field.name] === undefined) {
+			result[field.name] = nextNumber++
+		}
+	}
+
+	return result
+}
+
 /**
  * Replace a message in the proto file content
  */
@@ -377,6 +561,12 @@ async function main() {
 	const userSettingsFields = parseFieldDefinitions(sourceFile, "USER_SETTINGS_FIELDS")
 	const settingsFields = [...apiHandlerFields, ...userSettingsFields]
 	console.log(`Found ${settingsFields.length} settings fields`)
+	console.log(`Found ${apiHandlerFields.length} API handler fields`)
+
+	// ========================================
+	// Generate state.proto messages
+	// ========================================
+	console.log("\nGenerating state.proto messages...")
 
 	// Load existing field numbers from proto file
 	const existingFieldNumbers = await loadFieldNumbersFromProto()
@@ -403,6 +593,43 @@ async function main() {
 	// Write updated proto file
 	await fs.writeFile(STATE_PROTO_PATH, protoContent)
 	console.log(`Updated ${STATE_PROTO_PATH}`)
+
+	// ========================================
+	// Generate models.proto messages
+	// ========================================
+	console.log("\nGenerating models.proto messages...")
+
+	// Load existing field numbers from models.proto
+	const existingModelsFieldNumbers = await loadFieldNumbersFromModelsProto()
+
+	// Assign field numbers for ModelsApiSecrets (preserving existing, adding new ones)
+	// Include extra fields like 'clineApiKey' that aren't in SECRETS_KEYS
+	const modelsApiSecretsFields = [
+		...MODELS_API_SECRETS_EXTRA_FIELDS.map((name) => ({ name })),
+		...secretsKeys.map((k) => ({ name: k })),
+	]
+	const modelsApiSecretsFieldNumbers = assignFieldNumbers(
+		modelsApiSecretsFields,
+		existingModelsFieldNumbers.ModelsApiSecrets,
+		1,
+	)
+
+	// Generate ModelsApiSecrets message
+	const modelsApiSecretsMessage = generateModelsApiSecretsMessage(secretsKeys, modelsApiSecretsFieldNumbers)
+
+	// Generate ModelsApiOptions message
+	const modelsApiOptionsMessage = generateModelsApiOptionsMessage(apiHandlerFields, existingModelsFieldNumbers.ModelsApiOptions)
+
+	// Read existing models.proto file
+	let modelsProtoContent = await fs.readFile(MODELS_PROTO_PATH, "utf-8")
+
+	// Replace messages
+	modelsProtoContent = replaceMessage(modelsProtoContent, "ModelsApiSecrets", modelsApiSecretsMessage)
+	modelsProtoContent = replaceMessage(modelsProtoContent, "ModelsApiOptions", modelsApiOptionsMessage)
+
+	// Write updated models.proto file
+	await fs.writeFile(MODELS_PROTO_PATH, modelsProtoContent)
+	console.log(`Updated ${MODELS_PROTO_PATH}`)
 
 	console.log("\nGeneration complete! Run 'npm run protos' to regenerate TypeScript from protos.")
 }
