@@ -30,6 +30,7 @@ const REMOTE_CONFIG_EXTRA_FIELDS = {
 	remoteConfiguredProviders: { type: [] as string[] },
 	allowedMCPServers: { type: [] as Array<{ id: string }> },
 	remoteMCPServers: { type: undefined as Array<{ name: string; url: string; alwaysEnabled?: boolean }> | undefined },
+	previousRemoteMCPServers: { type: undefined as Array<{ name: string; url: string }> | undefined },
 	remoteGlobalRules: { type: undefined as GlobalInstructionsFile[] | undefined },
 	remoteGlobalWorkflows: { type: undefined as GlobalInstructionsFile[] | undefined },
 	blockPersonalRemoteMCPServers: { type: false as boolean },
@@ -242,6 +243,7 @@ const USER_SETTINGS_FIELDS = {
 	enableParallelToolCalling: { type: false as boolean },
 	backgroundEditEnabled: { type: false as boolean },
 	skillsEnabled: { type: false as boolean },
+	optOutOfRemoteConfig: { type: false as boolean },
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: { type: true as boolean },

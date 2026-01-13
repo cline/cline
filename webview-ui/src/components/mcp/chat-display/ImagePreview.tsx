@@ -2,7 +2,7 @@ import { StringRequest } from "@shared/proto/cline/common"
 import DOMPurify from "dompurify"
 import React from "react"
 import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
-import { WebServiceClient } from "@/services/grpc-client"
+import { FileServiceClient, WebServiceClient } from "@/services/grpc-client"
 import { checkIfImageUrl, formatUrlForOpening, getSafeHostname } from "./utils/mcpRichUtil"
 
 interface ImagePreviewProps {
@@ -259,13 +259,19 @@ class ImagePreview extends React.Component<
 				className="image-preview"
 				onClick={async () => {
 					try {
-						await WebServiceClient.openInBrowser(
-							StringRequest.create({
-								value: DOMPurify.sanitize(formatUrlForOpening(url)),
-							}),
-						)
+						// For data URIs, open in VS Code editor (like mermaid diagrams)
+						if (url.startsWith("data:")) {
+							await FileServiceClient.openImage(StringRequest.create({ value: url }))
+						} else {
+							// For regular URLs, open in browser
+							await WebServiceClient.openInBrowser(
+								StringRequest.create({
+									value: DOMPurify.sanitize(formatUrlForOpening(url)),
+								}),
+							)
+						}
 					} catch (err) {
-						console.error("Error opening URL in browser:", err)
+						console.error("Error opening image:", err)
 					}
 				}}
 				style={{
@@ -279,7 +285,7 @@ class ImagePreview extends React.Component<
 						aria-label={`SVG from ${getSafeHostname(url)}`}
 						data={DOMPurify.sanitize(url)}
 						style={{
-							width: "85%",
+							width: "100%",
 							height: "auto",
 							borderRadius: "4px",
 						}}
@@ -289,7 +295,7 @@ class ImagePreview extends React.Component<
 							alt={`SVG from ${getSafeHostname(url)}`}
 							src={DOMPurify.sanitize(url)}
 							style={{
-								width: "85%",
+								width: "100%",
 								height: "auto",
 								borderRadius: "4px",
 							}}
@@ -299,28 +305,11 @@ class ImagePreview extends React.Component<
 					<img
 						alt={`Image from ${getSafeHostname(url)}`}
 						loading="eager"
-						onLoad={(e) => {
-							// Double-check aspect ratio from the actual loaded image
-							const img = e.currentTarget
-							if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-								const newAspectRatio = img.naturalWidth / img.naturalHeight
-
-								// Update object-fit based on actual aspect ratio
-								// Use contain only for very extreme aspect ratios, otherwise use cover
-								if (newAspectRatio > 3 || newAspectRatio < 0.33) {
-									img.style.objectFit = "contain"
-								} else {
-									img.style.objectFit = "cover"
-								}
-							}
-						}}
 						src={DOMPurify.sanitize(url)}
 						style={{
-							width: "85%",
+							width: "100%",
 							height: "auto",
 							borderRadius: "4px",
-							// Use contain only for very extreme aspect ratios, otherwise use cover
-							objectFit: this.aspectRatio > 3 || this.aspectRatio < 0.33 ? "contain" : "cover",
 						}}
 					/>
 				)}

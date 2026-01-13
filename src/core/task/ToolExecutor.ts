@@ -294,7 +294,6 @@ export class ToolExecutor {
 			block,
 			this.taskState.userMessageContent,
 			(block: ToolUse) => ToolDisplayUtils.getToolDescription(block),
-			this.api,
 			this.coordinator,
 			this.taskState.toolUseIdMap,
 		)

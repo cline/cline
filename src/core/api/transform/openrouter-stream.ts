@@ -180,7 +180,7 @@ export async function createOpenRouterStream(
 				thinkingBudgetTokens &&
 				model.info?.thinkingConfig &&
 				thinkingBudgetTokens > 0 &&
-				!(model.id.includes("gemini") && geminiThinkingLevel)
+				!(model.id.includes("gemini-3") && geminiThinkingLevel)
 			) {
 				temperature = undefined // extended thinking does not support non-1 temperature
 				reasoning = { max_tokens: thinkingBudgetTokens }
@@ -212,7 +212,7 @@ export async function createOpenRouterStream(
 		...(providerPreferences ? { provider: providerPreferences } : {}),
 		...(isClaudeSonnet1m ? { provider: { order: ["anthropic", "google-vertex/global"], allow_fallbacks: false } } : {}),
 		...getOpenAIToolParams(tools),
-		...(model.id.includes("gemini") && geminiThinkingLevel
+		...(model.id.includes("gemini-3") && geminiThinkingLevel
 			? { thinking_config: { thinking_level: geminiThinkingLevel, include_thoughts: true } }
 			: {}),
 	})

@@ -14,7 +14,7 @@ export const ClineHeaders = {
 } as const
 export type ClineHeaderName = (typeof ClineHeaders)[keyof typeof ClineHeaders]
 
-export async function buildClineExtraHeaders(): Promise<Record<string, string>> {
+export async function buildBasicClineHeaders(): Promise<Record<string, string>> {
 	const headers: Record<string, string> = {}
 	try {
 		const host = await HostProvider.env.getHostVersion(EmptyRequest.create({}))
@@ -30,6 +30,12 @@ export async function buildClineExtraHeaders(): Promise<Record<string, string>> 
 		headers[ClineHeaders.CLIENT_VERSION] = "unknown"
 	}
 	headers[ClineHeaders.CORE_VERSION] = ExtensionRegistryInfo.version
+
+	return headers
+}
+
+export async function buildClineExtraHeaders(): Promise<Record<string, string>> {
+	const headers = await buildBasicClineHeaders()
 
 	try {
 		const isMultiRoot = await isMultiRootWorkspace()
