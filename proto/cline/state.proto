@@ -108,7 +108,7 @@ message Secrets {
 message Settings {
   optional string lite_llm_base_url = 1;
   optional bool lite_llm_use_prompt_cache = 2;
-  optional string open_ai_headers = 3;
+  map<string, string> open_ai_headers = 3;
   optional string anthropic_base_url = 4;
   optional string open_router_provider_sorting = 5;
   optional string aws_region = 6;

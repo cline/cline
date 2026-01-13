@@ -61,6 +61,11 @@ function inferProtoType(typeText, fieldName) {
 		return "int32"
 	}
 
+	// Handle Record<string, string> as map<string, string>
+	if (/Record\s*<\s*string\s*,\s*string\s*>/.test(cleanType)) {
+		return "map<string, string>"
+	}
+
 	// Handle specific known types that map to proto messages/enums
 	// Order matters! More specific types must come before generic ones
 	// (e.g., OpenAiCompatibleModelInfo before ModelInfo)
@@ -318,7 +323,9 @@ function generateProtoMessage(messageName, fields, fieldNumbers) {
 	for (const field of sortedFields) {
 		const snakeName = camelToSnake(field.name)
 		const fieldNum = fieldNumbers[field.name]
-		lines.push(`  optional ${field.protoType} ${snakeName} = ${fieldNum};`)
+		// Map types cannot have the 'optional' modifier in proto3
+		const prefix = field.protoType.startsWith("map<") ? "" : "optional "
+		lines.push(`  ${prefix}${field.protoType} ${snakeName} = ${fieldNum};`)
 	}
 
 	lines.push("}")
