@@ -8,6 +8,8 @@ const GENERIC: ClineToolSpec = {
 	variant: ModelFamily.GENERIC,
 	id,
 	name: "generate_explanation",
+	// Only include this tool for VS Code since it relies on VS Code's Comments API
+	contextRequirements: (context) => context.ide === "Visual Studio Code",
 	description:
 		"Opens a multi-file diff view and generates AI-powered inline comments explaining the changes between two git references. Use this tool to help users understand code changes from git commits, pull requests, branches, or any git refs. The tool uses git to retrieve file contents and displays a side-by-side diff view with explanatory comments.",
 	parameters: [
