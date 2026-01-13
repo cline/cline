@@ -1,7 +1,6 @@
 import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { useEffect } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { DebouncedTextField } from "../common/DebouncedTextField"
@@ -26,13 +25,6 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 
 	// Get the normalized configuration with model info
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
-
-	// Refresh models when both base URL and API key are configured
-	useEffect(() => {
-		if (apiConfiguration?.liteLlmBaseUrl && apiConfiguration?.liteLlmApiKey) {
-			refreshLiteLlmModels()
-		}
-	}, [refreshLiteLlmModels, apiConfiguration?.liteLlmApiKey, apiConfiguration?.liteLlmBaseUrl])
 
 	// Handle model change
 	const handleModelChange = (e: any) => {

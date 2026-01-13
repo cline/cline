@@ -11,6 +11,7 @@ import { ClineEnv } from "@/config"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { getAxiosSettings } from "@/shared/net"
 import { AuthService } from "../auth/AuthService"
+import { buildBasicClineHeaders } from "../EnvUtils"
 
 export class ClineAccountService {
 	private static instance: ClineAccountService
@@ -58,6 +59,7 @@ export class ClineAccountService {
 			headers: {
 				Authorization: `Bearer ${clineAccountAuthToken}`,
 				"Content-Type": "application/json",
+				...(await buildBasicClineHeaders()),
 				...config.headers,
 			},
 			...getAxiosSettings(),

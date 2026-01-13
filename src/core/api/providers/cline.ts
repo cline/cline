@@ -199,7 +199,7 @@ export class ClineHandler implements ApiHandler {
 					// @ts-ignore-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 
-					if (["x-ai/grok-code-fast-1"].includes(this.getModel().id)) {
+					if (["x-ai/grok-code-fast-1", "kwaipilot/kat-coder-pro"].includes(this.getModel().id)) {
 						totalCost = 0
 					}
 
