@@ -71,7 +71,7 @@ const HistoryViewItem = ({
 	}, [])
 
 	return (
-		<div className="history-item cursor-pointer flex group mb-1" key={item.id}>
+		<div className="history-item cursor-pointer flex group mb-1 hover:bg-list-hover" key={item.id}>
 			<VSCodeCheckbox
 				checked={selectedItems.includes(item.id)}
 				className="pl-3 pr-1 py-auto"

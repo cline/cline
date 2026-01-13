@@ -55,7 +55,7 @@
 	--color-banner-background: var(--vscode-banner-background);
 	--color-banner-foreground: var(--vscode-banner-foreground);
 	--color-banner-icon: var(--vscode-banner-iconForeground);
-	--color-editor-match-highlight-background: var(--vscode-editor-findMatchHighlightBackground);
+	--color-editor-match-highlight: var(--vscode-editor-findMatchHighlightBackground);
 	--color-icon-foreground: var(--vscode-icon-foreground);
 	--color-notification-foreground: var(--vscode-notificationsInfoIcon-foreground);
 	--color-toolbar-default: var(--vscode-toolbar-background);
