@@ -5,6 +5,8 @@ import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import * as path from "path"
 import { Controller } from "@/core/controller"
+import { parseYamlFrontmatter } from "./frontmatter"
+import { evaluateRuleConditionals, RuleEvaluationContext } from "./rule-conditionals"
 
 /**
  * Recursively traverses directory and finds all files, including checking for optional whitelisted file extension
@@ -143,7 +145,29 @@ export function combineRuleToggles(toggles1: ClineRulesToggles, toggles2: ClineR
  * Read the content of rules files
  */
 export const getRuleFilesTotalContent = async (rulesFilePaths: string[], basePath: string, toggles: ClineRulesToggles) => {
-	const ruleFilesTotalContent = await Promise.all(
+	return (await getRuleFilesTotalContentWithMetadata(rulesFilePaths, basePath, toggles)).content
+}
+
+export type ActivatedConditionalRule = {
+	name: string
+	matchedConditions: Record<string, string[]>
+}
+
+export type RuleLoadResult = {
+	content: string
+	activatedConditionalRules: ActivatedConditionalRule[]
+}
+
+export const getRuleFilesTotalContentWithMetadata = async (
+	rulesFilePaths: string[],
+	basePath: string,
+	toggles: ClineRulesToggles,
+	opts?: { evaluationContext?: RuleEvaluationContext },
+): Promise<RuleLoadResult> => {
+	const activatedConditionalRules: ActivatedConditionalRule[] = []
+	const evaluationContext = opts?.evaluationContext ?? {}
+
+	const parts = await Promise.all(
 		rulesFilePaths.map(async (filePath) => {
 			const ruleFilePath = path.resolve(basePath, filePath)
 			const ruleFilePathRelative = path.relative(basePath, ruleFilePath)
@@ -152,10 +176,72 @@ export const getRuleFilesTotalContent = async (rulesFilePaths: string[], basePat
 				return null
 			}
 
-			return `${ruleFilePathRelative}\n` + (await fs.readFile(ruleFilePath, "utf8")).trim()
+			const raw = (await fs.readFile(ruleFilePath, "utf8")).trim()
+			if (!raw) {
+				return null
+			}
+
+			const { data, body, hadFrontmatter, parseError } = parseYamlFrontmatter(raw)
+			// Fail open: YAML parse errors treat entire file as body and universal applicability.
+			if (hadFrontmatter && parseError) {
+				return `${ruleFilePathRelative}\n${raw}`
+			}
+
+			const { passed, matchedConditions } = evaluateRuleConditionals(data, evaluationContext)
+			if (!passed) {
+				return null
+			}
+
+			if (hadFrontmatter && Object.keys(matchedConditions).length > 0) {
+				activatedConditionalRules.push({ name: ruleFilePathRelative, matchedConditions })
+			}
+
+			return `${ruleFilePathRelative}\n${body.trim()}`
 		}),
-	).then((contents) => contents.filter(Boolean).join("\n\n"))
-	return ruleFilesTotalContent
+	)
+
+	return {
+		content: parts.filter(Boolean).join("\n\n"),
+		activatedConditionalRules,
+	}
+}
+
+export function getRemoteRulesTotalContentWithMetadata(
+	remoteRules: GlobalInstructionsFile[],
+	remoteToggles: ClineRulesToggles,
+	opts?: { evaluationContext?: RuleEvaluationContext },
+): RuleLoadResult {
+	const activatedConditionalRules: ActivatedConditionalRule[] = []
+	const evaluationContext = opts?.evaluationContext ?? {}
+	let combinedContent = ""
+
+	for (const rule of remoteRules) {
+		const isEnabled = rule.alwaysEnabled || remoteToggles[rule.name] !== false
+		if (!isEnabled) continue
+
+		const raw = (rule.contents || "").trim()
+		if (!raw) continue
+
+		const { data, body, hadFrontmatter, parseError } = parseYamlFrontmatter(raw)
+		if (hadFrontmatter && parseError) {
+			// Fail open: include entire raw contents
+			if (combinedContent) combinedContent += "\n\n"
+			combinedContent += `${rule.name}\n${raw}`
+			continue
+		}
+
+		const { passed, matchedConditions } = evaluateRuleConditionals(data, evaluationContext)
+		if (!passed) continue
+
+		if (hadFrontmatter && Object.keys(matchedConditions).length > 0) {
+			activatedConditionalRules.push({ name: rule.name, matchedConditions })
+		}
+
+		if (combinedContent) combinedContent += "\n\n"
+		combinedContent += `${rule.name}\n${body.trim()}`
+	}
+
+	return { content: combinedContent, activatedConditionalRules }
 }
 
 /**
