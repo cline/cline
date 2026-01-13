@@ -45,32 +45,123 @@ And only include the rule’s body in the prompt if the current workspace contex
 
 This is intended as the **minimal on-ramp** to conditional rules.
 
+### 2.1 Architecture Principle: Generic Foundation
+
+While v1 implements **only** the `paths` conditional, the implementation will use generic abstractions to enable easy addition of future conditionals (e.g., `mode`, `provider`, `model`, `tags`) without major refactoring.
+
+Key design decisions:
+
+1. **Rule Evaluation Context** - Instead of passing `pathContext: string[]` throughout the codebase, we'll use a structured `RuleEvaluationContext` object that can grow over time.
+
+2. **Conditional Evaluator Pattern** - Each conditional type has its own evaluator function with a consistent signature, making it easy to add new conditionals by registering new evaluators.
+
+3. **Generic Naming** - Use "evaluation" and "conditional" terminology rather than path-specific names in core abstractions.
+
+4. **V1 Constraint** - Despite the generic foundation, v1 will only implement and document `paths`. Other conditionals will be added in future iterations.
+
 ---
 
 ## 3. Proposed rule schema (v1)
 
-### 3.1 Frontmatter
+### 3.1 Frontmatter structure
 
-- `paths?: string[]`
-  - If omitted or empty → rule applies universally (current behavior).
-  - If present → rule applies only when it matches.
+The frontmatter uses YAML format and supports conditional fields. In v1, only `paths` is implemented.
 
-### 3.2 Body
+```yaml
+---
+paths:
+  - "apps/web/**"
+  - "packages/*/src/**"
+---
+```
 
-- The remainder of the markdown file after frontmatter.
+**V1 supported conditionals:**
+- `paths?: string[]` - Rule applies only when context matches these path patterns. If omitted or empty → rule applies universally (current behavior).
 
-### 3.3 Validation rules
+**Future conditionals (not implemented in v1):**
+- `mode?: "act" | "plan" | ["act", "plan"]` - Rule applies in specific modes
+- `provider?: string | string[]` - Rule applies for specific providers
+- `model?: string | string[]` - Rule applies for specific models
+- `tags?: string | string[]` - Rule applies when workspace has matching tags
+
+### 3.2 Conditional evaluation semantics
+
+When multiple conditionals are present (future versions):
+- All conditionals must evaluate to true (AND logic)
+- If a conditional key is omitted, it places no constraint (always true for that dimension)
+
+Example (future):
+```yaml
+---
+paths: ["src/**"]
+mode: "act"
+---
+```
+This rule applies only when working in `src/**` AND in act mode.
+
+### 3.3 Body
+
+The remainder of the markdown file after frontmatter.
+
+### 3.4 Validation rules
 
 - If YAML frontmatter fails to parse: **fail open** (treat as universal rule) and keep entire file as body.
-  - Rationale: this matches existing “fail open” approach in other areas (robustness; avoids silently dropping a rule).
+- If a conditional key is unrecognized: ignore that key (treat as if omitted).
+- If a conditional value has wrong type: ignore that conditional.
+- Rationale: Robustness over strictness; avoid silently dropping rules.
 
 ---
 
-## 4. Matching semantics
+## 4. Conditional evaluation semantics
 
-We need a deterministic and explainable definition of “does this rule apply right now?”
+We need a deterministic and explainable definition of "does this rule apply right now?"
 
-### 4.1 Inputs to matching
+### 4.0 Generic evaluation architecture
+
+The rule evaluation system uses a **conditional evaluator pattern**:
+
+```typescript
+// Generic context object passed to all evaluators
+type RuleEvaluationContext = {
+  paths?: string[]        // v1: implemented
+  mode?: "act" | "plan"   // future
+  provider?: string       // future
+  model?: string          // future
+  // extensible for future conditionals
+}
+
+// Generic evaluator signature
+type ConditionalEvaluator = (
+  frontmatterValue: unknown,
+  context: RuleEvaluationContext
+) => boolean
+
+// Registry of evaluators
+const conditionalEvaluators: Record<string, ConditionalEvaluator> = {
+  paths: evaluatePathsConditional,    // v1: implemented
+  mode: evaluateModeConditional,      // future: placeholder
+  provider: evaluateProviderConditional, // future: placeholder
+  // future conditionals register here
+}
+
+// Generic rule evaluation
+function evaluateRuleConditionals(
+  frontmatter: Record<string, unknown>,
+  context: RuleEvaluationContext
+): boolean {
+  // A rule applies if ALL present conditionals evaluate to true
+  for (const [key, value] of Object.entries(frontmatter)) {
+    const evaluator = conditionalEvaluators[key]
+    if (!evaluator) continue // unknown conditional: ignore
+    if (!evaluator(value, context)) return false
+  }
+  return true // all conditionals passed (or none present)
+}
+```
+
+**V1 Implementation Note:** In v1, only `evaluatePathsConditional` is implemented. The generic architecture exists but only handles the `paths` key. Future conditionals will add new evaluators to the registry without changing the core evaluation logic.
+
+### 4.1 Paths Conditional: Inputs to matching
 
 We should treat `paths` as a proxy for the implicit condition:
 
@@ -135,12 +226,12 @@ Reasoning:
 - It is still deterministic and explainable (“it activated because you referenced/edited X”).
 - It avoids heavy repo scans or semantic inference.
 
-### 4.2 What paths are matched against
+### 4.2 Paths Conditional: What paths are matched against
 
 - Use repo-relative paths (relative to `Task.cwd` / primary workspace root).
 - Normalize to POSIX-style slashes for glob consistency.
 
-### 4.3 Glob implementation
+### 4.3 Paths Conditional: Glob implementation
 
 Use a well-tested glob matcher (recommended):
 
@@ -151,7 +242,7 @@ Design notes:
 - `.clineignore` already uses gitignore semantics via `ignore` library, but these are *not* the same as globbing. Reusing `ignore` would be confusing.
 - `picomatch` is fast and handles common glob syntax; `minimatch` is also common. Either is fine; pick one consistent with existing deps.
 
-### 4.4 Match rule
+### 4.4 Paths Conditional: Match rule
 
 A rule with `paths` applies if:
 
@@ -167,7 +258,7 @@ Recommendation: Option A.
 
 Rationale: Otherwise path-based conditionals become “randomly always on” early in a task before any file context exists.
 
-### 4.5 Multi-root workspaces
+### 4.5 Paths Conditional: Multi-root workspaces
 
 We should be compatible with both single-root and multi-root workspaces.
 
@@ -198,7 +289,7 @@ Even with “root-agnostic matching”, we still need to know which root a path 
 
 ---
 
-## 4.6 Prompt-build timing and what we can know
+### 4.6 Paths Conditional: Prompt-build timing and context
 
 This is critical context for why the evidence stack exists.
 
@@ -277,18 +368,25 @@ Pros:
 
 Cons:
 
-- Needs additional input: context paths and/or a matcher.
+- Needs additional input: evaluation context.
 
-Implementation:
+Implementation with **generic signature**:
 
 ```ts
 getRuleFilesTotalContent(
   ruleFilePaths: string[],
   basePath: string,
   toggles: ClineRulesToggles,
-  opts?: { pathContext?: string[]; matchRulePaths?: (paths: string[]|undefined)=>boolean }
+  opts?: {
+    evaluationContext?: RuleEvaluationContext
+  }
 )
 ```
+
+The function:
+1. Parses frontmatter from each file
+2. Calls `evaluateRuleConditionals(frontmatter, opts.evaluationContext)`
+3. Includes body only if evaluation returns true
 
 #### Option 2: Decide applicability in `getGlobalClineRules()` and `getLocalClineRules()`
 
@@ -300,21 +398,48 @@ Cons:
 
 - Duplicates logic between global and local.
 
-Recommendation: Option 1.
+Recommendation: Option 1 with generic `evaluationContext`.
 
-### 5.4 Getting “path context” into the prompt-build step
+### 5.4 Building evaluation context in prompt-build step
 
-At prompt build time (`Task.attemptApiRequest()`), we should compute a **candidate path set** using the evidence stack from §4.1.
+At prompt build time (`Task.attemptApiRequest()`), we should construct a **RuleEvaluationContext** object.
 
-We add a helper in `Task` that returns a bounded, normalized list of **root-relative paths**.
+For v1, this includes only `paths`:
 
 ```ts
-private getRulePathContext(): string[]
+private buildRuleEvaluationContext(): RuleEvaluationContext {
+  return {
+    paths: this.getRulePathContext(), // existing helper, returns string[]
+    // future: mode, provider, model, etc.
+  }
+}
+
+private getRulePathContext(): string[] {
+  // Existing implementation from §4.1
+  // Returns bounded, normalized list of root-relative paths
+}
 ```
 
-In multi-root, this list is still `string[]`, but each entry is computed as a `relPath` relative to the root that contains that file.
+This generic structure makes future additions trivial:
 
-#### v1 rules for building the context list
+```ts
+// Future example:
+private buildRuleEvaluationContext(): RuleEvaluationContext {
+  return {
+    paths: this.getRulePathContext(),
+    mode: this.mode,                    // future: add mode
+    provider: this.api.getInfo().name,  // future: add provider
+    model: this.api.getModel().id,      // future: add model
+  }
+}
+```
+
+**V1 implementation:**
+- Only `paths` is gathered and populated
+- Other fields remain undefined
+- The generic structure exists but is only partially used
+
+#### v1 rules for building the paths context
 
 1) Include **explicit referenced paths** when available
    - Best source: mention parsing already resolves files; we should plumb those resolved paths into a structured list.
@@ -329,7 +454,7 @@ In multi-root, this list is still `string[]`, but each entry is computed as a `r
    - de-duplicate and sort for determinism
    - cap to N entries (e.g. 50)
 
-Then pass `pathContext` into rule loader calls so the loader can decide applicability.
+Then pass `evaluationContext` into rule loader calls so the loader can decide applicability.
 
 ---
 
@@ -346,7 +471,7 @@ UI will still show the rule as "enabled" because the toggle is enabled, but it m
 
 ### 6.1 UI notification for conditional rule activation
 
-When a path-scoped rule is included in the current API request, the user should be informed. This provides transparency and helps users understand why certain behaviors or constraints are being applied.
+When conditional rules (any type, not just paths) are included in the current API request, the user should be informed. This provides transparency and helps users understand why certain behaviors or constraints are being applied.
 
 #### v1 approach: Simple in-chat notification
 
@@ -354,25 +479,35 @@ Display a brief, non-intrusive message in the webview-ui task flow when conditio
 
 **Proposed UX:**
 
-- When one or more path-scoped rules activate, show a collapsible/expandable notice in the chat UI.
+- When one or more conditional rules activate, show a collapsible/expandable notice in the chat UI.
 - Format:
   ```
   📋 Conditional rules applied: [rule-name-1], [rule-name-2]
   ```
-- Clicking/expanding could show which paths triggered each rule (optional for v1).
+- Clicking/expanding shows which conditions were met (e.g., "matched paths: apps/web/**, src/**" or future: "mode: act, provider: anthropic")
 
 **Implementation notes:**
 
-- The rule loader already knows which rules were included and which were filtered out.
-- Return metadata from `getRuleFilesTotalContent()` indicating which path-scoped rules matched:
-  ```ts
-  type RuleLoadResult = {
-    content: string
-    activatedPathRules: Array<{ name: string; matchedPaths: string[] }>
-  }
-  ```
-- Pass this metadata back to the Task, which can emit a `say("conditional_rules_applied", ...)` message to the webview.
-- The webview renders this as a subtle informational block in the chat stream.
+Return metadata from `getRuleFilesTotalContent()`:
+
+```ts
+type RuleLoadResult = {
+  content: string
+  activatedConditionalRules: Array<{
+    name: string
+    matchedConditions: Record<string, string[]> // e.g., { "paths": ["apps/web/**"] }
+  }>
+}
+```
+
+- Pass this metadata back to the Task
+- Emit `say("conditional_rules_applied", metadata)` to webview
+- The webview renders a generic conditional notification
+
+**V1 specifics:**
+- `matchedConditions` will only contain `"paths"` key
+- UI message can show "matched paths: X, Y"
+- Future conditionals just add more keys to `matchedConditions`
 
 **Why this matters:**
 
@@ -489,18 +624,26 @@ Remote rules:
 
 2) **Refactor skills** to use shared parser (no behavior changes)
 
-3) **Add path matching utility**
-   - pick glob library (prefer `picomatch` or `minimatch`)
-   - implement `doesRuleApply(pathsFrontmatter, contextPaths)`
+3) **Add generic conditional evaluation system**
+   - Define `RuleEvaluationContext` type
+   - Define `ConditionalEvaluator` type
+   - Create evaluator registry pattern
+   - Implement `evaluateRuleConditionals()` function
 
-4) **Add path-like string extraction utility**
+4) **Implement paths conditional evaluator** (v1 only conditional)
+   - pick glob library (prefer `picomatch` or `minimatch`)
+   - implement `evaluatePathsConditional(pathsFrontmatter, context)`
+   - register in `conditionalEvaluators` registry
+
+5) **Add path-like string extraction utility** (paths conditional support)
    - implement `extractPathLikeStrings(text: string): string[]`
    - regex-based extraction for path-like patterns in prose
    - optional: validation against workspace structure
 
-5) **Thread path context into prompt build**
-   - add `Task.getRulePathContext()`
-   - implement evidence gathering from all sources:
+6) **Thread evaluation context into prompt build** (generic infrastructure)
+   - add `Task.buildRuleEvaluationContext()` (returns generic object)
+   - add `Task.getRulePathContext()` (paths-specific helper)
+   - implement evidence gathering for paths from all sources:
      - `@file` mentions (from mention parsing)
      - tool target paths (from task state)
      - path-like strings in user message (new utility)
@@ -508,26 +651,29 @@ Remote rules:
      - task-modified files (from checkpoint/tool tracking)
    - normalize, dedupe, and cap at 100 entries
 
-6) **Update rule concatenation with metadata return**
-   - extend `getRuleFilesTotalContent` to parse frontmatter + filter by `paths`
-   - return `RuleLoadResult` with `activatedPathRules` metadata
+7) **Update rule concatenation with generic evaluation**
+   - extend `getRuleFilesTotalContent` signature to accept `RuleEvaluationContext`
+   - use `evaluateRuleConditionals()` to filter rules
+   - return `RuleLoadResult` with `activatedConditionalRules` metadata
    - update `getGlobalClineRules` for remote rule contents similarly
 
-7) **Add UI notification for activated conditional rules**
+8) **Add UI notification for activated conditional rules**
    - add new `say` message type: `"conditional_rules_applied"`
-   - emit notification from Task when path-scoped rules activate
-   - render notification in webview-ui chat stream (collapsible)
+   - emit notification from Task when conditional rules activate
+   - render generic conditional notification in webview-ui chat stream (collapsible)
+   - show matched conditions (v1: paths only)
 
-8) **Add tests**
+9) **Add tests**
    - unit tests for frontmatter parsing
+   - unit tests for generic conditional evaluation
    - unit tests for path-like string extraction
-   - unit tests for path matching (globs, edge cases)
-   - integration tests for rule loading with context paths
+   - unit tests for paths conditional (globs, edge cases)
+   - integration tests for rule loading with evaluation context
    - remote rules tests
 
-9) **Docs**
-   - add/update docs.cline.bot content later (out of scope)
-   - for repo: update any local documentation describing `.clinerules` format
+10) **Docs**
+    - add/update docs.cline.bot content later (out of scope)
+    - for repo: update any local documentation describing `.clinerules` format
 
 ---
 
@@ -579,3 +725,87 @@ Mitigation:
 ### Quality
 - All new logic is covered by tests.
 - Performance remains acceptable for typical rule counts (< 50 rules).
+
+---
+
+## 13. Future conditional extensions (post-v1)
+
+The generic architecture enables straightforward addition of new conditionals. This section documents the pattern for future work.
+
+### 13.1 Adding a new conditional type
+
+To add a new conditional (e.g., `mode`), follow these steps:
+
+1. **Define the evaluator function:**
+
+```ts
+function evaluateModeConditional(
+  frontmatterValue: unknown,
+  context: RuleEvaluationContext
+): boolean {
+  // Validate frontmatterValue type
+  if (typeof frontmatterValue !== "string" && !Array.isArray(frontmatterValue)) {
+    return true // invalid type: ignore this conditional
+  }
+  
+  // Normalize to array
+  const modes = Array.isArray(frontmatterValue) ? frontmatterValue : [frontmatterValue]
+  
+  // Check if current mode matches
+  return context.mode !== undefined && modes.includes(context.mode)
+}
+```
+
+2. **Register the evaluator:**
+
+```ts
+conditionalEvaluators["mode"] = evaluateModeConditional
+```
+
+3. **Populate context in `buildRuleEvaluationContext()`:**
+
+```ts
+private buildRuleEvaluationContext(): RuleEvaluationContext {
+  return {
+    paths: this.getRulePathContext(),
+    mode: this.mode, // ADD THIS LINE
+    // ...
+  }
+}
+```
+
+4. **Add tests** for the new evaluator (see §9.1 pattern)
+
+5. **Update documentation** to advertise the new conditional
+
+### 13.2 Candidate future conditionals
+
+Potential conditionals that follow this pattern:
+
+| Conditional | Type | Example | Use Case |
+|-------------|------|---------|----------|
+| `mode` | `"act" \| "plan"` | `mode: "act"` | Different rules for planning vs execution |
+| `provider` | `string \| string[]` | `provider: ["anthropic", "openai"]` | Provider-specific best practices |
+| `model` | `string \| string[]` | `model: "claude-3-5-sonnet-*"` | Model-specific constraints |
+| `tags` | `string \| string[]` | `tags: ["frontend", "typescript"]` | Workspace/project classification |
+| `os` | `string \| string[]` | `os: ["darwin", "linux"]` | Platform-specific rules |
+| `env` | `string` | `env: "production"` | Environment-specific rules |
+
+Each requires:
+- An evaluator function following the `ConditionalEvaluator` signature
+- Context population in `buildRuleEvaluationContext()`
+- Tests
+
+The core evaluation system (`evaluateRuleConditionals`) requires **no changes**.
+
+### 13.3 Advanced: Conditional expression language (future consideration)
+
+For complex logic beyond AND (e.g., OR, NOT), we could add an expression language:
+
+```yaml
+---
+when: "(paths:src/** OR paths:lib/**) AND mode:act"
+---
+```
+
+This is out of scope for v1 and near-term iterations, but the generic architecture doesn't preclude it.
