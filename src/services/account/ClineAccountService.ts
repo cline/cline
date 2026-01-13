@@ -11,6 +11,7 @@ import { ClineEnv } from "@/config"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { getAxiosSettings } from "@/shared/net"
 import { AuthService } from "../auth/AuthService"
+import { buildBasicClineHeaders } from "../EnvUtils"
 
 export class ClineAccountService {
 	private static instance: ClineAccountService
@@ -58,6 +59,7 @@ export class ClineAccountService {
 			headers: {
 				Authorization: `Bearer ${clineAccountAuthToken}`,
 				"Content-Type": "application/json",
+				...(await buildBasicClineHeaders()),
 				...config.headers,
 			},
 			...getAxiosSettings(),
@@ -236,12 +238,15 @@ export class ClineAccountService {
 					organizationId: organizationId || null, // Pass organization if provided
 				},
 			})
+			const activeOrgId = this._authService.getActiveOrganizationId()
+			if (activeOrgId !== organizationId) {
+				// After user switches account, we will force a refresh of the id token by calling this function that restores the refresh token and retrieves new auth info
+				await this._authService.restoreRefreshTokenAndRetrieveAuthInfo()
+			}
 		} catch (error) {
 			console.error("Error switching account:", error)
-			throw error
-		} finally {
-			// After user switches account, we will force a refresh of the id token by calling this function that restores the refresh token and retrieves new auth info
 			await this._authService.restoreRefreshTokenAndRetrieveAuthInfo()
+			throw error
 		}
 	}
 

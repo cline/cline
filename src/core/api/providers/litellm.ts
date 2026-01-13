@@ -307,7 +307,7 @@ export class LiteLlmHandler implements ApiHandler {
 		} as LiteLlmChatCompletionCreateParams)
 
 		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
+			const delta = chunk.choices?.[0]?.delta
 
 			// Handle normal text content
 			if (delta?.content) {
