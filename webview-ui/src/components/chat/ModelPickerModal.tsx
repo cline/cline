@@ -159,7 +159,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 
 	// Get configured providers
 	const configuredProviders = useMemo(() => {
-		if (remoteConfigSettings?.remoteConfiguredProviders) {
+		if (remoteConfigSettings?.remoteConfiguredProviders?.length) {
 			return remoteConfigSettings.remoteConfiguredProviders
 		}
 
