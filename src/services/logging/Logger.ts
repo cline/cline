@@ -15,14 +15,14 @@ export class Logger {
 		Logger.#output("WARN", message)
 		ErrorService.get().logMessage(message, "warning")
 	}
-	static log(message: string) {
-		Logger.#output("LOG", message)
+	static log(message: string, ...optionalParams: any[]) {
+		Logger.#output("LOG", message, ...optionalParams)
 	}
-	static debug(message: string) {
-		Logger.#output("DEBUG", message)
+	static debug(message: string, ...optionalParams: any[]) {
+		Logger.#output("DEBUG", message, ...optionalParams)
 	}
-	static info(message: string) {
-		Logger.#output("INFO", message)
+	static info(message: string, ...optionalParams: any[]) {
+		Logger.#output("INFO", message, ...optionalParams)
 	}
 	static trace(message: string) {
 		Logger.#output("TRACE", message)

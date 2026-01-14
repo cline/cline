@@ -33,6 +33,7 @@ import { LogoutReason } from "@/services/auth/types"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
+import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
 import { BannerCardData } from "@/shared/cline/banner"
 import { getAxiosSettings } from "@/shared/net"
@@ -417,7 +418,7 @@ export class Controller {
 	async cancelTask() {
 		// Prevent duplicate cancellations from spam clicking
 		if (this.cancelInProgress) {
-			console.log(`[Controller.cancelTask] Cancellation already in progress, ignoring duplicate request`)
+			Logger.log(`[Controller.cancelTask] Cancellation already in progress, ignoring duplicate request`)
 			return
 		}
 
@@ -434,7 +435,7 @@ export class Controller {
 			try {
 				await this.task.abortTask()
 			} catch (error) {
-				console.error("Failed to abort task", error)
+				Logger.error("Failed to abort task", error)
 			}
 
 			await pWaitFor(
@@ -447,7 +448,7 @@ export class Controller {
 					timeout: 3_000,
 				},
 			).catch(() => {
-				console.error("Failed to abort task")
+				Logger.error("Failed to abort task")
 			})
 
 			if (this.task) {
@@ -466,7 +467,7 @@ export class Controller {
 			} catch (error) {
 				// Task not in history yet (new task with no messages); catch the
 				// error to enable the agent to continue making progress.
-				console.log(`[Controller.cancelTask] Task not found in history: ${error}`)
+				Logger.log(`[Controller.cancelTask] Task not found in history: ${error}`)
 			}
 
 			// Only re-initialize if we found a history item, otherwise just clear
@@ -542,7 +543,7 @@ export class Controller {
 
 			await this.postStateToWebview()
 		} catch (error) {
-			console.error("Failed to handle auth callback:", error)
+			Logger.error("Failed to handle auth callback:", error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: "Failed to log in to Cline",
@@ -787,7 +788,7 @@ export class Controller {
 
 	async exportTaskWithId(id: string) {
 		const { taskDirPath } = await this.getTaskWithId(id)
-		console.log(`[EXPORT] Opening task directory: ${taskDirPath}`)
+		Logger.log(`[EXPORT] Opening task directory: ${taskDirPath}`)
 		await open(taskDirPath)
 	}
 
@@ -1011,7 +1012,7 @@ export class Controller {
 		try {
 			return BannerService.get().getActiveBanners()
 		} catch (err) {
-			console.log(err)
+			Logger.log(err)
 			return []
 		}
 	}
