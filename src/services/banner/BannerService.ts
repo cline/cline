@@ -18,10 +18,11 @@ export class BannerService {
 	private readonly _baseUrl = ClineEnv.config().apiBaseUrl
 	private _cachedBanners: Banner[] = []
 	private _lastFetchTime: number = 0
-	private readonly CACHE_DURATION_MS = 24 * 60 * 60 * 1000 // 24 hours
+	private readonly CACHE_DURATION_MS = 24 * 60 * 60 * 1000 // 24 hours - banners change infrequently
 	private _controller: Controller
 	private _authService?: AuthService
 	private actionTypes: Set<string>
+	private _fetchPromise: Promise<Banner[]> | null = null
 
 	// Circuit breaker state to prevent hammering API after failures
 	private consecutiveFailures: number = 0
@@ -81,13 +82,11 @@ export class BannerService {
 	}
 
 	/**
-	 * Fetches active banners from the API
-	 * Backend handles all filtering based on ide and user context
-	 * Extension only filters by providers (API provider configuration)
+	 * Gets active banners with caching and promise deduplication
 	 * @param forceRefresh If true, bypasses cache and fetches fresh data
 	 * @returns Array of banners that match current environment
 	 */
-	private async fetchActiveBanners(forceRefresh = false): Promise<Banner[]> {
+	private async internalGetActiveBanners(forceRefresh = false): Promise<Banner[]> {
 		try {
 			// Return cached banners if still valid
 			const now = Date.now()
@@ -113,6 +112,30 @@ export class BannerService {
 				return this._cachedBanners
 			}
 
+			// Promise deduplication: Prevent concurrent requests
+			if (this._fetchPromise && !forceRefresh) {
+				Logger.log("BannerService: Reusing in-flight request")
+				return this._fetchPromise
+			}
+
+			this._fetchPromise = this.fetchActiveBanners()
+			return this._fetchPromise
+		} catch (error) {
+			// Log error but don't throw - banner fetching shouldn't break the extension
+			Logger.error("BannerService: Error getting internal banners", error)
+			return []
+		}
+	}
+
+	/**
+	 * Fetches active banners from the API
+	 * Backend handles all filtering based on ide and user context
+	 * Extension only filters by providers (API provider configuration)
+	 * @returns Array of banners that match current environment
+	 */
+	private async fetchActiveBanners(): Promise<Banner[]> {
+		try {
+			const now = Date.now()
 			const ideType = await this.getIdeType()
 			const extensionVersion = await this.getExtensionVersion()
 			const osType = await this.getOSType()
@@ -128,10 +151,7 @@ export class BannerService {
 			Logger.log(`BannerService: Fetching banners from ${url}`)
 
 			const authService = this.getAuthServiceInstance()
-			let token: string | null = null
-			if (authService) {
-				token = await authService.getAuthToken()
-			}
+			const token: string | null = (await authService?.getAuthToken()) || null
 
 			const headers: Record<string, string> = {
 				"Content-Type": "application/json",
@@ -232,6 +252,8 @@ export class BannerService {
 
 			// Return cached banners if available, otherwise empty array
 			return this._cachedBanners.length > 0 ? this._cachedBanners : []
+		} finally {
+			this._fetchPromise = null
 		}
 	}
 
@@ -382,6 +404,7 @@ export class BannerService {
 		this._lastFetchTime = 0
 		this.consecutiveFailures = 0
 		this.rateLimitBackoffUntil = 0
+		this._fetchPromise = null
 		Logger.log("BannerService: Cache cleared and circuit breaker reset")
 	}
 
@@ -512,7 +535,7 @@ export class BannerService {
 	 * @returns Array of non-dismissed banners converted to BannerCardData format
 	 */
 	public async getActiveBanners(forceRefresh = false): Promise<BannerCardData[]> {
-		const allBanners = await this.fetchActiveBanners(forceRefresh)
+		const allBanners = await this.internalGetActiveBanners(forceRefresh)
 		const nonDismissedBanners = allBanners.filter((banner) => !this.isBannerDismissed(banner.id))
 		return nonDismissedBanners
 			.map((banner) => this.convertToBannerCardData(banner))
