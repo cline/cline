@@ -392,7 +392,7 @@ async function buildCli(platformGroups: PlatformGroup[], prod: boolean): Promise
 	// Build for each target
 	for (const { GOOS, GOARCH } of uniqueTargets) {
 		const ext = GOOS === "windows" ? ".exe" : ""
-		const platformSuffix = `${GOOS}-${GOARCH}`
+		const platformSuffix = `${GOOS}-${GOARCH === "amd64" ? "x64" : GOARCH}`
 
 		log(`  Building for ${platformSuffix}...`, colors.blue)
 
@@ -428,12 +428,11 @@ async function buildCli(platformGroups: PlatformGroup[], prod: boolean): Promise
 
 	// If building for current platform, also create generic binaries
 	const currentOS = process.platform === "win32" ? "windows" : process.platform
-	const currentArch = process.arch === "x64" ? "amd64" : process.arch
-	const currentTarget = uniqueTargets.find((t) => t.GOOS === currentOS && t.GOARCH === currentArch)
+	const currentTarget = uniqueTargets.find((t) => t.GOOS === currentOS && t.GOARCH === process.arch)
 
 	if (currentTarget) {
 		const ext = currentOS === "windows" ? ".exe" : ""
-		const platformSuffix = `${currentOS}-${currentArch}`
+		const platformSuffix = `${currentOS}-${process.arch}`
 
 		// Copy to generic names in cli/bin and dist-standalone/bin
 		fs.copyFileSync(path.join(cliBinDir, `cline-${platformSuffix}${ext}`), path.join(cliBinDir, `cline${ext}`))
