@@ -49,17 +49,14 @@ fi
 # Create installation directory
 mkdir -p "$INSTALL_DIR/bin"
 
-# Copy standalone package first (cline-core.js, wasm files, etc.)
-rsync -a --exclude='bin' "$PROJECT_ROOT/dist-standalone/" "$INSTALL_DIR/"
+# Copy standalone package first (includes node_modules, cline-core.js, etc.)
+cp -r "$PROJECT_ROOT/dist-standalone/" "$INSTALL_DIR/"
 
-# Install runtime dependencies (grpc-health-check, better-sqlite3, etc.)
-# These are external dependencies not bundled into cline-core.js
-echo -e "${CYAN}→${NC} ${DIM}Installing runtime dependencies...${NC}"
-cd "$PROJECT_ROOT/standalone/runtime-files"
-npm install --silent 2>/dev/null || npm install
-cp -r node_modules "$INSTALL_DIR/"
-cp -r vscode "$INSTALL_DIR/node_modules/"
-cd "$PROJECT_ROOT"
+# Check if OS is windows
+WIN=false
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
+    WIN=true
+fi
 
 # Detect platform for native modules
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
