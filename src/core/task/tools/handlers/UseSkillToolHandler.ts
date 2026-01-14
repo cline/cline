@@ -1,6 +1,7 @@
 import type { ToolUse } from "@core/assistant-message"
 import { discoverSkills, getAvailableSkills, getSkillContent } from "@core/context/instructions/user-instructions/skills"
 import type { SkillMetadata } from "@shared/skills"
+import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
@@ -48,6 +49,13 @@ export class UseSkillToolHandler implements IToolHandler, IPartialBlockHandler {
 			return `Error: No skills are available. Skills may be disabled or not configured.`
 		}
 
+		const globalCount = availableSkills.filter((skill) => skill.source === "global").length
+		const projectCount = availableSkills.filter((skill) => skill.source === "project").length
+
+		const apiConfig = config.services.stateManager.getApiConfiguration()
+		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+		const provider = currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
+
 		// Show tool message
 		const message = JSON.stringify({ tool: "useSkill", path: skillName })
 		await config.callbacks.say("tool", message, undefined, undefined, false)
@@ -61,6 +69,20 @@ export class UseSkillToolHandler implements IToolHandler, IPartialBlockHandler {
 				const availableNames = availableSkills.map((s: SkillMetadata) => s.name).join(", ")
 				return `Error: Skill "${skillName}" not found. Available skills: ${availableNames || "none"}`
 			}
+
+			telemetryService.safeCapture(
+				() =>
+					telemetryService.captureSkillUsed({
+						ulid: config.ulid,
+						skillName,
+						skillSource: skillContent.source === "global" ? "global" : "project",
+						skillsAvailableGlobal: globalCount,
+						skillsAvailableProject: projectCount,
+						provider,
+						modelId: config.api.getModel().id,
+					}),
+				"UseSkillToolHandler.execute",
+			)
 
 			return `# Skill "${skillContent.name}" is now active
 

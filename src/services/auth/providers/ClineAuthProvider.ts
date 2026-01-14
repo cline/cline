@@ -3,6 +3,7 @@ import { type JwtPayload } from "jwt-decode"
 import { ClineEnv, EnvironmentConfig } from "@/config"
 import { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
+import { buildBasicClineHeaders } from "@/services/EnvUtils"
 import { AuthInvalidTokenError, AuthNetworkError } from "@/services/error/ClineError"
 import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
@@ -95,9 +96,14 @@ export class ClineAuthProvider {
 	/**
 	 * Returns the time in seconds until token expiry
 	 */
-	private timeUntilExpiry(_refreshToken: string, expiresAt?: number): number {
+	timeUntilExpiry(jwt: string): number {
+		const data = this.extractTokenData(jwt)
+		if (!data.exp) {
+			return 0
+		}
+
 		const currentTime = Date.now() / 1000
-		const expirationTime = expiresAt || 0
+		const expirationTime = data.exp
 
 		return expirationTime - currentTime
 	}
@@ -108,7 +114,7 @@ export class ClineAuthProvider {
 		const startedAt = storedAuthData?.startedAt
 		const timeSinceStarted = Date.now() - (startedAt || 0)
 
-		const tokenData = this.extractTokenData(storedAuthData)
+		const tokenData = this.extractTokenData(storedAuthData?.idToken)
 		telemetryService.capture({
 			event: "extension_logging_user_out",
 			properties: {
@@ -129,7 +135,7 @@ export class ClineAuthProvider {
 		const startedAt = storedAuthData?.startedAt
 		const timeSinceStarted = Date.now() - (startedAt || 0)
 
-		const tokenData = this.extractTokenData(storedAuthData)
+		const tokenData = this.extractTokenData(storedAuthData?.idToken)
 		telemetryService.capture({
 			event: "extension_refresh_attempt_failed",
 			properties: {
@@ -142,14 +148,12 @@ export class ClineAuthProvider {
 		})
 	}
 
-	private extractTokenData(authInfo?: ClineAuthInfo): Partial<TokenData> {
-		if (!authInfo || !authInfo.idToken) {
+	private extractTokenData(token: string | undefined): Partial<TokenData> {
+		if (!token) {
 			return {}
 		}
 
-		const idToken = authInfo.idToken
-
-		return parseJwtPayload<TokenData>(idToken) || {}
+		return parseJwtPayload<TokenData>(token) || {}
 	}
 
 	/**
@@ -188,10 +192,7 @@ export class ClineAuthProvider {
 				// and it failed the first refresh attempt
 				// with something other than invalid token
 				// continue with the request
-				if (
-					this.refreshRetryCount > 0 &&
-					this.timeUntilExpiry(storedAuthData.refreshToken, storedAuthData.expiresAt) > 30
-				) {
+				if (this.refreshRetryCount > 0 && this.timeUntilExpiry(storedAuthData.idToken) > 30) {
 					this.refreshRetryCount = 0
 					this.lastRefreshAttempt = 0
 					return storedAuthData
@@ -294,7 +295,7 @@ export class ClineAuthProvider {
 			const endpoint = new URL(CLINE_API_ENDPOINT.REFRESH_TOKEN, this.config.apiBaseUrl)
 			const response = await fetch(endpoint.toString(), {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
+				headers: await this.headers(),
 				body: JSON.stringify({
 					refreshToken: storedData.refreshToken,
 					grantType: "refresh_token",
@@ -357,10 +358,7 @@ export class ClineAuthProvider {
 				method: "GET",
 				redirect: "manual",
 				credentials: "include", // Important for cookies if needed
-				headers: {
-					Accept: "application/json",
-					"Content-Type": "application/json",
-				},
+				headers: await this.headers(),
 			})
 
 			// If we get a redirect status (3xx), get the Location header
@@ -397,10 +395,7 @@ export class ClineAuthProvider {
 
 			const response = await fetch(tokenUrl.toString(), {
 				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Accept: "application/json",
-				},
+				headers: await this.headers(),
 				body: JSON.stringify({
 					grant_type: "authorization_code",
 					code: authorizationCode,
@@ -449,6 +444,7 @@ export class ClineAuthProvider {
 			const userResponse = await axios.get(`${ClineEnv.config().apiBaseUrl}/api/v1/users/me`, {
 				headers: {
 					Authorization: `Bearer workos:${tokenData.accessToken}`,
+					...(await this.headers()),
 				},
 				...getAxiosSettings(),
 			})
@@ -465,6 +461,14 @@ export class ClineAuthProvider {
 				createdAt: new Date().toISOString(),
 				organizations: [],
 			}
+		}
+	}
+
+	private async headers() {
+		return {
+			Accept: "application/json",
+			"Content-Type": "application/json",
+			...(await buildBasicClineHeaders()),
 		}
 	}
 }

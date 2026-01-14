@@ -1,13 +1,17 @@
 import { ApiConfiguration, ModelInfo } from "@shared/api"
 import {
+	ApiHandlerSettingsKeys,
 	GlobalState,
 	GlobalStateAndSettings,
 	GlobalStateAndSettingsKey,
 	GlobalStateKey,
+	isSecretKey,
+	isSettingsKey,
 	LocalState,
 	LocalStateKey,
 	RemoteConfigFields,
 	SecretKey,
+	SecretKeys,
 	Secrets,
 	Settings,
 	SettingsKey,
@@ -24,6 +28,7 @@ import {
 	writeTaskSettingsToStorage,
 } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
+import { filterAllowedRemoteConfigFields } from "./remote-config/utils"
 import { readGlobalStateFromDisk, readSecretsFromDisk, readWorkspaceStateFromDisk } from "./utils/state-helpers"
 export interface PersistenceErrorEvent {
 	error: Error
@@ -178,6 +183,18 @@ export class StateManager {
 
 		// Schedule debounced persistence
 		this.scheduleDebouncedPersistence()
+	}
+
+	private setRemoteConfigState(updates: Partial<GlobalStateAndSettings>): void {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+
+		// Update cache in one go
+		this.remoteConfigCache = {
+			...this.remoteConfigCache,
+			...filterAllowedRemoteConfigFields(updates),
+		}
 	}
 
 	/**
@@ -477,353 +494,43 @@ export class StateManager {
 
 	/**
 	 * Convenience method for setting API configuration
+	 * Automatically categorizes keys based on STATE_DEFINITION and SecretKeys
 	 */
 	setApiConfiguration(apiConfiguration: ApiConfiguration): void {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 
-		const {
-			apiKey,
-			openRouterApiKey,
-			awsAccessKey,
-			awsSecretKey,
-			awsSessionToken,
-			awsRegion,
-			awsUseCrossRegionInference,
-			awsUseGlobalInference,
-			awsBedrockUsePromptCache,
-			awsBedrockEndpoint,
-			awsBedrockApiKey,
-			awsProfile,
-			awsUseProfile,
-			awsAuthentication,
-			vertexProjectId,
-			vertexRegion,
-			openAiBaseUrl,
-			openAiApiKey,
-			openAiHeaders,
-			ollamaBaseUrl,
-			ollamaApiKey,
-			ollamaApiOptionsCtxNum,
-			lmStudioBaseUrl,
-			lmStudioMaxTokens,
-			anthropicBaseUrl,
-			geminiApiKey,
-			geminiBaseUrl,
-			openAiNativeApiKey,
-			deepSeekApiKey,
-			requestyApiKey,
-			requestyBaseUrl,
-			togetherApiKey,
-			qwenApiKey,
-			doubaoApiKey,
-			mistralApiKey,
-			azureApiVersion,
-			azureIdentity,
-			openRouterProviderSorting,
-			liteLlmBaseUrl,
-			liteLlmApiKey,
-			liteLlmUsePromptCache,
-			qwenApiLine,
-			moonshotApiLine,
-			zaiApiLine,
-			asksageApiKey,
-			asksageApiUrl,
-			xaiApiKey,
-			clineAccountId,
-			sambanovaApiKey,
-			cerebrasApiKey,
-			groqApiKey,
-			moonshotApiKey,
-			nebiusApiKey,
-			fireworksApiKey,
-			fireworksModelMaxCompletionTokens,
-			fireworksModelMaxTokens,
-			sapAiCoreClientId,
-			sapAiCoreClientSecret,
-			sapAiCoreBaseUrl,
-			sapAiCoreTokenUrl,
-			sapAiResourceGroup,
-			sapAiCoreUseOrchestrationMode,
-			claudeCodePath,
-			qwenCodeOauthPath,
-			basetenApiKey,
-			huggingFaceApiKey,
-			huaweiCloudMaasApiKey,
-			difyApiKey,
-			difyBaseUrl,
-			vercelAiGatewayApiKey,
-			zaiApiKey,
-			minimaxApiKey,
-			minimaxApiLine,
-			nousResearchApiKey,
-			requestTimeoutMs,
-			ocaBaseUrl,
-			ocaMode,
-			hicapApiKey,
-			hicapModelId,
-			aihubmixApiKey,
-			aihubmixBaseUrl,
-			aihubmixAppCode,
-			// Plan mode configurations
-			planModeApiProvider,
-			planModeApiModelId,
-			planModeThinkingBudgetTokens,
-			planModeReasoningEffort,
-			planModeVsCodeLmModelSelector,
-			planModeAwsBedrockCustomSelected,
-			planModeAwsBedrockCustomModelBaseId,
-			planModeOpenRouterModelId,
-			planModeOpenRouterModelInfo,
-			planModeOpenAiModelId,
-			planModeOpenAiModelInfo,
-			planModeOllamaModelId,
-			planModeLmStudioModelId,
-			planModeLiteLlmModelId,
-			planModeLiteLlmModelInfo,
-			planModeRequestyModelId,
-			planModeRequestyModelInfo,
-			planModeTogetherModelId,
-			planModeFireworksModelId,
-			planModeSapAiCoreModelId,
-			planModeSapAiCoreDeploymentId,
-			planModeGroqModelId,
-			planModeGroqModelInfo,
-			planModeBasetenModelId,
-			planModeBasetenModelInfo,
-			planModeHuggingFaceModelId,
-			planModeHuggingFaceModelInfo,
-			planModeHuaweiCloudMaasModelId,
-			planModeHuaweiCloudMaasModelInfo,
-			planModeOcaModelId,
-			planModeOcaModelInfo,
-			planModeOcaReasoningEffort,
-			planModeHicapModelId,
-			planModeHicapModelInfo,
-			planModeAihubmixModelId,
-			planModeAihubmixModelInfo,
-			planModeNousResearchModelId,
-			planModeVercelAiGatewayModelId,
-			planModeVercelAiGatewayModelInfo,
-			geminiPlanModeThinkingLevel,
-			// Act mode configurations
-			actModeApiProvider,
-			actModeApiModelId,
-			actModeThinkingBudgetTokens,
-			actModeReasoningEffort,
-			actModeVsCodeLmModelSelector,
-			actModeAwsBedrockCustomSelected,
-			actModeAwsBedrockCustomModelBaseId,
-			actModeOpenRouterModelId,
-			actModeOpenRouterModelInfo,
-			actModeOpenAiModelId,
-			actModeOpenAiModelInfo,
-			actModeOllamaModelId,
-			actModeLmStudioModelId,
-			actModeLiteLlmModelId,
-			actModeLiteLlmModelInfo,
-			actModeRequestyModelId,
-			actModeRequestyModelInfo,
-			actModeTogetherModelId,
-			actModeFireworksModelId,
-			actModeSapAiCoreModelId,
-			actModeSapAiCoreDeploymentId,
-			actModeGroqModelId,
-			actModeGroqModelInfo,
-			actModeBasetenModelId,
-			actModeBasetenModelInfo,
-			actModeHuggingFaceModelId,
-			actModeHuggingFaceModelInfo,
-			actModeHuaweiCloudMaasModelId,
-			actModeHuaweiCloudMaasModelInfo,
-			actModeOcaModelId,
-			actModeOcaModelInfo,
-			actModeOcaReasoningEffort,
-			actModeHicapModelId,
-			actModeHicapModelInfo,
-			actModeAihubmixModelId,
-			actModeAihubmixModelInfo,
-			actModeNousResearchModelId,
-			actModeVercelAiGatewayModelId,
-			actModeVercelAiGatewayModelInfo,
-			geminiActModeThinkingLevel,
-		} = apiConfiguration
+		// Automatically categorize the API configuration keys
+		const { settingsUpdates, secretsUpdates } = Object.entries(apiConfiguration).reduce(
+			(acc, [key, value]) => {
+				if (key === undefined || value === undefined) {
+					return acc // Skip undefined values
+				}
 
-		// Batch update global state keys
-		this.setGlobalStateBatch({
-			// Plan mode configuration updates
-			planModeApiProvider,
-			planModeApiModelId,
-			planModeThinkingBudgetTokens,
-			planModeReasoningEffort,
-			planModeVsCodeLmModelSelector,
-			planModeAwsBedrockCustomSelected,
-			planModeAwsBedrockCustomModelBaseId,
-			planModeOpenRouterModelId,
-			planModeOpenRouterModelInfo,
-			planModeOpenAiModelId,
-			planModeOpenAiModelInfo,
-			planModeOllamaModelId,
-			planModeLmStudioModelId,
-			planModeLiteLlmModelId,
-			planModeLiteLlmModelInfo,
-			planModeRequestyModelId,
-			planModeRequestyModelInfo,
-			planModeTogetherModelId,
-			planModeFireworksModelId,
-			planModeSapAiCoreModelId,
-			planModeSapAiCoreDeploymentId,
-			planModeGroqModelId,
-			planModeGroqModelInfo,
-			planModeBasetenModelId,
-			planModeBasetenModelInfo,
-			planModeHuggingFaceModelId,
-			planModeHuggingFaceModelInfo,
-			planModeHuaweiCloudMaasModelId,
-			planModeHuaweiCloudMaasModelInfo,
-			planModeOcaModelId,
-			planModeOcaModelInfo,
-			planModeOcaReasoningEffort,
-			planModeHicapModelId,
-			planModeHicapModelInfo,
-			planModeAihubmixModelId,
-			planModeAihubmixModelInfo,
-			planModeNousResearchModelId,
-			planModeVercelAiGatewayModelId,
-			planModeVercelAiGatewayModelInfo,
-			geminiPlanModeThinkingLevel,
+				if (isSecretKey(key)) {
+					// This is a secret key
+					acc.secretsUpdates[key as keyof Secrets] = value as any
+				} else if (isSettingsKey(key)) {
+					// This is a settings key
+					acc.settingsUpdates[key as keyof Settings] = value as any
+				}
 
-			// Act mode configuration updates
-			actModeApiProvider,
-			actModeApiModelId,
-			actModeThinkingBudgetTokens,
-			actModeReasoningEffort,
-			actModeVsCodeLmModelSelector,
-			actModeAwsBedrockCustomSelected,
-			actModeAwsBedrockCustomModelBaseId,
-			actModeOpenRouterModelId,
-			actModeOpenRouterModelInfo,
-			actModeOpenAiModelId,
-			actModeOpenAiModelInfo,
-			actModeOllamaModelId,
-			actModeLmStudioModelId,
-			actModeLiteLlmModelId,
-			actModeLiteLlmModelInfo,
-			actModeRequestyModelId,
-			actModeRequestyModelInfo,
-			actModeTogetherModelId,
-			actModeFireworksModelId,
-			actModeSapAiCoreModelId,
-			actModeSapAiCoreDeploymentId,
-			actModeGroqModelId,
-			actModeGroqModelInfo,
-			actModeBasetenModelId,
-			actModeBasetenModelInfo,
-			actModeHuggingFaceModelId,
-			actModeHuggingFaceModelInfo,
-			actModeHuaweiCloudMaasModelId,
-			actModeHuaweiCloudMaasModelInfo,
-			actModeOcaModelId,
-			actModeOcaModelInfo,
-			actModeOcaReasoningEffort,
-			actModeHicapModelId,
-			actModeHicapModelInfo,
-			actModeAihubmixModelId,
-			actModeAihubmixModelInfo,
-			actModeNousResearchModelId,
-			actModeVercelAiGatewayModelId,
-			actModeVercelAiGatewayModelInfo,
-			geminiActModeThinkingLevel,
+				return acc
+			},
+			{ settingsUpdates: {} as Partial<Settings>, secretsUpdates: {} as Partial<Secrets> },
+		)
 
-			// Global state updates
-			awsRegion,
-			awsUseCrossRegionInference,
-			awsUseGlobalInference,
-			awsBedrockUsePromptCache,
-			awsBedrockEndpoint,
-			awsProfile,
-			awsUseProfile,
-			awsAuthentication,
-			vertexProjectId,
-			vertexRegion,
-			requestyBaseUrl,
-			openAiBaseUrl,
-			openAiHeaders,
-			ollamaBaseUrl,
-			ollamaApiOptionsCtxNum,
-			lmStudioBaseUrl,
-			lmStudioMaxTokens,
-			anthropicBaseUrl,
-			geminiBaseUrl,
-			azureApiVersion,
-			azureIdentity,
-			openRouterProviderSorting,
-			liteLlmBaseUrl,
-			liteLlmUsePromptCache,
-			qwenApiLine,
-			moonshotApiLine,
-			zaiApiLine,
-			asksageApiUrl,
-			requestTimeoutMs,
-			fireworksModelMaxCompletionTokens,
-			fireworksModelMaxTokens,
-			sapAiCoreBaseUrl,
-			sapAiCoreTokenUrl,
-			sapAiResourceGroup,
-			sapAiCoreUseOrchestrationMode,
-			claudeCodePath,
-			difyBaseUrl,
-			qwenCodeOauthPath,
-			ocaBaseUrl,
-			minimaxApiLine,
-			ocaMode,
-			hicapModelId,
-			aihubmixBaseUrl,
-			aihubmixAppCode,
-		})
+		// Batch update settings (stored in global state)
+		if (Object.keys(settingsUpdates).length > 0) {
+			this.setRemoteConfigState(settingsUpdates)
+			this.setGlobalStateBatch(settingsUpdates)
+		}
 
 		// Batch update secrets
-		this.setSecretsBatch({
-			apiKey,
-			openRouterApiKey,
-			clineAccountId,
-			awsAccessKey,
-			awsSecretKey,
-			awsSessionToken,
-			awsBedrockApiKey,
-			openAiApiKey,
-			ollamaApiKey,
-			geminiApiKey,
-			openAiNativeApiKey,
-			deepSeekApiKey,
-			requestyApiKey,
-			togetherApiKey,
-			qwenApiKey,
-			doubaoApiKey,
-			mistralApiKey,
-			liteLlmApiKey,
-			fireworksApiKey,
-			asksageApiKey,
-			xaiApiKey,
-			sambanovaApiKey,
-			cerebrasApiKey,
-			groqApiKey,
-			moonshotApiKey,
-			nebiusApiKey,
-			sapAiCoreClientId,
-			sapAiCoreClientSecret,
-			basetenApiKey,
-			huggingFaceApiKey,
-			huaweiCloudMaasApiKey,
-			difyApiKey,
-			vercelAiGatewayApiKey,
-			zaiApiKey,
-			minimaxApiKey,
-			hicapApiKey,
-			aihubmixApiKey,
-			nousResearchApiKey,
-		})
+		if (Object.keys(secretsUpdates).length > 0) {
+			this.setSecretsBatch(secretsUpdates)
+		}
 	}
 
 	/**
@@ -1092,291 +799,46 @@ export class StateManager {
 	}
 
 	/**
+	 * Helper to get a setting value with override support
+	 * Precedence: remote config > task settings > global settings
+	 */
+	private getSettingWithOverride<K extends keyof Settings>(key: K): Settings[K] {
+		const remoteValue = this.remoteConfigCache[key]
+		if (remoteValue !== undefined) {
+			return remoteValue
+		}
+		const taskValue = this.taskStateCache[key]
+		if (taskValue !== undefined) {
+			return taskValue
+		}
+		return this.globalStateCache[key]
+	}
+
+	/**
+	 * Helper to get a secret value
+	 */
+	private getSecret<K extends keyof Secrets>(key: K): Secrets[K] {
+		return this.secretsCache[key]
+	}
+
+	/**
 	 * Construct API configuration from cached component keys
 	 */
 	private constructApiConfigurationFromCache(): ApiConfiguration {
-		return {
-			// Secrets
-			apiKey: this.secretsCache["apiKey"],
-			openRouterApiKey: this.secretsCache["openRouterApiKey"],
-			clineAccountId: this.secretsCache["clineAccountId"],
-			awsAccessKey: this.secretsCache["awsAccessKey"],
-			awsSecretKey: this.secretsCache["awsSecretKey"],
-			awsSessionToken: this.secretsCache["awsSessionToken"],
-			awsBedrockApiKey: this.secretsCache["awsBedrockApiKey"],
-			openAiApiKey: this.secretsCache["openAiApiKey"],
-			ollamaApiKey: this.secretsCache["ollamaApiKey"],
-			geminiApiKey: this.secretsCache["geminiApiKey"],
-			openAiNativeApiKey: this.secretsCache["openAiNativeApiKey"],
-			deepSeekApiKey: this.secretsCache["deepSeekApiKey"],
-			requestyApiKey: this.secretsCache["requestyApiKey"],
-			togetherApiKey: this.secretsCache["togetherApiKey"],
-			qwenApiKey: this.secretsCache["qwenApiKey"],
-			doubaoApiKey: this.secretsCache["doubaoApiKey"],
-			mistralApiKey: this.secretsCache["mistralApiKey"],
-			liteLlmApiKey: this.secretsCache["remoteLiteLlmApiKey"] || this.secretsCache["liteLlmApiKey"],
-			fireworksApiKey: this.secretsCache["fireworksApiKey"],
-			asksageApiKey: this.secretsCache["asksageApiKey"],
-			xaiApiKey: this.secretsCache["xaiApiKey"],
-			sambanovaApiKey: this.secretsCache["sambanovaApiKey"],
-			cerebrasApiKey: this.secretsCache["cerebrasApiKey"],
-			groqApiKey: this.secretsCache["groqApiKey"],
-			basetenApiKey: this.secretsCache["basetenApiKey"],
-			moonshotApiKey: this.secretsCache["moonshotApiKey"],
-			nebiusApiKey: this.secretsCache["nebiusApiKey"],
-			sapAiCoreClientId: this.secretsCache["sapAiCoreClientId"],
-			sapAiCoreClientSecret: this.secretsCache["sapAiCoreClientSecret"],
-			huggingFaceApiKey: this.secretsCache["huggingFaceApiKey"],
-			huaweiCloudMaasApiKey: this.secretsCache["huaweiCloudMaasApiKey"],
-			difyApiKey: this.secretsCache["difyApiKey"],
-			vercelAiGatewayApiKey: this.secretsCache["vercelAiGatewayApiKey"],
-			zaiApiKey: this.secretsCache["zaiApiKey"],
-			minimaxApiKey: this.secretsCache["minimaxApiKey"],
-			hicapApiKey: this.secretsCache["hicapApiKey"],
-			aihubmixApiKey: this.secretsCache["aihubmixApiKey"],
+		// Build secrets object
+		const secrets = Object.fromEntries(SecretKeys.map((key) => [key, this.getSecret(key)])) as Secrets
 
-			// Global state (with remote config precedence for applicable fields)
-			awsRegion:
-				this.remoteConfigCache["awsRegion"] || this.taskStateCache["awsRegion"] || this.globalStateCache["awsRegion"],
-			awsUseCrossRegionInference:
-				this.remoteConfigCache["awsUseCrossRegionInference"] ||
-				this.taskStateCache["awsUseCrossRegionInference"] ||
-				this.globalStateCache["awsUseCrossRegionInference"],
-			awsUseGlobalInference:
-				this.remoteConfigCache["awsUseGlobalInference"] ||
-				this.taskStateCache["awsUseGlobalInference"] ||
-				this.globalStateCache["awsUseGlobalInference"],
-			awsBedrockUsePromptCache:
-				this.remoteConfigCache["awsBedrockUsePromptCache"] ||
-				this.taskStateCache["awsBedrockUsePromptCache"] ||
-				this.globalStateCache["awsBedrockUsePromptCache"],
-			awsBedrockEndpoint:
-				this.remoteConfigCache["awsBedrockEndpoint"] ||
-				this.taskStateCache["awsBedrockEndpoint"] ||
-				this.globalStateCache["awsBedrockEndpoint"],
-			awsProfile: this.taskStateCache["awsProfile"] || this.globalStateCache["awsProfile"],
-			awsUseProfile: this.taskStateCache["awsUseProfile"] || this.globalStateCache["awsUseProfile"],
-			awsAuthentication: this.taskStateCache["awsAuthentication"] || this.globalStateCache["awsAuthentication"],
-			vertexProjectId:
-				this.remoteConfigCache["vertexProjectId"] ||
-				this.taskStateCache["vertexProjectId"] ||
-				this.globalStateCache["vertexProjectId"],
-			vertexRegion:
-				this.remoteConfigCache["vertexRegion"] ||
-				this.taskStateCache["vertexRegion"] ||
-				this.globalStateCache["vertexRegion"],
-			requestyBaseUrl: this.taskStateCache["requestyBaseUrl"] || this.globalStateCache["requestyBaseUrl"],
-			openAiBaseUrl:
-				this.remoteConfigCache["openAiBaseUrl"] ||
-				this.taskStateCache["openAiBaseUrl"] ||
-				this.globalStateCache["openAiBaseUrl"],
-			openAiHeaders:
-				this.remoteConfigCache["openAiHeaders"] ||
-				this.taskStateCache["openAiHeaders"] ||
-				this.globalStateCache["openAiHeaders"] ||
-				{},
-			ollamaBaseUrl: this.taskStateCache["ollamaBaseUrl"] || this.globalStateCache["ollamaBaseUrl"],
-			ollamaApiOptionsCtxNum:
-				this.taskStateCache["ollamaApiOptionsCtxNum"] || this.globalStateCache["ollamaApiOptionsCtxNum"],
-			lmStudioBaseUrl: this.taskStateCache["lmStudioBaseUrl"] || this.globalStateCache["lmStudioBaseUrl"],
-			lmStudioMaxTokens: this.taskStateCache["lmStudioMaxTokens"] || this.globalStateCache["lmStudioMaxTokens"],
-			anthropicBaseUrl: this.taskStateCache["anthropicBaseUrl"] || this.globalStateCache["anthropicBaseUrl"],
-			geminiBaseUrl: this.taskStateCache["geminiBaseUrl"] || this.globalStateCache["geminiBaseUrl"],
-			azureApiVersion:
-				this.remoteConfigCache["azureApiVersion"] ||
-				this.taskStateCache["azureApiVersion"] ||
-				this.globalStateCache["azureApiVersion"],
-			azureIdentity:
-				this.remoteConfigCache["azureIdentity"] ||
-				this.taskStateCache["azureIdentity"] ||
-				this.globalStateCache["azureIdentity"],
-			openRouterProviderSorting:
-				this.taskStateCache["openRouterProviderSorting"] || this.globalStateCache["openRouterProviderSorting"],
-			liteLlmBaseUrl:
-				this.remoteConfigCache["liteLlmBaseUrl"] ||
-				this.taskStateCache["liteLlmBaseUrl"] ||
-				this.globalStateCache["liteLlmBaseUrl"],
-			liteLlmUsePromptCache: this.taskStateCache["liteLlmUsePromptCache"] || this.globalStateCache["liteLlmUsePromptCache"],
-			qwenApiLine: this.taskStateCache["qwenApiLine"] || this.globalStateCache["qwenApiLine"],
-			moonshotApiLine: this.taskStateCache["moonshotApiLine"] || this.globalStateCache["moonshotApiLine"],
-			zaiApiLine: this.taskStateCache["zaiApiLine"] || this.globalStateCache["zaiApiLine"],
-			asksageApiUrl: this.taskStateCache["asksageApiUrl"] || this.globalStateCache["asksageApiUrl"],
-			requestTimeoutMs: this.taskStateCache["requestTimeoutMs"] || this.globalStateCache["requestTimeoutMs"],
-			fireworksModelMaxCompletionTokens:
-				this.taskStateCache["fireworksModelMaxCompletionTokens"] ||
-				this.globalStateCache["fireworksModelMaxCompletionTokens"],
-			fireworksModelMaxTokens:
-				this.taskStateCache["fireworksModelMaxTokens"] || this.globalStateCache["fireworksModelMaxTokens"],
-			sapAiCoreBaseUrl: this.taskStateCache["sapAiCoreBaseUrl"] || this.globalStateCache["sapAiCoreBaseUrl"],
-			sapAiCoreTokenUrl: this.taskStateCache["sapAiCoreTokenUrl"] || this.globalStateCache["sapAiCoreTokenUrl"],
-			sapAiResourceGroup: this.taskStateCache["sapAiResourceGroup"] || this.globalStateCache["sapAiResourceGroup"],
-			sapAiCoreUseOrchestrationMode:
-				this.taskStateCache["sapAiCoreUseOrchestrationMode"] || this.globalStateCache["sapAiCoreUseOrchestrationMode"],
-			claudeCodePath: this.taskStateCache["claudeCodePath"] || this.globalStateCache["claudeCodePath"],
-			qwenCodeOauthPath: this.taskStateCache["qwenCodeOauthPath"] || this.globalStateCache["qwenCodeOauthPath"],
-			difyBaseUrl: this.taskStateCache["difyBaseUrl"] || this.globalStateCache["difyBaseUrl"],
-			ocaBaseUrl: this.globalStateCache["ocaBaseUrl"],
-			minimaxApiLine: this.taskStateCache["minimaxApiLine"] || this.globalStateCache["minimaxApiLine"],
-			ocaMode: this.globalStateCache["ocaMode"],
-			hicapModelId: this.globalStateCache["hicapModelId"],
-			aihubmixBaseUrl: this.taskStateCache["aihubmixBaseUrl"] || this.globalStateCache["aihubmixBaseUrl"],
-			aihubmixAppCode: this.taskStateCache["aihubmixAppCode"] || this.globalStateCache["aihubmixAppCode"],
-
-			// Plan mode configurations
-			planModeApiProvider:
-				this.remoteConfigCache["planModeApiProvider"] ||
-				this.taskStateCache["planModeApiProvider"] ||
-				this.globalStateCache["planModeApiProvider"],
-			planModeApiModelId: this.taskStateCache["planModeApiModelId"] || this.globalStateCache["planModeApiModelId"],
-			planModeThinkingBudgetTokens:
-				this.taskStateCache["planModeThinkingBudgetTokens"] || this.globalStateCache["planModeThinkingBudgetTokens"],
-			planModeReasoningEffort:
-				this.taskStateCache["planModeReasoningEffort"] || this.globalStateCache["planModeReasoningEffort"],
-			planModeVsCodeLmModelSelector:
-				this.taskStateCache["planModeVsCodeLmModelSelector"] || this.globalStateCache["planModeVsCodeLmModelSelector"],
-			planModeAwsBedrockCustomSelected:
-				this.taskStateCache["planModeAwsBedrockCustomSelected"] ||
-				this.globalStateCache["planModeAwsBedrockCustomSelected"],
-			planModeAwsBedrockCustomModelBaseId:
-				this.taskStateCache["planModeAwsBedrockCustomModelBaseId"] ||
-				this.globalStateCache["planModeAwsBedrockCustomModelBaseId"],
-			planModeOpenRouterModelId:
-				this.taskStateCache["planModeOpenRouterModelId"] || this.globalStateCache["planModeOpenRouterModelId"],
-			planModeOpenRouterModelInfo:
-				this.taskStateCache["planModeOpenRouterModelInfo"] || this.globalStateCache["planModeOpenRouterModelInfo"],
-			planModeOpenAiModelId: this.taskStateCache["planModeOpenAiModelId"] || this.globalStateCache["planModeOpenAiModelId"],
-			planModeOpenAiModelInfo:
-				this.taskStateCache["planModeOpenAiModelInfo"] || this.globalStateCache["planModeOpenAiModelInfo"],
-			planModeOllamaModelId: this.taskStateCache["planModeOllamaModelId"] || this.globalStateCache["planModeOllamaModelId"],
-			planModeLmStudioModelId:
-				this.taskStateCache["planModeLmStudioModelId"] || this.globalStateCache["planModeLmStudioModelId"],
-			planModeLiteLlmModelId:
-				this.taskStateCache["planModeLiteLlmModelId"] || this.globalStateCache["planModeLiteLlmModelId"],
-			planModeLiteLlmModelInfo:
-				this.taskStateCache["planModeLiteLlmModelInfo"] || this.globalStateCache["planModeLiteLlmModelInfo"],
-			planModeRequestyModelId:
-				this.taskStateCache["planModeRequestyModelId"] || this.globalStateCache["planModeRequestyModelId"],
-			planModeRequestyModelInfo:
-				this.taskStateCache["planModeRequestyModelInfo"] || this.globalStateCache["planModeRequestyModelInfo"],
-			planModeTogetherModelId:
-				this.taskStateCache["planModeTogetherModelId"] || this.globalStateCache["planModeTogetherModelId"],
-			planModeFireworksModelId:
-				this.taskStateCache["planModeFireworksModelId"] || this.globalStateCache["planModeFireworksModelId"],
-			planModeSapAiCoreModelId:
-				this.taskStateCache["planModeSapAiCoreModelId"] || this.globalStateCache["planModeSapAiCoreModelId"],
-			planModeSapAiCoreDeploymentId:
-				this.taskStateCache["planModeSapAiCoreDeploymentId"] || this.globalStateCache["planModeSapAiCoreDeploymentId"],
-			planModeGroqModelId: this.taskStateCache["planModeGroqModelId"] || this.globalStateCache["planModeGroqModelId"],
-			planModeGroqModelInfo: this.taskStateCache["planModeGroqModelInfo"] || this.globalStateCache["planModeGroqModelInfo"],
-			planModeBasetenModelId:
-				this.taskStateCache["planModeBasetenModelId"] || this.globalStateCache["planModeBasetenModelId"],
-			planModeBasetenModelInfo:
-				this.taskStateCache["planModeBasetenModelInfo"] || this.globalStateCache["planModeBasetenModelInfo"],
-			planModeHuggingFaceModelId:
-				this.taskStateCache["planModeHuggingFaceModelId"] || this.globalStateCache["planModeHuggingFaceModelId"],
-			planModeHuggingFaceModelInfo:
-				this.taskStateCache["planModeHuggingFaceModelInfo"] || this.globalStateCache["planModeHuggingFaceModelInfo"],
-			planModeHuaweiCloudMaasModelId:
-				this.taskStateCache["planModeHuaweiCloudMaasModelId"] || this.globalStateCache["planModeHuaweiCloudMaasModelId"],
-			planModeHuaweiCloudMaasModelInfo:
-				this.taskStateCache["planModeHuaweiCloudMaasModelInfo"] ||
-				this.globalStateCache["planModeHuaweiCloudMaasModelInfo"],
-			planModeOcaModelId: this.globalStateCache["planModeOcaModelId"],
-			planModeOcaModelInfo: this.globalStateCache["planModeOcaModelInfo"],
-			planModeOcaReasoningEffort: this.globalStateCache["planModeOcaReasoningEffort"],
-			planModeHicapModelId: this.taskStateCache["planModeHicapModelId"] || this.globalStateCache["planModeHicapModelId"],
-			planModeHicapModelInfo:
-				this.taskStateCache["planModeHicapModelInfo"] || this.globalStateCache["planModeHicapModelInfo"],
-			planModeAihubmixModelId:
-				this.taskStateCache["planModeAihubmixModelId"] || this.globalStateCache["planModeAihubmixModelId"],
-			planModeAihubmixModelInfo:
-				this.taskStateCache["planModeAihubmixModelInfo"] || this.globalStateCache["planModeAihubmixModelInfo"],
-			planModeNousResearchModelId:
-				this.taskStateCache["planModeNousResearchModelId"] || this.globalStateCache["planModeNousResearchModelId"],
-			planModeVercelAiGatewayModelId:
-				this.taskStateCache["planModeVercelAiGatewayModelId"] || this.globalStateCache["planModeVercelAiGatewayModelId"],
-			planModeVercelAiGatewayModelInfo:
-				this.taskStateCache["planModeVercelAiGatewayModelInfo"] ||
-				this.globalStateCache["planModeVercelAiGatewayModelInfo"],
-			geminiPlanModeThinkingLevel:
-				this.taskStateCache["geminiPlanModeThinkingLevel"] || this.globalStateCache["geminiPlanModeThinkingLevel"],
-
-			// Act mode configurations
-			actModeApiProvider:
-				this.remoteConfigCache["actModeApiProvider"] ||
-				this.taskStateCache["actModeApiProvider"] ||
-				this.globalStateCache["actModeApiProvider"],
-			actModeApiModelId: this.taskStateCache["actModeApiModelId"] || this.globalStateCache["actModeApiModelId"],
-			actModeThinkingBudgetTokens:
-				this.taskStateCache["actModeThinkingBudgetTokens"] || this.globalStateCache["actModeThinkingBudgetTokens"],
-			actModeReasoningEffort:
-				this.taskStateCache["actModeReasoningEffort"] || this.globalStateCache["actModeReasoningEffort"],
-			actModeVsCodeLmModelSelector:
-				this.taskStateCache["actModeVsCodeLmModelSelector"] || this.globalStateCache["actModeVsCodeLmModelSelector"],
-			actModeAwsBedrockCustomSelected:
-				this.taskStateCache["actModeAwsBedrockCustomSelected"] ||
-				this.globalStateCache["actModeAwsBedrockCustomSelected"],
-			actModeAwsBedrockCustomModelBaseId:
-				this.taskStateCache["actModeAwsBedrockCustomModelBaseId"] ||
-				this.globalStateCache["actModeAwsBedrockCustomModelBaseId"],
-			actModeOpenRouterModelId:
-				this.taskStateCache["actModeOpenRouterModelId"] || this.globalStateCache["actModeOpenRouterModelId"],
-			actModeOpenRouterModelInfo:
-				this.taskStateCache["actModeOpenRouterModelInfo"] || this.globalStateCache["actModeOpenRouterModelInfo"],
-			actModeOpenAiModelId: this.taskStateCache["actModeOpenAiModelId"] || this.globalStateCache["actModeOpenAiModelId"],
-			actModeOpenAiModelInfo:
-				this.taskStateCache["actModeOpenAiModelInfo"] || this.globalStateCache["actModeOpenAiModelInfo"],
-			actModeOllamaModelId: this.taskStateCache["actModeOllamaModelId"] || this.globalStateCache["actModeOllamaModelId"],
-			actModeLmStudioModelId:
-				this.taskStateCache["actModeLmStudioModelId"] || this.globalStateCache["actModeLmStudioModelId"],
-			actModeLiteLlmModelId: this.taskStateCache["actModeLiteLlmModelId"] || this.globalStateCache["actModeLiteLlmModelId"],
-			actModeLiteLlmModelInfo:
-				this.taskStateCache["actModeLiteLlmModelInfo"] || this.globalStateCache["actModeLiteLlmModelInfo"],
-			actModeRequestyModelId:
-				this.taskStateCache["actModeRequestyModelId"] || this.globalStateCache["actModeRequestyModelId"],
-			actModeRequestyModelInfo:
-				this.taskStateCache["actModeRequestyModelInfo"] || this.globalStateCache["actModeRequestyModelInfo"],
-			actModeTogetherModelId:
-				this.taskStateCache["actModeTogetherModelId"] || this.globalStateCache["actModeTogetherModelId"],
-			actModeFireworksModelId:
-				this.taskStateCache["actModeFireworksModelId"] || this.globalStateCache["actModeFireworksModelId"],
-			actModeSapAiCoreModelId:
-				this.taskStateCache["actModeSapAiCoreModelId"] || this.globalStateCache["actModeSapAiCoreModelId"],
-			actModeSapAiCoreDeploymentId:
-				this.taskStateCache["actModeSapAiCoreDeploymentId"] || this.globalStateCache["actModeSapAiCoreDeploymentId"],
-			actModeGroqModelId: this.taskStateCache["actModeGroqModelId"] || this.globalStateCache["actModeGroqModelId"],
-			actModeGroqModelInfo: this.taskStateCache["actModeGroqModelInfo"] || this.globalStateCache["actModeGroqModelInfo"],
-			actModeBasetenModelId: this.taskStateCache["actModeBasetenModelId"] || this.globalStateCache["actModeBasetenModelId"],
-			actModeBasetenModelInfo:
-				this.taskStateCache["actModeBasetenModelInfo"] || this.globalStateCache["actModeBasetenModelInfo"],
-			actModeHuggingFaceModelId:
-				this.taskStateCache["actModeHuggingFaceModelId"] || this.globalStateCache["actModeHuggingFaceModelId"],
-			actModeHuggingFaceModelInfo:
-				this.taskStateCache["actModeHuggingFaceModelInfo"] || this.globalStateCache["actModeHuggingFaceModelInfo"],
-			actModeHuaweiCloudMaasModelId:
-				this.taskStateCache["actModeHuaweiCloudMaasModelId"] || this.globalStateCache["actModeHuaweiCloudMaasModelId"],
-			actModeHuaweiCloudMaasModelInfo:
-				this.taskStateCache["actModeHuaweiCloudMaasModelInfo"] ||
-				this.globalStateCache["actModeHuaweiCloudMaasModelInfo"],
-			actModeOcaModelId: this.globalStateCache["actModeOcaModelId"],
-			actModeOcaModelInfo: this.globalStateCache["actModeOcaModelInfo"],
-			actModeOcaReasoningEffort: this.globalStateCache["actModeOcaReasoningEffort"],
-			actModeHicapModelId: this.globalStateCache["actModeHicapModelId"],
-			actModeHicapModelInfo: this.globalStateCache["actModeHicapModelInfo"],
-			actModeAihubmixModelId:
-				this.taskStateCache["actModeAihubmixModelId"] || this.globalStateCache["actModeAihubmixModelId"],
-			actModeAihubmixModelInfo:
-				this.taskStateCache["actModeAihubmixModelInfo"] || this.globalStateCache["actModeAihubmixModelInfo"],
-			actModeNousResearchModelId:
-				this.taskStateCache["actModeNousResearchModelId"] || this.globalStateCache["actModeNousResearchModelId"],
-			actModeVercelAiGatewayModelId:
-				this.taskStateCache["actModeVercelAiGatewayModelId"] || this.globalStateCache["actModeVercelAiGatewayModelId"],
-			actModeVercelAiGatewayModelInfo:
-				this.taskStateCache["actModeVercelAiGatewayModelInfo"] ||
-				this.globalStateCache["actModeVercelAiGatewayModelInfo"],
-			geminiActModeThinkingLevel:
-				this.taskStateCache["geminiActModeThinkingLevel"] || this.globalStateCache["geminiActModeThinkingLevel"],
-			nousResearchApiKey: this.secretsCache["nousResearchApiKey"],
+		// Preserve legacy fallback behavior for LiteLLM API key:
+		// if a remoteLiteLlmApiKey is set (via remote config), it should
+		// take precedence over the local liteLlmApiKey.
+		const remoteLiteLlmApiKey = this.secretsCache["remoteLiteLlmApiKey"]
+		if (remoteLiteLlmApiKey !== undefined && remoteLiteLlmApiKey !== null && remoteLiteLlmApiKey !== "") {
+			secrets.liteLlmApiKey = remoteLiteLlmApiKey
 		}
+
+		// Build API handler settings object with task override support
+		const settings = Object.fromEntries(ApiHandlerSettingsKeys.map((key) => [key, this.getSettingWithOverride(key)]))
+
+		return { ...secrets, ...settings } satisfies ApiConfiguration
 	}
 }
