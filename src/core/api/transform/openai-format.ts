@@ -38,7 +38,7 @@ function transformToolCallId(toolId: string): string {
 	// Convert these to "call_" prefix format for Chat Completions API
 	if (isOpenAIResponseToolId(toolId)) {
 		// Use the last 33 chars + "call_" (5 chars) to stay under the 40-char limit.
-		return `call_${toolId.slice(MAX_TOOL_CALL_ID_LENGTH - 5)}`
+		return `call_${toolId.slice(toolId.length - (MAX_TOOL_CALL_ID_LENGTH - 5))}`
 	}
 	// Ensure ID doesn't exceed max length
 	if (toolId.length > MAX_TOOL_CALL_ID_LENGTH) {
