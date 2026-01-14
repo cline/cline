@@ -599,6 +599,13 @@ export class ToolExecutor {
 			toolWasExecuted = true
 			this.pushToolResult(toolResult, block)
 
+			// Reset lastToolName for non-act_mode_respond tools to allow act_mode_respond after real work
+			// This enables the pattern: act_mode_respond -> real_tool -> act_mode_respond (allowed)
+			// while blocking: act_mode_respond -> act_mode_respond (blocked by handler)
+			if (block.name !== ClineDefaultTool.ACT_MODE) {
+				this.taskState.lastToolName = block.name
+			}
+
 			// Check abort before running PostToolUse hook (success path)
 			if (this.taskState.abort) {
 				return
