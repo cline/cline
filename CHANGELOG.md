@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.50.0]
+
+### Added
+
+- Add gpt-5.2-codex OpenAI model support
+- Add create-pull-request skill
+
+### Fixed
+
+- Fix the selection of remotely configured providers
+- Fix act_mode_respond to prevent consecutive calls
+- Fix invalid tool call IDs when switching between model formats
+
 ## [3.49.1]
 
 ### Added
