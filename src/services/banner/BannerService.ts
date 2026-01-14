@@ -92,7 +92,7 @@ export class BannerService {
 				return this._cachedBanners
 			}
 
-			if (this._fetchPromise) {
+			if (this._fetchPromise && !forceRefresh) {
 				return this._fetchPromise
 			}
 
