@@ -87,6 +87,9 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					{/* Description */}
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						<li className="mb-2">
+							<strong>OpenAI:</strong> Add gpt-5.2-codex model support
+						</li>
+						<li className="mb-2">
 							<strong>Skills:</strong> Extend Cline with instruction sets for specialized tasks.{" "}
 							<a
 								href="https://docs.cline.bot/features/skills"
@@ -95,7 +98,12 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 							</a>
 						</li>
 						<li>
-							<strong>Web Search:</strong> Improved websearch tooling in Cline provider.
+							<strong>Web Search:</strong> Improved websearch tooling in Cline provider.{" "}
+							<a
+								href="https://docs.cline.bot/features/web-tools"
+								style={{ color: "var(--vscode-textLink-foreground)" }}>
+								Learn more
+							</a>
 						</li>
 					</ul>
 				</div>
