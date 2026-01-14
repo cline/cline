@@ -1,4 +1,8 @@
-import { getRuleFilesTotalContent, synchronizeRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
+import {
+	getRemoteRulesTotalContentWithMetadata,
+	getRuleFilesTotalContentWithMetadata,
+	synchronizeRuleToggles,
+} from "@core/context/instructions/user-instructions/rule-helpers"
 import { formatResponse } from "@core/prompts/responses"
 import { ensureRulesDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { StateManager } from "@core/storage/StateManager"
@@ -7,18 +11,50 @@ import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import path from "path"
 import { Controller } from "@/core/controller"
+import type { RuleEvaluationContext } from "./rule-conditionals"
 
-export const getGlobalClineRules = async (globalClineRulesFilePath: string, toggles: ClineRulesToggles) => {
+export type ActivatedConditionalRule = {
+	name: string
+	matchedConditions: Record<string, string[]>
+}
+
+export type ClineRulesWithMetadata = {
+	instructions?: string
+	activatedConditionalRules: ActivatedConditionalRule[]
+}
+
+export const getGlobalClineRules = async (
+	globalClineRulesFilePath: string,
+	toggles: ClineRulesToggles,
+): Promise<string | undefined> => {
+	const res = await getGlobalClineRulesWithMetadata(globalClineRulesFilePath, toggles)
+	return res.instructions
+}
+
+export const getGlobalClineRulesWithMetadata = async (
+	globalClineRulesFilePath: string,
+	toggles: ClineRulesToggles,
+	opts?: { evaluationContext?: RuleEvaluationContext },
+): Promise<ClineRulesWithMetadata> => {
 	let combinedContent = ""
+	const activatedConditionalRules: ActivatedConditionalRule[] = []
 
 	// 1. Get file-based rules
 	if (await fileExistsAtPath(globalClineRulesFilePath)) {
 		if (await isDirectory(globalClineRulesFilePath)) {
 			try {
 				const rulesFilePaths = await readDirectory(globalClineRulesFilePath)
-				const rulesFilesTotalContent = await getRuleFilesTotalContent(rulesFilePaths, globalClineRulesFilePath, toggles)
-				if (rulesFilesTotalContent) {
-					combinedContent = rulesFilesTotalContent
+				const rulesFilesTotal = await getRuleFilesTotalContentWithMetadata(
+					rulesFilePaths,
+					globalClineRulesFilePath,
+					toggles,
+					{
+						evaluationContext: opts?.evaluationContext,
+					},
+				)
+				if (rulesFilesTotal.content) {
+					combinedContent = rulesFilesTotal.content
+					activatedConditionalRules.push(...rulesFilesTotal.activatedConditionalRules)
 				}
 			} catch {
 				console.error(`Failed to read .clinerules directory at ${globalClineRulesFilePath}`)
@@ -33,31 +69,40 @@ export const getGlobalClineRules = async (globalClineRulesFilePath: string, togg
 	const remoteConfigSettings = stateManager.getRemoteConfigSettings()
 	const remoteRules = remoteConfigSettings.remoteGlobalRules || []
 	const remoteToggles = stateManager.getGlobalStateKey("remoteRulesToggles") || {}
-
-	for (const rule of remoteRules) {
-		// If alwaysEnabled, always include; otherwise check toggle
-		const isEnabled = rule.alwaysEnabled || remoteToggles[rule.name] !== false
-
-		if (isEnabled) {
-			if (combinedContent) {
-				combinedContent += "\n\n"
-			}
-			combinedContent += `${rule.name}\n${rule.contents}`
-		}
+	const remoteResult = getRemoteRulesTotalContentWithMetadata(remoteRules, remoteToggles, {
+		evaluationContext: opts?.evaluationContext,
+	})
+	if (remoteResult.content) {
+		if (combinedContent) combinedContent += "\n\n"
+		combinedContent += remoteResult.content
+		activatedConditionalRules.push(...remoteResult.activatedConditionalRules)
 	}
 
 	// 3. Return formatted instructions
-	if (combinedContent) {
-		return formatResponse.clineRulesGlobalDirectoryInstructions(globalClineRulesFilePath, combinedContent)
+	if (!combinedContent) {
+		return { instructions: undefined, activatedConditionalRules: [] }
 	}
 
-	return undefined
+	return {
+		instructions: formatResponse.clineRulesGlobalDirectoryInstructions(globalClineRulesFilePath, combinedContent),
+		activatedConditionalRules,
+	}
 }
 
-export const getLocalClineRules = async (cwd: string, toggles: ClineRulesToggles) => {
+export const getLocalClineRules = async (cwd: string, toggles: ClineRulesToggles): Promise<string | undefined> => {
+	const res = await getLocalClineRulesWithMetadata(cwd, toggles)
+	return res.instructions
+}
+
+export const getLocalClineRulesWithMetadata = async (
+	cwd: string,
+	toggles: ClineRulesToggles,
+	opts?: { evaluationContext?: RuleEvaluationContext },
+): Promise<ClineRulesWithMetadata> => {
 	const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
 
-	let clineRulesFileInstructions: string | undefined
+	let instructions: string | undefined
+	const activatedConditionalRules: ActivatedConditionalRule[] = []
 
 	if (await fileExistsAtPath(clineRulesFilePath)) {
 		if (await isDirectory(clineRulesFilePath)) {
@@ -68,9 +113,12 @@ export const getLocalClineRules = async (cwd: string, toggles: ClineRulesToggles
 					[".clinerules", "skills"],
 				])
 
-				const rulesFilesTotalContent = await getRuleFilesTotalContent(rulesFilePaths, cwd, toggles)
-				if (rulesFilesTotalContent) {
-					clineRulesFileInstructions = formatResponse.clineRulesLocalDirectoryInstructions(cwd, rulesFilesTotalContent)
+				const rulesFilesTotal = await getRuleFilesTotalContentWithMetadata(rulesFilePaths, cwd, toggles, {
+					evaluationContext: opts?.evaluationContext,
+				})
+				if (rulesFilesTotal.content) {
+					instructions = formatResponse.clineRulesLocalDirectoryInstructions(cwd, rulesFilesTotal.content)
+					activatedConditionalRules.push(...rulesFilesTotal.activatedConditionalRules)
 				}
 			} catch {
 				console.error(`Failed to read .clinerules directory at ${clineRulesFilePath}`)
@@ -78,9 +126,25 @@ export const getLocalClineRules = async (cwd: string, toggles: ClineRulesToggles
 		} else {
 			try {
 				if (clineRulesFilePath in toggles && toggles[clineRulesFilePath] !== false) {
-					const ruleFileContent = (await fs.readFile(clineRulesFilePath, "utf8")).trim()
-					if (ruleFileContent) {
-						clineRulesFileInstructions = formatResponse.clineRulesLocalFileInstructions(cwd, ruleFileContent)
+					const raw = (await fs.readFile(clineRulesFilePath, "utf8")).trim()
+					if (raw) {
+						const { parseYamlFrontmatter } = await import("./frontmatter")
+						const { evaluateRuleConditionals } = await import("./rule-conditionals")
+						const parsed = parseYamlFrontmatter(raw)
+						if (parsed.hadFrontmatter && parsed.parseError) {
+							instructions = formatResponse.clineRulesLocalFileInstructions(cwd, raw)
+						} else {
+							const { passed, matchedConditions } = evaluateRuleConditionals(
+								parsed.data,
+								opts?.evaluationContext ?? {},
+							)
+							if (passed) {
+								instructions = formatResponse.clineRulesLocalFileInstructions(cwd, parsed.body.trim())
+								if (parsed.hadFrontmatter && Object.keys(matchedConditions).length > 0) {
+									activatedConditionalRules.push({ name: GlobalFileNames.clineRules, matchedConditions })
+								}
+							}
+						}
 					}
 				}
 			} catch {
@@ -89,7 +153,7 @@ export const getLocalClineRules = async (cwd: string, toggles: ClineRulesToggles
 		}
 	}
 
-	return clineRulesFileInstructions
+	return { instructions, activatedConditionalRules }
 }
 
 export async function refreshClineRulesToggles(

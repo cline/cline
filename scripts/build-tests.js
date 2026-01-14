@@ -53,7 +53,8 @@ async function main() {
 	}
 }
 
-execSync("tsc -p ./tsconfig.test.json --outDir out", { encoding: "utf-8" })
+// Use the repo-local TypeScript binary so we don't depend on a global `tsc`.
+execSync("./node_modules/.bin/tsc -p ./tsconfig.test.json --outDir out", { encoding: "utf-8" })
 
 main().catch((e) => {
 	console.error(e)
