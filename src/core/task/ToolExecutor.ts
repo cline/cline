@@ -599,6 +599,9 @@ export class ToolExecutor {
 			toolWasExecuted = true
 			this.pushToolResult(toolResult, block)
 
+			// Track the last executed tool for consecutive call detection (used by act_mode_respond)
+			this.taskState.lastToolName = block.name
+
 			// Check abort before running PostToolUse hook (success path)
 			if (this.taskState.abort) {
 				return
