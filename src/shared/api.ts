@@ -1383,6 +1383,20 @@ export const openAiNativeModels = {
 		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
+	"gpt-5.2-codex": {
+		maxTokens: 8_192, // 128000 breaks context window truncation
+		contextWindow: 400000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.75,
+		outputPrice: 14.0,
+		cacheReadsPrice: 0.175,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		temperature: 1,
+		systemRole: "developer",
+		supportsReasoning: true,
+		supportsReasoningEffort: true,
+	},
 	"gpt-5.1-2025-11-13": {
 		maxTokens: 8_192,
 		contextWindow: 272000,
