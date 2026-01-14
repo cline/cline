@@ -46,7 +46,7 @@ type FieldDefinition<T> = {
 type FieldDefinitions = Record<string, FieldDefinition<any>>
 
 const REMOTE_CONFIG_EXTRA_FIELDS = {
-	remoteConfiguredProviders: { default: [] as string[] },
+	remoteConfiguredProviders: { default: [] as ApiProvider[] },
 	allowedMCPServers: { default: [] as Array<{ id: string }> },
 	remoteMCPServers: { default: undefined as Array<{ name: string; url: string; alwaysEnabled?: boolean }> | undefined },
 	previousRemoteMCPServers: { default: undefined as Array<{ name: string; url: string }> | undefined },
