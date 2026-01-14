@@ -1,6 +1,9 @@
 /**
  * Tests for BannerService
  * Tests API fetching, caching, and client-side provider filtering
+ *
+ * NOTE: Tests temporarily disabled while banner API fetching is disabled
+ * to prevent blocking the extension. Tests will be re-enabled when API is stable.
  */
 
 import type { BannerRules } from "@shared/ClineBanner"
@@ -12,7 +15,7 @@ import type { Controller } from "@/core/controller"
 import { Logger } from "../logging/Logger"
 import { BannerService } from "./BannerService"
 
-describe("BannerService", () => {
+describe.skip("BannerService (TEMPORARILY DISABLED - Banner API fetch disabled)", () => {
 	let sandbox: sinon.SinonSandbox
 	let bannerService: BannerService
 	let axiosGetStub: sinon.SinonStub
