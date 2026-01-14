@@ -138,8 +138,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		}
 
 		// Filter by remote config if remoteConfiguredProviders is set
-		if (remoteConfigSettings?.remoteConfiguredProviders && remoteConfigSettings.remoteConfiguredProviders.length > 0) {
-			providers = providers.filter((option) => remoteConfigSettings.remoteConfiguredProviders!.includes(option.value))
+		const remoteProviders: string[] = remoteConfigSettings?.remoteConfiguredProviders || []
+		if (remoteProviders.length > 0) {
+			providers = providers.filter((option) => remoteProviders.includes(option.value))
 		}
 
 		return providers
