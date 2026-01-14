@@ -107,13 +107,6 @@ export class BannerService {
 
 	private async fetchActiveBanners(): Promise<Banner[]> {
 		try {
-			const authService = this.getAuthServiceInstance()
-			const token: string | null = (await authService?.getAuthToken()) || null
-
-			if (!token) {
-				return []
-			}
-
 			const now = Date.now()
 			const ideType = await this.getIdeType()
 			const extensionVersion = await this.getExtensionVersion()
@@ -128,6 +121,12 @@ export class BannerService {
 
 			const url = urlObj.toString()
 			Logger.log(`BannerService: Fetching banners from ${url}`)
+
+			const authService = this.getAuthServiceInstance()
+			let token: string | null = (await authService?.getAuthToken()) || null
+			if (authService) {
+				token = await authService.getAuthToken()
+			}
 
 			const headers: Record<string, string> = {
 				"Content-Type": "application/json",
