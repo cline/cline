@@ -450,6 +450,17 @@ export class BannerService {
 			.filter((banner): banner is BannerCardData => banner !== null)
 	}
 
+	public getCachedBanners(): BannerCardData[] {
+		try {
+			return this._cachedBanners
+				.map(this.convertToBannerCardData)
+				.filter((banner): banner is BannerCardData => banner !== null)
+		} catch (err) {
+			Logger.error("BannerService: Error getting cached banners", err)
+			return []
+		}
+	}
+
 	/**
 	 * Gets the distinct ID for the current user
 	 * @returns distinct ID string
