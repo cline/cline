@@ -68,8 +68,7 @@ export class ActModeRespondHandler implements IToolHandler, IPartialBlockHandler
 			await config.callbacks.updateFCListFromToolResponse(taskProgress)
 		}
 
-		// Track this tool for consecutive call detection
-		config.taskState.lastToolName = ClineDefaultTool.ACT_MODE
+		// Note: lastToolName is tracked centrally by ToolExecutor after tool execution
 
 		// Return success immediately to allow LLM to continue execution
 		// The key difference from plan_mode_respond: no blocking for user input
