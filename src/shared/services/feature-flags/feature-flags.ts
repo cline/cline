@@ -9,6 +9,8 @@ export enum FeatureFlag {
 	WEBTOOLS = "webtools",
 	// Feature flag for showing the new onboarding flow or old welcome view.
 	ONBOARDING_MODELS = "onboarding_models",
+	// Feature flag for fetching banners
+	BANNERS = "extension_banners",
 }
 
 export const FeatureFlagDefaultValue: Partial<Record<FeatureFlag, FeatureFlagPayload>> = {

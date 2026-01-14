@@ -7,6 +7,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { getAxiosSettings } from "@/shared/net"
 import { AuthService } from "../auth/AuthService"
 import { buildBasicClineHeaders } from "../EnvUtils"
+import { featureFlagsService } from "../feature-flags"
 import { getDistinctId } from "../logging/distinctId"
 import { Logger } from "../logging/Logger"
 
@@ -443,6 +444,10 @@ export class BannerService {
 	 * @returns Array of non-dismissed banners converted to BannerCardData format
 	 */
 	public async getActiveBanners(forceRefresh = false): Promise<BannerCardData[]> {
+		if (featureFlagsService.getBannersEnabled()) {
+			return []
+		}
+
 		const allBanners = await this.internalGetActiveBanners(forceRefresh)
 		const nonDismissedBanners = allBanners.filter((banner) => !this.isBannerDismissed(banner.id))
 		return nonDismissedBanners
