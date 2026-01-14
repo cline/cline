@@ -33,8 +33,8 @@ import { LogoutReason } from "@/services/auth/types"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
+import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
-import { BannerCardData } from "@/shared/cline/banner"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { getLatestAnnouncementId } from "@/utils/announcements"
@@ -80,8 +80,7 @@ export class Controller {
 	// Flag to prevent duplicate cancellations from spam clicking
 	private cancelInProgress = false
 
-	// Timer for periodic remote config fetching
-	private remoteConfigTimer?: NodeJS.Timeout
+	private timers: NodeJS.Timeout[] = []
 
 	// Public getter for workspace manager with lazy initialization - To get workspaces when task isn't initialized (Used by file mentions)
 	async ensureWorkspaceManager(): Promise<WorkspaceRootManager | undefined> {
@@ -111,7 +110,26 @@ export class Controller {
 		// Initial fetch
 		fetchRemoteConfig(this)
 		// Set up 30-second interval
-		this.remoteConfigTimer = setInterval(() => fetchRemoteConfig(this), 30000) // 30 seconds
+		this.timers.push(setInterval(() => fetchRemoteConfig(this), 30000)) // 30 seconds
+	}
+
+	private startBannersTimer() {
+		this.timers.push(
+			setInterval(() => {
+				BannerService.get()
+					.getActiveBanners()
+					.then(() => this.postStateToWebview())
+			}, 3_600_000),
+		) // 1 hour
+	}
+
+	private startTimers() {
+		try {
+			this.startRemoteConfigTimer()
+			this.startBannersTimer()
+		} catch (err) {
+			Logger.error("Error starting timers: ", err)
+		}
 	}
 
 	constructor(readonly context: vscode.ExtensionContext) {
@@ -145,7 +163,7 @@ export class Controller {
 		this.accountService = ClineAccountService.getInstance()
 
 		this.authService.restoreRefreshTokenAndRetrieveAuthInfo().then(() => {
-			this.startRemoteConfigTimer()
+			this.startTimers()
 		})
 
 		this.mcpHub = new McpHub(
@@ -170,10 +188,10 @@ export class Controller {
 	- https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 	*/
 	async dispose() {
-		// Clear the remote config timer
-		if (this.remoteConfigTimer) {
-			clearInterval(this.remoteConfigTimer)
-			this.remoteConfigTimer = undefined
+		// Clear the timers
+		if (this.timers) {
+			this.timers.forEach(clearInterval)
+			this.timers = []
 		}
 
 		await this.clearTask()
@@ -878,7 +896,7 @@ export class Controller {
 		const distinctId = getDistinctId()
 		const version = ExtensionRegistryInfo.version
 		const environment = ClineEnv.config().environment
-		const banners = await this.getBanners()
+		const banners = BannerService.get().getCachedBanners()
 
 		// Set feature flag in dictation settings based on platform
 		const updatedDictationSettings = {
@@ -1005,14 +1023,5 @@ export class Controller {
 		}
 		this.stateManager.setGlobalState("taskHistory", history)
 		return history
-	}
-
-	async getBanners(): Promise<BannerCardData[]> {
-		try {
-			return BannerService.get().getActiveBanners()
-		} catch (err) {
-			console.log(err)
-			return []
-		}
 	}
 }
