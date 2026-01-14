@@ -171,7 +171,7 @@ export function convertToOpenAIResponsesInput(messages: ClineStorageMessage[]): 
 							type: "function_call",
 							call_id,
 							// MAX 53 characters for OpenAI Responses API tool IDs
-							id: !part.id.startsWith("fc") ? "fc_" + part.id.slice(0, 50) : part.id,
+							id: !part.id.startsWith("fc_") ? `fc_${part.id.slice(0, 50)}` : part.id,
 							name: part.name,
 							arguments: JSON.stringify(part.input ?? {}),
 						})
