@@ -76,8 +76,9 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 
 	await showVersionUpdateAnnouncement(context)
 
-	// Initialize banner service and fetch banners from the API.
-	BannerService.initialize(webview.controller).getActiveBanners(true)
+	// Initialize banner service (TEMPORARILY DISABLED - not fetching banners to prevent API hammering)
+	BannerService.initialize(webview.controller)
+	// DISABLED: .getActiveBanners(true)
 
 	telemetryService.captureExtensionActivated()
 

@@ -441,13 +441,13 @@ export class BannerService {
 	 * Gets banners that haven't been dismissed by the user
 	 * @param forceRefresh If true, bypasses cache and fetches fresh data
 	 * @returns Array of non-dismissed banners converted to BannerCardData format
+	 *
+	 * TEMPORARILY DISABLED: Returning empty array to prevent API calls
 	 */
 	public async getActiveBanners(forceRefresh = false): Promise<BannerCardData[]> {
-		const allBanners = await this.internalGetActiveBanners(forceRefresh)
-		const nonDismissedBanners = allBanners.filter((banner) => !this.isBannerDismissed(banner.id))
-		return nonDismissedBanners
-			.map((banner) => this.convertToBannerCardData(banner))
-			.filter((banner): banner is BannerCardData => banner !== null)
+		// Disable all banner fetching to prevent blocking the extension
+		Logger.log("BannerService: Banner fetching is temporarily disabled")
+		return []
 	}
 
 	/**
