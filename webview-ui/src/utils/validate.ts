@@ -172,6 +172,19 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 					return "You must provide a valid API key"
 				}
 				break
+			case "openai-oauth":
+				if (
+					!apiConfiguration.openAiOAuthAuthUrl ||
+					!apiConfiguration.openAiOAuthBaseUrl ||
+					!apiConfiguration.openAiOAuthClientId ||
+					!apiConfiguration.openAiOAuthClientSecret ||
+					!apiConfiguration.openAiOAuthHeaders ||
+					!apiConfiguration.openAiOAuthScopes ||
+					!apiConfiguration.openAiOAuthTokenUrl
+				) {
+					return "You must provide valid auth/token URLs, client information, headers, and scopes."
+				}
+				break
 		}
 	}
 	return undefined

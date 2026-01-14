@@ -30,6 +30,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { AuthService } from "@/services/auth/AuthService"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
+import { OpenAIAuthService } from "@/services/auth/openai/OpenAIAuthService"
 import { LogoutReason } from "@/services/auth/types"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
@@ -73,6 +74,7 @@ export class Controller {
 	mcpHub: McpHub
 	accountService: ClineAccountService
 	authService: AuthService
+	openaiAuthService: OpenAIAuthService
 	ocaAuthService: OcaAuthService
 	readonly stateManager: StateManager
 
@@ -134,6 +136,7 @@ export class Controller {
 			},
 		})
 		this.authService = AuthService.getInstance(this)
+		this.openaiAuthService = OpenAIAuthService.initialize(this)
 		this.ocaAuthService = OcaAuthService.initialize(this)
 		this.accountService = ClineAccountService.getInstance()
 
@@ -598,6 +601,45 @@ export class Controller {
 			})
 			// Even on login failure, we preserve any existing tokens
 			// Only clear tokens on explicit logout
+		}
+	}
+
+	async handleOpenAIAuthCallback(code: string, state: string) {
+		Logger.log("Controller: Handling OpenAI auth callback for code and state:", { code, state })
+		try {
+			await this.openaiAuthService.handleAuthCallback(code, state)
+
+			const openAiOAuthProvider: ApiProvider = "openai-oauth"
+
+			// Get current settings to determine how to update providers
+			const planActSeparateModelsSetting = this.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
+			const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+			const currentApiConfiguration = this.stateManager.getApiConfiguration()
+
+			const updatedConfig = { ...currentApiConfiguration }
+
+			if (planActSeparateModelsSetting) {
+				if (currentMode === "plan") {
+					updatedConfig.planModeApiProvider = openAiOAuthProvider
+				} else {
+					updatedConfig.actModeApiProvider = openAiOAuthProvider
+				}
+			} else {
+				updatedConfig.planModeApiProvider = openAiOAuthProvider
+				updatedConfig.actModeApiProvider = openAiOAuthProvider
+			}
+
+			// Update the API configuration
+			this.stateManager.setApiConfiguration(updatedConfig)
+
+			// Rebuild the API handler with the new configuration
+			if (this.task) {
+				this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
+			}
+
+			await this.postStateToWebview()
+		} catch (error) {
+			Logger.error("Failed to handle OpenAI auth callback:", error)
 		}
 	}
 

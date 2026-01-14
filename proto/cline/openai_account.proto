@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package cline;
+
+import "cline/common.proto";
+
+// OpenAI user information
+message OpenAIUserInfo {
+  string uid = 1;
+  string email = 2;
+  string display_name = 3;
+}
+
+// OpenAI authentication state
+message OpenAIAuthState {
+  optional OpenAIUserInfo user = 1;
+  optional string api_key = 2;
+}
+
+// RPC service for OpenAI authentication
+service OpenAIAuthService {
+  // Initiate OAuth authentication flow
+  rpc CreateAuthRequest(EmptyRequest) returns (String);
+
+  // Handle OAuth callback
+  rpc HandleAuthCallback(AuthCallbackRequest) returns (Empty);
+
+  // Subscribe to authentication status updates
+  rpc SubscribeToAuthStatusUpdate(EmptyRequest) returns (stream OpenAIAuthState);
+
+  // Sign out and clear tokens
+  rpc HandleDeauth(EmptyRequest) returns (Empty);
+}
+
+// OAuth callback request
+message AuthCallbackRequest {
+  string code = 1;
+  string state = 2;
+}

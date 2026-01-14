@@ -81,6 +81,19 @@ export class SharedUriHandler {
 					Logger.warn("SharedUriHandler: Missing code parameter for auth callback")
 					return false
 				}
+				case "/auth/openai": {
+					Logger.log("SharedUriHandler: OpenAI Auth callback received:", { path: path })
+
+					const code = query.get("code")
+					const state = query.get("state")
+
+					if (code && state) {
+						await visibleWebview.controller.handleOpenAIAuthCallback(code, state)
+						return true
+					}
+					Logger.warn("SharedUriHandler: Missing code or state parameter for OpenAI auth callback")
+					return false
+				}
 				case "/task": {
 					const prompt = query.get("prompt")
 					if (prompt) {

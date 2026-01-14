@@ -23,6 +23,7 @@ const ApiConfigurationSection = ({ renderSectionHeader, initialModelTab }: ApiCo
 		<div>
 			{renderSectionHeader?.("api-config")}
 			<Section>
+				<h1>ApiConfigurationSection.tsx</h1>
 				{/* Tabs container */}
 				{planActSeparateModelsSetting ? (
 					<div className="rounded-md mb-5">

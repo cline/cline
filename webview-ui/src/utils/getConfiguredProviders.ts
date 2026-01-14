@@ -225,6 +225,11 @@ export function getConfiguredProviders(apiConfiguration: ApiConfiguration | unde
 		configured.push("oca")
 	}
 
+	//TODO: remove?
+	if (apiConfiguration.openAiOAuthAuthUrl) {
+		configured.push("openai-oauth")
+	}
+
 	return configured
 }
 

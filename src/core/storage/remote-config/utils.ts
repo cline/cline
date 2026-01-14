@@ -182,6 +182,26 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		}
 	}
 
+	// Map OpenAI OAuth provider settings
+	const openAiOAuthSettings = remoteConfig.providerSettings?.OpenAiOauth
+	if (openAiOAuthSettings) {
+		transformed.planModeApiProvider = "openai-oauth"
+		transformed.actModeApiProvider = "openai-oauth"
+		providers.push("openai-oauth")
+
+		transformed.openAiOAuthAuthUrl = openAiOAuthSettings.openAiOAuthAuthUrl
+		transformed.openAiOAuthClientId = openAiOAuthSettings.openAiOAuthClientId
+		transformed.openAiOAuthScopes = openAiOAuthSettings.openAiOAuthScopes
+		transformed.openAiOAuthTokenUrl = openAiOAuthSettings.openAiOAuthTokenUrl
+
+		if (openAiOAuthSettings.openAiOAuthBaseUrl !== undefined) {
+			transformed.openAiOAuthBaseUrl = openAiOAuthSettings.openAiOAuthBaseUrl
+		}
+		if (openAiOAuthSettings.openAiOAuthHeaders !== undefined) {
+			transformed.openAiOAuthHeaders = openAiOAuthSettings.openAiOAuthHeaders
+		}
+	}
+
 	// This line needs to stay here, it is order dependent on the above code checking the configured providers
 	if (providers.length > 0) {
 		transformed.remoteConfiguredProviders = providers

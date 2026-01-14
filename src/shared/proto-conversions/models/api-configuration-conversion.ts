@@ -325,6 +325,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.NOUSRESEARCH
 		case "openai-codex":
 			return ProtoApiProvider.OPENAI_CODEX
+		case "openai-oauth":
+			return ProtoApiProvider.OPENAI_OAUTH
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -415,6 +417,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "nousResearch"
 		case ProtoApiProvider.OPENAI_CODEX:
 			return "openai-codex"
+		case ProtoApiProvider.OPENAI_OAUTH:
+			return "openai-oauth"
 		default:
 			return "anthropic"
 	}
@@ -508,6 +512,13 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		aihubmixAppCode: config.aihubmixAppCode,
 		hicapApiKey: config.hicapApiKey,
 		hicapModelId: config.hicapModelId,
+		openAiOAuthAuthUrl: config.openAiOAuthAuthUrl,
+		openAiOAuthBaseUrl: config.openAiOAuthBaseUrl,
+		openAiOAuthClientId: config.openAiOAuthClientId,
+		openAiOAuthClientSecret: config.openAiOAuthClientSecret,
+		openAiOAuthHeaders: config.openAiOAuthHeaders || {},
+		openAiOAuthScopes: config.openAiOAuthScopes,
+		openAiOAuthTokenUrl: config.openAiOAuthTokenUrl,
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider ? convertApiProviderToProto(config.planModeApiProvider) : undefined,
@@ -550,6 +561,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeNousResearchModelId: config.planModeNousResearchModelId,
 		planModeVercelAiGatewayModelId: config.planModeVercelAiGatewayModelId,
 		planModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.planModeVercelAiGatewayModelInfo),
+		planModeOpenAiOAuthModelId: config.planModeOpenAiOAuthModelId,
+		planModeOpenAiOAuthModelInfo: convertOpenAiCompatibleModelInfoToProto(config.planModeOpenAiOAuthModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider ? convertApiProviderToProto(config.actModeApiProvider) : undefined,
@@ -592,6 +605,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeNousResearchModelId: config.actModeNousResearchModelId,
 		actModeVercelAiGatewayModelId: config.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.actModeVercelAiGatewayModelInfo),
+		actModeOpenAiOAuthModelId: config.actModeOpenAiOAuthModelId,
+		actModeOpenAiOAuthModelInfo: convertOpenAiCompatibleModelInfoToProto(config.actModeOpenAiOAuthModelInfo),
 	}
 }
 
@@ -683,6 +698,14 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		hicapModelId: protoConfig.hicapModelId,
 		nousResearchApiKey: protoConfig.nousResearchApiKey,
 		clineApiKey: protoConfig.clineApiKey,
+		openAiOAuthAuthUrl: protoConfig.openAiOAuthAuthUrl,
+		openAiOAuthBaseUrl: protoConfig.openAiOAuthBaseUrl,
+		openAiOAuthClientId: protoConfig.openAiOAuthClientId,
+		openAiOAuthClientSecret: protoConfig.openAiOAuthClientSecret,
+		openAiOAuthHeaders:
+			Object.keys(protoConfig.openAiOAuthHeaders || {}).length > 0 ? protoConfig.openAiOAuthHeaders : undefined,
+		openAiOAuthScopes: protoConfig.openAiOAuthScopes,
+		openAiOAuthTokenUrl: protoConfig.openAiOAuthTokenUrl,
 
 		// Plan mode configurations
 		planModeApiProvider:
@@ -728,6 +751,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeNousResearchModelId: protoConfig.planModeNousResearchModelId,
 		planModeVercelAiGatewayModelId: protoConfig.planModeVercelAiGatewayModelId,
 		planModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.planModeVercelAiGatewayModelInfo),
+		planModeOpenAiOAuthModelId: protoConfig.planModeOpenAiOAuthModelId,
+		planModeOpenAiOAuthModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.planModeOpenAiOAuthModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider:
@@ -771,5 +796,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeNousResearchModelId: protoConfig.actModeNousResearchModelId,
 		actModeVercelAiGatewayModelId: protoConfig.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.actModeVercelAiGatewayModelInfo),
+		actModeOpenAiOAuthModelId: protoConfig.actModeOpenAiOAuthModelId,
+		actModeOpenAiOAuthModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.actModeOpenAiOAuthModelInfo),
 	}
 }

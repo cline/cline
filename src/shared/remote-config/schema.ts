@@ -36,6 +36,18 @@ export const OpenAiCompatibleSchema = z.object({
 	azureIdentity: z.boolean().optional(),
 })
 
+export const OpenAiOauthSchema = z.object({
+	// A list of the allowed models with their settings
+	models: z.array(OpenAiCompatibleModelSchema).optional(),
+	openAiOAuthAuthUrl: z.string().optional(),
+	openAiOAuthBaseUrl: z.string().optional(),
+	openAiOAuthClientId: z.string().optional(),
+	openAiOAuthClientSecret: z.string().optional(),
+	openAiOAuthHeaders: z.record(z.string(), z.string()).optional(),
+	openAiOAuthScopes: z.string().optional(),
+	openAiOAuthTokenUrl: z.string().optional(),
+})
+
 // AWS Bedrock model schema with per-model settings
 export const AwsBedrockModelSchema = z.object({
 	id: z.string(), // The model ID is required
@@ -107,6 +119,7 @@ const ProviderSettingsSchema = z.object({
 	Cline: ClineSettingsSchema.optional(),
 	Vertex: VertexSettingsSchema.optional(),
 	LiteLLM: LiteLLMSchema.optional(),
+	OpenAiOauth: OpenAiOauthSchema.optional(),
 })
 
 export const AllowedMCPServerSchema = z.object({

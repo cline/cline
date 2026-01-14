@@ -101,7 +101,10 @@ message Secrets {
   optional string oca_refresh_token = 42;
   optional string mcp_o_auth_secrets = 43;
   optional string cline_api_key = 44;
-  optional string openai_codex_oauth_credentials = 46;
+  optional string openai_codex_oauth_credentials = 48;
+  optional string open_ai_o_auth_access_token = 49;
+  optional string open_ai_o_auth_client_secret = 50;
+  optional string open_ai_o_auth_refresh_token = 51;
 }
 
 // NOTE: Add new fields under API_HANDLER_SETTINGS_FIELDS or USER_SETTINGS_FIELDS
@@ -278,7 +281,19 @@ message Settings {
   optional int32 open_telemetry_log_max_queue_size = 171;
   optional bool worktrees_enabled = 172;
   optional bool auto_approve_all_toggled = 174;
-  map<string, string> open_ai_headers = 175;
+  optional string open_ai_o_auth_auth_url = 176;
+  optional string open_ai_o_auth_base_url = 177;
+  optional string open_ai_o_auth_client_id = 178;
+  optional string open_ai_o_auth_scopes = 179;
+  optional string open_ai_o_auth_token_url = 180;
+  optional string act_mode_open_ai_o_auth_model_id = 181;
+  optional OpenAiCompatibleModelInfo act_mode_open_ai_o_auth_model_info = 182;
+  optional string plan_mode_open_ai_o_auth_model_id = 183;
+  optional OpenAiCompatibleModelInfo plan_mode_open_ai_o_auth_model_info = 184;
+  map<string, string> open_ai_headers = 185;
+  map<string, string> open_ai_o_auth_headers = 186;
+  optional string open_ai_o_auth_model_id = 187;
+  optional OpenRouterModelInfo open_ai_o_auth_model_info = 188;
 }
 
 message DictationSettings {
@@ -425,6 +440,12 @@ message UpdateSettingsRequest {
   optional string oca_reasoning_effort = 37;
   optional bool opt_out_of_remote_config = 39;
   optional bool worktrees_enabled = 40;
+  optional string open_ai_oauth_auth_url = 41;
+  optional string open_ai_oauth_base_url = 42;
+  optional string open_ai_oauth_client_id = 43;
+  optional string open_ai_oauth_client_secret = 44;
+  optional string open_ai_oauth_scopes = 45;
+  optional string open_ai_oauth_token_url = 46;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {

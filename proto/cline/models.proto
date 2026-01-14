@@ -183,6 +183,7 @@ message ModelsApiSecrets {
   optional string oca_refresh_token = 37;
   optional string minimax_api_key = 38;
   optional string aihubmix_api_key = 39;
+  optional string open_ai_o_auth_client_secret = 40;
 }
 
 // API configuration options (non-secret settings)
@@ -440,6 +441,7 @@ enum ApiProvider {
   AIHUBMIX = 38;
   NOUSRESEARCH = 39;
   OPENAI_CODEX = 40;
+  OPENAI_OAUTH = 41;
 }
 
 enum ApiFormat {
@@ -577,6 +579,13 @@ message ModelsApiConfiguration {
   optional string aihubmix_app_code = 84;
   optional string nous_research_api_key = 85;
   optional bool azure_identity = 86;
+  optional string open_ai_o_auth_auth_url = 87;
+  optional string open_ai_o_auth_base_url = 88;
+  optional string open_ai_o_auth_client_id = 89;
+  optional string open_ai_o_auth_client_secret = 90;
+  map<string, string> open_ai_o_auth_headers = 91;
+  optional string open_ai_o_auth_scopes = 92;
+  optional string open_ai_o_auth_token_url = 93;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -619,6 +628,8 @@ message ModelsApiConfiguration {
   optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 137;
   optional string plan_mode_nous_research_model_id = 138;
   optional string gemini_plan_mode_thinking_level = 139;
+  optional string plan_mode_open_ai_o_auth_model_id = 140;
+  optional OpenAiCompatibleModelInfo plan_mode_open_ai_o_auth_model_info = 141;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -661,4 +672,6 @@ message ModelsApiConfiguration {
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 237;
   optional string act_mode_nous_research_model_id = 238;
   optional string gemini_act_mode_thinking_level = 239;
+  optional string act_mode_open_ai_o_auth_model_id = 240;
+  optional OpenAiCompatibleModelInfo act_mode_open_ai_o_auth_model_info = 241;
 }

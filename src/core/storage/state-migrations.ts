@@ -599,6 +599,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 			const actModeLmStudioModelId = context.globalState.get("actModeLmStudioModelId")
 			const planModeVsCodeLmModelSelector = context.globalState.get("planModeVsCodeLmModelSelector")
 			const actModeVsCodeLmModelSelector = context.globalState.get("actModeVsCodeLmModelSelector")
+			const openAiOAuthClientSecret = context.globalState.get("openAiOAuthClientSecret")
 
 			// This is the original logic used for checking if the welcome view should be shown
 			// It was located in the ExtensionStateContextProvider
@@ -632,6 +633,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 				difyApiKey,
 				hicapApiKey,
 				openAiCodexCredentials,
+				openAiOAuthClientSecret,
 			].some((key) => key !== undefined)
 
 			// Set welcomeViewCompleted based on whether user has keys

@@ -32,6 +32,7 @@ import { OllamaHandler } from "./providers/ollama"
 import { OpenAiHandler } from "./providers/openai"
 import { OpenAiCodexHandler } from "./providers/openai-codex"
 import { OpenAiNativeHandler } from "./providers/openai-native"
+import { OpenAiOAuthHandler } from "./providers/openai-oauth"
 import { OpenRouterHandler } from "./providers/openrouter"
 import { QwenHandler } from "./providers/qwen"
 import { QwenCodeHandler } from "./providers/qwen-code"
@@ -191,6 +192,22 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+			})
+		case "openai-oauth":
+			return new OpenAiOAuthHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				openAiOAuthAuthUrl: options.openAiOAuthAuthUrl,
+				openAiOAuthBaseUrl: options.openAiOAuthBaseUrl,
+				openAiOAuthClientId: options.openAiOAuthClientId,
+				openAiOAuthClientSecret: options.openAiOAuthClientSecret,
+				openAiOAuthHeaders: options.openAiOAuthHeaders,
+				openAiOAuthModelId: mode === "plan" ? options.planModeOpenAiOAuthModelId : options.actModeOpenAiOAuthModelId,
+				openAiOAuthModelInfo:
+					mode === "plan" ? options.planModeOpenAiOAuthModelInfo : options.actModeOpenAiOAuthModelInfo,
+				openAiOAuthScopes: options.openAiOAuthScopes,
+				openAiOAuthTokenUrl: options.openAiOAuthTokenUrl,
+				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
+				taskId: options.ulid,
 			})
 		case "deepseek":
 			return new DeepSeekHandler({

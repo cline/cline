@@ -40,6 +40,7 @@ import { OcaProvider } from "./providers/OcaProvider"
 import { OllamaProvider } from "./providers/OllamaProvider"
 import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
 import { OpenAINativeProvider } from "./providers/OpenAINative"
+import { OpenAIOAuthProvider } from "./providers/OpenAIOAuthProvider"
 import { OpenAiCodexProvider } from "./providers/OpenAiCodexProvider"
 import { OpenRouterProvider } from "./providers/OpenRouterProvider"
 import { QwenCodeProvider } from "./providers/QwenCodeProvider"
@@ -384,7 +385,14 @@ const ApiOptions = ({
 			{apiConfiguration && selectedProvider === "openai-codex" && (
 				<OpenAiCodexProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
-
+			{apiConfiguration && selectedProvider === "openai-oauth" && (
+				<OpenAIOAuthProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					key="openai-oauth"
+					showModelOptions={showModelOptions}
+				/>
+			)}
 			{apiConfiguration && selectedProvider === "qwen" && (
 				<QwenProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
