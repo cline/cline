@@ -1149,33 +1149,38 @@ export const ChatRowContent = memo(
 					case "error_retry":
 						try {
 							const retryInfo = JSON.parse(message.text || "{}")
-							const { attempt, maxAttempts, delaySeconds, failed } = retryInfo
+							const { attempt, maxAttempts, delaySeconds, failed, errorMessage } = retryInfo
 							const isFailed = failed === true
 
 							return (
-								<div className="flex flex-col bg-quote p-0 rounded-[3px] text-[12px]">
-									<div className="flex items-center mb-1">
-										{isFailed ? (
-											<TriangleAlertIcon className="mr-2 size-2" />
-										) : (
-											<RefreshCwIcon className="mr-2 size-2 animate-spin" />
-										)}
-										<span className="font-medium text-foreground">
-											{isFailed ? "Auto-Retry Failed" : "Auto-Retry in Progress"}
-										</span>
-									</div>
-									<div className="text-foreground opacity-80">
-										{isFailed ? (
-											<span>
-												Auto-retry failed after <strong>{maxAttempts}</strong> attempts. Manual
-												intervention required.
+								<div className="flex flex-col gap-2">
+									{errorMessage && (
+										<p className="m-0 whitespace-pre-wrap text-error wrap-anywhere text-xs">{errorMessage}</p>
+									)}
+									<div className="flex flex-col bg-quote p-0 rounded-[3px] text-[12px]">
+										<div className="flex items-center mb-1">
+											{isFailed ? (
+												<TriangleAlertIcon className="mr-2 size-2" />
+											) : (
+												<RefreshCwIcon className="mr-2 size-2 animate-spin" />
+											)}
+											<span className="font-medium text-foreground">
+												{isFailed ? "Auto-Retry Failed" : "Auto-Retry in Progress"}
 											</span>
-										) : (
-											<span>
-												Attempt <strong>{attempt}</strong> of <strong>{maxAttempts}</strong> - Retrying in{" "}
-												{delaySeconds} seconds...
-											</span>
-										)}
+										</div>
+										<div className="text-foreground opacity-80">
+											{isFailed ? (
+												<span>
+													Auto-retry failed after <strong>{maxAttempts}</strong> attempts. Manual
+													intervention required.
+												</span>
+											) : (
+												<span>
+													Attempt <strong>{attempt}</strong> of <strong>{maxAttempts}</strong> -
+													Retrying in {delaySeconds} seconds...
+												</span>
+											)}
+										</div>
 									</div>
 								</div>
 							)

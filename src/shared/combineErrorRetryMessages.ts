@@ -43,24 +43,30 @@ export function combineErrorRetryMessages(messages: ClineMessage[]): ClineMessag
 		const message = messages[i]
 
 		if (message.say === "error_retry") {
-			// Look ahead to see what follows this error_retry
-			let nextIndex = i + 1
-			let nextMessage = messages[nextIndex]
+			// Look ahead to find if there's another error_retry before the next api_req_started
+			let hasLaterErrorRetry = false
+			let hasApiReqStartedBefore = false
 
-			// Skip over api_req_retried to find the meaningful next message
-			if (nextMessage?.say === "api_req_retried") {
-				nextIndex++
-				nextMessage = messages[nextIndex]
+			for (let j = i + 1; j < messages.length; j++) {
+				const laterMessage = messages[j]
+				if (laterMessage.say === "api_req_started") {
+					hasApiReqStartedBefore = true
+					break
+				}
+				if (laterMessage.say === "error_retry") {
+					hasLaterErrorRetry = true
+					break
+				}
 			}
 
-			// Case 1: Another error_retry follows - skip this one, show the later one
-			if (nextMessage?.say === "error_retry") {
+			// Case 1: Another error_retry follows before api_req_started - skip this one
+			if (hasLaterErrorRetry) {
 				continue
 			}
 
-			// Case 2: api_req_started follows - retry succeeded, don't show the error_retry
-			// (unless it has failed: true, meaning all retries were exhausted)
-			if (nextMessage?.say === "api_req_started") {
+			// Case 2: api_req_started follows (no later error_retry) - retry succeeded
+			// Don't show the error_retry unless it has failed: true
+			if (hasApiReqStartedBefore) {
 				try {
 					const retryInfo = JSON.parse(message.text || "{}")
 					// Only skip if this wasn't a final failure message
