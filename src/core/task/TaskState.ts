@@ -19,6 +19,13 @@ export class TaskState {
 	// Track tool calls that have already had errors pushed (prevents duplicates during streaming)
 	errorPushedForCallIds: Set<string> = new Set()
 
+	/**
+	 * Workspace-relative (POSIX) paths inferred from the assistant's tool calls.
+	 * This represents the model's "intent" to operate on a file path, and is used
+	 * as additional evidence for activating path-scoped Cline Rules on subsequent turns.
+	 */
+	rulePathIntentCandidates: Set<string> = new Set()
+
 	// Presentation locks
 	presentAssistantMessageLocked = false
 	presentAssistantMessageHasPendingUpdates = false
