@@ -9,6 +9,32 @@ import {
 	ClineTextContentBlock,
 	ClineUserToolResultContentBlock,
 } from "@/shared/messages/content"
+import { isOpenAIResponseToolId } from "./openai-response-format"
+
+// OpenAI API has a maximum tool call ID length of 40 characters
+const MAX_TOOL_CALL_ID_LENGTH = 40
+
+/**
+ * Transforms a tool ID to a consistent format for OpenAI's Chat Completions API.
+ * This function MUST be used for both tool_calls[].id (assistant) and tool_call_id (tool result)
+ * to ensure they match - otherwise OpenAI will reject the request with:
+ * "Invalid parameter: 'tool_call_id' of 'xxx' not found in 'tool_calls' of previous message."
+ *
+ * @param toolId - The original tool ID from Cline/Anthropic format
+ * @returns The transformed ID suitable for OpenAI API
+ */
+function transformToolCallId(toolId: string): string {
+	// OpenAI Responses API uses "fc_" prefix with 53 char length
+	// Convert these to "call_" prefix format for Chat Completions API
+	if (isOpenAIResponseToolId(toolId)) {
+		return `call_${toolId.slice(20)}`
+	}
+	// Ensure ID doesn't exceed max length
+	if (toolId.length > MAX_TOOL_CALL_ID_LENGTH) {
+		return toolId.slice(0, MAX_TOOL_CALL_ID_LENGTH)
+	}
+	return toolId
+}
 
 /**
  * Converts an array of ClineStorageMessage objects to OpenAI's Completions API format.
@@ -80,7 +106,9 @@ export function convertToOpenAiMessages(
 					}
 					openAiMessages.push({
 						role: "tool",
-						tool_call_id: toolMessage.tool_use_id,
+						// The tool_call_id must match the id used in the assistant's tool_calls array.
+						// Use the same transformation logic as tool_calls to ensure IDs match.
+						tool_call_id: transformToolCallId(toolMessage.tool_use_id),
 						content: content,
 					})
 				})
@@ -171,23 +199,29 @@ export function convertToOpenAiMessages(
 				// Process tool use messages
 				const tool_calls: OpenAI.Chat.ChatCompletionMessageToolCall[] = toolMessages.map((toolMessage) => {
 					const toolDetails = toolMessage.reasoning_details
+					const toolId = toolMessage.id
 					if (toolDetails) {
 						if (Array.isArray(toolDetails)) {
 							// For Gemini: reasoning details must be linkable back to the tool call.
 							// Sometimes OpenRouter/Gemini returns entries without `id`; those poison the next request.
 							// Keep only entries with an id matching the tool call id.
 							// See: https://github.com/cline/cline/issues/8214
-							const validDetails = toolDetails.filter((detail: any) => detail?.id === toolMessage.id)
-							if (validDetails.length > 0) reasoningDetails.push(...validDetails)
+							const validDetails = toolDetails.filter((detail: any) => detail?.id === toolId)
+							if (validDetails.length > 0) {
+								reasoningDetails.push(...validDetails)
+							}
 						} else {
 							// Single reasoning detail - only include if it has matching id
 							const detail = toolDetails as any
-							if (detail?.id === toolMessage.id) reasoningDetails.push(toolDetails)
+							if (detail?.id === toolId) {
+								reasoningDetails.push(toolDetails)
+							}
 						}
 					}
 
 					return {
-						id: toolMessage.id,
+						// Use the same transformation as tool_call_id to ensure IDs match
+						id: transformToolCallId(toolId),
 						type: "function",
 						function: {
 							name: toolMessage.name,
