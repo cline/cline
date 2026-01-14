@@ -9,10 +9,20 @@ import {
 	ClineTextContentBlock,
 	ClineUserToolResultContentBlock,
 } from "@/shared/messages/content"
-import { isOpenAIResponseToolId } from "./openai-response-format"
 
 // OpenAI API has a maximum tool call ID length of 40 characters
 const MAX_TOOL_CALL_ID_LENGTH = 40
+
+/**
+ * Determines if a given tool ID follows the OpenAI Responses API format for tool calls.
+ * OpenAI tool call IDs start with "fc_" and are exactly 53 characters long.
+ *
+ * @param callId - The tool ID to check
+ * @returns True if the tool ID matches the OpenAI Responses API format, false otherwise
+ */
+function isOpenAIResponseToolId(callId: string): boolean {
+	return callId.startsWith("fc_") && callId.length === 53
+}
 
 /**
  * Transforms a tool ID to a consistent format for OpenAI's Chat Completions API.
@@ -27,7 +37,8 @@ function transformToolCallId(toolId: string): string {
 	// OpenAI Responses API uses "fc_" prefix with 53 char length
 	// Convert these to "call_" prefix format for Chat Completions API
 	if (isOpenAIResponseToolId(toolId)) {
-		return `call_${toolId.slice(20)}`
+		// Use the last 33 chars + "call_" (5 chars) to stay under the 40-char limit.
+		return `call_${toolId.slice(MAX_TOOL_CALL_ID_LENGTH - 5)}`
 	}
 	// Ensure ID doesn't exceed max length
 	if (toolId.length > MAX_TOOL_CALL_ID_LENGTH) {

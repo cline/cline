@@ -223,14 +223,3 @@ export function convertToOpenAIResponsesInput(messages: ClineStorageMessage[]): 
 
 	return allItems
 }
-
-/**
- * Determines if a given tool ID follows the OpenAI Responses API format for tool calls.
- * OpenAI tool call IDs start with "fc_" and are exactly 53 characters long.
- *
- * @param callId - The tool ID to check
- * @returns True if the tool ID matches the OpenAI Responses API format, false otherwise
- */
-export function isOpenAIResponseToolId(callId: string): boolean {
-	return callId.startsWith("fc_") && callId.length === 53
-}
