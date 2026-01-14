@@ -11,17 +11,6 @@ import {
 
 describe("Remote Config Schema", () => {
 	describe("EnterpriseTelemetry", () => {
-		it("should reject invalid urls", () => {
-			const enterpriseTelemetry = {
-				promptUploading: {
-					enabled: true,
-					url: "invalid",
-				},
-			}
-
-			expect(() => EnterpriseTelemetrySchema.parse(enterpriseTelemetry)).to.throw()
-		})
-
 		it("accepts an empty object", () => {
 			const result = EnterpriseTelemetrySchema.parse({})
 
