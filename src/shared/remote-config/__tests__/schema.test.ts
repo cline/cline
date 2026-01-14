@@ -21,6 +21,20 @@ describe("Remote Config Schema", () => {
 
 			expect(() => EnterpriseTelemetrySchema.parse(enterpriseTelemetry)).to.throw()
 		})
+
+		it("accepts an empty object", () => {
+			const result = EnterpriseTelemetrySchema.parse({})
+
+			expect(result).to.deep.equal({})
+		})
+
+		it("accepts an empty prompt uploading object", () => {
+			const result = EnterpriseTelemetrySchema.parse({
+				promptUploading: {},
+			})
+
+			expect(result.promptUploading).to.deep.equal({})
+		})
 	})
 
 	describe("OpenAiCompatibleSchema", () => {
@@ -514,7 +528,7 @@ describe("Remote Config Schema", () => {
 						vertexRegion: "us-central1",
 					},
 				},
-				EnterpriseTelemetry: {
+				enterpriseTelemetry: {
 					promptUploading: {
 						enabled: true,
 						url: "https://fake.cline.bot/whatever",
