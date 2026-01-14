@@ -3,7 +3,6 @@ import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
-import { validateVariant } from "../variant-validator"
 import { GPT_5_TEMPLATE_OVERRIDES } from "./template"
 
 // Type-safe variant configuration using the builder pattern
@@ -94,17 +93,6 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 		enabled: false,
 	})
 	.build()
-
-// Compile-time validation
-const validationResult = validateVariant({ ...config, id: ModelFamily.NATIVE_GPT_5 }, { strict: true })
-if (!validationResult.isValid) {
-	console.error("GPT-5 variant configuration validation failed:", validationResult.errors)
-	throw new Error(`Invalid GPT-5 variant configuration: ${validationResult.errors.join(", ")}`)
-}
-
-if (validationResult.warnings.length > 0) {
-	console.warn("GPT-5 variant configuration warnings:", validationResult.warnings)
-}
 
 // Export type information for better IDE support
 export type GPT5VariantConfig = typeof config

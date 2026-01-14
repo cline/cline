@@ -1,6 +1,7 @@
 import { findLastIndex } from "@shared/array"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { ClineStorageMessage } from "@shared/messages/content"
+import { Logger } from "@/services/logging/Logger"
 import type { ContextManager } from "../context/context-management/ContextManager"
 import type { MessageStateHandler } from "../task/message-state"
 
@@ -246,7 +247,7 @@ export async function executePreCompactHookWithCleanup(params: PreCompactHookPar
 		if (preCompactResult.cancel === true) {
 			// Log cancellation for debugging
 			const cancellationSource = preCompactResult.wasCancelled ? "user" : "PreCompact hook"
-			console.log(`[PreCompact] Context compaction cancelled by ${cancellationSource} for task ${params.taskId}`)
+			Logger.log(`[PreCompact] Context compaction cancelled by ${cancellationSource} for task ${params.taskId}`)
 
 			// Internalized cancellation state management (replaces handleCancellation callback)
 			// Always save state before cancelling, regardless of cancellation source
@@ -266,7 +267,7 @@ export async function executePreCompactHookWithCleanup(params: PreCompactHookPar
 
 		// Hook completed successfully - log if context modification provided
 		if (preCompactResult.contextModification) {
-			console.log(`[PreCompact] Hook provided context modification for task ${params.taskId}`)
+			Logger.log(`[PreCompact] Hook provided context modification for task ${params.taskId}`)
 		}
 
 		return {

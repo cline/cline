@@ -1,3 +1,4 @@
+import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "../../services/telemetry"
 import { getAllHooksDirs } from "../storage/disk"
 import { HookFactory, Hooks } from "./hook-factory"
@@ -292,7 +293,7 @@ export class HookDiscoveryCache {
 	 */
 	private log(message: string): void {
 		if (this.debug) {
-			console.log(`[HookCache] ${message}`)
+			Logger.log(`[HookCache] ${message}`)
 		}
 	}
 

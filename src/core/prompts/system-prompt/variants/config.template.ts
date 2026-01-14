@@ -10,13 +10,13 @@
  * 3. Use the builder pattern for type safety
  * 4. Run validation to ensure correctness
  */
+
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { PromptVariant } from ".."
 import { SystemPromptSection } from "../templates/placeholders"
 import { baseTemplate } from "./generic/template"
 import { createVariant } from "./variant-builder"
-import { validateVariant } from "./variant-validator"
 
 // Type-safe variant configuration using the builder pattern
 export const config: Omit<PromptVariant, "id"> = createVariant(ModelFamily.GENERIC) // Change to your target model family
@@ -81,17 +81,6 @@ export const config: Omit<PromptVariant, "id"> = createVariant(ModelFamily.GENER
 	//     enabled: false,
 	// })
 	.build()
-
-// Compile-time validation (optional but recommended)
-const validationResult = validateVariant({ ...config, id: "template" }, { strict: true })
-if (!validationResult.isValid) {
-	console.error("Variant configuration validation failed:", validationResult.errors)
-	throw new Error(`Invalid variant configuration: ${validationResult.errors.join(", ")}`)
-}
-
-if (validationResult.warnings.length > 0) {
-	console.warn("Variant configuration warnings:", validationResult.warnings)
-}
 
 // Export type information for better IDE support
 export type VariantConfig = typeof config

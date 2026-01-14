@@ -1,4 +1,5 @@
 import { Empty, EmptyRequest } from "@shared/proto/cline/common"
+import { Logger } from "@/services/logging/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
 
@@ -18,7 +19,7 @@ export async function subscribeToMcpButtonClicked(
 	responseStream: StreamingResponseHandler<Empty>,
 	requestId?: string,
 ): Promise<void> {
-	console.log(`[DEBUG] set up mcpButtonClicked subscription`)
+	Logger.log(`[DEBUG] set up mcpButtonClicked subscription`)
 
 	// Add this subscription to the active subscriptions
 	activeMcpButtonClickedSubscriptions.add(responseStream)

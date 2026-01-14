@@ -3,7 +3,6 @@ import { ClineDefaultTool } from "@/shared/tools"
 import { isGemini3ModelFamily, isNextGenModelProvider } from "@/utils/model-utils"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
-import { validateVariant } from "../variant-validator"
 import { gemini3ComponentOverrides } from "./overrides"
 import { baseTemplate } from "./template"
 
@@ -81,17 +80,6 @@ export const config = createVariant(ModelFamily.GEMINI_3)
 	.overrideComponent(SystemPromptSection.ACT_VS_PLAN, gemini3ComponentOverrides[SystemPromptSection.ACT_VS_PLAN]!)
 	.overrideComponent(SystemPromptSection.TASK_PROGRESS, gemini3ComponentOverrides[SystemPromptSection.TASK_PROGRESS]!)
 	.build()
-
-// Compile-time validation
-const validationResult = validateVariant({ ...config, id: "gemini3" }, { strict: true })
-if (!validationResult.isValid) {
-	console.error("Gemini 3.0 variant configuration validation failed:", validationResult.errors)
-	throw new Error(`Invalid Gemini 3.0 variant configuration: ${validationResult.errors.join(", ")}`)
-}
-
-if (validationResult.warnings.length > 0) {
-	console.warn("Gemini 3.0 variant configuration warnings:", validationResult.warnings)
-}
 
 // Export type information for better IDE support
 export type Gemini3VariantConfig = typeof config

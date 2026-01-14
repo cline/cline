@@ -3,6 +3,7 @@ import { StringRequest } from "@shared/proto/cline/common"
 import { McpDownloadResponse } from "@shared/proto/cline/mcp"
 import axios from "axios"
 import { ClineEnv } from "@/config"
+import { Logger } from "@/services/logging/Logger"
 import { getAxiosSettings } from "@/shared/net"
 import { Controller } from ".."
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
@@ -45,7 +46,7 @@ export async function downloadMcp(controller: Controller, request: StringRequest
 			throw new Error("Invalid response from MCP marketplace API")
 		}
 
-		console.log("[downloadMcp] Response from download API", { response })
+		Logger.log("[downloadMcp] Response from download API", { response })
 
 		const mcpDetails = response.data
 

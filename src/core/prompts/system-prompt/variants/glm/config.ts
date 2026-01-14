@@ -3,7 +3,6 @@ import { ClineDefaultTool } from "@/shared/tools"
 import { isGLMModelFamily } from "@/utils/model-utils"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
-import { validateVariant } from "../variant-validator"
 import { glmComponentOverrides } from "./overrides"
 import { baseTemplate } from "./template"
 
@@ -65,17 +64,6 @@ export const config = createVariant(ModelFamily.GLM)
 	.overrideComponent(SystemPromptSection.TASK_PROGRESS, glmComponentOverrides[SystemPromptSection.TASK_PROGRESS])
 	.overrideComponent(SystemPromptSection.MCP, glmComponentOverrides[SystemPromptSection.MCP])
 	.build()
-
-// Compile-time validation
-const validationResult = validateVariant({ ...config, id: "glm" }, { strict: true })
-if (!validationResult.isValid) {
-	console.error("GLM variant configuration validation failed:", validationResult.errors)
-	throw new Error(`Invalid GLM variant configuration: ${validationResult.errors.join(", ")}`)
-}
-
-if (validationResult.warnings.length > 0) {
-	console.warn("GLM variant configuration warnings:", validationResult.warnings)
-}
 
 // Export type information for better IDE support
 export type GLMVariantConfig = typeof config

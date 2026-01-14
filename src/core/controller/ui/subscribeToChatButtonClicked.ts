@@ -1,4 +1,5 @@
 import { Empty, EmptyRequest } from "@shared/proto/cline/common"
+import { Logger } from "@/services/logging/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
 
@@ -18,7 +19,7 @@ export async function subscribeToChatButtonClicked(
 	responseStream: StreamingResponseHandler<Empty>,
 	requestId?: string,
 ): Promise<void> {
-	console.log(`[DEBUG] set up chatButtonClicked subscription`)
+	Logger.log(`[DEBUG] set up chatButtonClicked subscription`)
 
 	// Add this subscription to the active subscriptions
 	activeChatButtonClickedSubscriptions.add(responseStream)

@@ -2,6 +2,7 @@ import { CheckpointRestoreRequest } from "@shared/proto/cline/checkpoints"
 import { Empty } from "@shared/proto/cline/common"
 import pWaitFor from "p-wait-for"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/services/logging/Logger"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { ClineCheckpointRestore } from "../../../shared/WebviewMessage"
 import { Controller } from ".."
@@ -14,7 +15,7 @@ export async function checkpointRestore(controller: Controller, request: Checkpo
 		await pWaitFor(() => controller.task?.taskState.isInitialized === true, {
 			timeout: 3_000,
 		}).catch((error) => {
-			console.log("Failed to init new Cline instance to restore checkpoint", error)
+			Logger.log("Failed to init new Cline instance to restore checkpoint", error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: "Failed to restore checkpoint",
