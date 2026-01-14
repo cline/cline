@@ -100,7 +100,7 @@ export class BannerService {
 			return this._fetchPromise
 		} catch (error) {
 			// Log error but don't throw - banner fetching shouldn't break the extension
-			Logger.error("BannerService: Error fetching banners", error)
+			Logger.error("BannerService: Error getting internal banners", error)
 			return []
 		}
 	}
@@ -159,6 +159,10 @@ export class BannerService {
 				Logger.log(`BannerService: ${matchingBanners.length} active banner(s) fetched.`)
 			}
 			return matchingBanners
+		} catch (error) {
+			// Log error but don't throw - banner fetching shouldn't break the extension
+			Logger.error("BannerService: Error fetching banners", error)
+			return []
 		} finally {
 			this._fetchPromise = null
 		}
