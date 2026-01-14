@@ -1,12 +1,13 @@
 import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
 import { RemoteConfig } from "@shared/remote-config/schema"
-import { RemoteConfigFields } from "@shared/storage/state-keys"
+import { GlobalStateAndSettings, RemoteConfigFields } from "@shared/storage/state-keys"
 import { AuthService } from "@/services/auth/AuthService"
 import { Logger } from "@/services/logging/Logger"
 import { getTelemetryService, telemetryService } from "@/services/telemetry"
 import { OpenTelemetryClientProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryClientProvider"
 import { OpenTelemetryTelemetryProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider"
 import { type TelemetryService } from "@/services/telemetry/TelemetryService"
+import { ApiProvider } from "@/shared/api"
 import { isOpenTelemetryConfigValid, remoteConfigToOtelConfig } from "@/shared/services/config/otel-config"
 import { ensureSettingsDirectoryExists } from "../disk"
 import { StateManager } from "../StateManager"
@@ -92,7 +93,7 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 
 	// Map provider settings
 
-	const providers: string[] = []
+	const providers: ApiProvider[] = []
 
 	// Map OpenAiCompatible provider settings
 	const openAiSettings = remoteConfig.providerSettings?.OpenAiCompatible
@@ -293,6 +294,34 @@ export async function applyRemoteConfig(
 		}
 	}
 	await applyRemoteOTELConfig(transformed, telemetryService)
+}
+
+const isProviderValid = (provider?: ApiProvider) => {
+	const remoteConfiguredProviders = StateManager.get().getRemoteConfigSettings().remoteConfiguredProviders
+	if (!remoteConfiguredProviders || !remoteConfiguredProviders.length) {
+		return true
+	}
+
+	return provider && remoteConfiguredProviders.includes(provider)
+}
+
+/**
+ * Receives a config and returns the subset of fields that can be overriden in the cache
+ */
+export function filterAllowedRemoteConfigFields(config: Partial<GlobalStateAndSettings>): Partial<GlobalStateAndSettings> {
+	const updatedFields: Partial<GlobalStateAndSettings> = {}
+
+	const actModeApiProvider = config.actModeApiProvider
+	if (isProviderValid(actModeApiProvider)) {
+		updatedFields.actModeApiProvider = actModeApiProvider
+	}
+
+	const planModeApiProvider = config.planModeApiProvider
+	if (isProviderValid(planModeApiProvider)) {
+		updatedFields.planModeApiProvider = planModeApiProvider
+	}
+
+	return updatedFields
 }
 
 const canDisableRemoteConfig = (orgId: string) => {
