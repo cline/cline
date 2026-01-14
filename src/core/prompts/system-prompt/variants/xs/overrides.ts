@@ -94,6 +94,6 @@ export const xsComponentOverrides: PromptVariant["componentOverrides"] = {
 		enabled: true, // Use default user instructions
 	},
 	[SystemPromptSection.FEEDBACK]: {
-		enabled: true, // Use default feedback section
+		enabled: false,
 	},
 }

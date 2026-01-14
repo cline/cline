@@ -125,9 +125,14 @@ export class VariantValidator {
 
 		// Check component overrides reference valid components
 		if (variant.componentOverrides) {
-			const invalidOverrides = Object.keys(variant.componentOverrides).filter(
-				(key) => !variant.componentOrder.includes(key as SystemPromptSection),
-			)
+			const invalidOverrides = Object.keys(variant.componentOverrides).filter((key) => {
+				const override = variant.componentOverrides[key as SystemPromptSection]
+				// Skip overrides that explicitly disable a component - these are valid even without being in componentOrder
+				if (override?.enabled === false) {
+					return false
+				}
+				return !variant.componentOrder.includes(key as SystemPromptSection)
+			})
 			if (invalidOverrides.length > 0) {
 				warnings.push(`Component overrides for unused components: ${invalidOverrides.join(", ")}`)
 			}
@@ -147,7 +152,14 @@ export class VariantValidator {
 
 		// Check tool overrides reference valid tools
 		if (variant.toolOverrides) {
-			const invalidOverrides = Object.keys(variant.toolOverrides).filter((key) => !variant.tools?.includes(key as any))
+			const invalidOverrides = Object.keys(variant.toolOverrides).filter((key) => {
+				const override = variant.toolOverrides![key as keyof typeof variant.toolOverrides]
+				// Skip overrides that explicitly disable a tool - these are valid even without being in tools list
+				if (override?.enabled === false) {
+					return false
+				}
+				return !variant.tools?.includes(key as any)
+			})
 			if (invalidOverrides.length > 0) {
 				warnings.push(`Tool overrides for unused tools: ${invalidOverrides.join(", ")}`)
 			}

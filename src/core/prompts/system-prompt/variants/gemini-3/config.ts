@@ -38,7 +38,6 @@ export const config = createVariant(ModelFamily.GEMINI_3)
 		SystemPromptSection.EDITING_FILES,
 		SystemPromptSection.FEEDBACK,
 		SystemPromptSection.TODO,
-		SystemPromptSection.MCP,
 		SystemPromptSection.TASK_PROGRESS,
 		SystemPromptSection.SYSTEM_INFO,
 		SystemPromptSection.OBJECTIVE,
