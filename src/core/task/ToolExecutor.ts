@@ -304,6 +304,70 @@ export class ToolExecutor {
 	}
 
 	/**
+	 * Harvest workspace-relative path intent from tool calls.
+	 *
+	 * This is used to help activate path-scoped Cline Rules on subsequent turns,
+	 * even when the user did not explicitly mention the file path (or the file
+	 * does not exist yet).
+	 */
+	private harvestRulePathIntent(block: ToolUse): void {
+		try {
+			// Only harvest from file-modifying tools to minimize false positives.
+			if (block.partial) return
+
+			const addCandidate = (candidate: string | undefined) => {
+				if (!candidate) return
+
+				// If it's an absolute path, attempt to map to workspace-relative using known roots.
+				const isAbs = candidate.startsWith("/") || /^[A-Za-z]:\\/.test(candidate)
+				if (isAbs && this.workspaceManager) {
+					for (const root of this.workspaceManager.getRoots()) {
+						if (!root?.path) continue
+						const absPosix = candidate.replace(/\\/g, "/")
+						const rootPosix = root.path.replace(/\\/g, "/").replace(/\/$/, "")
+						if (!absPosix.startsWith(rootPosix + "/")) continue
+						const relPath: string = absPosix.slice(rootPosix.length + 1)
+						if (relPath) {
+							candidate = relPath
+							break
+						}
+					}
+				}
+
+				const posix = candidate.replace(/\\/g, "/").replace(/^\//, "")
+				if (!posix || posix === "/") return
+				if (posix.includes("..")) return
+				this.taskState.rulePathIntentCandidates.add(posix)
+			}
+
+			// write_to_file, replace_in_file, new_rule share the WriteToFile handler and use `path`/`absolutePath`.
+			if (block.name === "write_to_file" || block.name === "replace_in_file" || block.name === "new_rule") {
+				addCandidate((block.params as any)?.path)
+				// In some contexts we may have absolutePath (rare in VS Code, more likely in CLI)
+				addCandidate((block.params as any)?.absolutePath)
+				return
+			}
+
+			// apply_patch: parse patch header lines to discover target file paths.
+			if (block.name === "apply_patch") {
+				const raw = (block.params as any)?.input
+				if (typeof raw !== "string" || !raw) return
+				const patchBody = raw
+				const fileHeaderRegex = /^\*\*\* (?:Add|Update|Delete) File: (.+?)(?:\n|$)/gm
+				let m: RegExpExecArray | null
+				while ((m = fileHeaderRegex.exec(patchBody))) {
+					const filePath = (m[1] || "").trim()
+					if (!filePath) continue
+					addCandidate(filePath)
+				}
+				return
+			}
+		} catch {
+			// fail-open: intent harvesting is best-effort
+		}
+	}
+
+	/**
 	 * Check if parallel tool calling is enabled.
 	 * Parallel tool calling is enabled if:
 	 * 1. User has enabled it in settings, OR
@@ -593,6 +657,9 @@ export class ToolExecutor {
 			if (this.taskState.abort) {
 				return
 			}
+
+			// Record tool-intended file paths before execution (best-effort)
+			this.harvestRulePathIntent(block)
 
 			// Execute the actual tool
 			toolResult = await this.coordinator.execute(config, block)

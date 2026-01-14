@@ -2021,6 +2021,12 @@ export class Task {
 	private async getRulePathContext(): Promise<string[]> {
 		const candidates: string[] = []
 
+		// (0) Tool-intent evidence: paths the assistant has explicitly targeted via tool calls.
+		// This is especially important for new files (non-existent at the time of first mention).
+		if (this.taskState.rulePathIntentCandidates?.size) {
+			candidates.push(...Array.from(this.taskState.rulePathIntentCandidates))
+		}
+
 		// (1) Mention-based evidence from the current request: parse the current user content
 		// from the most recent api_req_started request block (it contains the userContent in markdown).
 		// We can't reliably access raw unprocessed user prompt here without threading it through,

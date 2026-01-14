@@ -31,6 +31,16 @@ describe("rule-conditionals", () => {
 			expect(res).to.deep.equal(["apps/web/src/App.tsx", "packages/foo/src"])
 		})
 
+		it("extracts simple filenames with extensions (no slashes)", () => {
+			const res = extractPathLikeStrings("Does foo.md exist? If not, create foo.md")
+			expect(res).to.deep.equal(["foo.md"])
+		})
+
+		it("does not extract bare words without an extension", () => {
+			const res = extractPathLikeStrings("Please create foo and then update bar")
+			expect(res).to.deep.equal([])
+		})
+
 		it("ignores URLs", () => {
 			const res = extractPathLikeStrings("see https://example.com/a/b and edit src/index.ts")
 			expect(res).to.deep.equal(["src/index.ts"])

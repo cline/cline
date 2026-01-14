@@ -99,8 +99,12 @@ export function extractPathLikeStrings(text: string): string[] {
 	// 1) Remove URLs to avoid false positives.
 	const withoutUrls = text.replace(/\b\w+:\/\/[^\s]+/g, " ")
 
-	// 2) Match tokens containing at least one slash, no whitespace.
-	const tokenRegex = /(?:^|[\s([{"'`])([A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)+\/?)(?=$|[\s)\]}"'`,.;:!?])/g
+	// 2) Match tokens that look like paths.
+	//    - Either contain at least one slash (e.g. src/index.ts)
+	//    - Or look like a simple filename with an extension (e.g. foo.md)
+	//      (no slashes; conservative to reduce false positives).
+	const tokenRegex =
+		/(?:^|[\s([{"'`])((?:[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)+\/?|[A-Za-z0-9_.-]+\.[A-Za-z0-9]{1,10}))(?=$|[\s)\]}"'`,.;:!?])/g
 	const matches: string[] = []
 	let match: RegExpExecArray | null
 	while ((match = tokenRegex.exec(withoutUrls))) {
