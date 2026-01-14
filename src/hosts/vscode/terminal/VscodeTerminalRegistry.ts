@@ -27,6 +27,7 @@ export class TerminalRegistry {
 			iconPath: new vscode.ThemeIcon("cline-icon"),
 			env: {
 				CLINE_ACTIVE: "true",
+				GIT_PAGER: "cat",
 			},
 		}
 
