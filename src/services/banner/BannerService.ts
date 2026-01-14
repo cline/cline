@@ -161,7 +161,6 @@ export class BannerService {
 			if (matchingBanners.length > 0) {
 				Logger.log(`BannerService: ${matchingBanners.length} active banner(s) fetched.`)
 			}
-			this._fetchPromise = null
 			return matchingBanners
 		} finally {
 			this._fetchPromise = null
