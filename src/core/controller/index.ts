@@ -119,8 +119,8 @@ export class Controller {
 				BannerService.get()
 					.getActiveBanners()
 					.then(() => this.postStateToWebview())
-			}, 3_600_000),
-		) // 1 hour
+			}, 86_400_000),
+		) // 24 hours
 	}
 
 	private startTimers() {
