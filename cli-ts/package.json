@@ -1,0 +1,39 @@
+{
+	"name": "@cline/cli-ts",
+	"version": "1.0.0",
+	"description": "Cline CLI - TypeScript implementation that reuses core Cline functionality",
+	"main": "dist/cli.cjs",
+	"bin": {
+		"cline-ts": "./dist/cli.cjs"
+	},
+	"type": "module",
+	"scripts": {
+		"build": "node esbuild.mjs",
+		"build:production": "node esbuild.mjs --production",
+		"watch": "node esbuild.mjs --watch",
+		"dev": "npm run watch",
+		"clean": "rimraf dist",
+		"typecheck": "tsc --noEmit"
+	},
+	"keywords": [
+		"cline",
+		"cli",
+		"ai",
+		"coding-assistant"
+	],
+	"author": "Cline Bot Inc.",
+	"license": "Apache-2.0",
+	"devDependencies": {
+		"@types/node": "20.x",
+		"esbuild": "^0.25.0",
+		"rimraf": "^6.0.1",
+		"typescript": "^5.4.5"
+	},
+	"dependencies": {
+		"chalk": "^5.3.0",
+		"commander": "^12.1.0",
+		"ora": "^8.0.1",
+		"ink": "^5.0.1",
+		"ink-spinner": "^5.0.0"
+	}
+}

@@ -5,8 +5,7 @@
 		"forceConsistentCasingInFileNames": true,
 		"isolatedModules": true,
 		"lib": [
-			"es2022",
-			"DOM"
+			"es2022"
 		],
 		"module": "esnext",
 		"moduleResolution": "Bundler",
@@ -22,7 +21,7 @@
 		"target": "es2022",
 		"useDefineForClassFields": true,
 		"useUnknownInCatchVariables": false,
-		"baseUrl": ".",
+		"baseUrl": "..",
 		"paths": {
 			"@/*": [
 				"src/*"
@@ -55,18 +54,18 @@
 				"src/utils/*"
 			]
 		},
-		"composite": true,
-		"declaration": true,
-		"declarationMap": true
+		"outDir": "dist"
 	},
 	"include": [
 		"src/**/*"
 	],
 	"exclude": [
 		"node_modules",
-		".vscode-test",
-		"webview-ui",
-		"src/test/e2e/**/*",
-		"cli-ts"
+		"dist"
+	],
+	"references": [
+		{
+			"path": ".."
+		}
 	]
 }
