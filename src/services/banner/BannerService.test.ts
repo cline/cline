@@ -81,7 +81,7 @@ describe("BannerService", () => {
 			expect(banners).to.have.lengthOf(0)
 		})
 
-		it("should cache banners for 5 minutes", async () => {
+		it("should cache banners for 24 hours", async () => {
 			const clock = sandbox.useFakeTimers()
 
 			const mockResponse = {
@@ -111,13 +111,18 @@ describe("BannerService", () => {
 			await bannerService.getActiveBanners()
 			expect(axiosGetStub.callCount).to.equal(1)
 
-			// After 4 minutes, still uses cache
-			clock.tick(4 * 60 * 1000)
+			// After 1 hour, still uses cache
+			clock.tick(60 * 60 * 1000)
 			await bannerService.getActiveBanners()
 			expect(axiosGetStub.callCount).to.equal(1)
 
-			// After 6 minutes total, cache expired, makes new API call
-			clock.tick(2 * 60 * 1000)
+			// After 23 hours total, still uses cache
+			clock.tick(22 * 60 * 60 * 1000)
+			await bannerService.getActiveBanners()
+			expect(axiosGetStub.callCount).to.equal(1)
+
+			// After 25 hours total, cache expired, makes new API call
+			clock.tick(2 * 60 * 60 * 1000)
 			await bannerService.getActiveBanners()
 			expect(axiosGetStub.callCount).to.equal(2)
 
