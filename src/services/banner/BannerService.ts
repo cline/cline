@@ -123,10 +123,7 @@ export class BannerService {
 			Logger.log(`BannerService: Fetching banners from ${url}`)
 
 			const authService = this.getAuthServiceInstance()
-			let token: string | null = (await authService?.getAuthToken()) || null
-			if (authService) {
-				token = await authService.getAuthToken()
-			}
+			const token: string | null = (await authService?.getAuthToken()) || null
 
 			const headers: Record<string, string> = {
 				"Content-Type": "application/json",
