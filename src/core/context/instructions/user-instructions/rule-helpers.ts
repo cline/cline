@@ -149,7 +149,9 @@ export const getRuleFilesTotalContent = async (rulesFilePaths: string[], basePat
 }
 
 export type ActivatedConditionalRule = {
+	/** Display name for the rule file (usually a workspace-relative path) */
 	name: string
+	/** The subset of evaluated conditions that matched (keys are conditional names, values are matched patterns) */
 	matchedConditions: Record<string, string[]>
 }
 

@@ -31,6 +31,11 @@ describe("rule-conditionals", () => {
 			expect(res).to.deep.equal(["apps/web/src/App.tsx", "packages/foo/src"])
 		})
 
+		it("extracts Windows-style paths and normalizes to POSIX", () => {
+			const res = extractPathLikeStrings("edit apps\\web\\src\\App.tsx and packages\\foo\\src")
+			expect(res).to.deep.equal(["apps/web/src/App.tsx", "packages/foo/src"])
+		})
+
 		it("extracts simple filenames with extensions (no slashes)", () => {
 			const res = extractPathLikeStrings("Does foo.md exist? If not, create foo.md")
 			expect(res).to.deep.equal(["foo.md"])

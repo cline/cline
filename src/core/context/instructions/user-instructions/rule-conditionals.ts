@@ -69,6 +69,11 @@ export function evaluateRuleConditionals(
 	passed: boolean
 	matchedConditions: MatchedConditions
 } {
+	// Semantics:
+	// - Only keys we recognize (see `conditionalEvaluators`) are considered.
+	// - Multiple recognized conditionals are combined with logical AND.
+	//   (If any recognized conditional fails, the rule does not apply.)
+	// - Unknown keys are ignored so frontmatter can hold metadata without affecting rule activation.
 	const matchedConditions: MatchedConditions = {}
 
 	for (const [key, value] of Object.entries(frontmatter)) {
@@ -103,8 +108,9 @@ export function extractPathLikeStrings(text: string): string[] {
 	//    - Either contain at least one slash (e.g. src/index.ts)
 	//    - Or look like a simple filename with an extension (e.g. foo.md)
 	//      (no slashes; conservative to reduce false positives).
+	//    - Supports Windows-style paths by allowing backslashes; we normalize them to POSIX later.
 	const tokenRegex =
-		/(?:^|[\s([{"'`])((?:[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)+\/?|[A-Za-z0-9_.-]+\.[A-Za-z0-9]{1,10}))(?=$|[\s)\]}"'`,.;:!?])/g
+		/(?:^|[\s([{"'`])((?:[A-Za-z0-9_.-]+(?:[\\/][A-Za-z0-9_.-]+)+[\\/]?|[A-Za-z0-9_.-]+\.[A-Za-z0-9]{1,10}))(?=$|[\s)\]}"'`,.;:!?])/g
 	const matches: string[] = []
 	let match: RegExpExecArray | null
 	while ((match = tokenRegex.exec(withoutUrls))) {
@@ -121,7 +127,9 @@ export function extractPathLikeStrings(text: string): string[] {
 	const seen = new Set<string>()
 	const result: string[] = []
 	for (const m of matches) {
-		const posix = m.replace(/\\/g, "/")
+		let posix = m.replace(/\\/g, "/")
+		// Strip Windows drive prefix if present (we can't safely map it to a workspace-relative path here).
+		posix = posix.replace(/^[A-Za-z]:\//, "")
 		if (posix === "/" || posix.startsWith("/") || posix.includes("..")) {
 			// We only want repo/workspace-relative hints here.
 			continue

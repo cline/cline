@@ -1,4 +1,5 @@
 import {
+	type ActivatedConditionalRule,
 	getRemoteRulesTotalContentWithMetadata,
 	getRuleFilesTotalContentWithMetadata,
 	synchronizeRuleToggles,
@@ -12,11 +13,6 @@ import fs from "fs/promises"
 import path from "path"
 import { Controller } from "@/core/controller"
 import type { RuleEvaluationContext } from "./rule-conditionals"
-
-export type ActivatedConditionalRule = {
-	name: string
-	matchedConditions: Record<string, string[]>
-}
 
 export type ClineRulesWithMetadata = {
 	instructions?: string

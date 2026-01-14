@@ -16,8 +16,13 @@ export type FrontmatterParseResult = {
  * - If no frontmatter exists, returns data={} and body=original markdown.
  */
 export function parseYamlFrontmatter(markdown: string): FrontmatterParseResult {
+	// Normalize a UTF-8 BOM if present (common when files are edited on Windows).
+	// We keep other leading whitespace intact; if a file starts with blank lines before `---`,
+	// we intentionally treat it as *not* having frontmatter to avoid surprising matches.
+	const normalized = markdown.replace(/^\uFEFF/, "")
+
 	const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/
-	const match = markdown.match(frontmatterRegex)
+	const match = normalized.match(frontmatterRegex)
 
 	if (!match) {
 		return { data: {}, body: markdown, hadFrontmatter: false }

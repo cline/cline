@@ -19,6 +19,15 @@ describe("parseYamlFrontmatter", () => {
 		expect(result.body.trim()).to.equal("Hello")
 	})
 
+	it("handles UTF-8 BOM before frontmatter", () => {
+		const input = `\uFEFF---\npaths:\n  - "src/**"\n---\n\nHello`
+		const result = parseYamlFrontmatter(input)
+		expect(result.hadFrontmatter).to.equal(true)
+		expect(result.parseError).to.equal(undefined)
+		expect(result.data).to.deep.equal({ paths: ["src/**"] })
+		expect(result.body.trim()).to.equal("Hello")
+	})
+
 	it("fails open on malformed YAML", () => {
 		const input = `---\npaths: [invalid\n---\nBody`
 		const result = parseYamlFrontmatter(input)
