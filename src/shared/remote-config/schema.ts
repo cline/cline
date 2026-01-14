@@ -133,13 +133,13 @@ export const GlobalInstructionsFileSchema = z.object({
 	contents: z.string(),
 })
 
-export const PromptUploading = z.object({
+export const PromptUploadingSchema = z.object({
 	enabled: z.boolean().optional(),
 	url: z.string().optional(),
 })
 
-export const EnterpriseTelemetry = z.object({
-	promptUploading: PromptUploading.optional(),
+export const EnterpriseTelemetrySchema = z.object({
+	promptUploading: PromptUploadingSchema.optional(),
 })
 
 export const RemoteConfigSchema = z.object({
@@ -186,7 +186,7 @@ export const RemoteConfigSchema = z.object({
 	openTelemetryLogBatchTimeout: z.number().optional(),
 	openTelemetryLogMaxQueueSize: z.number().optional(),
 
-	enterpriseTelemetry: EnterpriseTelemetry.optional(),
+	enterpriseTelemetry: EnterpriseTelemetrySchema.optional(),
 
 	// Rules & Workflows
 	globalRules: z.array(GlobalInstructionsFileSchema).optional(),
@@ -218,5 +218,5 @@ export type LiteLLMModel = z.infer<typeof LiteLLMModelSchema>
 
 export type APIKeySettings = z.infer<typeof APIKeySchema>
 
-export type EnterpriseTelemetry = z.infer<typeof EnterpriseTelemetry>
-export type PromptUploading = z.infer<typeof PromptUploading>
+export type EnterpriseTelemetry = z.infer<typeof EnterpriseTelemetrySchema>
+export type PromptUploading = z.infer<typeof PromptUploadingSchema>

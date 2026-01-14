@@ -3,12 +3,26 @@ import { describe, it } from "mocha"
 import {
 	AwsBedrockSettingsSchema,
 	ClineSettingsSchema,
+	EnterpriseTelemetrySchema,
 	OpenAiCompatibleSchema,
 	type RemoteConfig,
 	RemoteConfigSchema,
 } from "../schema"
 
 describe("Remote Config Schema", () => {
+	describe("EnterpriseTelemetry", () => {
+		it("should reject invalid urls", () => {
+			const enterpriseTelemetry = {
+				promptUploading: {
+					enabled: true,
+					url: "invalid",
+				},
+			}
+
+			expect(() => EnterpriseTelemetrySchema.parse(enterpriseTelemetry)).to.throw()
+		})
+	})
+
 	describe("OpenAiCompatibleSchema", () => {
 		it("should accept valid OpenAI compatible settings", () => {
 			const validSettings = {
@@ -500,6 +514,12 @@ describe("Remote Config Schema", () => {
 						vertexRegion: "us-central1",
 					},
 				},
+				EnterpriseTelemetry: {
+					promptUploading: {
+						enabled: true,
+						url: "https://fake.cline.bot/whatever",
+					},
+				},
 			}
 			const result = RemoteConfigSchema.parse(config)
 
@@ -568,6 +588,9 @@ describe("Remote Config Schema", () => {
 			expect(result.globalWorkflows?.[0].alwaysEnabled).to.equal(true)
 			expect(result.globalWorkflows?.[0].name).to.equal("deployment-workflow.md")
 			expect(result.globalWorkflows?.[0].contents).to.include("Deployment Workflow")
+
+			expect(result.enterpriseTelemetry?.promptUploading?.enabled).to.equal(true)
+			expect(result.enterpriseTelemetry?.promptUploading?.url).to.equal("https://fake.cline.bot/whatever")
 		})
 	})
 
