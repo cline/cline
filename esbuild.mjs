@@ -196,7 +196,10 @@ const baseConfig = {
 // Extension-specific configuration
 const extensionConfig = {
 	...baseConfig,
-	entryPoints: ["src/extension.ts"],
+	entryPoints: {
+		"cline-core": "src/standalone/cline-core.ts",
+		"cline-acp": "src/standalone/cline-acp.ts",
+	},
 	outfile: `${destDir}/extension.js`,
 	external: ["vscode"],
 }
@@ -204,8 +207,11 @@ const extensionConfig = {
 // Standalone-specific configuration
 const standaloneConfig = {
 	...baseConfig,
-	entryPoints: ["src/standalone/cline-core.ts"],
-	outfile: `${destDir}/cline-core.js`,
+	entryPoints: {
+		"cline-core": "src/standalone/cline-core.ts",
+		"cline-acp": "src/standalone/cline-acp.ts",
+	},
+	outdir: destDir,
 	// These modules need to load files from the module directory at runtime,
 	// so they cannot be bundled.
 	external: ["vscode", "@grpc/reflection", "grpc-health-check", "better-sqlite3"],
