@@ -187,6 +187,20 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		transformed.remoteGlobalWorkflows = remoteConfig.globalWorkflows
 	}
 
+	if (remoteConfig.enterpriseTelemetry?.promptUploading) {
+		const promptUplaoding = remoteConfig.enterpriseTelemetry.promptUploading
+		if (promptUplaoding.type === "s3_access_keys" && promptUplaoding.s3AccessSettings) {
+			transformed.blobStoreConfig = {
+				adapterType: "s3",
+				accessKeyId: promptUplaoding.s3AccessSettings.accessKeyId,
+				secretAccessKey: promptUplaoding.s3AccessSettings.secretAccessKey,
+				region: promptUplaoding.s3AccessSettings.region,
+				bucket: promptUplaoding.s3AccessSettings.bucket,
+				endpoint: promptUplaoding.s3AccessSettings.endpoint,
+			}
+		}
+	}
+
 	return transformed
 }
 
