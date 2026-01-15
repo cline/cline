@@ -197,6 +197,13 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 				region: promptUplaoding.s3AccessSettings.region,
 				bucket: promptUplaoding.s3AccessSettings.bucket,
 				endpoint: promptUplaoding.s3AccessSettings.endpoint,
+				accountId: promptUplaoding.s3AccessSettings.accountId,
+				intervalMs: promptUplaoding.s3AccessSettings.intervalMs,
+				maxRetries: promptUplaoding.s3AccessSettings.maxRetries,
+				batchSize: promptUplaoding.s3AccessSettings.batchSize,
+				maxQueueSize: promptUplaoding.s3AccessSettings.maxQueueSize,
+				maxFailedAgeMs: promptUplaoding.s3AccessSettings.maxFailedAgeMs,
+				backfillEnabled: promptUplaoding.s3AccessSettings.backfillEnabled,
 			}
 		}
 	}
