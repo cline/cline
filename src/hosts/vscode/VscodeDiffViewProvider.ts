@@ -271,9 +271,10 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 	 */
 	private setupTempDocumentListener(): void {
 		if (this.tempModifiedUri) {
-			this.tempFileWatcher = vscode.workspace.createFileSystemWatcher(
-				new vscode.RelativePattern(this.tempModifiedUri.fsPath, "*"),
-			)
+			// Watch the specific temp file, not the entire directory
+			const tempDir = path.dirname(this.tempModifiedUri.fsPath)
+			const tempFileName = path.basename(this.tempModifiedUri.fsPath)
+			this.tempFileWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(tempDir, tempFileName))
 
 			this.tempFileWatcher.onDidChange(async () => {
 				await this.syncTempFileToActiveDiffEditor()
@@ -347,7 +348,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 	}
 
 	/**
-	 * Clean up temporary files and watchers (basic implementation)
+	 * Clean up temporary files and watchers
 	 */
 	private async cleanupTempFiles(): Promise<void> {
 		// Dispose file watcher first
