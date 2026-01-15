@@ -34,7 +34,6 @@ export abstract class ClineStorage {
 	 * Fire storage change event to all subscribers.
 	 */
 	protected async fire(key: string): Promise<void> {
-		console.info(`[${this.name}] onDidChange event fired for '${key}'`)
 		await Promise.all(this.subscribers.map((subscriber) => subscriber({ key })))
 	}
 

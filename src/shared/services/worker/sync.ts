@@ -11,7 +11,7 @@
  */
 import * as path from "node:path"
 import { HostProvider } from "@/hosts/host-provider"
-import { blobStorage, ClineBlobStorage } from "../../storage/ClineBlobStorage"
+import { blobStorage } from "../../storage/ClineBlobStorage"
 import { backfillTasks } from "./backfill"
 import { SyncQueue } from "./queue"
 import type { SyncWorkerOptions } from "./worker"
@@ -37,7 +37,7 @@ function getSyncQueuePath(): string {
  * Returns null if S3 storage is not configured.
  */
 function getSyncQueue(): SyncQueue | null {
-	if (!ClineBlobStorage.isConfigured()) {
+	if (!blobStorage.isReady()) {
 		return null
 	}
 
@@ -52,15 +52,19 @@ function getSyncQueue(): SyncQueue | null {
  * Initialize the sync system (queue + worker).
  * Should be called during extension activation if S3 storage is configured.
  *
- * @param options Worker configuration options
+ * @param options Worker configuration options (includes blob store settings)
  * @returns The SyncWorker instance, or null if S3 is not configured
  */
 function init(options?: SyncWorkerOptions): SyncWorker | null {
-	if (!ClineBlobStorage.isConfigured()) {
+	if (!options?.userDistinctId) {
 		return null
 	}
 
-	blobStorage.init()
+	// Initialize blob storage with the provided settings
+	blobStorage.init(options)
+	if (!blobStorage.isReady()) {
+		return null
+	}
 
 	const queue = getSyncQueue()
 	if (!queue) {
@@ -70,7 +74,7 @@ function init(options?: SyncWorkerOptions): SyncWorker | null {
 	const worker = initSyncWorker(queue, options)
 	worker.start()
 
-	if (process?.env?.CLINE_STORAGE_SYNC_BACKFILL_ENABLED === "true") {
+	if (options.backfillEnabled) {
 		backfillTasks().catch((err) => console.error("Backfill tasks failed:", err))
 	}
 

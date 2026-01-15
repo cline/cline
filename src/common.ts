@@ -24,6 +24,7 @@ import { telemetryService } from "./services/telemetry"
 import { PostHogClientProvider } from "./services/telemetry/providers/posthog/PostHogClientProvider"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { syncWorker } from "./shared/services/worker/sync"
+import { getBlobStoreSettingsFromEnv } from "./shared/services/worker/worker"
 import { getLatestAnnouncementId } from "./utils/announcements"
 /**
  * Performs intialization for Cline that is common to all platforms.
@@ -82,7 +83,9 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 
 	telemetryService.captureExtensionActivated()
 
-	syncWorker().init({ userDistinctId: getDistinctId() })
+	// Use remote config blobStoreConfig if available, otherwise fall back to env vars
+	const blobStoreSettings = StateManager.get().getRemoteConfigSettings()?.blobStoreConfig ?? getBlobStoreSettingsFromEnv()
+	syncWorker().init({ ...blobStoreSettings, userDistinctId: getDistinctId() })
 
 	return webview
 }

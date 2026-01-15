@@ -1,24 +1,36 @@
-import { nanoid } from "nanoid"
-import { blobStorage } from "../../storage/ClineBlobStorage"
+import { BlobStoreSettings, blobStorage } from "../../storage/ClineBlobStorage"
 import { SyncQueue, SyncQueueItem } from "./queue"
+
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
 /**
  * Configuration options for SyncWorker.
  */
-export interface SyncWorkerOptions {
+export interface SyncWorkerOptions extends BlobStoreSettings {
 	userDistinctId: string
-	/** Interval between sync attempts in milliseconds (default: 30000 = 30s) */
-	intervalMs?: number
-	/** Maximum number of retries before giving up on an item (default: 5) */
-	maxRetries?: number
-	/** Batch size - how many items to process per interval (default: 10) */
-	batchSize?: number
-	/** Whether to run immediately on start (default: true) */
-	runImmediately?: boolean
-	/** Maximum queue size before eviction (default: 1000) */
-	maxQueueSize?: number
-	/** Maximum age for failed items in milliseconds (default: 7 days) */
-	maxFailedAgeMs?: number
+}
+
+/**
+ * Get blob store settings from environment variables.
+ * Used as a fallback when remote config is not available.
+ */
+export function getBlobStoreSettingsFromEnv(): BlobStoreSettings {
+	return {
+		adapterType: process?.env?.CLINE_STORAGE_ADAPTER || "unknown",
+		bucket: process?.env?.CLINE_STORAGE_BUCKET || "cline",
+		accessKeyId: process?.env?.CLINE_STORAGE_ACCESS_KEY_ID || "",
+		secretAccessKey: process?.env?.CLINE_STORAGE_SECRET_ACCESS_KEY || "",
+		region: process?.env?.CLINE_STORAGE_REGION,
+		endpoint: process?.env?.CLINE_STORAGE_ENDPOINT,
+		accountId: process?.env?.CLINE_STORAGE_ACCOUNT_ID,
+
+		intervalMs: parseInt(process.env.CLINE_STORAGE_SYNC_INTERVAL_MS || "30000", 10),
+		maxRetries: parseInt(process.env.CLINE_STORAGE_SYNC_MAX_RETRIES || "5", 10),
+		batchSize: parseInt(process.env.CLINE_STORAGE_SYNC_BATCH_SIZE || "10", 10),
+		maxQueueSize: parseInt(process.env.CLINE_STORAGE_SYNC_MAX_QUEUE_SIZE || "1000", 10),
+		maxFailedAgeMs: parseInt(process.env.CLINE_STORAGE_SYNC_MAX_FAILED_AGE_MS || SEVEN_DAYS_MS.toString(), 10),
+		backfillEnabled: process.env.CLINE_STORAGE_SYNC_BACKFILL_ENABLED === "true",
+	}
 }
 
 enum WorkerEvent {
@@ -63,33 +75,31 @@ export type SyncWorkerEventListener = (event: SyncWorkerEvent) => void
  * await worker.stop()
  * ```
  */
+/** Internal type with all optional worker fields required */
+type ResolvedSyncWorkerOptions = SyncWorkerOptions &
+	Required<
+		Pick<BlobStoreSettings, "intervalMs" | "maxRetries" | "batchSize" | "maxQueueSize" | "maxFailedAgeMs" | "backfillEnabled">
+	>
+
 export class SyncWorker {
 	private interval: ReturnType<typeof setInterval> | null = null
 	private isProcessing: boolean = false
-	private options: Required<SyncWorkerOptions>
+	private options: ResolvedSyncWorkerOptions
 	private listeners: SyncWorkerEventListener[] = []
 
 	constructor(
 		private queue: SyncQueue,
-		options: SyncWorkerOptions = {
-			userDistinctId: nanoid(8),
-		},
+		options: SyncWorkerOptions,
 	) {
 		this.options = {
-			intervalMs: process?.env?.CLINE_STORAGE_SYNC_INTERVAL_MS
-				? parseInt(process.env.CLINE_STORAGE_SYNC_INTERVAL_MS, 10)
-				: 30000,
-			maxRetries: process?.env?.CLINE_STORAGE_SYNC_MAX_RETRIES
-				? parseInt(process.env.CLINE_STORAGE_SYNC_MAX_RETRIES, 10)
-				: 5,
-			batchSize: process?.env?.CLINE_STORAGE_SYNC_BATCH_SIZE ? parseInt(process.env.CLINE_STORAGE_SYNC_BATCH_SIZE, 10) : 10,
-			runImmediately: true,
-			maxQueueSize: process?.env?.CLINE_STORAGE_SYNC_MAX_QUEUE_SIZE
-				? parseInt(process.env.CLINE_STORAGE_SYNC_MAX_QUEUE_SIZE, 10)
-				: 1000,
-			maxFailedAgeMs: process?.env?.CLINE_STORAGE_SYNC_MAX_FAILED_AGE_MS
-				? parseInt(process.env.CLINE_STORAGE_SYNC_MAX_FAILED_AGE_MS, 10)
-				: 7 * 24 * 60 * 60 * 1000, // 7 days
+			// Apply defaults for optional fields
+			intervalMs: options.intervalMs ?? 30000,
+			maxRetries: options.maxRetries ?? 5,
+			batchSize: options.batchSize ?? 10,
+			maxQueueSize: options.maxQueueSize ?? 1000,
+			maxFailedAgeMs: options.maxFailedAgeMs ?? SEVEN_DAYS_MS,
+			backfillEnabled: options.backfillEnabled ?? false,
+			// Spread provided options (required fields come from here)
 			...options,
 		}
 	}
@@ -129,12 +139,10 @@ export class SyncWorker {
 		this.emit({ type: WorkerEvent.WorkerStarted })
 		this.interval = setInterval(() => this.processQueue(), this.options.intervalMs)
 
-		if (this.options.runImmediately) {
-			// Run immediately but don't await
-			this.processQueue().catch((err) => {
-				console.error("SyncWorker initial process error:", err)
-			})
-		}
+		// Run immediately but don't await
+		this.processQueue().catch((err) => {
+			console.error("SyncWorker initial process error:", err)
+		})
 	}
 
 	/**
@@ -238,9 +246,9 @@ let workerInstance: SyncWorker | null = null
  * Should be called once during extension activation.
  *
  * @param queue The SyncQueue instance
- * @param options Worker configuration options
+ * @param options Worker configuration options (required, includes blob store settings)
  */
-export function initSyncWorker(queue: SyncQueue, options?: SyncWorkerOptions): SyncWorker {
+export function initSyncWorker(queue: SyncQueue, options: SyncWorkerOptions): SyncWorker {
 	if (workerInstance) {
 		return workerInstance
 	}
