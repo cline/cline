@@ -872,7 +872,9 @@ export class Controller {
 		const platform = process.platform as Platform
 		const distinctId = getDistinctId()
 		const version = ExtensionRegistryInfo.version
-		const environment = ClineEnv.config().environment
+		const clineConfig = ClineEnv.config()
+		const environment = clineConfig.environment
+		const isOnPremise = clineConfig.isOnPremise
 		const banners = await this.getBanners()
 
 		// Check OpenAI Codex authentication status
@@ -910,6 +912,7 @@ export class Controller {
 			enableCheckpointsSetting: enableCheckpointsSetting ?? true,
 			platform,
 			environment,
+			isOnPremise,
 			distinctId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},
