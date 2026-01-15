@@ -33,7 +33,7 @@ const PlanCompletionOutputRow = memo(({ text, headClassNames }: PlanCompletionOu
 			</div>
 
 			{/* Content */}
-			<div className="w-full relative overflow-visible border-t-1 border-description/20 rounded-b-sm">
+			<div className="w-full relative overflow-hidden border-t-1 border-description/20 rounded-b-sm">
 				<div
 					className={cn(
 						"plan-completion-content",
