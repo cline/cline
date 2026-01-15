@@ -2,6 +2,7 @@ import { BooleanRequest, EmptyRequest, StringArrayRequest, StringRequest } from 
 import { GetTaskHistoryRequest, TaskFavoriteRequest } from "@shared/proto/cline/task"
 import { VSCodeCheckbox, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse, { FuseResult } from "fuse.js"
+import { LoaderIcon } from "lucide-react"
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
 import { Virtuoso } from "react-virtuoso"
 import { Button } from "@/components/ui/button"
@@ -19,7 +20,7 @@ type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRe
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const extensionStateContext = useExtensionState()
-	const { taskHistory, onRelinquishControl, environment } = extensionStateContext
+	const { activeTasks, taskHistory, onRelinquishControl, environment } = extensionStateContext
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
@@ -202,7 +203,32 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const taskHistorySearchResults = useMemo(() => {
 		const results = searchQuery ? highlight(fuse.search(searchQuery)) : tasks
 
+		// Create a map of taskId to its index in activeTasks for quick lookup
+		const reversedActiveTasks = activeTasks ? [...activeTasks].reverse() : []
+		const activeTaskIndexMap = new Map(reversedActiveTasks?.map((task, index) => [task.taskId, index]) || [])
+
 		results.sort((a, b) => {
+			// to prevent reordering while active
+			const aActiveIndex = activeTaskIndexMap.get(a.id)
+			const bActiveIndex = activeTaskIndexMap.get(b.id)
+
+			const aIsActive = aActiveIndex !== undefined
+			const bIsActive = bActiveIndex !== undefined
+
+			// If both are active, preserve their activeTasks order
+			if (aIsActive && bIsActive) {
+				return aActiveIndex - bActiveIndex
+			}
+
+			// If only one is active, active tasks come first
+			if (aIsActive) {
+				return -1
+			}
+			if (bIsActive) {
+				return 1
+			}
+
+			// Neither is active: apply the selected sort option
 			switch (sortOption) {
 				case "oldest":
 					return a.ts - b.ts
@@ -226,7 +252,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		})
 
 		return results
-	}, [tasks, searchQuery, fuse, sortOption])
+	}, [tasks, searchQuery, fuse, sortOption, activeTasks])
 
 	// Calculate total size of selected items
 	const selectedItemsSize = useMemo(() => {
@@ -349,14 +375,10 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						data={taskHistorySearchResults}
 						itemContent={(index, item) => (
 							<div
-								className="history-item"
-								key={item.id}
-								style={{
-									cursor: "pointer",
-									borderBottom:
-										index < taskHistory.length - 1 ? "1px solid var(--vscode-panel-border)" : "none",
-									display: "flex",
-								}}>
+								className={cn("history-item", "cursor-pointer flex", {
+									"border-b-panel": index < taskHistory.length - 1,
+								})}
+								key={item.id}>
 								<VSCodeCheckbox
 									checked={selectedItems.includes(item.id)}
 									className="pl-3 pr-1 py-auto"
@@ -370,13 +392,10 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 									className="flex flex-col gap-2 py-3 px-5 pl-4 relative flex-grow"
 									onClick={() => handleShowTaskWithId(item.id)}>
 									<div className="flex justify-between items-center">
-										<span
-											style={{
-												color: "var(--vscode-descriptionForeground)",
-												fontWeight: 500,
-												fontSize: "0.85em",
-												textTransform: "uppercase",
-											}}>
+										<span className="flex items-center text-description font-medium text-sm uppercase">
+											{activeTasks?.find((task) => task.taskId === item.id)?.status === "active" && (
+												<LoaderIcon className="animate-spin size-2 mr-1" />
+											)}
 											{formatDate(item.ts)}
 										</span>
 										<div className="flex gap-1">
