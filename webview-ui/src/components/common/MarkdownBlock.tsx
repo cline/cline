@@ -295,14 +295,14 @@ const InlineCodeWithFileCheck: React.FC<ComponentProps<"code"> & { [key: string]
 	if (isFilePath) {
 		return (
 			<Button
-				className="p-0 ml-0.5 mt-0.5 leading-none align-middle transition-opacity relative top-px text-preformat translate-y-[-2px] gap-0.5"
+				className="p-0 ml-0.5 leading-none align-middle transition-opacity text-preformat gap-0.5 inline text-left"
 				onClick={() => FileServiceClient.openFileRelativePath({ value: filePath })}
 				size="icon"
 				title={`Open ${filePath} in editor`}
 				type="button"
 				variant="icon">
 				<code {...props} />
-				<SquareArrowOutUpRightIcon />
+				<SquareArrowOutUpRightIcon className="inline align-middle ml-0.5" />
 			</Button>
 		)
 	}

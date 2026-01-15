@@ -22,6 +22,7 @@ export class BannerService {
 	private _controller: Controller
 	private _authService?: AuthService
 	private actionTypes: Set<string>
+	private _fetchPromise: Promise<Banner[]> | null = null
 
 	private constructor(controller: Controller) {
 		this._controller = controller
@@ -82,7 +83,7 @@ export class BannerService {
 	 * @param forceRefresh If true, bypasses cache and fetches fresh data
 	 * @returns Array of banners that match current environment
 	 */
-	private async fetchActiveBanners(forceRefresh = false): Promise<Banner[]> {
+	private async internalGetActiveBanners(forceRefresh = false): Promise<Banner[]> {
 		try {
 			// Return cached banners if still valid
 			const now = Date.now()
@@ -91,6 +92,22 @@ export class BannerService {
 				return this._cachedBanners
 			}
 
+			if (this._fetchPromise && !forceRefresh) {
+				return this._fetchPromise
+			}
+
+			this._fetchPromise = this.fetchActiveBanners()
+			return this._fetchPromise
+		} catch (error) {
+			// Log error but don't throw - banner fetching shouldn't break the extension
+			Logger.error("BannerService: Error getting internal banners", error)
+			return []
+		}
+	}
+
+	private async fetchActiveBanners(): Promise<Banner[]> {
+		try {
+			const now = Date.now()
 			const ideType = await this.getIdeType()
 			const extensionVersion = await this.getExtensionVersion()
 			const osType = await this.getOSType()
@@ -106,10 +123,7 @@ export class BannerService {
 			Logger.log(`BannerService: Fetching banners from ${url}`)
 
 			const authService = this.getAuthServiceInstance()
-			let token: string | null = null
-			if (authService) {
-				token = await authService.getAuthToken()
-			}
+			const token: string | null = (await authService?.getAuthToken()) || null
 
 			const headers: Record<string, string> = {
 				"Content-Type": "application/json",
@@ -149,6 +163,8 @@ export class BannerService {
 			// Log error but don't throw - banner fetching shouldn't break the extension
 			Logger.error("BannerService: Error fetching banners", error)
 			return []
+		} finally {
+			this._fetchPromise = null
 		}
 	}
 
@@ -425,13 +441,12 @@ export class BannerService {
 	 * Gets banners that haven't been dismissed by the user
 	 * @param forceRefresh If true, bypasses cache and fetches fresh data
 	 * @returns Array of non-dismissed banners converted to BannerCardData format
+	 *
+	 * TEMPORARILY DISABLED: Returning empty array to prevent API calls
 	 */
 	public async getActiveBanners(forceRefresh = false): Promise<BannerCardData[]> {
-		const allBanners = await this.fetchActiveBanners(forceRefresh)
-		const nonDismissedBanners = allBanners.filter((banner) => !this.isBannerDismissed(banner.id))
-		return nonDismissedBanners
-			.map((banner) => this.convertToBannerCardData(banner))
-			.filter((banner): banner is BannerCardData => banner !== null)
+		// Disable all banner fetching to prevent blocking the extension
+		return []
 	}
 
 	/**
