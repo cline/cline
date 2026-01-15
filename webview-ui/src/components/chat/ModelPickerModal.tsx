@@ -37,7 +37,6 @@ const SETTINGS_ONLY_PROVIDERS: ApiProvider[] = [
 	"ollama",
 	"lmstudio",
 	"vscode-lm",
-	"litellm",
 	"requesty",
 	"hicap",
 	"dify",
@@ -96,7 +95,10 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		showMcp,
 		showHistory,
 		showAccount,
+		remoteConfigSettings,
 		favoritedModelIds,
+		basetenModels,
+		liteLlmModels,
 	} = useExtensionState()
 	const { handleModeFieldChange, handleModeFieldsChange, handleFieldsChange } = useApiConfigurationHandlers()
 
@@ -157,8 +159,12 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 
 	// Get configured providers
 	const configuredProviders = useMemo(() => {
+		if (remoteConfigSettings?.remoteConfiguredProviders?.length) {
+			return remoteConfigSettings.remoteConfiguredProviders
+		}
+
 		return getConfiguredProviders(apiConfiguration)
-	}, [apiConfiguration])
+	}, [apiConfiguration, remoteConfigSettings?.remoteConfiguredProviders])
 
 	// Get models for current provider
 	const allModels = useMemo((): ModelItem[] => {
@@ -177,7 +183,10 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		}
 
 		// Use centralized helper for static provider models
-		const models = getModelsForProvider(selectedProvider, apiConfiguration)
+		const models = getModelsForProvider(selectedProvider, apiConfiguration, {
+			basetenModels,
+			liteLlmModels,
+		})
 		if (models) {
 			return Object.entries(models).map(([id, info]) => ({
 				id,
@@ -188,7 +197,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		}
 
 		return []
-	}, [selectedProvider, openRouterModels, vercelAiGatewayModels, apiConfiguration])
+	}, [selectedProvider, openRouterModels, vercelAiGatewayModels, apiConfiguration, basetenModels, liteLlmModels])
 
 	// Multi-word substring search - all words must match somewhere in id/name/provider
 	const matchesSearch = useCallback((model: ModelItem, query: string): boolean => {
@@ -310,6 +319,19 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 					{
 						basetenModelId: modelId,
 						basetenModelInfo: modelInfo,
+					},
+					modeToUse,
+				)
+			} else if (selectedProvider === "litellm") {
+				// LiteLLM uses provider-specific model ID and info fields
+				handleModeFieldsChange(
+					{
+						liteLlmModelId: { plan: "planModeLiteLlmModelId", act: "actModeLiteLlmModelId" },
+						liteLlmModelInfo: { plan: "planModeLiteLlmModelInfo", act: "actModeLiteLlmModelInfo" },
+					},
+					{
+						liteLlmModelId: modelId,
+						liteLlmModelInfo: modelInfo,
 					},
 					modeToUse,
 				)
