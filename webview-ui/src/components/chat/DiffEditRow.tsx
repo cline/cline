@@ -178,9 +178,10 @@ const DiffStats = memo<{ additions: number; deletions: number }>(({ additions, d
 
 // Diff line component with Tailwind styling - indicator bar, line number, code
 const DiffLine = memo<{ line: string; lineNumber: number }>(({ line, lineNumber }) => {
-	const isAddition = line.startsWith("+ ")
-	const isDeletion = line.startsWith("- ")
-	const code = isAddition || isDeletion ? line.slice(2) : line
+	const isAddition = line.startsWith("+")
+	const isDeletion = line.startsWith("-")
+	const hasSpacePrefix = line.startsWith("+ ") || line.startsWith("- ")
+	const code = isAddition || isDeletion ? line.slice(hasSpacePrefix ? 2 : 1) : line
 
 	return (
 		<div
