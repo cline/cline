@@ -1,0 +1,14 @@
+{
+	"extension": [
+		"ts"
+	],
+	"spec": "tests/**/*.test.ts",
+	"require": [
+		"tsx/esm",
+		"tests/setup.ts"
+	],
+	"node-option": [
+		"experimental-specifier-resolution=node"
+	],
+	"timeout": 10000
+}

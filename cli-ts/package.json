@@ -1,0 +1,33 @@
+{
+	"name": "@cline/cli",
+	"version": "1.0.0",
+	"description": "Cline CLI - Command-line interface for Cline AI assistant",
+	"main": "dist/index.js",
+	"type": "module",
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsx src/index.ts",
+		"test": "mocha",
+		"test:watch": "mocha --watch",
+		"test:coverage": "c8 mocha"
+	},
+	"dependencies": {
+		"commander": "^12.1.0",
+		"chalk": "^5.3.0"
+	},
+	"devDependencies": {
+		"@types/chai": "^4.3.16",
+		"@types/mocha": "^10.0.7",
+		"@types/node": "^20.14.10",
+		"@types/sinon": "^17.0.3",
+		"c8": "^10.1.2",
+		"chai": "^4.4.1",
+		"mocha": "^10.6.0",
+		"sinon": "^17.0.1",
+		"tsx": "^4.16.2",
+		"typescript": "^5.5.3"
+	},
+	"engines": {
+		"node": ">=20.0.0"
+	}
+}
