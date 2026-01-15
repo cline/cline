@@ -452,6 +452,9 @@ export class McpHub {
 					break
 				}
 				case "streamableHttp": {
+					// Use ReconnectingEventSource for auto-reconnection on connection drops
+					global.EventSource = ReconnectingEventSource
+
 					// Custom fetch wrapper that treats 404 as 405 for GET requests.
 					// The MCP SDK sends a GET request to check for SSE stream support.
 					// Per MCP spec, servers should return 405 if they don't support SSE,
