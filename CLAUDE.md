@@ -14,6 +14,32 @@ This file is the secret sauce for working effectively in this codebase. It captu
 
 **What NOT to add:** Stuff you can figure out from reading a few files, obvious patterns, or standard practices. This file should be high-signal, not comprehensive.
 
+## BCline Build Automation
+
+BCline has an automated build workflow that merges upstream Cline updates while preserving BCline-specific customizations.
+
+**To run the complete build process:**
+```
+/bcline-build
+```
+
+This workflow (`.clinerules/workflows/bcline-build.md`):
+1. Fetches latest upstream Cline changes
+2. Merges upstream/main into current branch
+3. Intelligently resolves conflicts (preserving BCline messaging system, voice implementation, bug fixes)
+4. Installs dependencies and generates protos
+5. Runs production build
+6. Creates VSIX package
+7. Reports installation instructions
+
+**BCline customizations that must be preserved during merges:**
+- **Messaging System**: `scripts/Invoke-BclineMessaging.ps1` and related files
+- **Voice Implementation**: Custom voice integration code
+- **Bug Fixes**: BCline-specific fixes not in upstream
+- **Package Identity**: Keep `"name": "bcline"` in package.json
+
+**See also:** `BUILD.md` for detailed build documentation and manual build steps.
+
 ## Miscellaneous
 - This is a VS Code extension—check `package.json` for available scripts before trying to verify builds (e.g., `npm run compile`, not `npm run build`).
 - When creating PRs, if the change is user-facing and significant enough to warrant a changelog entry, run `npm run changeset` and create a patch changeset. Never create minor or major version bumps. Skip changesets for trivial fixes, internal refactors, or minor UI tweaks that users wouldn't notice.
