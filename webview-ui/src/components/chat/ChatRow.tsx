@@ -786,6 +786,8 @@ export const ChatRowContent = memo(
 			)
 		}
 
+		console.log("Rendering ChatRowContent for message:", message.duration)
+
 		switch (message.type) {
 			case "say":
 				switch (message.say) {
@@ -913,6 +915,8 @@ export const ChatRowContent = memo(
 							return activities
 						}, [clineMessages])
 
+						console.log("API Req State:", message)
+
 						return (
 							<div>
 								{apiReqState === "pre" && (
@@ -935,15 +939,14 @@ export const ChatRowContent = memo(
 										</div>
 									</div>
 								)}
-								{reasoningContent && (
-									<ThinkingRow
-										isExpanded={isExpanded || showStreamingThinking || showCollapsedThinking}
-										isVisible={true}
-										onToggle={handleToggle}
-										reasoningContent={reasoningContent}
-										showTitle={false}
-									/>
-								)}
+								<ThinkingRow
+									duration={message.duration}
+									isExpanded={isExpanded || showStreamingThinking || showCollapsedThinking}
+									isVisible={!!reasoningContent}
+									onToggle={handleToggle}
+									reasoningContent={reasoningContent}
+									showTitle={false}
+								/>
 
 								{apiReqState === "error" && (
 									<ErrorRow

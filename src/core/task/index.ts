@@ -105,6 +105,7 @@ import { MessageStateHandler } from "./message-state"
 import { StreamResponseHandler } from "./StreamResponseHandler"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
+import { AutoApprove } from "./tools/autoApprove"
 import { detectAvailableCliTools, extractProviderDomainFromUrl, updateApiReqMsg } from "./utils"
 import { buildUserFeedbackContent } from "./utils/buildUserFeedbackContent"
 
@@ -132,6 +133,18 @@ type TaskParams = {
 	historyItem?: HistoryItem
 	taskId: string
 	taskLockAcquired: boolean
+}
+
+/**
+ * Result from handlePartialMessage indicating what happened
+ */
+interface HandlePartialMessageResult {
+	/** The timestamp of the message */
+	ts: number
+	/** Whether an existing partial message was updated (vs creating a new message) */
+	wasUpdated: boolean
+	/** Whether this was a partial=true case that should throw to interrupt ask flow */
+	shouldThrowForAsk: boolean
 }
 
 export class Task {
@@ -303,7 +316,7 @@ export class Task {
 		this.urlContentFetcher = new UrlContentFetcher(controller.context)
 		this.browserSession = new BrowserSession(stateManager)
 		this.contextManager = new ContextManager()
-		this.streamHandler = new StreamResponseHandler()
+		this.streamHandler = new StreamResponseHandler(new AutoApprove(stateManager))
 		this.cwd = cwd
 		this.stateManager = stateManager
 		this.workspaceManager = workspaceManager
@@ -569,6 +582,147 @@ export class Task {
 
 	// Communicate with webview
 
+	/**
+	 * Handle partial message logic for both ask() and say() methods.
+	 * Extracts the common pattern of updating/creating partial messages.
+	 *
+	 * @param messageCategory "ask" or "say"
+	 * @param messageType The specific ask or say type
+	 * @param text Message text content
+	 * @param partial Partial state: true (streaming), false (complete), undefined (single message)
+	 * @param options Additional options for the message
+	 * @returns Result indicating what action was taken
+	 */
+	private async handlePartialMessage(
+		messageCategory: "ask" | "say",
+		messageType: ClineAsk | ClineSay,
+		text?: string,
+		partial?: boolean,
+		options?: {
+			images?: string[]
+			files?: string[]
+			duration?: number
+			modelInfo?: ClineMessageModelInfo
+		},
+	): Promise<HandlePartialMessageResult> {
+		const clineMessages = this.messageStateHandler.getClineMessages()
+		const lastMessage = clineMessages.at(-1)
+		const lastMessageIndex = clineMessages.length - 1
+
+		// Check if we're updating an existing partial message of the same type
+		const isUpdatingPreviousPartial =
+			lastMessage &&
+			lastMessage.partial &&
+			lastMessage.type === messageCategory &&
+			(messageCategory === "ask" ? lastMessage.ask === messageType : lastMessage.say === messageType)
+
+		if (partial === true) {
+			// partial=true: streaming in progress
+			if (isUpdatingPreviousPartial) {
+				// Update existing partial message
+				if (messageCategory === "say") {
+					// For say, we mutate the message directly (existing behavior)
+					lastMessage.text = text
+					lastMessage.images = options?.images
+					lastMessage.files = options?.files
+					lastMessage.partial = partial
+					lastMessage.duration = options?.duration
+				} else {
+					// For ask, we use updateClineMessage
+					await this.messageStateHandler.updateClineMessage(lastMessageIndex, {
+						text,
+						partial,
+					})
+				}
+				const protoMessage = convertClineMessageToProto(lastMessage)
+				await sendPartialMessageEvent(protoMessage)
+				return { ts: lastMessage.ts, wasUpdated: true, shouldThrowForAsk: messageCategory === "ask" }
+			} else {
+				// Create new partial message
+				const ts = Date.now()
+				this.taskState.lastMessageTs = ts
+				const newMessage: ClineMessage = {
+					ts,
+					type: messageCategory,
+					...(messageCategory === "ask" ? { ask: messageType as ClineAsk } : { say: messageType as ClineSay }),
+					text,
+					partial,
+					...(options?.images && { images: options.images }),
+					...(options?.files && { files: options.files }),
+					...(options?.modelInfo && { modelInfo: options.modelInfo }),
+					...(options?.duration !== undefined && { duration: options.duration }),
+					// Carry over duration from previous message for ask (existing behavior)
+					...(messageCategory === "ask" && lastMessage?.duration && { duration: lastMessage.duration }),
+				}
+				await this.messageStateHandler.addToClineMessages(newMessage)
+				await this.postStateToWebview()
+				return { ts, wasUpdated: false, shouldThrowForAsk: messageCategory === "ask" }
+			}
+		} else if (partial === false) {
+			// partial=false: completing a previously partial message
+			if (isUpdatingPreviousPartial) {
+				// Complete the existing partial message
+				const ts = lastMessage.ts
+				this.taskState.lastMessageTs = ts
+
+				if (messageCategory === "say") {
+					// For say, mutate directly and save (existing behavior)
+					lastMessage.text = text
+					lastMessage.images = options?.images
+					lastMessage.files = options?.files
+					lastMessage.partial = false
+					lastMessage.duration = lastMessage.duration ?? options?.duration
+					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+					const protoMessage = convertClineMessageToProto(lastMessage)
+					await sendPartialMessageEvent(protoMessage)
+				} else {
+					// For ask, use updateClineMessage
+					await this.messageStateHandler.updateClineMessage(lastMessageIndex, {
+						text,
+						partial: false,
+					})
+					const protoMessage = convertClineMessageToProto(lastMessage)
+					await sendPartialMessageEvent(protoMessage)
+				}
+				return { ts, wasUpdated: true, shouldThrowForAsk: false }
+			} else {
+				// New message with partial=false (treated as complete message)
+				const ts = Date.now()
+				this.taskState.lastMessageTs = ts
+				const newMessage: ClineMessage = {
+					ts,
+					type: messageCategory,
+					...(messageCategory === "ask" ? { ask: messageType as ClineAsk } : { say: messageType as ClineSay }),
+					text,
+					...(options?.images && { images: options.images }),
+					...(options?.files && { files: options.files }),
+					...(options?.modelInfo && { modelInfo: options.modelInfo }),
+					...(options?.duration !== undefined && { duration: options.duration }),
+				}
+				await this.messageStateHandler.addToClineMessages(newMessage)
+				await this.postStateToWebview()
+				return { ts, wasUpdated: false, shouldThrowForAsk: false }
+			}
+		} else {
+			// partial=undefined: new non-partial message (individual complete message)
+			const ts = Date.now()
+			this.taskState.lastMessageTs = ts
+			const newMessage: ClineMessage = {
+				ts,
+				type: messageCategory,
+				...(messageCategory === "ask" ? { ask: messageType as ClineAsk } : { say: messageType as ClineSay }),
+				text,
+				...(options?.images && { images: options.images }),
+				...(options?.files && { files: options.files }),
+				...(options?.modelInfo && { modelInfo: options.modelInfo }),
+				...(options?.duration !== undefined && { duration: options.duration }),
+			}
+			await this.messageStateHandler.addToClineMessages(newMessage)
+			await this.postStateToWebview()
+			return { ts, wasUpdated: false, shouldThrowForAsk: false }
+		}
+	}
+
 	// partial has three valid states true (partial message), false (completion of partial message), undefined (individual complete message)
 	async ask(
 		type: ClineAsk,
@@ -580,108 +734,29 @@ export class Task {
 		images?: string[]
 		files?: string[]
 		askTs?: number
+		duration?: number
 	}> {
 		// Allow resume asks even when aborted to enable resume button after cancellation
 		if (this.taskState.abort && type !== "resume_task" && type !== "resume_completed_task") {
 			throw new Error("Cline instance aborted")
 		}
-		let askTs: number
-		if (partial !== undefined) {
-			const clineMessages = this.messageStateHandler.getClineMessages()
-			const lastMessage = clineMessages.at(-1)
-			const lastMessageIndex = clineMessages.length - 1
 
-			const isUpdatingPreviousPartial =
-				lastMessage && lastMessage.partial && lastMessage.type === "ask" && lastMessage.ask === type
-			if (partial) {
-				if (isUpdatingPreviousPartial) {
-					// existing partial message, so update it
-					await this.messageStateHandler.updateClineMessage(lastMessageIndex, {
-						text,
-						partial,
-					})
-					// todo be more efficient about saving and posting only new data or one whole message at a time so ignore partial for saves, and only post parts of partial message instead of whole array in new listener
-					// await this.saveClineMessagesAndUpdateHistory()
-					// await this.postStateToWebview()
-					const protoMessage = convertClineMessageToProto(lastMessage)
-					await sendPartialMessageEvent(protoMessage)
-					throw new Error("Current ask promise was ignored 1")
-				} else {
-					// this is a new partial message, so add it with partial state
-					// this.askResponse = undefined
-					// this.askResponseText = undefined
-					// this.askResponseImages = undefined
-					askTs = Date.now()
-					this.taskState.lastMessageTs = askTs
-					await this.messageStateHandler.addToClineMessages({
-						ts: askTs,
-						type: "ask",
-						ask: type,
-						text,
-						partial,
-					})
-					await this.postStateToWebview()
-					throw new Error("Current ask promise was ignored 2")
-				}
-			} else {
-				// partial=false means its a complete version of a previously partial message
-				if (isUpdatingPreviousPartial) {
-					// this is the complete version of a previously partial message, so replace the partial with the complete version
-					this.taskState.askResponse = undefined
-					this.taskState.askResponseText = undefined
-					this.taskState.askResponseImages = undefined
-					this.taskState.askResponseFiles = undefined
+		const result = await this.handlePartialMessage("ask", type, text, partial)
 
-					/*
-					Bug for the history books:
-					In the webview we use the ts as the chatrow key for the virtuoso list. Since we would update this ts right at the end of streaming, it would cause the view to flicker. The key prop has to be stable otherwise react has trouble reconciling items between renders, causing unmounting and remounting of components (flickering).
-					The lesson here is if you see flickering when rendering lists, it's likely because the key prop is not stable.
-					So in this case we must make sure that the message ts is never altered after first setting it.
-					*/
-					askTs = lastMessage.ts
-					this.taskState.lastMessageTs = askTs
-					// lastMessage.ts = askTs
-					await this.messageStateHandler.updateClineMessage(lastMessageIndex, {
-						text,
-						partial: false,
-					})
-					// await this.postStateToWebview()
-					const protoMessage = convertClineMessageToProto(lastMessage)
-					await sendPartialMessageEvent(protoMessage)
-				} else {
-					// this is a new partial=false message, so add it like normal
-					this.taskState.askResponse = undefined
-					this.taskState.askResponseText = undefined
-					this.taskState.askResponseImages = undefined
-					this.taskState.askResponseFiles = undefined
-					askTs = Date.now()
-					this.taskState.lastMessageTs = askTs
-					await this.messageStateHandler.addToClineMessages({
-						ts: askTs,
-						type: "ask",
-						ask: type,
-						text,
-					})
-					await this.postStateToWebview()
-				}
-			}
-		} else {
-			// this is a new non-partial message, so add it like normal
-			// const lastMessage = this.clineMessages.at(-1)
+		// For ask, partial=true cases should throw to interrupt the ask flow
+		if (result.shouldThrowForAsk) {
+			throw new Error("Current ask promise was ignored")
+		}
+
+		// Clear response state when not streaming (partial=true)
+		if (!partial) {
 			this.taskState.askResponse = undefined
 			this.taskState.askResponseText = undefined
 			this.taskState.askResponseImages = undefined
 			this.taskState.askResponseFiles = undefined
-			askTs = Date.now()
-			this.taskState.lastMessageTs = askTs
-			await this.messageStateHandler.addToClineMessages({
-				ts: askTs,
-				type: "ask",
-				ask: type,
-				text,
-			})
-			await this.postStateToWebview()
 		}
+
+		const askTs = result.ts
 
 		await pWaitFor(() => this.taskState.askResponse !== undefined || this.taskState.lastMessageTs !== askTs, {
 			interval: 100,
@@ -689,7 +764,7 @@ export class Task {
 		if (this.taskState.lastMessageTs !== askTs) {
 			throw new Error("Current ask promise was ignored") // could happen if we send multiple asks in a row i.e. with command_output. It's important that when we know an ask could fail, it is handled gracefully
 		}
-		const result = {
+		const askResult = {
 			response: this.taskState.askResponse!,
 			text: this.taskState.askResponseText,
 			images: this.taskState.askResponseImages,
@@ -699,7 +774,7 @@ export class Task {
 		this.taskState.askResponseText = undefined
 		this.taskState.askResponseImages = undefined
 		this.taskState.askResponseFiles = undefined
-		return result
+		return askResult
 	}
 
 	async handleWebviewAskResponse(askResponse: ClineAskResponse, text?: string, images?: string[], files?: string[]) {
@@ -715,6 +790,7 @@ export class Task {
 		images?: string[],
 		files?: string[],
 		partial?: boolean,
+		duration?: number,
 	): Promise<number | undefined> {
 		// Allow hook messages even when aborted to enable proper cleanup
 		if (this.taskState.abort && type !== "hook_status" && type !== "hook_output_stream") {
@@ -728,87 +804,15 @@ export class Task {
 			mode: providerInfo.mode,
 		}
 
-		if (partial !== undefined) {
-			const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
-			const isUpdatingPreviousPartial =
-				lastMessage && lastMessage.partial && lastMessage.type === "say" && lastMessage.say === type
-			if (partial) {
-				if (isUpdatingPreviousPartial) {
-					// existing partial message, so update it
-					lastMessage.text = text
-					lastMessage.images = images
-					lastMessage.files = files
-					lastMessage.partial = partial
-					const protoMessage = convertClineMessageToProto(lastMessage)
-					await sendPartialMessageEvent(protoMessage)
-					return undefined
-				} else {
-					// this is a new partial message, so add it with partial state
-					const sayTs = Date.now()
-					this.taskState.lastMessageTs = sayTs
-					await this.messageStateHandler.addToClineMessages({
-						ts: sayTs,
-						type: "say",
-						say: type,
-						text,
-						images,
-						files,
-						partial,
-						modelInfo,
-					})
-					await this.postStateToWebview()
-					return sayTs
-				}
-			} else {
-				// partial=false means its a complete version of a previously partial message
-				if (isUpdatingPreviousPartial) {
-					// this is the complete version of a previously partial message, so replace the partial with the complete version
-					this.taskState.lastMessageTs = lastMessage.ts
-					// lastMessage.ts = sayTs
-					lastMessage.text = text
-					lastMessage.images = images
-					lastMessage.files = files // Ensure files is updated
-					lastMessage.partial = false
+		const result = await this.handlePartialMessage("say", type, text, partial, {
+			images,
+			files,
+			duration,
+			modelInfo,
+		})
 
-					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
-					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-					// await this.postStateToWebview()
-					const protoMessage = convertClineMessageToProto(lastMessage)
-					await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
-					return undefined
-				} else {
-					// this is a new partial=false message, so add it like normal
-					const sayTs = Date.now()
-					this.taskState.lastMessageTs = sayTs
-					await this.messageStateHandler.addToClineMessages({
-						ts: sayTs,
-						type: "say",
-						say: type,
-						text,
-						images,
-						files,
-						modelInfo,
-					})
-					await this.postStateToWebview()
-					return sayTs
-				}
-			}
-		} else {
-			// this is a new non-partial message, so add it like normal
-			const sayTs = Date.now()
-			this.taskState.lastMessageTs = sayTs
-			await this.messageStateHandler.addToClineMessages({
-				ts: sayTs,
-				type: "say",
-				say: type,
-				text,
-				images,
-				files,
-				modelInfo,
-			})
-			await this.postStateToWebview()
-			return sayTs
-		}
+		// For say, return undefined when updating existing partial, otherwise return the timestamp
+		return result.wasUpdated ? undefined : result.ts
 	}
 
 	async sayAndCreateMissingParamError(toolName: ClineDefaultTool, paramName: string, relPath?: string) {
@@ -2566,7 +2570,14 @@ export class Task {
 							if (!this.taskState.abort) {
 								const thinkingBlock = reasonsHandler.getCurrentReasoning()
 								if (thinkingBlock?.thinking && chunk.reasoning) {
-									await this.say("reasoning", thinkingBlock.thinking, undefined, undefined, true)
+									await this.say(
+										"reasoning",
+										thinkingBlock.thinking,
+										undefined,
+										undefined,
+										true,
+										thinkingBlock.duration_ms,
+									)
 								}
 							}
 
@@ -2599,7 +2610,14 @@ export class Task {
 							const currentReasoning = reasonsHandler.getCurrentReasoning()
 							if (currentReasoning?.thinking && assistantMessage.length === 0) {
 								// Complete the reasoning message (only once)
-								await this.say("reasoning", currentReasoning.thinking, undefined, undefined, false)
+								await this.say(
+									"reasoning",
+									currentReasoning.thinking,
+									undefined,
+									undefined,
+									false,
+									currentReasoning.duration_ms,
+								)
 							}
 							if (chunk.signature) {
 								assistantTextSignature = chunk.signature

@@ -9,6 +9,7 @@ import {
 	ClineReasoningDetailParam,
 } from "@/shared/messages/content"
 import { ClineDefaultTool } from "@/shared/tools"
+import { AutoApprove } from "./tools/autoApprove"
 
 export interface PendingToolUse {
 	id: string
@@ -18,6 +19,7 @@ export interface PendingToolUse {
 	signature?: string
 	jsonParser?: JSONParser
 	call_id?: string
+	start_time_ms: number
 }
 
 interface ToolUseDeltaBlock {
@@ -42,6 +44,7 @@ export interface PendingReasoning {
 	signature: string
 	redactedThinking: ClineAssistantRedactedThinkingBlock[]
 	summary: unknown[] | ClineReasoningDetailParam[]
+	start_time_ms: number
 }
 
 const ESCAPE_MAP: Record<string, string> = {
@@ -55,8 +58,13 @@ const ESCAPE_MAP: Record<string, string> = {
 const ESCAPE_PATTERN = /\\[ntr"\\]/g
 
 export class StreamResponseHandler {
-	private toolUseHandler = new ToolUseHandler()
-	private reasoningHandler = new ReasoningHandler()
+	constructor(private autoApprove: AutoApprove) {
+		this.toolUseHandler = new ToolUseHandler(this.autoApprove)
+		this.reasonsHandler = new ReasoningHandler()
+	}
+
+	private toolUseHandler: ToolUseHandler
+	private reasonsHandler: ReasoningHandler
 
 	private _requestId: string | undefined
 
@@ -73,14 +81,14 @@ export class StreamResponseHandler {
 	public getHandlers() {
 		return {
 			toolUseHandler: this.toolUseHandler,
-			reasonsHandler: this.reasoningHandler,
+			reasonsHandler: this.reasonsHandler,
 		}
 	}
 
 	public reset() {
 		this._requestId = undefined
-		this.toolUseHandler = new ToolUseHandler()
-		this.reasoningHandler = new ReasoningHandler()
+		this.toolUseHandler = new ToolUseHandler(this.autoApprove)
+		this.reasonsHandler = new ReasoningHandler()
 	}
 }
 
@@ -88,6 +96,7 @@ export class StreamResponseHandler {
  * Handles streaming native tool use blocks and converts them to ClineAssistantToolUseBlock format
  */
 class ToolUseHandler {
+	constructor(private autoApprove: AutoApprove) {}
 	private pendingToolUses = new Map<string, PendingToolUse>()
 
 	processToolUseDelta(delta: ToolUseDeltaBlock, call_id?: string): void {
@@ -142,6 +151,8 @@ class ToolUseHandler {
 			input,
 			signature: pending.signature,
 			call_id: pending.call_id,
+			approved: this.autoApprove.shouldAutoApproveTool(pending.name as ClineDefaultTool) === true,
+			duration_ms: Date.now() - pending.start_time_ms,
 		}
 	}
 
@@ -198,6 +209,7 @@ class ToolUseHandler {
 					isNativeToolCall: true,
 					signature: pending.signature,
 					call_id: pending.call_id,
+					duration: Date.now() - pending.start_time_ms,
 				})
 			} else {
 				const params: Record<string, string> = {}
@@ -214,6 +226,7 @@ class ToolUseHandler {
 					signature: pending.signature,
 					isNativeToolCall: true,
 					call_id: pending.call_id,
+					duration: Date.now() - pending.start_time_ms,
 				})
 			}
 		}
@@ -235,6 +248,7 @@ class ToolUseHandler {
 			jsonParser,
 			call_id,
 			signature: undefined,
+			start_time_ms: Date.now(),
 		}
 
 		jsonParser.onValue = (info: any) => {
@@ -276,6 +290,7 @@ class ReasoningHandler {
 				signature: "",
 				redactedThinking: [],
 				summary: [],
+				start_time_ms: Date.now(),
 			}
 		}
 
@@ -302,6 +317,7 @@ class ReasoningHandler {
 				type: "redacted_thinking",
 				data: delta.redacted_data,
 				call_id: delta.id || this.pendingReasoning.id,
+				duration_ms: Date.now() - this.pendingReasoning.start_time_ms,
 			})
 		}
 	}
@@ -332,6 +348,7 @@ class ReasoningHandler {
 			signature: this.pendingReasoning.signature,
 			summary: this.pendingReasoning.summary,
 			call_id: this.pendingReasoning.id,
+			duration_ms: Date.now() - this.pendingReasoning.start_time_ms,
 		}
 	}
 

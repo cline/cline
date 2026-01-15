@@ -123,6 +123,7 @@ message ClineSayTool {
   string regex = 5;
   string file_pattern = 6;
   bool operation_is_located_in_workspace = 7;
+  int32 duration = 8;
 }
 
 // Message for ClineSayBrowserAction
@@ -221,6 +222,7 @@ message ClineMessage {
   ClineAskNewTask ask_new_task = 21;
   ClineApiReqInfo api_req_info = 22;
   ClineModelInfo model_info = 23;
+  int32 duration = 24;
 }
 
 message ShowWebviewEvent {

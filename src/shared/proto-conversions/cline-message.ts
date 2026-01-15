@@ -209,6 +209,7 @@ export function convertClineMessageToProto(message: AppClineMessage): ProtoCline
 		askNewTask: undefined,
 		apiReqInfo: undefined,
 		modelInfo: message.modelInfo ?? undefined,
+		duration: message.duration ?? 0,
 	}
 
 	return protoMessage
@@ -274,6 +275,10 @@ export function convertProtoToClineMessage(protoMessage: ProtoClineMessage): App
 			protoMessage.conversationHistoryDeletedRange.startIndex,
 			protoMessage.conversationHistoryDeletedRange.endIndex,
 		]
+	}
+
+	if (protoMessage.duration !== 0) {
+		message.duration = protoMessage.duration
 	}
 
 	return message

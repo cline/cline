@@ -84,7 +84,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	)
 
 	return (
-		<div className="overflow-hidden flex flex-col h-full relative">
+		<div className="overflow-hidden flex flex-col h-full relative animate-fade-in">
 			{/* Sticky User Message - positioned absolutely to avoid layout shifts */}
 			<div
 				className={cn(

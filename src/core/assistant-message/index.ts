@@ -8,6 +8,7 @@ export interface TextStreamContent {
 	type: "text"
 	content: string
 	partial: boolean
+	duration?: number // duration in milliseconds
 }
 
 export const toolParamNames = [
@@ -71,6 +72,7 @@ export interface ToolUse {
 	 * Thought signature associated with this tool use, used by Gemini
 	 */
 	signature?: string
+	duration?: number // duration in milliseconds
 }
 
 export interface ReasoningStreamContent {
@@ -101,4 +103,5 @@ export interface ReasoningStreamContent {
 	 * Indicates whether this is a partial reasoning block
 	 */
 	partial: boolean
+	duration?: number // duration in milliseconds
 }

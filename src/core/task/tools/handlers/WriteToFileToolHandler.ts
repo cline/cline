@@ -158,6 +158,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				...sharedMessageProps,
 				content: diff || content,
 				operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
+				duration: block.duration,
 				// ? formatResponse.createPrettyPatch(
 				// 		relPath,
 				// 		this.diffViewProvider.originalContent,

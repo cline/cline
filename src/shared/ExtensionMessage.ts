@@ -132,6 +132,7 @@ export interface ClineMessage {
 	conversationHistoryIndex?: number
 	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
 	modelInfo?: ClineMessageModelInfo
+	duration?: number // duration in milliseconds
 }
 
 export type ClineAsk =
@@ -208,6 +209,7 @@ export interface ClineSayTool {
 	regex?: string
 	filePattern?: string
 	operationIsLocatedInWorkspace?: boolean
+	duration?: number // duration in milliseconds
 }
 
 export interface ClineSayHook {

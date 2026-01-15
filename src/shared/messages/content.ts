@@ -16,6 +16,8 @@ export interface ClineReasoningDetailParam {
 interface ClineSharedMessageParam {
 	// The id of the response that the block belongs to
 	call_id?: string
+	duration_ms?: number
+	approved?: boolean
 }
 
 export const REASONING_DETAILS_PROVIDERS = ["cline", "openrouter"]
@@ -36,7 +38,9 @@ export interface ClineImageContentBlock extends Anthropic.ImageBlockParam, Cline
 
 export interface ClineDocumentContentBlock extends Anthropic.DocumentBlockParam, ClineSharedMessageParam {}
 
-export interface ClineUserToolResultContentBlock extends Anthropic.ToolResultBlockParam, ClineSharedMessageParam {}
+export interface ClineUserToolResultContentBlock extends Anthropic.ToolResultBlockParam, ClineSharedMessageParam {
+	error?: string
+}
 
 /**
  * Assistant only content types
@@ -127,18 +131,14 @@ export function convertClineStorageToAnthropicMessage(
 	return { role, content: cleanedContent }
 }
 
+const CLINE_UNIQUE_FIELDS = ["reasoning_details", "call_id", "summary", "signature", "duration_ms", "approved"]
+
 /**
  * Clean a content block by removing Cline-specific fields and returning only Anthropic-compatible fields
  */
 export function cleanContentBlock(block: ClineContent): Anthropic.ContentBlock {
 	// Fast path: if no Cline-specific fields exist, return as-is
-	const hasClineFields =
-		"reasoning_details" in block ||
-		"call_id" in block ||
-		"summary" in block ||
-		(block.type !== "thinking" && "signature" in block)
-
-	if (!hasClineFields) {
+	if (!CLINE_UNIQUE_FIELDS.some((f) => f in block) || (block.type !== "thinking" && "signature" in block)) {
 		return block as Anthropic.ContentBlock
 	}
 

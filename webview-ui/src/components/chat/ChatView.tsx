@@ -370,6 +370,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					<MessagesArea
 						chatState={chatState}
 						groupedMessages={groupedMessages}
+						key={task.ts}
 						messageHandlers={messageHandlers}
 						modifiedMessages={modifiedMessages}
 						scrollBehavior={scrollBehavior}
