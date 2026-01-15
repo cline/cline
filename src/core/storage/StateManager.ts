@@ -19,6 +19,7 @@ import {
 import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/services/logging/Logger"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import {
 	getTaskHistoryStateFilePath,
@@ -691,7 +692,7 @@ export class StateManager {
 				await this.persistPendingState()
 				this.persistenceTimeout = null
 			} catch (error) {
-				console.error("[StateManager] Failed to persist pending changes:", error)
+				Logger.error("[StateManager] Failed to persist pending changes:", error)
 				this.persistenceTimeout = null
 
 				// Call persistence error callback for error recovery
