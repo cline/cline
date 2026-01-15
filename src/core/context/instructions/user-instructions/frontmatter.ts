@@ -2,9 +2,28 @@ import * as yaml from "js-yaml"
 
 export type FrontmatterParseResult = {
 	data: Record<string, unknown>
+	/**
+	 * The markdown content after stripping the `--- frontmatter ---` block.
+	 *
+	 * Named `body` (rather than `content`) to make it clear this is the remaining
+	 * document body and to keep this helper generic for multiple consumers.
+	 */
 	body: string
+
+	/**
+	 * True when the input contained a frontmatter block, even if parsing failed.
+	 *
+	 * This allows callers to distinguish:
+	 * - "no frontmatter provided" (baseline behavior), vs
+	 * - "frontmatter was provided" (may have semantic meaning in future consumers).
+	 */
 	hadFrontmatter: boolean
-	/** Present only when YAML frontmatter was detected but failed to parse. */
+	/**
+	 * Present only when YAML frontmatter was detected but failed to parse.
+	 *
+	 * This helper is intentionally fail-open and does not log. Returning `parseError`
+	 * lets each caller decide whether to log, surface diagnostics, etc.
+	 */
 	parseError?: string
 }
 
