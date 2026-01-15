@@ -7,6 +7,7 @@ import { setWelcomeViewCompleted } from "@/core/controller/state/setWelcomeViewC
 import { HostProvider } from "@/hosts/host-provider"
 import { telemetryService } from "@/services/telemetry"
 import { openExternal } from "@/utils/env"
+import { BannerService } from "../banner/BannerService"
 import { AuthInvalidTokenError, AuthNetworkError } from "../error/ClineError"
 import { featureFlagsService } from "../feature-flags"
 import { Logger } from "../logging/Logger"
@@ -409,6 +410,9 @@ export class AuthService {
 			telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
 			// Poll feature flags immediately for authenticated users to ensure cache is populated
 			await featureFlagsService.poll(this._clineAuthInfo?.userInfo?.id)
+
+			// Initialize banner service (TEMPORARILY DISABLED - not fetching banners to prevent API hammering)
+			BannerService.initialize(this._clineAuthInfo?.idToken)
 		} else {
 			// Poll feature flags for unauthenticated state
 			await featureFlagsService.poll(undefined)

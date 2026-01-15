@@ -2,10 +2,9 @@ import type { Banner, BannerRules, BannersResponse } from "@shared/ClineBanner"
 import { BannerActionType, type BannerCardData } from "@shared/cline/banner"
 import axios from "axios"
 import { ClineEnv } from "@/config"
-import type { Controller } from "@/core/controller"
+import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { getAxiosSettings } from "@/shared/net"
-import { AuthService } from "../auth/AuthService"
 import { buildBasicClineHeaders } from "../EnvUtils"
 import { getDistinctId } from "../logging/distinctId"
 import { Logger } from "../logging/Logger"
@@ -18,14 +17,14 @@ export class BannerService {
 	private readonly _baseUrl = ClineEnv.config().apiBaseUrl
 	private _cachedBanners: Banner[] = []
 	private _lastFetchTime: number = 0
-	private readonly CACHE_DURATION_MS = 5 * 60 * 1000 // 5 minutes
-	private _controller: Controller
-	private _authService?: AuthService
+	private readonly CACHE_DURATION_MS = 24 * 60 * 60 * 1000 // 24 hours
+	private readonly RETRY_DELAY_MS = 60 * 60 * 1000 // 1 hour retry delay on failure
+	private readonly MAX_RETRIES = 3
 	private actionTypes: Set<string>
-	private _fetchPromise: Promise<Banner[]> | null = null
+	private _retryCount: number = 0
+	private _retryTimeoutId: ReturnType<typeof setTimeout> | null = null
 
-	private constructor(controller: Controller) {
-		this._controller = controller
+	private constructor(private authToken: string) {
 		this.actionTypes = new Set<string>(Object.values(BannerActionType))
 	}
 
@@ -35,11 +34,11 @@ export class BannerService {
 	 * @returns The initialized BannerService instance
 	 * @throws Error if already initialized
 	 */
-	public static initialize(controller: Controller): BannerService {
+	public static initialize(authToken: string): BannerService {
 		if (BannerService.instance) {
 			throw new Error("BannerService has already been initialized.")
 		}
-		BannerService.instance = new BannerService(controller)
+		BannerService.instance = new BannerService(authToken)
 		return BannerService.instance
 	}
 
@@ -69,45 +68,12 @@ export class BannerService {
 	}
 
 	/**
-	 * Sets the AuthService instance for testing purposes
-	 * In production, AuthService is loaded dynamically when needed
+	 * Fetches banners from the API with simple retry logic.
+	 * Called once on init, then every 24 hours via cache expiry.
+	 * On rate limit (429), retries up to 3 times with 1-hour delays.
 	 */
-	public setAuthService(authService: AuthService): void {
-		this._authService = authService
-	}
-
-	/**
-	 * Fetches active banners from the API
-	 * Backend handles all filtering based on ide and user context
-	 * Extension only filters by providers (API provider configuration)
-	 * @param forceRefresh If true, bypasses cache and fetches fresh data
-	 * @returns Array of banners that match current environment
-	 */
-	private async internalGetActiveBanners(forceRefresh = false): Promise<Banner[]> {
+	private async fetchBanners(): Promise<Banner[]> {
 		try {
-			// Return cached banners if still valid
-			const now = Date.now()
-			if (!forceRefresh && this._cachedBanners.length > 0 && now - this._lastFetchTime < this.CACHE_DURATION_MS) {
-				Logger.log("BannerService: Returning cached banners")
-				return this._cachedBanners
-			}
-
-			if (this._fetchPromise && !forceRefresh) {
-				return this._fetchPromise
-			}
-
-			this._fetchPromise = this.fetchActiveBanners()
-			return this._fetchPromise
-		} catch (error) {
-			// Log error but don't throw - banner fetching shouldn't break the extension
-			Logger.error("BannerService: Error getting internal banners", error)
-			return []
-		}
-	}
-
-	private async fetchActiveBanners(): Promise<Banner[]> {
-		try {
-			const now = Date.now()
 			const ideType = await this.getIdeType()
 			const extensionVersion = await this.getExtensionVersion()
 			const osType = await this.getOSType()
@@ -122,8 +88,7 @@ export class BannerService {
 			const url = urlObj.toString()
 			Logger.log(`BannerService: Fetching banners from ${url}`)
 
-			const authService = this.getAuthServiceInstance()
-			const token: string | null = (await authService?.getAuthToken()) || null
+			const token: string | null = this.authToken || null
 
 			const headers: Record<string, string> = {
 				"Content-Type": "application/json",
@@ -140,31 +105,39 @@ export class BannerService {
 			})
 
 			if (!response.data?.data || !Array.isArray(response.data.data.items)) {
-				Logger.log("BannerService: Invalid response format - items array is missing or malformed")
+				Logger.log("BannerService: Invalid response format")
 				return []
 			}
 
 			const backendFilteredBanners = response.data.data.items
-			Logger.log(`BannerService: Received ${backendFilteredBanners.length} banners from backend (already filtered)`)
-
-			// Client-side filtering: Only filter by providers
 			const matchingBanners = backendFilteredBanners.filter((banner) => this.matchesProviderRule(banner))
-			Logger.log(`BannerService: ${matchingBanners.length} banners match provider requirements`)
 
-			// Update cache
+			// Success - update cache and reset retry state
 			this._cachedBanners = matchingBanners
-			this._lastFetchTime = now
-
-			if (matchingBanners.length > 0) {
-				Logger.log(`BannerService: ${matchingBanners.length} active banner(s) fetched.`)
+			this._lastFetchTime = Date.now()
+			this._retryCount = 0
+			if (this._retryTimeoutId) {
+				clearTimeout(this._retryTimeoutId)
+				this._retryTimeoutId = null
 			}
+
+			Logger.log(`BannerService: Fetched ${matchingBanners.length} banner(s)`)
 			return matchingBanners
 		} catch (error) {
-			// Log error but don't throw - banner fetching shouldn't break the extension
-			Logger.error("BannerService: Error fetching banners", error)
-			return []
-		} finally {
-			this._fetchPromise = null
+			// Handle rate limiting with retry
+			if (axios.isAxiosError(error) && error.response?.status === 429) {
+				if (this._retryCount < this.MAX_RETRIES) {
+					this._retryCount++
+					Logger.log(`BannerService: Rate limited, scheduling retry ${this._retryCount}/${this.MAX_RETRIES} in 1 hour`)
+					this._retryTimeoutId = setTimeout(() => this.fetchBanners(), this.RETRY_DELAY_MS)
+				} else {
+					Logger.log(`BannerService: Rate limited, max retries (${this.MAX_RETRIES}) reached`)
+				}
+			} else {
+				Logger.error("BannerService: Error fetching banners", error)
+			}
+
+			return this._cachedBanners
 		}
 	}
 
@@ -196,8 +169,8 @@ export class BannerService {
 				return true
 			}
 
-			const apiConfiguration = this._controller.stateManager.getApiConfiguration()
-			const currentMode = this._controller.stateManager.getGlobalSettingsKey("mode")
+			const apiConfiguration = StateManager.get()?.getApiConfiguration()
+			const currentMode = StateManager.get()?.getGlobalSettingsKey("mode")
 			const selectedProvider =
 				currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider
 
@@ -290,29 +263,16 @@ export class BannerService {
 	}
 
 	/**
-	 * Gets the AuthService instance
-	 * @returns AuthService instance or undefined if not available
-	 */
-	private getAuthServiceInstance(): AuthService | undefined {
-		// Use injected instance if available (for testing)
-		if (this._authService) {
-			return this._authService
-		}
-
-		// Otherwise, get singleton instance
-		try {
-			return AuthService.getInstance(this._controller)
-		} catch {
-			return undefined
-		}
-	}
-
-	/**
-	 * Clears the banner cache
+	 * Clears the banner cache and resets retry state
 	 */
 	public clearCache(): void {
 		this._cachedBanners = []
 		this._lastFetchTime = 0
+		this._retryCount = 0
+		if (this._retryTimeoutId) {
+			clearTimeout(this._retryTimeoutId)
+			this._retryTimeoutId = null
+		}
 		Logger.log("BannerService: Cache cleared")
 	}
 
@@ -366,7 +326,7 @@ export class BannerService {
 	 */
 	public async dismissBanner(bannerId: string): Promise<void> {
 		try {
-			const dismissedBanners = this._controller.stateManager.getGlobalStateKey("dismissedBanners") || []
+			const dismissedBanners = StateManager.get()?.getGlobalStateKey("dismissedBanners") || []
 
 			if (dismissedBanners.some((b) => b.bannerId === bannerId)) {
 				Logger.log(`BannerService: Banner ${bannerId} already dismissed`)
@@ -377,7 +337,7 @@ export class BannerService {
 				dismissedAt: Date.now(),
 			}
 
-			this._controller.stateManager.setGlobalState("dismissedBanners", [...dismissedBanners, newDismissal])
+			StateManager.get()?.setGlobalState("dismissedBanners", [...dismissedBanners, newDismissal])
 
 			await this.sendBannerEvent(bannerId, "dismiss")
 
@@ -396,7 +356,7 @@ export class BannerService {
 	 */
 	public isBannerDismissed(bannerId: string): boolean {
 		try {
-			const dismissedBanners = this._controller.stateManager.getGlobalStateKey("dismissedBanners") || []
+			const dismissedBanners = StateManager.get().getGlobalStateKey("dismissedBanners") || []
 			return dismissedBanners.some((b) => b.bannerId === bannerId)
 		} catch (error) {
 			Logger.error(`BannerService: Error checking if banner is dismissed`, error)
@@ -438,16 +398,23 @@ export class BannerService {
 	}
 
 	/**
-	 * Gets banners that haven't been dismissed by the user
+	 * Gets banners that haven't been dismissed by the user.
+	 * Fetches from API if cache is empty or expired (24 hours).
 	 * @param forceRefresh If true, bypasses cache and fetches fresh data
 	 * @returns Array of non-dismissed banners converted to BannerCardData format
-	 *
-	 * TEMPORARILY DISABLED: Returning empty array to prevent API calls
 	 */
 	public async getActiveBanners(forceRefresh = false): Promise<BannerCardData[]> {
-		// Disable all banner fetching to prevent blocking the extension
-		Logger.log("BannerService: Banner fetching is temporarily disabled")
-		return []
+		const now = Date.now()
+		const cacheExpired = now - this._lastFetchTime >= this.CACHE_DURATION_MS
+		const shouldFetch = forceRefresh || this._cachedBanners.length === 0 || cacheExpired
+
+		if (shouldFetch) {
+			await this.fetchBanners()
+		}
+
+		return this._cachedBanners
+			.map((banner) => this.convertToBannerCardData(banner))
+			.filter((b): b is BannerCardData => b !== null)
 	}
 
 	/**
