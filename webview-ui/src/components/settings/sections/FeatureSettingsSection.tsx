@@ -169,7 +169,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</div>
 					)}
 
-					<div style={{ marginTop: 10 }}>
+					<div>
 						<VSCodeCheckbox
 							checked={enableCheckpointsSetting}
 							onChange={(e: any) => {
