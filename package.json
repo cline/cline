@@ -326,19 +326,19 @@
 				{
 					"command": "cline.jupyterGenerateCell",
 					"group": "navigation/add@1",
-					"when": "notebookType == 'jupyter-notebook' && config.cline.enhancedNotebookInteractionEnabled"
+					"when": "notebookType == 'jupyter-notebook'"
 				}
 			],
 			"notebook/cell/title": [
 				{
 					"command": "cline.jupyterExplainCell",
 					"group": "inline@1",
-					"when": "notebookType == 'jupyter-notebook' && config.cline.enhancedNotebookInteractionEnabled"
+					"when": "notebookType == 'jupyter-notebook'"
 				},
 				{
 					"command": "cline.jupyterImproveCell",
 					"group": "inline@2",
-					"when": "notebookType == 'jupyter-notebook' && config.cline.enhancedNotebookInteractionEnabled"
+					"when": "notebookType == 'jupyter-notebook'"
 				}
 			],
 			"commandPalette": [
@@ -372,14 +372,7 @@
 		},
 		"configuration": {
 			"title": "Cline",
-			"properties": {
-				"cline.enhancedNotebookInteractionEnabled": {
-					"type": "boolean",
-					"default": false,
-					"description": "Enable enhanced Jupyter Notebook (.ipynb) support with cell-level context awareness. When enabled, Cline can read and edit notebook cells while preserving the JSON structure.",
-					"order": 1
-				}
-			}
+			"properties": {}
 		}
 	},
 	"scripts": {
