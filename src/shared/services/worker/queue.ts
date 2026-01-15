@@ -315,6 +315,88 @@ export class SyncQueue {
 	}
 
 	/**
+	 * Clean up failed items that have exceeded max retries.
+	 * This prevents the queue from growing forever when blob storage is misconfigured.
+	 *
+	 * @param maxRetries Maximum retry count before eviction (default: 5)
+	 * @param maxAgeMs Maximum age for failed items in milliseconds (default: 7 days)
+	 * @returns Number of items cleaned up
+	 */
+	cleanupFailedItems(maxRetries: number = 5, maxAgeMs: number = 7 * 24 * 60 * 60 * 1000): number {
+		const cutoff = Date.now() - maxAgeMs
+		const keysToRemove = Object.entries(this.data.items)
+			.filter(([_, item]) => {
+				if (item.status !== "failed") {
+					return false
+				}
+				// Remove if exceeded max retries OR too old
+				return item.retryCount >= maxRetries || item.timestamp < cutoff
+			})
+			.map(([key]) => key)
+
+		for (const key of keysToRemove) {
+			delete this.data.items[key]
+		}
+
+		if (keysToRemove.length > 0) {
+			this.scheduleWrite()
+		}
+
+		return keysToRemove.length
+	}
+
+	/**
+	 * Enforce a maximum queue size by removing oldest items.
+	 * Prioritizes removing: synced > failed (exceeded retries) > failed > pending
+	 *
+	 * @param maxSize Maximum number of items to keep (default: 1000)
+	 * @returns Number of items evicted
+	 */
+	enforceMaxSize(maxSize: number = 1000): number {
+		const items = Object.entries(this.data.items)
+		if (items.length <= maxSize) {
+			return 0
+		}
+
+		const toEvict = items.length - maxSize
+
+		// Sort by eviction priority: synced first, then failed with high retry, then failed, then pending
+		// Within each category, oldest first
+		const sorted = items.sort(([, a], [, b]) => {
+			const priorityOf = (item: SyncQueueItem): number => {
+				if (item.status === "synced") {
+					return 0
+				}
+				if (item.status === "failed" && item.retryCount >= 5) {
+					return 1
+				}
+				if (item.status === "failed") {
+					return 2
+				}
+				return 3 // pending
+			}
+			const priorityDiff = priorityOf(a) - priorityOf(b)
+			if (priorityDiff !== 0) {
+				return priorityDiff
+			}
+			return a.timestamp - b.timestamp // oldest first within same priority
+		})
+
+		const keysToRemove = sorted.slice(0, toEvict).map(([key]) => key)
+
+		for (const key of keysToRemove) {
+			delete this.data.items[key]
+		}
+
+		if (keysToRemove.length > 0) {
+			this.scheduleWrite()
+			console.warn(`[SyncQueue] Evicted ${keysToRemove.length} items to enforce max size of ${maxSize}`)
+		}
+
+		return keysToRemove.length
+	}
+
+	/**
 	 * Bulk enqueue multiple items.
 	 * More efficient than calling enqueue() multiple times.
 	 *

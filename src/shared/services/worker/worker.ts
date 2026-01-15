@@ -15,6 +15,10 @@ export interface SyncWorkerOptions {
 	batchSize?: number
 	/** Whether to run immediately on start (default: true) */
 	runImmediately?: boolean
+	/** Maximum queue size before eviction (default: 1000) */
+	maxQueueSize?: number
+	/** Maximum age for failed items in milliseconds (default: 7 days) */
+	maxFailedAgeMs?: number
 }
 
 enum WorkerEvent {
@@ -80,6 +84,12 @@ export class SyncWorker {
 				: 5,
 			batchSize: process?.env?.CLINE_STORAGE_SYNC_BATCH_SIZE ? parseInt(process.env.CLINE_STORAGE_SYNC_BATCH_SIZE, 10) : 10,
 			runImmediately: true,
+			maxQueueSize: process?.env?.CLINE_STORAGE_SYNC_MAX_QUEUE_SIZE
+				? parseInt(process.env.CLINE_STORAGE_SYNC_MAX_QUEUE_SIZE, 10)
+				: 1000,
+			maxFailedAgeMs: process?.env?.CLINE_STORAGE_SYNC_MAX_FAILED_AGE_MS
+				? parseInt(process.env.CLINE_STORAGE_SYNC_MAX_FAILED_AGE_MS, 10)
+				: 7 * 24 * 60 * 60 * 1000, // 7 days
 			...options,
 		}
 	}
@@ -161,17 +171,23 @@ export class SyncWorker {
 			return { successCount: 0, failCount: 0 }
 		}
 
-		if (!blobStorage.isReady()) {
-			// S3/R2 not configured, nothing to do
-			return { successCount: 0, failCount: 0 }
-		}
-
 		this.isProcessing = true
 		let successCount = 0
 		let failCount = 0
 
 		try {
-			// Get pending items (synchronous with better-sqlite3)
+			// Run cleanup to prevent unbounded queue growth
+			// This runs even if blob storage isn't ready, which is the main protection
+			// against misconfigured storage causing the queue to grow forever
+			this.queue.cleanupFailedItems(this.options.maxRetries, this.options.maxFailedAgeMs)
+			this.queue.enforceMaxSize(this.options.maxQueueSize)
+
+			if (!blobStorage.isReady()) {
+				// S3/R2 not configured, nothing more to do
+				return { successCount: 0, failCount: 0 }
+			}
+
+			// Get pending items
 			const batch = this.queue.getPendingBatch(this.options.batchSize)
 
 			if (batch.length === 0) {
