@@ -403,6 +403,10 @@
 		"storybook": "cd webview-ui && npm run storybook"
 	},
 	"lint-staged": {
+		"src/shared/storage/state-keys.ts": [
+			"node scripts/generate-state-proto.mjs",
+			"git add proto/cline/state.proto"
+		],
 		"*": [
 			"biome check --write --staged --no-errors-on-unmatched --files-ignore-unknown=true"
 		]
