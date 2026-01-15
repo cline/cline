@@ -19,10 +19,11 @@ import { BannerService } from "./services/banner/BannerService"
 import { audioRecordingService } from "./services/dictation/AudioRecordingService"
 import { ErrorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
-import { initializeDistinctId } from "./services/logging/distinctId"
+import { getDistinctId, initializeDistinctId } from "./services/logging/distinctId"
 import { telemetryService } from "./services/telemetry"
 import { PostHogClientProvider } from "./services/telemetry/providers/posthog/PostHogClientProvider"
 import { ShowMessageType } from "./shared/proto/host/window"
+import { syncWorker } from "./shared/services/worker/sync"
 import { getLatestAnnouncementId } from "./utils/announcements"
 /**
  * Performs intialization for Cline that is common to all platforms.
@@ -81,6 +82,8 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 
 	telemetryService.captureExtensionActivated()
 
+	syncWorker().init({ userDistinctId: getDistinctId() })
+
 	return webview
 }
 
@@ -129,4 +132,5 @@ export async function tearDown(): Promise<void> {
 	featureFlagsService.dispose()
 	// Dispose all webview instances
 	await WebviewProvider.disposeAllInstances()
+	syncWorker().dispose()
 }

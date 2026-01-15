@@ -494,6 +494,7 @@
 		"@types/uuid": "^10.0.0",
 		"@vscode/codicons": "^0.0.36",
 		"archiver": "^7.0.1",
+		"aws4fetch": "^1.0.20",
 		"axios": "^1.12.0",
 		"better-sqlite3": "^12.4.1",
 		"cheerio": "^1.0.0",
@@ -545,6 +546,7 @@
 		"uuid": "^11.1.0",
 		"vscode-uri": "^3.1.0",
 		"web-tree-sitter": "^0.22.6",
+		"yaml": "^2.8.2",
 		"zod": "^3.24.2"
 	},
 	"overrides": {

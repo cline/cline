@@ -9,10 +9,12 @@ import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import os from "os"
 import * as path from "path"
+import * as YAML from "yaml"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { telemetryService } from "@/services/telemetry"
 import { McpMarketplaceCatalog } from "@/shared/mcp"
+import { syncWorker } from "@/shared/services/worker/sync"
 import { reconstructTaskHistory } from "../commands/reconstructTaskHistory"
 import { StateManager } from "./StateManager"
 
@@ -205,8 +207,13 @@ export async function getSavedApiConversationHistory(taskId: string): Promise<An
 
 export async function saveApiConversationHistory(taskId: string, apiConversationHistory: Anthropic.MessageParam[]) {
 	try {
-		const filePath = path.join(await ensureTaskDirectoryExists(taskId), GlobalFileNames.apiConversationHistory)
-		await atomicWriteFile(filePath, JSON.stringify(apiConversationHistory))
+		if (apiConversationHistory.length > 0) {
+			// Queue for remote sync without blocking
+			syncWorker().enqueue(taskId, GlobalFileNames.apiConversationHistory, YAML.stringify(apiConversationHistory))
+			// Store locally
+			const filePath = path.join(await ensureTaskDirectoryExists(taskId), GlobalFileNames.apiConversationHistory)
+			await atomicWriteFile(filePath, JSON.stringify(apiConversationHistory))
+		}
 	} catch (error) {
 		// in the off chance this fails, we don't want to stop the task
 		console.error("Failed to save API conversation history:", error)

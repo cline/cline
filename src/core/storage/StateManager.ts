@@ -4,7 +4,6 @@ import {
 	GlobalState,
 	GlobalStateAndSettings,
 	GlobalStateAndSettingsKey,
-	GlobalStateKey,
 	isSecretKey,
 	isSettingsKey,
 	LocalState,
@@ -20,6 +19,7 @@ import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/index.host"
+import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import {
 	getTaskHistoryStateFilePath,
 	readTaskHistoryFromState,
@@ -28,7 +28,6 @@ import {
 	writeTaskSettingsToStorage,
 } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
-import { filterAllowedRemoteConfigFields } from "./remote-config/utils"
 import { readGlobalStateFromDisk, readSecretsFromDisk, readWorkspaceStateFromDisk } from "./utils/state-helpers"
 export interface PersistenceErrorEvent {
 	error: Error
@@ -105,10 +104,13 @@ export class StateManager {
 		}
 
 		try {
+			// Set up secret storage
+			secretStorage.init(context.secrets)
+
 			// Load all extension state from disk
-			const globalState = await readGlobalStateFromDisk(StateManager.instance.context)
-			const secrets = await readSecretsFromDisk(StateManager.instance.context)
-			const workspaceState = await readWorkspaceStateFromDisk(StateManager.instance.context)
+			const globalState = await readGlobalStateFromDisk(context)
+			const secrets = await readSecretsFromDisk(context)
+			const workspaceState = await readWorkspaceStateFromDisk(context)
 
 			// Populate the cache with all extension state and secrets fields
 			// Use populate method to avoid triggering persistence during initialization
@@ -178,23 +180,11 @@ export class StateManager {
 
 		// Then track the keys for persistence
 		Object.keys(updates).forEach((key) => {
-			this.pendingGlobalState.add(key as GlobalStateKey)
+			this.pendingGlobalState.add(key as GlobalStateAndSettingsKey)
 		})
 
 		// Schedule debounced persistence
 		this.scheduleDebouncedPersistence()
-	}
-
-	private setRemoteConfigState(updates: Partial<GlobalStateAndSettings>): void {
-		if (!this.isInitialized) {
-			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		}
-
-		// Update cache in one go
-		this.remoteConfigCache = {
-			...this.remoteConfigCache,
-			...filterAllowedRemoteConfigFields(updates),
-		}
 	}
 
 	/**
@@ -310,6 +300,12 @@ export class StateManager {
 
 		// Update cache immediately for all keys
 		Object.entries(updates).forEach(([key, value]) => {
+			// Skip unchanged values as we don't want to trigger unnecessary
+			// writes & incorrectly fire an onDidChange events.
+			const current = this.secretsCache[key as keyof Secrets]
+			if (current === value) {
+				return
+			}
 			this.secretsCache[key as keyof Secrets] = value
 			this.pendingSecrets.add(key as SecretKey)
 		})
@@ -523,7 +519,6 @@ export class StateManager {
 
 		// Batch update settings (stored in global state)
 		if (Object.keys(settingsUpdates).length > 0) {
-			this.setRemoteConfigState(settingsUpdates)
 			this.setGlobalStateBatch(settingsUpdates)
 		}
 
