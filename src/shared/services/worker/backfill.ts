@@ -7,10 +7,7 @@
  */
 
 import * as fs from "fs/promises"
-import * as path from "path"
-import { GlobalFileNames } from "@/core/storage/disk"
-import { HostProvider } from "@/hosts/host-provider"
-import { blobStorage, ClineBlobStorage } from "../../storage/ClineBlobStorage"
+import { GlobalFileNames, getSavedApiConversationHistory, getTaskHistoryStateFilePath } from "@/core/storage/disk"
 import { syncWorker } from "./sync"
 
 /**
@@ -42,119 +39,79 @@ export interface BackfillOptions {
 	sinceTimestamp?: number
 	/** Only backfill these specific task IDs */
 	taskIds?: string[]
-	/** Whether to use queue (true) or direct upload (false). Default: true */
-	useQueue?: boolean
 	/** Callback for progress updates */
 	onProgress?: (current: number, total: number, taskId: string) => void
 }
 
 /**
- * Get the tasks directory path.
- */
-function getTasksDir(): string {
-	return path.join(HostProvider.get().globalStorageFsPath, "tasks")
-}
-
-/**
  * List all task IDs in the tasks directory.
  */
-async function listTaskIds(): Promise<string[]> {
-	const tasksDir = getTasksDir()
-
+async function listTaskIds(before?: string, after?: string): Promise<string[]> {
 	try {
-		const entries = await fs.readdir(tasksDir, { withFileTypes: true })
-		return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name)
-	} catch (err) {
-		if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-			return []
-		}
-		throw err
+		const historyFile = await getTaskHistoryStateFilePath()
+		// Read the history file to get task json names
+		const data = await fs.readFile(historyFile, "utf-8")
+		const history = JSON.parse(data) as { id: string }[]
+		return (
+			history
+				?.map((item) => item.id)
+				?.filter((id) => typeof id === "string")
+				.filter((id) => {
+					if (before && id >= before) {
+						return false
+					}
+					if (after && id <= after) {
+						return false
+					}
+					return true
+				}) || []
+		)
+	} catch {
+		return []
 	}
 }
 
 /**
- * Get file modification time, or undefined if file doesn't exist.
+ * Parse task timestamp from taskId.
+ * Task IDs are generated using Date.now().toString().
  */
-async function getFileMtime(filePath: string): Promise<number | undefined> {
-	try {
-		const stat = await fs.stat(filePath)
-		return stat.mtimeMs
-	} catch {
-		return undefined
-	}
+function getTaskTimestamp(taskId: string): number | undefined {
+	const timestamp = parseInt(taskId, 10)
+	return Number.isNaN(timestamp) ? undefined : timestamp
 }
 
 /**
  * Backfill a single task's data to S3/R2.
  *
  * @param taskId Task identifier
- * @param useQueue Whether to use the sync queue (true) or direct upload (false)
  */
-export async function backfillTask(taskId: string, useQueue: boolean = true): Promise<BackfillTaskResult> {
+export async function backfillTask(taskId: string): Promise<BackfillTaskResult> {
 	const result: BackfillTaskResult = {
 		taskId,
 		success: false,
 		filesQueued: [],
 	}
 
-	const taskDir = path.join(getTasksDir(), taskId)
-
 	try {
-		// Check if task directory exists
-		try {
-			await fs.access(taskDir)
-		} catch {
-			result.error = "Task directory not found"
+		const queue = syncWorker().getSyncQueue()
+		if (!queue) {
+			result.error = "S3 storage not configured"
 			return result
 		}
-
-		// Files to sync
-		const filesToSync = [
-			GlobalFileNames.apiConversationHistory, // api_conversation_history.json
-			GlobalFileNames.uiMessages, // ui_messages.json
-		]
-
-		if (useQueue) {
-			// Queue-based approach (synchronous with better-sqlite3)
-			const queue = syncWorker().getSyncQueue()
-			if (!queue) {
-				result.error = "S3 storage not configured"
-				return result
+		const existingItem = queue.getItem(taskId, GlobalFileNames.apiConversationHistory)
+		if (existingItem?.status === "synced") {
+			// Already synced, skip
+			return result
+		}
+		try {
+			const data = getSavedApiConversationHistory(taskId)
+			queue.enqueue(taskId, GlobalFileNames.apiConversationHistory, JSON.stringify(data))
+			result.filesQueued.push(taskId)
+		} catch (err) {
+			if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+				console.error(`Failed to queue ${taskId}:`, err)
 			}
-
-			for (const fileName of filesToSync) {
-				const filePath = path.join(taskDir, fileName)
-				try {
-					const data = await fs.readFile(filePath, "utf-8")
-					queue.enqueue(taskId, fileName, data)
-					result.filesQueued.push(fileName)
-				} catch (err) {
-					if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-						console.error(`Failed to queue ${taskId}/${fileName}:`, err)
-					}
-					// Skip missing files silently
-				}
-			}
-		} else {
-			// Direct upload approach
-			if (!blobStorage.isReady()) {
-				result.error = "S3 storage not configured"
-				return result
-			}
-
-			for (const fileName of filesToSync) {
-				const filePath = path.join(taskDir, fileName)
-				try {
-					const data = await fs.readFile(filePath, "utf-8")
-					await blobStorage.store(`tasks/${taskId}/${fileName}`, data)
-					result.filesQueued.push(fileName)
-				} catch (err) {
-					if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-						console.error(`Failed to upload ${taskId}/${fileName}:`, err)
-					}
-					// Skip missing files silently
-				}
-			}
+			// Skip missing files silently
 		}
 
 		result.success = result.filesQueued.length > 0
@@ -170,10 +127,11 @@ export async function backfillTask(taskId: string, useQueue: boolean = true): Pr
  *
  * @param options Backfill options
  */
-export async function backfillAllTasks(options: BackfillOptions = {}): Promise<BackfillResult | undefined> {
-	const { sinceTimestamp, taskIds: specificTaskIds, useQueue = true, onProgress } = options
+export async function backfillTasks(options: BackfillOptions = {}): Promise<BackfillResult | undefined> {
+	const currentTime = Date.now() // Don't backfill tasks created during this operation as they are synced live
+	const { sinceTimestamp, taskIds: specificTaskIds, onProgress } = options
 
-	if (!ClineBlobStorage.isConfigured()) {
+	if (!syncWorker().getSyncQueue()) {
 		return undefined
 	}
 
@@ -182,7 +140,7 @@ export async function backfillAllTasks(options: BackfillOptions = {}): Promise<B
 	if (specificTaskIds && specificTaskIds.length > 0) {
 		taskIds = specificTaskIds
 	} else {
-		taskIds = await listTaskIds()
+		taskIds = await listTaskIds(currentTime.toString(), sinceTimestamp?.toString())
 	}
 
 	const result: BackfillResult = {
@@ -196,13 +154,11 @@ export async function backfillAllTasks(options: BackfillOptions = {}): Promise<B
 	for (let i = 0; i < taskIds.length; i++) {
 		const taskId = taskIds[i]
 
-		// Check timestamp filter
+		// Check timestamp filter using taskId (which is Date.now().toString())
 		if (sinceTimestamp) {
-			const taskDir = path.join(getTasksDir(), taskId)
-			const apiHistoryPath = path.join(taskDir, GlobalFileNames.apiConversationHistory)
-			const mtime = await getFileMtime(apiHistoryPath)
+			const taskTimestamp = getTaskTimestamp(taskId)
 
-			if (mtime && mtime < sinceTimestamp) {
+			if (taskTimestamp && taskTimestamp < sinceTimestamp) {
 				result.skippedCount++
 				continue
 			}
@@ -214,7 +170,7 @@ export async function backfillAllTasks(options: BackfillOptions = {}): Promise<B
 		}
 
 		// Backfill the task
-		const taskResult = await backfillTask(taskId, useQueue)
+		const taskResult = await backfillTask(taskId)
 		result.results.push(taskResult)
 
 		if (taskResult.success) {
@@ -227,50 +183,4 @@ export async function backfillAllTasks(options: BackfillOptions = {}): Promise<B
 	}
 
 	return result
-}
-
-/**
- * Get statistics about what would be backfilled without actually doing it.
- */
-export async function getBackfillStats(): Promise<{
-	totalTasks: number
-	tasksWithApiHistory: number
-	tasksWithUiMessages: number
-	oldestTaskTimestamp?: number
-	newestTaskTimestamp?: number
-}> {
-	const taskIds = await listTaskIds()
-	let tasksWithApiHistory = 0
-	let tasksWithUiMessages = 0
-	let oldestTimestamp: number | undefined
-	let newestTimestamp: number | undefined
-
-	for (const taskId of taskIds) {
-		const taskDir = path.join(getTasksDir(), taskId)
-
-		const apiHistoryMtime = await getFileMtime(path.join(taskDir, GlobalFileNames.apiConversationHistory))
-		const uiMessagesMtime = await getFileMtime(path.join(taskDir, GlobalFileNames.uiMessages))
-
-		if (apiHistoryMtime) {
-			tasksWithApiHistory++
-			if (!oldestTimestamp || apiHistoryMtime < oldestTimestamp) {
-				oldestTimestamp = apiHistoryMtime
-			}
-			if (!newestTimestamp || apiHistoryMtime > newestTimestamp) {
-				newestTimestamp = apiHistoryMtime
-			}
-		}
-
-		if (uiMessagesMtime) {
-			tasksWithUiMessages++
-		}
-	}
-
-	return {
-		totalTasks: taskIds.length,
-		tasksWithApiHistory,
-		tasksWithUiMessages,
-		oldestTaskTimestamp: oldestTimestamp,
-		newestTaskTimestamp: newestTimestamp,
-	}
 }

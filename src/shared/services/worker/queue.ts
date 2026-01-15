@@ -173,14 +173,14 @@ export class SyncQueue {
 	getPending(): SyncQueueItem[] {
 		return Object.values(this.data.items)
 			.filter((item) => item.status === "pending")
-			.sort((a, b) => a.timestamp - b.timestamp)
+			.sort((a, b) => b.timestamp - a.timestamp)
 	}
 
 	/**
 	 * Get all items regardless of status.
 	 */
 	getAll(): SyncQueueItem[] {
-		return Object.values(this.data.items).sort((a, b) => a.timestamp - b.timestamp)
+		return Object.values(this.data.items).sort((a, b) => b.timestamp - a.timestamp)
 	}
 
 	/**

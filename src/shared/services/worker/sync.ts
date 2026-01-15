@@ -9,10 +9,10 @@
  * - No native module dependencies (VS Code compatible)
  * - Atomic file writes for safety
  */
-
 import * as path from "node:path"
 import { HostProvider } from "@/hosts/host-provider"
 import { blobStorage, ClineBlobStorage } from "../../storage/ClineBlobStorage"
+import { backfillTasks } from "./backfill"
 import { SyncQueue } from "./queue"
 import type { SyncWorkerOptions } from "./worker"
 import { disposeSyncWorker, initSyncWorker, SyncWorker } from "./worker"
@@ -70,6 +70,10 @@ function init(options?: SyncWorkerOptions): SyncWorker | null {
 	const worker = initSyncWorker(queue, options)
 	worker.start()
 
+	if (process?.env?.CLINE_STORAGE_SYNC_BACKFILL_ENABLED === "true") {
+		backfillTasks().catch((err) => console.error("Backfill tasks failed:", err))
+	}
+
 	return worker
 }
 
@@ -89,7 +93,6 @@ async function dispose(): Promise<void> {
 /**
  * Convenience function to enqueue data for sync.
  * This is a fire-and-forget operation - errors are logged but not thrown.
- * Synchronous since better-sqlite3 is synchronous.
  *
  * @param taskId Task identifier
  * @param key File key (e.g., "api_conversation_history.json")

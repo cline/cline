@@ -9,7 +9,6 @@ import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import os from "os"
 import * as path from "path"
-import * as YAML from "yaml"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { telemetryService } from "@/services/telemetry"
@@ -208,11 +207,15 @@ export async function getSavedApiConversationHistory(taskId: string): Promise<An
 export async function saveApiConversationHistory(taskId: string, apiConversationHistory: Anthropic.MessageParam[]) {
 	try {
 		if (apiConversationHistory.length > 0) {
-			// Queue for remote sync without blocking
-			syncWorker().enqueue(taskId, GlobalFileNames.apiConversationHistory, YAML.stringify(apiConversationHistory))
-			// Store locally
-			const filePath = path.join(await ensureTaskDirectoryExists(taskId), GlobalFileNames.apiConversationHistory)
-			await atomicWriteFile(filePath, JSON.stringify(apiConversationHistory))
+			const fileName = GlobalFileNames.apiConversationHistory
+			const data = JSON.stringify(apiConversationHistory)
+			if (data) {
+				// Queue for remote sync without blocking
+				syncWorker().enqueue(taskId, fileName, data)
+				// Store locally
+				const filePath = path.join(await ensureTaskDirectoryExists(taskId), fileName)
+				await atomicWriteFile(filePath, data)
+			}
 		}
 	} catch (error) {
 		// in the off chance this fails, we don't want to stop the task
