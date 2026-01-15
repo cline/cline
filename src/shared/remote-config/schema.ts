@@ -133,9 +133,19 @@ export const GlobalInstructionsFileSchema = z.object({
 	contents: z.string(),
 })
 
+export const S3AccessKeySettingsSchema = z.object({
+	bucket: z.string(),
+	accessKeyId: z.string(),
+	secretAccessKey: z.string(),
+	region: z.string().optional(),
+	endpoint: z.string().optional(),
+	accountId: z.string().optional(),
+})
+
 export const PromptUploadingSchema = z.object({
 	enabled: z.boolean().optional(),
-	url: z.string().optional(),
+	type: z.literal("s3_access_keys").optional(),
+	s3AccessSettings: S3AccessKeySettingsSchema.optional(),
 })
 
 export const EnterpriseTelemetrySchema = z.object({
@@ -220,3 +230,4 @@ export type APIKeySettings = z.infer<typeof APIKeySchema>
 
 export type EnterpriseTelemetry = z.infer<typeof EnterpriseTelemetrySchema>
 export type PromptUploading = z.infer<typeof PromptUploadingSchema>
+export type S3AccessKeySettings = z.infer<typeof S3AccessKeySettingsSchema>
