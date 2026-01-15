@@ -9,6 +9,7 @@ The TypeScript CLI scaffold is complete. This plan covers implementing the full 
 ---
 
 ## Phase 1: Core Infrastructure (Prerequisites)
+**Status: ✅ Completed (tests passing)**
 
 ### 1.1 Output Formatting System
 **Priority: High** | **Complexity: Medium**
@@ -114,6 +115,7 @@ Implement the instance management system for tracking running Cline Core instanc
 ---
 
 ## Phase 2: Authentication
+**Status: ✅ Completed (tests passing)**
 
 ### 2.1 Auth Command
 **Priority: High** | **Complexity: Medium**
@@ -285,22 +287,22 @@ Enhance `-v, --verbose` to show debug output including gRPC communication detail
 
 ## Implementation Order (Recommended)
 
-### Sprint 1: Foundation (1-2 weeks)
-1. [ ] 1.1 Output Formatting System
-2. [ ] 1.2 Configuration System
-3. [ ] 2.1 Auth Command
+### Sprint 1: Foundation (Completed)
+1. [x] 1.1 Output Formatting System
+2. [x] 1.2 Configuration System
+3. [x] 2.1 Auth Command
 
-### Sprint 2: Instance Management (1-2 weeks)
+### Sprint 2: Instance Management (Deprecated)
 4. [ ] 1.3 Instance Registry & Lifecycle (Deprecated, do Not implement)
 
-### Sprint 3: Task Basics (1-2 weeks)
+### Sprint 3: Task Basics (Next)
 5. [ ] 3.1 Task Command Group Base
 6. [ ] 3.2 Task Creation & History
 
-### Sprint 4: Task Communication (2 weeks)
+### Sprint 4: Task Communication
 7. [ ] 3.3 Task Communication (chat, send, view)
 
-### Sprint 5: Advanced Features (1-2 weeks)
+### Sprint 5: Advanced Features
 8. [ ] 4.1 Instant Task Mode
 9. [ ] 3.4 Task Control
 10. [ ] 5.1 Address Flag
@@ -376,8 +378,25 @@ cli-ts/
 
 ## Next Steps
 
-1. Review and approve this plan
-2. Start with Sprint 1: Output Formatting System
-3. Iterate through each phase with tests
+1. Start Sprint 3: Task Basics (Task Command Group Base + Task Creation & History)
+2. Follow with Sprint 4: Task Communication (chat/send/view)
+3. Finish with Sprint 5: Advanced Features (instant task mode, task control, address flag, verbose enhancement)
 
 The plan is designed so each phase delivers working functionality that can be tested independently before moving to the next phase.
+
+### New Task (Phase 3 Kickoff)
+**Objective:** Implement Task Command Group Base and Task Creation & History.
+
+**Planned files to create/modify:**
+- `cli-ts/src/commands/task/index.ts`
+- `cli-ts/src/core/task-client.ts`
+- `cli-ts/src/types/task.ts`
+- `cli-ts/src/commands/task/new.ts`
+- `cli-ts/src/commands/task/list.ts`
+- `cli-ts/src/commands/task/open.ts`
+- Update `cli-ts/src/index.ts` to register the task command group
+
+**Test requirements:**
+- New task creates task in instance
+- List shows task history with IDs and snippets
+- Open resumes task with saved settings
