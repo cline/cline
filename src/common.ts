@@ -29,8 +29,15 @@ import { getLatestAnnouncementId } from "./utils/announcements"
  *
  * @param context
  * @returns The webview provider
+ * @throws ClineConfigurationError if endpoints.json exists but is invalid
  */
 export async function initialize(context: vscode.ExtensionContext): Promise<WebviewProvider> {
+	// Initialize ClineEndpoint configuration first (reads ~/.cline/endpoints.json if present)
+	// This must be done before any other code that calls ClineEnv.config()
+	// Throws ClineConfigurationError if config file exists but is invalid
+	const { ClineEndpoint } = await import("./config")
+	await ClineEndpoint.initialize()
+
 	try {
 		await StateManager.initialize(context)
 	} catch (error) {
