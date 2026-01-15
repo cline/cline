@@ -74,7 +74,7 @@ const HistoryViewItem = ({
 		<div className="history-item cursor-pointer flex group mb-1 hover:bg-list-hover border-b border-accent/10" key={item.id}>
 			<VSCodeCheckbox
 				checked={selectedItems.includes(item.id)}
-				className="pl-3 pr-1 py-auto"
+				className="pl-3 pr-1 py-auto self-start mt-3"
 				onClick={(e) => {
 					e.preventDefault()
 					e.stopPropagation()
