@@ -1,6 +1,7 @@
 import os from "os"
 import path from "path"
 import type { CliConfig, PartialCliConfig } from "../types/config.js"
+import { getDefaultFormat } from "./output/index.js"
 
 /**
  * Get the default Cline configuration directory
@@ -16,6 +17,7 @@ export function getDefaultConfigDir(): string {
 export const DEFAULT_CLI_CONFIG: CliConfig = {
 	verbose: false,
 	configDir: getDefaultConfigDir(),
+	outputFormat: getDefaultFormat(),
 }
 
 /**

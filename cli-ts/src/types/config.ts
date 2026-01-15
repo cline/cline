@@ -1,3 +1,5 @@
+import type { OutputFormat } from "../core/output/types.js"
+
 /**
  * CLI configuration options
  */
@@ -6,6 +8,8 @@ export interface CliConfig {
 	verbose: boolean
 	/** Directory for Cline data storage (default: ~/.cline) */
 	configDir: string
+	/** Output format: rich, json, or plain */
+	outputFormat: OutputFormat
 }
 
 /**
