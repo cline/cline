@@ -240,6 +240,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		favoritedModelIds: [],
 		lastDismissedInfoBannerVersion: 0,
 		lastDismissedModelBannerVersion: 0,
+		optOutOfRemoteConfig: false,
 		remoteConfigSettings: {},
 		backgroundCommandRunning: false,
 		backgroundCommandTaskId: undefined,
@@ -697,7 +698,17 @@ export const ExtensionStateContextProvider: React.FC<{
 		if (state.apiConfiguration?.basetenApiKey) {
 			refreshBasetenModels()
 		}
-	}, [refreshOpenRouterModels, refreshVercelAiGatewayModels, state?.apiConfiguration?.basetenApiKey, refreshBasetenModels])
+		if (state.apiConfiguration?.liteLlmApiKey) {
+			refreshLiteLlmModels()
+		}
+	}, [
+		refreshOpenRouterModels,
+		refreshVercelAiGatewayModels,
+		state?.apiConfiguration?.basetenApiKey,
+		refreshBasetenModels,
+		state?.apiConfiguration?.liteLlmApiKey,
+		refreshLiteLlmModels,
+	])
 
 	const contextValue: ExtensionStateContextType = {
 		...state,

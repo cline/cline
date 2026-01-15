@@ -33,7 +33,9 @@ import { LogoutReason } from "@/services/auth/types"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
+import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
+import { BannerCardData } from "@/shared/cline/banner"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { getLatestAnnouncementId } from "@/utils/announcements"
@@ -132,13 +134,13 @@ export class Controller {
 				// Rate limit: ignore errors within 5 seconds of last error (fixes #8004)
 				if (timeSinceLastError < 5000) {
 					this.persistenceErrorState.errorCount++
-					console.warn(`[Controller] Persistence error suppressed (${this.persistenceErrorState.errorCount} in 5s)`)
+					Logger.warn(`[Controller] Persistence error suppressed (${this.persistenceErrorState.errorCount} in 5s)`)
 					return
 				}
 
 				// Prevent concurrent recovery attempts
 				if (this.persistenceErrorState.isRecovering) {
-					console.warn("[Controller] Recovery already in progress, skipping")
+					Logger.warn("[Controller] Recovery already in progress, skipping")
 					return
 				}
 
@@ -146,7 +148,7 @@ export class Controller {
 				this.persistenceErrorState.errorCount = 1
 				this.persistenceErrorState.isRecovering = true
 
-				console.error("[Controller] Cache persistence failed, recovering:", error)
+				Logger.error("[Controller] Cache persistence failed, recovering:", error)
 				try {
 					await StateManager.get().reInitialize(this.task?.taskId)
 					await this.postStateToWebview()
@@ -155,7 +157,7 @@ export class Controller {
 						message: "Saving settings to storage failed.",
 					})
 				} catch (recoveryError) {
-					console.error("[Controller] Cache recovery failed:", recoveryError)
+					Logger.error("[Controller] Cache recovery failed:", recoveryError)
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
 						message: "Failed to save settings. Please restart the extension.",
@@ -906,6 +908,7 @@ export class Controller {
 		const distinctId = getDistinctId()
 		const version = ExtensionRegistryInfo.version
 		const environment = ClineEnv.config().environment
+		const banners = await this.getBanners()
 
 		// Set feature flag in dictation settings based on platform
 		const updatedDictationSettings = {
@@ -990,6 +993,8 @@ export class Controller {
 			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
 			backgroundEditEnabled: this.stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
 			skillsEnabled,
+			optOutOfRemoteConfig: this.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
+			banners,
 		}
 	}
 
@@ -1032,32 +1037,12 @@ export class Controller {
 		return history
 	}
 
-	/**
-	 * Initializes the BannerService if not already initialized
-	 */
-	private async ensureBannerService() {
-		if (!BannerService.isInitialized()) {
-			try {
-				BannerService.initialize(this)
-			} catch (error) {
-				console.error("Failed to initialize BannerService:", error)
-			}
-		}
-	}
-
-	/**
-	 * Fetches non-dismissed banners for display
-	 * @returns Array of banners that haven't been dismissed
-	 */
-	async fetchBannersForDisplay(): Promise<any[]> {
+	async getBanners(): Promise<BannerCardData[]> {
 		try {
-			await this.ensureBannerService()
-			if (BannerService.isInitialized()) {
-				return await BannerService.get().getNonDismissedBanners()
-			}
-		} catch (error) {
-			console.error("Failed to fetch banners:", error)
+			return BannerService.get().getActiveBanners()
+		} catch (err) {
+			console.log(err)
+			return []
 		}
-		return []
 	}
 }
