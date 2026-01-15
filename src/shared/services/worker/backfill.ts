@@ -9,6 +9,7 @@
 import * as fs from "fs/promises"
 import { GlobalFileNames, getSavedApiConversationHistory, getTaskHistoryStateFilePath } from "@/core/storage/disk"
 import { syncWorker } from "./sync"
+import { getTaskTimestamp } from "./utils"
 
 /**
  * Result of a backfill operation for a single task.
@@ -69,15 +70,6 @@ async function listTaskIds(before?: string, after?: string): Promise<string[]> {
 	} catch {
 		return []
 	}
-}
-
-/**
- * Parse task timestamp from taskId.
- * Task IDs are generated using Date.now().toString().
- */
-function getTaskTimestamp(taskId: string): number | undefined {
-	const timestamp = parseInt(taskId, 10)
-	return Number.isNaN(timestamp) ? undefined : timestamp
 }
 
 /**

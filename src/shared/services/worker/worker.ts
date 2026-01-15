@@ -88,7 +88,7 @@ export class SyncWorker {
 	 * Subscribe to worker events.
 	 * @returns Unsubscribe function
 	 */
-	onEvent(listener: SyncWorkerEventListener): () => void {
+	public onEvent(listener: SyncWorkerEventListener): () => void {
 		this.listeners?.push(listener)
 		return () => {
 			const index = this.listeners.indexOf(listener)
@@ -111,7 +111,7 @@ export class SyncWorker {
 	/**
 	 * Start the background worker.
 	 */
-	start(): void {
+	public start(): void {
 		if (this.interval) {
 			return // Already running
 		}
@@ -131,7 +131,7 @@ export class SyncWorker {
 	 * Stop the background worker.
 	 * @param waitForCurrent If true, waits for current processing to complete
 	 */
-	async stop(waitForCurrent: boolean = true): Promise<void> {
+	public async stop(waitForCurrent: boolean = true): Promise<void> {
 		if (this.interval) {
 			clearInterval(this.interval)
 			this.interval = null
@@ -148,24 +148,12 @@ export class SyncWorker {
 	}
 
 	/**
-	 * Check if the worker is currently running.
+	 * Check if the worker is:
+	 * - currently running
+	 * - currently processing items
 	 */
-	isRunning(): boolean {
-		return this.interval !== null
-	}
-
-	/**
-	 * Check if the worker is currently processing items.
-	 */
-	isCurrentlyProcessing(): boolean {
-		return this.isProcessing
-	}
-
-	/**
-	 * Manually trigger a sync cycle (useful for testing or forced sync).
-	 */
-	async triggerSync(): Promise<{ successCount: number; failCount: number }> {
-		return this.processQueue()
+	public getStatus() {
+		return { isRunning: this.interval !== null, isProcessing: this.isProcessing }
 	}
 
 	private async processQueue(): Promise<{ successCount: number; failCount: number }> {
@@ -228,14 +216,6 @@ export class SyncWorker {
 
 // Singleton instance for the extension
 let workerInstance: SyncWorker | null = null
-
-/**
- * Get the global SyncWorker instance.
- * Returns null if not initialized.
- */
-export function getSyncWorker(): SyncWorker | null {
-	return workerInstance
-}
 
 /**
  * Initialize the global SyncWorker instance.
