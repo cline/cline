@@ -5,8 +5,10 @@ import {
 	ClineSettingsSchema,
 	EnterpriseTelemetrySchema,
 	OpenAiCompatibleSchema,
+	PromptUploadingSchema,
 	type RemoteConfig,
 	RemoteConfigSchema,
+	S3AccessKeySettingsSchema,
 } from "../schema"
 
 describe("Remote Config Schema", () => {
@@ -23,6 +25,141 @@ describe("Remote Config Schema", () => {
 			})
 
 			expect(result.promptUploading).to.deep.equal({})
+		})
+	})
+
+	describe("S3AccessKeySettingsSchema", () => {
+		it("should accept valid S3 access key settings with required fields", () => {
+			const validSettings = {
+				bucket: "my-bucket",
+				accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+				secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+			}
+			const result = S3AccessKeySettingsSchema.parse(validSettings)
+			expect(result).to.deep.equal(validSettings)
+		})
+
+		it("should accept S3 settings with all optional fields", () => {
+			const fullSettings = {
+				bucket: "my-bucket",
+				accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+				secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+				region: "us-east-1",
+				endpoint: "https://s3.us-east-1.amazonaws.com",
+				accountId: "123456789012",
+			}
+			const result = S3AccessKeySettingsSchema.parse(fullSettings)
+			expect(result).to.deep.equal(fullSettings)
+		})
+
+		it("should reject S3 settings with missing bucket", () => {
+			expect(() =>
+				S3AccessKeySettingsSchema.parse({
+					accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+					secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+				}),
+			).to.throw()
+		})
+
+		it("should reject S3 settings with missing accessKeyId", () => {
+			expect(() =>
+				S3AccessKeySettingsSchema.parse({
+					bucket: "my-bucket",
+					secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+				}),
+			).to.throw()
+		})
+
+		it("should reject S3 settings with missing secretAccessKey", () => {
+			expect(() =>
+				S3AccessKeySettingsSchema.parse({
+					bucket: "my-bucket",
+					accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+				}),
+			).to.throw()
+		})
+	})
+
+	describe("PromptUploadingSchema", () => {
+		it("should accept an empty object", () => {
+			const result = PromptUploadingSchema.parse({})
+			expect(result).to.deep.equal({})
+		})
+
+		it("should accept enabled field only", () => {
+			const result = PromptUploadingSchema.parse({ enabled: true })
+			expect(result.enabled).to.equal(true)
+		})
+
+		it("should accept enabled as false", () => {
+			const result = PromptUploadingSchema.parse({ enabled: false })
+			expect(result.enabled).to.equal(false)
+		})
+
+		it("should accept type field with s3_access_keys", () => {
+			const result = PromptUploadingSchema.parse({ type: "s3_access_keys" })
+			expect(result.type).to.equal("s3_access_keys")
+		})
+
+		it("should reject invalid type values", () => {
+			expect(() => PromptUploadingSchema.parse({ type: "invalid_type" })).to.throw()
+			expect(() => PromptUploadingSchema.parse({ type: "s3" })).to.throw()
+			expect(() => PromptUploadingSchema.parse({ type: "" })).to.throw()
+		})
+
+		it("should accept complete prompt uploading configuration", () => {
+			const fullConfig = {
+				enabled: true,
+				type: "s3_access_keys" as const,
+				s3AccessSettings: {
+					bucket: "prompt-uploads-bucket",
+					accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+					secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+					region: "us-west-2",
+					endpoint: "https://s3.us-west-2.amazonaws.com",
+					accountId: "123456789012",
+				},
+			}
+			const result = PromptUploadingSchema.parse(fullConfig)
+			expect(result).to.deep.equal(fullConfig)
+			expect(result.enabled).to.equal(true)
+			expect(result.type).to.equal("s3_access_keys")
+			expect(result.s3AccessSettings?.bucket).to.equal("prompt-uploads-bucket")
+			expect(result.s3AccessSettings?.region).to.equal("us-west-2")
+		})
+
+		it("should accept s3AccessSettings without optional fields", () => {
+			const config = {
+				enabled: true,
+				type: "s3_access_keys" as const,
+				s3AccessSettings: {
+					bucket: "my-bucket",
+					accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+					secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+				},
+			}
+			const result = PromptUploadingSchema.parse(config)
+			expect(result.s3AccessSettings?.bucket).to.equal("my-bucket")
+			expect(result.s3AccessSettings?.region).to.be.undefined
+			expect(result.s3AccessSettings?.endpoint).to.be.undefined
+			expect(result.s3AccessSettings?.accountId).to.be.undefined
+		})
+
+		it("should reject s3AccessSettings with missing required fields", () => {
+			expect(() =>
+				PromptUploadingSchema.parse({
+					enabled: true,
+					s3AccessSettings: {
+						accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+						secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+					},
+				}),
+			).to.throw()
+		})
+
+		it("should reject invalid enabled type", () => {
+			expect(() => PromptUploadingSchema.parse({ enabled: "yes" })).to.throw()
+			expect(() => PromptUploadingSchema.parse({ enabled: 1 })).to.throw()
 		})
 	})
 
@@ -520,7 +657,13 @@ describe("Remote Config Schema", () => {
 				enterpriseTelemetry: {
 					promptUploading: {
 						enabled: true,
-						url: "https://fake.cline.bot/whatever",
+						type: "s3_access_keys",
+						s3AccessSettings: {
+							bucket: "enterprise-prompts",
+							accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+							secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+							region: "us-east-1",
+						},
 					},
 				},
 			}
@@ -593,7 +736,9 @@ describe("Remote Config Schema", () => {
 			expect(result.globalWorkflows?.[0].contents).to.include("Deployment Workflow")
 
 			expect(result.enterpriseTelemetry?.promptUploading?.enabled).to.equal(true)
-			expect(result.enterpriseTelemetry?.promptUploading?.url).to.equal("https://fake.cline.bot/whatever")
+			expect(result.enterpriseTelemetry?.promptUploading?.type).to.equal("s3_access_keys")
+			expect(result.enterpriseTelemetry?.promptUploading?.s3AccessSettings?.bucket).to.equal("enterprise-prompts")
+			expect(result.enterpriseTelemetry?.promptUploading?.s3AccessSettings?.region).to.equal("us-east-1")
 		})
 	})
 
