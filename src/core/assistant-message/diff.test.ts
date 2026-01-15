@@ -3,7 +3,8 @@ import { describe, it } from "mocha"
 import { constructNewFileContent as cnfc } from "./diff"
 
 async function cnfc2(diffContent: string, originalContent: string, isFinal: boolean): Promise<string> {
-	return cnfc(diffContent, originalContent, isFinal, "v2")
+	const result = await cnfc(diffContent, originalContent, isFinal, "v2")
+	return result.newContent
 }
 
 describe("constructNewFileContent", () => {
@@ -217,13 +218,13 @@ replaced
 			} else {
 				const result1 = await cnfc(diff, original, isFinal ?? true)
 				const result2 = await cnfc2(diff, original, isFinal ?? true)
-				const _equal = result1 === result2
-				const _equal2 = result1 === expected
+				const _equal = result1.newContent === result2
+				const _equal2 = result1.newContent === expected
 				// Verify both implementations produce same result
-				expect(result1).to.equal(result2)
+				expect(result1.newContent).to.equal(result2)
 
 				// Verify result matches expected
-				expect(result1).to.equal(expected)
+				expect(result1.newContent).to.equal(expected)
 			}
 		})
 	})
@@ -264,7 +265,7 @@ replaced`
 		// Should still work and replace line2 with "replaced"
 		const expected = "line1\nreplaced\nline3"
 
-		expect(result1).to.equal(expected)
+		expect(result1.newContent).to.equal(expected)
 	})
 
 	it("should handle missing final REPLACE marker with multiple lines of replacement", async () => {
@@ -281,7 +282,7 @@ replaced`
 		const result1 = await cnfc(diff, original, true) // isFinal = true
 		const expected = "function test() {\n\tconst a = 42;\n\tconsole.log('updated');\n\treturn a;\n}"
 
-		expect(result1).to.equal(expected)
+		expect(result1.newContent).to.equal(expected)
 	})
 
 	// 	it("should NOT process incomplete replacement when isFinal is false", async () => {
@@ -319,7 +320,7 @@ new second
 +++++++ REPLACE`
 		const result1 = await cnfc(diff, original, isFinal)
 		const expectedResult = "first\nnew second\nthird\nnew fourth\n"
-		expect(result1).to.equal(expectedResult)
+		expect(result1.newContent).to.equal(expectedResult)
 	})
 
 	it("should handle multiple out-of-order replacements", async () => {
@@ -342,7 +343,7 @@ fifth
 +++++++ REPLACE`
 		const result1 = await cnfc(diff, original, isFinal)
 		const expectedResult = "one\nsecond\nthree\nfourth\nfifth\n"
-		expect(result1).to.equal(expectedResult)
+		expect(result1.newContent).to.equal(expectedResult)
 	})
 
 	it("should handle out-of-order replacements with indentation", async () => {
@@ -360,7 +361,7 @@ fifth
 +++++++ REPLACE`
 		const result1 = await cnfc(diff, original, isFinal)
 		const expectedResult = "function test() {\n\tconst a = 10;\n\tconst b = 2;\n\tconst c = 30;\n\n}"
-		expect(result1).to.equal(expectedResult)
+		expect(result1.newContent).to.equal(expectedResult)
 	})
 
 	it("should handle out-of-order replacements with empty lines", async () => {
@@ -380,6 +381,6 @@ new body content
 +++++++ REPLACE`
 		const result1 = await cnfc(diff, original, isFinal)
 		const expectedResult = "header\nnew body content\nnew footer\n"
-		expect(result1).to.equal(expectedResult)
+		expect(result1.newContent).to.equal(expectedResult)
 	})
 })
