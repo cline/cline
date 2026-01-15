@@ -1,10 +1,6 @@
 import { BANNER_DATA, BannerAction, BannerActionType, BannerCardData } from "@shared/cline/banner"
-import { EmptyRequest, Int64Request } from "@shared/proto/index.cline"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import BannerCarousel from "@/components/common/BannerCarousel"
-import { CURRENT_CLI_BANNER_VERSION } from "@/components/common/CliInstallBanner"
-import { CURRENT_INFO_BANNER_VERSION } from "@/components/common/InfoBanner"
-import { CURRENT_MODEL_BANNER_VERSION } from "@/components/common/NewModelBanner"
 import WhatsNewModal from "@/components/common/WhatsNewModal"
 import HistoryPreview from "@/components/history/HistoryPreview"
 import { useApiConfigurationHandlers } from "@/components/settings/utils/useApiConfigurationHandlers"
@@ -12,7 +8,7 @@ import HomeHeader from "@/components/welcome/HomeHeader"
 import { SuggestedTasks } from "@/components/welcome/SuggestedTasks"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { AccountServiceClient, StateServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { convertBannerData } from "@/utils/bannerUtils"
 import { getCurrentPlatform } from "@/utils/platformUtils"
 import { WelcomeSectionProps } from "../../types/chatTypes"
@@ -36,7 +32,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	const [showWhatsNewModal, setShowWhatsNewModal] = useState(false)
 
 	const { clineUser } = useClineAuth()
-	const { openRouterModels, setShowChatModelSelector, navigateToSettings, subagentsEnabled } = useExtensionState()
+	const { openRouterModels, setShowChatModelSelector, navigateToSettings, subagentsEnabled, banners } = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	// Show modal when there's a new announcement and we haven't shown it this session
@@ -58,14 +54,15 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	 */
 	const isBannerDismissed = useCallback(
 		(bannerId: string): boolean => {
+			// !! Do not keep tracking the banner versions like this. !!
 			if (bannerId.startsWith("info-banner")) {
-				return (lastDismissedInfoBannerVersion ?? 0) >= CURRENT_INFO_BANNER_VERSION
+				return (lastDismissedInfoBannerVersion ?? 0) >= 1
 			}
 			if (bannerId.startsWith("new-model")) {
-				return (lastDismissedModelBannerVersion ?? 0) >= CURRENT_MODEL_BANNER_VERSION
+				return (lastDismissedModelBannerVersion ?? 0) >= 1
 			}
 			if (bannerId.startsWith("cli-")) {
-				return (lastDismissedCliBannerVersion ?? 0) >= CURRENT_CLI_BANNER_VERSION
+				return (lastDismissedCliBannerVersion ?? 0) >= 1
 			}
 			return false
 		},
@@ -103,7 +100,9 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 		(action: BannerAction) => {
 			switch (action.action) {
 				case BannerActionType.Link:
-					// Links are handled by VSCodeLink component
+					if (action.arg) {
+						UiServiceClient.openUrl({ value: action.arg }).catch(console.error)
+					}
 					break
 
 				case BannerActionType.SetModel: {
@@ -121,13 +120,11 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 				}
 
 				case BannerActionType.ShowAccount:
-					AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
-						console.error("Failed to get login URL:", err),
-					)
+					AccountServiceClient.accountLoginClicked({}).catch((err) => console.error("Failed to get login URL:", err))
 					break
 
 				case BannerActionType.ShowApiSettings:
-					navigateToSettings("api")
+					navigateToSettings("api-config")
 					break
 
 				case BannerActionType.ShowFeatureSettings:
@@ -135,7 +132,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 					break
 
 				case BannerActionType.InstallCli:
-					StateServiceClient.installClineCli(EmptyRequest.create()).catch((error) =>
+					StateServiceClient.installClineCli({}).catch((error) =>
 						console.error("Failed to initiate CLI installation:", error),
 					)
 					break
@@ -151,32 +148,45 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	 * Dismissal handler - updates version tracking
 	 */
 	const handleBannerDismiss = useCallback((bannerId: string) => {
-		// Map banner IDs to version updates
+		// !! Do not continue use these version numbers or add new banners that don't have unique IDs. !!
+		// Banner versions are **deprecated**. Going forward, we are tracking which banners have
+		// been dismissed using the **banner ID**.
 		if (bannerId.startsWith("info-banner")) {
-			StateServiceClient.updateInfoBannerVersion({ value: CURRENT_INFO_BANNER_VERSION }).catch(console.error)
+			StateServiceClient.updateInfoBannerVersion({ value: 1 }).catch(console.error)
 		} else if (bannerId.startsWith("new-model")) {
-			StateServiceClient.updateModelBannerVersion(Int64Request.create({ value: CURRENT_MODEL_BANNER_VERSION })).catch(
-				console.error,
-			)
+			StateServiceClient.updateModelBannerVersion({ value: 1 }).catch(console.error)
 		} else if (bannerId.startsWith("cli-")) {
-			StateServiceClient.updateCliBannerVersion(Int64Request.create({ value: CURRENT_CLI_BANNER_VERSION })).catch(
-				console.error,
-			)
+			StateServiceClient.updateCliBannerVersion({ value: 1 }).catch(console.error)
+		} else {
+			// Mark the banner as dismissed by its ID.
+			StateServiceClient.dismissBanner({ value: bannerId }).catch(console.error)
 		}
 	}, [])
 
 	/**
 	 * Build array of active banners for carousel
+	 * Combines hardcoded banners (bannerConfig) with dynamic banners from extension state
 	 */
 	const activeBanners = useMemo(() => {
-		// Convert to BannerData format for carousel
-		return bannerConfig.map((banner) =>
+		// Start with the hardcoded banners (bannerConfig)
+		const hardcodedBanners = bannerConfig.map((banner) =>
 			convertBannerData(banner, {
 				onAction: handleBannerAction,
 				onDismiss: handleBannerDismiss,
 			}),
 		)
-	}, [bannerConfig, clineUser, subagentsEnabled, handleBannerAction, handleBannerDismiss])
+
+		// Add banners from extension state (if any)
+		const extensionStateBanners = (banners ?? []).map((banner) =>
+			convertBannerData(banner, {
+				onAction: handleBannerAction,
+				onDismiss: handleBannerDismiss,
+			}),
+		)
+
+		// Combine both sources: extension state banners first, then hardcoded banners
+		return [...extensionStateBanners, ...hardcodedBanners]
+	}, [bannerConfig, banners, clineUser, subagentsEnabled, handleBannerAction, handleBannerDismiss])
 
 	return (
 		<div className="flex flex-col flex-1 w-full h-full p-0 m-0">

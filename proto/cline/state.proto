@@ -229,6 +229,9 @@ message Settings {
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 133;
   optional bool cline_web_tools_enabled = 134;
   optional bool hooks_enabled = 135;
+  optional bool azure_identity = 136;
+  optional bool skills_enabled = 137;
+  optional bool opt_out_of_remote_config = 138;
 }
 
 message DictationSettings {
@@ -370,6 +373,9 @@ message UpdateSettingsRequest {
   optional bool cline_web_tools_enabled = 34;
   optional bool enable_parallel_tool_calling = 35;
   optional bool background_edit_enabled = 36;
+  optional string oca_reasoning_effort = 37;
+  optional bool skills_enabled = 38;
+  optional bool opt_out_of_remote_config = 39;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {

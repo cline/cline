@@ -33,6 +33,7 @@ type Manager struct {
 	clientAddress    string
 	state            *types.ConversationState
 	renderer         *display.Renderer
+	hookRenderer     *display.HookRenderer
 	toolRenderer     *display.ToolRenderer
 	systemRenderer   *display.SystemMessageRenderer
 	streamingDisplay *display.StreamingDisplay
@@ -48,6 +49,7 @@ func NewManager(client *client.ClineClient) *Manager {
 	state := types.NewConversationState()
 	renderer := display.NewRenderer(global.Config.OutputFormat)
 	toolRenderer := display.NewToolRenderer(renderer.GetMdRenderer(), global.Config.OutputFormat)
+	hookRenderer := display.NewHookRenderer(renderer.GetMdRenderer(), global.Config.OutputFormat)
 	systemRenderer := display.NewSystemMessageRenderer(renderer, renderer.GetMdRenderer(), global.Config.OutputFormat)
 	streamingDisplay := display.NewStreamingDisplay(state, renderer)
 
@@ -61,6 +63,7 @@ func NewManager(client *client.ClineClient) *Manager {
 		clientAddress:    "", // Will be set when client is provided
 		state:            state,
 		renderer:         renderer,
+		hookRenderer:     hookRenderer,
 		toolRenderer:     toolRenderer,
 		systemRenderer:   systemRenderer,
 		streamingDisplay: streamingDisplay,
@@ -989,6 +992,15 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
+		case msg.Say == string(types.SayTypeCommandPermissionDenied):
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
+			}
+
 		case msg.Say == string(types.SayTypeBrowserActionLaunch):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
@@ -1040,6 +1052,26 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 				fmt.Println()
 				m.displayMessage(msg, false, false, i)
 
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
+			}
+
+		case msg.Say == string(types.SayTypeHookStatus):
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
+			}
+
+		case msg.Say == string(types.SayTypeHookOutputStream):
+			// Hook stdout/stderr streaming arrives as hook_output_stream messages.
+			// These are intentionally suppressed unless verbose (see SayHandler.handleHookOutputStream),
+			// but we still need to route them through the normal handler pipeline in streaming/follow
+			// mode so verbose users actually see `HOOK> ...` lines.
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				m.displayMessage(msg, false, false, i)
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
@@ -1174,12 +1206,14 @@ func (m *Manager) displayMessage(msg *types.ClineMessage, isLast, isPartial bool
 		m.mu.RUnlock()
 
 		dc := &handlers.DisplayContext{
-			State:           m.state,
-			Renderer:        m.renderer,
-			ToolRenderer:    m.toolRenderer,
-			SystemRenderer:  m.systemRenderer,
+			State:          m.state,
+			Renderer:       m.renderer,
+			ToolRenderer:   m.toolRenderer,
+			HookRenderer:   m.hookRenderer,
+			SystemRenderer: m.systemRenderer,
 			IsLast:          isLast,
 			IsPartial:       isPartial,
+			Verbose:         global.Config.Verbose,
 			MessageIndex:    messageIndex,
 			IsStreamingMode: isStreaming,
 			IsInteractive:   isInteractive,

@@ -1,4 +1,5 @@
 import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
+import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -13,7 +14,9 @@ interface VercelAIGatewayHandlerOptions extends CommonApiHandlerOptions {
 	vercelAiGatewayApiKey?: string
 	openRouterModelId?: string
 	openRouterModelInfo?: ModelInfo
+	reasoningEffort?: string
 	thinkingBudgetTokens?: number
+	geminiThinkingLevel?: string
 }
 
 export class VercelAIGatewayHandler implements ApiHandler {
@@ -58,15 +61,18 @@ export class VercelAIGatewayHandler implements ApiHandler {
 				systemPrompt,
 				messages,
 				{ id: modelId, info: modelInfo },
+				this.options.reasoningEffort,
 				this.options.thinkingBudgetTokens,
 				tools,
+				this.options.geminiThinkingLevel,
 			)
 			let didOutputUsage: boolean = false
 
 			const toolCallProcessor = new ToolCallProcessor()
 
 			for await (const chunk of stream) {
-				const delta = chunk.choices[0]?.delta
+				const delta = chunk.choices?.[0]?.delta
+
 				if (delta?.content) {
 					yield {
 						type: "text",
@@ -79,7 +85,8 @@ export class VercelAIGatewayHandler implements ApiHandler {
 				}
 
 				// Reasoning tokens are returned separately from the content
-				if ("reasoning" in delta && delta.reasoning) {
+				// Skip reasoning content for models that don't support it (e.g., devstral, grok-4)
+				if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
 					yield {
 						type: "reasoning",
 						reasoning: typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning),
@@ -91,7 +98,8 @@ export class VercelAIGatewayHandler implements ApiHandler {
 					"reasoning_details" in delta &&
 					delta.reasoning_details &&
 					// @ts-ignore-next-line
-					delta.reasoning_details.length // exists and non-0
+					delta.reasoning_details.length && // exists and non-0
+					!shouldSkipReasoningForModel(this.options.openRouterModelId)
 				) {
 					yield {
 						type: "reasoning",

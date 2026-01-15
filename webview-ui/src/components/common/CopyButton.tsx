@@ -1,8 +1,7 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import React, { forwardRef, useState } from "react"
-import styled from "styled-components"
-
-// ======== Interfaces ========
+import { CheckCheckIcon, CopyIcon } from "lucide-react"
+import { forwardRef, useCallback, useState } from "react"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 interface CopyButtonProps {
 	textToCopy?: string
@@ -17,85 +16,49 @@ interface WithCopyButtonProps {
 	onCopy?: () => string | undefined | null
 	position?: "top-right" | "bottom-right"
 	style?: React.CSSProperties
-	copyButtonStyle?: React.CSSProperties
 	className?: string
+	copyButtonClassname?: string
 	onMouseUp?: (event: React.MouseEvent<HTMLDivElement>) => void
 	ariaLabel?: string
 }
 
-// ======== Styled Components ========
+const COPIED_TIMEOUT = 1500
 
-const StyledButton = styled(VSCodeButton)`
-	z-index: 1;
-	transform: scale(0.9);
-`
-
-// Unified container component
-const ContentContainer = styled.div`
-	position: relative;
-`
-
-// Unified button container with flexible positioning
-const ButtonContainer = styled.div<{ $position?: "top-right" | "bottom-right" }>`
-	position: absolute;
-	${(props) => {
-		switch (props.$position) {
-			case "bottom-right":
-				return "bottom: 2px; right: 2px;"
-			case "top-right":
-			default:
-				return "top: 5px; right: 5px;"
-		}
-	}}
-	z-index: 1;
-	opacity: 0;
-
-	${ContentContainer}:hover & {
-		opacity: 0.5;
-	}
-`
-
-// ======== Component Implementations ========
+const POSITION_CLASSES = {
+	"top-right": "top-5 right-5",
+	"bottom-right": "bottom-1 right-2",
+} as const
 
 /**
  * Base copy button component with clipboard functionality
  */
-export const CopyButton: React.FC<CopyButtonProps> = ({ textToCopy, onCopy, className = "", ariaLabel }) => {
+export const CopyButton: React.FC<CopyButtonProps> = ({ textToCopy, onCopy, className, ariaLabel }) => {
 	const [copied, setCopied] = useState(false)
 
-	const handleCopy = () => {
-		if (!textToCopy && !onCopy) {
+	const handleCopy = useCallback(() => {
+		const text = onCopy?.() || textToCopy
+		if (!text) {
 			return
 		}
 
-		let textToCopyFinal = textToCopy
-
-		if (onCopy) {
-			const result = onCopy()
-			if (typeof result === "string") {
-				textToCopyFinal = result
-			}
-		}
-
-		if (textToCopyFinal) {
-			navigator.clipboard
-				.writeText(textToCopyFinal)
-				.then(() => {
-					setCopied(true)
-					setTimeout(() => setCopied(false), 1500)
-				})
-				.catch((err) => console.error("Copy failed", err))
-		}
-	}
+		navigator.clipboard
+			.writeText(text)
+			.then(() => {
+				setCopied(true)
+				setTimeout(() => setCopied(false), COPIED_TIMEOUT)
+			})
+			.catch((err) => console.error("Copy failed", err))
+	}, [textToCopy, onCopy])
 
 	return (
-		<StyledButton
-			appearance="icon"
+		<Button
 			aria-label={copied ? "Copied" : ariaLabel || "Copy"}
-			className={className}
-			onClick={handleCopy}>
-			<span className={`codicon codicon-${copied ? "check" : "copy"}`}></span>
-		</StyledButton>
+			className={cn("scale-90", className)}
+			onClick={handleCopy}
+			size="icon"
+			variant="icon">
+			{copied ? <CheckCheckIcon className="size-2" /> : <CopyIcon className="size-2" />}
+		</Button>
 	)
 }
 
@@ -110,34 +73,32 @@ export const WithCopyButton = forwardRef<HTMLDivElement, WithCopyButtonProps>(
 			onCopy,
 			position = "top-right",
 			style,
-			copyButtonStyle,
 			className,
+			copyButtonClassname,
 			onMouseUp,
-			ariaLabel, // Destructure ariaLabel
+			ariaLabel,
 			...props
 		},
 		ref,
 	) => {
+		const hasCopyFunctionality = !!(textToCopy || onCopy)
+
 		return (
-			<ContentContainer className={className} onMouseUp={onMouseUp} ref={ref} style={style} {...props}>
-				{children}
-				{(textToCopy || onCopy) && (
-					<ButtonContainer $position={position} style={copyButtonStyle}>
-						<CopyButton
-							ariaLabel={ariaLabel}
-							onCopy={onCopy}
-							textToCopy={textToCopy} // Pass through the ariaLabel prop directly
-						/>
-					</ButtonContainer>
+			<div className={cn("group relative w-full", className)} onMouseUp={onMouseUp} ref={ref} style={style} {...props}>
+				{hasCopyFunctionality && (
+					<div
+						className={cn(
+							"absolute opacity-0 group-hover:opacity-100 transition-opacity",
+							POSITION_CLASSES[position],
+							copyButtonClassname,
+						)}>
+						<CopyButton ariaLabel={ariaLabel} onCopy={onCopy} textToCopy={textToCopy} />
+					</div>
 				)}
-			</ContentContainer>
+				{children}
+			</div>
 		)
 	},
 )
 
-// Default export for convenience if needed, though named exports are preferred for clarity
-const CopyButtonComponents = {
-	CopyButton,
-	WithCopyButton,
-}
-export default CopyButtonComponents
+WithCopyButton.displayName = "WithCopyButton"

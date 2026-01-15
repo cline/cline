@@ -339,6 +339,13 @@ func (tr *ToolRenderer) RenderCommandOutput(output string) string {
 	return result.String()
 }
 
+func (tr *ToolRenderer) RenderCommandPermissionDenied(command string) string {
+	command = strings.TrimSpace(command)
+	rendered := tr.renderMarkdown("### Command was denied")
+	message := fmt.Sprintf("Cline does not have permission to execute this command: `%s`", command)
+	return fmt.Sprintf("\n%s\n\n%s\n", rendered, message)
+}
+
 // RenderUserResponse renders user approval/rejection feedback
 func (tr *ToolRenderer) RenderUserResponse(approved bool, feedback string) string {
 	var symbol, status string

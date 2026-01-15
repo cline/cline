@@ -1,4 +1,4 @@
-import { LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
+import { liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults, ModelInfo } from "@shared/api"
 import OpenAI, { APIError, OpenAIError } from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
@@ -9,18 +9,23 @@ import {
 } from "@/services/auth/oca/utils/constants"
 import { createOcaHeaders } from "@/services/auth/oca/utils/utils"
 import { Logger } from "@/services/logging/Logger"
+import { OcaModelInfo } from "@/shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
+import { ApiFormat } from "@/shared/proto/index.cline"
 import { ApiHandler, type CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
+import { convertToOpenAIResponsesInput } from "../transform/openai-response-format"
 import { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
+import { handleResponsesApiStreamResponse } from "../utils/responses_api_support"
 
 export interface OcaHandlerOptions extends CommonApiHandlerOptions {
 	ocaBaseUrl?: string
 	ocaModelId?: string
-	ocaModelInfo?: LiteLLMModelInfo
+	ocaModelInfo?: OcaModelInfo
+	ocaReasoningEffort?: string
 	thinkingBudgetTokens?: number
 	ocaUsePromptCache?: boolean
 	taskId?: string
@@ -100,7 +105,7 @@ export class OcaHandler implements ApiHandler {
 		return this.client
 	}
 
-	async calculateCost(prompt_tokens: number, completion_tokens: number): Promise<number | undefined> {
+	async getApiCosts(prompt_tokens: number, completion_tokens: number): Promise<number | undefined> {
 		// Reference: https://github.com/BerriAI/litellm/blob/122ee634f434014267af104814022af1d9a0882f/litellm/proxy/spend_tracking/spend_management_endpoints.py#L1473
 		const client = this.ensureClient()
 		const modelId = this.options.ocaModelId || liteLlmDefaultModelId
@@ -138,8 +143,29 @@ export class OcaHandler implements ApiHandler {
 		}
 	}
 
+	async calculateCost(
+		modelInfo: ModelInfo,
+		inputTokens: number,
+		outputTokens: number,
+		_cacheWriteTokens?: number,
+		_cacheReadTokens?: number,
+	) {
+		const inputCost = (await this.getApiCosts(1e6, 0)) || 0
+		const outputCost = (await this.getApiCosts(0, 1e6)) || 0
+		const totalCost = (inputCost * inputTokens) / 1e6 + (outputCost * outputTokens) / 1e6
+		return totalCost
+	}
+
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
+		if (this.options.ocaModelInfo?.apiFormat == ApiFormat.OPENAI_RESPONSES) {
+			yield* this.createMessageResponsesApi(systemPrompt, messages, tools)
+		} else {
+			yield* this.createMessageChatApi(systemPrompt, messages, tools)
+		}
+	}
+
+	async *createMessageChatApi(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const formattedMessages = convertToOpenAiMessages(messages)
 		const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam = {
@@ -193,7 +219,7 @@ export class OcaHandler implements ApiHandler {
 
 		const toolCallProcessor = new ToolCallProcessor()
 
-		const stream = await client.chat.completions.create({
+		const chatCompletionsParams: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
 			model: this.options.ocaModelId || liteLlmDefaultModelId,
 			messages: [enhancedSystemMessage, ...enhancedMessages],
 			temperature,
@@ -206,13 +232,16 @@ export class OcaHandler implements ApiHandler {
 				litellm_session_id: `cline-${this.options.taskId}`,
 				...getOpenAIToolParams(tools),
 			}), // Add session ID for LiteLLM tracking
-		})
+		}
 
-		const inputCost = (await this.calculateCost(1e6, 0)) || 0
-		const outputCost = (await this.calculateCost(0, 1e6)) || 0
+		if (this.options.ocaModelInfo?.supportsReasoningEffort) {
+			chatCompletionsParams["reasoning_effort"] = this.options.ocaReasoningEffort || ("medium" as any)
+		}
+
+		const stream = await client.chat.completions.create(chatCompletionsParams)
 
 		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
+			const delta = chunk.choices?.[0]?.delta
 
 			// Handle normal text content
 			if (delta?.content) {
@@ -241,8 +270,11 @@ export class OcaHandler implements ApiHandler {
 
 			// Handle token usage information
 			if (chunk.usage) {
-				const totalCost =
-					(inputCost * chunk.usage.prompt_tokens) / 1e6 + (outputCost * chunk.usage.completion_tokens) / 1e6
+				const totalCost = await this.calculateCost(
+					this.options.ocaModelInfo!,
+					chunk.usage.prompt_tokens,
+					chunk.usage.completion_tokens,
+				)
 
 				// Extract cache-related information if available
 				// Need to use type assertion since these properties are not in the standard OpenAI types
@@ -268,6 +300,43 @@ export class OcaHandler implements ApiHandler {
 				}
 			}
 		}
+	}
+
+	async *createMessageResponsesApi(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
+		const client = this.ensureClient()
+
+		// Convert messages to Responses API input format
+		const input: OpenAI.Responses.ResponseInputItem[] = [
+			{ role: "system", content: systemPrompt },
+			...convertToOpenAIResponsesInput(messages),
+		]
+
+		// Convert ChatCompletion tools to Responses API format if provided
+		const responseTools = tools
+			?.filter((tool) => tool.type === "function")
+			.map((tool: any) => ({
+				type: "function" as const,
+				name: tool.function.name,
+				description: tool.function.description,
+				parameters: tool.function.parameters,
+				strict: tool.function.strict ?? true, // Responses API defaults to strict mode
+			}))
+
+		const responsesParams: OpenAI.Responses.ResponseCreateParamsStreaming = {
+			model: this.options.ocaModelId || liteLlmDefaultModelId,
+			input,
+			stream: true,
+			tools: responseTools,
+		}
+
+		if (this.options.ocaModelInfo && this.options.ocaModelInfo.supportsReasoning) {
+			responsesParams["reasoning"] = { effort: this.options.ocaReasoningEffort as any, summary: "auto" }
+		}
+
+		// Create the response using Responses API
+		const stream = await client.responses.create(responsesParams)
+
+		yield* handleResponsesApiStreamResponse(stream, this.options.ocaModelInfo!, this.calculateCost.bind(this))
 	}
 
 	getModel() {
