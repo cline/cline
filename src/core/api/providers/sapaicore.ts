@@ -601,6 +601,7 @@ export class SapAiCoreHandler implements ApiHandler {
 		}
 
 		const anthropicModels = [
+			"anthropic--claude-4.5-haiku",
 			"anthropic--claude-4.5-opus",
 			"anthropic--claude-4.5-sonnet",
 			"anthropic--claude-4-sonnet",
@@ -652,6 +653,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			if (
 				model.id === "anthropic--claude-4.5-opus" ||
 				model.id === "anthropic--claude-4.5-sonnet" ||
+				model.id === "anthropic--claude-4.5-haiku" ||
 				model.id === "anthropic--claude-4-sonnet" ||
 				model.id === "anthropic--claude-4-opus" ||
 				model.id === "anthropic--claude-3.7-sonnet"
@@ -783,6 +785,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			} else if (
 				model.id === "anthropic--claude-4.5-opus" ||
 				model.id === "anthropic--claude-4.5-sonnet" ||
+				model.id === "anthropic--claude-4.5-haiku" ||
 				model.id === "anthropic--claude-4-sonnet" ||
 				model.id === "anthropic--claude-4-opus" ||
 				model.id === "anthropic--claude-3.7-sonnet"
