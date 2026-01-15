@@ -130,7 +130,7 @@ export class Controller {
 						message: "Saving settings to storage failed.",
 					})
 				} catch (recoveryError) {
-					console.error("[Controller] Cache recovery failed:", recoveryError)
+					Logger.error("[Controller] Cache recovery failed:", recoveryError)
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
 						message: "Failed to save settings. Please restart the extension.",
