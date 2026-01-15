@@ -140,6 +140,12 @@ export const S3AccessKeySettingsSchema = z.object({
 	region: z.string().optional(),
 	endpoint: z.string().optional(),
 	accountId: z.string().optional(),
+	intervalMs: z.number().optional(),
+	maxRetries: z.number().optional(),
+	batchSize: z.number().optional(),
+	maxQueueSize: z.number().optional(),
+	maxFailedAgeMs: z.number().optional(),
+	backfillEnabled: z.boolean().optional(),
 })
 
 export const PromptUploadingSchema = z.object({
