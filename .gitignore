@@ -29,6 +29,8 @@ coverage-unit
 
 *evals.env
 .env
+.secrets
+.github/act/.secrets
 
 .worktrees
 
@@ -39,3 +41,8 @@ webview-ui/src/services/grpc-client.ts
 
 # E2E Tests
 test-results
+
+/.github/act
+/pkg
+.secrets
+

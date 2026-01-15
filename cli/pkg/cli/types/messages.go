@@ -47,11 +47,11 @@ const (
 	AskTypeResumeTask          AskType = "resume_task"
 	AskTypeResumeCompletedTask AskType = "resume_completed_task"
 	AskTypeMistakeLimitReached AskType = "mistake_limit_reached"
-	AskTypeBrowserActionLaunch    AskType = "browser_action_launch"
-	AskTypeUseMcpServer           AskType = "use_mcp_server"
-	AskTypeNewTask                AskType = "new_task"
-	AskTypeCondense               AskType = "condense"
-	AskTypeReportBug              AskType = "report_bug"
+	AskTypeBrowserActionLaunch AskType = "browser_action_launch"
+	AskTypeUseMcpServer        AskType = "use_mcp_server"
+	AskTypeNewTask             AskType = "new_task"
+	AskTypeCondense            AskType = "condense"
+	AskTypeReportBug           AskType = "report_bug"
 )
 
 // SayType represents different types of SAY messages
@@ -87,6 +87,11 @@ const (
 	SayTypeLoadMcpDocumentation    SayType = "load_mcp_documentation"
 	SayTypeInfo                    SayType = "info"
 	SayTypeTaskProgress            SayType = "task_progress"
+	// Hook status streaming from the backend.
+	// These values must match the backend "say" strings emitted by the extension.
+	SayTypeHookStatus              SayType = "hook_status"
+	SayTypeHookOutputStream        SayType = "hook_output_stream"
+	SayTypeCommandPermissionDenied SayType = "command_permission_denied"
 )
 
 // ToolMessage represents a tool-related message
@@ -143,6 +148,42 @@ type APIRequestRetryStatus struct {
 	MaxAttempts  int    `json:"maxAttempts"`
 	DelaySec     int    `json:"delaySec"`
 	ErrorSnippet string `json:"errorSnippet,omitempty"`
+}
+
+// HookMessage represents hook execution metadata sent from the backend
+type HookMessage struct {
+	HookName        string     `json:"hookName"`                  // Type of hook (TaskStart, PreToolUse, etc.)
+	ToolName        string     `json:"toolName,omitempty"`        // Optional tool name for tool-specific hooks
+	Status          string     `json:"status"`                    // "running", "completed", "cancelled", or "failed"
+	ScriptPaths     []string   `json:"scriptPaths,omitempty"`     // Full paths to hook script(s)
+	PendingToolInfo *ToolInfo  `json:"pendingToolInfo,omitempty"` // Metadata about the pending tool execution (PreToolUse)
+	ExitCode        int        `json:"exitCode,omitempty"`        // Exit code for completed/failed hooks
+	HasJsonResponse bool       `json:"hasJsonResponse,omitempty"` // Whether hook returned JSON
+	Error           *HookError `json:"error,omitempty"`           // Error details if hook failed
+}
+
+// ToolInfo represents a compact subset of tool parameters for UI display.
+// This mirrors the extension's pendingToolInfo shape and is used by the CLI to
+// show what tool the PreToolUse hook is gating.
+type ToolInfo struct {
+	Tool        string `json:"tool"`
+	Path        string `json:"path,omitempty"`
+	Command     string `json:"command,omitempty"`
+	Content     string `json:"content,omitempty"`
+	Diff        string `json:"diff,omitempty"`
+	Regex       string `json:"regex,omitempty"`
+	Url         string `json:"url,omitempty"`
+	McpTool     string `json:"mcpTool,omitempty"`
+	McpServer   string `json:"mcpServer,omitempty"`
+	ResourceUri string `json:"resourceUri,omitempty"`
+}
+
+// HookError represents structured error information from a failed hook
+type HookError struct {
+	Type       string `json:"type"`                 // Error type: "execution", "timeout", "validation", etc.
+	Message    string `json:"message"`              // Human-readable error message
+	Details    string `json:"details,omitempty"`    // Additional error details
+	ScriptPath string `json:"scriptPath,omitempty"` // Path to script that failed
 }
 
 // GetTimestamp returns a formatted timestamp string
@@ -324,6 +365,12 @@ func convertProtoSayType(sayType cline.ClineSay) string {
 		return string(SayTypeInfo)
 	case cline.ClineSay_TASK_PROGRESS:
 		return string(SayTypeTaskProgress)
+	case cline.ClineSay_HOOK_STATUS:
+		return string(SayTypeHookStatus)
+	case cline.ClineSay_HOOK_OUTPUT_STREAM:
+		return string(SayTypeHookOutputStream)
+	case cline.ClineSay_COMMAND_PERMISSION_DENIED:
+		return string(SayTypeCommandPermissionDenied)
 	default:
 		return "unknown"
 	}

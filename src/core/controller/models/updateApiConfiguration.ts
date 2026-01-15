@@ -1,8 +1,9 @@
 import { Empty } from "@shared/proto/cline/common"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { buildApiHandler } from "@/core/api"
-import { ApiHandlerOptions, ApiHandlerSecrets, ApiProvider } from "@/shared/api"
+import { ApiHandlerOptions, ApiProvider } from "@/shared/api"
 import { UpdateApiConfigurationRequestNew } from "@/shared/proto/index.cline"
+import { Secrets } from "@/shared/storage/state-keys"
 import type { Controller } from "../index"
 
 /**
@@ -69,7 +70,7 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 		const { options: maskOptionsFields, secrets: maskSecretsFields } = parseFieldMask(updateMask)
 
 		// Process secrets based on field mask
-		const secrets: Partial<ApiHandlerSecrets> = {}
+		const secrets: Partial<Secrets> = {}
 
 		if (protoSecrets && maskSecretsFields.size > 0) {
 			// Validate all masked fields exist
@@ -81,7 +82,7 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 			// Process entries that are in the mask
 			for (const [key, value] of Object.entries(protoSecrets)) {
 				if (maskSecretsFields.has(key)) {
-					secrets[key as keyof ApiHandlerSecrets] = value
+					secrets[key as keyof Secrets] = value
 				}
 			}
 		}

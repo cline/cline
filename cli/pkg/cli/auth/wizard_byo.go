@@ -190,7 +190,7 @@ func (pw *ProviderWizard) handleAddOcaProvider() error {
 	}
 
 	// Step 3: Select model
-	modelID, _, err := pw.selectModel(cline.ApiProvider_OCA, "")
+	modelID, modelInfo, err := pw.selectModel(cline.ApiProvider_OCA, "")
 	if err != nil {
 		return fmt.Errorf("model selection failed: %w", err)
 	}
@@ -198,7 +198,7 @@ func (pw *ProviderWizard) handleAddOcaProvider() error {
 	// Step 4: Apply the OCA model configuration and set as active
 	updates := ProviderUpdatesPartial{
 		ModelID:   &modelID,
-		ModelInfo: nil,
+		ModelInfo: modelInfo,
 	}
 
 	if err := UpdateProviderPartial(pw.ctx, pw.manager, cline.ApiProvider_OCA, updates, true); err != nil {

@@ -60,7 +60,7 @@ export class FireworksHandler implements ApiHandler {
 
 		let reasoning: string | null = null
 		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
+			const delta = chunk.choices?.[0]?.delta
 			if (reasoning || delta?.content?.includes("<think>")) {
 				reasoning = (reasoning || "") + (delta.content ?? "")
 			}

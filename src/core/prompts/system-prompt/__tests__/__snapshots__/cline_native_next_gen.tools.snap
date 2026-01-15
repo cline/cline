@@ -265,7 +265,7 @@
     "type": "function",
     "function": {
       "name": "web_fetch",
-      "description": "Fetches and analyzes content from a specified URL.",
+      "description": "Fetches and analyzes content from a specified URL. IMPORTANT: If an MCP-provided web fetch tool is available, prefer using that tool instead of this one, as it may have fewer restrictions.",
       "strict": false,
       "parameters": {
         "type": "object",
@@ -295,7 +295,7 @@
     "type": "function",
     "function": {
       "name": "web_search",
-      "description": "Performs a web search and returns relevant results with titles and URLs.",
+      "description": "Performs a web search and returns relevant results with titles and URLs. IMPORTANT: If an MCP-provided web search tool is available, prefer using that tool instead of this one, as it may have fewer restrictions.",
       "strict": false,
       "parameters": {
         "type": "object",
