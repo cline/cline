@@ -1,4 +1,5 @@
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import * as os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
 import { DecorationController } from "@/hosts/vscode/DecorationController"
@@ -218,7 +219,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 			Logger.log("Creating notebook diff view with temporary file...")
 
 			// Create temporary directory and file for modified content (right side)
-			const tempDir = require("os").tmpdir()
+			const tempDir = os.tmpdir()
 			const timestamp = Date.now()
 			const tempModifiedPath = path.join(tempDir, `cline-modified-${timestamp}-${fileName}`)
 
@@ -240,9 +241,6 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 			this.tempModifiedUri = vscode.Uri.file(tempModifiedPath)
 			Logger.log(`Created temporary modified file: ${tempModifiedPath}`)
 
-			// Close current text diff editor
-			// await this.closeCurrentTextDiffEditor()
-
 			// Set up file system watcher for synchronization
 			this.setupTempDocumentListener()
 
@@ -255,7 +253,8 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 				`${fileName}: Original ↔ Cline's Changes (Notebook)`,
 			)
 
-			// Give VS Code a moment to open the notebook diff view
+			// Brief delay to allow VS Code to fully render the notebook diff view.
+			// The vscode.diff command returns before the UI is ready.
 			await new Promise((resolve) => setTimeout(resolve, 500))
 
 			Logger.log("Notebook diff view opened successfully")
