@@ -1,3 +1,11 @@
+import { AwsClient } from "aws4fetch"
+
+export interface StorageAdapter {
+	read(path: string): Promise<string | undefined>
+	write(path: string, value: string): Promise<void>
+	remove(path: string): Promise<void>
+}
+
 /**
  * Environment variables for S3/R2 storage configuration.
  * - CLINE_STORAGE_ADAPTER: "s3" | "r2" (required to enable S3 storage)
@@ -7,15 +15,6 @@
  * - CLINE_STORAGE_SECRET_ACCESS_KEY: AWS secret access key (required)
  * - CLINE_STORAGE_ACCOUNT_ID: Cloudflare account ID (R2 only)
  */
-
-import { AwsClient } from "aws4fetch"
-
-export interface StorageAdapter {
-	read(path: string): Promise<string | undefined>
-	write(path: string, value: string): Promise<void>
-	remove(path: string): Promise<void>
-}
-
 function createAdapter(client: AwsClient, endpoint: string, bucket: string): StorageAdapter {
 	const base = `${endpoint}/${bucket}`
 	return {

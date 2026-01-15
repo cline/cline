@@ -167,18 +167,6 @@ export class StateManager {
 		this.scheduleDebouncedPersistence()
 	}
 
-	private setRemoteConfigState(updates: Partial<GlobalStateAndSettings>): void {
-		if (!this.isInitialized) {
-			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
-		}
-
-		// Update cache in one go
-		this.remoteConfigCache = {
-			...this.remoteConfigCache,
-			...filterAllowedRemoteConfigFields(updates),
-		}
-	}
-
 	/**
 	 * Batch set method for global state keys - updates cache immediately and schedules debounced persistence
 	 */
@@ -198,6 +186,18 @@ export class StateManager {
 
 		// Schedule debounced persistence
 		this.scheduleDebouncedPersistence()
+	}
+
+	private setRemoteConfigState(updates: Partial<GlobalStateAndSettings>): void {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+
+		// Update cache in one go
+		this.remoteConfigCache = {
+			...this.remoteConfigCache,
+			...filterAllowedRemoteConfigFields(updates),
+		}
 	}
 
 	/**
