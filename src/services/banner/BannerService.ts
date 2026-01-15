@@ -446,7 +446,6 @@ export class BannerService {
 	 */
 	public async getActiveBanners(forceRefresh = false): Promise<BannerCardData[]> {
 		// Disable all banner fetching to prevent blocking the extension
-		Logger.log("BannerService: Banner fetching is temporarily disabled")
 		return []
 	}
 
