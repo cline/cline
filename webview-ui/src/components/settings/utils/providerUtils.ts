@@ -21,6 +21,8 @@ import {
 	fireworksModels,
 	geminiDefaultModelId,
 	geminiModels,
+	gitHubCopilotDefaultModelId,
+	gitHubCopilotModels,
 	groqDefaultModelId,
 	groqModels,
 	hicapModelInfoSaneDefaults,
@@ -131,6 +133,8 @@ export function getModelsForProvider(
 			return huggingFaceModels
 		case "nousResearch":
 			return nousResearchModels
+		case "github-copilot":
+			return gitHubCopilotModels
 		case "litellm":
 			return dynamicModels?.liteLlmModels
 		// Providers with dynamic models - return undefined
@@ -481,6 +485,19 @@ export function normalizeApiConfiguration(
 						? nousResearchModels[nousResearchModelId as keyof typeof nousResearchModels]
 						: nousResearchModels[nousResearchDefaultModelId],
 			}
+		case "github-copilot":
+			const gitHubCopilotModelId =
+				currentMode === "plan"
+					? apiConfiguration?.planModeGitHubCopilotModelId
+					: apiConfiguration?.actModeGitHubCopilotModelId
+			return {
+				selectedProvider: provider,
+				selectedModelId: gitHubCopilotModelId || gitHubCopilotDefaultModelId,
+				selectedModelInfo:
+					gitHubCopilotModelId && gitHubCopilotModelId in gitHubCopilotModels
+						? gitHubCopilotModels[gitHubCopilotModelId as keyof typeof gitHubCopilotModels]
+						: gitHubCopilotModels[gitHubCopilotDefaultModelId],
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -516,6 +533,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			aihubmixModelId: undefined,
 			nousResearchModelId: undefined,
 			vercelAiGatewayModelId: undefined,
+			gitHubCopilotModelId: undefined,
 
 			// Model info objects
 			openAiModelInfo: undefined,
@@ -569,6 +587,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			mode === "plan" ? apiConfiguration.planModeNousResearchModelId : apiConfiguration.actModeNousResearchModelId,
 		vercelAiGatewayModelId:
 			mode === "plan" ? apiConfiguration.planModeVercelAiGatewayModelId : apiConfiguration.actModeVercelAiGatewayModelId,
+		gitHubCopilotModelId:
+			mode === "plan" ? apiConfiguration.planModeGitHubCopilotModelId : apiConfiguration.actModeGitHubCopilotModelId,
 
 		// Model info objects
 		openAiModelInfo: mode === "plan" ? apiConfiguration.planModeOpenAiModelInfo : apiConfiguration.actModeOpenAiModelInfo,
@@ -767,6 +787,11 @@ export async function syncModeConfigurations(
 		case "nousResearch":
 			updates.planModeNousResearchModelId = sourceFields.nousResearchModelId
 			updates.actModeNousResearchModelId = sourceFields.nousResearchModelId
+			break
+
+		case "github-copilot":
+			updates.planModeGitHubCopilotModelId = sourceFields.gitHubCopilotModelId
+			updates.actModeGitHubCopilotModelId = sourceFields.gitHubCopilotModelId
 			break
 
 		case "aihubmix":
