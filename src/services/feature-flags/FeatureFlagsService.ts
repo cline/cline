@@ -34,7 +34,7 @@ export class FeatureFlagsService {
 		if (timesNow - this.cacheInfo.updateTime < DEFAULT_CACHE_TTL && this.cache.size) {
 			// If time is within TTL, only skip if user context (userId) is unchanged.
 			// If userId changed (including from/to undefined/null), refresh cache.
-			if (userId && this.cacheInfo.userId === userId) {
+			if (this.cacheInfo.userId === userId) {
 				return
 			}
 		}
