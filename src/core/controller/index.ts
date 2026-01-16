@@ -82,6 +82,9 @@ export class Controller {
 	// Flag to prevent duplicate cancellations from spam clicking
 	private cancelInProgress = false
 
+	// Callback for task completion (used by message queue system)
+	onTaskComplete?: (result: string) => void
+
 	// Timer for periodic remote config fetching
 	private remoteConfigTimer?: NodeJS.Timeout
 
