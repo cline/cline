@@ -7,6 +7,7 @@ import { setWelcomeViewCompleted } from "@/core/controller/state/setWelcomeViewC
 import { HostProvider } from "@/hosts/host-provider"
 import { telemetryService } from "@/services/telemetry"
 import { openExternal } from "@/utils/env"
+import { BannerService } from "../banner/BannerService"
 import { AuthInvalidTokenError, AuthNetworkError } from "../error/ClineError"
 import { featureFlagsService } from "../feature-flags"
 import { Logger } from "../logging/Logger"
@@ -404,6 +405,18 @@ export class AuthService {
 		})
 
 		await Promise.all(streamSends)
+
+		// Clear banner cache when auth status changes
+		// This ensures users see fresh banners when they sign in/out or switch accounts
+		try {
+			if (BannerService.isInitialized()) {
+				BannerService.get().clearCache()
+			}
+		} catch (error) {
+			// BannerService might not be initialized yet, which is fine
+			Logger.log("AuthService: BannerService not initialized, skipping cache clear")
+		}
+
 		// Identify the user in telemetry if available
 		if (this._clineAuthInfo?.userInfo?.id) {
 			telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
