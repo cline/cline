@@ -38,13 +38,19 @@ export class FeatureFlagsService {
 			}
 		}
 
-		for (const flag of FEATURE_FLAGS) {
-			const payload = await this.getFeatureFlag(flag).catch(() => false)
-			this.cache.set(flag, payload ?? false)
-		}
-
 		// Only update timestamp after successfully populating cache
 		this.cacheInfo = { updateTime: timesNow, userId: userId || null }
+
+		try {
+			for (const flag of FEATURE_FLAGS) {
+				const payload = await this.getFeatureFlag(flag).catch(() => false)
+				this.cache.set(flag, payload ?? false)
+			}
+		} catch (error) {
+			// On error, clear cache info to force refresh on next poll
+			this.cacheInfo = { updateTime: 0, userId: null }
+			throw error
+		}
 
 		getClineOnboardingModels() // Refresh onboarding models cache if relevant flag changed
 	}
