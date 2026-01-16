@@ -44,8 +44,10 @@ describe("AutoApproveBar Accessibility", () => {
 		render(<AutoApproveBar />)
 
 		const button = screen.getByRole("button")
+		expect(button).toHaveAttribute("aria-expanded", "false")
 		button.focus()
 		await user.keyboard("{Enter}")
+		expect(button).toHaveAttribute("aria-expanded", "true")
 	})
 
 	it("should toggle modal with Space key", async () => {
@@ -53,7 +55,9 @@ describe("AutoApproveBar Accessibility", () => {
 		render(<AutoApproveBar />)
 
 		const button = screen.getByRole("button")
+		expect(button).toHaveAttribute("aria-expanded", "false")
 		button.focus()
 		await user.keyboard(" ")
+		expect(button).toHaveAttribute("aria-expanded", "true")
 	})
 })
