@@ -3,7 +3,6 @@
  *
  * Simple approach:
  * - Uses a "cline" subdirectory inside the system temp dir (falls back to system temp if creation fails)
- * - All Cline temp files use "cline-" prefix for identification
  * - Cleans up files older than 50 hours on extension activation
  * - Enforces 2GB total size cap to prevent disk bloat
  * - Cross-platform (macOS, Windows, Linux)
@@ -15,7 +14,6 @@ import * as os from "os"
 import * as path from "path"
 
 // Configuration constants
-const CLINE_FILE_PREFIX = "cline-"
 const MAX_TOTAL_SIZE_BYTES = 2 * 1024 * 1024 * 1024 // 2GB
 const MAX_FILE_AGE_MS = 50 * 60 * 60 * 1000 // 50 hours
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000 // 24 hours
@@ -73,7 +71,7 @@ class ClineTempManagerImpl {
 	 */
 	createTempFilePath(prefix: string): string {
 		this.ensureTempDirExists()
-		const filename = `${CLINE_FILE_PREFIX}${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.log`
+		const filename = `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.log`
 		return path.join(this.tempDir, filename)
 	}
 
