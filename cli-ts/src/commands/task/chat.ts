@@ -1,65 +1,91 @@
 /**
- * Task chat command - interactive REPL mode
+ * Task chat command - interactive REPL mode with embedded Controller
+ *
+ * This command provides an interactive chat interface using Cline's
+ * embedded Controller, allowing real-time AI interactions directly
+ * from the terminal.
  */
 
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Command } from "commander"
 import readline from "readline"
+import { CliWebviewAdapter, createCliWebviewAdapter } from "../../core/cli-webview-adapter.js"
+import { disposeEmbeddedController, getEmbeddedController } from "../../core/embedded-controller.js"
 import type { OutputFormatter } from "../../core/output/types.js"
-import { createTaskStorage } from "../../core/task-client.js"
 import type { CliConfig } from "../../types/config.js"
 import type { Logger } from "../../types/logger.js"
-import type { TaskMessage, TaskMode } from "../../types/task.js"
-
-/**
- * Format a message for display
- */
-function formatMessage(msg: TaskMessage): string {
-	const timestamp = new Date(msg.timestamp).toLocaleTimeString()
-	const role = msg.role.toUpperCase().padEnd(9)
-	const type = msg.type !== "text" ? ` [${msg.type}]` : ""
-
-	let content = msg.content
-	if (msg.attachments && msg.attachments.length > 0) {
-		content += `\n  📎 ${msg.attachments.join(", ")}`
-	}
-
-	return `[${timestamp}] ${role}${type}: ${content}`
-}
-
-/**
- * Get the most recent active task ID
- */
-function getMostRecentTaskId(configDir: string | undefined): string | null {
-	const taskStorage = createTaskStorage(configDir)
-	const tasks = taskStorage.list(1)
-	if (tasks.length > 0 && tasks[0].status === "active") {
-		return tasks[0].id
-	}
-	return null
-}
 
 /**
  * Chat session state
  */
 interface ChatSession {
-	taskId: string
+	taskId: string | null
 	isRunning: boolean
-	lastMessageTimestamp: number
+	awaitingApproval: boolean
+	awaitingInput: boolean
+	adapter: CliWebviewAdapter | null
+}
+
+/**
+ * Check if the last message requires user input
+ */
+function checkForPendingInput(messages: ClineMessage[]): { awaitingApproval: boolean; awaitingInput: boolean } {
+	if (messages.length === 0) {
+		return { awaitingApproval: false, awaitingInput: false }
+	}
+
+	const lastMessage = messages[messages.length - 1]
+
+	// Skip partial messages
+	if (lastMessage.partial) {
+		return { awaitingApproval: false, awaitingInput: false }
+	}
+
+	// Check if this is an "ask" type message
+	if (lastMessage.type === "ask") {
+		const ask = lastMessage.ask
+
+		// These require approval (yes/no response)
+		const approvalAsks = ["command", "tool", "browser_action_launch", "use_mcp_server"]
+
+		// These require free-form input
+		const inputAsks = ["followup", "plan_mode_respond", "act_mode_respond"]
+
+		if (approvalAsks.includes(ask || "")) {
+			return { awaitingApproval: true, awaitingInput: false }
+		}
+
+		if (inputAsks.includes(ask || "")) {
+			return { awaitingApproval: false, awaitingInput: true }
+		}
+
+		// Special cases
+		if (ask === "api_req_failed") {
+			return { awaitingApproval: true, awaitingInput: false }
+		}
+
+		if (ask === "completion_result" || ask === "resume_task" || ask === "resume_completed_task") {
+			return { awaitingApproval: false, awaitingInput: true }
+		}
+	}
+
+	return { awaitingApproval: false, awaitingInput: false }
 }
 
 /**
  * Process chat commands (lines starting with /)
  */
-function processChatCommand(
+async function processChatCommand(
 	input: string,
 	session: ChatSession,
-	configDir: string | undefined,
 	formatter: OutputFormatter,
-): boolean {
-	const taskStorage = createTaskStorage(configDir)
+	logger: Logger,
+): Promise<boolean> {
 	const parts = input.slice(1).split(/\s+/)
 	const cmd = parts[0].toLowerCase()
 	const args = parts.slice(1)
+
+	const controller = await getEmbeddedController(logger)
 
 	switch (cmd) {
 		case "help":
@@ -70,7 +96,7 @@ function processChatCommand(
 			formatter.raw("  /help, /h, /?      - Show this help")
 			formatter.raw("  /mode <plan|act>   - Switch mode")
 			formatter.raw("  /status            - Show task status")
-			formatter.raw("  /history [n]       - Show last n messages (default: 10)")
+			formatter.raw("  /cancel            - Cancel current task")
 			formatter.raw("  /approve, /a, /y   - Approve pending action")
 			formatter.raw("  /deny, /d, /n      - Deny pending action")
 			formatter.raw("  /quit, /q, /exit   - Exit chat mode")
@@ -80,14 +106,14 @@ function processChatCommand(
 		case "mode":
 		case "m":
 			if (args.length === 0) {
-				const task = taskStorage.get(session.taskId)
-				formatter.info(`Current mode: ${task?.mode || "unknown"}`)
+				const state = await controller.getStateToPostToWebview()
+				formatter.info(`Current mode: ${state.mode || "unknown"}`)
 			} else {
 				const newMode = args[0].toLowerCase()
 				if (newMode !== "plan" && newMode !== "act") {
 					formatter.error("Invalid mode. Use 'plan' or 'act'")
 				} else {
-					taskStorage.updateMode(session.taskId, newMode as TaskMode)
+					await controller.togglePlanActMode(newMode as "plan" | "act")
 					formatter.success(`Switched to ${newMode} mode`)
 				}
 			}
@@ -95,49 +121,39 @@ function processChatCommand(
 
 		case "status":
 		case "s": {
-			const task = taskStorage.get(session.taskId)
-			if (task) {
-				formatter.raw("")
-				formatter.info(`Task: ${task.id}`)
-				formatter.info(`Status: ${task.status}`)
-				formatter.info(`Mode: ${task.mode}`)
-				formatter.info(`Messages: ${task.messageCount}`)
-				formatter.raw("")
+			const state = await controller.getStateToPostToWebview()
+			formatter.raw("")
+			formatter.info(`Task ID: ${session.taskId || "none"}`)
+			formatter.info(`Mode: ${state.mode || "unknown"}`)
+			formatter.info(`Messages: ${state.clineMessages?.length || 0}`)
+			if (session.awaitingApproval) {
+				formatter.warn("Awaiting approval (use /approve or /deny)")
 			}
+			if (session.awaitingInput) {
+				formatter.warn("Awaiting user input")
+			}
+			formatter.raw("")
 			return true
 		}
 
-		case "history": {
-			const count = args.length > 0 ? parseInt(args[0], 10) : 10
-			if (isNaN(count) || count < 1) {
-				formatter.error("Invalid count")
-				return true
-			}
-			const messages = taskStorage.getMessages(session.taskId)
-			const recent = messages.slice(-count)
-			formatter.raw("")
-			if (recent.length === 0) {
-				formatter.info("No messages")
+		case "cancel": {
+			if (controller.task) {
+				await controller.cancelTask()
+				formatter.success("Task cancelled")
 			} else {
-				for (const msg of recent) {
-					formatter.raw(formatMessage(msg))
-				}
+				formatter.warn("No active task to cancel")
 			}
-			formatter.raw("")
 			return true
 		}
 
 		case "approve":
 		case "a":
 		case "y": {
-			const pending = taskStorage.hasPendingApproval(session.taskId)
-			if (!pending) {
+			if (!session.awaitingApproval) {
 				formatter.warn("No pending approval request")
-			} else {
-				taskStorage.addMessage(session.taskId, "user", "approval_response", "approved", undefined, {
-					approved: true,
-					requestId: pending.id,
-				})
+			} else if (controller.task) {
+				await controller.task.handleWebviewAskResponse("yesButtonClicked")
+				session.awaitingApproval = false
 				formatter.success("Action approved")
 			}
 			return true
@@ -146,14 +162,11 @@ function processChatCommand(
 		case "deny":
 		case "d":
 		case "n": {
-			const pending = taskStorage.hasPendingApproval(session.taskId)
-			if (!pending) {
+			if (!session.awaitingApproval) {
 				formatter.warn("No pending approval request")
-			} else {
-				taskStorage.addMessage(session.taskId, "user", "approval_response", "denied", undefined, {
-					approved: false,
-					requestId: pending.id,
-				})
+			} else if (controller.task) {
+				await controller.task.handleWebviewAskResponse("noButtonClicked")
+				session.awaitingApproval = false
 				formatter.success("Action denied")
 			}
 			return true
@@ -177,38 +190,52 @@ function processChatCommand(
 export function createTaskChatCommand(config: CliConfig, logger: Logger, formatter: OutputFormatter): Command {
 	const chatCommand = new Command("chat")
 		.alias("c")
-		.description("Interactive chat mode with a task")
-		.argument("[taskId]", "Task ID to chat with (defaults to most recent active task)")
+		.description("Interactive chat mode with embedded Cline Controller")
+		.argument("[prompt]", "Initial prompt to start a new task (optional)")
 		.option("-m, --mode <mode>", "Start in specific mode: act or plan")
-		.action(async (taskIdArg: string | undefined, options) => {
-			logger.debug("Task chat command called", { taskIdArg, options })
+		.option("-t, --task <id>", "Resume an existing task by ID")
+		.option("-y, --yolo", "Enable autonomous mode (no confirmations)", false)
+		.action(async (promptArg: string | undefined, options) => {
+			logger.debug("Task chat command called", { promptArg, options })
 
 			try {
-				// Create task storage
-				const taskStorage = createTaskStorage(config.configDir)
+				// Initialize embedded controller
+				formatter.info("Initializing Cline...")
+				const controller = await getEmbeddedController(logger, config.configDir)
 
-				// Determine task ID
-				let taskId = taskIdArg
-				if (!taskId) {
-					const recentTaskId = getMostRecentTaskId(config.configDir)
-					if (!recentTaskId) {
-						throw new Error("No active task found. Create a task with 'cline task new'")
-					}
-					taskId = recentTaskId
-				}
-
-				// Get the task
-				const task = taskStorage.get(taskId)
-				if (!task) {
-					throw new Error(`Task not found: ${taskId}`)
-				}
-
-				// Handle mode option
+				// Set up mode if specified
 				if (options.mode) {
 					if (options.mode !== "plan" && options.mode !== "act") {
 						throw new Error(`Invalid mode: "${options.mode}". Valid options are: act, plan`)
 					}
-					taskStorage.updateMode(task.id, options.mode as TaskMode)
+					await controller.togglePlanActMode(options.mode as "plan" | "act")
+				}
+
+				// Chat session state
+				const session: ChatSession = {
+					taskId: null,
+					isRunning: true,
+					awaitingApproval: false,
+					awaitingInput: false,
+					adapter: null,
+				}
+
+				// Create webview adapter for output
+				session.adapter = createCliWebviewAdapter(controller, formatter)
+
+				// Start or resume task
+				if (options.task) {
+					// Resume existing task
+					const history = await controller.getTaskWithId(options.task)
+					if (!history) {
+						throw new Error(`Task not found: ${options.task}`)
+					}
+					session.taskId = await controller.initTask(undefined, undefined, undefined, history.historyItem)
+					formatter.info(`Resumed task: ${session.taskId}`)
+				} else if (promptArg) {
+					// Start new task with prompt
+					session.taskId = await controller.initTask(promptArg)
+					formatter.info(`Started task: ${session.taskId}`)
 				}
 
 				// Display welcome message
@@ -216,25 +243,28 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 				formatter.info("═".repeat(60))
 				formatter.info("  Cline Interactive Chat Mode")
 				formatter.info("═".repeat(60))
-				formatter.info(`Task: ${task.id}`)
-				formatter.info(`Mode: ${task.mode}`)
-				formatter.info(`Prompt: ${task.prompt}`)
+				if (session.taskId) {
+					formatter.info(`Task: ${session.taskId}`)
+				}
+				const state = await controller.getStateToPostToWebview()
+				formatter.info(`Mode: ${state.mode || "act"}`)
 				formatter.raw("")
 				formatter.info("Type your message and press Enter to send.")
 				formatter.info("Type /help for available commands, /quit to exit.")
 				formatter.raw("─".repeat(60))
 				formatter.raw("")
 
-				// Show recent messages
-				const messages = taskStorage.getMessages(task.id)
-				if (messages.length > 0) {
-					const recentMessages = messages.slice(-5)
-					formatter.info("Recent messages:")
-					for (const msg of recentMessages) {
-						formatter.raw(formatMessage(msg))
-					}
-					formatter.raw("")
+				// Output existing messages if resuming
+				if (session.taskId && session.adapter) {
+					session.adapter.outputAllMessages()
 				}
+
+				// Start listening for state updates
+				session.adapter.startListening((messages) => {
+					const pendingState = checkForPendingInput(messages)
+					session.awaitingApproval = pendingState.awaitingApproval
+					session.awaitingInput = pendingState.awaitingInput
+				})
 
 				// Create readline interface
 				const rl = readline.createInterface({
@@ -243,15 +273,8 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 					prompt: "> ",
 				})
 
-				// Chat session state
-				const session: ChatSession = {
-					taskId: task.id,
-					isRunning: true,
-					lastMessageTimestamp: messages.length > 0 ? messages[messages.length - 1].timestamp : Date.now(),
-				}
-
 				// Handle line input
-				rl.on("line", (line: string) => {
+				rl.on("line", async (line: string) => {
 					const input = line.trim()
 
 					if (!input) {
@@ -261,7 +284,7 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 
 					// Check for chat commands
 					if (input.startsWith("/")) {
-						processChatCommand(input, session, config.configDir, formatter)
+						await processChatCommand(input, session, formatter, logger)
 						if (!session.isRunning) {
 							rl.close()
 							return
@@ -270,29 +293,56 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 						return
 					}
 
-					// Send message
-					const savedMessage = taskStorage.addMessage(task.id, "user", "text", input)
-					if (savedMessage) {
-						formatter.info(`Message sent`)
-						session.lastMessageTimestamp = savedMessage.timestamp
-					} else {
-						formatter.error("Failed to send message")
+					// Handle approval shortcuts
+					if (session.awaitingApproval) {
+						const lowerInput = input.toLowerCase()
+						if (lowerInput === "y" || lowerInput === "yes" || lowerInput === "approve") {
+							if (controller.task) {
+								await controller.task.handleWebviewAskResponse("yesButtonClicked")
+								session.awaitingApproval = false
+							}
+							rl.prompt()
+							return
+						}
+						if (lowerInput === "n" || lowerInput === "no" || lowerInput === "deny") {
+							if (controller.task) {
+								await controller.task.handleWebviewAskResponse("noButtonClicked")
+								session.awaitingApproval = false
+							}
+							rl.prompt()
+							return
+						}
+					}
+
+					// If no active task, start a new one
+					if (!session.taskId) {
+						session.taskId = await controller.initTask(input)
+						formatter.info(`Started task: ${session.taskId}`)
+						session.adapter?.resetMessageCounter()
+					} else if (controller.task) {
+						// Send message to existing task
+						await controller.task.handleWebviewAskResponse("messageResponse", input)
 					}
 
 					rl.prompt()
 				})
 
 				// Handle close
-				rl.on("close", () => {
+				rl.on("close", async () => {
 					formatter.raw("")
 					formatter.info("Chat session ended")
+
+					// Stop listening and cleanup
+					session.adapter?.stopListening()
+					await disposeEmbeddedController(logger)
+
 					process.exit(0)
 				})
 
 				// Handle Ctrl+C
 				rl.on("SIGINT", () => {
 					formatter.raw("")
-					formatter.info("Chat session ended")
+					formatter.info("Chat session ended (interrupted)")
 					rl.close()
 				})
 
@@ -300,6 +350,7 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 				rl.prompt()
 			} catch (error) {
 				formatter.error((error as Error).message)
+				await disposeEmbeddedController(logger)
 				process.exit(1)
 			}
 		})

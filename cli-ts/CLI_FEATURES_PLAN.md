@@ -195,18 +195,62 @@ Implement the task command infrastructure.
 
 ---
 
-### 3.3 Task Communication
+### 3.3 Task Communication - Embedded Controller Architecture
 **Priority: High** | **Complexity: High**
 
-**Commands:**
-- `cline task chat` / `cline t c` - Interactive chat mode
-- `cline task send [message] [options]` / `cline t s`
-- `cline task view [--follow] [--follow-complete]` / `cline t v`
+**Architecture Decision: In-Process Embedded Controller**
 
-**Files to create:**
-- `cli-ts/src/commands/task/chat.ts` - Interactive REPL mode
-- `cli-ts/src/commands/task/send.ts` - Send single message
-- `cli-ts/src/commands/task/view.ts` - View/stream conversation
+The CLI chat REPL will embed the Cline Controller directly in the CLI process (not via gRPC). This approach:
+- Uses direct method calls instead of gRPC serialization
+- Reuses infrastructure from `src/standalone/cline-core.ts`
+- Shares state via `~/.cline/` with VSCode extension
+- Outputs to terminal instead of webview
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    CLI Process                            │
+│                                                          │
+│  ┌────────────┐    ┌────────────┐    ┌──────────────────┐│
+│  │  CLI Chat  │───>│ Controller │───>│ Task + AI API    ││
+│  │   REPL     │<───│            │<───│                  ││
+│  └────────────┘    └────────────┘    └──────────────────┘│
+│        │                 │                               │
+│        v                 v                               │
+│  ┌────────────┐    ┌──────────────┐                     │
+│  │  Terminal  │    │ StateManager │                     │
+│  │   Output   │    │ (~/.cline/)  │                     │
+│  └────────────┘    └──────────────┘                     │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Key Source Files to Understand:**
+- `src/core/controller/index.ts` - Controller class with initTask(), cancelTask(), postStateToWebview()
+- `src/standalone/cline-core.ts` - Shows how to run Controller outside VSCode
+- `src/standalone/vscode-context.ts` - initializeContext() creates mock ExtensionContext
+- `src/standalone/protobus-service.ts` - Shows Controller methods exposed via gRPC
+- `src/generated/hosts/standalone/protobus-server-setup.ts` - All available RPC methods
+
+**Key Controller Methods for CLI:**
+- `controller.initTask(prompt)` - Start a new task with prompt
+- `controller.task?.handleWebviewAskResponse('messageResponse', userInput)` - Send user input
+- `controller.task?.messageStateHandler.getClineMessages()` - Get conversation messages
+- `controller.cancelTask()` - Cancel current task
+- `controller.getStateToPostToWebview()` - Get full state (clineMessages, etc.)
+
+**Commands:**
+- `cline task chat` / `cline t c` - Interactive chat mode with embedded Controller
+- `cline task send [message] [options]` / `cline t s` - Send single message
+- `cline task view [--follow] [--follow-complete]` / `cline t v` - View/stream conversation
+
+**Files to create/modify:**
+- `cli-ts/src/core/embedded-controller.ts` - Initialize Controller in CLI process
+- `cli-ts/src/core/cli-webview-adapter.ts` - Adapter that outputs to terminal instead of webview
+- `cli-ts/src/commands/task/chat.ts` - Updated to use embedded Controller
+- `cli-ts/src/commands/task/send.ts` - Updated to use embedded Controller
+- `cli-ts/src/commands/task/view.ts` - Updated to use embedded Controller
+
+**Existing file to leverage:**
+- `cli-ts/src/core/host-provider-setup.ts` - Already sets up HostProvider for CLI
 
 **Options for task send:**
 - `-a, --approve` - Approve proposed action
@@ -219,11 +263,30 @@ Implement the task command infrastructure.
 - `-f, --follow` - Stream updates in real-time
 - `-c, --follow-complete` - Follow until completion
 
+**Implementation Steps:**
+1. Create `embedded-controller.ts` to initialize Controller using:
+   - `initializeContext()` from `src/standalone/vscode-context.ts`
+   - `setupHostProvider()` from `cli-ts/src/core/host-provider-setup.ts`
+   - Direct Controller import from `src/core/controller/index.ts`
+
+2. Create `cli-webview-adapter.ts` to handle state updates:
+   - Listen to `controller.task?.messageStateHandler` events
+   - Format ClineMessages for terminal output
+   - Handle streaming partial messages
+
+3. Update `chat.ts` to use embedded Controller:
+   - Initialize Controller on command start
+   - Send prompts via `controller.initTask(prompt)`
+   - Receive messages via state handler events
+   - Handle user input via `handleWebviewAskResponse()`
+
+4. Update `send.ts` and `view.ts` similarly
+
 **Tests:**
-- Chat mode provides REPL interface
-- Send supports stdin input
-- View streams messages with follow flag
-- Approve/deny work correctly
+- Chat mode provides REPL interface with real Controller
+- Messages stream to terminal in real-time
+- Approve/deny call correct Controller methods
+- State persists to ~/.cline/ and is readable by VSCode
 
 ---
 
@@ -307,8 +370,8 @@ Enhance `-v, --verbose` to show debug output including gRPC communication detail
 5. [x] 3.1 Task Command Group Base
 6. [x] 3.2 Task Creation & History
 
-### Sprint 4: Task Communication (Next)
-7. [ ] 3.3 Task Communication (chat, send, view)
+### Sprint 4: Task Communication (✅ Complete)
+7. [x] 3.3 Task Communication (chat, send, view) - Embedded Controller architecture implemented
 
 ### Sprint 5: Advanced Features
 8. [ ] 4.1 Instant Task Mode

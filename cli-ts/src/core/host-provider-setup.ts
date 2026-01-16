@@ -1,7 +1,6 @@
 import { ExternalCommentReviewController } from "@hosts/external/ExternalCommentReviewController"
 import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvider"
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
-import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-client-manager"
 import path from "path"
 import type { ExtensionContext } from "vscode"
 import type { WebviewProvider } from "@/core/webview"
@@ -9,6 +8,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import type { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { StandaloneTerminalManager } from "@/integrations/terminal"
 import type { Logger } from "../types/logger.js"
+import { StandaloneHostBridgeClient } from "./standalone-hostbridge-client.js"
 
 /**
  * Initialize the HostProvider for CLI mode
@@ -57,7 +57,7 @@ export function setupHostProvider(
 		createDiffView,
 		createCommentReview,
 		createTerminalManager,
-		new ExternalHostBridgeClientManager(),
+		new StandaloneHostBridgeClient(),
 		logToChannel,
 		getCallbackUrl,
 		getBinaryLocation,

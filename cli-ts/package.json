@@ -2,11 +2,17 @@
 	"name": "@cline/cli",
 	"version": "1.0.0",
 	"description": "Cline CLI - Command-line interface for Cline AI assistant",
-	"main": "dist/index.js",
+	"main": "dist/index.cjs",
+	"bin": {
+		"cline": "./dist/index.cjs"
+	},
 	"type": "module",
 	"scripts": {
-		"build": "tsc",
-		"dev": "tsx src/index.ts",
+		"build": "node esbuild.mjs",
+		"build:watch": "node esbuild.mjs --watch",
+		"build:prod": "node esbuild.mjs --production",
+		"start": "node dist/index.cjs",
+		"dev": "npm run build && npm run start",
 		"test": "mocha",
 		"test:watch": "mocha --watch",
 		"test:coverage": "c8 mocha"
@@ -22,6 +28,7 @@
 		"@types/sinon": "^17.0.3",
 		"c8": "^10.1.2",
 		"chai": "^4.4.1",
+		"esbuild": "^0.27.0",
 		"mocha": "^10.6.0",
 		"sinon": "^17.0.1",
 		"tsx": "^4.16.2",

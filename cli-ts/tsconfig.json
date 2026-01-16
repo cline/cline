@@ -17,6 +17,9 @@
 			"@utils/*": [
 				"../src/utils/*"
 			],
+			"@standalone/*": [
+				"../src/standalone/*"
+			],
 			"@cli/*": [
 				"src/*"
 			]

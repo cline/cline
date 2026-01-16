@@ -1,40 +1,69 @@
 /**
- * Task view command - view conversation history
+ * Task view command - view conversation history using embedded Controller
+ *
+ * This command displays task conversation history from the embedded
+ * Controller, with options for real-time streaming and following.
  */
 
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Command } from "commander"
+import { createCliWebviewAdapter } from "../../core/cli-webview-adapter.js"
+import { disposeEmbeddedController, getEmbeddedController } from "../../core/embedded-controller.js"
 import type { OutputFormatter } from "../../core/output/types.js"
-import { createTaskStorage } from "../../core/task-client.js"
 import type { CliConfig } from "../../types/config.js"
 import type { Logger } from "../../types/logger.js"
-import type { TaskMessage } from "../../types/task.js"
 
 /**
- * Format a message for display
+ * Format a ClineMessage for display
  */
-function formatMessage(msg: TaskMessage): string {
-	const timestamp = new Date(msg.timestamp).toLocaleTimeString()
-	const role = msg.role.toUpperCase().padEnd(9)
-	const type = msg.type !== "text" ? ` [${msg.type}]` : ""
+function formatMessageSummary(msg: ClineMessage): string {
+	const timestamp = new Date(msg.ts).toLocaleTimeString()
+	const type = msg.type.toUpperCase()
 
-	let content = msg.content
-	if (msg.attachments && msg.attachments.length > 0) {
-		content += `\n  📎 ${msg.attachments.join(", ")}`
+	let subtype = ""
+	if (msg.say) {
+		subtype = ` [${msg.say}]`
+	} else if (msg.ask) {
+		subtype = ` [${msg.ask}]`
 	}
 
-	return `[${timestamp}] ${role}${type}: ${content}`
+	// Truncate long messages
+	let content = msg.text || ""
+	if (content.length > 100) {
+		content = content.slice(0, 97) + "..."
+	}
+
+	// Handle special message types
+	if (msg.say === "api_req_started" || msg.say === "api_req_finished") {
+		try {
+			const info = JSON.parse(msg.text || "{}")
+			if (info.tokensIn || info.tokensOut) {
+				content = `tokens: ${info.tokensIn || 0} in / ${info.tokensOut || 0} out`
+			}
+		} catch {
+			// Keep original content
+		}
+	}
+
+	return `[${timestamp}] ${type}${subtype}: ${content.replace(/\n/g, " ")}`
 }
 
 /**
- * Get the most recent active task ID
+ * Check if task is complete or awaiting input
  */
-function getMostRecentTaskId(configDir: string | undefined): string | null {
-	const taskStorage = createTaskStorage(configDir)
-	const tasks = taskStorage.list(1)
-	if (tasks.length > 0) {
-		return tasks[0].id
+function isTaskComplete(messages: ClineMessage[]): boolean {
+	if (messages.length === 0) {
+		return false
 	}
-	return null
+
+	const lastMessage = messages[messages.length - 1]
+
+	// Task is complete if last message is completion_result
+	if (lastMessage.ask === "completion_result" || lastMessage.say === "completion_result") {
+		return true
+	}
+
+	return false
 }
 
 /**
@@ -50,43 +79,70 @@ function sleep(ms: number): Promise<void> {
 export function createTaskViewCommand(config: CliConfig, logger: Logger, formatter: OutputFormatter): Command {
 	const viewCommand = new Command("view")
 		.alias("v")
-		.description("View task conversation history")
-		.argument("[taskId]", "Task ID to view (defaults to most recent task)")
+		.description("View task conversation history using embedded Controller")
+		.argument("[taskId]", "Task ID to view (defaults to current or most recent task)")
 		.option("-f, --follow", "Stream updates in real-time", false)
 		.option("-c, --follow-complete", "Follow until task completion", false)
 		.option("-n, --last <count>", "Show only last N messages")
 		.option("--since <timestamp>", "Show messages since timestamp (Unix ms)")
+		.option("-r, --raw", "Show raw message data (useful for debugging)", false)
 		.action(async (taskIdArg: string | undefined, options) => {
 			logger.debug("Task view command called", { taskIdArg, options })
 
 			try {
-				// Create task storage
-				const taskStorage = createTaskStorage(config.configDir)
+				// Initialize embedded controller
+				formatter.info("Initializing Cline...")
+				const controller = await getEmbeddedController(logger, config.configDir)
 
-				// Determine task ID
+				// Get task history to find the task
+				const state = await controller.getStateToPostToWebview()
+				const taskHistory = state.taskHistory || []
+
+				// Determine which task to view
 				let taskId = taskIdArg
-				if (!taskId) {
-					const recentTaskId = getMostRecentTaskId(config.configDir)
-					if (!recentTaskId) {
+				let historyItem = null
+
+				if (taskId) {
+					// Find task by ID (support partial ID match)
+					historyItem = taskHistory.find((t) => t.id === taskId || t.id.startsWith(taskId || ""))
+					if (!historyItem) {
+						throw new Error(`Task not found: ${taskId}`)
+					}
+					taskId = historyItem.id
+				} else {
+					// Use current task or most recent
+					if (controller.task) {
+						taskId = controller.task.taskId
+						historyItem = taskHistory.find((t) => t.id === taskId)
+					} else if (taskHistory.length > 0) {
+						historyItem = taskHistory[0] // Most recent
+						taskId = historyItem.id
+					} else {
 						throw new Error("No tasks found. Create a task with 'cline task new'")
 					}
-					taskId = recentTaskId
 				}
 
-				// Get the task
-				const task = taskStorage.get(taskId)
-				if (!task) {
-					throw new Error(`Task not found: ${taskId}`)
+				// Initialize task if not already active
+				if (!controller.task || controller.task.taskId !== taskId) {
+					if (historyItem) {
+						const taskData = await controller.getTaskWithId(taskId)
+						await controller.initTask(undefined, undefined, undefined, taskData.historyItem)
+					}
 				}
 
 				// Display task info header
-				formatter.info(`Task: ${task.id}`)
-				formatter.info(`Status: ${task.status} | Mode: ${task.mode}`)
-				formatter.info(`Prompt: ${task.prompt}`)
+				formatter.info(`\nTask: ${taskId}`)
+				if (historyItem) {
+					formatter.info(`Status: ${historyItem.size ? "has content" : "empty"}`)
+					if (historyItem.task) {
+						const promptPreview = historyItem.task.slice(0, 60) + (historyItem.task.length > 60 ? "..." : "")
+						formatter.info(`Prompt: ${promptPreview}`)
+					}
+				}
 				formatter.raw("─".repeat(60))
 
 				// Get messages
-				let messages = taskStorage.getMessages(task.id)
+				let messages = controller.task?.messageStateHandler.getClineMessages() || []
 
 				// Filter by timestamp if provided
 				if (options.since) {
@@ -94,7 +150,7 @@ export function createTaskViewCommand(config: CliConfig, logger: Logger, formatt
 					if (isNaN(sinceTs)) {
 						throw new Error(`Invalid timestamp: ${options.since}`)
 					}
-					messages = messages.filter((m) => m.timestamp > sinceTs)
+					messages = messages.filter((m) => m.ts > sinceTs)
 				}
 
 				// Limit to last N messages if specified
@@ -110,8 +166,18 @@ export function createTaskViewCommand(config: CliConfig, logger: Logger, formatt
 				if (messages.length === 0) {
 					formatter.info("No messages yet")
 				} else {
-					for (const msg of messages) {
-						formatter.raw(formatMessage(msg))
+					if (options.raw) {
+						// Raw JSON output
+						for (const msg of messages) {
+							formatter.raw(JSON.stringify(msg, null, 2))
+							formatter.raw("")
+						}
+					} else {
+						// Formatted output using the adapter
+						const adapter = createCliWebviewAdapter(controller, formatter)
+						for (const msg of messages) {
+							adapter.outputMessage(msg)
+						}
 					}
 				}
 
@@ -120,18 +186,16 @@ export function createTaskViewCommand(config: CliConfig, logger: Logger, formatt
 					formatter.raw(
 						JSON.stringify(
 							{
-								task: {
-									id: task.id,
-									status: task.status,
-									mode: task.mode,
-									prompt: task.prompt,
-								},
-								messages,
+								taskId,
+								prompt: historyItem?.task,
+								messageCount: messages.length,
+								messages: options.raw ? messages : messages.map(formatMessageSummary),
 							},
 							null,
 							2,
 						),
 					)
+					await disposeEmbeddedController(logger)
 					return
 				}
 
@@ -141,14 +205,19 @@ export function createTaskViewCommand(config: CliConfig, logger: Logger, formatt
 					formatter.info("Watching for new messages... (Ctrl+C to stop)")
 					formatter.raw("─".repeat(60))
 
-					let lastTimestamp = messages.length > 0 ? messages[messages.length - 1].timestamp : Date.now()
 					let isRunning = true
+					let lastMessageCount = messages.length
+
+					// Create adapter for streaming output
+					const adapter = createCliWebviewAdapter(controller, formatter)
 
 					// Handle Ctrl+C gracefully
-					const cleanup = () => {
+					const cleanup = async () => {
 						isRunning = false
 						formatter.raw("")
 						formatter.info("Stopped watching")
+						adapter.stopListening()
+						await disposeEmbeddedController(logger)
 						process.exit(0)
 					}
 
@@ -156,31 +225,34 @@ export function createTaskViewCommand(config: CliConfig, logger: Logger, formatt
 					process.on("SIGTERM", cleanup)
 
 					// Poll for new messages
-					const pollInterval = 500 // ms
+					const pollInterval = 100 // ms
 
 					while (isRunning) {
 						await sleep(pollInterval)
 
-						// Check task status
-						const updatedTask = taskStorage.get(task.id)
-						if (!updatedTask) {
-							formatter.warn("Task was deleted")
-							break
+						// Get current messages
+						const currentMessages = controller.task?.messageStateHandler.getClineMessages() || []
+
+						// Output new messages
+						if (currentMessages.length > lastMessageCount) {
+							const newMessages = currentMessages.slice(lastMessageCount)
+							for (const msg of newMessages) {
+								adapter.outputMessage(msg)
+							}
+							lastMessageCount = currentMessages.length
 						}
 
 						// Check if task completed (for --follow-complete)
-						if (options.followComplete && updatedTask.status === "completed") {
+						if (options.followComplete && isTaskComplete(currentMessages)) {
+							formatter.raw("")
 							formatter.info("Task completed")
 							break
 						}
 
-						// Get new messages
-						const newMessages = taskStorage.getMessagesSince(task.id, lastTimestamp)
-						if (newMessages.length > 0) {
-							for (const msg of newMessages) {
-								formatter.raw(formatMessage(msg))
-							}
-							lastTimestamp = newMessages[newMessages.length - 1].timestamp
+						// Check if task was cleared
+						if (!controller.task) {
+							formatter.warn("Task was cleared")
+							break
 						}
 					}
 
@@ -188,8 +260,11 @@ export function createTaskViewCommand(config: CliConfig, logger: Logger, formatt
 					process.removeListener("SIGINT", cleanup)
 					process.removeListener("SIGTERM", cleanup)
 				}
+
+				await disposeEmbeddedController(logger)
 			} catch (error) {
 				formatter.error((error as Error).message)
+				await disposeEmbeddedController(logger)
 				process.exit(1)
 			}
 		})

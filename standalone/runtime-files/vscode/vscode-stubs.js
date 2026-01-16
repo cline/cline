@@ -1,5 +1,4 @@
 // GENERATED CODE -- DO NOT EDIT!
-console.log("Loading stubs...")
 const { createStub } = require("./stub-utils")
 vscode = {}
 vscode.version = createStub("vscode.version")
@@ -1329,4 +1328,3 @@ vscode.TelemetryTrustedValue = class {
 	}
 }
 module.exports = vscode
-console.log("Finished loading stubs")

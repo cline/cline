@@ -1,5 +1,5 @@
 /**
- * Tests for task chat command
+ * Tests for task chat command with embedded Controller
  */
 
 import { expect } from "chai"
@@ -8,8 +8,9 @@ import os from "os"
 import path from "path"
 import sinon from "sinon"
 import { createTaskChatCommand } from "../../../../src/commands/task/chat.js"
+// Mock the embedded controller module
+import * as embeddedController from "../../../../src/core/embedded-controller.js"
 import type { OutputFormatter } from "../../../../src/core/output/types.js"
-import { createTaskStorage } from "../../../../src/core/task-client.js"
 import type { CliConfig } from "../../../../src/types/config.js"
 import type { Logger } from "../../../../src/types/logger.js"
 
@@ -19,6 +20,18 @@ describe("task chat command", () => {
 	let logger: Logger
 	let formatter: OutputFormatter
 	let exitStub: sinon.SinonStub
+	let getControllerStub: sinon.SinonStub
+	let disposeControllerStub: sinon.SinonStub
+
+	// Mock controller
+	const mockController = {
+		task: null as any,
+		initTask: sinon.stub(),
+		cancelTask: sinon.stub(),
+		togglePlanActMode: sinon.stub(),
+		getTaskWithId: sinon.stub(),
+		getStateToPostToWebview: sinon.stub(),
+	}
 
 	beforeEach(() => {
 		// Create temp directory
@@ -55,6 +68,26 @@ describe("task chat command", () => {
 
 		// Stub process.exit
 		exitStub = sinon.stub(process, "exit")
+
+		// Reset mock controller
+		mockController.task = null
+		mockController.initTask.reset()
+		mockController.cancelTask.reset()
+		mockController.togglePlanActMode.reset()
+		mockController.getTaskWithId.reset()
+		mockController.getStateToPostToWebview.reset()
+
+		// Setup default stubs
+		mockController.getStateToPostToWebview.resolves({
+			mode: "act",
+			clineMessages: [],
+			taskHistory: [],
+		})
+		mockController.initTask.resolves("test-task-123")
+
+		// Stub the embedded controller functions
+		getControllerStub = sinon.stub(embeddedController, "getEmbeddedController").resolves(mockController as any)
+		disposeControllerStub = sinon.stub(embeddedController, "disposeEmbeddedController").resolves()
 	})
 
 	afterEach(() => {
@@ -71,42 +104,78 @@ describe("task chat command", () => {
 		expect(cmd.aliases()).to.include("c")
 	})
 
-	it("should error when no active task exists", async () => {
+	it("should initialize controller on command start", async () => {
 		const cmd = createTaskChatCommand(config, logger, formatter)
 
-		// This will error before starting readline, so we can test it
-		await cmd.parseAsync(["node", "test"])
+		// Start chat with a prompt (this will initialize controller but hang on readline)
+		// We need to cause it to error to avoid hanging
+		mockController.initTask.rejects(new Error("Test error"))
 
-		expect((formatter.error as sinon.SinonStub).calledOnce).to.be.true
-		expect((formatter.error as sinon.SinonStub).firstCall.args[0]).to.include("No active task found")
-		expect(exitStub.calledWith(1)).to.be.true
-	})
+		await cmd.parseAsync(["node", "test", "Hello Cline"])
 
-	it("should error when task not found", async () => {
-		const cmd = createTaskChatCommand(config, logger, formatter)
-		await cmd.parseAsync(["node", "test", "nonexistent"])
-
-		expect((formatter.error as sinon.SinonStub).calledOnce).to.be.true
-		expect((formatter.error as sinon.SinonStub).firstCall.args[0]).to.include("Task not found")
-		expect(exitStub.calledWith(1)).to.be.true
+		expect(getControllerStub.calledOnce).to.be.true
+		expect((formatter.info as sinon.SinonStub).calledWith("Initializing Cline...")).to.be.true
 	})
 
 	it("should error on invalid mode option", async () => {
-		// Create a task
-		const storage = createTaskStorage(tempDir)
-		storage.create({ prompt: "Test task" })
-
 		const cmd = createTaskChatCommand(config, logger, formatter)
-		await cmd.parseAsync(["node", "test", "-m", "invalid"])
+
+		// Make initTask throw to exit the command
+		mockController.initTask.rejects(new Error("Test"))
+
+		await cmd.parseAsync(["node", "test", "-m", "invalid", "prompt"])
 
 		expect((formatter.error as sinon.SinonStub).calledOnce).to.be.true
 		expect((formatter.error as sinon.SinonStub).firstCall.args[0]).to.include("Invalid mode")
 		expect(exitStub.calledWith(1)).to.be.true
 	})
 
-	// Note: Testing the interactive readline functionality is complex
-	// These tests focus on the command setup and error cases
-	// Full integration tests would use a mock stdin/stdout
+	it("should start new task with prompt argument", async () => {
+		const cmd = createTaskChatCommand(config, logger, formatter)
+
+		// Make initTask throw after being called to exit the command
+		mockController.initTask.callsFake(async () => {
+			throw new Error("Exit after init")
+		})
+
+		await cmd.parseAsync(["node", "test", "Hello Cline"])
+
+		expect(mockController.initTask.calledWith("Hello Cline")).to.be.true
+	})
+
+	it("should resume existing task with --task option", async () => {
+		const historyItem = { id: "existing-task-456", task: "Previous task" }
+		mockController.getTaskWithId.resolves({ historyItem })
+		mockController.initTask.callsFake(async () => {
+			throw new Error("Exit after init")
+		})
+
+		const cmd = createTaskChatCommand(config, logger, formatter)
+		await cmd.parseAsync(["node", "test", "-t", "existing-task-456"])
+
+		expect(mockController.getTaskWithId.calledWith("existing-task-456")).to.be.true
+		expect(mockController.initTask.calledWith(undefined, undefined, undefined, historyItem)).to.be.true
+	})
+
+	it("should switch mode when --mode option provided", async () => {
+		mockController.initTask.callsFake(async () => {
+			throw new Error("Exit after init")
+		})
+
+		const cmd = createTaskChatCommand(config, logger, formatter)
+		await cmd.parseAsync(["node", "test", "-m", "plan", "prompt"])
+
+		expect(mockController.togglePlanActMode.calledWith("plan")).to.be.true
+	})
+
+	it("should dispose controller on error", async () => {
+		mockController.initTask.rejects(new Error("Test error"))
+
+		const cmd = createTaskChatCommand(config, logger, formatter)
+		await cmd.parseAsync(["node", "test", "prompt"])
+
+		expect(disposeControllerStub.calledOnce).to.be.true
+	})
 
 	describe("command options", () => {
 		it("should have -m/--mode option", () => {
@@ -115,75 +184,31 @@ describe("task chat command", () => {
 
 			expect(modeOption).to.exist
 		})
-	})
 
-	describe("task lookup", () => {
-		it("should find task by partial ID", async () => {
-			// Create a task
-			const storage = createTaskStorage(tempDir)
-			const task = storage.create({ prompt: "Test task" })
-
-			// Use first 4 chars of ID
-			const partialId = task.id.slice(0, 4)
-
+		it("should have -t/--task option", () => {
 			const cmd = createTaskChatCommand(config, logger, formatter)
-			// This will start readline but we're just checking it doesn't error on task lookup
-			// The error about no readline input is expected in test environment
-			try {
-				await cmd.parseAsync(["node", "test", partialId])
-			} catch {
-				// Readline errors are expected in test environment
-			}
+			const taskOption = cmd.options.find((opt) => opt.short === "-t" || opt.long === "--task")
 
-			// Should not have errored with "Task not found"
-			const errorCalls = (formatter.error as sinon.SinonStub).getCalls()
-			const taskNotFoundError = errorCalls.find((call) => call.args[0].includes("Task not found"))
-			expect(taskNotFoundError).to.be.undefined
+			expect(taskOption).to.exist
 		})
 
-		it("should use most recent active task when no ID provided", async () => {
-			// Create multiple tasks
-			const storage = createTaskStorage(tempDir)
-			storage.create({ prompt: "Task 1" })
-			storage.create({ prompt: "Task 2" })
-			const task3 = storage.create({ prompt: "Task 3" }) // Most recent
-
+		it("should have -y/--yolo option", () => {
 			const cmd = createTaskChatCommand(config, logger, formatter)
-			try {
-				await cmd.parseAsync(["node", "test"])
-			} catch {
-				// Readline errors are expected in test environment
-			}
+			const yoloOption = cmd.options.find((opt) => opt.short === "-y" || opt.long === "--yolo")
 
-			// Should not have errored
-			const errorCalls = (formatter.error as sinon.SinonStub).getCalls()
-			const noTaskError = errorCalls.find((call) => call.args[0].includes("No active task found"))
-			expect(noTaskError).to.be.undefined
-
-			// Check that the task ID displayed matches task3
-			const infoCalls = (formatter.info as sinon.SinonStub).getCalls()
-			const taskIdInfo = infoCalls.find((call) => call.args[0].includes(`Task: ${task3.id}`))
-			expect(taskIdInfo).to.exist
+			expect(yoloOption).to.exist
 		})
 	})
 
-	describe("mode switching", () => {
-		it("should switch mode when --mode option provided", async () => {
-			// Create a task in act mode
-			const storage = createTaskStorage(tempDir)
-			const task = storage.create({ prompt: "Test task", mode: "act" })
-			expect(task.mode).to.equal("act")
+	describe("task resume", () => {
+		it("should error when task not found", async () => {
+			mockController.getTaskWithId.rejects(new Error("Task not found"))
 
 			const cmd = createTaskChatCommand(config, logger, formatter)
-			try {
-				await cmd.parseAsync(["node", "test", "-m", "plan"])
-			} catch {
-				// Readline errors are expected
-			}
+			await cmd.parseAsync(["node", "test", "-t", "nonexistent"])
 
-			// Verify mode was changed
-			const updatedTask = storage.get(task.id)
-			expect(updatedTask?.mode).to.equal("plan")
+			expect((formatter.error as sinon.SinonStub).calledOnce).to.be.true
+			expect(exitStub.calledWith(1)).to.be.true
 		})
 	})
 })

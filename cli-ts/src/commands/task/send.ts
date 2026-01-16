@@ -1,19 +1,23 @@
 /**
- * Task send command - send a message to the current task
+ * Task send command - send a message to the current task using embedded Controller
+ *
+ * This command sends a single message to an active task using Cline's
+ * embedded Controller, allowing non-interactive AI interactions.
  */
 
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Command } from "commander"
 import fs from "fs"
+import { createCliWebviewAdapter } from "../../core/cli-webview-adapter.js"
+import { disposeEmbeddedController, getEmbeddedController } from "../../core/embedded-controller.js"
 import type { OutputFormatter } from "../../core/output/types.js"
-import { createTaskStorage } from "../../core/task-client.js"
 import type { CliConfig } from "../../types/config.js"
 import type { Logger } from "../../types/logger.js"
-import type { TaskMode } from "../../types/task.js"
 
 /**
  * Validate mode option
  */
-function validateMode(mode: string | undefined): TaskMode | undefined {
+function validateMode(mode: string | undefined): "act" | "plan" | undefined {
 	if (!mode) {
 		return undefined
 	}
@@ -57,15 +61,65 @@ async function readStdin(): Promise<string | null> {
 }
 
 /**
- * Get the most recent active task ID
+ * Check if the last message requires user input
  */
-function getMostRecentTaskId(configDir: string | undefined): string | null {
-	const taskStorage = createTaskStorage(configDir)
-	const tasks = taskStorage.list(1)
-	if (tasks.length > 0 && tasks[0].status === "active") {
-		return tasks[0].id
+function isAwaitingResponse(messages: ClineMessage[]): boolean {
+	if (messages.length === 0) {
+		return false
 	}
-	return null
+
+	const lastMessage = messages[messages.length - 1]
+
+	// Skip partial messages
+	if (lastMessage.partial) {
+		return false
+	}
+
+	// Check if this is an "ask" type message
+	return lastMessage.type === "ask"
+}
+
+/**
+ * Wait for task to reach a stopping point (either completion or awaiting input)
+ */
+async function waitForTaskResponse(
+	controller: Awaited<ReturnType<typeof getEmbeddedController>>,
+	formatter: OutputFormatter,
+	timeoutMs = 300000, // 5 minutes default timeout
+): Promise<void> {
+	const adapter = createCliWebviewAdapter(controller, formatter)
+	adapter.startListening()
+
+	return new Promise((resolve, reject) => {
+		const startTime = Date.now()
+
+		const checkInterval = setInterval(() => {
+			const messages = adapter.getMessages()
+
+			// Check if task completed or awaiting response
+			if (isAwaitingResponse(messages)) {
+				clearInterval(checkInterval)
+				adapter.stopListening()
+				resolve()
+				return
+			}
+
+			// Check for task completion (no task or task finished)
+			if (!controller.task) {
+				clearInterval(checkInterval)
+				adapter.stopListening()
+				resolve()
+				return
+			}
+
+			// Check timeout
+			if (Date.now() - startTime > timeoutMs) {
+				clearInterval(checkInterval)
+				adapter.stopListening()
+				reject(new Error("Task timed out waiting for response"))
+			}
+		}, 100)
+	})
 }
 
 /**
@@ -74,15 +128,17 @@ function getMostRecentTaskId(configDir: string | undefined): string | null {
 export function createTaskSendCommand(config: CliConfig, logger: Logger, formatter: OutputFormatter): Command {
 	const sendCommand = new Command("send")
 		.alias("s")
-		.description("Send a message to the current task")
+		.description("Send a message to the current task using embedded Controller")
 		.argument("[message]", "Message to send (reads from stdin if not provided)")
-		.option("-t, --task <id>", "Target task ID (defaults to most recent active task)")
+		.option("-t, --task <id>", "Target task ID (starts new task if not specified)")
 		.option("-a, --approve", "Approve a proposed action", false)
 		.option("-d, --deny", "Deny a proposed action", false)
 		.option("-f, --file <path>", "Attach file to message")
 		.option("-y, --yolo", "Enable autonomous mode (no confirmations)", false)
 		.option("--no-interactive", "Same as --yolo")
 		.option("-m, --mode <mode>", "Switch to mode: act or plan")
+		.option("-w, --wait", "Wait for task to complete or await input", false)
+		.option("--timeout <ms>", "Timeout in milliseconds when using --wait (default: 300000)")
 		.action(async (messageArg: string | undefined, options) => {
 			logger.debug("Task send command called", { messageArg, options })
 
@@ -96,67 +152,60 @@ export function createTaskSendCommand(config: CliConfig, logger: Logger, formatt
 				const mode = validateMode(options.mode)
 
 				// Validate file if provided
-				let attachments: string[] | undefined
+				let _attachments: string[] | undefined
 				if (options.file) {
 					if (!fs.existsSync(options.file)) {
 						throw new Error(`File not found: ${options.file}`)
 					}
-					attachments = [options.file]
+					_attachments = [options.file]
 				}
 
-				// Create task storage
-				const taskStorage = createTaskStorage(config.configDir)
-
-				// Determine task ID
-				let taskId = options.task
-				if (!taskId) {
-					taskId = getMostRecentTaskId(config.configDir)
-					if (!taskId) {
-						throw new Error("No active task found. Create a task with 'cline task new' or specify --task <id>")
-					}
-				}
-
-				// Get the task
-				const task = taskStorage.get(taskId)
-				if (!task) {
-					throw new Error(`Task not found: ${taskId}`)
-				}
+				// Initialize embedded controller
+				formatter.info("Initializing Cline...")
+				const controller = await getEmbeddedController(logger, config.configDir)
 
 				// Handle mode switch
 				if (mode) {
-					taskStorage.updateMode(task.id, mode)
+					await controller.togglePlanActMode(mode)
 					formatter.info(`Switched to ${mode} mode`)
+				}
+
+				// Handle approve/deny for existing task
+				if (options.approve || options.deny) {
+					if (!controller.task) {
+						throw new Error("No active task to approve/deny")
+					}
+
+					const response = options.approve ? "yesButtonClicked" : "noButtonClicked"
+					await controller.task.handleWebviewAskResponse(response)
+					formatter.success(options.approve ? "Action approved" : "Action denied")
+
+					if (options.wait) {
+						await waitForTaskResponse(controller, formatter, parseInt(options.timeout) || 300000)
+					}
+
+					// Output result in JSON format if requested
+					if (config.outputFormat === "json") {
+						const state = await controller.getStateToPostToWebview()
+						formatter.raw(
+							JSON.stringify(
+								{
+									taskId: controller.task?.taskId,
+									action: options.approve ? "approved" : "denied",
+									messageCount: state.clineMessages?.length || 0,
+								},
+								null,
+								2,
+							),
+						)
+					}
+
+					await disposeEmbeddedController(logger)
+					return
 				}
 
 				// Determine message content
 				let message = messageArg
-
-				// Handle approve/deny as special message types
-				if (options.approve) {
-					const pendingApproval = taskStorage.hasPendingApproval(task.id)
-					if (!pendingApproval) {
-						throw new Error("No pending approval request to approve")
-					}
-					taskStorage.addMessage(task.id, "user", "approval_response", "approved", undefined, {
-						approved: true,
-						requestId: pendingApproval.id,
-					})
-					formatter.success("Action approved")
-					return
-				}
-
-				if (options.deny) {
-					const pendingApproval = taskStorage.hasPendingApproval(task.id)
-					if (!pendingApproval) {
-						throw new Error("No pending approval request to deny")
-					}
-					taskStorage.addMessage(task.id, "user", "approval_response", "denied", undefined, {
-						approved: false,
-						requestId: pendingApproval.id,
-					})
-					formatter.success("Action denied")
-					return
-				}
 
 				// Try to read from stdin if no message argument
 				if (!message) {
@@ -170,27 +219,60 @@ export function createTaskSendCommand(config: CliConfig, logger: Logger, formatt
 					throw new Error("No message provided. Use argument or pipe via stdin")
 				}
 
-				// Add the message
-				const savedMessage = taskStorage.addMessage(task.id, "user", "text", message, attachments)
-				if (!savedMessage) {
-					throw new Error("Failed to save message")
+				// Start or continue task
+				let taskId: string | undefined
+
+				if (options.task) {
+					// Resume existing task
+					const history = await controller.getTaskWithId(options.task)
+					if (!history) {
+						throw new Error(`Task not found: ${options.task}`)
+					}
+					taskId = await controller.initTask(undefined, undefined, undefined, history.historyItem)
+					formatter.info(`Resumed task: ${taskId}`)
+
+					// Send the message
+					if (controller.task) {
+						await controller.task.handleWebviewAskResponse("messageResponse", message)
+					}
+				} else if (controller.task) {
+					// Send to existing active task
+					taskId = controller.task.taskId
+					await controller.task.handleWebviewAskResponse("messageResponse", message)
+					formatter.info(`Message sent to task ${taskId.slice(0, 8)}`)
+				} else {
+					// Start new task with the message as prompt
+					taskId = await controller.initTask(message)
+					formatter.info(`Started new task: ${taskId}`)
 				}
 
-				logger.debug("Message sent", savedMessage)
-
-				// Output success
-				formatter.success(`Message sent to task ${task.id.slice(0, 8)}`)
-
-				if (attachments && attachments.length > 0) {
-					formatter.info(`Attached: ${attachments.join(", ")}`)
+				// Wait for response if requested
+				if (options.wait) {
+					formatter.info("Waiting for task response...")
+					await waitForTaskResponse(controller, formatter, parseInt(options.timeout) || 300000)
 				}
 
-				// JSON output
+				// Output result in JSON format if requested
 				if (config.outputFormat === "json") {
-					formatter.raw(JSON.stringify(savedMessage, null, 2))
+					const state = await controller.getStateToPostToWebview()
+					formatter.raw(
+						JSON.stringify(
+							{
+								taskId,
+								message,
+								messageCount: state.clineMessages?.length || 0,
+								mode: state.mode,
+							},
+							null,
+							2,
+						),
+					)
 				}
+
+				await disposeEmbeddedController(logger)
 			} catch (error) {
 				formatter.error((error as Error).message)
+				await disposeEmbeddedController(logger)
 				process.exit(1)
 			}
 		})

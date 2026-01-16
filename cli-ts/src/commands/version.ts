@@ -1,17 +1,15 @@
 import { Command } from "commander"
-import { createRequire } from "module"
 import type { CliConfig } from "../types/config.js"
 import type { Logger } from "../types/logger.js"
 
-// Use createRequire to import JSON (ESM compatible)
-const require = createRequire(import.meta.url)
-const rootPackageJson = require("../../../package.json")
+// Version is injected at build time via esbuild define
+declare const __CLINE_VERSION__: string
 
 /**
- * Get the Cline version from the root package.json
+ * Get the Cline version from the build-time injected value
  */
 export function getVersion(): string {
-	return rootPackageJson.version
+	return __CLINE_VERSION__
 }
 
 /**

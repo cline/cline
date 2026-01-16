@@ -1,5 +1,5 @@
 /**
- * Tests for task send command
+ * Tests for task send command with embedded Controller
  */
 
 import { expect } from "chai"
@@ -8,8 +8,9 @@ import os from "os"
 import path from "path"
 import sinon from "sinon"
 import { createTaskSendCommand } from "../../../../src/commands/task/send.js"
+// Mock the embedded controller module
+import * as embeddedController from "../../../../src/core/embedded-controller.js"
 import type { OutputFormatter } from "../../../../src/core/output/types.js"
-import { createTaskStorage } from "../../../../src/core/task-client.js"
 import type { CliConfig } from "../../../../src/types/config.js"
 import type { Logger } from "../../../../src/types/logger.js"
 
@@ -19,6 +20,27 @@ describe("task send command", () => {
 	let logger: Logger
 	let formatter: OutputFormatter
 	let exitStub: sinon.SinonStub
+	let getControllerStub: sinon.SinonStub
+	let disposeControllerStub: sinon.SinonStub
+
+	// Mock task
+	const mockTask = {
+		taskId: "test-task-123",
+		handleWebviewAskResponse: sinon.stub(),
+		messageStateHandler: {
+			getClineMessages: sinon.stub().returns([]),
+		},
+	}
+
+	// Mock controller
+	const mockController = {
+		task: null as any,
+		initTask: sinon.stub(),
+		cancelTask: sinon.stub(),
+		togglePlanActMode: sinon.stub(),
+		getTaskWithId: sinon.stub(),
+		getStateToPostToWebview: sinon.stub(),
+	}
 
 	beforeEach(() => {
 		// Create temp directory
@@ -55,6 +77,30 @@ describe("task send command", () => {
 
 		// Stub process.exit
 		exitStub = sinon.stub(process, "exit")
+
+		// Reset mock task
+		mockTask.handleWebviewAskResponse.reset()
+		mockTask.messageStateHandler.getClineMessages.returns([])
+
+		// Reset mock controller
+		mockController.task = null
+		mockController.initTask.reset()
+		mockController.cancelTask.reset()
+		mockController.togglePlanActMode.reset()
+		mockController.getTaskWithId.reset()
+		mockController.getStateToPostToWebview.reset()
+
+		// Setup default stubs
+		mockController.getStateToPostToWebview.resolves({
+			mode: "act",
+			clineMessages: [],
+			taskHistory: [],
+		})
+		mockController.initTask.resolves("test-task-123")
+
+		// Stub the embedded controller functions
+		getControllerStub = sinon.stub(embeddedController, "getEmbeddedController").resolves(mockController as any)
+		disposeControllerStub = sinon.stub(embeddedController, "disposeEmbeddedController").resolves()
 	})
 
 	afterEach(() => {
@@ -71,63 +117,15 @@ describe("task send command", () => {
 		expect(cmd.aliases()).to.include("s")
 	})
 
-	it("should send a message to the most recent active task", async () => {
-		// Create a task first
-		const storage = createTaskStorage(tempDir)
-		const task = storage.create({ prompt: "Test task" })
-
+	it("should initialize controller on command start", async () => {
 		const cmd = createTaskSendCommand(config, logger, formatter)
-		await cmd.parseAsync(["node", "test", "Hello, Cline!"])
+		await cmd.parseAsync(["node", "test", "Hello Cline"])
 
-		// Verify message was saved
-		const messages = storage.getMessages(task.id)
-		expect(messages).to.have.lengthOf(1)
-		expect(messages[0].content).to.equal("Hello, Cline!")
-		expect(messages[0].role).to.equal("user")
-		expect(messages[0].type).to.equal("text")
-
-		// Verify success message
-		expect((formatter.success as sinon.SinonStub).calledOnce).to.be.true
-	})
-
-	it("should send a message to a specific task by ID", async () => {
-		// Create two tasks
-		const storage = createTaskStorage(tempDir)
-		const task1 = storage.create({ prompt: "Task 1" })
-		storage.create({ prompt: "Task 2" })
-
-		const cmd = createTaskSendCommand(config, logger, formatter)
-		await cmd.parseAsync(["node", "test", "Message to task 1", "-t", task1.id])
-
-		// Verify message was saved to task1
-		const messages = storage.getMessages(task1.id)
-		expect(messages).to.have.lengthOf(1)
-		expect(messages[0].content).to.equal("Message to task 1")
-	})
-
-	it("should error when no active task exists", async () => {
-		const cmd = createTaskSendCommand(config, logger, formatter)
-		await cmd.parseAsync(["node", "test", "Hello"])
-
-		expect((formatter.error as sinon.SinonStub).calledOnce).to.be.true
-		expect((formatter.error as sinon.SinonStub).firstCall.args[0]).to.include("No active task found")
-		expect(exitStub.calledWith(1)).to.be.true
-	})
-
-	it("should error when task not found", async () => {
-		const cmd = createTaskSendCommand(config, logger, formatter)
-		await cmd.parseAsync(["node", "test", "Hello", "-t", "nonexistent"])
-
-		expect((formatter.error as sinon.SinonStub).calledOnce).to.be.true
-		expect((formatter.error as sinon.SinonStub).firstCall.args[0]).to.include("Task not found")
-		expect(exitStub.calledWith(1)).to.be.true
+		expect(getControllerStub.calledOnce).to.be.true
+		expect((formatter.info as sinon.SinonStub).calledWith("Initializing Cline...")).to.be.true
 	})
 
 	it("should error when no message provided", async () => {
-		// Create a task
-		const storage = createTaskStorage(tempDir)
-		storage.create({ prompt: "Test task" })
-
 		const cmd = createTaskSendCommand(config, logger, formatter)
 		await cmd.parseAsync(["node", "test"])
 
@@ -136,126 +134,176 @@ describe("task send command", () => {
 		expect(exitStub.calledWith(1)).to.be.true
 	})
 
-	it("should error when both approve and deny options are used", async () => {
-		// Create a task
-		const storage = createTaskStorage(tempDir)
-		storage.create({ prompt: "Test task" })
-
+	it("should error when using both --approve and --deny", async () => {
 		const cmd = createTaskSendCommand(config, logger, formatter)
-		await cmd.parseAsync(["node", "test", "-a", "-d"])
+		await cmd.parseAsync(["node", "test", "--approve", "--deny"])
 
 		expect((formatter.error as sinon.SinonStub).calledOnce).to.be.true
-		expect((formatter.error as sinon.SinonStub).firstCall.args[0]).to.include("Cannot use both")
+		expect((formatter.error as sinon.SinonStub).firstCall.args[0]).to.include("Cannot use both --approve and --deny")
 		expect(exitStub.calledWith(1)).to.be.true
 	})
 
-	it("should approve pending action with --approve flag", async () => {
-		// Create a task with pending approval
-		const storage = createTaskStorage(tempDir)
-		const task = storage.create({ prompt: "Test task" })
-		storage.addMessage(task.id, "assistant", "approval_request", "May I run this command?")
-
+	it("should error when file not found", async () => {
 		const cmd = createTaskSendCommand(config, logger, formatter)
-		await cmd.parseAsync(["node", "test", "-a"])
-
-		// Verify approval response was saved
-		const messages = storage.getMessages(task.id)
-		expect(messages).to.have.lengthOf(2)
-		expect(messages[1].type).to.equal("approval_response")
-		expect(messages[1].content).to.equal("approved")
-		expect((messages[1].metadata as { approved: boolean }).approved).to.be.true
-
-		expect((formatter.success as sinon.SinonStub).calledOnce).to.be.true
-	})
-
-	it("should deny pending action with --deny flag", async () => {
-		// Create a task with pending approval
-		const storage = createTaskStorage(tempDir)
-		const task = storage.create({ prompt: "Test task" })
-		storage.addMessage(task.id, "assistant", "approval_request", "May I run this command?")
-
-		const cmd = createTaskSendCommand(config, logger, formatter)
-		await cmd.parseAsync(["node", "test", "-d"])
-
-		// Verify denial response was saved
-		const messages = storage.getMessages(task.id)
-		expect(messages).to.have.lengthOf(2)
-		expect(messages[1].type).to.equal("approval_response")
-		expect(messages[1].content).to.equal("denied")
-		expect((messages[1].metadata as { approved: boolean }).approved).to.be.false
-
-		expect((formatter.success as sinon.SinonStub).calledOnce).to.be.true
-	})
-
-	it("should error when approving with no pending approval", async () => {
-		// Create a task without pending approval
-		const storage = createTaskStorage(tempDir)
-		storage.create({ prompt: "Test task" })
-
-		const cmd = createTaskSendCommand(config, logger, formatter)
-		await cmd.parseAsync(["node", "test", "-a"])
-
-		expect((formatter.error as sinon.SinonStub).calledOnce).to.be.true
-		expect((formatter.error as sinon.SinonStub).firstCall.args[0]).to.include("No pending approval")
-		expect(exitStub.calledWith(1)).to.be.true
-	})
-
-	it("should switch mode with --mode flag", async () => {
-		// Create a task
-		const storage = createTaskStorage(tempDir)
-		const task = storage.create({ prompt: "Test task", mode: "act" })
-		expect(task.mode).to.equal("act")
-
-		const cmd = createTaskSendCommand(config, logger, formatter)
-		await cmd.parseAsync(["node", "test", "Hello", "-m", "plan"])
-
-		// Verify mode was changed
-		const updatedTask = storage.get(task.id)
-		expect(updatedTask?.mode).to.equal("plan")
-
-		// Verify info message about mode switch
-		expect((formatter.info as sinon.SinonStub).called).to.be.true
-	})
-
-	it("should error on invalid mode", async () => {
-		// Create a task
-		const storage = createTaskStorage(tempDir)
-		storage.create({ prompt: "Test task" })
-
-		const cmd = createTaskSendCommand(config, logger, formatter)
-		await cmd.parseAsync(["node", "test", "Hello", "-m", "invalid"])
-
-		expect((formatter.error as sinon.SinonStub).calledOnce).to.be.true
-		expect((formatter.error as sinon.SinonStub).firstCall.args[0]).to.include("Invalid mode")
-		expect(exitStub.calledWith(1)).to.be.true
-	})
-
-	it("should error when file attachment not found", async () => {
-		// Create a task
-		const storage = createTaskStorage(tempDir)
-		storage.create({ prompt: "Test task" })
-
-		const cmd = createTaskSendCommand(config, logger, formatter)
-		await cmd.parseAsync(["node", "test", "Hello", "-f", "/nonexistent/file.txt"])
+		await cmd.parseAsync(["node", "test", "-f", "/nonexistent/file.txt", "message"])
 
 		expect((formatter.error as sinon.SinonStub).calledOnce).to.be.true
 		expect((formatter.error as sinon.SinonStub).firstCall.args[0]).to.include("File not found")
 		expect(exitStub.calledWith(1)).to.be.true
 	})
 
-	it("should attach file when it exists", async () => {
-		// Create a task and a temp file
-		const storage = createTaskStorage(tempDir)
-		const task = storage.create({ prompt: "Test task" })
-		const testFile = path.join(tempDir, "test.txt")
-		fs.writeFileSync(testFile, "test content")
+	it("should error on invalid mode option", async () => {
+		const cmd = createTaskSendCommand(config, logger, formatter)
+		await cmd.parseAsync(["node", "test", "-m", "invalid", "message"])
+
+		expect((formatter.error as sinon.SinonStub).calledOnce).to.be.true
+		expect((formatter.error as sinon.SinonStub).firstCall.args[0]).to.include("Invalid mode")
+		expect(exitStub.calledWith(1)).to.be.true
+	})
+
+	it("should start new task with message when no active task", async () => {
+		const cmd = createTaskSendCommand(config, logger, formatter)
+		await cmd.parseAsync(["node", "test", "Hello Cline"])
+
+		expect(mockController.initTask.calledWith("Hello Cline")).to.be.true
+		expect((formatter.info as sinon.SinonStub).calledWith(sinon.match(/Started new task/))).to.be.true
+	})
+
+	it("should send message to existing active task", async () => {
+		mockController.task = mockTask
+		mockTask.handleWebviewAskResponse.resolves()
 
 		const cmd = createTaskSendCommand(config, logger, formatter)
-		await cmd.parseAsync(["node", "test", "Hello with file", "-f", testFile])
+		await cmd.parseAsync(["node", "test", "Hello Cline"])
 
-		// Verify message with attachment
-		const messages = storage.getMessages(task.id)
-		expect(messages).to.have.lengthOf(1)
-		expect(messages[0].attachments).to.deep.equal([testFile])
+		expect(mockTask.handleWebviewAskResponse.calledWith("messageResponse", "Hello Cline")).to.be.true
+		expect((formatter.info as sinon.SinonStub).calledWith(sinon.match(/Message sent/))).to.be.true
+	})
+
+	it("should resume task with --task option", async () => {
+		const historyItem = { id: "existing-task-456", task: "Previous task" }
+		mockController.getTaskWithId.resolves({ historyItem })
+		mockController.initTask.resolves("existing-task-456")
+
+		// Set up task after init
+		mockController.initTask.callsFake(async () => {
+			mockController.task = mockTask
+			return "existing-task-456"
+		})
+
+		const cmd = createTaskSendCommand(config, logger, formatter)
+		await cmd.parseAsync(["node", "test", "-t", "existing-task-456", "Hello"])
+
+		expect(mockController.getTaskWithId.calledWith("existing-task-456")).to.be.true
+		expect(mockController.initTask.calledWith(undefined, undefined, undefined, historyItem)).to.be.true
+	})
+
+	it("should approve action with --approve flag", async () => {
+		mockController.task = mockTask
+
+		const cmd = createTaskSendCommand(config, logger, formatter)
+		await cmd.parseAsync(["node", "test", "--approve"])
+
+		expect(mockTask.handleWebviewAskResponse.calledWith("yesButtonClicked")).to.be.true
+		expect((formatter.success as sinon.SinonStub).calledWith("Action approved")).to.be.true
+	})
+
+	it("should deny action with --deny flag", async () => {
+		mockController.task = mockTask
+
+		const cmd = createTaskSendCommand(config, logger, formatter)
+		await cmd.parseAsync(["node", "test", "--deny"])
+
+		expect(mockTask.handleWebviewAskResponse.calledWith("noButtonClicked")).to.be.true
+		expect((formatter.success as sinon.SinonStub).calledWith("Action denied")).to.be.true
+	})
+
+	it("should error when approving without active task", async () => {
+		const cmd = createTaskSendCommand(config, logger, formatter)
+		await cmd.parseAsync(["node", "test", "--approve"])
+
+		expect((formatter.error as sinon.SinonStub).calledOnce).to.be.true
+		expect((formatter.error as sinon.SinonStub).firstCall.args[0]).to.include("No active task")
+		expect(exitStub.calledWith(1)).to.be.true
+	})
+
+	it("should switch mode when --mode option provided", async () => {
+		const cmd = createTaskSendCommand(config, logger, formatter)
+		await cmd.parseAsync(["node", "test", "-m", "plan", "Hello"])
+
+		expect(mockController.togglePlanActMode.calledWith("plan")).to.be.true
+		expect((formatter.info as sinon.SinonStub).calledWith("Switched to plan mode")).to.be.true
+	})
+
+	it("should dispose controller after completion", async () => {
+		const cmd = createTaskSendCommand(config, logger, formatter)
+		await cmd.parseAsync(["node", "test", "Hello"])
+
+		expect(disposeControllerStub.calledOnce).to.be.true
+	})
+
+	describe("command options", () => {
+		it("should have -t/--task option", () => {
+			const cmd = createTaskSendCommand(config, logger, formatter)
+			const taskOption = cmd.options.find((opt) => opt.short === "-t" || opt.long === "--task")
+
+			expect(taskOption).to.exist
+		})
+
+		it("should have -a/--approve option", () => {
+			const cmd = createTaskSendCommand(config, logger, formatter)
+			const approveOption = cmd.options.find((opt) => opt.short === "-a" || opt.long === "--approve")
+
+			expect(approveOption).to.exist
+		})
+
+		it("should have -d/--deny option", () => {
+			const cmd = createTaskSendCommand(config, logger, formatter)
+			const denyOption = cmd.options.find((opt) => opt.short === "-d" || opt.long === "--deny")
+
+			expect(denyOption).to.exist
+		})
+
+		it("should have -f/--file option", () => {
+			const cmd = createTaskSendCommand(config, logger, formatter)
+			const fileOption = cmd.options.find((opt) => opt.short === "-f" || opt.long === "--file")
+
+			expect(fileOption).to.exist
+		})
+
+		it("should have -m/--mode option", () => {
+			const cmd = createTaskSendCommand(config, logger, formatter)
+			const modeOption = cmd.options.find((opt) => opt.short === "-m" || opt.long === "--mode")
+
+			expect(modeOption).to.exist
+		})
+
+		it("should have -w/--wait option", () => {
+			const cmd = createTaskSendCommand(config, logger, formatter)
+			const waitOption = cmd.options.find((opt) => opt.short === "-w" || opt.long === "--wait")
+
+			expect(waitOption).to.exist
+		})
+	})
+
+	describe("JSON output", () => {
+		it("should output JSON when format is json", async () => {
+			config.outputFormat = "json"
+
+			const cmd = createTaskSendCommand(config, logger, formatter)
+			await cmd.parseAsync(["node", "test", "Hello Cline"])
+
+			// Check that raw was called with JSON
+			const rawCalls = (formatter.raw as sinon.SinonStub).getCalls()
+			const jsonCall = rawCalls.find((call) => {
+				try {
+					JSON.parse(call.args[0])
+					return true
+				} catch {
+					return false
+				}
+			})
+			expect(jsonCall).to.exist
+		})
 	})
 })

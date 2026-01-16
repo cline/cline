@@ -1,5 +1,3 @@
-console.log("Loading stub impls...")
-
 const { createStub } = require("./stub-utils")
 
 // Import the base vscode object from stubs
@@ -154,5 +152,3 @@ vscode.Uri = {
 		return vscode.Uri.file("/" + joined.replace(/\/+/g, "/"))
 	},
 }
-
-console.log("Finished loading stub impls...")
