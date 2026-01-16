@@ -11,7 +11,6 @@ vscode-button::part(control):focus-visible {
 	outline-offset: 2px;
 }
 
-/* Enhanced focus indicators for accessibility */
 button:focus-visible,
 [role="button"]:focus-visible,
 a:focus-visible,
@@ -22,7 +21,6 @@ textarea:focus-visible {
 	outline-offset: 2px;
 }
 
-/* Ensure focus is visible even in high contrast mode */
 @media (prefers-contrast: high) {
 	button:focus-visible,
 	[role="button"]:focus-visible,
@@ -40,7 +38,6 @@ textarea:focus-visible {
 	}
 }
 
-/* Skip link for keyboard navigation */
 .skip-link {
 	position: absolute;
 	top: -40px;

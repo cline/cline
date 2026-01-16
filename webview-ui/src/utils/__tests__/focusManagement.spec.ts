@@ -29,26 +29,15 @@ describe("useFocusTrap", () => {
 		const firstButton = container.querySelector("button") as HTMLButtonElement
 		const input = container.querySelector("input") as HTMLInputElement
 		const lastButton = container.querySelectorAll("button")[1] as HTMLButtonElement
-
-		// Focus should be on first element (input is prioritized, so it should be first)
 		expect(document.activeElement === input || document.activeElement === firstButton).toBe(true)
-
-		// Tab should cycle within container
-		// Since input is prioritized, tab order should be: input -> firstButton -> lastButton -> input
 		const tabEvent = new KeyboardEvent("keydown", { key: "Tab", bubbles: true })
 		document.dispatchEvent(tabEvent)
-
-		// Should move to next element (first button if input was focused, or last button if first was focused)
 		const currentFocus = document.activeElement
 		expect(currentFocus === firstButton || currentFocus === lastButton || currentFocus === input).toBe(true)
-
-		// Tab again should continue cycling
 		const tabEvent2 = new KeyboardEvent("keydown", { key: "Tab", bubbles: true })
 		document.dispatchEvent(tabEvent2)
 		const currentFocus2 = document.activeElement
 		expect(currentFocus2 === firstButton || currentFocus2 === lastButton || currentFocus2 === input).toBe(true)
-
-		// Tab from last should wrap to first (input)
 		const tabEvent3 = new KeyboardEvent("keydown", { key: "Tab", bubbles: true })
 		document.dispatchEvent(tabEvent3)
 		const finalFocus = document.activeElement
@@ -64,8 +53,6 @@ describe("useFocusTrap", () => {
 
 		const tabEvent = new KeyboardEvent("keydown", { key: "Tab", bubbles: true })
 		document.dispatchEvent(tabEvent)
-
-		// Focus should be able to escape
 		expect(document.activeElement).not.toBe(container.querySelector("button"))
 		document.body.removeChild(outsideButton)
 	})
@@ -77,8 +64,6 @@ describe("useFocusTrap", () => {
 		const lastButton = container.querySelectorAll("button")[1] as HTMLButtonElement
 
 		firstButton.focus()
-
-		// Shift+Tab from first should wrap to last
 		const shiftTabEvent = new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true })
 		document.dispatchEvent(shiftTabEvent)
 		lastButton.focus()
@@ -95,14 +80,10 @@ describe("useFocusRestoration", () => {
 		const restoreRef = { current: restoreButton }
 
 		const { unmount } = renderHook(() => useFocusRestoration(restoreRef))
-
-		// Focus something else
 		const otherButton = document.createElement("button")
 		document.body.appendChild(otherButton)
 		otherButton.focus()
 		expect(document.activeElement).toBe(otherButton)
-
-		// Unmount should restore focus
 		unmount()
 		expect(document.activeElement).toBe(restoreButton)
 
@@ -117,9 +98,9 @@ describe("useModal", () => {
 		const { result } = renderHook(() => useModal(true, mockOnClose))
 
 		expect(result.current.triggerRef).toBeDefined()
-		expect(result.current.triggerRef.current).toBeNull() // Not yet attached
+		expect(result.current.triggerRef.current).toBeNull()
 		expect(result.current.containerRef).toBeDefined()
-		expect(result.current.containerRef.current).toBeNull() // Not yet attached
+		expect(result.current.containerRef.current).toBeNull()
 	})
 
 	it("should handle Escape key to close modal", () => {
@@ -148,16 +129,12 @@ describe("useModal", () => {
 		const externalTriggerRef = { current: button }
 
 		const { result } = renderHook(() => useModal(true, mockOnClose, externalTriggerRef))
-
-		// Should return the same ref that was passed in
 		expect(result.current.triggerRef).toBe(externalTriggerRef)
 	})
 
 	it("should use internal ref when no external ref provided", () => {
 		const mockOnClose = vi.fn()
 		const { result } = renderHook(() => useModal(true, mockOnClose))
-
-		// Should create its own triggerRef
 		expect(result.current.triggerRef).toBeDefined()
 		expect(result.current.triggerRef.current).toBeNull()
 	})
