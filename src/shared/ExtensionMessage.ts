@@ -7,6 +7,7 @@ import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { ApiConfiguration } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
 import { ClineFeatureSetting } from "./ClineFeatureSetting"
+import { BannerCardData } from "./cline/banner"
 import { ClineRulesToggles } from "./cline-rules"
 import { DictationSettings } from "./DictationSettings"
 import { FocusChainSettings } from "./FocusChainSettings"
@@ -104,9 +105,14 @@ export interface ExtensionState {
 	hooksEnabled?: boolean
 	remoteConfigSettings?: Partial<RemoteConfigFields>
 	subagentsEnabled?: boolean
+	skillsEnabled?: boolean
+	globalSkillsToggles?: Record<string, boolean>
+	localSkillsToggles?: Record<string, boolean>
 	nativeToolCallSetting?: boolean
 	enableParallelToolCalling?: boolean
 	backgroundEditEnabled?: boolean
+	optOutOfRemoteConfig?: boolean
+	banners?: BannerCardData[]
 }
 
 export interface ClineMessage {
@@ -174,13 +180,14 @@ export type ClineSay =
 	| "diff_error"
 	| "deleted_api_reqs"
 	| "clineignore_error"
+	| "command_permission_denied"
 	| "checkpoint_created"
 	| "load_mcp_documentation"
 	| "generate_explanation"
 	| "info" // Added for general informational messages like retry status
 	| "task_progress"
-	| "hook"
-	| "hook_output"
+	| "hook_status"
+	| "hook_output_stream"
 
 export interface ClineSayTool {
 	tool:
@@ -195,6 +202,7 @@ export interface ClineSayTool {
 		| "webFetch"
 		| "webSearch"
 		| "summarizeTask"
+		| "useSkill"
 	path?: string
 	diff?: string
 	content?: string
@@ -229,6 +237,13 @@ export interface ClineSayHook {
 		details?: string // Technical details for expansion
 		scriptPath?: string // Path to the hook script
 	}
+}
+
+export type HookOutputStreamMeta = {
+	/** Which hook configuration the script originated from (global vs workspace). */
+	source: "global" | "workspace"
+	/** Full path to the hook script that emitted the output. */
+	scriptPath: string
 }
 
 // must keep in sync with system prompt

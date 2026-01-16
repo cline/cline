@@ -15,3 +15,6 @@ export const DEFAULT_EXTERNAL_IDSC_SCOPES = "openid offline_access"
 export const DEFAULT_EXTERNAL_OCA_BASE_URL = "https://code.aiservice.us-chicago-1.oci.oraclecloud.com/20250206/app/litellm"
 
 export const OCI_HEADER_OPC_REQUEST_ID = "opc-request-id"
+
+export const CHAT_COMPLETIONS_API = "CHAT_COMPLETIONS"
+export const RESPONSES_API = "RESPONSES"

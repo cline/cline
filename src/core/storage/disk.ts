@@ -52,6 +52,9 @@ export const GlobalFileNames = {
 	clineRules: ".clinerules",
 	workflows: ".clinerules/workflows",
 	hooksDir: ".clinerules/hooks",
+	clineruleSkillsDir: ".clinerules/skills",
+	clineSkillsDir: ".cline/skills",
+	claudeSkillsDir: ".claude/skills",
 	cursorRulesDir: ".cursor/rules",
 	cursorRulesFile: ".cursorrules",
 	windsurfRules: ".windsurfrules",
@@ -95,6 +98,19 @@ export async function getDocumentsPath(): Promise<string> {
 
 	// Default fallback for all platforms
 	return path.join(os.homedir(), "Documents")
+}
+
+/**
+ * Returns the cross-platform path to the Cline home directory (~/.cline).
+ * This works on macOS, Linux, and Windows:
+ * - macOS: /Users/username/.cline
+ * - Linux: /home/username/.cline
+ * - Windows: C:\Users\username\.cline
+ *
+ * This is intended to eventually replace ~/Documents/Cline as the global config location.
+ */
+export function getClineHomePath(): string {
+	return path.join(os.homedir(), ".cline")
 }
 
 export async function ensureTaskDirectoryExists(taskId: string): Promise<string> {
@@ -145,8 +161,37 @@ export async function ensureHooksDirectoryExists(): Promise<string> {
 	return clineHooksDir
 }
 
+/**
+ * Returns the global skills directory path (~/.cline/skills).
+ * Creates the directory if it doesn't exist.
+ */
+export async function ensureSkillsDirectoryExists(): Promise<string> {
+	const clineSkillsDir = path.join(getClineHomePath(), "skills")
+	try {
+		await fs.mkdir(clineSkillsDir, { recursive: true })
+	} catch (_error) {
+		// Fallback - return the path even if mkdir fails, we'll fail gracefully later
+		return clineSkillsDir
+	}
+	return clineSkillsDir
+}
+
 export async function ensureSettingsDirectoryExists(): Promise<string> {
 	return getGlobalStorageDir("settings")
+}
+
+/**
+ * Gets the path to the MCP settings file, creating it if it doesn't exist
+ * @param settingsDirectoryPath Path to the settings directory
+ * @returns Path to the MCP settings file
+ */
+export async function getMcpSettingsFilePath(settingsDirectoryPath: string): Promise<string> {
+	const mcpSettingsFilePath = path.join(settingsDirectoryPath, GlobalFileNames.mcpSettings)
+	const fileExists = await fileExistsAtPath(mcpSettingsFilePath)
+	if (!fileExists) {
+		await fs.writeFile(mcpSettingsFilePath, JSON.stringify({ mcpServers: {} }, null, 2))
+	}
+	return mcpSettingsFilePath
 }
 
 export async function getSavedApiConversationHistory(taskId: string): Promise<Anthropic.MessageParam[]> {

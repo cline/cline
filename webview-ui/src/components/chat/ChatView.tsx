@@ -21,6 +21,7 @@ import {
 	ChatLayout,
 	convertHtmlToMarkdown,
 	filterVisibleMessages,
+	groupLowStakesTools,
 	groupMessages,
 	InputSection,
 	MessagesArea,
@@ -192,10 +193,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [])
 	// Button state is now managed by useButtonState hook
 
-	useEffect(() => {
-		setExpandedRows({})
-	}, [task?.ts])
-
 	// handleFocusChange is already provided by chatState
 
 	// Use message handlers hook
@@ -242,20 +239,27 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const shouldDisableFilesAndImages = selectedImages.length + selectedFiles.length >= MAX_IMAGES_AND_FILES_PER_MESSAGE
 
-	// Listen for local focusChatInput event
+	// Subscribe to show webview events from the backend
 	useEffect(() => {
-		const handleFocusChatInput = () => {
-			// Only focus chat input box if user is currently viewing the chat (not hidden).
-			if (!isHidden) {
-				textAreaRef.current?.focus()
-			}
-		}
+		const cleanup = UiServiceClient.subscribeToShowWebview(
+			{},
+			{
+				onResponse: (event) => {
+					// Only focus if not hidden and preserveEditorFocus is false
+					if (!isHidden && !event.preserveEditorFocus) {
+						textAreaRef.current?.focus()
+					}
+				},
+				onError: (error) => {
+					console.error("Error in showWebview subscription:", error)
+				},
+				onComplete: () => {
+					console.log("showWebview subscription completed")
+				},
+			},
+		)
 
-		window.addEventListener("focusChatInput", handleFocusChatInput)
-
-		return () => {
-			window.removeEventListener("focusChatInput", handleFocusChatInput)
-		}
+		return cleanup
 	}, [isHidden])
 
 	// Set up addToInput subscription
@@ -324,7 +328,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [modifiedMessages, currentFocusChainChecklist])
 
 	const groupedMessages = useMemo(() => {
-		return groupMessages(visibleMessages)
+		return groupLowStakesTools(groupMessages(visibleMessages))
 	}, [visibleMessages])
 
 	// Use scroll behavior hook

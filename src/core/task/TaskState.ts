@@ -39,6 +39,7 @@ export class TaskState {
 	didRejectTool = false
 	didAlreadyUseTool = false
 	didEditFile: boolean = false
+	lastToolName: string = "" // Track last tool used for consecutive call detection
 
 	// Error tracking
 	consecutiveMistakeCount: number = 0
