@@ -22,7 +22,7 @@
 }
 
 :focus-visible {
-	outline: 2px solid var(--vscode-focusBorder);
+	outline: 2px solid var(--vscode-focusBorder, #007fd4);
 	outline-offset: 2px;
 }
 
@@ -31,33 +31,6 @@
 }
 
 .sr-only {
-	position: absolute;
-	width: 1px;
-	height: 1px;
-	padding: 0;
-	margin: -1px;
-	overflow: hidden;
-	clip: rect(0, 0, 0, 0);
-	white-space: nowrap;
-	border: 0;
-}
-
-.skip-link {
-	position: absolute;
-	top: -40px;
-	left: 0;
-	background: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
-	padding: 8px 16px;
-	z-index: 100;
-	text-decoration: none;
-}
-
-.skip-link:focus {
-	top: 0;
-}
-
-.live-region {
 	position: absolute;
 	width: 1px;
 	height: 1px;
@@ -83,6 +56,7 @@
 @media (prefers-contrast: high) {
 	:focus-visible {
 		outline-width: 3px;
+		outline-offset: 3px;
 	}
 
 	button,
@@ -111,38 +85,7 @@ a {
 	}
 }
 
-.compact-button,
-button[data-compact="true"] {
-	min-height: unset;
-	min-width: unset;
-}
-
 :focus {
 	scroll-margin: 8px;
 	scroll-padding: 8px;
-}
-
-[data-sticky="true"],
-.sticky,
-.fixed {
-	margin-bottom: 4px;
-}
-
-.focus-visible-ensure {
-	scroll-margin-block: 100px;
-	scroll-margin-inline: 20px;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-	html:not([lang])::before {
-		content: "⚠️ Missing lang attribute on <html>";
-		position: fixed;
-		top: 0;
-		left: 0;
-		background: #ff0000;
-		color: #ffffff;
-		padding: 4px 8px;
-		font-size: 12px;
-		z-index: 99999;
-	}
 }
