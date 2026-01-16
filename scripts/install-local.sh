@@ -45,6 +45,11 @@ else
     echo -e "${YELLOW}⚠${NC}  Standalone build failed - aborting install"
     exit 1
 fi
+
+# Ensure extension package.json is present for cline-core startup
+mkdir -p "$PROJECT_ROOT/dist-standalone/extension"
+cp "$PROJECT_ROOT/package.json" "$PROJECT_ROOT/dist-standalone/extension/package.json"
+
 echo ""
 
 echo -e "${CYAN}→${NC} ${DIM}Installing to $INSTALL_DIR${NC}"
