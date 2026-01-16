@@ -21,104 +21,106 @@ interface ServersToggleModalProps {
 	onFocus?: () => void
 }
 
-const ServersToggleModal = forwardRef<ServersToggleModalHandle, ServersToggleModalProps>(
-	({ onKeyDown, tabIndex, onFocus }, ref) => {
-		const { mcpServers, navigateToMcp, setMcpServers } = useExtensionState()
-		const [isVisible, setIsVisible] = useState(false)
-		const wrapperRef = useRef<HTMLDivElement>(null)
-		const triggerWrapperRef = useRef<HTMLButtonElement>(null)
-		const { width: viewportWidth, height: viewportHeight } = useWindowSize()
-		const [arrowPosition, setArrowPosition] = useState(0)
-		const [menuPosition, setMenuPosition] = useState(0)
+function ServersToggleModalInner(
+	{ onKeyDown, tabIndex, onFocus }: ServersToggleModalProps,
+	ref: React.ForwardedRef<ServersToggleModalHandle>,
+) {
+	const { mcpServers, navigateToMcp, setMcpServers } = useExtensionState()
+	const [isVisible, setIsVisible] = useState(false)
+	const wrapperRef = useRef<HTMLDivElement>(null)
+	const triggerWrapperRef = useRef<HTMLButtonElement>(null)
+	const { width: viewportWidth, height: viewportHeight } = useWindowSize()
+	const [arrowPosition, setArrowPosition] = useState(0)
+	const [menuPosition, setMenuPosition] = useState(0)
 
-		const { triggerRef: buttonRef, containerRef: popupContainerRef } = useModal<HTMLDivElement, HTMLDivElement>(
-			isVisible,
-			() => setIsVisible(false),
-		)
+	const { triggerRef: buttonRef, containerRef: popupContainerRef } = useModal<HTMLDivElement, HTMLDivElement>(isVisible, () =>
+		setIsVisible(false),
+	)
 
-		useImperativeHandle(ref, () => ({
-			focus: () => triggerWrapperRef.current?.focus(),
-		}))
+	useImperativeHandle(ref, () => ({
+		focus: () => triggerWrapperRef.current?.focus(),
+	}))
 
-		useEffect(() => {
-			if (isVisible) {
-				McpServiceClient.getLatestMcpServers(EmptyRequest.create({}))
-					.then((response: McpServers) => {
-						if (response.mcpServers) {
-							const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
-							setMcpServers(mcpServers)
-						}
-					})
-					.catch((error) => {
-						console.error("Failed to fetch MCP servers:", error)
-					})
-			}
-		}, [isVisible, setMcpServers])
+	useEffect(() => {
+		if (isVisible) {
+			McpServiceClient.getLatestMcpServers(EmptyRequest.create({}))
+				.then((response: McpServers) => {
+					if (response.mcpServers) {
+						const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
+						setMcpServers(mcpServers)
+					}
+				})
+				.catch((error) => {
+					console.error("Failed to fetch MCP servers:", error)
+				})
+		}
+	}, [isVisible, setMcpServers])
 
-		// Close modal when clicking outside
-		useClickAway(wrapperRef, () => {
-			setIsVisible(false)
-		})
+	// Close modal when clicking outside
+	useClickAway(wrapperRef, () => {
+		setIsVisible(false)
+	})
 
-		// Calculate positions for modal and arrow
-		useEffect(() => {
-			if (isVisible && buttonRef.current) {
-				const buttonRect = buttonRef.current.getBoundingClientRect()
-				const buttonCenter = buttonRect.left + buttonRect.width / 2
-				const rightPosition = document.documentElement.clientWidth - buttonCenter - 5
+	// Calculate positions for modal and arrow
+	useEffect(() => {
+		if (isVisible && buttonRef.current) {
+			const buttonRect = buttonRef.current.getBoundingClientRect()
+			const buttonCenter = buttonRect.left + buttonRect.width / 2
+			const rightPosition = document.documentElement.clientWidth - buttonCenter - 5
 
-				setArrowPosition(rightPosition)
-				setMenuPosition(buttonRect.top + 1)
-			}
-		}, [isVisible, viewportWidth, viewportHeight])
+			setArrowPosition(rightPosition)
+			setMenuPosition(buttonRect.top + 1)
+		}
+	}, [isVisible, viewportWidth, viewportHeight])
 
-		return (
-			<div className="inline-flex min-w-0 max-w-full items-center" ref={wrapperRef}>
-				<div className="inline-flex w-full items-center" ref={buttonRef}>
-					<Tooltip>
-						{!isVisible && <TooltipContent>Manage MCP Servers</TooltipContent>}
-						<TooltipTrigger asChild>
-							<button
-								aria-label={isVisible ? "Hide MCP Servers" : "Show MCP Servers"}
-								className="p-0 m-0 flex items-center bg-transparent border-none cursor-pointer"
-								onClick={() => setIsVisible(!isVisible)}
-								onFocus={onFocus}
-								onKeyDown={onKeyDown}
-								ref={triggerWrapperRef}
-								tabIndex={tabIndex}
-								type="button">
-								<i className="codicon codicon-server" style={{ fontSize: "12.5px" }} />
-							</button>
-						</TooltipTrigger>
-					</Tooltip>
-				</div>
-
-				{isVisible && (
-					<PopupModalContainer $arrowPosition={arrowPosition} $menuPosition={menuPosition} ref={popupContainerRef}>
-						<div className="flex-shrink-0 px-3 pt-2">
-							<div className="flex justify-between items-center mb-2.5">
-								<div className="m-0 text-sm font-medium">MCP Servers</div>
-								<VSCodeButton
-									appearance="icon"
-									aria-label="Go to MCP server settings"
-									onClick={() => {
-										setIsVisible(false)
-										navigateToMcp("configure")
-									}}>
-									<span className="codicon codicon-gear text-[10px]"></span>
-								</VSCodeButton>
-							</div>
-						</div>
-
-						<div className="flex-1 overflow-y-auto px-3 pb-3" style={{ minHeight: 0 }}>
-							<ServersToggleList hasTrashIcon={false} isExpandable={false} listGap="small" servers={mcpServers} />
-						</div>
-					</PopupModalContainer>
-				)}
+	return (
+		<div className="inline-flex min-w-0 max-w-full items-center" ref={wrapperRef}>
+			<div className="inline-flex w-full items-center" ref={buttonRef}>
+				<Tooltip>
+					{!isVisible && <TooltipContent>Manage MCP Servers</TooltipContent>}
+					<TooltipTrigger asChild>
+						<button
+							aria-label={isVisible ? "Hide MCP Servers" : "Show MCP Servers"}
+							className="p-0 m-0 flex items-center bg-transparent border-none cursor-pointer"
+							onClick={() => setIsVisible(!isVisible)}
+							onFocus={onFocus}
+							onKeyDown={onKeyDown}
+							ref={triggerWrapperRef}
+							tabIndex={tabIndex}
+							type="button">
+							<i className="codicon codicon-server" style={{ fontSize: "12.5px" }} />
+						</button>
+					</TooltipTrigger>
+				</Tooltip>
 			</div>
-		)
-	},
-)
+
+			{isVisible && (
+				<PopupModalContainer $arrowPosition={arrowPosition} $menuPosition={menuPosition} ref={popupContainerRef}>
+					<div className="flex-shrink-0 px-3 pt-2">
+						<div className="flex justify-between items-center mb-2.5">
+							<div className="m-0 text-sm font-medium">MCP Servers</div>
+							<VSCodeButton
+								appearance="icon"
+								aria-label="Go to MCP server settings"
+								onClick={() => {
+									setIsVisible(false)
+									navigateToMcp("configure")
+								}}>
+								<span className="codicon codicon-gear text-[10px]"></span>
+							</VSCodeButton>
+						</div>
+					</div>
+
+					<div className="flex-1 overflow-y-auto px-3 pb-3" style={{ minHeight: 0 }}>
+						<ServersToggleList hasTrashIcon={false} isExpandable={false} listGap="small" servers={mcpServers} />
+					</div>
+				</PopupModalContainer>
+			)}
+		</div>
+	)
+}
+
+const ServersToggleModal = forwardRef(ServersToggleModalInner)
 
 ServersToggleModal.displayName = "ServersToggleModal"
 

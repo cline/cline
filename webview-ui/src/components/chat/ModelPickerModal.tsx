@@ -728,9 +728,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 										key={model.id}
 										onClick={() => handleSelectModel(model.id, openRouterModels[model.id])}
 										onMouseEnter={() => setSelectedIndex(index)}
-										ref={(el) => {
-											itemRefs.current[index] = el
-										}}>
+										ref={(el) => (itemRefs.current[index] = el)}>
 										<ModelInfoRow>
 											<ModelName>{model.name}</ModelName>
 											<ModelProvider>{model.provider}</ModelProvider>
@@ -750,9 +748,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 										key={model.id}
 										onClick={() => handleSelectModel(model.id, model.info)}
 										onMouseEnter={() => setSelectedIndex(globalIndex)}
-										ref={(el) => {
-											itemRefs.current[globalIndex] = el
-										}}>
+										ref={(el) => (itemRefs.current[globalIndex] = el)}>
 										<ModelInfoRow>
 											<ModelName>{model.name}</ModelName>
 											<ModelProvider>{model.provider}</ModelProvider>
