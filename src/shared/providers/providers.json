@@ -37,6 +37,10 @@
 			"label": "OpenAI"
 		},
 		{
+			"value": "openai-codex",
+			"label": "OpenAI (ChatGPT Plus/Pro)"
+		},
+		{
 			"value": "ollama",
 			"label": "Ollama"
 		},

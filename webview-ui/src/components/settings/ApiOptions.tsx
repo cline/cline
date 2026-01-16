@@ -39,6 +39,7 @@ import { NousResearchProvider } from "./providers/NousresearchProvider"
 import { OcaProvider } from "./providers/OcaProvider"
 import { OllamaProvider } from "./providers/OllamaProvider"
 import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
+import { OpenAiCodexProvider } from "./providers/OpenAiCodexProvider"
 import { OpenAINativeProvider } from "./providers/OpenAINative"
 import { OpenRouterProvider } from "./providers/OpenRouterProvider"
 import { QwenCodeProvider } from "./providers/QwenCodeProvider"
@@ -365,6 +366,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{apiConfiguration && selectedProvider === "openai-native" && (
 				<OpenAINativeProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
+			{apiConfiguration && selectedProvider === "openai-codex" && (
+				<OpenAiCodexProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "qwen" && (
