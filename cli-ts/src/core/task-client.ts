@@ -6,7 +6,16 @@
 import crypto from "crypto"
 import fs from "fs"
 import path from "path"
-import type { TaskCreateOptions, TaskInfo, TaskListItem, TaskMode, TaskStatus } from "../types/task.js"
+import type {
+	MessageRole,
+	MessageType,
+	TaskCreateOptions,
+	TaskInfo,
+	TaskListItem,
+	TaskMessage,
+	TaskMode,
+	TaskStatus,
+} from "../types/task.js"
 import { getDefaultConfigDir } from "./config.js"
 
 /**
@@ -304,6 +313,142 @@ export class TaskStorage {
 		const tasks = this.list()
 		for (const task of tasks) {
 			this.delete(task.id)
+		}
+	}
+
+	// ========== Message Storage Methods ==========
+
+	/**
+	 * Get path to a task's messages file
+	 */
+	private getMessagesPath(taskId: string): string {
+		return path.join(this.tasksDir, `${taskId}-messages.json`)
+	}
+
+	/**
+	 * Load messages for a task
+	 */
+	private loadMessages(taskId: string): TaskMessage[] {
+		const messagesPath = this.getMessagesPath(taskId)
+		try {
+			if (fs.existsSync(messagesPath)) {
+				const content = fs.readFileSync(messagesPath, "utf-8")
+				return JSON.parse(content) as TaskMessage[]
+			}
+		} catch {
+			// Return empty array on error
+		}
+		return []
+	}
+
+	/**
+	 * Save messages for a task
+	 */
+	private saveMessages(taskId: string, messages: TaskMessage[]): void {
+		this.ensureTasksDir()
+		fs.writeFileSync(this.getMessagesPath(taskId), JSON.stringify(messages, null, 2), {
+			mode: 0o600,
+		})
+	}
+
+	/**
+	 * Add a message to a task
+	 */
+	addMessage(
+		taskId: string,
+		role: MessageRole,
+		type: MessageType,
+		content: string,
+		attachments?: string[],
+		metadata?: Record<string, unknown>,
+	): TaskMessage | null {
+		const task = this.get(taskId)
+		if (!task) {
+			return null
+		}
+
+		const message: TaskMessage = {
+			id: crypto.randomBytes(8).toString("hex"),
+			taskId: task.id,
+			role,
+			type,
+			content,
+			timestamp: Date.now(),
+			attachments,
+			metadata,
+		}
+
+		// Load existing messages and append
+		const messages = this.loadMessages(task.id)
+		messages.push(message)
+		this.saveMessages(task.id, messages)
+
+		// Update message count on task
+		this.incrementMessageCount(task.id)
+
+		return message
+	}
+
+	/**
+	 * Get all messages for a task
+	 */
+	getMessages(taskId: string): TaskMessage[] {
+		const task = this.get(taskId)
+		if (!task) {
+			return []
+		}
+		return this.loadMessages(task.id)
+	}
+
+	/**
+	 * Get the latest message for a task
+	 */
+	getLatestMessage(taskId: string): TaskMessage | null {
+		const messages = this.getMessages(taskId)
+		if (messages.length === 0) {
+			return null
+		}
+		return messages[messages.length - 1]
+	}
+
+	/**
+	 * Get messages since a given timestamp
+	 */
+	getMessagesSince(taskId: string, sinceTimestamp: number): TaskMessage[] {
+		const messages = this.getMessages(taskId)
+		return messages.filter((m) => m.timestamp > sinceTimestamp)
+	}
+
+	/**
+	 * Check if task has pending approval request
+	 */
+	hasPendingApproval(taskId: string): TaskMessage | null {
+		const messages = this.getMessages(taskId)
+		// Look for the last message that's an approval request without a response
+		for (let i = messages.length - 1; i >= 0; i--) {
+			const msg = messages[i]
+			if (msg.type === "approval_request") {
+				// Check if there's a response after this
+				const hasResponse = messages.slice(i + 1).some((m) => m.type === "approval_response")
+				if (!hasResponse) {
+					return msg
+				}
+			}
+		}
+		return null
+	}
+
+	/**
+	 * Clear messages for a task (for testing)
+	 */
+	clearMessages(taskId: string): void {
+		const task = this.get(taskId)
+		if (task) {
+			const messagesPath = this.getMessagesPath(task.id)
+			if (fs.existsSync(messagesPath)) {
+				fs.unlinkSync(messagesPath)
+			}
+			this.update(task.id, { messageCount: 0 })
 		}
 	}
 }

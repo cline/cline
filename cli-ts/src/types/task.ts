@@ -85,3 +85,51 @@ export interface TaskListItem {
 	/** Creation timestamp */
 	createdAt: number
 }
+
+/**
+ * Message role (who sent the message)
+ */
+export type MessageRole = "user" | "assistant" | "system"
+
+/**
+ * Message type for categorization
+ */
+export type MessageType = "text" | "command" | "error" | "tool_use" | "tool_result" | "approval_request" | "approval_response"
+
+/**
+ * A single message in a task conversation
+ */
+export interface TaskMessage {
+	/** Unique message ID */
+	id: string
+	/** Task ID this message belongs to */
+	taskId: string
+	/** Who sent the message */
+	role: MessageRole
+	/** Message type */
+	type: MessageType
+	/** Message content */
+	content: string
+	/** Timestamp (Unix epoch ms) */
+	timestamp: number
+	/** Optional file attachments (paths) */
+	attachments?: string[]
+	/** Optional metadata */
+	metadata?: Record<string, unknown>
+}
+
+/**
+ * Options for sending a message
+ */
+export interface SendMessageOptions {
+	/** Approve a proposed action */
+	approve?: boolean
+	/** Deny a proposed action */
+	deny?: boolean
+	/** Attach file(s) */
+	files?: string[]
+	/** Enable autonomous mode */
+	noInteractive?: boolean
+	/** Switch to mode */
+	mode?: TaskMode
+}

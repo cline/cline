@@ -6,9 +6,12 @@ import { Command } from "commander"
 import type { OutputFormatter } from "../../core/output/types.js"
 import type { CliConfig } from "../../types/config.js"
 import type { Logger } from "../../types/logger.js"
+import { createTaskChatCommand } from "./chat.js"
 import { createTaskListCommand } from "./list.js"
 import { createTaskNewCommand } from "./new.js"
 import { createTaskOpenCommand } from "./open.js"
+import { createTaskSendCommand } from "./send.js"
+import { createTaskViewCommand } from "./view.js"
 
 /**
  * Create the task command group
@@ -20,6 +23,9 @@ export function createTaskCommand(config: CliConfig, logger: Logger, formatter: 
 	taskCommand.addCommand(createTaskNewCommand(config, logger, formatter))
 	taskCommand.addCommand(createTaskListCommand(config, logger, formatter))
 	taskCommand.addCommand(createTaskOpenCommand(config, logger, formatter))
+	taskCommand.addCommand(createTaskChatCommand(config, logger, formatter))
+	taskCommand.addCommand(createTaskSendCommand(config, logger, formatter))
+	taskCommand.addCommand(createTaskViewCommand(config, logger, formatter))
 
 	return taskCommand
 }
