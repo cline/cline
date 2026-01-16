@@ -1,5 +1,5 @@
-import type { LanguageModelChatSelector } from "../core/api/providers/types"
 import { ApiFormat } from "./proto/cline/models"
+import { ApiHandlerSettings } from "./storage/state-keys"
 
 export type ApiProvider =
 	| "anthropic"
@@ -43,189 +43,14 @@ export type ApiProvider =
 	| "hicap"
 	| "nousResearch"
 
-export interface ApiHandlerSecrets {
-	apiKey?: string // anthropic
-	liteLlmApiKey?: string
-	awsAccessKey?: string
-	awsSecretKey?: string
-	openRouterApiKey?: string
-	aihubmixApiKey?: string
-	aihubmixBaseUrl?: string
-	aihubmixAppCode?: string
+export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 
-	clineAccountId?: string
-	awsSessionToken?: string
-	awsBedrockApiKey?: string
-	openAiApiKey?: string
-	geminiApiKey?: string
-	openAiNativeApiKey?: string
-	ollamaApiKey?: string
-	deepSeekApiKey?: string
-	requestyApiKey?: string
-	togetherApiKey?: string
-	fireworksApiKey?: string
-	qwenApiKey?: string
-	doubaoApiKey?: string
-	mistralApiKey?: string
-	authNonce?: string
-	asksageApiKey?: string
-	xaiApiKey?: string
-	moonshotApiKey?: string
-	zaiApiKey?: string
-	huggingFaceApiKey?: string
-	nebiusApiKey?: string
-	sambanovaApiKey?: string
-	cerebrasApiKey?: string
-	sapAiCoreClientId?: string
-	sapAiCoreClientSecret?: string
-	groqApiKey?: string
-	huaweiCloudMaasApiKey?: string
-	basetenApiKey?: string
-	vercelAiGatewayApiKey?: string
-	difyApiKey?: string
-	minimaxApiKey?: string
-	hicapApiKey?: string
-	nousResearchApiKey?: string
-}
-
-export interface ApiHandlerOptions {
-	// Global configuration (not mode-specific)
+export interface ApiHandlerOptions extends Partial<ApiHandlerSettings> {
 	ulid?: string // Used to identify the task in API requests
-	liteLlmBaseUrl?: string
-	liteLlmUsePromptCache?: boolean
-	openAiHeaders?: Record<string, string> // Custom headers for OpenAI requests
-	anthropicBaseUrl?: string
-	openRouterProviderSorting?: string
-	awsRegion?: string
-	awsUseCrossRegionInference?: boolean
-	awsUseGlobalInference?: boolean
-	awsBedrockUsePromptCache?: boolean
-	awsAuthentication?: string
-	awsUseProfile?: boolean
-	awsProfile?: string
-	awsBedrockEndpoint?: string
-	claudeCodePath?: string
-	vertexProjectId?: string
-	vertexRegion?: string
-	openAiBaseUrl?: string
-	ollamaBaseUrl?: string
-	ollamaApiOptionsCtxNum?: string
-	lmStudioBaseUrl?: string
-	lmStudioModelId?: string
-	lmStudioMaxTokens?: string
-	geminiBaseUrl?: string
-	requestyBaseUrl?: string
-	fireworksModelMaxCompletionTokens?: number
-	fireworksModelMaxTokens?: number
-	qwenCodeOauthPath?: string
-	azureApiVersion?: string
-	azureIdentity?: boolean
-	qwenApiLine?: string
-	moonshotApiLine?: string
-	asksageApiUrl?: string
-	requestTimeoutMs?: number
-	sapAiResourceGroup?: string
-	sapAiCoreTokenUrl?: string
-	sapAiCoreBaseUrl?: string
-	sapAiCoreUseOrchestrationMode?: boolean
-	difyBaseUrl?: string
-	zaiApiLine?: string
-	hicapApiKey?: string
-	hicapModelId?: string
-	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
-	ocaBaseUrl?: string
-	minimaxApiLine?: string
-	ocaMode?: string
-	aihubmixBaseUrl?: string
-	aihubmixAppCode?: string
-
-	// Plan mode configurations
-	planModeApiModelId?: string
-	planModeThinkingBudgetTokens?: number
-	geminiPlanModeThinkingLevel?: string
-	planModeReasoningEffort?: string
-	planModeVerbosity?: string
-	planModeVsCodeLmModelSelector?: LanguageModelChatSelector
-	planModeAwsBedrockCustomSelected?: boolean
-	planModeAwsBedrockCustomModelBaseId?: string
-	planModeOpenRouterModelId?: string
-	planModeOpenRouterModelInfo?: ModelInfo
-	planModeOpenAiModelId?: string
-	planModeOpenAiModelInfo?: OpenAiCompatibleModelInfo
-	planModeOllamaModelId?: string
-	planModeLmStudioModelId?: string
-	planModeLiteLlmModelId?: string
-	planModeLiteLlmModelInfo?: LiteLLMModelInfo
-	planModeRequestyModelId?: string
-	planModeRequestyModelInfo?: ModelInfo
-	planModeTogetherModelId?: string
-	planModeFireworksModelId?: string
-	planModeSapAiCoreModelId?: string
-	planModeSapAiCoreDeploymentId?: string
-	planModeGroqModelId?: string
-	planModeGroqModelInfo?: ModelInfo
-	planModeBasetenModelId?: string
-	planModeBasetenModelInfo?: ModelInfo
-	planModeHuggingFaceModelId?: string
-	planModeHuggingFaceModelInfo?: ModelInfo
-	planModeHuaweiCloudMaasModelId?: string
-	planModeHuaweiCloudMaasModelInfo?: ModelInfo
-	planModeOcaModelId?: string
-	planModeOcaModelInfo?: OcaModelInfo
-	planModeOcaReasoningEffort?: string
-	planModeAihubmixModelId?: string
-	planModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
-	planModeHicapModelId?: string
-	planModeHicapModelInfo?: ModelInfo
-	planModeNousResearchModelId?: string
-	// Act mode configurations
-
-	// Act mode configurations
-	actModeApiModelId?: string
-	actModeThinkingBudgetTokens?: number
-	geminiActModeThinkingLevel?: string
-	actModeReasoningEffort?: string
-	actModeVerbosity?: string
-	actModeVsCodeLmModelSelector?: LanguageModelChatSelector
-	actModeAwsBedrockCustomSelected?: boolean
-	actModeAwsBedrockCustomModelBaseId?: string
-	actModeOpenRouterModelId?: string
-	actModeOpenRouterModelInfo?: ModelInfo
-	actModeOpenAiModelId?: string
-	actModeOpenAiModelInfo?: OpenAiCompatibleModelInfo
-	actModeOllamaModelId?: string
-	actModeLmStudioModelId?: string
-	actModeLiteLlmModelId?: string
-	actModeLiteLlmModelInfo?: LiteLLMModelInfo
-	actModeRequestyModelId?: string
-	actModeRequestyModelInfo?: ModelInfo
-	actModeTogetherModelId?: string
-	actModeFireworksModelId?: string
-	actModeSapAiCoreModelId?: string
-	actModeSapAiCoreDeploymentId?: string
-	actModeGroqModelId?: string
-	actModeGroqModelInfo?: ModelInfo
-	actModeBasetenModelId?: string
-	actModeBasetenModelInfo?: ModelInfo
-	actModeHuggingFaceModelId?: string
-	actModeHuggingFaceModelInfo?: ModelInfo
-	actModeHuaweiCloudMaasModelId?: string
-	actModeHuaweiCloudMaasModelInfo?: ModelInfo
-	actModeOcaModelId?: string
-	actModeOcaModelInfo?: OcaModelInfo
-	actModeOcaReasoningEffort?: string
-	actModeAihubmixModelId?: string
-	actModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
-	actModeHicapModelId?: string
-	actModeHicapModelInfo?: ModelInfo
-	actModeNousResearchModelId?: string
+	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void // Callback function
 }
 
-export type ApiConfiguration = ApiHandlerOptions &
-	ApiHandlerSecrets & {
-		planModeApiProvider?: ApiProvider
-		actModeApiProvider?: ApiProvider
-	}
+export type ApiConfiguration = ApiHandlerOptions
 
 // Models
 
@@ -438,7 +263,7 @@ export const anthropicModels = {
 	"claude-3-5-haiku-20241022": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
-		supportsImages: false,
+		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 0.8,
 		outputPrice: 4.0,
@@ -518,7 +343,7 @@ export const claudeCodeModels = {
 	},
 	"claude-3-5-haiku-20241022": {
 		...anthropicModels["claude-3-5-haiku-20241022"],
-		supportsImages: false,
+		supportsImages: true,
 		supportsPromptCache: false,
 	},
 } as const satisfies Record<string, ModelInfo>
@@ -1050,7 +875,7 @@ export const vertexModels = {
 	"claude-3-5-haiku@20241022": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
-		supportsImages: false,
+		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 1.0,
 		outputPrice: 5.0,
@@ -1553,6 +1378,20 @@ export const openAiNativeModels = {
 		inputPrice: 1.75,
 		outputPrice: 14.0,
 		cacheReadsPrice: 0.175,
+		temperature: 1,
+		systemRole: "developer",
+		supportsReasoning: true,
+		supportsReasoningEffort: true,
+	},
+	"gpt-5.2-codex": {
+		maxTokens: 8_192, // 128000 breaks context window truncation
+		contextWindow: 400000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.75,
+		outputPrice: 14.0,
+		cacheReadsPrice: 0.175,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
 		temperature: 1,
 		systemRole: "developer",
 		supportsReasoning: true,
@@ -3635,6 +3474,13 @@ export const sapAiCoreDefaultModelId: SapAiCoreModelId = "anthropic--claude-3.5-
 // Pricing is calculated using Capacity Units, not directly in USD
 const sapAiCoreModelDescription = "Pricing is calculated using SAP's Capacity Units rather than direct USD pricing."
 export const sapAiCoreModels = {
+	"anthropic--claude-4.5-haiku": {
+		maxTokens: 64000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
 	"anthropic--claude-4.5-sonnet": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -3643,6 +3489,13 @@ export const sapAiCoreModels = {
 		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-4-sonnet": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
+	"anthropic--claude-4.5-opus": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,

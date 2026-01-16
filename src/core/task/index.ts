@@ -95,6 +95,7 @@ import {
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
+import { discoverSkills, getAvailableSkills } from "../context/instructions/user-instructions/skills"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
 import { executeHook } from "../hooks/hook-executor"
@@ -1763,12 +1764,27 @@ export class Task {
 			maxConsecutiveMistakes: this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes"),
 		})
 
+		// Discover and filter available skills (gated by skillsEnabled setting)
+		const skillsEnabled = this.stateManager.getGlobalSettingsKey("skillsEnabled") ?? false
+		const allSkills = skillsEnabled ? await discoverSkills(this.cwd) : []
+		const resolvedSkills = getAvailableSkills(allSkills)
+
+		// Filter skills by toggle state (enabled by default)
+		const globalSkillsToggles = this.stateManager.getGlobalSettingsKey("globalSkillsToggles") ?? {}
+		const localSkillsToggles = this.stateManager.getWorkspaceStateKey("localSkillsToggles") ?? {}
+		const availableSkills = resolvedSkills.filter((skill) => {
+			const toggles = skill.source === "global" ? globalSkillsToggles : localSkillsToggles
+			// If toggle exists, use it; otherwise default to enabled (true)
+			return toggles[skill.path] !== false
+		})
+
 		const promptContext: SystemPromptContext = {
 			cwd: this.cwd,
 			ide,
 			providerInfo,
 			supportsBrowserUse,
 			mcpHub: this.mcpHub,
+			skills: availableSkills,
 			focusChainSettings: this.stateManager.getGlobalSettingsKey("focusChainSettings"),
 			globalClineRulesFileInstructions,
 			localClineRulesFileInstructions,
@@ -1917,8 +1933,25 @@ export class Task {
 							attempt: this.taskState.autoRetryAttempts,
 							maxAttempts: 3,
 							delaySeconds: delay / 1000,
+							errorMessage: streamingFailedMessage,
 						}),
 					)
+
+					// Clear streamingFailedMessage now that error_retry contains it
+					// This prevents showing the error in both ErrorRow and error_retry
+					const autoRetryApiReqIndex = findLastIndex(
+						this.messageStateHandler.getClineMessages(),
+						(m) => m.say === "api_req_started",
+					)
+					if (autoRetryApiReqIndex !== -1) {
+						const clineMessages = this.messageStateHandler.getClineMessages()
+						const currentApiReqInfo: ClineApiReqInfo = JSON.parse(clineMessages[autoRetryApiReqIndex].text || "{}")
+						delete currentApiReqInfo.streamingFailedMessage
+						await this.messageStateHandler.updateClineMessage(autoRetryApiReqIndex, {
+							text: JSON.stringify(currentApiReqInfo),
+						})
+					}
+
 					await setTimeoutPromise(delay)
 				} else {
 					// Show error_retry with failed flag to indicate all retries exhausted (but not for insufficient credits)
@@ -1930,6 +1963,7 @@ export class Task {
 								maxAttempts: 3,
 								delaySeconds: 0,
 								failed: true, // Special flag to indicate retries exhausted
+								errorMessage: streamingFailedMessage,
 							}),
 						)
 					}
@@ -2656,6 +2690,7 @@ export class Task {
 								attempt: this.taskState.autoRetryAttempts,
 								maxAttempts: 3,
 								delaySeconds: delay / 1000,
+								errorMessage,
 							}),
 						)
 
@@ -2677,6 +2712,7 @@ export class Task {
 								maxAttempts: 3,
 								delaySeconds: 0,
 								failed: true, // Special flag to indicate retries exhausted
+								errorMessage,
 							}),
 						)
 					}
@@ -2898,6 +2934,8 @@ export class Task {
 
 				let response: ClineAskResponse
 
+				const noResponseErrorMessage = "No assistant message was received. Would you like to retry the request?"
+
 				if (this.taskState.autoRetryAttempts < 3) {
 					// Auto-retry enabled with max 3 attempts: automatically approve the retry
 					this.taskState.autoRetryAttempts++
@@ -2911,6 +2949,7 @@ export class Task {
 							attempt: this.taskState.autoRetryAttempts,
 							maxAttempts: 3,
 							delaySeconds: delay / 1000,
+							errorMessage: noResponseErrorMessage,
 						}),
 					)
 					await setTimeoutPromise(delay)
@@ -2923,12 +2962,10 @@ export class Task {
 							maxAttempts: 3,
 							delaySeconds: 0,
 							failed: true, // Special flag to indicate retries exhausted
+							errorMessage: noResponseErrorMessage,
 						}),
 					)
-					const askResult = await this.ask(
-						"api_req_failed",
-						"No assistant message was received. Would you like to retry the request?",
-					)
+					const askResult = await this.ask("api_req_failed", noResponseErrorMessage)
 					response = askResult.response
 					// Reset retry counter if user chooses to manually retry
 					if (response === "yesButtonClicked") {

@@ -40,6 +40,7 @@ import { ReportBugHandler } from "./tools/handlers/ReportBugHandler"
 import { SearchFilesToolHandler } from "./tools/handlers/SearchFilesToolHandler"
 import { SummarizeTaskHandler } from "./tools/handlers/SummarizeTaskHandler"
 import { UseMcpToolHandler } from "./tools/handlers/UseMcpToolHandler"
+import { UseSkillToolHandler } from "./tools/handlers/UseSkillToolHandler"
 import { WebFetchToolHandler } from "./tools/handlers/WebFetchToolHandler"
 import { WebSearchToolHandler } from "./tools/handlers/WebSearchToolHandler"
 import { WriteToFileToolHandler } from "./tools/handlers/WriteToFileToolHandler"
@@ -225,6 +226,7 @@ export class ToolExecutor {
 		this.coordinator.register(new UseMcpToolHandler())
 		this.coordinator.register(new AccessMcpResourceHandler())
 		this.coordinator.register(new LoadMcpDocumentationHandler())
+		this.coordinator.register(new UseSkillToolHandler())
 		this.coordinator.register(new PlanModeRespondHandler())
 		this.coordinator.register(new ActModeRespondHandler())
 		this.coordinator.register(new NewTaskHandler())
@@ -292,7 +294,6 @@ export class ToolExecutor {
 			block,
 			this.taskState.userMessageContent,
 			(block: ToolUse) => ToolDisplayUtils.getToolDescription(block),
-			this.api,
 			this.coordinator,
 			this.taskState.toolUseIdMap,
 		)
@@ -597,6 +598,9 @@ export class ToolExecutor {
 			toolResult = await this.coordinator.execute(config, block)
 			toolWasExecuted = true
 			this.pushToolResult(toolResult, block)
+
+			// Track the last executed tool for consecutive call detection (used by act_mode_respond)
+			this.taskState.lastToolName = block.name
 
 			// Check abort before running PostToolUse hook (success path)
 			if (this.taskState.abort) {

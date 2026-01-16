@@ -30,14 +30,16 @@ import { ExtensionRegistryInfo } from "@/registry"
 import { AuthService } from "@/services/auth/AuthService"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { LogoutReason } from "@/services/auth/types"
+import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
+import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
+import { BannerCardData } from "@/shared/cline/banner"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getCwd, getDesktopDir } from "@/utils/path"
-import { BannerService } from "../../services/banner/BannerService"
 import { PromptRegistry } from "../prompts/system-prompt"
 import {
 	ensureCacheDirectoryExists,
@@ -47,6 +49,7 @@ import {
 	writeMcpMarketplaceCatalogToCache,
 } from "../storage/disk"
 import { fetchRemoteConfig } from "../storage/remote-config/fetch"
+import { clearRemoteConfig } from "../storage/remote-config/utils"
 import { type PersistenceErrorEvent, StateManager } from "../storage/StateManager"
 import { Task } from "../task"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
@@ -104,13 +107,13 @@ export class Controller {
 
 	/**
 	 * Starts the periodic remote config fetching timer
-	 * Fetches immediately and then every 30 seconds
+	 * Fetches immediately and then every hour
 	 */
 	private startRemoteConfigTimer() {
 		// Initial fetch
 		fetchRemoteConfig(this)
-		// Set up 30-second interval
-		this.remoteConfigTimer = setInterval(() => fetchRemoteConfig(this), 30000) // 30 seconds
+		// Set up 1-hour interval
+		this.remoteConfigTimer = setInterval(() => fetchRemoteConfig(this), 3600000) // 1 hour
 	}
 
 	constructor(readonly context: vscode.ExtensionContext) {
@@ -119,7 +122,7 @@ export class Controller {
 		this.stateManager = StateManager.get()
 		StateManager.get().registerCallbacks({
 			onPersistenceError: async ({ error }: PersistenceErrorEvent) => {
-				console.error("[Controller] Cache persistence failed, recovering:", error)
+				Logger.error("[Controller] Cache persistence failed, recovering:", error)
 				try {
 					await StateManager.get().reInitialize(this.task?.taskId)
 					await this.postStateToWebview()
@@ -128,7 +131,7 @@ export class Controller {
 						message: "Saving settings to storage failed.",
 					})
 				} catch (recoveryError) {
-					console.error("[Controller] Cache recovery failed:", recoveryError)
+					Logger.error("[Controller] Cache recovery failed:", recoveryError)
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
 						message: "Failed to save settings. Please restart the extension.",
@@ -186,6 +189,7 @@ export class Controller {
 		try {
 			// AuthService now handles its own storage cleanup in handleDeauth()
 			this.stateManager.setGlobalState("userInfo", undefined)
+			clearRemoteConfig()
 
 			// Update API providers through cache service
 			const apiConfiguration = this.stateManager.getApiConfiguration()
@@ -535,6 +539,8 @@ export class Controller {
 			// Mark welcome view as completed since user has successfully logged in
 			this.stateManager.setGlobalState("welcomeViewCompleted", true)
 
+			await fetchRemoteConfig(this)
+
 			if (this.task) {
 				this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
 			}
@@ -831,6 +837,8 @@ export class Controller {
 		const enableCheckpointsSetting = this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
 		const globalClineRulesToggles = this.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
 		const globalWorkflowToggles = this.stateManager.getGlobalSettingsKey("globalWorkflowToggles")
+		const globalSkillsToggles = this.stateManager.getGlobalSettingsKey("globalSkillsToggles")
+		const localSkillsToggles = this.stateManager.getWorkspaceStateKey("localSkillsToggles")
 		const remoteRulesToggles = this.stateManager.getGlobalStateKey("remoteRulesToggles")
 		const remoteWorkflowToggles = this.stateManager.getGlobalStateKey("remoteWorkflowToggles")
 		const shellIntegrationTimeout = this.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
@@ -851,6 +859,7 @@ export class Controller {
 		const lastDismissedModelBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedModelBannerVersion") || 0
 		const lastDismissedCliBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedCliBannerVersion") || 0
 		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
+		const skillsEnabled = this.stateManager.getGlobalSettingsKey("skillsEnabled")
 
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
@@ -874,6 +883,7 @@ export class Controller {
 		const distinctId = getDistinctId()
 		const version = ExtensionRegistryInfo.version
 		const environment = ClineEnv.config().environment
+		const banners = await this.getBanners()
 
 		// Set feature flag in dictation settings based on platform
 		const updatedDictationSettings = {
@@ -914,6 +924,8 @@ export class Controller {
 			localAgentsRulesToggles: localAgentsRulesToggles || {},
 			localWorkflowToggles: workflowToggles || {},
 			globalWorkflowToggles: globalWorkflowToggles || {},
+			globalSkillsToggles: globalSkillsToggles || {},
+			localSkillsToggles: localSkillsToggles || {},
 			remoteRulesToggles: remoteRulesToggles,
 			remoteWorkflowToggles: remoteWorkflowToggles,
 			shellIntegrationTimeout,
@@ -955,6 +967,9 @@ export class Controller {
 			nativeToolCallSetting: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
 			backgroundEditEnabled: this.stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
+			skillsEnabled,
+			optOutOfRemoteConfig: this.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
+			banners,
 		}
 	}
 
@@ -997,64 +1012,12 @@ export class Controller {
 		return history
 	}
 
-	/**
-	 * Initializes the BannerService if not already initialized
-	 */
-	private async ensureBannerService() {
-		if (!BannerService.isInitialized()) {
-			try {
-				BannerService.initialize(this)
-			} catch (error) {
-				console.error("Failed to initialize BannerService:", error)
-			}
-		}
-	}
-
-	/**
-	 * Fetches non-dismissed banners for display
-	 * @returns Array of banners that haven't been dismissed
-	 */
-	async fetchBannersForDisplay(): Promise<any[]> {
+	async getBanners(): Promise<BannerCardData[]> {
 		try {
-			await this.ensureBannerService()
-			if (BannerService.isInitialized()) {
-				return await BannerService.get().getNonDismissedBanners()
-			}
-		} catch (error) {
-			console.error("Failed to fetch banners:", error)
-		}
-		return []
-	}
-
-	/**
-	 * Dismisses a banner and sends telemetry
-	 * @param bannerId The ID of the banner to dismiss
-	 */
-	async dismissBanner(bannerId: string): Promise<void> {
-		try {
-			await this.ensureBannerService()
-			if (BannerService.isInitialized()) {
-				await BannerService.get().dismissBanner(bannerId)
-				await this.postStateToWebview()
-			}
-		} catch (error) {
-			console.error("Failed to dismiss banner:", error)
-		}
-	}
-
-	/**
-	 * Sends a banner event for telemetry tracking
-	 * @param bannerId The ID of the banner
-	 * @param eventType The type of event (seen, dismiss, click)
-	 */
-	async trackBannerEvent(bannerId: string, eventType: "dismiss"): Promise<void> {
-		try {
-			await this.ensureBannerService()
-			if (BannerService.isInitialized()) {
-				await BannerService.get().sendBannerEvent(bannerId, eventType)
-			}
-		} catch (error) {
-			console.error("Failed to track banner event:", error)
+			return BannerService.get().getActiveBanners()
+		} catch (err) {
+			console.log(err)
+			return []
 		}
 	}
 }

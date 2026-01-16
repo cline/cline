@@ -1,4 +1,4 @@
-import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
+import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import {
 	ClineApiReqInfo,
 	ClineAskQuestion,
@@ -9,73 +9,65 @@ import {
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
-import { BooleanRequest, Int64Request, StringRequest } from "@shared/proto/cline/common"
-import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
+import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
+import { Mode } from "@shared/storage/types"
 import deepEqual from "fast-deep-equal"
-import { FoldVerticalIcon } from "lucide-react"
-import React, { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+	ArrowRightIcon,
+	BellIcon,
+	CheckIcon,
+	CircleSlashIcon,
+	CircleXIcon,
+	FileCode2Icon,
+	FilePlus2Icon,
+	FoldVerticalIcon,
+	ImageUpIcon,
+	LightbulbIcon,
+	Link2Icon,
+	LoaderCircleIcon,
+	LucideIcon,
+	PencilIcon,
+	RefreshCwIcon,
+	SearchIcon,
+	SettingsIcon,
+	SquareArrowOutUpRightIcon,
+	SquareMinusIcon,
+	TerminalIcon,
+	TriangleAlertIcon,
+} from "lucide-react"
+import { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
-import styled from "styled-components"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
-import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
-import { CheckpointControls } from "@/components/common/CheckpointControls"
-import CodeBlock, {
-	CHAT_ROW_EXPANDED_BG_COLOR,
-	CODE_BLOCK_BG_COLOR,
-	TERMINAL_CODE_BLOCK_BG_COLOR,
-} from "@/components/common/CodeBlock"
 import { WithCopyButton } from "@/components/common/CopyButton"
-import MarkdownBlock from "@/components/common/MarkdownBlock"
-import SuccessButton from "@/components/common/SuccessButton"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
-import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
-import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
+import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
+import { CompletionOutputRow } from "./CompletionOutputRow"
+import { getIconByToolName } from "./chat-view"
 import { DiffEditRow } from "./DiffEditRow"
-import { ErrorBlockTitle } from "./ErrorBlockTitle"
 import ErrorRow from "./ErrorRow"
 import HookMessage from "./HookMessage"
+import { MarkdownRow } from "./MarkdownRow"
 import NewTaskPreview from "./NewTaskPreview"
+import PlanCompletionOutputRow from "./PlanCompletionOutputRow"
 import QuoteButton from "./QuoteButton"
 import ReportBugPreview from "./ReportBugPreview"
 import SearchResultsDisplay from "./SearchResultsDisplay"
+import { ThinkingRow } from "./ThinkingRow"
+import { TypewriterText } from "./TypewriterText"
 import UserMessage from "./UserMessage"
 
-const normalColor = "var(--vscode-foreground)"
-const errorColor = "var(--vscode-errorForeground)"
-const successColor = "var(--vscode-charts-green)"
-const _cancelledColor = "var(--vscode-descriptionForeground)"
+// State type for api_req_started rendering
+type ApiReqState = "pre" | "thinking" | "error" | "final"
 
-const ChatRowContainer = styled.div`
-	padding: 10px 6px 10px 15px;
-	position: relative;
-
-	&:hover ${CheckpointControls} {
-		opacity: 1;
-	}
-
-	/* Fade-in animation for hook messages being inserted */
-	&.hook-message-animate {
-		animation: hookFadeSlideIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-	}
-
-	@keyframes hookFadeSlideIn {
-		from {
-			opacity: 0;
-			transform: translateY(-12px);
-		}
-		to {
-			opacity: 1;
-			transform: translateY(0);
-		}
-	}
-`
+const HEADER_CLASSNAMES = "flex items-center gap-2.5 mb-3"
 
 interface ChatRowProps {
 	message: ClineMessage
@@ -88,9 +80,13 @@ interface ChatRowProps {
 	sendMessageFromChatRow?: (text: string, images: string[], files: string[]) => void
 	onSetQuote: (text: string) => void
 	onCancelCommand?: () => void
+	mode?: Mode
+	reasoningContent?: string
+	responseStarted?: boolean
+	isRequestInProgress?: boolean
 }
 
-interface QuoteButtonState {
+export interface QuoteButtonState {
 	visible: boolean
 	top: number
 	left: number
@@ -99,172 +95,8 @@ interface QuoteButtonState {
 
 interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
 
-export const ProgressIndicator = () => (
-	<div
-		style={{
-			width: "16px",
-			height: "16px",
-			display: "flex",
-			alignItems: "center",
-			justifyContent: "center",
-		}}>
-		<div style={{ transform: "scale(0.55)", transformOrigin: "center" }}>
-			<VSCodeProgressRing />
-		</div>
-	</div>
-)
-
-const Markdown = memo(({ markdown }: { markdown?: string }) => {
-	return (
-		<div
-			style={{
-				wordBreak: "break-word",
-				overflowWrap: "anywhere",
-				marginBottom: -15,
-				marginTop: -15,
-				overflow: "hidden", // contain child margins so that parent diff matches height of children
-			}}>
-			<MarkdownBlock markdown={markdown} />
-		</div>
-	)
-})
-
-const CommandOutput = memo(
-	({
-		output,
-		isOutputFullyExpanded,
-		onToggle,
-		isContainerExpanded,
-	}: {
-		output: string
-		isOutputFullyExpanded: boolean
-		onToggle: () => void
-		isContainerExpanded: boolean
-	}) => {
-		const outputLines = output.split("\n")
-		const lineCount = outputLines.length
-		const shouldAutoShow = lineCount <= 5
-		const outputRef = useRef<HTMLDivElement>(null)
-
-		// Auto-scroll to bottom when output changes (only when showing limited output)
-		useEffect(() => {
-			if (!isOutputFullyExpanded && outputRef.current) {
-				// Direct scrollTop manipulation
-				outputRef.current.scrollTop = outputRef.current.scrollHeight
-
-				// Another attempt with more delay (for slower renders) to ensure scrolling works
-				setTimeout(() => {
-					if (outputRef.current) {
-						outputRef.current.scrollTop = outputRef.current.scrollHeight
-					}
-				}, 50)
-			}
-		}, [output, isOutputFullyExpanded])
-
-		// Don't render anything if container is collapsed
-		if (!isContainerExpanded) {
-			return null
-		}
-
-		// Check if output contains a log file path indicator
-		const logFilePathMatch = output.match(/📋 Output is being logged to: ([^\n]+)/)
-		const logFilePath = logFilePathMatch ? logFilePathMatch[1].trim() : null
-
-		// Render output with clickable log file path
-		const renderOutput = () => {
-			if (!logFilePath) {
-				return <CodeBlock forceWrap={true} source={`${"```"}shell\n${output}\n${"```"}`} />
-			}
-
-			// Split output into parts: before log path, log path line, after log path
-			const logPathLineStart = output.indexOf("📋 Output is being logged to:")
-			const logPathLineEnd = output.indexOf("\n", logPathLineStart)
-			const beforeLogPath = output.substring(0, logPathLineStart)
-			const afterLogPath = logPathLineEnd !== -1 ? output.substring(logPathLineEnd) : ""
-
-			// Extract just the filename from the full path for display
-			const fileName = logFilePath.split("/").pop() || logFilePath
-
-			return (
-				<>
-					{beforeLogPath && <CodeBlock forceWrap={true} source={`${"```"}shell\n${beforeLogPath}\n${"```"}`} />}
-					<div
-						className="flex flex-wrap items-center gap-1.5 px-3 py-2 mx-2 my-1.5 rounded bg-banner-background cursor-pointer hover:brightness-110 transition-colors"
-						onClick={() => {
-							FileServiceClient.openFile(StringRequest.create({ value: logFilePath })).catch((err) =>
-								console.error("Failed to open log file:", err),
-							)
-						}}
-						title={`Click to open: ${logFilePath}`}>
-						<span className="shrink-0">📋 Output is being logged to:</span>
-						<span className="text-vscode-textLink-foreground underline break-all">{fileName}</span>
-					</div>
-					{afterLogPath && <CodeBlock forceWrap={true} source={`${"```"}shell\n${afterLogPath}\n${"```"}`} />}
-				</>
-			)
-		}
-
-		return (
-			<div
-				style={{
-					width: "100%",
-					position: "relative",
-					paddingBottom: lineCount > 5 ? "16px" : "0",
-					overflow: "visible",
-					borderTop: "1px solid rgba(255,255,255,.07)",
-					backgroundColor: TERMINAL_CODE_BLOCK_BG_COLOR,
-					borderBottomLeftRadius: "6px",
-					borderBottomRightRadius: "6px",
-				}}>
-				<div
-					ref={outputRef}
-					style={{
-						color: "#FFFFFF",
-						maxHeight: shouldAutoShow ? "none" : isOutputFullyExpanded ? "200px" : "75px",
-						overflowY: shouldAutoShow ? "visible" : "auto",
-						scrollBehavior: "smooth",
-						backgroundColor: TERMINAL_CODE_BLOCK_BG_COLOR,
-					}}>
-					<div style={{ backgroundColor: TERMINAL_CODE_BLOCK_BG_COLOR }}>{renderOutput()}</div>
-				</div>
-				{/* Show notch only if there's more than 5 lines */}
-				{lineCount > 5 && (
-					<div
-						onClick={onToggle}
-						onMouseEnter={(e) => {
-							e.currentTarget.style.opacity = "0.8"
-						}}
-						onMouseLeave={(e) => {
-							e.currentTarget.style.opacity = "1"
-						}}
-						style={{
-							position: "absolute",
-							bottom: "-10px",
-							left: "50%",
-							transform: "translateX(-50%)",
-							display: "flex",
-							justifyContent: "center",
-							alignItems: "center",
-							padding: "1px 14px",
-							cursor: "pointer",
-							backgroundColor: "var(--vscode-descriptionForeground)",
-							borderRadius: "3px 3px 6px 6px",
-							transition: "opacity 0.1s ease",
-							border: "1px solid rgba(0, 0, 0, 0.1)",
-						}}>
-						<span
-							className={`codicon codicon-triangle-${isOutputFullyExpanded ? "up" : "down"}`}
-							style={{
-								fontSize: "11px",
-								color: "var(--vscode-editor-background)",
-							}}
-						/>
-					</div>
-				)}
-			</div>
-		)
-	},
-)
+export const ProgressIndicator = () => <LoaderCircleIcon className="size-2 mr-2 animate-spin" />
+const InvisibleSpacer = () => <div aria-hidden className="h-px" />
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
@@ -274,9 +106,9 @@ const ChatRow = memo(
 		const prevHeightRef = useRef(0)
 
 		const [chatrow, { height }] = useSize(
-			<ChatRowContainer>
+			<div className="relative pt-2.5 px-4">
 				<ChatRowContent {...props} />
-			</ChatRowContainer>,
+			</div>,
 		)
 
 		useEffect(() => {
@@ -312,9 +144,19 @@ export const ChatRowContent = memo(
 		sendMessageFromChatRow,
 		onSetQuote,
 		onCancelCommand,
+		mode,
+		isRequestInProgress,
+		reasoningContent,
+		responseStarted,
 	}: ChatRowContentProps) => {
-		const { backgroundEditEnabled, mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode } =
-			useExtensionState()
+		const {
+			backgroundEditEnabled,
+			mcpServers,
+			mcpMarketplaceCatalog,
+			onRelinquishControl,
+			vscodeTerminalExecutionMode,
+			clineMessages,
+		} = useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [explainChangesDisabled, setExplainChangesDisabled] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
@@ -328,7 +170,37 @@ export const ChatRowContent = memo(
 		// Command output expansion state (for all messages, but only used by command messages)
 		const [isOutputFullyExpanded, setIsOutputFullyExpanded] = useState(false)
 		const prevCommandExecutingRef = useRef<boolean>(false)
-		const [cost, apiReqCancelReason, apiReqStreamingFailedMessage, retryStatus] = useMemo(() => {
+
+		const hasAutoExpandedRef = useRef(false)
+		const hasAutoCollapsedRef = useRef(false)
+		const prevIsLastRef = useRef(isLast)
+
+		// Auto-expand completion output when it's the last message (runs once per message)
+		useEffect(() => {
+			const isCompletionResult = message.ask === "completion_result" || message.say === "completion_result"
+
+			// Auto-expand if it's last and we haven't already auto-expanded
+			if (isLast && isCompletionResult && !hasAutoExpandedRef.current) {
+				hasAutoExpandedRef.current = true
+				hasAutoCollapsedRef.current = false // Reset the auto-collapse flag when expanding
+			}
+		}, [isLast, message.ask, message.say])
+
+		// Auto-collapse completion output ONCE when transitioning from last to not-last
+		useEffect(() => {
+			const isCompletionResult = message.ask === "completion_result" || message.say === "completion_result"
+			const wasLast = prevIsLastRef.current
+
+			// Only auto-collapse if transitioning from last to not-last, and we haven't already auto-collapsed
+			if (wasLast && !isLast && isCompletionResult && !hasAutoCollapsedRef.current) {
+				hasAutoCollapsedRef.current = true
+				hasAutoExpandedRef.current = false // Reset the auto-expand flag when collapsing
+			}
+
+			prevIsLastRef.current = isLast
+		}, [isLast, message.ask, message.say])
+
+		const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 			if (message.text != null && message.say === "api_req_started") {
 				const info: ClineApiReqInfo = JSON.parse(message.text)
 				return [info.cost, info.cancelReason, info.streamingFailedMessage, info.retryStatus]
@@ -342,7 +214,9 @@ export const ChatRowContent = memo(
 				? lastModifiedMessage?.text
 				: undefined
 
-		const isCommandMessage = message.ask === "command" || message.say === "command"
+		const type = message.type === "ask" ? message.ask : message.say
+
+		const isCommandMessage = type === "command"
 		// Check if command has output to determine if it's actually executing
 		const commandHasOutput = message.text?.includes(COMMAND_OUTPUT_STRING) ?? false
 		// A command is executing if it has output but hasn't completed yet
@@ -352,8 +226,6 @@ export const ChatRowContent = memo(
 		const isCommandCompleted = isCommandMessage && message.commandCompleted === true
 
 		const isMcpServerResponding = isLast && lastModifiedMessage?.say === "mcp_server_request_started"
-
-		const type = message.type === "ask" ? message.ask : message.say
 
 		const handleToggle = useCallback(() => {
 			onToggleExpand(message.ts)
@@ -442,33 +314,18 @@ export const ChatRowContent = memo(
 			switch (type) {
 				case "error":
 					return [
-						<span
-							className="codicon codicon-error"
-							style={{
-								color: errorColor,
-								marginBottom: "-1.5px",
-							}}></span>,
-						<span style={{ color: errorColor, fontWeight: "bold" }}>Error</span>,
+						<span className="codicon codicon-error text-error mb-[-1.5px]" />,
+						<span className="text-error font-bold">Error</span>,
 					]
 				case "mistake_limit_reached":
 					return [
-						<span
-							className="codicon codicon-error"
-							style={{
-								color: errorColor,
-								marginBottom: "-1.5px",
-							}}></span>,
-						<span style={{ color: errorColor, fontWeight: "bold" }}>Cline is having trouble...</span>,
+						<CircleXIcon className="text-error size-2" />,
+						<span className="text-error font-bold">Cline is having trouble...</span>,
 					]
 				case "command":
 					return [
-						<span
-							className="codicon codicon-terminal"
-							style={{
-								color: normalColor,
-								marginBottom: "-1.5px",
-							}}></span>,
-						<span style={{ color: normalColor, fontWeight: "bold" }}>Cline wants to execute this command:</span>,
+						<TerminalIcon className="text-foreground size-2" />,
+						<span className="font-bold text-foreground">Cline wants to execute this command:</span>,
 					]
 				case "use_mcp_server":
 					const mcpServerUse = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
@@ -476,18 +333,11 @@ export const ChatRowContent = memo(
 						isMcpServerResponding ? (
 							<ProgressIndicator />
 						) : (
-							<span
-								className="codicon codicon-server"
-								style={{
-									color: normalColor,
-									marginBottom: "-1.5px",
-								}}></span>
+							<span className="codicon codicon-server text-foreground mb-[-1.5px]" />
 						),
-						<span
-							className="ph-no-capture"
-							style={{ color: normalColor, fontWeight: "bold", wordBreak: "break-word" }}>
+						<span className="ph-no-capture font-bold text-foreground break-words">
 							Cline wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
-							<code style={{ wordBreak: "break-all" }}>
+							<code className="break-all">
 								{getMcpServerDisplayName(mcpServerUse.serverName, mcpMarketplaceCatalog)}
 							</code>{" "}
 							MCP server:
@@ -495,30 +345,17 @@ export const ChatRowContent = memo(
 					]
 				case "completion_result":
 					return [
-						<span
-							className="codicon codicon-check"
-							style={{
-								color: successColor,
-								marginBottom: "-1.5px",
-							}}></span>,
-						<span style={{ color: successColor, fontWeight: "bold" }}>Task Completed</span>,
+						<span className="codicon codicon-check text-success mb-[-1.5px]" />,
+						<span className="text-success font-bold">Task Completed</span>,
 					]
 				case "api_req_started":
-					return ErrorBlockTitle({
-						cost,
-						apiReqCancelReason,
-						apiRequestFailedMessage,
-						retryStatus,
-					})
+					// API request rows no longer render the request payload/cost accordion.
+					// Thinking/reasoning is handled directly in the api_req_started renderer below.
+					return [null, null]
 				case "followup":
 					return [
-						<span
-							className="codicon codicon-question"
-							style={{
-								color: normalColor,
-								marginBottom: "-1.5px",
-							}}></span>,
-						<span style={{ color: normalColor, fontWeight: "bold" }}>Cline has a question:</span>,
+						<span className="codicon codicon-question text-foreground mb-[-1.5px]" />,
+						<span className="font-bold text-foreground">Cline has a question:</span>,
 					]
 				default:
 					return [null, null]
@@ -533,20 +370,6 @@ export const ChatRowContent = memo(
 			isMcpServerResponding,
 			message.text,
 		])
-
-		const headerStyle: React.CSSProperties = {
-			display: "flex",
-			alignItems: "center",
-			gap: "10px",
-			marginBottom: "12px",
-		}
-
-		const _pStyle: React.CSSProperties = {
-			margin: 0,
-			whiteSpace: "pre-wrap",
-			wordBreak: "break-word",
-			overflowWrap: "anywhere",
-		}
 
 		const tool = useMemo(() => {
 			if (message.ask === "tool" || message.say === "tool") {
@@ -587,9 +410,9 @@ export const ChatRowContent = memo(
 						? "Cline is creating patches to edit this file:"
 						: "Cline wants to edit this file:"
 					return (
-						<>
-							<div style={headerStyle}>
-								{toolIcon("edit")}
+						<div>
+							<div className={HEADER_CLASSNAMES}>
+								<PencilIcon className="size-2" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>{editToolTitle}</span>
@@ -605,13 +428,13 @@ export const ChatRowContent = memo(
 									path={tool.path!}
 								/>
 							)}
-						</>
+						</div>
 					)
 				case "fileDeleted":
 					return (
-						<>
-							<div style={headerStyle}>
-								{toolIcon("diff-removed")}
+						<div>
+							<div className={HEADER_CLASSNAMES}>
+								<SquareMinusIcon className="size-2" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>Cline wants to delete this file:</span>
@@ -623,16 +446,16 @@ export const ChatRowContent = memo(
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
-						</>
+						</div>
 					)
 				case "newFileCreated":
 					return (
-						<>
-							<div style={headerStyle}>
-								{toolIcon("new-file")}
+						<div>
+							<div className={HEADER_CLASSNAMES}>
+								<FilePlus2Icon className="size-2" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>Cline wants to create a new file:</span>
+								<span className="font-bold">Cline wants to create a new file:</span>
 							</div>
 							{backgroundEditEnabled && tool.path && tool.content ? (
 								<DiffEditRow patch={tool.content} path={tool.path} />
@@ -645,80 +468,45 @@ export const ChatRowContent = memo(
 									path={tool.path!}
 								/>
 							)}
-						</>
+						</div>
 					)
 				case "readFile":
 					const isImage = isImageFile(tool.path || "")
 					return (
-						<>
-							<div style={headerStyle}>
-								{toolIcon(isImage ? "file-media" : "file-code")}
+						<div>
+							<div className={HEADER_CLASSNAMES}>
+								{isImage ? <ImageUpIcon className="size-2" /> : <FileCode2Icon className="size-2" />}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>
-									{/* {message.type === "ask" ? "" : "Cline read this file:"} */}
-									Cline wants to read this file:
-								</span>
+								<span className="font-bold">Cline wants to read this file:</span>
 							</div>
-							<div
-								style={{
-									borderRadius: 3,
-									backgroundColor: CODE_BLOCK_BG_COLOR,
-									overflow: "hidden",
-									border: "1px solid var(--vscode-editorGroup-border)",
-								}}>
+							<div className="bg-code rounded-sm overflow-hidden border border-editor-group-border">
 								<div
-									onClick={
-										isImage
-											? undefined
-											: () => {
-													FileServiceClient.openFile(
-														StringRequest.create({ value: tool.content }),
-													).catch((err) => console.error("Failed to open file:", err))
-												}
-									}
-									style={{
-										color: "var(--vscode-descriptionForeground)",
-										display: "flex",
-										alignItems: "center",
-										padding: "9px 10px",
-										cursor: isImage ? "default" : "pointer",
-										userSelect: isImage ? "text" : "none",
-										WebkitUserSelect: isImage ? "text" : "none",
-										MozUserSelect: isImage ? "text" : "none",
-										msUserSelect: isImage ? "text" : "none",
+									className={cn("text-description flex items-center cursor-pointer select-none py-2 px-2.5", {
+										"cursor-default select-text": isImage,
+									})}
+									onClick={() => {
+										if (!isImage) {
+											FileServiceClient.openFile(StringRequest.create({ value: tool.content })).catch(
+												(err) => console.error("Failed to open file:", err),
+											)
+										}
 									}}>
 									{tool.path?.startsWith(".") && <span>.</span>}
 									{tool.path && !tool.path.startsWith(".") && <span>/</span>}
-									<span
-										className="ph-no-capture"
-										style={{
-											whiteSpace: "nowrap",
-											overflow: "hidden",
-											textOverflow: "ellipsis",
-											marginRight: "8px",
-											direction: "rtl",
-											textAlign: "left",
-										}}>
+									<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis mr-2 text-left [direction: rtl]">
 										{cleanPathPrefix(tool.path ?? "") + "\u200E"}
 									</span>
-									<div style={{ flexGrow: 1 }}></div>
-									{!isImage && (
-										<span
-											className={`codicon codicon-link-external`}
-											style={{
-												fontSize: 13.5,
-												margin: "1px 0",
-											}}></span>
-									)}
+									<div className="grow" />
+									{!isImage && <SquareArrowOutUpRightIcon className="size-2" />}
 								</div>
 							</div>
-						</>
+						</div>
 					)
 				case "listFilesTopLevel":
 					return (
-						<>
-							<div style={headerStyle}>
+						<div>
+							<div className={HEADER_CLASSNAMES}>
 								{toolIcon("folder-opened")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
@@ -735,12 +523,12 @@ export const ChatRowContent = memo(
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
-						</>
+						</div>
 					)
 				case "listFilesRecursive":
 					return (
-						<>
-							<div style={headerStyle}>
+						<div>
+							<div className={HEADER_CLASSNAMES}>
 								{toolIcon("folder-opened")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
@@ -757,12 +545,12 @@ export const ChatRowContent = memo(
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
-						</>
+						</div>
 					)
 				case "listCodeDefinitionNames":
 					return (
-						<>
-							<div style={headerStyle}>
+						<div>
+							<div className={HEADER_CLASSNAMES}>
 								{toolIcon("file-code")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
@@ -778,18 +566,17 @@ export const ChatRowContent = memo(
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
-						</>
+						</div>
 					)
 				case "searchFiles":
 					return (
-						<>
-							<div style={headerStyle}>
+						<div>
+							<div className={HEADER_CLASSNAMES}>
 								{toolIcon("search")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>
-									Cline wants to search this directory for{" "}
-									<code style={{ wordBreak: "break-all" }}>{tool.regex}</code>:
+								<span className="font-bold">
+									Cline wants to search this directory for <code className="break-all">{tool.regex}</code>:
 								</span>
 							</div>
 							<SearchResultsDisplay
@@ -799,26 +586,19 @@ export const ChatRowContent = memo(
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
-						</>
+						</div>
 					)
 				case "summarizeTask":
 					return (
-						<>
-							<div style={headerStyle}>
-								<span style={{ color: normalColor, marginBottom: "-1.5px" }}>
-									<FoldVerticalIcon size={16} />
-								</span>
-								<span style={{ fontWeight: "bold" }}>Cline is condensing the conversation:</span>
+						<div>
+							<div className={HEADER_CLASSNAMES}>
+								<FoldVerticalIcon className="size-2" />
+								<span className="font-bold">Cline is condensing the conversation:</span>
 							</div>
-							<div
-								style={{
-									borderRadius: 3,
-									backgroundColor: CODE_BLOCK_BG_COLOR,
-									overflow: "hidden",
-									border: "1px solid var(--vscode-editorGroup-border)",
-								}}>
+							<div className="bg-code overflow-hidden border border-editor-group-border rounded-[3px]">
 								<div
 									aria-label={isExpanded ? "Collapse summary" : "Expand summary"}
+									className="text-description py-2 px-2.5 cursor-pointer select-none"
 									onClick={handleToggle}
 									onKeyDown={(e) => {
 										if (e.key === "Enter" || e.key === " ") {
@@ -827,82 +607,43 @@ export const ChatRowContent = memo(
 											handleToggle()
 										}
 									}}
-									style={{
-										color: "var(--vscode-descriptionForeground)",
-										padding: "9px 10px",
-										cursor: "pointer",
-										userSelect: "none",
-										WebkitUserSelect: "none",
-										MozUserSelect: "none",
-										msUserSelect: "none",
-									}}
 									tabIndex={0}>
 									{isExpanded ? (
 										<div>
-											<div style={{ display: "flex", alignItems: "center", marginBottom: "8px" }}>
-												<span style={{ fontWeight: "bold", marginRight: "4px" }}>Summary:</span>
-												<div style={{ flexGrow: 1 }}></div>
-												<span
-													className="codicon codicon-chevron-up"
-													style={{
-														fontSize: 13.5,
-														margin: "1px 0",
-													}}></span>
+											<div className="flex items-center mb-2">
+												<span className="font-bold mr-1">Summary:</span>
+												<div className="grow" />
+												<span className="codicon codicon-chevron-up my-0.5 shrink-0" />
 											</div>
-											<span
-												className="ph-no-capture"
-												style={{
-													whiteSpace: "pre-wrap",
-													wordBreak: "break-word",
-													overflowWrap: "anywhere",
-												}}>
-												{tool.content}
-											</span>
+											<span className="ph-no-capture break-words whitespace-pre-wrap">{tool.content}</span>
 										</div>
 									) : (
-										<div style={{ display: "flex", alignItems: "center" }}>
-											<span
-												className="ph-no-capture"
-												style={{
-													whiteSpace: "nowrap",
-													overflow: "hidden",
-													textOverflow: "ellipsis",
-													marginRight: "8px",
-													direction: "rtl",
-													textAlign: "left",
-													flex: 1,
-												}}>
+										<div className="flex items-center">
+											<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis text-left flex-1 mr-2 [direction:rtl]">
 												{tool.content + "\u200E"}
 											</span>
-											<span
-												className="codicon codicon-chevron-down"
-												style={{
-													fontSize: 13.5,
-													margin: "1px 0",
-													flexShrink: 0,
-												}}></span>
+											<span className="codicon codicon-chevron-down my-0.5 shrink-0" />
 										</div>
 									)}
 								</div>
 							</div>
-						</>
+						</div>
 					)
 				case "webFetch":
 					return (
-						<>
-							<div style={headerStyle}>
-								<span
-									className="codicon codicon-link"
-									style={{ color: normalColor, marginBottom: "-1.5px" }}></span>
+						<div>
+							<div className={HEADER_CLASSNAMES}>
+								<Link2Icon className="size-2" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This URL is external")}
-								<span style={{ fontWeight: "bold" }}>
+								<span className="font-bold">
 									{message.type === "ask"
 										? "Cline wants to fetch content from this URL:"
 										: "Cline fetched content from this URL:"}
 								</span>
 							</div>
 							<div
+								className="bg-code rounded-xs overflow-hidden border border-editor-group-border py-2 px-2.5 cursor-pointer select-none"
 								onClick={() => {
 									// Open the URL in the default browser using gRPC
 									if (tool.path) {
@@ -910,82 +651,35 @@ export const ChatRowContent = memo(
 											console.error("Failed to open URL:", err)
 										})
 									}
-								}}
-								style={{
-									borderRadius: 3,
-									backgroundColor: CODE_BLOCK_BG_COLOR,
-									overflow: "hidden",
-									border: "1px solid var(--vscode-editorGroup-border)",
-									padding: "9px 10px",
-									cursor: "pointer",
-									userSelect: "none",
-									WebkitUserSelect: "none",
-									MozUserSelect: "none",
-									msUserSelect: "none",
 								}}>
-								<span
-									className="ph-no-capture"
-									style={{
-										whiteSpace: "nowrap",
-										overflow: "hidden",
-										textOverflow: "ellipsis",
-										marginRight: "8px",
-										direction: "rtl",
-										textAlign: "left",
-										color: "var(--vscode-textLink-foreground)",
-										textDecoration: "underline",
-									}}>
+								<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis mr-2 [direction:rtl] text-left text-link underline">
 									{tool.path + "\u200E"}
 								</span>
 							</div>
-							{/* Displaying the 'content' which now holds "Fetching URL: [URL]" */}
-							{/* <div style={{ paddingTop: 5, fontSize: '0.9em', opacity: 0.8 }}>{tool.content}</div> */}
-						</>
+						</div>
 					)
 				case "webSearch":
 					return (
-						<>
-							<div style={headerStyle}>
-								<span
-									className="codicon codicon-search"
-									style={{ color: normalColor, marginBottom: "-1.5px" }}></span>
+						<div>
+							<div className={HEADER_CLASSNAMES}>
+								<SearchIcon className="size-2 rotate-90" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This search is external")}
-								<span style={{ fontWeight: "bold" }}>
+								<span className="font-bold">
 									{message.type === "ask"
 										? "Cline wants to search the web for:"
 										: "Cline searched the web for:"}
 								</span>
 							</div>
-							<div
-								style={{
-									borderRadius: 3,
-									backgroundColor: CODE_BLOCK_BG_COLOR,
-									overflow: "hidden",
-									border: "1px solid var(--vscode-editorGroup-border)",
-									padding: "9px 10px",
-									userSelect: "text",
-									WebkitUserSelect: "text",
-									MozUserSelect: "text",
-									msUserSelect: "text",
-								}}>
-								<span
-									className="ph-no-capture"
-									style={{
-										whiteSpace: "nowrap",
-										overflow: "hidden",
-										textOverflow: "ellipsis",
-										marginRight: "8px",
-										direction: "rtl",
-										textAlign: "left",
-									}}>
+							<div className="bg-code border border-editor-group-border overflow-hidden rounded-xs select-text py-[9px] px-2.5">
+								<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis mr-2 text-left [direction:rtl]">
 									{tool.path + "\u200E"}
 								</span>
 							</div>
-						</>
+						</div>
 					)
 				default:
-					return null
+					return <InvisibleSpacer />
 			}
 		}
 
@@ -1014,257 +708,19 @@ export const ChatRowContent = memo(
 		}, [isCommandMessage, isCommandExecuting, isExpanded, onToggleExpand, message.ts])
 
 		if (message.ask === "command" || message.say === "command") {
-			const splitMessage = (text: string) => {
-				const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
-				if (outputIndex === -1) {
-					return { command: text, output: "" }
-				}
-				return {
-					command: text.slice(0, outputIndex).trim(),
-					output: text
-						.slice(outputIndex + COMMAND_OUTPUT_STRING.length)
-						.trim()
-						.split("")
-						.map((char) => {
-							switch (char) {
-								case "\t":
-									return "→   "
-								case "\b":
-									return "⌫"
-								case "\f":
-									return "⏏"
-								case "\v":
-									return "⇳"
-								default:
-									return char
-							}
-						})
-						.join(""),
-				}
-			}
-
-			const { command: rawCommand, output } = splitMessage(message.text || "")
-
-			const requestsApproval = rawCommand.endsWith(COMMAND_REQ_APP_STRING)
-			const command = requestsApproval ? rawCommand.slice(0, -COMMAND_REQ_APP_STRING.length) : rawCommand
-			const showCancelButton =
-				(isCommandExecuting || isCommandPending) &&
-				typeof onCancelCommand === "function" &&
-				vscodeTerminalExecutionMode === "backgroundExec"
-
-			// Check if this is a Cline subagent command (only on VSCode platform, not JetBrains/standalone)
-			const isSubagentCommand = PLATFORM_CONFIG.type === PlatformType.VSCODE && command.trim().startsWith("cline ")
-			let subagentPrompt: string | undefined
-
-			if (isSubagentCommand) {
-				// Parse the cline command to extract prompt
-				// Format: cline "prompt"
-				const clineCommandRegex = /^cline\s+"([^"]+)"(?:\s+--no-interactive)?/
-				const match = command.match(clineCommandRegex)
-
-				if (match) {
-					subagentPrompt = match[1]
-				}
-			}
-
-			// Compact Cline SVG icon component
-			const ClineIcon = () => (
-				<svg height="16" style={{ marginBottom: "-1.5px" }} viewBox="0 0 92 96" width="16">
-					<g fill="currentColor">
-						<path d="M65.4492701,16.3 C76.3374701,16.3 85.1635558,25.16479 85.1635558,36.1 L85.1635558,42.7 L90.9027661,54.1647464 C91.4694141,55.2966923 91.4668177,56.6300535 90.8957658,57.7597839 L85.1635558,69.1 L85.1635558,75.7 C85.1635558,86.63554 76.3374701,95.5 65.4492701,95.5 L26.0206986,95.5 C15.1328272,95.5 6.30641291,86.63554 6.30641291,75.7 L6.30641291,69.1 L0.448507752,57.7954874 C-0.14693501,56.6464093 -0.149634367,55.2802504 0.441262896,54.1288283 L6.30641291,42.7 L6.30641291,36.1 C6.30641291,25.16479 15.1328272,16.3 26.0206986,16.3 L65.4492701,16.3 Z M62.9301895,22 L29.189529,22 C19.8723267,22 12.3191987,29.5552188 12.3191987,38.875 L12.3191987,44.5 L7.44288578,53.9634655 C6.84794449,55.1180686 6.85066096,56.4896598 7.45017099,57.6418974 L12.3191987,67 L12.3191987,72.625 C12.3191987,81.9450625 19.8723267,89.5 29.189529,89.5 L62.9301895,89.5 C72.2476729,89.5 79.8005198,81.9450625 79.8005198,72.625 L79.8005198,67 L84.5682187,57.6061395 C85.1432011,56.473244 85.1458141,55.1345713 84.5752587,53.9994398 L79.8005198,44.5 L79.8005198,38.875 C79.8005198,29.5552188 72.2476729,22 62.9301895,22 Z" />
-						<ellipse cx="45.7349843" cy="11" rx="12" ry="14" />
-						<ellipse cx="33.5" cy="55.5" rx="8" ry="9" />
-						<ellipse cx="57.5" cy="55.5" rx="8" ry="9" />
-					</g>
-				</svg>
-			)
-
-			// Customize icon and title for subagent commands
-			const displayIcon = isSubagentCommand ? (
-				<span style={{ color: normalColor }}>
-					<ClineIcon />
-				</span>
-			) : (
-				icon
-			)
-
-			const displayTitle = isSubagentCommand ? (
-				<span style={{ color: normalColor, fontWeight: "bold" }}>Cline wants to use a subagent:</span>
-			) : (
-				title
-			)
-
-			const commandHeader = (
-				<div style={headerStyle}>
-					{displayIcon}
-					{displayTitle}
-				</div>
-			)
-
 			return (
-				<>
-					{commandHeader}
-					<div
-						style={{
-							borderRadius: 6,
-							border: "1px solid var(--vscode-editorGroup-border)",
-							overflow: "visible",
-							backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
-							transition: "all 0.3s ease-in-out",
-						}}>
-						{command && (
-							<div
-								style={{
-									display: "flex",
-									alignItems: "center",
-									justifyContent: "space-between",
-									padding: "8px 10px",
-									backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
-									borderBottom: "1px solid var(--vscode-editorGroup-border)",
-									borderTopLeftRadius: "6px",
-									borderTopRightRadius: "6px",
-									borderBottomLeftRadius: 0,
-									borderBottomRightRadius: 0,
-								}}>
-								<div
-									style={{
-										display: "flex",
-										alignItems: "center",
-										gap: "8px",
-										flex: 1,
-										minWidth: 0,
-									}}>
-									<div
-										style={{
-											width: "8px",
-											height: "8px",
-											borderRadius: "50%",
-											backgroundColor: isCommandExecuting
-												? successColor
-												: isCommandPending
-													? "var(--vscode-editorWarning-foreground)"
-													: "var(--vscode-descriptionForeground)",
-											animation: isCommandExecuting ? "pulse 2s ease-in-out infinite" : "none",
-											flexShrink: 0,
-										}}
-									/>
-									<span
-										style={{
-											color: isCommandExecuting
-												? successColor
-												: isCommandPending
-													? "var(--vscode-editorWarning-foreground)"
-													: "var(--vscode-descriptionForeground)",
-											fontWeight: 500,
-											fontSize: "13px",
-											flexShrink: 0,
-										}}>
-										{isCommandExecuting
-											? "Running"
-											: isCommandPending
-												? "Pending"
-												: isCommandCompleted
-													? "Completed"
-													: "Skipped"}
-									</span>
-								</div>
-								<div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-									{showCancelButton && (
-										<button
-											onClick={(e) => {
-												e.stopPropagation()
-												if (vscodeTerminalExecutionMode === "backgroundExec") {
-													onCancelCommand?.()
-												} else {
-													// For regular terminal mode, show a message
-													alert(
-														"This command is running in the VSCode terminal. You can manually stop it using Ctrl+C in the terminal, or switch to Background Execution mode in settings for cancellable commands.",
-													)
-												}
-											}}
-											onMouseEnter={(e) => {
-												e.currentTarget.style.background = "var(--vscode-button-secondaryHoverBackground)"
-											}}
-											onMouseLeave={(e) => {
-												e.currentTarget.style.background = "var(--vscode-button-secondaryBackground)"
-											}}
-											style={{
-												background: "var(--vscode-button-secondaryBackground)",
-												color: "var(--vscode-button-secondaryForeground)",
-												border: "none",
-												borderRadius: "2px",
-												padding: "4px 10px",
-												fontSize: "12px",
-												cursor: "pointer",
-												fontFamily: "inherit",
-											}}>
-											{vscodeTerminalExecutionMode === "backgroundExec" ? "cancel" : "stop"}
-										</button>
-									)}
-								</div>
-							</div>
-						)}
-						{isSubagentCommand && subagentPrompt && (
-							<div style={{ padding: "10px", borderBottom: "1px solid var(--vscode-editorGroup-border)" }}>
-								<div style={{ marginBottom: 0 }}>
-									<strong>Prompt:</strong>{" "}
-									<span className="ph-no-capture" style={{ fontFamily: "var(--vscode-editor-font-family)" }}>
-										{subagentPrompt}
-									</span>
-								</div>
-							</div>
-						)}
-						{/* {output.length > 0 && (
-							<div style={{ width: "100%" }}>
-								<div
-									onClick={handleToggle}
-									style={{
-										display: "flex",
-										alignItems: "center",
-										gap: "4px",
-										width: "100%",
-										justifyContent: "flex-start",
-										cursor: "pointer",
-										padding: `2px 8px ${isExpanded ? 0 : 8}px 8px`,
-									}}>
-									<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}></span>
-									<span style={{ fontSize: "0.8em" }}>
-										{isSubagentCommand ? "Subagent Output" : "Command Output"}
-									</span>
-								</div>
-							</div>
-						)} */}
-						{!isSubagentCommand && (
-							<div style={{ opacity: 0.6, backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR }}>
-								<div style={{ backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR }}>
-									<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
-								</div>
-							</div>
-						)}
-						{output.length > 0 && (
-							<CommandOutput
-								isContainerExpanded={true}
-								isOutputFullyExpanded={isOutputFullyExpanded}
-								onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
-								output={output}
-							/>
-						)}
-					</div>
-					{requestsApproval && (
-						<div
-							style={{
-								display: "flex",
-								alignItems: "center",
-								gap: 10,
-								padding: 8,
-								fontSize: "12px",
-								color: "var(--vscode-editorWarning-foreground)",
-							}}>
-							<i className="codicon codicon-warning"></i>
-							<span>The model has determined this command requires explicit approval.</span>
-						</div>
-					)}
-				</>
+				<CommandOutputRow
+					icon={icon}
+					isBackgroundExec={vscodeTerminalExecutionMode === "backgroundExec"}
+					isCommandCompleted={isCommandCompleted}
+					isCommandExecuting={isCommandExecuting}
+					isCommandPending={isCommandPending}
+					isOutputFullyExpanded={isOutputFullyExpanded}
+					message={message}
+					onCancelCommand={onCancelCommand}
+					setIsOutputFullyExpanded={setIsOutputFullyExpanded}
+					title={title}
+				/>
 			)
 		}
 
@@ -1272,19 +728,13 @@ export const ChatRowContent = memo(
 			const useMcpServer = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
 			const server = mcpServers.find((server) => server.name === useMcpServer.serverName)
 			return (
-				<>
-					<div style={headerStyle}>
+				<div>
+					<div className={HEADER_CLASSNAMES}>
 						{icon}
 						{title}
 					</div>
 
-					<div
-						style={{
-							background: "var(--vscode-textCodeBlock-background)",
-							borderRadius: "3px",
-							padding: "8px 10px",
-							marginTop: "8px",
-						}}>
+					<div className="bg-code rounded-xs py-2 px-2.5 mt-2">
 						{useMcpServer.type === "access_mcp_resource" && (
 							<McpResourceRow
 								item={{
@@ -1303,7 +753,7 @@ export const ChatRowContent = memo(
 						)}
 
 						{useMcpServer.type === "use_mcp_tool" && (
-							<>
+							<div>
 								<div onClick={(e) => e.stopPropagation()}>
 									<McpToolRow
 										serverName={useMcpServer.serverName}
@@ -1319,16 +769,8 @@ export const ChatRowContent = memo(
 									/>
 								</div>
 								{useMcpServer.arguments && useMcpServer.arguments !== "{}" && (
-									<div style={{ marginTop: "8px" }}>
-										<div
-											style={{
-												marginBottom: "4px",
-												opacity: 0.8,
-												fontSize: "12px",
-												textTransform: "uppercase",
-											}}>
-											Arguments
-										</div>
+									<div className="mt-2">
+										<div className="mb-1 opacity-80 uppercase">Arguments</div>
 										<CodeAccordian
 											code={useMcpServer.arguments}
 											isExpanded={true}
@@ -1337,64 +779,173 @@ export const ChatRowContent = memo(
 										/>
 									</div>
 								)}
-							</>
+							</div>
 						)}
 					</div>
-				</>
+				</div>
 			)
 		}
 
 		switch (message.type) {
 			case "say":
 				switch (message.say) {
-					case "api_req_started":
-						return (
-							<>
-								<div
-									aria-label={isExpanded ? "Collapse API request" : "Expand API request"}
-									onClick={handleToggle}
-									onKeyDown={(e) => {
-										if (e.key === "Enter" || e.key === " ") {
-											e.preventDefault()
-											e.stopPropagation()
-											handleToggle()
+					case "api_req_started": {
+						// Derive explicit state
+						const hasError = !!(apiRequestFailedMessage || apiReqStreamingFailedMessage)
+						const hasCost = cost != null
+						const hasReasoning = !!reasoningContent
+						const hasResponseStarted = !!responseStarted
+
+						const apiReqState: ApiReqState = hasError
+							? "error"
+							: hasCost
+								? "final"
+								: hasReasoning
+									? "thinking"
+									: "pre"
+
+						// While reasoning is streaming, keep the Brain ThinkingBlock exactly as-is.
+						// Once response content starts (any text/tool/command), collapse into a compact
+						// "🧠 Thinking" row that can be expanded to show the reasoning only.
+						const showStreamingThinking = hasReasoning && !hasResponseStarted && !hasError && !hasCost
+						const showCollapsedThinking = hasReasoning && !showStreamingThinking
+
+						// Find all exploratory tool activities from the PREVIOUS completed API request.
+						// This shows what Cline just ingested while waiting for the next response.
+						// Includes action verbiage and icons for each tool type.
+						// Memoized to avoid iterating through all messages on every render.
+						const currentActivities = useMemo(() => {
+							const activities: { icon: LucideIcon; text: string }[] = []
+
+							// Helper to format search regex for display - show all terms separated by |
+							const formatSearchRegex = (regex: string, path: string, filePattern?: string): string => {
+								const terms = regex
+									.split("|")
+									.map((t) => t.trim().replace(/\\b/g, "").replace(/\\s\?/g, " "))
+									.filter(Boolean)
+								let result = `"${terms.join(" | ")}" in ${cleanPathPrefix(path)}/`
+								if (filePattern && filePattern !== "*") {
+									result += ` (${filePattern})`
+								}
+								return result
+							}
+
+							// Find the most recent api_req_started (the current one being rendered)
+							// Then find the PREVIOUS api_req_started that has a cost (completed)
+							// Collect all low-stakes tools between those two
+
+							let currentApiReqIndex = -1
+							let prevCompletedApiReqIndex = -1
+
+							// Find the current api_req_started (most recent)
+							for (let i = clineMessages.length - 1; i >= 0; i--) {
+								if (clineMessages[i].say === "api_req_started") {
+									currentApiReqIndex = i
+									break
+								}
+							}
+
+							if (currentApiReqIndex === -1) {
+								return activities
+							}
+
+							// Find the previous api_req_started that is completed (has cost)
+							for (let i = currentApiReqIndex - 1; i >= 0; i--) {
+								const msg = clineMessages[i]
+								if (msg.say === "api_req_started" && msg.text) {
+									try {
+										const info = JSON.parse(msg.text)
+										if (info.cost != null) {
+											prevCompletedApiReqIndex = i
+											break
 										}
-									}}
-									style={{
-										...headerStyle,
-										marginBottom:
-											(cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage ? 10 : 0,
-										justifyContent: "space-between",
-										cursor: "pointer",
-										userSelect: "none",
-										WebkitUserSelect: "none",
-										MozUserSelect: "none",
-										msUserSelect: "none",
-									}}
-									tabIndex={0}>
-									<div
-										style={{
-											display: "flex",
-											alignItems: "center",
-											gap: "10px",
-										}}>
-										{icon}
-										{title}
-										{/* Need to render this every time since it affects height of row by 2px */}
-										<VSCodeBadge
-											className={cn("text-sm", {
-												"opacity-100": cost != null && cost > 0,
-												"opacity-0": cost == null || cost <= 0,
-											})}
-											style={{
-												opacity: cost != null && cost > 0 ? 1 : 0,
-											}}>
-											{cost != null && Number(cost || 0) > 0 ? `$${Number(cost || 0).toFixed(4)}` : ""}
-										</VSCodeBadge>
+									} catch {
+										// ignore parse errors
+									}
+								}
+							}
+
+							if (prevCompletedApiReqIndex === -1) {
+								return activities
+							}
+
+							// Collect all low-stakes tools between prevCompletedApiReq and currentApiReq
+							for (let i = prevCompletedApiReqIndex + 1; i < currentApiReqIndex; i++) {
+								const msg = clineMessages[i]
+								if (msg.say === "tool" || msg.ask === "tool") {
+									try {
+										const tool = JSON.parse(msg.text || "{}") as ClineSayTool
+										const toolIcon = getIconByToolName(tool.tool)
+										// Exploratory tools - collect activity with icon and action verbiage
+										if (tool.tool === "readFile" && tool.path) {
+											activities.push({
+												icon: toolIcon,
+												text: `Reading ${cleanPathPrefix(tool.path)}...`,
+											})
+										} else if (tool.tool === "listFilesTopLevel" && tool.path) {
+											activities.push({
+												icon: toolIcon,
+												text: `Exploring ${cleanPathPrefix(tool.path)}/...`,
+											})
+										} else if (tool.tool === "listFilesRecursive" && tool.path) {
+											activities.push({
+												icon: toolIcon,
+												text: `Exploring ${cleanPathPrefix(tool.path)}/...`,
+											})
+										} else if (tool.tool === "searchFiles" && tool.regex && tool.path) {
+											activities.push({
+												icon: toolIcon,
+												text: `Searching ${formatSearchRegex(tool.regex, tool.path, tool.filePattern)}...`,
+											})
+										} else if (tool.tool === "listCodeDefinitionNames" && tool.path) {
+											activities.push({
+												icon: toolIcon,
+												text: `Analyzing ${cleanPathPrefix(tool.path)}/...`,
+											})
+										}
+										// Non-exploratory tools are ignored (they have their own UI)
+									} catch {
+										// ignore parse errors
+									}
+								}
+							}
+
+							return activities
+						}, [clineMessages])
+
+						return (
+							<div>
+								{apiReqState === "pre" && (
+									<div className="flex items-center text-description w-full text-sm">
+										<div className="ml-1 flex-1 w-full h-full">
+											{currentActivities.length > 0 ? (
+												<div className="flex flex-col gap-0.5 w-full min-h-1">
+													{currentActivities.map((activity, _) => (
+														<div
+															className="flex items-center gap-2 h-auto w-full overflow-hidden"
+															key={activity.text}>
+															<activity.icon className="size-2 text-foreground shrink-0" />
+															<TypewriterText speed={15} text={activity.text} />
+														</div>
+													))}
+												</div>
+											) : (
+												<TypewriterText text={mode === "plan" ? "Planning..." : "Thinking..."} />
+											)}
+										</div>
 									</div>
-									<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
-								</div>
-								{((cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage) && (
+								)}
+								{reasoningContent && (
+									<ThinkingRow
+										isExpanded={isExpanded || showStreamingThinking || showCollapsedThinking}
+										isVisible={true}
+										onToggle={handleToggle}
+										reasoningContent={reasoningContent}
+										showTitle={false}
+									/>
+								)}
+
+								{apiReqState === "error" && (
 									<ErrorRow
 										apiReqStreamingFailedMessage={apiReqStreamingFailedMessage}
 										apiRequestFailedMessage={apiRequestFailedMessage}
@@ -1402,138 +953,56 @@ export const ChatRowContent = memo(
 										message={message}
 									/>
 								)}
-
-								{isExpanded && (
-									<div style={{ marginTop: "10px" }}>
-										<CodeAccordian
-											code={JSON.parse(message.text || "{}").request}
-											isExpanded={true}
-											language="markdown"
-											onToggleExpand={handleToggle}
-										/>
-									</div>
-								)}
-							</>
+							</div>
 						)
+					}
 					case "api_req_finished":
-						return null // we should never see this message type
+						return <InvisibleSpacer /> // we should never see this message type
 					case "mcp_server_response":
 						return <McpResponseDisplay responseText={message.text || ""} />
 					case "mcp_notification":
 						return (
-							<div
-								style={{
-									display: "flex",
-									alignItems: "flex-start",
-									gap: "8px",
-									padding: "8px 12px",
-									backgroundColor: "var(--vscode-textBlockQuote-background)",
-									borderRadius: "4px",
-									fontSize: "13px",
-									color: "var(--vscode-foreground)",
-									opacity: 0.9,
-									marginBottom: "8px",
-								}}>
-								<i
-									className="codicon codicon-bell"
-									style={{
-										marginTop: "2px",
-										fontSize: "14px",
-										color: "var(--vscode-notificationsInfoIcon-foreground)",
-										flexShrink: 0,
-									}}
-								/>
-								<div style={{ flex: 1, wordBreak: "break-word" }}>
-									<span style={{ fontWeight: 500 }}>MCP Notification: </span>
+							<div className="flex items-start gap-2 py-2.5 px-3 bg-quote rounded-sm text-base text-foreground opacity-90 mb-2">
+								<BellIcon className="mt-0.5 size-2 text-notification-foreground shrink-0" />
+								<div className="break-words flex-1">
+									<span className="font-medium">MCP Notification: </span>
 									<span className="ph-no-capture">{message.text}</span>
 								</div>
 							</div>
 						)
-					case "text":
+					case "text": {
 						return (
 							<WithCopyButton
 								onMouseUp={handleMouseUp}
 								position="bottom-right"
 								ref={contentRef}
 								textToCopy={message.text}>
-								<Markdown markdown={message.text} />
+								<div className="flex items-center">
+									<div className={cn("flex-1 min-w-0 pl-1")}>
+										<MarkdownRow markdown={message.text} showCursor={false} />
+									</div>
+								</div>
 								{quoteButtonState.visible && (
 									<QuoteButton
 										left={quoteButtonState.left}
-										onClick={() => {
-											handleQuoteClick()
-										}}
+										onClick={handleQuoteClick}
 										top={quoteButtonState.top}
 									/>
 								)}
 							</WithCopyButton>
 						)
-					case "reasoning":
+					}
+					case "reasoning": {
 						return (
-							<>
-								{message.text && (
-									<div
-										aria-label={isExpanded ? "Collapse thinking" : "Expand thinking"}
-										onClick={handleToggle}
-										onKeyDown={(e) => {
-											if (e.key === "Enter" || e.key === " ") {
-												e.preventDefault()
-												e.stopPropagation()
-												handleToggle()
-											}
-										}}
-										style={{
-											// marginBottom: 15,
-											cursor: "pointer",
-											color: "var(--vscode-descriptionForeground)",
-
-											fontStyle: "italic",
-											overflow: "hidden",
-										}}
-										tabIndex={0}>
-										{isExpanded ? (
-											<div style={{ marginTop: -3 }}>
-												<span style={{ fontWeight: "bold", display: "block", marginBottom: "4px" }}>
-													Thinking
-													<span
-														className="codicon codicon-chevron-down"
-														style={{
-															display: "inline-block",
-															transform: "translateY(3px)",
-															marginLeft: "1.5px",
-														}}
-													/>
-												</span>
-												<span className="ph-no-capture">{message.text}</span>
-											</div>
-										) : (
-											<div style={{ display: "flex", alignItems: "center" }}>
-												<span style={{ fontWeight: "bold", marginRight: "4px" }}>Thinking:</span>
-												<span
-													className="ph-no-capture"
-													style={{
-														whiteSpace: "nowrap",
-														overflow: "hidden",
-														textOverflow: "ellipsis",
-														direction: "rtl",
-														textAlign: "left",
-														flex: 1,
-													}}>
-													{message.text + "\u200E"}
-												</span>
-												<span
-													className="codicon codicon-chevron-right"
-													style={{
-														marginLeft: "4px",
-														flexShrink: 0,
-													}}
-												/>
-											</div>
-										)}
-									</div>
-								)}
-							</>
+							<ThinkingRow
+								isExpanded={isExpanded}
+								isVisible={true}
+								onToggle={handleToggle}
+								reasoningContent={message.text}
+								showTitle={true}
+							/>
 						)
+					}
 					case "user_feedback":
 						return (
 							<UserMessage
@@ -1547,11 +1016,7 @@ export const ChatRowContent = memo(
 					case "user_feedback_diff":
 						const tool = JSON.parse(message.text || "{}") as ClineSayTool
 						return (
-							<div
-								style={{
-									marginTop: -10,
-									width: "100%",
-								}}>
+							<div className="w-full -mt-2.5">
 								<CodeAccordian
 									diff={tool.diff!}
 									isExpanded={isExpanded}
@@ -1570,16 +1035,8 @@ export const ChatRowContent = memo(
 						return <CheckmarkControl isCheckpointCheckedOut={message.isCheckpointCheckedOut} messageTs={message.ts} />
 					case "load_mcp_documentation":
 						return (
-							<div
-								style={{
-									display: "flex",
-									alignItems: "center",
-									color: "var(--vscode-foreground)",
-									opacity: 0.7,
-									fontSize: 12,
-									padding: "4px 0",
-								}}>
-								<i className="codicon codicon-book" style={{ marginRight: 6 }} />
+							<div className="text-foreground flex items-center opacity-70 text-[12px] py-1 px-0">
+								<i className="codicon codicon-book mr-1.5" />
 								Loading MCP documentation
 							</div>
 						)
@@ -1608,42 +1065,18 @@ export const ChatRowContent = memo(
 						const isGenerating = explanationInfo.status === "generating" && !wasCancelled
 						const isError = explanationInfo.status === "error"
 						return (
-							<div
-								style={{
-									display: "flex",
-									flexDirection: "column",
-									backgroundColor: CODE_BLOCK_BG_COLOR,
-									border: "1px solid var(--vscode-editorGroup-border)",
-									borderRadius: 5,
-									padding: "10px 12px",
-									fontSize: 12,
-								}}>
-								<div
-									style={{
-										display: "flex",
-										alignItems: "center",
-									}}>
+							<div className="bg-code flex flex-col border border-editor-group-border rounded-sm py-2.5 px-3">
+								<div className="flex items-center">
 									{isGenerating ? (
-										<span style={{ marginRight: 8 }}>
-											<ProgressIndicator />
-										</span>
+										<ProgressIndicator />
 									) : isError ? (
-										<i
-											className="codicon codicon-error"
-											style={{ marginRight: 8, color: "var(--vscode-errorForeground)" }}
-										/>
+										<CircleXIcon className="size-2 mr-2 text-error" />
 									) : wasCancelled ? (
-										<i
-											className="codicon codicon-circle-slash"
-											style={{ marginRight: 8, color: "var(--vscode-descriptionForeground)" }}
-										/>
+										<CircleSlashIcon className="size-2 mr-2" />
 									) : (
-										<i
-											className="codicon codicon-check"
-											style={{ marginRight: 8, color: "var(--vscode-charts-green)" }}
-										/>
+										<CheckIcon className="size-2 mr-2 text-success" />
 									)}
-									<span style={{ fontWeight: 500 }}>
+									<span className="font-semibold">
 										{isGenerating
 											? "Generating explanation"
 											: isError
@@ -1654,44 +1087,18 @@ export const ChatRowContent = memo(
 									</span>
 								</div>
 								{isError && explanationInfo.error && (
-									<div
-										style={{
-											opacity: 0.8,
-											marginLeft: 24,
-											marginTop: 6,
-											color: "var(--vscode-errorForeground)",
-											wordBreak: "break-word",
-										}}>
-										{explanationInfo.error}
-									</div>
+									<div className="opacity-80 ml-6 mt-1.5 text-error break-words">{explanationInfo.error}</div>
 								)}
 								{!isError && (explanationInfo.title || explanationInfo.fromRef) && (
-									<div style={{ opacity: 0.8, marginLeft: 24, marginTop: 6 }}>
+									<div className="opacity-80 ml-6 mt-1.5">
 										<div>{explanationInfo.title}</div>
 										{explanationInfo.fromRef && (
-											<div
-												style={{
-													fontSize: 11,
-													opacity: 0.7,
-													marginTop: 4,
-													marginLeft: -3,
-													wordBreak: "break-all",
-												}}>
-												<code
-													style={{
-														background: "var(--vscode-textBlockQuote-background)",
-														padding: "2px 6px",
-														borderRadius: 3,
-													}}>
+											<div className="opacity-70 mt-1.5 break-all text-xs">
+												<code className="bg-quote rounded-sm py-0.5 pr-1.5">
 													{explanationInfo.fromRef}
 												</code>
-												<span style={{ margin: "0 6px" }}>→</span>
-												<code
-													style={{
-														background: "var(--vscode-textBlockQuote-background)",
-														padding: "2px 6px",
-														borderRadius: 3,
-													}}>
+												<ArrowRightIcon className="inline size-2 mx-1" />
+												<code className="bg-quote rounded-sm py-0.5 px-1.5">
 													{explanationInfo.toRef || "working directory"}
 												</code>
 											</div>
@@ -1704,130 +1111,36 @@ export const ChatRowContent = memo(
 					case "completion_result":
 						const hasChanges = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
 						const text = hasChanges ? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
+
 						return (
-							<>
-								<div
-									style={{
-										borderRadius: 6,
-										border: `1px solid ${successColor}`,
-										backgroundColor: "color-mix(in srgb, var(--vscode-charts-green) 8%, transparent)",
-										padding: "10px 12px",
-									}}>
-									<div
-										style={{
-											...headerStyle,
-											marginBottom: "10px",
-										}}>
-										{icon}
-										{title}
-									</div>
-									<WithCopyButton
-										copyButtonStyle={{ bottom: 10, right: -8 }}
-										onMouseUp={handleMouseUp}
-										position="bottom-right"
-										ref={contentRef}
-										textToCopy={text}>
-										<Markdown markdown={text} />
-										{quoteButtonState.visible && (
-											<QuoteButton
-												left={quoteButtonState.left}
-												onClick={handleQuoteClick}
-												top={quoteButtonState.top}
-											/>
-										)}
-									</WithCopyButton>
-								</div>
-								{message.partial !== true && hasChanges && (
-									<div style={{ paddingTop: 17, display: "flex", flexDirection: "column", gap: 8 }}>
-										<SuccessButton
-											disabled={seeNewChangesDisabled}
-											onClick={() => {
-												setSeeNewChangesDisabled(true)
-												TaskServiceClient.taskCompletionViewChanges(
-													Int64Request.create({
-														value: message.ts,
-													}),
-												).catch((err) =>
-													console.error("Failed to show task completion view changes:", err),
-												)
-											}}
-											style={{
-												cursor: seeNewChangesDisabled ? "wait" : "pointer",
-												width: "100%",
-											}}>
-											<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
-											View Changes
-										</SuccessButton>
-										{PLATFORM_CONFIG.type === PlatformType.VSCODE && (
-											<SuccessButton
-												disabled={explainChangesDisabled}
-												onClick={() => {
-													setExplainChangesDisabled(true)
-													TaskServiceClient.explainChanges({
-														metadata: {},
-														messageTs: message.ts,
-													}).catch((err) => {
-														console.error("Failed to explain changes:", err)
-														setExplainChangesDisabled(false)
-													})
-												}}
-												style={{
-													cursor: explainChangesDisabled ? "wait" : "pointer",
-													width: "100%",
-													backgroundColor: "var(--vscode-button-secondaryBackground)",
-													borderColor: "var(--vscode-button-secondaryBackground)",
-												}}>
-												<i className="codicon codicon-comment-discussion" style={{ marginRight: 6 }} />
-												{explainChangesDisabled ? "Explaining..." : "Explain Changes"}
-											</SuccessButton>
-										)}
-									</div>
-								)}
-							</>
+							<CompletionOutputRow
+								explainChangesDisabled={explainChangesDisabled}
+								handleQuoteClick={handleQuoteClick}
+								headClassNames={HEADER_CLASSNAMES}
+								messageTs={message.ts}
+								quoteButtonState={quoteButtonState}
+								seeNewChangesDisabled={seeNewChangesDisabled}
+								setExplainChangesDisabled={setExplainChangesDisabled}
+								setSeeNewChangesDisabled={setSeeNewChangesDisabled}
+								showActionRow={message.partial !== true && hasChanges}
+								text={text || ""}
+							/>
 						)
 					case "shell_integration_warning":
 						return (
-							<div
-								style={{
-									display: "flex",
-									flexDirection: "column",
-									backgroundColor: "var(--vscode-textBlockQuote-background)",
-									padding: 8,
-									borderRadius: 3,
-									fontSize: 12,
-								}}>
-								<div
-									style={{
-										display: "flex",
-										alignItems: "center",
-										marginBottom: 4,
-									}}>
-									<i
-										className="codicon codicon-warning"
-										style={{
-											marginRight: 8,
-											fontSize: 14,
-											color: "var(--vscode-descriptionForeground)",
-										}}></i>
-									<span
-										style={{
-											fontWeight: 500,
-											color: "var(--vscode-foreground)",
-										}}>
-										Shell Integration Unavailable
-									</span>
+							<div className="flex flex-col bg-warning/20 p-2 rounded-xs border border-error">
+								<div className="flex items-center mb-1">
+									<TriangleAlertIcon className="mr-2 size-2 stroke-3 text-error" />
+									<span className="font-medium text-foreground">Shell Integration Unavailable</span>
 								</div>
-								<div style={{ color: "var(--vscode-foreground)", opacity: 0.8 }}>
+								<div className="text-foreground opacity-80">
 									Cline may have trouble viewing the command's output. Please update VSCode (
 									<code>CMD/CTRL + Shift + P</code> → "Update") and make sure you're using a supported shell:
 									zsh, bash, fish, or PowerShell (<code>CMD/CTRL + Shift + P</code> → "Terminal: Select Default
-									Profile").{" "}
+									Profile").
 									<a
-										href="https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Shell-Integration-Unavailable"
-										style={{
-											color: "inherit",
-											textDecoration: "underline",
-										}}>
+										className="px-1"
+										href="https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Shell-Integration-Unavailable">
 										Still having trouble?
 									</a>
 								</div>
@@ -1836,104 +1149,73 @@ export const ChatRowContent = memo(
 					case "error_retry":
 						try {
 							const retryInfo = JSON.parse(message.text || "{}")
-							const { attempt, maxAttempts, delaySeconds, failed } = retryInfo
+							const { attempt, maxAttempts, delaySeconds, failed, errorMessage } = retryInfo
 							const isFailed = failed === true
 
 							return (
-								<div
-									style={{
-										display: "flex",
-										flexDirection: "column",
-										backgroundColor: "var(--vscode-textBlockQuote-background)",
-										padding: 8,
-										borderRadius: 3,
-										fontSize: 12,
-									}}>
-									<div
-										style={{
-											display: "flex",
-											alignItems: "center",
-											marginBottom: 4,
-										}}>
-										<i
-											className={isFailed ? "codicon codicon-warning" : "codicon codicon-sync"}
-											style={{
-												marginRight: 8,
-												fontSize: 14,
-												color: "var(--vscode-descriptionForeground)",
-											}}></i>
-										<span
-											style={{
-												fontWeight: 500,
-												color: "var(--vscode-foreground)",
-											}}>
-											{isFailed ? "Auto-Retry Failed" : "Auto-Retry in Progress"}
-										</span>
-									</div>
-									<div style={{ color: "var(--vscode-foreground)", opacity: 0.8 }}>
-										{isFailed ? (
-											<>
-												Auto-retry failed after <strong>{maxAttempts}</strong> attempts. Manual
-												intervention required.
-											</>
-										) : (
-											<>
-												Attempt <strong>{attempt}</strong> of <strong>{maxAttempts}</strong> - Retrying in{" "}
-												{delaySeconds} seconds...
-											</>
-										)}
+								<div className="flex flex-col gap-2">
+									{errorMessage && (
+										<p className="m-0 whitespace-pre-wrap text-error wrap-anywhere text-xs">{errorMessage}</p>
+									)}
+									<div className="flex flex-col bg-quote p-0 rounded-[3px] text-[12px]">
+										<div className="flex items-center mb-1">
+											{isFailed ? (
+												<TriangleAlertIcon className="mr-2 size-2" />
+											) : (
+												<RefreshCwIcon className="mr-2 size-2 animate-spin" />
+											)}
+											<span className="font-medium text-foreground">
+												{isFailed ? "Auto-Retry Failed" : "Auto-Retry in Progress"}
+											</span>
+										</div>
+										<div className="text-foreground opacity-80">
+											{isFailed ? (
+												<span>
+													Auto-retry failed after <strong>{maxAttempts}</strong> attempts. Manual
+													intervention required.
+												</span>
+											) : (
+												<span>
+													Attempt <strong>{attempt}</strong> of <strong>{maxAttempts}</strong> -
+													Retrying in {delaySeconds} seconds...
+												</span>
+											)}
+										</div>
 									</div>
 								</div>
 							)
 						} catch (_e) {
 							// Fallback if JSON parsing fails
 							return (
-								<div style={{ color: "var(--vscode-foreground)" }}>
-									<Markdown markdown={message.text} />
+								<div className="text-foreground">
+									<MarkdownRow markdown={message.text} />
 								</div>
 							)
 						}
 					case "hook_status":
-						return <HookMessage CommandOutput={CommandOutput} message={message} />
+						return <HookMessage CommandOutput={CommandOutputContent} message={message} />
 					case "hook_output_stream":
 						// hook_output_stream messages are combined with hook_status messages, so we don't render them separately
-						return null
+						return <InvisibleSpacer />
 					case "shell_integration_warning_with_suggestion":
 						const isBackgroundModeEnabled = vscodeTerminalExecutionMode === "backgroundExec"
 						return (
-							<div
-								style={{
-									padding: 8,
-									backgroundColor: "color-mix(in srgb, var(--vscode-textLink-foreground) 10%, transparent)",
-									borderRadius: 3,
-									border: "1px solid color-mix(in srgb, var(--vscode-textLink-foreground) 30%, transparent)",
-								}}>
-								<div
-									style={{
-										display: "flex",
-										alignItems: "center",
-										marginBottom: 4,
-									}}>
-									<i
-										className="codicon codicon-lightbulb"
-										style={{
-											marginRight: 6,
-											fontSize: 14,
-											color: "var(--vscode-textLink-foreground)",
-										}}></i>
-									<span
-										style={{
-											fontWeight: 500,
-											color: "var(--vscode-foreground)",
-										}}>
-										Shell integration issues
-									</span>
+							<div className="p-2 bg-link/10 border border-link/30 rounded-xs">
+								<div className="flex items-center mb-1">
+									<LightbulbIcon className="mr-1.5 size-2 text-link" />
+									<span className="font-medium text-foreground">Shell integration issues</span>
 								</div>
-								<div style={{ color: "var(--vscode-foreground)", opacity: 0.9, marginBottom: 8 }}>
+								<div className="text-foreground opacity-90 mb-2">
 									Since you're experiencing repeated shell integration issues, we recommend switching to
 									Background Terminal mode for better reliability.
 								</div>
 								<button
+									className={cn(
+										"bg-button-background text-button-foreground border-0 rounded-xs py-1.5 px-3 text-[12px] flex items-center gap-1.5 cursor-pointer hover:bg-button-hover",
+										{
+											"cursor-default opacity-80 bg-success": isBackgroundModeEnabled,
+										},
+									)}
 									disabled={isBackgroundModeEnabled}
 									onClick={async () => {
 										try {
@@ -1942,36 +1224,8 @@ export const ChatRowContent = memo(
 										} catch (error) {
 											console.error("Failed to enable background terminal:", error)
 										}
-									}}
-									onMouseEnter={(e) => {
-										if (!isBackgroundModeEnabled) {
-											e.currentTarget.style.background = "var(--vscode-button-hoverBackground)"
-										}
-									}}
-									onMouseLeave={(e) => {
-										if (!isBackgroundModeEnabled) {
-											e.currentTarget.style.background = isBackgroundModeEnabled
-												? "var(--vscode-charts-green)"
-												: "var(--vscode-button-background)"
-										}
-									}}
-									style={{
-										background: isBackgroundModeEnabled
-											? "var(--vscode-charts-green)"
-											: "var(--vscode-button-background)",
-										color: "var(--vscode-button-foreground)",
-										border: "none",
-										borderRadius: 2,
-										padding: "6px 12px",
-										fontSize: 12,
-										cursor: isBackgroundModeEnabled ? "default" : "pointer",
-										fontFamily: "inherit",
-										display: "flex",
-										alignItems: "center",
-										gap: 6,
-										opacity: isBackgroundModeEnabled ? 0.8 : 1,
 									}}>
-									<i className="codicon codicon-settings-gear"></i>
+									<SettingsIcon className="size-2" />
 									{isBackgroundModeEnabled
 										? "Background Terminal Enabled"
 										: "Enable Background Terminal (Recommended)"}
@@ -1979,20 +1233,20 @@ export const ChatRowContent = memo(
 							</div>
 						)
 					case "task_progress":
-						return null // task_progress messages should be displayed in TaskHeader only, not in chat
+						return <InvisibleSpacer /> // task_progress messages should be displayed in TaskHeader only, not in chat
 					default:
 						return (
-							<>
+							<div>
 								{title && (
-									<div style={headerStyle}>
+									<div className={HEADER_CLASSNAMES}>
 										{icon}
 										{title}
 									</div>
 								)}
-								<div style={{ paddingTop: 10 }}>
-									<Markdown markdown={message.text} />
+								<div className="pt-1">
+									<MarkdownRow markdown={message.text} />
 								</div>
-							</>
+							</div>
 						)
 				}
 			case "ask":
@@ -2004,103 +1258,22 @@ export const ChatRowContent = memo(
 							const hasChanges = message.text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
 							const text = hasChanges ? message.text.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 							return (
-								<div>
-									<div
-										style={{
-											borderRadius: 6,
-											border: `1px solid ${successColor}`,
-											backgroundColor: "color-mix(in srgb, var(--vscode-charts-green) 8%, transparent)",
-											padding: "10px 12px",
-										}}>
-										<div
-											style={{
-												...headerStyle,
-												marginBottom: "10px",
-											}}>
-											{icon}
-											{title}
-											<TaskFeedbackButtons
-												isFromHistory={
-													!isLast ||
-													lastModifiedMessage?.ask === "resume_completed_task" ||
-													lastModifiedMessage?.ask === "resume_task"
-												}
-												messageTs={message.ts}
-												style={{
-													marginLeft: "auto",
-												}}
-											/>
-										</div>
-										<WithCopyButton
-											copyButtonStyle={{ bottom: 10, right: -8 }}
-											onMouseUp={handleMouseUp}
-											position="bottom-right"
-											ref={contentRef}
-											textToCopy={text}>
-											<Markdown markdown={text} />
-											{quoteButtonState.visible && (
-												<QuoteButton
-													left={quoteButtonState.left}
-													onClick={handleQuoteClick}
-													top={quoteButtonState.top}
-												/>
-											)}
-										</WithCopyButton>
-									</div>
-									{message.partial !== true && hasChanges && (
-										<div style={{ marginTop: 15, display: "flex", flexDirection: "column", gap: 8 }}>
-											<SuccessButton
-												appearance="secondary"
-												disabled={seeNewChangesDisabled}
-												onClick={() => {
-													setSeeNewChangesDisabled(true)
-													TaskServiceClient.taskCompletionViewChanges(
-														Int64Request.create({
-															value: message.ts,
-														}),
-													).catch((err) =>
-														console.error("Failed to show task completion view changes:", err),
-													)
-												}}>
-												<i
-													className="codicon codicon-new-file"
-													style={{
-														marginRight: 6,
-														cursor: seeNewChangesDisabled ? "wait" : "pointer",
-													}}
-												/>
-												View Changes
-											</SuccessButton>
-											{PLATFORM_CONFIG.type === PlatformType.VSCODE && (
-												<SuccessButton
-													appearance="secondary"
-													disabled={explainChangesDisabled}
-													onClick={() => {
-														setExplainChangesDisabled(true)
-														TaskServiceClient.explainChanges({
-															metadata: {},
-															messageTs: message.ts,
-														}).catch((err) => {
-															console.error("Failed to explain changes:", err)
-															setExplainChangesDisabled(false)
-														})
-													}}>
-													<i
-														className="codicon codicon-comment-discussion"
-														style={{
-															marginRight: 6,
-															cursor: explainChangesDisabled ? "wait" : "pointer",
-														}}
-													/>
-													{explainChangesDisabled ? "Explaining..." : "Explain Changes"}
-												</SuccessButton>
-											)}
-										</div>
-									)}
-								</div>
+								<CompletionOutputRow
+									explainChangesDisabled={explainChangesDisabled}
+									handleQuoteClick={handleQuoteClick}
+									headClassNames={HEADER_CLASSNAMES}
+									messageTs={message.ts}
+									quoteButtonState={quoteButtonState}
+									seeNewChangesDisabled={seeNewChangesDisabled}
+									setExplainChangesDisabled={setExplainChangesDisabled}
+									setSeeNewChangesDisabled={setSeeNewChangesDisabled}
+									showActionRow={message.partial !== true && hasChanges}
+									text={text || ""}
+								/>
 							)
 						} else {
-							return null // Don't render anything when we get a completion_result ask without text
+							// Virtuoso cannot handle zero-height items; render a spacer instead of null
+							return <InvisibleSpacer />
 						}
 					case "followup":
 						let question: string | undefined
@@ -2119,18 +1292,18 @@ export const ChatRowContent = memo(
 						return (
 							<div>
 								{title && (
-									<div style={headerStyle}>
+									<div className={HEADER_CLASSNAMES}>
 										{icon}
 										{title}
 									</div>
 								)}
 								<WithCopyButton
-									className="pt-2.5"
+									className="pt-1"
 									onMouseUp={handleMouseUp}
 									position="bottom-right"
 									ref={contentRef}
 									textToCopy={question}>
-									<Markdown markdown={question} />
+									<MarkdownRow markdown={question} />
 									{quoteButtonState.visible && (
 										<QuoteButton
 											left={quoteButtonState.left}
@@ -2154,54 +1327,33 @@ export const ChatRowContent = memo(
 						)
 					case "new_task":
 						return (
-							<>
-								<div style={headerStyle}>
-									<span
-										className="codicon codicon-new-file"
-										style={{
-											color: normalColor,
-											marginBottom: "-1.5px",
-										}}></span>
-									<span style={{ color: normalColor, fontWeight: "bold" }}>
-										Cline wants to start a new task:
-									</span>
+							<div>
+								<div className={HEADER_CLASSNAMES}>
+									<FilePlus2Icon className="size-2" />
+									<span className="text-foreground font-bold">Cline wants to start a new task:</span>
 								</div>
 								<NewTaskPreview context={message.text || ""} />
-							</>
+							</div>
 						)
 					case "condense":
 						return (
-							<>
-								<div style={headerStyle}>
-									<span
-										className="codicon codicon-new-file"
-										style={{
-											color: normalColor,
-											marginBottom: "-1.5px",
-										}}></span>
-									<span style={{ color: normalColor, fontWeight: "bold" }}>
-										Cline wants to condense your conversation:
-									</span>
+							<div>
+								<div className={HEADER_CLASSNAMES}>
+									<FilePlus2Icon className="size-2" />
+									<span className="text-foreground font-bold">Cline wants to condense your conversation:</span>
 								</div>
 								<NewTaskPreview context={message.text || ""} />
-							</>
+							</div>
 						)
 					case "report_bug":
 						return (
-							<>
-								<div style={headerStyle}>
-									<span
-										className="codicon codicon-new-file"
-										style={{
-											color: normalColor,
-											marginBottom: "-1.5px",
-										}}></span>
-									<span style={{ color: normalColor, fontWeight: "bold" }}>
-										Cline wants to create a Github issue:
-									</span>
+							<div>
+								<div className={HEADER_CLASSNAMES}>
+									<FilePlus2Icon className="size-2" />
+									<span className="text-foreground font-bold">Cline wants to create a Github issue:</span>
 								</div>
 								<ReportBugPreview data={message.text || ""} />
-							</>
+							</div>
 						)
 					case "plan_mode_respond": {
 						let response: string | undefined
@@ -2217,23 +1369,11 @@ export const ChatRowContent = memo(
 							response = message.text
 						}
 						return (
-							<>
-								<WithCopyButton
-									onMouseUp={handleMouseUp}
-									position="bottom-right"
-									ref={contentRef}
-									textToCopy={response}>
-									<Markdown markdown={response} />
-									{quoteButtonState.visible && (
-										<QuoteButton
-											left={quoteButtonState.left}
-											onClick={() => {
-												handleQuoteClick()
-											}}
-											top={quoteButtonState.top}
-										/>
-									)}
-								</WithCopyButton>
+							<div>
+								<PlanCompletionOutputRow
+									headClassNames={HEADER_CLASSNAMES}
+									text={response || message.text || ""}
+								/>
 								<OptionsButtons
 									inputValue={inputValue}
 									isActive={
@@ -2243,11 +1383,11 @@ export const ChatRowContent = memo(
 									options={options}
 									selected={selected}
 								/>
-							</>
+							</div>
 						)
 					}
 					default:
-						return null
+						return <InvisibleSpacer />
 				}
 		}
 	},

@@ -16,7 +16,7 @@ import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
  * When adding a new category, add it both here and to the initial values in telemetryCategoryEnabled
  * Ensure `if (!this.isCategoryEnabled('<category_name>')` is added to the capture method
  */
-type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "dictation" | "subagents" | "hooks"
+type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "dictation" | "subagents" | "skills" | "hooks"
 
 /**
  * Terminal type for telemetry differentiation
@@ -109,6 +109,7 @@ export class TelemetryService {
 		["dictation", true], // Dictation telemetry enabled
 		["focus_chain", true], // Focus Chain telemetry enabled
 		["subagents", true], // CLI Subagents telemetry enabled
+		["skills", true], // Skills telemetry enabled
 		["hooks", true], // Hooks telemetry enabled
 	])
 
@@ -284,6 +285,8 @@ export class TelemetryService {
 			SUBAGENT_DISABLED: "task.subagent_disabled",
 			SUBAGENT_STARTED: "task.subagent_started",
 			SUBAGENT_COMPLETED: "task.subagent_completed",
+			// Skills telemetry events
+			SKILL_USED: "task.skill_used",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -1001,6 +1004,42 @@ export class TelemetryService {
 		const toolCallCount = this.incrementTaskCounter(this.taskToolCallCounts, ulid)
 		this.recordCounter(TelemetryService.METRICS.TOOLS.CALLS_TOTAL, 1, toolAttributes)
 		this.recordHistogram(TelemetryService.METRICS.TOOLS.CALLS_PER_TASK, toolCallCount, toolAttributes)
+	}
+
+	public captureSkillUsed(args: {
+		ulid: string
+		skillName: string
+		skillSource: "global" | "project"
+		skillsAvailableGlobal: number
+		skillsAvailableProject: number
+		provider?: string
+		modelId?: string
+	}): void {
+		if (!this.isCategoryEnabled("skills")) {
+			return
+		}
+
+		if (!args.ulid || !args.skillName) {
+			return
+		}
+
+		const skillsAvailableGlobal = Math.max(0, args.skillsAvailableGlobal)
+		const skillsAvailableProject = Math.max(0, args.skillsAvailableProject)
+
+		const properties = {
+			ulid: args.ulid,
+			skillName: args.skillName,
+			skillSource: args.skillSource,
+			skillsAvailableGlobal,
+			skillsAvailableProject,
+			provider: args.provider,
+			modelId: args.modelId,
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.SKILL_USED,
+			properties,
+		})
 	}
 
 	/**
