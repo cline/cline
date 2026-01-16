@@ -77,7 +77,7 @@ async function runInteractiveWizard(config: CliConfig, logger: Logger, fmt: Outp
 	const selection = await prompt("Enter number (1-" + PROVIDERS.length + "): ")
 	const index = parseInt(selection, 10) - 1
 
-	if (isNaN(index) || index < 0 || index >= PROVIDERS.length) {
+	if (Number.isNaN(index) || index < 0 || index >= PROVIDERS.length) {
 		fmt.error("Invalid selection")
 		return
 	}
@@ -124,6 +124,7 @@ export function createAuthCommand(config: CliConfig, logger: Logger, formatter: 
 		.action(async (provider: string | undefined, key: string | undefined, options) => {
 			logger.debug("Auth command called", { provider, hasKey: !!key, options })
 
+			// TODO Auth command doesn't work yet. Refer to go cli for implementation.
 			const secrets = createSecretsStorage(config.configDir)
 
 			// List configured providers

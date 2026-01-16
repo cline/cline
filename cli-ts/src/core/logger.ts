@@ -15,6 +15,7 @@ export class ConsoleLogger implements Logger {
 	 * Check if a message at the given level should be logged
 	 */
 	private shouldLog(level: LogLevel): boolean {
+		// TODO - implement log level filtering
 		if (level === LogLevel.DEBUG) {
 			return this.verbose
 		}

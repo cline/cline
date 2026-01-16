@@ -18,7 +18,7 @@ const originalConsole = {
 }
 
 // Patterns that indicate noisy operational output
-const NOISE_PATTERNS = [
+export const NOISE_PATTERNS = [
 	// Telemetry & Feature Flags
 	"Telemetry distinct ID",
 	"Changing telemetry ID",
@@ -99,11 +99,7 @@ function shouldSuppress(args: unknown[]): boolean {
 export function applyConsoleFilter(verbose: boolean): void {
 	if (verbose) {
 		// In verbose mode, restore original methods (no filtering)
-		console.log = originalConsole.log
-		console.info = originalConsole.info
-		console.debug = originalConsole.debug
-		console.warn = originalConsole.warn
-		console.error = originalConsole.error
+		restoreConsole()
 		return
 	}
 
@@ -149,11 +145,4 @@ export function restoreConsole(): void {
 	console.debug = originalConsole.debug
 	console.warn = originalConsole.warn
 	console.error = originalConsole.error
-}
-
-/**
- * Get the list of noise patterns (for testing/debugging)
- */
-export function getNoisePatterns(): readonly string[] {
-	return NOISE_PATTERNS
 }

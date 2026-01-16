@@ -8,7 +8,7 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Command } from "commander"
 import fs from "fs"
-import { createCliWebviewAdapter } from "../../core/cli-webview-adapter.js"
+import { CliWebviewAdapter } from "../../core/cli-webview-adapter.js"
 import { disposeEmbeddedController, getEmbeddedController } from "../../core/embedded-controller.js"
 import type { OutputFormatter } from "../../core/output/types.js"
 import type { CliConfig } from "../../types/config.js"
@@ -87,7 +87,7 @@ async function waitForTaskResponse(
 	formatter: OutputFormatter,
 	timeoutMs = 300000, // 5 minutes default timeout
 ): Promise<void> {
-	const adapter = createCliWebviewAdapter(controller, formatter)
+	const adapter = new CliWebviewAdapter(controller, formatter)
 	adapter.startListening()
 
 	return new Promise((resolve, reject) => {

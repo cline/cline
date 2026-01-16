@@ -207,6 +207,7 @@ export class CliWebviewAdapter {
 				break
 
 			case "completion_result":
+				// TODO end process if yolo mode
 				this.formatter.success(`\n✨ ${msg.text || "Task completed"}`)
 				break
 
@@ -286,7 +287,7 @@ export class CliWebviewAdapter {
 			case "command":
 				this.formatter.raw(`\n💻 Execute command?`)
 				this.formatter.raw(`  $ ${msg.text || ""}`)
-				this.formatter.info("  [approve/deny]")
+				this.formatter.info("  [/approve or /deny]")
 				break
 
 			case "tool":
@@ -307,6 +308,7 @@ export class CliWebviewAdapter {
 				break
 
 			case "completion_result":
+				// TODO end process if yolo mode
 				this.formatter.success(`\n✅ Task Complete!`)
 				if (msg.text) {
 					this.formatter.raw(msg.text)
@@ -345,7 +347,9 @@ export class CliWebviewAdapter {
 	 * Output tool-related messages
 	 */
 	private outputToolMessage(msg: ClineMessage): void {
-		if (!msg.text) return
+		if (!msg.text) {
+			return
+		}
 
 		try {
 			const tool = JSON.parse(msg.text) as ClineSayTool
@@ -437,7 +441,9 @@ export class CliWebviewAdapter {
 	 * Output browser action message
 	 */
 	private outputBrowserAction(msg: ClineMessage): void {
-		if (!msg.text) return
+		if (!msg.text) {
+			return
+		}
 
 		try {
 			const action = JSON.parse(msg.text) as ClineSayBrowserAction
@@ -470,7 +476,9 @@ export class CliWebviewAdapter {
 	 * Output browser action result
 	 */
 	private outputBrowserActionResult(msg: ClineMessage): void {
-		if (!msg.text) return
+		if (!msg.text) {
+			return
+		}
 
 		try {
 			const result = JSON.parse(msg.text) as BrowserActionResult
@@ -614,15 +622,4 @@ export class CliWebviewAdapter {
 			}
 		}
 	}
-}
-
-/**
- * Create a new CLI Webview Adapter
- *
- * @param controller - The Controller instance
- * @param formatter - Output formatter for terminal display
- * @returns A new CliWebviewAdapter instance
- */
-export function createCliWebviewAdapter(controller: Controller, formatter: OutputFormatter): CliWebviewAdapter {
-	return new CliWebviewAdapter(controller, formatter)
 }

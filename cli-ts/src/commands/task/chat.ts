@@ -9,7 +9,7 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Command } from "commander"
 import readline from "readline"
-import { CliWebviewAdapter, createCliWebviewAdapter } from "../../core/cli-webview-adapter.js"
+import { CliWebviewAdapter } from "../../core/cli-webview-adapter.js"
 import { disposeEmbeddedController, getEmbeddedController } from "../../core/embedded-controller.js"
 import type { OutputFormatter } from "../../core/output/types.js"
 import type { CliConfig } from "../../types/config.js"
@@ -75,12 +75,7 @@ function checkForPendingInput(messages: ClineMessage[]): { awaitingApproval: boo
 /**
  * Process chat commands (lines starting with /)
  */
-async function processChatCommand(
-	input: string,
-	session: ChatSession,
-	formatter: OutputFormatter,
-	logger: Logger,
-): Promise<boolean> {
+async function processChatCommand(input: string, session: ChatSession, fmt: OutputFormatter, logger: Logger): Promise<boolean> {
 	const parts = input.slice(1).split(/\s+/)
 	const cmd = parts[0].toLowerCase()
 	const args = parts.slice(1)
@@ -91,30 +86,30 @@ async function processChatCommand(
 		case "help":
 		case "h":
 		case "?":
-			formatter.raw("")
-			formatter.info("Chat commands:")
-			formatter.raw("  /help, /h, /?      - Show this help")
-			formatter.raw("  /mode <plan|act>   - Switch mode")
-			formatter.raw("  /status            - Show task status")
-			formatter.raw("  /cancel            - Cancel current task")
-			formatter.raw("  /approve, /a, /y   - Approve pending action")
-			formatter.raw("  /deny, /d, /n      - Deny pending action")
-			formatter.raw("  /quit, /q, /exit   - Exit chat mode")
-			formatter.raw("")
+			fmt.raw("")
+			fmt.info("Chat commands:")
+			fmt.raw("  /help, /h, /?      - Show this help")
+			fmt.raw("  /mode <plan|act>   - Switch mode")
+			fmt.raw("  /status            - Show task status")
+			fmt.raw("  /cancel            - Cancel current task")
+			fmt.raw("  /approve, /a, /y   - Approve pending action")
+			fmt.raw("  /deny, /d, /n      - Deny pending action")
+			fmt.raw("  /quit, /q, /exit   - Exit chat mode")
+			fmt.raw("")
 			return true
 
 		case "mode":
 		case "m":
 			if (args.length === 0) {
 				const state = await controller.getStateToPostToWebview()
-				formatter.info(`Current mode: ${state.mode || "unknown"}`)
+				fmt.info(`Current mode: ${state.mode || "unknown"}`)
 			} else {
 				const newMode = args[0].toLowerCase()
 				if (newMode !== "plan" && newMode !== "act") {
-					formatter.error("Invalid mode. Use 'plan' or 'act'")
+					fmt.error("Invalid mode. Use 'plan' or 'act'")
 				} else {
 					await controller.togglePlanActMode(newMode as "plan" | "act")
-					formatter.success(`Switched to ${newMode} mode`)
+					fmt.success(`Switched to ${newMode} mode`)
 				}
 			}
 			return true
@@ -122,26 +117,26 @@ async function processChatCommand(
 		case "status":
 		case "s": {
 			const state = await controller.getStateToPostToWebview()
-			formatter.raw("")
-			formatter.info(`Task ID: ${session.taskId || "none"}`)
-			formatter.info(`Mode: ${state.mode || "unknown"}`)
-			formatter.info(`Messages: ${state.clineMessages?.length || 0}`)
+			fmt.raw("")
+			fmt.info(`Task ID: ${session.taskId || "none"}`)
+			fmt.info(`Mode: ${state.mode || "unknown"}`)
+			fmt.info(`Messages: ${state.clineMessages?.length || 0}`)
 			if (session.awaitingApproval) {
-				formatter.warn("Awaiting approval (use /approve or /deny)")
+				fmt.warn("Awaiting approval (use /approve or /deny)")
 			}
 			if (session.awaitingInput) {
-				formatter.warn("Awaiting user input")
+				fmt.warn("Awaiting user input")
 			}
-			formatter.raw("")
+			fmt.raw("")
 			return true
 		}
 
 		case "cancel": {
 			if (controller.task) {
 				await controller.cancelTask()
-				formatter.success("Task cancelled")
+				fmt.success("Task cancelled")
 			} else {
-				formatter.warn("No active task to cancel")
+				fmt.warn("No active task to cancel")
 			}
 			return true
 		}
@@ -150,11 +145,11 @@ async function processChatCommand(
 		case "a":
 		case "y": {
 			if (!session.awaitingApproval) {
-				formatter.warn("No pending approval request")
+				fmt.warn("No pending approval request")
 			} else if (controller.task) {
 				await controller.task.handleWebviewAskResponse("yesButtonClicked")
 				session.awaitingApproval = false
-				formatter.success("Action approved")
+				fmt.success("Action approved")
 			}
 			return true
 		}
@@ -163,11 +158,11 @@ async function processChatCommand(
 		case "d":
 		case "n": {
 			if (!session.awaitingApproval) {
-				formatter.warn("No pending approval request")
+				fmt.warn("No pending approval request")
 			} else if (controller.task) {
 				await controller.task.handleWebviewAskResponse("noButtonClicked")
 				session.awaitingApproval = false
-				formatter.success("Action denied")
+				fmt.success("Action denied")
 			}
 			return true
 		}
@@ -179,7 +174,7 @@ async function processChatCommand(
 			return true
 
 		default:
-			formatter.warn(`Unknown command: /${cmd}. Type /help for available commands.`)
+			fmt.warn(`Unknown command: /${cmd}. Type /help for available commands.`)
 			return true
 	}
 }
@@ -221,7 +216,7 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 				}
 
 				// Create webview adapter for output
-				session.adapter = createCliWebviewAdapter(controller, formatter)
+				session.adapter = new CliWebviewAdapter(controller, formatter)
 
 				// Start or resume task
 				if (options.task) {
@@ -325,7 +320,7 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 						if (session.awaitingInput && session.adapter) {
 							const options = session.adapter.currentOptions
 							const num = parseInt(input, 10)
-							if (!isNaN(num) && num >= 1 && num <= options.length) {
+							if (!Number.isNaN(num) && num >= 1 && num <= options.length) {
 								messageToSend = options[num - 1]
 							}
 						}

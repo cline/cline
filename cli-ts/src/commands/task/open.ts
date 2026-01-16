@@ -149,7 +149,7 @@ export function createTaskOpenCommand(config: CliConfig, logger: Logger, formatt
 					formatter.raw(JSON.stringify(task, null, 2))
 				}
 
-				// Note: In Phase 4, this will transition to chat mode
+				// TODO Note: In Phase 4, this will transition to chat mode
 				// For now, we just display the task info
 				formatter.info("")
 				formatter.info('Task loaded. Use "cline task chat" to continue the conversation (coming in Phase 4)')

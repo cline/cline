@@ -8,6 +8,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import type { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { StandaloneTerminalManager } from "@/integrations/terminal"
 import type { Logger } from "../types/logger.js"
+import { NOISE_PATTERNS } from "./console-filter.js"
 import { StandaloneHostBridgeClient } from "./standalone-hostbridge-client.js"
 
 /**
@@ -40,29 +41,13 @@ export function setupHostProvider(
 	const createTerminalManager = () => new StandaloneTerminalManager()
 
 	const getCallbackUrl = async (): Promise<string> => {
-		// CLI mode doesn't use auth callbacks yet
+		// TODO CLI mode doesn't use auth callbacks yet
 		return ""
 	}
 
 	const getBinaryLocation = async (name: string): Promise<string> => {
 		return path.join(process.cwd(), name)
 	}
-
-	// Patterns that indicate noisy operational INFO-level output from core Logger
-	// These are filtered unless verbose mode is enabled (debug messages pass through)
-	const infoNoisePatterns = [
-		"NoOpFeatureFlagsProvider",
-		"NoOpTelemetryProvider",
-		"NoOpErrorProvider",
-		"TelemetryService",
-		"TelemetryProviderFactory",
-		"instantiated",
-		"for legacy",
-		"checkpoint",
-		"Checkpoint",
-		"[CommandExecutor]",
-		"[Task ",
-	]
 
 	const logToChannel = (message: string): void => {
 		// Parse log level from message (format: "LEVEL message...")
@@ -89,7 +74,7 @@ export function setupHostProvider(
 			default: {
 				// Filter out noisy INFO patterns (they go to debug instead)
 				const messageToCheck = content || message
-				const isNoise = infoNoisePatterns.some((pattern) => messageToCheck.includes(pattern))
+				const isNoise = NOISE_PATTERNS.some((pattern) => messageToCheck.includes(pattern))
 				if (isNoise) {
 					logger.debug(messageToCheck)
 				} else {

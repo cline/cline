@@ -46,6 +46,7 @@ export class ConfigStorage {
 
 	constructor(configDir?: string) {
 		this.configDir = configDir || getDefaultConfigDir()
+		// TODO this path isn't right, should be ~/.cline/data/blah (look this up in cline core)
 		this.configPath = path.join(this.configDir, "config.json")
 	}
 

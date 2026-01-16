@@ -10,8 +10,8 @@ import { createVersionCommand, getVersion } from "./commands/version.js"
 import { createConfig } from "./core/config.js"
 import { applyConsoleFilter } from "./core/console-filter.js"
 import { createLogger } from "./core/logger.js"
-import { createFormatterFromOption, parseOutputFormat } from "./core/output/index.js"
-import type { OutputFormatter } from "./core/output/types.js"
+import { createFormatter, parseOutputFormat } from "./core/output/index.js"
+import type { OutputFormat, OutputFormatter } from "./core/output/types.js"
 import type { CliConfig } from "./types/config.js"
 
 /**
@@ -46,7 +46,7 @@ export async function main(): Promise<void> {
 	applyConsoleFilter(opts.verbose)
 
 	// Parse and validate output format
-	let outputFormat
+	let outputFormat: OutputFormat
 	try {
 		outputFormat = parseOutputFormat(opts.outputFormat)
 	} catch (err) {
@@ -65,7 +65,7 @@ export async function main(): Promise<void> {
 	const logger = createLogger(config.verbose)
 
 	// Create output formatter
-	const formatter: OutputFormatter = createFormatterFromOption(opts.outputFormat)
+	const formatter: OutputFormatter = createFormatter(outputFormat)
 
 	logger.debug("CLI started with config:", config)
 

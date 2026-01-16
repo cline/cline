@@ -7,7 +7,7 @@
 
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Command } from "commander"
-import { createCliWebviewAdapter } from "../../core/cli-webview-adapter.js"
+import { CliWebviewAdapter } from "../../core/cli-webview-adapter.js"
 import { disposeEmbeddedController, getEmbeddedController } from "../../core/embedded-controller.js"
 import type { OutputFormatter } from "../../core/output/types.js"
 import type { CliConfig } from "../../types/config.js"
@@ -174,7 +174,7 @@ export function createTaskViewCommand(config: CliConfig, logger: Logger, formatt
 						}
 					} else {
 						// Formatted output using the adapter
-						const adapter = createCliWebviewAdapter(controller, formatter)
+						const adapter = new CliWebviewAdapter(controller, formatter)
 						for (const msg of messages) {
 							adapter.outputMessage(msg)
 						}
@@ -209,7 +209,7 @@ export function createTaskViewCommand(config: CliConfig, logger: Logger, formatt
 					let lastMessageCount = messages.length
 
 					// Create adapter for streaming output
-					const adapter = createCliWebviewAdapter(controller, formatter)
+					const adapter = new CliWebviewAdapter(controller, formatter)
 
 					// Handle Ctrl+C gracefully
 					const cleanup = async () => {

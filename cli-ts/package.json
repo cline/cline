@@ -12,7 +12,7 @@
 		"build:watch": "node esbuild.mjs --watch",
 		"build:prod": "node esbuild.mjs --production",
 		"start": "node dist/index.cjs",
-		"dev": "npm run build && npm run start",
+		"dev": "node esbuild.mjs && node dist/index.cjs",
 		"test": "mocha",
 		"test:watch": "mocha --watch",
 		"test:coverage": "c8 mocha"
