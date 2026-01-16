@@ -87,10 +87,6 @@ export class FeatureFlagsService {
 		return this.cache.get(flagName) === true
 	}
 
-	public getDoNothingFlag(): boolean {
-		return this.getBooleanFlagEnabled(FeatureFlag.DO_NOTHING)
-	}
-
 	public getHooksEnabled(): boolean {
 		return this.getBooleanFlagEnabled(FeatureFlag.HOOKS)
 	}
