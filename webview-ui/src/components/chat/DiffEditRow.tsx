@@ -1,8 +1,5 @@
 import { StringRequest } from "@shared/proto/cline/common"
-
-
 import { FilePlus, FileText, FileX, SquareArrowOutUpRightIcon } from "lucide-react"
-
 import { memo, useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
@@ -111,6 +108,30 @@ const FileBlock = memo<{ file: Patch; isStreaming: boolean; startLineNumber?: nu
 		const actionStyle = ACTION_STYLES[file.action as keyof typeof ACTION_STYLES] ?? ACTION_STYLES.default
 		const ActionIcon = actionStyle.icon
 
+		const lineNumbers = useMemo(() => {
+			let oldLine = startLineNumber ?? 1
+			let newLine = startLineNumber ?? 1
+
+			return file.lines.map((line) => {
+				const isAddition = line.startsWith("+")
+				const isDeletion = line.startsWith("-")
+				const isContext = !isAddition && !isDeletion
+
+				if (isDeletion) {
+					const display = oldLine
+					oldLine += 1
+					return display
+				}
+
+				const display = newLine
+				newLine += 1
+				if (isContext) {
+					oldLine += 1
+				}
+				return display
+			})
+		}, [file.lines, startLineNumber])
+
 		return (
 			<div className="bg-code rounded-xs border border-editor-group-border overflow-hidden">
 				<button
@@ -145,12 +166,8 @@ const FileBlock = memo<{ file: Patch; isStreaming: boolean; startLineNumber?: nu
 						onScroll={handleScroll}
 						ref={scrollContainerRef}>
 						<div className="font-mono text-xs w-max min-w-full">
-							{file.lines.map((line, lineNumber) => (
-								<DiffLine
-									key={`${lineNumber}-${line.slice(0, 20)}`}
-									line={line}
-									lineNumber={startLineNumber ? startLineNumber + lineNumber : lineNumber + 1}
-								/>
+							{file.lines.map((line, index) => (
+								<DiffLine key={`${index}-${line.slice(0, 20)}`} line={line} lineNumber={lineNumbers[index]} />
 							))}
 						</div>
 					</div>
