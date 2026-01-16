@@ -2,7 +2,7 @@
  * ClineTempManager - Manages temporary files for Cline with automatic cleanup.
  *
  * Simple approach:
- * - Uses system temp directory directly (no subdirectory)
+ * - Uses a "cline" subdirectory inside the system temp dir (falls back to system temp if creation fails)
  * - All Cline temp files use "cline-" prefix for identification
  * - Cleans up files older than 50 hours on extension activation
  * - Enforces 2GB total size cap to prevent disk bloat
@@ -34,11 +34,27 @@ class ClineTempManagerImpl {
 	private cleanupIntervalId: NodeJS.Timeout | null = null
 
 	constructor() {
-		// Uses system temp directly:
-		// macOS: /var/folders/xx/.../T/
-		// Windows: C:\Users\{user}\AppData\Local\Temp\
-		// Linux: /tmp/
-		this.tempDir = os.tmpdir()
+		// Uses system temp directory with a dedicated "cline" subdirectory when possible:
+		// macOS: /var/folders/xx/.../T/cline
+		// Windows: C:\Users\{user}\AppData\Local\Temp\cline
+		// Linux: /tmp/cline
+		const baseTempDir = os.tmpdir()
+		const clineTempDir = path.join(baseTempDir, "cline")
+
+		try {
+			fs.mkdirSync(clineTempDir, { recursive: true })
+			this.tempDir = clineTempDir
+		} catch {
+			this.tempDir = baseTempDir
+		}
+	}
+
+	private ensureTempDirExists(): void {
+		try {
+			fs.mkdirSync(this.tempDir, { recursive: true })
+		} catch {
+			// If creation fails, we fall back to whatever tempDir currently is.
+		}
 	}
 
 	/**
@@ -56,6 +72,7 @@ class ClineTempManagerImpl {
 	 * @returns Full path to the temp file
 	 */
 	createTempFilePath(prefix: string): string {
+		this.ensureTempDirExists()
 		const filename = `${CLINE_FILE_PREFIX}${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.log`
 		return path.join(this.tempDir, filename)
 	}
@@ -65,7 +82,7 @@ class ClineTempManagerImpl {
 	 * Called on extension activation.
 	 *
 	 * Strategy:
-	 * 1. Find all files with "cline-" prefix in system temp
+	 * 1. Find all files with "cline-" prefix in the Cline temp directory
 	 * 2. Delete all files older than 50 hours
 	 * 3. If still over 2GB total, delete oldest files until under limit
 	 */
