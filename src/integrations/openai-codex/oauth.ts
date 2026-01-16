@@ -3,6 +3,7 @@ import * as http from "http"
 import { URL } from "url"
 import type { ExtensionContext } from "vscode"
 import { z } from "zod"
+import { fetch } from "@/shared/net"
 
 /**
  * OpenAI Codex OAuth Configuration
