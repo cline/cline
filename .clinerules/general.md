@@ -64,6 +64,24 @@ When adding a new provider (e.g., "openai-codex"), you must update the proto con
 - `webview-ui/src/utils/validate.ts` - Add validation case
 - `webview-ui/src/components/settings/ApiOptions.tsx` - Render provider component
 
+## Responses API Providers (OpenAI Codex, OpenAI Native)
+Providers using OpenAI's Responses API require native tool calling. XML tools don't work with the Responses API.
+
+**Symptoms of broken native tool calling:**
+- Tools get called multiple times (e.g., `ask_followup_question` asks the same question twice)
+- Tool arguments get duplicated or malformed
+- The model responds but tools aren't recognized
+
+**Root causes to check:**
+1. **Provider missing from `isNextGenModelProvider()`** in `src/utils/model-utils.ts`. The native variant matchers (e.g., `native-gpt-5/config.ts`) call this function. If your provider isn't in the list, the matcher returns false and falls back to XML tools.
+
+2. **Model missing `apiFormat: ApiFormat.OPENAI_RESPONSES`** in its model info (`src/shared/api.ts`). This property signals that the model requires native tool calling. The task runner in `src/core/task/index.ts` checks this and forces `enableNativeToolCalls: true` regardless of user settings.
+
+**When adding a new Responses API provider:**
+1. Add provider to `isNextGenModelProvider()` list in `src/utils/model-utils.ts`
+2. Set `apiFormat: ApiFormat.OPENAI_RESPONSES` on all models that use the Responses API
+3. The variant matcher and task runner will handle the rest automatically
+
 ## Adding Tools to System Prompt
 This is tricky—multiple prompt variants and configs. **Always search for existing similar tools first and follow their pattern.** Look at the full chain from prompt definition → variant configs → handler → UI before implementing.
 
