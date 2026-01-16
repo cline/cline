@@ -33,6 +33,7 @@ import { LogoutReason } from "@/services/auth/types"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
+import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
 import { BannerCardData } from "@/shared/cline/banner"
 import { getAxiosSettings } from "@/shared/net"
@@ -48,6 +49,7 @@ import {
 	writeMcpMarketplaceCatalogToCache,
 } from "../storage/disk"
 import { fetchRemoteConfig } from "../storage/remote-config/fetch"
+import { clearRemoteConfig } from "../storage/remote-config/utils"
 import { type PersistenceErrorEvent, StateManager } from "../storage/StateManager"
 import { Task } from "../task"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
@@ -105,13 +107,13 @@ export class Controller {
 
 	/**
 	 * Starts the periodic remote config fetching timer
-	 * Fetches immediately and then every 30 seconds
+	 * Fetches immediately and then every hour
 	 */
 	private startRemoteConfigTimer() {
 		// Initial fetch
 		fetchRemoteConfig(this)
-		// Set up 30-second interval
-		this.remoteConfigTimer = setInterval(() => fetchRemoteConfig(this), 30000) // 30 seconds
+		// Set up 1-hour interval
+		this.remoteConfigTimer = setInterval(() => fetchRemoteConfig(this), 3600000) // 1 hour
 	}
 
 	constructor(readonly context: vscode.ExtensionContext) {
@@ -120,7 +122,7 @@ export class Controller {
 		this.stateManager = StateManager.get()
 		StateManager.get().registerCallbacks({
 			onPersistenceError: async ({ error }: PersistenceErrorEvent) => {
-				console.error("[Controller] Cache persistence failed, recovering:", error)
+				Logger.error("[Controller] Cache persistence failed, recovering:", error)
 				try {
 					await StateManager.get().reInitialize(this.task?.taskId)
 					await this.postStateToWebview()
@@ -129,7 +131,7 @@ export class Controller {
 						message: "Saving settings to storage failed.",
 					})
 				} catch (recoveryError) {
-					console.error("[Controller] Cache recovery failed:", recoveryError)
+					Logger.error("[Controller] Cache recovery failed:", recoveryError)
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
 						message: "Failed to save settings. Please restart the extension.",
@@ -187,6 +189,7 @@ export class Controller {
 		try {
 			// AuthService now handles its own storage cleanup in handleDeauth()
 			this.stateManager.setGlobalState("userInfo", undefined)
+			clearRemoteConfig()
 
 			// Update API providers through cache service
 			const apiConfiguration = this.stateManager.getApiConfiguration()
@@ -535,6 +538,8 @@ export class Controller {
 
 			// Mark welcome view as completed since user has successfully logged in
 			this.stateManager.setGlobalState("welcomeViewCompleted", true)
+
+			await fetchRemoteConfig(this)
 
 			if (this.task) {
 				this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)

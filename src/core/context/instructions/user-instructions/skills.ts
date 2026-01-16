@@ -2,28 +2,16 @@ import { ensureSkillsDirectoryExists, GlobalFileNames } from "@core/storage/disk
 import type { SkillContent, SkillMetadata } from "@shared/skills"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import * as fs from "fs/promises"
-import * as yaml from "js-yaml"
 import * as path from "path"
+import { parseYamlFrontmatter } from "./frontmatter"
 
-/**
- * Parse YAML frontmatter from markdown content.
- */
+/** Parse YAML frontmatter from markdown content (shared helper). */
 function parseFrontmatter(fileContent: string): { data: Record<string, unknown>; content: string } {
-	const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/
-	const match = fileContent.match(frontmatterRegex)
-
-	if (!match) {
-		return { data: {}, content: fileContent }
+	const result = parseYamlFrontmatter(fileContent)
+	if (result.parseError) {
+		console.warn("Failed to parse YAML frontmatter:", result.parseError)
 	}
-
-	const [, yamlContent, body] = match
-	try {
-		const data = yaml.load(yamlContent) as Record<string, unknown>
-		return { data: data || {}, content: body }
-	} catch (error) {
-		console.warn("Failed to parse YAML frontmatter:", error)
-		return { data: {}, content: fileContent }
-	}
+	return { data: result.data, content: result.body }
 }
 
 /**

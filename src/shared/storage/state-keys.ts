@@ -25,6 +25,9 @@ import { LanguageModelChatSelector } from "vscode"
 // SINGLE SOURCE OF TRUTH FOR STORAGE KEYS
 //
 // Property definitions with types, default values, and metadata
+// NOTE: When adding a new field, the scripts/generate-state-proto.mjs will be
+// executed automatically to regenerate the proto/cline/state.proto file with the
+// new fields once the file is staged and committed.
 // ============================================================================
 
 /**
@@ -83,7 +86,6 @@ const GLOBAL_STATE_FIELDS = {
 } satisfies FieldDefinitions
 
 // Fields that map directly to ApiHandlerOptions in @shared/api.ts
-// NOTE: Keep these in sync with ApiHandlerOptions interface
 const API_HANDLER_SETTINGS_FIELDS = {
 	// Global configuration (not mode-specific)
 	liteLlmBaseUrl: { default: undefined as string | undefined },
