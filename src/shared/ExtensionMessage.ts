@@ -202,6 +202,7 @@ export interface ClineSayTool {
 		| "webFetch"
 		| "webSearch"
 		| "summarizeTask"
+		| "useSkill"
 	path?: string
 	diff?: string
 	content?: string
