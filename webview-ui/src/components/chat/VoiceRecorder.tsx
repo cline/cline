@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils"
 import { DictationServiceClient } from "@/services/grpc-client"
 import { formatSeconds } from "@/utils/format"
+import { createButtonStyle, createIconButtonProps } from "@/utils/interactiveProps"
 
 interface VoiceRecorderProps {
 	onTranscription: (text: string) => void
@@ -246,16 +247,17 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 		return (
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<div
+					<button
+						{...createIconButtonProps(tooltipContent, handleStartClick)}
 						className={cn("pt-1 input-icon-button mr-1.5 text-base", iconAdjustment, {
 							disabled: disabled || isProcessing || isStarting,
 							"animate-spin": isProcessing || isStarting,
 						})}
 						data-testid="voice-recorder-start-button"
-						onClick={handleStartClick}
-						style={{ color: iconColor }}>
+						disabled={disabled || isProcessing || isStarting}
+						style={createButtonStyle.icon({ color: iconColor })}>
 						<span className={`codicon ${iconClass}`} />
-					</div>
+					</button>
 				</TooltipTrigger>
 				<TooltipContent side="top">{tooltipContent}</TooltipContent>
 			</Tooltip>

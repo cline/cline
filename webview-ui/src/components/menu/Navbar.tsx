@@ -5,7 +5,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { TaskServiceClient } from "@/services/grpc-client"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 
-// Custom MCP Server Icon component using VSCode codicon
 const McpServerIcon = ({ className, size }: { className?: string; size?: number }) => (
 	<span
 		className={`codicon codicon-server flex items-center ${className || ""}`}
@@ -24,7 +23,6 @@ export const Navbar = () => {
 				tooltip: "New Task",
 				icon: PlusIcon,
 				navigate: () => {
-					// Close the current task, then navigate to the chat view
 					TaskServiceClient.clearTask({})
 						.catch((error) => {
 							console.error("Failed to clear task:", error)
@@ -66,7 +64,8 @@ export const Navbar = () => {
 
 	return (
 		<nav
-			className="flex-none inline-flex justify-end bg-transparent gap-2 mb-1 z-10 border-none items-center mr-4!"
+			aria-label="Main navigation"
+			className="flex-none flex justify-end bg-transparent gap-2 py-2 px-4 z-10 border-none items-center w-full"
 			id="cline-navbar-container">
 			{SETTINGS_TABS.map((tab) => (
 				<Tooltip key={`navbar-tooltip-${tab.id}`}>
@@ -76,9 +75,10 @@ export const Navbar = () => {
 							aria-label={tab.tooltip}
 							className="p-0 h-7"
 							data-testid={`tab-${tab.id}`}
-							key={`navbar-button-${tab.id}`}
 							onClick={() => tab.navigate()}
 							size="icon"
+							tabIndex={0}
+							type="button"
 							variant="icon">
 							<tab.icon className="stroke-1 [svg]:size-4" size={18} />
 						</Button>

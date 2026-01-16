@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react"
 import { useClickAway } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useAutoApproveActions } from "@/hooks/useAutoApproveActions"
+import { useModal } from "@/utils/focusManagement"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import AutoApproveMenuItem from "./AutoApproveMenuItem"
 import { updateAutoApproveSettings } from "./AutoApproveSettingsAPI"
@@ -13,16 +14,23 @@ const breakpoint = 500
 interface AutoApproveModalProps {
 	isVisible: boolean
 	setIsVisible: (visible: boolean) => void
-	buttonRef: React.RefObject<HTMLDivElement>
+	buttonRef: React.RefObject<HTMLButtonElement>
 	ACTION_METADATA: ActionMetadata[]
 }
 
 const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVisible, buttonRef, ACTION_METADATA }) => {
 	const { autoApprovalSettings } = useExtensionState()
 	const { isChecked, updateAction } = useAutoApproveActions()
-	const modalRef = useRef<HTMLDivElement>(null)
 	const itemsContainerRef = useRef<HTMLDivElement>(null)
 	const [containerWidth, setContainerWidth] = useState(0)
+
+	// Focus management (combines focus trap, restoration, and Escape key handling)
+	// Parent owns buttonRef, so we pass it as externalTriggerRef
+	const { containerRef: modalRef } = useModal<HTMLButtonElement, HTMLDivElement>(
+		isVisible,
+		() => setIsVisible(false),
+		buttonRef,
+	)
 
 	useClickAway(modalRef, (e) => {
 		// Skip if click was on the button that toggles the modal
@@ -71,7 +79,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVis
 				style={{
 					maxHeight: "60vh",
 				}}>
-				<div className="mb-2.5 text-muted-foreground text-xs cursor-pointer" onClick={() => setIsVisible(false)}>
+				<div className="mb-2.5 text-muted-foreground text-xs">
 					Let Cline take these actions without asking for approval.{" "}
 					<a
 						className="text-link hover:text-link-hover"
