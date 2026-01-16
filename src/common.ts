@@ -24,6 +24,7 @@ import { telemetryService } from "./services/telemetry"
 import { PostHogClientProvider } from "./services/telemetry/providers/posthog/PostHogClientProvider"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { getLatestAnnouncementId } from "./utils/announcements"
+import { openAiCodexOAuthManager } from "./integrations/openai-codex/oauth"
 import { arePathsEqual } from "./utils/path"
 /**
  * Performs intialization for Cline that is common to all platforms.
@@ -41,6 +42,9 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 			message: "Failed to initialize Cline's application state. Please restart the extension.",
 		})
 	}
+
+	// Initialize OpenAI Codex OAuth manager with extension context for secrets storage
+	openAiCodexOAuthManager.initialize(context)
 
 	// Set the distinct ID for logging and telemetry
 	await initializeDistinctId(context)
