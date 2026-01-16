@@ -266,7 +266,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		const modelSelectorRef = useRef<HTMLDivElement>(null)
 		const buttonRef = useRef<HTMLDivElement>(null)
-		const [shownTooltipMode, _setShownTooltipMode] = useState<Mode | null>(null)
+		const [shownTooltipMode, setShownTooltipMode] = useState<Mode | null>(null)
 
 		const [pendingInsertions, setPendingInsertions] = useState<string[]>([])
 		const [showUnsupportedFileError, setShowUnsupportedFileError] = useState(false)
@@ -1748,18 +1748,21 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								data-testid="mode-switch"
 								disabled={false}
 								onClick={onModeToggle}
-								role="switch"
 								type="button">
 								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
 								{["Plan", "Act"].map((m) => (
-									<span
+									<div
+										aria-checked={mode === m.toLowerCase()}
 										className={cn(
 											"pt-0.5 pb-px px-2 z-10 text-xs w-1/2 text-center bg-transparent",
 											mode === m.toLowerCase() ? "text-white" : "text-input-foreground",
 										)}
-										key={m}>
+										key={m}
+										onMouseLeave={() => setShownTooltipMode(null)}
+										onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}
+										role="switch">
 										{m}
-									</span>
+									</div>
 								))}
 							</SwitchContainer>
 						</TooltipTrigger>
