@@ -5,7 +5,10 @@ import { ClineEnv } from "@/config"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { getAxiosSettings } from "@/shared/net"
+import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
+import { getLatestAnnouncementId } from "@/utils/announcements"
 import { buildBasicClineHeaders } from "../EnvUtils"
+import { featureFlagsService } from "../feature-flags"
 import { getDistinctId } from "../logging/distinctId"
 import { Logger } from "../logging/Logger"
 
@@ -24,8 +27,9 @@ export class BannerService {
 	private _retryCount: number = 0
 	private _retryTimeoutId: ReturnType<typeof setTimeout> | null = null
 
-	private constructor(private authToken: string) {
+	private constructor(private authToken?: string) {
 		this.actionTypes = new Set<string>(Object.values(BannerActionType))
+		this.fetchBanners()
 	}
 
 	/**
@@ -34,7 +38,7 @@ export class BannerService {
 	 * @returns The initialized BannerService instance
 	 * @throws Error if already initialized
 	 */
-	public static initialize(authToken: string): BannerService {
+	public static initialize(authToken?: string): BannerService {
 		if (BannerService.instance) {
 			throw new Error("BannerService has already been initialized.")
 		}
@@ -404,6 +408,13 @@ export class BannerService {
 	 * @returns Array of non-dismissed banners converted to BannerCardData format
 	 */
 	public async getActiveBanners(forceRefresh = false): Promise<BannerCardData[]> {
+		const latestAnnouncementId = getLatestAnnouncementId()
+		const lastShownAnnouncementId = StateManager.get().getGlobalStateKey("lastShownAnnouncementId")
+		const shouldShowAnnouncement = lastShownAnnouncementId !== latestAnnouncementId
+		if (!shouldShowAnnouncement || !featureFlagsService.getBooleanFlagEnabled(FeatureFlag.BANNER_EXTENSION)) {
+			return []
+		}
+
 		const now = Date.now()
 		const cacheExpired = now - this._lastFetchTime >= this.CACHE_DURATION_MS
 		const shouldFetch = forceRefresh || this._cachedBanners.length === 0 || cacheExpired

@@ -9,6 +9,7 @@ export enum FeatureFlag {
 	WEBTOOLS = "webtools",
 	// Feature flag for showing the new onboarding flow or old welcome view.
 	ONBOARDING_MODELS = "onboarding_models",
+	BANNER_EXTENSION = "banner_extension",
 }
 
 export const FeatureFlagDefaultValue: Partial<Record<FeatureFlag, FeatureFlagPayload>> = {
@@ -16,6 +17,7 @@ export const FeatureFlagDefaultValue: Partial<Record<FeatureFlag, FeatureFlagPay
 	[FeatureFlag.HOOKS]: false,
 	[FeatureFlag.WEBTOOLS]: false,
 	[FeatureFlag.ONBOARDING_MODELS]: process.env.E2E_TEST === "true" ? { models: {} } : undefined,
+	[FeatureFlag.BANNER_EXTENSION]: process.env.IS_DEV === "true",
 }
 
 export const FEATURE_FLAGS = Object.values(FeatureFlag)

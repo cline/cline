@@ -59,7 +59,6 @@ export interface ExtensionState {
 	enableCheckpointsSetting?: boolean
 	platform: Platform
 	environment?: Environment
-	shouldShowAnnouncement: boolean
 	taskHistory: HistoryItem[]
 	telemetrySetting: TelemetrySetting
 	shellIntegrationTimeout: number

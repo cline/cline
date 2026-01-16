@@ -37,7 +37,6 @@ import { telemetryService } from "@/services/telemetry"
 import { BannerCardData } from "@/shared/cline/banner"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
-import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { PromptRegistry } from "../prompts/system-prompt"
 import {
@@ -812,7 +811,6 @@ export class Controller {
 		// Get API configuration from cache for immediate access
 		const onboardingModels = getClineOnboardingModels()
 		const apiConfiguration = this.stateManager.getApiConfiguration()
-		const lastShownAnnouncementId = this.stateManager.getGlobalStateKey("lastShownAnnouncementId")
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
@@ -872,8 +870,6 @@ export class Controller {
 			.sort((a, b) => b.ts - a.ts)
 			.slice(0, 100) // for now we're only getting the latest 100 tasks, but a better solution here is to only pass in 3 for recent task history, and then get the full task history on demand when going to the task history view (maybe with pagination?)
 
-		const latestAnnouncementId = getLatestAnnouncementId()
-		const shouldShowAnnouncement = lastShownAnnouncementId !== latestAnnouncementId
 		const platform = process.platform as Platform
 		const distinctId = getDistinctId()
 		const version = ExtensionRegistryInfo.version
@@ -936,7 +932,6 @@ export class Controller {
 			subagentTerminalOutputLineLimit,
 			customPrompt,
 			taskHistory: processedTaskHistory,
-			shouldShowAnnouncement,
 			favoritedModelIds,
 			autoCondenseThreshold,
 			backgroundCommandRunning: this.backgroundCommandRunning,

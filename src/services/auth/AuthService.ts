@@ -79,6 +79,8 @@ export class AuthService {
 	protected constructor(controller: Controller) {
 		this._provider = new ClineAuthProvider()
 		this._controller = controller
+
+		this.getAuthToken().then((token) => BannerService.initialize(token || undefined))
 	}
 
 	/**
