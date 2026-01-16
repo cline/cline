@@ -9,10 +9,10 @@ export async function fixWithCline(controller: Controller, request: CommandConte
 	const fileMention = await getFileMentionFromPath(filePath)
 	const problemsString = await singleFileDiagnosticsToProblemsString(filePath, request.diagnostics)
 
-	await controller.initTask(
-		`Fix the following code in ${fileMention}
-\`\`\`\n${request.selectedText}\n\`\`\`\n\nProblems:\n${problemsString}`,
-	)
+	const taskMessage = `Fix the following code in ${fileMention}
+\`\`\`\n${request.selectedText}\n\`\`\`\n\nProblems:\n${problemsString}`
+
+	await controller.initTask(taskMessage)
 	console.log("fixWithCline", request.selectedText, request.filePath, request.language, problemsString)
 
 	telemetryService.captureButtonClick("codeAction_fixWithCline", controller.task?.ulid)
