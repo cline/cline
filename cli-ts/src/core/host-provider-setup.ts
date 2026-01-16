@@ -1,5 +1,4 @@
 import { ExternalCommentReviewController } from "@hosts/external/ExternalCommentReviewController"
-import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvider"
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
 import path from "path"
 import type { ExtensionContext } from "vscode"
@@ -7,6 +6,7 @@ import type { WebviewProvider } from "@/core/webview"
 import { HostProvider } from "@/hosts/host-provider"
 import type { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { StandaloneTerminalManager } from "@/integrations/terminal"
+import { StandaloneDiffViewProvider } from "../integrations/editor/StandaloneDiffViewProvider.js"
 import type { Logger } from "../types/logger.js"
 import { NOISE_PATTERNS } from "./console-filter.js"
 import { StandaloneHostBridgeClient } from "./standalone-hostbridge-client.js"
@@ -33,7 +33,7 @@ export function setupHostProvider(
 	}
 
 	const createDiffView = (): DiffViewProvider => {
-		return new ExternalDiffViewProvider()
+		return new StandaloneDiffViewProvider((message) => logger.info(message))
 	}
 
 	const createCommentReview = () => new ExternalCommentReviewController()

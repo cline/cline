@@ -19,6 +19,8 @@ import type {
 } from "@shared/ExtensionMessage"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import type { State } from "@shared/proto/cline/state"
+import type { ClineMessage as ProtoClineMessage } from "@shared/proto/cline/ui"
+import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { type MarkedExtension, marked } from "marked"
 import { markedTerminal } from "marked-terminal"
 
@@ -29,6 +31,7 @@ marked.use(markedTerminal() as unknown as MarkedExtension)
 import type { Controller } from "@/core/controller"
 import type { StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { subscribeToState } from "@/core/controller/state/subscribeToState"
+import { subscribeToPartialMessage } from "@/core/controller/ui/subscribeToPartialMessage"
 import type { OutputFormatter } from "./output/types.js"
 
 /**
@@ -82,7 +85,7 @@ export class CliWebviewAdapter {
 		this.subscriptionActive = true
 
 		// Create a streaming response handler for state updates
-		const responseHandler: StreamingResponseHandler<State> = async (state: State) => {
+		const stateResponseHandler: StreamingResponseHandler<State> = async (state: State) => {
 			if (!this.subscriptionActive) {
 				return
 			}
@@ -98,8 +101,22 @@ export class CliWebviewAdapter {
 			}
 		}
 
-		// Subscribe to state updates from Controller
-		subscribeToState(this.controller, EmptyRequest.create(), responseHandler)
+		// Create a streaming response handler for partial message updates
+		// This is needed because the extension uses sendPartialMessageEvent for
+		// efficiency instead of postStateToWebview for streaming message updates
+		const partialMessageHandler: StreamingResponseHandler<ProtoClineMessage> = async (protoMessage: ProtoClineMessage) => {
+			if (!this.subscriptionActive) {
+				return
+			}
+
+			// Convert proto message to app message and handle it
+			const message = convertProtoToClineMessage(protoMessage)
+			this.handleSingleMessage(message)
+		}
+
+		// Subscribe to both state updates and partial message events
+		subscribeToState(this.controller, EmptyRequest.create(), stateResponseHandler)
+		subscribeToPartialMessage(this.controller, EmptyRequest.create(), partialMessageHandler)
 	}
 
 	/**
@@ -137,6 +154,41 @@ export class CliWebviewAdapter {
 			this.outputMessage(msg)
 			this.printedMessageTs.add(msg.ts)
 		}
+	}
+
+	/**
+	 * Handle a single message update from the partial message stream
+	 *
+	 * This is called when sendPartialMessageEvent is used instead of postStateToWebview.
+	 * It handles both partial updates (which we skip) and completed messages.
+	 */
+	private handleSingleMessage(msg: ClineMessage): void {
+		// Notify callback with current state (append the new message)
+		if (this.onStateChange) {
+			const currentMessages = this.getMessages()
+			// Check if this message already exists and update it, or append if new
+			const existingIndex = currentMessages.findIndex((m) => m.ts === msg.ts)
+			if (existingIndex >= 0) {
+				currentMessages[existingIndex] = msg
+			} else {
+				currentMessages.push(msg)
+			}
+			this.onStateChange(currentMessages)
+		}
+
+		// Skip if already printed
+		if (this.printedMessageTs.has(msg.ts)) {
+			return
+		}
+
+		// Skip partial messages - wait until they're complete
+		if (msg.partial) {
+			return
+		}
+
+		// Print the complete message
+		this.outputMessage(msg)
+		this.printedMessageTs.add(msg.ts)
 	}
 
 	/**
