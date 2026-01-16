@@ -19,7 +19,15 @@ const ClineLogoSanta = (props: SVGProps<SVGSVGElement> & { environment?: Environ
 	const fillColor = environment ? getEnvironmentColor(environment) : "var(--vscode-icon-foreground)"
 
 	return (
-		<svg height="50" viewBox="0 0 66.62 63.92" width="47" xmlns="http://www.w3.org/2000/svg" {...svgProps}>
+		<svg
+			aria-labelledby="cline-logo-santa-title"
+			height="50"
+			role="img"
+			viewBox="0 0 66.62 63.92"
+			width="47"
+			xmlns="http://www.w3.org/2000/svg"
+			{...svgProps}>
+			<title id="cline-logo-santa-title">Cline Logo with Santa Hat</title>
 			{/* Original Cline robot logo */}
 			<path
 				d="M55.69,42.04l-2.91-5.8v-3.34c0-5.54-4.47-10.03-9.98-10.03h-4.97c.36-.73.56-1.56.56-2.43,0-3.08-2.49-5.57-5.57-5.57s-5.57,2.49-5.57,5.57c0,.87.2,1.7.56,2.43h-4.97c-5.51,0-9.98,4.49-9.98,10.03v3.34l-2.97,5.79c-.3.58-.3,1.28,0,1.86l2.97,5.72v3.34c0,5.54,4.47,10.03,9.98,10.03h19.96c5.51,0,9.98-4.49,9.98-10.03v-3.34l2.9-5.74c.29-.57.29-1.25,0-1.82ZM29.79,46.77c0,2.52-2.04,4.56-4.56,4.56s-4.56-2.04-4.56-4.56v-8.1c0-2.52,2.04-4.56,4.56-4.56s4.56,2.04,4.56,4.56v8.1ZM44.47,46.77c0,2.52-2.04,4.56-4.56,4.56s-4.56-2.04-4.56-4.56v-8.1c0-2.52,2.04-4.56,4.56-4.56s4.56,2.04,4.56,4.56v8.1Z"

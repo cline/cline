@@ -6,6 +6,18 @@ vscode-button::part(control):focus {
 	outline: none;
 }
 
+vscode-button::part(control):focus-visible {
+	outline: 2px solid var(--vscode-focusBorder, #007fd4);
+	outline-offset: 2px;
+}
+
+@media (prefers-contrast: high) {
+	vscode-button::part(control):focus-visible {
+		outline-width: 3px;
+		outline-offset: 3px;
+	}
+}
+
 /*
 Use vscode native scrollbar styles
 https://github.com/gitkraken/vscode-gitlens/blob/b1d71d4844523e8b2ef16f9e007068e91f46fd88/src/webviews/apps/home/home.scss
@@ -140,14 +152,24 @@ vscode-dropdown::part(listbox) {
 .input-icon-button {
 	cursor: pointer;
 	opacity: 0.65;
+	border: 0;
+	background: transparent;
+	padding: 0;
+	margin: 0;
 }
 .input-icon-button:hover {
 	opacity: 1;
 }
+.input-icon-button:focus-visible {
+	opacity: 1;
+	border-radius: 2px;
+}
+.input-icon-button:disabled,
 .input-icon-button.disabled {
 	cursor: not-allowed;
 	opacity: 0.4;
 }
+.input-icon-button:disabled:hover,
 .input-icon-button.disabled:hover {
 	opacity: 0.4;
 }
