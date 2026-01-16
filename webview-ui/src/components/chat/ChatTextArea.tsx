@@ -1667,8 +1667,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								<TooltipContent>Add Context</TooltipContent>
 								<TooltipTrigger asChild>
 									<VSCodeButton
-										{...createIconButtonProps("Add Context", handleContextButtonClick)}
 										appearance="icon"
+										aria-label="Add Context"
 										className="p-0 m-0 flex items-center"
 										data-testid="context-button"
 										onClick={handleContextButtonClick}
@@ -1684,15 +1684,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								<TooltipContent>Add Files & Images</TooltipContent>
 								<TooltipTrigger asChild>
 									<VSCodeButton
-										{...createIconButtonProps("Add Files & Images", () => {
-											if (!shouldDisableFilesAndImages) {
-												onSelectFilesAndImages()
-											}
-										})}
 										appearance="icon"
+										aria-label="Add Files & Images"
 										className="p-0 m-0 flex items-center"
 										data-testid="files-button"
 										disabled={shouldDisableFilesAndImages}
+										onClick={() => {
+											if (!shouldDisableFilesAndImages) {
+												onSelectFilesAndImages()
+											}
+										}}
 										tabIndex={0}>
 										<ButtonContainer>
 											<PlusIcon size={13} />
