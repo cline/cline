@@ -9,6 +9,7 @@ import {
 	openAiCodexModels,
 } from "@shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
+import { fetch } from "@/shared/net"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { convertToOpenAIResponsesInput } from "../transform/openai-response-format"
@@ -206,6 +207,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 						apiKey: accessToken,
 						baseURL: CODEX_API_BASE_URL,
 						defaultHeaders: codexHeaders,
+						fetch, // Use shared fetch for proxy support
 					})
 
 				const stream = (await (client as any).responses.create(requestBody, {
