@@ -1,6 +1,8 @@
-import { ChevronsDownUpIcon, FilePlus, FileText, FileX } from "lucide-react"
+import { StringRequest } from "@shared/proto/cline/common"
+import { ChevronsDownUpIcon, FilePlus, FileText, FileX, SquareArrowOutUpRightIcon } from "lucide-react"
 import { memo, useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
+import { FileServiceClient } from "@/services/grpc-client"
 
 interface Patch {
 	action: string
@@ -94,6 +96,15 @@ const FileBlock = memo<{ file: Patch; isStreaming: boolean }>(
 			shouldFollowRef.current = Math.abs(scrollHeight - clientHeight - scrollTop) < 10
 		}
 
+		const handleOpenFile = (event: React.MouseEvent) => {
+			event.stopPropagation()
+			if (file.path) {
+				FileServiceClient.openFileRelativePath(StringRequest.create({ value: file.path })).catch((err) =>
+					console.error("Failed to open file:", err),
+				)
+			}
+		}
+
 		const actionStyle = ACTION_STYLES[file.action as keyof typeof ACTION_STYLES] ?? ACTION_STYLES.default
 		const ActionIcon = actionStyle.icon
 
@@ -106,10 +117,23 @@ const FileBlock = memo<{ file: Patch; isStreaming: boolean }>(
 					<div className="flex items-center gap-3 flex-1 w-full overflow-hidden">
 						<div className={cn("flex items-center gap-2 w-full", actionStyle.borderClass)}>
 							<ActionIcon className={cn("w-5 h-5", actionStyle.iconClass)} />
-							<span className="font-medium truncate">{file.path}</span>
+							<span
+								className="font-medium truncate hover:underline hover:text-link"
+								onClick={handleOpenFile}
+								title="Open file in editor">
+								{file.path}
+							</span>
 						</div>
 					</div>
-					<DiffStats additions={file.additions} deletions={file.deletions} />
+					<div className="flex items-center gap-2">
+						<DiffStats additions={file.additions} deletions={file.deletions} />
+						<span
+							className="p-1 hover:bg-description/20 rounded-xs transition-colors"
+							onClick={handleOpenFile}
+							title="Open file in editor">
+							<SquareArrowOutUpRightIcon className="size-2 text-description hover:text-foreground" />
+						</span>
+					</div>
 				</button>
 
 				{isExpanded && (
