@@ -87,7 +87,10 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					{/* Description */}
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						<li className="mb-2">
-							<strong>OpenAI:</strong> Add gpt-5.2-codex model support
+							<strong>OpenAI:</strong> Added gpt-5.2-codex model support
+							<AuthButton>
+								<ModelButton label="Try now!" modelId="openai/gpt-5.2-codex" />
+							</AuthButton>
 						</li>
 						<li className="mb-2">
 							<strong>Skills:</strong> Extend Cline with instruction sets for specialized tasks.{" "}

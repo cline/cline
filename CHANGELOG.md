@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.51.0]
+
+### Added
+
+- Adding OpenAI gpt-5.2-codex  model to the model picker
+
 ## [3.50.0]
 
 ### Added
