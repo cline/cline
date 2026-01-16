@@ -242,15 +242,6 @@ export abstract class DiffViewProvider {
 		if (isFinal) {
 			// Handle any remaining lines if the new content is shorter than the original
 			await this.safelyTruncateDocument(this.streamedLines.length)
-
-			// Add empty last line if original content had one
-			const hasEmptyLastLine = this.originalContent?.endsWith("\n")
-			if (hasEmptyLastLine) {
-				const accumulatedLines = accumulatedContent.split("\n")
-				if (accumulatedLines[accumulatedLines.length - 1] !== "") {
-					accumulatedContent += "\n"
-				}
-			}
 		}
 	}
 

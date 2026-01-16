@@ -39,10 +39,19 @@ class TestBoundaryDiffViewProvider extends DiffViewProvider {
 	): Promise<void> {
 		// Minimal implementation for update() to work
 		const lines = this.documentText.split("\n")
+
+		// Check if we're replacing to the end of the document
+		const replacingToEnd = rangeToReplace.endLine >= lines.length
+
 		const newLines = content.split("\n")
-		if (!content.endsWith("\n") && newLines[newLines.length - 1] === "") {
+
+		// Remove trailing empty line for proper splicing, BUT only when NOT replacing
+		// to the end of the document. When replacing to the end, keep the trailing
+		// empty string to preserve trailing newlines from the content.
+		if (!replacingToEnd && newLines[newLines.length - 1] === "") {
 			newLines.pop()
 		}
+
 		lines.splice(rangeToReplace.startLine, rangeToReplace.endLine - rangeToReplace.startLine, ...newLines)
 		this.documentText = lines.join("\n")
 	}
@@ -115,5 +124,103 @@ describe("DiffViewProvider Boundary Validation", () => {
 		// The document should contain just "line1\nline2".
 
 		assert.strictEqual(provider.documentText, "line1\nline2")
+	})
+})
+
+describe("DiffViewProvider Newline Preservation", () => {
+	it("preserves trailing newline when content ends with newline", async () => {
+		const provider = new TestBoundaryDiffViewProvider()
+		// Original file has trailing newline
+		provider.setup("line1\nline2\n")
+
+		// New content also has trailing newline
+		await provider.update("new1\nnew2\n", true)
+
+		const result = await provider.getDocumentText()
+		assert.strictEqual(result, "new1\nnew2\n", "Trailing newline should be preserved")
+		assert.strictEqual(result?.endsWith("\n"), true)
+	})
+
+	it("does not add trailing newline when content does not end with newline", async () => {
+		const provider = new TestBoundaryDiffViewProvider()
+		// Original file has trailing newline
+		provider.setup("line1\nline2\n")
+
+		// New content does NOT have trailing newline
+		await provider.update("new1\nnew2", true)
+
+		const result = await provider.getDocumentText()
+		assert.strictEqual(result, "new1\nnew2", "Should not have trailing newline")
+		assert.strictEqual(result?.endsWith("\n"), false)
+	})
+
+	it("adds trailing newline when content ends with newline but original did not", async () => {
+		const provider = new TestBoundaryDiffViewProvider()
+		// Original file does NOT have trailing newline
+		provider.setup("line1\nline2")
+
+		// New content has trailing newline
+		await provider.update("new1\nnew2\n", true)
+
+		const result = await provider.getDocumentText()
+		assert.strictEqual(result, "new1\nnew2\n", "Should add trailing newline")
+		assert.strictEqual(result?.endsWith("\n"), true)
+	})
+
+	it("preserves no trailing newline when neither original nor new content has one", async () => {
+		const provider = new TestBoundaryDiffViewProvider()
+		// Original file does NOT have trailing newline
+		provider.setup("line1\nline2")
+
+		// New content also does NOT have trailing newline
+		await provider.update("new1\nnew2", true)
+
+		const result = await provider.getDocumentText()
+		assert.strictEqual(result, "new1\nnew2", "Should not have trailing newline")
+		assert.strictEqual(result?.endsWith("\n"), false)
+	})
+
+	it("handles shortening file while preserving trailing newline", async () => {
+		const provider = new TestBoundaryDiffViewProvider()
+		// Original: 10 lines with trailing newline
+		provider.setup("line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9\nline10\n")
+
+		// New: 3 lines with trailing newline
+		await provider.update("line1\nline2\nline3\n", true)
+
+		const result = await provider.getDocumentText()
+		assert.strictEqual(result, "line1\nline2\nline3\n", "Should shorten and preserve trailing newline")
+	})
+
+	it("handles lengthening file while preserving trailing newline", async () => {
+		const provider = new TestBoundaryDiffViewProvider()
+		// Original: 3 lines with trailing newline
+		provider.setup("line1\nline2\nline3\n")
+
+		// New: 5 lines with trailing newline
+		await provider.update("line1\nline2\nline3\nline4\nline5\n", true)
+
+		const result = await provider.getDocumentText()
+		assert.strictEqual(result, "line1\nline2\nline3\nline4\nline5\n", "Should lengthen and preserve trailing newline")
+	})
+
+	it("handles single line content with trailing newline", async () => {
+		const provider = new TestBoundaryDiffViewProvider()
+		provider.setup("old content\n")
+
+		await provider.update("Hello World\n", true)
+
+		const result = await provider.getDocumentText()
+		assert.strictEqual(result, "Hello World\n")
+	})
+
+	it("handles single line content without trailing newline", async () => {
+		const provider = new TestBoundaryDiffViewProvider()
+		provider.setup("old content\nline2\n")
+
+		await provider.update("Hello World", true)
+
+		const result = await provider.getDocumentText()
+		assert.strictEqual(result, "Hello World")
 	})
 })

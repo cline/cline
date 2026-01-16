@@ -44,10 +44,16 @@ export class FileEditProvider extends DiffViewProvider {
 		// Split the document into lines
 		const lines = this.documentContent.split("\n")
 
+		// Check if we're replacing to the end of the document
+		const replacingToEnd = rangeToReplace.endLine >= lines.length
+
 		// Replace the specified range with the new content
 		const newContentLines = content.split("\n")
-		// Remove trailing empty line if present in newContentLines for proper splicing
-		if (newContentLines[newContentLines.length - 1] === "") {
+
+		// Remove trailing empty line for proper splicing, BUT only when NOT replacing
+		// to the end of the document. When replacing to the end, keep the trailing
+		// empty string to preserve trailing newlines from the content.
+		if (!replacingToEnd && newContentLines[newContentLines.length - 1] === "") {
 			newContentLines.pop()
 		}
 
