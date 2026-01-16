@@ -532,6 +532,7 @@
 		"p-timeout": "^6.1.4",
 		"p-wait-for": "^5.0.2",
 		"pdf-parse": "^1.1.1",
+		"picomatch": "^4.0.3",
 		"posthog-node": "^5.8.0",
 		"puppeteer-chromium-resolver": "^23.0.0",
 		"puppeteer-core": "^23.4.0",
