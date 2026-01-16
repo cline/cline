@@ -52,7 +52,10 @@ export async function getFileMentionFromPath(filePath: string) {
 		return "@/" + filePath
 	}
 	const relativePath = path.relative(cwd, filePath)
-	return "@/" + relativePath
+	// Add quotes around paths that contain spaces
+	const needsQuotes = relativePath.includes(" ")
+	const formattedPath = needsQuotes ? `"${relativePath}"` : relativePath
+	return "@/" + formattedPath
 }
 
 export async function parseMentions(

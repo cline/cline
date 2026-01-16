@@ -12,9 +12,22 @@ export async function showOpenDialogue(request: ShowOpenDialogueRequest): Promis
 		options.openLabel = request.openLabel
 	}
 
-	if (request.filters?.files) {
-		options.filters = {
-			Files: request.filters.files,
+	if (request.filters?.files && request.filters.files.length > 0) {
+		// Separate image extensions from other file extensions for better UX
+		const imageExtensions = ["png", "jpg", "jpeg", "webp", "gif", "bmp", "ico"]
+		const images = request.filters.files.filter((ext) => imageExtensions.includes(ext))
+		const others = request.filters.files.filter((ext) => !imageExtensions.includes(ext))
+
+		const filters: { [key: string]: string[] } = {}
+		if (images.length > 0) {
+			filters.Images = images
+		}
+		if (others.length > 0) {
+			filters.Files = others
+		}
+
+		if (Object.keys(filters).length > 0) {
+			options.filters = filters
 		}
 	}
 

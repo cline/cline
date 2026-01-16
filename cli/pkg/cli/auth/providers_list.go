@@ -114,6 +114,7 @@ func (r *ProviderListResult) GetAllReadyProviders() []*ProviderDisplay {
 		cline.ApiProvider_NOUSRESEARCH,
 		cline.ApiProvider_OCA,
 		cline.ApiProvider_HICAP,
+		cline.ApiProvider_SAPAICORE,
 	}
 
 	// Check each provider to see if it's ready to use
@@ -244,6 +245,8 @@ func mapProviderStringToEnum(providerStr string) (cline.ApiProvider, bool) {
 		return cline.ApiProvider_HICAP, true
 	case "nousResearch":
 		return cline.ApiProvider_NOUSRESEARCH, true
+	case "sapaicore":
+		return cline.ApiProvider_SAPAICORE, true
 	default:
 		return cline.ApiProvider_ANTHROPIC, false // Return 0 value with false
 	}
@@ -279,6 +282,8 @@ func GetProviderIDForEnum(provider cline.ApiProvider) string {
 		return "hicap"
 	case cline.ApiProvider_NOUSRESEARCH:
 		return "nousResearch"
+	case cline.ApiProvider_SAPAICORE:
+		return "sapaicore"
 	default:
 		return ""
 	}
@@ -364,6 +369,8 @@ func GetProviderDisplayName(provider cline.ApiProvider) string {
 		return "Hicap"
 	case cline.ApiProvider_NOUSRESEARCH:
 		return "NousResearch"
+	case cline.ApiProvider_SAPAICORE:
+		return "SAP AI Core"
 	default:
 		return "Unknown"
 	}
@@ -487,6 +494,7 @@ func DetectAllConfiguredProviders(ctx context.Context, manager *task.Manager) ([
 		{cline.ApiProvider_CEREBRAS, []string{"cerebrasApiKey"}},
 		{cline.ApiProvider_HICAP, []string{"hicapApiKey"}},
 		{cline.ApiProvider_NOUSRESEARCH, []string{"nousResearchApiKey"}},
+		{cline.ApiProvider_SAPAICORE, []string{"sapAiCoreClientId"}},
 	}
 
 	for _, providerCheck := range providersToCheck {

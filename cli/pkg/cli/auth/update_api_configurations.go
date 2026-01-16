@@ -174,6 +174,15 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 			ActModeProviderSpecificModelIDField:  "actModeNousResearchModelId",
 		}, nil
 
+	case cline.ApiProvider_SAPAICORE:
+		return ProviderFields{
+			APIKeyField:                          "sapAiCoreClientId",
+			PlanModeModelIDField:                 "planModeApiModelId",
+			ActModeModelIDField:                  "actModeApiModelId",
+			PlanModeProviderSpecificModelIDField: "planModeSapAiCoreModelId",
+			ActModeProviderSpecificModelIDField:  "actModeSapAiCoreModelId",
+		}, nil
+
 	default:
 		return ProviderFields{}, fmt.Errorf("unsupported provider: %v", provider)
 	}
