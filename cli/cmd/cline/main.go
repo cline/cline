@@ -37,8 +37,9 @@ var (
 
 func main() {
 	rootCmd := &cobra.Command{
-		Use:   "cline [prompt]",
-		Short: "Cline CLI - AI-powered coding assistant",
+		Use:     "cline [prompt]",
+		Short:   "Cline CLI - AI-powered coding assistant",
+		Version: global.CliVersion,
 		Long: `A command-line interface for interacting with Cline AI coding assistant.
 
 Start a new task by providing a prompt:
