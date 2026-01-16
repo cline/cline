@@ -24,17 +24,14 @@ export function useFocusTrap(isActive: boolean, containerRef: RefObject<HTMLElem
 
 			const firstElement = focusableElements[0]
 			const lastElement = focusableElements[focusableElements.length - 1]
+			const activeElement = document.activeElement
 
-			if (e.shiftKey) {
-				if (document.activeElement === firstElement || !container.contains(document.activeElement)) {
-					e.preventDefault()
-					lastElement.focus()
-				}
-			} else {
-				if (document.activeElement === lastElement || !container.contains(document.activeElement)) {
-					e.preventDefault()
-					firstElement.focus()
-				}
+			if (e.shiftKey && (activeElement === firstElement || !container.contains(activeElement))) {
+				e.preventDefault()
+				lastElement.focus()
+			} else if (!e.shiftKey && (activeElement === lastElement || !container.contains(activeElement))) {
+				e.preventDefault()
+				firstElement.focus()
 			}
 		}
 
@@ -64,13 +61,13 @@ export function useFocusRestoration(restoreTargetRef: RefObject<HTMLElement>): v
 	}, [restoreTargetRef])
 }
 
-export function useModal<TriggerElement extends HTMLElement = HTMLElement, ContainerElement extends HTMLElement = HTMLElement>(
+export function useModal<T extends HTMLElement = HTMLElement, C extends HTMLElement = HTMLElement>(
 	isOpen: boolean,
 	onClose: () => void,
-	externalTriggerRef?: RefObject<TriggerElement>,
+	externalTriggerRef?: RefObject<T>,
 ) {
-	const internalTriggerRef = useRef<TriggerElement>(null)
-	const containerRef = useRef<ContainerElement>(null)
+	const internalTriggerRef = useRef<T>(null)
+	const containerRef = useRef<C>(null)
 	const triggerRef = externalTriggerRef || internalTriggerRef
 
 	useFocusTrap(isOpen, containerRef)
@@ -81,7 +78,7 @@ export function useModal<TriggerElement extends HTMLElement = HTMLElement, Conta
 			return
 		}
 
-		const handleEscape = (e: KeyboardEvent) => {
+		const handleEscape = (e: KeyboardEvent): void => {
 			if (e.key === "Escape") {
 				e.preventDefault()
 				onClose()
