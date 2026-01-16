@@ -1,10 +1,14 @@
 #!/usr/bin/env node
+// Suppress Node.js deprecation warnings (e.g., punycode) before any imports
+process.noDeprecation = true
+
 import { Command } from "commander"
 import { createAuthCommand } from "./commands/auth/index.js"
 import { createConfigCommand } from "./commands/config/index.js"
 import { createTaskCommand } from "./commands/task/index.js"
 import { createVersionCommand, getVersion } from "./commands/version.js"
 import { createConfig } from "./core/config.js"
+import { applyConsoleFilter } from "./core/console-filter.js"
 import { createLogger } from "./core/logger.js"
 import { createFormatterFromOption, parseOutputFormat } from "./core/output/index.js"
 import type { OutputFormatter } from "./core/output/types.js"
@@ -36,6 +40,10 @@ export async function main(): Promise<void> {
 	// Parse global options first to get config
 	program.parse(process.argv)
 	const opts = program.opts()
+
+	// Apply console filtering early to suppress noisy operational output
+	// This must happen before any other code runs that might output to console
+	applyConsoleFilter(opts.verbose)
 
 	// Parse and validate output format
 	let outputFormat

@@ -48,8 +48,56 @@ export function setupHostProvider(
 		return path.join(process.cwd(), name)
 	}
 
+	// Patterns that indicate noisy operational INFO-level output from core Logger
+	// These are filtered unless verbose mode is enabled (debug messages pass through)
+	const infoNoisePatterns = [
+		"NoOpFeatureFlagsProvider",
+		"NoOpTelemetryProvider",
+		"NoOpErrorProvider",
+		"TelemetryService",
+		"TelemetryProviderFactory",
+		"instantiated",
+		"for legacy",
+		"checkpoint",
+		"Checkpoint",
+		"[CommandExecutor]",
+		"[Task ",
+	]
+
 	const logToChannel = (message: string): void => {
-		logger.info(message)
+		// Parse log level from message (format: "LEVEL message...")
+		// Core Logger outputs messages as "${level} ${fullMessage}"
+		const parts = message.split(" ")
+		const level = parts[0]?.toUpperCase()
+		const content = parts.slice(1).join(" ")
+
+		// Route to appropriate logger method based on parsed level
+		// This respects the CLI's --verbose flag for DEBUG messages
+		switch (level) {
+			case "DEBUG":
+			case "TRACE":
+				logger.debug(content)
+				break
+			case "WARN":
+				logger.warn(content)
+				break
+			case "ERROR":
+				logger.error(content)
+				break
+			case "INFO":
+			case "LOG":
+			default: {
+				// Filter out noisy INFO patterns (they go to debug instead)
+				const messageToCheck = content || message
+				const isNoise = infoNoisePatterns.some((pattern) => messageToCheck.includes(pattern))
+				if (isNoise) {
+					logger.debug(messageToCheck)
+				} else {
+					logger.info(messageToCheck)
+				}
+				break
+			}
+		}
 	}
 
 	HostProvider.initialize(

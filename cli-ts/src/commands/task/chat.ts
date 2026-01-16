@@ -320,8 +320,18 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 						formatter.info(`Started task: ${session.taskId}`)
 						session.adapter?.resetMessageCounter()
 					} else if (controller.task) {
+						// Check if input is a numbered option selection
+						let messageToSend = input
+						if (session.awaitingInput && session.adapter) {
+							const options = session.adapter.currentOptions
+							const num = parseInt(input, 10)
+							if (!isNaN(num) && num >= 1 && num <= options.length) {
+								messageToSend = options[num - 1]
+							}
+						}
+
 						// Send message to existing task
-						await controller.task.handleWebviewAskResponse("messageResponse", input)
+						await controller.task.handleWebviewAskResponse("messageResponse", messageToSend)
 					}
 
 					rl.prompt()

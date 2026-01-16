@@ -9,12 +9,26 @@
 import type {
 	BrowserActionResult,
 	ClineApiReqInfo,
+	ClineAskQuestion,
 	ClineAskUseMcpServer,
 	ClineMessage,
+	ClinePlanModeResponse,
 	ClineSayBrowserAction,
 	ClineSayTool,
+	ExtensionState,
 } from "@shared/ExtensionMessage"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import type { State } from "@shared/proto/cline/state"
+import { type MarkedExtension, marked } from "marked"
+import { markedTerminal } from "marked-terminal"
+
+// Configure marked with terminal renderer (global setup)
+// Note: @types/marked-terminal is outdated and returns wrong type, cast to MarkedExtension
+marked.use(markedTerminal() as unknown as MarkedExtension)
+
 import type { Controller } from "@/core/controller"
+import type { StreamingResponseHandler } from "@/core/controller/grpc-handler"
+import { subscribeToState } from "@/core/controller/state/subscribeToState"
 import type { OutputFormatter } from "./output/types.js"
 
 /**
@@ -28,12 +42,10 @@ export type StateChangeHandler = (messages: ClineMessage[]) => void
  * Subscribes to Controller state updates and outputs messages to the terminal.
  */
 export class CliWebviewAdapter {
-	private lastMessageCount = 0
-	private lastMessageTs = 0
-	private isStreaming = false
-	private partialContent = ""
-	private pollInterval: NodeJS.Timeout | null = null
+	private printedMessageTs = new Set<number>() // Track which messages we've printed by timestamp
+	private subscriptionActive = false
 	private onStateChange?: StateChangeHandler
+	private _currentOptions: string[] = [] // Track current options for numbered selection
 
 	constructor(
 		private controller: Controller,
@@ -41,76 +53,89 @@ export class CliWebviewAdapter {
 	) {}
 
 	/**
+	 * Get the current options for numbered selection
+	 */
+	get currentOptions(): string[] {
+		return this._currentOptions
+	}
+
+	/**
+	 * Render markdown text to terminal-formatted output
+	 */
+	private renderMarkdown(text: string): string {
+		try {
+			const rendered = marked.parse(text)
+			// marked.parse returns string | Promise<string>, we only use sync mode
+			return (typeof rendered === "string" ? rendered : text).trim()
+		} catch {
+			return text
+		}
+	}
+
+	/**
 	 * Start listening for state updates
 	 *
 	 * @param onStateChange - Optional callback for raw state changes
-	 * @param pollIntervalMs - Polling interval in milliseconds (default: 100ms)
 	 */
-	startListening(onStateChange?: StateChangeHandler, pollIntervalMs = 100): void {
+	startListening(onStateChange?: StateChangeHandler): void {
 		this.onStateChange = onStateChange
+		this.subscriptionActive = true
 
-		// Poll for state changes
-		// NOTE: In the future, we could use a more efficient event-based approach
-		// by subscribing to Controller events directly
-		this.pollInterval = setInterval(() => {
-			this.checkForUpdates()
-		}, pollIntervalMs)
+		// Create a streaming response handler for state updates
+		const responseHandler: StreamingResponseHandler<State> = async (state: State) => {
+			if (!this.subscriptionActive) {
+				return
+			}
+
+			if (state.stateJson) {
+				try {
+					const parsedState = JSON.parse(state.stateJson) as ExtensionState
+					const messages = parsedState.clineMessages || []
+					this.handleStateUpdate(messages)
+				} catch {
+					// JSON parse error - ignore malformed state
+				}
+			}
+		}
+
+		// Subscribe to state updates from Controller
+		subscribeToState(this.controller, EmptyRequest.create(), responseHandler)
 	}
 
 	/**
 	 * Stop listening for state updates
 	 */
 	stopListening(): void {
-		if (this.pollInterval) {
-			clearInterval(this.pollInterval)
-			this.pollInterval = null
-		}
+		this.subscriptionActive = false
 	}
 
 	/**
-	 * Check for new messages and output them
+	 * Handle a state update with new messages
+	 *
+	 * Messages are only printed when they are complete (partial === false).
+	 * This maintains proper ordering - e.g., reasoning prints before text.
 	 */
-	private checkForUpdates(): void {
-		const messages = this.controller.task?.messageStateHandler.getClineMessages() || []
-
+	private handleStateUpdate(messages: ClineMessage[]): void {
 		// Notify callback of all messages
 		if (this.onStateChange) {
 			this.onStateChange(messages)
 		}
 
-		// Process new messages
-		if (messages.length > this.lastMessageCount) {
-			const newMessages = messages.slice(this.lastMessageCount)
-			for (const msg of newMessages) {
-				this.outputMessage(msg)
+		// Process messages in order, only printing complete ones we haven't printed yet
+		for (const msg of messages) {
+			// Skip if already printed
+			if (this.printedMessageTs.has(msg.ts)) {
+				continue
 			}
-			this.lastMessageCount = messages.length
-		} else if (messages.length > 0) {
-			// Check for partial message updates on the last message
-			const lastMessage = messages[messages.length - 1]
-			if (lastMessage.partial && lastMessage.ts > this.lastMessageTs) {
-				this.handlePartialMessage(lastMessage)
+
+			// Skip partial messages - wait until they're complete
+			if (msg.partial) {
+				continue
 			}
-		}
 
-		if (messages.length > 0) {
-			this.lastMessageTs = messages[messages.length - 1].ts
-		}
-	}
-
-	/**
-	 * Handle partial (streaming) message updates
-	 */
-	private handlePartialMessage(msg: ClineMessage): void {
-		const content = msg.text || ""
-
-		// Only output the new content
-		if (content.length > this.partialContent.length) {
-			const newContent = content.slice(this.partialContent.length)
-			// For streaming, we write without newlines
-			process.stdout.write(newContent)
-			this.partialContent = content
-			this.isStreaming = true
+			// Print the complete message
+			this.outputMessage(msg)
+			this.printedMessageTs.add(msg.ts)
 		}
 	}
 
@@ -118,19 +143,6 @@ export class CliWebviewAdapter {
 	 * Output a ClineMessage to the terminal
 	 */
 	outputMessage(msg: ClineMessage): void {
-		// If we were streaming, finish the line
-		if (this.isStreaming && !msg.partial) {
-			process.stdout.write("\n")
-			this.isStreaming = false
-			this.partialContent = ""
-		}
-
-		// Skip partial messages - they're handled separately
-		if (msg.partial) {
-			this.handlePartialMessage(msg)
-			return
-		}
-
 		if (msg.type === "say") {
 			this.outputSayMessage(msg)
 		} else if (msg.type === "ask") {
@@ -241,7 +253,7 @@ export class CliWebviewAdapter {
 				break
 
 			case "shell_integration_warning":
-				this.formatter.warn(`⚠️ Shell integration: ${msg.text || ""}`)
+				this.formatter.warn(`! Shell integration: ${msg.text || ""}`)
 				break
 
 			case "diff_error":
@@ -264,14 +276,11 @@ export class CliWebviewAdapter {
 
 		switch (ask) {
 			case "followup":
-				this.formatter.raw(`\n❓ ${msg.text || "Question"}`)
+				this.outputFollowupQuestion(msg)
 				break
 
 			case "plan_mode_respond":
-				this.formatter.info(`\n📝 Plan Mode Response Required`)
-				if (msg.text) {
-					this.formatter.raw(msg.text)
-				}
+				this.outputPlanModeResponse(msg)
 				break
 
 			case "command":
@@ -293,7 +302,7 @@ export class CliWebviewAdapter {
 				break
 
 			case "resume_task":
-				this.formatter.info(`\n⏸️ Task paused. Resume?`)
+				this.formatter.info(`\n⏸ Task paused. Resume?`)
 				this.formatter.info("  [yes/no]")
 				break
 
@@ -318,7 +327,7 @@ export class CliWebviewAdapter {
 				break
 
 			case "mistake_limit_reached":
-				this.formatter.warn(`\n⚠️ Mistake limit reached`)
+				this.formatter.warn(`\n! Mistake limit reached`)
 				if (msg.text) {
 					this.formatter.raw(msg.text)
 				}
@@ -353,7 +362,7 @@ export class CliWebviewAdapter {
 					break
 
 				case "fileDeleted":
-					this.formatter.raw(`\n🗑️ Deleted: ${tool.path || "file"}`)
+					this.formatter.raw(`\n🗑 Deleted: ${tool.path || "file"}`)
 					break
 
 				case "readFile":
@@ -437,10 +446,10 @@ export class CliWebviewAdapter {
 					this.formatter.raw(`\n🌐 Browser: Launching...`)
 					break
 				case "click":
-					this.formatter.raw(`\n🖱️ Browser: Click at ${action.coordinate || "position"}`)
+					this.formatter.raw(`\n🖱 Browser: Click at ${action.coordinate || "position"}`)
 					break
 				case "type":
-					this.formatter.raw(`\n⌨️ Browser: Type "${action.text || ""}"`)
+					this.formatter.raw(`\n⌨ Browser: Type "${action.text || ""}"`)
 					break
 				case "scroll_down":
 					this.formatter.raw(`\n📜 Browser: Scroll down`)
@@ -508,6 +517,78 @@ export class CliWebviewAdapter {
 	}
 
 	/**
+	 * Output a followup question with options
+	 */
+	private outputFollowupQuestion(msg: ClineMessage): void {
+		// Clear previous options
+		this._currentOptions = []
+
+		if (!msg.text) {
+			this.formatter.raw(`\n❓ Question`)
+			return
+		}
+
+		try {
+			const question = JSON.parse(msg.text) as ClineAskQuestion
+			this.formatter.raw(`\n❓ ${question.question}`)
+
+			// Display options as numbered list if present
+			if (question.options && question.options.length > 0) {
+				this._currentOptions = question.options
+				this.formatter.raw("")
+				for (let i = 0; i < question.options.length; i++) {
+					this.formatter.raw(`  ${i + 1}. ${question.options[i]}`)
+				}
+				this.formatter.raw("")
+				this.formatter.info("  Enter a number to select, or type your response:")
+			}
+		} catch {
+			// Not JSON, output as plain text
+			this.formatter.raw(`\n❓ ${msg.text}`)
+		}
+	}
+
+	/**
+	 * Output a plan mode response with markdown rendering
+	 */
+	private outputPlanModeResponse(msg: ClineMessage): void {
+		// Clear previous options
+		this._currentOptions = []
+
+		if (!msg.text) {
+			this.formatter.info(`\n📝 Plan Mode Response Required`)
+			return
+		}
+
+		try {
+			const planResponse = JSON.parse(msg.text) as ClinePlanModeResponse
+
+			this.formatter.raw("")
+			// Render the markdown response
+			const rendered = this.renderMarkdown(planResponse.response)
+			this.formatter.raw(rendered)
+
+			// Display options as numbered list if present
+			if (planResponse.options && planResponse.options.length > 0) {
+				this._currentOptions = planResponse.options
+				this.formatter.raw("")
+				for (let i = 0; i < planResponse.options.length; i++) {
+					this.formatter.raw(`  ${i + 1}. ${planResponse.options[i]}`)
+				}
+				this.formatter.raw("")
+				this.formatter.info("  Enter a number to select, or type your response:")
+			} else {
+				this.formatter.raw("")
+				this.formatter.info("  Toggle to Act mode to execute, or provide feedback:")
+			}
+		} catch {
+			// Not JSON, output as plain text
+			this.formatter.info(`\n📝 Plan Mode Response Required`)
+			this.formatter.raw(msg.text)
+		}
+	}
+
+	/**
 	 * Get the current messages from the Controller
 	 */
 	getMessages(): ClineMessage[] {
@@ -518,10 +599,7 @@ export class CliWebviewAdapter {
 	 * Reset the message counter (useful when starting a new task)
 	 */
 	resetMessageCounter(): void {
-		this.lastMessageCount = 0
-		this.lastMessageTs = 0
-		this.partialContent = ""
-		this.isStreaming = false
+		this.printedMessageTs.clear()
 	}
 
 	/**
@@ -530,11 +608,10 @@ export class CliWebviewAdapter {
 	outputAllMessages(): void {
 		const messages = this.getMessages()
 		for (const msg of messages) {
-			this.outputMessage(msg)
-		}
-		this.lastMessageCount = messages.length
-		if (messages.length > 0) {
-			this.lastMessageTs = messages[messages.length - 1].ts
+			if (!msg.partial && !this.printedMessageTs.has(msg.ts)) {
+				this.outputMessage(msg)
+				this.printedMessageTs.add(msg.ts)
+			}
 		}
 	}
 }
