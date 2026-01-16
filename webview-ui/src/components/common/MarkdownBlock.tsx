@@ -5,6 +5,7 @@ import type { ComponentProps } from "react"
 import React, { memo, useEffect, useRef, useState } from "react"
 import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
+import remarkGfm from "remark-gfm"
 import type { Node } from "unist"
 import { visit } from "unist-util-visit"
 import MermaidBlock from "@/components/common/MermaidBlock"
@@ -314,6 +315,7 @@ const InlineCodeWithFileCheck: React.FC<ComponentProps<"code"> & { [key: string]
 const MarkdownBlock = memo(({ markdown, compact, showCursor }: MarkdownBlockProps) => {
 	const [reactContent, setMarkdown] = useRemark({
 		remarkPlugins: [
+			remarkGfm, // Enable GitHub Flavored Markdown (tables, strikethrough, autolinks, task lists)
 			remarkPreventBoldFilenames,
 			remarkUrlToLink,
 			remarkHighlightActMode,

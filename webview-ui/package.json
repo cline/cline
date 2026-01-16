@@ -52,6 +52,7 @@
 		"rehype-highlight": "^7.0.1",
 		"rehype-parse": "^9.0.1",
 		"rehype-remark": "^10.0.1",
+		"remark-gfm": "^4.0.0",
 		"remark-stringify": "^11.0.0",
 		"styled-components": "^6.1.15",
 		"tailwind-merge": "^3.3.1",

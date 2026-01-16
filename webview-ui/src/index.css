@@ -64,6 +64,20 @@
 	ul {
 		@apply list-disc pl-3;
 	}
+	/* GFM table styles for markdown tables rendered by remark-gfm */
+	table {
+		@apply border-collapse w-full my-3;
+	}
+	th,
+	td {
+		@apply border border-border-panel py-1.5 px-3 text-left;
+	}
+	th {
+		@apply font-semibold bg-sidebar-background;
+	}
+	tr:nth-child(even) {
+		@apply bg-muted/30;
+	}
 	[role="radio"],
 	[role="checkbox"] {
 		margin: calc(var(--design-unit) * 1px) 0;
