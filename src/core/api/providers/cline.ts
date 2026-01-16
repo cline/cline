@@ -199,10 +199,7 @@ export class ClineHandler implements ApiHandler {
 					// @ts-ignore-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 
-					// Free models should have zero cost (fixes #8182)
-					const modelId = this.getModel().id
-					const freeModelIds = ["x-ai/grok-code-fast-1", "mistralai/devstral-2512:free", "kwaipilot/kat-coder-pro:free"]
-					if (freeModelIds.includes(modelId) || modelId.endsWith(":free")) {
+					if (["x-ai/grok-code-fast-1", "kwaipilot/kat-coder-pro"].includes(this.getModel().id)) {
 						totalCost = 0
 					}
 

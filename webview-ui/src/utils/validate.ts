@@ -2,60 +2,6 @@ import { ApiConfiguration, ModelInfo, openRouterDefaultModelId } from "@shared/a
 import { Mode } from "@shared/storage/types"
 import { getModeSpecificFields } from "@/components/settings/utils/providerUtils"
 
-/**
- * Safely parses a numeric string value, handling edge cases like:
- * - Empty strings
- * - Values starting with decimal point (e.g., ".25")
- * - Invalid characters (letters, commas, etc.)
- * - NaN results
- *
- * @param value The string value to parse
- * @param defaultValue The default value to return if parsing fails
- * @returns A valid number or the default value
- */
-export function safeParseFloat(value: string, defaultValue?: number): number | undefined {
-	if (value === "" || value === undefined || value === null) {
-		return defaultValue
-	}
-
-	// Allow intermediate states while typing (e.g., "0.", "1.0")
-	// These are valid partial inputs that parseFloat can handle
-	const trimmed = value.trim()
-
-	// Handle values starting with decimal point by prepending 0
-	const normalizedValue = trimmed.startsWith(".") ? `0${trimmed}` : trimmed
-
-	const parsed = parseFloat(normalizedValue)
-
-	// Check if result is a valid finite number
-	if (isNaN(parsed) || !isFinite(parsed)) {
-		return defaultValue
-	}
-
-	return parsed
-}
-
-/**
- * Safely parses an integer string value
- *
- * @param value The string value to parse
- * @param defaultValue The default value to return if parsing fails
- * @returns A valid integer or the default value
- */
-export function safeParseInt(value: string, defaultValue?: number): number | undefined {
-	if (value === "" || value === undefined || value === null) {
-		return defaultValue
-	}
-
-	const parsed = parseInt(value.trim(), 10)
-
-	if (isNaN(parsed) || !isFinite(parsed)) {
-		return defaultValue
-	}
-
-	return parsed
-}
-
 export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: ApiConfiguration): string | undefined {
 	if (apiConfiguration) {
 		const {

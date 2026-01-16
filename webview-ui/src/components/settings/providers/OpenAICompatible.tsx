@@ -7,7 +7,6 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Tooltip } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
-import { safeParseFloat } from "@/utils/validate"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
@@ -335,7 +334,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							}
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
-								modelInfo.inputPrice = safeParseFloat(value, openAiModelInfoSaneDefaults.inputPrice)
+								modelInfo.inputPrice = Number(value)
 								handleModeFieldChange(
 									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
 									modelInfo,
@@ -354,7 +353,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							}
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
-								modelInfo.outputPrice = safeParseFloat(value, openAiModelInfoSaneDefaults.outputPrice)
+								modelInfo.outputPrice = Number(value)
 								handleModeFieldChange(
 									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
 									modelInfo,
@@ -375,7 +374,16 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							}
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
-								modelInfo.temperature = safeParseFloat(value, openAiModelInfoSaneDefaults.temperature)
+
+								const shouldPreserveFormat = value.endsWith(".") || (value.includes(".") && value.endsWith("0"))
+
+								modelInfo.temperature =
+									value === ""
+										? openAiModelInfoSaneDefaults.temperature
+										: shouldPreserveFormat
+											? (value as any)
+											: parseFloat(value)
+
 								handleModeFieldChange(
 									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
 									modelInfo,

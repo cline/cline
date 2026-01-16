@@ -124,13 +124,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
 		// Set up task completion handler
 		webview.controller.onTaskComplete = (result: string) => {
-			console.log("[Extension] onTaskComplete called with result:", result, "currentMessageId:", currentMessageId)
 			if (currentMessageId) {
-				console.log("[Extension] Sending task completion to message queue")
 				messageQueue.sendTaskCompletion(currentMessageId, result)
 				currentMessageId = null
-			} else {
-				console.log("[Extension] No currentMessageId, skipping completion notification")
 			}
 		}
 

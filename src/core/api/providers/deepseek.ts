@@ -1,5 +1,4 @@
 import { DeepSeekModelId, deepSeekDefaultModelId, deepSeekModels, ModelInfo } from "@shared/api"
-import { toolUseNames } from "@shared/tools"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
@@ -11,16 +10,6 @@ import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
-
-/**
- * Detects if a string contains XML tool patterns that need to be parsed.
- * Used to handle DeepSeek V3.2 which may put tool calls in reasoning_content.
- * Fixes #8365: DeepSeek V3.2 always put its XML tool calling in reasoning content
- */
-function containsXmlToolPattern(text: string): boolean {
-	// Check for any tool opening tags (e.g., <read_file>, <write_to_file>, etc.)
-	return toolUseNames.some((toolName) => text.includes(`<${toolName}>`))
-}
 
 interface DeepSeekHandlerOptions extends CommonApiHandlerOptions {
 	deepSeekApiKey?: string
@@ -128,20 +117,9 @@ export class DeepSeekHandler implements ApiHandler {
 			}
 
 			if (delta && "reasoning_content" in delta && delta.reasoning_content) {
-				const reasoningText = (delta.reasoning_content as string | undefined) || ""
-
-				// DeepSeek V3.2 may put XML tool calls in reasoning_content (fixes #8365)
-				// If we detect tool patterns, also yield as text so the parser can find them
-				if (containsXmlToolPattern(reasoningText)) {
-					yield {
-						type: "text",
-						text: reasoningText,
-					}
-				}
-
 				yield {
 					type: "reasoning",
-					reasoning: reasoningText,
+					reasoning: (delta.reasoning_content as string | undefined) || "",
 				}
 			}
 
