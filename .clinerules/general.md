@@ -47,23 +47,22 @@ The extension and webview communicate via gRPC-like protocol over VS Code messag
 - `src/core/controller/task/explainChanges.ts` - Handler implementation
 - `webview-ui/src/components/chat/ChatRow.tsx` - UI rendering
 
-## Responses API Providers (OpenAI Codex, OpenAI Native)
-Providers using OpenAI's Responses API require native tool calling. XML tools don't work with the Responses API.
+## Adding a New API Provider
+When adding a new provider (e.g., "openai-codex"), you must update the proto conversion layer in THREE places or the provider will silently reset to Anthropic:
 
-**Symptoms of broken native tool calling:**
-- Tools get called multiple times (e.g., `ask_followup_question` asks the same question twice)
-- Tool arguments get duplicated or malformed
-- The model responds but tools aren't recognized
+1. `proto/cline/models.proto` - Add to the `ApiProvider` enum (e.g., `OPENAI_CODEX = 40;`)
+2. `convertApiProviderToProto()` in `src/shared/proto-conversions/models/api-configuration-conversion.ts` - Add case mapping string to proto enum
+3. `convertProtoToApiProvider()` in the same file - Add case mapping proto enum back to string
 
-**Root causes to check:**
-1. **Provider missing from `isNextGenModelProvider()`** in `src/utils/model-utils.ts`. The native variant matchers (e.g., `native-gpt-5/config.ts`) call this function. If your provider isn't in the list, the matcher returns false and falls back to XML tools.
+**Why this matters:** Without these, the provider string hits the `default` case and returns `ANTHROPIC`. The webview, provider list, and handler all work fine, but the state silently resets when it round-trips through proto serialization. No error is thrown.
 
-2. **Model missing `apiFormat: ApiFormat.OPENAI_RESPONSES`** in its model info (`src/shared/api.ts`). This property signals that the model requires native tool calling. The task runner in `src/core/task/index.ts` checks this and forces `enableNativeToolCalls: true` regardless of user settings.
-
-**When adding a new Responses API provider:**
-1. Add provider to `isNextGenModelProvider()` list in `src/utils/model-utils.ts`
-2. Set `apiFormat: ApiFormat.OPENAI_RESPONSES` on all models that use the Responses API
-3. The variant matcher and task runner will handle the rest automatically
+**Other files to update when adding a provider:**
+- `src/shared/api.ts` - Add to `ApiProvider` union type, define models
+- `src/shared/providers/providers.json` - Add to provider list for dropdown
+- `src/core/api/index.ts` - Register handler in `createHandlerForProvider()`
+- `webview-ui/src/components/settings/utils/providerUtils.ts` - Add cases in `getModelsForProvider()` and `normalizeApiConfiguration()`
+- `webview-ui/src/utils/validate.ts` - Add validation case
+- `webview-ui/src/components/settings/ApiOptions.tsx` - Render provider component
 
 ## Adding Tools to System Prompt
 This is tricky—multiple prompt variants and configs. **Always search for existing similar tools first and follow their pattern.** Look at the full chain from prompt definition → variant configs → handler → UI before implementing.
