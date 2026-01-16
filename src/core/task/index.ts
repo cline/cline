@@ -1942,8 +1942,25 @@ export class Task {
 							attempt: this.taskState.autoRetryAttempts,
 							maxAttempts: 3,
 							delaySeconds: delay / 1000,
+							errorMessage: streamingFailedMessage,
 						}),
 					)
+
+					// Clear streamingFailedMessage now that error_retry contains it
+					// This prevents showing the error in both ErrorRow and error_retry
+					const autoRetryApiReqIndex = findLastIndex(
+						this.messageStateHandler.getClineMessages(),
+						(m) => m.say === "api_req_started",
+					)
+					if (autoRetryApiReqIndex !== -1) {
+						const clineMessages = this.messageStateHandler.getClineMessages()
+						const currentApiReqInfo: ClineApiReqInfo = JSON.parse(clineMessages[autoRetryApiReqIndex].text || "{}")
+						delete currentApiReqInfo.streamingFailedMessage
+						await this.messageStateHandler.updateClineMessage(autoRetryApiReqIndex, {
+							text: JSON.stringify(currentApiReqInfo),
+						})
+					}
+
 					await setTimeoutPromise(delay)
 				} else {
 					// Show error_retry with failed flag to indicate all retries exhausted (but not for insufficient credits)
@@ -1955,6 +1972,7 @@ export class Task {
 								maxAttempts: 3,
 								delaySeconds: 0,
 								failed: true, // Special flag to indicate retries exhausted
+								errorMessage: streamingFailedMessage,
 							}),
 						)
 					}
@@ -2681,6 +2699,7 @@ export class Task {
 								attempt: this.taskState.autoRetryAttempts,
 								maxAttempts: 3,
 								delaySeconds: delay / 1000,
+								errorMessage,
 							}),
 						)
 
@@ -2702,6 +2721,7 @@ export class Task {
 								maxAttempts: 3,
 								delaySeconds: 0,
 								failed: true, // Special flag to indicate retries exhausted
+								errorMessage,
 							}),
 						)
 					}
@@ -2923,6 +2943,8 @@ export class Task {
 
 				let response: ClineAskResponse
 
+				const noResponseErrorMessage = "No assistant message was received. Would you like to retry the request?"
+
 				if (this.taskState.autoRetryAttempts < 3) {
 					// Auto-retry enabled with max 3 attempts: automatically approve the retry
 					this.taskState.autoRetryAttempts++
@@ -2936,6 +2958,7 @@ export class Task {
 							attempt: this.taskState.autoRetryAttempts,
 							maxAttempts: 3,
 							delaySeconds: delay / 1000,
+							errorMessage: noResponseErrorMessage,
 						}),
 					)
 					await setTimeoutPromise(delay)
@@ -2948,12 +2971,10 @@ export class Task {
 							maxAttempts: 3,
 							delaySeconds: 0,
 							failed: true, // Special flag to indicate retries exhausted
+							errorMessage: noResponseErrorMessage,
 						}),
 					)
-					const askResult = await this.ask(
-						"api_req_failed",
-						"No assistant message was received. Would you like to retry the request?",
-					)
+					const askResult = await this.ask("api_req_failed", noResponseErrorMessage)
 					response = askResult.response
 					// Reset retry counter if user chooses to manually retry
 					if (response === "yesButtonClicked") {
