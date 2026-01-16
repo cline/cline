@@ -89,9 +89,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	const webview = (await initialize(context)) as VscodeWebviewProvider
 
 	// Clean up old temp files in background (non-blocking) and start periodic cleanup every 24 hours
-	ClineTempManager.cleanup().catch((error) => {
-		Logger.error("Failed to clean up temp files", error)
-	})
 	ClineTempManager.startPeriodicCleanup()
 
 	Logger.log("Cline extension activated")

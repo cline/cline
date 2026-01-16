@@ -82,7 +82,7 @@ class ClineTempManagerImpl {
 	 * Called on extension activation.
 	 *
 	 * Strategy:
-	 * 1. Find all files with "cline-" prefix in the Cline temp directory
+	 * 1. Scan the Cline temp directory
 	 * 2. Delete all files older than 50 hours
 	 * 3. If still over 2GB total, delete oldest files until under limit
 	 */
@@ -91,7 +91,8 @@ class ClineTempManagerImpl {
 		let freedBytes = 0
 
 		try {
-			// Get all files in temp directory
+			this.ensureTempDirExists()
+
 			let files: string[]
 			try {
 				files = await fs.promises.readdir(this.tempDir)
@@ -99,12 +100,8 @@ class ClineTempManagerImpl {
 				return { deletedCount: 0, freedBytes: 0 }
 			}
 
-			// Filter to only cline- prefixed files
-			const clineFiles = files.filter((f) => f.startsWith(CLINE_FILE_PREFIX))
-
-			// Gather info about each file
 			const fileInfos: TempFileInfo[] = []
-			for (const file of clineFiles) {
+			for (const file of files) {
 				const filePath = path.join(this.tempDir, file)
 				try {
 					const stats = await fs.promises.stat(filePath)
@@ -115,12 +112,14 @@ class ClineTempManagerImpl {
 							mtime: stats.mtimeMs,
 						})
 					}
-				} catch {}
+				} catch {
+					// File might have been deleted by another process
+				}
 			}
 
 			const now = Date.now()
+			const remainingFiles: TempFileInfo[] = []
 
-			// Phase 1: Delete files older than 50 hours
 			for (const fileInfo of fileInfos) {
 				const age = now - fileInfo.mtime
 				if (age > MAX_FILE_AGE_MS) {
@@ -134,20 +133,13 @@ class ClineTempManagerImpl {
 					} catch {
 						// File might have been deleted by another process
 					}
+				} else {
+					remainingFiles.push(fileInfo)
 				}
 			}
 
-			// Remove deleted files from the list
-			const remainingFiles = fileInfos.filter((f) => {
-				const age = now - f.mtime
-				return age <= MAX_FILE_AGE_MS
-			})
-
-			// Phase 2: Check total size and delete oldest if over limit
 			let totalSize = remainingFiles.reduce((sum, f) => sum + f.size, 0)
-
 			if (totalSize > MAX_TOTAL_SIZE_BYTES) {
-				// Sort by mtime (oldest first)
 				remainingFiles.sort((a, b) => a.mtime - b.mtime)
 
 				for (const fileInfo of remainingFiles) {
@@ -203,6 +195,10 @@ class ClineTempManagerImpl {
 		if (this.cleanupIntervalId) {
 			return
 		}
+
+		this.cleanup().catch((error) => {
+			Logger.error("Failed to clean up temp files", error)
+		})
 
 		this.cleanupIntervalId = setInterval(() => {
 			this.cleanup().catch((error) => {
