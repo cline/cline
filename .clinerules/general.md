@@ -47,23 +47,6 @@ The extension and webview communicate via gRPC-like protocol over VS Code messag
 - `src/core/controller/task/explainChanges.ts` - Handler implementation
 - `webview-ui/src/components/chat/ChatRow.tsx` - UI rendering
 
-## Adding a New API Provider
-When adding a new provider (e.g., "openai-codex"), you must update the proto conversion layer in THREE places or the provider will silently reset to Anthropic:
-
-1. `proto/cline/models.proto` - Add to the `ApiProvider` enum (e.g., `OPENAI_CODEX = 40;`)
-2. `convertApiProviderToProto()` in `src/shared/proto-conversions/models/api-configuration-conversion.ts` - Add case mapping string to proto enum
-3. `convertProtoToApiProvider()` in the same file - Add case mapping proto enum back to string
-
-**Why this matters:** Without these, the provider string hits the `default` case and returns `ANTHROPIC`. The webview, provider list, and handler all work fine, but the state silently resets when it round-trips through proto serialization. No error is thrown.
-
-**Other files to update when adding a provider:**
-- `src/shared/api.ts` - Add to `ApiProvider` union type, define models
-- `src/shared/providers/providers.json` - Add to provider list for dropdown
-- `src/core/api/index.ts` - Register handler in `createHandlerForProvider()`
-- `webview-ui/src/components/settings/utils/providerUtils.ts` - Add cases in `getModelsForProvider()` and `normalizeApiConfiguration()`
-- `webview-ui/src/utils/validate.ts` - Add validation case
-- `webview-ui/src/components/settings/ApiOptions.tsx` - Render provider component
-
 ## Responses API Providers (OpenAI Codex, OpenAI Native)
 Providers using OpenAI's Responses API require native tool calling. XML tools don't work with the Responses API.
 
