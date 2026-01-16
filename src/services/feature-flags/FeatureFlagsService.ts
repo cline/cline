@@ -28,12 +28,11 @@ export class FeatureFlagsService {
 	/**
 	 * Poll all known feature flags to update their cached values
 	 */
-	public async poll(userId?: string): Promise<void> {
+	public async poll(userId: string | null): Promise<void> {
 		// Do not update cache if last update was less than an hour ago
 		const timesNow = Date.now()
 		if (timesNow - this.cacheInfo.updateTime < DEFAULT_CACHE_TTL && this.cache.size) {
-			// If time is within TTL, only skip if user context (userId) is unchanged.
-			// If userId changed (including from/to undefined/null), refresh cache.
+			// Skip fetch if within TTL and user context is unchanged
 			if (this.cacheInfo.userId === userId) {
 				return
 			}
