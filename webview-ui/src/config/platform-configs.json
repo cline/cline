@@ -1,7 +1,7 @@
 {
 	"vscode": {
 		"messageEncoding": "none",
-		"showNavbar": false,
+		"showNavbar": true,
 		"postMessageHandler": "vscode",
 		"togglePlanActKeys": "Meta+Shift+a",
 		"supportsTerminalMentions": true

@@ -5,6 +5,7 @@
 /* Tailwind CSS */
 @import "tailwindcss";
 @import "./theme.css";
+@import "./accessibility.css";
 @plugin "tailwindcss-animate";
 @custom-variant dark (&:is(.dark *));
 
