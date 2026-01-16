@@ -1,51 +1,35 @@
-/* ============================================================================
-   WCAG 1.4.4 - Resize Text (Level AA)
-   Text can be resized up to 200% without loss of content or functionality.
-   Using rem units allows text to scale with user preferences.
-   ============================================================================ */
-
 :root {
-	/* Base font size for rem calculations - respects browser settings */
-	font-size: 100%; /* 16px default, scales with user preferences */
+	font-size: 100%;
 }
 
-/* Utility classes for scalable text sizes */
 .text-xs {
 	font-size: 0.75rem;
-} /* 12px at default */
+}
 .text-sm {
 	font-size: 0.8125rem;
-} /* 13px at default */
+}
 .text-base {
 	font-size: 0.875rem;
-} /* 14px at default - VSCode default */
+}
 .text-md {
 	font-size: 1rem;
-} /* 16px at default */
+}
 .text-lg {
 	font-size: 1.125rem;
-} /* 18px at default */
+}
 .text-xl {
 	font-size: 1.25rem;
-} /* 20px at default */
+}
 
-/* ============================================================================
-   WCAG 2.4.7 - Focus Visible (Level AA)
-   Keyboard focus indicator is visible.
-   ============================================================================ */
-
-/* Focus visible styles for keyboard navigation */
 :focus-visible {
 	outline: 2px solid var(--vscode-focusBorder);
 	outline-offset: 2px;
 }
 
-/* Remove default focus for mouse users (keep for keyboard) */
 :focus:not(:focus-visible) {
 	outline: none;
 }
 
-/* Screen reader only - visually hidden but accessible */
 .sr-only {
 	position: absolute;
 	width: 1px;
@@ -58,7 +42,6 @@
 	border: 0;
 }
 
-/* Skip link for keyboard navigation */
 .skip-link {
 	position: absolute;
 	top: -40px;
@@ -74,7 +57,6 @@
 	top: 0;
 }
 
-/* Live region for screen reader announcements */
 .live-region {
 	position: absolute;
 	width: 1px;
@@ -87,7 +69,6 @@
 	border: 0;
 }
 
-/* Reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,
@@ -99,7 +80,6 @@
 	}
 }
 
-/* High contrast mode support */
 @media (prefers-contrast: high) {
 	:focus-visible {
 		outline-width: 3px;
@@ -111,11 +91,6 @@
 	}
 }
 
-/* ============================================================================
-   WCAG 2.5.8 - Target Size Minimum (Level AA) - WCAG 2.2
-   Interactive elements must have a minimum target size of 24x24 CSS pixels.
-   Note: WCAG 2.1 recommended 44px, WCAG 2.2 reduced to 24px minimum.
-   ============================================================================ */
 button,
 [role="button"],
 [role="tab"],
@@ -125,7 +100,6 @@ a {
 	min-width: 24px;
 }
 
-/* Larger touch targets for mobile/touch interfaces (recommended) */
 @media (pointer: coarse) {
 	button,
 	[role="button"],
@@ -137,51 +111,28 @@ a {
 	}
 }
 
-/* Exception for inline/compact buttons */
 .compact-button,
 button[data-compact="true"] {
 	min-height: unset;
 	min-width: unset;
 }
 
-/* ============================================================================
-   WCAG 2.4.11 - Focus Not Obscured (Minimum) (Level AA) - WCAG 2.2
-   When an element receives keyboard focus, it must be at least partially visible.
-   ============================================================================ */
-
-/* Ensure focused elements scroll into view */
 :focus {
 	scroll-margin: 8px;
 	scroll-padding: 8px;
 }
 
-/* Ensure sticky/fixed elements don't fully obscure focused content */
 [data-sticky="true"],
 .sticky,
 .fixed {
-	/* Leave space for focus indicators */
 	margin-bottom: 4px;
 }
 
-/* Focus visibility class - ensures element is not obscured */
 .focus-visible-ensure {
 	scroll-margin-block: 100px;
 	scroll-margin-inline: 20px;
 }
 
-/* ============================================================================
-   WCAG 3.1.1 - Language of Page (Level A)
-   The default human language of each web page can be programmatically determined.
-   
-   IMPORTANT: Ensure the root HTML element has a lang attribute.
-   This is typically set in the HTML template, not CSS.
-   
-   Example: <html lang="en">
-   
-   For VSCode webviews, this should be handled by the webview HTML template.
-   ============================================================================ */
-
-/* Visual indicator for missing lang attribute (dev only) */
 @media (prefers-reduced-motion: no-preference) {
 	html:not([lang])::before {
 		content: "⚠️ Missing lang attribute on <html>";

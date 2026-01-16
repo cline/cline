@@ -110,7 +110,6 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([]) // For scrollIntoView
 	const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 
-	// Focus management (combines focus trap, restoration, and Escape key handling)
 	const { triggerRef, containerRef: popupContainerRef } = useModal<HTMLDivElement, HTMLDivElement>(isOpen, () =>
 		onOpenChange(false),
 	)
@@ -465,7 +464,6 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		}
 	}, [isOpen, viewportWidth, viewportHeight])
 
-	// Handle click outside to close (custom logic for provider dropdown portal)
 	useEffect(() => {
 		if (!isOpen) {
 			return
@@ -494,8 +492,6 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 			document.removeEventListener("mousedown", handleClickOutside)
 		}
 	}, [isOpen, onOpenChange, popupContainerRef, triggerRef])
-
-	// Note: Escape key handling is provided by useModal hook
 
 	// Close modal when navigating to other views (settings, MCP, history, account)
 	useEffect(() => {

@@ -38,8 +38,6 @@ export type {
 	TabPanelProps,
 }
 
-// Keyboard Navigation
-
 export const createKeyboardActivationHandler =
 	(handler: () => void): React.KeyboardEventHandler<HTMLElement> =>
 	(e) => {
@@ -118,8 +116,6 @@ export const combineKeyboardHandlers =
 			handler?.(e)
 		}
 	}
-
-// Button Props
 
 export const createBaseButtonProps = (
 	ariaLabel: string,
@@ -225,8 +221,6 @@ export const createSwitchButtonProps = (
 	onClick: () => onToggle(!isChecked),
 })
 
-// Tab List & Panel Props
-
 export const createTabListProps = (ariaLabel: string, orientation: "horizontal" | "vertical" = "horizontal"): TabListProps => ({
 	role: "tablist",
 	"aria-label": ariaLabel,
@@ -240,8 +234,6 @@ export const createTabPanelProps = (panelId: string, tabId: string, isVisible: b
 	tabIndex: isVisible ? 0 : -1,
 	hidden: !isVisible,
 })
-
-// Listbox Props
 
 export const createListboxProps = (ariaLabel: string, activeDescendantId?: string): ListboxProps => ({
 	role: "listbox",
@@ -266,8 +258,6 @@ export const createListboxOptionProps = (
 	onKeyDown: isDisabled ? () => {} : createKeyboardActivationHandler(onSelect),
 })
 
-// Div as Button
-
 export const createDivAsButtonProps = (ariaLabel: string, onClick: () => void): DivAsButtonProps => ({
 	role: "button",
 	"aria-label": ariaLabel,
@@ -290,8 +280,6 @@ export const createDivAsModalTriggerProps = (
 	onClick,
 	onKeyDown: createKeyboardActivationHandler(onClick),
 })
-
-// Focus Trap
 
 const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
 
@@ -363,8 +351,6 @@ export const focusFirstElement = (container: HTMLElement, initialFocusRef?: Reac
 	focusableElements[0]?.focus()
 }
 
-// Form Input
-
 type ValidationAriaProps = {
 	"aria-invalid"?: boolean
 	"aria-describedby"?: string
@@ -419,8 +405,6 @@ export const generateFieldIds = (
 	errorId: `${baseId}-error`,
 })
 
-// Link Props
-
 export const createLinkProps = (href: string, ariaLabel?: string): LinkProps => {
 	const props: LinkProps = { href }
 	if (ariaLabel) {
@@ -435,8 +419,6 @@ export const createExternalLinkProps = (href: string, ariaLabel: string): Extern
 	rel: "noopener noreferrer",
 	"aria-label": `${ariaLabel} (opens in new tab)`,
 })
-
-// Focus Visibility (WCAG 2.4.11)
 
 export const ensureFocusVisible = (element: HTMLElement, options?: ScrollIntoViewOptions): void => {
 	element.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest", ...options })
@@ -454,8 +436,6 @@ export const isElementPartiallyVisible = (element: HTMLElement): boolean => {
 	const windowWidth = window.innerWidth || document.documentElement.clientWidth
 	return rect.top < windowHeight && rect.bottom > 0 && rect.left < windowWidth && rect.right > 0
 }
-
-// Style Utilities
 
 export const mergeInteractiveStyles = <T extends React.CSSProperties>(
 	baseStyle: keyof typeof InteractiveStyles | (keyof typeof InteractiveStyles)[],

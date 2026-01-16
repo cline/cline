@@ -24,8 +24,6 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVis
 	const itemsContainerRef = useRef<HTMLDivElement>(null)
 	const [containerWidth, setContainerWidth] = useState(0)
 
-	// Focus management (combines focus trap, restoration, and Escape key handling)
-	// Parent owns buttonRef, so we pass it as externalTriggerRef
 	const { containerRef: modalRef } = useModal<HTMLButtonElement, HTMLDivElement>(
 		isVisible,
 		() => setIsVisible(false),
