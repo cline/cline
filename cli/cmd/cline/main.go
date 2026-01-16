@@ -39,7 +39,7 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use:     "cline [prompt]",
 		Short:   "Cline CLI - AI-powered coding assistant",
-		Version: fmt.Sprintf("%s (core %s)", global.CliVersion, global.Version),
+		Version: global.CliVersion,
 		Long: `A command-line interface for interacting with Cline AI coding assistant.
 
 Start a new task by providing a prompt:
@@ -177,6 +177,8 @@ see the manual page: man cline`,
 			})
 		},
 	}
+
+	rootCmd.SetVersionTemplate(cli.VersionString())
 
 	rootCmd.PersistentFlags().StringVar(&coreAddress, "address", fmt.Sprintf("localhost:%d", common.DEFAULT_CLINE_CORE_PORT), "Cline Core gRPC address")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
