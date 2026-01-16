@@ -146,15 +146,16 @@ Implement provider authentication system.
 ---
 
 ## Phase 3: Task Management
+**Status: ✅ Completed (207 tests passing)**
 
 ### 3.1 Task Command Group Base
-**Priority: High** | **Complexity: Medium**
+**Priority: High** | **Complexity: Medium** | **Status: ✅ Complete**
 
 Implement the task command infrastructure.
 
-**Files to create:**
+**Files created:**
 - `cli-ts/src/commands/task/index.ts` - Task command group
-- `cli-ts/src/core/task-client.ts` - Task gRPC client wrapper
+- `cli-ts/src/core/task-client.ts` - Task storage and management
 - `cli-ts/src/types/task.ts` - Task-related types
 
 **Commands:**
@@ -163,27 +164,34 @@ Implement the task command infrastructure.
 ---
 
 ### 3.2 Task Creation & History
-**Priority: High** | **Complexity: Medium**
+**Priority: High** | **Complexity: Medium** | **Status: ✅ Complete**
 
 **Commands:**
 - `cline task new <prompt> [options]` / `cline t n`
-- `cline task list` / `cline t l`
+- `cline task list` / `cline t l` / `cline t ls`
 - `cline task open <task-id>` / `cline t o`
 
-**Files to create:**
+**Files created:**
 - `cli-ts/src/commands/task/new.ts`
 - `cli-ts/src/commands/task/list.ts`
 - `cli-ts/src/commands/task/open.ts`
 
 **Options for task new/open:**
-- `-s, --setting <key> <value>` - Override settings
-- `-y, --no-interactive, --yolo` - Autonomous mode
+- `-s, --setting <key=value>` - Override settings (repeatable)
+- `-y, --yolo` / `--no-interactive` - Autonomous mode
 - `-m, --mode <mode>` - Starting mode (act/plan)
+- `-w, --workspace <path>` - Working directory (new only)
 
-**Tests:**
-- New task creates task in instance
-- List shows task history with IDs and snippets
-- Open resumes task with saved settings
+**Options for task list:**
+- `-n, --limit <number>` - Limit results (default: 20)
+- `-a, --all` - Show all tasks
+- `--status <status>` - Filter by status
+
+**Tests (53 new tests):**
+- ✅ TaskStorage: create, get, update, delete, list, findByPartialId
+- ✅ task new: creates task, validates mode, parses settings
+- ✅ task list: shows history, respects limit, filters by status, JSON output
+- ✅ task open: finds by full/partial ID, overrides mode/settings, resumes paused tasks
 
 ---
 
@@ -293,13 +301,13 @@ Enhance `-v, --verbose` to show debug output including gRPC communication detail
 3. [x] 2.1 Auth Command
 
 ### Sprint 2: Instance Management (Deprecated)
-4. [ ] 1.3 Instance Registry & Lifecycle (Deprecated, do Not implement)
+4. [x] 1.3 Instance Registry & Lifecycle (Deprecated, skipped)
 
-### Sprint 3: Task Basics (Next)
-5. [ ] 3.1 Task Command Group Base
-6. [ ] 3.2 Task Creation & History
+### Sprint 3: Task Basics (Completed)
+5. [x] 3.1 Task Command Group Base
+6. [x] 3.2 Task Creation & History
 
-### Sprint 4: Task Communication
+### Sprint 4: Task Communication (Next)
 7. [ ] 3.3 Task Communication (chat, send, view)
 
 ### Sprint 5: Advanced Features

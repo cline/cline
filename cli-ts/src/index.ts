@@ -2,6 +2,7 @@
 import { Command } from "commander"
 import { createAuthCommand } from "./commands/auth/index.js"
 import { createConfigCommand } from "./commands/config/index.js"
+import { createTaskCommand } from "./commands/task/index.js"
 import { createVersionCommand, getVersion } from "./commands/version.js"
 import { createConfig } from "./core/config.js"
 import { createLogger } from "./core/logger.js"
@@ -64,6 +65,7 @@ export async function main(): Promise<void> {
 	program.addCommand(createVersionCommand(config, logger))
 	program.addCommand(createConfigCommand(config, logger, formatter))
 	program.addCommand(createAuthCommand(config, logger, formatter))
+	program.addCommand(createTaskCommand(config, logger, formatter))
 
 	// Re-parse with subcommands added
 	program.parse(process.argv)
