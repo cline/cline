@@ -38,7 +38,7 @@
 		},
 		{
 			"value": "openai-codex",
-			"label": "ChatGPT Codex Subscription"
+			"label": "OpenAI Codex (ChatGPT Plus/Pro)"
 		},
 		{
 			"value": "ollama",
