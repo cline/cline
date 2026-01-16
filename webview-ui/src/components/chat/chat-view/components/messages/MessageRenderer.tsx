@@ -39,10 +39,7 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 }) => {
 	const { mode } = useExtensionState()
 
-	const [isLastMessage] = useMemo(() => {
-		const isLastMessage = index === groupedMessages?.length - 1
-		return [isLastMessage]
-	}, [groupedMessages, index])
+	const isLastMessage = useMemo(() => index === groupedMessages?.length - 1, [groupedMessages, index])
 
 	// Get reasoning content and response status for api_req_started messages
 	const reasoningData = useMemo(() => {

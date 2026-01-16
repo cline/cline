@@ -481,6 +481,12 @@ export function isToolGroupInFlight(toolGroupMessages: ClineMessage[], allMessag
  * - (Case B) Tools after the most recent api_req overall (either because it's complete, or no loading state is active yet)
  */
 export function getToolsNotInCurrentActivities(toolGroupMessages: ClineMessage[], allMessages: ClineMessage[]): ClineMessage[] {
+	// Build a Map of timestamp -> index for O(1) lookups instead of O(n) findIndex calls
+	const tsToIndex = new Map<number, number>()
+	for (let i = 0; i < allMessages.length; i++) {
+		tsToIndex.set(allMessages[i].ts, i)
+	}
+
 	// Step 1: Find the MOST RECENT api_req_started overall (search backwards)
 	let mostRecentApiReqIndex = -1
 	let mostRecentApiReq: ClineMessage | null = null
@@ -547,8 +553,8 @@ export function getToolsNotInCurrentActivities(toolGroupMessages: ClineMessage[]
 			// Filter out only tools awaiting approval (ask === 'tool')
 			// Completed tools (say === 'tool') should still be shown
 			if (msg.ask === "tool") {
-				const toolIndex = allMessages.findIndex((m) => m.ts === msg.ts)
-				if (toolIndex === -1) {
+				const toolIndex = tsToIndex.get(msg.ts)
+				if (toolIndex === undefined) {
 					return true
 				}
 				// Tool is in "current activities" range if AFTER prevCompleted AND BEFORE current
@@ -574,8 +580,8 @@ export function getToolsNotInCurrentActivities(toolGroupMessages: ClineMessage[]
 			// Filter out only tools awaiting approval (ask === 'tool')
 			// Completed tools (say === 'tool') should still be shown
 			if (msg.ask === "tool") {
-				const toolIndex = allMessages.findIndex((m) => m.ts === msg.ts)
-				if (toolIndex === -1) {
+				const toolIndex = tsToIndex.get(msg.ts)
+				if (toolIndex === undefined) {
 					return true
 				}
 				// Tool is in "current activities" if it appears AFTER the most recent api_req
