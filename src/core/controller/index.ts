@@ -126,16 +126,8 @@ export class Controller {
 				try {
 					await StateManager.get().reInitialize(this.task?.taskId)
 					await this.postStateToWebview()
-					HostProvider.window.showMessage({
-						type: ShowMessageType.WARNING,
-						message: "Saving settings to storage failed.",
-					})
 				} catch (recoveryError) {
-					Logger.error("[Controller] Cache recovery failed:", recoveryError)
-					HostProvider.window.showMessage({
-						type: ShowMessageType.ERROR,
-						message: "Failed to save settings. Please restart the extension.",
-					})
+					Logger.error("[Controller] Cache persistence failed to recover:", recoveryError)
 				}
 			},
 			onSyncExternalChange: async () => {
