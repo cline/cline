@@ -2059,12 +2059,15 @@ export class Task {
 			candidates.push(...Array.from(this.taskState.rulePathIntentCandidates))
 		}
 
-		// (1) Mention-based evidence from the current request: parse the current user content
-		// from the most recent api_req_started request block (it contains the userContent in markdown).
-		// We can't reliably access raw unprocessed user prompt here without threading it through,
-		// so we use the latest user message text in clineMessages as a proxy.
 		const clineMessages = this.messageStateHandler.getClineMessages()
-		const lastUserMsg = [...clineMessages].reverse().find((m) => m.type === "say" && m.say === "task")
+
+		// (1) Current-turn user message evidence:
+		// Use the most recent user-authored text (initial task or subsequent feedback).
+		// NOTE: We intentionally prefer the latest user_feedback over the original task to
+		// support first-turn activation on later turns.
+		const lastUserMsg = [...clineMessages]
+			.reverse()
+			.find((m) => m.type === "say" && (m.say === "user_feedback" || m.say === "task") && typeof m.text === "string")
 		if (lastUserMsg?.text) {
 			candidates.push(...extractPathLikeStrings(lastUserMsg.text))
 		}
