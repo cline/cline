@@ -55,7 +55,7 @@ export class ClineSecretStorage extends ClineStorage {
 	}
 
 	protected async _delete(key: string): Promise<void> {
-		console.info("[ClineSecretStorage] deleting " + key)
+		console.info("[ClineSecretStorage] deleting secret")
 		await this.storage.delete(key)
 	}
 }

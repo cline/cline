@@ -11,6 +11,18 @@ export interface SyncWorkerOptions extends BlobStoreSettings {
 }
 
 /**
+ * Safely parse an environment variable as an integer with a fallback default.
+ * Returns the fallback if the value is undefined, empty, or results in NaN.
+ */
+function parseIntEnv(value: string | undefined, fallback: number): number {
+	if (!value) {
+		return fallback
+	}
+	const parsed = parseInt(value, 10)
+	return Number.isNaN(parsed) ? fallback : parsed
+}
+
+/**
  * Get blob store settings from environment variables.
  * Used as a fallback when remote config is not available.
  */
@@ -24,11 +36,11 @@ export function getBlobStoreSettingsFromEnv(): BlobStoreSettings {
 		endpoint: process?.env?.CLINE_STORAGE_ENDPOINT,
 		accountId: process?.env?.CLINE_STORAGE_ACCOUNT_ID,
 
-		intervalMs: parseInt(process.env.CLINE_STORAGE_SYNC_INTERVAL_MS || "30000", 10),
-		maxRetries: parseInt(process.env.CLINE_STORAGE_SYNC_MAX_RETRIES || "5", 10),
-		batchSize: parseInt(process.env.CLINE_STORAGE_SYNC_BATCH_SIZE || "10", 10),
-		maxQueueSize: parseInt(process.env.CLINE_STORAGE_SYNC_MAX_QUEUE_SIZE || "1000", 10),
-		maxFailedAgeMs: parseInt(process.env.CLINE_STORAGE_SYNC_MAX_FAILED_AGE_MS || SEVEN_DAYS_MS.toString(), 10),
+		intervalMs: parseIntEnv(process.env.CLINE_STORAGE_SYNC_INTERVAL_MS, 30000),
+		maxRetries: parseIntEnv(process.env.CLINE_STORAGE_SYNC_MAX_RETRIES, 5),
+		batchSize: parseIntEnv(process.env.CLINE_STORAGE_SYNC_BATCH_SIZE, 10),
+		maxQueueSize: parseIntEnv(process.env.CLINE_STORAGE_SYNC_MAX_QUEUE_SIZE, 1000),
+		maxFailedAgeMs: parseIntEnv(process.env.CLINE_STORAGE_SYNC_MAX_FAILED_AGE_MS, SEVEN_DAYS_MS),
 		backfillEnabled: process.env.CLINE_STORAGE_SYNC_BACKFILL_ENABLED === "true",
 	}
 }
@@ -109,7 +121,7 @@ export class SyncWorker {
 	 * @returns Unsubscribe function
 	 */
 	public onEvent(listener: SyncWorkerEventListener): () => void {
-		this.listeners?.push(listener)
+		this.listeners.push(listener)
 		return () => {
 			const index = this.listeners.indexOf(listener)
 			if (index >= 0) {

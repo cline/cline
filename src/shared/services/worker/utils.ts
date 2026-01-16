@@ -1,6 +1,6 @@
 export function getUtcTimestamp(): string {
 	const now = new Date()
-	return now.toISOString().replaceAll(":", "-").replaceAll("-", "").split(".")[0]
+	return now.toISOString().split(".")[0].replaceAll(":", "-")
 }
 
 /**

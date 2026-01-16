@@ -130,8 +130,7 @@ export class ClineBlobStorage extends ClineStorage {
 			return
 		}
 		try {
-			console.log(`[ClineBlobStorage] storing '${key}'`)
-			await this.adapter!.write(key, value)
+			await this.adapter!.write(this.resolvePath(this.resolvePath(key)), value)
 		} catch (error) {
 			console.error(`[ClineBlobStorage] failed to store '${key}':`, error)
 			throw error

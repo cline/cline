@@ -23,10 +23,12 @@ export abstract class ClineStorage {
 	 * Subscribe to storage change events.
 	 */
 	public onDidChange(callback: StorageEventListener): () => void {
-		this.subscribers?.push(callback)
+		this.subscribers.push(callback)
 		return () => {
 			const callbackIndex = this.subscribers.indexOf(callback)
-			this.subscribers.splice(callbackIndex, 1)
+			if (callbackIndex >= 0) {
+				this.subscribers.splice(callbackIndex, 1)
+			}
 		}
 	}
 

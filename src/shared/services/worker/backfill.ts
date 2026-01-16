@@ -96,7 +96,7 @@ export async function backfillTask(taskId: string): Promise<BackfillTaskResult> 
 			return result
 		}
 		try {
-			const data = getSavedApiConversationHistory(taskId)
+			const data = await getSavedApiConversationHistory(taskId)
 			queue.enqueue(taskId, GlobalFileNames.apiConversationHistory, JSON.stringify(data))
 			result.filesQueued.push(taskId)
 		} catch (err) {
