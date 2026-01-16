@@ -49,7 +49,7 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 
 	// Setup the external services
 	await ErrorService.initialize()
-	await featureFlagsService.poll()
+	await featureFlagsService.poll(null)
 
 	// Migrate custom instructions to global Cline rules (one-time cleanup)
 	await migrateCustomInstructionsToGlobalRules(context)
