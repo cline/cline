@@ -44,7 +44,7 @@ export function createTaskListCommand(config: CliConfig, logger: Logger, formatt
 
 				// Parse limit
 				const limit = options.all ? undefined : parseInt(options.limit, 10)
-				if (limit !== undefined && (isNaN(limit) || limit < 1)) {
+				if (limit !== undefined && (Number.isNaN(limit) || limit < 1)) {
 					formatter.error("Invalid limit value")
 					process.exit(1)
 				}

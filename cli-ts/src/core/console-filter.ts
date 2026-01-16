@@ -49,6 +49,7 @@ export const NOISE_PATTERNS = [
 	"Task lock",
 	"Skipping Checkpoints lock",
 	"Todo file watcher",
+	"[Task",
 
 	// Workspace & Terminal
 	"WorkspaceManager",

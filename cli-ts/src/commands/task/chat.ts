@@ -6,7 +6,10 @@
  * from the terminal.
  */
 
+import type { ApiConfiguration, ApiProvider } from "@shared/api"
 import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { Mode } from "@shared/storage/types"
+import chalk from "chalk"
 import { Command } from "commander"
 import readline from "readline"
 import { CliWebviewAdapter } from "../../core/cli-webview-adapter.js"
@@ -14,6 +17,108 @@ import { disposeEmbeddedController, getEmbeddedController } from "../../core/emb
 import type { OutputFormatter } from "../../core/output/types.js"
 import type { CliConfig } from "../../types/config.js"
 import type { Logger } from "../../types/logger.js"
+
+/**
+ * Get the model ID for the current provider and mode
+ */
+function getModelIdForProvider(
+	apiConfiguration: ApiConfiguration | undefined,
+	provider: ApiProvider | undefined,
+	mode: Mode,
+): string | undefined {
+	if (!apiConfiguration || !provider) {
+		return undefined
+	}
+
+	const prefix = mode === "plan" ? "planMode" : "actMode"
+
+	// Map provider to the corresponding model ID field
+	switch (provider) {
+		case "openrouter":
+		case "cline":
+			return apiConfiguration[`${prefix}OpenRouterModelId`]
+		case "anthropic":
+		case "claude-code":
+		case "bedrock":
+		case "vertex":
+		case "gemini":
+		case "openai-native":
+		case "deepseek":
+		case "qwen":
+		case "qwen-code":
+		case "doubao":
+		case "mistral":
+		case "asksage":
+		case "xai":
+		case "moonshot":
+		case "nebius":
+		case "sambanova":
+		case "cerebras":
+		case "sapaicore":
+		case "zai":
+		case "fireworks":
+		case "minimax":
+			return apiConfiguration[`${prefix}ApiModelId`]
+		case "openai":
+			return apiConfiguration[`${prefix}OpenAiModelId`]
+		case "ollama":
+			return apiConfiguration[`${prefix}OllamaModelId`]
+		case "lmstudio":
+			return apiConfiguration[`${prefix}LmStudioModelId`]
+		case "requesty":
+			return apiConfiguration[`${prefix}RequestyModelId`]
+		case "together":
+			return apiConfiguration[`${prefix}TogetherModelId`]
+		case "litellm":
+			return apiConfiguration[`${prefix}LiteLlmModelId`]
+		case "groq":
+			return apiConfiguration[`${prefix}GroqModelId`]
+		case "baseten":
+			return apiConfiguration[`${prefix}BasetenModelId`]
+		case "huggingface":
+			return apiConfiguration[`${prefix}HuggingFaceModelId`]
+		case "huawei-cloud-maas":
+			return apiConfiguration[`${prefix}HuaweiCloudMaasModelId`]
+		case "oca":
+			return apiConfiguration[`${prefix}OcaModelId`]
+		case "hicap":
+			return apiConfiguration[`${prefix}HicapModelId`]
+		case "aihubmix":
+			return apiConfiguration[`${prefix}AihubmixModelId`]
+		case "nousResearch":
+			return apiConfiguration[`${prefix}NousResearchModelId`]
+		case "vercel-ai-gateway":
+			return apiConfiguration[`${prefix}VercelAiGatewayModelId`]
+		case "vscode-lm":
+		case "dify":
+		default:
+			return undefined
+	}
+}
+
+/**
+ * Build the CLI prompt string with mode, provider, and model
+ * Format: [mode] provider/model >
+ */
+function buildPromptString(mode: Mode, provider: ApiProvider | undefined, modelId: string | undefined): string {
+	const modeStr = mode === "plan" ? chalk.magenta("[plan]") : chalk.cyan("[act]")
+	const providerStr = provider || "unknown"
+
+	// Shorten very long model IDs for display (keep last part after last /)
+	let modelStr = modelId || "unknown"
+	if (modelStr.length > 40) {
+		const lastSlash = modelStr.lastIndexOf("/")
+		if (lastSlash > 0 && lastSlash < modelStr.length - 1) {
+			modelStr = "..." + modelStr.substring(lastSlash)
+		} else {
+			modelStr = modelStr.substring(0, 37) + "..."
+		}
+	}
+
+	const providerModelStr = chalk.dim(`${providerStr}/${modelStr}`)
+
+	return `${modeStr} ${providerModelStr} ${chalk.white(">")} `
+}
 
 /**
  * Chat session state
@@ -218,6 +323,9 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 				// Create webview adapter for output
 				session.adapter = new CliWebviewAdapter(controller, formatter)
 
+				// Track if we started with a prompt (AI will be processing)
+				let startedWithPrompt = false
+
 				// Start or resume task
 				if (options.task) {
 					// Resume existing task
@@ -229,6 +337,7 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 					formatter.info(`Resumed task: ${session.taskId}`)
 				} else if (promptArg) {
 					// Start new task with prompt
+					startedWithPrompt = true
 					session.taskId = await controller.initTask(promptArg)
 					formatter.info(`Started task: ${session.taskId}`)
 				}
@@ -254,18 +363,51 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 					session.adapter.outputAllMessages()
 				}
 
+				// Create readline interface
+				const rl = readline.createInterface({
+					input: process.stdin,
+					output: process.stdout,
+					prompt: "> ", // Default prompt, will be updated dynamically
+				})
+
+				// Track if we're currently processing (AI is working)
+				let isProcessing = startedWithPrompt
+				// Track previous awaiting states to detect transitions
+				let wasAwaitingInput = false
+
+				// Helper to update the prompt string (but not necessarily show it)
+				async function updatePromptString(): Promise<void> {
+					const currentState = await controller.getStateToPostToWebview()
+					const mode = (currentState.mode || "act") as Mode
+					const provider = (
+						mode === "plan"
+							? currentState.apiConfiguration?.planModeApiProvider
+							: currentState.apiConfiguration?.actModeApiProvider
+					) as ApiProvider | undefined
+					const modelId = getModelIdForProvider(currentState.apiConfiguration, provider, mode)
+					const promptStr = buildPromptString(mode, provider, modelId)
+					rl.setPrompt(promptStr)
+				}
+
+				// Helper to show the prompt (call after updating)
+				function showPrompt(): void {
+					rl.prompt()
+				}
+
 				// Start listening for state updates
 				session.adapter.startListening((messages) => {
 					const pendingState = checkForPendingInput(messages)
 					session.awaitingApproval = pendingState.awaitingApproval
 					session.awaitingInput = pendingState.awaitingInput
-				})
 
-				// Create readline interface
-				const rl = readline.createInterface({
-					input: process.stdin,
-					output: process.stdout,
-					prompt: "> ",
+					// Detect transition from processing to awaiting input
+					const nowAwaitingInput = pendingState.awaitingApproval || pendingState.awaitingInput
+					if (isProcessing && nowAwaitingInput && !wasAwaitingInput) {
+						// AI just finished and is now waiting for input - show prompt
+						isProcessing = false
+						updatePromptString().then(() => showPrompt())
+					}
+					wasAwaitingInput = nowAwaitingInput
 				})
 
 				// Handle line input
@@ -273,7 +415,9 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 					const input = line.trim()
 
 					if (!input) {
-						rl.prompt()
+						// Empty input - just show prompt again
+						await updatePromptString()
+						showPrompt()
 						return
 					}
 
@@ -284,7 +428,9 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 							rl.close()
 							return
 						}
-						rl.prompt()
+						// Commands complete immediately, show prompt
+						await updatePromptString()
+						showPrompt()
 						return
 					}
 
@@ -293,27 +439,34 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 						const lowerInput = input.toLowerCase()
 						if (lowerInput === "y" || lowerInput === "yes" || lowerInput === "approve") {
 							if (controller.task) {
+								isProcessing = true // AI will start processing
+								wasAwaitingInput = false
 								await controller.task.handleWebviewAskResponse("yesButtonClicked")
 								session.awaitingApproval = false
 							}
-							rl.prompt()
+							// Don't show prompt - wait for AI to finish
 							return
 						}
 						if (lowerInput === "n" || lowerInput === "no" || lowerInput === "deny") {
 							if (controller.task) {
+								isProcessing = true // AI will start processing
+								wasAwaitingInput = false
 								await controller.task.handleWebviewAskResponse("noButtonClicked")
 								session.awaitingApproval = false
 							}
-							rl.prompt()
+							// Don't show prompt - wait for AI to finish
 							return
 						}
 					}
 
 					// If no active task, start a new one
 					if (!session.taskId) {
+						isProcessing = true // AI will start processing
+						wasAwaitingInput = false
 						session.taskId = await controller.initTask(input)
 						formatter.info(`Started task: ${session.taskId}`)
 						session.adapter?.resetMessageCounter()
+						// Don't show prompt - wait for AI to finish
 					} else if (controller.task) {
 						// Check if input is a numbered option selection
 						let messageToSend = input
@@ -325,11 +478,12 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 							}
 						}
 
+						isProcessing = true // AI will start processing
+						wasAwaitingInput = false
 						// Send message to existing task
 						await controller.task.handleWebviewAskResponse("messageResponse", messageToSend)
+						// Don't show prompt - wait for AI to finish
 					}
-
-					rl.prompt()
 				})
 
 				// Handle close
@@ -351,8 +505,11 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 					rl.close()
 				})
 
-				// Start prompt
-				rl.prompt()
+				// Start prompt with current state (only if not already processing)
+				await updatePromptString()
+				if (!isProcessing) {
+					showPrompt()
+				}
 			} catch (error) {
 				formatter.error((error as Error).message)
 				await disposeEmbeddedController(logger)

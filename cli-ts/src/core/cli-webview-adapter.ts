@@ -238,7 +238,7 @@ export class CliWebviewAdapter {
 				if (msg.text) {
 					try {
 						const _info = JSON.parse(msg.text) as ClineApiReqInfo
-						this.formatter.info("🔄 API request started...")
+						this.formatter.info(`🔄 API request started...`)
 					} catch {
 						this.formatter.info("🔄 API request started...")
 					}
