@@ -326,8 +326,11 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 			// Track all changed files once after all operations are complete
 			for (const changedFilePath of changedFiles) {
-				config.services.fileContextTracker.markFileAsEditedByCline(changedFilePath)
-				await config.services.fileContextTracker.trackFileContext(changedFilePath, "cline_edited")
+				const change = commit.changes[changedFilePath]
+				// For move operations, track the new path instead
+				const pathToTrack = change.type === PatchActionType.UPDATE && change.movePath ? change.movePath : changedFilePath
+				config.services.fileContextTracker.markFileAsEditedByCline(pathToTrack)
+				await config.services.fileContextTracker.trackFileContext(pathToTrack, "cline_edited")
 			}
 
 			this.config = undefined
@@ -374,8 +377,6 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			return responseLines.join("\n")
 		} catch (error) {
 			await provider.revertChanges()
-			await provider.reset()
-			console.error("Reverted changes due to error in ApplyPatchHandler.", error)
 			throw error
 		} finally {
 			await provider.reset()
