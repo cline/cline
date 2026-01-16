@@ -40,11 +40,6 @@ export class GitHubCopilotHandler implements ApiHandler {
 	private client: OpenAI | undefined
 
 	constructor(options: GitHubCopilotHandlerOptions) {
-		console.error("[GitHub Copilot] Handler constructor called with:", {
-			hasToken: !!options.gitHubCopilotAccessToken,
-			modelId: options.gitHubCopilotModelId,
-			enterpriseUrl: options.gitHubCopilotEnterpriseUrl,
-		})
 		this.options = options
 	}
 
@@ -104,42 +99,15 @@ export class GitHubCopilotHandler implements ApiHandler {
 		return this.client
 	}
 
-	@withRetry({ maxRetries: 0 }) // Set to 3 after debugging
+	@withRetry({ maxRetries: 3 })
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ChatCompletionTool[]): ApiStream {
-		console.log("[GitHub Copilot] createMessage called")
-		console.log("[GitHub Copilot] Token present:", !!this.options.gitHubCopilotAccessToken)
-		console.log("[GitHub Copilot] Model ID:", this.options.gitHubCopilotModelId)
+		const client = this.ensureClient()
+		const model = this.getModel()
+		const toolCallProcessor = new ToolCallProcessor()
 
-		try {
-			const client = this.ensureClient()
-			const model = this.getModel()
-			console.log("[GitHub Copilot] Using model:", model.id)
-			const toolCallProcessor = new ToolCallProcessor()
-
-			// Debug: log messages before conversion
-			console.log("[GitHub Copilot] Messages count:", messages.length)
-			messages.forEach((msg, i) => {
-				console.log(`[GitHub Copilot] Message ${i}: role=${msg.role}, content type=${typeof msg.content}, isArray=${Array.isArray(msg.content)}`)
-				if (Array.isArray(msg.content)) {
-					msg.content.forEach((part, j) => {
-						console.log(`[GitHub Copilot]   Part ${j}: type=${part?.type}, hasContent=${!!part}`)
-					})
-				}
-			})
-
-			let convertedMessages
-			try {
-				convertedMessages = convertToOpenAiMessages(messages)
-				console.log("[GitHub Copilot] Converted messages count:", convertedMessages.length)
-			} catch (conversionError: any) {
-				console.error("[GitHub Copilot] Message conversion failed:", conversionError)
-				console.error("[GitHub Copilot] Raw messages:", JSON.stringify(messages, null, 2))
-				throw conversionError
-			}
-
-			const stream = await client.chat.completions.create({
+		const stream = await client.chat.completions.create({
 			model: model.id,
-			messages: [{ role: "system", content: systemPrompt }, ...convertedMessages],
+			messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 			stream: true,
 			stream_options: { include_usage: true },
 			...getOpenAIToolParams(tools, false),
@@ -155,15 +123,10 @@ export class GitHubCopilotHandler implements ApiHandler {
 			}
 
 			if (delta?.tool_calls) {
-				try {
-					yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
-				} catch (error) {
-					console.error("Error processing tool call delta:", error, delta.tool_calls)
-				}
+				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 			}
 
 			if (chunk.usage) {
-				// Only last chunk contains usage
 				const inputTokens = chunk.usage.prompt_tokens || 0
 				const outputTokens = chunk.usage.completion_tokens || 0
 				yield {
@@ -174,25 +137,15 @@ export class GitHubCopilotHandler implements ApiHandler {
 				}
 			}
 		}
-		} catch (error: any) {
-			console.error("[GitHub Copilot] API Error:", error)
-			console.error("[GitHub Copilot] Error message:", error?.message)
-			console.error("[GitHub Copilot] Error status:", error?.status)
-			console.error("[GitHub Copilot] Error response:", error?.response)
-			throw error
-		}
 	}
 
 	getModel(): { id: GitHubCopilotModelId; info: ModelInfo } {
-		console.error("[GitHub Copilot] getModel called, modelId:", this.options.gitHubCopilotModelId)
 		const modelId = this.options.gitHubCopilotModelId
 		if (modelId && modelId in gitHubCopilotModels) {
 			const id = modelId as GitHubCopilotModelId
 			const info = gitHubCopilotModels[id]
-			console.error("[GitHub Copilot] getModel returning:", { id, info: !!info })
 			return { id, info: { ...info } }
 		}
-		console.error("[GitHub Copilot] getModel returning default:", gitHubCopilotDefaultModelId)
 		return {
 			id: gitHubCopilotDefaultModelId,
 			info: { ...gitHubCopilotModels[gitHubCopilotDefaultModelId] },

@@ -2660,8 +2660,7 @@ export class Task {
 					const clineError = ErrorService.get().toClineError(error, this.api.getModel().id)
 					const errorMessage = clineError.serialize()
 					// Auto-retry for streaming failures (always enabled)
-					// TEMP: Disabled for debugging GitHub Copilot - change back to < 3
-					if (this.taskState.autoRetryAttempts < 0) {
+					if (this.taskState.autoRetryAttempts < 3) {
 						this.taskState.autoRetryAttempts++
 
 						// Calculate exponential backoff for streaming failures: 2s, 4s, 8s
