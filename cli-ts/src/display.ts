@@ -174,8 +174,18 @@ function formatAskMessage(message: ClineMessage, prefix: string, verbose: boolea
 	const ask = message.ask as ClineAsk
 
 	switch (ask) {
-		case "followup":
-			return `${prefix} ${style.info("Question:")} ${message.text || ""}`
+		case "followup": {
+			// Parse JSON question format
+			let question = message.text || ""
+			try {
+				const parsed = JSON.parse(message.text || "{}")
+				question = parsed.question || question
+			} catch {
+				// Fallback to raw text if not JSON
+				question = message.text || ""
+			}
+			return `${prefix} ${style.info("Question:")} ${question}`
+		}
 
 		case "command":
 			return `${prefix} ${style.command("Execute command?")} ${style.code(message.text || "")}`
@@ -198,6 +208,9 @@ function formatAskMessage(message: ClineMessage, prefix: string, verbose: boolea
 
 		case "use_mcp_server":
 			return `${prefix} ${style.info("Use MCP server?")} ${message.text || ""}`
+
+		case "plan_mode_respond":
+			return `${prefix} ${style.info("Plan mode response:")} ${message.text || ""}`
 
 		default:
 			return verbose ? `${prefix} [ASK:${ask}] ${message.text || ""}` : ""
@@ -251,7 +264,7 @@ function formatSayMessage(message: ClineMessage, prefix: string, verbose: boolea
 			return `${prefix} ${style.info("MCP response")} ${message.text ? message.text.substring(0, 200) : ""}`
 
 		case "api_req_started":
-			return verbose ? `${prefix} ${style.api("API request started")}` : ""
+			return verbose ? `${prefix} ${style.api("API request started")}` : `${message.text || ""}`
 
 		case "api_req_finished":
 			return verbose ? `${prefix} ${style.api("API request finished")}` : ""
@@ -309,7 +322,7 @@ export function formatState(state: ExtensionState, verbose: boolean = false): st
 			? state.clineMessages
 			: state.clineMessages.filter((m) => {
 					// Filter out noisy messages in non-verbose mode
-					if (m.say === "api_req_started" || m.say === "api_req_finished") return false
+					// if (m.say === "api_req_started" || m.say === "api_req_finished") return false
 					return true
 				})
 
@@ -418,4 +431,30 @@ export function printInfo(message: string) {
  */
 export function printWarning(message: string) {
 	originalConsoleLog(style.warning(message))
+}
+
+/**
+ * Prompt user for input from stdin
+ */
+export async function promptUser(question: string): Promise<string> {
+	const readline = await import("readline")
+	const rl = readline.createInterface({
+		input: process.stdin,
+		output: process.stdout,
+	})
+
+	return new Promise((resolve) => {
+		rl.question(style.info(question) + " ", (answer: string) => {
+			rl.close()
+			resolve(answer.trim())
+		})
+	})
+}
+
+/**
+ * Prompt user for yes/no confirmation
+ */
+export async function promptConfirmation(question: string): Promise<boolean> {
+	const answer = await promptUser(`${question} ${style.dim("(y/n)")}`)
+	return answer.toLowerCase() === "y" || answer.toLowerCase() === "yes"
 }

@@ -82,6 +82,18 @@ cline-ts config
 
 ## Development
 
+
+```bash
+# Build and link the package to your terminal
+npm run link
+
+# Set your provider (No Cline provider support yet)
+clinedev auth
+
+# Run a task
+clinedev task "Tell me about this codebase"
+```
+
 ### Build
 
 ```bash
