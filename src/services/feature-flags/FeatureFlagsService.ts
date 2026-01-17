@@ -28,24 +28,29 @@ export class FeatureFlagsService {
 	/**
 	 * Poll all known feature flags to update their cached values
 	 */
-	public async poll(userId?: string): Promise<void> {
+	public async poll(userId: string | null): Promise<void> {
 		// Do not update cache if last update was less than an hour ago
 		const timesNow = Date.now()
 		if (timesNow - this.cacheInfo.updateTime < DEFAULT_CACHE_TTL && this.cache.size) {
-			// If time is within TTL, only skip if user context (userId) is unchanged.
-			// If userId changed (including from/to undefined/null), refresh cache.
-			if (userId && this.cacheInfo.userId === userId) {
+			// Skip fetch if within TTL and user context is unchanged
+			if (this.cacheInfo.userId === userId) {
 				return
 			}
 		}
 
-		for (const flag of FEATURE_FLAGS) {
-			const payload = await this.getFeatureFlag(flag).catch(() => false)
-			this.cache.set(flag, payload ?? false)
-		}
-
 		// Only update timestamp after successfully populating cache
 		this.cacheInfo = { updateTime: timesNow, userId: userId || null }
+
+		try {
+			for (const flag of FEATURE_FLAGS) {
+				const payload = await this.getFeatureFlag(flag).catch(() => false)
+				this.cache.set(flag, payload ?? false)
+			}
+		} catch (error) {
+			// On error, clear cache info to force refresh on next poll
+			this.cacheInfo = { updateTime: 0, userId: null }
+			throw error
+		}
 
 		getClineOnboardingModels() // Refresh onboarding models cache if relevant flag changed
 	}
@@ -85,10 +90,6 @@ export class FeatureFlagsService {
 	 */
 	public getBooleanFlagEnabled(flagName: FeatureFlag): boolean {
 		return this.cache.get(flagName) === true
-	}
-
-	public getDoNothingFlag(): boolean {
-		return this.getBooleanFlagEnabled(FeatureFlag.DO_NOTHING)
 	}
 
 	public getHooksEnabled(): boolean {
