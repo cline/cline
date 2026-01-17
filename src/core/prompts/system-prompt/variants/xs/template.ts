@@ -14,7 +14,7 @@ export const baseTemplate = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 ## {{${SystemPromptSection.EDITING_FILES}}}
 
-## {{${SystemPromptSection.TOOLS}}}
+## {{${SystemPromptSection.TOOL_USE}}}
 
 ## {{${SystemPromptSection.OBJECTIVE}}}
 

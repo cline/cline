@@ -1,5 +1,4 @@
-import { SystemPromptSection } from "../../templates/placeholders"
-import { PromptVariant, SystemPromptContext } from "../../types"
+import { SystemPromptContext } from "../../types"
 
 const XS_EDITING_FILES = `FILE EDITING RULES
 - Default: replace_in_file; write_to_file for new files or full rewrites.
@@ -40,7 +39,10 @@ const XS_OBJECTIVES = `EXECUTION FLOW
 - Prefer replace_in_file; respect final formatted state.
 - When all steps succeed and are confirmed, call attempt_completion (optional demo command).`
 
-const XS_CLI_SUBAGENTS = `USING THE CLINE CLI TOOL
+const XS_CLI_SUBAGENTS = (context: SystemPromptContext) =>
+	context.enableNativeToolCalls
+		? ""
+		: `USING THE CLINE CLI TOOL
 
 The Cline CLI tool is installed and available for you to use to handle focused tasks without polluting your main context window. This can be done using 
 \`\`\`bash
@@ -56,7 +58,7 @@ const XS_TOOLS_OVERRIDE = (context: SystemPromptContext) =>
 	context.enableNativeToolCalls
 		? `TOOLS
 
-You have access to a set of tools that you are expected to use to resolve the task. `
+You have access to a set of tools that you are expected to use to resolve the task.`
 		: `TOOLS
 
 **execute_command** — Run CLI in {{CWD}}.  
@@ -112,48 +114,14 @@ Key: Never include an option to toggle modes.
 **plan_mode_respond** — PLAN-only reply. Params: response, needs_more_exploration (optional).  
 Include options/trade-offs when helpful, ask if plan matches, then add the exact mode-switch line.`
 
-export const xsComponentOverrides: PromptVariant["componentOverrides"] = {
-	[SystemPromptSection.AGENT_ROLE]: {
-		template:
-			"You are Cline, a senior software engineer + precise task runner. Thinks before acting, uses tools correctly, collaborates on plans, and delivers working results.",
-	},
-	[SystemPromptSection.TOOL_USE]: {
-		enabled: false, // XS variant includes tools inline in the template
-	},
-	[SystemPromptSection.TOOLS]: {
-		template: XS_TOOLS_OVERRIDE,
-	},
-	[SystemPromptSection.MCP]: {
-		enabled: false, // XS variant includes MCP tools inline in the template
-	},
-	[SystemPromptSection.TODO]: {
-		enabled: false,
-	},
-	[SystemPromptSection.RULES]: {
-		template: XS_RULES,
-	},
-	[SystemPromptSection.CLI_SUBAGENTS]: {
-		template: XS_CLI_SUBAGENTS,
-	},
-	[SystemPromptSection.ACT_VS_PLAN]: {
-		template: XS_ACT_PLAN_MODE,
-	},
-	[SystemPromptSection.CAPABILITIES]: {
-		template: XS_CAPABILITIES,
-	},
-	[SystemPromptSection.OBJECTIVE]: {
-		template: XS_OBJECTIVES,
-	},
-	[SystemPromptSection.EDITING_FILES]: {
-		template: XS_EDITING_FILES,
-	},
-	[SystemPromptSection.SYSTEM_INFO]: {
-		enabled: true, // Use default system info
-	},
-	[SystemPromptSection.USER_INSTRUCTIONS]: {
-		enabled: true, // Use default user instructions
-	},
-	[SystemPromptSection.FEEDBACK]: {
-		enabled: false,
-	},
-}
+export const xsComponentOverrides = {
+	AGENT_ROLE:
+		"You are Cline, a senior software engineer + precise task runner. Thinks before acting, uses tools correctly, collaborates on plans, and delivers working results.",
+	RULES: XS_RULES,
+	CLI_SUBAGENTS: XS_CLI_SUBAGENTS,
+	ACT_VS_PLAN: XS_ACT_PLAN_MODE,
+	CAPABILITIES: XS_CAPABILITIES,
+	OBJECTIVE: XS_OBJECTIVES,
+	EDITING_FILES: XS_EDITING_FILES,
+	TOOL_USE: XS_TOOLS_OVERRIDE,
+} as const

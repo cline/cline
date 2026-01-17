@@ -11,7 +11,7 @@ import { baseTemplate } from "./template"
 export const config = createVariant(ModelFamily.XS)
 	.description("Prompt for models with a small context window.")
 	.version(1)
-	.tags("local", "xs", "compact")
+	.tags("local", "xs", "compact", "native_tools")
 	.labels({
 		stable: 1,
 		production: 1,
@@ -29,6 +29,7 @@ export const config = createVariant(ModelFamily.XS)
 	.template(baseTemplate)
 	.components(
 		SystemPromptSection.AGENT_ROLE,
+		SystemPromptSection.TOOL_USE,
 		SystemPromptSection.RULES,
 		SystemPromptSection.ACT_VS_PLAN,
 		SystemPromptSection.CLI_SUBAGENTS,
@@ -52,12 +53,32 @@ export const config = createVariant(ModelFamily.XS)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.XS,
 	})
+	.overrideComponent(SystemPromptSection.AGENT_ROLE, {
+		template: xsComponentOverrides.AGENT_ROLE,
+	})
+	.overrideComponent(SystemPromptSection.TOOL_USE, {
+		template: xsComponentOverrides.TOOL_USE,
+	})
+	.overrideComponent(SystemPromptSection.RULES, {
+		template: xsComponentOverrides.RULES,
+	})
+	.overrideComponent(SystemPromptSection.CLI_SUBAGENTS, {
+		template: xsComponentOverrides.CLI_SUBAGENTS,
+	})
+	.overrideComponent(SystemPromptSection.ACT_VS_PLAN, {
+		template: xsComponentOverrides.ACT_VS_PLAN,
+	})
+	.overrideComponent(SystemPromptSection.CAPABILITIES, {
+		template: xsComponentOverrides.CAPABILITIES,
+	})
+	.overrideComponent(SystemPromptSection.OBJECTIVE, {
+		template: xsComponentOverrides.OBJECTIVE,
+	})
+	.overrideComponent(SystemPromptSection.EDITING_FILES, {
+		template: xsComponentOverrides.EDITING_FILES,
+	})
 	.config({})
 	.build()
-
-// Apply component overrides after building the base configuration
-// This is necessary because the builder pattern doesn't support bulk overrides
-Object.assign(config.componentOverrides, xsComponentOverrides)
 
 // Compile-time validation
 const validationResult = validateVariant({ ...config, id: ModelFamily.XS }, { strict: true })
