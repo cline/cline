@@ -362,7 +362,16 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							}
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
-								modelInfo.outputPrice = Number(value)
+
+								const shouldPreserveFormat = value.endsWith(".") || (value.includes(".") && value.endsWith("0"))
+
+								modelInfo.outputPrice =
+									value === ""
+										? openAiModelInfoSaneDefaults.outputPrice
+										: shouldPreserveFormat
+											? (value as any)
+											: parseFloat(value)
+
 								handleModeFieldChange(
 									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
 									modelInfo,
