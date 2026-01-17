@@ -1664,18 +1664,31 @@ export class TelemetryService {
 	 * @param success Whether the command output was successfully captured
 	 * @param terminalType The type of terminal ("standalone")
 	 * @param method The standalone-specific method used to capture output
+	 * @param exitCode The process exit code (useful for diagnosing failure types: 1=error, 127=not found, 126=permission denied)
 	 */
-	public captureTerminalExecution(success: boolean, terminalType: "standalone", method: StandaloneOutputMethod): void
+	public captureTerminalExecution(
+		success: boolean,
+		terminalType: "standalone",
+		method: StandaloneOutputMethod,
+		exitCode?: number | null,
+	): void
 	/**
 	 * Implementation of captureTerminalExecution
 	 */
-	public captureTerminalExecution(success: boolean, terminalType: TerminalType, method: TerminalOutputMethod): void {
+	public captureTerminalExecution(
+		success: boolean,
+		terminalType: TerminalType,
+		method: TerminalOutputMethod,
+		exitCode?: number | null,
+	): void {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_EXECUTION,
 			properties: {
 				success,
 				terminalType,
 				method,
+				// Only include exitCode for standalone terminals when it's a meaningful value
+				...(terminalType === "standalone" && exitCode !== undefined && exitCode !== null && { exitCode }),
 			},
 		})
 	}
