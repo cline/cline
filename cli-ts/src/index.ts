@@ -387,8 +387,19 @@ class CliStateSubscriber {
 /**
  * Run a task with the given prompt
  */
-async function runTask(prompt: string, options: { verbose?: boolean; cwd?: string; config?: string }) {
+async function runTask(
+	prompt: string,
+	options: { mode?: string; model?: string; verbose?: boolean; cwd?: string; config?: string },
+) {
 	const workspacePath = options.cwd || process.cwd()
+
+	if (options.mode) {
+		StateManager.get().setGlobalState("mode", options.mode === "plan" ? "plan" : "act")
+	}
+	if (options.model) {
+		const selectedMode = StateManager.get().getGlobalSettingsKey("mode") || "act"
+		StateManager.get().setGlobalState(selectedMode === "act" ? "actModeApiModelId" : "planModeApiModelId", options.model)
+	}
 
 	printInfo(`🚀 Starting Cline task...`)
 	printInfo(`📁 Working directory: ${workspacePath}`)
@@ -627,6 +638,8 @@ program
 	.alias("t")
 	.description("Run a new task")
 	.argument("<prompt>", "The task prompt")
+	.option("-s, --switch <mode>", "Switch mode: act, plan")
+	.option("-m, --model <model>", "Model to use for the task")
 	.option("-v, --verbose", "Show verbose output including reasoning")
 	.option("-c, --cwd <path>", "Working directory for the task")
 	.option("--config <path>", "Path to Cline configuration directory")
