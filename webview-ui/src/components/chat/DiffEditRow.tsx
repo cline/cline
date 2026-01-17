@@ -1,5 +1,5 @@
 import { StringRequest } from "@shared/proto/cline/common"
-import { ChevronsDownUpIcon, FilePlus, FileText, FileX, SquareArrowOutUpRightIcon } from "lucide-react"
+import { FilePlus, FileText, FileX, SquareArrowOutUpRightIcon } from "lucide-react"
 import { memo, useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
@@ -29,20 +29,14 @@ const ACTION_STYLES = {
 	default: { icon: FileText, iconClass: "text-info", borderClass: "border-l-background" },
 } as const
 
-// Style mappings for diff lines
-const LINE_STYLES = {
-	"+": "bg-green-500/10 text-success border-l-1 border-green-500",
-	"-": "bg-red-500/10 text-error border-l-1 border-red-500",
-	default: "bg-editor-background text-editor-foreground",
-} as const
-
 interface DiffEditRowProps {
 	patch: string
 	path: string
 	isLoading?: boolean
+	startLineNumbers?: number[]
 }
 
-export const DiffEditRow = memo<DiffEditRowProps>(({ patch, path, isLoading }) => {
+export const DiffEditRow = memo<DiffEditRowProps>(({ patch, path, isLoading, startLineNumbers }) => {
 	const { parsedFiles, isStreaming } = useMemo(() => {
 		const parsed = parsePatch(patch, path)
 		return {
@@ -56,16 +50,21 @@ export const DiffEditRow = memo<DiffEditRowProps>(({ patch, path, isLoading }) =
 	}
 
 	return (
-		<div className="space-y-4 border border-code-block-background/70 rounded-xs">
-			{parsedFiles.map((file) => (
-				<FileBlock file={file} isStreaming={isStreaming} key={file.path} />
+		<div className="space-y-4 rounded-xs">
+			{parsedFiles.map((file, index) => (
+				<FileBlock
+					file={file}
+					isStreaming={isStreaming}
+					key={`${file.path}-${index}`}
+					startLineNumber={startLineNumbers?.[index]}
+				/>
 			))}
 		</div>
 	)
 })
 
-const FileBlock = memo<{ file: Patch; isStreaming: boolean }>(
-	({ file, isStreaming }) => {
+const FileBlock = memo<{ file: Patch; isStreaming: boolean; startLineNumber?: number }>(
+	({ file, isStreaming, startLineNumber }) => {
 		const [isExpanded, setIsExpanded] = useState(true)
 		const scrollContainerRef = useRef<HTMLDivElement>(null)
 		const shouldFollowRef = useRef(true)
@@ -98,6 +97,7 @@ const FileBlock = memo<{ file: Patch; isStreaming: boolean }>(
 
 		const handleOpenFile = (event: React.MouseEvent) => {
 			event.stopPropagation()
+
 			if (file.path) {
 				FileServiceClient.openFileRelativePath(StringRequest.create({ value: file.path })).catch((err) =>
 					console.error("Failed to open file:", err),
@@ -108,10 +108,34 @@ const FileBlock = memo<{ file: Patch; isStreaming: boolean }>(
 		const actionStyle = ACTION_STYLES[file.action as keyof typeof ACTION_STYLES] ?? ACTION_STYLES.default
 		const ActionIcon = actionStyle.icon
 
+		const lineNumbers = useMemo(() => {
+			let oldLine = startLineNumber ?? 1
+			let newLine = startLineNumber ?? 1
+
+			return file.lines.map((line) => {
+				const isAddition = line.startsWith("+")
+				const isDeletion = line.startsWith("-")
+				const isContext = !isAddition && !isDeletion
+
+				if (isDeletion) {
+					const display = oldLine
+					oldLine += 1
+					return display
+				}
+
+				const display = newLine
+				newLine += 1
+				if (isContext) {
+					oldLine += 1
+				}
+				return display
+			})
+		}, [file.lines, startLineNumber])
+
 		return (
-			<div className="bg-code rounded-xs border border-editor-group-border">
+			<div className="bg-code rounded-xs border border-editor-group-border overflow-hidden">
 				<button
-					className="w-full flex items-center gap-2 p-2 bg-code transition-colors rounded-t-xs justify-between cursor-pointer"
+					className="w-full flex items-center gap-2 p-2 bg-code transition-colors justify-between cursor-pointer"
 					onClick={() => setIsExpanded((prev) => !prev)}
 					type="button">
 					<div className="flex items-center gap-3 flex-1 w-full overflow-hidden">
@@ -138,12 +162,12 @@ const FileBlock = memo<{ file: Patch; isStreaming: boolean }>(
 
 				{isExpanded && (
 					<div
-						className="border-t border-code-block-background max-h-72 overflow-y-auto"
+						className="border-t border-code-block-background max-h-80 overflow-y-auto overflow-x-auto"
 						onScroll={handleScroll}
 						ref={scrollContainerRef}>
-						<div className="font-mono text-xs">
-							{file.lines.map((line, idx) => (
-								<DiffLine key={idx} line={line} />
+						<div className="font-mono text-xs w-max min-w-full">
+							{file.lines.map((line, index) => (
+								<DiffLine key={`${index}-${line.slice(0, 20)}`} line={line} lineNumber={lineNumbers[index]} />
 							))}
 						</div>
 					</div>
@@ -153,11 +177,12 @@ const FileBlock = memo<{ file: Patch; isStreaming: boolean }>(
 	},
 	(prev, next) =>
 		prev.isStreaming === next.isStreaming &&
+		prev.startLineNumber === next.startLineNumber &&
 		prev.file.path === next.file.path &&
 		prev.file.action === next.file.action &&
 		prev.file.additions === next.file.additions &&
 		prev.file.deletions === next.file.deletions &&
-		prev.file.lines === next.file.lines, // Reference equality - parsing creates new arrays only when content changes
+		prev.file.lines === next.file.lines,
 )
 
 const DiffStats = memo<{ additions: number; deletions: number }>(({ additions, deletions }) => (
@@ -168,22 +193,45 @@ const DiffStats = memo<{ additions: number; deletions: number }>(({ additions, d
 	</div>
 ))
 
-const DiffLine = memo<{ line: string }>(({ line }) => {
-	if (line.trim() === "@@") {
-		return (
-			<div className="inline-flex items-center px-3 py-1 text-xs font-mono bg-description/10 w-full text-description">
-				<ChevronsDownUpIcon className="size-2 mr-2" />
-				@@
-			</div>
-		)
-	}
-
-	const firstChar = line[0] as "+" | "-" | undefined
-	const style = LINE_STYLES[firstChar ?? "default"] ?? LINE_STYLES.default
+// Diff line component with Tailwind styling - indicator bar, line number, code
+const DiffLine = memo<{ line: string; lineNumber: number }>(({ line, lineNumber }) => {
+	const isAddition = line.startsWith("+")
+	const isDeletion = line.startsWith("-")
+	const hasSpacePrefix = line.startsWith("+ ") || line.startsWith("- ")
+	const code = isAddition || isDeletion ? line.slice(hasSpacePrefix ? 2 : 1) : line
 
 	return (
-		<div className={cn("px-4 py-1 text-xs font-mono w-full", style)}>
-			<span>{line}</span>
+		<div
+			className={cn(
+				"flex text-xs font-mono",
+				// Row background tint
+				isAddition && "bg-green-500/10",
+				isDeletion && "bg-red-500/10",
+				// Left indicator bar (the colored stripe)
+				isAddition && "border-l-4 border-l-green-500",
+				isDeletion && "border-l-4 border-l-red-500",
+				!isAddition && !isDeletion && "border-l-4 border-l-transparent",
+			)}>
+			{/* Line number */}
+			<span
+				className={cn(
+					"w-10 min-w-10 text-right pr-2 py-0.5 select-none border-r border-code-block-background/50",
+					isAddition && "text-green-400/60",
+					isDeletion && "text-red-400/60",
+					!isAddition && !isDeletion && "text-description/50",
+				)}>
+				{lineNumber}
+			</span>
+			{/* Code content */}
+			<span
+				className={cn(
+					"flex-1 px-2 py-0.5 whitespace-nowrap",
+					isAddition && "text-green-400",
+					isDeletion && "text-red-400",
+					!isAddition && !isDeletion && "text-editor-foreground",
+				)}>
+				{code}
+			</span>
 		</div>
 	)
 })
@@ -203,11 +251,14 @@ interface ParseResult {
 function parsePatch(patch: string, path: string): ParseResult {
 	// Try old format first (------- SEARCH / ======= / +++++++ REPLACE)
 	if (patch.includes(MARKERS.SEARCH_BLOCK)) {
-		const result = parseSearchReplaceFormat(patch, path)
-		if (result) {
+		const results = parseAllSearchReplaceBlocks(patch, path)
+		if (results.length > 0) {
+			// Count how many complete blocks we have (those ending with REPLACE marker)
+			const replaceCount = (patch.match(/\+{7,} REPLACE/g) || []).length
+			const searchCount = (patch.match(/-{7,} SEARCH/g) || []).length
 			return {
-				parsedFiles: [result],
-				isStreaming: !patch.includes(MARKERS.REPLACE_BLOCK),
+				parsedFiles: results,
+				isStreaming: replaceCount < searchCount,
 			}
 		}
 	}
@@ -289,7 +340,38 @@ function parseNewFormat(content: string): Patch[] {
 }
 
 /**
- * Parse SEARCH REPLACE diff format patches (------- SEARCH / ======= / +++++++ REPLACE)
+ * Parse all SEARCH/REPLACE blocks from a diff string
+ * Returns an array of Patch objects, one per SEARCH/REPLACE block
+ */
+function parseAllSearchReplaceBlocks(patch: string, path: string): Patch[] {
+	const results: Patch[] = []
+	const searchRegex = /-{7,} SEARCH/g
+	let match: RegExpExecArray | null
+
+	// Find all SEARCH markers and extract each block
+	const searchPositions: number[] = []
+	while ((match = searchRegex.exec(patch)) !== null) {
+		searchPositions.push(match.index)
+	}
+
+	// Parse each block
+	for (let i = 0; i < searchPositions.length; i++) {
+		const start = searchPositions[i]
+		// The end is either the next SEARCH marker or the end of the patch
+		const end = i < searchPositions.length - 1 ? searchPositions[i + 1] : patch.length
+		const blockContent = patch.substring(start, end)
+
+		const parsed = parseSearchReplaceFormat(blockContent, path)
+		if (parsed) {
+			results.push(parsed)
+		}
+	}
+
+	return results
+}
+
+/**
+ * Parse a single SEARCH REPLACE diff format block (------- SEARCH / ======= / +++++++ REPLACE)
  * Converts SEARCH block to deletions (-) and REPLACE block to additions (+)
  */
 function parseSearchReplaceFormat(patch: string, path: string): Patch | undefined {
