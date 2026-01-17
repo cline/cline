@@ -7,12 +7,16 @@
 
 import prompts from "prompts"
 import { StateManager } from "@/core/storage/StateManager"
+import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
 import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
 import { StandaloneTerminalManager } from "@/integrations/terminal/standalone/StandaloneTerminalManager"
+import { AuthService } from "@/services/auth/AuthService"
 import { ErrorService } from "@/services/error/ErrorService"
+import { initializeDistinctId } from "@/services/logging/distinctId"
 import { API_PROVIDERS_LIST } from "@/shared/api"
 import { createCliHostBridgeProvider } from "./cli-host-bridge"
+import { CliWebviewProvider } from "./cli-webview-provider"
 import { print, printError, printInfo, printSuccess, separator } from "./display"
 import { initializeCliContext } from "./vscode-context"
 
@@ -49,6 +53,16 @@ export async function runAuth(options: AuthOptions): Promise<void> {
 		// Initialize state manager
 		await StateManager.initialize(extensionContext)
 
+		// Create a webview provider to get a controller instance for auth operations
+		const webview = HostProvider.get().createWebviewProvider() as CliWebviewProvider
+		const controller = webview.controller
+
+		// Initialize telemetry distinct ID (needed by various services)
+		await initializeDistinctId(extensionContext)
+
+		// Initialize AuthService with the controller
+		AuthService.getInstance(controller)
+
 		// Check if flags are provided for quick setup
 		if (options.provider || options.apikey || options.modelid || options.baseurl) {
 			await handleQuickSetup(options)
@@ -65,17 +79,21 @@ export async function runAuth(options: AuthOptions): Promise<void> {
 /**
  * Setup the host provider for CLI mode
  */
-function setupHostProvider(_extensionContext: any, extensionDir: string, dataDir: string, workspacePath: string) {
-	const createWebview = () => {
-		throw new Error("Webview not available in auth mode")
-	}
+function setupHostProvider(extensionContext: any, extensionDir: string, dataDir: string, workspacePath: string) {
+	AuthHandler.getInstance().setEnabled(true)
+
+	const createWebview = () => new CliWebviewProvider(extensionContext)
 	const createDiffView = () => new FileEditProvider()
 	const createCommentReview = () => {
 		throw new Error("CommentReview not available in auth mode")
 	}
 	const createTerminalManager = () => new StandaloneTerminalManager()
 
-	const getCallbackUrl = async (): Promise<string> => ""
+	const getCallbackUrl = async (): Promise<string> => {
+		const url = await AuthHandler.getInstance().getCallbackUrl()
+		return url
+	}
+
 	const getBinaryLocation = async (name: string): Promise<string> => {
 		const path = await import("path")
 		return path.join(process.cwd(), name)
@@ -118,8 +136,10 @@ async function handleQuickSetup(options: AuthOptions): Promise<void> {
 
 	try {
 		const normalizedProvider = options.provider.toLowerCase().trim()
-		if (!API_PROVIDERS_LIST.includes(normalizedProvider)) {
-			throw new Error(`Invalid provider '${options.provider}'. Supported providers: ${API_PROVIDERS_LIST.join(", ")}`)
+		// Sort by alphabetical order for display
+		const sortedProviders = API_PROVIDERS_LIST.slice().sort()
+		if (!sortedProviders.includes(normalizedProvider)) {
+			throw new Error(`Invalid provider '${options.provider}'. Supported providers: ${sortedProviders.join(", ")}`)
 		}
 
 		// Check for bedrock
@@ -182,6 +202,7 @@ async function handleInteractiveAuth(): Promise<void> {
 			name: "action",
 			message: "What would you like to do?",
 			choices: [
+				{ title: "Sign in to Cline", value: "cline_auth" },
 				{ title: "Configure BYO API provider", value: "configure_byo" },
 				{ title: "Exit", value: "exit" },
 			],
@@ -190,6 +211,10 @@ async function handleInteractiveAuth(): Promise<void> {
 		if (mainMenuResponse.action === "exit" || mainMenuResponse.action === undefined) {
 			printInfo("Exiting authentication wizard.")
 			return
+		}
+
+		if (mainMenuResponse.action === "cline_auth") {
+			await AuthService.getInstance().createAuthRequest()
 		}
 
 		if (mainMenuResponse.action === "configure_byo") {
@@ -210,11 +235,14 @@ async function handleProviderSetupInteractive(): Promise<void> {
 	const currentConfig = stateManager.getApiConfiguration()
 	const currentProvider = currentConfig.actModeApiProvider || currentConfig.planModeApiProvider
 
+	// Sort by alphabetical order for display
+	const sortedProviders = API_PROVIDERS_LIST.slice().sort()
+
 	const providerResponse = await prompts({
 		type: "select",
 		name: "provider",
 		message: "Select a provider:",
-		choices: API_PROVIDERS_LIST.map((p) => ({
+		choices: sortedProviders.map((p) => ({
 			title: `${capitalize(p)}${currentProvider === p ? " (configured)" : ""}`,
 			value: p,
 		})),
@@ -225,15 +253,22 @@ async function handleProviderSetupInteractive(): Promise<void> {
 		return
 	}
 
-	const apiKeyResponse = await prompts({
-		type: "password",
-		name: "apikey",
-		message: "Enter your API key:",
-	})
+	let apiKey: string | undefined
+	if (providerResponse.provider === "cline") {
+		AuthService.getInstance().createAuthRequest()
+	} else {
+		const apiKeyResponse = await prompts({
+			type: "password",
+			name: "apikey",
+			message: "Enter your API key:",
+		})
 
-	if (apiKeyResponse.apikey === undefined) {
-		printInfo("Provider setup cancelled.")
-		return
+		if (apiKeyResponse.apikey === undefined) {
+			printInfo("Provider setup cancelled.")
+			return
+		}
+
+		apiKey = apiKeyResponse.apikey
 	}
 
 	const modelResponse = await prompts({
@@ -266,7 +301,10 @@ async function handleProviderSetupInteractive(): Promise<void> {
 			planModeApiProvider: providerResponse.provider,
 			actModeApiModelId: modelResponse.modelid,
 			planModeApiModelId: modelResponse.modelid,
-			apiKey: apiKeyResponse.apikey,
+		}
+
+		if (apiKey) {
+			config.apiKey = apiKey
 		}
 
 		if (baseUrl) {
