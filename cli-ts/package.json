@@ -1,10 +1,10 @@
 {
-	"name": "@cline/cli-ts",
+	"name": "@cline/cli",
 	"version": "1.0.0",
 	"description": "Cline CLI - TypeScript implementation that reuses core Cline functionality",
 	"main": "dist/cli.cjs",
 	"bin": {
-		"cline-ts": "./dist/cli.cjs"
+		"clinedev": "./dist/cli.cjs"
 	},
 	"type": "module",
 	"scripts": {
@@ -13,7 +13,8 @@
 		"watch": "node esbuild.mjs --watch",
 		"dev": "npm run watch",
 		"clean": "rimraf dist",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"link": "npm run build && npm link"
 	},
 	"keywords": [
 		"cline",
@@ -25,6 +26,7 @@
 	"license": "Apache-2.0",
 	"devDependencies": {
 		"@types/node": "20.x",
+		"@types/prompts": "^2.4.9",
 		"esbuild": "^0.25.0",
 		"rimraf": "^6.0.1",
 		"typescript": "^5.4.5"
@@ -34,6 +36,7 @@
 		"commander": "^12.1.0",
 		"ora": "^8.0.1",
 		"ink": "^5.0.1",
-		"ink-spinner": "^5.0.0"
+		"ink-spinner": "^5.0.0",
+		"prompts": "^2.4.2"
 	}
 }

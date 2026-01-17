@@ -50,6 +50,12 @@ export class ErrorProviderFactory {
 	 * @returns Default configuration using PostHog
 	 */
 	public static getDefaultConfig(): ErrorProviderConfig {
+		if (!posthogConfig.errorTrackingApiKey) {
+			return {
+				type: "no-op",
+				config: posthogConfig,
+			}
+		}
 		return {
 			type: "posthog",
 			config: posthogConfig,

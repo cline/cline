@@ -338,7 +338,6 @@ export class TelemetryService {
 		private telemetryMetadata: TelemetryMetadata,
 	) {
 		this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
-		console.info(`[TelemetryService] Initialized with ${providers.length} telemetry provider(s)`)
 	}
 
 	public addProvider(provider: ITelemetryProvider) {

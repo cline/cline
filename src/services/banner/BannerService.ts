@@ -426,12 +426,8 @@ export class BannerService {
 	 * @param forceRefresh If true, bypasses cache and fetches fresh data
 	 * @returns Array of non-dismissed banners converted to BannerCardData format
 	 */
-	public async getActiveBanners(forceRefresh = false): Promise<BannerCardData[]> {
-		const allBanners = await this.fetchActiveBanners(forceRefresh)
-		const nonDismissedBanners = allBanners.filter((banner) => !this.isBannerDismissed(banner.id))
-		return nonDismissedBanners
-			.map((banner) => this.convertToBannerCardData(banner))
-			.filter((banner): banner is BannerCardData => banner !== null)
+	public async getActiveBanners(_forceRefresh = false): Promise<BannerCardData[]> {
+		return []
 	}
 
 	/**

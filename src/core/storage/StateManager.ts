@@ -827,4 +827,24 @@ export class StateManager {
 
 		return { ...secrets, ...settings } satisfies ApiConfiguration
 	}
+
+	/**
+	 * Get all global state entries (for debugging/inspection)
+	 */
+	getAllGlobalStateEntries(): Record<string, unknown> {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		return { ...this.globalStateCache }
+	}
+
+	/**
+	 * Get all workspace state entries (for debugging/inspection)
+	 */
+	getAllWorkspaceStateEntries(): Record<string, unknown> {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		return { ...this.workspaceStateCache }
+	}
 }

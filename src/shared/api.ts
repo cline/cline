@@ -1,47 +1,52 @@
 import { ApiFormat } from "./proto/cline/models"
 import { ApiHandlerSettings } from "./storage/state-keys"
 
-export type ApiProvider =
-	| "anthropic"
-	| "claude-code"
-	| "openrouter"
-	| "bedrock"
-	| "vertex"
-	| "openai"
-	| "ollama"
-	| "lmstudio"
-	| "gemini"
-	| "openai-native"
-	| "requesty"
-	| "together"
-	| "deepseek"
-	| "qwen"
-	| "qwen-code"
-	| "doubao"
-	| "mistral"
-	| "vscode-lm"
-	| "cline"
-	| "litellm"
-	| "moonshot"
-	| "nebius"
-	| "fireworks"
-	| "asksage"
-	| "xai"
-	| "sambanova"
-	| "cerebras"
-	| "sapaicore"
-	| "groq"
-	| "huggingface"
-	| "huawei-cloud-maas"
-	| "dify"
-	| "baseten"
-	| "vercel-ai-gateway"
-	| "zai"
-	| "oca"
-	| "aihubmix"
-	| "minimax"
-	| "hicap"
-	| "nousResearch"
+const API_PROVIDERS_LIST_BASE = [
+	"anthropic",
+	"claude-code",
+	"openrouter",
+	"bedrock",
+	"vertex",
+	"openai",
+	"ollama",
+	"lmstudio",
+	"gemini",
+	"openai-native",
+	"requesty",
+	"together",
+	"deepseek",
+	"qwen",
+	"qwen-code",
+	"doubao",
+	"mistral",
+	"vscode-lm",
+	"cline",
+	"litellm",
+	"moonshot",
+	"nebius",
+	"fireworks",
+	"asksage",
+	"xai",
+	"sambanova",
+	"cerebras",
+	"sapaicore",
+	"groq",
+	"huggingface",
+	"huawei-cloud-maas",
+	"dify",
+	"baseten",
+	"vercel-ai-gateway",
+	"zai",
+	"oca",
+	"aihubmix",
+	"minimax",
+	"hicap",
+	"nousResearch",
+]
+
+export type ApiProvider = (typeof API_PROVIDERS_LIST_BASE)[number]
+
+export const API_PROVIDERS_LIST = API_PROVIDERS_LIST_BASE as ApiProvider[]
 
 export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 

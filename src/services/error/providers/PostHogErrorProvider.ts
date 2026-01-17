@@ -89,8 +89,6 @@ export class PostHogErrorProvider implements IErrorProvider {
 				timestamp: new Date().toISOString(),
 			},
 		})
-
-		console.error("[PostHogErrorProvider] Logging exception", error)
 	}
 
 	public logMessage(
