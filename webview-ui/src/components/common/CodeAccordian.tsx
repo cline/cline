@@ -14,6 +14,7 @@ interface CodeAccordianProps {
 	isExpanded: boolean
 	onToggleExpand: () => void
 	isLoading?: boolean
+	forceWrap?: boolean
 }
 
 /*
@@ -34,6 +35,7 @@ const CodeAccordian = ({
 	isExpanded,
 	onToggleExpand,
 	isLoading,
+	forceWrap = false,
 }: CodeAccordianProps) => {
 	const inferredLanguage = useMemo(
 		() => code && (language ?? (path ? getLanguageFromPath(path) : undefined)),
@@ -94,6 +96,7 @@ const CodeAccordian = ({
 			{(!(path || isFeedback || isConsoleLogs) || isExpanded) && (
 				<div className="overflow-x-auto overflow-y-hidden max-w-full">
 					<CodeBlock
+						forceWrap={forceWrap}
 						source={`${"```"}${diff !== undefined ? "diff" : inferredLanguage}\n${(
 							code ?? diff ?? ""
 						).trim()}\n${"```"}`}
