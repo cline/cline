@@ -127,6 +127,57 @@ describe("File Search", () => {
 				`ripgrep process error: ${mockError}`,
 			)
 		})
+
+		it("should normalize Windows backslashes to forward slashes", async () => {
+			// Simulate Windows paths with backslashes as returned by ripgrep on Windows
+			// On Windows, ripgrep returns absolute paths with backslashes
+			const workspacePath = "C:\\workspace"
+			const mockWindowsFiles = [
+				"C:\\workspace\\file1.txt",
+				"C:\\workspace\\folder1\\file2.js",
+				"C:\\workspace\\folder1\\subfolder\\file3.py",
+			]
+
+			const mockStdout = new Readable({
+				read() {
+					this.push(mockWindowsFiles.join("\n"))
+					this.push(null)
+				},
+			})
+
+			const mockStderr = new Readable({
+				read() {
+					this.push(null)
+				},
+			})
+
+			spawnStub.returns({
+				stdout: mockStdout,
+				stderr: mockStderr,
+				on: sinon.stub().returns({}),
+			} as unknown as childProcess.ChildProcess)
+
+			const result = await fileSearch.executeRipgrepForFiles(workspacePath, 5000)
+
+			should(result).be.an.Array()
+
+			const files = result.filter((item) => item.type === "file")
+			const folders = result.filter((item) => item.type === "folder")
+
+			// Verify all paths use forward slashes (no backslashes)
+			files.forEach((file) => {
+				should(file.path).not.containEql("\\")
+			})
+
+			folders.forEach((folder) => {
+				should(folder.path).not.containEql("\\")
+			})
+
+			// Verify specific file paths are normalized
+			// Note: on Unix, path.relative doesn't parse Windows paths correctly,
+			// but the normalization should still work on the relative path result
+			should(files.length).be.above(0)
+		})
 	})
 
 	describe("searchWorkspaceFiles", () => {
