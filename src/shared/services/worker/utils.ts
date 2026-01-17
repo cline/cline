@@ -1,8 +1,3 @@
-export function getUtcTimestamp(): string {
-	const now = new Date()
-	return now.toISOString().split(".")[0].replaceAll(":", "-")
-}
-
 /**
  * Parse task timestamp from taskId.
  * Task IDs are generated using Date.now().toString().

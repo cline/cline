@@ -1,4 +1,3 @@
-import { getUtcTimestamp } from "../services/worker/utils"
 import { getStorageAdapter, StorageAdapter } from "./adapters"
 import { ClineStorage } from "./ClineStorage"
 
@@ -108,16 +107,12 @@ export class ClineBlobStorage extends ClineStorage {
 		return hasRequiredVars
 	}
 
-	private resolvePath(key: string): string {
-		return `${getUtcTimestamp()}_${key}`
-	}
-
 	protected async _get(key: string): Promise<string | undefined> {
 		if (!this.isReady()) {
 			return undefined
 		}
 		try {
-			return await this.adapter!.read(this.resolvePath(key))
+			return await this.adapter!.read(key)
 		} catch (error) {
 			console.error(`[ClineBlobStorage] failed to get '${key}':`, error)
 			return undefined
@@ -130,7 +125,7 @@ export class ClineBlobStorage extends ClineStorage {
 			return
 		}
 		try {
-			await this.adapter!.write(this.resolvePath(this.resolvePath(key)), value)
+			await this.adapter!.write(key, value)
 		} catch (error) {
 			console.error(`[ClineBlobStorage] failed to store '${key}':`, error)
 			throw error
@@ -143,7 +138,7 @@ export class ClineBlobStorage extends ClineStorage {
 			return
 		}
 		try {
-			await this.adapter!.remove(this.resolvePath(key))
+			await this.adapter!.remove(key)
 		} catch (error) {
 			console.error(`[ClineBlobStorage] failed to delete '${key}':`, error)
 			throw error
