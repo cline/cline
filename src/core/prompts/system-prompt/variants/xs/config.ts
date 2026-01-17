@@ -16,11 +16,15 @@ export const config = createVariant(ModelFamily.XS)
 		stable: 1,
 		production: 1,
 		advanced: 1,
+		use_native_tools: 1,
 	})
 	.matcher((context) => {
 		const providerInfo = context.providerInfo
+		if (!isLocalModel(providerInfo)) {
+			return false
+		}
 		// Match compact local models
-		return providerInfo.customPrompt === "compact" && isLocalModel(providerInfo)
+		return providerInfo.customPrompt === "compact"
 	})
 	.template(baseTemplate)
 	.components(
@@ -41,13 +45,9 @@ export const config = createVariant(ModelFamily.XS)
 		ClineDefaultTool.FILE_NEW,
 		ClineDefaultTool.FILE_EDIT,
 		ClineDefaultTool.SEARCH,
-		ClineDefaultTool.LIST_FILES,
 		ClineDefaultTool.ASK,
 		ClineDefaultTool.ATTEMPT,
-		ClineDefaultTool.NEW_TASK,
 		ClineDefaultTool.PLAN_MODE,
-		ClineDefaultTool.GENERATE_EXPLANATION,
-		ClineDefaultTool.USE_SKILL,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.XS,
