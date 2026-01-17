@@ -167,7 +167,10 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 			edit.delete(document.uri, new vscode.Range(lineNumber, 0, document.lineCount, 0))
 			await vscode.workspace.applyEdit(edit)
 		}
-		// Clear all decorations at the end (before applying final edit)
+	}
+
+	protected override async onFinalUpdate(): Promise<void> {
+		// Clear all decorations at the end of streaming
 		this.fadedOverlayController?.clear()
 		this.activeLineController?.clear()
 	}
