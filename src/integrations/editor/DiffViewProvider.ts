@@ -242,7 +242,16 @@ export abstract class DiffViewProvider {
 		if (isFinal) {
 			// Handle any remaining lines if the new content is shorter than the original
 			await this.safelyTruncateDocument(this.streamedLines.length)
+			// Allow subclasses to perform cleanup (e.g., clearing decorations)
+			await this.onFinalUpdate()
 		}
+	}
+
+	/**
+	 * Called after the final update is complete. Subclasses can override to perform cleanup.
+	 */
+	protected async onFinalUpdate(): Promise<void> {
+		// Default no-op
 	}
 
 	async showFile(absolutePath: string): Promise<void> {
