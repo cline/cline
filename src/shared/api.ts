@@ -12,6 +12,7 @@ export type ApiProvider =
 	| "lmstudio"
 	| "gemini"
 	| "openai-native"
+	| "openai-codex"
 	| "requesty"
 	| "together"
 	| "deepseek"
@@ -1646,6 +1647,59 @@ export const openAiNativeModels = {
 		temperature: 0,
 	},
 } as const satisfies Record<string, OpenAiCompatibleModelInfo>
+
+// OpenAI Codex (ChatGPT Plus/Pro subscription)
+// Uses OAuth authentication via ChatGPT, routes to chatgpt.com/backend-api/codex/responses
+// Subscription-based pricing (all costs are $0)
+export type OpenAiCodexModelId = keyof typeof openAiCodexModels
+export const openAiCodexDefaultModelId: OpenAiCodexModelId = "gpt-5.2-codex"
+export const openAiCodexModels = {
+	"gpt-5.2-codex": {
+		maxTokens: 128_000,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		// Subscription-based: no per-token costs
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "GPT-5.2 Codex: OpenAI's flagship coding model via ChatGPT subscription",
+	},
+	"gpt-5.1-codex-max": {
+		maxTokens: 128_000,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "GPT-5.1 Codex Max: Maximum capability coding model via ChatGPT subscription",
+	},
+	"gpt-5.1-codex-mini": {
+		maxTokens: 128_000,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "GPT-5.1 Codex Mini: Faster version for coding tasks via ChatGPT subscription",
+	},
+	"gpt-5.2": {
+		maxTokens: 128_000,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "GPT-5.2: Latest GPT model via ChatGPT subscription",
+	},
+} as const satisfies Record<string, ModelInfo>
 
 // Azure OpenAI
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation

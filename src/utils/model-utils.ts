@@ -14,6 +14,7 @@ export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 		"openai",
 		"minimax",
 		"openai-native",
+		"openai-codex",
 		"baseten",
 		"vercel-ai-gateway",
 		"oca",
