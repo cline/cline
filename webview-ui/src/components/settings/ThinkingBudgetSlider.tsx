@@ -105,8 +105,8 @@ const ThinkingBudgetSlider = ({ currentMode, maxBudget, showEnableToggle = true 
 		)
 	}
 
-	const handleToggleChange = (event: React.FormEvent<HTMLInputElement>) => {
-		const isChecked = event.currentTarget.checked
+	const handleToggleChange = (event: any) => {
+		const isChecked = event.target.checked === true
 		const newThinkingBudgetValue = isChecked ? ANTHROPIC_MIN_THINKING_BUDGET : 0
 		setIsEnabled(isChecked)
 		setLocalValue(newThinkingBudgetValue)
