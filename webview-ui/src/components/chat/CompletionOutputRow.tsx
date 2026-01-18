@@ -1,7 +1,6 @@
 import { memo } from "react"
 import { cn } from "@/lib/utils"
 import { MarkdownRow } from "./MarkdownRow"
-import "./CompletionOutputRow.css"
 import { Int64Request } from "@shared/proto/cline/common"
 import { CheckIcon } from "lucide-react"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
@@ -37,9 +36,6 @@ export const CompletionOutputRow = memo(
 		messageTs,
 		handleQuoteClick,
 	}: CompletionOutputRowProps) => {
-		const outputLines = text.split("\n")
-		const lineCount = outputLines.length
-		const shouldAutoShow = lineCount <= 5
 		return (
 			<div>
 				<div className="rounded-sm border border-success/20 overflow-visible bg-success/10 p-2 pt-3">
@@ -52,15 +48,8 @@ export const CompletionOutputRow = memo(
 						<CopyButton className="text-success" textToCopy={text} />
 					</div>
 					{/* Content */}
-					<div className="w-full relative overflow-hidden border-t-1 border-description/20 rounded-b-sm">
-						<div
-							className={cn(
-								"completion-output-content",
-								"scroll-smooth p-2 pt-3 overflow-y-auto w-full [&_hr]:opacity-20 [&_p:last-child]:mb-0 rounded-sm max-h-[400px]",
-								{
-									"overflow-y-visible": shouldAutoShow,
-								},
-							)}>
+					<div className="w-full relative border-t-1 border-description/20 rounded-b-sm">
+						<div className="completion-output-content p-2 pt-3 w-full [&_hr]:opacity-20 [&_p:last-child]:mb-0 rounded-sm">
 							<MarkdownRow markdown={text} />
 							{quoteButtonState.visible && (
 								<QuoteButton left={quoteButtonState.left} onClick={handleQuoteClick} top={quoteButtonState.top} />
