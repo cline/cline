@@ -270,12 +270,12 @@
 				},
 				{
 					"command": "cline.accountButtonClicked",
-					"group": "navigation@4",
+					"group": "navigation@5",
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
 					"command": "cline.settingsButtonClicked",
-					"group": "navigation@5",
+					"group": "navigation@6",
 					"when": "view == claude-dev.SidebarProvider"
 				}
 			],
