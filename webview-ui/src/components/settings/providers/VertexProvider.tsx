@@ -77,7 +77,9 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 			<RemotelyConfiguredInputWrapper hidden={remoteConfigSettings?.vertexRegion === undefined}>
 				<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 1}>
 					<div className="flex items-center gap-2 mb-1">
-						<label htmlFor="vertex-region-dropdown">
+						<label
+							htmlFor="vertex-region-dropdown"
+							style={{ opacity: remoteConfigSettings?.vertexRegion !== undefined ? 0.4 : 1 }}>
 							<span className="font-medium">Google Cloud Region</span>
 						</label>
 						{remoteConfigSettings?.vertexRegion !== undefined && <LockIcon />}
