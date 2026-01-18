@@ -6,6 +6,7 @@ import { ModelsServiceClient } from "@/services/grpc-client"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
+import { buildOrgSetupUrl, ProviderHelpCallout } from "../common/ProviderHelpCallout"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
@@ -46,6 +47,11 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 
 	return (
 		<div>
+			<ProviderHelpCallout
+				className="mb-2.5"
+				docsLinks={[{ label: "LiteLLM", href: "https://docs.cline.bot/provider-config/litellm" }]}
+				orgSetupHref={buildOrgSetupUrl("litellm")}
+			/>
 			<DebouncedTextField
 				initialValue={apiConfiguration?.liteLlmBaseUrl || ""}
 				onChange={async (value) => {

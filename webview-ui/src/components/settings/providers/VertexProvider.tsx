@@ -1,12 +1,13 @@
 import { vertexGlobalModels, vertexModels } from "@shared/api"
 import VertexData from "@shared/providers/vertex.json"
 import { Mode } from "@shared/storage/types"
-import { VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DROPDOWN_Z_INDEX, DropdownContainer } from "../ApiOptions"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
+import { buildOrgSetupUrl, ProviderHelpCallout } from "../common/ProviderHelpCallout"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
@@ -85,24 +86,11 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 				</VSCodeDropdown>
 			</DropdownContainer>
 
-			<p
-				style={{
-					fontSize: "12px",
-					marginTop: "5px",
-					color: "var(--vscode-descriptionForeground)",
-				}}>
-				To use Google Cloud Vertex AI, you need to
-				<VSCodeLink
-					href="https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#before_you_begin"
-					style={{ display: "inline", fontSize: "inherit" }}>
-					{"1) create a Google Cloud account › enable the Vertex AI API › enable the desired Claude models,"}
-				</VSCodeLink>{" "}
-				<VSCodeLink
-					href="https://cloud.google.com/docs/authentication/provide-credentials-adc#google-idp"
-					style={{ display: "inline", fontSize: "inherit" }}>
-					{"2) install the Google Cloud CLI › configure Application Default Credentials."}
-				</VSCodeLink>
-			</p>
+			<ProviderHelpCallout
+				className="mt-2"
+				docsLinks={[{ label: "GCP Vertex AI", href: "https://docs.cline.bot/provider-config/gcp-vertex-ai" }]}
+				orgSetupHref={buildOrgSetupUrl("vertex")}
+			/>
 
 			{showModelOptions && (
 				<>

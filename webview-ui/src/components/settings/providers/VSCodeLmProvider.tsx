@@ -7,6 +7,7 @@ import * as vscodemodels from "vscode"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { DROPDOWN_Z_INDEX, DropdownContainer } from "../ApiOptions"
+import { ProviderHelpCallout } from "../common/ProviderHelpCallout"
 import { getModeSpecificFields } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
@@ -17,7 +18,7 @@ interface VSCodeLmProviderProps {
 export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
 	const { vsCodeLmModelSelector } = getModeSpecificFields(apiConfiguration, currentMode)
 
@@ -46,6 +47,12 @@ export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 				<label htmlFor="vscode-lm-model">
 					<span style={{ fontWeight: 500 }}>Language Model</span>
 				</label>
+				<ProviderHelpCallout
+					className="mt-2"
+					docsLinks={[
+						{ label: "VS Code LM API", href: "https://docs.cline.bot/provider-config/vscode-language-model-api" },
+					]}
+				/>
 				{vsCodeLmModels.length > 0 ? (
 					<VSCodeDropdown
 						id="vscode-lm-model"
