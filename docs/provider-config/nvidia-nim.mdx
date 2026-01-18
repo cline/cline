@@ -1,0 +1,171 @@
+---
+title: "Nvidia NIM"
+description: "Configure Cline to use Nvidia NIM (NVIDIA Inference Microservices) for high-performance AI inference"
+---
+
+# Nvidia NIM Configuration
+
+Nvidia NIM (NVIDIA Inference Microservices) provides optimized inference for a wide range of AI models with enterprise-grade performance and reliability.
+
+## Getting Started
+
+### 1. Get Your API Key
+
+1. Visit [build.nvidia.com](https://build.nvidia.com/)
+2. Sign in with your NVIDIA account (or create one)
+3. Navigate to any model page
+4. Click "Get API Key" to generate your key
+
+### 2. Configure Cline
+
+1. Open Cline settings
+2. Select **Nvidia NIM** as your API provider
+3. Enter your API key
+4. Choose your preferred model
+
+## Available Models
+
+Nvidia NIM provides access to a comprehensive selection of state-of-the-art models:
+
+### Llama Models (Meta)
+- **llama-3.3-70b-instruct** - Latest Llama 3.3 with 70B parameters (recommended)
+- **llama-3.1-405b-instruct** - Largest Llama model for complex reasoning
+- **llama-3.1-70b-instruct** - Balanced performance and efficiency
+- **llama-3.1-8b-instruct** - Fast and efficient for most tasks
+
+### Mistral Models
+- **mistral-large-2-instruct** - Flagship model with advanced reasoning
+- **mistral-small-instruct** - Cost-effective for simpler tasks
+- **codestral-22b-instruct** - Specialized for coding tasks
+
+### Nvidia Nemotron Models
+- **llama-3.1-nemotron-70b-instruct** - Optimized Llama with enhanced instruction following
+- **nemotron-4-340b-instruct** - Flagship 340B parameter model
+
+### Coding Specialists
+- **qwen2.5-coder-32b-instruct** - Alibaba's specialized coding model
+- **deepseek-coder-6.7b-instruct** - DeepSeek's efficient coding model
+- **codestral-22b-instruct** - Mistral's coding specialist
+
+### Multimodal Models (Vision + Text)
+- **llama-3.2-90b-vision-instruct** - Large vision-language model
+- **llama-3.2-11b-vision-instruct** - Efficient vision-language model
+- **phi-3-vision-128k-instruct** - Microsoft's vision model with 128K context
+- **paligemma** - Google's vision-language model
+- **vila** - Nvidia's vision-language model
+
+### Other Notable Models
+- **phi-3.5-moe-instruct** - Microsoft's efficient Mixture-of-Experts
+- **gemma-2-27b-it** / **gemma-2-9b-it** - Google's Gemma models
+- **granite-3.1-8b-instruct** - IBM's enterprise-grade model
+- **arctic** - Snowflake's enterprise model
+
+## Pricing
+
+Nvidia NIM uses pay-per-use pricing based on input and output tokens:
+
+| Model Size | Input Price | Output Price |
+|------------|-------------|--------------|
+| Small (< 10B) | $0.09 - $0.15 / 1M tokens | $0.09 - $0.15 / 1M tokens |
+| Medium (10-30B) | $0.15 - $0.35 / 1M tokens | $0.15 - $0.4 / 1M tokens |
+| Large (30-100B) | $0.35 - $0.6 / 1M tokens | $0.4 - $0.6 / 1M tokens |
+| Extra Large (100B+) | $2.0 - $4.2 / 1M tokens | $2.0 - $4.2 / 1M tokens |
+
+Check [build.nvidia.com](https://build.nvidia.com/explore/discover) for current pricing.
+
+## Features
+
+### ✅ Supported
+- Streaming responses
+- Token usage tracking
+- Vision models (multimodal)
+- Function calling / tool use
+- Custom base URL (for self-hosted NIM)
+- Proxy support
+- Automatic retry with exponential backoff
+
+### ❌ Not Supported
+- Prompt caching (not available in NIM API)
+- Reasoning/thinking modes
+
+## Advanced Configuration
+
+### Custom Base URL
+
+If you're running NIM on-premises or using a custom endpoint:
+
+```json
+{
+  "nvidiaNimBaseUrl": "https://your-nim-endpoint.com/v1"
+}
+```
+
+### Self-Hosted NIM
+
+Nvidia NIM can be deployed on-premises for:
+- Data privacy and compliance
+- Lower latency
+- Custom model fine-tuning
+- Air-gapped environments
+
+Visit [NVIDIA NIM Documentation](https://docs.nvidia.com/nim/) for deployment guides.
+
+## Best Practices
+
+### Model Selection
+
+**For Coding Tasks:**
+- Primary: `qwen2.5-coder-32b-instruct` or `codestral-22b-instruct`
+- Budget: `deepseek-coder-6.7b-instruct`
+
+**For General Tasks:**
+- Primary: `llama-3.3-70b-instruct`
+- Complex reasoning: `llama-3.1-405b-instruct`
+- Fast responses: `llama-3.1-8b-instruct`
+
+**For Vision Tasks:**
+- Primary: `llama-3.2-90b-vision-instruct`
+- Budget: `llama-3.2-11b-vision-instruct`
+
+### Performance Optimization
+
+1. **Use appropriate model sizes** - Larger isn't always better
+2. **Enable streaming** - Provides faster perceived response times
+3. **Monitor token usage** - Optimize prompts to reduce costs
+4. **Leverage vision models** - When working with screenshots or diagrams
+
+## Troubleshooting
+
+### "Invalid API Key" Error
+- Verify your API key at [build.nvidia.com](https://build.nvidia.com/)
+- Ensure no extra spaces in the key
+- Check if the key has been revoked
+
+### "Model not found" Error
+- Verify the model ID is correct
+- Some models may require special access
+- Check [build.nvidia.com/explore/discover](https://build.nvidia.com/explore/discover) for available models
+
+### Rate Limiting
+- Nvidia NIM has rate limits based on your account tier
+- Implement exponential backoff (handled automatically by Cline)
+- Consider upgrading your account for higher limits
+
+### Slow Responses
+- Try a smaller model for faster inference
+- Check your network connection
+- Consider using a self-hosted NIM instance for lower latency
+
+## Support
+
+- **Documentation**: [docs.nvidia.com/nim](https://docs.nvidia.com/nim/)
+- **Model Catalog**: [build.nvidia.com/explore/discover](https://build.nvidia.com/explore/discover)
+- **Community**: [NVIDIA Developer Forums](https://forums.developer.nvidia.com/)
+- **Enterprise Support**: Contact NVIDIA sales for enterprise support options
+
+## Related Resources
+
+- [Nvidia NIM Overview](https://www.nvidia.com/en-us/ai-data-science/products/nim/)
+- [API Reference](https://docs.api.nvidia.com/nim/reference)
+- [Model Cards](https://build.nvidia.com/explore/discover)
+- [Deployment Guide](https://docs.nvidia.com/nim/deployment/)
