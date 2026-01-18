@@ -1,4 +1,5 @@
-import { NvidiaNimModelId, nvidiaNimDefaultModelId, nvidiaNimModels, ModelInfo } from "@shared/api"
+import { StateManager } from "@core/storage/StateManager"
+import { ModelInfo, NvidiaNimModelId, nvidiaNimDefaultModelId, nvidiaNimModels } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
@@ -18,10 +19,10 @@ interface NvidiaNimHandlerOptions extends CommonApiHandlerOptions {
 
 /**
  * Nvidia NIM API Handler
- * 
+ *
  * Provides production-ready integration with Nvidia NIM (NVIDIA Inference Microservices).
  * Supports a wide range of models including Llama, Mistral, Nemotron, and multimodal models.
- * 
+ *
  * Features:
  * - Full OpenAI-compatible API support
  * - Streaming responses with token usage tracking
@@ -29,7 +30,7 @@ interface NvidiaNimHandlerOptions extends CommonApiHandlerOptions {
  * - Automatic retry with exponential backoff
  * - Proxy support via configured fetch
  * - Production-grade error handling
- * 
+ *
  * @see https://build.nvidia.com/explore/discover
  * @see https://docs.api.nvidia.com/nim/reference
  */
@@ -98,18 +99,14 @@ export class NvidiaNimHandler implements ApiHandler {
 
 	/**
 	 * Creates a streaming message with the Nvidia NIM API
-	 * 
+	 *
 	 * @param systemPrompt - System instructions for the model
 	 * @param messages - Conversation history
 	 * @param tools - Optional tool definitions for function calling
 	 * @returns AsyncGenerator yielding text chunks and usage information
 	 */
 	@withRetry()
-	async *createMessage(
-		systemPrompt: string,
-		messages: ClineStorageMessage[],
-		tools?: OpenAITool[],
-	): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
 		const modelInfo = model.info
@@ -138,9 +135,7 @@ export class NvidiaNimHandler implements ApiHandler {
 		} catch (error: any) {
 			// Enhanced error handling for common Nvidia NIM API errors
 			if (error?.status === 401) {
-				throw new Error(
-					"Invalid Nvidia NIM API key. Please check your API key at https://build.nvidia.com/",
-				)
+				throw new Error("Invalid Nvidia NIM API key. Please check your API key at https://build.nvidia.com/")
 			} else if (error?.status === 429) {
 				throw new Error("Nvidia NIM API rate limit exceeded. Please try again later.")
 			} else if (error?.status === 404) {
@@ -190,19 +185,42 @@ export class NvidiaNimHandler implements ApiHandler {
 
 	/**
 	 * Returns the current model configuration
-	 * Falls back to default model if specified model is not found
+	 * Supports both predefined models and arbitrary Nvidia NIM model IDs
+	 * Falls back to default model if no model is specified
 	 */
-	getModel(): { id: NvidiaNimModelId; info: ModelInfo } {
-		const modelId = this.options.nvidiaNimModelId
+	getModel(): { id: string; info: ModelInfo } {
+		const modelId = this.options.nvidiaNimModelId || nvidiaNimDefaultModelId
 
-		if (modelId && modelId in nvidiaNimModels) {
+		// Check if it's a predefined model in our catalog
+		if (modelId in nvidiaNimModels) {
 			const id = modelId as NvidiaNimModelId
 			return { id, info: nvidiaNimModels[id] }
 		}
 
+		// For arbitrary/unlisted models, try to get cached info from StateManager
+		// This allows users to use any Nvidia NIM model, not just our predefined list
+		try {
+			const cachedModelInfo = StateManager.get().getModelInfo("nvidiaNim", modelId)
+			if (cachedModelInfo) {
+				return { id: modelId, info: cachedModelInfo }
+			}
+		} catch {
+			// StateManager not initialized (e.g., in tests) - continue to defaults
+		}
+
+		// If model not found in catalog or cache, use sensible defaults
+		// This allows users to try new Nvidia NIM models as they become available
 		return {
-			id: nvidiaNimDefaultModelId,
-			info: nvidiaNimModels[nvidiaNimDefaultModelId],
+			id: modelId,
+			info: {
+				maxTokens: 32_768,
+				contextWindow: 128_000,
+				supportsImages: false,
+				supportsPromptCache: false,
+				inputPrice: 0.5, // Conservative default pricing
+				outputPrice: 0.5,
+				description: `Nvidia NIM model: ${modelId}`,
+			},
 		}
 	}
 }
