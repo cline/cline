@@ -133,6 +133,7 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	ocaMode: { default: "internal" as string },
 	aihubmixBaseUrl: { default: undefined as string | undefined },
 	aihubmixAppCode: { default: undefined as string | undefined },
+	nvidiaNimBaseUrl: { default: undefined as string | undefined },
 
 	// Plan mode configurations
 	planModeApiModelId: { default: undefined as string | undefined },
@@ -173,6 +174,7 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	planModeHicapModelId: { default: undefined as string | undefined },
 	planModeHicapModelInfo: { default: undefined as ModelInfo | undefined },
 	planModeNousResearchModelId: { default: undefined as string | undefined },
+	planModeNvidiaNimModelId: { default: undefined as string | undefined },
 	planModeVercelAiGatewayModelId: { default: undefined as string | undefined },
 	planModeVercelAiGatewayModelInfo: { default: undefined as ModelInfo | undefined },
 
@@ -215,6 +217,7 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	actModeHicapModelId: { default: undefined as string | undefined },
 	actModeHicapModelInfo: { default: undefined as ModelInfo | undefined },
 	actModeNousResearchModelId: { default: undefined as string | undefined },
+	actModeNvidiaNimModelId: { default: undefined as string | undefined },
 	actModeVercelAiGatewayModelId: { default: undefined as string | undefined },
 	actModeVercelAiGatewayModelInfo: { default: undefined as ModelInfo | undefined },
 
@@ -335,6 +338,7 @@ const SECRETS_KEYS = [
 	"hicapApiKey",
 	"aihubmixApiKey",
 	"nousResearchApiKey",
+	"nvidiaNimApiKey",
 	"remoteLiteLlmApiKey",
 	"ocaApiKey",
 	"ocaRefreshToken",
