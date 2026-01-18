@@ -1,5 +1,5 @@
 import { NotepadTextIcon } from "lucide-react"
-import { memo, useMemo } from "react"
+import { memo } from "react"
 import { CopyButton } from "@/components/common/CopyButton"
 import MarkdownBlock from "@/components/common/MarkdownBlock"
 import { cn } from "@/lib/utils"
@@ -15,12 +15,6 @@ interface PlanCompletionOutputProps {
  * Uses grayscale colors to distinguish from Act Mode's green success theme
  */
 const PlanCompletionOutputRow = memo(({ text, headClassNames }: PlanCompletionOutputProps) => {
-	const { shouldAutoShow } = useMemo(() => {
-		const lineCount = text?.split("\n")?.length || 0
-		const shouldAutoShow = lineCount <= 5
-		return { lineCount, shouldAutoShow }
-	}, [text])
-
 	return (
 		<div className="rounded-sm border border-description/50 overflow-visible bg-code p-2 pt-3">
 			{/* Header */}
@@ -33,16 +27,9 @@ const PlanCompletionOutputRow = memo(({ text, headClassNames }: PlanCompletionOu
 			</div>
 
 			{/* Content */}
-			<div className="w-full relative overflow-hidden border-t-1 border-description/20 rounded-b-sm">
-				<div
-					className={cn(
-						"plan-completion-content",
-						"scroll-smooth p-2 pt-3 overflow-y-auto w-full [&_hr]:opacity-20 [&_p:last-child]:mb-0 max-h-[400px]",
-						{
-							"overflow-y-visible": shouldAutoShow,
-						},
-					)}>
-					<div className="wrap-anywhere -mb-4 overflow-hidden [&_hr]:opacity-20">
+			<div className="w-full relative border-t-1 border-description/20 rounded-b-sm">
+				<div className="plan-completion-content p-2 pt-3 w-full [&_hr]:opacity-20 [&_p:last-child]:mb-0">
+					<div className="wrap-anywhere [&_hr]:opacity-20">
 						<MarkdownBlock markdown={text} />
 					</div>
 				</div>
