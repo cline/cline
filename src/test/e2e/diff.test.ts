@@ -18,7 +18,7 @@ e2e.describe("Diff Editor", () => {
 
 			// Back to home page with history
 			await sidebar.getByRole("button", { name: "Start New Task" }).click()
-			await expect(sidebar.getByText("Recent Tasks")).toBeVisible()
+			await expect(sidebar.getByText("Recent")).toBeVisible()
 			await expect(sidebar.getByText("Hello, Cline!")).toBeVisible() // History with the previous sent message
 
 			// Submit a file edit request
