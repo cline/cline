@@ -15,7 +15,7 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 
 	// Starting a new task should clear the current chat view and show the recent tasks
 	await sidebar.getByRole("button", { name: "New Task", exact: true }).first().click()
-	await expect(sidebar.getByText("Recent Tasks")).toBeVisible()
+	await expect(sidebar.getByText("Recent")).toBeVisible()
 	await expect(sidebar.getByText("Hello, Cline!")).toBeVisible()
 
 	// Makes sure the act and plan switches are working correctly
