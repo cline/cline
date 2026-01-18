@@ -1,0 +1,241 @@
+{
+  "examples": {
+    "basic_configuration": {
+      "description": "Basic Nvidia NIM configuration with recommended model",
+      "config": {
+        "apiProvider": "nvidia-nim",
+        "nvidiaNimApiKey": "nvapi-your-key-here",
+        "planModeNvidiaNimModelId": "meta/llama-3.3-70b-instruct",
+        "actModeNvidiaNimModelId": "meta/llama-3.3-70b-instruct"
+      }
+    },
+    "coding_optimized": {
+      "description": "Optimized for coding tasks with specialized models",
+      "config": {
+        "apiProvider": "nvidia-nim",
+        "nvidiaNimApiKey": "nvapi-your-key-here",
+        "planModeNvidiaNimModelId": "meta/llama-3.3-70b-instruct",
+        "actModeNvidiaNimModelId": "qwen/qwen2.5-coder-32b-instruct"
+      }
+    },
+    "budget_friendly": {
+      "description": "Cost-effective configuration with smaller models",
+      "config": {
+        "apiProvider": "nvidia-nim",
+        "nvidiaNimApiKey": "nvapi-your-key-here",
+        "planModeNvidiaNimModelId": "meta/llama-3.1-8b-instruct",
+        "actModeNvidiaNimModelId": "deepseek-ai/deepseek-coder-6.7b-instruct"
+      }
+    },
+    "maximum_performance": {
+      "description": "Highest quality models for complex tasks",
+      "config": {
+        "apiProvider": "nvidia-nim",
+        "nvidiaNimApiKey": "nvapi-your-key-here",
+        "planModeNvidiaNimModelId": "meta/llama-3.1-405b-instruct",
+        "actModeNvidiaNimModelId": "nvidia/nemotron-4-340b-instruct"
+      }
+    },
+    "vision_enabled": {
+      "description": "Configuration with vision model for multimodal tasks",
+      "config": {
+        "apiProvider": "nvidia-nim",
+        "nvidiaNimApiKey": "nvapi-your-key-here",
+        "planModeNvidiaNimModelId": "meta/llama-3.2-90b-vision-instruct",
+        "actModeNvidiaNimModelId": "meta/llama-3.2-90b-vision-instruct"
+      }
+    },
+    "self_hosted": {
+      "description": "Self-hosted NIM instance configuration",
+      "config": {
+        "apiProvider": "nvidia-nim",
+        "nvidiaNimApiKey": "your-internal-key",
+        "nvidiaNimBaseUrl": "https://nim.yourcompany.com/v1",
+        "planModeNvidiaNimModelId": "meta/llama-3.3-70b-instruct",
+        "actModeNvidiaNimModelId": "qwen/qwen2.5-coder-32b-instruct"
+      }
+    },
+    "enterprise_setup": {
+      "description": "Enterprise configuration with separate models and custom endpoint",
+      "config": {
+        "apiProvider": "nvidia-nim",
+        "nvidiaNimApiKey": "nvapi-enterprise-key",
+        "nvidiaNimBaseUrl": "https://nim-enterprise.nvidia.com/v1",
+        "planModeNvidiaNimModelId": "nvidia/nemotron-4-340b-instruct",
+        "actModeNvidiaNimModelId": "mistralai/codestral-22b-instruct-v0.1"
+      }
+    },
+    "balanced_approach": {
+      "description": "Balanced configuration for general use",
+      "config": {
+        "apiProvider": "nvidia-nim",
+        "nvidiaNimApiKey": "nvapi-your-key-here",
+        "planModeNvidiaNimModelId": "meta/llama-3.3-70b-instruct",
+        "actModeNvidiaNimModelId": "mistralai/mistral-large-2-instruct"
+      }
+    }
+  },
+  "model_recommendations": {
+    "coding_tasks": [
+      "qwen/qwen2.5-coder-32b-instruct",
+      "mistralai/codestral-22b-instruct-v0.1",
+      "deepseek-ai/deepseek-coder-6.7b-instruct"
+    ],
+    "general_tasks": [
+      "meta/llama-3.3-70b-instruct",
+      "meta/llama-3.1-405b-instruct",
+      "mistralai/mistral-large-2-instruct"
+    ],
+    "vision_tasks": [
+      "meta/llama-3.2-90b-vision-instruct",
+      "meta/llama-3.2-11b-vision-instruct",
+      "microsoft/phi-3-vision-128k-instruct"
+    ],
+    "fast_responses": [
+      "meta/llama-3.1-8b-instruct",
+      "google/gemma-2-9b-it",
+      "microsoft/phi-3.5-moe-instruct"
+    ],
+    "complex_reasoning": [
+      "meta/llama-3.1-405b-instruct",
+      "nvidia/nemotron-4-340b-instruct",
+      "mistralai/mistral-large-2-instruct"
+    ]
+  },
+  "pricing_guide": {
+    "small_models": {
+      "range": "$0.09-0.15 per 1M tokens",
+      "examples": [
+        "meta/llama-3.1-8b-instruct",
+        "google/gemma-2-9b-it",
+        "microsoft/phi-3.5-moe-instruct"
+      ]
+    },
+    "medium_models": {
+      "range": "$0.15-0.4 per 1M tokens",
+      "examples": [
+        "meta/llama-3.3-70b-instruct",
+        "qwen/qwen2.5-coder-32b-instruct",
+        "mistralai/codestral-22b-instruct-v0.1"
+      ]
+    },
+    "large_models": {
+      "range": "$0.4-0.6 per 1M tokens",
+      "examples": [
+        "meta/llama-3.2-90b-vision-instruct",
+        "qwen/qwen2.5-72b-instruct"
+      ]
+    },
+    "extra_large_models": {
+      "range": "$2.0-4.2 per 1M tokens",
+      "examples": [
+        "meta/llama-3.1-405b-instruct",
+        "nvidia/nemotron-4-340b-instruct",
+        "mistralai/mistral-large-2-instruct"
+      ]
+    }
+  },
+  "use_case_templates": {
+    "web_development": {
+      "recommended_model": "qwen/qwen2.5-coder-32b-instruct",
+      "reason": "Excellent at HTML, CSS, JavaScript, and modern frameworks"
+    },
+    "backend_development": {
+      "recommended_model": "mistralai/codestral-22b-instruct-v0.1",
+      "reason": "Strong performance on API design and server-side code"
+    },
+    "data_science": {
+      "recommended_model": "meta/llama-3.3-70b-instruct",
+      "reason": "Good at Python, data analysis, and explaining concepts"
+    },
+    "devops": {
+      "recommended_model": "meta/llama-3.1-70b-instruct",
+      "reason": "Handles infrastructure code, scripts, and configurations well"
+    },
+    "documentation": {
+      "recommended_model": "mistralai/mistral-large-2-instruct",
+      "reason": "Excellent at technical writing and documentation"
+    },
+    "code_review": {
+      "recommended_model": "meta/llama-3.1-405b-instruct",
+      "reason": "Deep understanding for thorough code analysis"
+    },
+    "ui_design": {
+      "recommended_model": "meta/llama-3.2-90b-vision-instruct",
+      "reason": "Can analyze screenshots and suggest improvements"
+    },
+    "debugging": {
+      "recommended_model": "qwen/qwen2.5-coder-32b-instruct",
+      "reason": "Strong at identifying and fixing code issues"
+    }
+  },
+  "migration_guides": {
+    "from_openai": {
+      "steps": [
+        "Get Nvidia NIM API key from build.nvidia.com",
+        "Change apiProvider to 'nvidia-nim'",
+        "Replace openAiApiKey with nvidiaNimApiKey",
+        "Choose equivalent model (e.g., gpt-4 → llama-3.3-70b-instruct)",
+        "Test with a simple prompt"
+      ],
+      "model_mapping": {
+        "gpt-4": "meta/llama-3.3-70b-instruct",
+        "gpt-4-turbo": "meta/llama-3.1-405b-instruct",
+        "gpt-3.5-turbo": "meta/llama-3.1-8b-instruct",
+        "gpt-4-vision": "meta/llama-3.2-90b-vision-instruct"
+      }
+    },
+    "from_anthropic": {
+      "steps": [
+        "Get Nvidia NIM API key from build.nvidia.com",
+        "Change apiProvider to 'nvidia-nim'",
+        "Replace apiKey with nvidiaNimApiKey",
+        "Choose equivalent model (e.g., claude-3-opus → llama-3.1-405b)",
+        "Test with a simple prompt"
+      ],
+      "model_mapping": {
+        "claude-3-opus": "meta/llama-3.1-405b-instruct",
+        "claude-3-sonnet": "meta/llama-3.3-70b-instruct",
+        "claude-3-haiku": "meta/llama-3.1-8b-instruct"
+      }
+    }
+  },
+  "troubleshooting": {
+    "invalid_api_key": {
+      "error": "Invalid Nvidia NIM API key",
+      "solutions": [
+        "Verify key at build.nvidia.com",
+        "Check for extra spaces in the key",
+        "Ensure key hasn't been revoked",
+        "Generate a new key if needed"
+      ]
+    },
+    "model_not_found": {
+      "error": "Model not found",
+      "solutions": [
+        "Check model ID spelling",
+        "Verify model exists at build.nvidia.com/explore/discover",
+        "Some models may require special access",
+        "Try a different model from the catalog"
+      ]
+    },
+    "rate_limiting": {
+      "error": "Rate limit exceeded",
+      "solutions": [
+        "Wait and retry (automatic)",
+        "Reduce request frequency",
+        "Upgrade account tier",
+        "Contact NVIDIA for higher limits"
+      ]
+    },
+    "slow_responses": {
+      "error": "Responses are slow",
+      "solutions": [
+        "Try a smaller model",
+        "Check network connection",
+        "Use self-hosted NIM for lower latency",
+        "Verify no proxy issues"
+      ]
+    }
+  }
+}
