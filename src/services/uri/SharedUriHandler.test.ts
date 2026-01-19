@@ -15,7 +15,7 @@ describe("SharedUriHandler", () => {
 		sandbox = sinon.createSandbox()
 
 		// Mock Logger methods to avoid HostProvider dependency
-		sandbox.stub(Logger, "info").returns()
+		sandbox.stub(Logger, "log").returns()
 		sandbox.stub(Logger, "error").returns()
 		// Mock ErrorService to avoid telemetry dependency
 		const mockErrorService = {

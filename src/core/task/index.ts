@@ -2643,7 +2643,7 @@ export class Task {
 
 					// present content to user - we don't want the stream to break if present fails, so we catch errors here
 					await this.presentAssistantMessage().catch((error) =>
-						Logger.debug("[Task] Failed to present message: " + error),
+						Logger.error("[Task] Failed to present message: " + error),
 					)
 
 					if (this.taskState.abort) {
