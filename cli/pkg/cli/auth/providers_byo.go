@@ -28,6 +28,7 @@ func GetBYOProviderList() []BYOProviderOption {
 		{Name: "Cerebras", Provider: cline.ApiProvider_CEREBRAS},
 		{Name: "NousResearch", Provider: cline.ApiProvider_NOUSRESEARCH},
 		{Name: "Oracle Code Assist", Provider: cline.ApiProvider_OCA},
+		{Name: "Hicap", Provider: cline.ApiProvider_HICAP},
 	}
 }
 
@@ -74,6 +75,8 @@ func SupportsBYOModelFetching(provider cline.ApiProvider) bool {
 	case cline.ApiProvider_OLLAMA:
 		return true
 	case cline.ApiProvider_OCA:
+		return true
+	case cline.ApiProvider_HICAP:
 		return true
 	}
 
