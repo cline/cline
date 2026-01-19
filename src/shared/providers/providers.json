@@ -25,6 +25,10 @@
 			"label": "Amazon Bedrock"
 		},
 		{
+			"value": "github-copilot",
+			"label": "GitHub Copilot"
+		},
+		{
 			"value": "vscode-lm",
 			"label": "GitHub Copilot"
 		},

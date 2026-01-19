@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package cline;
+
+import "cline/common.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+// Service for GitHub Copilot authentication
+service GitHubCopilotService {
+  // Initiates the GitHub Copilot OAuth device code flow
+  // Returns verification URL and user code for the user to enter
+  rpc loginWithGitHubCopilot(GitHubCopilotLoginRequest) returns (stream GitHubCopilotLoginResponse);
+
+  // Logs out of GitHub Copilot by clearing the access token
+  rpc logoutGitHubCopilot(EmptyRequest) returns (Empty);
+}
+
+message GitHubCopilotLoginRequest {
+  // Optional GitHub Enterprise URL (leave empty for github.com)
+  optional string enterprise_url = 1;
+}
+
+message GitHubCopilotLoginResponse {
+  // Status of the login flow
+  GitHubCopilotLoginStatus status = 1;
+
+  // Verification URL for the user to visit (only set when status is WAITING_FOR_CODE)
+  optional string verification_url = 2;
+
+  // User code to enter at the verification URL (only set when status is WAITING_FOR_CODE)
+  optional string user_code = 3;
+
+  // Error message (only set when status is FAILED)
+  optional string error = 4;
+}
+
+enum GitHubCopilotLoginStatus {
+  // Waiting for user to enter the code
+  WAITING_FOR_CODE = 0;
+  // Successfully authenticated
+  SUCCESS = 1;
+  // Authentication failed
+  FAILED = 2;
+}

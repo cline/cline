@@ -1904,7 +1904,8 @@ export class Task {
 
 				let response: ClineAskResponse
 				// Skip auto-retry for Cline provider insufficient credits or auth errors
-				if (!isClineProviderInsufficientCredits && !isAuthError && this.taskState.autoRetryAttempts < 3) {
+				// TEMP: Disabled auto-retry for debugging GitHub Copilot - change back to < 3
+				if (!isClineProviderInsufficientCredits && !isAuthError && this.taskState.autoRetryAttempts < 0) {
 					// Auto-retry enabled with max 3 attempts: automatically approve the retry
 					this.taskState.autoRetryAttempts++
 

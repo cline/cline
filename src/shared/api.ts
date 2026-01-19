@@ -42,6 +42,7 @@ export type ApiProvider =
 	| "minimax"
 	| "hicap"
 	| "nousResearch"
+	| "github-copilot"
 
 export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 
@@ -4217,5 +4218,85 @@ export const nousResearchModels = {
 		outputPrice: 0.2,
 		description:
 			"This incarnation of Hermes 4 balances scale and size. It handles complex reasoning tasks, while staying fast and cost effective. A versatile choice for many use cases.",
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// GitHub Copilot
+// Models available through GitHub Copilot subscription
+// https://api.githubcopilot.com
+export type GitHubCopilotModelId = keyof typeof gitHubCopilotModels
+export const gitHubCopilotDefaultModelId: GitHubCopilotModelId = "claude-sonnet-4"
+export const gitHubCopilotModels = {
+	"claude-sonnet-4": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0, // Free with Copilot subscription
+		outputPrice: 0,
+		description: "Claude Sonnet 4 via GitHub Copilot",
+	},
+	"claude-sonnet-4-5": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Claude Sonnet 4.5 via GitHub Copilot",
+	},
+	"gpt-4o": {
+		maxTokens: 16384,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "GPT-4o via GitHub Copilot",
+	},
+	"gpt-4o-mini": {
+		maxTokens: 16384,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "GPT-4o Mini via GitHub Copilot",
+	},
+	o1: {
+		maxTokens: 100_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "OpenAI o1 via GitHub Copilot",
+	},
+	o3: {
+		maxTokens: 100_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "OpenAI o3 via GitHub Copilot",
+	},
+	"gemini-2.0-flash": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Gemini 2.0 Flash via GitHub Copilot",
+	},
+	"gemini-2.5-pro": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Gemini 2.5 Pro via GitHub Copilot",
 	},
 } as const satisfies Record<string, ModelInfo>
