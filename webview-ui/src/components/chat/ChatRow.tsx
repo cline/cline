@@ -377,19 +377,13 @@ export const ChatRowContent = memo(
 		}, [message.ask, message.say, message.text])
 
 		const conditionalRulesInfo = useMemo(() => {
-			if (message.say !== "info" || !message.text) return null
+			if (message.say !== "conditional_rules_applied" || !message.text) return null
 			try {
 				const parsed = JSON.parse(message.text) as unknown
-				if (
-					!parsed ||
-					typeof parsed !== "object" ||
-					(parsed as any).type !== "conditional_rules_applied" ||
-					!Array.isArray((parsed as any).rules)
-				) {
+				if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as any).rules)) {
 					return null
 				}
 				return parsed as {
-					type: "conditional_rules_applied"
 					rules: Array<{ name: string; matchedConditions: Record<string, string[]> }>
 				}
 			} catch {

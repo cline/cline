@@ -1833,13 +1833,7 @@ export class Task {
 		// Notify user if any conditional rules were applied for this request
 		const activatedConditionalRules = [...globalRules.activatedConditionalRules, ...localRules.activatedConditionalRules]
 		if (activatedConditionalRules.length > 0) {
-			await this.say(
-				"info",
-				JSON.stringify({
-					type: "conditional_rules_applied",
-					rules: activatedConditionalRules,
-				}),
-			)
+			await this.say("conditional_rules_applied", JSON.stringify({ rules: activatedConditionalRules }))
 		}
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
