@@ -27,6 +27,11 @@ export class TerminalRegistry {
 			iconPath: new vscode.ThemeIcon("cline-icon"),
 			env: {
 				CLINE_ACTIVE: "true",
+				// Prevent interactive pagers from blocking terminal commands
+				PAGER: "cat",
+				GIT_PAGER: "cat",
+				SYSTEMD_PAGER: "",
+				MANPAGER: "cat",
 			},
 		}
 
