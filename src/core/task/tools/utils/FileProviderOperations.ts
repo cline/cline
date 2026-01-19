@@ -14,34 +14,86 @@ export interface FileOpsResult {
 export class FileProviderOperations {
 	constructor(private provider: DiffViewProvider) {}
 
-	async createFile(path: string, content: string): Promise<FileOpsResult> {
+	async openFile(path: string): Promise<void> {
+		await this.provider.open(path)
+	}
+
+	/**
+	 * Saves the current changes and returns the result.
+	 */
+	async saveChanges(): Promise<FileOpsResult> {
+		const result = await this.provider.saveChanges()
+		return result
+	}
+
+	/**
+	 * Creates a file. If isFinal is false, prepares the creation without saving.
+	 * Call saveChanges() after approval when isFinal is false.
+	 */
+	async createFile(path: string, content: string, isFinal: boolean = true): Promise<FileOpsResult | undefined> {
 		this.provider.editType = "create"
-		await this.provider.open(path)
-		await this.provider.update(content, true)
-		const result = await this.provider.saveChanges()
-		await this.provider.reset()
-		return result
+		await this.openFile(path)
+		await this.provider.update(content, isFinal)
+
+		if (isFinal) {
+			return await this.saveChanges()
+		}
+		return undefined
 	}
 
-	async modifyFile(path: string, content: string): Promise<FileOpsResult> {
+	/**
+	 * Modifies a file. If isFinal is false, prepares the modification without saving.
+	 * Call saveChanges() after approval when isFinal is false.
+	 */
+	async modifyFile(path: string, content: string, isFinal: boolean = true): Promise<FileOpsResult | undefined> {
 		this.provider.editType = "modify"
-		await this.provider.open(path)
-		await this.provider.update(content, true)
-		const result = await this.provider.saveChanges()
-		await this.provider.reset()
-		return result
+		await this.openFile(path)
+		await this.provider.update(content, isFinal)
+
+		if (isFinal) {
+			return await this.saveChanges()
+		}
+		return undefined
 	}
 
-	async deleteFile(path: string): Promise<void> {
+	/**
+	 * Deletes a file. If isFinal is false, prepares the deletion without actually deleting.
+	 * Opens the file in the diff view to show it will be deleted.
+	 * Call deleteFile() with isFinal=true after approval when isFinal is false.
+	 */
+	async deleteFile(path: string, isFinal: boolean = true): Promise<FileOpsResult | undefined> {
 		this.provider.editType = "delete"
-		await this.provider.open(path)
-		await this.provider.deleteFile(path)
+		await this.openFile(path)
+
+		if (isFinal) {
+			await this.provider.deleteFile(path)
+			return undefined
+		} else {
+			// Update with empty content to show the file will be deleted
+			await this.provider.update("", isFinal)
+			return undefined
+		}
 	}
 
-	async moveFile(oldPath: string, newPath: string, content: string): Promise<FileOpsResult> {
-		const result = await this.createFile(newPath, content)
-		await this.deleteFile(oldPath)
-		return result
+	/**
+	 * Moves a file from oldPath to newPath. If isFinal is false, prepares the move without saving.
+	 * Call saveChanges() after approval when isFinal is false.
+	 */
+	async moveFile(
+		oldPath: string,
+		newPath: string,
+		content: string,
+		isFinal: boolean = true,
+	): Promise<FileOpsResult | undefined> {
+		if (isFinal) {
+			const result = await this.createFile(newPath, content, isFinal)
+			await this.deleteFile(oldPath, isFinal)
+			return result
+		} else {
+			await this.createFile(newPath, content, isFinal)
+			await this.deleteFile(oldPath, isFinal)
+			return undefined
+		}
 	}
 
 	async getFileContent(): Promise<string | undefined> {

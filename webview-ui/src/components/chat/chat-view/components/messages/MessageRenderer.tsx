@@ -5,7 +5,7 @@ import ChatRow from "@/components/chat/ChatRow"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { MessageHandlers } from "../../types/chatTypes"
-import { findReasoningForApiReq, isApiReqAbsorbable, isTextMessagePendingToolCall, isToolGroup } from "../../utils/messageUtils"
+import { findReasoningForApiReq, isTextMessagePendingToolCall, isToolGroup } from "../../utils/messageUtils"
 import { ToolGroupRenderer } from "./ToolGroupRenderer"
 
 interface MessageRendererProps {
@@ -38,7 +38,8 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	messageHandlers,
 }) => {
 	const { mode } = useExtensionState()
-	const isLastMessage = index === groupedMessages?.length - 1
+
+	const isLastMessage = useMemo(() => index === groupedMessages?.length - 1, [groupedMessages, index])
 
 	// Get reasoning content and response status for api_req_started messages
 	const reasoningData = useMemo(() => {
@@ -79,23 +80,6 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 				onToggleExpand={onToggleExpand}
 			/>
 		)
-	}
-
-	// Determine if this is the last message for status display purposes
-	const nextMessage = index < groupedMessages.length - 1 && groupedMessages[index + 1]
-	const isNextCheckpoint = !Array.isArray(nextMessage) && nextMessage && nextMessage?.say === "checkpoint_created"
-	const isLastMessageGroup = isNextCheckpoint && index === groupedMessages.length - 2
-	const isLastMessageOrGroup = isLastMessage || isLastMessageGroup
-
-	// Deterministic flash fix:
-	// If this api_req_started is meant to be absorbed into a low-stakes tool group,
-	// never render it as a standalone row.
-	// BUT: Only absorb if this isn't the last/only message (to avoid hiding completed task api_reqs)
-	if (
-		messageOrGroup.say === "api_req_started" &&
-		(!isLastMessageOrGroup || isApiReqAbsorbable(messageOrGroup.ts, modifiedMessages))
-	) {
-		return null
 	}
 
 	// Regular message

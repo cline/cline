@@ -195,6 +195,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("clineWebToolsEnabled", request.clineWebToolsEnabled)
 		}
 
+		// Update worktrees setting
+		if (request.worktreesEnabled !== undefined) {
+			controller.stateManager.setGlobalState("worktreesEnabled", request.worktreesEnabled)
+		}
+
 		if (request.dictationSettings !== undefined) {
 			// Convert from protobuf format (snake_case) to TypeScript format (camelCase)
 			const dictationSettings = {

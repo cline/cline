@@ -256,6 +256,9 @@ service UiService {
   // Subscribe to settings button clicked events
   rpc subscribeToSettingsButtonClicked(EmptyRequest) returns (stream Empty);
 
+  // Subscribe to worktrees button clicked events
+  rpc subscribeToWorktreesButtonClicked(EmptyRequest) returns (stream Empty);
+
   // Subscribe to partial message updates (streaming Cline messages as they're built)
   rpc subscribeToPartialMessage(EmptyRequest) returns (stream ClineMessage);
 

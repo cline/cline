@@ -102,10 +102,30 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 
 		// Replace the text in the diff editor document.
 		const document = this.activeDiffEditor?.document
+		const replacingToEnd = rangeToReplace.endLine >= document.lineCount
 		const edit = new vscode.WorkspaceEdit()
 		const range = new vscode.Range(rangeToReplace.startLine, 0, rangeToReplace.endLine, 0)
 		edit.replace(document.uri, range, content)
 		await vscode.workspace.applyEdit(edit)
+
+		// VS Code can normalize trailing newlines on full-document replacements.
+		// Only fix up when replacing to the end to avoid touching untouched content.
+		if (replacingToEnd) {
+			const desiredTrailingNewlines = countTrailingNewlines(content)
+			const actualTrailingNewlines = countTrailingNewlines(document.getText())
+			const newlineDelta = desiredTrailingNewlines - actualTrailingNewlines
+
+			if (newlineDelta > 0) {
+				const fixEdit = new vscode.WorkspaceEdit()
+				fixEdit.insert(document.uri, document.lineAt(document.lineCount - 1).range.end, "\n".repeat(newlineDelta))
+				await vscode.workspace.applyEdit(fixEdit)
+			} else if (newlineDelta < 0) {
+				const fixEdit = new vscode.WorkspaceEdit()
+				const startLine = Math.max(0, document.lineCount + newlineDelta)
+				fixEdit.delete(document.uri, new vscode.Range(startLine, 0, document.lineCount, 0))
+				await vscode.workspace.applyEdit(fixEdit)
+			}
+		}
 
 		if (currentLine !== undefined) {
 			// Update decorations for the entire changed section
@@ -147,9 +167,16 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 			edit.delete(document.uri, new vscode.Range(lineNumber, 0, document.lineCount, 0))
 			await vscode.workspace.applyEdit(edit)
 		}
-		// Clear all decorations at the end (before applying final edit)
+	}
+
+	protected override async onFinalUpdate(): Promise<void> {
+		// Clear all decorations at the end of streaming
 		this.fadedOverlayController?.clear()
 		this.activeLineController?.clear()
+	}
+
+	protected override async getDocumentLineCount(): Promise<number> {
+		return this.activeDiffEditor?.document.lineCount ?? 0
 	}
 
 	protected override async getDocumentText(): Promise<string | undefined> {
@@ -192,4 +219,12 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		this.fadedOverlayController = undefined
 		this.activeLineController = undefined
 	}
+}
+
+function countTrailingNewlines(text: string): number {
+	let count = 0
+	for (let i = text.length - 1; i >= 0 && text[i] === "\n"; i -= 1) {
+		count += 1
+	}
+	return count
 }

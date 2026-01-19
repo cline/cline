@@ -408,10 +408,10 @@ export class AuthService {
 		if (this._clineAuthInfo?.userInfo?.id) {
 			telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
 			// Poll feature flags immediately for authenticated users to ensure cache is populated
-			await featureFlagsService.poll(this._clineAuthInfo?.userInfo?.id)
+			await featureFlagsService.poll(this._clineAuthInfo.userInfo?.id)
 		} else {
 			// Poll feature flags for unauthenticated state
-			await featureFlagsService.poll(undefined)
+			await featureFlagsService.poll(null)
 		}
 
 		// Update state in webviews once per unique controller

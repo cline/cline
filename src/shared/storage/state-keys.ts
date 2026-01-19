@@ -26,6 +26,9 @@ import { BlobStoreSettings } from "./ClineBlobStorage"
 // SINGLE SOURCE OF TRUTH FOR STORAGE KEYS
 //
 // Property definitions with types, default values, and metadata
+// NOTE: When adding a new field, the scripts/generate-state-proto.mjs will be
+// executed automatically to regenerate the proto/cline/state.proto file with the
+// new fields once the file is staged and committed.
 // ============================================================================
 
 /**
@@ -82,10 +85,11 @@ const GLOBAL_STATE_FIELDS = {
 	remoteRulesToggles: { default: {} as ClineRulesToggles },
 	remoteWorkflowToggles: { default: {} as ClineRulesToggles },
 	dismissedBanners: { default: [] as Array<{ bannerId: string; dismissedAt: number }> },
+	// Path to worktree that should auto-open Cline sidebar when launched
+	worktreeAutoOpenPath: { default: undefined as string | undefined },
 } satisfies FieldDefinitions
 
 // Fields that map directly to ApiHandlerOptions in @shared/api.ts
-// NOTE: Keep these in sync with ApiHandlerOptions interface
 const API_HANDLER_SETTINGS_FIELDS = {
 	// Global configuration (not mode-specific)
 	liteLlmBaseUrl: { default: undefined as string | undefined },
@@ -249,6 +253,7 @@ const USER_SETTINGS_FIELDS = {
 	yoloModeToggled: { default: false as boolean },
 	useAutoCondense: { default: false as boolean },
 	clineWebToolsEnabled: { default: true as boolean },
+	worktreesEnabled: { default: false as boolean },
 	preferredLanguage: { default: "English" as string },
 	openaiReasoningEffort: { default: "medium" as OpenaiReasoningEffort },
 	mode: { default: "act" as Mode },
