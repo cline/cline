@@ -947,6 +947,10 @@ export class Controller {
 				user: this.stateManager.getGlobalSettingsKey("clineWebToolsEnabled"),
 				featureFlag: featureFlagsService.getWebtoolsEnabled(),
 			},
+			worktreesEnabled: {
+				user: this.stateManager.getGlobalSettingsKey("worktreesEnabled"),
+				featureFlag: featureFlagsService.getWorktreesEnabled(),
+			},
 			hooksEnabled: this.stateManager.getGlobalSettingsKey("hooksEnabled"),
 			lastDismissedInfoBannerVersion,
 			lastDismissedModelBannerVersion,

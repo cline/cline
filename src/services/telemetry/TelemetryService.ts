@@ -312,6 +312,15 @@ export class TelemetryService {
 			// Tracks when hook discovery completes
 			DISCOVERY_COMPLETED: "hooks.discovery_completed",
 		},
+		// Worktree-related events for tracking worktree feature usage
+		WORKTREE: {
+			// Tracks when user opens worktrees view from home page
+			VIEW_OPENED: "worktree.view_opened",
+			// Tracks when a worktree is created
+			CREATED: "worktree.created",
+			// Tracks when a worktree merge is attempted
+			MERGE_ATTEMPTED: "worktree.merge_attempted",
+		},
 	}
 
 	public static async create(): Promise<TelemetryService> {
@@ -1664,18 +1673,31 @@ export class TelemetryService {
 	 * @param success Whether the command output was successfully captured
 	 * @param terminalType The type of terminal ("standalone")
 	 * @param method The standalone-specific method used to capture output
+	 * @param exitCode The process exit code (useful for diagnosing failure types: 1=error, 127=not found, 126=permission denied)
 	 */
-	public captureTerminalExecution(success: boolean, terminalType: "standalone", method: StandaloneOutputMethod): void
+	public captureTerminalExecution(
+		success: boolean,
+		terminalType: "standalone",
+		method: StandaloneOutputMethod,
+		exitCode?: number | null,
+	): void
 	/**
 	 * Implementation of captureTerminalExecution
 	 */
-	public captureTerminalExecution(success: boolean, terminalType: TerminalType, method: TerminalOutputMethod): void {
+	public captureTerminalExecution(
+		success: boolean,
+		terminalType: TerminalType,
+		method: TerminalOutputMethod,
+		exitCode?: number | null,
+	): void {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_EXECUTION,
 			properties: {
 				success,
 				terminalType,
 				method,
+				// Only include exitCode for standalone terminals when it's a meaningful value
+				...(terminalType === "standalone" && exitCode !== undefined && exitCode !== null && { exitCode }),
 			},
 		})
 	}
@@ -1871,6 +1893,51 @@ export class TelemetryService {
 				hint_provided: hintProvided,
 				results_found: resultsFound,
 				search_duration_ms: searchDurationMs,
+			},
+		})
+	}
+
+	/**
+	 * Records when user opens the worktrees view
+	 * @param source Where the user opened the view from (home_page or menu_bar)
+	 */
+	public captureWorktreeViewOpened(source: "home_page" | "menu_bar") {
+		this.capture({
+			event: TelemetryService.EVENTS.WORKTREE.VIEW_OPENED,
+			properties: {
+				source,
+			},
+		})
+	}
+
+	/**
+	 * Records when a worktree is created
+	 * @param success Whether the creation was successful
+	 * @param worktreeCount Total number of worktrees after creation (to track power users)
+	 */
+	public captureWorktreeCreated(success: boolean, worktreeCount?: number) {
+		this.capture({
+			event: TelemetryService.EVENTS.WORKTREE.CREATED,
+			properties: {
+				success,
+				worktree_count: worktreeCount,
+			},
+		})
+	}
+
+	/**
+	 * Records when a worktree merge is attempted
+	 * @param success Whether the merge was successful
+	 * @param hasConflicts Whether merge conflicts were detected
+	 * @param deleteAfterMerge Whether user chose to delete worktree after merge
+	 */
+	public captureWorktreeMergeAttempted(success: boolean, hasConflicts: boolean, deleteAfterMerge: boolean) {
+		this.capture({
+			event: TelemetryService.EVENTS.WORKTREE.MERGE_ATTEMPTED,
+			properties: {
+				success,
+				has_conflicts: hasConflicts,
+				delete_after_merge: deleteAfterMerge,
 			},
 		})
 	}
