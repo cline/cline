@@ -70,6 +70,7 @@ export function validateAndNormalizePath(candidate: string): string | undefined 
 	if (!candidate) return undefined
 	const posix = candidate.replace(/\\/g, "/").replace(/^\//, "")
 	if (!posix || posix === "/") return undefined
-	if (posix.includes("..")) return undefined
+	// Reject directory traversal like "../foo" or "foo/.." but allow valid filenames like "file..txt".
+	if (posix.split("/").some((segment) => segment === "..")) return undefined
 	return posix
 }

@@ -163,6 +163,11 @@ content
 			expect(result).to.equal("src/components/Button.tsx")
 		})
 
+		it("does not reject filenames containing '..'", () => {
+			const result = validateAndNormalizePath("src/file..txt")
+			expect(result).to.equal("src/file..txt")
+		})
+
 		it("strips leading forward slash", () => {
 			const result = validateAndNormalizePath("/src/index.ts")
 			expect(result).to.equal("src/index.ts")
