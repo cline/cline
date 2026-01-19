@@ -213,7 +213,7 @@ jobs:
               # This prevents the job from showing as failed and avoids distracting developers
               # until the integration tests are ready to be enforced.
               run: |
-                npm run test:tp-orchestrator -- tests/specs/ --count=1 --coverage --server-logs || true
+                npm run test:tp-orchestrator -- tests/specs/ --count=1 --coverage
 
             - name: Save Coverage Reports
               uses: actions/upload-artifact@v4
