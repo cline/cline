@@ -30,30 +30,36 @@ export class OpenAiHandler implements ApiHandler {
 		this.options = options
 	}
 
+	private getAzureAudienceScope(baseUrl?: string): string {
+		const url = baseUrl?.toLowerCase() ?? ""
+		if (url.includes("azure.us")) return "https://cognitiveservices.azure.us/.default"
+		if (url.includes("azure.com")) return "https://cognitiveservices.azure.com/.default"
+		return "https://cognitiveservices.azure.com/.default"
+	}
+
 	private ensureClient(): OpenAI {
 		if (!this.client) {
 			if (!this.options.openAiApiKey && !this.options.azureIdentity) {
 				throw new Error("OpenAI API key or Azure Identity Authentication is required")
 			}
 			try {
-				// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
-				// Use azureApiVersion to determine if this is an Azure endpoint, since the URL may not always contain 'azure.com'
+				const baseUrl = this.options.openAiBaseUrl?.toLowerCase() ?? ""
+				const isAzureDomain = baseUrl.includes("azure.com") || baseUrl.includes("azure.us")
+				// Azure API shape slightly differs from the core API shape...
 				if (
 					this.options.azureApiVersion ||
-					((this.options.openAiBaseUrl?.toLowerCase().includes("azure.com") ||
-						this.options.openAiBaseUrl?.toLowerCase().includes("azure.us")) &&
-						!this.options.openAiModelId?.toLowerCase().includes("deepseek"))
+					(isAzureDomain && !this.options.openAiModelId?.toLowerCase().includes("deepseek"))
 				) {
 					if (this.options.azureIdentity) {
 						this.client = new AzureOpenAI({
 							baseURL: this.options.openAiBaseUrl,
 							azureADTokenProvider: getBearerTokenProvider(
 								new DefaultAzureCredential(),
-								"https://cognitiveservices.azure.com/.default",
+								this.getAzureAudienceScope(this.options.openAiBaseUrl),
 							),
 							apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
 							defaultHeaders: this.options.openAiHeaders,
-							fetch, // Use configured fetch with proxy support
+							fetch,
 						})
 					} else {
 						this.client = new AzureOpenAI({
@@ -61,7 +67,7 @@ export class OpenAiHandler implements ApiHandler {
 							apiKey: this.options.openAiApiKey,
 							apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
 							defaultHeaders: this.options.openAiHeaders,
-							fetch, // Use configured fetch with proxy support
+							fetch,
 						})
 					}
 				} else {
@@ -69,7 +75,7 @@ export class OpenAiHandler implements ApiHandler {
 						baseURL: this.options.openAiBaseUrl,
 						apiKey: this.options.openAiApiKey,
 						defaultHeaders: this.options.openAiHeaders,
-						fetch, // Use configured fetch with proxy support
+						fetch,
 					})
 				}
 			} catch (error: any) {
