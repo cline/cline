@@ -1,5 +1,47 @@
 # Changelog
 
+## [3.51.0]
+
+### Added
+
+- Adding OpenAI gpt-5.2-codex  model to the model picker
+
+## [3.50.0]
+
+### Added
+
+- Add gpt-5.2-codex OpenAI model support
+- Add create-pull-request skill
+
+### Fixed
+
+- Fix the selection of remotely configured providers
+- Fix act_mode_respond to prevent consecutive calls
+- Fix invalid tool call IDs when switching between model formats
+
+## [3.49.1]
+
+### Added
+
+- Add telemetry to track usage of skills feature
+- Add version headers to Cline backend requests
+- Phase in Responses API usage instead of defaulting for every supported model
+
+### Fixed
+
+- Fix workflow slash command search to be case-insensitive
+- Fix model display in ModelPickerModal when using LiteLLM
+- Fix LiteLLM model fetching with default base URL
+- Fix crash when OpenAI-compatible APIs send usage chunks with empty or null choices arrays at end of streaming
+- Fix model ID for Kat Coder Pro Free model
+
+## [3.49.0]
+
+- Enable configuring an OTEL collector at runtime
+- Removing Minimax-2.1 from free model list as the free trial has ended
+- Improved image display in MCP responses
+- Auto-sync remote MCP servers from remote config to local settings
+
 ## [3.48.0]
 
 ### Added

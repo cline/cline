@@ -375,8 +375,12 @@ export class ToolExecutor {
 				this.isPlanModeToolRestricted(block.name)
 			) {
 				const errorMessage = `Tool '${block.name}' is not available in PLAN MODE. This tool is restricted to ACT MODE for file modifications. Only use tools available for PLAN MODE when in that mode.`
+				await this.removeLastPartialMessageIfExistsWithType("say", "error")
 				await this.say("error", errorMessage)
-				this.pushToolResult(formatResponse.toolError(errorMessage), block)
+				// Only push the final error message when the streaming is done.
+				if (!block.partial) {
+					this.pushToolResult(formatResponse.toolError(errorMessage), block)
+				}
 				return true
 			}
 
@@ -598,6 +602,9 @@ export class ToolExecutor {
 			toolResult = await this.coordinator.execute(config, block)
 			toolWasExecuted = true
 			this.pushToolResult(toolResult, block)
+
+			// Track the last executed tool for consecutive call detection (used by act_mode_respond)
+			this.taskState.lastToolName = block.name
 
 			// Check abort before running PostToolUse hook (success path)
 			if (this.taskState.abort) {

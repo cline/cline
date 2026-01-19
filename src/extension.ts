@@ -9,6 +9,7 @@ import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChat
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
 import { sendMcpButtonClickedEvent } from "./core/controller/ui/subscribeToMcpButtonClicked"
 import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeToSettingsButtonClicked"
+import { sendWorktreesButtonClickedEvent } from "./core/controller/ui/subscribeToWorktreesButtonClicked"
 import { WebviewProvider } from "./core/webview"
 import { createClineAPI } from "./exports"
 import { Logger } from "./services/logging/Logger"
@@ -44,6 +45,7 @@ import { ExtensionRegistryInfo } from "./registry"
 import { AuthService } from "./services/auth/AuthService"
 import { LogoutReason } from "./services/auth/types"
 import { telemetryService } from "./services/telemetry"
+import { ClineTempManager } from "./services/temp"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { fileExistsAtPath } from "./utils/fs"
@@ -86,6 +88,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	const webview = (await initialize(context)) as VscodeWebviewProvider
+
+	// Clean up old temp files in background (non-blocking) and start periodic cleanup every 24 hours
+	ClineTempManager.startPeriodicCleanup()
 
 	Logger.log("Cline extension activated")
 
@@ -137,6 +142,13 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand(commands.AccountButton, () => {
 			// Send event to all subscribers using the gRPC streaming method
 			sendAccountButtonClickedEvent()
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.WorktreesButton, () => {
+			// Send event to all subscribers using the gRPC streaming method
+			sendWorktreesButtonClickedEvent()
 		}),
 	)
 
@@ -635,6 +647,9 @@ async function getBinaryLocation(name: string): Promise<string> {
 // This method is called when your extension is deactivated
 export async function deactivate() {
 	Logger.log("Cline extension deactivating, cleaning up resources...")
+
+	// Stop periodic temp file cleanup
+	ClineTempManager.stopPeriodicCleanup()
 
 	tearDown()
 

@@ -21,13 +21,13 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 	const {
 		enableCheckpointsSetting,
 		mcpDisplayMode,
-		mcpResponsesCollapsed,
 		openaiReasoningEffort,
 		strictPlanModeEnabled,
 		yoloModeToggled,
 		dictationSettings,
 		useAutoCondense,
 		clineWebToolsEnabled,
+		worktreesEnabled,
 		focusChainSettings,
 		multiRootSetting,
 		hooksEnabled,
@@ -201,19 +201,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
-						<VSCodeCheckbox
-							checked={mcpResponsesCollapsed}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								updateSetting("mcpResponsesCollapsed", checked)
-							}}>
-							Collapse MCP Responses
-						</VSCodeCheckbox>
-						<p className="text-xs text-(--vscode-descriptionForeground)">
-							Sets the default display mode for MCP response panels
-						</p>
-					</div>
-					<div style={{ marginTop: 10 }}>
 						<label
 							className="block text-sm font-medium text-(--vscode-foreground) mb-1"
 							htmlFor="openai-reasoning-effort-dropdown">
@@ -344,6 +331,21 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</VSCodeCheckbox>
 							<p className="text-xs text-(--vscode-descriptionForeground)">
 								Enables websearch and webfetch tools while using the Cline provider.
+							</p>
+						</div>
+					)}
+					{worktreesEnabled?.featureFlag && (
+						<div style={{ marginTop: 10 }}>
+							<VSCodeCheckbox
+								checked={worktreesEnabled?.user}
+								onChange={(e: any) => {
+									const checked = e.target.checked === true
+									updateSetting("worktreesEnabled", checked)
+								}}>
+								Enable Worktrees
+							</VSCodeCheckbox>
+							<p className="text-xs text-(--vscode-descriptionForeground)">
+								Enables git worktree management for running parallel Cline tasks.
 							</p>
 						</div>
 					)}

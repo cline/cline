@@ -24,6 +24,7 @@ import { telemetryService } from "./services/telemetry"
 import { PostHogClientProvider } from "./services/telemetry/providers/posthog/PostHogClientProvider"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { getLatestAnnouncementId } from "./utils/announcements"
+import { arePathsEqual } from "./utils/path"
 /**
  * Performs intialization for Cline that is common to all platforms.
  *
@@ -49,7 +50,7 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 
 	// Setup the external services
 	await ErrorService.initialize()
-	await featureFlagsService.poll()
+	await featureFlagsService.poll(null)
 
 	// Migrate custom instructions to global Cline rules (one-time cleanup)
 	await migrateCustomInstructionsToGlobalRules(context)
@@ -76,19 +77,12 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 
 	await showVersionUpdateAnnouncement(context)
 
-	// Initialize banner service
+	// Check if this workspace was opened from worktree quick launch
+	await checkWorktreeAutoOpen(context)
+
+	// Initialize banner service (TEMPORARILY DISABLED - not fetching banners to prevent API hammering)
 	BannerService.initialize(webview.controller)
-	BannerService.get()
-		.fetchActiveBanners()
-		.then((banners) => {
-			if (banners.length > 0) {
-				Logger.log(`BannerService: ${banners.length} active banner(s) fetched.`)
-				// Banners are now cached and can be accessed by the frontend when needed
-			}
-		})
-		.catch((error) => {
-			Logger.error("BannerService: Failed to fetch banners on startup", error)
-		})
+	// DISABLED: .getActiveBanners(true)
 
 	telemetryService.captureExtensionActivated()
 
@@ -124,6 +118,39 @@ async function showVersionUpdateAnnouncement(context: vscode.ExtensionContext) {
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
 		console.error(`Error during post-update actions: ${errorMessage}, Stack trace: ${error.stack}`)
+	}
+}
+
+/**
+ * Checks if this workspace was opened from the worktree quick launch button.
+ * If so, opens the Cline sidebar and clears the state.
+ */
+async function checkWorktreeAutoOpen(context: vscode.ExtensionContext): Promise<void> {
+	try {
+		// Read directly from globalState (not StateManager cache) since this may have been
+		// set by another window right before this one opened
+		const worktreeAutoOpenPath = context.globalState.get<string>("worktreeAutoOpenPath")
+		if (!worktreeAutoOpenPath) {
+			return
+		}
+
+		// Get current workspace path
+		const workspacePaths = (await HostProvider.workspace.getWorkspacePaths({})).paths
+		if (workspacePaths.length === 0) {
+			return
+		}
+
+		const currentPath = workspacePaths[0]
+
+		// Check if current workspace matches the worktree path
+		if (arePathsEqual(currentPath, worktreeAutoOpenPath)) {
+			// Clear the state first to prevent re-triggering
+			await context.globalState.update("worktreeAutoOpenPath", undefined)
+			// Open the Cline sidebar
+			await HostProvider.workspace.openClineSidebarPanel({})
+		}
+	} catch (error) {
+		Logger.error("Error checking worktree auto-open", error)
 	}
 }
 
