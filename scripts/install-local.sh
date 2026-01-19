@@ -80,13 +80,6 @@ fi
 
 echo -e "${CYAN}→${NC} ${DIM}Detected platform as $platform${NC}"
 
-# Manually set platform to windows, as windows is tricky
-if [[ "$WIN" = true ]]; then
-    platform="win-$arch"
-fi
-
-echo -e "${CYAN}→${NC} ${DIM}Detected platform as $platform${NC}"
-
 # Copy platform-specific native modules (like better-sqlite3)
 if [ -d "$PROJECT_ROOT/dist-standalone/binaries/$platform/node_modules" ]; then
     echo -e "${CYAN}→${NC} ${DIM}Installing platform-specific modules for $platform${NC}"
@@ -94,16 +87,8 @@ if [ -d "$PROJECT_ROOT/dist-standalone/binaries/$platform/node_modules" ]; then
 fi
 
 
-
 # Copy binaries (this will create/overwrite the bin directory)
 mkdir -p "$INSTALL_DIR/bin"
-if [[ "$WIN" = true ]]; then
-    cp "$PROJECT_ROOT/cli/bin/cline-windows-amd64.exe" "$INSTALL_DIR/bin/cline.exe"
-    cp "$PROJECT_ROOT/cli/bin/cline-host-windows-amd64.exe" "$INSTALL_DIR/bin/cline-host.exe"
-else
-    cp "$PROJECT_ROOT/cli/bin/cline" "$INSTALL_DIR/bin/"
-    cp "$PROJECT_ROOT/cli/bin/cline-host" "$INSTALL_DIR/bin/"
-fi
 if [[ "$WIN" = true ]]; then
     cp "$PROJECT_ROOT/cli/bin/cline-windows-amd64.exe" "$INSTALL_DIR/bin/cline.exe"
     cp "$PROJECT_ROOT/cli/bin/cline-host-windows-amd64.exe" "$INSTALL_DIR/bin/cline-host.exe"
@@ -128,11 +113,6 @@ chmod +x "$INSTALL_DIR/bin/node" 2>/dev/null || true
 # Rebuild better-sqlite3 for system Node.js version
 echo -e "${CYAN}→${NC} ${DIM}Rebuilding native modules for Node.js $(node --version)...${NC}"
 cd "$INSTALL_DIR"
-npm rebuild better-sqlite3
-
-mkdir -p "$INSTALL_DIR/dist-standalone/node_modules/better-sqlite3"
-cp -r "$INSTALL_DIR/node_modules/." "$INSTALL_DIR/dist-standalone/node_modules/better-sqlite3/"
-
 npm rebuild better-sqlite3
 
 mkdir -p "$INSTALL_DIR/dist-standalone/node_modules/better-sqlite3"

@@ -516,7 +516,6 @@
 		"archiver": "^7.0.1",
 		"axios": "^1.12.0",
 		"better-sqlite3": "^12.5.0",
-		"better-sqlite3": "^12.5.0",
 		"cheerio": "^1.0.0",
 		"chokidar": "^4.0.1",
 		"chrome-launcher": "^1.1.2",
