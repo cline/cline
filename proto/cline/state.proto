@@ -322,6 +322,7 @@ enum OpenaiReasoningEffort {
   MEDIUM = 1;
   HIGH = 2;
   MINIMAL = 3;
+  XHIGH = 4;
 }
 
 enum McpDisplayMode {
