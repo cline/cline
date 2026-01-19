@@ -15,7 +15,6 @@ interface RequestStartRowProps {
 	apiReqStreamingFailedMessage?: string
 	cost?: number
 	reasoningContent?: string
-	responseStarted?: boolean
 	clineMessages: ClineMessage[]
 	mode?: Mode
 	classNames?: string
