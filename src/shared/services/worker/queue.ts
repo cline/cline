@@ -300,19 +300,17 @@ export class SyncQueue {
 	 */
 	cleanupOldSynced(maxAgeMs: number = SEVEN_DAYS_MS): number {
 		const cutoff = Date.now() - maxAgeMs
-		const keysToRemove = Object.entries(this.data.items)
-			.filter(([_, item]) => item.status === "synced" && item.timestamp < cutoff)
-			.map(([key]) => key)
-
-		for (const key of keysToRemove) {
-			delete this.data.items[key]
-		}
-
-		if (keysToRemove.length > 0) {
+		let count = 0
+		Object.entries(this.data.items).forEach(([key, item]) => {
+			if (item.status === "synced" && item.timestamp < cutoff) {
+				delete this.data.items[key]
+				count++
+			}
+		})
+		if (count > 0) {
 			this.scheduleWrite()
 		}
-
-		return keysToRemove.length
+		return count
 	}
 
 	/**
@@ -325,25 +323,17 @@ export class SyncQueue {
 	 */
 	cleanupFailedItems(maxRetries: number = 5, maxAgeMs: number = SEVEN_DAYS_MS): number {
 		const cutoff = Date.now() - maxAgeMs
-		const keysToRemove = Object.entries(this.data.items)
-			.filter(([_, item]) => {
-				if (item.status !== "failed") {
-					return false
-				}
-				// Remove if exceeded max retries OR too old
-				return item.retryCount >= maxRetries || item.timestamp < cutoff
-			})
-			.map(([key]) => key)
-
-		for (const key of keysToRemove) {
-			delete this.data.items[key]
-		}
-
-		if (keysToRemove.length > 0) {
+		let count = 0
+		Object.entries(this.data.items).forEach(([key, item]) => {
+			if (item.status === "failed" && (item.retryCount >= maxRetries || item.timestamp < cutoff)) {
+				delete this.data.items[key]
+				count++
+			}
+		})
+		if (count > 0) {
 			this.scheduleWrite()
 		}
-
-		return keysToRemove.length
+		return count
 	}
 
 	/**
