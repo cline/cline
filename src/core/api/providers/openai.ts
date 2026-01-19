@@ -131,7 +131,27 @@ export class OpenAiHandler implements ApiHandler {
 
 		const toolCallProcessor = new ToolCallProcessor()
 
+		// Helper function to yield usage information from a chunk
+		function* yieldUsage(chunk: OpenAI.Chat.Completions.ChatCompletionChunk) {
+			if (!chunk.usage) return
+			yield {
+				type: "usage",
+				inputTokens: chunk.usage.prompt_tokens || 0,
+				outputTokens: chunk.usage.completion_tokens || 0,
+				cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
+				// @ts-expect-error - prompt_cache_miss_tokens is a valid field in some OpenAI-compatible APIs
+				cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
+			}
+		}
+
 		for await (const chunk of stream) {
+			// Some OpenAI-compatible APIs send usage chunks with empty choices array
+			// We need to handle these before accessing chunk.choices[0]
+			if (!chunk.choices || chunk.choices.length === 0) {
+				yieldUsage(chunk)
+				continue
+			}
+
 			const delta = chunk.choices?.[0]?.delta
 			if (delta?.content) {
 				yield {
@@ -152,14 +172,7 @@ export class OpenAiHandler implements ApiHandler {
 			}
 
 			if (chunk.usage) {
-				yield {
-					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0,
-					outputTokens: chunk.usage.completion_tokens || 0,
-					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-					// @ts-ignore-next-line
-					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
-				}
+				yieldUsage(chunk)
 			}
 		}
 	}
