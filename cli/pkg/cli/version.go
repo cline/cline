@@ -8,6 +8,19 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// VersionString returns the full version information string
+func VersionString() string {
+	return fmt.Sprintf(`Cline CLI
+Cline CLI Version:  %s
+Cline Core Version: %s
+Commit:             %s
+Built:              %s
+Built by:           %s
+Go version:         %s
+OS/Arch:            %s/%s
+`, global.CliVersion, global.Version, global.Commit, global.Date, global.BuiltBy, runtime.Version(), runtime.GOOS, runtime.GOARCH)
+}
+
 // NewVersionCommand creates the version command
 func NewVersionCommand() *cobra.Command {
 	var short bool
@@ -18,21 +31,11 @@ func NewVersionCommand() *cobra.Command {
 		Short:   "Show version information",
 		Long:    `Display version information for the Cline CLI.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Versions are injected at build time via ldflags
 			if short {
 				fmt.Println(global.CliVersion)
 				return nil
 			}
-
-			fmt.Printf("Cline CLI\n")
-			fmt.Printf("Cline CLI Version:  %s\n", global.CliVersion)
-			fmt.Printf("Cline Core Version: %s\n", global.Version)
-			fmt.Printf("Commit:             %s\n", global.Commit)
-			fmt.Printf("Built:              %s\n", global.Date)
-			fmt.Printf("Built by:           %s\n", global.BuiltBy)
-			fmt.Printf("Go version:         %s\n", runtime.Version())
-			fmt.Printf("OS/Arch:            %s/%s\n", runtime.GOOS, runtime.GOARCH)
-
+			fmt.Print(VersionString())
 			return nil
 		},
 	}
