@@ -50,6 +50,7 @@ interface CheckpointManagerCallbacks {
 }
 interface CheckpointManagerInternalState {
 	conversationHistoryDeletedRange?: [number, number]
+	conversationHistoryDeletedRanges?: Array<[number, number]>
 	checkpointTracker?: CheckpointTracker
 	checkpointManagerErrorMessage?: string
 	checkpointTrackerInitPromise?: Promise<CheckpointTracker | undefined>
@@ -57,6 +58,7 @@ interface CheckpointManagerInternalState {
 
 interface CheckpointRestoreStateUpdate {
 	conversationHistoryDeletedRange?: [number, number]
+	conversationHistoryDeletedRanges?: Array<[number, number]>
 	checkpointManagerErrorMessage?: string
 }
 
@@ -363,6 +365,9 @@ export class TaskCheckpointManager implements ICheckpointManager {
 				if (this.state.conversationHistoryDeletedRange !== undefined) {
 					checkpointManagerStateUpdate.conversationHistoryDeletedRange = this.state.conversationHistoryDeletedRange
 				}
+				if (this.state.conversationHistoryDeletedRanges !== undefined) {
+					checkpointManagerStateUpdate.conversationHistoryDeletedRanges = this.state.conversationHistoryDeletedRanges
+				}
 			} else {
 				sendRelinquishControlEvent()
 
@@ -663,6 +668,8 @@ export class TaskCheckpointManager implements ICheckpointManager {
 				// Update conversation history deleted range in our state
 				this.state.conversationHistoryDeletedRange = message.conversationHistoryDeletedRange
 				this.taskState.conversationHistoryDeletedRange = message.conversationHistoryDeletedRange
+				this.state.conversationHistoryDeletedRanges = message.conversationHistoryDeletedRanges
+				this.taskState.conversationHistoryDeletedRanges = message.conversationHistoryDeletedRanges
 
 				const apiConversationHistory = this.services.messageStateHandler.getApiConversationHistory()
 				const newConversationHistory = apiConversationHistory.slice(0, (message.conversationHistoryIndex || 0) + 2) // +1 since this index corresponds to the last user message, and another +1 since slice end index is exclusive
@@ -852,14 +859,6 @@ export class TaskCheckpointManager implements ICheckpointManager {
 		} catch (error) {
 			console.error("Failed to post state to webview after checkpoint error:", error)
 		}
-		// TODO - Future telemetry event capture here
-	}
-
-	/**
-	 * Updates the conversation history deleted range
-	 */
-	updateConversationHistoryDeletedRange(range: [number, number] | undefined): void {
-		this.state.conversationHistoryDeletedRange = range
 		// TODO - Future telemetry event capture here
 	}
 

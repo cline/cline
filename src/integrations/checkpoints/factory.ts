@@ -46,6 +46,7 @@ type BuildArgs = {
 
 	// initial state for single-root
 	initialConversationHistoryDeletedRange?: [number, number]
+	initialConversationHistoryDeletedRanges?: Array<[number, number]>
 	initialCheckpointManagerErrorMessage?: string
 
 	stateManager: StateManager
@@ -69,6 +70,7 @@ export function buildCheckpointManager(args: BuildArgs): ICheckpointManager {
 		cancelTask,
 		postStateToWebview,
 		initialConversationHistoryDeletedRange,
+		initialConversationHistoryDeletedRanges,
 		initialCheckpointManagerErrorMessage,
 		stateManager,
 	} = args
@@ -99,6 +101,7 @@ export function buildCheckpointManager(args: BuildArgs): ICheckpointManager {
 		},
 		{
 			conversationHistoryDeletedRange: initialConversationHistoryDeletedRange,
+			conversationHistoryDeletedRanges: initialConversationHistoryDeletedRanges,
 			checkpointManagerErrorMessage: initialCheckpointManagerErrorMessage,
 		},
 	)
