@@ -323,6 +323,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	useEffect(() => {
 		// Early return if conditions aren't met
 		// Don't process queue if there's an API error (clineAsk === "api_req_failed")
+		// Don't process queue during command_output - wait for command to finish
+		// Don't process queue during mistake_limit_reached - user must make a decision
+		// Don't process queue during condense - user is reviewing conversation summary
+		// Don't process queue during report_bug - user is filing a bug report
 		// Don't process if already processing (prevents race condition)
 		// Don't process if messages is empty - this means user clicked "New Task" and we shouldn't
 		// auto-start with queued messages (the queue clearing effect hasn't taken effect yet due to
@@ -331,6 +335,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			sendingDisabled ||
 			messageQueue.length === 0 ||
 			clineAsk === "api_req_failed" ||
+			clineAsk === "command_output" ||
+			clineAsk === "mistake_limit_reached" ||
+			clineAsk === "condense" ||
+			clineAsk === "report_bug" ||
 			isProcessingQueueRef.current ||
 			messages.length === 0
 		) {
