@@ -187,12 +187,15 @@ async function getInstallDirectory({ name }: Platform) {
 	switch (name) {
 		case "win":
 			return (
-				(process.env.APPDATA && path.join(process.env.APPDATA, ".cline", "cli")) ||
+				(process.env.APPDATA && path.join(process.env.APPDATA, ".cline", ".cli")) ||
 				path.join(homedir(), "AppData", "Roaming", ".cline", ".cli")
 			)
 		case "darwin":
 		case "linux":
-			return process.env.XDG_CONFIG_HOME || path.join(homedir(), ".cline", ".cli")
+			return (
+				(process.env.XDG_CONFIG_HOME && path.join(process.env.XDG_CONFIG_HOME, ".cline", ".cli")) ||
+				path.join(homedir(), ".cline", ".")
+			)
 		default:
 			throw new Error(`Unhandled operating system: ${name}\n\nPlease report this error to support@cline.bot or on github!`)
 	}
@@ -297,7 +300,7 @@ async function ensureDirectory(directory: string) {
 async function copyStandalone(installDirectory: string) {
 	const standaloneDir: string = path.resolve(ROOT_DIR, "dist-standalone")
 	try {
-		await fs.cp(standaloneDir, installDirectory, { recursive: true })
+		await fs.cp(standaloneDir, path.resolve(installDirectory, "dist-standalone"), { recursive: true })
 	} catch (error) {
 		throw new Error(`Failed to copy standalone package files: ${error}`)
 	}
@@ -306,7 +309,7 @@ async function copyStandalone(installDirectory: string) {
 async function copyPlatformModules({ name, arch }: Platform, installDirectory: string) {
 	const moduleDir: string = path.resolve(ROOT_DIR, "dist-standalone", "binaries", `${name}-${arch}`, "node_modules")
 	try {
-		await fs.cp(moduleDir, installDirectory, { recursive: true })
+		await fs.cp(moduleDir, path.resolve(installDirectory, "dist-standalone", "node_modules"), { recursive: true })
 	} catch (error) {
 		throw new Error(`Failed to copy platform module files for ${name}-${arch}: ${error}`)
 	}
@@ -327,9 +330,12 @@ async function copyBinaries({ name, arch }: Platform, installDirectory: string) 
 				break
 			case "darwin":
 			case "linux":
-				await fs.cp(path.resolve(ROOT_DIR, "cli", "bin", `cline`), path.resolve(installDirectory, "bin", "cline"))
 				await fs.cp(
-					path.resolve(ROOT_DIR, "cli", "bin", `cline-host`),
+					path.resolve(ROOT_DIR, "cli", "bin", `cline-${name}-${arch}`),
+					path.resolve(installDirectory, "bin", "cline"),
+				)
+				await fs.cp(
+					path.resolve(ROOT_DIR, "cli", "bin", `cline-host-${name}-${arch}`),
 					path.resolve(installDirectory, "bin", "cline-host"),
 				)
 				break
@@ -342,7 +348,7 @@ async function copyBinaries({ name, arch }: Platform, installDirectory: string) 
 function linkSystemNode(installDirectory: string): Promise<string> {
 	return new Promise(async (resolve) => {
 		try {
-			await fs.symlink(path.resolve(process.argv[0]), path.resolve(installDirectory, "bin", "node"))
+			await fs.cp(path.resolve(process.argv[0]), path.resolve(installDirectory, "bin", "node"))
 			const nodev = execSync("node -v", { cwd: path.resolve(installDirectory, "bin") }).toString()
 			resolve(nodev)
 		} catch (error: any) {
@@ -351,7 +357,7 @@ function linkSystemNode(installDirectory: string): Promise<string> {
 				resolve(nodev)
 				return
 			}
-			throw new Error(`Unable to link node: ${error}`)
+			throw new Error(`Unable to copy node: ${error}`)
 		}
 	})
 }
@@ -460,22 +466,6 @@ async function configurePATH({ name }: Platform, installDirectory: string) {
 	}
 }
 
-async function isElevated({ name }: Platform): Promise<boolean> {
-	try {
-		switch (name) {
-			case "win":
-				await execSync("fltmc")
-				return true
-			case "darwin":
-			case "linux":
-				return (process.getuid && process.getuid() === 0) || false
-		}
-	} catch (_error) {
-		throw new Error("This script requires an elevated terminal to run. Please run this using elevated permissions!")
-	}
-	return false
-}
-
 async function installLocal() {
 	logStep("1", "Checking operating system...")
 	// Detect OS
@@ -484,10 +474,6 @@ async function installLocal() {
 	// Validate support
 	await ValidateOS(platform)
 	logSuccess(`Operating System: ${platform.name}-${platform.arch} is supported.`)
-	const elevated = await isElevated(platform)
-	if (!elevated) {
-		throw new Error("This script requires an elevated terminal to run. Please run this using elevated permissions!")
-	}
 	// Get install directory
 	logStep("3", "Getting install directory...")
 	const installDirectory = await getInstallDirectory(platform)
