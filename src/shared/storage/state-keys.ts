@@ -20,6 +20,7 @@ import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { LanguageModelChatSelector } from "vscode"
+import { BlobStoreSettings } from "./ClineBlobStorage"
 
 // ============================================================================
 // SINGLE SOURCE OF TRUTH FOR STORAGE KEYS
@@ -57,6 +58,7 @@ const REMOTE_CONFIG_EXTRA_FIELDS = {
 	remoteGlobalWorkflows: { default: undefined as GlobalInstructionsFile[] | undefined },
 	blockPersonalRemoteMCPServers: { default: false as boolean },
 	openTelemetryOtlpHeaders: { default: undefined as Record<string, string> | undefined },
+	blobStoreConfig: { default: undefined as BlobStoreSettings | undefined },
 } satisfies FieldDefinitions
 
 const GLOBAL_STATE_FIELDS = {
