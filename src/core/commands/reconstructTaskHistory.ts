@@ -189,6 +189,7 @@ async function reconstructTaskHistoryItem(taskId: string): Promise<HistoryItem |
 			size: taskInfo.size,
 			isFavorited: taskInfo.isFavorited,
 			conversationHistoryDeletedRange: taskInfo.conversationHistoryDeletedRange,
+			conversationHistoryDeletedRanges: taskInfo.conversationHistoryDeletedRanges,
 		}
 
 		return historyItem
@@ -209,6 +210,7 @@ interface TaskInfo {
 	size?: number
 	isFavorited?: boolean
 	conversationHistoryDeletedRange?: [number, number]
+	conversationHistoryDeletedRanges?: Array<[number, number]>
 }
 
 function extractTaskInformation(clineMessages: ClineMessage[], metadata: any): TaskInfo {

@@ -34,6 +34,7 @@ export class TaskState {
 
 	// Context and history
 	conversationHistoryDeletedRange?: [number, number]
+	conversationHistoryDeletedRanges?: Array<[number, number]>
 
 	// Tool execution flags
 	didRejectTool = false
