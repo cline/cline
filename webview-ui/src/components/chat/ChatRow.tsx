@@ -62,9 +62,6 @@ import SearchResultsDisplay from "./SearchResultsDisplay"
 import { ThinkingRow } from "./ThinkingRow"
 import UserMessage from "./UserMessage"
 
-// State type for api_req_started rendering
-type ApiReqState = "pre" | "thinking" | "error" | "final"
-
 const HEADER_CLASSNAMES = "flex items-center gap-2.5 mb-3"
 
 interface ChatRowProps {

@@ -127,7 +127,6 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 	apiReqStreamingFailedMessage,
 	cost,
 	reasoningContent,
-	responseStarted,
 	clineMessages,
 	mode,
 	handleToggle,
@@ -138,15 +137,8 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 	const hasError = !!(apiRequestFailedMessage || apiReqStreamingFailedMessage)
 	const hasCost = cost != null
 	const hasReasoning = !!reasoningContent
-	const hasResponseStarted = !!responseStarted
 
 	const apiReqState: ApiReqState = hasError ? "error" : hasCost ? "final" : hasReasoning ? "thinking" : "pre"
-
-	// While reasoning is streaming, keep the Brain ThinkingBlock exactly as-is.
-	// Once response content starts (any text/tool/command), collapse into a compact
-	// "🧠 Thinking" row that can be expanded to show the reasoning only.
-	const showStreamingThinking = hasReasoning && !hasResponseStarted && !hasError && !hasCost
-	const showCollapsedThinking = hasReasoning && !showStreamingThinking
 
 	// Find all exploratory tool activities that are currently in flight.
 	// Only show tools between the previous completed API request and the current incomplete one.
@@ -193,11 +185,11 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 			)}
 			{reasoningContent && (
 				<ThinkingRow
-					isExpanded={isExpanded || showStreamingThinking || showCollapsedThinking}
+					isExpanded={isExpanded}
 					isVisible={true}
 					onToggle={handleToggle}
 					reasoningContent={reasoningContent}
-					showTitle={false}
+					showTitle={true}
 				/>
 			)}
 
