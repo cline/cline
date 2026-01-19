@@ -7,6 +7,13 @@ import path from "path"
 export const LOCK_TEXT_SYMBOL = "\u{1F512}"
 
 /**
+ * Built-in protected paths that should ALWAYS be ignored
+ * regardless of .clineignore configuration.
+ * These are critical system directories that should never be modified.
+ */
+const PROTECTED_PATHS = [".git", ".github"]
+
+/**
  * Controls LLM access to files by enforcing ignore patterns.
  * Designed to be instantiated once in Cline.ts and passed to file manipulation services.
  * Uses the 'ignore' library to support standard .gitignore syntax in .clineignore files.
@@ -152,14 +159,23 @@ export class ClineIgnoreController {
 	 * @returns true if file is accessible, false if ignored
 	 */
 	validateAccess(filePath: string): boolean {
-		// Always allow access if .clineignore does not exist
-		if (!this.clineIgnoreContent) {
-			return true
-		}
 		try {
 			// Normalize path to be relative to cwd and use forward slashes
 			const absolutePath = path.resolve(this.cwd, filePath)
 			const relativePath = path.relative(this.cwd, absolutePath).toPosix()
+
+			// Check if path is in built-in protected list FIRST
+			// This ensures critical directories are never accessible, even without .clineignore
+			for (const protectedPath of PROTECTED_PATHS) {
+				if (relativePath === protectedPath || relativePath.startsWith(protectedPath + "/")) {
+					return false
+				}
+			}
+
+			// If .clineignore doesn't exist, allow access to non-protected paths
+			if (!this.clineIgnoreContent) {
+				return true
+			}
 
 			// Ignore expects paths to be path.relative()'d
 			return !this.ignoreInstance.ignores(relativePath)
