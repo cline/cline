@@ -278,6 +278,7 @@ message Settings {
   optional int32 open_telemetry_log_batch_timeout = 170;
   optional int32 open_telemetry_log_max_queue_size = 171;
   optional bool worktrees_enabled = 172;
+  optional string open_ai_native_base_url = 173;
 }
 
 message DictationSettings {
