@@ -103,7 +103,7 @@ export class VoiceTranscriptionService {
 
 	async transcribeAudio(audioBase64: string, language?: string): Promise<{ text?: string; error?: string }> {
 		try {
-			Logger.info("Transcribing audio with Cline transcription service...")
+			Logger.log("Transcribing audio with Cline transcription service...")
 
 			// Check if using organization account for telemetry
 			const authService = AuthService.getInstance()
@@ -112,7 +112,7 @@ export class VoiceTranscriptionService {
 
 			const result = await this.clineAccountService.transcribeAudio(audioBase64, language)
 
-			Logger.info("Transcription successful")
+			Logger.log("Transcription successful")
 
 			// Capture telemetry with account type - use dynamic import to avoid circular dependency
 			const { telemetryService } = await import("@/services/telemetry")

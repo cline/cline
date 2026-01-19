@@ -1,4 +1,7 @@
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { PLATFORM_CONFIG, PlatformType } from "../../../config/platform.config"
+import { FileServiceClient } from "../../../services/grpc-client"
+import { Button } from "../../ui/button"
 import Section from "../Section"
 
 interface AboutSectionProps {
@@ -45,6 +48,39 @@ const AboutSection = ({ version, renderSectionHeader }: AboutSectionProps) => {
 						{" • "}
 						<VSCodeLink href="https://cline.bot/">https://cline.bot</VSCodeLink>
 					</p>
+
+					{PLATFORM_CONFIG.type === PlatformType.VSCODE && (
+						<>
+							<h3 className="text-md font-semibold">Logs</h3>
+							<p className="text-sm text-(--vscode-descriptionForeground)">
+								Cline writes detailed logs to help diagnose issues. Each session creates a separate log file. If
+								you encounter an error, these logs can be shared with the Cline team for troubleshooting.
+							</p>
+							<p className="text-xs text-(--vscode-descriptionForeground)">Old logs are automatically removed.</p>
+
+							<div className="flex flex-col gap-2 max-w-md">
+								<Button
+									className="w-full whitespace-normal min-h-[32px]"
+									onClick={() => FileServiceClient.openLogFile({})}
+									variant="secondary">
+									Current Log
+								</Button>
+								<p className="text-xs text-(--vscode-descriptionForeground) -mt-1 ml-1">
+									View the log file for this session
+								</p>
+
+								<Button
+									className="w-full whitespace-normal min-h-[32px]"
+									onClick={() => FileServiceClient.openLogsFolder({})}
+									variant="secondary">
+									All Logs
+								</Button>
+								<p className="text-xs text-(--vscode-descriptionForeground) -mt-1 ml-1">
+									Browse all session logs in your file manager
+								</p>
+							</div>
+						</>
+					)}
 				</div>
 			</Section>
 		</div>

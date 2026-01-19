@@ -18,7 +18,7 @@ describe("WorkspaceResolver", () => {
 
 	beforeEach(() => {
 		resolver = new WorkspaceResolver()
-		loggerStub = sinon.stub(Logger, "debug")
+		loggerStub = sinon.stub(Logger, "log")
 		originalEnv = process.env.MULTI_ROOT_TRACE
 	})
 

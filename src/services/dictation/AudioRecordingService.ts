@@ -43,7 +43,6 @@ export class AudioRecordingService {
 		if (this.outputFile && fs.existsSync(this.outputFile)) {
 			try {
 				fs.unlinkSync(this.outputFile)
-				Logger.info("Temporary audio file cleaned up")
 			} catch (error) {
 				Logger.warn("Failed to cleanup temporary audio file: " + (error instanceof Error ? error.message : String(error)))
 			} finally {
@@ -60,7 +59,6 @@ export class AudioRecordingService {
 			return
 		}
 
-		Logger.info("Terminating recording process...")
 		this.recordingProcess.kill("SIGINT")
 
 		// Wait for the process to finish with timeout
@@ -72,7 +70,6 @@ export class AudioRecordingService {
 
 			this.recordingProcess?.on("exit", (code) => {
 				clearTimeout(timeoutId)
-				Logger.info(`Recording process exited with code: ${code}`)
 				resolve()
 			})
 		})
@@ -96,7 +93,6 @@ export class AudioRecordingService {
 		try {
 			// Defensive cleanup before starting - ensures clean state
 			if (this.recordingProcess || this.outputFile) {
-				Logger.info("Performing pre-recording cleanup of stale resources...")
 				await this.performCleanup()
 			}
 
@@ -114,14 +110,11 @@ export class AudioRecordingService {
 			const tempDir = os.tmpdir()
 			this.outputFile = path.join(tempDir, `cline_recording_${Date.now()}.webm`)
 
-			Logger.info("Starting audio recording...")
-
 			// Get the recording program path
 			const recordProgram = this.getRecordProgram()
 			if (!recordProgram) {
 				return { success: false, error: "Recording program not found" }
 			}
-			Logger.info(`Using recording program: ${recordProgram.path}`)
 
 			// Set up recording arguments
 			const args = recordProgram.getArgs(this.outputFile)
@@ -150,7 +143,6 @@ export class AudioRecordingService {
 				}
 			})
 
-			Logger.info("Audio recording started successfully")
 			return { success: true }
 		} catch (error) {
 			await this.performCleanup()
@@ -165,8 +157,6 @@ export class AudioRecordingService {
 			if (!this.isRecording) {
 				return { success: false, error: "Not currently recording" }
 			}
-
-			Logger.info("Stopping audio recording...")
 
 			// Terminate the process but keep the file for reading
 			await this.terminateProcess()
@@ -186,7 +176,6 @@ export class AudioRecordingService {
 			// Clean up temporary file after reading
 			await this.cleanupTempFile()
 
-			Logger.info("Audio recording stopped and converted to base64")
 			return { success: true, audioBase64 }
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
@@ -205,12 +194,9 @@ export class AudioRecordingService {
 				return { success: false, error: "Not currently recording" }
 			}
 
-			Logger.info("Canceling audio recording...")
-
 			// Perform full cleanup including file deletion
 			await this.performCleanup()
 
-			Logger.info("Audio recording canceled successfully")
 			return { success: true }
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)

@@ -26,6 +26,9 @@ service WindowService {
   // Opens a file in the IDE.
   rpc openFile(OpenFileRequest) returns (OpenFileResponse);
 
+  // Reveals a file or folder in the OS file manager (Finder, Explorer, etc.)
+  rpc revealInFileManager(RevealInFileManagerRequest) returns (RevealInFileManagerResponse);
+
   // Opens the host settings UI, optionally focusing a specific query/section.
   rpc openSettings(OpenSettingsRequest) returns (OpenSettingsResponse);
 
@@ -129,6 +132,12 @@ message OpenFileRequest {
 }
 
 message OpenFileResponse {}
+
+message RevealInFileManagerRequest {
+  string file_path = 1;
+}
+
+message RevealInFileManagerResponse {}
 
 message OpenSettingsRequest {
   // Optional query to focus a particular settings section/key.
