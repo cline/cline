@@ -16,7 +16,7 @@ export const TelemetryBanner: React.FC = () => {
 
 	const handleOpenSettings = useCallback(() => {
 		handleClose()
-		navigateToSettings()
+		navigateToSettings("general")
 	}, [handleClose, navigateToSettings])
 
 	return (
