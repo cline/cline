@@ -1,6 +1,9 @@
 import {
+	ActivatedConditionalRule,
 	getRemoteRulesTotalContentWithMetadata,
 	getRuleFilesTotalContentWithMetadata,
+	RULE_SOURCE_PREFIX,
+	RuleLoadResultWithInstructions,
 	synchronizeRuleToggles,
 } from "@core/context/instructions/user-instructions/rule-helpers"
 import { formatResponse } from "@core/prompts/responses"
@@ -11,30 +14,30 @@ import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import path from "path"
 import { Controller } from "@/core/controller"
-import type { RuleEvaluationContext } from "./rule-conditionals"
+import { parseYamlFrontmatter } from "./frontmatter"
+import { evaluateRuleConditionals, type RuleEvaluationContext } from "./rule-conditionals"
 
 export const getGlobalClineRules = async (
 	globalClineRulesFilePath: string,
 	toggles: ClineRulesToggles,
 	opts?: { evaluationContext?: RuleEvaluationContext },
-): Promise<{
-	instructions?: string
-	activatedConditionalRules: Array<{ name: string; matchedConditions: Record<string, string[]> }>
-}> => {
+): Promise<RuleLoadResultWithInstructions> => {
 	let combinedContent = ""
-	const activatedConditionalRules: Array<{ name: string; matchedConditions: Record<string, string[]> }> = []
+	const activatedConditionalRules: ActivatedConditionalRule[] = []
 
 	// 1. Get file-based rules
 	if (await fileExistsAtPath(globalClineRulesFilePath)) {
 		if (await isDirectory(globalClineRulesFilePath)) {
 			try {
 				const rulesFilePaths = await readDirectory(globalClineRulesFilePath)
+				// Note: ruleNamePrefix explicitly set to "global" for clarity (matches the default)
 				const rulesFilesTotal = await getRuleFilesTotalContentWithMetadata(
 					rulesFilePaths,
 					globalClineRulesFilePath,
 					toggles,
 					{
 						evaluationContext: opts?.evaluationContext,
+						ruleNamePrefix: "global",
 					},
 				)
 				if (rulesFilesTotal.content) {
@@ -78,14 +81,11 @@ export const getLocalClineRules = async (
 	cwd: string,
 	toggles: ClineRulesToggles,
 	opts?: { evaluationContext?: RuleEvaluationContext },
-): Promise<{
-	instructions?: string
-	activatedConditionalRules: Array<{ name: string; matchedConditions: Record<string, string[]> }>
-}> => {
+): Promise<RuleLoadResultWithInstructions> => {
 	const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
 
 	let instructions: string | undefined
-	const activatedConditionalRules: Array<{ name: string; matchedConditions: Record<string, string[]> }> = []
+	const activatedConditionalRules: ActivatedConditionalRule[] = []
 
 	if (await fileExistsAtPath(clineRulesFilePath)) {
 		if (await isDirectory(clineRulesFilePath)) {
@@ -98,6 +98,7 @@ export const getLocalClineRules = async (
 
 				const rulesFilesTotal = await getRuleFilesTotalContentWithMetadata(rulesFilePaths, cwd, toggles, {
 					evaluationContext: opts?.evaluationContext,
+					ruleNamePrefix: "workspace",
 				})
 				if (rulesFilesTotal.content) {
 					instructions = formatResponse.clineRulesLocalDirectoryInstructions(cwd, rulesFilesTotal.content)
@@ -111,10 +112,12 @@ export const getLocalClineRules = async (
 				if (clineRulesFilePath in toggles && toggles[clineRulesFilePath] !== false) {
 					const raw = (await fs.readFile(clineRulesFilePath, "utf8")).trim()
 					if (raw) {
-						const { parseYamlFrontmatter } = await import("./frontmatter")
-						const { evaluateRuleConditionals } = await import("./rule-conditionals")
+						// Keep single-file .clinerules behavior consistent with directory/remote rules:
+						// - Parse YAML frontmatter (fail-open on parse errors)
+						// - Evaluate conditionals against the request's evaluation context
 						const parsed = parseYamlFrontmatter(raw)
 						if (parsed.hadFrontmatter && parsed.parseError) {
+							// Fail-open: preserve the raw contents so the LLM can still see the author's intent.
 							instructions = formatResponse.clineRulesLocalFileInstructions(cwd, raw)
 						} else {
 							const { passed, matchedConditions } = evaluateRuleConditionals(
@@ -124,7 +127,10 @@ export const getLocalClineRules = async (
 							if (passed) {
 								instructions = formatResponse.clineRulesLocalFileInstructions(cwd, parsed.body.trim())
 								if (parsed.hadFrontmatter && Object.keys(matchedConditions).length > 0) {
-									activatedConditionalRules.push({ name: GlobalFileNames.clineRules, matchedConditions })
+									activatedConditionalRules.push({
+										name: `${RULE_SOURCE_PREFIX.workspace}:${GlobalFileNames.clineRules}`,
+										matchedConditions,
+									})
 								}
 							}
 						}

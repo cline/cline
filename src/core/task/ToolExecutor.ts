@@ -19,6 +19,12 @@ import { StateManager } from "../storage/StateManager"
 import { WorkspaceRootManager } from "../workspace"
 import { ToolResponse } from "."
 import { MessageStateHandler } from "./message-state"
+import {
+	extractPathsFromApplyPatch,
+	extractPathsFromWriteTool,
+	normalizeToWorkspaceRelative,
+	validateAndNormalizePath,
+} from "./rulePathIntentUtils"
 import { TaskState } from "./TaskState"
 import { AutoApprove } from "./tools/autoApprove"
 import { AccessMcpResourceHandler } from "./tools/handlers/AccessMcpResourceHandler"
@@ -318,33 +324,20 @@ export class ToolExecutor {
 			const addCandidate = (candidate: string | undefined) => {
 				if (!candidate) return
 
-				// If it's an absolute path, attempt to map to workspace-relative using known roots.
-				const isAbs = candidate.startsWith("/") || /^[A-Za-z]:\\/.test(candidate)
-				if (isAbs && this.workspaceManager) {
-					for (const root of this.workspaceManager.getRoots()) {
-						if (!root?.path) continue
-						const absPosix = candidate.replace(/\\/g, "/")
-						const rootPosix = root.path.replace(/\\/g, "/").replace(/\/$/, "")
-						if (!absPosix.startsWith(rootPosix + "/")) continue
-						const relPath: string = absPosix.slice(rootPosix.length + 1)
-						if (relPath) {
-							candidate = relPath
-							break
-						}
-					}
+				if (this.workspaceManager) {
+					candidate = normalizeToWorkspaceRelative(candidate, this.workspaceManager.getRoots())
 				}
 
-				const posix = candidate.replace(/\\/g, "/").replace(/^\//, "")
-				if (!posix || posix === "/") return
-				if (posix.includes("..")) return
-				this.taskState.rulePathIntentCandidates.add(posix)
+				const normalized = validateAndNormalizePath(candidate)
+				if (!normalized) return
+				this.taskState.rulePathIntentCandidates.add(normalized)
 			}
 
 			// write_to_file, replace_in_file, new_rule share the WriteToFile handler and use `path`/`absolutePath`.
 			if (block.name === "write_to_file" || block.name === "replace_in_file" || block.name === "new_rule") {
-				addCandidate((block.params as any)?.path)
-				// In some contexts we may have absolutePath (rare in VS Code, more likely in CLI)
-				addCandidate((block.params as any)?.absolutePath)
+				for (const p of extractPathsFromWriteTool(block.params as any)) {
+					addCandidate(p)
+				}
 				return
 			}
 
@@ -352,13 +345,8 @@ export class ToolExecutor {
 			if (block.name === "apply_patch") {
 				const raw = (block.params as any)?.input
 				if (typeof raw !== "string" || !raw) return
-				const patchBody = raw
-				const fileHeaderRegex = /^\*\*\* (?:Add|Update|Delete) File: (.+?)(?:\n|$)/gm
-				let m: RegExpExecArray | null
-				while ((m = fileHeaderRegex.exec(patchBody))) {
-					const filePath = (m[1] || "").trim()
-					if (!filePath) continue
-					addCandidate(filePath)
+				for (const p of extractPathsFromApplyPatch(raw)) {
+					addCandidate(p)
 				}
 				return
 			}
