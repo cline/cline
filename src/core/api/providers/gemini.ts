@@ -114,7 +114,18 @@ export class GeminiHandler implements ApiHandler {
 		const contents = messages.map(convertAnthropicMessageToGemini)
 
 		// Configure thinking budget if supported
-		const _thinkingBudget = this.options.thinkingBudgetTokens ?? 0
+		// Default behavior based on model: https://ai.google.dev/gemini-api/docs/thinking#supported-models
+		let _thinkingBudget: number
+		if (this.options.thinkingBudgetTokens !== undefined) {
+			_thinkingBudget = this.options.thinkingBudgetTokens
+		} else {
+			// Gemini 2.5 Pro and Flash require dynamic thinking by default (thinkingBudget of 0 is invalid)
+			if (modelId === "gemini-2.5-pro" || modelId === "gemini-2.5-flash") {
+				_thinkingBudget = -1 // Default to dynamic thinking
+			} else {
+				_thinkingBudget = 0 // Default to off for other models like Flash Lite
+			}
+		}
 		const maxBudget = info.thinkingConfig?.maxBudget ?? 24576
 		const thinkingBudget = Math.min(_thinkingBudget, maxBudget)
 		// When ThinkingLevel is defined, thinking budget cannot be zero
