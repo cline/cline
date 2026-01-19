@@ -5,6 +5,7 @@ import cloneDeep from "clone-deep"
 import fs from "fs/promises"
 import path from "path"
 import { StateManager } from "@/core/storage/StateManager"
+import { Logger } from "@/services/logging/Logger"
 import {
 	ANTHROPIC_MAX_THINKING_BUDGET,
 	CLAUDE_SONNET_1M_TIERS,
@@ -238,12 +239,12 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 				}
 			}
 		} else {
-			console.error("Invalid response from OpenRouter API")
+			Logger.error("Invalid response from OpenRouter API")
 		}
 		await fs.writeFile(openRouterModelsFilePath, JSON.stringify(models))
-		console.log("OpenRouter models fetched and saved", JSON.stringify(models).slice(0, 300))
+		Logger.log("OpenRouter models fetched and saved", JSON.stringify(models).slice(0, 300))
 	} catch (error) {
-		console.error("Error fetching OpenRouter models:", error)
+		Logger.error("Error fetching OpenRouter models:", error)
 
 		// If we failed to fetch models, try to read cached models
 		const cachedModels = await controller.readOpenRouterModels()

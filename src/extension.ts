@@ -110,7 +110,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.PlusButton, async () => {
-			console.log("[DEBUG] plusButtonClicked")
+			Logger.log("[DEBUG] plusButtonClicked")
 
 			const sidebarInstance = WebviewProvider.getInstance()
 			await sidebarInstance.controller.clearTask()
@@ -176,7 +176,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		const url = decodeURIComponent(uri.toString())
 		const success = await SharedUriHandler.handleUri(url)
 		if (!success) {
-			console.warn("Extension URI handler: Failed to process URI:", uri.toString())
+			Logger.warn("Extension URI handler: Failed to process URI:", uri.toString())
 		}
 	}
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
@@ -224,11 +224,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				await sendAddToInputEvent(`Terminal output:\n\`\`\`\n${terminalContents}\n\`\`\``)
 
-				console.log("addSelectedTerminalOutputToChat", terminalContents, terminal.name)
+				Logger.log("addSelectedTerminalOutputToChat", terminalContents, terminal.name)
 			} catch (error) {
 				// Ensure clipboard is restored even if an error occurs
 				await writeTextToClipboard(tempCopyBuffer)
-				console.error("Error getting terminal contents:", error)
+				Logger.error("Error getting terminal contents:", error)
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message: "Failed to get terminal contents",
@@ -446,7 +446,7 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 function setupHostProvider(context: ExtensionContext) {
-	console.log("Setting up vscode host providers...")
+	Logger.log("Setting up vscode host providers...")
 
 	const createWebview = () => new VscodeWebviewProvider(context)
 	const createDiffView = () => new VscodeDiffViewProvider()
@@ -538,7 +538,7 @@ if (IS_DEV && IS_DEV !== "false") {
 	const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(DEV_WORKSPACE_FOLDER, "src/**/*"))
 
 	watcher.onDidChange(({ scheme, path }) => {
-		console.info(`${scheme} ${path} changed. Reloading VSCode...`)
+		Logger.info(`${scheme} ${path} changed. Reloading VSCode...`)
 
 		vscode.commands.executeCommand("workbench.action.reloadWindow")
 	})

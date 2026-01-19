@@ -35,7 +35,7 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	try {
 		await StateManager.initialize(context)
 	} catch (error) {
-		console.error("[Controller] CRITICAL: Failed to initialize StateManager - extension may not function properly:", error)
+		Logger.error("[Controller] CRITICAL: Failed to initialize StateManager - extension may not function properly:", error)
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: "Failed to initialize Cline's application state. Please restart the extension.",
@@ -117,7 +117,7 @@ async function showVersionUpdateAnnouncement(context: vscode.ExtensionContext) {
 		}
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
-		console.error(`Error during post-update actions: ${errorMessage}, Stack trace: ${error.stack}`)
+		Logger.error(`Error during post-update actions: ${errorMessage}, Stack trace: ${error.stack}`)
 	}
 }
 

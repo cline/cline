@@ -3,6 +3,7 @@ import fs from "fs/promises"
 import path from "path"
 import { ensureSkillsDirectoryExists } from "@/core/storage/disk"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/services/logging/Logger"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { fileExistsAtPath } from "@/utils/fs"
 import { Controller } from ".."
@@ -38,7 +39,7 @@ export async function createSkillFile(controller: Controller, request: CreateSki
 	const { skillName, isGlobal } = request
 
 	if (!skillName || typeof skillName !== "string" || typeof isGlobal !== "boolean") {
-		console.error("createSkillFile: Missing or invalid parameters", {
+		Logger.error("createSkillFile: Missing or invalid parameters", {
 			skillName: typeof skillName === "string" ? skillName : `Invalid: ${typeof skillName}`,
 			isGlobal: typeof isGlobal === "boolean" ? isGlobal : `Invalid: ${typeof isGlobal}`,
 		})

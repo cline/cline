@@ -1,5 +1,6 @@
 import { ApiConfiguration, ModelInfo, QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { Logger } from "@/services/logging/Logger"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { ClineTool } from "@/shared/tools"
 import { AIhubmixHandler } from "./providers/aihubmix"
@@ -473,7 +474,7 @@ export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): Ap
 			}
 		}
 	} catch (error) {
-		console.error("buildApiHandler error:", error)
+		Logger.error("buildApiHandler error:", error)
 	}
 
 	return createHandlerForProvider(apiProvider, options, mode)

@@ -1,5 +1,6 @@
 import { HostProvider } from "@/hosts/host-provider"
 import CheckpointTracker from "@/integrations/checkpoints/CheckpointTracker"
+import { Logger } from "@/services/logging/Logger"
 import { findLast } from "@/shared/array"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { MessageStateHandler } from "./message-state"
@@ -10,17 +11,17 @@ export async function showChangedFilesDiff(
 	messageTs: number,
 	seeNewChangesSinceLastTaskCompletion: boolean,
 ) {
-	console.log("presentMultifileDiff", messageTs)
+	Logger.log("presentMultifileDiff", messageTs)
 	const clineMessages = messageStateHandler.getClineMessages()
 	const messageIndex = clineMessages.findIndex((m) => m.ts === messageTs)
 	const message = clineMessages[messageIndex]
 	if (!message) {
-		console.error("Message not found")
+		Logger.error("Message not found")
 		return
 	}
 	const lastCheckpointHash = message.lastCheckpointHash
 	if (!lastCheckpointHash) {
-		console.error("No checkpoint hash found")
+		Logger.error("No checkpoint hash found")
 		return
 	}
 

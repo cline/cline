@@ -126,7 +126,7 @@ export class ClineHandler implements ApiHandler {
 				// openrouter returns an error object instead of the openai sdk throwing an error
 				if ("error" in chunk) {
 					const error = chunk.error as OpenRouterErrorResponse["error"]
-					console.error(`Cline API Error: ${error?.code} - ${error?.message}`)
+					Logger.error(`Cline API Error: ${error?.code} - ${error?.message}`)
 					// Include metadata in the error message if available
 					const metadataStr = error.metadata ? `\nMetadata: ${JSON.stringify(error.metadata, null, 2)}` : ""
 					throw new Error(`Cline API Error ${error.code}: ${error.message}${metadataStr}`)
@@ -143,7 +143,7 @@ export class ClineHandler implements ApiHandler {
 					const choiceWithError = choice as any
 					if (choiceWithError.error) {
 						const error = choiceWithError.error
-						console.error(`Cline Mid-Stream Error: ${error.code || error.type || "Unknown"} - ${error.message}`)
+						Logger.error(`Cline Mid-Stream Error: ${error.code || error.type || "Unknown"} - ${error.message}`)
 						throw new Error(`Cline Mid-Stream Error: ${error.code || error.type || "Unknown"} - ${error.message}`)
 					} else {
 						throw new Error(
@@ -217,14 +217,14 @@ export class ClineHandler implements ApiHandler {
 
 			// Fallback to generation endpoint if usage chunk not returned
 			if (!didOutputUsage) {
-				console.warn("Cline API did not return usage chunk, fetching from generation endpoint")
+				Logger.warn("Cline API did not return usage chunk, fetching from generation endpoint")
 				const apiStreamUsage = await this.getApiStreamUsage()
 				if (apiStreamUsage) {
 					yield apiStreamUsage
 				}
 			}
 		} catch (error) {
-			console.error("Cline API Error:", error)
+			Logger.error("Cline API Error:", error)
 			throw error
 		}
 	}
@@ -260,7 +260,7 @@ export class ClineHandler implements ApiHandler {
 				}
 			} catch (error) {
 				// ignore if fails
-				console.error("Error fetching cline generation details:", error)
+				Logger.error("Error fetching cline generation details:", error)
 			}
 		}
 		return undefined

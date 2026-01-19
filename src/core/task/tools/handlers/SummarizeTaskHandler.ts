@@ -7,6 +7,7 @@ import { StateManager } from "@core/storage/StateManager"
 import { resolveWorkspacePath } from "@core/workspace"
 import { extractFileContent } from "@integrations/misc/extract-file-content"
 import { ClineSayTool } from "@shared/ExtensionMessage"
+import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
@@ -74,7 +75,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 					// Hook completed successfully - capture context modification if provided
 					if (result.contextModification) {
 						hookContextModification = result.contextModification
-						console.log(`[PreCompact] Hook provided context modification for task ${config.taskId}`)
+						Logger.log(`[PreCompact] Hook provided context modification for task ${config.taskId}`)
 					}
 				} catch (error) {
 					// Check if this is a hook cancellation error
@@ -94,7 +95,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 						"error",
 						`PreCompact hook failed, continuing with compaction: ${error instanceof Error ? error.message : String(error)}`,
 					)
-					console.error("[PreCompact] Hook execution failed, continuing with compaction:", error)
+					Logger.error("[PreCompact] Hook execution failed, continuing with compaction:", error)
 				}
 			}
 
@@ -190,7 +191,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 							}
 						} catch (error) {
 							// File read failed - log but continue with other files
-							console.error(`Failed to read ${relPath} during summarization:`, error)
+							Logger.error(`Failed to read ${relPath} during summarization:`, error)
 						}
 					}
 					// If not auto-approved, skip silently

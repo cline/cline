@@ -1,4 +1,5 @@
 import { EventMessage, PostHog } from "posthog-node"
+import { Logger } from "@/services/logging/Logger"
 import { posthogConfig } from "@/shared/services/config/posthog-config"
 
 export class PostHogClientProvider {
@@ -62,6 +63,6 @@ export class PostHogClientProvider {
 	}
 
 	public async dispose(): Promise<void> {
-		await this.client?.shutdown().catch((error) => console.error("Error shutting down PostHog client:", error))
+		await this.client?.shutdown().catch((error) => Logger.error("Error shutting down PostHog client:", error))
 	}
 }

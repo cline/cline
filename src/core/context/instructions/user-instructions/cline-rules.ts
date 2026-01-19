@@ -7,6 +7,7 @@ import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import path from "path"
 import { Controller } from "@/core/controller"
+import { Logger } from "@/services/logging/Logger"
 
 export const getGlobalClineRules = async (globalClineRulesFilePath: string, toggles: ClineRulesToggles) => {
 	let combinedContent = ""
@@ -21,10 +22,10 @@ export const getGlobalClineRules = async (globalClineRulesFilePath: string, togg
 					combinedContent = rulesFilesTotalContent
 				}
 			} catch {
-				console.error(`Failed to read .clinerules directory at ${globalClineRulesFilePath}`)
+				Logger.error(`Failed to read .clinerules directory at ${globalClineRulesFilePath}`)
 			}
 		} else {
-			console.error(`${globalClineRulesFilePath} is not a directory`)
+			Logger.error(`${globalClineRulesFilePath} is not a directory`)
 		}
 	}
 
@@ -73,7 +74,7 @@ export const getLocalClineRules = async (cwd: string, toggles: ClineRulesToggles
 					clineRulesFileInstructions = formatResponse.clineRulesLocalDirectoryInstructions(cwd, rulesFilesTotalContent)
 				}
 			} catch {
-				console.error(`Failed to read .clinerules directory at ${clineRulesFilePath}`)
+				Logger.error(`Failed to read .clinerules directory at ${clineRulesFilePath}`)
 			}
 		} else {
 			try {
@@ -84,7 +85,7 @@ export const getLocalClineRules = async (cwd: string, toggles: ClineRulesToggles
 					}
 				}
 			} catch {
-				console.error(`Failed to read .clinerules file at ${clineRulesFilePath}`)
+				Logger.error(`Failed to read .clinerules file at ${clineRulesFilePath}`)
 			}
 		}
 	}

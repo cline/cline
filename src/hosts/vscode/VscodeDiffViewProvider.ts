@@ -2,6 +2,7 @@ import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import * as path from "path"
 import * as vscode from "vscode"
 import { DecorationController } from "@/hosts/vscode/DecorationController"
+import { Logger } from "@/services/logging/Logger"
 import { arePathsEqual } from "@/utils/path"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
@@ -28,7 +29,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 				try {
 					await vscode.window.tabGroups.close(tab)
 				} catch (error) {
-					console.warn("Tab close retry failed:", error.message)
+					Logger.warn("Tab close retry failed:", error.message)
 				}
 			}
 			this.documentWasOpen = true
@@ -208,7 +209,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 				try {
 					await vscode.window.tabGroups.close(tab)
 				} catch (error) {
-					console.warn("Tab close retry failed:", error.message)
+					Logger.warn("Tab close retry failed:", error.message)
 				}
 			}
 		}

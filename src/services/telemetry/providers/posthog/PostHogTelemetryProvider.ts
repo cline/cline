@@ -2,6 +2,7 @@ import { PostHog } from "posthog-node"
 import { HostProvider } from "@/hosts/host-provider"
 import { getErrorLevelFromString } from "@/services/error"
 import { getDistinctId, setDistinctId } from "@/services/logging/distinctId"
+import { Logger } from "@/services/logging/Logger"
 import { Setting } from "@/shared/proto/index.host"
 import { posthogConfig } from "../../../../shared/services/config/posthog-config"
 import type { ClineAccountUserInfo } from "../../../auth/AuthService"
@@ -195,7 +196,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 			try {
 				await this.client.shutdown()
 			} catch (error) {
-				console.error("Error shutting down PostHog client:", error)
+				Logger.error("Error shutting down PostHog client:", error)
 			}
 		}
 	}

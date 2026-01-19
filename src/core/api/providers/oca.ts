@@ -134,11 +134,11 @@ export class OcaHandler implements ApiHandler {
 				const data: { cost: number } = await response.json()
 				return data.cost
 			} else {
-				console.error("Error calculating spend:", response.statusText)
+				Logger.error("Error calculating spend:", response.statusText)
 				return undefined
 			}
 		} catch (error) {
-			console.error("Error calculating spend:", error)
+			Logger.error("Error calculating spend:", error)
 			return undefined
 		}
 	}

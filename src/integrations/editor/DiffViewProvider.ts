@@ -7,6 +7,7 @@ import * as fs from "fs/promises"
 import * as iconv from "iconv-lite"
 import { HostProvider } from "@/hosts/host-provider"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
+import { Logger } from "@/services/logging/Logger"
 import { DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
 import { detectEncoding } from "../misc/extract-text"
 import { openFile } from "../misc/open-file"
@@ -352,15 +353,15 @@ export abstract class DiffViewProvider {
 			await this.saveDocument()
 			await this.closeAllDiffViews()
 			await fs.rm(this.absolutePath, { force: true })
-			console.log(`File ${this.absolutePath} has been deleted.`)
+			Logger.log(`File ${this.absolutePath} has been deleted.`)
 
 			// Remove only the directories we created, in reverse order
 			for (let i = this.createdDirs.length - 1; i >= 0; i--) {
 				try {
 					await fs.rmdir(this.createdDirs[i])
-					console.log(`Directory ${this.createdDirs[i]} has been deleted.`)
+					Logger.log(`Directory ${this.createdDirs[i]} has been deleted.`)
 				} catch (error) {
-					console.log(`Could not delete directory ${this.createdDirs[i]}`, error)
+					Logger.log(`Could not delete directory ${this.createdDirs[i]}`, error)
 				}
 			}
 		} else {
@@ -372,7 +373,7 @@ export abstract class DiffViewProvider {
 			await this.replaceText(this.originalContent ?? "", { startLine: 0, endLine: lineCount }, undefined)
 
 			await this.saveDocument()
-			console.log(`File ${this.absolutePath} has been reverted to its original content.`)
+			Logger.log(`File ${this.absolutePath} has been reverted to its original content.`)
 			if (this.documentWasOpen) {
 				openFile(this.absolutePath, true)
 			}
@@ -414,9 +415,9 @@ export abstract class DiffViewProvider {
 		// Delete the file
 		try {
 			await fs.rm(fileLocation, { force: true })
-			console.log(`File ${fileLocation} has been deleted.`)
+			Logger.log(`File ${fileLocation} has been deleted.`)
 		} catch (error) {
-			console.error(`Failed to delete file ${fileLocation}:`, error)
+			Logger.error(`Failed to delete file ${fileLocation}:`, error)
 		}
 
 		this.isEditing = false

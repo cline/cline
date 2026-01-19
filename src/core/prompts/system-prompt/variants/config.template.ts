@@ -10,6 +10,8 @@
  * 3. Use the builder pattern for type safety
  * 4. Run validation to ensure correctness
  */
+
+import { Logger } from "@/services/logging/Logger"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { PromptVariant } from ".."
@@ -85,12 +87,12 @@ export const config: Omit<PromptVariant, "id"> = createVariant(ModelFamily.GENER
 // Compile-time validation (optional but recommended)
 const validationResult = validateVariant({ ...config, id: "template" }, { strict: true })
 if (!validationResult.isValid) {
-	console.error("Variant configuration validation failed:", validationResult.errors)
+	Logger.error("Variant configuration validation failed:", validationResult.errors)
 	throw new Error(`Invalid variant configuration: ${validationResult.errors.join(", ")}`)
 }
 
 if (validationResult.warnings.length > 0) {
-	console.warn("Variant configuration warnings:", validationResult.warnings)
+	Logger.warn("Variant configuration warnings:", validationResult.warnings)
 }
 
 // Export type information for better IDE support

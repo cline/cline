@@ -4,6 +4,7 @@ import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import * as os from "os"
 import * as path from "path"
+import { Logger } from "@/services/logging/Logger"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
@@ -76,7 +77,7 @@ export class QwenCodeHandler implements ApiHandler {
 			const credsStr = await fs.readFile(keyFile, "utf-8")
 			return JSON.parse(credsStr)
 		} catch (error) {
-			console.error(
+			Logger.error(
 				`Error reading or parsing credentials file at ${getQwenCachedCredentialPath(this.options.qwenCodeOauthPath)}`,
 			)
 			throw new Error(`Failed to load Qwen OAuth credentials: ${error}`)

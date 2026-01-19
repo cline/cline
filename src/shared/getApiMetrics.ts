@@ -1,3 +1,4 @@
+import { Logger } from "@/services/logging/Logger"
 import { ClineMessage } from "./ExtensionMessage"
 
 interface ApiMetrics {
@@ -56,7 +57,7 @@ export function getApiMetrics(messages: ClineMessage[]): ApiMetrics {
 					result.totalCost += cost
 				}
 			} catch (error) {
-				console.error("Error parsing JSON:", error)
+				Logger.error("Error parsing JSON:", error)
 			}
 		}
 	})

@@ -10,6 +10,7 @@ import {
 } from "@shared/api"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { Logger } from "@/services/logging/Logger"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
@@ -134,7 +135,7 @@ export class QwenHandler implements ApiHandler {
 				try {
 					yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 				} catch (error) {
-					console.error("Error processing tool call delta:", error, delta.tool_calls)
+					Logger.error("Error processing tool call delta:", error, delta.tool_calls)
 				}
 			}
 

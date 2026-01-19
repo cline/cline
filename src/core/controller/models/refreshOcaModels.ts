@@ -88,7 +88,7 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 					reasoningEffortOptions: modelInfo.reasoning_effort_options || [],
 				})
 			}
-			console.log("OCA models fetched", models)
+			Logger.log("OCA models fetched", models)
 
 			// Fetch current config to determine existing model selections
 			const apiConfiguration = controller.stateManager.getApiConfiguration()
@@ -154,7 +154,7 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 			})
 			await controller.postStateToWebview?.()
 		} else {
-			console.error("Invalid response from OCA API")
+			Logger.error("Invalid response from OCA API")
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: `Failed to fetch OCA models. Please check your configuration from ${baseUrl}`,
@@ -170,7 +170,7 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 			userMsg = `Unable to access the OCA backend. Is your endpoint and proxy configured properly? Please see the troubleshooting guide.`
 		} else {
 			userMsg = err.message
-			console.error(userMsg, err)
+			Logger.error(userMsg, err)
 		}
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,

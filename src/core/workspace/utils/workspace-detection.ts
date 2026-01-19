@@ -1,4 +1,5 @@
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/services/logging/Logger"
 import { EmptyRequest } from "@/shared/proto/cline/common"
 
 /**
@@ -13,7 +14,7 @@ import { EmptyRequest } from "@/shared/proto/cline/common"
  * @example
  * ```typescript
  * const isMultiRoot = await isMultiRootWorkspace()
- * console.log(`User has ${isMultiRoot ? 'multiple' : 'single'} workspace folders open`)
+ * Logger.log(`User has ${isMultiRoot ? 'multiple' : 'single'} workspace folders open`)
  * ```
  */
 export async function isMultiRootWorkspace(): Promise<boolean> {
@@ -21,7 +22,7 @@ export async function isMultiRootWorkspace(): Promise<boolean> {
 		const workspacePaths = await HostProvider.workspace.getWorkspacePaths(EmptyRequest.create({}))
 		return workspacePaths.paths.length > 1
 	} catch (error) {
-		console.error("Failed to detect multi-root workspace", error)
+		Logger.error("Failed to detect multi-root workspace", error)
 		return false
 	}
 }

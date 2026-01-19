@@ -1,5 +1,6 @@
 import deepEqual from "fast-deep-equal"
 import * as path from "path"
+import { Logger } from "@/services/logging/Logger"
 import { Diagnostic, DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
 import { getCwd } from "@/utils/path"
 
@@ -70,7 +71,7 @@ function severityToString(severity: DiagnosticSeverity): string {
 		case DiagnosticSeverity.DIAGNOSTIC_HINT:
 			return "Hint"
 		default:
-			console.warn("Unhandled diagnostic severity level:", severity)
+			Logger.warn("Unhandled diagnostic severity level:", severity)
 			return "Diagnostic"
 	}
 }

@@ -207,7 +207,7 @@ async function applyRemoteOTELConfig(transformed: Partial<RemoteConfigFields>, t
 			}
 		}
 	} catch (err) {
-		console.error("[REMOTE CONFIG DEBUG] Failed to apply remote OTEL config", err)
+		Logger.error("[REMOTE CONFIG DEBUG] Failed to apply remote OTEL config", err)
 	}
 }
 
@@ -289,7 +289,7 @@ export async function applyRemoteConfig(
 			// Store current remote servers list for next sync to detect removals
 			stateManager.setRemoteConfigField("previousRemoteMCPServers", remoteConfig.remoteMCPServers)
 		} catch (error) {
-			console.error("[RemoteConfig] Failed to sync remote MCP servers to settings:", error)
+			Logger.error("[RemoteConfig] Failed to sync remote MCP servers to settings:", error)
 			// Continue with other config application even if MCP sync fails
 		}
 	}

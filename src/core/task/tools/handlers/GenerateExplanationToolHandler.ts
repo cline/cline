@@ -12,6 +12,7 @@ import { formatResponse } from "@core/prompts/responses"
 import fs from "fs/promises"
 import path from "path"
 import simpleGit from "simple-git"
+import { Logger } from "@/services/logging/Logger"
 import type { ClineSayGenerateExplanation } from "@/shared/ExtensionMessage"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
@@ -279,7 +280,7 @@ export class GenerateExplanationToolHandler implements IToolHandler, IPartialBlo
 			)
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Unknown error"
-			console.error("Error in generate_explanation:", errorMessage)
+			Logger.error("Error in generate_explanation:", errorMessage)
 			await config.callbacks.say(
 				"generate_explanation",
 				createExplanationMessage(

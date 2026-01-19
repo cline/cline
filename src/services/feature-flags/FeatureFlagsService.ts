@@ -1,6 +1,7 @@
 import { clearOnboardingModelsCache, getClineOnboardingModels } from "@/core/controller/models/getClineOnboardingModels"
 import type { OnboardingModel } from "@/shared/proto/cline/state"
 import { FEATURE_FLAGS, FeatureFlag, FeatureFlagDefaultValue } from "@/shared/services/feature-flags/feature-flags"
+import { Logger } from "../logging/Logger"
 import type { FeatureFlagPayload, IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
 
 // Default cache time-to-live (TTL) for feature flags - an hour
@@ -62,7 +63,7 @@ export class FeatureFlagsService {
 			const value = payload ?? flagValue ?? FeatureFlagDefaultValue[flagName] ?? undefined
 			return value
 		} catch (error) {
-			console.error(`Error checking if feature flag ${flagName} is enabled:`, error)
+			Logger.error(`Error checking if feature flag ${flagName} is enabled:`, error)
 			return FeatureFlagDefaultValue[flagName] ?? false
 		}
 	}
@@ -123,7 +124,7 @@ export class FeatureFlagsService {
 		try {
 			return (await this.provider.getFeatureFlagPayload(flagName)) ?? null
 		} catch (error) {
-			console.error(`Error retrieving feature flag payload for ${flagName}:`, error)
+			Logger.error(`Error retrieving feature flag payload for ${flagName}:`, error)
 			return null
 		}
 	}

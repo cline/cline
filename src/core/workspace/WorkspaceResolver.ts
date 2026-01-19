@@ -82,7 +82,7 @@ export class WorkspaceResolver {
 			this.trackUsage(context, relativePath)
 
 			if (this.traceEnabled) {
-				console.debug(`[MULTI-ROOT-TRACE] ${context}: resolving "${relativePath}" against "${cwd}"`)
+				Logger.debug(`[MULTI-ROOT-TRACE] ${context}: resolving "${relativePath}" against "${cwd}"`)
 			}
 		}
 
@@ -242,7 +242,7 @@ export class WorkspaceResolver {
 		const result = path.basename(filePath)
 
 		if (this.traceEnabled) {
-			console.debug(`[MULTI-ROOT-TRACE] ${context}: getting basename for "${filePath}"`)
+			Logger.debug(`[MULTI-ROOT-TRACE] ${context}: getting basename for "${filePath}"`)
 		}
 
 		return result

@@ -1,6 +1,7 @@
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import getFolderSize from "get-folder-size"
 import Mutex from "p-mutex"
+import { Logger } from "@/services/logging/Logger"
 import { findLastIndex } from "@/shared/array"
 import { combineApiRequests } from "@/shared/combineApiRequests"
 import { combineCommandSequences } from "@/shared/combineCommandSequences"
@@ -101,7 +102,7 @@ export class MessageStateHandler {
 				// returns # of bytes, size/1000/1000 = MB
 				taskDirSize = await getFolderSize.loose(taskDir)
 			} catch (error) {
-				console.error("Failed to get task directory size:", taskDir, error)
+				Logger.error("Failed to get task directory size:", taskDir, error)
 			}
 			const cwd = await getCwd(getDesktopDir())
 			await this.updateTaskHistory({
@@ -123,7 +124,7 @@ export class MessageStateHandler {
 				modelId: lastModelInfo?.modelInfo?.modelId,
 			})
 		} catch (error) {
-			console.error("Failed to save cline messages:", error)
+			Logger.error("Failed to save cline messages:", error)
 		}
 	}
 

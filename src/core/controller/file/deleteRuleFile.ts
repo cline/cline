@@ -2,6 +2,7 @@ import { deleteRuleFile as deleteRuleFileImpl } from "@core/context/instructions
 import { getWorkspaceBasename } from "@core/workspace"
 import { RuleFile, RuleFileRequest } from "@shared/proto/cline/file"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/services/logging/Logger"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Controller } from ".."
 
@@ -20,7 +21,7 @@ export async function deleteRuleFile(controller: Controller, request: RuleFileRe
 		!request.type ||
 		typeof request.type !== "string"
 	) {
-		console.error("deleteRuleFile: Missing or invalid parameters", {
+		Logger.error("deleteRuleFile: Missing or invalid parameters", {
 			isGlobal: typeof request.isGlobal === "boolean" ? request.isGlobal : `Invalid: ${typeof request.isGlobal}`,
 			rulePath: typeof request.rulePath === "string" ? request.rulePath : `Invalid: ${typeof request.rulePath}`,
 			type: typeof request.type === "string" ? request.type : `Invalid: ${typeof request.type}`,

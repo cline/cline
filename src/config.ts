@@ -44,7 +44,6 @@ class ClineEndpoint {
 				this.environment = Environment.production
 				break
 		}
-		console.info("Cline environment updated: ", this.environment)
 	}
 
 	public getEnvironment(): EnvironmentConfig {

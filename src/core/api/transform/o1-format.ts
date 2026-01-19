@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
+import { Logger } from "@/services/logging/Logger"
 
 const o1SystemPrompt = (systemPrompt: string) => `
 # System Prompt
@@ -317,7 +318,7 @@ function parseToolCall(toolName: string, content: string): ToolCall | null {
 
 	// Validate required parameters
 	if (!validateToolInput(toolName, tool_input)) {
-		console.error(`Invalid tool call for ${toolName}:`, content)
+		Logger.error(`Invalid tool call for ${toolName}:`, content)
 		return null
 	}
 

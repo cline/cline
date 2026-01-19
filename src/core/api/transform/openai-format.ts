@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
+import { Logger } from "@/services/logging/Logger"
 import {
 	ClineAssistantRedactedThinkingBlock,
 	ClineAssistantThinkingBlock,
@@ -424,7 +425,7 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 						try {
 							parsedInput = JSON.parse(toolCall.function?.arguments || "{}")
 						} catch (error) {
-							console.error("Failed to parse tool arguments:", error)
+							Logger.error("Failed to parse tool arguments:", error)
 						}
 						return {
 							type: "tool_use",
@@ -439,7 +440,7 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 			return anthropicMessage
 		}
 	} catch (error) {
-		console.error("Error converting OpenAI message to Anthropic format:", error)
+		Logger.error("Error converting OpenAI message to Anthropic format:", error)
 	}
 
 	return anthropicMessage

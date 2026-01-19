@@ -11,6 +11,7 @@ import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
 import { BedrockModelId, bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
 import { ExtensionRegistryInfo } from "@/registry"
+import { Logger } from "@/services/logging/Logger"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
@@ -449,7 +450,7 @@ export class AwsBedrockHandler implements ApiHandler {
 							}
 						}
 					} catch (error) {
-						console.error("Error parsing Deepseek response chunk:", error)
+						Logger.error("Error parsing Deepseek response chunk:", error)
 						// Propagate the error by yielding a text response with error information
 						yield {
 							type: "text",
@@ -550,7 +551,7 @@ export class AwsBedrockHandler implements ApiHandler {
 
 				for await (const chunk of response.stream) {
 					// Debug logging to see actual response structure
-					// console.log("Bedrock chunk:", JSON.stringify(chunk, null, 2))
+					// Logger.log("Bedrock chunk:", JSON.stringify(chunk, null, 2))
 
 					// Handle thinking response in additionalModelResponseFields (LangChain format)
 					const metadata = chunk.metadata as ExtendedMetadata | undefined
@@ -854,7 +855,7 @@ export class AwsBedrockHandler implements ApiHandler {
 						}
 
 						// Log unsupported content types for debugging
-						console.warn(`Unsupported content type: ${(item as ContentItem).type}`)
+						Logger.warn(`Unsupported content type: ${(item as ContentItem).type}`)
 						return null
 					})
 					.filter((item): item is ContentBlock => item !== null)
@@ -912,7 +913,7 @@ export class AwsBedrockHandler implements ApiHandler {
 				},
 			}
 		} catch (error) {
-			console.error("Failed to process image content:", error)
+			Logger.error("Failed to process image content:", error)
 			// Return a text content indicating the error instead of null
 			// This ensures users are aware of the issue
 			return {
@@ -1111,7 +1112,7 @@ export class AwsBedrockHandler implements ApiHandler {
 				}
 			}
 		} catch (error) {
-			console.error("Error with OpenAI model via Converse API:", error)
+			Logger.error("Error with OpenAI model via Converse API:", error)
 
 			// Try to extract more detailed error information
 			let errorMessage = "Failed to process OpenAI model request"
@@ -1246,7 +1247,7 @@ export class AwsBedrockHandler implements ApiHandler {
 				}
 			}
 		} catch (error) {
-			console.error("Error with Qwen model via Converse API:", error)
+			Logger.error("Error with Qwen model via Converse API:", error)
 
 			// Try to extract more detailed error information
 			let errorMessage = "Failed to process Qwen model request"

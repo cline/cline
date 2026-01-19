@@ -9,6 +9,7 @@ import {
 	ThinkingLevel,
 } from "@google/genai"
 import { GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
+import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
@@ -332,7 +333,7 @@ export class GeminiHandler implements ApiHandler {
 					throughputTokensPerSec: throughputTokensPerSecSdk,
 				})
 			} else {
-				console.warn("GeminiHandler: ulid not available for telemetry in createMessage.")
+				Logger.warn("GeminiHandler: ulid not available for telemetry in createMessage.")
 			}
 		}
 	}
@@ -408,7 +409,7 @@ export class GeminiHandler implements ApiHandler {
 			trace.cacheRead = { price: cacheReadsPrice, tokens: cacheReadTokens ?? 0, cost: cacheReadCost }
 		}
 
-		// console.log(`[GeminiHandler] calculateCost -> ${totalCost}`, trace)
+		// Logger.log(`[GeminiHandler] calculateCost -> ${totalCost}`, trace)
 		return totalCost
 	}
 
@@ -450,13 +451,13 @@ export class GeminiHandler implements ApiHandler {
 			})
 
 			if (response.totalTokens === undefined) {
-				console.warn("Gemini token counting returned undefined, using fallback")
+				Logger.warn("Gemini token counting returned undefined, using fallback")
 				return this.estimateTokens(content)
 			}
 
 			return response.totalTokens
 		} catch (error) {
-			console.warn("Gemini token counting failed, using fallback", error)
+			Logger.warn("Gemini token counting failed, using fallback", error)
 			return this.estimateTokens(content)
 		}
 	}
@@ -475,7 +476,7 @@ export class GeminiHandler implements ApiHandler {
 					const jsonStr = JSON.stringify(block)
 					return total + jsonStr.length
 				} catch (e) {
-					console.warn("Failed to stringify block for token estimation", e)
+					Logger.warn("Failed to stringify block for token estimation", e)
 					return total
 				}
 			}

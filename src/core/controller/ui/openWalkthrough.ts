@@ -2,6 +2,7 @@ import type { EmptyRequest } from "@shared/proto/cline/common"
 import { Empty } from "@shared/proto/cline/common"
 import * as vscode from "vscode"
 import { ExtensionRegistryInfo } from "@/registry"
+import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
 import type { Controller } from "../index"
 
@@ -20,7 +21,7 @@ export async function openWalkthrough(_controller: Controller, _request: EmptyRe
 		telemetryService.captureButtonClick("webview_openWalkthrough")
 		return Empty.create({})
 	} catch (error) {
-		console.error(`Failed to open walkthrough: ${error}`)
+		Logger.error(`Failed to open walkthrough: ${error}`)
 		throw error
 	}
 }

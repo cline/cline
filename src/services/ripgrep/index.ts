@@ -3,6 +3,7 @@ import * as childProcess from "child_process"
 import * as path from "path"
 import * as readline from "readline"
 import { getBinaryLocation } from "@/utils/fs"
+import { Logger } from "../logging/Logger"
 
 /*
 This file provides functionality to perform regex searches on files using ripgrep.
@@ -140,7 +141,7 @@ export async function regexSearchFiles(
 					}
 				}
 			} catch (error) {
-				console.error("Error parsing ripgrep output:", error)
+				Logger.error("Error parsing ripgrep output:", error)
 			}
 		}
 	})
