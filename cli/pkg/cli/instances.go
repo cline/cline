@@ -92,12 +92,12 @@ func newInstanceKillCommand() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if global.Clients == nil {
+			if global.Instances == nil {
 				return fmt.Errorf("clients not initialized")
 			}
 
 			ctx := cmd.Context()
-			registry := global.Clients.GetRegistry()
+			registry := global.Instances.GetRegistry()
 
 			if killAllCLI {
 				return killAllCLIInstances(ctx, registry)
@@ -112,7 +112,7 @@ func newInstanceKillCommand() *cobra.Command {
 	return cmd
 }
 
-func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) error {
+func killAllCLIInstances(ctx context.Context, registry *global.InstanceRegistry) error {
 	// Get all instances from registry
 	instances, err := registry.ListInstancesCleaned(ctx)
 	if err != nil {
@@ -135,7 +135,7 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 					cliInstances = append(cliInstances, instance)
 				} else {
 					skippedNonCLI++
-					fmt.Printf("⊘ Skipping %s instance: %s\n", platform, instance.Address)
+					fmt.Printf("⊘ Skipping %s instance: %s\n", platform, instance.CoreAddress)
 				}
 			}
 		}
@@ -160,16 +160,16 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 
 	// Kill all CLI instances
 	for _, instance := range cliInstances {
-		result := killInstanceProcess(ctx, registry, instance.Address)
+		result := killInstanceProcess(ctx, registry, instance.CoreAddress)
 		killResults = append(killResults, result)
 
 		if result.err != nil {
-			fmt.Printf("✗ Failed to kill %s: %v\n", instance.Address, result.err)
+			fmt.Printf("✗ Failed to kill %s: %v\n", instance.CoreAddress, result.err)
 		} else if result.alreadyDead {
-			fmt.Printf("⚠ Instance %s appears to be already dead\n", instance.Address)
+			fmt.Printf("⚠ Instance %s appears to be already dead\n", instance.CoreAddress)
 		} else {
-			fmt.Printf("✓ Killed %s (PID %d)\n", instance.Address, result.pid)
-			killedAddresses[instance.Address] = true
+			fmt.Printf("✓ Killed %s (PID %d)\n", instance.CoreAddress, result.pid)
+			killedAddresses[instance.CoreAddress] = true
 		}
 	}
 
@@ -190,8 +190,8 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 			// Check if any of the killed instances are still in the registry
 			stillPresent := []string{}
 			for _, remaining := range remainingInstances {
-				if killedAddresses[remaining.Address] {
-					stillPresent = append(stillPresent, remaining.Address)
+				if killedAddresses[remaining.CoreAddress] {
+					stillPresent = append(stillPresent, remaining.CoreAddress)
 				}
 			}
 
@@ -247,7 +247,7 @@ type killResult struct {
 	err         error
 }
 
-func killInstanceProcess(ctx context.Context, registry *global.ClientRegistry, address string) killResult {
+func killInstanceProcess(ctx context.Context, registry *global.InstanceRegistry, address string) killResult {
 	// Get gRPC client and process info
 	client, err := registry.GetClient(ctx, address)
 	if err != nil {
@@ -276,12 +276,12 @@ func newInstanceListCommand() *cobra.Command {
 		Short:   "List all registered Cline instances",
 		Long:    `List all registered Cline instances with their status and connection details.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if global.Clients == nil {
+			if global.Instances == nil {
 				return fmt.Errorf("clients not initialized")
 			}
 
 			ctx := cmd.Context()
-			registry := global.Clients.GetRegistry()
+			registry := global.Instances.GetRegistry()
 
 			// Load, cleanup stale local entries, and update health
 			instances, err := registry.ListInstancesCleaned(ctx)
@@ -310,7 +310,7 @@ func newInstanceListCommand() *cobra.Command {
 			var rows []instanceRow
 			for _, instance := range instances {
 				isDefault := ""
-				if instance.Address == defaultInstance {
+				if instance.CoreAddress == defaultInstance {
 					isDefault = "✓"
 				}
 
@@ -324,7 +324,7 @@ func newInstanceListCommand() *cobra.Command {
 				platform := platformNA
 				if instance.Status == grpc_health_v1.HealthCheckResponse_SERVING {
 					// Get PID from core
-					if client, err := registry.GetClient(ctx, instance.Address); err == nil {
+					if client, err := registry.GetClient(ctx, instance.CoreAddress); err == nil {
 						if processInfo, err := client.State.GetProcessInfo(ctx, &cline.EmptyRequest{}); err == nil {
 							pid = fmt.Sprintf("%d", processInfo.ProcessId)
 							// Update version from RPC if available
@@ -341,7 +341,7 @@ func newInstanceListCommand() *cobra.Command {
 				}
 
 				rows = append(rows, instanceRow{
-					address:   instance.Address,
+					address:   instance.CoreAddress,
 					status:    instance.Status.String(),
 					version:   instance.Version,
 					lastSeen:  lastSeen,
@@ -428,11 +428,11 @@ func newInstanceDefaultCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			address := args[0]
 
-			if global.Clients == nil {
+			if global.Instances == nil {
 				return fmt.Errorf("clients not initialized")
 			}
 
-			registry := global.Clients.GetRegistry()
+			registry := global.Instances.GetRegistry()
 
 			// Verify the instance exists
 			_, err := registry.GetInstance(address)
@@ -464,34 +464,34 @@ func newInstanceNewCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
-			if global.Clients == nil {
+			if global.Instances == nil {
 				return fmt.Errorf("clients not initialized")
 			}
 
 			fmt.Println("Starting new Cline instance...")
 
-			instance, err := global.Clients.StartNewInstance(ctx)
+			instance, err := global.Instances.StartNewInstance(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to start instance: %w", err)
 			}
 
 			fmt.Printf("Successfully started new instance:\n")
-			fmt.Printf("  Address: %s\n", instance.Address)
+			fmt.Printf("  Address: %s\n", instance.CoreAddress)
 			fmt.Printf("  Core Port: %d\n", instance.CorePort())
 			fmt.Printf("  Host Bridge Port: %d\n", instance.HostPort())
 
-			registry := global.Clients.GetRegistry()
+			registry := global.Instances.GetRegistry()
 
 			// If --default flag provided, set this instance as the default
 			if setDefault {
-				if err := registry.SetDefaultInstance(instance.Address); err != nil {
+				if err := registry.SetDefaultInstance(instance.CoreAddress); err != nil {
 					fmt.Printf("Warning: Failed to set as default: %v\n", err)
 				} else {
 					fmt.Printf("  Status: Set as default instance\n")
 				}
 			} else {
 				// Otherwise, check if EnsureDefaultInstance already set it as default
-				if registry.GetDefaultInstance() == instance.Address {
+				if registry.GetDefaultInstance() == instance.CoreAddress {
 					fmt.Printf("  Status: Default instance\n")
 				}
 			}

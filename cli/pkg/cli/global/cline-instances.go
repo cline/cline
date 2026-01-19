@@ -14,21 +14,20 @@ import (
 	"github.com/cline/grpc-go/cline"
 )
 
-// ClineClients manages Cline instances using the new registry system
-type ClineClients struct {
-	registry *ClientRegistry
+type ClineInstances struct {
+	registry *InstanceRegistry
 }
 
-// NewClineClients creates a new ClineClients instance
-func NewClineClients(configPath string) *ClineClients {
-	registry := NewClientRegistry(configPath)
-	return &ClineClients{
+// NewClineInstances creates a new ClineInstances instance
+func NewClineInstances(configPath string) *ClineInstances {
+	registry := NewInstanceRegistry(configPath)
+	return &ClineInstances{
 		registry: registry,
 	}
 }
 
 // Initialize performs cleanup of stale instances
-func (c *ClineClients) Initialize(ctx context.Context) error {
+func (c *ClineInstances) Initialize(ctx context.Context) error {
 	// Clean up stale entries (direct SQLite operations)
 	_ = c.registry.CleanupStaleInstances(ctx)
 
@@ -36,7 +35,8 @@ func (c *ClineClients) Initialize(ctx context.Context) error {
 }
 
 // StartNewInstance starts a new Cline instance and waits for cline-core to self-register
-func (c *ClineClients) StartNewInstance(ctx context.Context, workspaces ...string) (*common.CoreInstanceInfo, error) {
+// An "instance" is a pair of cline-core and cline-host processes
+func (c *ClineInstances) StartNewInstance(ctx context.Context, workspaces ...string) (*common.CoreInstanceInfo, error) {
 	// Find available ports
 	corePort, hostPort, err := common.FindAvailablePortPair()
 	if err != nil {
@@ -102,7 +102,7 @@ func (c *ClineClients) StartNewInstance(ctx context.Context, workspaces ...strin
 
 	if Config.Verbose {
 		fmt.Println("Services started and registered successfully!")
-		fmt.Printf("  Address: %s\n", instance.Address)
+		fmt.Printf("  Address: %s\n", instance.CoreAddress)
 		fmt.Printf("  Core Port: %d\n", instance.CorePort())
 		fmt.Printf("  Host Bridge Port: %d\n", instance.HostPort())
 		fmt.Printf("  Process PID: %d\n", coreCmd.Process.Pid)
@@ -120,7 +120,7 @@ func (c *ClineClients) StartNewInstance(ctx context.Context, workspaces ...strin
 }
 
 // StartNewInstanceAtPort starts a new Cline instance at the specified port and waits for self-registration
-func (c *ClineClients) StartNewInstanceAtPort(ctx context.Context, corePort int, workspaces ...string) (*common.CoreInstanceInfo, error) {
+func (c *ClineInstances) StartNewInstanceAtPort(ctx context.Context, corePort int, workspaces ...string) (*common.CoreInstanceInfo, error) {
 	// Find available host port (core port + 1000)
 	hostPort := corePort + 1000
 	coreAddress := fmt.Sprintf("localhost:%d", corePort)
@@ -189,7 +189,7 @@ func (c *ClineClients) StartNewInstanceAtPort(ctx context.Context, corePort int,
 
 	if Config.Verbose {
 		fmt.Println("Services started and registered successfully!")
-		fmt.Printf("  Address: %s\n", instance.Address)
+		fmt.Printf("  Address: %s\n", instance.CoreAddress)
 		fmt.Printf("  Core Port: %d\n", instance.CorePort())
 		fmt.Printf("  Host Bridge Port: %d\n", instance.HostPort())
 		fmt.Printf("  Process PID: %d\n", coreCmd.Process.Pid)
@@ -207,12 +207,12 @@ func (c *ClineClients) StartNewInstanceAtPort(ctx context.Context, corePort int,
 }
 
 // GetRegistry returns the client registry
-func (c *ClineClients) GetRegistry() *ClientRegistry {
+func (c *ClineInstances) GetRegistry() *InstanceRegistry {
 	return c.registry
 }
 
 // EnsureInstanceAtAddress ensures an instance exists at the given address, starting one if needed
-func (c *ClineClients) EnsureInstanceAtAddress(ctx context.Context, address string) error {
+func (c *ClineInstances) EnsureInstanceAtAddress(ctx context.Context, address string) error {
 	// Expect host:port everywhere
 	normalized := address
 	if normalized == "" {
@@ -230,7 +230,7 @@ func (c *ClineClients) EnsureInstanceAtAddress(ctx context.Context, address stri
 		return fmt.Errorf("invalid address format %s", address)
 	}
 
-	// Use IPv6-compatible localhost detection
+	//	Use IPv6-compatible localhost detection
 	if common.IsLocalAddress(host) {
 		_, err := c.StartNewInstanceAtPort(ctx, port)
 		if err != nil {
@@ -305,7 +305,7 @@ func startClineHost(hostPort int, workspaces []string) (*exec.Cmd, error) {
 }
 
 // KillInstanceByAddress kills a Cline instance by its address
-func KillInstanceByAddress(ctx context.Context, registry *ClientRegistry, address string) error {
+func KillInstanceByAddress(ctx context.Context, registry *InstanceRegistry, address string) error {
 	// Check if the instance exists in the registry
 	_, err := registry.GetInstance(address)
 	if err != nil {
@@ -355,9 +355,9 @@ func KillInstanceByAddress(ctx context.Context, registry *ClientRegistry, addres
 				defaultInstance := registry.GetDefaultInstance()
 				if defaultInstance == address || defaultInstance == "" {
 					if len(instances) > 0 {
-						if err := registry.SetDefaultInstance(instances[0].Address); err == nil {
+						if err := registry.SetDefaultInstance(instances[0].CoreAddress); err == nil {
 							if Config.Verbose {
-								fmt.Printf("Updated default instance to: %s\n", instances[0].Address)
+								fmt.Printf("Updated default instance to: %s\n", instances[0].CoreAddress)
 							}
 						}
 					}

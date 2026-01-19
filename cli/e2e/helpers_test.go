@@ -117,7 +117,7 @@ func listInstancesJSON(ctx context.Context, t *testing.T) common.InstancesOutput
 
 func hasAddress(in common.InstancesOutput, addr string) bool {
 	for _, it := range in.CoreInstances {
-		if it.Address == addr {
+		if it.CoreAddress == addr {
 			return true
 		}
 	}
@@ -126,7 +126,7 @@ func hasAddress(in common.InstancesOutput, addr string) bool {
 
 func getByAddress(in common.InstancesOutput, addr string) (common.CoreInstanceInfo, bool) {
 	for _, it := range in.CoreInstances {
-		if it.Address == addr {
+		if it.CoreAddress == addr {
 			return it, true
 		}
 	}
@@ -313,7 +313,7 @@ func getCorePIDViaRPC(t *testing.T, address string) int {
 	defer cancel()
 
 	// Get client for the address
-	client, err := global.Clients.GetRegistry().GetClient(ctx, address)
+	client, err := global.Instances.GetRegistry().GetClient(ctx, address)
 	if err != nil {
 		t.Logf("Warning: failed to get client for %s, falling back to lsof: %v", address, err)
 		return getCorePIDViaLsof(t, address)
