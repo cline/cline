@@ -1,5 +1,6 @@
 import * as fs from "node:fs"
 import * as path from "node:path"
+import { SEVEN_DAYS_MS } from "./worker"
 
 /**
  * Sync queue item status.
@@ -297,7 +298,7 @@ export class SyncQueue {
 	 * @param maxAgeMs Maximum age in milliseconds (default: 7 days)
 	 * @returns Number of items cleaned up
 	 */
-	cleanupOldSynced(maxAgeMs: number = 7 * 24 * 60 * 60 * 1000): number {
+	cleanupOldSynced(maxAgeMs: number = SEVEN_DAYS_MS): number {
 		const cutoff = Date.now() - maxAgeMs
 		const keysToRemove = Object.entries(this.data.items)
 			.filter(([_, item]) => item.status === "synced" && item.timestamp < cutoff)
@@ -322,7 +323,7 @@ export class SyncQueue {
 	 * @param maxAgeMs Maximum age for failed items in milliseconds (default: 7 days)
 	 * @returns Number of items cleaned up
 	 */
-	cleanupFailedItems(maxRetries: number = 5, maxAgeMs: number = 7 * 24 * 60 * 60 * 1000): number {
+	cleanupFailedItems(maxRetries: number = 5, maxAgeMs: number = SEVEN_DAYS_MS): number {
 		const cutoff = Date.now() - maxAgeMs
 		const keysToRemove = Object.entries(this.data.items)
 			.filter(([_, item]) => {
