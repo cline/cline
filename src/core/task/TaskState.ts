@@ -17,6 +17,13 @@ export class TaskState {
 	// Map of tool names to their tool_use_id for creating proper ToolResultBlockParam
 	toolUseIdMap: Map<string, string> = new Map()
 
+	/**
+	 * Workspace-relative (POSIX) paths inferred from the assistant's tool calls.
+	 * This represents the model's "intent" to operate on a file path, and is used
+	 * as additional evidence for activating path-scoped Cline Rules on subsequent turns.
+	 */
+	rulePathIntentCandidates: Set<string> = new Set()
+
 	// Presentation locks
 	presentAssistantMessageLocked = false
 	presentAssistantMessageHasPendingUpdates = false
