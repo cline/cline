@@ -26,6 +26,7 @@ import { MistralHandler } from "./providers/mistral"
 import { MoonshotHandler } from "./providers/moonshot"
 import { NebiusHandler } from "./providers/nebius"
 import { NousResearchHandler } from "./providers/nousresearch"
+import { NvidiaNimHandler } from "./providers/nvidia-nim"
 import { OcaHandler } from "./providers/oca"
 import { OllamaHandler } from "./providers/ollama"
 import { OpenAiHandler } from "./providers/openai"
@@ -435,6 +436,13 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				nousResearchApiKey: options.nousResearchApiKey,
 				apiModelId: mode === "plan" ? options.planModeNousResearchModelId : options.actModeNousResearchModelId,
+			})
+		case "nvidia-nim":
+			return new NvidiaNimHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				nvidiaNimApiKey: options.nvidiaNimApiKey,
+				nvidiaNimModelId: mode === "plan" ? options.planModeNvidiaNimModelId : options.actModeNvidiaNimModelId,
+				nvidiaNimBaseUrl: options.nvidiaNimBaseUrl,
 			})
 		default:
 			return new AnthropicHandler({

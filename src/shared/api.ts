@@ -42,6 +42,7 @@ export type ApiProvider =
 	| "minimax"
 	| "hicap"
 	| "nousResearch"
+	| "nvidia-nim"
 
 export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 
@@ -2635,6 +2636,250 @@ export const mistralModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.4,
 		outputPrice: 2.0,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Nvidia NIM
+// https://build.nvidia.com/explore/discover
+// https://docs.api.nvidia.com/nim/reference
+export type NvidiaNimModelId = keyof typeof nvidiaNimModels
+export const nvidiaNimDefaultModelId: NvidiaNimModelId = "meta/llama-3.3-70b-instruct"
+export const nvidiaNimModels = {
+	// Llama Models
+	"meta/llama-3.3-70b-instruct": {
+		maxTokens: 32_768,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.35,
+		outputPrice: 0.4,
+		description: "Meta's Llama 3.3 70B Instruct - High-performance instruction-following model",
+	},
+	"meta/llama-3.1-405b-instruct": {
+		maxTokens: 32_768,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 3.0,
+		description: "Meta's largest Llama 3.1 model with 405B parameters for complex reasoning",
+	},
+	"meta/llama-3.1-70b-instruct": {
+		maxTokens: 32_768,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.35,
+		outputPrice: 0.4,
+		description: "Meta's Llama 3.1 70B Instruct - Balanced performance and efficiency",
+	},
+	"meta/llama-3.1-8b-instruct": {
+		maxTokens: 32_768,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.15,
+		description: "Meta's Llama 3.1 8B Instruct - Fast and efficient for most tasks",
+	},
+	// Mistral Models
+	"mistralai/mistral-large-2-instruct": {
+		maxTokens: 128_000,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 6.0,
+		description: "Mistral's flagship large model with advanced reasoning capabilities",
+	},
+	"mistralai/mistral-small-instruct": {
+		maxTokens: 32_000,
+		contextWindow: 32_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.3,
+		description: "Mistral's efficient small model for cost-effective inference",
+	},
+	"mistralai/codestral-22b-instruct-v0.1": {
+		maxTokens: 32_768,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 0.9,
+		description: "Mistral's specialized coding model with 22B parameters",
+	},
+	// Nvidia Nemotron Models
+	"nvidia/llama-3.1-nemotron-70b-instruct": {
+		maxTokens: 32_768,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.35,
+		outputPrice: 0.4,
+		description: "Nvidia's optimized Llama 3.1 70B with enhanced instruction following",
+	},
+	"nvidia/nemotron-4-340b-instruct": {
+		maxTokens: 4_096,
+		contextWindow: 4_096,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 4.2,
+		outputPrice: 4.2,
+		description: "Nvidia's flagship 340B parameter model for complex tasks",
+	},
+	// Microsoft Phi Models
+	"microsoft/phi-3.5-moe-instruct": {
+		maxTokens: 16_384,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.15,
+		description: "Microsoft's efficient Mixture-of-Experts Phi model",
+	},
+	"microsoft/phi-3-medium-128k-instruct": {
+		maxTokens: 16_384,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.15,
+		description: "Microsoft's Phi-3 Medium with 128K context window",
+	},
+	// Google Gemma Models
+	"google/gemma-2-27b-it": {
+		maxTokens: 8_192,
+		contextWindow: 8_192,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.27,
+		outputPrice: 0.27,
+		description: "Google's Gemma 2 27B instruction-tuned model",
+	},
+	"google/gemma-2-9b-it": {
+		maxTokens: 8_192,
+		contextWindow: 8_192,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.09,
+		outputPrice: 0.09,
+		description: "Google's Gemma 2 9B instruction-tuned model",
+	},
+	// Qwen Models
+	"qwen/qwen2.5-72b-instruct": {
+		maxTokens: 32_768,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.35,
+		outputPrice: 0.4,
+		description: "Alibaba's Qwen 2.5 72B instruction-tuned model",
+	},
+	"qwen/qwen2.5-coder-32b-instruct": {
+		maxTokens: 32_768,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 0.3,
+		description: "Alibaba's Qwen 2.5 Coder specialized for programming tasks",
+	},
+	// IBM Granite Models
+	"ibm/granite-3.1-8b-instruct": {
+		maxTokens: 8_192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.15,
+		description: "IBM's Granite 3.1 8B enterprise-grade model",
+	},
+	"ibm/granite-3.0-8b-instruct": {
+		maxTokens: 8_192,
+		contextWindow: 8_192,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.15,
+		description: "IBM's Granite 3.0 8B enterprise model",
+	},
+	// DeepSeek Models
+	"deepseek-ai/deepseek-coder-6.7b-instruct": {
+		maxTokens: 16_384,
+		contextWindow: 16_384,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.14,
+		outputPrice: 0.14,
+		description: "DeepSeek's specialized coding model with 6.7B parameters",
+	},
+	// Snowflake Arctic Models
+	"snowflake/arctic": {
+		maxTokens: 4_096,
+		contextWindow: 4_096,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 0.3,
+		description: "Snowflake's Arctic enterprise-grade model",
+	},
+	// Writer Models
+	"writer/palmyra-x-004": {
+		maxTokens: 8_192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.375,
+		outputPrice: 0.375,
+		description: "Writer's Palmyra X enterprise model",
+	},
+	// Multimodal Models
+	"meta/llama-3.2-90b-vision-instruct": {
+		maxTokens: 8_192,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.6,
+		outputPrice: 0.6,
+		description: "Meta's Llama 3.2 90B with vision capabilities",
+	},
+	"meta/llama-3.2-11b-vision-instruct": {
+		maxTokens: 8_192,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.2,
+		description: "Meta's Llama 3.2 11B with vision capabilities",
+	},
+	"microsoft/phi-3-vision-128k-instruct": {
+		maxTokens: 16_384,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.15,
+		description: "Microsoft's Phi-3 Vision with 128K context",
+	},
+	"google/paligemma": {
+		maxTokens: 8_192,
+		contextWindow: 8_192,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.2,
+		description: "Google's PaliGemma vision-language model",
+	},
+	"nvidia/vila": {
+		maxTokens: 4_096,
+		contextWindow: 4_096,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.2,
+		description: "Nvidia's VILA vision-language model",
 	},
 } as const satisfies Record<string, ModelInfo>
 
