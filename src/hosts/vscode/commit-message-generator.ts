@@ -3,6 +3,7 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
+import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@/shared/Languages"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { getGitDiff } from "@/utils/git"
 
@@ -12,20 +13,29 @@ import { getGitDiff } from "@/utils/git"
 
 let commitGenerationAbortController: AbortController | undefined
 
-const PROMPT = {
-	system: "You are a helpful assistant that generates informative git commit messages based on git diffs output. Skip preamble and remove all backticks surrounding the commit message.",
-	user: "Notes from developer (ignore if not relevant): {{USER_CURRENT_INPUT}}",
-	instruction: `Based on the provided git diff, generate a concise and descriptive commit message.
+function getPrompt(languageKey: string) {
+	const isNonEnglish = languageKey !== DEFAULT_LANGUAGE_SETTINGS
+	const languageInstruction = isNonEnglish ? `\n5. Write the commit message in ${languageKey} language` : ""
+
+	return {
+		system: `You are a helpful assistant that generates informative git commit messages based on git diffs output. Skip preamble and remove all backticks surrounding the commit message.${isNonEnglish ? ` Write in ${languageKey}.` : ""}`,
+		user: "Notes from developer (ignore if not relevant): {{USER_CURRENT_INPUT}}",
+		instruction: `Based on the provided git diff, generate a concise and descriptive commit message.
 
 The commit message should:
 1. Has a short title (50-72 characters)
 2. The commit message should adhere to the conventional commit format
 3. Describe what was changed and why
-4. Be clear and informative`,
+4. Be clear and informative${languageInstruction}`,
+	}
 }
 
 export async function generateCommitMsg(stateManager: StateManager, scm?: vscode.SourceControl) {
 	try {
+		// Read preferred language setting
+		const preferredLanguageRaw = stateManager.getGlobalSettingsKey("preferredLanguage")
+		const languageKey = getLanguageKey(preferredLanguageRaw as LanguageDisplay)
+
 		const gitExtension = vscode.extensions.getExtension("vscode.git")?.exports
 		if (!gitExtension) {
 			throw new Error("Git extension not found")
@@ -44,11 +54,11 @@ export async function generateCommitMsg(stateManager: StateManager, scm?: vscode
 				throw new Error("Repository not found for provided SCM")
 			}
 
-			await generateCommitMsgForRepository(stateManager, repository)
+			await generateCommitMsgForRepository(stateManager, repository, languageKey)
 			return
 		}
 
-		await orchestrateWorkspaceCommitMsgGeneration(stateManager, git.repositories)
+		await orchestrateWorkspaceCommitMsgGeneration(stateManager, git.repositories, languageKey)
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
 		HostProvider.window.showMessage({
@@ -58,7 +68,7 @@ export async function generateCommitMsg(stateManager: StateManager, scm?: vscode
 	}
 }
 
-async function orchestrateWorkspaceCommitMsgGeneration(stateManager: StateManager, repos: any[]) {
+async function orchestrateWorkspaceCommitMsgGeneration(stateManager: StateManager, repos: any[], languageKey: string) {
 	const reposWithChanges = await filterForReposWithChanges(repos)
 
 	if (reposWithChanges.length === 0) {
@@ -72,7 +82,7 @@ async function orchestrateWorkspaceCommitMsgGeneration(stateManager: StateManage
 	if (reposWithChanges.length === 1) {
 		// Only one repo with changes, generate for it
 		const repo = reposWithChanges[0]
-		await generateCommitMsgForRepository(stateManager, repo)
+		await generateCommitMsgForRepository(stateManager, repo, languageKey)
 		return
 	}
 
@@ -87,14 +97,14 @@ async function orchestrateWorkspaceCommitMsgGeneration(stateManager: StateManage
 		// Generate for all repositories with changes
 		for (const repo of reposWithChanges) {
 			try {
-				await generateCommitMsgForRepository(stateManager, repo)
+				await generateCommitMsgForRepository(stateManager, repo, languageKey)
 			} catch (error) {
 				console.error(`Failed to generate commit message for ${repo.rootUri.fsPath}:`, error)
 			}
 		}
 	} else {
 		// Generate for selected repository
-		await generateCommitMsgForRepository(stateManager, selection.repo)
+		await generateCommitMsgForRepository(stateManager, selection.repo, languageKey)
 	}
 }
 
@@ -134,7 +144,7 @@ async function promptRepoSelection(repos: any[]) {
 	})
 }
 
-async function generateCommitMsgForRepository(stateManager: StateManager, repository: any) {
+async function generateCommitMsgForRepository(stateManager: StateManager, repository: any, languageKey: string) {
 	const inputBox = repository.inputBox
 	const repoPath = repository.rootUri.fsPath
 	const gitDiff = await getGitDiff(repoPath)
@@ -149,14 +159,15 @@ async function generateCommitMsgForRepository(stateManager: StateManager, reposi
 			title: `Generating commit message for ${repoPath.split(path.sep).pop() || "repository"}...`,
 			cancellable: true,
 		},
-		() => performCommitMsgGeneration(stateManager, gitDiff, inputBox),
+		() => performCommitMsgGeneration(stateManager, gitDiff, inputBox, languageKey),
 	)
 }
 
-async function performCommitMsgGeneration(stateManager: StateManager, gitDiff: string, inputBox: any) {
+async function performCommitMsgGeneration(stateManager: StateManager, gitDiff: string, inputBox: any, languageKey: string) {
 	try {
 		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
 
+		const PROMPT = getPrompt(languageKey)
 		const prompts = [PROMPT.instruction]
 
 		const currentInput = inputBox.value?.trim() || ""
