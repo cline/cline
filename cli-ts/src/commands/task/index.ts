@@ -8,8 +8,6 @@ import type { CliConfig } from "../../types/config.js"
 import type { Logger } from "../../types/logger.js"
 import { createTaskChatCommand } from "./chat.js"
 import { createTaskListCommand } from "./list.js"
-import { createTaskNewCommand } from "./new.js"
-import { createTaskOpenCommand } from "./open.js"
 import { createTaskSendCommand } from "./send.js"
 import { createTaskViewCommand } from "./view.js"
 
@@ -20,9 +18,7 @@ export function createTaskCommand(config: CliConfig, logger: Logger, formatter: 
 	const taskCommand = new Command("task").alias("t").description("Manage Cline tasks")
 
 	// Add subcommands
-	taskCommand.addCommand(createTaskNewCommand(config, logger, formatter))
 	taskCommand.addCommand(createTaskListCommand(config, logger, formatter))
-	taskCommand.addCommand(createTaskOpenCommand(config, logger, formatter))
 	taskCommand.addCommand(createTaskChatCommand(config, logger, formatter))
 	taskCommand.addCommand(createTaskSendCommand(config, logger, formatter))
 	taskCommand.addCommand(createTaskViewCommand(config, logger, formatter))

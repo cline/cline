@@ -37,8 +37,10 @@ export function createProgram(): Command {
 export async function main(): Promise<void> {
 	const program = createProgram()
 
-	// Parse global options first to get config
-	program.parse(process.argv)
+	// Use parseOptions to extract global options without consuming subcommand args
+	// This allows us to get --verbose, --config-dir, etc. before registering subcommands
+	const { operands, unknown } = program.parseOptions(process.argv.slice(2))
+
 	const opts = program.opts()
 
 	// Apply console filtering early to suppress noisy operational output
@@ -69,13 +71,13 @@ export async function main(): Promise<void> {
 
 	logger.debug("CLI started with config:", config)
 
-	// Add subcommands
+	// Add subcommands BEFORE parsing
 	program.addCommand(createVersionCommand(config, logger))
 	program.addCommand(createConfigCommand(config, logger, formatter))
 	program.addCommand(createAuthCommand(config, logger, formatter))
 	program.addCommand(createTaskCommand(config, logger, formatter))
 
-	// Re-parse with subcommands added
+	// Now parse the full command line with all subcommands registered
 	program.parse(process.argv)
 
 	// If no subcommand provided, show help
