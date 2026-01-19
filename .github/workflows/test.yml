@@ -200,7 +200,7 @@ jobs:
               run: npm run download-ripgrep
 
             - name: Compile NPM package
-              run: npm run compile-standalone-npm
+              run: npm run compile-standalone
 
             - name: Install testing platform dependencies
               if: steps.testing-platform-cache.outputs.cache-hit != 'true'
