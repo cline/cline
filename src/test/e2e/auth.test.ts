@@ -59,7 +59,7 @@ e2e("Views - can set up API keys and navigate to Settings from Chat", async ({ s
 
 	// Verify What's New Section is showing and starts with first banner,
 	// and the navigation buttons work
-	await expect(sidebar.locator(".animate-fade-in")).toBeVisible()
+	await expect(sidebar.locator('[aria-label="Announcements"]')).toBeVisible()
 	await expect(
 		sidebar
 			.locator("div")

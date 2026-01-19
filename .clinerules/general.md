@@ -1,5 +1,3 @@
-# CLAUDE.md
-
 This file is the secret sauce for working effectively in this codebase. It captures tribal knowledge—the nuanced, non-obvious patterns that make the difference between a quick fix and hours of back-and-forth & human intervention.
 
 **When to add to this file:**
@@ -17,6 +15,7 @@ This file is the secret sauce for working effectively in this codebase. It captu
 ## Miscellaneous
 - This is a VS Code extension—check `package.json` for available scripts before trying to verify builds (e.g., `npm run compile`, not `npm run build`).
 - When creating PRs, if the change is user-facing and significant enough to warrant a changelog entry, run `npm run changeset` and create a patch changeset. Never create minor or major version bumps. Skip changesets for trivial fixes, internal refactors, or minor UI tweaks that users wouldn't notice.
+- When adding new feature flags, see this PR as a reference https://github.com/cline/cline/pull/7566
 
 ## gRPC/Protobuf Communication
 The extension and webview communicate via gRPC-like protocol over VS Code message passing.
@@ -134,6 +133,36 @@ Three places need updates:
 - `src/core/slash-commands/index.ts` - Command definitions
 - `src/core/prompts/commands.ts` - System prompt integration
 - `webview-ui/src/utils/slash-commands.ts` - Webview autocomplete
+
+## Adding New Global State Keys
+Adding a new key to global state requires updates in multiple places. Missing any step causes silent failures.
+
+Required steps:
+1. Type definition in `src/shared/storage/state-keys.ts` - Add to `GlobalState` or `Settings` interface
+2. Read from globalState in `src/core/storage/utils/state-helpers.ts`:
+   - Add `const myKey = context.globalState.get<GlobalStateAndSettings["myKey"]>("myKey")` in `readGlobalStateFromDisk()`
+   - Add to the return object: `myKey: myKey ?? defaultValue,`
+3. StateManager handles read/write via `setGlobalState()`/`getGlobalStateKey()` after initialization
+
+Common mistake: Adding only the return value without the `context.globalState.get()` call. This compiles but the value is always `undefined` on load.
+
+## StateManager Cache vs Direct globalState Access
+StateManager uses an in-memory cache populated during `StateManager.initialize(context)` in `common.ts`. For most state, use `controller.stateManager.setGlobalState()`/`getGlobalStateKey()`.
+
+Exception: State needed immediately at extension startup (before cache is ready)
+
+When Window A sets state and immediately opens Window B, the new window's StateManager cache is populated from `context.globalState` during initialization. If you need to read state in Window B right at startup (e.g., in `common.ts` during `initialize()`), read directly from `context.globalState.get()` instead of StateManager's cache.
+
+Example pattern (see `lastShownAnnouncementId` and `worktreeAutoOpenPath`):
+```typescript
+// Writing (normal pattern)
+controller.stateManager.setGlobalState("myKey", value)
+
+// Reading at startup in common.ts (bypass cache)
+const value = context.globalState.get<string>("myKey")
+```
+
+This is only needed for cross-window state read during the brief startup window before StateManager cache is fully usable. Normal state access after initialization should use StateManager.
 
 ## ChatRow Cancelled/Interrupted States
 When a ChatRow displays a loading/in-progress state (spinner), you must handle what happens when the task is cancelled. This is non-obvious because cancellation doesn't update the message content—you have to infer it from context.
