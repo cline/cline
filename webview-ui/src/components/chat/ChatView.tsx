@@ -237,7 +237,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		}
 	}, [selectedModelInfo.supportsImages])
 
-	const shouldDisableFilesAndImages = selectedImages.length + selectedFiles.length >= MAX_IMAGES_AND_FILES_PER_MESSAGE
+	const shouldDisableFilesAndImages =
+		!selectedModelInfo.supportsImages || selectedImages.length + selectedFiles.length >= MAX_IMAGES_AND_FILES_PER_MESSAGE
 
 	// Subscribe to show webview events from the backend
 	useEffect(() => {
