@@ -1119,10 +1119,16 @@ export class Task {
 		}
 
 		this.taskState.isInitialized = true
-		this.taskState.abort = false // Reset abort flag when resuming task
-		this.taskState.abandoned = false // Reset abandoned flag when resuming task
+		// NOTE: Do NOT reset abort/abandoned flags here!
+		// The streaming loop needs to see these flags as true to stop.
+		// We reset them AFTER user clicks Resume (after ask() returns).
 
 		const { response, text, images, files } = await this.ask(askType) // calls poststatetowebview
+
+		// NOW reset the abort/abandoned flags after user clicked Resume or provided input
+		// This ensures the streaming loop has already stopped before we allow new work
+		this.taskState.abort = false
+		this.taskState.abandoned = false
 
 		// Initialize newUserContent array for hook context
 		const newUserContent: ClineContent[] = []
