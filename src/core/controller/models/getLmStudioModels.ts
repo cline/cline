@@ -14,11 +14,11 @@ export async function getLmStudioModels(_controller: Controller, request: String
 		if (!URL.canParse(baseUrl)) {
 			return StringArray.create({ values: [] })
 		}
-		const endpoint = new URL("api/v0/models", baseUrl)
+		const endpoint = new URL("v1/models", baseUrl)
 
 		const response = await fetch(endpoint.href)
 		const data = await response.json()
-		const models = data?.data?.map((m: unknown) => JSON.stringify(m)) || []
+		const models = data?.data?.map((model: any) => model.id) || []
 
 		return StringArray.create({ values: models })
 	} catch (error) {
