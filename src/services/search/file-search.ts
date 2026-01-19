@@ -49,16 +49,18 @@ export async function executeRipgrepForFiles(
 
 			// Convert absolute path to a relative path from workspace root
 			const relativePath = path.relative(workspacePath, line)
+			// Normalize path separators to forward slashes for consistency across platforms
+			const normalizedPath = relativePath.replace(/\\/g, "/")
 
 			// Add file result to array
 			fileResults.push({
-				path: relativePath,
+				path: normalizedPath,
 				type: "file",
-				label: path.basename(relativePath),
+				label: path.basename(normalizedPath),
 			})
 
 			// Extract and add parent directories to the set
-			let dirPath = path.dirname(relativePath)
+			let dirPath = path.dirname(normalizedPath)
 			while (dirPath && dirPath !== "." && dirPath !== "/") {
 				dirSet.add(dirPath)
 				dirPath = path.dirname(dirPath)
