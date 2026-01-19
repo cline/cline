@@ -31,17 +31,10 @@ export class OpenAiHandler implements ApiHandler {
 	}
 
 	private getAzureAudienceScope(baseUrl?: string): string {
-		if (!baseUrl) return "https://cognitiveservices.azure.com/.default"
-		const host = (() => {
-			try {
-				return new URL(baseUrl).hostname.toLowerCase()
-			} catch {
-				return baseUrl.toLowerCase()
-			}
-		})()
-		return host.includes(".azure.us") || host.endsWith(".us")
-			? "https://cognitiveservices.azure.us/.default"
-			: "https://cognitiveservices.azure.com/.default"
+		const url = baseUrl?.toLowerCase() ?? ""
+		if (url.includes("azure.us")) return "https://cognitiveservices.azure.us/.default"
+		if (url.includes("azure.com")) return "https://cognitiveservices.azure.com/.default"
+		return "https://cognitiveservices.azure.com/.default"
 	}
 
 	private ensureClient(): OpenAI {
