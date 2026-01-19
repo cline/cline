@@ -1,5 +1,3 @@
-import "./shared/net" // Initializes global fetch dispatcher
-
 import * as vscode from "vscode"
 import {
 	cleanupMcpMarketplaceCatalogFromGlobalState,
