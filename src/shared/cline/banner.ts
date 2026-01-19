@@ -50,6 +50,13 @@ export interface BannerCardData {
 	 */
 	platforms?: ("windows" | "mac" | "linux")[]
 
+	/**
+	 * IDE type filter - only show on specified IDE types
+	 * If undefined, show on all IDE types
+	 * "vscode" = VS Code, "standalone" = JetBrains IDEs
+	 */
+	ideTypes?: ("vscode" | "standalone")[]
+
 	/** Only show to Cline users */
 	isClineUserOnly?: boolean
 }
@@ -120,12 +127,13 @@ export const BANNER_DATA: BannerCardData[] = [
 		isClineUserOnly: false, // Only non-Cline users see this
 	},
 
-	// Platform-specific banner (macOS/Linux)
+	// Platform-specific banner (macOS/Linux) - VS Code only
 	{
 		id: "cli-install-unix-v1",
 		icon: "terminal",
 		title: "CLI & Subagents Available",
 		platforms: ["mac", "linux"] satisfies BannerCardData["platforms"],
+		ideTypes: ["vscode"] satisfies BannerCardData["ideTypes"],
 		description:
 			"Use Cline in your terminal and enable subagent capabilities. [Learn more](https://docs.cline.bot/cline-cli/overview)",
 		actions: [
@@ -140,12 +148,13 @@ export const BANNER_DATA: BannerCardData[] = [
 		],
 	},
 
-	// Platform-specific banner (Windows)
+	// Platform-specific banner (Windows) - VS Code only
 	{
 		id: "cli-info-windows-v1",
 		icon: "terminal",
 		title: "Cline CLI Info",
 		platforms: ["windows"] satisfies BannerCardData["platforms"],
+		ideTypes: ["vscode"] satisfies BannerCardData["ideTypes"],
 		description:
 			"Available for macOS and Linux. Coming soon to other platforms. [Learn more](https://docs.cline.bot/cline-cli/overview)",
 	},

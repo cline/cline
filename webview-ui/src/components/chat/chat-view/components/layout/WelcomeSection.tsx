@@ -17,6 +17,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient, StateServiceClient, UiServiceClient, WorktreeServiceClient } from "@/services/grpc-client"
 import { convertBannerData } from "@/utils/bannerUtils"
 import { getCurrentPlatform } from "@/utils/platformUtils"
+import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { WelcomeSectionProps } from "../../types/chatTypes"
 
 /**
@@ -128,6 +129,14 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 
 			if (banner.platforms && !banner.platforms.includes(getCurrentPlatform())) {
 				return false
+			}
+
+			// Filter by IDE type (vscode vs standalone/JetBrains)
+			if (banner.ideTypes) {
+				const currentIdeType = PLATFORM_CONFIG.type === PlatformType.VSCODE ? "vscode" : "standalone"
+				if (!banner.ideTypes.includes(currentIdeType)) {
+					return false
+				}
 			}
 
 			return true
