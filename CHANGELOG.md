@@ -1,10 +1,30 @@
 # Changelog
 
+## 3.51.1
+
+- bffca98: Add claude 4.5 haiku
+- a94c4be: Log Persistence errors to PostHog
+- dd35448: Fix two bugs in DiffViewProvider file editing:
+
+1. **Line boundary validation**: Add `safelyTruncateDocument()` to prevent out-of-bounds line errors on JetBrains hosts (fixes #8423, #8429). The gRPC protocol strictly validates line numbers, causing "truncateDocument INTERNAL: Wrong line" errors when `truncateDocument()` was called with a line number >= document line count.
+
+2. **Content concatenation on final update**: When replacing content without a trailing newline, the old content at line N+1 was concatenated to the new content. Fixed by extending the replacement range to cover the entire document on final update.
+
+- 9e46e9f: OpenAI GPT-5 Codex models are now using Apply Patch tool for diff edits.
+- d7fa6b3: Fix issue where tool call ids are invalid when switching between models using the chat completion format and the responses api format.
+- 4dd6c6d: fix: add chat output on skill use
+- 79d88f7: Adding telemetry for background exec terminal
+- 97a35d3: fix: removes retry message from UI after retry succeeds
+- 0133b5d: add claude 4.5 opus into sap provider.
+- 4d092bf: Fix crash when the Context Menu has a type but no options
+- dca0a8f: Throttle the remote config fetch
+- 361494d: Improve history view filter menu
+
 ## [3.51.0]
 
 ### Added
 
-- Adding OpenAI gpt-5.2-codex  model to the model picker
+- Adding OpenAI gpt-5.2-codex model to the model picker
 
 ## [3.50.0]
 
