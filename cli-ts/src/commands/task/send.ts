@@ -93,6 +93,7 @@ interface YoloState {
 	failureCount: number
 	lastFailedAction: string | null
 	actionStartTime: number
+	completed: boolean
 }
 
 /**
@@ -112,6 +113,7 @@ async function waitForTaskResponse(
 		failureCount: 0,
 		lastFailedAction: null,
 		actionStartTime: Date.now(),
+		completed: false,
 	}
 
 	return new Promise((resolve, reject) => {
@@ -121,14 +123,28 @@ async function waitForTaskResponse(
 			const messages = adapter.getMessages()
 
 			// YOLO MODE: Auto-respond and continue until completion
-			if (yoloMode && controller.task) {
+			if (yoloMode && controller.task && !yoloState.completed) {
 				// Check for task completion first
 				if (isCompletionState(messages)) {
+					// Guard against processing completion multiple times
+					yoloState.completed = true
 					formatter.success("\n[YOLO] Task completed!")
 					clearInterval(checkInterval)
 					adapter.stopListening()
-					resolve()
-					return
+					// Respond to the completion_result ask to unblock the handler
+					const task = controller.task
+					await task.handleWebviewAskResponse("yesButtonClicked")
+					// Give time for the response to be fully processed
+					await new Promise((r) => setTimeout(r, 200))
+					// Abort the task to stop the loop - this is expected after completion
+					try {
+						await task.abortTask()
+					} catch {
+						// Task may already be cleaned up, ignore
+					}
+					// Exit successfully - don't wait for full cleanup in yolo mode
+					// The task has completed successfully, so exit code 0
+					process.exit(0)
 				}
 
 				// Check for yolo timeout (5 minutes per action)

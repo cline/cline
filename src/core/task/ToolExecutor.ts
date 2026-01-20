@@ -267,6 +267,10 @@ export class ToolExecutor {
 	 * @param block The tool use block that caused the error
 	 */
 	private async handleError(action: string, error: Error, block: ToolUse): Promise<void> {
+		// Skip error handling if task was aborted - this is expected behavior
+		if (this.taskState.abort) {
+			return
+		}
 		console.log(error)
 		const errorString = `Error ${action}: ${error.message}`
 		await this.say("error", errorString)

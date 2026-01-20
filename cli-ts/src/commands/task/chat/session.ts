@@ -19,6 +19,7 @@ export interface ChatSession {
 	yoloFailureCount: number
 	yoloLastFailedAction: string | null
 	yoloActionStartTime: number | null
+	yoloCompleted: boolean
 }
 
 /**
@@ -35,5 +36,6 @@ export function createSession(yoloMode = false): ChatSession {
 		yoloFailureCount: 0,
 		yoloLastFailedAction: null,
 		yoloActionStartTime: null,
+		yoloCompleted: false,
 	}
 }

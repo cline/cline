@@ -142,12 +142,25 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 		session.awaitingInput = pendingState.awaitingInput
 
 		// YOLO MODE: Auto-respond to pending inputs
-		if (session.yoloMode && controller.task) {
+		if (session.yoloMode && controller.task && !session.yoloCompleted) {
 			// Check for task completion first
 			if (isCompletionState(messages)) {
+				// Guard against processing completion multiple times
+				session.yoloCompleted = true
 				formatter.success("\n[YOLO] Task completed!")
-				session.isRunning = false
-				rl.close()
+				// Respond to the completion_result ask to unblock the handler
+				const task = controller.task
+				task.handleWebviewAskResponse("yesButtonClicked")
+				// Schedule exit after brief delay to let response process
+				setTimeout(async () => {
+					try {
+						await task.abortTask()
+					} catch {
+						// Task may already be cleaned up, ignore
+					}
+					// Exit successfully - task has completed
+					process.exit(0)
+				}, 200)
 				return
 			}
 
@@ -156,6 +169,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 				formatter.error("\n[YOLO] Action timed out after 5 minutes. Aborting.")
 				session.isRunning = false
 				rl.close()
+				process.exit(0)
 				return
 			}
 
@@ -173,6 +187,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 					formatter.error(`\n[YOLO] Same action failed ${YOLO_MAX_FAILURES} times. Aborting.`)
 					session.isRunning = false
 					rl.close()
+					process.exit(0)
 					return
 				}
 
