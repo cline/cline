@@ -1,0 +1,110 @@
+---
+title: "Jupyter Notebooks"
+description: "AI-assisted editing of Jupyter notebooks with cell-level context awareness"
+---
+
+# Jupyter Notebooks
+
+Cline provides comprehensive support for Jupyter notebooks (`.ipynb` files), enabling AI-assisted editing with full cell-level context awareness. This feature was developed in collaboration with Amazon to bring AI coding assistance to data science workflows.
+
+## Enabling notebook support
+
+Jupyter notebook support is an opt-in feature. To enable it:
+
+1. Open Cline settings in VS Code
+2. Navigate to **Settings → Features**
+3. Enable **Enhanced Notebook Interaction**
+
+Once enabled, three new commands become available in the command palette whenever you're working with `.ipynb` files.
+
+## Commands
+
+### cline.generateCell
+
+Generate new notebook cells with AI assistance. Describe what you want and Cline creates a properly structured cell that fits into your notebook.
+
+**How it works:** The AI receives context from surrounding cells, so it understands the variables and imports already in scope. This means you can reference existing DataFrames, functions, and other objects without re-explaining them.
+
+**Example prompt:** "Create a visualization showing the correlation matrix of numeric columns with a heatmap"
+
+The cell is inserted with proper notebook JSON structure, preserving metadata and ready to execute.
+
+### cline.explainCell
+
+Get a detailed explanation of what a cell does. This is useful for:
+
+- Revisiting old notebooks
+- Onboarding to a teammate's analysis
+- Understanding complex transformations
+
+**How it works:** Cline extracts the full cell context, including outputs, so explanations can reference actual results like column names, row counts, and computed values.
+
+### cline.improveCell
+
+Enhance existing cells with AI suggestions. Use this to:
+
+- Optimize slow pandas operations
+- Add error handling
+- Refactor for clarity
+- Convert loops to vectorized operations
+
+**How it works:** Cline suggests improvements while preserving the cell's position and metadata in the notebook structure. The AI explains what was changed and why.
+
+## How cell context works
+
+Unlike traditional file editing, Jupyter notebooks are JSON documents containing arrays of cells. Each cell has its own type, source content, metadata, execution count, and outputs.
+
+When you use a Jupyter command, Cline extracts structured context that includes:
+
+- **Cell type** (code, markdown, or raw)
+- **Source content** as an array of lines
+- **Cell metadata** and configuration
+- **Execution count** for code cells
+- **Outputs** including data, text, and error traces
+
+This structured representation allows the AI to understand not just the code, but its context within the notebook and its actual output.
+
+### JSON structure preservation
+
+Cline operates on the cell JSON structure directly, which means:
+
+- Cell boundaries stay intact
+- Execution counts are preserved
+- Cell metadata remains untouched
+- Outputs stay associated with their source cells
+
+You don't need to worry about the AI breaking your notebook's format.
+
+## Keyboard shortcuts
+
+You can bind any of these commands to keyboard shortcuts for faster access:
+
+1. Open VS Code keyboard shortcuts (Cmd/Ctrl + K, Cmd/Ctrl + S)
+2. Search for `cline.generateCell`, `cline.explainCell`, or `cline.improveCell`
+3. Assign your preferred key combinations
+
+## Tips for best results
+
+**For generateCell:**
+- Be specific about what you want the cell to do
+- Reference existing variables by name (the AI can see them)
+- Mention preferred libraries if you have a preference (e.g., "use seaborn" or "use plotly")
+
+**For explainCell:**
+- Works best on cells that have been executed (outputs provide additional context)
+- Good for complex chained operations like pandas groupby/merge sequences
+
+**For improveCell:**
+- Mention what aspect you want to improve (performance, readability, error handling)
+- The AI will explain the changes it suggests
+
+## Limitations
+
+- Notebook support requires the Enhanced Notebook Interaction setting to be enabled
+- Cell context extraction depends on VS Code's notebook API
+- Very large notebooks may require more context than some models can handle efficiently
+
+## Related
+
+- [Cline Tools Guide](/exploring-clines-tools/cline-tools-guide) -- Overview of all Cline commands
+- [Model Selection Guide](/core-features/model-selection-guide) -- Choosing the right model for your workflow
