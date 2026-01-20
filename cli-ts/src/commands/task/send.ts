@@ -7,10 +7,10 @@
 
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Command } from "commander"
-import fs from "fs"
 import { CliWebviewAdapter } from "../../core/cli-webview-adapter.js"
 import { disposeEmbeddedController, getControllerIfInitialized, getEmbeddedController } from "../../core/embedded-controller.js"
 import type { OutputFormatter } from "../../core/output/types.js"
+import { parseAtPaths, processExplicitFiles, processExplicitImages } from "../../core/path-parser.js"
 import type { CliConfig } from "../../types/config.js"
 import type { Logger } from "../../types/logger.js"
 import { checkForPendingInput, isCompletionState, isFailureState } from "./chat/input-checker.js"
@@ -229,6 +229,14 @@ async function waitForTaskResponse(
 }
 
 /**
+ * Collect multiple option values into an array
+ * Used for -f and -i options that can be specified multiple times
+ */
+function collectOption(value: string, previous: string[]): string[] {
+	return previous.concat([value])
+}
+
+/**
  * Create the task send command
  */
 export function createTaskSendCommand(config: CliConfig, logger: Logger, formatter: OutputFormatter): Command {
@@ -239,7 +247,8 @@ export function createTaskSendCommand(config: CliConfig, logger: Logger, formatt
 		.option("-t, --task <id>", "Target task ID (starts new task if not specified)")
 		.option("-a, --approve", "Approve a proposed action", false)
 		.option("-d, --deny", "Deny a proposed action", false)
-		.option("-f, --file <path>", "Attach file to message")
+		.option("-f, --file <path>", "Attach file to message (can be repeated)", collectOption, [])
+		.option("-i, --image <path>", "Attach image to message (can be repeated)", collectOption, [])
 		.option("-y, --yolo", "Enable autonomous mode (no confirmations)", false)
 		.option("--no-interactive", "Same as --yolo")
 		.option("-m, --mode <mode>", "Switch to mode: act or plan")
@@ -257,13 +266,22 @@ export function createTaskSendCommand(config: CliConfig, logger: Logger, formatt
 				// Validate mode if provided
 				const mode = validateMode(options.mode)
 
-				// Validate file if provided
-				let _attachments: string[] | undefined
-				if (options.file) {
-					if (!fs.existsSync(options.file)) {
-						throw new Error(`File not found: ${options.file}`)
-					}
-					_attachments = [options.file]
+				// Process explicit file and image attachments from CLI options
+				const cwd = process.cwd()
+				let explicitFiles: string[] = []
+				let explicitImages: string[] = []
+
+				// Process -f/--file options (can be files or images, auto-detected)
+				if (options.file && options.file.length > 0) {
+					const processed = processExplicitFiles(options.file, cwd)
+					explicitFiles = processed.files
+					explicitImages = processed.images
+				}
+
+				// Process -i/--image options (must be images)
+				if (options.image && options.image.length > 0) {
+					const images = processExplicitImages(options.image, cwd)
+					explicitImages = explicitImages.concat(images)
 				}
 
 				// Initialize embedded controller
@@ -339,6 +357,29 @@ export function createTaskSendCommand(config: CliConfig, logger: Logger, formatt
 					throw new Error("No message provided. Use argument or pipe via stdin")
 				}
 
+				// Parse @path references from the message
+				const parsedPaths = parseAtPaths(message, cwd)
+
+				// Show warnings for any files that couldn't be processed (non-fatal for @paths)
+				for (const warning of parsedPaths.warnings) {
+					formatter.warn(warning)
+				}
+
+				// Use cleaned message (with @paths removed)
+				const cleanedMessage = parsedPaths.cleanedMessage
+
+				// Combine explicit attachments with @path attachments
+				const allFiles = [...explicitFiles, ...parsedPaths.files]
+				const allImages = [...explicitImages, ...parsedPaths.images]
+
+				// Log attachment info
+				if (allFiles.length > 0) {
+					formatter.info(`Attaching ${allFiles.length} file(s)`)
+				}
+				if (allImages.length > 0) {
+					formatter.info(`Attaching ${allImages.length} image(s)`)
+				}
+
 				// Start or continue task
 				let taskId: string | undefined
 
@@ -351,18 +392,32 @@ export function createTaskSendCommand(config: CliConfig, logger: Logger, formatt
 					taskId = await controller.initTask(undefined, undefined, undefined, history.historyItem)
 					formatter.info(`Resumed task: ${taskId}`)
 
-					// Send the message
+					// Send the message with attachments
 					if (controller.task) {
-						await controller.task.handleWebviewAskResponse("messageResponse", message)
+						await controller.task.handleWebviewAskResponse(
+							"messageResponse",
+							cleanedMessage,
+							allImages.length > 0 ? allImages : undefined,
+							allFiles.length > 0 ? allFiles : undefined,
+						)
 					}
 				} else if (controller.task) {
 					// Send to existing active task
 					taskId = controller.task.taskId
-					await controller.task.handleWebviewAskResponse("messageResponse", message)
+					await controller.task.handleWebviewAskResponse(
+						"messageResponse",
+						cleanedMessage,
+						allImages.length > 0 ? allImages : undefined,
+						allFiles.length > 0 ? allFiles : undefined,
+					)
 					formatter.info(`Message sent to task ${taskId.slice(0, 8)}`)
 				} else {
 					// Start new task with the message as prompt
-					taskId = await controller.initTask(message)
+					taskId = await controller.initTask(
+						cleanedMessage,
+						allImages.length > 0 ? allImages : undefined,
+						allFiles.length > 0 ? allFiles : undefined,
+					)
 					formatter.info(`Started new task: ${taskId}`)
 				}
 

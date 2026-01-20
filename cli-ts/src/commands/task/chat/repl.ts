@@ -11,6 +11,7 @@ import type { Controller } from "@/core/controller"
 import { CliWebviewAdapter } from "../../../core/cli-webview-adapter.js"
 import { disposeEmbeddedController } from "../../../core/embedded-controller.js"
 import type { OutputFormatter } from "../../../core/output/types.js"
+import { parseAtPaths } from "../../../core/path-parser.js"
 import type { CliConfig } from "../../../types/config.js"
 import type { Logger } from "../../../types/logger.js"
 import { createCompleter } from "./completer.js"
@@ -36,6 +37,8 @@ export interface ReplOptions {
 	logger: Logger
 	config: CliConfig
 	initialPrompt?: string
+	initialImages?: string[]
+	initialFiles?: string[]
 	resumeTaskId?: string
 }
 
@@ -43,7 +46,7 @@ export interface ReplOptions {
  * Start the interactive REPL loop
  */
 export async function startRepl(options: ReplOptions): Promise<void> {
-	const { session, controller, formatter, logger, config, initialPrompt, resumeTaskId } = options
+	const { session, controller, formatter, logger, config, initialPrompt, initialImages, initialFiles, resumeTaskId } = options
 
 	// Create webview adapter for output
 	session.adapter = new CliWebviewAdapter(controller, formatter)
@@ -61,9 +64,22 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 		session.taskId = await controller.initTask(undefined, undefined, undefined, history.historyItem)
 		formatter.info(`Resumed task: ${session.taskId}`)
 	} else if (initialPrompt) {
-		// Start new task with prompt
+		// Start new task with prompt and any initial attachments
 		startedWithPrompt = true
-		session.taskId = await controller.initTask(initialPrompt)
+
+		// Log attachment info
+		if (initialFiles && initialFiles.length > 0) {
+			formatter.info(`Attaching ${initialFiles.length} file(s)`)
+		}
+		if (initialImages && initialImages.length > 0) {
+			formatter.info(`Attaching ${initialImages.length} image(s)`)
+		}
+
+		session.taskId = await controller.initTask(
+			initialPrompt,
+			initialImages && initialImages.length > 0 ? initialImages : undefined,
+			initialFiles && initialFiles.length > 0 ? initialFiles : undefined,
+		)
 		formatter.info(`Started task: ${session.taskId}`)
 		// Enable spinner since AI will be processing
 		session.adapter?.setProcessing(true)
@@ -340,15 +356,38 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 
 		// If no active task, start a new one
 		if (!session.taskId) {
+			// Parse @path references from the input
+			const parsed = parseAtPaths(input, process.cwd())
+
+			// Show warnings for any files that couldn't be processed
+			for (const warning of parsed.warnings) {
+				formatter.warn(warning)
+			}
+
+			// Log attachment info
+			if (parsed.files.length > 0) {
+				formatter.info(`Attaching ${parsed.files.length} file(s)`)
+			}
+			if (parsed.images.length > 0) {
+				formatter.info(`Attaching ${parsed.images.length} image(s)`)
+			}
+
 			setProcessingState(true) // AI will start processing
 			wasAwaitingInput = false
-			session.taskId = await controller.initTask(input)
+			session.taskId = await controller.initTask(
+				parsed.cleanedMessage,
+				parsed.images.length > 0 ? parsed.images : undefined,
+				parsed.files.length > 0 ? parsed.files : undefined,
+			)
 			formatter.info(`Started task: ${session.taskId}`)
 			session.adapter?.resetMessageCounter()
 			// Don't show prompt - wait for AI to finish
 		} else if (controller.task) {
 			// Check if input is a numbered option selection
 			let messageToSend = input
+			let imagesToSend: string[] | undefined
+			let filesToSend: string[] | undefined
+
 			if (session.awaitingInput && session.adapter) {
 				const options = session.adapter.currentOptions
 				const num = parseInt(input, 10)
@@ -357,10 +396,32 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 				}
 			}
 
+			// Parse @path references from the input (unless it's a numbered option)
+			if (messageToSend === input) {
+				const parsed = parseAtPaths(input, process.cwd())
+
+				// Show warnings for any files that couldn't be processed
+				for (const warning of parsed.warnings) {
+					formatter.warn(warning)
+				}
+
+				// Log attachment info
+				if (parsed.files.length > 0) {
+					formatter.info(`Attaching ${parsed.files.length} file(s)`)
+				}
+				if (parsed.images.length > 0) {
+					formatter.info(`Attaching ${parsed.images.length} image(s)`)
+				}
+
+				messageToSend = parsed.cleanedMessage
+				imagesToSend = parsed.images.length > 0 ? parsed.images : undefined
+				filesToSend = parsed.files.length > 0 ? parsed.files : undefined
+			}
+
 			setProcessingState(true) // AI will start processing
 			wasAwaitingInput = false
-			// Send message to existing task
-			await controller.task.handleWebviewAskResponse("messageResponse", messageToSend)
+			// Send message to existing task with any attachments
+			await controller.task.handleWebviewAskResponse("messageResponse", messageToSend, imagesToSend, filesToSend)
 			// Don't show prompt - wait for AI to finish
 		}
 	})
@@ -421,7 +482,8 @@ async function displayWelcome(formatter: OutputFormatter, session: ChatSession, 
 	formatter.raw("")
 	if (!session.yoloMode) {
 		formatter.info("Type your message and press Enter to send.")
-		formatter.info("Press Tab to toggle between act/plan mode.")
+		formatter.info("Use @path to attach files (e.g., @./file.txt, @image.png)")
+		formatter.info("Press Tab to toggle between act/plan mode or complete @paths.")
 		formatter.info("Type /help for available commands, /quit to exit.")
 	}
 	formatter.raw("─".repeat(60))
