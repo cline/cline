@@ -3,11 +3,14 @@
  * Main view for running a task - displays messages and handles user input
  */
 
-import { Box, Text } from "ink"
-import React, { useEffect } from "react"
+import { CheckpointRestoreRequest } from "@shared/proto/cline/checkpoints"
+import { Box, Text, useInput } from "ink"
+import React, { useCallback, useEffect, useState } from "react"
+import { checkpointRestore } from "@/core/controller/checkpoints/checkpointRestore"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
 import { useCompletionSignals, useIsSpinnerActive } from "../hooks/useStateSubscriber"
 import { AskPrompt } from "./AskPrompt"
+import { CheckpointMenu, RestoreType } from "./CheckpointMenu"
 import { FocusChain } from "./FocusChain"
 import { MessageList } from "./MessageList"
 import { LoadingSpinner } from "./Spinner"
@@ -30,7 +33,10 @@ export const TaskView: React.FC<TaskViewProps> = ({ taskId, verbose = false, onC
 	const state = useTaskState()
 	const { isTaskComplete, getCompletionMessage } = useCompletionSignals()
 	const isSpinnerActive = useIsSpinnerActive()
-	const { setIsComplete, lastError } = useTaskContext()
+	const { setIsComplete, lastError, controller } = useTaskContext()
+	const [showCheckpointMenu, setShowCheckpointMenu] = useState(false)
+	const [restoreStatus, setRestoreStatus] = useState<"idle" | "restoring" | "success" | "error">("idle")
+	const [restoreMessage, setRestoreMessage] = useState<string | null>(null)
 
 	// Handle task completion
 	useEffect(() => {
@@ -47,6 +53,53 @@ export const TaskView: React.FC<TaskViewProps> = ({ taskId, verbose = false, onC
 		}
 	}, [isTaskComplete, setIsComplete, onComplete, onError, getCompletionMessage])
 
+	// Handle checkpoint restore
+	const handleCheckpointRestore = useCallback(
+		async (messageTs: number, restoreType: RestoreType) => {
+			setShowCheckpointMenu(false)
+			setRestoreStatus("restoring")
+			setRestoreMessage(`Restoring checkpoint (${restoreType})...`)
+
+			try {
+				await checkpointRestore(
+					controller,
+					CheckpointRestoreRequest.create({
+						number: messageTs,
+						restoreType: restoreType,
+					}),
+				)
+				setRestoreStatus("success")
+				setRestoreMessage("Checkpoint restored successfully")
+				// Clear success message after a delay
+				setTimeout(() => {
+					setRestoreStatus("idle")
+					setRestoreMessage(null)
+				}, 3000)
+			} catch (error) {
+				setRestoreStatus("error")
+				setRestoreMessage(`Failed to restore: ${error instanceof Error ? error.message : String(error)}`)
+				// Clear error message after a delay
+				setTimeout(() => {
+					setRestoreStatus("idle")
+					setRestoreMessage(null)
+				}, 5000)
+			}
+		},
+		[controller],
+	)
+
+	// Handle Ctrl+R to open checkpoint menu
+	useInput(
+		(input, key) => {
+			// Ctrl+R to open checkpoint menu
+			if (key.ctrl && input === "r") {
+				setShowCheckpointMenu(true)
+				return
+			}
+		},
+		{ isActive: !showCheckpointMenu },
+	)
+
 	return (
 		<Box flexDirection="column">
 			{/* Task header */}
@@ -62,7 +115,12 @@ export const TaskView: React.FC<TaskViewProps> = ({ taskId, verbose = false, onC
 							{state.currentTaskItem.task.length > 80 ? "..." : ""}
 						</Text>
 					)}
-					<Text>{formatSeparator("═")}</Text>
+					<Box>
+						<Text>{formatSeparator("═")}</Text>
+					</Box>
+					<Text color="gray" dimColor>
+						(Ctrl+R to restore checkpoint)
+					</Text>
 				</Box>
 			)}
 
@@ -73,6 +131,25 @@ export const TaskView: React.FC<TaskViewProps> = ({ taskId, verbose = false, onC
 						Error: {lastError}
 					</Text>
 				</Box>
+			)}
+
+			{/* Restore status message */}
+			{restoreMessage && (
+				<Box flexDirection="column" marginBottom={1}>
+					<Text bold color={restoreStatus === "error" ? "red" : restoreStatus === "success" ? "green" : "yellow"}>
+						{restoreStatus === "restoring" ? "⏳ " : restoreStatus === "success" ? "✓ " : "✗ "}
+						{restoreMessage}
+					</Text>
+				</Box>
+			)}
+
+			{/* Checkpoint menu */}
+			{showCheckpointMenu && (
+				<CheckpointMenu
+					messages={state.clineMessages || []}
+					onCancel={() => setShowCheckpointMenu(false)}
+					onSelect={handleCheckpointRestore}
+				/>
 			)}
 
 			{/* Focus Chain / To-Do List */}

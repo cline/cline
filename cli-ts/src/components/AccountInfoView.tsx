@@ -50,8 +50,10 @@ export const AccountInfoView: React.FC<AccountInfoViewProps> = ({ controller }) 
 
 			// Get current provider from state
 			const stateManager = StateManager.get()
-			const currentProvider = stateManager.getGlobalSettingsKey("actModeApiProvider") as string
-			setProvider(currentProvider || "Not configured")
+			const mode = stateManager.getGlobalSettingsKey("mode") as string
+			const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
+			const currentProvider = stateManager.getGlobalSettingsKey(providerKey) as string
+			setProvider(currentProvider || "cline")
 
 			// If using Cline provider, fetch additional info
 			if (currentProvider === "cline") {
