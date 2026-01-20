@@ -19,6 +19,7 @@ import PopupModalContainer from "@/components/common/PopupModalContainer"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient } from "@/services/grpc-client"
+import { createButtonStyle, createModalTriggerButtonProps } from "@/utils/interactiveProps"
 import { isMacOSOrLinux } from "@/utils/platformUtils"
 import HookRow from "./HookRow"
 import NewRuleRow from "./NewRuleRow"
@@ -470,14 +471,17 @@ function ClineRulesToggleModalInner(
 					{!isVisible && <TooltipContent>Manage Cline Rules & Workflows</TooltipContent>}
 					<TooltipTrigger asChild>
 						<button
-							aria-label={isVisible ? "Hide Cline Rules & Workflows" : "Show Cline Rules & Workflows"}
-							className="p-0 m-0 flex items-center bg-transparent border-none cursor-pointer"
-							onClick={() => setIsVisible(!isVisible)}
+							{...createModalTriggerButtonProps(
+								isVisible ? "Hide Cline Rules & Workflows" : "Show Cline Rules & Workflows",
+								() => setIsVisible(!isVisible),
+								{ popupType: "dialog" },
+							)}
+							aria-expanded={isVisible}
 							onFocus={onFocus}
 							onKeyDown={onKeyDown}
 							ref={triggerWrapperRef}
-							tabIndex={tabIndex}
-							type="button">
+							style={createButtonStyle.flexReset()}
+							tabIndex={tabIndex}>
 							<i className="codicon codicon-law" style={{ fontSize: "12.5px" }} />
 						</button>
 					</TooltipTrigger>

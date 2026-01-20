@@ -2,6 +2,7 @@ import { StringRequest } from "@shared/proto/cline/common"
 import { memo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { TaskServiceClient } from "@/services/grpc-client"
+import { createBaseButtonProps } from "@/utils/interactiveProps"
 
 type HistoryPreviewProps = {
 	showHistoryView: () => void
@@ -134,10 +135,8 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 				</div>
 				{taskHistory.filter((item) => item.ts && item.task).length > 0 && (
 					<button
-						aria-label="View all history"
-						className="history-view-all-btn"
-						onClick={() => showHistoryView()}
-						type="button">
+						{...createBaseButtonProps("View all history", () => showHistoryView())}
+						className="history-view-all-btn">
 						View All
 						<span className="codicon codicon-chevron-right" />
 					</button>
@@ -152,11 +151,9 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 							.slice(0, 3)
 							.map((item) => (
 								<button
-									aria-label={`View task: ${item.task}`}
+									{...createBaseButtonProps(`View task: ${item.task}`, () => handleHistorySelect(item.id))}
 									className="history-preview-item"
-									key={item.id}
-									onClick={() => handleHistorySelect(item.id)}
-									type="button">
+									key={item.id}>
 									<div className="history-task-content">
 										{item.isFavorited && (
 											<span

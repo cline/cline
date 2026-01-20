@@ -9,6 +9,7 @@ import ServersToggleList from "@/components/mcp/configuration/tabs/installed/Ser
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
+import { createButtonStyle, createModalTriggerButtonProps } from "@/utils/interactiveProps"
 
 export interface ServersToggleModalHandle {
 	focus: () => void
@@ -78,14 +79,17 @@ function ServersToggleModalInner(
 					{!isVisible && <TooltipContent>Manage MCP Servers</TooltipContent>}
 					<TooltipTrigger asChild>
 						<button
-							aria-label={isVisible ? "Hide MCP Servers" : "Show MCP Servers"}
-							className="p-0 m-0 flex items-center bg-transparent border-none cursor-pointer"
-							onClick={() => setIsVisible(!isVisible)}
+							{...createModalTriggerButtonProps(
+								isVisible ? "Hide MCP Servers" : "Show MCP Servers",
+								() => setIsVisible(!isVisible),
+								{ popupType: "dialog" },
+							)}
+							aria-expanded={isVisible}
 							onFocus={onFocus}
 							onKeyDown={onKeyDown}
 							ref={triggerWrapperRef}
-							tabIndex={tabIndex}
-							type="button">
+							style={createButtonStyle.flexReset()}
+							tabIndex={tabIndex}>
 							<i className="codicon codicon-server" style={{ fontSize: "12.5px" }} />
 						</button>
 					</TooltipTrigger>
