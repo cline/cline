@@ -356,33 +356,33 @@ async function handleQuickSetup(
 			// Store API key based on provider
 			switch (normalizedProvider) {
 				case "anthropic":
-					await controller.stateManager.setSecret("anthropicApiKey" as any, options.apikey)
+					controller.stateManager.setSecret("anthropicApiKey" as any, options.apikey)
 					break
 				case "openrouter":
-					await controller.stateManager.setSecret("openRouterApiKey", options.apikey)
+					controller.stateManager.setSecret("openRouterApiKey", options.apikey)
 					break
 				case "openai":
 				case "openai-native":
-					await controller.stateManager.setSecret("openAiApiKey", options.apikey)
+					controller.stateManager.setSecret("openAiApiKey", options.apikey)
 					break
 				case "gemini":
-					await controller.stateManager.setSecret("geminiApiKey", options.apikey)
+					controller.stateManager.setSecret("geminiApiKey", options.apikey)
 					break
 				case "deepseek":
-					await controller.stateManager.setSecret("deepSeekApiKey", options.apikey)
+					controller.stateManager.setSecret("deepSeekApiKey", options.apikey)
 					break
 				case "mistral":
-					await controller.stateManager.setSecret("mistralApiKey", options.apikey)
+					controller.stateManager.setSecret("mistralApiKey", options.apikey)
 					break
 				case "groq":
-					await controller.stateManager.setSecret("groqApiKey", options.apikey)
+					controller.stateManager.setSecret("groqApiKey", options.apikey)
 					break
 				case "xai":
-					await controller.stateManager.setSecret("xaiApiKey", options.apikey)
+					controller.stateManager.setSecret("xaiApiKey", options.apikey)
 					break
 				default:
 					// Generic API key storage
-					await controller.stateManager.setSecret("apiKey" as any, options.apikey)
+					controller.stateManager.setSecret("apiKey" as any, options.apikey)
 			}
 		}
 
@@ -435,8 +435,8 @@ async function handleQuickSetup(
  */
 async function handleInteractiveAuth(config: CliConfig, logger: Logger, fmt: OutputFormatter): Promise<void> {
 	try {
-		fmt.info("= Cline Authentication Menu")
-		fmt.raw(" ".repeat(40))
+		fmt.info("=� Cline Authentication Menu")
+		fmt.raw("�".repeat(40))
 		fmt.raw("")
 
 		// Show main menu
@@ -476,11 +476,16 @@ async function handleInteractiveAuth(config: CliConfig, logger: Logger, fmt: Out
 }
 
 /**
+ * Auth timeout in milliseconds (5 minutes)
+ */
+const AUTH_TIMEOUT_MS = 5 * 60 * 1000
+
+/**
  * Handle Cline account sign-in
  */
 async function handleClineSignIn(config: CliConfig, logger: Logger, fmt: OutputFormatter): Promise<void> {
 	fmt.raw("")
-	fmt.info("=� Cline Account Sign-In")
+	fmt.info("== Cline Account Sign-In")
 	fmt.raw("")
 	fmt.info("This will open your browser to sign in to your Cline account.")
 	fmt.info("Once signed in, you'll have access to Cline's managed API.")
@@ -492,9 +497,15 @@ async function handleClineSignIn(config: CliConfig, logger: Logger, fmt: OutputF
 		process.exit(0)
 	}
 
+	// Import enableAuthHandler to set up OAuth callback server
+	const { enableAuthHandler, disableAuthHandler } = await import("../../core/host-provider-setup.js")
+
 	try {
 		fmt.info("Initializing Cline...")
 		const controller = await getEmbeddedController(logger, config.configDir)
+
+		// Enable the auth handler to receive OAuth callbacks
+		enableAuthHandler()
 
 		// Import AuthService dynamically to avoid circular dependencies
 		const { AuthService } = await import("@/services/auth/AuthService")
@@ -504,18 +515,111 @@ async function handleClineSignIn(config: CliConfig, logger: Logger, fmt: OutputF
 		await authService.createAuthRequest()
 
 		fmt.raw("")
-		fmt.success(" Browser opened for authentication")
-		fmt.info("Please complete the sign-in process in your browser.")
-		fmt.info("After signing in, you can close this terminal and use 'cline task' commands.")
+		fmt.success("Browser opened for authentication")
+		fmt.info("Waiting for authentication to complete...")
+		fmt.info("(Press Ctrl+C to cancel)")
+		fmt.raw("")
+
+		// Wait for auth to complete by polling the auth status
+		const authCompleted = await waitForAuthCompletion(authService, fmt, AUTH_TIMEOUT_MS)
+
+		// Disable auth handler after auth completes
+		disableAuthHandler()
+
+		if (authCompleted) {
+			const authInfo = authService.getInfo()
+			fmt.raw("")
+			fmt.success("Authentication successful!")
+			if (authInfo.user?.email) {
+				fmt.info(`Signed in as: ${authInfo.user.email}`)
+			}
+
+			// Set the Cline provider and default model for both modes
+			// Import the default model ID from the shared API module
+			const { openRouterDefaultModelId } = await import("@shared/api")
+			const clineProvider = "cline"
+
+			// Set provider for both modes
+			controller.stateManager.setGlobalState("planModeApiProvider" as any, clineProvider)
+			controller.stateManager.setGlobalState("actModeApiProvider" as any, clineProvider)
+
+			// Set default model ID for both modes (Cline uses OpenRouter model IDs)
+			controller.stateManager.setGlobalState("planModeOpenRouterModelId" as any, openRouterDefaultModelId)
+			controller.stateManager.setGlobalState("actModeOpenRouterModelId" as any, openRouterDefaultModelId)
+
+			// Flush pending state to ensure changes are persisted
+			await controller.stateManager.flushPendingState()
+
+			fmt.raw("")
+			fmt.success(`Model: ${openRouterDefaultModelId}`)
+			fmt.info("You can now use 'cline task' commands.")
+		} else {
+			fmt.raw("")
+			fmt.warn("Authentication timed out or was not completed.")
+			fmt.info("Please try again with 'cline auth'.")
+		}
 
 		// Cleanup
 		await disposeEmbeddedController(logger)
-		process.exit(0)
+		process.exit(authCompleted ? 0 : 1)
 	} catch (error) {
+		// Make sure to disable auth handler on error
+		try {
+			const { disableAuthHandler } = await import("../../core/host-provider-setup.js")
+			disableAuthHandler()
+		} catch {
+			// Ignore cleanup errors
+		}
 		fmt.error(`Sign-in failed: ${error instanceof Error ? error.message : String(error)}`)
 		await disposeEmbeddedController(logger)
 		process.exit(1)
 	}
+}
+
+/**
+ * Wait for authentication to complete by polling auth status
+ * @param authService - The AuthService instance
+ * @param fmt - Output formatter for status updates
+ * @param timeoutMs - Timeout in milliseconds
+ * @returns true if auth completed successfully, false if timed out
+ */
+async function waitForAuthCompletion(
+	authService: { getInfo: () => { user?: { email?: string } }; restoreRefreshTokenAndRetrieveAuthInfo: () => Promise<void> },
+	_fmt: OutputFormatter,
+	timeoutMs: number,
+): Promise<boolean> {
+	const startTime = Date.now()
+	const pollIntervalMs = 2000 // Poll every 2 seconds
+
+	// Show a simple spinner/waiting indicator
+	const spinnerChars = ["|", "/", "-", "\\"]
+	let spinnerIdx = 0
+
+	while (Date.now() - startTime < timeoutMs) {
+		// Check if auth is now complete
+		try {
+			// Restore auth info from storage to check if callback was received
+			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
+			const authInfo = authService.getInfo()
+			if (authInfo.user) {
+				return true
+			}
+		} catch {
+			// Ignore errors during polling
+		}
+
+		// Update spinner
+		process.stdout.write(`\r  ${spinnerChars[spinnerIdx]} Waiting for browser authentication...`)
+		spinnerIdx = (spinnerIdx + 1) % spinnerChars.length
+
+		// Wait before next poll
+		await new Promise((resolve) => setTimeout(resolve, pollIntervalMs))
+	}
+
+	// Clear the spinner line
+	process.stdout.write("\r" + " ".repeat(50) + "\r")
+
+	return false
 }
 
 /**
@@ -692,6 +796,195 @@ async function handleViewConfig(config: CliConfig, logger: Logger, fmt: OutputFo
 }
 
 /**
+ * Get the secret key name for a provider's API key
+ */
+function getSecretKeyForProvider(provider: ApiProvider): string | null {
+	switch (provider) {
+		case "anthropic":
+			return "anthropicApiKey"
+		case "openrouter":
+			return "openRouterApiKey"
+		case "openai":
+		case "openai-native":
+			return "openAiApiKey"
+		case "gemini":
+			return "geminiApiKey"
+		case "deepseek":
+			return "deepSeekApiKey"
+		case "mistral":
+			return "mistralApiKey"
+		case "groq":
+			return "groqApiKey"
+		case "xai":
+			return "xaiApiKey"
+		case "cerebras":
+			return "cerebrasApiKey"
+		case "fireworks":
+			return "fireworksApiKey"
+		case "together":
+			return "togetherApiKey"
+		// Providers that don't require API keys
+		case "ollama":
+		case "lmstudio":
+		case "bedrock":
+		case "vertex":
+		case "cline":
+			return null
+		default:
+			return "apiKey"
+	}
+}
+
+/**
+ * Handle showing authentication status
+ */
+async function handleAuthStatus(config: CliConfig, logger: Logger, fmt: OutputFormatter): Promise<void> {
+	try {
+		fmt.info("Initializing Cline...")
+		const controller = await getEmbeddedController(logger, config.configDir)
+
+		fmt.raw("")
+		fmt.info("== Authentication Status")
+		fmt.raw("")
+
+		// Check Cline account authentication
+		let clineAccountAuthenticated = false
+		let clineAccountEmail: string | undefined
+		let clineAccountDisplayName: string | undefined
+
+		try {
+			// Import AuthService dynamically to avoid circular dependencies
+			const { AuthService } = await import("@/services/auth/AuthService")
+			const authService = AuthService.getInstance(controller)
+
+			// Restore auth info from storage to check current status
+			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
+
+			const authInfo = authService.getInfo()
+			if (authInfo.user) {
+				clineAccountAuthenticated = true
+				clineAccountEmail = authInfo.user.email
+				clineAccountDisplayName = authInfo.user.displayName
+			}
+		} catch (error) {
+			logger.debug(`Error checking Cline account auth: ${error}`)
+			// Cline account auth check failed, continue with BYO provider check
+		}
+
+		// Display Cline account status
+		if (clineAccountAuthenticated) {
+			fmt.success("Cline Account: Signed in")
+			if (clineAccountEmail) {
+				fmt.raw(`  Email: ${clineAccountEmail}`)
+			}
+			if (clineAccountDisplayName) {
+				fmt.raw(`  Display Name: ${clineAccountDisplayName}`)
+			}
+		} else {
+			fmt.raw("Cline Account: Not signed in")
+		}
+
+		fmt.raw("")
+
+		// Check BYO provider configuration
+		const planModeProvider = controller.stateManager.getGlobalStateKey("planModeApiProvider" as any) as
+			| ApiProvider
+			| undefined
+		const actModeProvider = controller.stateManager.getGlobalStateKey("actModeApiProvider" as any) as ApiProvider | undefined
+
+		fmt.raw("Provider Configuration:")
+
+		// Check plan mode
+		if (planModeProvider) {
+			const planModelId = getModelIdFromState(controller.stateManager, planModeProvider, "plan")
+			const providerInfo = getProviderInfo(String(planModeProvider))
+			const displayName = providerInfo?.name || planModeProvider
+			fmt.raw(`  Plan Mode: ${displayName}${planModelId ? ` (${planModelId})` : ""}`)
+		} else {
+			fmt.raw("  Plan Mode: (not configured)")
+		}
+
+		// Check act mode
+		if (actModeProvider) {
+			const actModelId = getModelIdFromState(controller.stateManager, actModeProvider, "act")
+			const providerInfo = getProviderInfo(String(actModeProvider))
+			const displayName = providerInfo?.name || actModeProvider
+			fmt.raw(`  Act Mode: ${displayName}${actModelId ? ` (${actModelId})` : ""}`)
+		} else {
+			fmt.raw("  Act Mode: (not configured)")
+		}
+
+		// Check API key status for the configured provider(s)
+		let hasApiKey = false
+		const providersToCheck = new Set<ApiProvider>()
+		if (planModeProvider) {
+			providersToCheck.add(planModeProvider)
+		}
+		if (actModeProvider) {
+			providersToCheck.add(actModeProvider)
+		}
+
+		for (const provider of providersToCheck) {
+			const secretKey = getSecretKeyForProvider(provider)
+			if (secretKey === null) {
+				// Provider doesn't require API key (e.g., ollama, cline)
+				hasApiKey = true
+			} else {
+				const apiKey = controller.stateManager.getSecretKey(secretKey as any)
+				if (apiKey) {
+					hasApiKey = true
+				}
+			}
+		}
+
+		if (providersToCheck.size > 0) {
+			if (hasApiKey) {
+				fmt.raw("  API Key: Configured")
+			} else {
+				fmt.raw("  API Key: Not configured")
+			}
+		}
+
+		fmt.raw("")
+
+		// Determine overall readiness
+		const isClineProvider = planModeProvider === "cline" || actModeProvider === "cline"
+		const hasProviderConfig = planModeProvider || actModeProvider
+
+		let isReady = false
+		let readyMessage = ""
+
+		if (isClineProvider && clineAccountAuthenticated) {
+			isReady = true
+			readyMessage = "Yes - Cline account authenticated"
+		} else if (hasProviderConfig && hasApiKey && !isClineProvider) {
+			isReady = true
+			readyMessage = "Yes - BYO provider configured"
+		} else if (isClineProvider && !clineAccountAuthenticated) {
+			readyMessage = "No - Cline provider requires sign-in. Run 'cline auth' to sign in."
+		} else if (hasProviderConfig && !hasApiKey) {
+			readyMessage = "No - API key not configured. Run 'cline auth' to configure."
+		} else {
+			readyMessage = "No - No provider configured. Run 'cline auth' to configure authentication."
+		}
+
+		if (isReady) {
+			fmt.success(`Ready to use: ${readyMessage}`)
+		} else {
+			fmt.warn(`Ready to use: ${readyMessage}`)
+		}
+
+		// Cleanup and exit
+		await disposeEmbeddedController(logger)
+		process.exit(0)
+	} catch (error) {
+		fmt.error(`Failed to check authentication status: ${error instanceof Error ? error.message : String(error)}`)
+		await disposeEmbeddedController(logger)
+		process.exit(1)
+	}
+}
+
+/**
  * Handle listing configured providers
  */
 async function handleListProviders(config: CliConfig, logger: Logger, fmt: OutputFormatter): Promise<void> {
@@ -840,6 +1133,7 @@ export function createAuthCommand(config: CliConfig, logger: Logger, formatter: 
 		.option("-b, --baseurl <url>", "Base URL for OpenAI-compatible providers")
 		.option("--mode <mode>", "Mode to configure: 'plan', 'act', or 'both' (default: both)")
 		.option("-l, --list", "List configured providers")
+		.option("-s, --status", "Show authentication status")
 		.option("-d, --delete <provider>", "Delete configuration for a provider")
 		.action(async (options) => {
 			logger.debug("Auth command called", { options })
@@ -847,6 +1141,12 @@ export function createAuthCommand(config: CliConfig, logger: Logger, formatter: 
 			// Handle --list flag
 			if (options.list) {
 				await handleListProviders(config, logger, formatter)
+				return
+			}
+
+			// Handle --status flag
+			if (options.status) {
+				await handleAuthStatus(config, logger, formatter)
 				return
 			}
 

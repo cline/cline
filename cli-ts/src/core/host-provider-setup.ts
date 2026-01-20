@@ -3,6 +3,7 @@ import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider
 import path from "path"
 import type { ExtensionContext } from "vscode"
 import type { WebviewProvider } from "@/core/webview"
+import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
 import type { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { StandaloneTerminalManager } from "@/integrations/terminal"
@@ -41,8 +42,7 @@ export function setupHostProvider(
 	const createTerminalManager = () => new StandaloneTerminalManager()
 
 	const getCallbackUrl = async (): Promise<string> => {
-		// TODO CLI mode doesn't use auth callbacks yet
-		return ""
+		return AuthHandler.getInstance().getCallbackUrl()
 	}
 
 	const getBinaryLocation = async (name: string): Promise<string> => {
@@ -111,4 +111,22 @@ export function isHostProviderInitialized(): boolean {
  */
 export function resetHostProvider(): void {
 	HostProvider.reset()
+}
+
+/**
+ * Enable the AuthHandler for OAuth callback support
+ * Must be called before initiating any OAuth flows
+ */
+export function enableAuthHandler(): void {
+	AuthHandler.getInstance().setEnabled(true)
+}
+
+/**
+ * Disable and stop the AuthHandler
+ * Should be called when auth is complete or on cleanup
+ */
+export function disableAuthHandler(): void {
+	const handler = AuthHandler.getInstance()
+	handler.setEnabled(false)
+	handler.stop()
 }
