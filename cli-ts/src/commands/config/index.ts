@@ -111,7 +111,6 @@ function createConfigSetCommand(config: CliConfig, logger: Logger, formatter: Ou
 
 			try {
 				// Initialize embedded controller to access StateManager
-				formatter.info("Initializing Cline...")
 				const controller = await getEmbeddedController(logger, config.configDir)
 
 				// Parse value to appropriate type
@@ -165,7 +164,6 @@ function createConfigGetCommand(config: CliConfig, logger: Logger, formatter: Ou
 
 			try {
 				// Initialize embedded controller to access StateManager
-				formatter.info("Initializing Cline...")
 				const controller = await getEmbeddedController(logger, config.configDir)
 
 				let value: unknown
@@ -218,9 +216,6 @@ function createConfigListCommand(config: CliConfig, logger: Logger, formatter: O
 		logger.debug("Listing all config")
 
 		try {
-			// Initialize embedded controller to access StateManager
-			formatter.info("Initializing Cline...")
-
 			// Read the globalState.json file directly to get all settings
 			const fs = await import("fs")
 			const path = await import("path")
@@ -258,7 +253,6 @@ function createConfigDeleteCommand(config: CliConfig, logger: Logger, formatter:
 
 			try {
 				// Initialize embedded controller to access StateManager
-				formatter.info("Initializing Cline...")
 				const controller = await getEmbeddedController(logger, config.configDir)
 
 				// Set the value to undefined to reset to default

@@ -30,7 +30,6 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 
 			try {
 				// Initialize embedded controller
-				formatter.info("Initializing Cline...")
 				const controller = await getEmbeddedController(logger, config.configDir)
 
 				// Set up mode if specified

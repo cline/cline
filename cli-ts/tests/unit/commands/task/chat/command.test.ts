@@ -114,7 +114,6 @@ describe("task chat command", () => {
 		await cmd.parseAsync(["node", "test", "Hello Cline"])
 
 		expect(getControllerStub.calledOnce).to.be.true
-		expect((formatter.info as sinon.SinonStub).calledWith("Initializing Cline...")).to.be.true
 	})
 
 	it("should error on invalid mode option", async () => {

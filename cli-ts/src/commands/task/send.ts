@@ -251,7 +251,6 @@ export function createTaskSendCommand(config: CliConfig, logger: Logger, formatt
 				}
 
 				// Initialize embedded controller
-				formatter.info("Initializing Cline...")
 				const controller = await getEmbeddedController(logger, config.configDir)
 
 				// Handle mode switch

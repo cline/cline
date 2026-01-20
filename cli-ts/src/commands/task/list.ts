@@ -80,7 +80,6 @@ export function createTaskListCommand(config: CliConfig, logger: Logger, formatt
 
 			try {
 				// Initialize embedded controller to access task history
-				formatter.info("Initializing Cline...")
 				const controller = await getEmbeddedController(logger, config.configDir)
 
 				// Get task history from the state

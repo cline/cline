@@ -348,7 +348,6 @@ async function handleQuickSetup(
 		}
 
 		// Initialize embedded controller to access StateManager
-		fmt.info("Initializing Cline...")
 		const controller = await getEmbeddedController(logger, config.configDir)
 
 		// Set API key if provided
@@ -503,7 +502,6 @@ async function handleClineSignIn(config: CliConfig, logger: Logger, fmt: OutputF
 	const { enableAuthHandler, disableAuthHandler } = await import("../../core/host-provider-setup.js")
 
 	try {
-		fmt.info("Initializing Cline...")
 		const controller = await getEmbeddedController(logger, config.configDir)
 
 		// Enable the auth handler to receive OAuth callbacks
@@ -747,7 +745,6 @@ async function handleViewConfig(config: CliConfig, logger: Logger, fmt: OutputFo
 	fmt.raw("")
 
 	try {
-		fmt.info("Initializing Cline...")
 		const controller = await getEmbeddedController(logger, config.configDir)
 
 		// Read mode-specific configuration
@@ -843,7 +840,6 @@ function getSecretKeyForProvider(provider: ApiProvider): string | null {
  */
 async function handleAuthStatus(config: CliConfig, logger: Logger, fmt: OutputFormatter): Promise<void> {
 	try {
-		fmt.info("Initializing Cline...")
 		const controller = await getEmbeddedController(logger, config.configDir)
 
 		fmt.raw("")
@@ -992,7 +988,6 @@ async function handleAuthStatus(config: CliConfig, logger: Logger, fmt: OutputFo
  */
 async function handleListProviders(config: CliConfig, logger: Logger, fmt: OutputFormatter): Promise<void> {
 	try {
-		fmt.info("Initializing Cline...")
 		const controller = await getEmbeddedController(logger, config.configDir)
 
 		const planModeProvider = controller.stateManager.getGlobalStateKey("planModeApiProvider" as any)
@@ -1059,7 +1054,6 @@ async function handleDeleteProvider(
 			}
 		}
 
-		fmt.info("Initializing Cline...")
 		const controller = await getEmbeddedController(logger, config.configDir)
 
 		const normalizedProvider = providerId.toLowerCase().trim() as ApiProvider

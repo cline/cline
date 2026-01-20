@@ -91,7 +91,6 @@ export function createTaskViewCommand(config: CliConfig, logger: Logger, formatt
 
 			try {
 				// Initialize embedded controller
-				formatter.info("Initializing Cline...")
 				const controller = await getEmbeddedController(logger, config.configDir)
 
 				// Get task history to find the task

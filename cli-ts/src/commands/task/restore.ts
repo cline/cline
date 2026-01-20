@@ -121,7 +121,6 @@ export function createTaskRestoreCommand(config: CliConfig, logger: Logger, form
 
 			try {
 				// Initialize embedded controller
-				formatter.info("Initializing Cline...")
 				const controller = await getEmbeddedController(logger, config.configDir)
 
 				// Check if there's an active task
