@@ -5,180 +5,268 @@ const PROVIDER_NAME = "nebius"
 
 const MODELS: Record<string, ModelInfo> = {
 	"Qwen/Qwen2.5-32B-Instruct-fast": {
-		maxTokens: 8_192,
+		maxOutputTokens: 8_192,
 		contextWindow: 32_768,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.13,
-		outputPrice: 0.4,
+		pricing: {
+			input: 0.13,
+			output: 0.4,
+		},
+		capabilities: {
+			images: false,
+			promptCache: false,
+		},
 	},
 	"deepseek-ai/DeepSeek-V3": {
-		maxTokens: 32_000,
+		maxOutputTokens: 32_000,
 		contextWindow: 96_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.5,
-		outputPrice: 1.5,
+		pricing: {
+			input: 0.5,
+			output: 1.5,
+		},
+		capabilities: {
+			images: false,
+			promptCache: false,
+		},
 	},
 	"deepseek-ai/DeepSeek-V3-0324-fast": {
-		maxTokens: 128_000,
+		maxOutputTokens: 128_000,
 		contextWindow: 128_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 2,
-		outputPrice: 6,
+		pricing: {
+			input: 2,
+			output: 6,
+		},
+		capabilities: {
+			images: false,
+			promptCache: false,
+		},
 	},
 	"deepseek-ai/DeepSeek-R1": {
-		maxTokens: 32_000,
+		maxOutputTokens: 32_000,
 		contextWindow: 96_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.8,
-		outputPrice: 2.4,
+		pricing: {
+			input: 0.8,
+			output: 2.4,
+		},
+		capabilities: {
+			images: false,
+			promptCache: false,
+		},
 	},
 	"deepseek-ai/DeepSeek-R1-fast": {
-		maxTokens: 32_000,
+		maxOutputTokens: 32_000,
 		contextWindow: 96_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 2,
-		outputPrice: 6,
+		pricing: {
+			input: 2,
+			output: 6,
+		},
+		capabilities: {
+			images: false,
+			promptCache: false,
+		},
 	},
 	"deepseek-ai/DeepSeek-R1-0528": {
-		maxTokens: 128_000,
+		maxOutputTokens: 128_000,
 		contextWindow: 163_840,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.8,
-		outputPrice: 2.4,
+		pricing: {
+			input: 0.8,
+			output: 2.4,
+		},
+		capabilities: {
+			images: false,
+			promptCache: false,
+		},
 	},
 	"meta-llama/Llama-3.3-70B-Instruct-fast": {
-		maxTokens: 32_000,
+		maxOutputTokens: 32_000,
 		contextWindow: 96_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.25,
-		outputPrice: 0.75,
+		pricing: {
+			input: 0.25,
+			output: 0.75,
+		},
+		capabilities: {
+			images: false,
+			promptCache: false,
+		},
 	},
 	"Qwen/Qwen2.5-Coder-32B-Instruct-fast": {
-		maxTokens: 128_000,
+		maxOutputTokens: 128_000,
 		contextWindow: 128_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.1,
-		outputPrice: 0.3,
+		pricing: {
+			input: 0.1,
+			output: 0.3,
+		},
+		capabilities: {
+			images: false,
+			promptCache: false,
+		},
 	},
 	"Qwen/Qwen3-4B-fast": {
-		maxTokens: 32_000,
+		maxOutputTokens: 32_000,
 		contextWindow: 41_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.08,
-		outputPrice: 0.24,
+		pricing: {
+			input: 0.08,
+			output: 0.24,
+		},
+		capabilities: {
+			images: false,
+			promptCache: false,
+		},
 	},
 	"Qwen/Qwen3-30B-A3B-fast": {
-		maxTokens: 32_000,
+		maxOutputTokens: 32_000,
 		contextWindow: 41_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.3,
-		outputPrice: 0.9,
+		pricing: {
+			input: 0.3,
+			output: 0.9,
+		},
+		capabilities: {
+			images: false,
+			promptCache: false,
+		},
 	},
 	"Qwen/Qwen3-235B-A22B": {
-		maxTokens: 32_000,
+		maxOutputTokens: 32_000,
 		contextWindow: 41_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.2,
-		outputPrice: 0.6,
+		pricing: {
+			input: 0.2,
+			output: 0.6,
+		},
+		capabilities: {
+			images: false,
+			promptCache: false,
+		},
 	},
 	"openai/gpt-oss-120b": {
-		maxTokens: 32766, // Quantization: fp4
+		maxOutputTokens: 32766, // Quantization: fp4
 		contextWindow: 131_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.15,
-		outputPrice: 0.6,
+		pricing: {
+			input: 0.15,
+			output: 0.6,
+		},
+		capabilities: {
+			images: false,
+			promptCache: false,
+		},
 	},
 	"moonshotai/Kimi-K2-Instruct": {
-		maxTokens: 16384, // Quantization: fp4
+		maxOutputTokens: 16384, // Quantization: fp4
 		contextWindow: 131_000,
-		supportsImages: false,
-		supportsPromptCache: true,
-		inputPrice: 0.5,
-		outputPrice: 2.4,
+		pricing: {
+			input: 0.5,
+			output: 2.4,
+		},
+		capabilities: {
+			images: false,
+			promptCache: true,
+		},
 	},
 	"Qwen/Qwen3-Coder-480B-A35B-Instruct": {
-		maxTokens: 163800, // Quantization: fp8
+		maxOutputTokens: 163800, // Quantization: fp8
 		contextWindow: 262_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.4,
-		outputPrice: 1.8,
+		pricing: {
+			input: 0.4,
+			output: 1.8,
+		},
+		capabilities: {
+			images: false,
+			promptCache: false,
+		},
 	},
 	"openai/gpt-oss-20b": {
-		maxTokens: 32766, // Quantization: fp4
+		maxOutputTokens: 32766, // Quantization: fp4
 		contextWindow: 131_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.05,
-		outputPrice: 0.2,
+		pricing: {
+			input: 0.05,
+			output: 0.2,
+		},
+		capabilities: {
+			images: false,
+			promptCache: false,
+		},
 	},
 	"zai-org/GLM-4.5": {
-		maxTokens: 98304, // Quantization: fp8
+		maxOutputTokens: 98304, // Quantization: fp8
 		contextWindow: 128_000,
-		supportsImages: false,
-		supportsPromptCache: true,
-		inputPrice: 0.6,
-		outputPrice: 2.2,
+		pricing: {
+			input: 0.6,
+			output: 2.2,
+		},
+		capabilities: {
+			images: false,
+			promptCache: true,
+		},
 	},
 	"zai-org/GLM-4.5-Air": {
-		maxTokens: 98304, // Quantization: fp8
+		maxOutputTokens: 98304, // Quantization: fp8
 		contextWindow: 128_000,
-		supportsImages: false,
-		supportsPromptCache: true,
-		inputPrice: 0.2,
-		outputPrice: 1.2,
+		pricing: {
+			input: 0.2,
+			output: 1.2,
+		},
+		capabilities: {
+			images: false,
+			promptCache: true,
+		},
 	},
 	"deepseek-ai/DeepSeek-R1-0528-fast": {
-		maxTokens: 128000, // Quantization: fp4
+		maxOutputTokens: 128000, // Quantization: fp4
 		contextWindow: 164_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 2.0,
-		outputPrice: 6.0,
+		pricing: {
+			input: 2.0,
+			output: 6.0,
+		},
+		capabilities: {
+			images: false,
+			promptCache: false,
+		},
 	},
 	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
-		maxTokens: 64000, // Quantization: fp8
+		maxOutputTokens: 64000, // Quantization: fp8
 		contextWindow: 262_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.2,
-		outputPrice: 0.6,
+		pricing: {
+			input: 0.2,
+			output: 0.6,
+		},
+		capabilities: {
+			images: false,
+			promptCache: false,
+		},
 	},
 	"Qwen/Qwen3-30B-A3B": {
-		maxTokens: 32000, // Quantization: fp8
+		maxOutputTokens: 32000, // Quantization: fp8
 		contextWindow: 41_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.1,
-		outputPrice: 0.3,
+		pricing: {
+			input: 0.1,
+			output: 0.3,
+		},
+		capabilities: {
+			images: false,
+			promptCache: false,
+		},
 	},
 	"Qwen/Qwen3-32B": {
-		maxTokens: 16384, // Quantization: fp8
+		maxOutputTokens: 16384, // Quantization: fp8
 		contextWindow: 41_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.1,
-		outputPrice: 0.3,
+		pricing: {
+			input: 0.1,
+			output: 0.3,
+		},
+		capabilities: {
+			images: false,
+			promptCache: false,
+		},
 	},
 	"Qwen/Qwen3-32B-fast": {
-		maxTokens: 16384, // Quantization: fp8
+		maxOutputTokens: 16384, // Quantization: fp8
 		contextWindow: 41_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.2,
-		outputPrice: 0.6,
+		pricing: {
+			input: 0.2,
+			output: 0.6,
+		},
+		capabilities: {
+			images: false,
+			promptCache: false,
+		},
 	},
 }
 
