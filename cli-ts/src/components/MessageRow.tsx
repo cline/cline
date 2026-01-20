@@ -306,7 +306,11 @@ export const MessageRow: React.FC<MessageRowProps> = ({ message, verbose = false
 	const timestamp = formatTimestamp(message.ts)
 
 	// Don't render silent messages
-	if (message.type === "say" && message.say === "api_req_finished") {
+	if (message.say === "api_req_finished" || message.say === "api_req_started") {
+		return null
+	}
+
+	if (message.say === "text" && message.text?.trim() === "") {
 		return null
 	}
 

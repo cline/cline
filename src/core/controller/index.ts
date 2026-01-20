@@ -179,8 +179,6 @@ export class Controller {
 
 		await this.clearTask()
 		this.mcpHub.dispose()
-
-		console.error("Controller disposed")
 	}
 
 	// Auth methods
