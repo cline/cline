@@ -127,6 +127,59 @@ const esbuildProblemMatcherPlugin = {
 	},
 }
 
+/**
+ * Plugin to copy tree-sitter WASM files to dist directory
+ * These are required at runtime for code parsing functionality
+ * @type {import('esbuild').Plugin}
+ */
+const copyWasmFiles = {
+	name: "copy-wasm-files",
+	setup(build) {
+		build.onEnd(() => {
+			const targetDir = path.resolve(__dirname, "dist")
+
+			// Copy tree-sitter.wasm from web-tree-sitter
+			const treeSitterSource = path.join(rootDir, "node_modules", "web-tree-sitter", "tree-sitter.wasm")
+			if (fs.existsSync(treeSitterSource)) {
+				fs.copyFileSync(treeSitterSource, path.join(targetDir, "tree-sitter.wasm"))
+			} else {
+				console.warn("Warning: tree-sitter.wasm not found in node_modules/web-tree-sitter")
+			}
+
+			// Copy language-specific WASM files from tree-sitter-wasms
+			const languageWasmDir = path.join(rootDir, "node_modules", "tree-sitter-wasms", "out")
+			const languages = [
+				"typescript",
+				"tsx",
+				"python",
+				"rust",
+				"javascript",
+				"go",
+				"cpp",
+				"c",
+				"c_sharp",
+				"ruby",
+				"java",
+				"php",
+				"swift",
+				"kotlin",
+			]
+
+			if (fs.existsSync(languageWasmDir)) {
+				languages.forEach((lang) => {
+					const filename = `tree-sitter-${lang}.wasm`
+					const sourcePath = path.join(languageWasmDir, filename)
+					if (fs.existsSync(sourcePath)) {
+						fs.copyFileSync(sourcePath, path.join(targetDir, filename))
+					}
+				})
+			} else {
+				console.warn("Warning: tree-sitter-wasms/out directory not found")
+			}
+		})
+	},
+}
+
 // Read package.json for version injection
 const rootPackageJson = JSON.parse(fs.readFileSync(path.resolve(rootDir, "package.json"), "utf8"))
 
@@ -186,7 +239,7 @@ const cliConfig = {
 	logLevel: "silent",
 	define: buildEnvVars,
 	tsconfig: path.resolve(__dirname, "tsconfig.json"),
-	plugins: [vscodeShimPlugin, jsonResolverPlugin, aliasResolverPlugin, esbuildProblemMatcherPlugin],
+	plugins: [vscodeShimPlugin, jsonResolverPlugin, aliasResolverPlugin, copyWasmFiles, esbuildProblemMatcherPlugin],
 	format: "cjs",
 	sourcesContent: false,
 	platform: "node",
