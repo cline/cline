@@ -13,6 +13,11 @@ import type { CliConfig } from "../../types/config.js"
 import type { Logger } from "../../types/logger.js"
 
 /**
+ * Mode type for plan/act mode configuration
+ */
+type Mode = "plan" | "act"
+
+/**
  * List of supported API providers
  * Synced with src/shared/api.ts ApiProvider type
  */
@@ -181,6 +186,52 @@ const PROVIDER_INFO: ProviderInfo[] = [
 ]
 
 /**
+ * Get the model ID state key for a given provider and mode
+ * Some providers use provider-specific model ID keys (e.g., openRouterModelId),
+ * while others use the generic apiModelId
+ */
+function getModelIdKey(provider: ApiProvider, mode: Mode): string {
+	const modePrefix = mode === "plan" ? "planMode" : "actMode"
+
+	// Providers with custom model ID keys
+	switch (provider) {
+		case "openrouter":
+		case "cline": // Cline provider uses OpenRouter model IDs under the hood
+			return `${modePrefix}OpenRouterModelId`
+		case "openai":
+			return `${modePrefix}OpenAiModelId`
+		case "ollama":
+			return `${modePrefix}OllamaModelId`
+		case "lmstudio":
+			return `${modePrefix}LmStudioModelId`
+		case "litellm":
+			return `${modePrefix}LiteLlmModelId`
+		case "requesty":
+			return `${modePrefix}RequestyModelId`
+		case "together":
+			return `${modePrefix}TogetherModelId`
+		case "fireworks":
+			return `${modePrefix}FireworksModelId`
+		case "groq":
+			return `${modePrefix}GroqModelId`
+		case "baseten":
+			return `${modePrefix}BasetenModelId`
+		case "huggingface":
+			return `${modePrefix}HuggingFaceModelId`
+		default:
+			// Most providers use the generic apiModelId
+			return `${modePrefix}ApiModelId`
+	}
+}
+
+/**
+ * Get the provider state key for a given mode
+ */
+function getProviderKey(mode: Mode): string {
+	return mode === "plan" ? "planModeApiProvider" : "actModeApiProvider"
+}
+
+/**
  * Prompt for input from stdin
  */
 async function prompt(question: string, hideInput = false): Promise<string> {
@@ -255,13 +306,27 @@ async function handleQuickSetup(
 	config: CliConfig,
 	logger: Logger,
 	fmt: OutputFormatter,
-	options: { provider: string; apikey?: string; modelid: string; baseurl?: string },
+	options: { provider: string; apikey?: string; modelid: string; baseurl?: string; mode?: string },
 ): Promise<void> {
-	fmt.info("= Configuring provider...")
+	fmt.info("== Configuring provider...")
 	fmt.raw("")
 
 	try {
 		const normalizedProvider = options.provider.toLowerCase().trim()
+
+		// Parse mode option - default to "both" if not specified
+		let modesToConfigure: Mode[] = ["plan", "act"]
+		if (options.mode) {
+			const modeOption = options.mode.toLowerCase().trim()
+			if (modeOption === "plan") {
+				modesToConfigure = ["plan"]
+			} else if (modeOption === "act") {
+				modesToConfigure = ["act"]
+			} else if (modeOption !== "both") {
+				fmt.error(`Invalid mode: ${options.mode}. Must be 'plan', 'act', or 'both'.`)
+				process.exit(1)
+			}
+		}
 
 		// Validate provider
 		if (!isValidProvider(normalizedProvider)) {
@@ -272,9 +337,7 @@ async function handleQuickSetup(
 
 		// Check for bedrock (complex auth requirements)
 		if (normalizedProvider === "bedrock") {
-			fmt.error(
-				"Bedrock provider requires AWS credentials configuration. Please use interactive setup: cline auth",
-			)
+			fmt.error("Bedrock provider requires AWS credentials configuration. Please use interactive setup: cline auth")
 			process.exit(1)
 		}
 
@@ -288,17 +351,12 @@ async function handleQuickSetup(
 		fmt.info("Initializing Cline...")
 		const controller = await getEmbeddedController(logger, config.configDir)
 
-		// Build API configuration
-		const apiConfig: Record<string, unknown> = {
-			apiProvider: normalizedProvider,
-		}
-
 		// Set API key if provided
 		if (options.apikey) {
 			// Store API key based on provider
 			switch (normalizedProvider) {
 				case "anthropic":
-					await controller.stateManager.setSecret("anthropicApiKey", options.apikey)
+					await controller.stateManager.setSecret("anthropicApiKey" as any, options.apikey)
 					break
 				case "openrouter":
 					await controller.stateManager.setSecret("openRouterApiKey", options.apikey)
@@ -324,21 +382,22 @@ async function handleQuickSetup(
 					break
 				default:
 					// Generic API key storage
-					await controller.stateManager.setSecret("apiKey", options.apikey)
+					await controller.stateManager.setSecret("apiKey" as any, options.apikey)
 			}
 		}
 
-		// Set model ID
-		apiConfig.apiModelId = options.modelid
+		// Save configuration for each mode
+		for (const mode of modesToConfigure) {
+			// Set provider for this mode
+			const providerKey = getProviderKey(mode)
+			controller.stateManager.setGlobalState(providerKey as any, normalizedProvider)
 
-		// Set base URL if provided
-		if (options.baseurl) {
-			apiConfig.openAiBaseUrl = options.baseurl
+			// Set model ID for this mode using the correct key for the provider
+			const modelIdKey = getModelIdKey(normalizedProvider, mode)
+			controller.stateManager.setGlobalState(modelIdKey as any, options.modelid)
 		}
 
-		// Save configuration to StateManager
-		controller.stateManager.setGlobalState("apiProvider" as any, normalizedProvider)
-		controller.stateManager.setGlobalState("apiModelId" as any, options.modelid)
+		// Set base URL if provided (global setting, not mode-specific)
 		if (options.baseurl) {
 			controller.stateManager.setGlobalState("openAiBaseUrl" as any, options.baseurl)
 		}
@@ -346,7 +405,8 @@ async function handleQuickSetup(
 		// Flush pending state to ensure changes are persisted
 		await controller.stateManager.flushPendingState()
 
-		fmt.success(`Provider: ${normalizedProvider}`)
+		const modeLabel = modesToConfigure.length === 2 ? "both modes" : `${modesToConfigure[0]} mode`
+		fmt.success(`Provider: ${normalizedProvider} (${modeLabel})`)
 		fmt.success(`Model: ${options.modelid}`)
 		if (options.baseurl) {
 			fmt.success(`Base URL: ${options.baseurl}`)
@@ -356,7 +416,7 @@ async function handleQuickSetup(
 		}
 
 		fmt.raw("")
-		fmt.success(" Successfully configured authentication")
+		fmt.success("Successfully configured authentication")
 		fmt.info("You can now use Cline with this provider.")
 		fmt.info("Run 'cline task \"<your prompt>\"' to begin a new task.")
 
@@ -420,7 +480,7 @@ async function handleInteractiveAuth(config: CliConfig, logger: Logger, fmt: Out
  */
 async function handleClineSignIn(config: CliConfig, logger: Logger, fmt: OutputFormatter): Promise<void> {
 	fmt.raw("")
-	fmt.info("=ñ Cline Account Sign-In")
+	fmt.info("=ï¿½ Cline Account Sign-In")
 	fmt.raw("")
 	fmt.info("This will open your browser to sign in to your Cline account.")
 	fmt.info("Once signed in, you'll have access to Cline's managed API.")
@@ -529,13 +589,47 @@ async function handleProviderSetup(config: CliConfig, logger: Logger, fmt: Outpu
 		baseUrl = baseUrl?.trim() || undefined
 	}
 
+	// Prompt for mode selection
+	fmt.raw("")
+	fmt.raw("Which mode(s) should use this provider?")
+	fmt.raw("  1. Both plan and act modes (recommended)")
+	fmt.raw("  2. Plan mode only")
+	fmt.raw("  3. Act mode only")
+	fmt.raw("")
+	const modeSelection = await prompt("Enter choice (1-3, default: 1): ")
+	let modeOption: string | undefined
+	const modeChoice = parseInt(modeSelection, 10) || 1
+	switch (modeChoice) {
+		case 2:
+			modeOption = "plan"
+			break
+		case 3:
+			modeOption = "act"
+			break
+		default:
+			modeOption = "both"
+	}
+
 	// Save configuration
 	await handleQuickSetup(config, logger, fmt, {
 		provider: provider.id,
 		apikey: apiKey?.trim(),
 		modelid: modelId.trim(),
 		baseurl: baseUrl,
+		mode: modeOption,
 	})
+}
+
+/**
+ * Get the model ID for a provider from state, checking the appropriate key
+ */
+function getModelIdFromState(
+	stateManager: { getGlobalStateKey: (key: any) => any },
+	provider: ApiProvider,
+	mode: Mode,
+): string | undefined {
+	const modelIdKey = getModelIdKey(provider, mode)
+	return stateManager.getGlobalStateKey(modelIdKey as any)
 }
 
 /**
@@ -543,26 +637,48 @@ async function handleProviderSetup(config: CliConfig, logger: Logger, fmt: Outpu
  */
 async function handleViewConfig(config: CliConfig, logger: Logger, fmt: OutputFormatter): Promise<void> {
 	fmt.raw("")
-	fmt.info("=Ë Current Configuration")
+	fmt.info("== Current Configuration")
 	fmt.raw("")
 
 	try {
 		fmt.info("Initializing Cline...")
 		const controller = await getEmbeddedController(logger, config.configDir)
 
-		const apiProvider = controller.stateManager.getGlobalStateKey("apiProvider" as any)
-		const apiModelId = controller.stateManager.getGlobalStateKey("apiModelId" as any)
+		// Read mode-specific configuration
+		// Note: These keys are in Settings, not GlobalState, so we need to cast
+		const planModeProvider = controller.stateManager.getGlobalStateKey("planModeApiProvider" as any)
+		const actModeProvider = controller.stateManager.getGlobalStateKey("actModeApiProvider" as any)
 		const openAiBaseUrl = controller.stateManager.getGlobalStateKey("openAiBaseUrl" as any)
 
-		if (!apiProvider) {
+		if (!planModeProvider && !actModeProvider) {
 			fmt.info("No provider configured.")
 			fmt.info("Run 'cline auth' to set up authentication.")
 		} else {
+			// Get model IDs for each mode
+			const planModelId = planModeProvider
+				? getModelIdFromState(controller.stateManager, planModeProvider as ApiProvider, "plan")
+				: undefined
+			const actModelId = actModeProvider
+				? getModelIdFromState(controller.stateManager, actModeProvider as ApiProvider, "act")
+				: undefined
+
+			fmt.raw("Plan Mode:")
 			fmt.keyValue({
-				Provider: String(apiProvider),
-				"Model ID": apiModelId ? String(apiModelId) : "(not set)",
-				...(openAiBaseUrl ? { "Base URL": String(openAiBaseUrl) } : {}),
+				Provider: planModeProvider ? String(planModeProvider) : "(not set)",
+				"Model ID": planModelId ? String(planModelId) : "(not set)",
 			})
+
+			fmt.raw("")
+			fmt.raw("Act Mode:")
+			fmt.keyValue({
+				Provider: actModeProvider ? String(actModeProvider) : "(not set)",
+				"Model ID": actModelId ? String(actModelId) : "(not set)",
+			})
+
+			if (openAiBaseUrl) {
+				fmt.raw("")
+				fmt.keyValue({ "Base URL": String(openAiBaseUrl) })
+			}
 		}
 
 		// Cleanup and exit
@@ -583,16 +699,33 @@ async function handleListProviders(config: CliConfig, logger: Logger, fmt: Outpu
 		fmt.info("Initializing Cline...")
 		const controller = await getEmbeddedController(logger, config.configDir)
 
-		const apiProvider = controller.stateManager.getGlobalStateKey("apiProvider" as any)
-		const apiModelId = controller.stateManager.getGlobalStateKey("apiModelId" as any)
+		const planModeProvider = controller.stateManager.getGlobalStateKey("planModeApiProvider" as any)
+		const actModeProvider = controller.stateManager.getGlobalStateKey("actModeApiProvider" as any)
 
-		if (!apiProvider) {
+		if (!planModeProvider && !actModeProvider) {
 			fmt.info("No API provider configured.")
 			fmt.info("Run 'cline auth' to set up authentication.")
 		} else {
-			fmt.info("Configured provider:")
-			const providerInfo = getProviderInfo(String(apiProvider))
-			fmt.raw(`  ${providerInfo?.name || apiProvider}: ${apiModelId || "(no model set)"}`)
+			fmt.info("Configured providers:")
+			fmt.raw("")
+
+			if (planModeProvider) {
+				const planModelId = getModelIdFromState(controller.stateManager, planModeProvider as ApiProvider, "plan")
+				const providerInfo = getProviderInfo(String(planModeProvider))
+				fmt.raw(`  Plan Mode: ${providerInfo?.name || planModeProvider}`)
+				fmt.raw(`    Model: ${planModelId || "(no model set)"}`)
+			} else {
+				fmt.raw(`  Plan Mode: (not configured)`)
+			}
+
+			if (actModeProvider) {
+				const actModelId = getModelIdFromState(controller.stateManager, actModeProvider as ApiProvider, "act")
+				const providerInfo = getProviderInfo(String(actModeProvider))
+				fmt.raw(`  Act Mode: ${providerInfo?.name || actModeProvider}`)
+				fmt.raw(`    Model: ${actModelId || "(no model set)"}`)
+			} else {
+				fmt.raw(`  Act Mode: (not configured)`)
+			}
 		}
 
 		// Cleanup and exit
@@ -613,20 +746,46 @@ async function handleDeleteProvider(
 	logger: Logger,
 	fmt: OutputFormatter,
 	providerId: string,
+	modeOption?: string,
 ): Promise<void> {
 	try {
+		// Parse mode option - default to "both" if not specified
+		let modesToClear: Mode[] = ["plan", "act"]
+		if (modeOption) {
+			const mode = modeOption.toLowerCase().trim()
+			if (mode === "plan") {
+				modesToClear = ["plan"]
+			} else if (mode === "act") {
+				modesToClear = ["act"]
+			} else if (mode !== "both") {
+				fmt.error(`Invalid mode: ${modeOption}. Must be 'plan', 'act', or 'both'.`)
+				process.exit(1)
+			}
+		}
+
 		fmt.info("Initializing Cline...")
 		const controller = await getEmbeddedController(logger, config.configDir)
 
-		// Clear the API configuration
-		controller.stateManager.setGlobalState("apiProvider" as any, undefined)
-		controller.stateManager.setGlobalState("apiModelId" as any, undefined)
+		const normalizedProvider = providerId.toLowerCase().trim() as ApiProvider
+
+		// Clear the API configuration for each mode
+		for (const mode of modesToClear) {
+			// Clear provider
+			const providerKey = getProviderKey(mode)
+			controller.stateManager.setGlobalState(providerKey as any, undefined)
+
+			// Clear model ID using the correct key for the provider
+			const modelIdKey = getModelIdKey(normalizedProvider, mode)
+			controller.stateManager.setGlobalState(modelIdKey as any, undefined)
+		}
+
+		// Clear base URL (global setting)
 		controller.stateManager.setGlobalState("openAiBaseUrl" as any, undefined)
 
 		// Clear secrets for the provider
-		switch (providerId.toLowerCase()) {
+		switch (normalizedProvider) {
 			case "anthropic":
-				await controller.stateManager.setSecret("anthropicApiKey", undefined)
+				await controller.stateManager.setSecret("anthropicApiKey" as any, undefined)
 				break
 			case "openrouter":
 				await controller.stateManager.setSecret("openRouterApiKey", undefined)
@@ -655,7 +814,8 @@ async function handleDeleteProvider(
 		// Flush pending state
 		await controller.stateManager.flushPendingState()
 
-		fmt.success(`Deleted configuration for ${providerId}`)
+		const modeLabel = modesToClear.length === 2 ? "both modes" : `${modesToClear[0]} mode`
+		fmt.success(`Deleted configuration for ${providerId} (${modeLabel})`)
 
 		// Cleanup and exit
 		await disposeEmbeddedController(logger)
@@ -678,6 +838,7 @@ export function createAuthCommand(config: CliConfig, logger: Logger, formatter: 
 		.option("-k, --apikey <key>", "API key for the provider")
 		.option("-m, --modelid <model>", "Model ID to use (e.g., claude-sonnet-4-5-20250929)")
 		.option("-b, --baseurl <url>", "Base URL for OpenAI-compatible providers")
+		.option("--mode <mode>", "Mode to configure: 'plan', 'act', or 'both' (default: both)")
 		.option("-l, --list", "List configured providers")
 		.option("-d, --delete <provider>", "Delete configuration for a provider")
 		.action(async (options) => {
@@ -691,7 +852,7 @@ export function createAuthCommand(config: CliConfig, logger: Logger, formatter: 
 
 			// Handle --delete flag
 			if (options.delete) {
-				await handleDeleteProvider(config, logger, formatter, options.delete)
+				await handleDeleteProvider(config, logger, formatter, options.delete, options.mode)
 				return
 			}
 
@@ -703,13 +864,17 @@ export function createAuthCommand(config: CliConfig, logger: Logger, formatter: 
 					formatter.info("")
 					formatter.info("Usage:")
 					formatter.info(
-						"  cline auth --provider <provider> --apikey <key> --modelid <model> [--baseurl <url>]",
+						"  cline auth --provider <provider> --apikey <key> --modelid <model> [--baseurl <url>] [--mode <mode>]",
 					)
+					formatter.info("")
+					formatter.info("Options:")
+					formatter.info("  --mode <mode>  Mode to configure: 'plan', 'act', or 'both' (default: both)")
 					formatter.info("")
 					formatter.info("Examples:")
 					formatter.info("  cline auth --provider anthropic --apikey sk-ant-xxx --modelid claude-sonnet-4-5-20250929")
 					formatter.info("  cline auth -p openrouter -k sk-or-xxx -m anthropic/claude-sonnet-4")
 					formatter.info("  cline auth -p openai -k sk-xxx -m gpt-4o -b https://api.example.com/v1")
+					formatter.info("  cline auth -p anthropic -k sk-ant-xxx -m claude-sonnet-4-5-20250929 --mode plan")
 					formatter.info("")
 					formatter.info("Run 'cline auth' without flags for interactive setup.")
 					process.exit(1)
@@ -720,6 +885,7 @@ export function createAuthCommand(config: CliConfig, logger: Logger, formatter: 
 					apikey: options.apikey,
 					modelid: options.modelid,
 					baseurl: options.baseurl,
+					mode: options.mode,
 				})
 				return
 			}
