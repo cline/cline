@@ -21,6 +21,7 @@ import { CliWebviewProvider } from "./cli-webview-provider"
 import { App } from "./components/App"
 import { restoreConsole } from "./console"
 import { print, printError, printInfo, separator } from "./display"
+import { parseImagesFromInput, processImagePaths } from "./utils"
 import { initializeCliContext } from "./vscode-context"
 
 /**
@@ -169,10 +170,30 @@ function waitForCondition(check: () => boolean, timeoutMs: number, intervalMs: n
  */
 async function runTask(
 	prompt: string,
-	options: { switch?: string; model?: string; verbose?: boolean; cwd?: string; config?: string; thinking?: boolean },
+	options: {
+		switch?: string
+		model?: string
+		verbose?: boolean
+		cwd?: string
+		config?: string
+		thinking?: boolean
+		images?: string[]
+	},
 	existingContext?: CliContext,
 ) {
 	const ctx = existingContext || (await initializeCli(options))
+
+	// Parse images from the prompt text (e.g., @/path/to/image.png)
+	const { prompt: cleanPrompt, imagePaths: parsedImagePaths } = parseImagesFromInput(prompt)
+
+	// Combine parsed image paths with explicit --images option
+	const allImagePaths = [...(options.images || []), ...parsedImagePaths]
+
+	// Convert image file paths to base64 data URLs
+	const imageDataUrls = await processImagePaths(allImagePaths)
+
+	// Use clean prompt (with image refs removed)
+	const taskPrompt = cleanPrompt || prompt
 
 	if (options.switch) {
 		StateManager.get().setGlobalState("mode", options.switch === "plan" ? "plan" : "act")
@@ -203,6 +224,9 @@ async function runTask(
 
 	printInfo(`Starting Cline task...`)
 	printInfo(`Working directory: ${ctx.workspacePath}`)
+	if (imageDataUrls.length > 0) {
+		printInfo(`Images attached: ${imageDataUrls.length}`)
+	}
 	print(separator())
 
 	let isComplete = false
@@ -211,7 +235,7 @@ async function runTask(
 	const { waitUntilExit, unmount } = render(
 		React.createElement(App, {
 			view: "task",
-			taskId: prompt.substring(0, 30),
+			taskId: taskPrompt.substring(0, 30),
 			verbose: options.verbose,
 			controller: ctx.controller,
 			onComplete: () => {
@@ -224,7 +248,7 @@ async function runTask(
 		}),
 	)
 
-	await ctx.controller.initTask(prompt)
+	await ctx.controller.initTask(taskPrompt, imageDataUrls.length > 0 ? imageDataUrls : undefined)
 
 	const completed = await waitForCondition(() => isComplete, 10 * 60 * 1000)
 	if (!completed) {
@@ -371,6 +395,7 @@ program
 	.argument("<prompt>", "The task prompt")
 	.option("-s, --switch <mode>", "Switch mode: act, plan")
 	.option("-m, --model <model>", "Model to use for the task")
+	.option("-i, --images <paths...>", "Image file paths to include with the task")
 	.option("-v, --verbose", "Show verbose output including reasoning")
 	.option("-c, --cwd <path>", "Working directory for the task")
 	.option("--config <path>", "Path to Cline configuration directory")
@@ -411,12 +436,14 @@ async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: 
 	const ctx = await initializeCli(options)
 
 	let submittedPrompt: string | null = null
+	let submittedImagePaths: string[] = []
 
 	const { waitUntilExit, unmount } = render(
 		React.createElement(App, {
 			view: "welcome",
-			onWelcomeSubmit: (prompt: string) => {
+			onWelcomeSubmit: (prompt: string, imagePaths: string[]) => {
 				submittedPrompt = prompt
+				submittedImagePaths = imagePaths
 				unmount()
 			},
 			onWelcomeExit: () => {
@@ -433,9 +460,9 @@ async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: 
 
 	restoreConsole()
 
-	if (submittedPrompt) {
-		// Run the task with the submitted prompt, reusing the existing context
-		await runTask(submittedPrompt, options, ctx)
+	if (submittedPrompt || submittedImagePaths.length > 0) {
+		// Run the task with the submitted prompt and images, reusing the existing context
+		await runTask(submittedPrompt || "", { ...options, images: submittedImagePaths }, ctx)
 	} else {
 		// User exited without submitting - clean up
 		await ctx.controller.stateManager.flushPendingState()
@@ -447,6 +474,7 @@ async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: 
 // Interactive mode (default when no command given)
 program
 	.argument("[prompt]", "Task prompt (starts task immediately)")
+	.option("-i, --images <paths...>", "Image file paths to include with the task")
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory")
 	.option("--config <path>", "Configuration directory")

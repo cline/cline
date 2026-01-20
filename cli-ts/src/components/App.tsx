@@ -43,7 +43,7 @@ interface AppProps {
 		baseurl?: string
 	}
 	// For welcome view
-	onWelcomeSubmit?: (prompt: string) => void
+	onWelcomeSubmit?: (prompt: string, imagePaths: string[]) => void
 	onWelcomeExit?: () => void
 }
 
