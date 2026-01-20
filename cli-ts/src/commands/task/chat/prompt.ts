@@ -13,7 +13,7 @@ import chalk from "chalk"
  * Format: [mode] provider/model >
  */
 export function buildPromptString(mode: Mode, provider: ApiProvider | undefined, modelId: string | undefined): string {
-	const modeStr = mode === "plan" ? chalk.magenta("[plan]") : chalk.cyan("[act]")
+	const modeStr = mode === "plan" ? chalk.yellow("[plan]") : chalk.cyan("[act]")
 	const providerStr = provider || "unknown"
 
 	// Shorten very long model IDs for display (keep last part after last /)

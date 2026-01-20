@@ -50,6 +50,16 @@ export class StandaloneDiffViewProvider extends DiffViewProvider {
 	}
 
 	/**
+	 * Returns the line count of the current document in memory.
+	 */
+	protected override async getDocumentLineCount(): Promise<number> {
+		if (!this.accumulatedContent) {
+			return 0
+		}
+		return this.accumulatedContent.split("\n").length
+	}
+
+	/**
 	 * Saves the document to disk with proper encoding.
 	 */
 	protected override async saveDocument(): Promise<Boolean> {
