@@ -102,6 +102,16 @@ const esbuildProblemMatcherPlugin = {
 	},
 }
 
+// Plugin to stub out optional devtools module
+const stubOptionalModulesPlugin = {
+	name: "stub-optional-modules",
+	setup(build) {
+		build.onResolve({ filter: /^react-devtools-core$/ }, () => {
+			return { path: path.join(__dirname, "src", "stub-devtools.js"), external: false }
+		})
+	},
+}
+
 const copyWasmFiles = {
 	name: "copy-wasm-files",
 	setup(build) {
@@ -155,7 +165,6 @@ const copyWasmFiles = {
 }
 
 const buildEnvVars = {
-	"import.meta.url": "_importMetaUrl",
 	"process.env.IS_STANDALONE": JSON.stringify("true"),
 	"process.env.IS_CLI": JSON.stringify("true"),
 }
@@ -177,17 +186,23 @@ const config = {
 	logLevel: "silent",
 	define: buildEnvVars,
 	tsconfig: path.join(__dirname, "tsconfig.json"),
-	plugins: [copyWasmFiles, aliasResolverPlugin, vscodeStubPlugin, esbuildProblemMatcherPlugin],
-	format: "cjs",
+	plugins: [copyWasmFiles, aliasResolverPlugin, vscodeStubPlugin, stubOptionalModulesPlugin, esbuildProblemMatcherPlugin],
+	format: "esm",
 	sourcesContent: false,
 	platform: "node",
 	target: "node20",
-	outfile: path.join(__dirname, "dist", "cli.cjs"),
+	outfile: path.join(__dirname, "dist", "cli.mjs"),
 	// These modules need to load files from the module directory at runtime
-	external: ["@grpc/reflection", "grpc-health-check", "better-sqlite3"],
+	external: ["@grpc/reflection", "grpc-health-check", "better-sqlite3", "ink", "ink-spinner", "react"],
+	supported: { "top-level-await": true },
 	banner: {
 		js: `#!/usr/bin/env node
-const _importMetaUrl=require('url').pathToFileURL(__filename)`,
+import { createRequire as _createRequire } from 'module';
+import { fileURLToPath as _fileURLToPath } from 'url';
+import { dirname as _dirname } from 'path';
+const require = _createRequire(import.meta.url);
+const __filename = _fileURLToPath(import.meta.url);
+const __dirname = _dirname(__filename);`,
 	},
 }
 
@@ -201,7 +216,7 @@ async function main() {
 		await ctx.dispose()
 
 		// Make the output executable
-		const outfile = path.join(__dirname, "dist", "cli.cjs")
+		const outfile = path.join(__dirname, "dist", "cli.mjs")
 		if (fs.existsSync(outfile)) {
 			fs.chmodSync(outfile, "755")
 		}

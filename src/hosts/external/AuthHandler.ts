@@ -150,8 +150,6 @@ export class AuthHandler {
 	}
 
 	private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-		console.log("AuthHandler: Received request", req.url)
-
 		if (!req.url) {
 			this.sendResponse(res, 404, "text/plain", "Not found")
 			return
@@ -167,10 +165,7 @@ export class AuthHandler {
 			let redirectUri: string | undefined
 			try {
 				redirectUri = (await HostProvider.env.getIdeRedirectUri({})).value
-				console.log("AuthHandler: Got redirect URI:", redirectUri)
-			} catch (error) {
-				// CLI or JetBrains mode - redirect not available
-				console.log("AuthHandler: No redirect URI available (CLI/JetBrains mode)")
+			} catch {
 				redirectUri = undefined
 			}
 
