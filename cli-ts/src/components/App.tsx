@@ -21,6 +21,24 @@ interface HistoryPagination {
 	limit: number
 }
 
+interface HookInfo {
+	name: string
+	enabled: boolean
+	absolutePath: string
+}
+
+interface WorkspaceHooks {
+	workspaceName: string
+	hooks: HookInfo[]
+}
+
+interface SkillInfo {
+	name: string
+	description: string
+	path: string
+	enabled: boolean
+}
+
 interface AppProps {
 	view: ViewType
 	taskId?: string
@@ -37,6 +55,27 @@ interface AppProps {
 	dataDir?: string
 	globalState?: Record<string, any>
 	workspaceState?: Record<string, any>
+	// Rules toggles
+	globalClineRulesToggles?: Record<string, boolean>
+	localClineRulesToggles?: Record<string, boolean>
+	localCursorRulesToggles?: Record<string, boolean>
+	localWindsurfRulesToggles?: Record<string, boolean>
+	localAgentsRulesToggles?: Record<string, boolean>
+	onToggleRule?: (isGlobal: boolean, rulePath: string, enabled: boolean, ruleType: string) => void
+	// Workflow toggles
+	globalWorkflowToggles?: Record<string, boolean>
+	localWorkflowToggles?: Record<string, boolean>
+	onToggleWorkflow?: (isGlobal: boolean, workflowPath: string, enabled: boolean) => void
+	// Hooks
+	hooksEnabled?: boolean
+	globalHooks?: HookInfo[]
+	workspaceHooks?: WorkspaceHooks[]
+	onToggleHook?: (isGlobal: boolean, hookName: string, enabled: boolean, workspaceName?: string) => void
+	// Skills
+	skillsEnabled?: boolean
+	globalSkills?: SkillInfo[]
+	localSkills?: SkillInfo[]
+	onToggleSkill?: (isGlobal: boolean, skillPath: string, enabled: boolean) => void
 	// For auth view
 	authQuickSetup?: {
 		provider?: string
@@ -63,6 +102,27 @@ export const App: React.FC<AppProps> = ({
 	dataDir = "",
 	globalState = {},
 	workspaceState = {},
+	// Rules
+	globalClineRulesToggles,
+	localClineRulesToggles,
+	localCursorRulesToggles,
+	localWindsurfRulesToggles,
+	localAgentsRulesToggles,
+	onToggleRule,
+	// Workflows
+	globalWorkflowToggles,
+	localWorkflowToggles,
+	onToggleWorkflow,
+	// Hooks
+	hooksEnabled,
+	globalHooks,
+	workspaceHooks,
+	onToggleHook,
+	// Skills
+	skillsEnabled,
+	globalSkills,
+	localSkills,
+	onToggleSkill,
 	authQuickSetup,
 	onWelcomeSubmit,
 	onWelcomeExit,
@@ -100,7 +160,30 @@ export const App: React.FC<AppProps> = ({
 			break
 
 		case "config":
-			content = <ConfigView dataDir={dataDir} globalState={globalState} workspaceState={workspaceState} />
+			content = (
+				<ConfigView
+					dataDir={dataDir}
+					globalClineRulesToggles={globalClineRulesToggles}
+					globalHooks={globalHooks}
+					globalSkills={globalSkills}
+					globalState={globalState}
+					globalWorkflowToggles={globalWorkflowToggles}
+					hooksEnabled={hooksEnabled}
+					localAgentsRulesToggles={localAgentsRulesToggles}
+					localClineRulesToggles={localClineRulesToggles}
+					localCursorRulesToggles={localCursorRulesToggles}
+					localSkills={localSkills}
+					localWindsurfRulesToggles={localWindsurfRulesToggles}
+					localWorkflowToggles={localWorkflowToggles}
+					onToggleHook={onToggleHook}
+					onToggleRule={onToggleRule}
+					onToggleSkill={onToggleSkill}
+					onToggleWorkflow={onToggleWorkflow}
+					skillsEnabled={skillsEnabled}
+					workspaceHooks={workspaceHooks}
+					workspaceState={workspaceState}
+				/>
+			)
 			break
 
 		case "auth":

@@ -22,51 +22,8 @@ import { App } from "./components/App"
 import { restoreConsole } from "./console"
 import { print, printError, printInfo, separator } from "./display"
 import { parseImagesFromInput, processImagePaths } from "./utils"
+import { getProviderModelIdKey } from "./utils/provider-map"
 import { initializeCliContext } from "./vscode-context"
-
-/**
- * Get the provider-specific model ID key for a given provider and mode.
- * Different providers store their model IDs in different state keys.
- */
-function getProviderModelIdKey(
-	provider: ApiProvider,
-	mode: "act" | "plan",
-): keyof import("@shared/storage/state-keys").Settings | null {
-	const prefix = mode === "act" ? "actMode" : "planMode"
-
-	// Map providers to their specific model ID keys
-	// Note: "cline" provider uses the same model ID key as "openrouter"
-	const providerKeyMap: Partial<Record<ApiProvider, string>> = {
-		openrouter: "OpenRouterModelId",
-		cline: "OpenRouterModelId", // Cline provider uses OpenRouter model IDs
-		openai: "OpenAiModelId",
-		ollama: "OllamaModelId",
-		lmstudio: "LmStudioModelId",
-		litellm: "LiteLlmModelId",
-		requesty: "RequestyModelId",
-		together: "TogetherModelId",
-		fireworks: "FireworksModelId",
-		sapaicore: "SapAiCoreModelId",
-		groq: "GroqModelId",
-		baseten: "BasetenModelId",
-		huggingface: "HuggingFaceModelId",
-		"huawei-cloud-maas": "HuaweiCloudMaasModelId",
-		oca: "OcaModelId",
-		aihubmix: "AihubmixModelId",
-		hicap: "HicapModelId",
-		nousResearch: "NousResearchModelId",
-		"vercel-ai-gateway": "VercelAiGatewayModelId",
-	}
-
-	const keySuffix = providerKeyMap[provider]
-	if (keySuffix) {
-		return `${prefix}${keySuffix}` as keyof import("@shared/storage/state-keys").Settings
-	}
-
-	// For providers without a specific key (anthropic, gemini, bedrock, etc.),
-	// they use the generic actModeApiModelId/planModeApiModelId
-	return null
-}
 
 const VERSION = "0.0.0"
 
@@ -190,7 +147,6 @@ async function runTask(
 
 	// Combine parsed image paths with explicit --images option
 	const allImagePaths = [...(options.images || []), ...parsedImagePaths]
-
 	// Convert image file paths to base64 data URLs
 	const imageDataUrls = await processImagePaths(allImagePaths)
 
@@ -202,6 +158,7 @@ async function runTask(
 	} else if (options.act) {
 		StateManager.get().setGlobalState("mode", "act")
 	}
+
 	if (options.model) {
 		const selectedMode = (StateManager.get().getGlobalSettingsKey("mode") || "act") as "act" | "plan"
 
@@ -334,12 +291,21 @@ async function showConfig(options: { config?: string }) {
 	const ctx = await initializeCli(options)
 	const stateManager = StateManager.get()
 
+	// Dynamically import the wrapper to avoid circular dependencies
+	const { ConfigViewWrapper } = await import("./components/ConfigViewWrapper")
+
+	// Check feature flags
+	const hooksEnabled = stateManager.getGlobalSettingsKey("hooksEnabled") ?? false
+	const skillsEnabled = stateManager.getGlobalSettingsKey("skillsEnabled") ?? false
+
 	await runInkApp(
-		React.createElement(App, {
-			view: "config",
+		React.createElement(ConfigViewWrapper, {
+			controller: ctx.controller,
 			dataDir: ctx.dataDir,
 			globalState: stateManager.getAllGlobalStateEntries(),
 			workspaceState: stateManager.getAllWorkspaceStateEntries(),
+			hooksEnabled,
+			skillsEnabled,
 		}),
 		async () => {
 			await ctx.controller.stateManager.flushPendingState()
