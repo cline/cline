@@ -359,8 +359,8 @@ function validateToolInput(toolName: string, tool_input: Record<string, string>)
 // </write_to_file>`;
 //
 // const { normalText, toolCalls } = parseAIResponse(aiResponse);
-// console.log(normalText);
-// console.log(toolCalls);
+// Logger.log(normalText);
+// Logger.log(toolCalls);
 
 // Convert OpenAI response to Anthropic format
 export function convertO1ResponseToAnthropicMessage(
@@ -433,4 +433,4 @@ export function convertO1ResponseToAnthropicMessage(
 //     usage: { prompt_tokens: 50, completion_tokens: 100 }
 // };
 // const anthropicMessage = convertO1ResponseToAnthropicMessage(openAICompletion);
-// console.log(anthropicMessage);
+// Logger.log(anthropicMessage);

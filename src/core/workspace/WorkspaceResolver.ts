@@ -7,6 +7,7 @@
 
 import { WorkspaceRoot } from "@shared/multi-root/types"
 import * as path from "path"
+import { Logger } from "@/services/logging/Logger"
 import { MigrationReporter, type UsageStats } from "./MigrationReporter"
 import { parseWorkspaceInlinePath } from "./utils/parseWorkspaceInlinePath"
 import { WorkspacePathAdapter } from "./WorkspacePathAdapter"

@@ -1,6 +1,5 @@
 import { ClineAsk as AppClineAsk, ClineMessage as AppClineMessage, ClineSay as AppClineSay } from "@shared/ExtensionMessage"
 import { ClineAsk, ClineMessageType, ClineSay, ClineMessage as ProtoClineMessage } from "@shared/proto/cline/ui"
-import { Logger } from "@/services/logging/Logger"
 
 // Helper function to convert ClineAsk string to enum
 function convertClineAskToProtoEnum(ask: AppClineAsk | undefined): ClineAsk | undefined {
@@ -30,7 +29,6 @@ function convertClineAskToProtoEnum(ask: AppClineAsk | undefined): ClineAsk | un
 
 	const result = mapping[ask]
 	if (result === undefined) {
-		Logger.warn(`Unknown ClineAsk value: ${ask}`)
 	}
 	return result
 }
@@ -38,7 +36,6 @@ function convertClineAskToProtoEnum(ask: AppClineAsk | undefined): ClineAsk | un
 // Helper function to convert ClineAsk enum to string
 function convertProtoEnumToClineAsk(ask: ClineAsk): AppClineAsk | undefined {
 	if (ask === ClineAsk.UNRECOGNIZED) {
-		Logger.warn("Received UNRECOGNIZED ClineAsk enum value")
 		return undefined
 	}
 
@@ -109,16 +106,13 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 	}
 
 	const result = mapping[say]
-	if (result === undefined) {
-		Logger.warn(`Unknown ClineSay value: ${say}`)
-	}
+
 	return result
 }
 
 // Helper function to convert ClineSay enum to string
 function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 	if (say === ClineSay.UNRECOGNIZED) {
-		Logger.warn("Received UNRECOGNIZED ClineSay enum value")
 		return undefined
 	}
 
