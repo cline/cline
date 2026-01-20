@@ -285,7 +285,7 @@ const SayMessageContent: React.FC<{ message: ClineMessage; verbose?: boolean }> 
 			return null
 
 		case "checkpoint_created":
-			return <Text dimColor>Checkpoint created</Text>
+			return <Text dimColor>Checkpoint created: {message.lastCheckpointHash}</Text>
 
 		case "info":
 			return <Text color="cyan">{text}</Text>

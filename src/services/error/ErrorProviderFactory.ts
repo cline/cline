@@ -1,4 +1,5 @@
 import { isPostHogConfigValid, PostHogClientConfig, posthogConfig } from "@/shared/services/config/posthog-config"
+import { Logger } from "../logging/Logger"
 import { ClineError } from "./ClineError"
 import { IErrorProvider } from "./providers/IErrorProvider"
 import { PostHogErrorProvider } from "./providers/PostHogErrorProvider"
@@ -70,7 +71,7 @@ export class ErrorProviderFactory {
 class NoOpErrorProvider implements IErrorProvider {
 	public logException(error: Error | ClineError, _properties?: Record<string, unknown>): void {
 		// Use console.error directly to avoid potential infinite recursion through Logger
-		console.error("[NoOpErrorProvider]", error.message || String(error))
+		Logger.error("[NoOpErrorProvider]" + error.message || String(error))
 	}
 
 	public logMessage(
@@ -78,7 +79,7 @@ class NoOpErrorProvider implements IErrorProvider {
 		level?: "error" | "warning" | "log" | "debug" | "info",
 		properties?: Record<string, unknown>,
 	): void {
-		console.log("[NoOpErrorProvider]", { message, level, properties })
+		Logger.log("[NoOpErrorProvider]", { message, level, properties })
 	}
 
 	public isEnabled(): boolean {
@@ -94,6 +95,6 @@ class NoOpErrorProvider implements IErrorProvider {
 	}
 
 	public async dispose(): Promise<void> {
-		console.info("[NoOpErrorProvider] Disposing")
+		Logger.info("[NoOpErrorProvider] disposed")
 	}
 }
