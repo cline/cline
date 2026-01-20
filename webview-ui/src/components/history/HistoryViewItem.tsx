@@ -102,7 +102,7 @@ const HistoryViewItem = ({
 						<Button
 							aria-label="Delete"
 							className="p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-							disabled={!isFavoritedItem}
+							disabled={isFavoritedItem}
 							onClick={(e) => {
 								e.stopPropagation()
 								handleDeleteHistoryItem(item.id)
