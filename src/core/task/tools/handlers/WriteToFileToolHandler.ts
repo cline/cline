@@ -441,7 +441,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				// Push tool result with detailed error using existing utilities
 				const errorResponse = formatResponse.toolError(
 					`${(error as Error)?.message}\n\n` +
-						formatResponse.diffError(relPath, config.services.diffViewProvider.originalContent),
+						formatResponse.diffError(relPath, config.services.diffViewProvider.getOriginalContentForLLM()),
 				)
 				ToolResultUtils.pushToolResult(
 					errorResponse,
