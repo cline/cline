@@ -128,8 +128,12 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 	// Use the setting for split mode
 	const isSplit = planActSeparateModelsSetting
 
-	// Check if model supports thinking
+	// Check if model supports thinking (token-based budget)
+	// OpenAI Codex uses discrete reasoning effort levels controlled via global settings, not token budgets
 	const supportsThinking = useMemo(() => {
+		if (selectedProvider === "openai-codex") {
+			return false
+		}
 		if (selectedProvider === "anthropic" || selectedProvider === "claude-code") {
 			return SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId)
 		}
