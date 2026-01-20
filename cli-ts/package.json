@@ -14,7 +14,9 @@
 		"dev": "npm run watch",
 		"clean": "rimraf dist",
 		"typecheck": "tsc --noEmit",
-		"link": "npm run build && npm link"
+		"link": "npm run build && npm link",
+		"test": "vitest",
+		"test:run": "vitest run"
 	},
 	"keywords": [
 		"cline",
@@ -29,8 +31,10 @@
 		"@types/prompts": "^2.4.9",
 		"@types/react": "^18.3.27",
 		"esbuild": "^0.25.0",
+		"ink-testing-library": "^4.0.0",
 		"rimraf": "^6.0.1",
-		"typescript": "^5.4.5"
+		"typescript": "^5.4.5",
+		"vitest": "^4.0.17"
 	},
 	"dependencies": {
 		"chalk": "^5.3.0",
