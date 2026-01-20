@@ -1,12 +1,23 @@
 /**
  * Welcome view component
  * Shows an interactive prompt when user starts cline without a command
+ * Supports file mentions with @
  */
 
 import { Box, Text, useInput } from "ink"
-import React, { useMemo, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
+
 import { parseImagesFromInput } from "../utils"
+import {
+	checkAndWarnRipgrepMissing,
+	extractMentionQuery,
+	type FileSearchResult,
+	getRipgrepInstallInstructions,
+	insertMention,
+	searchWorkspaceFiles,
+} from "../utils/file-search"
 import { AccountInfoView } from "./AccountInfoView"
+import { FileMentionMenu } from "./FileMentionMenu"
 
 interface WelcomeViewProps {
 	onSubmit: (prompt: string, imagePaths: string[]) => void
@@ -14,28 +25,137 @@ interface WelcomeViewProps {
 	controller?: any
 }
 
-/**
- * Format separator
- */
-function formatSeparator(char: string = "─", width: number = 60): string {
-	return char.repeat(Math.max(width, 10))
-}
+const SEPARATOR = "─".repeat(60)
+const SEARCH_DEBOUNCE_MS = 150
+const RIPGREP_WARNING_DURATION_MS = 5000
+const MAX_SEARCH_RESULTS = 15
 
 export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, controller }) => {
 	const [textInput, setTextInput] = useState("")
+	const [fileResults, setFileResults] = useState<FileSearchResult[]>([])
+	const [selectedIndex, setSelectedIndex] = useState(0)
+	const [isSearching, setIsSearching] = useState(false)
+	const [showRipgrepWarning, setShowRipgrepWarning] = useState(false)
 
-	const { prompt, imagePaths } = useMemo(() => parseImagesFromInput(textInput), [textInput])
+	const refs = useRef({
+		searchTimeout: null as NodeJS.Timeout | null,
+		lastQuery: "",
+		hasCheckedRipgrep: false,
+	})
+
+	const { prompt, imagePaths } = parseImagesFromInput(textInput)
+	const mentionInfo = extractMentionQuery(textInput)
+
+	const workspacePath = useMemo(() => {
+		try {
+			const root = controller?.getWorkspaceManagerSync?.()?.getPrimaryRoot?.()
+			if (root?.path) {
+				return root.path
+			}
+		} catch {
+			// Fallback to cwd
+		}
+		return process.cwd()
+	}, [controller])
+
+	// Search for files when in mention mode
+	useEffect(() => {
+		const { current: r } = refs
+
+		if (!mentionInfo.inMentionMode) {
+			setFileResults([])
+			setSelectedIndex(0)
+			if (r.searchTimeout) {
+				clearTimeout(r.searchTimeout)
+				r.searchTimeout = null
+			}
+			return
+		}
+
+		// Check for ripgrep on first mention trigger
+		if (!r.hasCheckedRipgrep) {
+			r.hasCheckedRipgrep = true
+			if (checkAndWarnRipgrepMissing()) {
+				setShowRipgrepWarning(true)
+				setTimeout(() => setShowRipgrepWarning(false), RIPGREP_WARNING_DURATION_MS)
+			}
+		}
+
+		const { query } = mentionInfo
+		if (query === r.lastQuery) {
+			return
+		}
+		r.lastQuery = query
+
+		if (r.searchTimeout) {
+			clearTimeout(r.searchTimeout)
+		}
+		setIsSearching(true)
+
+		r.searchTimeout = setTimeout(async () => {
+			try {
+				const results = await searchWorkspaceFiles(query, workspacePath, MAX_SEARCH_RESULTS)
+				setFileResults(results)
+				setSelectedIndex(0)
+			} catch {
+				setFileResults([])
+			} finally {
+				setIsSearching(false)
+			}
+		}, SEARCH_DEBOUNCE_MS)
+
+		return () => {
+			if (r.searchTimeout) {
+				clearTimeout(r.searchTimeout)
+			}
+		}
+	}, [mentionInfo.inMentionMode, mentionInfo.query, workspacePath])
 
 	useInput((input, key) => {
-		if (key.return) {
+		const inMenu = mentionInfo.inMentionMode && fileResults.length > 0
+
+		// Menu navigation
+		if (inMenu) {
+			if (key.upArrow) {
+				setSelectedIndex((i) => (i > 0 ? i - 1 : fileResults.length - 1))
+				return
+			}
+			if (key.downArrow) {
+				setSelectedIndex((i) => (i < fileResults.length - 1 ? i + 1 : 0))
+				return
+			}
+			if (key.tab || key.return) {
+				const file = fileResults[selectedIndex]
+				if (file) {
+					setTextInput(insertMention(textInput, mentionInfo.atIndex, file.path))
+					setFileResults([])
+					setSelectedIndex(0)
+				}
+				return
+			}
+			if (key.escape) {
+				setFileResults([])
+				setSelectedIndex(0)
+				return
+			}
+		}
+
+		// Normal input handling
+		if (key.return && !mentionInfo.inMentionMode) {
 			if (prompt.trim() || imagePaths.length > 0) {
 				onSubmit(prompt.trim(), imagePaths)
 			}
-		} else if (key.escape) {
+			return
+		}
+		if (key.escape && !mentionInfo.inMentionMode) {
 			onExit?.()
-		} else if (key.backspace || key.delete) {
+			return
+		}
+		if (key.backspace || key.delete) {
 			setTextInput((prev) => prev.slice(0, -1))
-		} else if (input && !key.ctrl && !key.meta) {
+			return
+		}
+		if (input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow && !key.tab) {
 			setTextInput((prev) => prev + input)
 		}
 	})
@@ -45,16 +165,39 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 			<Text bold color="cyan">
 				✻ Welcome to Cline
 			</Text>
-			<Text color="gray">{formatSeparator()}</Text>
+			<Text color="gray">{SEPARATOR}</Text>
 			{controller && (
 				<Box marginTop={1}>
 					<AccountInfoView controller={controller} />
+				</Box>
+			)}
+			{showRipgrepWarning && (
+				<Box
+					borderColor="yellow"
+					borderStyle="single"
+					flexDirection="column"
+					marginTop={1}
+					paddingLeft={1}
+					paddingRight={1}>
+					<Text color="yellow">⚠ ripgrep (rg) not found - file search will be slower</Text>
+					<Text color="gray">Install with: {getRipgrepInstallInstructions()}</Text>
 				</Box>
 			)}
 			<Text> </Text>
 			<Text color="white">Start a new Cline task</Text>
 			<Box flexDirection="column" marginTop={1}>
 				<Text color="cyan">┃ What would you like Cline to help you with?</Text>
+
+				{/* File mention menu - show above the input */}
+				{mentionInfo.inMentionMode && (
+					<FileMentionMenu
+						isLoading={isSearching}
+						query={mentionInfo.query}
+						results={fileResults}
+						selectedIndex={selectedIndex}
+					/>
+				)}
+
 				<Box>
 					<Text color="green">&gt; </Text>
 					<Text>{textInput}</Text>
@@ -76,7 +219,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 				(Type your task and press Enter, or press Escape to exit)
 			</Text>
 			<Text color="gray" dimColor>
-				(Add images: @/path/to/image.png or /path/to/image.png)
+				(Type @ to mention files, add images with @/path/to/image.png)
 			</Text>
 		</Box>
 	)

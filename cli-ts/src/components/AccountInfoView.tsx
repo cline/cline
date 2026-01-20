@@ -32,7 +32,7 @@ function formatBalance(balance: number | null): string {
 	if (balance === null || balance === undefined) {
 		return "..."
 	}
-	return `$${(balance / 10000).toFixed(2)}`
+	return `$${(balance / 1000000).toFixed(2)}`
 }
 
 export const AccountInfoView: React.FC<AccountInfoViewProps> = ({ controller }) => {
