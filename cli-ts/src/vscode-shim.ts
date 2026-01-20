@@ -69,20 +69,28 @@ export class Position {
 	}
 
 	compareTo(other: Position): number {
-		if (this.line < other.line) return -1
-		if (this.line > other.line) return 1
-		if (this.character < other.character) return -1
-		if (this.character > other.character) return 1
+		if (this.line < other.line) {
+			return -1
+		}
+		if (this.line > other.line) {
+			return 1
+		}
+		if (this.character < other.character) {
+			return -1
+		}
+		if (this.character > other.character) {
+			return 1
+		}
 		return 0
 	}
 }
 
 // Range class
 export class Range {
-	constructor(
-		public readonly start: Position,
-		public readonly end: Position,
-	)
+	public readonly start: Position
+	public readonly end: Position
+
+	constructor(start: Position, end: Position)
 	constructor(startLine: number, startCharacter: number, endLine: number, endCharacter: number)
 	constructor(
 		startOrStartLine: Position | number,
@@ -140,10 +148,10 @@ export class Range {
 
 // Selection class (extends Range)
 export class Selection extends Range {
-	constructor(
-		public readonly anchor: Position,
-		public readonly active: Position,
-	)
+	public readonly anchor: Position
+	public readonly active: Position
+
+	constructor(anchor: Position, active: Position)
 	constructor(anchorLine: number, anchorCharacter: number, activeLine: number, activeCharacter: number)
 	constructor(
 		anchorOrAnchorLine: Position | number,
@@ -151,19 +159,18 @@ export class Selection extends Range {
 		activeLine?: number,
 		activeCharacter?: number,
 	) {
+		let anchor: Position
+		let active: Position
 		if (typeof anchorOrAnchorLine === "number") {
-			const anchor = new Position(anchorOrAnchorLine, activeOrAnchorCharacter as number)
-			const active = new Position(activeLine!, activeCharacter!)
-			super(anchor.isBefore(active) ? anchor : active, anchor.isBefore(active) ? active : anchor)
-			this.anchor = anchor
-			this.active = active
+			anchor = new Position(anchorOrAnchorLine, activeOrAnchorCharacter as number)
+			active = new Position(activeLine!, activeCharacter!)
 		} else {
-			const anchor = anchorOrAnchorLine
-			const active = activeOrAnchorCharacter as Position
-			super(anchor.isBefore(active) ? anchor : active, anchor.isBefore(active) ? active : anchor)
-			this.anchor = anchor
-			this.active = active
+			anchor = anchorOrAnchorLine
+			active = activeOrAnchorCharacter as Position
 		}
+		super(anchor.isBefore(active) ? anchor : active, anchor.isBefore(active) ? active : anchor)
+		this.anchor = anchor
+		this.active = active
 	}
 
 	get isReversed(): boolean {
@@ -274,4 +281,6 @@ export const window = {
 export type ExtensionContext = any
 export type Memento = any
 export type SecretStorage = any
+
+// biome-ignore lint/correctness/noUnusedVariables: placeholder
 export type Extension<T> = any
