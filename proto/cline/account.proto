@@ -44,6 +44,13 @@ service AccountService {
 
   // Returns a link the webview can use to redirect back to the user's IDE.
   rpc getRedirectUrl(EmptyRequest) returns (String);
+
+  // OpenAI Codex OAuth authentication
+  // Starts the OAuth flow and opens browser for user to sign in with ChatGPT Plus/Pro
+  rpc openAiCodexSignIn(EmptyRequest) returns (Empty);
+
+  // Signs out of OpenAI Codex and clears stored credentials
+  rpc openAiCodexSignOut(EmptyRequest) returns (Empty);
 }
 
 message AuthStateChangedRequest {
