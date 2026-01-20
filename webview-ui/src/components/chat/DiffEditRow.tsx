@@ -307,40 +307,69 @@ function parsePatch(patch: string, path: string): ParseResult {
 
 /**
  * Parse new format patches (*** Add/Update/Delete File: path)
+ * Splits each @@ chunk into a separate Patch object so each chunk can have its own startLineNumber
  */
 function parseNewFormat(content: string): Patch[] {
 	const files: Patch[] = []
 	const lines = content.split("\n")
 
-	let currentFile: Patch | null = null
+	let currentFile: { action: string; path: string } | null = null
+	let currentChunk: Patch | null = null
+
+	const pushCurrentChunk = () => {
+		if (currentChunk && currentChunk.lines.length > 0) {
+			files.push(currentChunk)
+		}
+	}
+
+	const startNewChunk = () => {
+		if (!currentFile) return
+		pushCurrentChunk()
+		currentChunk = {
+			action: currentFile.action,
+			path: currentFile.path,
+			lines: [],
+			additions: 0,
+			deletions: 0,
+		}
+	}
 
 	for (const line of lines) {
 		const fileMatch = line.match(/^\*\*\* (Add|Update|Delete) File: (.+)$/)
 
 		if (fileMatch) {
-			if (currentFile) {
-				files.push(currentFile)
-			}
+			// New file - push any existing chunk and start fresh
+			pushCurrentChunk()
 			currentFile = {
 				action: fileMatch[1],
 				path: fileMatch[2].trim(),
-				lines: [],
-				additions: 0,
-				deletions: 0,
 			}
+			currentChunk = null // Will be created when we see content or @@
+		} else if (line.trim() === "@@") {
+			// @@ marker means start of a new chunk - split here
+			startNewChunk()
 		} else if (currentFile && line.trim()) {
-			currentFile.lines.push(line)
+			// Content line - ensure we have a chunk to add to
+			if (!currentChunk) {
+				currentChunk = {
+					action: currentFile.action,
+					path: currentFile.path,
+					lines: [],
+					additions: 0,
+					deletions: 0,
+				}
+			}
+			currentChunk.lines.push(line)
 			if (line[0] === "+") {
-				currentFile.additions++
+				currentChunk.additions++
 			} else if (line[0] === "-") {
-				currentFile.deletions++
+				currentChunk.deletions++
 			}
 		}
 	}
 
-	if (currentFile) {
-		files.push(currentFile)
-	}
+	// Push the last chunk
+	pushCurrentChunk()
 
 	return files
 }
