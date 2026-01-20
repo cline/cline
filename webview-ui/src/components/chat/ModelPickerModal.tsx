@@ -632,7 +632,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 										<TooltipTrigger asChild>
 											<IconToggle
 												$isActive={thinkingEnabled}
-												$isDisabled={!supportsThinking}
+												$isHidden={!supportsThinking}
 												onClick={(e) => {
 													e.stopPropagation()
 													supportsThinking && handleThinkingToggle(!thinkingEnabled)
@@ -640,13 +640,13 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 												<Brain size={14} />
 											</IconToggle>
 										</TooltipTrigger>
-										<TooltipContent side="top" style={{ zIndex: 9999 }}>
-											{!supportsThinking
-												? "Thinking not supported by this model"
-												: thinkingEnabled
+										{supportsThinking && (
+											<TooltipContent side="top" style={{ zIndex: 9999 }}>
+												{thinkingEnabled
 													? "Extended thinking enabled"
 													: "Enable extended thinking for enhanced reasoning"}
-										</TooltipContent>
+											</TooltipContent>
+										)}
 									</Tooltip>
 									<Tooltip>
 										<TooltipTrigger asChild>
@@ -910,8 +910,8 @@ const SettingsSection = styled.div`
 	flex-direction: column;
 `
 
-const IconToggle = styled.button<{ $isActive: boolean; $isDisabled?: boolean }>`
-	display: flex;
+const IconToggle = styled.button<{ $isActive: boolean; $isDisabled?: boolean; $isHidden?: boolean }>`
+	display: ${(props) => (props.$isHidden ? "none" : "flex")};
 	align-items: center;
 	justify-content: center;
 	width: 24px;
