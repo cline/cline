@@ -33,6 +33,7 @@ import type { StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { subscribeToState } from "@/core/controller/state/subscribeToState"
 import { subscribeToPartialMessage } from "@/core/controller/ui/subscribeToPartialMessage"
 import type { OutputFormatter } from "./output/types.js"
+import { type ActivitySpinner, createActivitySpinner } from "./spinner.js"
 
 /**
  * State change handler callback type
@@ -49,17 +50,44 @@ export class CliWebviewAdapter {
 	private subscriptionActive = false
 	private onStateChange?: StateChangeHandler
 	private _currentOptions: string[] = [] // Track current options for numbered selection
+	private activitySpinner: ActivitySpinner // Spinner for idle periods
+	private isProcessing = false // Whether AI is currently processing
 
 	constructor(
 		private controller: Controller,
 		private formatter: OutputFormatter,
-	) {}
+	) {
+		// Create activity spinner that shows after 2 seconds of inactivity
+		this.activitySpinner = createActivitySpinner({
+			message: "Working hard...",
+			delayMs: 1000,
+		})
+	}
 
 	/**
 	 * Get the current options for numbered selection
 	 */
 	get currentOptions(): string[] {
 		return this._currentOptions
+	}
+
+	/**
+	 * Set whether the AI is currently processing
+	 *
+	 * When processing is true, the spinner will start monitoring for inactivity.
+	 * When processing is false (e.g., waiting for user input), the spinner is disabled.
+	 */
+	setProcessing(processing: boolean): void {
+		this.isProcessing = processing
+		this.activitySpinner.setEnabled(processing)
+
+		if (processing) {
+			// Start monitoring for inactivity
+			this.activitySpinner.startMonitoring("Processing...")
+		} else {
+			// Stop spinner when not processing
+			this.activitySpinner.stop()
+		}
 	}
 
 	/**
@@ -124,6 +152,7 @@ export class CliWebviewAdapter {
 	 */
 	stopListening(): void {
 		this.subscriptionActive = false
+		this.activitySpinner.stop()
 	}
 
 	/**
@@ -133,6 +162,11 @@ export class CliWebviewAdapter {
 	 * This maintains proper ordering - e.g., reasoning prints before text.
 	 */
 	private handleStateUpdate(messages: ClineMessage[]): void {
+		// Report activity to reset the spinner timer
+		if (this.isProcessing) {
+			this.activitySpinner.reportActivity()
+		}
+
 		// Notify callback of all messages
 		if (this.onStateChange) {
 			this.onStateChange(messages)
@@ -163,6 +197,11 @@ export class CliWebviewAdapter {
 	 * It handles both partial updates (which we skip) and completed messages.
 	 */
 	private handleSingleMessage(msg: ClineMessage): void {
+		// Report activity to reset the spinner timer
+		if (this.isProcessing) {
+			this.activitySpinner.reportActivity()
+		}
+
 		// Notify callback with current state (append the new message)
 		if (this.onStateChange) {
 			const currentMessages = this.getMessages()

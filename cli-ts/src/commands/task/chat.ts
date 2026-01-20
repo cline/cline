@@ -486,6 +486,8 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 					startedWithPrompt = true
 					session.taskId = await controller.initTask(promptArg)
 					formatter.info(`Started task: ${session.taskId}`)
+					// Enable spinner since AI will be processing
+					session.adapter?.setProcessing(true)
 				}
 
 				// Display welcome message
@@ -521,6 +523,12 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 				// Track previous awaiting states to detect transitions
 				let wasAwaitingInput = false
 
+				// Helper to set processing state and update spinner
+				function setProcessingState(processing: boolean): void {
+					isProcessing = processing
+					session.adapter?.setProcessing(processing)
+				}
+
 				// Helper to update the prompt string (but not necessarily show it)
 				async function updatePromptString(): Promise<void> {
 					const currentState = await controller.getStateToPostToWebview()
@@ -550,7 +558,7 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 					const nowAwaitingInput = pendingState.awaitingApproval || pendingState.awaitingInput
 					if (isProcessing && nowAwaitingInput && !wasAwaitingInput) {
 						// AI just finished and is now waiting for input - show prompt
-						isProcessing = false
+						setProcessingState(false)
 						updatePromptString().then(() => showPrompt())
 					}
 					wasAwaitingInput = nowAwaitingInput
@@ -585,7 +593,7 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 						const lowerInput = input.toLowerCase()
 						if (lowerInput === "y" || lowerInput === "yes" || lowerInput === "approve") {
 							if (controller.task) {
-								isProcessing = true // AI will start processing
+								setProcessingState(true) // AI will start processing
 								wasAwaitingInput = false
 								await controller.task.handleWebviewAskResponse("yesButtonClicked")
 								session.awaitingApproval = false
@@ -595,7 +603,7 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 						}
 						if (lowerInput === "n" || lowerInput === "no" || lowerInput === "deny") {
 							if (controller.task) {
-								isProcessing = true // AI will start processing
+								setProcessingState(true) // AI will start processing
 								wasAwaitingInput = false
 								await controller.task.handleWebviewAskResponse("noButtonClicked")
 								session.awaitingApproval = false
@@ -607,7 +615,7 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 
 					// If no active task, start a new one
 					if (!session.taskId) {
-						isProcessing = true // AI will start processing
+						setProcessingState(true) // AI will start processing
 						wasAwaitingInput = false
 						session.taskId = await controller.initTask(input)
 						formatter.info(`Started task: ${session.taskId}`)
@@ -624,7 +632,7 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 							}
 						}
 
-						isProcessing = true // AI will start processing
+						setProcessingState(true) // AI will start processing
 						wasAwaitingInput = false
 						// Send message to existing task
 						await controller.task.handleWebviewAskResponse("messageResponse", messageToSend)
