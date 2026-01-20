@@ -321,6 +321,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.HICAP
 		case "nousResearch":
 			return ProtoApiProvider.NOUSRESEARCH
+		case "github-copilot":
+			return ProtoApiProvider.GITHUB_COPILOT
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -409,6 +411,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "minimax"
 		case ProtoApiProvider.NOUSRESEARCH:
 			return "nousResearch"
+		case ProtoApiProvider.GITHUB_COPILOT:
+			return "github-copilot"
 		default:
 			return "anthropic"
 	}
@@ -543,6 +547,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeNousResearchModelId: config.planModeNousResearchModelId,
 		planModeVercelAiGatewayModelId: config.planModeVercelAiGatewayModelId,
 		planModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.planModeVercelAiGatewayModelInfo),
+		planModeGithubCopilotModelId: config.planModeGitHubCopilotModelId,
 
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider ? convertApiProviderToProto(config.actModeApiProvider) : undefined,
@@ -585,6 +590,10 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeNousResearchModelId: config.actModeNousResearchModelId,
 		actModeVercelAiGatewayModelId: config.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.actModeVercelAiGatewayModelInfo),
+		actModeGithubCopilotModelId: config.actModeGitHubCopilotModelId,
+
+		// GitHub Copilot configuration
+		githubCopilotEnterpriseUrl: config.gitHubCopilotEnterpriseUrl,
 	}
 }
 
@@ -720,6 +729,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeNousResearchModelId: protoConfig.planModeNousResearchModelId,
 		planModeVercelAiGatewayModelId: protoConfig.planModeVercelAiGatewayModelId,
 		planModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.planModeVercelAiGatewayModelInfo),
+		planModeGitHubCopilotModelId: protoConfig.planModeGithubCopilotModelId,
 
 		// Act mode configurations
 		actModeApiProvider:
@@ -763,5 +773,9 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeNousResearchModelId: protoConfig.actModeNousResearchModelId,
 		actModeVercelAiGatewayModelId: protoConfig.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.actModeVercelAiGatewayModelInfo),
+		actModeGitHubCopilotModelId: protoConfig.actModeGithubCopilotModelId,
+
+		// GitHub Copilot configuration
+		gitHubCopilotEnterpriseUrl: protoConfig.githubCopilotEnterpriseUrl,
 	}
 }

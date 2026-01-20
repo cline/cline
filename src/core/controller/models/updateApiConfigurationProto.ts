@@ -112,6 +112,11 @@ export async function updateApiConfigurationProto(
 				: undefined,
 			geminiPlanModeThinkingLevel: protoApiConfiguration.geminiPlanModeThinkingLevel,
 			geminiActModeThinkingLevel: protoApiConfiguration.geminiActModeThinkingLevel,
+
+			// GitHub Copilot - map proto field names to TypeScript field names
+			planModeGitHubCopilotModelId: protoApiConfiguration.planModeGithubCopilotModelId,
+			actModeGitHubCopilotModelId: protoApiConfiguration.actModeGithubCopilotModelId,
+			gitHubCopilotEnterpriseUrl: protoApiConfiguration.githubCopilotEnterpriseUrl,
 		}
 
 		// Update the API configuration in storage

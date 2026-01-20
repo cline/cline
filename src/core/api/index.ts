@@ -42,6 +42,7 @@ import { VertexHandler } from "./providers/vertex"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { XAIHandler } from "./providers/xai"
 import { ZAiHandler } from "./providers/zai"
+import { GitHubCopilotHandler } from "./providers/github-copilot"
 import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
 
 export type CommonApiHandlerOptions = {
@@ -435,6 +436,14 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				nousResearchApiKey: options.nousResearchApiKey,
 				apiModelId: mode === "plan" ? options.planModeNousResearchModelId : options.actModeNousResearchModelId,
+			})
+		case "github-copilot":
+			return new GitHubCopilotHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				gitHubCopilotAccessToken: options.gitHubCopilotAccessToken,
+				gitHubCopilotModelId:
+					mode === "plan" ? options.planModeGitHubCopilotModelId : options.actModeGitHubCopilotModelId,
+				gitHubCopilotEnterpriseUrl: options.gitHubCopilotEnterpriseUrl,
 			})
 		default:
 			return new AnthropicHandler({
