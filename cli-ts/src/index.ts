@@ -20,7 +20,8 @@ import { CliCommentReviewController } from "./cli-comment-review"
 import { createCliHostBridgeProvider } from "./cli-host-bridge"
 import { CliWebviewProvider } from "./cli-webview-provider"
 import { App } from "./components/App"
-// IMPORTANT: Import console module FIRST - it suppresses console.log before core imports
+// IMPORTANT: Import console module FIRST - it suppresses console.log and Node.js
+// deprecation warnings (like punycode) before any other modules are loaded
 import { restoreConsole } from "./console"
 import { print, printError, printInfo, separator } from "./display"
 import { initializeCliContext } from "./vscode-context"

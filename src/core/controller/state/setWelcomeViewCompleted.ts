@@ -14,11 +14,8 @@ export async function setWelcomeViewCompleted(controller: Controller, request: B
 		controller.stateManager.setGlobalState("welcomeViewCompleted", request.value)
 
 		await controller.postStateToWebview()
-
-		console.log(`Welcome view completed set to: ${request.value}`)
 		return Empty.create({})
 	} catch (error) {
-		console.error("Failed to set welcome view completed:", error)
 		throw error
 	}
 }

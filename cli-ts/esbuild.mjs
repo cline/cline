@@ -197,6 +197,8 @@ const config = {
 	supported: { "top-level-await": true },
 	banner: {
 		js: `#!/usr/bin/env node
+// Suppress all Node.js warnings (deprecation, experimental, etc.)
+process.emitWarning = () => {};
 import { createRequire as _createRequire } from 'module';
 import { fileURLToPath as _fileURLToPath } from 'url';
 import { dirname as _dirname } from 'path';
