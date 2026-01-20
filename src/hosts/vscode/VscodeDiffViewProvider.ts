@@ -12,6 +12,10 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 	private fadedOverlayController?: DecorationController
 	private activeLineController?: DecorationController
 
+	// Temporary file management for notebook diff views
+	private tempModifiedUri?: vscode.Uri
+	private tempFileWatcher?: vscode.FileSystemWatcher
+
 	override async openDiffEditor(): Promise<void> {
 		if (!this.absolutePath) {
 			throw new Error("No file path set")
@@ -216,9 +220,146 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 	}
 
 	protected override async resetDiffView(): Promise<void> {
+		// Clean up temporary files and listeners (basic cleanup for now)
+		await this.cleanupTempFiles()
+
 		this.activeDiffEditor = undefined
 		this.fadedOverlayController = undefined
 		this.activeLineController = undefined
+	}
+
+	protected override async switchToSpecializedEditor(): Promise<void> {
+		if (!this.isNotebookFile() || !this.activeDiffEditor || !this.absolutePath) {
+			return
+		}
+
+		try {
+			const uri = vscode.Uri.file(this.absolutePath)
+			const fileName = require("path").basename(uri.fsPath)
+
+			// Check if Jupyter extension is available
+			const jupyterExtension = vscode.extensions.getExtension("ms-toolsai.jupyter")
+			if (!jupyterExtension) {
+				return
+			}
+
+			if (!jupyterExtension.isActive) {
+				await jupyterExtension.activate()
+			}
+
+			// Create a proper notebook diff view by creating temporary files
+			await this.createNotebookDiffView(uri, fileName)
+		} catch (error) {
+			// Text editor remains active - no changes needed
+			console.error("Failed to create notebook diff view, continuing with text editor:", error)
+		}
+	}
+
+	/**
+	 * Create a proper notebook diff view using temporary files
+	 */
+	private async createNotebookDiffView(uri: vscode.Uri, fileName: string): Promise<void> {
+		try {
+			// Create temporary directory and file for modified content (right side)
+			const os = require("os")
+			const tempDir = os.tmpdir()
+			const timestamp = Date.now()
+			const tempModifiedPath = require("path").join(tempDir, `cline-modified-${timestamp}-${fileName}`)
+
+			// Write current editor content to temporary file
+			const currentContent = this.activeDiffEditor?.document.getText() ?? ""
+
+			try {
+				// Attempt to parse the content as JSON
+				JSON.parse(currentContent)
+			} catch (error) {
+				console.error(`Invalid JSON content for notebook file ${fileName}, skipping notebook diff view creation`)
+				return
+			}
+
+			await vscode.workspace.fs.writeFile(vscode.Uri.file(tempModifiedPath), new TextEncoder().encode(currentContent))
+
+			// Store temporary file URI for cleanup
+			this.tempModifiedUri = vscode.Uri.file(tempModifiedPath)
+
+			// Set up file system watcher for synchronization
+			this.setupTempDocumentListener()
+
+			// Open notebook diff view with original file (left) vs temporary file (right)
+			await vscode.commands.executeCommand(
+				"vscode.diff",
+				uri, // Left: original file
+				this.tempModifiedUri, // Right: temporary file with modifications
+				`${fileName}: Original ↔ Cline's Changes (Notebook)`,
+			)
+
+			// Brief delay to allow VS Code to fully render the notebook diff view.
+			// The vscode.diff command returns before the UI is ready.
+			await new Promise((resolve) => setTimeout(resolve, 500))
+		} catch (error) {
+			console.error(`Error creating notebook diff view: ${error}`)
+			// Clean up on error
+			await this.cleanupTempFiles()
+			return
+		}
+	}
+
+	/**
+	 * Set up file system watcher for temporary file synchronization
+	 */
+	private setupTempDocumentListener(): void {
+		if (this.tempModifiedUri) {
+			// Watch the specific temp file, not the entire directory
+			const tempDir = require("path").dirname(this.tempModifiedUri.fsPath)
+			const tempFileName = require("path").basename(this.tempModifiedUri.fsPath)
+			this.tempFileWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(tempDir, tempFileName))
+
+			this.tempFileWatcher.onDidChange(async () => {
+				await this.syncTempFileToActiveDiffEditor()
+			})
+		}
+	}
+
+	/**
+	 * Sync changes from temporary file back to active diff editor only
+	 */
+	private async syncTempFileToActiveDiffEditor(): Promise<void> {
+		if (this.tempModifiedUri && this.activeDiffEditor && this.activeDiffEditor.document) {
+			try {
+				const tempContent = await vscode.workspace.fs.readFile(this.tempModifiedUri)
+				const tempContentString = new TextDecoder().decode(tempContent)
+
+				// Update text editor content to match temporary file
+				const edit = new vscode.WorkspaceEdit()
+				const fullRange = new vscode.Range(0, 0, this.activeDiffEditor.document.lineCount, 0)
+				edit.replace(this.activeDiffEditor.document.uri, fullRange, tempContentString)
+				await vscode.workspace.applyEdit(edit)
+			} catch (error) {
+				console.error("Failed to sync temp file to active diff editor:", error)
+			}
+		}
+	}
+
+	/**
+	 * Clean up temporary files and watchers
+	 */
+	private async cleanupTempFiles(): Promise<void> {
+		// Dispose file watcher first
+		if (this.tempFileWatcher) {
+			this.tempFileWatcher.dispose()
+			this.tempFileWatcher = undefined
+		}
+
+		// Clean up temporary file
+		if (this.tempModifiedUri) {
+			try {
+				await vscode.workspace.fs.delete(this.tempModifiedUri)
+			} catch (error) {
+				// Log but don't throw - cleanup should be non-blocking
+				console.log(`Failed to cleanup temporary file: ${error}`)
+			}
+			this.tempModifiedUri = undefined
+		}
 	}
 }
 
