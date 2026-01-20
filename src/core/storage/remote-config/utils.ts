@@ -94,7 +94,6 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	}
 
 	// Map provider settings
-
 	const providers: ApiProvider[] = []
 
 	// Map OpenAiCompatible provider settings
@@ -306,6 +305,15 @@ export async function applyRemoteConfig(
 	stateManager.clearRemoteConfig()
 	telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
 
+	// If the existing configured provider is valid, don't update it
+	const apiConfiguration = stateManager.getApiConfiguration()
+	if (isProviderValid(apiConfiguration.actModeApiProvider, transformed)) {
+		transformed.actModeApiProvider = apiConfiguration.actModeApiProvider
+	}
+	if (isProviderValid(apiConfiguration.planModeApiProvider, transformed)) {
+		transformed.planModeApiProvider = apiConfiguration.planModeApiProvider
+	}
+
 	// Populate remote config cache with transformed values
 	for (const [key, value] of Object.entries(transformed)) {
 		stateManager.setRemoteConfigField(key as keyof RemoteConfigFields, value)
@@ -334,8 +342,9 @@ export async function applyRemoteConfig(
 	await applyRemoteOTELConfig(transformed, telemetryService)
 }
 
-const isProviderValid = (provider?: ApiProvider) => {
-	const remoteConfiguredProviders = StateManager.get().getRemoteConfigSettings().remoteConfiguredProviders
+const isProviderValid = (provider?: ApiProvider, remoteConfig?: Partial<RemoteConfigFields>) => {
+	const remoteConfiguredProviders =
+		remoteConfig?.remoteConfiguredProviders ?? StateManager.get().getRemoteConfigSettings().remoteConfiguredProviders
 	if (!remoteConfiguredProviders || !remoteConfiguredProviders.length) {
 		return true
 	}
