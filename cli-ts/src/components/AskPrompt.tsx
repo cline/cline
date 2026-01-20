@@ -15,11 +15,20 @@ interface AskPromptProps {
 	onRespond?: (response: string) => void
 }
 
-type PromptType = "confirmation" | "text" | "options" | "none"
+type PromptType = "confirmation" | "text" | "options" | "plan_mode_text" | "completion" | "none"
 
 function getPromptType(ask: ClineAsk, text: string): PromptType {
 	switch (ask) {
-		case "followup":
+		case "followup": {
+			const parts = jsonParseSafe(text, {
+				question: undefined as string | undefined,
+				options: undefined as string[] | undefined,
+			})
+			if (parts.options && parts.options.length > 0) {
+				return "options"
+			}
+			return "text"
+		}
 		case "plan_mode_respond": {
 			const parts = jsonParseSafe(text, {
 				question: undefined as string | undefined,
@@ -28,12 +37,14 @@ function getPromptType(ask: ClineAsk, text: string): PromptType {
 			if (parts.options && parts.options.length > 0) {
 				return "options"
 			}
-			// These types always need a text response
-			return "text"
+			// Plan mode without options - allow text input or toggle to Act mode
+			return "plan_mode_text"
 		}
+		case "completion_result":
+			// Task completed - allow follow-up question or exit
+			return "completion"
 		case "command":
 		case "tool":
-		case "completion_result":
 		case "resume_task":
 		case "resume_completed_task":
 		case "browser_action_launch":
@@ -76,6 +87,19 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 		[controller, responded, onRespond],
 	)
 
+	const toggleToActMode = useCallback(async () => {
+		if (responded || !controller) {
+			return
+		}
+		setResponded(true)
+		try {
+			await controller.togglePlanActMode("act")
+			onRespond?.("Switched to Act mode")
+		} catch {
+			// Controller may be disposed
+		}
+	}, [controller, responded, onRespond])
+
 	// Handle keyboard input
 	useInput(
 		(input, key) => {
@@ -115,6 +139,38 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 					// Regular character input
 					setTextInput((prev) => prev + input)
 				}
+			} else if (promptType === "plan_mode_text") {
+				// Plan mode text input - allows text response or toggle to Act mode
+				if (key.return) {
+					// Submit on Enter
+					if (textInput.trim()) {
+						sendResponse("messageResponse", textInput.trim())
+					} else {
+						// Empty enter = switch to Act mode
+						toggleToActMode()
+					}
+				} else if (key.backspace || key.delete) {
+					setTextInput((prev) => prev.slice(0, -1))
+				} else if (input && !key.ctrl && !key.meta) {
+					// Regular character input
+					setTextInput((prev) => prev + input)
+				}
+			} else if (promptType === "completion") {
+				// Task completed - allow follow-up question or exit
+				if (key.return) {
+					if (textInput.trim()) {
+						// Send follow-up question
+						sendResponse("messageResponse", textInput.trim())
+					} else {
+						// Empty enter = confirm completion (exit)
+						sendResponse("yesButtonClicked")
+					}
+				} else if (key.backspace || key.delete) {
+					setTextInput((prev) => prev.slice(0, -1))
+				} else if (input && !key.ctrl && !key.meta) {
+					// Regular character input
+					setTextInput((prev) => prev + input)
+				}
 			}
 		},
 		{ isActive: !!lastAskMessage && !responded },
@@ -134,8 +190,7 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 	}
 
 	switch (ask) {
-		case "followup":
-		case "plan_mode_respond": {
+		case "followup": {
 			const parts = jsonParseSafe(text, {
 				question: undefined as string | undefined,
 				options: undefined as string[] | undefined,
@@ -170,6 +225,41 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 			)
 		}
 
+		case "plan_mode_respond": {
+			const parts = jsonParseSafe(text, {
+				question: undefined as string | undefined,
+				options: undefined as string[] | undefined,
+			})
+
+			if (parts.options && parts.options.length > 0) {
+				return (
+					<Box flexDirection="column" marginTop={1}>
+						<Text color="cyan">Select an option (enter number):</Text>
+						{parts.options.map((opt, idx) => (
+							<Box key={idx} marginLeft={2}>
+								<Text>{`${idx + 1}. ${opt}`}</Text>
+							</Box>
+						))}
+					</Box>
+				)
+			}
+
+			// Plan mode text input - show option to switch to Act mode
+			return (
+				<Box flexDirection="column" marginTop={1}>
+					<Box>
+						<Text>{icon} </Text>
+						<Text color="cyan">Reply: </Text>
+						<Text>{textInput}</Text>
+						<Text color="gray">▌</Text>
+					</Box>
+					<Text color="gray" dimColor>
+						(Type response + Enter, or just Enter to switch to Act mode)
+					</Text>
+				</Box>
+			)
+		}
+
 		case "command":
 			return (
 				<Box flexDirection="column" marginTop={1}>
@@ -197,9 +287,13 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 				<Box flexDirection="column" marginTop={1}>
 					<Box>
 						<Text>{icon} </Text>
-						<Text color="green"> Task completed. Confirm? </Text>
-						<Text color="gray">(y/n)</Text>
+						<Text color="cyan">Follow-up: </Text>
+						<Text>{textInput}</Text>
+						<Text color="gray">▌</Text>
 					</Box>
+					<Text color="gray" dimColor>
+						(Type follow-up question + Enter, or just exit)
+					</Text>
 				</Box>
 			)
 
