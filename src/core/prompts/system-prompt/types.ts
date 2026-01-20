@@ -95,6 +95,10 @@ export interface SystemPromptContext {
 	readonly providerInfo: ApiProviderInfo
 	readonly cwd?: string
 	readonly ide: string
+	readonly editorTabs?: {
+		readonly open?: readonly string[]
+		readonly visible?: readonly string[]
+	}
 	readonly supportsBrowserUse?: boolean
 	readonly mcpHub?: McpHub
 	readonly skills?: SkillMetadata[]
