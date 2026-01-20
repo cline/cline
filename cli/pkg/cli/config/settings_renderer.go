@@ -30,14 +30,14 @@ func isSensitiveField(fieldName string) bool {
 	if fieldName == "" {
 		return false
 	}
-	
+
 	lowerName := strings.ToLower(fieldName)
 	for _, keyword := range sensitiveKeywords {
 		if strings.Contains(lowerName, keyword) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -47,14 +47,14 @@ func formatValue(val interface{}, fieldName string, censor bool) string {
 	if str, ok := val.(string); ok && str == "" {
 		return "''"
 	}
-	
+
 	if censor && isSensitiveField(fieldName) {
 		valStr := fmt.Sprintf("%v", val)
 		if valStr != "" && valStr != "''" {
 			return "********"
 		}
 	}
-	
+
 	return fmt.Sprintf("%v", val)
 }
 
@@ -79,7 +79,7 @@ func RenderField(key string, value interface{}, censor bool) error {
 		"planActSeparateModelsSetting", "enableCheckpointsSetting",
 		"terminalReuseEnabled", "mcpResponsesCollapsed", "strictPlanModeEnabled",
 		"useAutoCondense", "yoloModeToggled", "shellIntegrationTimeout",
-		"terminalOutputLineLimit", "autoCondenseThreshold", "hooksEnabled":
+		"terminalOutputLineLimit", "autoCondenseThreshold":
 		fmt.Printf("%s: %s\n", camelToKebab(key), formatValue(value, key, censor))
 		return nil
 
