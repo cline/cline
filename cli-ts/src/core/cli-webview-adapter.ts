@@ -341,7 +341,9 @@ export class CliWebviewAdapter {
 				break
 
 			case "checkpoint_created":
-				this.formatter.info(`💾 Checkpoint created: ${msg.lastCheckpointHash?.slice(0, 8) || ""}`)
+				// Display checkpoint ID (timestamp) so users can reference it for /restore
+				const hashInfo = msg.lastCheckpointHash ? ` (${msg.lastCheckpointHash.slice(0, 8)})` : ""
+				this.formatter.info(`💾 Checkpoint created [ID: ${msg.ts}]${hashInfo}`)
 				break
 
 			case "shell_integration_warning":

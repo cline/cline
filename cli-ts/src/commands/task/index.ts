@@ -8,6 +8,7 @@ import type { CliConfig } from "../../types/config.js"
 import type { Logger } from "../../types/logger.js"
 import { createTaskChatCommand } from "./chat/index.js"
 import { createTaskListCommand } from "./list.js"
+import { createTaskRestoreCommand } from "./restore.js"
 import { createTaskSendCommand } from "./send.js"
 import { createTaskViewCommand } from "./view.js"
 
@@ -22,6 +23,7 @@ export function createTaskCommand(config: CliConfig, logger: Logger, formatter: 
 	taskCommand.addCommand(createTaskChatCommand(config, logger, formatter))
 	taskCommand.addCommand(createTaskSendCommand(config, logger, formatter))
 	taskCommand.addCommand(createTaskViewCommand(config, logger, formatter))
+	taskCommand.addCommand(createTaskRestoreCommand(config, logger, formatter))
 
 	return taskCommand
 }

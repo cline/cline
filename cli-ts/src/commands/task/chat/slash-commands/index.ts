@@ -4,11 +4,13 @@
  * Maps command names to their handlers and dispatches incoming commands.
  */
 
+import { handleCheckpoints } from "./checkpoints.js"
 import { handleConfig } from "./config.js"
 import { handleHelp } from "./help.js"
 import { handleAct, handleMode, handlePlan } from "./mode.js"
 import { handleModel } from "./model.js"
 import { handleQuit } from "./quit.js"
+import { handleRestore } from "./restore.js"
 import { handleStatus } from "./status.js"
 import { handleApprove, handleCancel, handleDeny } from "./task.js"
 import type { CommandContext, CommandHandler } from "./types.js"
@@ -57,6 +59,12 @@ const handlers: Record<string, CommandHandler> = {
 	quit: handleQuit,
 	q: handleQuit,
 	exit: handleQuit,
+
+	// Checkpoints
+	checkpoints: handleCheckpoints,
+	cp: handleCheckpoints,
+	restore: handleRestore,
+	r: handleRestore,
 }
 
 /**
