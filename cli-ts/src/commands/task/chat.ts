@@ -11,12 +11,15 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import chalk from "chalk"
 import { Command } from "commander"
+import fs from "fs"
+import path from "path"
 import readline from "readline"
 import { CliWebviewAdapter } from "../../core/cli-webview-adapter.js"
 import { disposeEmbeddedController, getEmbeddedController } from "../../core/embedded-controller.js"
 import type { OutputFormatter } from "../../core/output/types.js"
 import type { CliConfig } from "../../types/config.js"
 import type { Logger } from "../../types/logger.js"
+import { getNestedValue, parseValue, setNestedValue } from "../config/index.js"
 
 /**
  * Get the model ID for the current provider and mode
@@ -180,7 +183,13 @@ function checkForPendingInput(messages: ClineMessage[]): { awaitingApproval: boo
 /**
  * Process chat commands (lines starting with /)
  */
-async function processChatCommand(input: string, session: ChatSession, fmt: OutputFormatter, logger: Logger): Promise<boolean> {
+async function processChatCommand(
+	input: string,
+	session: ChatSession,
+	fmt: OutputFormatter,
+	logger: Logger,
+	config: CliConfig,
+): Promise<boolean> {
 	const parts = input.slice(1).split(/\s+/)
 	const cmd = parts[0].toLowerCase()
 	const args = parts.slice(1)
@@ -201,6 +210,11 @@ async function processChatCommand(input: string, session: ChatSession, fmt: Outp
 			fmt.raw("  /cancel            - Cancel current task")
 			fmt.raw("  /approve, /a, /y   - Approve pending action")
 			fmt.raw("  /deny, /d, /n      - Deny pending action")
+			fmt.raw("  /config, /cfg      - Manage configuration")
+			fmt.raw("    /config list     - List all configuration values")
+			fmt.raw("    /config get <key>    - Get a config value")
+			fmt.raw("    /config set <key> <value> - Set a config value")
+			fmt.raw("    /config delete <key> - Reset a config value")
 			fmt.raw("  /quit, /q, /exit   - Exit chat mode")
 			fmt.raw("")
 			return true
@@ -289,6 +303,126 @@ async function processChatCommand(input: string, session: ChatSession, fmt: Outp
 		case "exit":
 			session.isRunning = false
 			return true
+
+		case "config":
+		case "cfg": {
+			const subCmd = args[0]?.toLowerCase()
+			const configKey = args[1]
+			const configValue = args.slice(2).join(" ")
+
+			if (!subCmd || subCmd === "list" || subCmd === "ls") {
+				// List all config values
+				try {
+					const configDir = config.configDir || `${process.env.HOME}/.cline`
+					const globalStatePath = path.join(configDir, "data", "globalState.json")
+
+					if (fs.existsSync(globalStatePath)) {
+						const content = fs.readFileSync(globalStatePath, "utf-8")
+						const allSettings = JSON.parse(content)
+						fmt.raw("")
+						fmt.raw(JSON.stringify(allSettings, null, 2))
+						fmt.raw("")
+					} else {
+						fmt.info("No configuration file found")
+					}
+				} catch (err) {
+					fmt.error(`Failed to list config: ${(err as Error).message}`)
+				}
+				return true
+			}
+
+			if (subCmd === "get") {
+				if (!configKey) {
+					fmt.error("Usage: /config get <key>")
+					return true
+				}
+
+				try {
+					let value: unknown
+
+					if (configKey.includes(".")) {
+						// For nested paths, get the root object first
+						const rootKey = configKey.split(".")[0]
+						let rootValue = controller.stateManager.getGlobalSettingsKey(rootKey as any)
+						if (rootValue === undefined) {
+							rootValue = controller.stateManager.getGlobalStateKey(rootKey as any)
+						}
+
+						if (rootValue !== undefined && typeof rootValue === "object") {
+							value = getNestedValue({ [rootKey]: rootValue }, configKey)
+						}
+					} else {
+						value = controller.stateManager.getGlobalSettingsKey(configKey as any)
+						if (value === undefined) {
+							value = controller.stateManager.getGlobalStateKey(configKey as any)
+						}
+					}
+
+					if (value === undefined) {
+						fmt.info(`${configKey} is not set`)
+					} else {
+						const displayValue = typeof value === "object" ? JSON.stringify(value, null, 2) : String(value)
+						fmt.keyValue({ [configKey]: displayValue })
+					}
+				} catch (err) {
+					fmt.error(`Failed to get config: ${(err as Error).message}`)
+				}
+				return true
+			}
+
+			if (subCmd === "set") {
+				if (!configKey || !configValue) {
+					fmt.error("Usage: /config set <key> <value>")
+					return true
+				}
+
+				try {
+					const parsedValue = parseValue(configKey, configValue)
+
+					if (configKey.includes(".")) {
+						// For nested paths, get the current root object, modify it, and save the whole thing
+						const rootKey = configKey.split(".")[0]
+						let rootValue = controller.stateManager.getGlobalSettingsKey(rootKey as any)
+						if (rootValue === undefined) {
+							rootValue = controller.stateManager.getGlobalStateKey(rootKey as any)
+						}
+
+						const currentRoot = rootValue !== undefined && typeof rootValue === "object" ? rootValue : {}
+						const { rootValue: newRootValue } = setNestedValue({ [rootKey]: currentRoot }, configKey, parsedValue)
+
+						controller.stateManager.setGlobalState(rootKey as any, newRootValue as any)
+					} else {
+						controller.stateManager.setGlobalState(configKey as any, parsedValue as any)
+					}
+
+					await controller.stateManager.flushPendingState()
+					fmt.success(`Set ${configKey} = ${String(parsedValue)}`)
+				} catch (err) {
+					fmt.error(`Failed to set config: ${(err as Error).message}`)
+				}
+				return true
+			}
+
+			if (subCmd === "delete" || subCmd === "rm") {
+				if (!configKey) {
+					fmt.error("Usage: /config delete <key>")
+					return true
+				}
+
+				try {
+					controller.stateManager.setGlobalState(configKey as any, undefined)
+					await controller.stateManager.flushPendingState()
+					fmt.success(`Reset ${configKey} to default`)
+				} catch (err) {
+					fmt.error(`Failed to delete config: ${(err as Error).message}`)
+				}
+				return true
+			}
+
+			fmt.error(`Unknown config subcommand: ${subCmd}`)
+			fmt.raw("Usage: /config <list|get|set|delete> [key] [value]")
+			return true
+		}
 
 		default:
 			fmt.warn(`Unknown command: /${cmd}. Type /help for available commands.`)
@@ -435,7 +569,7 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 
 					// Check for chat commands
 					if (input.startsWith("/")) {
-						await processChatCommand(input, session, formatter, logger)
+						await processChatCommand(input, session, formatter, logger, config)
 						if (!session.isRunning) {
 							rl.close()
 							return

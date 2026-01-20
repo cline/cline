@@ -14,7 +14,7 @@ import type { Logger } from "../../types/logger.js"
 /**
  * Parse a string value into the appropriate type based on the key
  */
-function parseValue(key: string, value: string): unknown {
+export function parseValue(key: string, value: string): unknown {
 	// Handle boolean values
 	const lowerValue = value.toLowerCase()
 	if (lowerValue === "true" || lowerValue === "1" || lowerValue === "yes") {
@@ -48,7 +48,7 @@ function parseValue(key: string, value: string): unknown {
  * Get a nested value from an object using dot notation
  * e.g., getNestedValue(obj, "browserSettings.viewport.width")
  */
-function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
+export function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
 	const parts = path.split(".")
 	let current: unknown = obj
 
@@ -67,7 +67,11 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
  * e.g., setNestedValue(obj, "browserSettings.viewport.width", 1200)
  * Returns the modified root object for the top-level key
  */
-function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown): { rootKey: string; rootValue: unknown } {
+export function setNestedValue(
+	obj: Record<string, unknown>,
+	path: string,
+	value: unknown,
+): { rootKey: string; rootValue: unknown } {
 	const parts = path.split(".")
 	const rootKey = parts[0]
 
