@@ -202,6 +202,24 @@
 				"category": "Cline"
 			},
 			{
+				"command": "cline.jupyterGenerateCell",
+				"title": "Generate Jupyter Cell with Cline",
+				"category": "Cline",
+				"icon": "$(sparkle)"
+			},
+			{
+				"command": "cline.jupyterExplainCell",
+				"title": "Explain Jupyter Cell with Cline",
+				"category": "Cline",
+				"icon": "$(question)"
+			},
+			{
+				"command": "cline.jupyterImproveCell",
+				"title": "Improve Jupyter Cell with Cline",
+				"category": "Cline",
+				"icon": "$(lightbulb)"
+			},
+			{
 				"command": "cline.openWalkthrough",
 				"title": "Open Walkthrough",
 				"category": "Cline"
@@ -302,6 +320,25 @@
 					"command": "cline.abortGitCommitMessage",
 					"group": "navigation",
 					"when": "config.git.enabled && scmProvider == git && cline.isGeneratingCommit"
+				}
+			],
+			"notebook/toolbar": [
+				{
+					"command": "cline.jupyterGenerateCell",
+					"group": "navigation/add@1",
+					"when": "notebookType == 'jupyter-notebook'"
+				}
+			],
+			"notebook/cell/title": [
+				{
+					"command": "cline.jupyterExplainCell",
+					"group": "inline@1",
+					"when": "notebookType == 'jupyter-notebook'"
+				},
+				{
+					"command": "cline.jupyterImproveCell",
+					"group": "inline@2",
+					"when": "notebookType == 'jupyter-notebook'"
 				}
 			],
 			"commandPalette": [
@@ -498,6 +535,7 @@
 		"@types/uuid": "^10.0.0",
 		"@vscode/codicons": "^0.0.36",
 		"archiver": "^7.0.1",
+		"aws4fetch": "^1.0.20",
 		"axios": "^1.12.0",
 		"better-sqlite3": "^12.4.1",
 		"cheerio": "^1.0.0",

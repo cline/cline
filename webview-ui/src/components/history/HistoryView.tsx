@@ -197,7 +197,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	}, [tasks])
 
 	const taskHistorySearchResults = useMemo(() => {
-		const results = searchQuery ? highlight(fuse.search(searchQuery)) : tasks
+		const results = searchQuery
+			? fuse
+					.search(searchQuery)
+					?.filter(({ matches }) => matches && matches.length)
+					.map(({ item }) => item)
+			: tasks
 
 		results.sort((a, b) => {
 			switch (sortOption) {
