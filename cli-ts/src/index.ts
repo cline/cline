@@ -3,6 +3,7 @@
  */
 
 import path from "node:path"
+import type { ApiProvider } from "@shared/api"
 import { Command } from "commander"
 import { render } from "ink"
 import React from "react"
@@ -12,7 +13,6 @@ import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
 import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
 import { StandaloneTerminalManager } from "@/integrations/terminal/standalone/StandaloneTerminalManager"
-import { BannerService } from "@/services/banner/BannerService"
 import { ErrorService } from "@/services/error/ErrorService"
 import { initializeDistinctId } from "@/services/logging/distinctId"
 import { CliCommentReviewController } from "./cli-comment-review"
@@ -22,6 +22,50 @@ import { App } from "./components/App"
 import { restoreConsole } from "./console"
 import { print, printError, printInfo, separator } from "./display"
 import { initializeCliContext } from "./vscode-context"
+
+/**
+ * Get the provider-specific model ID key for a given provider and mode.
+ * Different providers store their model IDs in different state keys.
+ */
+function getProviderModelIdKey(
+	provider: ApiProvider,
+	mode: "act" | "plan",
+): keyof import("@shared/storage/state-keys").Settings | null {
+	const prefix = mode === "act" ? "actMode" : "planMode"
+
+	// Map providers to their specific model ID keys
+	// Note: "cline" provider uses the same model ID key as "openrouter"
+	const providerKeyMap: Partial<Record<ApiProvider, string>> = {
+		openrouter: "OpenRouterModelId",
+		cline: "OpenRouterModelId", // Cline provider uses OpenRouter model IDs
+		openai: "OpenAiModelId",
+		ollama: "OllamaModelId",
+		lmstudio: "LmStudioModelId",
+		litellm: "LiteLlmModelId",
+		requesty: "RequestyModelId",
+		together: "TogetherModelId",
+		fireworks: "FireworksModelId",
+		sapaicore: "SapAiCoreModelId",
+		groq: "GroqModelId",
+		baseten: "BasetenModelId",
+		huggingface: "HuggingFaceModelId",
+		"huawei-cloud-maas": "HuaweiCloudMaasModelId",
+		oca: "OcaModelId",
+		aihubmix: "AihubmixModelId",
+		hicap: "HicapModelId",
+		nousResearch: "NousResearchModelId",
+		"vercel-ai-gateway": "VercelAiGatewayModelId",
+	}
+
+	const keySuffix = providerKeyMap[provider]
+	if (keySuffix) {
+		return `${prefix}${keySuffix}` as keyof import("@shared/storage/state-keys").Settings
+	}
+
+	// For providers without a specific key (anthropic, gemini, bedrock, etc.),
+	// they use the generic actModeApiModelId/planModeApiModelId
+	return null
+}
 
 const VERSION = "0.0.0"
 
@@ -77,10 +121,6 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 
 	await initializeDistinctId(extensionContext)
 
-	if (!BannerService.isInitialized()) {
-		BannerService.initialize(controller)
-	}
-
 	return { extensionContext, dataDir: DATA_DIR, extensionDir: EXTENSION_DIR, workspacePath, controller }
 }
 
@@ -129,7 +169,7 @@ function waitForCondition(check: () => boolean, timeoutMs: number, intervalMs: n
  */
 async function runTask(
 	prompt: string,
-	options: { switch?: string; model?: string; verbose?: boolean; cwd?: string; config?: string },
+	options: { switch?: string; model?: string; verbose?: boolean; cwd?: string; config?: string; thinking?: boolean },
 ) {
 	const ctx = await initializeCli(options)
 
@@ -137,10 +177,28 @@ async function runTask(
 		StateManager.get().setGlobalState("mode", options.switch === "plan" ? "plan" : "act")
 	}
 	if (options.model) {
-		const selectedMode = StateManager.get().getGlobalSettingsKey("mode") || "act"
-		const key = selectedMode === "act" ? "actModeApiModelId" : "planModeApiModelId"
-		StateManager.get().setGlobalState(key, options.model)
+		const selectedMode = (StateManager.get().getGlobalSettingsKey("mode") || "act") as "act" | "plan"
+
+		// Get the current provider for the selected mode
+		const providerKey = selectedMode === "act" ? "actModeApiProvider" : "planModeApiProvider"
+		const currentProvider = StateManager.get().getGlobalSettingsKey(providerKey) as ApiProvider
+
+		// Update the generic model ID for the current mode
+		const modelKey = selectedMode === "act" ? "actModeApiModelId" : "planModeApiModelId"
+		StateManager.get().setGlobalState(modelKey, options.model)
+
+		// Also update the provider-specific model ID key if applicable
+		const providerModelKey = getProviderModelIdKey(currentProvider, selectedMode)
+		if (providerModelKey) {
+			StateManager.get().setGlobalState(providerModelKey, options.model)
+		}
 	}
+
+	// Set thinking budget based on --thinking flag
+	const thinkingBudget = options.thinking ? 1024 : 0
+	const currentMode = StateManager.get().getGlobalSettingsKey("mode") || "act"
+	const thinkingKey = currentMode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
+	StateManager.get().setGlobalState(thinkingKey, thinkingBudget)
 
 	printInfo(`Starting Cline task...`)
 	printInfo(`Working directory: ${ctx.workspacePath}`)
@@ -315,6 +373,7 @@ program
 	.option("-v, --verbose", "Show verbose output including reasoning")
 	.option("-c, --cwd <path>", "Working directory for the task")
 	.option("--config <path>", "Path to Cline configuration directory")
+	.option("--thinking", "Enable extended thinking (1024 token budget)")
 	.action(runTask)
 
 program
@@ -350,6 +409,7 @@ program
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory")
 	.option("--config <path>", "Configuration directory")
+	.option("--thinking", "Enable extended thinking (1024 token budget)")
 	.action(async (prompt, options) => {
 		if (prompt) {
 			await runTask(prompt, options)

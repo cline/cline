@@ -205,6 +205,9 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 								<Text>{`${idx + 1}. ${opt}`}</Text>
 							</Box>
 						))}
+						<Text color="gray" dimColor>
+							(Enter number to select)
+						</Text>
 					</Box>
 				)
 			}
@@ -240,6 +243,9 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 								<Text>{`${idx + 1}. ${opt}`}</Text>
 							</Box>
 						))}
+						<Text color="gray" dimColor>
+							(Enter number to select)
+						</Text>
 					</Box>
 				)
 			}

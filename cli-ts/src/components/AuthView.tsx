@@ -319,7 +319,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				config.openAiBaseUrl = baseurl
 			}
 
-			await stateManager.setApiConfiguration(config)
+			stateManager.setApiConfiguration(config)
 
 			setSelectedProvider(normalizedProvider)
 			setModelId(modelid)
