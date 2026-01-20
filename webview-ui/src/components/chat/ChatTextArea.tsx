@@ -36,7 +36,7 @@ import {
 	shouldShowContextMenu,
 } from "@/utils/context-mentions"
 import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
-import { createIconButtonProps, createModalTriggerButtonProps, createToggleButtonProps } from "@/utils/interactiveProps"
+import { createIconButtonProps, createModalTriggerButtonProps } from "@/utils/interactiveProps"
 import { isSafari } from "@/utils/platformUtils"
 import {
 	getMatchingSlashCommands,
@@ -1740,14 +1740,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</TooltipContent>
 						<TooltipTrigger asChild>
 							<SwitchContainer
-								{...createToggleButtonProps(
-									mode === "act",
-									onModeToggle,
-									`Switch to ${mode === "act" ? "Plan" : "Act"} mode`,
-								)}
+								aria-expanded={mode === "act"}
+								aria-label={`Switch to ${mode === "act" ? "Plan" : "Act"} mode`}
 								data-testid="mode-switch"
 								disabled={false}
 								onClick={onModeToggle}
+								role="switch"
 								type="button">
 								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
 								{["Plan", "Act"].map((m) => (

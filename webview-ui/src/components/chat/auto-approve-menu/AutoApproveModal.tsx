@@ -3,7 +3,6 @@ import React, { useEffect, useRef, useState } from "react"
 import { useClickAway } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useAutoApproveActions } from "@/hooks/useAutoApproveActions"
-import { useModal } from "@/utils/focusManagement"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import AutoApproveMenuItem from "./AutoApproveMenuItem"
 import { updateAutoApproveSettings } from "./AutoApproveSettingsAPI"
@@ -24,11 +23,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVis
 	const itemsContainerRef = useRef<HTMLDivElement>(null)
 	const [containerWidth, setContainerWidth] = useState(0)
 
-	const { containerRef: modalRef } = useModal<HTMLButtonElement, HTMLDivElement>(
-		isVisible,
-		() => setIsVisible(false),
-		buttonRef,
-	)
+	const modalRef = useRef<HTMLDivElement>(null)
 
 	useClickAway(modalRef, (e) => {
 		// Skip if click was on the button that toggles the modal

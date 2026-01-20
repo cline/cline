@@ -9,7 +9,6 @@ import ServersToggleList from "@/components/mcp/configuration/tabs/installed/Ser
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
-import { useModal } from "@/utils/focusManagement"
 
 export interface ServersToggleModalHandle {
 	focus: () => void
@@ -33,9 +32,8 @@ function ServersToggleModalInner(
 	const [arrowPosition, setArrowPosition] = useState(0)
 	const [menuPosition, setMenuPosition] = useState(0)
 
-	const { triggerRef: buttonRef, containerRef: popupContainerRef } = useModal<HTMLDivElement, HTMLDivElement>(isVisible, () =>
-		setIsVisible(false),
-	)
+	const buttonRef = useRef<HTMLDivElement>(null)
+	const popupContainerRef = useRef<HTMLDivElement>(null)
 
 	useImperativeHandle(ref, () => ({
 		focus: () => triggerWrapperRef.current?.focus(),

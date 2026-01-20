@@ -5,23 +5,9 @@ export interface BaseButtonProps extends React.ButtonHTMLAttributes<HTMLButtonEl
 	type?: "button" | "submit" | "reset"
 }
 
-export interface ToggleButtonProps extends BaseButtonProps {
-	"aria-expanded": boolean
-}
-
 export interface ModalTriggerButtonProps extends BaseButtonProps {
 	"aria-haspopup": "dialog" | "menu" | "listbox" | "tree" | "grid" | true
 	"aria-controls"?: string
-}
-
-export interface DivAsModalTriggerProps extends React.HTMLAttributes<HTMLDivElement> {
-	role: "button"
-	"aria-label": string
-	"aria-haspopup": "dialog" | "menu" | "listbox" | "tree" | "grid" | true
-	"aria-expanded"?: boolean
-	tabIndex: number
-	onClick: React.MouseEventHandler<HTMLDivElement>
-	onKeyDown: React.KeyboardEventHandler<HTMLDivElement>
 }
 
 export const InteractiveStyles = {

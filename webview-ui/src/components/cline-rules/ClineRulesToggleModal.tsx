@@ -19,7 +19,6 @@ import PopupModalContainer from "@/components/common/PopupModalContainer"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient } from "@/services/grpc-client"
-import { useModal } from "@/utils/focusManagement"
 import { isMacOSOrLinux } from "@/utils/platformUtils"
 import HookRow from "./HookRow"
 import NewRuleRow from "./NewRuleRow"
@@ -83,9 +82,8 @@ function ClineRulesToggleModalInner(
 	const [menuPosition, setMenuPosition] = useState(0)
 	const [currentView, setCurrentView] = useState<"rules" | "workflows" | "hooks" | "skills">("rules")
 
-	const { triggerRef: buttonRef, containerRef: popupContainerRef } = useModal<HTMLDivElement, HTMLDivElement>(isVisible, () =>
-		setIsVisible(false),
-	)
+	const buttonRef = useRef<HTMLDivElement>(null)
+	const popupContainerRef = useRef<HTMLDivElement>(null)
 
 	useImperativeHandle(ref, () => ({
 		focus: () => triggerWrapperRef.current?.focus(),

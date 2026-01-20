@@ -10,9 +10,7 @@ import { useWindowSize } from "react-use"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import PopupModalContainer from "@/components/common/PopupModalContainer"
-import { useModal } from "@/utils/focusManagement"
-import { createButtonStyle, createDivAsModalTriggerProps, createIconButtonProps } from "@/utils/interactiveProps"
-import { useListboxNavigation } from "@/utils/useListboxNavigation"
+import { createButtonStyle, createIconButtonProps } from "@/utils/interactiveProps"
 
 const PLAN_MODE_COLOR = "var(--vscode-activityWarningBadge-background)"
 const ACT_MODE_COLOR = "var(--vscode-focusBorder)"
@@ -110,9 +108,8 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([]) // For scrollIntoView
 	const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 
-	const { triggerRef, containerRef: popupContainerRef } = useModal<HTMLDivElement, HTMLDivElement>(isOpen, () =>
-		onOpenChange(false),
-	)
+	const triggerRef = useRef<HTMLDivElement>(null)
+	const popupContainerRef = useRef<HTMLDivElement>(null)
 
 	// Get current provider from config - use activeEditMode when in split mode
 	const effectiveMode = planActSeparateModelsSetting ? activeEditMode : currentMode
@@ -410,14 +407,41 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		[featuredModels, filteredModels, handleSelectModel, openRouterModels],
 	)
 
-	const closeModal = useCallback(() => onOpenChange(false), [onOpenChange])
+	const [selectedIndex, setSelectedIndex] = useState(-1)
 
-	const { selectedIndex, setSelectedIndex, handleKeyDown } = useListboxNavigation({
-		itemCount: totalItems,
-		isOpen,
-		onSelect: handleListboxSelect,
-		onClose: closeModal,
-	})
+	const handleKeyDown = useCallback(
+		(e: React.KeyboardEvent<HTMLElement>) => {
+			if (!isOpen || totalItems === 0) return
+
+			switch (e.key) {
+				case "ArrowDown":
+					e.preventDefault()
+					setSelectedIndex((prev) => Math.min(prev + 1, totalItems - 1))
+					break
+				case "ArrowUp":
+					e.preventDefault()
+					setSelectedIndex((prev) => Math.max(prev - 1, 0))
+					break
+				case "Home":
+					e.preventDefault()
+					setSelectedIndex(0)
+					break
+				case "End":
+					e.preventDefault()
+					setSelectedIndex(totalItems - 1)
+					break
+				case "Enter":
+					e.preventDefault()
+					if (selectedIndex >= 0) handleListboxSelect(selectedIndex)
+					break
+				case "Escape":
+					e.preventDefault()
+					onOpenChange(false)
+					break
+			}
+		},
+		[isOpen, totalItems, selectedIndex, handleListboxSelect, onOpenChange],
+	)
 
 	// Reset selectedIndex and clear refs when search/provider changes
 	useEffect(() => {
@@ -520,9 +544,20 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		<>
 			{/* Trigger wrapper */}
 			<div
-				{...createDivAsModalTriggerProps("Open model picker", handleTriggerClick, isOpen)}
+				aria-expanded={isOpen}
+				aria-haspopup="dialog"
+				aria-label="Open model picker"
+				onClick={handleTriggerClick}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault()
+						handleTriggerClick()
+					}
+				}}
 				ref={triggerRef}
-				style={{ cursor: "pointer", display: "inline", minWidth: 0 }}>
+				role="button"
+				style={{ cursor: "pointer", display: "inline", minWidth: 0 }}
+				tabIndex={0}>
 				{children}
 			</div>
 

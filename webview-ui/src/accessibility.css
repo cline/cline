@@ -1,26 +1,3 @@
-:root {
-	font-size: 100%;
-}
-
-.text-xs {
-	font-size: 0.75rem;
-}
-.text-sm {
-	font-size: 0.8125rem;
-}
-.text-base {
-	font-size: 0.875rem;
-}
-.text-md {
-	font-size: 1rem;
-}
-.text-lg {
-	font-size: 1.125rem;
-}
-.text-xl {
-	font-size: 1.25rem;
-}
-
 :focus-visible {
 	outline: 2px solid var(--vscode-focusBorder, #007fd4);
 	outline-offset: 2px;
@@ -40,52 +17,4 @@
 	clip: rect(0, 0, 0, 0);
 	white-space: nowrap;
 	border: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-	*,
-	*::before,
-	*::after {
-		animation-duration: 0.01ms !important;
-		animation-iteration-count: 1 !important;
-		transition-duration: 0.01ms !important;
-		scroll-behavior: auto !important;
-	}
-}
-
-@media (prefers-contrast: high) {
-	:focus-visible {
-		outline-width: 3px;
-		outline-offset: 3px;
-	}
-
-	button,
-	[role="button"] {
-		border: 2px solid currentColor;
-	}
-}
-
-button,
-[role="button"],
-[role="tab"],
-[role="switch"],
-a {
-	min-height: 24px;
-	min-width: 24px;
-}
-
-@media (pointer: coarse) {
-	button,
-	[role="button"],
-	[role="tab"],
-	[role="switch"],
-	a {
-		min-height: 44px;
-		min-width: 44px;
-	}
-}
-
-:focus {
-	scroll-margin: 8px;
-	scroll-padding: 8px;
 }
