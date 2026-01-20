@@ -1,5 +1,5 @@
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react"
-import { memo, useEffect, useRef } from "react"
+import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -13,6 +13,14 @@ interface ThinkingRowProps {
 
 export const ThinkingRow = memo(({ showTitle = false, reasoningContent, isVisible, isExpanded, onToggle }: ThinkingRowProps) => {
 	const scrollRef = useRef<HTMLDivElement>(null)
+	const [canScrollDown, setCanScrollDown] = useState(false)
+
+	const checkScrollable = useCallback(() => {
+		if (scrollRef.current) {
+			const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
+			setCanScrollDown(scrollTop + clientHeight < scrollHeight - 1)
+		}
+	}, [])
 
 	// Only auto-scroll to bottom during streaming (showCursor=true)
 	// For expanded collapsed thinking, start at top
@@ -20,7 +28,8 @@ export const ThinkingRow = memo(({ showTitle = false, reasoningContent, isVisibl
 		if (scrollRef.current && isVisible) {
 			scrollRef.current.scrollTop = scrollRef.current.scrollHeight
 		}
-	}, [reasoningContent, isVisible])
+		checkScrollable()
+	}, [reasoningContent, isVisible, checkScrollable])
 
 	if (!isVisible) {
 		return null
@@ -56,13 +65,19 @@ export const ThinkingRow = memo(({ showTitle = false, reasoningContent, isVisibl
 					disabled={!showTitle}
 					onClick={onToggle}
 					variant="text">
-					<div
-						className={cn(
-							"flex max-h-[150px] overflow-y-auto text-description leading-normal truncated whitespace-pre-wrap break-words flex-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [direction:ltr]",
-							"pl-2 border-l border-description/50",
+					<div className="relative flex-1">
+						<div
+							className={cn(
+								"flex max-h-[150px] overflow-y-auto text-description leading-normal truncated whitespace-pre-wrap break-words [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [direction:ltr]",
+								"pl-2 border-l border-description/50",
+							)}
+							onScroll={checkScrollable}
+							ref={scrollRef}>
+							<span>{reasoningContent}</span>
+						</div>
+						{canScrollDown && (
+							<div className="absolute bottom-0 left-0 right-0 h-6 pointer-events-none bg-gradient-to-t from-background to-transparent" />
 						)}
-						ref={scrollRef}>
-						<span>{reasoningContent}</span>
 					</div>
 				</Button>
 			)}
