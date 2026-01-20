@@ -77,6 +77,8 @@ const NewFileView: React.FC<{ path: string; content: string; maxLines: number }>
 	const lines = content.split("\n")
 	const displayLines = lines.slice(0, maxLines)
 	const lineNumWidth = String(lines.length).length
+	// Calculate max line length for padding
+	const maxLineLength = Math.max(...displayLines.map((l) => l.length), 40)
 
 	return (
 		<Box flexDirection="column">
@@ -86,8 +88,8 @@ const NewFileView: React.FC<{ path: string; content: string; maxLines: number }>
 			{displayLines.map((line, idx) => (
 				<Box key={idx}>
 					<Text dimColor>{formatLineNumber(idx + 1, lineNumWidth)} </Text>
-					<Text backgroundColor="greenBright" color="black">
-						+{line}
+					<Text backgroundColor="rgb(117, 176, 111)" color="white">
+						+{line.padEnd(maxLineLength)}
 					</Text>
 				</Box>
 			))}
@@ -104,6 +106,8 @@ const UnifiedDiffView: React.FC<{ path: string; diff: string; maxLines: number }
 	const displayLines = diffLines.slice(0, maxLines)
 	const maxLineNum = Math.max(...diffLines.filter((l) => l.lineNumber !== undefined).map((l) => l.lineNumber!), 0)
 	const lineNumWidth = String(maxLineNum).length || 3
+	// Calculate max line length for padding
+	const maxLineLength = Math.max(...diffLines.map((l) => l.content.length), 40)
 
 	return (
 		<Box flexDirection="column">
@@ -122,8 +126,8 @@ const UnifiedDiffView: React.FC<{ path: string; diff: string; maxLines: number }
 						return (
 							<Box key={idx}>
 								<Text dimColor>{formatLineNumber(line.lineNumber, lineNumWidth)} </Text>
-								<Text backgroundColor="green" color="black">
-									+{line.content}
+								<Text backgroundColor="rgb(117, 176, 111)" color="white">
+									+{line.content.padEnd(maxLineLength)}
 								</Text>
 							</Box>
 						)
@@ -131,8 +135,8 @@ const UnifiedDiffView: React.FC<{ path: string; diff: string; maxLines: number }
 						return (
 							<Box key={idx}>
 								<Text dimColor>{formatLineNumber(line.lineNumber, lineNumWidth)} </Text>
-								<Text backgroundColor="red" color="white">
-									-{line.content}
+								<Text backgroundColor="rgb(246, 48, 73)" color="white">
+									-{line.content.padEnd(maxLineLength)}
 								</Text>
 							</Box>
 						)
@@ -140,7 +144,7 @@ const UnifiedDiffView: React.FC<{ path: string; diff: string; maxLines: number }
 						return (
 							<Box key={idx}>
 								<Text dimColor>{formatLineNumber(line.lineNumber, lineNumWidth)} </Text>
-								<Text> {line.content}</Text>
+								<Text> {line.content.padEnd(maxLineLength)}</Text>
 							</Box>
 						)
 					default:
