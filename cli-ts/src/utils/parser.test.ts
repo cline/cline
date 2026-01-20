@@ -1,8 +1,8 @@
 import fs from "node:fs"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { imageFileToDataUrl, isImagePath, jsonParseSafe, parseImagesFromInput, processImagePaths } from "./utils"
+import { imageFileToDataUrl, isImagePath, jsonParseSafe, parseImagesFromInput, processImagePaths } from "./parser"
 
-describe("utils", () => {
+describe("parser", () => {
 	describe("jsonParseSafe", () => {
 		it("should parse valid JSON", () => {
 			const result = jsonParseSafe('{"key": "value"}', {})

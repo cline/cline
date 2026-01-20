@@ -2,21 +2,32 @@ import { Text } from "ink"
 import { render } from "ink-testing-library"
 import React from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { ConfigView } from "./ConfigView"
+
+// Create stable mock references using vi.hoisted - must be before any imports that use these modules
+const { mockIsSettingsKey } = vi.hoisted(() => ({
+	mockIsSettingsKey: vi.fn((key: string) => key.startsWith("act") || key.startsWith("plan") || key === "mode"),
+}))
 
 vi.mock("./TaskView", () => ({
 	TaskView: ({ taskId, verbose }: any) =>
 		React.createElement(Text, null, `TaskView: ${taskId || "no-id"} verbose=${String(verbose)}`),
 }))
 
-// Mock the state-keys module
+// Mock the state-keys module - must be hoisted before ConfigView import
 vi.mock("@shared/storage/state-keys", () => ({
-	isSettingsKey: (key: string) => key.startsWith("act") || key.startsWith("plan") || key === "mode",
+	isSettingsKey: mockIsSettingsKey,
 	SETTINGS_DEFAULTS: {
 		mode: "act",
 		actModeApiProvider: "anthropic",
 	},
+	GlobalStateAndSettings: {},
+	GlobalStateAndSettingsKey: {},
+	LocalState: {},
+	LocalStateKey: {},
 }))
+
+// Import ConfigView after mocks are set up
+import { ConfigView } from "./ConfigView"
 
 describe("ConfigView", () => {
 	const defaultProps = {

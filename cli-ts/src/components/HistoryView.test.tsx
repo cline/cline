@@ -78,7 +78,7 @@ describe("HistoryView", () => {
 
 		it("should show navigation help", () => {
 			const { lastFrame } = render(<HistoryView controller={mockController} items={mockItems} />)
-			expect(lastFrame()).toContain("arrow keys")
+			expect(lastFrame()).toContain("↑↓")
 			expect(lastFrame()).toContain("Enter")
 		})
 	})

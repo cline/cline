@@ -4,7 +4,7 @@
  */
 
 import { CommentReviewController, type OnReplyCallback, type ReviewComment } from "@/integrations/editor/CommentReviewController"
-import { print, style } from "./display"
+import { print, style } from "../utils/display"
 
 export class CliCommentReviewController extends CommentReviewController {
 	private comments: Map<string, string[]> = new Map()

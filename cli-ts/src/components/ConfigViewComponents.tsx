@@ -147,8 +147,10 @@ export function parseValue(input: string, type: ValueType): unknown {
 	return input
 }
 
+// Import isSettingsKey at module level for proper test mocking
+import { isSettingsKey } from "@shared/storage/state-keys"
+
 export function buildConfigEntries(state: Record<string, unknown>, source: "global" | "workspace"): ConfigEntry[] {
-	const { isSettingsKey } = require("@shared/storage/state-keys")
 	return Object.entries(state)
 		.filter(([key, value]) => !isExcluded(key, value))
 		.sort(([a], [b]) => a.localeCompare(b))
