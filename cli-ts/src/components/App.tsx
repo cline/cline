@@ -102,7 +102,7 @@ export const App: React.FC<AppProps> = ({
 			break
 
 		case "welcome":
-			content = <WelcomeView onExit={onWelcomeExit} onSubmit={onWelcomeSubmit || (() => {})} />
+			content = <WelcomeView controller={controller} onExit={onWelcomeExit} onSubmit={onWelcomeSubmit || (() => {})} />
 			break
 
 		default:
