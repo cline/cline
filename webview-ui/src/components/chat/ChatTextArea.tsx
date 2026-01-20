@@ -1740,12 +1740,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</TooltipContent>
 						<TooltipTrigger asChild>
 							<SwitchContainer
-								aria-expanded={mode === "act"}
-								aria-label={`Switch to ${mode === "act" ? "Plan" : "Act"} mode`}
+								aria-label={`Toggle between Plan and Act modes. Currently in ${mode} mode.`}
 								data-testid="mode-switch"
 								disabled={false}
 								onClick={onModeToggle}
-								role="switch"
+								role="group"
 								type="button">
 								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
 								{["Plan", "Act"].map((m) => (
