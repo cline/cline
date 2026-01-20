@@ -95,7 +95,7 @@ class SecretStore implements SecretStorage {
 				const content = readFileSync(this.filePath, "utf8")
 				this.data = JSON.parse(content)
 			}
-		} catch (error) {
+		} catch {
 			this.data = {}
 		}
 	}
@@ -176,7 +176,7 @@ function readJson(filePath: string): any {
 		if (existsSync(filePath)) {
 			return JSON.parse(readFileSync(filePath, "utf8"))
 		}
-	} catch (error) {
+	} catch {
 		// Return empty object if file doesn't exist
 	}
 	return {}
