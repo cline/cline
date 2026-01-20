@@ -8,6 +8,7 @@ A TypeScript CLI implementation of Cline that reuses the core TypeScript codebas
 - **Terminal Output**: Displays Cline messages directly in your terminal with colored output
 - **Task History**: Access your task history from the command line
 - **Configurable**: Use custom configuration directories and working directories
+- **Image Support**: Attach images to your prompts using file paths or inline references
 
 ## Prerequisites
 
@@ -40,60 +41,171 @@ npm run link
 
 ## Usage
 
-### Run a Task
+### Interactive Mode (Default)
+
+When you run `cline` without any command, it launches an interactive welcome prompt:
 
 ```bash
-# Run a task with a prompt
-clinedev task "Create a hello world function in Python"
+# Launch interactive mode
+cline
 
-# Or use the shorthand
-clinedev t "Create a hello world function"
+# Or run a task directly
+cline "Create a hello world function in Python"
 
-# Run directly without the 'task' command
-clinedev "Create a hello world function"
+# With options
+cline -v --thinking "Analyze this codebase"
 ```
 
-### Options
+### Commands
+
+#### `task` (alias: `t`)
+
+Run a new task with a prompt.
 
 ```bash
-# Show verbose output (including reasoning)
-clinedev task -v "Your prompt"
+cline task "Create a hello world function in Python"
+cline t "Create a hello world function"
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-a, --act` | Run in act mode |
+| `-p, --plan` | Run in plan mode |
+| `-y, --yolo` | Enable yolo mode (auto-approve actions) |
+| `-m, --model <model>` | Model to use for the task |
+| `-i, --images <paths...>` | Image file paths to include with the task |
+| `-v, --verbose` | Show verbose output including reasoning |
+| `-c, --cwd <path>` | Working directory for the task |
+| `--config <path>` | Path to Cline configuration directory |
+| `-t, --thinking` | Enable extended thinking (1024 token budget) |
+
+**Examples:**
+
+```bash
+# Run in plan mode with verbose output
+cline task -p -v "Design a REST API"
+
+# Use a specific model with yolo mode
+cline task -m claude-sonnet-4-5-20250929 -y "Refactor this function"
+
+# Include images with your prompt
+cline task -i screenshot.png diagram.jpg "Fix the UI based on these images"
+
+# Or use inline image references in the prompt
+cline task "Fix the layout shown in @./screenshot.png"
+
+# Enable extended thinking for complex tasks
+cline task -t "Architect a microservices system"
 
 # Specify working directory
-clinedev task -c /path/to/project "Your prompt"
-
-# Use custom config directory
-clinedev task --config ~/.my-cline "Your prompt"
+cline task -c /path/to/project "Add unit tests"
 ```
 
-### View Task History
+#### `history` (alias: `h`)
+
+List task history with pagination support.
 
 ```bash
-# List recent tasks
-clinedev history
-
-# Show more tasks
-clinedev history -n 20
+cline history
+cline h
 ```
 
-### Show Configuration
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-n, --limit <number>` | Number of tasks to show (default: 10) |
+| `-p, --page <number>` | Page number, 1-based (default: 1) |
+| `--config <path>` | Path to Cline configuration directory |
+
+**Examples:**
 
 ```bash
-clinedev config
+# Show last 10 tasks (default)
+cline history
+
+# Show 20 tasks
+cline history -n 20
+
+# Show page 2 with 5 tasks per page
+cline history -n 5 -p 2
 ```
+
+#### `config`
+
+Show current configuration including global and workspace state.
+
+```bash
+cline config
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--config <path>` | Path to Cline configuration directory |
+
+#### `auth`
+
+Authenticate a provider and configure what model is used.
+
+```bash
+cline auth
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-p, --provider <id>` | Provider ID for quick setup (e.g., openai-native, anthropic) |
+| `-k, --apikey <key>` | API key for the provider |
+| `-m, --modelid <id>` | Model ID to configure (e.g., gpt-4o, claude-sonnet-4-5-20250929) |
+| `-b, --baseurl <url>` | Base URL (optional, only for openai provider) |
+| `-v, --verbose` | Show verbose output |
+| `-c, --cwd <path>` | Working directory for the task |
+| `--config <path>` | Path to Cline configuration directory |
+
+**Examples:**
+
+```bash
+# Interactive authentication
+cline auth
+
+# Quick setup with provider and API key
+cline auth -p anthropic -k sk-ant-xxxxx
+
+# Full quick setup with model
+cline auth -p openai-native -k sk-xxxxx -m gpt-4o
+
+# OpenAI-compatible provider with custom base URL
+cline auth -p openai -k your-api-key -b https://api.example.com/v1
+```
+
+### Global Options
+
+These options are available for the default command (running a task directly):
+
+| Option | Description |
+|--------|-------------|
+| `-i, --images <paths...>` | Image file paths to include with the task |
+| `-v, --verbose` | Show verbose output |
+| `-c, --cwd <path>` | Working directory |
+| `--config <path>` | Configuration directory |
+| `--thinking` | Enable extended thinking (1024 token budget) |
 
 ## Development
-
 
 ```bash
 # Build and link the package to your terminal
 npm run link
 
 # Set your provider (No Cline provider support yet)
-clinedev auth
+cline auth
 
 # Run a task
-clinedev task "Tell me about this codebase"
+cline task "Tell me about this codebase"
 ```
 
 ### Build
@@ -130,7 +242,7 @@ CLI-specific implementations:
 
 - `cli-host-bridge.ts`: CLI implementations of host bridge services
 - `cli-webview-provider.ts`: WebviewProvider that outputs to terminal
-- `cli-diff-provider.ts`: DiffViewProvider for terminal diff display
+- `cli-comment-review.ts`: Comment review controller for terminal
 - `vscode-context.ts`: Mock VSCode extension context
 - `display.ts`: Terminal output formatting utilities
 

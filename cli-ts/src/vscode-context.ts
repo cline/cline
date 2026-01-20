@@ -13,6 +13,18 @@ import { ExtensionKind, ExtensionMode, URI } from "./vscode-shim"
 const SETTINGS_SUBFOLDER = "data"
 
 /**
+ * CLI-specific state overrides.
+ * These values are always returned regardless of what's stored,
+ * and writes to these keys are silently ignored.
+ */
+const CLI_STATE_OVERRIDES: Record<string, any> = {
+	// CLI always uses background execution, not VSCode terminal
+	vscodeTerminalExecutionMode: "backgroundExec",
+	backgroundEditEnabled: true,
+	multiRootEnabled: false,
+}
+
+/**
  * Simple file-based Memento store for persisting state
  */
 class MementoStore implements Memento {
@@ -52,11 +64,19 @@ class MementoStore implements Memento {
 	get<T>(key: string): T | undefined
 	get<T>(key: string, defaultValue: T): T
 	get<T>(key: string, defaultValue?: T): T | undefined {
+		// Return CLI overrides for locked keys
+		if (key in CLI_STATE_OVERRIDES) {
+			return CLI_STATE_OVERRIDES[key] as T
+		}
 		const value = this.data[key]
 		return value !== undefined ? value : defaultValue
 	}
 
 	async update(key: string, value: any): Promise<void> {
+		// Silently ignore writes to CLI-locked keys
+		if (key in CLI_STATE_OVERRIDES) {
+			return
+		}
 		if (value === undefined) {
 			delete this.data[key]
 		} else {
