@@ -21,13 +21,23 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import type { State } from "@shared/proto/cline/state"
 import type { ClineMessage as ProtoClineMessage } from "@shared/proto/cline/ui"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
+import chalk from "chalk"
 import { type MarkedExtension, marked } from "marked"
 import { markedTerminal } from "marked-terminal"
 
 // Configure marked with terminal renderer (global setup)
 // Note: @types/marked-terminal is outdated and returns wrong type, cast to MarkedExtension
-marked.use(markedTerminal() as unknown as MarkedExtension)
+marked.use(
+	markedTerminal({
+		heading: chalk.cyan.bold,
+		firstHeading: chalk.magenta.bold.underline,
+		strong: chalk.yellow.bold,
+		em: chalk.blue.italic,
+		codespan: chalk.greenBright,
+	}) as unknown as MarkedExtension,
+)
 
+import { getApiMetrics } from "@shared/getApiMetrics"
 import type { Controller } from "@/core/controller"
 import type { StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { subscribeToState } from "@/core/controller/state/subscribeToState"
@@ -273,15 +283,27 @@ export class CliWebviewAdapter {
 				break
 
 			case "api_req_started":
-				// Parse API request info
-				if (msg.text) {
-					try {
-						const _info = JSON.parse(msg.text) as ClineApiReqInfo
-						this.formatter.info(`🔄 API request started...`)
-					} catch {
-						this.formatter.info("🔄 API request started...")
-					}
+				// Show cumulative session token usage
+				const messages = this.getMessages()
+				const metrics = getApiMetrics(messages)
+				const parts: string[] = []
+
+				// Token counts
+				parts.push(`${metrics.totalTokensIn.toLocaleString()} in / ${metrics.totalTokensOut.toLocaleString()} out`)
+
+				// Cache info if available
+				if (metrics.totalCacheReads !== undefined || metrics.totalCacheWrites !== undefined) {
+					const cacheReads = metrics.totalCacheReads ?? 0
+					const cacheWrites = metrics.totalCacheWrites ?? 0
+					parts.push(`cache: ${cacheReads.toLocaleString()}r/${cacheWrites.toLocaleString()}w`)
 				}
+
+				// Cost
+				if (metrics.totalCost > 0) {
+					parts.push(`$${metrics.totalCost.toFixed(4)}`)
+				}
+
+				this.formatter.info(`🔄 API request started... [Session: ${parts.join(" | ")}]`)
 				break
 
 			case "api_req_finished":
