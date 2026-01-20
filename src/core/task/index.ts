@@ -92,6 +92,7 @@ import {
 	ClineToolResponseContent,
 	ClineUserContent,
 } from "@/shared/messages"
+import { ApiFormat } from "@/shared/proto/cline/models"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
@@ -1813,7 +1814,9 @@ export class Task {
 			workspaceRoots,
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
-			enableNativeToolCalls: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
+			enableNativeToolCalls:
+				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
+				this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
 			terminalExecutionMode: this.terminalExecutionMode,
 		}

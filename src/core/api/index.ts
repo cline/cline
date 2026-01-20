@@ -29,6 +29,7 @@ import { NousResearchHandler } from "./providers/nousresearch"
 import { OcaHandler } from "./providers/oca"
 import { OllamaHandler } from "./providers/ollama"
 import { OpenAiHandler } from "./providers/openai"
+import { OpenAiCodexHandler } from "./providers/openai-codex"
 import { OpenAiNativeHandler } from "./providers/openai-native"
 import { OpenRouterHandler } from "./providers/openrouter"
 import { QwenHandler } from "./providers/qwen"
@@ -183,6 +184,12 @@ function createHandlerForProvider(
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+			})
+		case "openai-codex":
+			return new OpenAiCodexHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
+				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		case "deepseek":
 			return new DeepSeekHandler({
