@@ -17,7 +17,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { StateServiceClient } from "@/services/grpc-client"
-import { getEnvironmentColor } from "@/utils/environmentColors"
 import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
 import SectionHeader from "./SectionHeader"
 import AboutSection from "./sections/AboutSection"
@@ -110,7 +109,7 @@ const renderSectionHeader = (tabId: string) => {
 		<SectionHeader>
 			<div className="flex items-center gap-2">
 				<tab.icon className="w-4" />
-				<div>{tab.headerText}</div>
+				<div style={{ fontSize: "18px", fontWeight: "normal" }}>{tab.headerText}</div>
 			</div>
 		</SectionHeader>
 	)
@@ -134,6 +133,19 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	const { version, environment } = useExtensionState()
 
 	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[0].id)
+	const [searchTerm, setSearchTerm] = useState("")
+
+	// Filter tabs based on search
+	const filteredTabs = useMemo(() => {
+		if (!searchTerm.trim()) {
+			return SETTINGS_TABS.filter((tab) => !tab.hidden)
+		}
+
+		const search = searchTerm.toLowerCase()
+		return SETTINGS_TABS.filter(
+			(tab) => !tab.hidden && (tab.name.toLowerCase().includes(search) || tab.tooltipText.toLowerCase().includes(search)),
+		)
+	}, [searchTerm])
 
 	// Optimized message handler with early returns
 	const handleMessage = useCallback((event: MessageEvent) => {
@@ -196,20 +208,24 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	// Memoized tab item renderer
 	const renderTabItem = useCallback(
 		(tab: (typeof SETTINGS_TABS)[0]) => {
+			const isActive = activeTab === tab.id
 			return (
-				<TabTrigger className="flex justify-baseline" data-testid={`tab-${tab.id}`} key={tab.id} value={tab.id}>
+				<TabTrigger className="flex justify-baseline w-full" data-testid={`tab-${tab.id}`} key={tab.id} value={tab.id}>
 					<Tooltip key={tab.id}>
-						<TooltipTrigger>
-							<div
-								className={cn(
-									"whitespace-nowrap overflow-hidden h-12 sm:py-3 box-border flex items-center border-l-2 border-transparent text-foreground opacity-70 bg-transparent hover:bg-list-hover p-4 cursor-pointer gap-2",
-									{
-										"opacity-100 border-l-2 border-l-foreground border-t-0 border-r-0 border-b-0 bg-selection":
-											activeTab === tab.id,
-									},
-								)}>
-								<tab.icon className="w-4 h-4" />
-								<span className="hidden sm:block">{tab.name}</span>
+						<TooltipTrigger asChild className="w-full block">
+							<div className="px-2 py-1.5 cursor-pointer w-full">
+								<div
+									className={cn(
+										"flex items-center px-4 py-3 transition-all text-foreground rounded w-full",
+										isActive ? "opacity-100" : "opacity-70 hover:opacity-90",
+									)}
+									style={{
+										backgroundColor: isActive ? "var(--vscode-list-hoverBackground)" : "transparent",
+										borderRadius: "3px",
+									}}>
+									<tab.icon className="w-4 h-4 flex-shrink-0 mr-2" />
+									<span className="hidden sm:block flex-1 text-left">{tab.name}</span>
+								</div>
 							</div>
 						</TooltipTrigger>
 						<TooltipContent side="right">{tab.tooltipText}</TooltipContent>
@@ -238,13 +254,19 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		return <Component {...props} />
 	}, [activeTab, handleResetState, version])
 
-	const titleColor = getEnvironmentColor(environment)
-
 	return (
 		<Tab>
-			<TabHeader className="flex justify-between items-center gap-2">
+			<TabHeader
+				className="flex justify-between items-center gap-2"
+				style={{ paddingLeft: "20px", paddingTop: "20px", paddingBottom: "20px" }}>
 				<div className="flex items-center gap-1">
-					<h3 className="text-md m-0" style={{ color: titleColor }}>
+					<h3
+						className="m-0"
+						style={{
+							color: "var(--vscode-foreground)",
+							fontSize: "24px",
+							fontWeight: "normal",
+						}}>
 						Settings
 					</h3>
 				</div>
@@ -254,12 +276,31 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			</TabHeader>
 
 			<div className="flex flex-1 overflow-hidden">
-				<TabList
-					className="shrink-0 flex flex-col overflow-y-auto border-r border-sidebar-background"
-					onValueChange={setActiveTab}
-					value={activeTab}>
-					{SETTINGS_TABS.filter((tab) => !tab.hidden).map(renderTabItem)}
-				</TabList>
+				<div className="shrink-0 flex flex-col border-r border-sidebar-background" style={{ paddingLeft: "12px" }}>
+					{/* Search Bar */}
+					<div className="p-2 border-b border-sidebar-background">
+						<div className="relative">
+							<i className="codicon codicon-search absolute left-2.5 top-1/2 -translate-y-1/2 text-sm opacity-60 pointer-events-none" />
+							<input
+								className="w-full pl-8 pr-2 py-1.5 text-sm rounded bg-transparent border border-input-border focus:outline-none focus:border-focus-border"
+								onChange={(e) => setSearchTerm(e.target.value)}
+								placeholder="Search settings..."
+								style={{
+									backgroundColor: "var(--vscode-input-background)",
+									color: "var(--vscode-input-foreground)",
+									borderColor: "var(--vscode-input-border)",
+								}}
+								type="text"
+								value={searchTerm}
+							/>
+						</div>
+					</div>
+
+					{/* Tab List */}
+					<TabList className="flex-1 flex flex-col overflow-y-auto" onValueChange={setActiveTab} value={activeTab}>
+						{filteredTabs.map(renderTabItem)}
+					</TabList>
+				</div>
 
 				<TabContent className="flex-1 overflow-auto">{ActiveContent}</TabContent>
 			</div>
