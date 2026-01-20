@@ -118,6 +118,29 @@ const findPrevCompletedApiReq = (messages: ClineMessage[], beforeIdx: number): n
 	return -1
 }
 
+// Check if there's content (text, tool messages, or task completion) after the current api_req_started
+const hasContentAfterCurrentApiReq = (messages: ClineMessage[]): boolean => {
+	const currentApiReq = findCurrentApiReq(messages)
+	if (!currentApiReq) {
+		return false
+	}
+
+	// Look for any text, tool, or completion messages after the current api_req_started
+	for (let i = currentApiReq.index + 1; i < messages.length; i++) {
+		const msg = messages[i]
+		if (
+			msg.say === "text" ||
+			msg.say === "tool" ||
+			msg.ask === "tool" ||
+			msg.ask === "completion_result" ||
+			msg.say === "completion_result"
+		) {
+			return true
+		}
+	}
+	return false
+}
+
 /**
  * Displays the current state of an active tool operation,
  */
@@ -136,6 +159,9 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 	const hasError = !!(apiRequestFailedMessage || apiReqStreamingFailedMessage)
 	const hasCost = cost != null
 	const hasReasoning = !!reasoningContent
+	const hasCompletionResult = clineMessages.some(
+		(msg) => msg.ask === "completion_result" || msg.say === "completion_result" || msg.ask === "plan_mode_respond",
+	)
 
 	const apiReqState: ApiReqState = hasError ? "error" : hasCost ? "final" : hasReasoning ? "thinking" : "pre"
 
@@ -190,6 +216,11 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 					reasoningContent={reasoningContent}
 					showTitle={true}
 				/>
+			)}
+			{apiReqState === "thinking" && !hasCompletionResult && (
+				<div className="flex items-center text-description text-sm ml-1 mt-1.5">
+					<TypewriterText text="Working..." />
+				</div>
 			)}
 
 			{apiReqState === "error" && (

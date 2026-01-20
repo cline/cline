@@ -36,13 +36,13 @@ export const ThinkingRow = memo(({ showTitle = false, reasoningContent, isVisibl
 	}
 
 	return (
-		<div className="ml-1 pl-0">
+		<div className="ml-1 pl-0 mb-1 -mt-1.25">
 			{showTitle ? (
 				<Button
 					className="inline-flex justify-baseline gap-0.5 text-left select-none cursor-pointer px-0 w-full"
 					onClick={onToggle}
 					variant="icon">
-					<span style={{ borderBottom: isExpanded ? "none" : "1px dotted rgba(255, 255, 255, 0.3)" }}>Reasoning</span>
+					<span>Reasoning</span>
 					{isExpanded ? (
 						<ChevronDownIcon className="!size-1 text-foreground" />
 					) : (
@@ -73,7 +73,7 @@ export const ThinkingRow = memo(({ showTitle = false, reasoningContent, isVisibl
 							)}
 							onScroll={checkScrollable}
 							ref={scrollRef}>
-							<span>{reasoningContent}</span>
+							<span className="pb-2 block">{reasoningContent}</span>
 						</div>
 						{canScrollDown && (
 							<div className="absolute bottom-0 left-0 right-0 h-6 pointer-events-none bg-gradient-to-t from-background to-transparent" />

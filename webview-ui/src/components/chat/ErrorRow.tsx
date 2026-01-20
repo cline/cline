@@ -104,7 +104,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 				}
 
 				// Regular error message
-				return <p className="m-0 mt-4 whitespace-pre-wrap text-error wrap-anywhere">{message.text}</p>
+				return <p className="m-0 mt-0 whitespace-pre-wrap text-error wrap-anywhere">{message.text}</p>
 
 			case "diff_error":
 				return (
