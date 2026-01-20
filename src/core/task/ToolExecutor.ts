@@ -19,12 +19,6 @@ import { StateManager } from "../storage/StateManager"
 import { WorkspaceRootManager } from "../workspace"
 import { ToolResponse } from "."
 import { MessageStateHandler } from "./message-state"
-import {
-	extractPathsFromApplyPatch,
-	extractPathsFromWriteTool,
-	normalizeToWorkspaceRelative,
-	validateAndNormalizePath,
-} from "./rulePathIntentUtils"
 import { TaskState } from "./TaskState"
 import { AutoApprove } from "./tools/autoApprove"
 import { AccessMcpResourceHandler } from "./tools/handlers/AccessMcpResourceHandler"
@@ -306,52 +300,6 @@ export class ToolExecutor {
 		// Mark that a tool has been used (only matters when parallel tool calling is disabled)
 		if (!this.isParallelToolCallingEnabled()) {
 			this.taskState.didAlreadyUseTool = true
-		}
-	}
-
-	/**
-	 * Harvest workspace-relative path intent from tool calls.
-	 *
-	 * This is used to help activate path-scoped Cline Rules on subsequent turns,
-	 * even when the user did not explicitly mention the file path (or the file
-	 * does not exist yet).
-	 */
-	private harvestRulePathIntent(block: ToolUse): void {
-		try {
-			// Only harvest from file-modifying tools to minimize false positives.
-			if (block.partial) return
-
-			const addCandidate = (candidate: string | undefined) => {
-				if (!candidate) return
-
-				if (this.workspaceManager) {
-					candidate = normalizeToWorkspaceRelative(candidate, this.workspaceManager.getRoots())
-				}
-
-				const normalized = validateAndNormalizePath(candidate)
-				if (!normalized) return
-				this.taskState.rulePathIntentCandidates.add(normalized)
-			}
-
-			// write_to_file, replace_in_file, new_rule share the WriteToFile handler and use `path`/`absolutePath`.
-			if (block.name === "write_to_file" || block.name === "replace_in_file" || block.name === "new_rule") {
-				for (const p of extractPathsFromWriteTool(block.params as any)) {
-					addCandidate(p)
-				}
-				return
-			}
-
-			// apply_patch: parse patch header lines to discover target file paths.
-			if (block.name === "apply_patch") {
-				const raw = (block.params as any)?.input
-				if (typeof raw !== "string" || !raw) return
-				for (const p of extractPathsFromApplyPatch(raw)) {
-					addCandidate(p)
-				}
-				return
-			}
-		} catch {
-			// fail-open: intent harvesting is best-effort
 		}
 	}
 
@@ -649,9 +597,6 @@ export class ToolExecutor {
 			if (this.taskState.abort) {
 				return
 			}
-
-			// Record tool-intended file paths before execution (best-effort)
-			this.harvestRulePathIntent(block)
 
 			// Execute the actual tool
 			toolResult = await this.coordinator.execute(config, block)

@@ -1733,7 +1733,6 @@ export class Task {
 
 		const evaluationContext = await RuleContextBuilder.buildEvaluationContext({
 			cwd: this.cwd,
-			taskState: this.taskState,
 			messageStateHandler: this.messageStateHandler,
 			workspaceManager: this.workspaceManager,
 		})

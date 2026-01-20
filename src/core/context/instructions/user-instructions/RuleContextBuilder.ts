@@ -6,6 +6,7 @@ type WorkspaceManagerLike = { getRoots(): WorkspaceRoot[] }
 
 type ClineMessageLike = {
 	type: string
+	ask?: string
 	say?: string
 	text?: string
 }
@@ -14,13 +15,8 @@ type MessageStateHandlerLike = {
 	getClineMessages(): ClineMessageLike[]
 }
 
-type TaskStateLike = {
-	rulePathIntentCandidates?: Set<string>
-}
-
 export type RuleContextBuilderDeps = {
 	cwd: string
-	taskState: TaskStateLike
 	messageStateHandler: MessageStateHandlerLike
 	workspaceManager?: WorkspaceManagerLike
 }
@@ -29,6 +25,12 @@ export type RuleContextBuilderDeps = {
  * Builds the evaluation context used for conditional Cline Rules (e.g. YAML frontmatter `paths:`).
  *
  * Kept in the user-instructions domain so Task remains orchestration-focused.
+ *
+ * Path context is gathered from multiple sources in clineMessages:
+ * - User messages (task, user_feedback)
+ * - Visible/open tabs
+ * - Tool results (say="tool") - completed operations
+ * - Tool requests (ask="tool") - pending operations (captures intent before execution)
  */
 export class RuleContextBuilder {
 	/**
@@ -43,15 +45,27 @@ export class RuleContextBuilder {
 		}
 	}
 
+	/**
+	 * Parse apply_patch input to extract target file paths from patch headers.
+	 * Matches lines like: *** Add File: path/to/file.ts
+	 */
+	private static extractPathsFromApplyPatch(input: string): string[] {
+		if (typeof input !== "string" || !input) return []
+
+		const paths: string[] = []
+		const fileHeaderRegex = /^\*\*\* (?:Add|Update|Delete) File: (.+?)(?:\n|$)/gm
+		let m: RegExpExecArray | null
+		while ((m = fileHeaderRegex.exec(input))) {
+			const filePath = (m[1] || "").trim()
+			if (filePath) {
+				paths.push(filePath)
+			}
+		}
+		return paths
+	}
+
 	private static async getRulePathContext(deps: RuleContextBuilderDeps): Promise<string[]> {
 		const candidates: string[] = []
-
-		// (0) Tool-intent evidence: paths the assistant has explicitly targeted via tool calls.
-		// This is especially important for new files (non-existent at the time of first mention).
-		if (deps.taskState.rulePathIntentCandidates?.size) {
-			candidates.push(...Array.from(deps.taskState.rulePathIntentCandidates))
-		}
-
 		const clineMessages = deps.messageStateHandler.getClineMessages()
 
 		// (1) Current-turn user message evidence:
@@ -79,10 +93,10 @@ export class RuleContextBuilder {
 			}
 		}
 
-		// (3) Files edited by Cline during this task: use fileContextTracker metadata heuristics.
-		// We can approximate this by looking for tool messages indicating edits.
+		// (3) Files edited by Cline during this task (completed operations):
+		// Parse say="tool" messages for tool results indicating file operations.
 		for (const msg of clineMessages) {
-			if (msg.say !== "tool" || !msg.text) continue
+			if (msg.type !== "say" || msg.say !== "tool" || !msg.text) continue
 			try {
 				const tool = JSON.parse(msg.text) as { tool?: string; path?: string }
 				if (
@@ -92,7 +106,36 @@ export class RuleContextBuilder {
 					candidates.push(tool.path)
 				}
 			} catch {
-				// ignore
+				// ignore parse errors
+			}
+		}
+
+		// (4) Tool requests (pending operations):
+		// Parse ask="tool" messages to capture the assistant's intent BEFORE tool execution.
+		// This enables rule activation even when:
+		// - The tool hasn't completed yet
+		// - The tool fails (intent was still expressed)
+		// - Files don't exist yet (new file creation)
+		for (const msg of clineMessages) {
+			if (msg.type !== "ask" || msg.ask !== "tool" || !msg.text) continue
+			try {
+				const tool = JSON.parse(msg.text) as {
+					tool?: string
+					path?: string
+					content?: string // apply_patch stores patch content here
+				}
+
+				// Extract path from standard file tools
+				if (tool.path) {
+					candidates.push(tool.path)
+				}
+
+				// Handle apply_patch specially: parse patch headers for file paths
+				if (tool.tool === "applyPatch" && tool.content) {
+					candidates.push(...RuleContextBuilder.extractPathsFromApplyPatch(tool.content))
+				}
+			} catch {
+				// ignore parse errors
 			}
 		}
 
