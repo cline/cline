@@ -190,6 +190,7 @@ async function runTask(
 			// Already unmounted
 		}
 		restoreConsole()
+		await ctx.controller.stateManager.flushPendingState()
 		await ctx.controller.dispose()
 		await ErrorService.get().dispose()
 	}
@@ -207,6 +208,7 @@ async function listHistory(options: { config?: string; limit?: number }) {
 
 	if (recentTasks.length === 0) {
 		printInfo("No task history found.")
+		await ctx.controller.stateManager.flushPendingState()
 		await ctx.controller.dispose()
 		await ErrorService.get().dispose()
 		return
@@ -215,6 +217,7 @@ async function listHistory(options: { config?: string; limit?: number }) {
 	await runInkApp(
 		React.createElement(App, { view: "history", historyItems: recentTasks, controller: ctx.controller }),
 		async () => {
+			await ctx.controller.stateManager.flushPendingState()
 			await ctx.controller.dispose()
 			await ErrorService.get().dispose()
 		},
@@ -236,6 +239,8 @@ async function showConfig(options: { config?: string }) {
 			workspaceState: stateManager.getAllWorkspaceStateEntries(),
 		}),
 		async () => {
+			await ctx.controller.stateManager.flushPendingState()
+			await ctx.controller.dispose()
 			await ErrorService.get().dispose()
 		},
 	)
@@ -273,6 +278,7 @@ async function runAuth(options: {
 			authQuickSetup: quickSetup,
 		}),
 		async () => {
+			await ctx.controller.stateManager.flushPendingState()
 			await ctx.controller.dispose()
 			await ErrorService.get().dispose()
 		},
