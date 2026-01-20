@@ -12,6 +12,7 @@ import { handleQuit } from "./quit.js"
 import { handleStatus } from "./status.js"
 import { handleApprove, handleCancel, handleDeny } from "./task.js"
 import type { CommandContext, CommandHandler } from "./types.js"
+import { handleUsage } from "./usage.js"
 
 /**
  * Map of command names to their handlers
@@ -47,6 +48,10 @@ const handlers: Record<string, CommandHandler> = {
 	// Config
 	config: handleConfig,
 	cfg: handleConfig,
+
+	// Usage
+	usage: handleUsage,
+	u: handleUsage,
 
 	// Quit
 	quit: handleQuit,
