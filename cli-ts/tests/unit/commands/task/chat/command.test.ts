@@ -7,12 +7,12 @@ import fs from "fs"
 import os from "os"
 import path from "path"
 import sinon from "sinon"
-import { createTaskChatCommand } from "../../../../src/commands/task/chat.js"
+import { createTaskChatCommand } from "../../../../../src/commands/task/chat/index.js"
 // Mock the embedded controller module
-import * as embeddedController from "../../../../src/core/embedded-controller.js"
-import type { OutputFormatter } from "../../../../src/core/output/types.js"
-import type { CliConfig } from "../../../../src/types/config.js"
-import type { Logger } from "../../../../src/types/logger.js"
+import * as embeddedController from "../../../../../src/core/embedded-controller.js"
+import type { OutputFormatter } from "../../../../../src/core/output/types.js"
+import type { CliConfig } from "../../../../../src/types/config.js"
+import type { Logger } from "../../../../../src/types/logger.js"
 
 describe("task chat command", () => {
 	let tempDir: string
