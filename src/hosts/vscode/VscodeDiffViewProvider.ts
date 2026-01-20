@@ -96,6 +96,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		if (!this.activeDiffEditor || !this.activeDiffEditor.document) {
 			throw new Error("User closed text editor, unable to edit file...")
 		}
+
 		// Place cursor at the beginning of the diff editor to keep it out of the way of the stream animation
 		const beginningOfDocument = new vscode.Position(0, 0)
 		this.activeDiffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)

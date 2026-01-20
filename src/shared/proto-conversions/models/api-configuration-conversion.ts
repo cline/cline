@@ -321,6 +321,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.HICAP
 		case "nousResearch":
 			return ProtoApiProvider.NOUSRESEARCH
+		case "openai-codex":
+			return ProtoApiProvider.OPENAI_CODEX
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -409,6 +411,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "minimax"
 		case ProtoApiProvider.NOUSRESEARCH:
 			return "nousResearch"
+		case ProtoApiProvider.OPENAI_CODEX:
+			return "openai-codex"
 		default:
 			return "anthropic"
 	}
