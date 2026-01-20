@@ -35,6 +35,7 @@
 		"esbuild": "^0.27.0",
 		"mocha": "^10.6.0",
 		"sinon": "^17.0.1",
+		"tsconfig-paths": "^4.2.0",
 		"tsx": "^4.16.2",
 		"typescript": "^5.5.3"
 	},

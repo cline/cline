@@ -25,6 +25,24 @@
 			],
 			"@cli/*": [
 				"src/*"
+			],
+			"@integrations/*": [
+				"../src/integrations/*"
+			],
+			"@services/*": [
+				"../src/services/*"
+			],
+			"@packages/*": [
+				"../src/packages/*"
+			],
+			"@generated/*": [
+				"../src/generated/*"
+			],
+			"@api/*": [
+				"../src/core/api/*"
+			],
+			"vscode": [
+				"../standalone/runtime-files/vscode/index.js"
 			]
 		},
 		"noEmit": true

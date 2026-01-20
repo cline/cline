@@ -1,5 +1,12 @@
 import { expect } from "chai"
 import sinon from "sinon"
+
+// Define the build-time constant for tests
+declare global {
+	var __CLINE_VERSION__: string
+}
+globalThis.__CLINE_VERSION__ = "1.0.0-test"
+
 import { createVersionCommand, getVersion, runVersionCommand } from "../../../src/commands/version.js"
 import { createConfig } from "../../../src/core/config.js"
 import { createLogger } from "../../../src/core/logger.js"

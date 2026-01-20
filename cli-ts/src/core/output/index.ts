@@ -61,3 +61,11 @@ export function createFormatter(format: OutputFormat): OutputFormatter {
 			throw new Error(`Unknown output format: ${_exhaustive}`)
 	}
 }
+
+/**
+ * Create an output formatter from an optional format string.
+ * Uses default format if undefined or invalid.
+ */
+export function createFormatterFromOption(format: string | undefined): OutputFormatter {
+	return createFormatter(parseOutputFormat(format))
+}

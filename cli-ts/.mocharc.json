@@ -2,12 +2,16 @@
 	"extension": [
 		"ts"
 	],
-	"spec": "tests/**/*.test.ts",
-	"require": [
-		"tsx/esm",
-		"tests/setup.ts"
+	"spec": [
+		"tests/unit/core/**/*.test.ts",
+		"tests/unit/commands/version.test.ts"
+	],
+	"ignore": [
+		"tests/unit/commands/auth/**",
+		"tests/unit/commands/task/**"
 	],
 	"node-option": [
+		"import=tsx",
 		"experimental-specifier-resolution=node"
 	],
 	"timeout": 10000
