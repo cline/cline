@@ -7,7 +7,7 @@
 export { createTaskChatCommand } from "./command.js"
 
 // Also export utilities for testing
-export { checkForPendingInput, type PendingInputState } from "./input-checker.js"
+export { checkForPendingInput, isCompletionState, isFailureState, type PendingInputState } from "./input-checker.js"
 export { getModelIdForProvider, getModelIdKey } from "./model-utils.js"
 export { buildPromptString } from "./prompt.js"
 export { type ChatSession, createSession } from "./session.js"

@@ -13,6 +13,13 @@ import { disposeEmbeddedController, getEmbeddedController } from "../../core/emb
 import type { OutputFormatter } from "../../core/output/types.js"
 import type { CliConfig } from "../../types/config.js"
 import type { Logger } from "../../types/logger.js"
+import { checkForPendingInput, isCompletionState, isFailureState } from "./chat/input-checker.js"
+
+/** Yolo mode timeout: 5 minutes in milliseconds */
+const YOLO_TIMEOUT_MS = 5 * 60 * 1000
+
+/** Yolo mode max consecutive failures before abort */
+const YOLO_MAX_FAILURES = 3
 
 /**
  * Validate mode option
@@ -80,23 +87,106 @@ function isAwaitingResponse(messages: ClineMessage[]): boolean {
 }
 
 /**
+ * Yolo mode state for tracking failures
+ */
+interface YoloState {
+	failureCount: number
+	lastFailedAction: string | null
+	actionStartTime: number
+}
+
+/**
  * Wait for task to reach a stopping point (either completion or awaiting input)
+ * In yolo mode, auto-approves actions and continues until completion
  */
 async function waitForTaskResponse(
 	controller: Awaited<ReturnType<typeof getEmbeddedController>>,
 	formatter: OutputFormatter,
 	timeoutMs = 300000, // 5 minutes default timeout
+	yoloMode = false,
 ): Promise<void> {
 	const adapter = new CliWebviewAdapter(controller, formatter)
 	adapter.startListening()
 
+	const yoloState: YoloState = {
+		failureCount: 0,
+		lastFailedAction: null,
+		actionStartTime: Date.now(),
+	}
+
 	return new Promise((resolve, reject) => {
 		const startTime = Date.now()
 
-		const checkInterval = setInterval(() => {
+		const checkInterval = setInterval(async () => {
 			const messages = adapter.getMessages()
 
-			// Check if task completed or awaiting response
+			// YOLO MODE: Auto-respond and continue until completion
+			if (yoloMode && controller.task) {
+				// Check for task completion first
+				if (isCompletionState(messages)) {
+					formatter.success("\n[YOLO] Task completed!")
+					clearInterval(checkInterval)
+					adapter.stopListening()
+					resolve()
+					return
+				}
+
+				// Check for yolo timeout (5 minutes per action)
+				if (Date.now() - yoloState.actionStartTime > YOLO_TIMEOUT_MS) {
+					clearInterval(checkInterval)
+					adapter.stopListening()
+					reject(new Error("[YOLO] Action timed out after 5 minutes"))
+					return
+				}
+
+				// Check for failure state
+				const failureCheck = isFailureState(messages)
+				if (failureCheck.isFailure) {
+					if (yoloState.lastFailedAction === failureCheck.actionKey) {
+						yoloState.failureCount++
+					} else {
+						yoloState.lastFailedAction = failureCheck.actionKey
+						yoloState.failureCount = 1
+					}
+
+					if (yoloState.failureCount >= YOLO_MAX_FAILURES) {
+						clearInterval(checkInterval)
+						adapter.stopListening()
+						reject(new Error(`[YOLO] Same action failed ${YOLO_MAX_FAILURES} times`))
+						return
+					}
+
+					// Auto-retry
+					formatter.warn(`[YOLO] Action failed (attempt ${yoloState.failureCount}/${YOLO_MAX_FAILURES}), retrying...`)
+					yoloState.actionStartTime = Date.now()
+					await controller.task.handleWebviewAskResponse("yesButtonClicked")
+					return
+				} else if (failureCheck.actionKey === null) {
+					// Reset failure tracking on non-failure state
+					yoloState.failureCount = 0
+					yoloState.lastFailedAction = null
+				}
+
+				// Check for pending input and auto-respond
+				const pendingState = checkForPendingInput(messages)
+
+				if (pendingState.awaitingApproval) {
+					yoloState.actionStartTime = Date.now()
+					await controller.task.handleWebviewAskResponse("yesButtonClicked")
+					return
+				}
+
+				if (pendingState.awaitingInput) {
+					yoloState.actionStartTime = Date.now()
+					await controller.task.handleWebviewAskResponse("messageResponse", "proceed")
+					return
+				}
+
+				// Continue waiting for next state
+				return
+			}
+
+			// Normal mode: Check if task completed or awaiting response
 			if (isAwaitingResponse(messages)) {
 				clearInterval(checkInterval)
 				adapter.stopListening()
@@ -180,8 +270,8 @@ export function createTaskSendCommand(config: CliConfig, logger: Logger, formatt
 					await controller.task.handleWebviewAskResponse(response)
 					formatter.success(options.approve ? "Action approved" : "Action denied")
 
-					if (options.wait) {
-						await waitForTaskResponse(controller, formatter, parseInt(options.timeout) || 300000)
+					if (options.wait || options.yolo) {
+						await waitForTaskResponse(controller, formatter, parseInt(options.timeout) || 300000, options.yolo)
 					}
 
 					// Output result in JSON format if requested
@@ -246,10 +336,14 @@ export function createTaskSendCommand(config: CliConfig, logger: Logger, formatt
 					formatter.info(`Started new task: ${taskId}`)
 				}
 
-				// Wait for response if requested
-				if (options.wait) {
-					formatter.info("Waiting for task response...")
-					await waitForTaskResponse(controller, formatter, parseInt(options.timeout) || 300000)
+				// Wait for response if requested (yolo mode always waits for completion)
+				if (options.wait || options.yolo) {
+					if (options.yolo) {
+						formatter.info("[YOLO] Autonomous mode - running until completion...")
+					} else {
+						formatter.info("Waiting for task response...")
+					}
+					await waitForTaskResponse(controller, formatter, parseInt(options.timeout) || 300000, options.yolo)
 				}
 
 				// Output result in JSON format if requested

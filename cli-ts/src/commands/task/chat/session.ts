@@ -15,17 +15,27 @@ export interface ChatSession {
 	awaitingApproval: boolean
 	awaitingInput: boolean
 	adapter: CliWebviewAdapter | null
+	// Yolo mode state
+	yoloMode: boolean
+	yoloFailureCount: number
+	yoloLastFailedAction: string | null
+	yoloActionStartTime: number | null
 }
 
 /**
  * Create a new chat session with default state
  */
-export function createSession(): ChatSession {
+export function createSession(yoloMode = false): ChatSession {
 	return {
 		taskId: null,
 		isRunning: true,
 		awaitingApproval: false,
 		awaitingInput: false,
 		adapter: null,
+		// Yolo mode state
+		yoloMode,
+		yoloFailureCount: 0,
+		yoloLastFailedAction: null,
+		yoloActionStartTime: null,
 	}
 }

@@ -41,8 +41,12 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 					await controller.togglePlanActMode(options.mode as "plan" | "act")
 				}
 
-				// Create chat session
-				const session = createSession()
+				// Create chat session with yolo mode if specified
+				const session = createSession(options.yolo)
+
+				if (options.yolo) {
+					formatter.info("[YOLO] Autonomous mode enabled - no confirmations required")
+				}
 
 				// Start the REPL
 				await startRepl({

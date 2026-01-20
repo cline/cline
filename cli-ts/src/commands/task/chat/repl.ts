@@ -14,11 +14,17 @@ import type { OutputFormatter } from "../../../core/output/types.js"
 import type { CliConfig } from "../../../types/config.js"
 import type { Logger } from "../../../types/logger.js"
 import { createCompleter } from "./completer.js"
-import { checkForPendingInput } from "./input-checker.js"
+import { checkForPendingInput, isCompletionState, isFailureState } from "./input-checker.js"
 import { getModelIdForProvider } from "./model-utils.js"
 import { buildPromptString } from "./prompt.js"
 import type { ChatSession } from "./session.js"
 import { processSlashCommand } from "./slash-commands/index.js"
+
+/** Yolo mode timeout: 5 minutes in milliseconds */
+const YOLO_TIMEOUT_MS = 5 * 60 * 1000
+
+/** Yolo mode max consecutive failures before abort */
+const YOLO_MAX_FAILURES = 3
 
 /**
  * Options for starting the REPL
@@ -115,7 +121,78 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 		session.awaitingApproval = pendingState.awaitingApproval
 		session.awaitingInput = pendingState.awaitingInput
 
-		// Detect transition from processing to awaiting input
+		// YOLO MODE: Auto-respond to pending inputs
+		if (session.yoloMode && controller.task) {
+			// Check for task completion first
+			if (isCompletionState(messages)) {
+				formatter.success("\n[YOLO] Task completed!")
+				session.isRunning = false
+				rl.close()
+				return
+			}
+
+			// Check for timeout (5 minutes)
+			if (session.yoloActionStartTime && Date.now() - session.yoloActionStartTime > YOLO_TIMEOUT_MS) {
+				formatter.error("\n[YOLO] Action timed out after 5 minutes. Aborting.")
+				session.isRunning = false
+				rl.close()
+				return
+			}
+
+			// Check for failure state
+			const failureCheck = isFailureState(messages)
+			if (failureCheck.isFailure) {
+				if (session.yoloLastFailedAction === failureCheck.actionKey) {
+					session.yoloFailureCount++
+				} else {
+					session.yoloLastFailedAction = failureCheck.actionKey
+					session.yoloFailureCount = 1
+				}
+
+				if (session.yoloFailureCount >= YOLO_MAX_FAILURES) {
+					formatter.error(`\n[YOLO] Same action failed ${YOLO_MAX_FAILURES} times. Aborting.`)
+					session.isRunning = false
+					rl.close()
+					return
+				}
+
+				// Auto-retry: approve the retry
+				formatter.warn(`[YOLO] Action failed (attempt ${session.yoloFailureCount}/${YOLO_MAX_FAILURES}), retrying...`)
+				session.yoloActionStartTime = Date.now()
+				setProcessingState(true)
+				wasAwaitingInput = false
+				controller.task.handleWebviewAskResponse("yesButtonClicked")
+				return
+			} else {
+				// Reset failure tracking on success
+				session.yoloFailureCount = 0
+				session.yoloLastFailedAction = null
+			}
+
+			// Auto-approve pending approvals
+			if (pendingState.awaitingApproval) {
+				logger.debug("[YOLO] Auto-approving action")
+				session.yoloActionStartTime = Date.now()
+				setProcessingState(true)
+				wasAwaitingInput = false
+				controller.task.handleWebviewAskResponse("yesButtonClicked")
+				session.awaitingApproval = false
+				return
+			}
+
+			// Auto-respond to input requests with "proceed"
+			if (pendingState.awaitingInput) {
+				logger.debug("[YOLO] Auto-responding with 'proceed'")
+				session.yoloActionStartTime = Date.now()
+				setProcessingState(true)
+				wasAwaitingInput = false
+				controller.task.handleWebviewAskResponse("messageResponse", "proceed")
+				session.awaitingInput = false
+				return
+			}
+		}
+
+		// Normal mode: Detect transition from processing to awaiting input
 		const nowAwaitingInput = pendingState.awaitingApproval || pendingState.awaitingInput
 		if (isProcessing && nowAwaitingInput && !wasAwaitingInput) {
 			// AI just finished and is now waiting for input - show prompt
@@ -242,16 +319,25 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 async function displayWelcome(formatter: OutputFormatter, session: ChatSession, controller: Controller): Promise<void> {
 	formatter.raw("")
 	formatter.info("═".repeat(60))
-	formatter.info("  Cline Interactive Chat Mode")
+	if (session.yoloMode) {
+		formatter.info("  Cline Interactive Chat Mode [YOLO]")
+	} else {
+		formatter.info("  Cline Interactive Chat Mode")
+	}
 	formatter.info("═".repeat(60))
 	if (session.taskId) {
 		formatter.info(`Task: ${session.taskId}`)
 	}
 	const state = await controller.getStateToPostToWebview()
 	formatter.info(`Mode: ${state.mode || "act"}`)
+	if (session.yoloMode) {
+		formatter.info("YOLO: Auto-approving all actions (5min timeout, 3 retries max)")
+	}
 	formatter.raw("")
-	formatter.info("Type your message and press Enter to send.")
-	formatter.info("Type /help for available commands, /quit to exit.")
+	if (!session.yoloMode) {
+		formatter.info("Type your message and press Enter to send.")
+		formatter.info("Type /help for available commands, /quit to exit.")
+	}
 	formatter.raw("─".repeat(60))
 	formatter.raw("")
 }

@@ -59,3 +59,51 @@ export function checkForPendingInput(messages: ClineMessage[]): PendingInputStat
 
 	return { awaitingApproval: false, awaitingInput: false }
 }
+
+/**
+ * Check if the last message indicates a failure state (for yolo mode)
+ */
+export function isFailureState(messages: ClineMessage[]): { isFailure: boolean; actionKey: string | null } {
+	if (messages.length === 0) {
+		return { isFailure: false, actionKey: null }
+	}
+
+	const lastMessage = messages[messages.length - 1]
+
+	// Skip partial messages
+	if (lastMessage.partial) {
+		return { isFailure: false, actionKey: null }
+	}
+
+	// Check for failure indicators
+	if (
+		lastMessage.ask === "api_req_failed" ||
+		lastMessage.ask === "mistake_limit_reached" ||
+		lastMessage.say === "error" ||
+		lastMessage.say === "diff_error"
+	) {
+		// Use the message text as the action key for tracking consecutive failures
+		const actionKey = lastMessage.text || lastMessage.ask || lastMessage.say || "unknown"
+		return { isFailure: true, actionKey }
+	}
+
+	return { isFailure: false, actionKey: null }
+}
+
+/**
+ * Check if the last message indicates task completion (for yolo mode)
+ */
+export function isCompletionState(messages: ClineMessage[]): boolean {
+	if (messages.length === 0) {
+		return false
+	}
+
+	const lastMessage = messages[messages.length - 1]
+
+	// Skip partial messages
+	if (lastMessage.partial) {
+		return false
+	}
+
+	return lastMessage.ask === "completion_result" || lastMessage.say === "completion_result"
+}
