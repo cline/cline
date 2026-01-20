@@ -160,3 +160,29 @@ export async function disposeEmbeddedController(logger: Logger): Promise<void> {
 export function getWebviewProvider(): WebviewProvider | undefined {
 	return webviewProvider
 }
+
+/**
+ * Initialize only the HostProvider for lightweight CLI operations
+ *
+ * This is a minimal initialization that sets up just enough infrastructure
+ * to read task history and messages from disk, without initializing the
+ * full Controller (which starts MCP servers, etc.)
+ *
+ * Use this for read-only operations like `task dump` and `task list`.
+ *
+ * @param logger - Logger instance for CLI output
+ * @param configDir - Optional custom config directory (defaults to ~/.cline)
+ */
+export function initializeHostProviderOnly(logger: Logger, configDir?: string): void {
+	if (isHostProviderInitialized()) {
+		return
+	}
+
+	const { extensionContext, DATA_DIR, EXTENSION_DIR } = initializeContext(configDir)
+
+	logger.debug(`Using data directory: ${DATA_DIR}`)
+	logger.debug(`Using extension directory: ${EXTENSION_DIR}`)
+
+	setupHostProvider(extensionContext, EXTENSION_DIR, DATA_DIR, logger)
+	logger.debug("HostProvider initialized (lightweight mode)")
+}

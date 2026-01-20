@@ -8,6 +8,9 @@
 			"@/*": [
 				"../src/*"
 			],
+			"@core/*": [
+				"../src/core/*"
+			],
 			"@shared/*": [
 				"../src/shared/*"
 			],

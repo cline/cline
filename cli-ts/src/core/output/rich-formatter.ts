@@ -6,6 +6,9 @@
 import chalk from "chalk"
 import type { ClineMessage, OutputFormatter, TaskInfo } from "./types.js"
 
+// Store reference to original stdout.write to bypass console filtering
+const stdoutWrite = process.stdout.write.bind(process.stdout)
+
 /**
  * Rich formatter implementation with colors and styling
  */
@@ -168,7 +171,10 @@ export class RichFormatter implements OutputFormatter {
 	}
 
 	raw(text: string): void {
-		console.log(text)
+		// Use stdout.write directly to bypass console filtering
+		// This is important for commands like `dump` that output JSON
+		// containing strings that would otherwise be filtered
+		stdoutWrite(text + "\n")
 	}
 }
 
