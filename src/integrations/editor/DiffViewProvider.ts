@@ -168,15 +168,6 @@ export abstract class DiffViewProvider {
 	 */
 	protected abstract resetDiffView(): Promise<void>
 
-	/**
-	 * Switches to a specialized editor for specific file types after final content is available.
-	 * Called automatically by the `update` method when `isFinal` is true.
-	 *
-	 * For example, switches to Jupyter notebook editor for .ipynb files to provide
-	 * enhanced editing experience with proper notebook cell rendering.
-	 */
-	protected abstract switchToSpecializedEditor(): Promise<void>
-
 	async update(
 		accumulatedContent: string,
 		isFinal: boolean,

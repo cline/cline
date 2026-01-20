@@ -1,9 +1,7 @@
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
-import * as os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
 import { DecorationController } from "@/hosts/vscode/DecorationController"
-import { Logger } from "@/services/logging/Logger"
 import { arePathsEqual } from "@/utils/path"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
@@ -13,10 +11,6 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 
 	private fadedOverlayController?: DecorationController
 	private activeLineController?: DecorationController
-
-	// Temporary file management for notebook diff views
-	private tempModifiedUri?: vscode.Uri
-	private tempFileWatcher?: vscode.FileSystemWatcher
 
 	override async openDiffEditor(): Promise<void> {
 		if (!this.absolutePath) {
@@ -204,155 +198,11 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		return true
 	}
 
-	protected override async switchToSpecializedEditor(): Promise<void> {
-		if (!this.isNotebookFile() || !this.activeDiffEditor || !this.absolutePath) {
-			Logger.log(
-				`switchToSpecializedEditor: Early return - isNotebook: ${this.isNotebookFile()}, hasActiveDiffEditor: ${!!this.activeDiffEditor}, hasAbsolutePath: ${!!this.absolutePath}`,
-			)
-			return
-		}
-
-		try {
-			const uri = vscode.Uri.file(this.absolutePath)
-			const fileName = path.basename(uri.fsPath)
-
-			Logger.log(`Attempting to create notebook diff view for file: ${fileName}`)
-
-			// Check if Jupyter extension is available
-			const jupyterExtension = vscode.extensions.getExtension("ms-toolsai.jupyter")
-			if (!jupyterExtension) {
-				Logger.log("Jupyter extension not found, cannot create notebook diff view")
-				return
-			}
-
-			if (!jupyterExtension.isActive) {
-				Logger.log("Jupyter extension not active, activating...")
-				await jupyterExtension.activate()
-			}
-
-			// Create a proper notebook diff view by creating temporary files
-			await this.createNotebookDiffView(uri, fileName)
-		} catch (error) {
-			Logger.error("Failed to create notebook diff view, continuing with text editor:", error)
-			// Text editor remains active - no changes needed
-		}
-	}
-
-	/**
-	 * Create a proper notebook diff view using temporary files
-	 */
-	private async createNotebookDiffView(uri: vscode.Uri, fileName: string): Promise<void> {
-		try {
-			Logger.log("Creating notebook diff view with temporary file...")
-
-			// Create temporary directory and file for modified content (right side)
-			const tempDir = os.tmpdir()
-			const timestamp = Date.now()
-			const tempModifiedPath = path.join(tempDir, `cline-modified-${timestamp}-${fileName}`)
-
-			// Write current editor content to temporary file
-			const currentContent = this.activeDiffEditor?.document.getText() ?? ""
-
-			try {
-				// Attempt to parse the content as JSON
-				JSON.parse(currentContent)
-			} catch (error) {
-				Logger.error(`Invalid JSON content for notebook file ${fileName}, skipping notebook diff view creation`)
-				Logger.error(`JSON parse error: ${error}`)
-				return
-			}
-
-			await vscode.workspace.fs.writeFile(vscode.Uri.file(tempModifiedPath), new TextEncoder().encode(currentContent))
-
-			// Store temporary file URI for cleanup
-			this.tempModifiedUri = vscode.Uri.file(tempModifiedPath)
-			Logger.log(`Created temporary modified file: ${tempModifiedPath}`)
-
-			// Set up file system watcher for synchronization
-			this.setupTempDocumentListener()
-
-			// Open notebook diff view with original file (left) vs temporary file (right)
-			Logger.log("Opening notebook diff view...")
-			await vscode.commands.executeCommand(
-				"vscode.diff",
-				uri, // Left: original file
-				this.tempModifiedUri, // Right: temporary file with modifications
-				`${fileName}: Original ↔ Cline's Changes (Notebook)`,
-			)
-
-			// Brief delay to allow VS Code to fully render the notebook diff view.
-			// The vscode.diff command returns before the UI is ready.
-			await new Promise((resolve) => setTimeout(resolve, 500))
-
-			Logger.log("Notebook diff view opened successfully")
-		} catch (error) {
-			Logger.error(`Error creating notebook diff view: ${error}`)
-			// Clean up on error
-			await this.cleanupTempFiles()
-			return
-		}
-	}
-
-	/**
-	 * Set up file system watcher for temporary file synchronization
-	 */
-	private setupTempDocumentListener(): void {
-		if (this.tempModifiedUri) {
-			// Watch the specific temp file, not the entire directory
-			const tempDir = path.dirname(this.tempModifiedUri.fsPath)
-			const tempFileName = path.basename(this.tempModifiedUri.fsPath)
-			this.tempFileWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(tempDir, tempFileName))
-
-			this.tempFileWatcher.onDidChange(async () => {
-				await this.syncTempFileToActiveDiffEditor()
-			})
-
-			Logger.log(`File system watcher set up for temp file: ${this.tempModifiedUri.fsPath}`)
-		}
-	}
-
-	/**
-	 * Sync changes from temporary file back to active diff editor only
-	 */
-	private async syncTempFileToActiveDiffEditor(): Promise<void> {
-		if (this.tempModifiedUri && this.activeDiffEditor && this.activeDiffEditor.document) {
-			try {
-				const tempContent = await vscode.workspace.fs.readFile(this.tempModifiedUri)
-				const tempContentString = new TextDecoder().decode(tempContent)
-
-				// Update text editor content to match temporary file
-				const edit = new vscode.WorkspaceEdit()
-				const fullRange = new vscode.Range(0, 0, this.activeDiffEditor.document.lineCount, 0)
-				edit.replace(this.activeDiffEditor.document.uri, fullRange, tempContentString)
-				await vscode.workspace.applyEdit(edit)
-
-				Logger.log("Synced temp file changes back to active diff editor")
-			} catch (error) {
-				Logger.error("Failed to sync temp file to active diff editor:", error)
-			}
-		}
-	}
-
 	protected async closeAllDiffViews(): Promise<void> {
-		// Close all the cline diff views (both text and notebook diff views).
+		// Close all the cline diff views.
 		const tabs = vscode.window.tabGroups.all
 			.flatMap((tg) => tg.tabs)
-			.filter((tab) => {
-				// Regular Cline text diff views
-				if (tab.input instanceof vscode.TabInputTextDiff && tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME) {
-					return true
-				}
-
-				// Notebook diff views created by createNotebookDiffView()
-				if (
-					tab.input instanceof vscode.TabInputNotebookDiff &&
-					tab.input?.modified?.fsPath?.includes("cline-modified-")
-				) {
-					return true
-				}
-
-				return false
-			})
+			.filter((tab) => tab.input instanceof vscode.TabInputTextDiff && tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME)
 		for (const tab of tabs) {
 			// trying to close dirty views results in save popup
 			if (!tab.isDirty) {
@@ -366,35 +216,9 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 	}
 
 	protected override async resetDiffView(): Promise<void> {
-		// Clean up temporary files and listeners (basic cleanup for now)
-		await this.cleanupTempFiles()
-
 		this.activeDiffEditor = undefined
 		this.fadedOverlayController = undefined
 		this.activeLineController = undefined
-	}
-
-	/**
-	 * Clean up temporary files and watchers
-	 */
-	private async cleanupTempFiles(): Promise<void> {
-		// Dispose file watcher first
-		if (this.tempFileWatcher) {
-			this.tempFileWatcher.dispose()
-			this.tempFileWatcher = undefined
-		}
-
-		// Clean up temporary file
-		if (this.tempModifiedUri) {
-			try {
-				await vscode.workspace.fs.delete(this.tempModifiedUri)
-				Logger.log(`Cleaned up temporary file: ${this.tempModifiedUri.fsPath}`)
-			} catch (error) {
-				// Log but don't throw - cleanup should be non-blocking
-				Logger.log(`Failed to cleanup temporary file: ${error}`)
-			}
-			this.tempModifiedUri = undefined
-		}
 	}
 }
 

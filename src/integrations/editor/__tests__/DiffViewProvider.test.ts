@@ -31,7 +31,6 @@ class TestBoundaryDiffViewProvider extends DiffViewProvider {
 	}
 	async closeAllDiffViews(): Promise<void> {}
 	async resetDiffView(): Promise<void> {}
-	async switchToSpecializedEditor(): Promise<void> {}
 
 	async replaceText(
 		content: string,
