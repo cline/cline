@@ -1,245 +1,72 @@
 /**
- * Interactive config view component
- * Displays and allows editing of configuration values
+ * Interactive config view component for displaying and editing configuration values
+ * Supports tabs for Settings, Rules, Workflows, Hooks, and Skills
  */
 
 import {
 	GlobalStateAndSettings,
 	GlobalStateAndSettingsKey,
-	isSettingsKey,
 	LocalState,
 	LocalStateKey,
 	SETTINGS_DEFAULTS,
 } from "@shared/storage/state-keys"
 import { Box, Text, useApp, useInput } from "ink"
-import React, { useCallback, useMemo, useState } from "react"
+import React, { useMemo, useState } from "react"
+import {
+	BooleanSelect,
+	buildConfigEntries,
+	buildToggleEntries,
+	ConfigRow,
+	HookInfo,
+	HookRow,
+	MAX_VISIBLE,
+	parseValue,
+	SEPARATOR,
+	SectionHeader,
+	SkillInfo,
+	SkillRow,
+	TABS,
+	TabBar,
+	TabView,
+	TextInput,
+	ToggleEntry,
+	ToggleRow,
+	WorkspaceHooks,
+} from "./ConfigViewComponents"
 
 // ============================================================================
 // Types
 // ============================================================================
 
-type ConfigValue = string | number | boolean | object | undefined | null
-
-interface ConfigEntry {
-	key: string
-	value: ConfigValue
-	type: "string" | "number" | "boolean" | "object" | "undefined"
-	isEditable: boolean
-	source: "global" | "workspace"
-}
-
 interface ConfigViewProps {
 	dataDir: string
-	globalState: Record<string, any>
-	workspaceState: Record<string, any>
+	globalState: Record<string, unknown>
+	workspaceState: Record<string, unknown>
 	onUpdateGlobal?: (key: GlobalStateAndSettingsKey, value: GlobalStateAndSettings[GlobalStateAndSettingsKey]) => void
 	onUpdateWorkspace?: (key: LocalStateKey, value: LocalState[LocalStateKey]) => void
-}
-
-type ViewMode = "browse" | "edit"
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const EXCLUDED_KEYS = [
-	"taskHistory",
-	"primaryRootIndex",
-	"subagentsEnabled",
-	"subagentTerminalOutputLineLimit",
-	"welcomeViewCompleted",
-	"isNewUser",
-]
-
-const EDITABLE_TYPES = new Set(["string", "number", "boolean"])
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-function formatSeparator(char: string = "─", width: number = 80): string {
-	return char.repeat(Math.max(width, 10))
-}
-
-function getValueType(value: any): ConfigEntry["type"] {
-	if (value === undefined || value === null) {
-		return "undefined"
-	}
-	if (typeof value === "boolean") {
-		return "boolean"
-	}
-	if (typeof value === "number") {
-		return "number"
-	}
-	if (typeof value === "object") {
-		return "object"
-	}
-	return "string"
-}
-
-function shouldExcludeEntry(key: string, value: any): boolean {
-	if (EXCLUDED_KEYS.includes(key)) {
-		return true
-	}
-	if (key.endsWith("Toggles") || key.endsWith("ModelInfo")) {
-		return true
-	}
-	if (key.startsWith("apiConfig_") || key.startsWith("last")) {
-		return true
-	}
-	if (value === undefined || value === null) {
-		return true
-	}
-	if (typeof value === "object" && Object.keys(value).length === 0) {
-		return true
-	}
-	if (Array.isArray(value) && value.length === 0) {
-		return true
-	}
-	if (typeof value === "string" && value.trim() === "") {
-		return true
-	}
-	return false
-}
-
-function formatValue(value: ConfigValue, maxLength: number = 50): string {
-	if (value === undefined || value === null) {
-		return "<not set>"
-	}
-	if (typeof value === "boolean") {
-		return value ? "true" : "false"
-	}
-	if (typeof value === "number") {
-		return String(value)
-	}
-	if (typeof value === "object") {
-		const json = JSON.stringify(value)
-		return json.length > maxLength ? json.substring(0, maxLength - 3) + "..." : json
-	}
-	const str = String(value)
-	return str.length > maxLength ? str.substring(0, maxLength - 3) + "..." : str
-}
-
-function parseValue(input: string, type: ConfigEntry["type"]): ConfigValue {
-	switch (type) {
-		case "boolean":
-			return input.toLowerCase() === "true" || input === "1"
-		case "number": {
-			const num = parseFloat(input)
-			return Number.isNaN(num) ? 0 : num
-		}
-		case "object":
-			try {
-				return JSON.parse(input)
-			} catch {
-				return {}
-			}
-		default:
-			return input
-	}
-}
-
-// ============================================================================
-// Sub-components
-// ============================================================================
-
-interface TextInputProps {
-	value: string
-	onChange: (value: string) => void
-	onSubmit: (value: string) => void
-	onCancel: () => void
-	label: string
-	type: ConfigEntry["type"]
-}
-
-const TextInput: React.FC<TextInputProps> = ({ value, onChange, onSubmit, onCancel, label, type }) => {
-	useInput((input, key) => {
-		if (key.escape) {
-			onCancel()
-		} else if (key.return) {
-			onSubmit(value)
-		} else if (key.backspace || key.delete) {
-			onChange(value.slice(0, -1))
-		} else if (input && !key.ctrl && !key.meta) {
-			onChange(value + input)
-		}
-	})
-
-	return (
-		<Box flexDirection="column" marginTop={1}>
-			<Text bold color="cyan">
-				Edit: {label}
-			</Text>
-			<Box>
-				<Text color="white">{value || ""}</Text>
-				<Text color="gray">▌</Text>
-			</Box>
-			<Text color="gray" dimColor>
-				Type: {type} • Enter to save • Esc to cancel
-			</Text>
-		</Box>
-	)
-}
-
-interface BooleanSelectProps {
-	value: boolean
-	onSelect: (value: boolean) => void
-	onCancel: () => void
-	label: string
-}
-
-const BooleanSelect: React.FC<BooleanSelectProps> = ({ value, onSelect, onCancel, label }) => {
-	const [selected, setSelected] = useState(value)
-
-	useInput((_input, key) => {
-		if (key.escape) {
-			onCancel()
-		} else if (key.return) {
-			onSelect(selected)
-		} else if (key.upArrow || key.downArrow) {
-			setSelected((prev) => !prev)
-		}
-	})
-
-	return (
-		<Box flexDirection="column" marginTop={1}>
-			<Text bold color="cyan">
-				Edit: {label}
-			</Text>
-			<Box flexDirection="column">
-				<Text color={selected ? "green" : undefined}>{selected ? "❯ " : "  "}true</Text>
-				<Text color={!selected ? "green" : undefined}>{!selected ? "❯ " : "  "}false</Text>
-			</Box>
-			<Text color="gray" dimColor>
-				↑/↓ to toggle • Enter to save • Esc to cancel
-			</Text>
-		</Box>
-	)
-}
-
-interface ConfigRowProps {
-	entry: ConfigEntry
-	isSelected: boolean
-}
-
-const ConfigRow: React.FC<ConfigRowProps> = ({ entry, isSelected }) => {
-	const valueColor = entry.type === "boolean" ? (entry.value ? "green" : "red") : "white"
-	const indicator = isSelected ? "❯ " : "  "
-	const editableIndicator = entry.isEditable ? "" : " (read-only)"
-
-	return (
-		<Box>
-			<Text color={isSelected ? "cyan" : undefined}>
-				{indicator}
-				<Text color="cyan">{entry.key}</Text>
-				<Text color="gray">: </Text>
-				<Text color={valueColor}>{formatValue(entry.value)}</Text>
-				<Text color="gray" dimColor>
-					{editableIndicator}
-				</Text>
-			</Text>
-		</Box>
-	)
+	// Rules toggles
+	globalClineRulesToggles?: Record<string, boolean>
+	localClineRulesToggles?: Record<string, boolean>
+	localCursorRulesToggles?: Record<string, boolean>
+	localWindsurfRulesToggles?: Record<string, boolean>
+	localAgentsRulesToggles?: Record<string, boolean>
+	onToggleRule?: (isGlobal: boolean, rulePath: string, enabled: boolean, ruleType: string) => void
+	// Workflow toggles
+	globalWorkflowToggles?: Record<string, boolean>
+	localWorkflowToggles?: Record<string, boolean>
+	onToggleWorkflow?: (isGlobal: boolean, workflowPath: string, enabled: boolean) => void
+	// Hooks
+	hooksEnabled?: boolean
+	globalHooks?: HookInfo[]
+	workspaceHooks?: WorkspaceHooks[]
+	onToggleHook?: (isGlobal: boolean, hookName: string, enabled: boolean, workspaceName?: string) => void
+	// Skills
+	skillsEnabled?: boolean
+	globalSkills?: SkillInfo[]
+	localSkills?: SkillInfo[]
+	onToggleSkill?: (isGlobal: boolean, skillPath: string, enabled: boolean) => void
+	// Open folder callback
+	onOpenFolder?: (folderType: "rules" | "workflows" | "hooks" | "skills", isGlobal: boolean) => void
 }
 
 // ============================================================================
@@ -252,131 +79,244 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 	workspaceState,
 	onUpdateGlobal,
 	onUpdateWorkspace,
+	globalClineRulesToggles,
+	localClineRulesToggles,
+	localCursorRulesToggles,
+	localWindsurfRulesToggles,
+	localAgentsRulesToggles,
+	onToggleRule,
+	globalWorkflowToggles,
+	localWorkflowToggles,
+	onToggleWorkflow,
+	hooksEnabled,
+	globalHooks = [],
+	workspaceHooks = [],
+	onToggleHook,
+	skillsEnabled,
+	globalSkills = [],
+	localSkills = [],
+	onToggleSkill,
+	onOpenFolder,
 }) => {
 	const { exit } = useApp()
-	const [mode, setMode] = useState<ViewMode>("browse")
+	const [currentTab, setCurrentTab] = useState<TabView>("settings")
+	const [isEditing, setIsEditing] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const [editValue, setEditValue] = useState("")
 
-	// Build entries from state
-	const allEntries = useMemo(() => {
-		const entries: ConfigEntry[] = []
+	// Build entries for settings tab
+	const configEntries = useMemo(
+		() => [...buildConfigEntries(globalState, "global"), ...buildConfigEntries(workspaceState, "workspace")],
+		[globalState, workspaceState],
+	)
 
-		// Global state entries
-		Object.entries(globalState)
-			.filter(([key, value]) => !shouldExcludeEntry(key, value))
-			.sort(([a], [b]) => a.localeCompare(b))
-			.forEach(([key, value]) => {
-				const type = getValueType(value)
-				entries.push({
-					key,
-					value,
-					type,
-					isEditable: EDITABLE_TYPES.has(type) && isSettingsKey(key),
-					source: "global",
-				})
-			})
-
-		// Workspace state entries
-		Object.entries(workspaceState)
-			.filter(([key, value]) => !shouldExcludeEntry(key, value))
-			.sort(([a], [b]) => a.localeCompare(b))
-			.forEach(([key, value]) => {
-				const type = getValueType(value)
-				entries.push({
-					key,
-					value,
-					type,
-					isEditable: EDITABLE_TYPES.has(type),
-					source: "workspace",
-				})
-			})
-
+	// Build entries for rules tab
+	const ruleEntries = useMemo(() => {
+		const entries: ToggleEntry[] = []
+		entries.push(...buildToggleEntries(globalClineRulesToggles, "global", "cline"))
+		entries.push(...buildToggleEntries(localClineRulesToggles, "workspace", "cline"))
+		entries.push(...buildToggleEntries(localCursorRulesToggles, "workspace", "cursor"))
+		entries.push(...buildToggleEntries(localWindsurfRulesToggles, "workspace", "windsurf"))
+		entries.push(...buildToggleEntries(localAgentsRulesToggles, "workspace", "agents"))
 		return entries
-	}, [globalState, workspaceState])
+	}, [
+		globalClineRulesToggles,
+		localClineRulesToggles,
+		localCursorRulesToggles,
+		localWindsurfRulesToggles,
+		localAgentsRulesToggles,
+	])
 
-	const selectedEntry = allEntries[selectedIndex]
+	// Build entries for workflows tab
+	const workflowEntries = useMemo(() => {
+		const entries: ToggleEntry[] = []
+		entries.push(...buildToggleEntries(globalWorkflowToggles, "global"))
+		entries.push(...buildToggleEntries(localWorkflowToggles, "workspace"))
+		return entries
+	}, [globalWorkflowToggles, localWorkflowToggles])
 
-	// Calculate visible window for scrolling
-	const maxVisibleItems = 15
-	const halfVisible = Math.floor(maxVisibleItems / 2)
-	const startIndex = Math.max(0, Math.min(selectedIndex - halfVisible, allEntries.length - maxVisibleItems))
-	const visibleEntries = allEntries.slice(startIndex, startIndex + maxVisibleItems)
+	// Build flat list of hooks
+	const hookEntries = useMemo(() => {
+		const entries: { hook: HookInfo; isGlobal: boolean; workspaceName?: string }[] = []
+		globalHooks.forEach((hook) => entries.push({ hook, isGlobal: true }))
+		workspaceHooks.forEach((ws) => {
+			ws.hooks.forEach((hook) => entries.push({ hook, isGlobal: false, workspaceName: ws.workspaceName }))
+		})
+		return entries.sort((a, b) => a.hook.name.localeCompare(b.hook.name))
+	}, [globalHooks, workspaceHooks])
 
-	const handleEdit = useCallback(() => {
-		if (!selectedEntry || !selectedEntry.isEditable) {
+	// Build flat list of skills
+	const skillEntries = useMemo(() => {
+		const entries: { skill: SkillInfo; isGlobal: boolean }[] = []
+		globalSkills.forEach((skill) => entries.push({ skill, isGlobal: true }))
+		localSkills.forEach((skill) => entries.push({ skill, isGlobal: false }))
+		return entries.sort((a, b) => a.skill.name.localeCompare(b.skill.name))
+	}, [globalSkills, localSkills])
+
+	// Get current list length based on tab
+	const currentListLength = useMemo(() => {
+		switch (currentTab) {
+			case "settings":
+				return configEntries.length
+			case "rules":
+				return ruleEntries.length
+			case "workflows":
+				return workflowEntries.length
+			case "hooks":
+				return hookEntries.length
+			case "skills":
+				return skillEntries.length
+			default:
+				return 0
+		}
+	}, [currentTab, configEntries.length, ruleEntries.length, workflowEntries.length, hookEntries.length, skillEntries.length])
+
+	// Get available tabs
+	const availableTabs = useMemo(() => {
+		return TABS.filter((tab) => {
+			if (tab.requiresFlag === "hooks") {
+				return hooksEnabled
+			}
+			if (tab.requiresFlag === "skills") {
+				return skillsEnabled
+			}
+			return true
+		})
+	}, [hooksEnabled, skillsEnabled])
+
+	// Reset selection when changing tabs
+	const handleTabChange = (newTab: TabView) => {
+		setCurrentTab(newTab)
+		setSelectedIndex(0)
+		setIsEditing(false)
+	}
+
+	// Settings tab handlers
+	const selectedConfigEntry = configEntries[selectedIndex]
+
+	const handleSettingsSave = (value: string | boolean) => {
+		if (!selectedConfigEntry) {
 			return
 		}
-		setEditValue(selectedEntry.value !== undefined ? String(selectedEntry.value) : "")
-		setMode("edit")
-	}, [selectedEntry])
+		const parsed = typeof value === "boolean" ? value : parseValue(value, selectedConfigEntry.type)
 
-	const handleSave = useCallback(
-		(value: string | boolean) => {
-			if (!selectedEntry) {
+		if (selectedConfigEntry.source === "global" && onUpdateGlobal) {
+			onUpdateGlobal(selectedConfigEntry.key as GlobalStateAndSettingsKey, parsed as never)
+		} else if (selectedConfigEntry.source === "workspace" && onUpdateWorkspace) {
+			onUpdateWorkspace(selectedConfigEntry.key as LocalStateKey, parsed as never)
+		}
+		setIsEditing(false)
+	}
+
+	const handleSettingsReset = () => {
+		if (!selectedConfigEntry?.isEditable || selectedConfigEntry.source !== "global") {
+			return
+		}
+		const defaultValue = (SETTINGS_DEFAULTS as Record<string, unknown>)[selectedConfigEntry.key]
+		if (defaultValue !== undefined && onUpdateGlobal) {
+			onUpdateGlobal(selectedConfigEntry.key as GlobalStateAndSettingsKey, defaultValue as never)
+		}
+	}
+
+	// Toggle handlers for rules/workflows/hooks/skills
+	const handleToggle = () => {
+		if (currentTab === "rules" && ruleEntries[selectedIndex] && onToggleRule) {
+			const entry = ruleEntries[selectedIndex]
+			onToggleRule(entry.source === "global", entry.path, !entry.enabled, entry.ruleType || "cline")
+		} else if (currentTab === "workflows" && workflowEntries[selectedIndex] && onToggleWorkflow) {
+			const entry = workflowEntries[selectedIndex]
+			onToggleWorkflow(entry.source === "global", entry.path, !entry.enabled)
+		} else if (currentTab === "hooks" && hookEntries[selectedIndex] && onToggleHook) {
+			const entry = hookEntries[selectedIndex]
+			onToggleHook(entry.isGlobal, entry.hook.name, !entry.hook.enabled, entry.workspaceName)
+		} else if (currentTab === "skills" && skillEntries[selectedIndex] && onToggleSkill) {
+			const entry = skillEntries[selectedIndex]
+			onToggleSkill(entry.isGlobal, entry.skill.path, !entry.skill.enabled)
+		}
+	}
+
+	// Input handling
+	useInput(
+		(input, key) => {
+			// Tab navigation with Tab key or number keys
+			if (key.tab || (input >= "1" && input <= "5")) {
+				const targetIdx = key.tab
+					? (availableTabs.findIndex((t) => t.key === currentTab) + 1) % availableTabs.length
+					: parseInt(input) - 1
+				if (targetIdx >= 0 && targetIdx < availableTabs.length) {
+					handleTabChange(availableTabs[targetIdx].key)
+				}
 				return
 			}
 
-			const parsedValue = typeof value === "boolean" ? value : parseValue(value, selectedEntry.type)
-
-			if (selectedEntry.source === "global" && onUpdateGlobal) {
-				onUpdateGlobal(selectedEntry.key as GlobalStateAndSettingsKey, parsedValue as any)
-			} else if (selectedEntry.source === "workspace" && onUpdateWorkspace) {
-				onUpdateWorkspace(selectedEntry.key as LocalStateKey, parsedValue as any)
+			// List navigation
+			if (key.upArrow) {
+				setSelectedIndex((i) => (i > 0 ? i - 1 : currentListLength - 1))
+			} else if (key.downArrow) {
+				setSelectedIndex((i) => (i < currentListLength - 1 ? i + 1 : 0))
 			}
 
-			setMode("browse")
-		},
-		[selectedEntry, onUpdateGlobal, onUpdateWorkspace],
-	)
+			// Tab-specific actions
+			if (currentTab === "settings") {
+				if ((key.return || input === "e") && selectedConfigEntry?.isEditable) {
+					setEditValue(selectedConfigEntry.value !== undefined ? String(selectedConfigEntry.value) : "")
+					setIsEditing(true)
+				} else if (input === "r") {
+					handleSettingsReset()
+				}
+			} else if (key.return || input === " ") {
+				// Toggle for rules/workflows/hooks/skills
+				handleToggle()
+			}
 
-	const handleCancel = useCallback(() => {
-		setMode("browse")
-	}, [])
+			// Open folder (for rules/workflows/hooks/skills tabs)
+			if (input === "o" && onOpenFolder && currentTab !== "settings") {
+				// Determine if current selection is global or workspace based on the selected entry
+				let isGlobal = true
+				if (currentTab === "rules" && ruleEntries[selectedIndex]) {
+					isGlobal = ruleEntries[selectedIndex].source === "global"
+				} else if (currentTab === "workflows" && workflowEntries[selectedIndex]) {
+					isGlobal = workflowEntries[selectedIndex].source === "global"
+				} else if (currentTab === "hooks" && hookEntries[selectedIndex]) {
+					isGlobal = hookEntries[selectedIndex].isGlobal
+				} else if (currentTab === "skills" && skillEntries[selectedIndex]) {
+					isGlobal = skillEntries[selectedIndex].isGlobal
+				}
+				onOpenFolder(currentTab as "rules" | "workflows" | "hooks" | "skills", isGlobal)
+			}
 
-	const handleReset = useCallback(() => {
-		if (!selectedEntry || !selectedEntry.isEditable || selectedEntry.source !== "global") {
-			return
-		}
-
-		const defaultValue = (SETTINGS_DEFAULTS as Record<string, any>)[selectedEntry.key]
-		if (defaultValue !== undefined && onUpdateGlobal) {
-			onUpdateGlobal(selectedEntry.key as GlobalStateAndSettingsKey, defaultValue)
-		}
-	}, [selectedEntry, onUpdateGlobal])
-
-	// Input handling for browse mode
-	useInput(
-		(input, key) => {
-			if (key.upArrow) {
-				setSelectedIndex((prev) => (prev > 0 ? prev - 1 : allEntries.length - 1))
-			} else if (key.downArrow) {
-				setSelectedIndex((prev) => (prev < allEntries.length - 1 ? prev + 1 : 0))
-			} else if (key.return || input === "e") {
-				handleEdit()
-			} else if (input === "r") {
-				handleReset()
-			} else if (input === "q" || key.escape) {
+			// Exit
+			if (input === "q" || key.escape) {
 				exit()
 			}
 		},
-		{ isActive: mode === "browse" },
+		{ isActive: !isEditing },
 	)
 
-	// Render editing UI
-	if (mode === "edit" && selectedEntry) {
-		if (selectedEntry.type === "boolean") {
+	// Scrolling window
+	const halfVisible = Math.floor(MAX_VISIBLE / 2)
+	const startIndex = Math.max(0, Math.min(selectedIndex - halfVisible, currentListLength - MAX_VISIBLE))
+
+	// Edit mode UI (settings only)
+	if (isEditing && selectedConfigEntry && currentTab === "settings") {
+		const header = (
+			<React.Fragment>
+				<Text bold color="white">
+					⚙️ Edit Configuration
+				</Text>
+				<Text color="gray">{SEPARATOR}</Text>
+			</React.Fragment>
+		)
+
+		if (selectedConfigEntry.type === "boolean") {
 			return (
 				<Box flexDirection="column">
-					<Text bold color="white">
-						⚙️ Edit Configuration
-					</Text>
-					<Text color="gray">{formatSeparator()}</Text>
+					{header}
 					<BooleanSelect
-						label={selectedEntry.key}
-						onCancel={handleCancel}
-						onSelect={handleSave}
-						value={Boolean(selectedEntry.value)}
+						label={selectedConfigEntry.key}
+						onCancel={() => setIsEditing(false)}
+						onSelect={handleSettingsSave}
+						value={Boolean(selectedConfigEntry.value)}
 					/>
 				</Box>
 			)
@@ -384,85 +324,228 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 
 		return (
 			<Box flexDirection="column">
-				<Text bold color="white">
-					⚙️ Edit Configuration
-				</Text>
-				<Text color="gray">{formatSeparator()}</Text>
+				{header}
 				<TextInput
-					label={selectedEntry.key}
-					onCancel={handleCancel}
+					label={selectedConfigEntry.key}
+					onCancel={() => setIsEditing(false)}
 					onChange={setEditValue}
-					onSubmit={handleSave}
-					type={selectedEntry.type}
+					onSubmit={handleSettingsSave}
+					type={selectedConfigEntry.type}
 					value={editValue}
 				/>
 			</Box>
 		)
 	}
 
-	// Render browse UI
+	// Render tab content
+	const renderTabContent = () => {
+		switch (currentTab) {
+			case "settings": {
+				const visibleEntries = configEntries.slice(startIndex, startIndex + MAX_VISIBLE)
+				return (
+					<React.Fragment>
+						<Box>
+							<Text>Data directory: </Text>
+							<Text color="blue" underline>
+								{dataDir}
+							</Text>
+						</Box>
+						<Text color="gray">{SEPARATOR}</Text>
+						<Box flexDirection="column">
+							{visibleEntries.map((entry, idx) => {
+								const actualIndex = startIndex + idx
+								const prevEntry = visibleEntries[idx - 1]
+								const showHeader = !prevEntry || prevEntry.source !== entry.source
+
+								return (
+									<React.Fragment key={`${entry.source}-${entry.key}`}>
+										{showHeader && (
+											<SectionHeader
+												title={entry.source === "global" ? "Global Settings:" : "Workspace Settings:"}
+											/>
+										)}
+										<ConfigRow entry={entry} isSelected={actualIndex === selectedIndex} />
+									</React.Fragment>
+								)
+							})}
+						</Box>
+					</React.Fragment>
+				)
+			}
+
+			case "rules": {
+				if (ruleEntries.length === 0) {
+					return (
+						<Box>
+							<Text color="gray">
+								No rules configured. Add .clinerules files to your workspace or global config.
+							</Text>
+						</Box>
+					)
+				}
+				const visibleEntries = ruleEntries.slice(startIndex, startIndex + MAX_VISIBLE)
+				return (
+					<Box flexDirection="column">
+						{visibleEntries.map((entry, idx) => {
+							const actualIndex = startIndex + idx
+							const prevEntry = visibleEntries[idx - 1]
+							const showHeader = !prevEntry || prevEntry.source !== entry.source
+
+							return (
+								<React.Fragment key={`${entry.source}-${entry.path}`}>
+									{showHeader && (
+										<SectionHeader title={entry.source === "global" ? "Global Rules:" : "Workspace Rules:"} />
+									)}
+									<ToggleRow entry={entry} isSelected={actualIndex === selectedIndex} showType />
+								</React.Fragment>
+							)
+						})}
+					</Box>
+				)
+			}
+
+			case "workflows": {
+				if (workflowEntries.length === 0) {
+					return (
+						<Box>
+							<Text color="gray">No workflows configured. Add workflow files to enable this feature.</Text>
+						</Box>
+					)
+				}
+				const visibleEntries = workflowEntries.slice(startIndex, startIndex + MAX_VISIBLE)
+				return (
+					<Box flexDirection="column">
+						{visibleEntries.map((entry, idx) => {
+							const actualIndex = startIndex + idx
+							const prevEntry = visibleEntries[idx - 1]
+							const showHeader = !prevEntry || prevEntry.source !== entry.source
+
+							return (
+								<React.Fragment key={`${entry.source}-${entry.path}`}>
+									{showHeader && (
+										<SectionHeader
+											title={entry.source === "global" ? "Global Workflows:" : "Workspace Workflows:"}
+										/>
+									)}
+									<ToggleRow entry={entry} isSelected={actualIndex === selectedIndex} />
+								</React.Fragment>
+							)
+						})}
+					</Box>
+				)
+			}
+
+			case "hooks": {
+				if (hookEntries.length === 0) {
+					return (
+						<Box>
+							<Text color="gray">No hooks configured. Add hook scripts to enable automation.</Text>
+						</Box>
+					)
+				}
+				const visibleEntries = hookEntries.slice(startIndex, startIndex + MAX_VISIBLE)
+				return (
+					<Box flexDirection="column">
+						{visibleEntries.map((entry, idx) => {
+							const actualIndex = startIndex + idx
+							const prevEntry = visibleEntries[idx - 1]
+							const showHeader =
+								!prevEntry ||
+								prevEntry.isGlobal !== entry.isGlobal ||
+								prevEntry.workspaceName !== entry.workspaceName
+
+							let sectionTitle = "Global Hooks:"
+							if (!entry.isGlobal && entry.workspaceName) {
+								sectionTitle = `${entry.workspaceName} Hooks:`
+							}
+
+							return (
+								<React.Fragment key={`${entry.isGlobal}-${entry.workspaceName || ""}-${entry.hook.name}`}>
+									{showHeader && <SectionHeader title={sectionTitle} />}
+									<HookRow hook={entry.hook} isSelected={actualIndex === selectedIndex} />
+								</React.Fragment>
+							)
+						})}
+					</Box>
+				)
+			}
+
+			case "skills": {
+				if (skillEntries.length === 0) {
+					return (
+						<Box>
+							<Text color="gray">No skills configured. Add SKILL.md files to enable skills.</Text>
+						</Box>
+					)
+				}
+				const visibleEntries = skillEntries.slice(startIndex, startIndex + MAX_VISIBLE)
+				return (
+					<Box flexDirection="column">
+						{visibleEntries.map((entry, idx) => {
+							const actualIndex = startIndex + idx
+							const prevEntry = visibleEntries[idx - 1]
+							const showHeader = !prevEntry || prevEntry.isGlobal !== entry.isGlobal
+
+							return (
+								<React.Fragment key={`${entry.isGlobal}-${entry.skill.path}`}>
+									{showHeader && (
+										<SectionHeader title={entry.isGlobal ? "Global Skills:" : "Workspace Skills:"} />
+									)}
+									<SkillRow isSelected={actualIndex === selectedIndex} skill={entry.skill} />
+								</React.Fragment>
+							)
+						})}
+					</Box>
+				)
+			}
+
+			default:
+				return null
+		}
+	}
+
+	// Help text based on current tab
+	const getHelpText = () => {
+		const base = "↑/↓ Navigate • Tab/1-5 Switch tabs • q/Esc Exit"
+		if (currentTab === "settings") {
+			return `${base} • Enter/e Edit • r Reset`
+		}
+		const openFolder = onOpenFolder ? " • o Open folder" : ""
+		return `${base} • Enter/Space Toggle${openFolder}`
+	}
+
 	return (
 		<Box flexDirection="column">
 			<Text bold color="white">
 				⚙️ Cline Configuration
 			</Text>
-			<Text color="gray">{formatSeparator()}</Text>
+			<Text color="gray">{SEPARATOR}</Text>
 
-			{/* Data directory */}
-			<Box>
-				<Text>Data directory: </Text>
-				<Text color="blue" underline>
-					{dataDir}
-				</Text>
-			</Box>
+			<TabBar currentTab={currentTab} hooksEnabled={hooksEnabled} skillsEnabled={skillsEnabled} tabs={TABS} />
 
-			<Text color="gray">{formatSeparator()}</Text>
+			<Text color="gray">{SEPARATOR}</Text>
 
-			{/* Scrollable entries */}
-			<Box flexDirection="column">
-				{visibleEntries.map((entry, idx) => {
-					const actualIndex = startIndex + idx
-					const isGlobalSection = entry.source === "global"
-					const prevEntry = visibleEntries[idx - 1]
-					const showSectionHeader = !prevEntry || prevEntry.source !== entry.source
+			{renderTabContent()}
 
-					return (
-						<React.Fragment key={`${entry.source}-${entry.key}`}>
-							{showSectionHeader && (
-								<Box marginTop={idx > 0 ? 1 : 0}>
-									<Text bold color="yellow">
-										{isGlobalSection ? "Global Settings:" : "Workspace Settings:"}
-									</Text>
-								</Box>
-							)}
-							<ConfigRow entry={entry} isSelected={actualIndex === selectedIndex} />
-						</React.Fragment>
-					)
-				})}
-			</Box>
-
-			{/* Scroll indicators */}
-			{allEntries.length > maxVisibleItems && (
+			{currentListLength > MAX_VISIBLE && (
 				<Box marginTop={1}>
 					<Text color="gray" dimColor>
 						{startIndex > 0 ? "↑ " : "  "}
-						Showing {startIndex + 1}-{Math.min(startIndex + maxVisibleItems, allEntries.length)} of{" "}
-						{allEntries.length}
-						{startIndex + maxVisibleItems < allEntries.length ? " ↓" : "  "}
+						Showing {startIndex + 1}-{Math.min(startIndex + MAX_VISIBLE, currentListLength)} of {currentListLength}
+						{startIndex + MAX_VISIBLE < currentListLength ? " ↓" : "  "}
 					</Text>
 				</Box>
 			)}
 
-			<Text color="gray">{formatSeparator()}</Text>
+			<Text color="gray">{SEPARATOR}</Text>
 
-			{/* Help text */}
 			<Box flexDirection="column">
 				<Text color="gray" dimColor>
-					↑/↓ Navigate • Enter/e Edit • r Reset to default • q/Esc Exit
+					{getHelpText()}
 				</Text>
-				{selectedEntry && !selectedEntry.isEditable && (
+				{currentTab === "settings" && selectedConfigEntry && !selectedConfigEntry.isEditable && (
 					<Text color="yellow" dimColor>
-						This field is read-only ({selectedEntry.type} type or not a setting)
+						This field is read-only ({selectedConfigEntry.type} type or not a setting)
 					</Text>
 				)}
 			</Box>

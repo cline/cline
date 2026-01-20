@@ -204,7 +204,21 @@ function readJson(filePath: string): any {
 
 export interface CliContextConfig {
 	clineDir?: string
+	/** The workspace directory being worked in (for hashing into storage path) */
 	workspaceDir?: string
+}
+
+/**
+ * Create a short hash of a string for use in directory names
+ */
+function hashString(str: string): string {
+	let hash = 0
+	for (let i = 0; i < str.length; i++) {
+		const char = str.charCodeAt(i)
+		hash = (hash << 5) - hash + char
+		hash = hash & hash // Convert to 32bit integer
+	}
+	return Math.abs(hash).toString(16).substring(0, 8)
 }
 
 /**
@@ -213,7 +227,12 @@ export interface CliContextConfig {
 export function initializeCliContext(config: CliContextConfig = {}) {
 	const CLINE_DIR = config.clineDir || process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
 	const DATA_DIR = path.join(CLINE_DIR, SETTINGS_SUBFOLDER)
-	const WORKSPACE_STORAGE_DIR = config.workspaceDir || process.env.WORKSPACE_STORAGE_DIR || path.join(DATA_DIR, "workspace")
+
+	// Workspace storage should always be under ~/.cline/data/workspaces/<hash>/
+	// where hash is derived from the workspace path to keep workspaces isolated
+	const workspacePath = config.workspaceDir || process.cwd()
+	const workspaceHash = hashString(workspacePath)
+	const WORKSPACE_STORAGE_DIR = process.env.WORKSPACE_STORAGE_DIR || path.join(DATA_DIR, "workspaces", workspaceHash)
 
 	// Ensure directories exist
 	mkdirSync(DATA_DIR, { recursive: true })
