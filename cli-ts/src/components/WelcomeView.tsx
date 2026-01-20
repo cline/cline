@@ -6,7 +6,7 @@
 
 import { Box, Text, useInput } from "ink"
 import React, { useEffect, useMemo, useRef, useState } from "react"
-
+import { StateManager } from "@/core/storage/StateManager"
 import { parseImagesFromInput } from "../utils"
 import {
 	checkAndWarnRipgrepMissing,
@@ -36,6 +36,11 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const [isSearching, setIsSearching] = useState(false)
 	const [showRipgrepWarning, setShowRipgrepWarning] = useState(false)
+
+	const mode = useMemo(() => {
+		const stateManager = StateManager.get()
+		return stateManager.getGlobalSettingsKey("mode")
+	}, [])
 
 	const refs = useRef({
 		searchTimeout: null as NodeJS.Timeout | null,
@@ -184,9 +189,8 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 				</Box>
 			)}
 			<Text> </Text>
-			<Text color="white">Start a new Cline task</Text>
 			<Box flexDirection="column" marginTop={1}>
-				<Text color="cyan">┃ What would you like Cline to help you with?</Text>
+				<Text color="cyan">┃ [{mode} mode] What would you like Cline to help you with?</Text>
 
 				{/* File mention menu - show above the input */}
 				{mentionInfo.inMentionMode && (
@@ -216,7 +220,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 			</Box>
 			<Text> </Text>
 			<Text color="gray" dimColor>
-				(Type your task and press Enter, or press Escape to exit)
+				(Type your task and press Enter to Submit.)
 			</Text>
 			<Text color="gray" dimColor>
 				(Type @ to mention files, add images with @/path/to/image.png)
