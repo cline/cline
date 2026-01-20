@@ -42,6 +42,18 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		})
 	}
 
+	protected override async getDocumentLineCount(): Promise<number> {
+		const text = await this.getDocumentText()
+		if (!text) {
+			return 0
+		}
+		// Count lines: split by newline, but handle trailing newline correctly
+		const lines = text.split("\n")
+		// If text ends with newline, split creates an extra empty string at the end
+		// which represents the "line" after the final newline - this is correct line count
+		return lines.length
+	}
+
 	protected async saveDocument(): Promise<Boolean> {
 		if (!this.activeDiffEditorId) {
 			return false

@@ -9,6 +9,7 @@ import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChat
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
 import { sendMcpButtonClickedEvent } from "./core/controller/ui/subscribeToMcpButtonClicked"
 import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeToSettingsButtonClicked"
+import { sendWorktreesButtonClickedEvent } from "./core/controller/ui/subscribeToWorktreesButtonClicked"
 import { WebviewProvider } from "./core/webview"
 import { createClineAPI } from "./exports"
 import { Logger } from "./services/logging/Logger"
@@ -31,7 +32,7 @@ import { sendShowWebviewEvent } from "./core/controller/ui/subscribeToShowWebvie
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { workspaceResolver } from "./core/workspace"
-import { getContextForCommand, showWebview } from "./hosts/vscode/commandUtils"
+import { findMatchingNotebookCell, getContextForCommand, showWebview } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMsg } from "./hosts/vscode/commit-message-generator"
 import {
 	disposeVscodeCommentReviewController,
@@ -44,6 +45,7 @@ import { ExtensionRegistryInfo } from "./registry"
 import { AuthService } from "./services/auth/AuthService"
 import { LogoutReason } from "./services/auth/types"
 import { telemetryService } from "./services/telemetry"
+import { ClineTempManager } from "./services/temp"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { fileExistsAtPath } from "./utils/fs"
@@ -86,6 +88,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	const webview = (await initialize(context)) as VscodeWebviewProvider
+
+	// Clean up old temp files in background (non-blocking) and start periodic cleanup every 24 hours
+	ClineTempManager.startPeriodicCleanup()
 
 	Logger.log("Cline extension activated")
 
@@ -137,6 +142,13 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand(commands.AccountButton, () => {
 			// Send event to all subscribers using the gRPC streaming method
 			sendAccountButtonClickedEvent()
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.WorktreesButton, () => {
+			// Send event to all subscribers using the gRPC streaming method
+			sendWorktreesButtonClickedEvent()
 		}),
 	)
 
@@ -383,6 +395,107 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	// Register Jupyter Notebook command handlers
+	const NOTEBOOK_EDIT_INSTRUCTIONS = `Special considerations for using replace_in_file on *.ipynb files:
+* Jupyter notebook files are JSON format with specific structure for source code cells
+* Source code in cells is stored as JSON string arrays ending with explicit \\n characters and commas
+* Always match the exact JSON format including quotes, commas, and escaped newlines.`
+
+	// Helper to get notebook context for Jupyter commands
+	async function getNotebookCommandContext(range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) {
+		const activeNotebook = vscode.window.activeNotebookEditor
+		if (!activeNotebook) {
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: "No active Jupyter notebook found. Please open a .ipynb file first.",
+			})
+			return null
+		}
+
+		const ctx = await getContextForCommand(range, diagnostics)
+		if (!ctx) {
+			return null
+		}
+
+		const filePath = ctx.commandContext.filePath || ""
+		let cellJson: string | null = null
+		if (activeNotebook.notebook.cellCount > 0) {
+			const cellIndex = activeNotebook.notebook.cellAt(activeNotebook.selection.start).index
+			cellJson = await findMatchingNotebookCell(filePath, cellIndex)
+		}
+
+		return { ...ctx, cellJson }
+	}
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(
+			commands.JupyterGenerateCell,
+			async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
+				const userPrompt = await showJupyterPromptInput(
+					"Generate Notebook Cell",
+					"Enter your prompt for generating notebook cell (press Enter to confirm & Esc to cancel)",
+				)
+				if (!userPrompt) return
+
+				const ctx = await getNotebookCommandContext(range, diagnostics)
+				if (!ctx) return
+
+				const notebookContext = `User prompt: ${userPrompt}
+Insert a new Jupyter notebook cell above or below the current cell based on user prompt.
+${NOTEBOOK_EDIT_INSTRUCTIONS}
+
+Current Notebook Cell Context (JSON, sanitized of image data):
+\`\`\`json
+${ctx.cellJson || "{}"}
+\`\`\``
+
+				await addToCline(ctx.controller, ctx.commandContext, notebookContext)
+			},
+		),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(
+			commands.JupyterExplainCell,
+			async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
+				const ctx = await getNotebookCommandContext(range, diagnostics)
+				if (!ctx) return
+
+				const notebookContext = ctx.cellJson
+					? `\n\nCurrent Notebook Cell Context (JSON, sanitized of image data):\n\`\`\`json\n${ctx.cellJson}\n\`\`\``
+					: undefined
+
+				await explainWithCline(ctx.controller, ctx.commandContext, notebookContext)
+			},
+		),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(
+			commands.JupyterImproveCell,
+			async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
+				const userPrompt = await showJupyterPromptInput(
+					"Improve Notebook Cell",
+					"Enter your prompt for improving the current notebook cell (press Enter to confirm & Esc to cancel)",
+				)
+				if (!userPrompt) return
+
+				const ctx = await getNotebookCommandContext(range, diagnostics)
+				if (!ctx) return
+
+				const notebookContext = `User prompt: ${userPrompt}
+${NOTEBOOK_EDIT_INSTRUCTIONS}
+
+Current Notebook Cell Context (JSON, sanitized of image data):
+\`\`\`json
+${ctx.cellJson || "{}"}
+\`\`\``
+
+				await improveWithCline(ctx.controller, ctx.commandContext, notebookContext)
+			},
+		),
+	)
+
 	// Register the openWalkthrough command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.Walkthrough, async () => {
@@ -431,6 +544,52 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	return createClineAPI(webview.controller)
+}
+
+async function showJupyterPromptInput(title: string, placeholder: string): Promise<string | undefined> {
+	return new Promise((resolve) => {
+		const quickPick = vscode.window.createQuickPick()
+		quickPick.title = title
+		quickPick.placeholder = placeholder
+		quickPick.ignoreFocusOut = true
+
+		// Allow free text input
+		quickPick.canSelectMany = false
+
+		let userInput = ""
+
+		quickPick.onDidChangeValue((value) => {
+			userInput = value
+			// Update items to show the current input
+			if (value) {
+				quickPick.items = [
+					{
+						label: "$(check) Use this prompt",
+						detail: value,
+						alwaysShow: true,
+					},
+				]
+			} else {
+				quickPick.items = []
+			}
+		})
+
+		quickPick.onDidAccept(() => {
+			if (userInput) {
+				resolve(userInput)
+				quickPick.hide()
+			}
+		})
+
+		quickPick.onDidHide(() => {
+			if (!userInput) {
+				resolve(undefined)
+			}
+			quickPick.dispose()
+		})
+
+		quickPick.show()
+	})
 }
 
 function setupHostProvider(context: ExtensionContext) {
@@ -488,6 +647,9 @@ async function getBinaryLocation(name: string): Promise<string> {
 // This method is called when your extension is deactivated
 export async function deactivate() {
 	Logger.log("Cline extension deactivating, cleaning up resources...")
+
+	// Stop periodic temp file cleanup
+	ClineTempManager.stopPeriodicCleanup()
 
 	tearDown()
 

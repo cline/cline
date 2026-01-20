@@ -375,6 +375,9 @@ func AddProviderPartial(ctx context.Context, manager *task.Manager, provider cli
 		if openRouterInfo, ok := modelInfo.(*cline.OpenRouterModelInfo); ok {
 			apiConfig.PlanModeOpenRouterModelInfo = openRouterInfo
 			apiConfig.ActModeOpenRouterModelInfo = openRouterInfo
+		} else if ocaInfo, ok := modelInfo.(*cline.OcaModelInfo); ok {
+			apiConfig.PlanModeOcaModelInfo = ocaInfo
+			apiConfig.ActModeOcaModelInfo = ocaInfo
 		}
 	}
 
@@ -443,6 +446,9 @@ func UpdateProviderPartial(ctx context.Context, manager *task.Manager, provider 
 		if openRouterInfo, ok := updates.ModelInfo.(*cline.OpenRouterModelInfo); ok {
 			apiConfig.PlanModeOpenRouterModelInfo = openRouterInfo
 			apiConfig.ActModeOpenRouterModelInfo = openRouterInfo
+		} else if ocaInfo, ok := updates.ModelInfo.(*cline.OcaModelInfo); ok {
+			apiConfig.PlanModeOcaModelInfo = ocaInfo
+			apiConfig.ActModeOcaModelInfo = ocaInfo
 		}
 	}
 

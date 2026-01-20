@@ -26,13 +26,13 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5_1)
 		const providerInfo = context.providerInfo
 		const modelId = providerInfo.model.id
 
-		// Codex variants will use GPT-5 variant instead for less strict rules.
-		// Chat variants do not support native tool use.
-		if (modelId.includes("codex") && !modelId.includes("chat")) {
+		// Chat variants do not support native tool use
+		if (modelId.includes("chat")) {
 			return false
 		}
 
-		// gpt-5.1 and gpt-5.2 chat models do not support native tool use
+		// GPT-5.1 and GPT-5.2 models (including codex variants) use extended reasoning
+		// and require reasoning blocks before function calls
 		return (isGPT51Model(modelId) || isGPT52Model(modelId)) && isNextGenModelProvider(providerInfo)
 	})
 	.template(GPT_5_1_TEMPLATE_OVERRIDES.BASE)

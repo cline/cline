@@ -1,6 +1,8 @@
 # Default
 .vscode/**
 .vscode-test/**
+.worktrees/**
+CLAUDE.local.md
 out/
 dist-standalone/
 node_modules/

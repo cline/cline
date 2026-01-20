@@ -439,6 +439,7 @@ enum ApiProvider {
   HICAP = 37;
   AIHUBMIX = 38;
   NOUSRESEARCH = 39;
+  OPENAI_CODEX = 40;
 }
 
 enum ApiFormat {

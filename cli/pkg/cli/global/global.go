@@ -37,11 +37,16 @@ var (
 
 func InitializeGlobalConfig(cfg *GlobalConfig) error {
 	if cfg.ConfigPath == "" {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("failed to get home directory: %w", err)
+		// Check CLINE_DIR environment variable first
+		if clineDir := os.Getenv("CLINE_DIR"); clineDir != "" {
+			cfg.ConfigPath = clineDir
+		} else {
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				return fmt.Errorf("failed to get home directory: %w", err)
+			}
+			cfg.ConfigPath = filepath.Join(homeDir, ".cline")
 		}
-		cfg.ConfigPath = filepath.Join(homeDir, ".cline")
 	}
 
 	// Ensure .cline directory exists

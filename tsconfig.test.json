@@ -17,6 +17,7 @@
 		],
 		"typeRoots": [
 			"./node_modules/@types",
+			"./src/types",
 			"./src/test/types"
 		],
 		"outDir": "out",

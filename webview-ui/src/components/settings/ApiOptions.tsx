@@ -39,6 +39,7 @@ import { NousResearchProvider } from "./providers/NousresearchProvider"
 import { OcaProvider } from "./providers/OcaProvider"
 import { OllamaProvider } from "./providers/OllamaProvider"
 import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
+import { OpenAiCodexProvider } from "./providers/OpenAiCodexProvider"
 import { OpenAINativeProvider } from "./providers/OpenAINative"
 import { OpenRouterProvider } from "./providers/OpenRouterProvider"
 import { QwenCodeProvider } from "./providers/QwenCodeProvider"
@@ -138,8 +139,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		}
 
 		// Filter by remote config if remoteConfiguredProviders is set
-		if (remoteConfigSettings?.remoteConfiguredProviders && remoteConfigSettings.remoteConfiguredProviders.length > 0) {
-			providers = providers.filter((option) => remoteConfigSettings.remoteConfiguredProviders!.includes(option.value))
+		const remoteProviders: string[] = remoteConfigSettings?.remoteConfiguredProviders || []
+		if (remoteProviders.length > 0) {
+			providers = providers.filter((option) => remoteProviders.includes(option.value))
 		}
 
 		return providers
@@ -364,6 +366,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{apiConfiguration && selectedProvider === "openai-native" && (
 				<OpenAINativeProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
+			{apiConfiguration && selectedProvider === "openai-codex" && (
+				<OpenAiCodexProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "qwen" && (

@@ -1,7 +1,7 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
 import CreditLimitError from "@/components/chat/CreditLimitError"
+import { Button } from "@/components/ui/button"
 import { useClineAuth, useClineSignIn } from "@/context/ClineAuthContext"
 import { ClineError, ClineErrorType } from "../../../../src/services/error/ClineError"
 
@@ -49,7 +49,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 
 					if (clineError?.isErrorType(ClineErrorType.RateLimit)) {
 						return (
-							<p className="m-0 whitespace-pre-wrap text-(--vscode-errorForeground) wrap-anywhere">
+							<p className="m-0 whitespace-pre-wrap text-error wrap-anywhere">
 								{errorMessage}
 								{requestId && <div>Request ID: {requestId}</div>}
 							</p>
@@ -87,14 +87,14 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 							<div>
 								{/* The user is signed in or not using cline provider */}
 								{isClineProvider && !clineUser ? (
-									<VSCodeButton className="w-full mb-4" disabled={isLoginLoading} onClick={handleSignIn}>
+									<Button className="w-full mb-4" disabled={isLoginLoading} onClick={handleSignIn}>
 										Sign in to Cline
 										{isLoginLoading && (
 											<span className="ml-1 animate-spin">
 												<span className="codicon codicon-refresh"></span>
 											</span>
 										)}
-									</VSCodeButton>
+									</Button>
 								) : (
 									<span className="mb-4 text-description">(Click "Retry" below)</span>
 								)}
@@ -104,18 +104,18 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 				}
 
 				// Regular error message
-				return <p className="m-0 whitespace-pre-wrap text-(--vscode-errorForeground) wrap-anywhere">{message.text}</p>
+				return <p className="m-0 mt-4 whitespace-pre-wrap text-error wrap-anywhere">{message.text}</p>
 
 			case "diff_error":
 				return (
-					<div className="flex flex-col p-2 rounded text-xs opacity-80 bg-(--vscode-textBlockQuote-background) text-(--vscode-foreground)">
+					<div className="flex flex-col p-2 rounded text-xs opacity-80 bg-quote text-foreground">
 						<div>The model used search patterns that don't match anything in the file. Retrying...</div>
 					</div>
 				)
 
 			case "clineignore_error":
 				return (
-					<div className="flex flex-col p-2 rounded text-xs bg-(--vscode-textBlockQuote-background) text-(--vscode-foreground) opacity-80">
+					<div className="flex flex-col p-2 rounded text-xs opacity-80 bg-quote text-foreground">
 						<div>
 							Cline tried to access <code>{message.text}</code> which is blocked by the <code>.clineignore</code>
 							file.
@@ -130,11 +130,11 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 
 	// For diff_error and clineignore_error, we don't show the header separately
 	if (errorType === "diff_error" || errorType === "clineignore_error") {
-		return <>{renderErrorContent()}</>
+		return renderErrorContent()
 	}
 
 	// For other error types, show header + content
-	return <>{renderErrorContent()}</>
+	return renderErrorContent()
 })
 
 export default ErrorRow

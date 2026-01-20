@@ -3,12 +3,13 @@ import { TaskFeedbackType } from "@shared/WebviewMessage"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useState } from "react"
 import styled from "styled-components"
+import { cn } from "@/lib/utils"
 import { TaskServiceClient } from "@/services/grpc-client"
 
 interface TaskFeedbackButtonsProps {
 	messageTs: number
 	isFromHistory?: boolean
-	style?: React.CSSProperties
+	classNames?: string
 }
 
 const IconWrapper = styled.span`
@@ -19,7 +20,7 @@ const ButtonWrapper = styled.div`
 	transform: scale(0.85);
 `
 
-const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs, isFromHistory = false, style }) => {
+const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs, isFromHistory = false, classNames }) => {
 	const [feedback, setFeedback] = useState<TaskFeedbackType | null>(null)
 	const [shouldShow, setShouldShow] = useState<boolean>(true)
 
@@ -71,7 +72,7 @@ const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs, is
 	}
 
 	return (
-		<Container style={style}>
+		<div className={cn("flex items-center justify-end shrink-0", classNames)}>
 			<ButtonsContainer>
 				<ButtonWrapper>
 					<VSCodeButton
@@ -109,15 +110,9 @@ const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs, is
 					<span className="codicon codicon-bug" />
 				</VSCodeButtonLink> */}
 			</ButtonsContainer>
-		</Container>
+		</div>
 	)
 }
-
-const Container = styled.div`
-	display: flex;
-	align-items: center;
-	justify-content: flex-end;
-`
 
 const ButtonsContainer = styled.div`
 	display: flex;

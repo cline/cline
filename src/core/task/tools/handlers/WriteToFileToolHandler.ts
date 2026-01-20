@@ -481,8 +481,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			return
 		}
 
-		newContent = newContent.trimEnd() // remove any trailing newlines, since it's automatically inserted by the editor
-
 		return { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext }
 	}
 

@@ -18,7 +18,7 @@ export async function refreshLiteLlmModels(): Promise<Record<string, ModelInfo>>
 	try {
 		// Get the LiteLLM configuration
 		const apiConfiguration = stateManager.getApiConfiguration()
-		const baseUrl = apiConfiguration.liteLlmBaseUrl || ""
+		const baseUrl = apiConfiguration.liteLlmBaseUrl || "http://localhost:4000"
 		const apiKey = apiConfiguration.liteLlmApiKey
 
 		if (!apiKey) {

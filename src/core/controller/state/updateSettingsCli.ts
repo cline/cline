@@ -65,6 +65,7 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				yoloModeToggled,
 				useAutoCondense,
 				clineWebToolsEnabled,
+				worktreesEnabled,
 				focusChainSettings,
 				browserSettings,
 				defaultTerminalProfile,
@@ -165,6 +166,11 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 					telemetryService.captureClineWebToolsToggle(controller.task.ulid, clineWebToolsEnabled)
 				}
 				controller.stateManager.setGlobalState("clineWebToolsEnabled", clineWebToolsEnabled)
+			}
+
+			// Update worktrees setting
+			if (worktreesEnabled !== undefined) {
+				controller.stateManager.setGlobalState("worktreesEnabled", worktreesEnabled)
 			}
 
 			// Update focus chain settings (requires telemetry on state change)

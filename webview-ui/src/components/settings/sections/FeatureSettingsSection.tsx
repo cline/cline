@@ -27,6 +27,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		dictationSettings,
 		useAutoCondense,
 		clineWebToolsEnabled,
+		worktreesEnabled,
 		focusChainSettings,
 		multiRootSetting,
 		hooksEnabled,
@@ -330,6 +331,21 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</VSCodeCheckbox>
 							<p className="text-xs text-(--vscode-descriptionForeground)">
 								Enables websearch and webfetch tools while using the Cline provider.
+							</p>
+						</div>
+					)}
+					{worktreesEnabled?.featureFlag && (
+						<div style={{ marginTop: 10 }}>
+							<VSCodeCheckbox
+								checked={worktreesEnabled?.user}
+								onChange={(e: any) => {
+									const checked = e.target.checked === true
+									updateSetting("worktreesEnabled", checked)
+								}}>
+								Enable Worktrees
+							</VSCodeCheckbox>
+							<p className="text-xs text-(--vscode-descriptionForeground)">
+								Enables git worktree management for running parallel Cline tasks.
 							</p>
 						</div>
 					)}

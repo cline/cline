@@ -13,6 +13,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { telemetryService } from "@/services/telemetry"
 import { McpMarketplaceCatalog } from "@/shared/mcp"
+import { syncWorker } from "@/shared/services/worker/sync"
 import { reconstructTaskHistory } from "../commands/reconstructTaskHistory"
 import { StateManager } from "./StateManager"
 
@@ -205,8 +206,15 @@ export async function getSavedApiConversationHistory(taskId: string): Promise<An
 
 export async function saveApiConversationHistory(taskId: string, apiConversationHistory: Anthropic.MessageParam[]) {
 	try {
-		const filePath = path.join(await ensureTaskDirectoryExists(taskId), GlobalFileNames.apiConversationHistory)
-		await atomicWriteFile(filePath, JSON.stringify(apiConversationHistory))
+		if (apiConversationHistory.length > 0) {
+			const fileName = GlobalFileNames.apiConversationHistory
+			const data = JSON.stringify(apiConversationHistory)
+			// Queue for remote sync without blocking
+			syncWorker().enqueue(taskId, fileName, data)
+			// Store locally
+			const filePath = path.join(await ensureTaskDirectoryExists(taskId), fileName)
+			await atomicWriteFile(filePath, data)
+		}
 	} catch (error) {
 		// in the off chance this fails, we don't want to stop the task
 		console.error("Failed to save API conversation history:", error)

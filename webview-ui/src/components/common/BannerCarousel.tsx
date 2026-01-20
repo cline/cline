@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight, XIcon } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRemark } from "react-remark"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 interface BannerActions {
 	label: string
@@ -38,17 +39,18 @@ const BannerCardContent: React.FC<BannerCardContentProps> = ({ banner, isActive,
 
 	return (
 		<div
-			className="p-3"
+			className={cn("p-3 transition-opacity duration-400 ease-in-out opacity-0", {
+				"opacity-100": isActive && !isTransitioning,
+				"cursor-auto": isActive,
+			})}
 			style={{
 				gridArea: "stack",
-				opacity: isActive && !isTransitioning ? 1 : 0,
-				transition: "opacity 0.4s ease-in-out",
-				pointerEvents: isActive ? "auto" : "none",
 			}}>
 			{/* Title with optional icon */}
 			<h3
-				className="font-semibold mb-2 flex items-center gap-2 text-base"
-				style={{ paddingRight: showDismissButton ? "24px" : "0" }}>
+				className={cn("font-semibold mb-2 flex items-center gap-2 text-base pr-0", {
+					"pr-6": showDismissButton,
+				})}>
 				<span className="shrink-0">{banner.icon}</span>
 				{banner.title}
 			</h3>

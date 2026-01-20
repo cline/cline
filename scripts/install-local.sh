@@ -22,19 +22,34 @@ echo ""
 # Always rebuild CLI to ensure latest changes
 echo -e "${CYAN}→${NC} ${DIM}Rebuilding CLI binaries...${NC}"
 cd "$PROJECT_ROOT"
-if npm run compile-cli 2>&1 | grep -E "(built|error|Error)" || true; then
+rm -rf "$PROJECT_ROOT/cli/bin"
+if command -v go >/dev/null 2>&1; then
+    GO_BIN_DIR="$(go env GOPATH 2>/dev/null)/bin"
+    if [ -d "$GO_BIN_DIR" ]; then
+        export PATH="$GO_BIN_DIR:$PATH"
+    fi
+fi
+if npm run compile-cli; then
     echo -e "${GREEN}✓${NC} CLI binaries rebuilt"
 else
-    echo -e "${YELLOW}⚠${NC}  CLI build may have issues - check output above"
+    echo -e "${YELLOW}⚠${NC}  CLI build failed - aborting install"
+    exit 1
 fi
 
 # Always rebuild standalone to ensure latest cline-core.js
 echo -e "${CYAN}→${NC} ${DIM}Rebuilding standalone package (this may take ~30 seconds)...${NC}"
-if npm run compile-standalone 2>&1 | tail -5; then
+rm -rf "$PROJECT_ROOT/dist-standalone"
+if npm run compile-standalone; then
     echo -e "${GREEN}✓${NC} Standalone package rebuilt"
 else
-    echo -e "${YELLOW}⚠${NC}  Standalone build may have issues - check output above"
+    echo -e "${YELLOW}⚠${NC}  Standalone build failed - aborting install"
+    exit 1
 fi
+
+# Ensure extension package.json is present for cline-core startup
+mkdir -p "$PROJECT_ROOT/dist-standalone/extension"
+cp "$PROJECT_ROOT/package.json" "$PROJECT_ROOT/dist-standalone/extension/package.json"
+
 echo ""
 
 echo -e "${CYAN}→${NC} ${DIM}Installing to $INSTALL_DIR${NC}"
@@ -57,6 +72,7 @@ rsync -a --exclude='bin' "$PROJECT_ROOT/dist-standalone/" "$INSTALL_DIR/"
 echo -e "${CYAN}→${NC} ${DIM}Installing runtime dependencies...${NC}"
 cd "$PROJECT_ROOT/standalone/runtime-files"
 npm install --silent 2>/dev/null || npm install
+rm -rf "$INSTALL_DIR/node_modules"
 cp -r node_modules "$INSTALL_DIR/"
 cp -r vscode "$INSTALL_DIR/node_modules/"
 cd "$PROJECT_ROOT"

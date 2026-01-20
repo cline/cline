@@ -155,17 +155,18 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 					this.isHot = false
 				}
 
-				// Track terminal execution telemetry
+				// Track terminal execution telemetry with exit code for failure diagnosis
 				const success = code === 0 || code === null
-				telemetryService.captureTerminalExecution(success, "standalone", "child_process")
+				telemetryService.captureTerminalExecution(success, "standalone", "child_process", code)
 
 				this.emit("completed")
 				this.emit("continue")
 			})
 
-			// Handle process errors
+			// Handle process errors (spawn failures)
 			this.childProcess.on("error", (error: Error) => {
 				// Track terminal execution error telemetry
+				// method: "child_process_error" already indicates spawn failure
 				telemetryService.captureTerminalExecution(false, "standalone", "child_process_error")
 				this.emit("error", error)
 			})

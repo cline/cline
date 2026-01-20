@@ -1,17 +1,26 @@
 name: Trigger Jetbrains Plugin <-> Cline Tests
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened]
+    types: [opened, reopened]
+  issue_comment:
+    types: [created]
 permissions:
   contents: read
+  pull-requests: read
 concurrency:
-  group: jetbrains-trigger-${{ github.event.number }}
+  group: jetbrains-trigger-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
   trigger-integration-test:
     name: Run Tests
     runs-on: ubuntu-latest
+    # Run on PR open/reopen, or when someone comments /test-jetbrains on a PR
+    if: |
+      github.event_name == 'pull_request_target' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       contains(github.event.comment.body, '/test-jetbrains'))
     steps:
       - name: Generate GitHub App Token
         id: app-token
@@ -22,16 +31,28 @@ jobs:
           owner: cline
           repositories: intellij-plugin
 
+      - name: Get PR details (for issue_comment trigger)
+        id: pr-details
+        if: github.event_name == 'issue_comment'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_DATA=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.issue.number }})
+          echo "head_ref=$(echo "$PR_DATA" | jq -r '.head.ref')" >> $GITHUB_OUTPUT
+          echo "head_sha=$(echo "$PR_DATA" | jq -r '.head.sha')" >> $GITHUB_OUTPUT
+          echo "title=$(echo "$PR_DATA" | jq -r '.title')" >> $GITHUB_OUTPUT
+          echo "html_url=$(echo "$PR_DATA" | jq -r '.html_url')" >> $GITHUB_OUTPUT
+
       - name: Sanitize untrusted inputs
         id: sanitize
         env:
-          RAW_BRANCH_NAME: ${{ github.head_ref }}
-          RAW_PR_TITLE: ${{ github.event.pull_request.title }}
+          RAW_BRANCH_NAME: ${{ github.event_name == 'pull_request_target' && github.head_ref || steps.pr-details.outputs.head_ref }}
+          RAW_PR_TITLE: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.title || steps.pr-details.outputs.title }}
         run: |
           # Sanitize branch name for JSON
           BRANCH_NAME_JSON=$(jq -n --arg b "$RAW_BRANCH_NAME" '$b')
           echo "branch_name=$BRANCH_NAME_JSON" >> $GITHUB_OUTPUT
-          
+
           # Sanitize PR title for JSON
           PR_TITLE_JSON=$(jq -n --arg t "$RAW_PR_TITLE" '$t')
           echo "pr_title=$PR_TITLE_JSON" >> $GITHUB_OUTPUT
@@ -40,6 +61,9 @@ jobs:
         env:
           BRANCH_NAME: ${{ steps.sanitize.outputs.branch_name }}
           PR_TITLE: ${{ steps.sanitize.outputs.pr_title }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          PR_SHA: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || steps.pr-details.outputs.head_sha }}
+          PR_URL: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.html_url || steps.pr-details.outputs.html_url }}
         run: |
           curl -X POST \
             -H "Authorization: Bearer ${{ steps.app-token.outputs.token }}" \
@@ -51,19 +75,23 @@ jobs:
           {
             "event_type": "cline-pr-check",
             "client_payload": {
-              "pr_number": "${{ github.event.number }}",
+              "pr_number": "$PR_NUMBER",
               "branch_name": $BRANCH_NAME,
               "action": "${{ github.event.action }}",
-              "sha": "${{ github.event.pull_request.head.sha }}",
+              "sha": "$PR_SHA",
               "pr_title": $PR_TITLE,
-              "pr_url": "${{ github.event.pull_request.html_url }}"
+              "pr_url": "$PR_URL"
             }
           }
           EOF
 
       - name: Log trigger details
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          PR_SHA: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || steps.pr-details.outputs.head_sha }}
         run: |
           echo "Triggered IntelliJ Plugin integration test for:"
-          echo "  PR #${{ github.event.number }}"
+          echo "  PR #$PR_NUMBER"
+          echo "  Trigger: ${{ github.event_name }}"
           echo "  Action: ${{ github.event.action }}"
-          echo "  SHA: ${{ github.event.pull_request.head.sha }}"
+          echo "  SHA: $PR_SHA"
