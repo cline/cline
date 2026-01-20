@@ -30,6 +30,7 @@ interface HistoryViewProps {
 	controller: Controller
 	onSelectTask?: (taskId: string) => void
 	pagination?: HistoryPagination
+	onPageChange?: (page: number) => void
 }
 
 /**
@@ -39,7 +40,14 @@ function formatSeparator(char: string = "─", width: number = 80): string {
 	return char.repeat(Math.max(width, 10))
 }
 
-export const HistoryView: React.FC<HistoryViewProps> = ({ items, visibleCount = 10, controller, onSelectTask, pagination }) => {
+export const HistoryView: React.FC<HistoryViewProps> = ({
+	items,
+	visibleCount = 10,
+	controller,
+	onSelectTask,
+	pagination,
+	onPageChange,
+}) => {
 	const [selectedIndex, setSelectedIndex] = useState(0)
 
 	const onSelect = useCallback(
@@ -54,13 +62,30 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ items, visibleCount = 
 		[controller, onSelectTask],
 	)
 
-	useInput((_input, key) => {
+	const currentPage = pagination?.page ?? 1
+	const totalPages = pagination?.totalPages ?? 1
+	const hasPrevPage = currentPage > 1
+	const hasNextPage = currentPage < totalPages
+
+	useInput((input, key) => {
 		if (key.upArrow) {
 			setSelectedIndex((prev) => Math.max(0, prev - 1))
 		} else if (key.downArrow) {
 			setSelectedIndex((prev) => Math.min(items.length - 1, prev + 1))
 		} else if (key.return && items[selectedIndex]) {
 			onSelect(items[selectedIndex])
+		} else if (key.leftArrow && hasPrevPage && onPageChange) {
+			onPageChange(currentPage - 1)
+			setSelectedIndex(0)
+		} else if (key.rightArrow && hasNextPage && onPageChange) {
+			onPageChange(currentPage + 1)
+			setSelectedIndex(0)
+		} else if (input === "n" && hasNextPage && onPageChange) {
+			onPageChange(currentPage + 1)
+			setSelectedIndex(0)
+		} else if (input === "p" && hasPrevPage && onPageChange) {
+			onPageChange(currentPage - 1)
+			setSelectedIndex(0)
 		}
 	})
 
@@ -78,19 +103,21 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ items, visibleCount = 
 	const showDownIndicator = endIndex < items.length
 
 	const totalCount = pagination?.totalCount ?? items.length
-	const currentPage = pagination?.page ?? 1
-	const totalPages = pagination?.totalPages ?? 1
 
 	return (
 		<Box flexDirection="column">
 			<Text bold color="white">
 				{"📜 Task History (" + totalCount + " total)"}
 			</Text>
-			<Text dimColor>Use arrow keys to navigate, Enter to select</Text>
+			<Text dimColor>Use ↑↓ to navigate, Enter to select</Text>
 			{totalPages > 1 && (
-				<Text dimColor>
-					Page {currentPage} of {totalPages} (use --page N to navigate)
-				</Text>
+				<Box>
+					<Text dimColor>
+						Page {currentPage} of {totalPages}{" "}
+					</Text>
+					{hasPrevPage ? <Text color="blue">[← prev] </Text> : <Text dimColor>[← prev] </Text>}
+					{hasNextPage ? <Text color="blue">[next →]</Text> : <Text dimColor>[next →]</Text>}
+				</Box>
 			)}
 			<Text>{formatSeparator()}</Text>
 

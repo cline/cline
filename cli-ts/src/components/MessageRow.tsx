@@ -329,18 +329,32 @@ export const MessageRow: React.FC<MessageRowProps> = ({ message, verbose = false
 		return null
 	}
 
+	const content =
+		message.type === "ask" ? (
+			<AskMessageContent message={message} verbose={verbose} />
+		) : (
+			<SayMessageContent message={message} verbose={verbose} />
+		)
+
+	// command_output returns a Box, which can't be nested inside Text
+	if (message.say === "command_output") {
+		return (
+			<Box flexDirection="column">
+				<Box>
+					<Text dimColor>{timestamp} </Text>
+					<Text>{icon} </Text>
+				</Box>
+				{content}
+			</Box>
+		)
+	}
+
 	return (
 		<Box flexDirection="column">
 			<Box>
 				<Text dimColor>{timestamp} </Text>
-				<Text>
-					{icon}{" "}
-					{message.type === "ask" ? (
-						<AskMessageContent message={message} verbose={verbose} />
-					) : (
-						<SayMessageContent message={message} verbose={verbose} />
-					)}
-				</Text>
+				<Text>{icon} </Text>
+				{content}
 			</Box>
 		</Box>
 	)

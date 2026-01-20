@@ -10,13 +10,17 @@ interface LoadingSpinnerProps {
 	message?: string
 }
 
-export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ message = "Thinking..." }) => {
+const LOADING_TEXT_IDEAS = ["Thinking", "Loading", "Processing", "Working", "Calculating", "Analyzing", "Exploring"]
+
+export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
+	message = LOADING_TEXT_IDEAS[Math.floor(Math.random() * LOADING_TEXT_IDEAS.length)],
+}) => {
 	return (
 		<Box>
 			<Text color="cyan">
 				<Spinner type="dots" />
 			</Text>
-			<Text color="cyan"> {message}</Text>
+			<Text color="cyan"> {message}...</Text>
 		</Box>
 	)
 }
