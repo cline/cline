@@ -19,6 +19,7 @@ import {
 	ActionButtons,
 	CHAT_CONSTANTS,
 	ChatLayout,
+	canProcessQueue,
 	convertHtmlToMarkdown,
 	filterVisibleMessages,
 	groupLowStakesTools,
@@ -320,27 +321,16 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [isHidden, sendingDisabled, enableButtons])
 
 	// Queue processing effect - processes queued messages when sending becomes enabled
+	// See queueUtils.ts for detailed documentation on blocking logic
 	useEffect(() => {
-		// Early return if conditions aren't met
-		// Don't process queue if there's an API error (clineAsk === "api_req_failed")
-		// Don't process queue during command_output - wait for command to finish
-		// Don't process queue during mistake_limit_reached - user must make a decision
-		// Don't process queue during condense - user is reviewing conversation summary
-		// Don't process queue during report_bug - user is filing a bug report
-		// Don't process if already processing (prevents race condition)
-		// Don't process if messages is empty - this means user clicked "New Task" and we shouldn't
-		// auto-start with queued messages (the queue clearing effect hasn't taken effect yet due to
-		// React's batched state updates, so we check messages.length as a synchronous guard)
 		if (
-			sendingDisabled ||
-			messageQueue.length === 0 ||
-			clineAsk === "api_req_failed" ||
-			clineAsk === "command_output" ||
-			clineAsk === "mistake_limit_reached" ||
-			clineAsk === "condense" ||
-			clineAsk === "report_bug" ||
-			isProcessingQueueRef.current ||
-			messages.length === 0
+			!canProcessQueue({
+				sendingDisabled,
+				messageQueueLength: messageQueue.length,
+				clineAsk,
+				isProcessing: isProcessingQueueRef.current,
+				messagesLength: messages.length,
+			})
 		) {
 			return
 		}
