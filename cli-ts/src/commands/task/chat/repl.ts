@@ -14,7 +14,7 @@ import type { OutputFormatter } from "../../../core/output/types.js"
 import type { CliConfig } from "../../../types/config.js"
 import type { Logger } from "../../../types/logger.js"
 import { createCompleter } from "./completer.js"
-import { checkForPendingInput, isCompletionState, isFailureState } from "./input-checker.js"
+import { checkForPendingInput, determineAutoApprovalAction, isCompletionState, isFailureState } from "./input-checker.js"
 import { getModelIdForProvider } from "./model-utils.js"
 import { buildPromptString } from "./prompt.js"
 import type { ChatSession } from "./session.js"
@@ -140,6 +140,16 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 		const pendingState = checkForPendingInput(messages)
 		session.awaitingApproval = pendingState.awaitingApproval
 		session.awaitingInput = pendingState.awaitingInput
+
+		// Store the pending ask message for auto-approval determination
+		if (pendingState.awaitingApproval && messages.length > 0) {
+			const lastMessage = messages[messages.length - 1]
+			if (lastMessage.type === "ask" && !lastMessage.partial) {
+				session.pendingAskMessage = lastMessage
+			}
+		} else if (!pendingState.awaitingApproval) {
+			session.pendingAskMessage = null
+		}
 
 		// YOLO MODE: Auto-respond to pending inputs
 		if (session.yoloMode && controller.task && !session.yoloCompleted) {
@@ -273,12 +283,44 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 		// Handle approval shortcuts
 		if (session.awaitingApproval) {
 			const lowerInput = input.toLowerCase()
+
+			// Check for "don't ask again" approval (yy, yes!, or approve!)
+			const isAutoApprove = lowerInput === "yy" || lowerInput === "yes!" || lowerInput === "approve!"
+			if (isAutoApprove) {
+				if (controller.task && session.pendingAskMessage) {
+					// Determine which auto-approval action to enable
+					const actionKey = determineAutoApprovalAction(session.pendingAskMessage)
+					if (actionKey) {
+						// Enable auto-approval for this action type
+						const currentAutoApproval = controller.stateManager.getGlobalSettingsKey("autoApprovalSettings")
+						const updatedActions = {
+							...currentAutoApproval.actions,
+							[actionKey]: true,
+						}
+						controller.stateManager.setTaskSettings(session.taskId!, "autoApprovalSettings", {
+							...currentAutoApproval,
+							actions: updatedActions,
+						})
+						formatter.info(`Auto-approval enabled for ${actionKey}`)
+					}
+
+					setProcessingState(true) // AI will start processing
+					wasAwaitingInput = false
+					await controller.task.handleWebviewAskResponse("yesButtonClicked")
+					session.awaitingApproval = false
+					session.pendingAskMessage = null
+				}
+				// Don't show prompt - wait for AI to finish
+				return
+			}
+
 			if (lowerInput === "y" || lowerInput === "yes" || lowerInput === "approve") {
 				if (controller.task) {
 					setProcessingState(true) // AI will start processing
 					wasAwaitingInput = false
 					await controller.task.handleWebviewAskResponse("yesButtonClicked")
 					session.awaitingApproval = false
+					session.pendingAskMessage = null
 				}
 				// Don't show prompt - wait for AI to finish
 				return
@@ -289,6 +331,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 					wasAwaitingInput = false
 					await controller.task.handleWebviewAskResponse("noButtonClicked")
 					session.awaitingApproval = false
+					session.pendingAskMessage = null
 				}
 				// Don't show prompt - wait for AI to finish
 				return

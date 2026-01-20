@@ -4,7 +4,12 @@
  * Analyzes message history to determine if user input is needed.
  */
 
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
+
+/**
+ * Auto-approval action keys that can be enabled for "don't ask again" functionality
+ */
+export type AutoApprovalAction = "readFiles" | "editFiles" | "executeAllCommands" | "useBrowser" | "useMcp"
 
 /**
  * Result of checking for pending input
@@ -106,4 +111,58 @@ export function isCompletionState(messages: ClineMessage[]): boolean {
 	}
 
 	return lastMessage.ask === "completion_result" || lastMessage.say === "completion_result"
+}
+
+/**
+ * Determine which auto-approval action to enable based on the ask message
+ *
+ * @param msg - The pending ask message
+ * @returns The auto-approval action key, or null if not applicable
+ */
+export function determineAutoApprovalAction(msg: ClineMessage): AutoApprovalAction | null {
+	const ask = msg.ask
+
+	switch (ask) {
+		case "tool": {
+			// Parse tool message to determine if it's a read or edit operation
+			if (!msg.text) {
+				return null
+			}
+			try {
+				const tool = JSON.parse(msg.text) as ClineSayTool
+				switch (tool.tool) {
+					case "readFile":
+					case "listFilesTopLevel":
+					case "listFilesRecursive":
+					case "listCodeDefinitionNames":
+					case "searchFiles":
+					case "webFetch":
+					case "webSearch":
+						return "readFiles"
+					case "editedExistingFile":
+					case "newFileCreated":
+						return "editFiles"
+					case "fileDeleted":
+						// File deletion uses editFiles permission
+						return "editFiles"
+					default:
+						return null
+				}
+			} catch {
+				return null
+			}
+		}
+
+		case "command":
+			return "executeAllCommands"
+
+		case "browser_action_launch":
+			return "useBrowser"
+
+		case "use_mcp_server":
+			return "useMcp"
+
+		default:
+			return null
+	}
 }

@@ -4,6 +4,7 @@
  * Defines the session interface and factory function.
  */
 
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { CliWebviewAdapter } from "../../../core/cli-webview-adapter.js"
 
 /**
@@ -20,6 +21,8 @@ export interface ChatSession {
 	yoloLastFailedAction: string | null
 	yoloActionStartTime: number | null
 	yoloCompleted: boolean
+	/** The current pending ask message (for determining auto-approval action type) */
+	pendingAskMessage: ClineMessage | null
 }
 
 /**
@@ -37,5 +40,6 @@ export function createSession(yoloMode = false): ChatSession {
 		yoloLastFailedAction: null,
 		yoloActionStartTime: null,
 		yoloCompleted: false,
+		pendingAskMessage: null,
 	}
 }

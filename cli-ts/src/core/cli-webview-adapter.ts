@@ -402,7 +402,7 @@ export class CliWebviewAdapter {
 			case "command":
 				this.formatter.raw(`\n💻 Execute command?`)
 				this.formatter.raw(`  $ ${msg.text || ""}`)
-				this.formatter.info("  [/approve or /deny]")
+				this.formatter.info("  [y/n] or [yy to auto-approve commands]")
 				break
 
 			case "tool":
@@ -435,7 +435,7 @@ export class CliWebviewAdapter {
 				if (msg.text) {
 					this.formatter.raw(`  URL: ${msg.text}`)
 				}
-				this.formatter.info("  [/approve or /deny]")
+				this.formatter.info("  [y/n] or [yy to auto-approve browser]")
 				break
 
 			case "use_mcp_server":
@@ -525,13 +525,39 @@ export class CliWebviewAdapter {
 			if (tool.path) {
 				this.formatter.raw(`  Path: ${tool.path}`)
 			}
-			if (tool.diff) {
-				this.outputDiff(tool.diff)
+			// Check both diff and content fields - the extension stores diffs in content field
+			const diffContent = tool.diff || tool.content
+			if (diffContent && (tool.tool === "editedExistingFile" || tool.tool === "newFileCreated")) {
+				this.outputDiff(diffContent)
 			}
-			this.formatter.info("  [approve/deny]")
+			// Show appropriate auto-approve hint based on tool type
+			const autoApproveHint = this.getAutoApproveHint(tool.tool)
+			this.formatter.info(`  [y/n]${autoApproveHint}`)
 		} catch {
 			this.formatter.raw(`\n🔧 Tool approval: ${msg.text}`)
-			this.formatter.info("  [approve/deny]")
+			this.formatter.info("  [y/n] or [yy to auto-approve]")
+		}
+	}
+
+	/**
+	 * Get the auto-approve hint text based on tool type
+	 */
+	private getAutoApproveHint(toolType: string): string {
+		switch (toolType) {
+			case "editedExistingFile":
+			case "newFileCreated":
+			case "fileDeleted":
+				return " or [yy to auto-approve edits]"
+			case "readFile":
+			case "listFilesTopLevel":
+			case "listFilesRecursive":
+			case "listCodeDefinitionNames":
+			case "searchFiles":
+			case "webFetch":
+			case "webSearch":
+				return " or [yy to auto-approve reads]"
+			default:
+				return " or [yy to auto-approve]"
 		}
 	}
 
@@ -631,10 +657,10 @@ export class CliWebviewAdapter {
 			} else if (mcp.type === "access_mcp_resource" && mcp.uri) {
 				this.formatter.raw(`  Resource: ${mcp.uri}`)
 			}
-			this.formatter.info("  [approve/deny]")
+			this.formatter.info("  [y/n] or [yy to auto-approve MCP]")
 		} catch {
 			this.formatter.raw(`\n🔌 MCP approval: ${msg.text}`)
-			this.formatter.info("  [approve/deny]")
+			this.formatter.info("  [y/n] or [yy to auto-approve MCP]")
 		}
 	}
 
