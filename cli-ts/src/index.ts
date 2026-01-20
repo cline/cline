@@ -400,7 +400,7 @@ program
 	.option("-c, --cwd <path>", "Working directory for the task")
 	.option("--config <path>", "Path to Cline configuration directory")
 	.option("--thinking", "Enable extended thinking (1024 token budget)")
-	.action(runTask)
+	.action((prompt, options) => runTask(prompt, options))
 
 program
 	.command("history")
@@ -433,7 +433,7 @@ program
  * Show welcome prompt and run task with user input
  */
 async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: string; thinking?: boolean }) {
-	const ctx = await initializeCli(options)
+	const ctx = await initializeCli({ ...options, enableAuth: true })
 
 	let submittedPrompt: string | null = null
 	let submittedImagePaths: string[] = []
@@ -441,6 +441,7 @@ async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: 
 	const { waitUntilExit, unmount } = render(
 		React.createElement(App, {
 			view: "welcome",
+			controller: ctx.controller,
 			onWelcomeSubmit: (prompt: string, imagePaths: string[]) => {
 				submittedPrompt = prompt
 				submittedImagePaths = imagePaths

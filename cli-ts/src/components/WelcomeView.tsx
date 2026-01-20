@@ -6,10 +6,12 @@
 import { Box, Text, useInput } from "ink"
 import React, { useMemo, useState } from "react"
 import { parseImagesFromInput } from "../utils"
+import { AccountInfoView } from "./AccountInfoView"
 
 interface WelcomeViewProps {
 	onSubmit: (prompt: string, imagePaths: string[]) => void
 	onExit?: () => void
+	controller?: any
 }
 
 /**
@@ -19,7 +21,7 @@ function formatSeparator(char: string = "─", width: number = 60): string {
 	return char.repeat(Math.max(width, 10))
 }
 
-export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit }) => {
+export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, controller }) => {
 	const [textInput, setTextInput] = useState("")
 
 	const { prompt, imagePaths } = useMemo(() => parseImagesFromInput(textInput), [textInput])
@@ -44,6 +46,11 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit }) =>
 				✻ Welcome to Cline
 			</Text>
 			<Text color="gray">{formatSeparator()}</Text>
+			{controller && (
+				<Box marginTop={1}>
+					<AccountInfoView controller={controller} />
+				</Box>
+			)}
 			<Text> </Text>
 			<Text color="white">Start a new Cline task</Text>
 			<Box flexDirection="column" marginTop={1}>
