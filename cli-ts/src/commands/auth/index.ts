@@ -341,6 +341,13 @@ async function handleQuickSetup(
 			process.exit(1)
 		}
 
+		// Check for cline (requires OAuth browser authentication)
+		if (normalizedProvider === "cline") {
+			// Cline requires OAuth, redirect to interactive sign-in
+			await handleClineSignIn(config, logger, fmt)
+			return
+		}
+
 		// Validate baseurl is only for OpenAI-compatible providers
 		if (options.baseurl && !["openai", "openai-native", "litellm"].includes(normalizedProvider)) {
 			fmt.error("Base URL is only supported for OpenAI, OpenAI Native, and LiteLLM providers")
@@ -1075,29 +1082,29 @@ async function handleDeleteProvider(
 		// Clear secrets for the provider
 		switch (normalizedProvider) {
 			case "anthropic":
-				await controller.stateManager.setSecret("anthropicApiKey" as any, undefined)
+				controller.stateManager.setSecret("anthropicApiKey" as any, undefined)
 				break
 			case "openrouter":
-				await controller.stateManager.setSecret("openRouterApiKey", undefined)
+				controller.stateManager.setSecret("openRouterApiKey", undefined)
 				break
 			case "openai":
 			case "openai-native":
-				await controller.stateManager.setSecret("openAiApiKey", undefined)
+				controller.stateManager.setSecret("openAiApiKey", undefined)
 				break
 			case "gemini":
-				await controller.stateManager.setSecret("geminiApiKey", undefined)
+				controller.stateManager.setSecret("geminiApiKey", undefined)
 				break
 			case "deepseek":
-				await controller.stateManager.setSecret("deepSeekApiKey", undefined)
+				controller.stateManager.setSecret("deepSeekApiKey", undefined)
 				break
 			case "mistral":
-				await controller.stateManager.setSecret("mistralApiKey", undefined)
+				controller.stateManager.setSecret("mistralApiKey", undefined)
 				break
 			case "groq":
-				await controller.stateManager.setSecret("groqApiKey", undefined)
+				controller.stateManager.setSecret("groqApiKey", undefined)
 				break
 			case "xai":
-				await controller.stateManager.setSecret("xaiApiKey", undefined)
+				controller.stateManager.setSecret("xaiApiKey", undefined)
 				break
 		}
 
