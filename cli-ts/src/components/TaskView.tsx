@@ -8,6 +8,7 @@ import React, { useEffect } from "react"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
 import { useCompletionSignals, useIsSpinnerActive } from "../hooks/useStateSubscriber"
 import { AskPrompt } from "./AskPrompt"
+import { FocusChain } from "./FocusChain"
 import { MessageList } from "./MessageList"
 import { LoadingSpinner } from "./Spinner"
 
@@ -71,6 +72,13 @@ export const TaskView: React.FC<TaskViewProps> = ({ taskId, verbose = false, onC
 					<Text bold color="red">
 						Error: {lastError}
 					</Text>
+				</Box>
+			)}
+
+			{/* Focus Chain / To-Do List */}
+			{state.currentFocusChainChecklist && (
+				<Box marginBottom={1}>
+					<FocusChain focusChainChecklist={state.currentFocusChainChecklist} />
 				</Box>
 			)}
 

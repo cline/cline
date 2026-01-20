@@ -10,6 +10,7 @@ export const originalConsoleLog = console.log.bind(console)
 export const originalConsoleError = console.error.bind(console)
 export const originalConsoleWarn = console.warn.bind(console)
 export const originalConsoleInfo = console.info.bind(console)
+export const originalConsoleDebug = console.debug.bind(console)
 
 // Check for verbose flag early (before commander parses)
 const isVerbose = process.argv.includes("-v") || process.argv.includes("--verbose")
@@ -18,6 +19,8 @@ const isVerbose = process.argv.includes("-v") || process.argv.includes("--verbos
 if (!isVerbose) {
 	console.log = () => {}
 	console.warn = () => {}
+	console.error = () => {}
+	console.debug = () => {}
 }
 
 /**
@@ -28,4 +31,5 @@ export function restoreConsole() {
 	console.error = originalConsoleError
 	console.warn = originalConsoleWarn
 	console.info = originalConsoleInfo
+	console.debug = originalConsoleDebug
 }

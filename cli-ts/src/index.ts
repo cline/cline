@@ -171,12 +171,14 @@ function waitForCondition(check: () => boolean, timeoutMs: number, intervalMs: n
 async function runTask(
 	prompt: string,
 	options: {
-		switch?: string
+		act?: boolean
+		plan?: boolean
 		model?: string
 		verbose?: boolean
 		cwd?: string
 		config?: string
 		thinking?: boolean
+		yolo?: boolean
 		images?: string[]
 	},
 	existingContext?: CliContext,
@@ -195,8 +197,10 @@ async function runTask(
 	// Use clean prompt (with image refs removed)
 	const taskPrompt = cleanPrompt || prompt
 
-	if (options.switch) {
-		StateManager.get().setGlobalState("mode", options.switch === "plan" ? "plan" : "act")
+	if (options.plan) {
+		StateManager.get().setGlobalState("mode", "plan")
+	} else if (options.act) {
+		StateManager.get().setGlobalState("mode", "act")
 	}
 	if (options.model) {
 		const selectedMode = (StateManager.get().getGlobalSettingsKey("mode") || "act") as "act" | "plan"
@@ -221,6 +225,11 @@ async function runTask(
 	const currentMode = StateManager.get().getGlobalSettingsKey("mode") || "act"
 	const thinkingKey = currentMode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
 	StateManager.get().setGlobalState(thinkingKey, thinkingBudget)
+
+	// Set yolo mode based on --yolo flag
+	if (options.yolo) {
+		StateManager.get().setGlobalState("yoloModeToggled", true)
+	}
 
 	printInfo(`Starting Cline task...`)
 	printInfo(`Working directory: ${ctx.workspacePath}`)
@@ -393,13 +402,15 @@ program
 	.alias("t")
 	.description("Run a new task")
 	.argument("<prompt>", "The task prompt")
-	.option("-s, --switch <mode>", "Switch mode: act, plan")
+	.option("-a, --act", "Run in act mode")
+	.option("-p, --plan", "Run in plan mode")
+	.option("-y, --yolo", "Enable yolo mode (auto-approve actions)")
 	.option("-m, --model <model>", "Model to use for the task")
 	.option("-i, --images <paths...>", "Image file paths to include with the task")
-	.option("-v, --verbose", "Show verbose output including reasoning")
+	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory for the task")
 	.option("--config <path>", "Path to Cline configuration directory")
-	.option("--thinking", "Enable extended thinking (1024 token budget)")
+	.option("-t, --thinking", "Enable extended thinking (1024 token budget)")
 	.action((prompt, options) => runTask(prompt, options))
 
 program
