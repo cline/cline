@@ -2,6 +2,7 @@ import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-in
 import { RemoteConfig } from "@shared/remote-config/schema"
 import { GlobalStateAndSettings, RemoteConfigFields } from "@shared/storage/state-keys"
 import { AuthService } from "@/services/auth/AuthService"
+import { getDistinctId } from "@/services/logging/distinctId"
 import { Logger } from "@/services/logging/Logger"
 import { getTelemetryService, telemetryService } from "@/services/telemetry"
 import { OpenTelemetryClientProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryClientProvider"
@@ -9,6 +10,7 @@ import { OpenTelemetryTelemetryProvider } from "@/services/telemetry/providers/o
 import { type TelemetryService } from "@/services/telemetry/TelemetryService"
 import { ApiProvider } from "@/shared/api"
 import { isOpenTelemetryConfigValid, remoteConfigToOtelConfig } from "@/shared/services/config/otel-config"
+import { syncWorker } from "@/shared/services/worker/sync"
 import { ensureSettingsDirectoryExists } from "../disk"
 import { StateManager } from "../StateManager"
 import { syncRemoteMcpServersToSettings } from "./syncRemoteMcpServers"
@@ -232,6 +234,19 @@ async function applyRemoteOTELConfig(transformed: Partial<RemoteConfigFields>, t
 	}
 }
 
+async function applyRemoteSyncQueueConfig(transformed: Partial<RemoteConfigFields>) {
+	try {
+		const blobStoreConfig = transformed.blobStoreConfig
+		if (!blobStoreConfig) {
+			return
+		}
+
+		syncWorker().init({ ...blobStoreConfig, userDistinctId: getDistinctId() })
+	} catch (err) {
+		console.error("[REMOTE CONFIG DEBUG] Failed to apply remote sync queue config", err)
+	}
+}
+
 export function clearRemoteConfig() {
 	try {
 		const stateManager = StateManager.get()
@@ -300,6 +315,8 @@ export async function applyRemoteConfig(
 	if (previousRemoteMCPServers !== undefined) {
 		stateManager.setRemoteConfigField("previousRemoteMCPServers", previousRemoteMCPServers)
 	}
+
+	applyRemoteSyncQueueConfig(transformed)
 
 	// Sync remote MCP servers to settings file (AFTER cache is populated, so sync can read previous state)
 	if (remoteConfig.remoteMCPServers !== undefined) {

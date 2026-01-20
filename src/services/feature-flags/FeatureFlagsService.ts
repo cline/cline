@@ -92,10 +92,6 @@ export class FeatureFlagsService {
 		return this.cache.get(flagName) === true
 	}
 
-	public getHooksEnabled(): boolean {
-		return this.getBooleanFlagEnabled(FeatureFlag.HOOKS)
-	}
-
 	public getWebtoolsEnabled(): boolean {
 		return this.getBooleanFlagEnabled(FeatureFlag.WEBTOOLS)
 	}
