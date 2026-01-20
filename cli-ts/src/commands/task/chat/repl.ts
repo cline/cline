@@ -13,6 +13,7 @@ import { disposeEmbeddedController } from "../../../core/embedded-controller.js"
 import type { OutputFormatter } from "../../../core/output/types.js"
 import type { CliConfig } from "../../../types/config.js"
 import type { Logger } from "../../../types/logger.js"
+import { createCompleter } from "./completer.js"
 import { checkForPendingInput } from "./input-checker.js"
 import { getModelIdForProvider } from "./model-utils.js"
 import { buildPromptString } from "./prompt.js"
@@ -70,11 +71,12 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 		session.adapter.outputAllMessages()
 	}
 
-	// Create readline interface
+	// Create readline interface with @ file completion
 	const rl = readline.createInterface({
 		input: process.stdin,
 		output: process.stdout,
 		prompt: "> ", // Default prompt, will be updated dynamically
+		completer: createCompleter(process.cwd()),
 	})
 
 	// Track if we're currently processing (AI is working)
