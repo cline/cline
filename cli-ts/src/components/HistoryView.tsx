@@ -31,6 +31,8 @@ interface HistoryViewProps {
 	onSelectTask?: (taskId: string) => void
 	pagination?: HistoryPagination
 	onPageChange?: (page: number) => void
+	/** If provided, all items for internal pagination management */
+	allItems?: TaskHistoryItem[]
 }
 
 /**
@@ -47,8 +49,10 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 	onSelectTask,
 	pagination,
 	onPageChange,
+	allItems,
 }) => {
 	const [selectedIndex, setSelectedIndex] = useState(0)
+	const [internalPage, setInternalPage] = useState(pagination?.page ?? 1)
 
 	const onSelect = useCallback(
 		(item: TaskHistoryItem) => {
@@ -62,47 +66,61 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 		[controller, onSelectTask],
 	)
 
-	const currentPage = pagination?.page ?? 1
-	const totalPages = pagination?.totalPages ?? 1
+	// Use internal pagination if allItems is provided, otherwise use external
+	const useInternalPagination = !!allItems
+	const limit = pagination?.limit ?? 10
+	const totalCount = allItems?.length ?? pagination?.totalCount ?? items.length
+	const totalPages = useInternalPagination ? Math.ceil(totalCount / limit) : (pagination?.totalPages ?? 1)
+	const currentPage = useInternalPagination ? internalPage : (pagination?.page ?? 1)
 	const hasPrevPage = currentPage > 1
 	const hasNextPage = currentPage < totalPages
+
+	// Get current page items
+	const pageItems = useInternalPagination ? (allItems ?? []).slice((currentPage - 1) * limit, currentPage * limit) : items
+
+	const handlePageChange = useCallback(
+		(newPage: number) => {
+			if (useInternalPagination) {
+				setInternalPage(newPage)
+				setSelectedIndex(0)
+			} else if (onPageChange) {
+				onPageChange(newPage)
+				setSelectedIndex(0)
+			}
+		},
+		[useInternalPagination, onPageChange],
+	)
 
 	useInput((input, key) => {
 		if (key.upArrow) {
 			setSelectedIndex((prev) => Math.max(0, prev - 1))
 		} else if (key.downArrow) {
-			setSelectedIndex((prev) => Math.min(items.length - 1, prev + 1))
-		} else if (key.return && items[selectedIndex]) {
-			onSelect(items[selectedIndex])
-		} else if (key.leftArrow && hasPrevPage && onPageChange) {
-			onPageChange(currentPage - 1)
-			setSelectedIndex(0)
-		} else if (key.rightArrow && hasNextPage && onPageChange) {
-			onPageChange(currentPage + 1)
-			setSelectedIndex(0)
-		} else if (input === "n" && hasNextPage && onPageChange) {
-			onPageChange(currentPage + 1)
-			setSelectedIndex(0)
-		} else if (input === "p" && hasPrevPage && onPageChange) {
-			onPageChange(currentPage - 1)
-			setSelectedIndex(0)
+			setSelectedIndex((prev) => Math.min(pageItems.length - 1, prev + 1))
+		} else if (key.return && pageItems[selectedIndex]) {
+			onSelect(pageItems[selectedIndex])
+		} else if (key.leftArrow && hasPrevPage) {
+			handlePageChange(currentPage - 1)
+		} else if (key.rightArrow && hasNextPage) {
+			handlePageChange(currentPage + 1)
+		} else if (input === "n" && hasNextPage) {
+			handlePageChange(currentPage + 1)
+		} else if (input === "p" && hasPrevPage) {
+			handlePageChange(currentPage - 1)
 		}
 	})
 
 	// Calculate visible window around selected item
 	const halfVisible = Math.floor(visibleCount / 2)
 	let startIndex = Math.max(0, selectedIndex - halfVisible)
-	const endIndex = Math.min(items.length, startIndex + visibleCount)
+	const endIndex = Math.min(pageItems.length, startIndex + visibleCount)
 	// Adjust start if we're near the end
 	if (endIndex - startIndex < visibleCount) {
 		startIndex = Math.max(0, endIndex - visibleCount)
 	}
-	const visibleTasks = items.slice(startIndex, endIndex)
+	const visibleTasks = pageItems.slice(startIndex, endIndex)
 
 	const showUpIndicator = startIndex > 0
-	const showDownIndicator = endIndex < items.length
-
-	const totalCount = pagination?.totalCount ?? items.length
+	const showDownIndicator = endIndex < pageItems.length
 
 	return (
 		<Box flexDirection="column">
@@ -121,7 +139,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 			)}
 			<Text>{formatSeparator()}</Text>
 
-			{items.length === 0 ? (
+			{pageItems.length === 0 ? (
 				<Text>No task history available.</Text>
 			) : (
 				<Box flexDirection="column">
