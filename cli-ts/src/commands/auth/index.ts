@@ -356,14 +356,16 @@ async function handleQuickSetup(
 			// Store API key based on provider
 			switch (normalizedProvider) {
 				case "anthropic":
-					controller.stateManager.setSecret("anthropicApiKey" as any, options.apikey)
+					controller.stateManager.setSecret("apiKey", options.apikey)
 					break
 				case "openrouter":
 					controller.stateManager.setSecret("openRouterApiKey", options.apikey)
 					break
 				case "openai":
-				case "openai-native":
 					controller.stateManager.setSecret("openAiApiKey", options.apikey)
+					break
+				case "openai-native":
+					controller.stateManager.setSecret("openAiNativeApiKey", options.apikey)
 					break
 				case "gemini":
 					controller.stateManager.setSecret("geminiApiKey", options.apikey)
@@ -801,12 +803,13 @@ async function handleViewConfig(config: CliConfig, logger: Logger, fmt: OutputFo
 function getSecretKeyForProvider(provider: ApiProvider): string | null {
 	switch (provider) {
 		case "anthropic":
-			return "anthropicApiKey"
+			return "apiKey"
 		case "openrouter":
 			return "openRouterApiKey"
 		case "openai":
-		case "openai-native":
 			return "openAiApiKey"
+		case "openai-native":
+			return "openAiNativeApiKey"
 		case "gemini":
 			return "geminiApiKey"
 		case "deepseek":

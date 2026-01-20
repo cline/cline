@@ -100,6 +100,55 @@ function getModelIdForProvider(
 }
 
 /**
+ * Get the model ID state key for a given provider and mode
+ * Some providers use provider-specific model ID keys (e.g., openRouterModelId),
+ * while others use the generic apiModelId
+ */
+function getModelIdKey(provider: string | undefined, mode: Mode): string {
+	const modePrefix = mode === "plan" ? "planMode" : "actMode"
+
+	switch (provider) {
+		case "openrouter":
+		case "cline":
+			return `${modePrefix}OpenRouterModelId`
+		case "openai":
+			return `${modePrefix}OpenAiModelId`
+		case "ollama":
+			return `${modePrefix}OllamaModelId`
+		case "lmstudio":
+			return `${modePrefix}LmStudioModelId`
+		case "litellm":
+			return `${modePrefix}LiteLlmModelId`
+		case "requesty":
+			return `${modePrefix}RequestyModelId`
+		case "together":
+			return `${modePrefix}TogetherModelId`
+		case "fireworks":
+			return `${modePrefix}FireworksModelId`
+		case "groq":
+			return `${modePrefix}GroqModelId`
+		case "baseten":
+			return `${modePrefix}BasetenModelId`
+		case "huggingface":
+			return `${modePrefix}HuggingFaceModelId`
+		case "huawei-cloud-maas":
+			return `${modePrefix}HuaweiCloudMaasModelId`
+		case "oca":
+			return `${modePrefix}OcaModelId`
+		case "hicap":
+			return `${modePrefix}HicapModelId`
+		case "aihubmix":
+			return `${modePrefix}AihubmixModelId`
+		case "nousResearch":
+			return `${modePrefix}NousResearchModelId`
+		case "vercel-ai-gateway":
+			return `${modePrefix}VercelAiGatewayModelId`
+		default:
+			return `${modePrefix}ApiModelId`
+	}
+}
+
+/**
  * Build the CLI prompt string with mode, provider, and model
  * Format: [mode] provider/model >
  */
@@ -206,6 +255,9 @@ async function processChatCommand(
 			fmt.raw("  /plan              - Switch to plan mode")
 			fmt.raw("  /act               - Switch to act mode")
 			fmt.raw("  /mode <plan|act>   - Switch mode")
+			fmt.raw("  /model             - Show current model")
+			fmt.raw("    /model <id>        - Set model for current mode")
+			fmt.raw("    /model list        - List available models (OpenRouter/Cline)")
 			fmt.raw("  /status            - Show task status")
 			fmt.raw("  /cancel            - Cancel current task")
 			fmt.raw("  /approve, /a, /y   - Approve pending action")
@@ -244,6 +296,90 @@ async function processChatCommand(
 				}
 			}
 			return true
+
+		case "model": {
+			const state = await controller.getStateToPostToWebview()
+			const currentMode: Mode = (state.mode as Mode) || "act"
+			const apiConfig = state.apiConfiguration
+
+			// Get current provider for this mode
+			const provider = currentMode === "plan" ? apiConfig?.planModeApiProvider : apiConfig?.actModeApiProvider
+
+			const subCmd = args[0]?.toLowerCase()
+
+			if (!subCmd) {
+				// Show current model
+				const modelId = getModelIdForProvider(apiConfig, provider, currentMode)
+				fmt.raw("")
+				fmt.info(`Mode: ${currentMode}`)
+				fmt.info(`Provider: ${provider || "(not set)"}`)
+				fmt.info(`Model: ${modelId || "(not set)"}`)
+				fmt.raw("")
+				return true
+			}
+
+			if (subCmd === "list") {
+				// Fetch models from OpenRouter if applicable
+				if (provider === "openrouter" || provider === "cline") {
+					fmt.info("Fetching models from OpenRouter...")
+					try {
+						const response = await fetch("https://openrouter.ai/api/v1/models")
+						if (!response.ok) {
+							throw new Error(`HTTP ${response.status}`)
+						}
+						const data = (await response.json()) as {
+							data?: Array<{
+								id: string
+								name?: string
+								pricing?: { prompt?: string; completion?: string }
+							}>
+						}
+						const models = (data.data || []).sort((a, b) => a.id.localeCompare(b.id))
+
+						fmt.raw("")
+						fmt.info(`Available models (${models.length} total):`)
+						fmt.raw("")
+
+						// Show all models with pricing info (alphabetized)
+						for (const model of models) {
+							const promptPrice = model.pricing?.prompt
+								? `$${(parseFloat(model.pricing.prompt) * 1_000_000).toFixed(2)}/M`
+								: "N/A"
+							const completionPrice = model.pricing?.completion
+								? `$${(parseFloat(model.pricing.completion) * 1_000_000).toFixed(2)}/M`
+								: "N/A"
+							fmt.raw(`  ${model.id}`)
+							fmt.raw(`    Input: ${promptPrice}, Output: ${completionPrice}`)
+						}
+
+						fmt.raw("")
+						fmt.info("Use '/model <model-id>' to set the model")
+						fmt.raw("")
+					} catch (err) {
+						fmt.error(`Failed to fetch models: ${(err as Error).message}`)
+					}
+				} else {
+					fmt.warn(`Model listing not available for provider: ${provider || "none"}`)
+					fmt.info("Model listing is only supported for OpenRouter and Cline providers.")
+				}
+				return true
+			}
+
+			// Set model - args is the model ID (may contain slashes like "anthropic/claude-3")
+			const newModelId = args.join(" ")
+
+			if (!provider) {
+				fmt.error("No provider configured for current mode.")
+				fmt.info("Run 'cline auth' to configure a provider first.")
+				return true
+			}
+
+			const modelIdKey = getModelIdKey(provider, currentMode)
+			controller.stateManager.setGlobalState(modelIdKey as any, newModelId)
+			await controller.stateManager.flushPendingState()
+			fmt.success(`Set ${currentMode} mode model to: ${newModelId}`)
+			return true
+		}
 
 		case "status":
 		case "s": {
