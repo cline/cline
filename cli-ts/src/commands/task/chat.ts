@@ -194,6 +194,8 @@ async function processChatCommand(input: string, session: ChatSession, fmt: Outp
 			fmt.raw("")
 			fmt.info("Chat commands:")
 			fmt.raw("  /help, /h, /?      - Show this help")
+			fmt.raw("  /plan              - Switch to plan mode")
+			fmt.raw("  /act               - Switch to act mode")
 			fmt.raw("  /mode <plan|act>   - Switch mode")
 			fmt.raw("  /status            - Show task status")
 			fmt.raw("  /cancel            - Cancel current task")
@@ -201,6 +203,16 @@ async function processChatCommand(input: string, session: ChatSession, fmt: Outp
 			fmt.raw("  /deny, /d, /n      - Deny pending action")
 			fmt.raw("  /quit, /q, /exit   - Exit chat mode")
 			fmt.raw("")
+			return true
+
+		case "plan":
+			await controller.togglePlanActMode("plan")
+			fmt.success("Switched to plan mode")
+			return true
+
+		case "act":
+			await controller.togglePlanActMode("act")
+			fmt.success("Switched to act mode")
 			return true
 
 		case "mode":
