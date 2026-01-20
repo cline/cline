@@ -338,25 +338,31 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		// Set processing lock immediately to prevent race conditions
 		isProcessingQueueRef.current = true
 
-		// Process the first message in the queue
-		const [nextMessage, ...remaining] = messageQueue
-
-		// Update queue immediately to prevent duplicate processing
-		setMessageQueue(remaining)
+		// Get the first message but don't remove yet - only remove on successful send
+		const nextMessage = messageQueue[0]
 
 		// Process the message asynchronously
 		const processMessage = async () => {
 			try {
-				await messageHandlers.handleSendMessage(nextMessage.text, nextMessage.images, nextMessage.files, true)
+				const success = await messageHandlers.handleSendMessage(
+					nextMessage.text,
+					nextMessage.images,
+					nextMessage.files,
+					true,
+				)
+
+				if (success) {
+					// Only remove from queue if message was actually sent
+					setMessageQueue((current) => current.slice(1))
+				}
+				// If !success, message stays in queue and will be retried
+				// when state changes trigger the effect again
 			} catch (error) {
 				console.error("[ChatView] Failed to send queued message:", {
 					messageId: nextMessage.id,
 					error,
 				})
-				// On error, re-add the message to the end of the queue for retry
-				setMessageQueue((current) => {
-					return [...current, nextMessage]
-				})
+				// On error, message stays in queue (no action needed)
 			} finally {
 				// Release the processing lock
 				isProcessingQueueRef.current = false
