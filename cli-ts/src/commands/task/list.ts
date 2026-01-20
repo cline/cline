@@ -122,7 +122,7 @@ export function createTaskListCommand(config: CliConfig, logger: Logger, formatt
 					formatter.info(`Task History (${tasks.length} task${tasks.length === 1 ? "" : "s"}):\n`)
 
 					// Calculate column widths for alignment
-					const idWidth = 10
+					const idWidth = 15
 					const timeWidth = 16
 					const costWidth = 10
 					const modelWidth = 20
@@ -140,7 +140,7 @@ export function createTaskListCommand(config: CliConfig, logger: Logger, formatt
 					// Rows
 					for (const task of tasks) {
 						const row =
-							task.id.slice(0, 8).padEnd(idWidth) +
+							task.id.padEnd(idWidth) +
 							getTimeAgo(task.ts).padEnd(timeWidth) +
 							formatCost(task.totalCost).padEnd(costWidth) +
 							truncate(task.modelId || "unknown", modelWidth - 2).padEnd(modelWidth) +
