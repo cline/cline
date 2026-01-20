@@ -42,7 +42,14 @@ type ViewMode = "browse" | "edit"
 // Constants
 // ============================================================================
 
-const EXCLUDED_KEYS = ["taskHistory"]
+const EXCLUDED_KEYS = [
+	"taskHistory",
+	"primaryRootIndex",
+	"subagentsEnabled",
+	"subagentTerminalOutputLineLimit",
+	"welcomeViewCompleted",
+	"isNewUser",
+]
 
 const EDITABLE_TYPES = new Set(["string", "number", "boolean"])
 
@@ -74,10 +81,10 @@ function shouldExcludeEntry(key: string, value: any): boolean {
 	if (EXCLUDED_KEYS.includes(key)) {
 		return true
 	}
-	if (key.endsWith("Toggles")) {
+	if (key.endsWith("Toggles") || key.endsWith("ModelInfo")) {
 		return true
 	}
-	if (key.startsWith("apiConfig_")) {
+	if (key.startsWith("apiConfig_") || key.startsWith("last")) {
 		return true
 	}
 	if (value === undefined || value === null) {
