@@ -443,7 +443,7 @@ var rawConfigFields = `	[
 	    "name": "sapAiResourceGroup",
 	    "type": "string",
 	    "comment": "",
-	    "category": "general",
+	    "category": "sapaicore",
 	    "required": false,
 	    "fieldType": "string",
 	    "placeholder": ""
@@ -1370,6 +1370,12 @@ var rawModelDefinitions = `	{
 	    }
 	  },
 	  "sapaicore": {
+	    "anthropic--claude-4.5-haiku": {
+	      "maxTokens": 64000,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
 	    "anthropic--claude-4.5-sonnet": {
 	      "maxTokens": 8192,
 	      "contextWindow": 200000,
@@ -1377,6 +1383,12 @@ var rawModelDefinitions = `	{
 	      "supportsPromptCache": true
 	    },
 	    "anthropic--claude-4-sonnet": {
+	      "maxTokens": 8192,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "anthropic--claude-4.5-opus": {
 	      "maxTokens": 8192,
 	      "contextWindow": 200000,
 	      "supportsImages": true,
@@ -1489,6 +1501,12 @@ var rawModelDefinitions = `	{
 	      "contextWindow": 200000,
 	      "supportsImages": true,
 	      "supportsPromptCache": true
+	    },
+	    "sonar-pro": {
+	      "maxTokens": 128000,
+	      "contextWindow": 200000,
+	      "supportsImages": false,
+	      "supportsPromptCache": false
 	    }
 	  }
 	}`
