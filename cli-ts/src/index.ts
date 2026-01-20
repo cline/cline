@@ -225,11 +225,12 @@ async function runTask(
 	const currentMode = StateManager.get().getGlobalSettingsKey("mode") || "act"
 	const thinkingKey = currentMode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
 	StateManager.get().setGlobalState(thinkingKey, thinkingBudget)
-
 	// Set yolo mode based on --yolo flag
 	if (options.yolo) {
 		StateManager.get().setGlobalState("yoloModeToggled", true)
 	}
+
+	await StateManager.get().flushPendingState()
 
 	printInfo(`Starting Cline task...`)
 	printInfo(`Working directory: ${ctx.workspacePath}`)
@@ -397,6 +398,9 @@ const program = new Command()
 
 program.name("cline").description("Cline CLI - AI coding assistant in your terminal").version(VERSION)
 
+// Enable positional options to avoid conflicts between root and subcommand options with the same name
+program.enablePositionalOptions()
+
 program
 	.command("task")
 	.alias("t")
@@ -410,7 +414,7 @@ program
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory for the task")
 	.option("--config <path>", "Path to Cline configuration directory")
-	.option("-t, --thinking", "Enable extended thinking (1024 token budget)")
+	.option("--thinking", "Enable extended thinking (1024 token budget)")
 	.action((prompt, options) => runTask(prompt, options))
 
 program
