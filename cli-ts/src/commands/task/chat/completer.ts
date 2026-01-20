@@ -140,13 +140,34 @@ function getPathCompletions(partial: string, cwd: string): string[] {
 }
 
 /**
+ * Options for creating a completer
+ */
+export interface CompleterOptions {
+	/** The current working directory for path resolution */
+	cwd: string
+	/** Callback invoked when Tab is pressed on an empty line */
+	onEmptyTab?: () => void
+}
+
+/**
  * Create a readline completer function for @ file mentions
  *
- * @param cwd - The current working directory for path resolution
+ * Also supports triggering a callback when Tab is pressed on an empty line,
+ * which is used for mode toggling.
+ *
+ * @param options - Completer options including cwd and callbacks
  * @returns A completer function compatible with readline
  */
-export function createCompleter(cwd: string): (line: string) => [string[], string] {
+export function createCompleter(options: CompleterOptions): (line: string) => [string[], string] {
+	const { cwd, onEmptyTab } = options
+
 	return (line: string): [string[], string] => {
+		// Check for empty input - trigger mode toggle callback if provided
+		if (line === "" && onEmptyTab) {
+			onEmptyTab()
+			return [[], line]
+		}
+
 		const match = findAtMentionToComplete(line)
 
 		if (!match) {

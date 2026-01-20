@@ -77,12 +77,32 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 		session.adapter.outputAllMessages()
 	}
 
-	// Create readline interface with @ file completion
+	// Helper to toggle between act and plan mode
+	const toggleMode = async (): Promise<void> => {
+		// Only toggle when awaiting user input (not while AI is processing)
+		if (isProcessing) {
+			return
+		}
+		const state = await controller.getStateToPostToWebview()
+		const currentMode = (state.mode || "act") as Mode
+		const newMode = currentMode === "act" ? "plan" : "act"
+		await controller.togglePlanActMode(newMode)
+		await updatePromptString()
+		showPrompt()
+	}
+
+	// Create readline interface with @ file completion and mode toggle on empty Tab
 	const rl = readline.createInterface({
 		input: process.stdin,
 		output: process.stdout,
 		prompt: "> ", // Default prompt, will be updated dynamically
-		completer: createCompleter(process.cwd()),
+		completer: createCompleter({
+			cwd: process.cwd(),
+			onEmptyTab: () => {
+				// Use setImmediate to allow async operation outside completer
+				setImmediate(() => toggleMode())
+			},
+		}),
 	})
 
 	// Track if we're currently processing (AI is working)
@@ -336,6 +356,7 @@ async function displayWelcome(formatter: OutputFormatter, session: ChatSession, 
 	formatter.raw("")
 	if (!session.yoloMode) {
 		formatter.info("Type your message and press Enter to send.")
+		formatter.info("Press Tab to toggle between act/plan mode.")
 		formatter.info("Type /help for available commands, /quit to exit.")
 	}
 	formatter.raw("─".repeat(60))

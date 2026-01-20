@@ -1,11 +1,12 @@
 /**
- * Tests for @ file/folder completion
+ * Tests for @ file/folder completion and Tab mode toggle
  */
 
 import { expect } from "chai"
 import fs from "fs"
 import os from "os"
 import path from "path"
+import sinon from "sinon"
 import { createCompleter, findAtMentionToComplete, getPathCompletions } from "../../../../../src/commands/task/chat/completer.js"
 
 describe("completer", () => {
@@ -152,28 +153,80 @@ describe("completer", () => {
 		})
 
 		it("should return no completions when no @ present", () => {
-			const completer = createCompleter(tempDir)
+			const completer = createCompleter({ cwd: tempDir })
 			const [completions] = completer("hello world")
 			expect(completions).to.be.empty
 		})
 
 		it("should return completions with full line prefix", () => {
-			const completer = createCompleter(tempDir)
+			const completer = createCompleter({ cwd: tempDir })
 			const [completions] = completer("look at @fi")
 			expect(completions).to.include("look at @file.ts")
 		})
 
 		it("should handle empty @ mention", () => {
-			const completer = createCompleter(tempDir)
+			const completer = createCompleter({ cwd: tempDir })
 			const [completions] = completer("@")
 			expect(completions.length).to.be.greaterThan(0)
 			expect(completions.some((c) => c.startsWith("@"))).to.be.true
 		})
 
 		it("should preserve prefix for multiple @ mentions", () => {
-			const completer = createCompleter(tempDir)
+			const completer = createCompleter({ cwd: tempDir })
 			const [completions] = completer("@file.ts @sr")
 			expect(completions).to.include("@file.ts @src/")
+		})
+	})
+
+	describe("onEmptyTab callback", () => {
+		let tempDir: string
+
+		beforeEach(() => {
+			tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "completer-test-"))
+			fs.writeFileSync(path.join(tempDir, "file.ts"), "")
+		})
+
+		afterEach(() => {
+			fs.rmSync(tempDir, { recursive: true, force: true })
+		})
+
+		it("should call onEmptyTab when line is empty", () => {
+			const onEmptyTab = sinon.stub()
+			const completer = createCompleter({ cwd: tempDir, onEmptyTab })
+			const [completions] = completer("")
+			expect(onEmptyTab.calledOnce).to.be.true
+			expect(completions).to.be.empty
+		})
+
+		it("should NOT call onEmptyTab when line has whitespace", () => {
+			const onEmptyTab = sinon.stub()
+			const completer = createCompleter({ cwd: tempDir, onEmptyTab })
+			const [completions] = completer("   ")
+			expect(onEmptyTab.called).to.be.false
+			expect(completions).to.be.empty
+		})
+
+		it("should NOT call onEmptyTab when line has content", () => {
+			const onEmptyTab = sinon.stub()
+			const completer = createCompleter({ cwd: tempDir, onEmptyTab })
+			completer("hello")
+			expect(onEmptyTab.called).to.be.false
+		})
+
+		it("should NOT call onEmptyTab when line is just @", () => {
+			const onEmptyTab = sinon.stub()
+			const completer = createCompleter({ cwd: tempDir, onEmptyTab })
+			const [completions] = completer("@")
+			expect(onEmptyTab.called).to.be.false
+			// Should still do file completion
+			expect(completions.length).to.be.greaterThan(0)
+		})
+
+		it("should work without onEmptyTab callback", () => {
+			const completer = createCompleter({ cwd: tempDir })
+			const [completions] = completer("")
+			// Should just return empty completions, no error
+			expect(completions).to.be.empty
 		})
 	})
 })
