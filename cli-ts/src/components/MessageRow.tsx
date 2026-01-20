@@ -206,11 +206,11 @@ const SayMessageContent: React.FC<{ message: ClineMessage; verbose?: boolean }> 
 			return <Text>{text}</Text>
 
 		case "reasoning":
-			return verbose ? (
+			return (
 				<Text dimColor>
 					<Text italic>Thinking:</Text> {text}
 				</Text>
-			) : null
+			)
 
 		case "error":
 			return (
