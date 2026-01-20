@@ -170,8 +170,9 @@ function waitForCondition(check: () => boolean, timeoutMs: number, intervalMs: n
 async function runTask(
 	prompt: string,
 	options: { switch?: string; model?: string; verbose?: boolean; cwd?: string; config?: string; thinking?: boolean },
+	existingContext?: CliContext,
 ) {
-	const ctx = await initializeCli(options)
+	const ctx = existingContext || (await initializeCli(options))
 
 	if (options.switch) {
 		StateManager.get().setGlobalState("mode", options.switch === "plan" ? "plan" : "act")
@@ -403,6 +404,46 @@ program
 	.option("--config <path>", "Path to Cline configuration directory")
 	.action(runAuth)
 
+/**
+ * Show welcome prompt and run task with user input
+ */
+async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: string; thinking?: boolean }) {
+	const ctx = await initializeCli(options)
+
+	let submittedPrompt: string | null = null
+
+	const { waitUntilExit, unmount } = render(
+		React.createElement(App, {
+			view: "welcome",
+			onWelcomeSubmit: (prompt: string) => {
+				submittedPrompt = prompt
+				unmount()
+			},
+			onWelcomeExit: () => {
+				unmount()
+			},
+		}),
+	)
+
+	try {
+		await waitUntilExit()
+	} catch {
+		// App unmounted after prompt submission
+	}
+
+	restoreConsole()
+
+	if (submittedPrompt) {
+		// Run the task with the submitted prompt, reusing the existing context
+		await runTask(submittedPrompt, options, ctx)
+	} else {
+		// User exited without submitting - clean up
+		await ctx.controller.stateManager.flushPendingState()
+		await ctx.controller.dispose()
+		await ErrorService.get().dispose()
+	}
+}
+
 // Interactive mode (default when no command given)
 program
 	.argument("[prompt]", "Task prompt (starts task immediately)")
@@ -414,8 +455,8 @@ program
 		if (prompt) {
 			await runTask(prompt, options)
 		} else {
-			// Show help if no prompt given
-			program.help()
+			// Show welcome prompt if no prompt given
+			await showWelcome(options)
 		}
 	})
 
