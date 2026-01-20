@@ -108,9 +108,13 @@ const FileBlock = memo<{ file: Patch; isStreaming: boolean; startLineNumber?: nu
 		const actionStyle = ACTION_STYLES[file.action as keyof typeof ACTION_STYLES] ?? ACTION_STYLES.default
 		const ActionIcon = actionStyle.icon
 
+		// Only calculate line numbers if we have actual positions from the backend
+		// When startLineNumber is undefined (e.g., V2 diff or no match indices), we skip line numbers entirely
 		const lineNumbers = useMemo(() => {
-			let oldLine = startLineNumber ?? 1
-			let newLine = startLineNumber ?? 1
+			if (startLineNumber === undefined) return undefined
+
+			let oldLine = startLineNumber
+			let newLine = startLineNumber
 
 			return file.lines.map((line) => {
 				const isAddition = line.startsWith("+")
@@ -167,7 +171,7 @@ const FileBlock = memo<{ file: Patch; isStreaming: boolean; startLineNumber?: nu
 						ref={scrollContainerRef}>
 						<div className="font-mono text-xs w-max min-w-full">
 							{file.lines.map((line, index) => (
-								<DiffLine key={`${index}-${line.slice(0, 20)}`} line={line} lineNumber={lineNumbers[index]} />
+								<DiffLine key={`${index}-${line.slice(0, 20)}`} line={line} lineNumber={lineNumbers?.[index]} />
 							))}
 						</div>
 					</div>
@@ -193,8 +197,8 @@ const DiffStats = memo<{ additions: number; deletions: number }>(({ additions, d
 	</div>
 ))
 
-// Diff line component with Tailwind styling - indicator bar, line number, code
-const DiffLine = memo<{ line: string; lineNumber: number }>(({ line, lineNumber }) => {
+// Diff line component with Tailwind styling - indicator bar, optional line number, code
+const DiffLine = memo<{ line: string; lineNumber?: number }>(({ line, lineNumber }) => {
 	const isAddition = line.startsWith("+")
 	const isDeletion = line.startsWith("-")
 	const hasSpacePrefix = line.startsWith("+ ") || line.startsWith("- ")
@@ -212,16 +216,18 @@ const DiffLine = memo<{ line: string; lineNumber: number }>(({ line, lineNumber 
 				isDeletion && "border-l-4 border-l-red-500",
 				!isAddition && !isDeletion && "border-l-4 border-l-transparent",
 			)}>
-			{/* Line number */}
-			<span
-				className={cn(
-					"w-10 min-w-10 text-right pr-2 py-0.5 select-none border-r border-code-block-background/50",
-					isAddition && "text-green-400/60",
-					isDeletion && "text-red-400/60",
-					!isAddition && !isDeletion && "text-description/50",
-				)}>
-				{lineNumber}
-			</span>
+			{/* Line number - only shown when we have actual line positions from the backend */}
+			{lineNumber !== undefined && (
+				<span
+					className={cn(
+						"w-10 min-w-10 text-right pr-2 py-0.5 select-none border-r border-code-block-background/50",
+						isAddition && "text-green-400/60",
+						isDeletion && "text-red-400/60",
+						!isAddition && !isDeletion && "text-description/50",
+					)}>
+					{lineNumber}
+				</span>
+			)}
 			{/* Code content */}
 			<span
 				className={cn(
