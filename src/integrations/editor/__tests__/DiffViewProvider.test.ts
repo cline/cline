@@ -127,6 +127,69 @@ describe("DiffViewProvider Boundary Validation", () => {
 	})
 })
 
+describe("DiffViewProvider content finalization with isFinal=true", () => {
+	// Tests verifying that update(content, true) properly finalizes the document.
+	// This is the fix for the approval flow bug: FileProviderOperations now always
+	// passes isFinal=true to update() to ensure proper document finalization.
+
+	it("should handle large file with deleted lines (1000 -> 997 lines)", async () => {
+		const provider = new TestBoundaryDiffViewProvider()
+		// Original file has 1000 lines
+		const originalLines = Array.from({ length: 1000 }, (_, i) => `line${i + 1}`).join("\n")
+		provider.setup(originalLines)
+
+		// New content has 997 lines (simulating deleted lines 994-996)
+		const newContent = [
+			...Array.from({ length: 993 }, (_, i) => `line${i + 1}`),
+			"line997",
+			"line998",
+			"line999",
+			"line1000",
+		].join("\n")
+
+		// Update with isFinal=true ensures proper document finalization
+		// (full range replacement + truncation)
+		await provider.update(newContent, true)
+
+		const result = await provider.getDocumentText()
+		const resultLines = result?.split("\n") || []
+
+		// Should have exactly 997 lines matching newContent, no duplicates
+		assert.strictEqual(resultLines.length, 997, "Should have 997 lines")
+
+		// First lines should match
+		assert.strictEqual(resultLines[0], "line1")
+		assert.strictEqual(resultLines[992], "line993")
+
+		// Last 4 lines should be line997-line1000, not duplicated
+		assert.strictEqual(resultLines[993], "line997")
+		assert.strictEqual(resultLines[994], "line998")
+		assert.strictEqual(resultLines[995], "line999")
+		assert.strictEqual(resultLines[996], "line1000")
+	})
+
+	it("should handle simple content reduction (4 -> 2 lines)", async () => {
+		const provider = new TestBoundaryDiffViewProvider()
+		provider.setup("line1\nline2\nline3\nline4")
+
+		await provider.update("newA\nnewB", true)
+
+		const result = await provider.getDocumentText()
+		// Should be just "newA\nnewB", not corrupted with old content
+		assert.strictEqual(result, "newA\nnewB")
+	})
+
+	it("should preserve trailing newline when reducing content", async () => {
+		const provider = new TestBoundaryDiffViewProvider()
+		provider.setup("line1\nline2\nline3\n")
+
+		await provider.update("new1\nnew2\n", true)
+
+		const result = await provider.getDocumentText()
+		assert.strictEqual(result, "new1\nnew2\n", "Should preserve trailing newline")
+	})
+})
+
 describe("DiffViewProvider Newline Preservation", () => {
 	it("preserves trailing newline when content ends with newline", async () => {
 		const provider = new TestBoundaryDiffViewProvider()
