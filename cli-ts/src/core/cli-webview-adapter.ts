@@ -418,8 +418,8 @@ export class CliWebviewAdapter {
 				break
 
 			case "resume_task":
-				this.formatter.info(`\n⏸ Task paused. Resume?`)
-				this.formatter.info("  [yes/no]")
+				// this.formatter.info(`\n⏸ Task paused. Resume?`)
+				// this.formatter.info("  [yes/no]")
 				break
 
 			case "completion_result":
@@ -428,7 +428,6 @@ export class CliWebviewAdapter {
 				if (msg.text) {
 					this.formatter.raw(msg.text)
 				}
-				this.formatter.info("  [start new task/provide feedback]")
 				break
 
 			case "browser_action_launch":
@@ -436,7 +435,7 @@ export class CliWebviewAdapter {
 				if (msg.text) {
 					this.formatter.raw(`  URL: ${msg.text}`)
 				}
-				this.formatter.info("  [approve/deny]")
+				this.formatter.info("  [/approve or /deny]")
 				break
 
 			case "use_mcp_server":

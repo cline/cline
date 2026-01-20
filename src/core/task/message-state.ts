@@ -86,13 +86,17 @@ export class MessageStateHandler {
 			// combined as they are in ChatView
 			const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
 			const taskMessage = this.clineMessages[0] // first message is always the task say
-			const lastRelevantMessage =
-				this.clineMessages[
-					findLastIndex(
-						this.clineMessages,
-						(message) => !(message.ask === "resume_task" || message.ask === "resume_completed_task"),
-					)
-				]
+			const lastRelevantMessageIndex = findLastIndex(
+				this.clineMessages,
+				(message) => !(message.ask === "resume_task" || message.ask === "resume_completed_task"),
+			)
+			const lastRelevantMessage = lastRelevantMessageIndex !== -1 ? this.clineMessages[lastRelevantMessageIndex] : undefined
+
+			// Skip history update if we don't have valid messages to extract metadata from
+			if (!taskMessage || !lastRelevantMessage) {
+				return
+			}
+
 			const lastModelInfo = [...this.apiConversationHistory].reverse().find((msg) => msg.modelInfo !== undefined)
 			const taskDir = await ensureTaskDirectoryExists(this.taskId)
 			let taskDirSize = 0
