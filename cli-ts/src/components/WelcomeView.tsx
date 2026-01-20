@@ -4,10 +4,11 @@
  */
 
 import { Box, Text, useInput } from "ink"
-import React, { useState } from "react"
+import React, { useMemo, useState } from "react"
+import { parseImagesFromInput } from "../utils"
 
 interface WelcomeViewProps {
-	onSubmit: (prompt: string) => void
+	onSubmit: (prompt: string, imagePaths: string[]) => void
 	onExit?: () => void
 }
 
@@ -21,10 +22,12 @@ function formatSeparator(char: string = "─", width: number = 60): string {
 export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit }) => {
 	const [textInput, setTextInput] = useState("")
 
+	const { prompt, imagePaths } = useMemo(() => parseImagesFromInput(textInput), [textInput])
+
 	useInput((input, key) => {
 		if (key.return) {
-			if (textInput.trim()) {
-				onSubmit(textInput.trim())
+			if (prompt.trim() || imagePaths.length > 0) {
+				onSubmit(prompt.trim(), imagePaths)
 			}
 		} else if (key.escape) {
 			onExit?.()
@@ -50,10 +53,23 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit }) =>
 					<Text>{textInput}</Text>
 					<Text color="gray">▌</Text>
 				</Box>
+				{imagePaths.length > 0 && (
+					<Box flexDirection="column" marginTop={1}>
+						<Text color="magenta">📎 Images: {imagePaths.length}</Text>
+						{imagePaths.map((p, i) => (
+							<Text color="gray" dimColor key={i}>
+								{p}
+							</Text>
+						))}
+					</Box>
+				)}
 			</Box>
 			<Text> </Text>
 			<Text color="gray" dimColor>
 				(Type your task and press Enter, or press Escape to exit)
+			</Text>
+			<Text color="gray" dimColor>
+				(Add images: @/path/to/image.png or /path/to/image.png)
 			</Text>
 		</Box>
 	)
