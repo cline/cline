@@ -30,7 +30,9 @@ interface AppProps {
 	onError?: () => void
 	// For history view
 	historyItems?: Array<{ id: string; ts: number; task?: string; totalCost?: number; modelId?: string }>
+	historyAllItems?: Array<{ id: string; ts: number; task?: string; totalCost?: number; modelId?: string }>
 	historyPagination?: HistoryPagination
+	onHistoryPageChange?: (page: number) => void
 	// For config view
 	dataDir?: string
 	globalState?: Record<string, any>
@@ -55,7 +57,9 @@ export const App: React.FC<AppProps> = ({
 	onComplete,
 	onError,
 	historyItems = [],
+	historyAllItems,
 	historyPagination,
+	onHistoryPageChange,
 	dataDir = "",
 	globalState = {},
 	workspaceState = {},
@@ -85,8 +89,10 @@ export const App: React.FC<AppProps> = ({
 		case "history":
 			content = (
 				<HistoryView
+					allItems={historyAllItems}
 					controller={controller}
 					items={historyItems}
+					onPageChange={onHistoryPageChange}
 					onSelectTask={handleSelectTask}
 					pagination={historyPagination}
 				/>

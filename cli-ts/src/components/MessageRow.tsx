@@ -7,6 +7,7 @@ import type { ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
 import { Box, Text } from "ink"
 import React from "react"
 import { jsonParseSafe } from "../utils"
+import { DiffView } from "./DiffView"
 
 interface MessageRowProps {
 	message: ClineMessage
@@ -256,12 +257,28 @@ const SayMessageContent: React.FC<{ message: ClineMessage; verbose?: boolean }> 
 			)
 		}
 
-		case "tool":
+		case "tool": {
+			const { tool, content, path } = jsonParseSafe(text, {
+				tool: undefined as string | undefined,
+				content: undefined as string | undefined,
+				path: undefined as string | undefined,
+				diff: undefined as string | undefined,
+			})
+			if (path) {
+				if (tool === "newFileCreated") {
+					return <DiffView content={content} path={path} />
+				}
+				// if (tool === "editedExistingFile") {
+				// 	return <DiffView diff={diff} path={path} />
+				// }
+			}
+
 			return (
 				<Text>
 					<Text color="blue">{text}</Text>
 				</Text>
 			)
+		}
 
 		case "api_req_started": {
 			const { cost, tokensOut, cacheWrites, cacheReads, tokensIn } = jsonParseSafe(text, {
@@ -336,8 +353,8 @@ export const MessageRow: React.FC<MessageRowProps> = ({ message, verbose = false
 			<SayMessageContent message={message} verbose={verbose} />
 		)
 
-	// command_output returns a Box, which can't be nested inside Text
-	if (message.say === "command_output") {
+	// command_output and tool return a Box, which can't be nested inside Text
+	if (message.say === "command_output" || message.say === "tool") {
 		return (
 			<Box flexDirection="column">
 				<Box>

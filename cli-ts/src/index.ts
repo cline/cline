@@ -299,13 +299,11 @@ async function listHistory(options: { config?: string; limit?: number; page?: nu
 	// Sort by timestamp (newest first) before pagination
 	const sortedHistory = [...taskHistory].sort((a: any, b: any) => (b.ts || 0) - (a.ts || 0))
 	const limit = typeof options.limit === "string" ? parseInt(options.limit, 10) : options.limit || 10
-	const page = typeof options.page === "string" ? parseInt(options.page, 10) : options.page || 1
-	const startIndex = (page - 1) * limit
-	const recentTasks = sortedHistory.slice(startIndex, startIndex + limit)
+	const initialPage = typeof options.page === "string" ? parseInt(options.page, 10) : options.page || 1
 	const totalCount = sortedHistory.length
 	const totalPages = Math.ceil(totalCount / limit)
 
-	if (recentTasks.length === 0) {
+	if (sortedHistory.length === 0) {
 		printInfo("No task history found.")
 		await ctx.controller.stateManager.flushPendingState()
 		await ctx.controller.dispose()
@@ -316,9 +314,10 @@ async function listHistory(options: { config?: string; limit?: number; page?: nu
 	await runInkApp(
 		React.createElement(App, {
 			view: "history",
-			historyItems: recentTasks,
+			historyItems: [],
+			historyAllItems: sortedHistory,
 			controller: ctx.controller,
-			historyPagination: { page, totalPages, totalCount, limit },
+			historyPagination: { page: initialPage, totalPages, totalCount, limit },
 		}),
 		async () => {
 			await ctx.controller.stateManager.flushPendingState()
