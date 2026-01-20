@@ -15,7 +15,6 @@ export interface ChatSession {
 	awaitingApproval: boolean
 	awaitingInput: boolean
 	adapter: CliWebviewAdapter | null
-	// Yolo mode state
 	yoloMode: boolean
 	yoloFailureCount: number
 	yoloLastFailedAction: string | null
@@ -32,7 +31,6 @@ export function createSession(yoloMode = false): ChatSession {
 		awaitingApproval: false,
 		awaitingInput: false,
 		adapter: null,
-		// Yolo mode state
 		yoloMode,
 		yoloFailureCount: 0,
 		yoloLastFailedAction: null,

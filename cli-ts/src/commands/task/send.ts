@@ -9,7 +9,7 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Command } from "commander"
 import fs from "fs"
 import { CliWebviewAdapter } from "../../core/cli-webview-adapter.js"
-import { disposeEmbeddedController, getEmbeddedController } from "../../core/embedded-controller.js"
+import { disposeEmbeddedController, getControllerIfInitialized, getEmbeddedController } from "../../core/embedded-controller.js"
 import type { OutputFormatter } from "../../core/output/types.js"
 import type { CliConfig } from "../../types/config.js"
 import type { Logger } from "../../types/logger.js"
@@ -259,6 +259,21 @@ export function createTaskSendCommand(config: CliConfig, logger: Logger, formatt
 					formatter.info(`Switched to ${mode} mode`)
 				}
 
+				// Set up YOLO mode in Cline core settings if --yolo flag is set
+				// This enables the core to:
+				// 1. Modify system prompt to not ask followup questions
+				// 2. Auto-switch from Plan to Act mode
+				// 3. Auto-approve tools based on auto-approval settings
+				if (options.yolo) {
+					controller.stateManager.setGlobalState("yoloModeToggled", true)
+					// Increase mistake limit for autonomous operation (matches Go CLI behavior)
+					controller.stateManager.setGlobalState("maxConsecutiveMistakes", 6)
+					// Ensure we're in Act mode for autonomous execution (unless user explicitly chose a mode)
+					if (!mode) {
+						await controller.togglePlanActMode("act")
+					}
+				}
+
 				// Handle approve/deny for existing task
 				if (options.approve || options.deny) {
 					if (!controller.task) {
@@ -362,9 +377,23 @@ export function createTaskSendCommand(config: CliConfig, logger: Logger, formatt
 					)
 				}
 
+				// Reset yolo mode settings if they were enabled for this command
+				if (options.yolo) {
+					controller.stateManager.setGlobalState("yoloModeToggled", false)
+					controller.stateManager.setGlobalState("maxConsecutiveMistakes", 3)
+				}
+
 				await disposeEmbeddedController(logger)
 			} catch (error) {
 				formatter.error((error as Error).message)
+				// Reset yolo mode settings on error too
+				if (options.yolo) {
+					const controller = getControllerIfInitialized()
+					if (controller) {
+						controller.stateManager.setGlobalState("yoloModeToggled", false)
+						controller.stateManager.setGlobalState("maxConsecutiveMistakes", 3)
+					}
+				}
 				await disposeEmbeddedController(logger)
 				process.exit(1)
 			}

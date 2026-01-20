@@ -40,6 +40,16 @@ export function createTaskChatCommand(config: CliConfig, logger: Logger, formatt
 					await controller.togglePlanActMode(options.mode as "plan" | "act")
 				}
 
+				if (options.yolo) {
+					controller.stateManager.setGlobalState("yoloModeToggled", true)
+					// Increase mistake limit for autonomous operation (matches Go CLI behavior)
+					controller.stateManager.setGlobalState("maxConsecutiveMistakes", 6)
+					// Ensure we're in Act mode for autonomous execution (unless user explicitly chose Plan mode)
+					if (!options.mode) {
+						await controller.togglePlanActMode("act")
+					}
+				}
+
 				// Create chat session with yolo mode if specified
 				const session = createSession(options.yolo)
 

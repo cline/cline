@@ -312,6 +312,13 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 		formatter.raw("")
 		formatter.info("Chat session ended")
 
+		// Reset yolo mode settings if they were enabled for this session
+		if (session.yoloMode) {
+			controller.stateManager.setGlobalState("yoloModeToggled", false)
+			// Reset maxConsecutiveMistakes to default
+			controller.stateManager.setGlobalState("maxConsecutiveMistakes", 3)
+		}
+
 		// Stop listening and cleanup
 		session.adapter?.stopListening()
 		await disposeEmbeddedController(logger)
