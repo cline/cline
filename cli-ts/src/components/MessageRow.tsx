@@ -263,8 +263,23 @@ const SayMessageContent: React.FC<{ message: ClineMessage; verbose?: boolean }> 
 				</Text>
 			)
 
-		case "api_req_started":
-			return verbose ? <Text color="gray">API request started</Text> : null
+		case "api_req_started": {
+			const { cost, tokensOut, cacheWrites, cacheReads, tokensIn } = jsonParseSafe(text, {
+				cost: 0 as number,
+				tokensIn: 0 as number,
+				tokensOut: 0 as number,
+				cacheWrites: 0 as number,
+				cacheReads: 0 as number,
+			})
+			return verbose ? (
+				<Text dimColor>{text}</Text>
+			) : (
+				<Text dimColor>
+					Cost: {cost} | Tokens In: {tokensIn} | Tokens Out: {tokensOut} | Cache Writes: {cacheWrites} | Cache Reads:{" "}
+					{cacheReads}
+				</Text>
+			)
+		}
 
 		case "api_req_finished":
 			return null
@@ -306,7 +321,7 @@ export const MessageRow: React.FC<MessageRowProps> = ({ message, verbose = false
 	const timestamp = formatTimestamp(message.ts)
 
 	// Don't render silent messages
-	if (message.say === "api_req_finished" || message.say === "api_req_started") {
+	if (message.say === "api_req_finished") {
 		return null
 	}
 
