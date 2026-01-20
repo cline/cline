@@ -16,6 +16,8 @@ import {
 	ArrowRightIcon,
 	BellIcon,
 	CheckIcon,
+	ChevronDownIcon,
+	ChevronRightIcon,
 	CircleSlashIcon,
 	CircleXIcon,
 	FileCode2Icon,
@@ -607,7 +609,7 @@ export const ChatRowContent = memo(
 											<div className="flex items-center mb-2">
 												<span className="font-bold mr-1">Summary:</span>
 												<div className="grow" />
-												<span className="codicon codicon-chevron-up my-0.5 shrink-0" />
+												<ChevronDownIcon className="my-0.5 shrink-0 size-4" />
 											</div>
 											<span className="ph-no-capture break-words whitespace-pre-wrap">{tool.content}</span>
 										</div>
@@ -616,7 +618,7 @@ export const ChatRowContent = memo(
 											<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis text-left flex-1 mr-2 [direction:rtl]">
 												{tool.content + "\u200E"}
 											</span>
-											<span className="codicon codicon-chevron-down my-0.5 shrink-0" />
+											<ChevronRightIcon className="my-0.5 shrink-0 size-4" />
 										</div>
 									)}
 								</div>

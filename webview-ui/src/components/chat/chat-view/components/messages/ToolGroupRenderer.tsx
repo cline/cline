@@ -1,6 +1,6 @@
 import { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
-import { ChevronDownIcon, ChevronUpIcon } from "lucide-react"
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import { memo, useCallback, useMemo, useState } from "react"
 import { ThinkingRow } from "@/components/chat/ThinkingRow"
 import { cleanPathPrefix } from "@/components/common/CodeAccordian"
@@ -110,9 +110,9 @@ export const ToolGroupRenderer = memo(({ messages, allMessages }: ToolGroupRende
 										size="icon"
 										variant="text">
 										{isExpanded.has(tool.ts) ? (
-											<ChevronUpIcon className="!size-1 text-foreground" />
-										) : (
 											<ChevronDownIcon className="!size-1 text-foreground" />
+										) : (
+											<ChevronRightIcon className="!size-1 text-foreground" />
 										)}
 									</Button>
 								)}

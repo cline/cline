@@ -1,4 +1,4 @@
-import { ChevronDownIcon, ChevronUpIcon } from "lucide-react"
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -42,11 +42,11 @@ export const ThinkingRow = memo(({ showTitle = false, reasoningContent, isVisibl
 					className="inline-flex justify-baseline gap-0.5 text-left select-none cursor-pointer px-0 w-full"
 					onClick={onToggle}
 					variant="icon">
-					<span className="">Thinking</span>
+					<span style={{ borderBottom: isExpanded ? "none" : "1px dotted rgba(255, 255, 255, 0.3)" }}>Reasoning</span>
 					{isExpanded ? (
-						<ChevronUpIcon className="!size-1 text-foreground" />
-					) : (
 						<ChevronDownIcon className="!size-1 text-foreground" />
+					) : (
+						<ChevronRightIcon className="!size-1 text-foreground" />
 					)}
 				</Button>
 			) : null}
