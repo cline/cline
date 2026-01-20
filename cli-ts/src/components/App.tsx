@@ -10,8 +10,9 @@ import { AuthView } from "./AuthView"
 import { ConfigView } from "./ConfigView"
 import { HistoryView } from "./HistoryView"
 import { TaskView } from "./TaskView"
+import { WelcomeView } from "./WelcomeView"
 
-export type ViewType = "task" | "history" | "config" | "auth"
+export type ViewType = "task" | "history" | "config" | "auth" | "welcome"
 
 interface HistoryPagination {
 	page: number
@@ -41,6 +42,9 @@ interface AppProps {
 		modelid?: string
 		baseurl?: string
 	}
+	// For welcome view
+	onWelcomeSubmit?: (prompt: string) => void
+	onWelcomeExit?: () => void
 }
 
 export const App: React.FC<AppProps> = ({
@@ -56,6 +60,8 @@ export const App: React.FC<AppProps> = ({
 	globalState = {},
 	workspaceState = {},
 	authQuickSetup,
+	onWelcomeSubmit,
+	onWelcomeExit,
 }) => {
 	const [currentView, setCurrentView] = useState<ViewType>(initialView)
 	const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(taskId)
@@ -93,6 +99,10 @@ export const App: React.FC<AppProps> = ({
 
 		case "auth":
 			content = <AuthView controller={controller} onComplete={onComplete} onError={onError} quickSetup={authQuickSetup} />
+			break
+
+		case "welcome":
+			content = <WelcomeView onExit={onWelcomeExit} onSubmit={onWelcomeSubmit || (() => {})} />
 			break
 
 		default:
