@@ -74,47 +74,6 @@
 			"duration": 49
 		},
 		{
-			"requestId": "68dd4b35-f839-4831-a192-a00f46fabfde",
-			"service": "cline.TaskService",
-			"method": "clearTask",
-			"isStreaming": false,
-			"request": {
-				"message": {}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": false
-			},
-			"response": {
-				"message": {}
-			},
-			"duration": 2
-		},
-		{
-			"requestId": "6633a706-366d-49d5-a3f4-4589131bdc5c",
-			"service": "cline.TaskService",
-			"method": "newTask",
-			"isStreaming": false,
-			"request": {
-				"message": {
-					"text": "edit_request",
-					"images": [],
-					"files": []
-				}
-			},
-			"status": "completed",
-			"meta": {
-				"synthetic": false,
-				"expected": {}
-			},
-			"response": {
-				"message": {
-					"value": "1768820538064"
-				}
-			},
-			"duration": 49
-		},
-		{
 			"requestId": "6633a706-366d-49d5-a3f4-4589131bdc5c",
 			"service": "cline.StateService",
 			"method": "getLatestState",
