@@ -16,7 +16,7 @@ interface MessageRowProps {
 /**
  * Get emoji icon for message type
  */
-function getMessageIcon(message: ClineMessage): string {
+export function getCliMessagePrefixIcon(message: ClineMessage): string {
 	if (message.type === "ask") {
 		switch (message.ask) {
 			case "followup":
@@ -114,7 +114,7 @@ const AskMessageContent: React.FC<{ message: ClineMessage; verbose?: boolean }> 
 			if (parts.question) {
 				return (
 					<Text>
-						<Text color="cyan">Question:</Text> {parts.question}
+						<Text color="cyan"> Question:</Text> {parts.question}
 					</Text>
 				)
 			}
@@ -131,28 +131,28 @@ const AskMessageContent: React.FC<{ message: ClineMessage; verbose?: boolean }> 
 		case "command":
 			return (
 				<Text>
-					<Text color="magenta">Execute command?</Text> <Text dimColor>{text}</Text>
+					<Text color="magenta"> Execute command?</Text> <Text dimColor>{text}</Text>
 				</Text>
 			)
 
 		case "tool":
 			return (
 				<Text>
-					<Text color="blue">Use tool?</Text> {text}
+					<Text color="blue"> Use tool?</Text> {text}
 				</Text>
 			)
 
 		case "completion_result":
 			return (
 				<Text>
-					<Text color="green">Task completed</Text> {text ? `- ${text}` : ""}
+					<Text color="green"> Task completed</Text> {text ? `- ${text}` : ""}
 				</Text>
 			)
 
 		case "api_req_failed":
 			return (
 				<Text>
-					<Text color="red">API request failed</Text> {text}
+					<Text color="red"> API request failed</Text> {text}
 				</Text>
 			)
 
@@ -160,21 +160,21 @@ const AskMessageContent: React.FC<{ message: ClineMessage; verbose?: boolean }> 
 		case "resume_completed_task":
 			return (
 				<Text>
-					<Text color="cyan">Resume task?</Text> {text}
+					<Text color="cyan"> Resume task?</Text> {text}
 				</Text>
 			)
 
 		case "browser_action_launch":
 			return (
 				<Text>
-					<Text color="cyan">Launch browser?</Text> {text}
+					<Text color="cyan"> Launch browser?</Text> {text}
 				</Text>
 			)
 
 		case "use_mcp_server":
 			return (
 				<Text>
-					<Text color="cyan">Use MCP server?</Text> {text}
+					<Text color="cyan"> Use MCP server?</Text> {text}
 				</Text>
 			)
 
@@ -302,7 +302,7 @@ const SayMessageContent: React.FC<{ message: ClineMessage; verbose?: boolean }> 
 }
 
 export const MessageRow: React.FC<MessageRowProps> = ({ message, verbose = false }) => {
-	const icon = getMessageIcon(message)
+	const icon = getCliMessagePrefixIcon(message)
 	const timestamp = formatTimestamp(message.ts)
 
 	// Don't render silent messages

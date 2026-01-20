@@ -41,7 +41,7 @@ export const useCompletedAskMessages = () => {
 
 		for (let i = 0; i < state.clineMessages.length; i++) {
 			const message = state.clineMessages[i]
-			if (message.type === "ask" && message.partial === false && !processed.processedAskMessages.has(i)) {
+			if (message.type === "ask" && !message.partial && !processed.processedAskMessages.has(i)) {
 				completedAsks.push(message)
 				processed.processedAskMessages.add(i)
 			}
@@ -68,7 +68,7 @@ export const useLastCompletedAskMessage = () => {
 		// Find the last ask message that is complete
 		for (let i = state.clineMessages.length - 1; i >= 0; i--) {
 			const message = state.clineMessages[i]
-			if (message.type === "ask" && message.partial === false) {
+			if (message.type === "ask" && !message.partial) {
 				return message
 			}
 		}
@@ -134,7 +134,7 @@ export const useIsSpinnerActive = (): boolean => {
 
 	// If the last message is a completed ask message, don't show spinner (waiting for user input)
 	const lastMessage = state.clineMessages[state.clineMessages.length - 1]
-	if (lastMessage?.type === "ask" && lastMessage.partial === false) {
+	if (lastMessage?.type === "ask" && !lastMessage.partial) {
 		return false
 	}
 

@@ -9,6 +9,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react"
 import { useTaskController } from "../context/TaskContext"
 import { useLastCompletedAskMessage } from "../hooks/useStateSubscriber"
 import { jsonParseSafe } from "../utils"
+import { getCliMessagePrefixIcon } from "./MessageRow"
 
 interface AskPromptProps {
 	onRespond?: (response: string) => void
@@ -126,6 +127,7 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 	const ask = lastAskMessage.ask as ClineAsk
 	const text = lastAskMessage.text || ""
 	const promptType = getPromptType(ask, text)
+	const icon = getCliMessagePrefixIcon(lastAskMessage)
 
 	if (promptType === "none") {
 		return null
@@ -156,6 +158,7 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 			return (
 				<Box flexDirection="column" marginTop={1}>
 					<Box>
+						<Text>{icon} </Text>
 						<Text color="cyan">Reply: </Text>
 						<Text>{textInput}</Text>
 						<Text color="gray">▌</Text>
@@ -171,7 +174,8 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 			return (
 				<Box flexDirection="column" marginTop={1}>
 					<Box>
-						<Text color="yellow">⚙️ Execute this command? </Text>
+						<Text>{icon} </Text>
+						<Text color="yellow"> Execute this command? </Text>
 						<Text color="gray">(y/n)</Text>
 					</Box>
 				</Box>
@@ -181,7 +185,8 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 			return (
 				<Box flexDirection="column" marginTop={1}>
 					<Box>
-						<Text color="blue">🔧 Use this tool? </Text>
+						<Text>{icon} </Text>
+						<Text color="blue"> Use this tool? </Text>
 						<Text color="gray">(y/n)</Text>
 					</Box>
 				</Box>
@@ -191,7 +196,8 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 			return (
 				<Box flexDirection="column" marginTop={1}>
 					<Box>
-						<Text color="green">✅ Task completed. Confirm? </Text>
+						<Text>{icon} </Text>
+						<Text color="green"> Task completed. Confirm? </Text>
 						<Text color="gray">(y/n)</Text>
 					</Box>
 				</Box>
@@ -202,7 +208,8 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 			return (
 				<Box flexDirection="column" marginTop={1}>
 					<Box>
-						<Text color="cyan">▶️ Resume task? </Text>
+						<Text>{icon} </Text>
+						<Text color="cyan"> Resume task? </Text>
 						<Text color="gray">(y/n)</Text>
 					</Box>
 				</Box>
@@ -212,7 +219,8 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 			return (
 				<Box flexDirection="column" marginTop={1}>
 					<Box>
-						<Text color="cyan">🌐 Launch browser? </Text>
+						<Text>{icon} </Text>
+						<Text color="cyan"> Launch browser? </Text>
 						<Text color="gray">(y/n)</Text>
 					</Box>
 				</Box>
@@ -222,7 +230,8 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 			return (
 				<Box flexDirection="column" marginTop={1}>
 					<Box>
-						<Text color="cyan">🔌 Use MCP server? </Text>
+						<Text>{icon} </Text>
+						<Text color="cyan"> Use MCP server? </Text>
 						<Text color="gray">(y/n)</Text>
 					</Box>
 				</Box>
