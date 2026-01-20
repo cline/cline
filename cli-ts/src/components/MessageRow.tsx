@@ -6,7 +6,7 @@
 import type { ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
 import { Box, Text } from "ink"
 import React from "react"
-import { jsonParseSafe } from "../utils"
+import { jsonParseSafe } from "../utils/parser"
 import { DiffView } from "./DiffView"
 
 interface MessageRowProps {

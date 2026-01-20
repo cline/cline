@@ -8,7 +8,7 @@ import { Box, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { useTaskController } from "../context/TaskContext"
 import { useLastCompletedAskMessage } from "../hooks/useStateSubscriber"
-import { jsonParseSafe } from "../utils"
+import { jsonParseSafe } from "../utils/parser"
 import { getCliMessagePrefixIcon } from "./MessageRow"
 
 interface AskPromptProps {

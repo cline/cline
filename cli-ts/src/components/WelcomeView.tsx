@@ -7,7 +7,6 @@
 import { Box, Text, useInput } from "ink"
 import React, { useEffect, useMemo, useRef, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
-import { parseImagesFromInput } from "../utils"
 import {
 	checkAndWarnRipgrepMissing,
 	extractMentionQuery,
@@ -16,6 +15,7 @@ import {
 	insertMention,
 	searchWorkspaceFiles,
 } from "../utils/file-search"
+import { parseImagesFromInput } from "../utils/parser"
 import { AccountInfoView } from "./AccountInfoView"
 import { FileMentionMenu } from "./FileMentionMenu"
 

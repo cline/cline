@@ -11,7 +11,7 @@ import type {
 } from "@generated/hosts/host-bridge-client-types"
 import type { HostBridgeClientProvider, StreamingCallbacks } from "@hosts/host-provider-types"
 import * as proto from "@shared/proto/index"
-import { printError, printInfo, printWarning } from "./display"
+import { printError, printInfo, printWarning } from "../utils/display"
 
 /**
  * CLI implementation of DiffService - handles diff operations for terminal
