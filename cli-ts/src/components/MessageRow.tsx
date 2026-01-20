@@ -114,7 +114,7 @@ const AskMessageContent: React.FC<{ message: ClineMessage; verbose?: boolean }> 
 			if (parts.question) {
 				return (
 					<Text>
-						<Text color="cyan"> Question:</Text> {parts.question}
+						<Text color="cyan">Question:</Text> {parts.question}
 					</Text>
 				)
 			}
@@ -131,28 +131,28 @@ const AskMessageContent: React.FC<{ message: ClineMessage; verbose?: boolean }> 
 		case "command":
 			return (
 				<Text>
-					<Text color="magenta"> Execute command?</Text> <Text dimColor>{text}</Text>
+					<Text color="magenta">Execute command?</Text> <Text dimColor>{text}</Text>
 				</Text>
 			)
 
 		case "tool":
 			return (
 				<Text>
-					<Text color="blue"> Use tool?</Text> {text}
+					<Text color="blue">Use tool?</Text> {text}
 				</Text>
 			)
 
 		case "completion_result":
 			return (
 				<Text>
-					<Text color="green"> Task completed</Text> {text ? `- ${text}` : ""}
+					<Text color="green">Task completed</Text> {text ? `- ${text}` : ""}
 				</Text>
 			)
 
 		case "api_req_failed":
 			return (
 				<Text>
-					<Text color="red"> API request failed</Text> {text}
+					<Text color="red">API request failed</Text> {text}
 				</Text>
 			)
 
@@ -160,21 +160,21 @@ const AskMessageContent: React.FC<{ message: ClineMessage; verbose?: boolean }> 
 		case "resume_completed_task":
 			return (
 				<Text>
-					<Text color="cyan"> Resume task?</Text> {text}
+					<Text color="cyan">Resume task?</Text> {text}
 				</Text>
 			)
 
 		case "browser_action_launch":
 			return (
 				<Text>
-					<Text color="cyan"> Launch browser?</Text> {text}
+					<Text color="cyan">Launch browser?</Text> {text}
 				</Text>
 			)
 
 		case "use_mcp_server":
 			return (
 				<Text>
-					<Text color="cyan"> Use MCP server?</Text> {text}
+					<Text color="cyan">Use MCP server?</Text> {text}
 				</Text>
 			)
 
@@ -207,8 +207,8 @@ const SayMessageContent: React.FC<{ message: ClineMessage; verbose?: boolean }> 
 
 		case "reasoning":
 			return (
-				<Text dimColor>
-					<Text italic>Thinking:</Text> {text}
+				<Text color="yellow">
+					<Text italic>{text}</Text>
 				</Text>
 			)
 
@@ -318,12 +318,14 @@ export const MessageRow: React.FC<MessageRowProps> = ({ message, verbose = false
 		<Box flexDirection="column">
 			<Box>
 				<Text dimColor>{timestamp} </Text>
-				<Text>{icon} </Text>
-				{message.type === "ask" ? (
-					<AskMessageContent message={message} verbose={verbose} />
-				) : (
-					<SayMessageContent message={message} verbose={verbose} />
-				)}
+				<Text>
+					{icon}{" "}
+					{message.type === "ask" ? (
+						<AskMessageContent message={message} verbose={verbose} />
+					) : (
+						<SayMessageContent message={message} verbose={verbose} />
+					)}
+				</Text>
 			</Box>
 		</Box>
 	)
