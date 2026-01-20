@@ -1,9 +1,10 @@
 import { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
+import { ChevronDownIcon, ChevronUpIcon } from "lucide-react"
 import { memo, useCallback, useMemo, useState } from "react"
+import { ThinkingRow } from "@/components/chat/ThinkingRow"
 import { cleanPathPrefix } from "@/components/common/CodeAccordian"
 import { Button } from "@/components/ui/button"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
 import { getIconByToolName, getToolsNotInCurrentActivities, isLowStakesTool } from "../../utils/messageUtils"
@@ -27,6 +28,7 @@ const EXPANDABLE_TOOLS = new Set(["listFilesTopLevel", "listFilesRecursive", "li
  */
 export const ToolGroupRenderer = memo(({ messages, allMessages }: ToolGroupRendererProps) => {
 	const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({})
+	const [isExpanded, setIsExpanded] = useState(new Set<number>())
 
 	// Filter out tools in the "current activities" range (being shown in loading state)
 	const filteredMessages = useMemo(() => getToolsNotInCurrentActivities(messages, allMessages), [messages, allMessages])
@@ -46,15 +48,27 @@ export const ToolGroupRenderer = memo(({ messages, allMessages }: ToolGroupRende
 		setExpandedItems((prev) => ({ ...prev, [ts]: !prev[ts] }))
 	}, [])
 
+	const handleThinkingToggle = useCallback((ts: number) => {
+		setIsExpanded((prev) => {
+			const newSet = new Set(prev)
+			if (newSet.has(ts)) {
+				newSet.delete(ts)
+			} else {
+				newSet.add(ts)
+			}
+			return newSet
+		})
+	}, [])
+
 	// Don't render if no PAST tools to show
 	if (toolsWithReasoning.length === 0) {
 		return null
 	}
 
 	return (
-		<div className={cn("px-4 py-2 text-description")}>
+		<div className={cn("px-4 py-2 ml-1 text-description")}>
 			{/* Header */}
-			<div className="text-[13px] opacity-90 mb-1">{summary}:</div>
+			<div className="text-[13px] text-foreground mb-1">{summary}:</div>
 
 			{/* Content - files/folders with reasoning in tooltip */}
 			<div className="min-w-0">
@@ -71,27 +85,45 @@ export const ToolGroupRenderer = memo(({ messages, allMessages }: ToolGroupRende
 
 					return (
 						<div className="min-w-0" key={tool.ts}>
-							<Tooltip>
-								<TooltipTrigger asChild>
+							<Button
+								className="flex items-center gap-1.5 cursor-pointer text-[13px] text-description py-0.5 hover:text-link min-w-0 max-w-full px-0"
+								onClick={() => (isExpandable ? handleItemToggle(tool.ts) : handleOpenFile(info.path))}
+								size="icon"
+								variant="text">
+								<info.icon className="opacity-70 shrink-0 size-[13px]" />
+								<span
+									className={cn(
+										"flex-1 min-w-0 whitespace-nowrap overflow-hidden text-ellipsis text-left [direction:rtl] text-[13px]",
+										{
+											"[direction:ltr]": !!info.displayText,
+										},
+									)}>
+									{(info.displayText || cleanPathPrefix(info.path)) + "\u200E"}
+								</span>{" "}
+								{hasReasoning && (
 									<Button
 										className="flex items-center gap-1.5 cursor-pointer text-[13px] text-description py-0.5 hover:text-link min-w-0 max-w-full px-0"
-										onClick={() => (isExpandable ? handleItemToggle(tool.ts) : handleOpenFile(info.path))}
+										onClick={(e) => {
+											e.stopPropagation()
+											handleThinkingToggle(tool.ts)
+										}}
 										size="icon"
 										variant="text">
-										<info.icon className="opacity-70 shrink-0 size-[13px]" />
-										<span
-											className={cn(
-												"flex-1 min-w-0 whitespace-nowrap overflow-hidden text-ellipsis text-left [direction:rtl] text-[13px]",
-												{
-													"[direction:ltr]": !!info.displayText,
-												},
-											)}>
-											{(info.displayText || cleanPathPrefix(info.path)) + "\u200E"}
-										</span>
+										{isExpanded.has(tool.ts) ? (
+											<ChevronUpIcon className="!size-1 text-foreground" />
+										) : (
+											<ChevronDownIcon className="!size-1 text-foreground" />
+										)}
 									</Button>
-								</TooltipTrigger>
-								{hasReasoning && <TooltipContent side="bottom">{reasoning}</TooltipContent>}
-							</Tooltip>
+								)}
+							</Button>
+							<ThinkingRow
+								isExpanded={isExpanded.has(tool.ts)}
+								isVisible={hasReasoning}
+								onToggle={handleThinkingToggle.bind(null, tool.ts)}
+								reasoningContent={reasoning}
+								showTitle={false}
+							/>
 							{/* Expanded content for folders/search/definitions - raw text */}
 							{isExpandable && isItemExpanded && content && (
 								<pre className="m-1 ml-4 text-xs opacity-80 whitespace-pre-wrap break-words p-2 max-h-40 overflow-auto rounded-xs">

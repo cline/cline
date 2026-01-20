@@ -176,7 +176,7 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 							</div>
 						) : (
 							<TypewriterText
-								text={message.partial !== false ? (mode === "plan" ? "Planning..." : "Thinking...") : ""}
+								text={message.partial !== false ? (mode === "plan" ? "Planning..." : "Working...") : ""}
 							/>
 						)}
 					</div>
