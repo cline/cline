@@ -198,7 +198,8 @@ const cliConfig = {
 	},
 	// These modules need to load files from the module directory at runtime,
 	// so they cannot be bundled. Note: vscode is handled by vscodeShimPlugin
-	external: ["@grpc/reflection", "grpc-health-check", "better-sqlite3"],
+	// @vscode/ripgrep provides platform-specific binaries that must be resolved at runtime
+	external: ["@grpc/reflection", "grpc-health-check", "better-sqlite3", "@vscode/ripgrep"],
 }
 
 /**

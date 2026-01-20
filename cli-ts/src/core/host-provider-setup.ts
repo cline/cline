@@ -1,6 +1,6 @@
 import { ExternalCommentReviewController } from "@hosts/external/ExternalCommentReviewController"
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
-import path from "path"
+import { execSync } from "child_process"
 import type { ExtensionContext } from "vscode"
 import type { WebviewProvider } from "@/core/webview"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
@@ -46,7 +46,28 @@ export function setupHostProvider(
 	}
 
 	const getBinaryLocation = async (name: string): Promise<string> => {
-		return path.join(process.cwd(), name)
+		// For ripgrep, use the bundled @vscode/ripgrep package
+		if (name === "rg") {
+			try {
+				// Dynamic import to handle the external module
+				const { rgPath } = await import("@vscode/ripgrep")
+				return rgPath
+			} catch {
+				// Fallback to system ripgrep if @vscode/ripgrep is not available
+				try {
+					return execSync("which rg", { encoding: "utf-8" }).trim()
+				} catch {
+					throw new Error("ripgrep (rg) not found. Please install it via 'brew install ripgrep' or equivalent.")
+				}
+			}
+		}
+
+		// For other binaries, try to find them in PATH
+		try {
+			return execSync(`which ${name}`, { encoding: "utf-8" }).trim()
+		} catch {
+			throw new Error(`Binary '${name}' not found in PATH.`)
+		}
 	}
 
 	const logToChannel = (message: string): void => {
