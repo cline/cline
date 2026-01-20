@@ -199,12 +199,18 @@ async function runTask(
 /**
  * List task history
  */
-async function listHistory(options: { config?: string; limit?: number }) {
+async function listHistory(options: { config?: string; limit?: number; page?: number }) {
 	const ctx = await initializeCli(options)
 
 	const taskHistory = StateManager.get().getGlobalStateKey("taskHistory") || []
-	const limit = options.limit || 10
-	const recentTasks = taskHistory.slice(0, limit).reverse()
+	// Sort by timestamp (newest first) before pagination
+	const sortedHistory = [...taskHistory].sort((a: any, b: any) => (b.ts || 0) - (a.ts || 0))
+	const limit = typeof options.limit === "string" ? parseInt(options.limit, 10) : options.limit || 10
+	const page = typeof options.page === "string" ? parseInt(options.page, 10) : options.page || 1
+	const startIndex = (page - 1) * limit
+	const recentTasks = sortedHistory.slice(startIndex, startIndex + limit)
+	const totalCount = sortedHistory.length
+	const totalPages = Math.ceil(totalCount / limit)
 
 	if (recentTasks.length === 0) {
 		printInfo("No task history found.")
@@ -215,7 +221,12 @@ async function listHistory(options: { config?: string; limit?: number }) {
 	}
 
 	await runInkApp(
-		React.createElement(App, { view: "history", historyItems: recentTasks, controller: ctx.controller }),
+		React.createElement(App, {
+			view: "history",
+			historyItems: recentTasks,
+			controller: ctx.controller,
+			historyPagination: { page, totalPages, totalCount, limit },
+		}),
 		async () => {
 			await ctx.controller.stateManager.flushPendingState()
 			await ctx.controller.dispose()
@@ -311,6 +322,7 @@ program
 	.alias("h")
 	.description("List task history")
 	.option("-n, --limit <number>", "Number of tasks to show", "10")
+	.option("-p, --page <number>", "Page number (1-based)", "1")
 	.option("--config <path>", "Path to Cline configuration directory")
 	.action(listHistory)
 

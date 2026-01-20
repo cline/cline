@@ -13,6 +13,13 @@ import { TaskView } from "./TaskView"
 
 export type ViewType = "task" | "history" | "config" | "auth"
 
+interface HistoryPagination {
+	page: number
+	totalPages: number
+	totalCount: number
+	limit: number
+}
+
 interface AppProps {
 	view: ViewType
 	taskId?: string
@@ -22,6 +29,7 @@ interface AppProps {
 	onError?: () => void
 	// For history view
 	historyItems?: Array<{ id: string; ts: number; task?: string; totalCost?: number; modelId?: string }>
+	historyPagination?: HistoryPagination
 	// For config view
 	dataDir?: string
 	globalState?: Record<string, any>
@@ -43,6 +51,7 @@ export const App: React.FC<AppProps> = ({
 	onComplete,
 	onError,
 	historyItems = [],
+	historyPagination,
 	dataDir = "",
 	globalState = {},
 	workspaceState = {},
@@ -68,7 +77,14 @@ export const App: React.FC<AppProps> = ({
 			break
 
 		case "history":
-			content = <HistoryView controller={controller} items={historyItems} onSelectTask={handleSelectTask} />
+			content = (
+				<HistoryView
+					controller={controller}
+					items={historyItems}
+					onSelectTask={handleSelectTask}
+					pagination={historyPagination}
+				/>
+			)
 			break
 
 		case "config":

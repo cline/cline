@@ -17,11 +17,19 @@ interface TaskHistoryItem {
 	modelId?: string
 }
 
+interface HistoryPagination {
+	page: number
+	totalPages: number
+	totalCount: number
+	limit: number
+}
+
 interface HistoryViewProps {
 	items: TaskHistoryItem[]
 	visibleCount?: number
 	controller: Controller
 	onSelectTask?: (taskId: string) => void
+	pagination?: HistoryPagination
 }
 
 /**
@@ -31,7 +39,7 @@ function formatSeparator(char: string = "─", width: number = 80): string {
 	return char.repeat(Math.max(width, 10))
 }
 
-export const HistoryView: React.FC<HistoryViewProps> = ({ items, visibleCount = 10, controller, onSelectTask }) => {
+export const HistoryView: React.FC<HistoryViewProps> = ({ items, visibleCount = 10, controller, onSelectTask, pagination }) => {
 	const [selectedIndex, setSelectedIndex] = useState(0)
 
 	const onSelect = useCallback(
@@ -69,12 +77,21 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ items, visibleCount = 
 	const showUpIndicator = startIndex > 0
 	const showDownIndicator = endIndex < items.length
 
+	const totalCount = pagination?.totalCount ?? items.length
+	const currentPage = pagination?.page ?? 1
+	const totalPages = pagination?.totalPages ?? 1
+
 	return (
 		<Box flexDirection="column">
 			<Text bold color="white">
-				{"📜 Task History (" + items.length + " total)"}
+				{"📜 Task History (" + totalCount + " total)"}
 			</Text>
 			<Text dimColor>Use arrow keys to navigate, Enter to select</Text>
+			{totalPages > 1 && (
+				<Text dimColor>
+					Page {currentPage} of {totalPages} (use --page N to navigate)
+				</Text>
+			)}
 			<Text>{formatSeparator()}</Text>
 
 			{items.length === 0 ? (
