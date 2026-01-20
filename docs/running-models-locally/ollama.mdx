@@ -73,16 +73,24 @@ Open VS Code and configure Cline:
 
 ### Recommended Models
 
-For the best experience with Cline, use **Qwen3 Coder 30B**. This model provides strong coding capabilities and reliable tool use for local development.
+For the best experience with Cline, use models with strong coding capabilities. Here are some currently available options:
 
-To download it:
+**For coding tasks:**
+- `qwen2.5-coder:32b` - Excellent coding performance with 32K context
+- `deepseek-coder:6.7b` - Lightweight code-specialized model
+- `codellama:13b-code` - Good balance of performance and size
+
+**For general tasks:**
+- `llama3.1:8b` - Well-rounded general purpose model
+- `mistral:7b` - Good performance and speed
+- `qwen2.5:7b` - Strong general capabilities
+
+To download a model:
 ```bash
-ollama run qwen3-coder-30b
+ollama run qwen2.5-coder:32b
 ```
 
-Other capable models include:
-- `mistral-small` - Good balance of performance and speed
-- `devstral-small` - Optimized for coding tasks
+Browse available models at [ollama.com/search](https://ollama.com/search)
 
 ### Important Notes
 
