@@ -192,3 +192,11 @@ const isGenerating = explanationInfo.status === "generating" && !wasCancelled
 **See also:** `BrowserSessionRow.tsx` uses similar pattern with `isLastApiReqInterrupted` and `isLastMessageResume`.
 
 **Backend side:** When streaming is cancelled, clean up properly (close tabs, clear comments, etc.) by checking `taskState.abort` after the streaming function returns.
+
+## Accessibility Utilities
+When adding interactive elements to the webview, use these utilities in `webview-ui/src/utils/`:
+
+- `interactiveProps.ts` - Button prop factories (`createBaseButtonProps`, `createModalTriggerButtonProps`, `createIconButtonProps`) and style helpers (`createButtonStyle`)
+- `types/interactive.ts` - TypeScript interfaces and `InteractiveStyles` presets
+
+**Pattern:** Prefer real `<button>` elements over `<div role="button">`. The utilities handle ARIA attributes automatically.
