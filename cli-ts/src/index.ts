@@ -129,6 +129,9 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 	// works, checkpoints should too.
 	StateManager.get().setGlobalState("enableCheckpointsSetting", false)
 
+	// Disable browser tool in CLI - it shows screenshots which can't be displayed in terminal
+	StateManager.get().setGlobalState("browserSettings", { disableToolUse: true })
+
 	const webview = HostProvider.get().createWebviewProvider() as CliWebviewProvider
 	const controller = webview.controller
 
