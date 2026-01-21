@@ -25,6 +25,7 @@ export class NotebookDiffView {
 		// Check if Jupyter extension is available
 		const jupyterExtension = vscode.extensions.getExtension("ms-toolsai.jupyter")
 		if (!jupyterExtension) {
+			vscode.window.showErrorMessage("Jupyter extension is required for notebook diffs.")
 			return
 		}
 
