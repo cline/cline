@@ -35,8 +35,22 @@ export interface PersistenceErrorEvent {
 }
 
 /**
- * In-memory state manager for fast state access
- * Provides immediate reads/writes with async disk persistence
+ * In-memory state manager for fast state access.
+ * Provides immediate reads/writes with async disk persistence.
+ *
+ * MULTI-INSTANCE BEHAVIOR:
+ * StateManager reads from disk ONLY during initialize(). After that, all reads come from
+ * the in-memory cache. Writes update both the cache and disk, but other running instances
+ * won't see those changes because they don't re-read from disk.
+ *
+ * This means: If you have multiple VS Code windows open, each has its own StateManager
+ * instance with its own cache. Changing a setting (like plan/act mode) in Window A writes
+ * to disk, but Window B keeps using its cached value. Window B only sees the change after
+ * restart (when it re-initializes from disk).
+ *
+ * This is intentional for performance (avoids constant disk reads) and provides natural
+ * isolation between concurrent instances. Task-specific state is independent anyway since
+ * each window typically runs different tasks.
  */
 export class StateManager {
 	private static instance: StateManager | null = null
