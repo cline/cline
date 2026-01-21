@@ -110,28 +110,6 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 	await ErrorService.initialize()
 	await StateManager.initialize(extensionContext)
 
-	// Disable checkpoints in CLI - the shadow git system is problematic for CLI usage
-	// (creates shadow gits for every directory, storage concerns, etc.)
-	//
-	// Why this approach is safe:
-	// The WebviewProvider constructor just creates a Controller - no tasks are created and no
-	// checkpoint settings are read at that point. Tasks are only created later when
-	// controller.initTask() is called.
-	//
-	// The flow is:
-	// 1. StateManager.initialize() - loads any persisted state
-	// 2. setGlobalState("enableCheckpointsSetting", false) - updates cache immediately
-	// 3. CliWebviewProvider() -> Controller() - no tasks, no checkpoint reads
-	// 4. ... later in runTask() ...
-	// 5. controller.initTask() -> creates Task -> buildCheckpointManager() reads setting from cache (gets false)
-	//
-	// The yolo mode flag uses the exact same pattern (setGlobalState then use later), so if that
-	// works, checkpoints should too.
-	StateManager.get().setGlobalState("enableCheckpointsSetting", false)
-
-	// Disable browser tool in CLI - it shows screenshots which can't be displayed in terminal
-	StateManager.get().setGlobalState("browserSettings", { disableToolUse: true })
-
 	const webview = HostProvider.get().createWebviewProvider() as CliWebviewProvider
 	const controller = webview.controller
 
@@ -242,6 +220,7 @@ async function runTask(
 	const currentMode = StateManager.get().getGlobalSettingsKey("mode") || "act"
 	const thinkingKey = currentMode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
 	StateManager.get().setGlobalState(thinkingKey, thinkingBudget)
+
 	// Set yolo mode based on --yolo flag
 	if (options.yolo) {
 		StateManager.get().setGlobalState("yoloModeToggled", true)

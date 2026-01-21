@@ -82,6 +82,7 @@ import {
 } from "@/integrations/terminal"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
 import { telemetryService } from "@/services/telemetry"
+import { ClineClient } from "@/shared/clients"
 import {
 	ClineAssistantContent,
 	ClineContent,
@@ -1702,7 +1703,6 @@ export class Task {
 
 		const providerInfo = this.getCurrentProviderInfo()
 		const ide = (await HostProvider.env.getHostVersion({})).platform || "Unknown"
-		const isCliEnvironment = ide === "Cline CLI"
 		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
 		const disableBrowserTool = browserSettings.disableToolUse ?? false
 		// cline browser tool uses image recognition for navigation (requires model image support).
@@ -1803,7 +1803,7 @@ export class Task {
 			workspaceRoots,
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
-			isCliEnvironment,
+			isCliEnvironment: this.controller.context.name === ClineClient.Cli,
 			enableNativeToolCalls: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
 			terminalExecutionMode: this.terminalExecutionMode,
