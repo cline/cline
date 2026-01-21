@@ -4,8 +4,9 @@
  * Supports file mentions with @
  */
 
+import type { Mode } from "@shared/storage/types"
 import { Box, Text, useInput } from "ink"
-import React, { useEffect, useMemo, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import {
 	checkAndWarnRipgrepMissing,
@@ -25,7 +26,26 @@ interface WelcomeViewProps {
 	controller?: any
 }
 
-const SEPARATOR = "─".repeat(60)
+// ASCII art Cline logo
+const CLINE_LOGO = [
+	"            :::::::            ",
+	"           :::::::::           ",
+	"       :::::::::::::::::       ",
+	"    :::::::::::::::::::::::    ",
+	"   :::::::::::::::::::::::::   ",
+	"  :::::::::::::::::::::::::::  ",
+	"  :::::::   :::::::   :::::::  ",
+	" :::::::     :::::     ::::::: ",
+	"::::::::     :::::     ::::::::",
+	"::::::::     :::::     ::::::::",
+	" :::::::     :::::     ::::::: ",
+	"  :::::::   :::::::   :::::::  ",
+	"  :::::::::::::::::::::::::::  ",
+	"   :::::::::::::::::::::::::   ",
+	"    :::::::::::::::::::::::    ",
+	"       ::::::::::::::::       ",
+]
+
 const SEARCH_DEBOUNCE_MS = 150
 const RIPGREP_WARNING_DURATION_MS = 5000
 const MAX_SEARCH_RESULTS = 15
@@ -36,11 +56,25 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const [isSearching, setIsSearching] = useState(false)
 	const [showRipgrepWarning, setShowRipgrepWarning] = useState(false)
-
-	const mode = useMemo(() => {
+	const [escPressedOnce, setEscPressedOnce] = useState(false)
+	const [mode, setMode] = useState<Mode>(() => {
 		const stateManager = StateManager.get()
-		return stateManager.getGlobalSettingsKey("mode")
-	}, [])
+		return stateManager.getGlobalSettingsKey("mode") || "act"
+	})
+
+	// Get model ID based on current mode
+	const modelId = useMemo(() => {
+		const stateManager = StateManager.get()
+		const modelKey = mode === "act" ? "actModeApiModelId" : "planModeApiModelId"
+		return (stateManager.getGlobalSettingsKey(modelKey) as string) || "claude-sonnet-4-20250514"
+	}, [mode])
+
+	const toggleMode = useCallback(() => {
+		const newMode: Mode = mode === "act" ? "plan" : "act"
+		setMode(newMode)
+		const stateManager = StateManager.get()
+		stateManager.setGlobalState("mode", newMode)
+	}, [mode])
 
 	const refs = useRef({
 		searchTimeout: null as NodeJS.Timeout | null,
@@ -147,6 +181,10 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 		}
 
 		// Normal input handling
+		if (key.tab && !mentionInfo.inMentionMode) {
+			toggleMode()
+			return
+		}
 		if (key.return && !mentionInfo.inMentionMode) {
 			if (prompt.trim() || imagePaths.length > 0) {
 				onSubmit(prompt.trim(), imagePaths)
@@ -154,64 +192,98 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 			return
 		}
 		if (key.escape && !mentionInfo.inMentionMode) {
-			onExit?.()
+			if (escPressedOnce) {
+				onExit?.()
+			} else {
+				setEscPressedOnce(true)
+			}
 			return
 		}
 		if (key.backspace || key.delete) {
 			setTextInput((prev) => prev.slice(0, -1))
+			setEscPressedOnce(false)
 			return
 		}
 		if (input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow && !key.tab) {
 			setTextInput((prev) => prev + input)
+			setEscPressedOnce(false)
 		}
 	})
 
+	const borderColor = mode === "act" ? "blue" : "yellow"
+
 	return (
-		<Box flexDirection="column">
-			<Text bold color="cyan">
-				✻ Welcome to Cline
-			</Text>
-			<Text color="gray">{SEPARATOR}</Text>
+		<Box flexDirection="column" width="100%">
+			{/* Account/Provider info at top */}
 			{controller && (
-				<Box marginTop={1}>
+				<Box marginBottom={1}>
 					<AccountInfoView controller={controller} />
 				</Box>
 			)}
+
+			{/* Cline logo - centered */}
+			<Box alignItems="center" flexDirection="column">
+				{CLINE_LOGO.map((line) => (
+					<Text color="white" key={line}>
+						{line}
+					</Text>
+				))}
+			</Box>
+
+			{/* Main prompt - centered, bold */}
+			<Box justifyContent="center" marginTop={1}>
+				<Text bold color="white">
+					What can I do for you?
+				</Text>
+			</Box>
+
+			{/* Ripgrep warning if needed */}
 			{showRipgrepWarning && (
-				<Box
-					borderColor="yellow"
-					borderStyle="single"
-					flexDirection="column"
-					marginTop={1}
-					paddingLeft={1}
-					paddingRight={1}>
-					<Text color="yellow">⚠ ripgrep (rg) not found - file search will be slower</Text>
-					<Text color="gray">Install with: {getRipgrepInstallInstructions()}</Text>
+				<Box marginTop={1}>
+					<Text color="yellow">⚠ ripgrep not found - file search will be slower. </Text>
+					<Text color="gray">Install: {getRipgrepInstallInstructions()}</Text>
 				</Box>
 			)}
-			<Text> </Text>
-			<Box flexDirection="column" marginTop={1}>
-				<Text color="cyan">┃ [{mode} mode] What would you like Cline to help you with?</Text>
 
-				<Box>
-					<Text color="green">&gt; </Text>
-					<Text>{textInput}</Text>
-					<Text color="gray">▌</Text>
-				</Box>
-				{imagePaths.length > 0 && (
-					<Box flexDirection="column" marginTop={1}>
-						<Text color="magenta">📎 Images: {imagePaths.length}</Text>
-						{imagePaths.map((p, i) => (
-							<Text color="gray" dimColor key={i}>
-								{p}
-							</Text>
-						))}
-					</Box>
-				)}
+			{/* Input field with border */}
+			<Box
+				borderColor={borderColor}
+				borderStyle="round"
+				flexDirection="row"
+				marginTop={1}
+				paddingLeft={1}
+				paddingRight={1}
+				width="100%">
+				<Text>{textInput}</Text>
+				<Text color="gray">▌</Text>
 			</Box>
-			<Text> </Text>
 
-			{/* File mention menu - show above the input */}
+			{/* Model ID and Mode toggle row */}
+			<Box justifyContent="space-between" width="100%">
+				{/* Model ID on left */}
+				<Text color="gray" dimColor>
+					{modelId}
+				</Text>
+
+				{/* Mode toggle on right */}
+				<Box gap={1}>
+					<Box>
+						<Text bold={mode === "plan"} color={mode === "plan" ? "yellow" : "gray"}>
+							{mode === "plan" ? "●" : "○"} Plan
+						</Text>
+					</Box>
+					<Box>
+						<Text bold={mode === "act"} color={mode === "act" ? "blue" : "gray"}>
+							{mode === "act" ? "●" : "○"} Act
+						</Text>
+					</Box>
+					<Text color="gray" dimColor>
+						(Tab)
+					</Text>
+				</Box>
+			</Box>
+
+			{/* File mention menu - below input */}
 			{mentionInfo.inMentionMode && (
 				<FileMentionMenu
 					isLoading={isSearching}
@@ -221,12 +293,22 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 				/>
 			)}
 
-			<Text color="gray" dimColor>
-				(Type your task and press Enter to Submit.)
-			</Text>
-			<Text color="gray" dimColor>
-				(Type @ to mention files, add images with @/path/to/image.png)
-			</Text>
+			{/* Attached images */}
+			{imagePaths.length > 0 && (
+				<Text color="magenta">
+					📎 {imagePaths.length} image{imagePaths.length > 1 ? "s" : ""} attached
+				</Text>
+			)}
+
+			{/* Help text */}
+			<Box>
+				<Text color="gray" dimColor>
+					Enter to submit · @ to mention files ·{" "}
+				</Text>
+				<Text bold={escPressedOnce} color={escPressedOnce ? "white" : "gray"} dimColor={!escPressedOnce}>
+					{escPressedOnce ? "Press Esc again to exit" : "Esc to exit"}
+				</Text>
+			</Box>
 		</Box>
 	)
 }
