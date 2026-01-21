@@ -4,7 +4,7 @@
  */
 
 import type { ClineAsk } from "@shared/ExtensionMessage"
-import { Box, Text, useInput } from "ink"
+import { Box, Text, useApp, useInput } from "ink"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { useTaskController } from "../context/TaskContext"
 import { useLastCompletedAskMessage } from "../hooks/useStateSubscriber"
@@ -15,7 +15,7 @@ interface AskPromptProps {
 	onRespond?: (response: string) => void
 }
 
-type PromptType = "confirmation" | "text" | "options" | "plan_mode_text" | "completion" | "none"
+type PromptType = "confirmation" | "text" | "options" | "plan_mode_text" | "completion" | "exit_confirmation" | "none"
 
 function getPromptType(ask: ClineAsk, text: string): PromptType {
 	switch (ask) {
@@ -43,10 +43,13 @@ function getPromptType(ask: ClineAsk, text: string): PromptType {
 		case "completion_result":
 			// Task completed - allow follow-up question or exit
 			return "completion"
-		case "command":
-		case "tool":
+
 		case "resume_task":
 		case "resume_completed_task":
+			return "exit_confirmation"
+
+		case "command":
+		case "tool":
 		case "browser_action_launch":
 		case "use_mcp_server":
 			return "confirmation"
@@ -56,6 +59,8 @@ function getPromptType(ask: ClineAsk, text: string): PromptType {
 }
 
 export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
+	const { exit } = useApp()
+
 	const controller = useTaskController()
 	const lastAskMessage = useLastCompletedAskMessage()
 	const [textInput, setTextInput] = useState("")
@@ -111,11 +116,15 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 			const text = lastAskMessage.text || ""
 			const promptType = getPromptType(ask, text)
 
-			if (promptType === "confirmation") {
+			if (promptType === "confirmation" || promptType === "exit_confirmation") {
 				// y/n confirmation
 				if (input.toLowerCase() === "y") {
 					sendResponse("yesButtonClicked")
 				} else if (input.toLowerCase() === "n") {
+					if (promptType === "exit_confirmation") {
+						exit()
+						return
+					}
 					sendResponse("noButtonClicked")
 				}
 			} else if (promptType === "options") {
@@ -323,7 +332,7 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 						<Text color="gray">▌</Text>
 					</Box>
 					<Text color="gray" dimColor>
-						(Type follow-up question + Enter, or just exit)
+						(Type follow-up question + Enter, or q to exit)
 					</Text>
 				</Box>
 			)
