@@ -42,7 +42,7 @@ export const ThinkingRow = memo(({ showTitle = false, reasoningContent, isVisibl
 					className="inline-flex justify-baseline gap-0.5 text-left select-none cursor-pointer px-0 w-full"
 					onClick={onToggle}
 					variant="icon">
-					<span>Reasoning</span>
+					<span>Thoughts</span>
 					{isExpanded ? (
 						<ChevronDownIcon className="!size-1 text-foreground" />
 					) : (
