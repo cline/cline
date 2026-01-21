@@ -517,7 +517,7 @@ async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: 
 		// Run the task with the submitted prompt and images, reusing the existing context
 		await runTask(submittedPrompt || "", { ...options, images: submittedImagePaths }, ctx)
 	} else {
-		// User exited without submitting - clean up
+		// User exited without submitting - clean up and exit
 		await ctx.controller.stateManager.flushPendingState()
 		await ctx.controller.dispose()
 		await ErrorService.get().dispose()

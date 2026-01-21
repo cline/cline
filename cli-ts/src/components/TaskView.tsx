@@ -29,7 +29,7 @@ function formatSeparator(char: string = "═", width: number = 60): string {
 	return char.repeat(Math.max(width, 10))
 }
 
-export const TaskView: React.FC<TaskViewProps> = ({ taskId, verbose = false, onComplete, onError }) => {
+export const TaskView: React.FC<TaskViewProps> = ({ taskId: _taskId, verbose = false, onComplete, onError }) => {
 	const state = useTaskState()
 	const { isTaskComplete, getCompletionMessage } = useCompletionSignals()
 	const isSpinnerActive = useIsSpinnerActive()
