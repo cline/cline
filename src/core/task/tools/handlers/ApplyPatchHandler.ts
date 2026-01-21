@@ -39,7 +39,6 @@ export const PatchClineSayMap = {
 
 export class ApplyPatchHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.APPLY_PATCH
-	private appliedCommit?: Commit
 	private config?: TaskConfig
 	private pathResolver?: PathResolver
 	private providerOps?: FileProviderOperations
@@ -96,12 +95,14 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i]
 			if (line.startsWith(PATCH_MARKERS.ADD)) {
+				provider.editType = "modify"
 				targetPath = line.substring(PATCH_MARKERS.ADD.length).trim()
 				actionType = PatchActionType.ADD
 				contentStartIndex = i + 1
 				break
 			}
 			if (line.startsWith(PATCH_MARKERS.UPDATE)) {
+				provider.editType = "modify"
 				targetPath = line.substring(PATCH_MARKERS.UPDATE.length).trim()
 				actionType = PatchActionType.UPDATE
 				contentStartIndex = i + 1
@@ -233,10 +234,8 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			const { patch, fuzz } = parser.parse()
 
 			// Convert to commit
-			const commit = this.patchToCommit(patch, currentFiles)
+			const commit = await this.patchToCommit(patch, currentFiles)
 
-			// Store for potential revert
-			this.appliedCommit = commit
 			this.config = config
 
 			// Run PreToolUse hook before applying changes
@@ -252,32 +251,88 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				throw error
 			}
 
-			// Apply the commit
-			const applyResults = await this.applyCommit(commit)
-
 			// Generate summary
 			const changedFiles = Object.keys(commit.changes)
 			const messages = await this.generateChangeSummary(commit.changes)
 
 			const finalResponses = []
+			const applyResults: Record<string, FileOpsResult> = {}
 
+			// Create a mapping from message path to original commit change key
+			// (needed because for move operations, message.path is the new path, but commit.changes key is the old path)
+			const pathToChangeKey = new Map<string, string>()
+			for (const [originalPath, change] of Object.entries(commit.changes)) {
+				if (change.type === PatchActionType.UPDATE && change.movePath) {
+					pathToChangeKey.set(change.movePath, originalPath)
+				} else {
+					pathToChangeKey.set(originalPath, originalPath)
+				}
+			}
+
+			// For each file: prepare, get approval, then save
 			for (const message of messages) {
+				const messagePath = message.path
+				if (!messagePath) {
+					continue
+				}
+
+				// Get the original change key (for move operations, this is the old path)
+				const originalPath = pathToChangeKey.get(messagePath)
+				if (!originalPath) {
+					continue
+				}
+
+				const change = commit.changes[originalPath]
+				if (!change) {
+					continue
+				}
+
+				// Determine the actual file path to use for operations
+				// For move operations, we prepare the new file, but the change is keyed by the old path
+				const operationPath = change.type === PatchActionType.UPDATE && change.movePath ? change.movePath : originalPath
+
+				// Prepare the change for this file (open and update, but don't save)
+				await this.prepareFileChange(change, operationPath)
+
+				// Get approval
 				const approved = await this.handleApproval(config, block, message, rawInput)
 				if (!approved) {
-					await this.revertChanges()
+					this.config = undefined
+					config.taskState.didRejectTool = true
+					await provider.revertChanges()
+					await provider.reset()
 					return "The user denied this patch operation."
 				}
 
-				for (const filePath of changedFiles) {
-					config.services.fileContextTracker.markFileAsEditedByCline(filePath)
-					await config.services.fileContextTracker.trackFileContext(filePath, "cline_edited")
+				// Save the changes for this file after approval
+				const fileResult = await this.saveFileChange(change, operationPath)
+				if (fileResult) {
+					// For move operations, we need to handle both old and new paths
+					if (change.type === PatchActionType.UPDATE && change.movePath) {
+						applyResults[change.movePath] = fileResult
+						// Delete the old file after saving the new one
+						await this.providerOps!.deleteFile(originalPath)
+						applyResults[originalPath] = { deleted: true }
+					} else {
+						applyResults[originalPath] = fileResult
+					}
 				}
 
-				config.taskState.didEditFile = true
-				finalResponses.push(message.path)
+				// Reset provider state to ensure clean state for the next file operation
+				await provider.reset()
+
+				finalResponses.push(messagePath)
 			}
 
-			this.appliedCommit = undefined
+			// Track all changed files once after all operations are complete
+			for (const changedFilePath of changedFiles) {
+				const change = commit.changes[changedFilePath]
+				// For move operations, track the new path instead
+				const pathToTrack = change.type === PatchActionType.UPDATE && change.movePath ? change.movePath : changedFilePath
+				config.services.fileContextTracker.markFileAsEditedByCline(pathToTrack)
+				await config.services.fileContextTracker.trackFileContext(pathToTrack, "cline_edited")
+			}
+
 			this.config = undefined
 
 			// Build response with file contents and diagnostics
@@ -285,6 +340,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 			for (const [path, result] of Object.entries(applyResults)) {
 				if (result.deleted) {
+					config.taskState.didEditFile = true
 					responseLines.push(`\n${path}: [deleted]`)
 				} else {
 					// Format response similar to WriteToFileToolHandler
@@ -321,9 +377,9 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			return responseLines.join("\n")
 		} catch (error) {
 			await provider.revertChanges()
-			await provider.reset()
-			console.error("Reverted changes due to error in ApplyPatchHandler.", error)
 			throw error
+		} finally {
+			await provider.reset()
 		}
 	}
 
@@ -450,10 +506,15 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		return files
 	}
 
-	private patchToCommit(patch: Patch, originalFiles: Record<string, string>): Commit {
+	private async patchToCommit(patch: Patch, originalFiles: Record<string, string>): Promise<Commit> {
 		const changes: Record<string, FileChange> = {}
 
 		for (const [path, action] of Object.entries(patch.actions)) {
+			const targetResolution = await this.pathResolver!.resolveAndValidate(path, "ApplyPatchHandler.previewPatch")
+			if (!targetResolution) {
+				continue
+			}
+
 			switch (action.type) {
 				case PatchActionType.DELETE:
 					changes[path] = { type: PatchActionType.DELETE, oldContent: originalFiles[path] }
@@ -468,7 +529,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 					changes[path] = {
 						type: PatchActionType.UPDATE,
 						oldContent: originalFiles[path],
-						newContent: this.applyChunks(originalFiles[path]!, action.chunks, path).trimEnd(),
+						newContent: this.applyChunks(originalFiles[path]!, action.chunks, path),
 						movePath: action.movePath,
 					}
 					break
@@ -531,93 +592,60 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		return result.join("\n")
 	}
 
-	private async applyCommit(commit: Commit): Promise<Record<string, FileOpsResult>> {
+	/**
+	 * Prepares a single file change (opens file and updates content) without saving.
+	 * Call saveFileChange() after approval.
+	 */
+	private async prepareFileChange(change: FileChange, path: string): Promise<void> {
 		const ops = this.providerOps!
-		const results: Record<string, FileOpsResult> = {}
 
-		for (const [path, change] of Object.entries(commit.changes)) {
-			switch (change.type) {
-				case PatchActionType.DELETE:
-					await ops.deleteFile(path)
-					results[path] = { deleted: true }
-					break
-				case PatchActionType.ADD:
-					if (!change.newContent) {
-						throw new DiffError(`Cannot create ${path} with no content`)
-					}
-					const addResult = await ops.createFile(path, change.newContent)
-					results[path] = {
-						finalContent: addResult.finalContent,
-						newProblemsMessage: addResult.newProblemsMessage,
-						userEdits: addResult.userEdits,
-						autoFormattingEdits: addResult.autoFormattingEdits,
-					}
-					break
-				case PatchActionType.UPDATE:
-					if (!change.newContent) {
-						throw new DiffError(`UPDATE change for ${path} has no new content`)
-					}
-					if (change.movePath) {
-						const moveResult = await ops.moveFile(path, change.movePath, change.newContent)
-						results[change.movePath] = {
-							finalContent: moveResult.finalContent,
-							newProblemsMessage: moveResult.newProblemsMessage,
-							userEdits: moveResult.userEdits,
-							autoFormattingEdits: moveResult.autoFormattingEdits,
-						}
-						results[path] = { deleted: true }
-					} else {
-						const updateResult = await ops.modifyFile(path, change.newContent)
-						results[path] = {
-							finalContent: updateResult.finalContent,
-							newProblemsMessage: updateResult.newProblemsMessage,
-							userEdits: updateResult.userEdits,
-							autoFormattingEdits: updateResult.autoFormattingEdits,
-						}
-					}
-					break
-			}
+		switch (change.type) {
+			case PatchActionType.DELETE:
+				await ops.deleteFile(path, false)
+				break
+			case PatchActionType.ADD:
+				if (!change.newContent) {
+					throw new DiffError(`Cannot create ${path} with no content`)
+				}
+				await ops.createFile(path, change.newContent, false)
+				break
+			case PatchActionType.UPDATE:
+				if (!change.newContent) {
+					throw new DiffError(`UPDATE change for ${path} has no new content`)
+				}
+				if (change.movePath) {
+					// For move operations, prepare the new file (the old file will be handled separately)
+					await ops.createFile(change.movePath, change.newContent, false)
+				} else {
+					await ops.modifyFile(path, change.newContent, false)
+				}
+				break
 		}
-
-		return results
 	}
 
-	private async revertChanges(): Promise<void> {
-		if (!this.appliedCommit || !this.providerOps) {
-			return
-		}
+	/**
+	 * Saves the changes for a single file after approval.
+	 */
+	private async saveFileChange(change: FileChange, path: string): Promise<FileOpsResult | undefined> {
+		const ops = this.providerOps!
 
-		const ops = this.providerOps
-
-		for (const [path, change] of Object.entries(this.appliedCommit.changes)) {
-			try {
-				switch (change.type) {
-					case PatchActionType.DELETE:
-						if (change.oldContent !== undefined) {
-							await ops.createFile(path, change.oldContent)
-						}
-						break
-					case PatchActionType.ADD:
-						await ops.deleteFile(path)
-						break
-					case PatchActionType.UPDATE:
-						if (change.movePath) {
-							await ops.deleteFile(change.movePath)
-							if (change.oldContent !== undefined) {
-								await ops.createFile(path, change.oldContent)
-							}
-						} else if (change.oldContent !== undefined) {
-							await ops.modifyFile(path, change.oldContent)
-						}
-						break
+		switch (change.type) {
+			case PatchActionType.DELETE:
+				// For delete operations, actually delete the file now (after approval)
+				await ops.deleteFile(path)
+				return { deleted: true }
+			case PatchActionType.ADD:
+				if (!change.newContent) {
+					throw new DiffError(`Cannot create ${path} with no content`)
 				}
-			} catch (error) {
-				console.error(`Failed to revert ${path}:`, error)
-			}
+				return await ops.saveChanges()
+			case PatchActionType.UPDATE:
+				if (!change.newContent) {
+					throw new DiffError(`UPDATE change for ${path} has no new content`)
+				}
+				// For move operations, we're saving the new file (the old file deletion is handled in the calling code)
+				return await ops.saveChanges()
 		}
-
-		this.appliedCommit = undefined
-		this.config = undefined
 	}
 
 	private async generateChangeSummary(changes: Record<string, FileChange>): Promise<ClineSayTool[]> {
@@ -703,6 +731,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			undefined,
 			block.isNativeToolCall,
 		)
+
 		return approved
 	}
 }

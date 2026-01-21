@@ -55,7 +55,7 @@ func readInstancesFromSQLite(t *testing.T, clineDir string) []common.CoreInstanc
 
 		// Create InstanceInfo
 		info := common.CoreInstanceInfo{
-			Address:            heldBy,
+			CoreAddress:        heldBy,
 			HostServiceAddress: lockTarget,
 			Status:             grpc_health_v1.HealthCheckResponse_UNKNOWN, // Will be updated by health check
 			LastSeen:           time.Unix(lockedAt/1000, 0),                // Convert from milliseconds

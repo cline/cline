@@ -95,6 +95,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		showMcp,
 		showHistory,
 		showAccount,
+		remoteConfigSettings,
 		favoritedModelIds,
 		basetenModels,
 		liteLlmModels,
@@ -127,8 +128,12 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 	// Use the setting for split mode
 	const isSplit = planActSeparateModelsSetting
 
-	// Check if model supports thinking
+	// Check if model supports thinking (token-based budget)
+	// OpenAI Codex uses discrete reasoning effort levels controlled via global settings, not token budgets
 	const supportsThinking = useMemo(() => {
+		if (selectedProvider === "openai-codex") {
+			return false
+		}
 		if (selectedProvider === "anthropic" || selectedProvider === "claude-code") {
 			return SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId)
 		}
@@ -158,8 +163,12 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 
 	// Get configured providers
 	const configuredProviders = useMemo(() => {
+		if (remoteConfigSettings?.remoteConfiguredProviders?.length) {
+			return remoteConfigSettings.remoteConfiguredProviders
+		}
+
 		return getConfiguredProviders(apiConfiguration)
-	}, [apiConfiguration])
+	}, [apiConfiguration, remoteConfigSettings?.remoteConfiguredProviders])
 
 	// Get models for current provider
 	const allModels = useMemo((): ModelItem[] => {
@@ -623,7 +632,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 										<TooltipTrigger asChild>
 											<IconToggle
 												$isActive={thinkingEnabled}
-												$isDisabled={!supportsThinking}
+												$isHidden={!supportsThinking}
 												onClick={(e) => {
 													e.stopPropagation()
 													supportsThinking && handleThinkingToggle(!thinkingEnabled)
@@ -631,13 +640,13 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 												<Brain size={14} />
 											</IconToggle>
 										</TooltipTrigger>
-										<TooltipContent side="top" style={{ zIndex: 9999 }}>
-											{!supportsThinking
-												? "Thinking not supported by this model"
-												: thinkingEnabled
+										{supportsThinking && (
+											<TooltipContent side="top" style={{ zIndex: 9999 }}>
+												{thinkingEnabled
 													? "Extended thinking enabled"
 													: "Enable extended thinking for enhanced reasoning"}
-										</TooltipContent>
+											</TooltipContent>
+										)}
 									</Tooltip>
 									<Tooltip>
 										<TooltipTrigger asChild>
@@ -901,8 +910,8 @@ const SettingsSection = styled.div`
 	flex-direction: column;
 `
 
-const IconToggle = styled.button<{ $isActive: boolean; $isDisabled?: boolean }>`
-	display: flex;
+const IconToggle = styled.button<{ $isActive: boolean; $isDisabled?: boolean; $isHidden?: boolean }>`
+	display: ${(props) => (props.$isHidden ? "none" : "flex")};
 	align-items: center;
 	justify-content: center;
 	width: 24px;

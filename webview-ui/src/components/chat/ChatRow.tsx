@@ -25,7 +25,6 @@ import {
 	LightbulbIcon,
 	Link2Icon,
 	LoaderCircleIcon,
-	LucideIcon,
 	PencilIcon,
 	RefreshCwIcon,
 	SearchIcon,
@@ -50,7 +49,6 @@ import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
 import { CompletionOutputRow } from "./CompletionOutputRow"
-import { getIconByToolName } from "./chat-view"
 import { DiffEditRow } from "./DiffEditRow"
 import ErrorRow from "./ErrorRow"
 import HookMessage from "./HookMessage"
@@ -59,9 +57,9 @@ import NewTaskPreview from "./NewTaskPreview"
 import PlanCompletionOutputRow from "./PlanCompletionOutputRow"
 import QuoteButton from "./QuoteButton"
 import ReportBugPreview from "./ReportBugPreview"
+import { RequestStartRow } from "./RequestStartRow"
 import SearchResultsDisplay from "./SearchResultsDisplay"
 import { ThinkingRow } from "./ThinkingRow"
-import { TypewriterText } from "./TypewriterText"
 import UserMessage from "./UserMessage"
 
 // State type for api_req_started rendering
@@ -678,6 +676,18 @@ export const ChatRowContent = memo(
 							</div>
 						</div>
 					)
+				case "useSkill":
+					return (
+						<div>
+							<div className={HEADER_CLASSNAMES}>
+								<LightbulbIcon className="size-2" />
+								<span className="font-bold">Cline loaded the skill:</span>
+							</div>
+							<div className="bg-code border border-editor-group-border overflow-hidden rounded-xs py-[9px] px-2.5">
+								<span className="ph-no-capture font-medium">{tool.path}</span>
+							</div>
+						</div>
+					)
 				default:
 					return <InvisibleSpacer />
 			}
@@ -789,173 +799,21 @@ export const ChatRowContent = memo(
 		switch (message.type) {
 			case "say":
 				switch (message.say) {
-					case "api_req_started": {
-						// Derive explicit state
-						const hasError = !!(apiRequestFailedMessage || apiReqStreamingFailedMessage)
-						const hasCost = cost != null
-						const hasReasoning = !!reasoningContent
-						const hasResponseStarted = !!responseStarted
-
-						const apiReqState: ApiReqState = hasError
-							? "error"
-							: hasCost
-								? "final"
-								: hasReasoning
-									? "thinking"
-									: "pre"
-
-						// While reasoning is streaming, keep the Brain ThinkingBlock exactly as-is.
-						// Once response content starts (any text/tool/command), collapse into a compact
-						// "🧠 Thinking" row that can be expanded to show the reasoning only.
-						const showStreamingThinking = hasReasoning && !hasResponseStarted && !hasError && !hasCost
-						const showCollapsedThinking = hasReasoning && !showStreamingThinking
-
-						// Find all exploratory tool activities from the PREVIOUS completed API request.
-						// This shows what Cline just ingested while waiting for the next response.
-						// Includes action verbiage and icons for each tool type.
-						// Memoized to avoid iterating through all messages on every render.
-						const currentActivities = useMemo(() => {
-							const activities: { icon: LucideIcon; text: string }[] = []
-
-							// Helper to format search regex for display - show all terms separated by |
-							const formatSearchRegex = (regex: string, path: string, filePattern?: string): string => {
-								const terms = regex
-									.split("|")
-									.map((t) => t.trim().replace(/\\b/g, "").replace(/\\s\?/g, " "))
-									.filter(Boolean)
-								let result = `"${terms.join(" | ")}" in ${cleanPathPrefix(path)}/`
-								if (filePattern && filePattern !== "*") {
-									result += ` (${filePattern})`
-								}
-								return result
-							}
-
-							// Find the most recent api_req_started (the current one being rendered)
-							// Then find the PREVIOUS api_req_started that has a cost (completed)
-							// Collect all low-stakes tools between those two
-
-							let currentApiReqIndex = -1
-							let prevCompletedApiReqIndex = -1
-
-							// Find the current api_req_started (most recent)
-							for (let i = clineMessages.length - 1; i >= 0; i--) {
-								if (clineMessages[i].say === "api_req_started") {
-									currentApiReqIndex = i
-									break
-								}
-							}
-
-							if (currentApiReqIndex === -1) {
-								return activities
-							}
-
-							// Find the previous api_req_started that is completed (has cost)
-							for (let i = currentApiReqIndex - 1; i >= 0; i--) {
-								const msg = clineMessages[i]
-								if (msg.say === "api_req_started" && msg.text) {
-									try {
-										const info = JSON.parse(msg.text)
-										if (info.cost != null) {
-											prevCompletedApiReqIndex = i
-											break
-										}
-									} catch {
-										// ignore parse errors
-									}
-								}
-							}
-
-							if (prevCompletedApiReqIndex === -1) {
-								return activities
-							}
-
-							// Collect all low-stakes tools between prevCompletedApiReq and currentApiReq
-							for (let i = prevCompletedApiReqIndex + 1; i < currentApiReqIndex; i++) {
-								const msg = clineMessages[i]
-								if (msg.say === "tool" || msg.ask === "tool") {
-									try {
-										const tool = JSON.parse(msg.text || "{}") as ClineSayTool
-										const toolIcon = getIconByToolName(tool.tool)
-										// Exploratory tools - collect activity with icon and action verbiage
-										if (tool.tool === "readFile" && tool.path) {
-											activities.push({
-												icon: toolIcon,
-												text: `Reading ${cleanPathPrefix(tool.path)}...`,
-											})
-										} else if (tool.tool === "listFilesTopLevel" && tool.path) {
-											activities.push({
-												icon: toolIcon,
-												text: `Exploring ${cleanPathPrefix(tool.path)}/...`,
-											})
-										} else if (tool.tool === "listFilesRecursive" && tool.path) {
-											activities.push({
-												icon: toolIcon,
-												text: `Exploring ${cleanPathPrefix(tool.path)}/...`,
-											})
-										} else if (tool.tool === "searchFiles" && tool.regex && tool.path) {
-											activities.push({
-												icon: toolIcon,
-												text: `Searching ${formatSearchRegex(tool.regex, tool.path, tool.filePattern)}...`,
-											})
-										} else if (tool.tool === "listCodeDefinitionNames" && tool.path) {
-											activities.push({
-												icon: toolIcon,
-												text: `Analyzing ${cleanPathPrefix(tool.path)}/...`,
-											})
-										}
-										// Non-exploratory tools are ignored (they have their own UI)
-									} catch {
-										// ignore parse errors
-									}
-								}
-							}
-
-							return activities
-						}, [clineMessages])
-
+					case "api_req_started":
 						return (
-							<div>
-								{apiReqState === "pre" && (
-									<div className="flex items-center text-description w-full text-sm">
-										<div className="ml-1 flex-1 w-full h-full">
-											{currentActivities.length > 0 ? (
-												<div className="flex flex-col gap-0.5 w-full min-h-1">
-													{currentActivities.map((activity, _) => (
-														<div
-															className="flex items-center gap-2 h-auto w-full overflow-hidden"
-															key={activity.text}>
-															<activity.icon className="size-2 text-foreground shrink-0" />
-															<TypewriterText speed={15} text={activity.text} />
-														</div>
-													))}
-												</div>
-											) : (
-												<TypewriterText text={mode === "plan" ? "Planning..." : "Thinking..."} />
-											)}
-										</div>
-									</div>
-								)}
-								{reasoningContent && (
-									<ThinkingRow
-										isExpanded={isExpanded || showStreamingThinking || showCollapsedThinking}
-										isVisible={true}
-										onToggle={handleToggle}
-										reasoningContent={reasoningContent}
-										showTitle={false}
-									/>
-								)}
-
-								{apiReqState === "error" && (
-									<ErrorRow
-										apiReqStreamingFailedMessage={apiReqStreamingFailedMessage}
-										apiRequestFailedMessage={apiRequestFailedMessage}
-										errorType="error"
-										message={message}
-									/>
-								)}
-							</div>
+							<RequestStartRow
+								apiReqStreamingFailedMessage={apiReqStreamingFailedMessage}
+								apiRequestFailedMessage={apiRequestFailedMessage}
+								clineMessages={clineMessages}
+								cost={cost}
+								handleToggle={handleToggle}
+								isExpanded={isExpanded}
+								message={message}
+								mode={mode}
+								reasoningContent={reasoningContent}
+								responseStarted={responseStarted}
+							/>
 						)
-					}
 					case "api_req_finished":
 						return <InvisibleSpacer /> // we should never see this message type
 					case "mcp_server_response":
@@ -1149,33 +1007,38 @@ export const ChatRowContent = memo(
 					case "error_retry":
 						try {
 							const retryInfo = JSON.parse(message.text || "{}")
-							const { attempt, maxAttempts, delaySeconds, failed } = retryInfo
+							const { attempt, maxAttempts, delaySeconds, failed, errorMessage } = retryInfo
 							const isFailed = failed === true
 
 							return (
-								<div className="flex flex-col bg-quote p-0 rounded-[3px] text-[12px]">
-									<div className="flex items-center mb-1">
-										{isFailed ? (
-											<TriangleAlertIcon className="mr-2 size-2" />
-										) : (
-											<RefreshCwIcon className="mr-2 size-2 animate-spin" />
-										)}
-										<span className="font-medium text-foreground">
-											{isFailed ? "Auto-Retry Failed" : "Auto-Retry in Progress"}
-										</span>
-									</div>
-									<div className="text-foreground opacity-80">
-										{isFailed ? (
-											<span>
-												Auto-retry failed after <strong>{maxAttempts}</strong> attempts. Manual
-												intervention required.
+								<div className="flex flex-col gap-2">
+									{errorMessage && (
+										<p className="m-0 whitespace-pre-wrap text-error wrap-anywhere text-xs">{errorMessage}</p>
+									)}
+									<div className="flex flex-col bg-quote p-0 rounded-[3px] text-[12px]">
+										<div className="flex items-center mb-1">
+											{isFailed && !isRequestInProgress ? (
+												<TriangleAlertIcon className="mr-2 size-2" />
+											) : (
+												<RefreshCwIcon className="mr-2 size-2 animate-spin" />
+											)}
+											<span className="font-medium text-foreground">
+												{isFailed ? "Auto-Retry Failed" : "Auto-Retry in Progress"}
 											</span>
-										) : (
-											<span>
-												Attempt <strong>{attempt}</strong> of <strong>{maxAttempts}</strong> - Retrying in{" "}
-												{delaySeconds} seconds...
-											</span>
-										)}
+										</div>
+										<div className="text-foreground opacity-80">
+											{isFailed ? (
+												<span>
+													Auto-retry failed after <strong>{maxAttempts}</strong> attempts. Manual
+													intervention required.
+												</span>
+											) : (
+												<span>
+													Attempt <strong>{attempt}</strong> of <strong>{maxAttempts}</strong> -
+													Retrying in {delaySeconds} seconds...
+												</span>
+											)}
+										</div>
 									</div>
 								</div>
 							)

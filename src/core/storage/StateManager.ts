@@ -4,7 +4,6 @@ import {
 	GlobalState,
 	GlobalStateAndSettings,
 	GlobalStateAndSettingsKey,
-	GlobalStateKey,
 	isSecretKey,
 	isSettingsKey,
 	LocalState,
@@ -19,6 +18,7 @@ import {
 import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/services/logging/Logger"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import {
 	getTaskHistoryStateFilePath,
@@ -28,14 +28,29 @@ import {
 	writeTaskSettingsToStorage,
 } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
+import { filterAllowedRemoteConfigFields } from "./remote-config/utils"
 import { readGlobalStateFromDisk, readSecretsFromDisk, readWorkspaceStateFromDisk } from "./utils/state-helpers"
 export interface PersistenceErrorEvent {
 	error: Error
 }
 
 /**
- * In-memory state manager for fast state access
- * Provides immediate reads/writes with async disk persistence
+ * In-memory state manager for fast state access.
+ * Provides immediate reads/writes with async disk persistence.
+ *
+ * MULTI-INSTANCE BEHAVIOR:
+ * StateManager reads from disk ONLY during initialize(). After that, all reads come from
+ * the in-memory cache. Writes update both the cache and disk, but other running instances
+ * won't see those changes because they don't re-read from disk.
+ *
+ * This means: If you have multiple VS Code windows open, each has its own StateManager
+ * instance with its own cache. Changing a setting (like plan/act mode) in Window A writes
+ * to disk, but Window B keeps using its cached value. Window B only sees the change after
+ * restart (when it re-initializes from disk).
+ *
+ * This is intentional for performance (avoids constant disk reads) and provides natural
+ * isolation between concurrent instances. Task-specific state is independent anyway since
+ * each window typically runs different tasks.
  */
 export class StateManager {
 	private static instance: StateManager | null = null
@@ -105,9 +120,9 @@ export class StateManager {
 
 		try {
 			// Load all extension state from disk
-			const globalState = await readGlobalStateFromDisk(StateManager.instance.context)
-			const secrets = await readSecretsFromDisk(StateManager.instance.context)
-			const workspaceState = await readWorkspaceStateFromDisk(StateManager.instance.context)
+			const globalState = await readGlobalStateFromDisk(context)
+			const secrets = await readSecretsFromDisk(context)
+			const workspaceState = await readWorkspaceStateFromDisk(context)
 
 			// Populate the cache with all extension state and secrets fields
 			// Use populate method to avoid triggering persistence during initialization
@@ -177,11 +192,23 @@ export class StateManager {
 
 		// Then track the keys for persistence
 		Object.keys(updates).forEach((key) => {
-			this.pendingGlobalState.add(key as GlobalStateKey)
+			this.pendingGlobalState.add(key as GlobalStateAndSettingsKey)
 		})
 
 		// Schedule debounced persistence
 		this.scheduleDebouncedPersistence()
+	}
+
+	private setRemoteConfigState(updates: Partial<GlobalStateAndSettings>): void {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+
+		// Update cache in one go
+		this.remoteConfigCache = {
+			...this.remoteConfigCache,
+			...filterAllowedRemoteConfigFields(updates),
+		}
 	}
 
 	/**
@@ -297,6 +324,12 @@ export class StateManager {
 
 		// Update cache immediately for all keys
 		Object.entries(updates).forEach(([key, value]) => {
+			// Skip unchanged values as we don't want to trigger unnecessary
+			// writes & incorrectly fire an onDidChange events.
+			const current = this.secretsCache[key as keyof Secrets]
+			if (current === value) {
+				return
+			}
 			this.secretsCache[key as keyof Secrets] = value
 			this.pendingSecrets.add(key as SecretKey)
 		})
@@ -510,6 +543,7 @@ export class StateManager {
 
 		// Batch update settings (stored in global state)
 		if (Object.keys(settingsUpdates).length > 0) {
+			this.setRemoteConfigState(settingsUpdates)
 			this.setGlobalStateBatch(settingsUpdates)
 		}
 
@@ -677,7 +711,7 @@ export class StateManager {
 				await this.persistPendingState()
 				this.persistenceTimeout = null
 			} catch (error) {
-				console.error("[StateManager] Failed to persist pending changes:", error)
+				Logger.error("[StateManager] Failed to persist pending changes:", error)
 				this.persistenceTimeout = null
 
 				// Call persistence error callback for error recovery

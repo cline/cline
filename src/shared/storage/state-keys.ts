@@ -20,11 +20,15 @@ import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { LanguageModelChatSelector } from "vscode"
+import { BlobStoreSettings } from "./ClineBlobStorage"
 
 // ============================================================================
 // SINGLE SOURCE OF TRUTH FOR STORAGE KEYS
 //
 // Property definitions with types, default values, and metadata
+// NOTE: When adding a new field, the scripts/generate-state-proto.mjs will be
+// executed automatically to regenerate the proto/cline/state.proto file with the
+// new fields once the file is staged and committed.
 // ============================================================================
 
 /**
@@ -46,7 +50,7 @@ type FieldDefinition<T> = {
 type FieldDefinitions = Record<string, FieldDefinition<any>>
 
 const REMOTE_CONFIG_EXTRA_FIELDS = {
-	remoteConfiguredProviders: { default: [] as string[] },
+	remoteConfiguredProviders: { default: [] as ApiProvider[] },
 	allowedMCPServers: { default: [] as Array<{ id: string }> },
 	remoteMCPServers: { default: undefined as Array<{ name: string; url: string; alwaysEnabled?: boolean }> | undefined },
 	previousRemoteMCPServers: { default: undefined as Array<{ name: string; url: string }> | undefined },
@@ -54,6 +58,7 @@ const REMOTE_CONFIG_EXTRA_FIELDS = {
 	remoteGlobalWorkflows: { default: undefined as GlobalInstructionsFile[] | undefined },
 	blockPersonalRemoteMCPServers: { default: false as boolean },
 	openTelemetryOtlpHeaders: { default: undefined as Record<string, string> | undefined },
+	blobStoreConfig: { default: undefined as BlobStoreSettings | undefined },
 } satisfies FieldDefinitions
 
 const GLOBAL_STATE_FIELDS = {
@@ -80,10 +85,11 @@ const GLOBAL_STATE_FIELDS = {
 	remoteRulesToggles: { default: {} as ClineRulesToggles },
 	remoteWorkflowToggles: { default: {} as ClineRulesToggles },
 	dismissedBanners: { default: [] as Array<{ bannerId: string; dismissedAt: number }> },
+	// Path to worktree that should auto-open Cline sidebar when launched
+	worktreeAutoOpenPath: { default: undefined as string | undefined },
 } satisfies FieldDefinitions
 
 // Fields that map directly to ApiHandlerOptions in @shared/api.ts
-// NOTE: Keep these in sync with ApiHandlerOptions interface
 const API_HANDLER_SETTINGS_FIELDS = {
 	// Global configuration (not mode-specific)
 	liteLlmBaseUrl: { default: undefined as string | undefined },
@@ -247,6 +253,7 @@ const USER_SETTINGS_FIELDS = {
 	yoloModeToggled: { default: false as boolean },
 	useAutoCondense: { default: false as boolean },
 	clineWebToolsEnabled: { default: true as boolean },
+	worktreesEnabled: { default: false as boolean },
 	preferredLanguage: { default: "English" as string },
 	openaiReasoningEffort: { default: "medium" as OpenaiReasoningEffort },
 	mode: { default: "act" as Mode },

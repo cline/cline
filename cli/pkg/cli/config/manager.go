@@ -32,8 +32,8 @@ func NewManager(ctx context.Context, address string) (*Manager, error) {
 
 	// Get the actual address being used
 	clientAddress := address
-	if address == "" && global.Clients != nil {
-		clientAddress = global.Clients.GetRegistry().GetDefaultInstance()
+	if address == "" && global.Instances != nil {
+		clientAddress = global.Instances.GetRegistry().GetDefaultInstance()
 	}
 
 	return &Manager{

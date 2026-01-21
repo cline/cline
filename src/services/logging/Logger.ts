@@ -31,7 +31,7 @@ export class Logger {
 			}
 			HostProvider.get().logToChannel(`${level} ${fullMessage}`)
 		} catch {
-			// Don't crash if logging fails
+			// HostProvider is not ready - skip logging
 		}
 	}
 }

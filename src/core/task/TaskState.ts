@@ -16,6 +16,8 @@ export class TaskState {
 	userMessageContentReady = false
 	// Map of tool names to their tool_use_id for creating proper ToolResultBlockParam
 	toolUseIdMap: Map<string, string> = new Map()
+	// Track tool calls that have already had errors pushed (prevents duplicates during streaming)
+	errorPushedForCallIds: Set<string> = new Set()
 
 	// Presentation locks
 	presentAssistantMessageLocked = false
@@ -39,6 +41,7 @@ export class TaskState {
 	didRejectTool = false
 	didAlreadyUseTool = false
 	didEditFile: boolean = false
+	lastToolName: string = "" // Track last tool used for consecutive call detection
 
 	// Error tracking
 	consecutiveMistakeCount: number = 0

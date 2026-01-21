@@ -9,6 +9,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
 import { DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
 import { detectEncoding } from "../misc/extract-text"
+import { sanitizeNotebookForLLM } from "../misc/notebook-utils"
 import { openFile } from "../misc/open-file"
 
 export abstract class DiffViewProvider {
@@ -97,6 +98,24 @@ export abstract class DiffViewProvider {
 	protected abstract truncateDocument(lineNumber: number): Promise<void>
 
 	/**
+	 * Returns the current line count of the document being edited.
+	 * Used for boundary validation before calling truncateDocument.
+	 */
+	protected abstract getDocumentLineCount(): Promise<number>
+
+	/**
+	 * Safely truncates the document, ensuring the line number is within bounds.
+	 * This prevents errors on hosts that strictly validate line numbers (e.g., JetBrains via gRPC).
+	 */
+	private async safelyTruncateDocument(lineNumber: number): Promise<void> {
+		const lineCount = await this.getDocumentLineCount()
+		// Only truncate if there's content beyond the specified line
+		if (lineNumber < lineCount) {
+			await this.truncateDocument(lineNumber)
+		}
+	}
+
+	/**
 	 * Get the contents of the diff editor document.
 	 *
 	 * Returns undefined if the diff editor was closed.
@@ -150,6 +169,19 @@ export abstract class DiffViewProvider {
 	 */
 	protected abstract resetDiffView(): Promise<void>
 
+	/**
+	 * Switches to a specialized editor for specific file types after final content is available.
+	 * Called automatically by the `update` method when `isFinal` is true.
+	 *
+	 * For example, switches to Jupyter notebook editor for .ipynb files to provide
+	 * enhanced editing experience with proper notebook cell rendering.
+	 *
+	 * Default is no-op. Subclasses can override to provide specialized behavior.
+	 */
+	protected async switchToSpecializedEditor(): Promise<void> {
+		// Default no-op - subclasses can override if needed
+	}
+
 	async update(
 		accumulatedContent: string,
 		isFinal: boolean,
@@ -182,8 +214,20 @@ export abstract class DiffViewProvider {
 			// Replace all content up to the current line with accumulated lines
 			// This is necessary (as compared to inserting one line at a time) to handle cases where html tags
 			// on previous lines are auto closed for example
-			const contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n") + "\n"
-			const rangeToReplace = { startLine: 0, endLine: currentLine + 1 }
+			let contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n")
+			if (!isFinal) {
+				// During streaming, add trailing newline for cursor positioning
+				contentToReplace += "\n"
+			}
+
+			// For the final update, replace the entire document to prevent concatenation
+			// when content doesn't end with a newline. Without this, replacing lines 0-N
+			// with content lacking a trailing newline causes line N+1's content to be
+			// directly appended to our content (e.g., "Hello World" + "# Old Header" becomes
+			// "Hello World# Old Header").
+			const endLine = isFinal ? await this.getDocumentLineCount() : currentLine + 1
+
+			const rangeToReplace = { startLine: 0, endLine }
 			await this.replaceText(contentToReplace, rangeToReplace, currentLine)
 
 			// Scroll to the actual change location if provided.
@@ -211,17 +255,19 @@ export abstract class DiffViewProvider {
 		this.streamedLines = accumulatedLines
 		if (isFinal) {
 			// Handle any remaining lines if the new content is shorter than the original
-			await this.truncateDocument(this.streamedLines.length)
-
-			// Add empty last line if original content had one
-			const hasEmptyLastLine = this.originalContent?.endsWith("\n")
-			if (hasEmptyLastLine) {
-				const accumulatedLines = accumulatedContent.split("\n")
-				if (accumulatedLines[accumulatedLines.length - 1] !== "") {
-					accumulatedContent += "\n"
-				}
-			}
+			await this.safelyTruncateDocument(this.streamedLines.length)
+			// Allow subclasses to perform cleanup (e.g., clearing decorations)
+			await this.onFinalUpdate()
+			// Switch to specialized editor for specific file types (e.g., Jupyter notebooks)
+			await this.switchToSpecializedEditor()
 		}
+	}
+
+	/**
+	 * Called after the final update is complete. Subclasses can override to perform cleanup.
+	 */
+	protected async onFinalUpdate(): Promise<void> {
+		// Default no-op
 	}
 
 	async showFile(absolutePath: string): Promise<void> {
@@ -245,6 +291,24 @@ export abstract class DiffViewProvider {
 		rangeToReplace: { startLine: number; endLine: number },
 		currentLine: number | undefined,
 	): Promise<void>
+
+	/**
+	 * Checks if the current file is a Jupyter notebook file.
+	 *
+	 * @returns true if the file has .ipynb extension
+	 */
+	protected isNotebookFile(): boolean {
+		return this.relPath?.toLowerCase().endsWith(".ipynb") ?? false
+	}
+
+	/**
+	 * Returns the original content sanitized for LLM context.
+	 * For notebooks, strips all outputs since they aren't needed for editing.
+	 */
+	getOriginalContentForLLM(): string | undefined {
+		if (this.originalContent === undefined) return undefined
+		return this.isNotebookFile() ? sanitizeNotebookForLLM(this.originalContent, true) : this.originalContent
+	}
 
 	async saveChanges(): Promise<{
 		newProblemsMessage: string | undefined
@@ -302,11 +366,16 @@ export abstract class DiffViewProvider {
 			)
 		}
 
+		// Strip notebook outputs to reduce context size (outputs aren't needed for editing)
+		const finalContent = this.isNotebookFile()
+			? sanitizeNotebookForLLM(normalizedPostSaveContent, true)
+			: normalizedPostSaveContent
+
 		return {
 			newProblemsMessage,
 			userEdits,
 			autoFormattingEdits,
-			finalContent: normalizedPostSaveContent,
+			finalContent,
 		}
 	}
 

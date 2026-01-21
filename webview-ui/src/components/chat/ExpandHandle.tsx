@@ -16,7 +16,7 @@ const ExpandHandle = memo(({ isExpanded, onToggle, className = "bg-accent" }: Ex
 	return (
 		<div
 			className={cn(
-				"absolute -bottom-2 left-1/2 transform -translate-x-1/2 flex justify-center items-center px-4 py-0.5 cursor-pointer bg-description transition-opacity border border-none rounded-b-sm shrink-0",
+				"absolute -bottom-2 left-1/2 z-10 transform -translate-x-1/2 flex justify-center items-center px-5 py-0.5 cursor-pointer bg-description transition-opacity border border-none rounded-b-sm shrink-0 pointer-events-auto",
 				className,
 			)}
 			onClick={onToggle}>
