@@ -48,6 +48,8 @@ import {
 	nebiusModels,
 	nousResearchDefaultModelId,
 	nousResearchModels,
+	openAiCodexDefaultModelId,
+	openAiCodexModels,
 	openAiModelInfoSaneDefaults,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
@@ -91,6 +93,8 @@ export function getModelsForProvider(
 			return geminiModels
 		case "openai-native":
 			return openAiNativeModels
+		case "openai-codex":
+			return openAiCodexModels
 		case "deepseek":
 			return deepSeekModels
 		case "qwen":
@@ -221,6 +225,8 @@ export function normalizeApiConfiguration(
 			return getProviderData(geminiModels, geminiDefaultModelId)
 		case "openai-native":
 			return getProviderData(openAiNativeModels, openAiNativeDefaultModelId)
+		case "openai-codex":
+			return getProviderData(openAiCodexModels, openAiCodexDefaultModelId)
 		case "deepseek":
 			return getProviderData(deepSeekModels, deepSeekDefaultModelId)
 		case "qwen":
@@ -782,6 +788,7 @@ export async function syncModeConfigurations(
 		case "vertex":
 		case "gemini":
 		case "openai-native":
+		case "openai-codex":
 		case "deepseek":
 		case "qwen":
 		case "doubao":

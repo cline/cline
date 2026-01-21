@@ -1,5 +1,4 @@
 import { HostProvider } from "@/hosts/host-provider"
-import { ErrorService } from "../error"
 
 /**
  * Simple logging utility for the extension's backend code.
@@ -13,7 +12,6 @@ export class Logger {
 
 	static warn(message: string, ...args: any[]) {
 		Logger.#output("WARN", message, undefined, args)
-		ErrorService.get().logMessage(message, "warning")
 	}
 
 	static log(message: string, ...args: any[]) {

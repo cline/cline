@@ -8,6 +8,7 @@ import * as path from "path"
 // @ts-ignore-next-line
 import pdf from "pdf-parse/lib/pdf-parse"
 import { Logger } from "@/services/logging/Logger"
+import { sanitizeNotebookForLLM } from "./notebook-utils"
 
 export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string): Promise<string> {
 	const detected = chardet.detect(fileBuffer)
@@ -77,16 +78,9 @@ async function extractTextFromIPYNB(filePath: string): Promise<string> {
 	const fileBuffer = await fs.readFile(filePath)
 	const encoding = await detectEncoding(fileBuffer)
 	const data = iconv.decode(fileBuffer, encoding)
-	const notebook = JSON.parse(data)
-	let extractedText = ""
 
-	for (const cell of notebook.cells) {
-		if ((cell.cell_type === "markdown" || cell.cell_type === "code") && cell.source) {
-			extractedText += cell.source.join("\n") + "\n"
-		}
-	}
-
-	return extractedText
+	// Return sanitized JSON for proper editing (enhanced notebook behavior is now always enabled)
+	return sanitizeNotebookForLLM(data)
 }
 
 /**

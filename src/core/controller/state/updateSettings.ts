@@ -1,5 +1,4 @@
 import { buildApiHandler } from "@core/api"
-
 import { Empty } from "@shared/proto/cline/common"
 import {
 	PlanActMode,
@@ -14,6 +13,7 @@ import { ClineEnv } from "@/config"
 import { fetchRemoteConfig } from "@/core/storage/remote-config/fetch"
 import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/services/logging/Logger"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { telemetryService } from "../../../services/telemetry"
@@ -414,7 +414,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		return Empty.create()
 	} catch (error) {
-		console.error("Failed to update settings:", error)
+		Logger.error("Failed to update settings:", error)
 		throw error
 	}
 }
