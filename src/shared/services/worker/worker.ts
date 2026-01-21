@@ -1,5 +1,6 @@
-import { Logger } from "@/services/logging/Logger"
 import { BlobStoreSettings, blobStorage } from "../../storage/ClineBlobStorage"
+import { Logger } from "../Logger"
+
 import { SyncQueue, SyncQueueItem } from "./queue"
 
 export const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000

@@ -70,9 +70,9 @@ export class GrpcRequestRegistry {
 		}
 		try {
 			requestInfo.cleanup()
-			Logger.log(`[DEBUG] Cleaned up request: ${requestId}`)
+			Logger.debug(`Cleaned up request: ${requestId}`)
 		} catch (error) {
-			Logger.error(`Error cleaning up request ${requestId}:`, error)
+			Logger.debug(`Error cleaning up request ${requestId}:`, error)
 		}
 		this.activeRequests.delete(requestId)
 		return true

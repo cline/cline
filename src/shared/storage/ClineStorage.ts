@@ -1,4 +1,4 @@
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "../services/Logger"
 
 export interface ClineStorageChangeEvent {
 	readonly key: string

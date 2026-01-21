@@ -1,4 +1,4 @@
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "../services/Logger"
 import { getStorageAdapter, StorageAdapter } from "./adapters"
 import { ClineStorage } from "./ClineStorage"
 

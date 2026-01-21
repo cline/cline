@@ -1,6 +1,6 @@
 import * as fs from "node:fs"
 import * as path from "node:path"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "../Logger"
 import { SEVEN_DAYS_MS } from "./worker"
 
 /**

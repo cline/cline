@@ -1,5 +1,5 @@
 import { AwsClient } from "aws4fetch"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "../services/Logger"
 import type { BlobStoreSettings } from "./ClineBlobStorage"
 
 export interface StorageAdapter {

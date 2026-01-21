@@ -26,6 +26,7 @@ export {
 import { TelemetryService } from "./TelemetryService"
 
 let _telemetryServiceInstance: TelemetryService | null = null
+let _initializationPromise: Promise<TelemetryService> | null = null
 
 /**
  * Get the singleton telemetry service instance
@@ -33,9 +34,20 @@ let _telemetryServiceInstance: TelemetryService | null = null
  * @returns TelemetryService instance
  */
 export async function getTelemetryService(): Promise<TelemetryService> {
-	if (!_telemetryServiceInstance) {
-		_telemetryServiceInstance = await TelemetryService.create()
+	if (_telemetryServiceInstance) {
+		return _telemetryServiceInstance
 	}
+
+	// If initialization is already in progress, wait for it to complete
+	if (_initializationPromise) {
+		return _initializationPromise
+	}
+
+	// Start initialization and store the promise to prevent concurrent initialization
+	_initializationPromise = TelemetryService.create()
+	_telemetryServiceInstance = await _initializationPromise
+	_initializationPromise = null
+
 	return _telemetryServiceInstance
 }
 
@@ -44,6 +56,7 @@ export async function getTelemetryService(): Promise<TelemetryService> {
  */
 export function resetTelemetryService(): void {
 	_telemetryServiceInstance = null
+	_initializationPromise = null
 }
 
 export const telemetryService = new Proxy({} as TelemetryService, {

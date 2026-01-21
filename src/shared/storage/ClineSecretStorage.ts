@@ -1,4 +1,4 @@
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "../services/Logger"
 import { ClineStorage } from "./ClineStorage"
 
 export type SecretStores = VSCodeSecretStorage | ClineStorage
