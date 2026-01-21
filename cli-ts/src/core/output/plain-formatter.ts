@@ -90,10 +90,11 @@ export class PlainFormatter implements OutputFormatter {
 	}
 
 	raw(text: string): void {
-		// Use stdout.write directly to bypass console filtering
-		// This is important for commands like `dump` that output JSON
-		// containing strings that would otherwise be filtered
 		stdoutWrite(text + "\n")
+	}
+
+	code(code: string): void {
+		stdoutWrite(code + "\n")
 	}
 }
 

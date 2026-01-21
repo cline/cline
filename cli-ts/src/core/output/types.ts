@@ -107,6 +107,8 @@ export interface OutputFormatter {
 	/** Format and output key-value pairs */
 	keyValue(data: Record<string, unknown>): void
 
+	code(codeText: string): void
+
 	/** Output raw text without formatting */
 	raw(text: string): void
 }

@@ -92,11 +92,11 @@ export class RichFormatter implements OutputFormatter {
 	}
 
 	warn(text: string): void {
-		console.warn(chalk.yellow.bold("⚠"), chalk.yellow(text))
+		console.warn(chalk.yellow.bold("!"), chalk.yellow(text))
 	}
 
 	info(text: string): void {
-		console.log(chalk.blue.bold("ℹ"), chalk.blue(text))
+		console.log(chalk.blue.bold("i"), chalk.blue(text))
 	}
 
 	table(data: Record<string, unknown>[], columns?: string[]): void {
@@ -175,6 +175,10 @@ export class RichFormatter implements OutputFormatter {
 		// This is important for commands like `dump` that output JSON
 		// containing strings that would otherwise be filtered
 		stdoutWrite(text + "\n")
+	}
+
+	code(codeText: string): void {
+		console.log(chalk.green(codeText))
 	}
 }
 

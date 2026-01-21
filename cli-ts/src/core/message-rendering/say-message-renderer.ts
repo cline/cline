@@ -8,6 +8,7 @@
 import type { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics } from "@shared/getApiMetrics"
 import type { BrowserActionRenderer } from "./browser-action-renderer.js"
+import { renderMarkdown } from "./markdown-renderer.js"
 import type { ToolRenderer } from "./tool-renderer.js"
 import type { RenderContext } from "./types.js"
 
@@ -72,7 +73,8 @@ export class SayMessageRenderer {
 				break
 
 			case "completion_result":
-				this.ctx.formatter.success(`\n✨ ${msg.text || "Task completed"}`)
+				this.ctx.formatter.success(`\n✨ "Task completed"`)
+				this.ctx.formatter.raw(renderMarkdown(msg.text || ""))
 				break
 
 			case "user_feedback":
@@ -80,7 +82,7 @@ export class SayMessageRenderer {
 				break
 
 			case "command":
-				this.ctx.formatter.raw(`\n$ ${msg.text || ""}`)
+				this.ctx.formatter.code(`\n$ ${msg.text || ""}`)
 				break
 
 			case "command_output":

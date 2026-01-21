@@ -82,6 +82,8 @@ export const NOISE_PATTERNS = [
 
 	// Controller lifecycle (not actual errors)
 	"Controller disposed",
+
+	"[INFO ] Executing command",
 ]
 
 /**

@@ -9,7 +9,7 @@ import type { ClineMessage, OutputFormatter, TaskInfo } from "./types.js"
  * JSON output wrapper type
  */
 interface JsonOutput {
-	type: "message" | "error" | "success" | "warn" | "info" | "table" | "list" | "tasks" | "keyValue" | "raw"
+	type: "message" | "error" | "success" | "warn" | "info" | "table" | "list" | "tasks" | "keyValue" | "raw" | "code"
 	data: unknown
 	ts: number
 }
@@ -69,6 +69,10 @@ export class JsonFormatter implements OutputFormatter {
 
 	raw(text: string): void {
 		this.output("raw", { content: text })
+	}
+
+	code(code: any): void {
+		this.output("code", { code })
 	}
 }
 
