@@ -72,7 +72,6 @@ export class SayMessageRenderer {
 				break
 
 			case "completion_result":
-				// TODO end process if yolo mode
 				this.ctx.formatter.success(`\n✨ ${msg.text || "Task completed"}`)
 				break
 
@@ -126,6 +125,10 @@ export class SayMessageRenderer {
 
 			case "diff_error":
 				this.ctx.formatter.error(`❌ Diff error: ${msg.text || ""}`)
+				break
+
+			case "task_progress":
+				this.ctx.formatter.info("Making Progress...")
 				break
 
 			default:
