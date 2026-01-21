@@ -3,6 +3,7 @@
  */
 
 import path from "node:path"
+import { exit } from "node:process"
 import type { ApiProvider } from "@shared/api"
 import { Command } from "commander"
 import { render } from "ink"
@@ -243,6 +244,7 @@ async function runTask(
 		await ctx.controller.stateManager.flushPendingState()
 		await ctx.controller.dispose()
 		await ErrorService.get().dispose()
+		exit(0)
 	}
 }
 
@@ -265,6 +267,7 @@ async function listHistory(options: { config?: string; limit?: number; page?: nu
 		await ctx.controller.stateManager.flushPendingState()
 		await ctx.controller.dispose()
 		await ErrorService.get().dispose()
+		exit(0)
 		return
 	}
 
@@ -280,6 +283,7 @@ async function listHistory(options: { config?: string; limit?: number; page?: nu
 			await ctx.controller.stateManager.flushPendingState()
 			await ctx.controller.dispose()
 			await ErrorService.get().dispose()
+			exit(0)
 		},
 	)
 }
@@ -311,6 +315,7 @@ async function showConfig(options: { config?: string }) {
 			await ctx.controller.stateManager.flushPendingState()
 			await ctx.controller.dispose()
 			await ErrorService.get().dispose()
+			exit(0)
 		},
 	)
 }
@@ -340,7 +345,9 @@ async function runAuth(options: {
 		React.createElement(App, {
 			view: "auth",
 			controller: ctx.controller,
-			onComplete: () => {},
+			onComplete: () => {
+				exit(0)
+			},
 			onError: () => {
 				authError = true
 			},
@@ -350,6 +357,7 @@ async function runAuth(options: {
 			await ctx.controller.stateManager.flushPendingState()
 			await ctx.controller.dispose()
 			await ErrorService.get().dispose()
+			exit(0)
 		},
 	)
 
@@ -433,6 +441,7 @@ async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: 
 			},
 			onWelcomeExit: () => {
 				unmount()
+				exit(0)
 			},
 		}),
 	)
@@ -453,6 +462,7 @@ async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: 
 		await ctx.controller.stateManager.flushPendingState()
 		await ctx.controller.dispose()
 		await ErrorService.get().dispose()
+		exit(0)
 	}
 }
 

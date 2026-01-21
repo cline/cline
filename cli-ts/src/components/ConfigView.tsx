@@ -238,6 +238,10 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 	// Input handling
 	useInput(
 		(input, key) => {
+			if (input.toLowerCase() === "q" || key.escape) {
+				exit()
+			}
+
 			// Tab navigation with Tab key or number keys
 			if (key.tab || (input >= "1" && input <= "5")) {
 				const targetIdx = key.tab
@@ -283,11 +287,6 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 					isGlobal = skillEntries[selectedIndex].isGlobal
 				}
 				onOpenFolder(currentTab as "rules" | "workflows" | "hooks" | "skills", isGlobal)
-			}
-
-			// Exit
-			if (input === "q" || key.escape) {
-				exit()
 			}
 		},
 		{ isActive: !isEditing },
