@@ -277,6 +277,7 @@ message Settings {
   optional int32 open_telemetry_log_batch_size = 169;
   optional int32 open_telemetry_log_batch_timeout = 170;
   optional int32 open_telemetry_log_max_queue_size = 171;
+  optional bool worktrees_enabled = 172;
 }
 
 message DictationSettings {
@@ -421,6 +422,7 @@ message UpdateSettingsRequest {
   optional string oca_reasoning_effort = 37;
   optional bool skills_enabled = 38;
   optional bool opt_out_of_remote_config = 39;
+  optional bool worktrees_enabled = 40;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {

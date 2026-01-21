@@ -1,5 +1,4 @@
 import { buildApiHandler } from "@core/api"
-
 import { Empty } from "@shared/proto/cline/common"
 import {
 	PlanActMode,
@@ -193,6 +192,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				telemetryService.captureClineWebToolsToggle(controller.task.ulid, request.clineWebToolsEnabled)
 			}
 			controller.stateManager.setGlobalState("clineWebToolsEnabled", request.clineWebToolsEnabled)
+		}
+
+		// Update worktrees setting
+		if (request.worktreesEnabled !== undefined) {
+			controller.stateManager.setGlobalState("worktreesEnabled", request.worktreesEnabled)
 		}
 
 		if (request.dictationSettings !== undefined) {

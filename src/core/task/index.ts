@@ -92,6 +92,7 @@ import {
 	ClineToolResponseContent,
 	ClineUserContent,
 } from "@/shared/messages"
+import { ApiFormat } from "@/shared/proto/cline/models"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
@@ -1787,10 +1788,21 @@ export class Task {
 			return toggles[skill.path] !== false
 		})
 
+		// Snapshot editor tabs so prompt tools can decide whether to include
+		// filetype-specific instructions (e.g. notebooks) without adding bespoke flags.
+		const openTabPaths = (await HostProvider.window.getOpenTabs({})).paths || []
+		const visibleTabPaths = (await HostProvider.window.getVisibleTabs({})).paths || []
+		const cap = 50
+		const editorTabs = {
+			open: openTabPaths.slice(0, cap),
+			visible: visibleTabPaths.slice(0, cap),
+		}
+
 		const promptContext: SystemPromptContext = {
 			cwd: this.cwd,
 			ide,
 			providerInfo,
+			editorTabs,
 			supportsBrowserUse,
 			mcpHub: this.mcpHub,
 			skills: availableSkills,
@@ -1811,7 +1823,9 @@ export class Task {
 			workspaceRoots,
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
-			enableNativeToolCalls: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
+			enableNativeToolCalls:
+				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
+				this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
 			terminalExecutionMode: this.terminalExecutionMode,
 		}
@@ -2553,6 +2567,7 @@ export class Task {
 			await this.diffViewProvider.reset()
 			this.streamHandler.reset()
 			this.taskState.toolUseIdMap.clear()
+			this.taskState.errorPushedForCallIds.clear()
 
 			const { toolUseHandler, reasonsHandler } = this.streamHandler.getHandlers()
 			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)

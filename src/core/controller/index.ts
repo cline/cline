@@ -122,21 +122,10 @@ export class Controller {
 		this.stateManager = StateManager.get()
 		StateManager.get().registerCallbacks({
 			onPersistenceError: async ({ error }: PersistenceErrorEvent) => {
-				Logger.error("[Controller] Cache persistence failed, recovering:", error)
-				try {
-					await StateManager.get().reInitialize(this.task?.taskId)
-					await this.postStateToWebview()
-					HostProvider.window.showMessage({
-						type: ShowMessageType.WARNING,
-						message: "Saving settings to storage failed.",
-					})
-				} catch (recoveryError) {
-					Logger.error("[Controller] Cache recovery failed:", recoveryError)
-					HostProvider.window.showMessage({
-						type: ShowMessageType.ERROR,
-						message: "Failed to save settings. Please restart the extension.",
-					})
-				}
+				// Just log - don't call reInitialize() (that sets isInitialized=false which
+				// breaks running tasks) and don't show a warning (data is safe in memory
+				// and will be retried automatically on the next debounced persistence).
+				Logger.error("[Controller] Storage persistence failed (will retry):", error)
 			},
 			onSyncExternalChange: async () => {
 				await this.postStateToWebview()
@@ -885,6 +874,10 @@ export class Controller {
 		const environment = ClineEnv.config().environment
 		const banners = await this.getBanners()
 
+		// Check OpenAI Codex authentication status
+		const { openAiCodexOAuthManager } = await import("@/integrations/openai-codex/oauth")
+		const openAiCodexIsAuthenticated = await openAiCodexOAuthManager.isAuthenticated()
+
 		// Set feature flag in dictation settings based on platform
 		const updatedDictationSettings = {
 			...dictationSettings,
@@ -958,6 +951,10 @@ export class Controller {
 				user: this.stateManager.getGlobalSettingsKey("clineWebToolsEnabled"),
 				featureFlag: featureFlagsService.getWebtoolsEnabled(),
 			},
+			worktreesEnabled: {
+				user: this.stateManager.getGlobalSettingsKey("worktreesEnabled"),
+				featureFlag: featureFlagsService.getWorktreesEnabled(),
+			},
 			hooksEnabled: this.stateManager.getGlobalSettingsKey("hooksEnabled"),
 			lastDismissedInfoBannerVersion,
 			lastDismissedModelBannerVersion,
@@ -970,6 +967,7 @@ export class Controller {
 			skillsEnabled,
 			optOutOfRemoteConfig: this.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
 			banners,
+			openAiCodexIsAuthenticated,
 		}
 	}
 
