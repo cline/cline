@@ -16,9 +16,9 @@ import {
 	SettingsKey,
 } from "@shared/storage/state-keys"
 import chokidar, { FSWatcher } from "chokidar"
-import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/services/logging/Logger"
+import { ClineExtensionContext } from "@/shared/clients"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import {
 	getTaskHistoryStateFilePath,
@@ -60,7 +60,7 @@ export class StateManager {
 	private remoteConfigCache: Partial<RemoteConfigFields> = {} as RemoteConfigFields
 	private secretsCache: Secrets = {} as Secrets
 	private workspaceStateCache: LocalState = {} as LocalState
-	private context: ExtensionContext
+	private context: ClineExtensionContext
 	private isInitialized = false
 
 	// In-memory model info cache (not persisted to disk)
@@ -102,14 +102,14 @@ export class StateManager {
 	// Callback to sync external state changes with the UI client
 	onSyncExternalChange?: () => void | Promise<void>
 
-	private constructor(context: ExtensionContext) {
+	private constructor(context: ClineExtensionContext) {
 		this.context = context
 	}
 
 	/**
 	 * Initialize the cache by loading data from disk
 	 */
-	public static async initialize(context: ExtensionContext): Promise<StateManager> {
+	public static async initialize(context: ClineExtensionContext): Promise<StateManager> {
 		if (!StateManager.instance) {
 			StateManager.instance = new StateManager(context)
 		}
