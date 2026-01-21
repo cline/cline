@@ -43,12 +43,20 @@ export async function getTelemetryService(): Promise<TelemetryService> {
 		return _initializationPromise
 	}
 
-	// Start initialization and store the promise to prevent concurrent initialization
+	// Start initialization and store the promise to prevent concurrent initialization.
+	// Ensure that on failure we reset the initialization promise so future calls can retry.
 	_initializationPromise = TelemetryService.create()
-	_telemetryServiceInstance = await _initializationPromise
-	_initializationPromise = null
+		.then((service) => {
+			_telemetryServiceInstance = service
+			_initializationPromise = null
+			return service
+		})
+		.catch((error) => {
+			_initializationPromise = null
+			throw error
+		})
 
-	return _telemetryServiceInstance
+	return _initializationPromise
 }
 
 /**
