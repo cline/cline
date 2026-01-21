@@ -21,12 +21,47 @@ import { createCliHostBridgeProvider } from "./controllers"
 import { CliCommentReviewController } from "./controllers/CliCommentReviewController"
 import { CliWebviewProvider } from "./controllers/CliWebviewProvider"
 import { restoreConsole } from "./utils/console"
-import { print, printError, printInfo, separator } from "./utils/display"
+import { print, printError, printInfo, printWarning, separator } from "./utils/display"
 import { parseImagesFromInput, processImagePaths } from "./utils/parser"
 import { getProviderModelIdKey } from "./utils/provider-map"
 import { initializeCliContext } from "./vscode-context"
 
 const VERSION = "0.0.0"
+
+// Track active context for graceful shutdown
+let activeContext: CliContext | null = null
+let isShuttingDown = false
+
+function setupSignalHandlers() {
+	const shutdown = async (signal: string) => {
+		if (isShuttingDown) {
+			// Force exit on second signal
+			process.exit(1)
+		}
+		isShuttingDown = true
+		printWarning(`\n${signal} received, shutting down...`)
+
+		try {
+			if (activeContext) {
+				const task = activeContext.controller.task
+				if (task) {
+					task.abortTask()
+				}
+				await activeContext.controller.stateManager.flushPendingState()
+				await activeContext.controller.dispose()
+			}
+			await ErrorService.get().dispose()
+		} catch {
+			// Best effort cleanup
+		}
+		process.exit(0)
+	}
+
+	process.on("SIGINT", () => shutdown("SIGINT"))
+	process.on("SIGTERM", () => shutdown("SIGTERM"))
+}
+
+setupSignalHandlers()
 
 interface CliContext {
 	extensionContext: any
@@ -99,7 +134,9 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 
 	await initializeDistinctId(extensionContext)
 
-	return { extensionContext, dataDir: DATA_DIR, extensionDir: EXTENSION_DIR, workspacePath, controller }
+	const ctx = { extensionContext, dataDir: DATA_DIR, extensionDir: EXTENSION_DIR, workspacePath, controller }
+	activeContext = ctx
+	return ctx
 }
 
 /**
