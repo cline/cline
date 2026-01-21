@@ -1,3 +1,4 @@
+import * as os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
 
@@ -37,7 +38,6 @@ export class NotebookDiffView {
 	}
 
 	private async createDiffView(uri: vscode.Uri, fileName: string, editor: vscode.TextEditor): Promise<void> {
-		const os = require("os")
 		const tempDir = os.tmpdir()
 		const timestamp = Date.now()
 		const tempModifiedPath = path.join(tempDir, `cline-modified-${timestamp}-${fileName}`)
