@@ -49,7 +49,8 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 	})
 
 	const { prompt, imagePaths } = parseImagesFromInput(textInput)
-	const mentionInfo = extractMentionQuery(textInput)
+
+	const mentionInfo = useMemo(() => extractMentionQuery(textInput), [textInput])
 
 	const workspacePath = useMemo(() => {
 		try {
@@ -192,16 +193,6 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 			<Box flexDirection="column" marginTop={1}>
 				<Text color="cyan">┃ [{mode} mode] What would you like Cline to help you with?</Text>
 
-				{/* File mention menu - show above the input */}
-				{mentionInfo.inMentionMode && (
-					<FileMentionMenu
-						isLoading={isSearching}
-						query={mentionInfo.query}
-						results={fileResults}
-						selectedIndex={selectedIndex}
-					/>
-				)}
-
 				<Box>
 					<Text color="green">&gt; </Text>
 					<Text>{textInput}</Text>
@@ -219,6 +210,17 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 				)}
 			</Box>
 			<Text> </Text>
+
+			{/* File mention menu - show above the input */}
+			{mentionInfo.inMentionMode && (
+				<FileMentionMenu
+					isLoading={isSearching}
+					query={mentionInfo.query}
+					results={fileResults}
+					selectedIndex={selectedIndex}
+				/>
+			)}
+
 			<Text color="gray" dimColor>
 				(Type your task and press Enter to Submit.)
 			</Text>

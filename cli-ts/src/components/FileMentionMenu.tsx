@@ -27,7 +27,7 @@ function truncatePath(filePath: string, maxLength: number = 50): string {
 export const FileMentionMenu: React.FC<FileMentionMenuProps> = ({ results, selectedIndex, isLoading, query }) => {
 	if (isLoading) {
 		return (
-			<Box borderColor="gray" borderStyle="single" flexDirection="column" marginBottom={1} paddingLeft={1} paddingRight={1}>
+			<Box flexDirection="column" marginBottom={1} paddingLeft={1} paddingRight={1}>
 				<Text color="gray">Searching files...</Text>
 			</Box>
 		)
@@ -35,7 +35,7 @@ export const FileMentionMenu: React.FC<FileMentionMenuProps> = ({ results, selec
 
 	if (results.length === 0) {
 		return (
-			<Box borderColor="gray" borderStyle="single" flexDirection="column" marginBottom={1} paddingLeft={1} paddingRight={1}>
+			<Box flexDirection="column" marginBottom={1} paddingLeft={1} paddingRight={1}>
 				<Text color="gray">{query ? `No files matching "${query}"` : "Type to search files..."}</Text>
 			</Box>
 		)
@@ -61,13 +61,7 @@ export const FileMentionMenu: React.FC<FileMentionMenuProps> = ({ results, selec
 	const visibleResults = results.slice(startIndex, endIndex)
 
 	return (
-		<Box borderColor="cyan" borderStyle="single" flexDirection="column" marginBottom={1} paddingLeft={1} paddingRight={1}>
-			<Box marginBottom={1}>
-				<Text color="cyan" dimColor>
-					Files {query ? `matching "${query}"` : ""} (↑/↓ to select, Tab/Enter to insert)
-				</Text>
-			</Box>
-
+		<Box flexDirection="column" marginBottom={1} paddingLeft={1} paddingRight={1}>
 			{startIndex > 0 && (
 				<Text color="gray" dimColor>
 					↑ {startIndex} more...
@@ -94,6 +88,12 @@ export const FileMentionMenu: React.FC<FileMentionMenuProps> = ({ results, selec
 					↓ {results.length - endIndex} more...
 				</Text>
 			)}
+
+			<Box>
+				<Text color="cyan" dimColor>
+					↑/↓ to select, Tab/Enter to insert
+				</Text>
+			</Box>
 		</Box>
 	)
 }
