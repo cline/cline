@@ -6,6 +6,7 @@ import { formatResponse } from "@/core/prompts/responses"
 import { parseWorkspaceInlinePath } from "@/core/workspace/utils/parseWorkspaceInlinePath"
 import { WorkspacePathAdapter } from "@/core/workspace/WorkspacePathAdapter"
 import { resolveWorkspacePath } from "@/core/workspace/WorkspaceResolver"
+import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
 import { ClineSayTool } from "@/shared/ExtensionMessage"
 import { ClineDefaultTool } from "@/shared/tools"
@@ -105,7 +106,7 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 			}
 		} catch (error) {
 			// If search fails in one workspace, return error info
-			console.error(`Search failed in ${absolutePath}:`, error)
+			Logger.error(`Search failed in ${absolutePath}:`, error)
 			return {
 				workspaceName,
 				workspaceResults: "",

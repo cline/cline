@@ -1,4 +1,5 @@
 import { StringArray, type StringRequest } from "@shared/proto/cline/common"
+import { Logger } from "@/services/logging/Logger"
 import { fetch } from "@/shared/net"
 import type { Controller } from ".."
 
@@ -22,7 +23,7 @@ export async function getLmStudioModels(_controller: Controller, request: String
 
 		return StringArray.create({ values: models })
 	} catch (error) {
-		console.error("Failed to fetch LM Studio models:", error)
+		Logger.error("Failed to fetch LM Studio models:", error)
 		return StringArray.create({ values: [] })
 	}
 }

@@ -1,4 +1,5 @@
 import { ParseEntry, parse } from "shell-quote"
+import { Logger } from "@/services/logging/Logger"
 import { COMMAND_PERMISSIONS_ENV_VAR, CommandPermissionConfig, PermissionValidationResult, ShellOperatorMatch } from "./types"
 
 const OPERATOR_DESCRIPTIONS: Record<string, string> = {
@@ -62,7 +63,7 @@ export class CommandPermissionController {
 				allowOperators: Array.isArray(parsed.allowOperators) ? parsed.allowOperators : undefined,
 			}
 		} catch (error) {
-			console.error(`Failed to parse ${COMMAND_PERMISSIONS_ENV_VAR}:`, error)
+			Logger.error(`Failed to parse ${COMMAND_PERMISSIONS_ENV_VAR}:`, error)
 			return null
 		}
 	}

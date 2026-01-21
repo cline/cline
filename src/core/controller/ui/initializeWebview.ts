@@ -1,6 +1,7 @@
 import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
 import { readMcpMarketplaceCatalogFromCache } from "@/core/storage/disk"
+import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
 import { GlobalStateAndSettings } from "@/shared/storage/state-keys"
 import type { Controller } from "../index"
@@ -225,7 +226,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 
 		return Empty.create({})
 	} catch (error) {
-		console.error("Failed to initialize webview:", error)
+		Logger.error("Failed to initialize webview:", error)
 		// Return empty response even on error to not break the frontend
 		return Empty.create({})
 	}

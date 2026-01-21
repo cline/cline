@@ -1,6 +1,7 @@
 import { Empty } from "@shared/proto/cline/common"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { buildApiHandler } from "@/core/api"
+import { Logger } from "@/services/logging/Logger"
 import { ApiHandlerOptions, ApiProvider } from "@/shared/api"
 import { UpdateApiConfigurationRequestNew } from "@/shared/proto/index.cline"
 import { Secrets } from "@/shared/storage/state-keys"
@@ -150,7 +151,7 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 
 		return Empty.create()
 	} catch (error) {
-		console.error(`Failed to update API configuration: ${error}`)
+		Logger.error(`Failed to update API configuration: ${error}`)
 		throw error
 	}
 }

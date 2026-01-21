@@ -1,4 +1,5 @@
 import { isGPT51Model, isGPT52Model, isNextGenModelProvider } from "@utils/model-utils"
+import { Logger } from "@/services/logging/Logger"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -88,12 +89,12 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5_1)
 // Compile-time validation
 const validationResult = validateVariant({ ...config, id: ModelFamily.NATIVE_GPT_5_1 }, { strict: true })
 if (!validationResult.isValid) {
-	console.error("GPT-5-1 variant configuration validation failed:", validationResult.errors)
+	Logger.error("GPT-5-1 variant configuration validation failed:", validationResult.errors)
 	throw new Error(`Invalid GPT-5-1 variant configuration: ${validationResult.errors.join(", ")}`)
 }
 
 if (validationResult.warnings.length > 0) {
-	console.warn("GPT-5-1 variant configuration warnings:", validationResult.warnings)
+	Logger.warn("GPT-5-1 variant configuration warnings:", validationResult.warnings)
 }
 
 // Export type information for better IDE support

@@ -1,4 +1,5 @@
 import { isGPT5ModelFamily, isLocalModel, isNextGenModelFamily, isNextGenModelProvider } from "@utils/model-utils"
+import { Logger } from "@/services/logging/Logger"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -81,12 +82,12 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 // Compile-time validation
 const validationResult = validateVariant({ ...config, id: ModelFamily.NEXT_GEN }, { strict: true })
 if (!validationResult.isValid) {
-	console.error("Next-gen variant configuration validation failed:", validationResult.errors)
+	Logger.error("Next-gen variant configuration validation failed:", validationResult.errors)
 	throw new Error(`Invalid next-gen variant configuration: ${validationResult.errors.join(", ")}`)
 }
 
 if (validationResult.warnings.length > 0) {
-	console.warn("Next-gen variant configuration warnings:", validationResult.warnings)
+	Logger.warn("Next-gen variant configuration warnings:", validationResult.warnings)
 }
 
 // Export type information for better IDE support

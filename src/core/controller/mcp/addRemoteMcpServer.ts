@@ -1,5 +1,6 @@
 import type { AddRemoteMcpServerRequest } from "@shared/proto/cline/mcp"
 import { McpServers } from "@shared/proto/cline/mcp"
+import { Logger } from "@/services/logging/Logger"
 import { convertMcpServersToProtoMcpServers } from "@/shared/proto-conversions/mcp/mcp-server-conversion"
 import type { Controller } from "../index"
 
@@ -26,7 +27,7 @@ export async function addRemoteMcpServer(controller: Controller, request: AddRem
 
 		return McpServers.create({ mcpServers: protoServers })
 	} catch (error) {
-		console.error(`Failed to add remote MCP server ${request.serverName}:`, error)
+		Logger.error(`Failed to add remote MCP server ${request.serverName}:`, error)
 
 		throw error
 	}

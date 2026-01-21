@@ -1,5 +1,6 @@
 import { RecordedAudio } from "@shared/proto/cline/dictation"
 import { audioRecordingService } from "@/services/dictation/AudioRecordingService"
+import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
 import { Controller } from ".."
 
@@ -24,7 +25,7 @@ export const stopRecording = async (controller: Controller): Promise<RecordedAud
 			error: result.error ?? "",
 		})
 	} catch (error) {
-		console.error("Error stopping recording:", error)
+		Logger.error("Error stopping recording:", error)
 
 		telemetryService.captureVoiceRecordingStopped(taskId, recordingDuration, false, process.platform)
 

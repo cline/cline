@@ -2,6 +2,7 @@ import { RecordingResult } from "@shared/proto/cline/dictation"
 import * as os from "os"
 import { HostProvider } from "@/hosts/host-provider"
 import { audioRecordingService } from "@/services/dictation/AudioRecordingService"
+import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
 import { AUDIO_PROGRAM_CONFIG } from "@/shared/audioProgramConstants"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -143,7 +144,7 @@ export const startRecording = async (controller: Controller): Promise<RecordingR
 			error: result.error || "",
 		})
 	} catch (error) {
-		console.error("Error starting recording:", error)
+		Logger.error("Error starting recording:", error)
 		const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
 
 		// Handle different error types
