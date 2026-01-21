@@ -68,14 +68,14 @@ This structured representation allows the AI to understand not just the code, bu
 
 ### JSON structure preservation
 
-Cline operates on the cell JSON structure directly, which means:
+Cline is designed to work carefully with the cell JSON structure, aiming to:
 
-- Cell boundaries stay intact
-- Execution counts are preserved
-- Cell metadata remains untouched
-- Outputs stay associated with their source cells
+- Keep cell boundaries intact
+- Preserve execution counts
+- Maintain cell metadata
+- Keep outputs associated with their source cells
 
-You don't need to worry about the AI breaking your notebook's format.
+The AI is specifically prompted to preserve notebook structure, though you should always review changes to ensure your notebook format remains correct.
 
 ## Keyboard shortcuts
 
