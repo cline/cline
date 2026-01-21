@@ -29,7 +29,7 @@ export const CLINE_ONBOARDING_MODELS: OnboardingModel[] = [
 		latency: 2,
 		badge: "",
 		info: {
-			contextWindow: 128_000,
+			contextWindow: 256_000,
 			supportsImages: false,
 			supportsPromptCache: false,
 			inputPrice: 0,
