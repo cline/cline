@@ -7,21 +7,17 @@ description: "AI-assisted editing of Jupyter notebooks with cell-level context a
 
 Cline provides comprehensive support for Jupyter notebooks (`.ipynb` files), enabling AI-assisted editing with full cell-level context awareness. This feature was developed in collaboration with Amazon to bring AI coding assistance to data science workflows.
 
-## Enabling notebook support
+## Getting started
 
-Jupyter notebook support is an opt-in feature. To enable it:
+Jupyter notebook support is a built-in feature of Cline. To use it, you just need to have the Jupyter notebook extension enabled in VS Code. Once you open any `.ipynb` file, you'll see AI-assisted buttons in your notebook interface.
 
-1. Open Cline settings in VS Code
-2. Navigate to **Settings → Features**
-3. Enable **Enhanced Notebook Interaction**
+## How to use
 
-Once enabled, three new commands become available in the command palette whenever you're working with `.ipynb` files.
+### Generate Cell
 
-## Commands
+Click the sparkle icon (✨) in the notebook toolbar to generate new cells with AI assistance.
 
-### cline.generateCell
-
-Generate new notebook cells with AI assistance. Describe what you want and Cline creates a properly structured cell that fits into your notebook.
+![Generate Cell demo](../assets/jupyter-generate-cell.gif)
 
 **How it works:** The AI receives context from surrounding cells, so it understands the variables and imports already in scope. This means you can reference existing DataFrames, functions, and other objects without re-explaining them.
 
@@ -29,9 +25,13 @@ Generate new notebook cells with AI assistance. Describe what you want and Cline
 
 The cell is inserted with proper notebook JSON structure, preserving metadata and ready to execute.
 
-### cline.explainCell
+### Explain Cell
 
-Get a detailed explanation of what a cell does. This is useful for:
+Click the Explain button in any cell's title bar to get a detailed explanation of what the cell does.
+
+![Explain and Improve Cell demo](../assets/jupyter-explain-improve-cell.gif)
+
+This is useful for:
 
 - Revisiting old notebooks
 - Onboarding to a teammate's analysis
@@ -39,9 +39,11 @@ Get a detailed explanation of what a cell does. This is useful for:
 
 **How it works:** Cline extracts the full cell context, including outputs, so explanations can reference actual results like column names, row counts, and computed values.
 
-### cline.improveCell
+### Improve Cell
 
-Enhance existing cells with AI suggestions. Use this to:
+Click the Improve button in any cell's title bar to enhance existing cells with AI suggestions.
+
+Use this to:
 
 - Optimize slow pandas operations
 - Add error handling
@@ -80,27 +82,27 @@ You don't need to worry about the AI breaking your notebook's format.
 You can bind any of these commands to keyboard shortcuts for faster access:
 
 1. Open VS Code keyboard shortcuts (Cmd/Ctrl + K, Cmd/Ctrl + S)
-2. Search for `cline.generateCell`, `cline.explainCell`, or `cline.improveCell`
+2. Search for `cline.jupyterGenerateCell`, `cline.jupyterExplainCell`, or `cline.jupyterImproveCell`
 3. Assign your preferred key combinations
 
 ## Tips for best results
 
-**For generateCell:**
+**For Generate Cell:**
 - Be specific about what you want the cell to do
 - Reference existing variables by name (the AI can see them)
 - Mention preferred libraries if you have a preference (e.g., "use seaborn" or "use plotly")
 
-**For explainCell:**
+**For Explain Cell:**
 - Works best on cells that have been executed (outputs provide additional context)
 - Good for complex chained operations like pandas groupby/merge sequences
 
-**For improveCell:**
+**For Improve Cell:**
 - Mention what aspect you want to improve (performance, readability, error handling)
 - The AI will explain the changes it suggests
 
 ## Limitations
 
-- Notebook support requires the Enhanced Notebook Interaction setting to be enabled
+- Notebook support requires the Jupyter notebook extension to be enabled in VS Code
 - Cell context extraction depends on VS Code's notebook API
 - Very large notebooks may require more context than some models can handle efficiently
 
