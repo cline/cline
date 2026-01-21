@@ -199,8 +199,7 @@ jobs:
 
             - name: Running testing platform integration spec tests
               timeout-minutes: 7
-              run: |
-                npm run test:tp-orchestrator -- tests/specs/ --count=1 --coverage
+              run: npm run test:tp-orchestrator -- tests/specs/ --count=1 --coverage
 
             - name: Save Coverage Reports
               uses: actions/upload-artifact@v4
