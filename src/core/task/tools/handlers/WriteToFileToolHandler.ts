@@ -29,16 +29,35 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		return `[${block.name} for '${block.params.path || block.params.absolutePath}']`
 	}
 
+	private _shownPathOnlyMessage = false
+
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
 		const rawRelPath = block.params.path || block.params.absolutePath
 		const rawContent = block.params.content // for write_to_file
 		const rawDiff = block.params.diff // for replace_in_file
+
+		// Show early UI feedback when we have a complete path but no content yet
+		// This prevents the UI from appearing stuck while the model streams the diff
+		// A path is "complete" if it has a file extension (e.g., .ts, .ipynb, .py)
+		const pathLooksComplete = rawRelPath && /\.\w{1,10}$/.test(rawRelPath)
+		if (pathLooksComplete && !rawContent && !rawDiff && !this._shownPathOnlyMessage) {
+			this._shownPathOnlyMessage = true
+			const config = uiHelpers.getConfig()
+			const readablePath = getReadablePath(config.cwd, rawRelPath)
+			// Show a simple text message that Cline is preparing to edit the file
+			// This gives immediate feedback while the model generates the diff content
+			await uiHelpers.say("text", `Preparing to edit ${readablePath}...`, undefined, undefined, true)
+			return
+		}
 
 		// Early return if we don't have enough data yet
 		if (!rawRelPath || (!rawContent && !rawDiff)) {
 			// Wait until we have the path and either content or diff
 			return
 		}
+
+		// Reset the path-only flag since we now have content
+		this._shownPathOnlyMessage = false
 
 		const config = uiHelpers.getConfig()
 
