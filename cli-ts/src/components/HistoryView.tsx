@@ -3,7 +3,7 @@
  * Displays task history with keyboard navigation
  */
 
-import { Box, Text, useInput } from "ink"
+import { Box, Text, useInput, useStdout } from "ink"
 import React, { useCallback, useState } from "react"
 import { Controller } from "@/core/controller"
 import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
@@ -44,7 +44,7 @@ function formatSeparator(char: string = "─", width: number = 80): string {
 
 export const HistoryView: React.FC<HistoryViewProps> = ({
 	items,
-	visibleCount = 10,
+	visibleCount,
 	controller,
 	onSelectTask,
 	pagination,
@@ -53,6 +53,18 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 }) => {
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const [internalPage, setInternalPage] = useState(pagination?.page ?? 1)
+	const { stdout } = useStdout()
+
+	// Calculate visible count based on terminal height to prevent overflow
+	// Each item takes ~5 lines (date, id, task text, cost/model, margin)
+	// Reserve lines for header (title, hint, pagination, separator) and footer (separator)
+	const terminalRows = stdout?.rows ?? 24
+	const headerLines = (pagination?.totalPages ?? 1) > 1 ? 5 : 4
+	const footerLines = 1
+	const availableRows = terminalRows - headerLines - footerLines
+	const itemHeight = 5
+	const dynamicVisibleCount = Math.max(1, Math.floor(availableRows / itemHeight))
+	const effectiveVisibleCount = visibleCount ?? dynamicVisibleCount
 
 	const onSelect = useCallback(
 		(item: TaskHistoryItem) => {
@@ -110,12 +122,12 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 	})
 
 	// Calculate visible window around selected item
-	const halfVisible = Math.floor(visibleCount / 2)
+	const halfVisible = Math.floor(effectiveVisibleCount / 2)
 	let startIndex = Math.max(0, selectedIndex - halfVisible)
-	const endIndex = Math.min(pageItems.length, startIndex + visibleCount)
+	const endIndex = Math.min(pageItems.length, startIndex + effectiveVisibleCount)
 	// Adjust start if we're near the end
-	if (endIndex - startIndex < visibleCount) {
-		startIndex = Math.max(0, endIndex - visibleCount)
+	if (endIndex - startIndex < effectiveVisibleCount) {
+		startIndex = Math.max(0, endIndex - effectiveVisibleCount)
 	}
 	const visibleTasks = pageItems.slice(startIndex, endIndex)
 
