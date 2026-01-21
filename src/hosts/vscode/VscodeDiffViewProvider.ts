@@ -2,6 +2,7 @@ import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import * as path from "path"
 import * as vscode from "vscode"
 import { DecorationController } from "@/hosts/vscode/DecorationController"
+import { NotebookDiffView } from "@/hosts/vscode/NotebookDiffView"
 import { arePathsEqual } from "@/utils/path"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
@@ -11,6 +12,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 
 	private fadedOverlayController?: DecorationController
 	private activeLineController?: DecorationController
+	private notebookDiffView?: NotebookDiffView
 
 	override async openDiffEditor(): Promise<void> {
 		if (!this.absolutePath) {
@@ -216,9 +218,43 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 	}
 
 	protected override async resetDiffView(): Promise<void> {
+		if (this.notebookDiffView) {
+			await this.notebookDiffView.cleanup()
+			this.notebookDiffView = undefined
+		}
+
 		this.activeDiffEditor = undefined
 		this.fadedOverlayController = undefined
 		this.activeLineController = undefined
+	}
+
+	protected override async switchToSpecializedEditor(): Promise<void> {
+		if (!this.isNotebookFile() || !this.activeDiffEditor || !this.absolutePath) {
+			return
+		}
+
+		try {
+			this.notebookDiffView = new NotebookDiffView()
+			await this.notebookDiffView.open(this.absolutePath, this.activeDiffEditor)
+		} catch (error) {
+			console.error("Failed to create notebook diff view:", error)
+		}
+	}
+
+	override async showFile(absolutePath: string): Promise<void> {
+		const uri = vscode.Uri.file(absolutePath)
+
+		if (this.isNotebookFile()) {
+			// Open with Jupyter notebook editor if available
+			const jupyterExtension = vscode.extensions.getExtension("ms-toolsai.jupyter")
+			if (jupyterExtension) {
+				await vscode.commands.executeCommand("vscode.openWith", uri, "jupyter-notebook")
+				return
+			}
+		}
+
+		// Default: open as text
+		await vscode.window.showTextDocument(uri, { preview: false })
 	}
 }
 
