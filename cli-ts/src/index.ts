@@ -409,6 +409,10 @@ program
 	.option("--config <path>", "Path to Cline configuration directory")
 	.action(runAuth)
 
+program
+	.command("version")
+	.description("Show Cline CLI version number")
+	.action(() => printInfo(`Cline CLI version: ${VERSION}`))
 /**
  * Show welcome prompt and run task with user input
  */
