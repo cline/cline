@@ -1,3 +1,4 @@
+import { Logger } from "@/services/logging/Logger"
 import { BlobStoreSettings, blobStorage } from "../../storage/ClineBlobStorage"
 import { SyncQueue, SyncQueueItem } from "./queue"
 
@@ -135,7 +136,7 @@ export class SyncWorker {
 			try {
 				listener(event)
 			} catch (err) {
-				console.error("SyncWorker event listener error:", err)
+				Logger.error("SyncWorker event listener error:", err)
 			}
 		}
 	}
@@ -153,7 +154,7 @@ export class SyncWorker {
 
 		// Run immediately but don't await
 		this.processQueue().catch((err) => {
-			console.error("SyncWorker initial process error:", err)
+			Logger.error("SyncWorker initial process error:", err)
 		})
 	}
 
@@ -237,7 +238,7 @@ export class SyncWorker {
 					this.queue.markFailed(item.taskId, item.key, errorMsg)
 					failCount++
 					this.emit({ type: WorkerEvent.WorkerItemFailed, item, error: errorMsg })
-					console.error(`Failed to sync ${item.taskId}/${item.key}:`, err)
+					Logger.error(`Failed to sync ${item.taskId}/${item.key}:`, err)
 				}
 			}
 
