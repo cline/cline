@@ -1,5 +1,5 @@
 ---
-"cline": patch
+"claude-dev": patch
 ---
 
 fix: improve Jupyter notebook diff view and reduce LLM context for notebook edits
