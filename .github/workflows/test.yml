@@ -199,9 +199,6 @@ jobs:
 
             - name: Running testing platform integration spec tests
               timeout-minutes: 7
-              # Temporarily wrapping the test command to always return a neutral exit code.
-              # This prevents the job from showing as failed and avoids distracting developers
-              # until the integration tests are ready to be enforced.
               run: |
                 npm run test:tp-orchestrator -- tests/specs/ --count=1 --coverage
 
