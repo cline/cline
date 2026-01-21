@@ -69,6 +69,9 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				focusChainSettings,
 				browserSettings,
 				defaultTerminalProfile,
+				// CLI should not be able to toggle hooks (hooks are currently force-enabled in core).
+				// We explicitly strip this field for backwards compatibility with older CLIs.
+				hooksEnabled: _hooksEnabled,
 				...simpleSettings
 			} = request.settings
 
