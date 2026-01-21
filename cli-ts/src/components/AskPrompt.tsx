@@ -119,12 +119,25 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 					sendResponse("noButtonClicked")
 				}
 			} else if (promptType === "options") {
-				// Number selection for options
+				// Number selection for options, or free text input
 				const parts = jsonParseSafe(text, { options: [] as string[] })
-				const num = parseInt(input, 10)
-				if (!Number.isNaN(num) && num >= 1 && num <= parts.options.length) {
-					const selectedOption = parts.options[num - 1]
-					sendResponse("optionSelected", selectedOption)
+				if (key.return) {
+					// Submit free text on Enter
+					if (textInput.trim()) {
+						sendResponse("messageResponse", textInput.trim())
+					}
+				} else if (key.backspace || key.delete) {
+					setTextInput((prev) => prev.slice(0, -1))
+				} else if (input && !key.ctrl && !key.meta) {
+					// Check if it's a number for option selection (only when no text typed yet)
+					const num = parseInt(input, 10)
+					if (textInput === "" && !Number.isNaN(num) && num >= 1 && num <= parts.options.length) {
+						const selectedOption = parts.options[num - 1]
+						sendResponse("optionSelected", selectedOption)
+					} else {
+						// Regular character input for free text
+						setTextInput((prev) => prev + input)
+					}
 				}
 			} else if (promptType === "text") {
 				// Text input mode
@@ -205,8 +218,14 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 								<Text>{`${idx + 1}. ${opt}`}</Text>
 							</Box>
 						))}
+						<Box marginTop={1}>
+							<Text>{icon} </Text>
+							<Text color="cyan">Or type: </Text>
+							<Text>{textInput}</Text>
+							<Text color="gray">▌</Text>
+						</Box>
 						<Text color="gray" dimColor>
-							(Enter number to select)
+							(Enter number to select, or type response + Enter)
 						</Text>
 					</Box>
 				)
@@ -243,8 +262,14 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 								<Text>{`${idx + 1}. ${opt}`}</Text>
 							</Box>
 						))}
+						<Box marginTop={1}>
+							<Text>{icon} </Text>
+							<Text color="cyan">Or type: </Text>
+							<Text>{textInput}</Text>
+							<Text color="gray">▌</Text>
+						</Box>
 						<Text color="gray" dimColor>
-							(Enter number to select)
+							(Enter number to select, or type response + Enter)
 						</Text>
 					</Box>
 				)

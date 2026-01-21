@@ -5,8 +5,11 @@
 import { exec } from "node:child_process"
 import os from "node:os"
 import path from "node:path"
+
 import { RuleScope } from "@shared/proto/cline/file"
+import type { GlobalStateAndSettings, GlobalStateAndSettingsKey, LocalState, LocalStateKey } from "@shared/storage/state-keys"
 import React, { useCallback, useEffect, useState } from "react"
+
 import type { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
 import { ConfigView } from "./ConfigView"
@@ -41,11 +44,15 @@ interface ConfigViewWrapperProps {
 export const ConfigViewWrapper: React.FC<ConfigViewWrapperProps> = ({
 	controller,
 	dataDir,
-	globalState,
-	workspaceState,
+	globalState: initialGlobalState,
+	workspaceState: initialWorkspaceState,
 	hooksEnabled,
 	skillsEnabled,
 }) => {
+	// Settings state (managed locally for UI updates)
+	const [globalStateLocal, setGlobalStateLocal] = useState<Record<string, unknown>>(initialGlobalState)
+	const [workspaceStateLocal, setWorkspaceStateLocal] = useState<Record<string, unknown>>(initialWorkspaceState)
+
 	// Rules state
 	const [globalClineRulesToggles, setGlobalClineRulesToggles] = useState<Record<string, boolean>>({})
 	const [localClineRulesToggles, setLocalClineRulesToggles] = useState<Record<string, boolean>>({})
@@ -236,13 +243,36 @@ export const ConfigViewWrapper: React.FC<ConfigViewWrapperProps> = ({
 		[dataDir],
 	)
 
+	// Settings update handlers
+	const handleUpdateGlobal = useCallback(
+		async (key: GlobalStateAndSettingsKey, value: GlobalStateAndSettings[GlobalStateAndSettingsKey]) => {
+			// Update local state for immediate UI feedback
+			setGlobalStateLocal((prev) => ({ ...prev, [key]: value }))
+			// Persist to state manager
+			controller.stateManager.setGlobalState(key, value)
+			await controller.stateManager.flushPendingState()
+		},
+		[controller],
+	)
+
+	const handleUpdateWorkspace = useCallback(
+		async (key: LocalStateKey, value: LocalState[LocalStateKey]) => {
+			// Update local state for immediate UI feedback
+			setWorkspaceStateLocal((prev) => ({ ...prev, [key]: value }))
+			// Persist to state manager
+			controller.stateManager.setWorkspaceState(key, value)
+			await controller.stateManager.flushPendingState()
+		},
+		[controller],
+	)
+
 	return (
 		<ConfigView
 			dataDir={dataDir}
 			globalClineRulesToggles={globalClineRulesToggles}
 			globalHooks={globalHooks}
 			globalSkills={globalSkills}
-			globalState={globalState}
+			globalState={globalStateLocal}
 			globalWorkflowToggles={globalWorkflowToggles}
 			hooksEnabled={hooksEnabled}
 			localAgentsRulesToggles={localAgentsRulesToggles}
@@ -256,9 +286,11 @@ export const ConfigViewWrapper: React.FC<ConfigViewWrapperProps> = ({
 			onToggleRule={handleToggleRule}
 			onToggleSkill={handleToggleSkill}
 			onToggleWorkflow={handleToggleWorkflow}
+			onUpdateGlobal={handleUpdateGlobal}
+			onUpdateWorkspace={handleUpdateWorkspace}
 			skillsEnabled={skillsEnabled}
 			workspaceHooks={workspaceHooksState}
-			workspaceState={workspaceState}
+			workspaceState={workspaceStateLocal}
 		/>
 	)
 }
