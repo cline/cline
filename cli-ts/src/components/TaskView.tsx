@@ -3,10 +3,12 @@
  * Main view for running a task - displays messages and handles user input
  */
 
+import { exit } from "node:process"
 import { CheckpointRestoreRequest } from "@shared/proto/cline/checkpoints"
 import { Box, Text, useInput } from "ink"
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { checkpointRestore } from "@/core/controller/checkpoints/checkpointRestore"
+import { StateManager } from "@/core/storage/StateManager"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
 import { useCompletionSignals, useIsSpinnerActive } from "../hooks/useStateSubscriber"
 import { AskPrompt } from "./AskPrompt"
@@ -38,6 +40,8 @@ export const TaskView: React.FC<TaskViewProps> = ({ taskId: _taskId, verbose = f
 	const [restoreStatus, setRestoreStatus] = useState<"idle" | "restoring" | "success" | "error">("idle")
 	const [restoreMessage, setRestoreMessage] = useState<string | null>(null)
 
+	const yolo = useMemo(() => StateManager.get().getGlobalSettingsKey("yoloModeToggled"), [])
+
 	// Handle task completion
 	useEffect(() => {
 		if (isTaskComplete()) {
@@ -49,6 +53,10 @@ export const TaskView: React.FC<TaskViewProps> = ({ taskId: _taskId, verbose = f
 				onError?.()
 			} else {
 				onComplete?.()
+			}
+
+			if (yolo) {
+				exit()
 			}
 		}
 	}, [isTaskComplete, setIsComplete, onComplete, onError, getCompletionMessage])
@@ -170,7 +178,7 @@ export const TaskView: React.FC<TaskViewProps> = ({ taskId: _taskId, verbose = f
 			)}
 
 			{/* User input prompt */}
-			<AskPrompt />
+			{!yolo && <AskPrompt />}
 		</Box>
 	)
 }
