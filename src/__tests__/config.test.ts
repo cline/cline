@@ -4,7 +4,7 @@ import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import sinon from "sinon"
-import { ClineConfigurationError, ClineEndpoint, ClineEnv } from "../config"
+import { ClineConfigurationError, ClineEndpoint, ClineEnv, Environment } from "../config"
 
 describe("ClineEndpoint configuration", () => {
 	let sandbox: sinon.SinonSandbox
@@ -58,7 +58,7 @@ describe("ClineEndpoint configuration", () => {
 			config.appBaseUrl.should.equal("https://app.enterprise.com")
 			config.apiBaseUrl.should.equal("https://api.enterprise.com")
 			config.mcpBaseUrl.should.equal("https://mcp.enterprise.com")
-			config.isOnPremise.should.be.true()
+			config.environment.should.equal(Environment.selfHosted)
 		})
 
 		it("should work without endpoints.json (standard mode)", async () => {
@@ -67,7 +67,7 @@ describe("ClineEndpoint configuration", () => {
 			await ClineEndpoint.initialize()
 
 			const config = ClineEndpoint.config
-			config.isOnPremise.should.be.false()
+			config.environment.should.not.equal(Environment.selfHosted)
 			// Should use production defaults
 			config.appBaseUrl.should.equal("https://app.cline.bot")
 			config.apiBaseUrl.should.equal("https://api.cline.bot")
@@ -392,8 +392,8 @@ describe("ClineEndpoint configuration", () => {
 		})
 	})
 
-	describe("environment switching blocked in on-premise mode", () => {
-		it("should throw error when trying to change environment in on-premise mode", async () => {
+	describe("environment switching blocked in self-hosted mode", () => {
+		it("should throw error when trying to change environment in self-hosted mode", async () => {
 			const config = {
 				appBaseUrl: "https://app.enterprise.com",
 				apiBaseUrl: "https://api.enterprise.com",
@@ -404,8 +404,8 @@ describe("ClineEndpoint configuration", () => {
 
 			await ClineEndpoint.initialize()
 
-			// Verify we're in on-premise mode
-			ClineEndpoint.config.isOnPremise.should.be.true()
+			// Verify we're in self-hosted mode
+			ClineEndpoint.config.environment.should.equal(Environment.selfHosted)
 
 			// Try to change environment - should throw
 			try {
@@ -416,7 +416,7 @@ describe("ClineEndpoint configuration", () => {
 			}
 		})
 
-		it("should throw error for all environment values in on-premise mode", async () => {
+		it("should throw error for all environment values in self-hosted mode", async () => {
 			const config = {
 				appBaseUrl: "https://app.enterprise.com",
 				apiBaseUrl: "https://api.enterprise.com",
@@ -443,8 +443,8 @@ describe("ClineEndpoint configuration", () => {
 
 			await ClineEndpoint.initialize()
 
-			// Verify we're NOT in on-premise mode
-			ClineEndpoint.config.isOnPremise.should.be.false()
+			// Verify we're NOT in self-hosted mode
+			ClineEndpoint.config.environment.should.not.equal(Environment.selfHosted)
 
 			// Should be able to change environment
 			ClineEnv.setEnvironment("staging")
@@ -458,8 +458,8 @@ describe("ClineEndpoint configuration", () => {
 		})
 	})
 
-	describe("on-premise mode behavior", () => {
-		it("should always report production environment in on-premise mode", async () => {
+	describe("self-hosted mode behavior", () => {
+		it("should report selfHosted environment in self-hosted mode", async () => {
 			const config = {
 				appBaseUrl: "https://app.enterprise.com",
 				apiBaseUrl: "https://api.enterprise.com",
@@ -471,8 +471,7 @@ describe("ClineEndpoint configuration", () => {
 			await ClineEndpoint.initialize()
 
 			const envConfig = ClineEndpoint.config
-			envConfig.environment.should.equal("production")
-			envConfig.isOnPremise.should.be.true()
+			envConfig.environment.should.equal(Environment.selfHosted)
 		})
 
 		it("should use custom endpoints from file", async () => {

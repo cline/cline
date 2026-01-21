@@ -6,6 +6,7 @@ export enum Environment {
 	production = "production",
 	staging = "staging",
 	local = "local",
+	selfHosted = "selfHosted",
 }
 
 export interface EnvironmentConfig {
@@ -13,7 +14,6 @@ export interface EnvironmentConfig {
 	appBaseUrl: string
 	apiBaseUrl: string
 	mcpBaseUrl: string
-	isOnPremise: boolean
 }
 
 /**
@@ -241,11 +241,10 @@ class ClineEndpoint {
 		// On-premise mode: use custom endpoints from file
 		if (this.onPremiseConfig) {
 			return {
-				environment: Environment.production, // On-premise always reports as production
+				environment: Environment.selfHosted,
 				appBaseUrl: this.onPremiseConfig.appBaseUrl,
 				apiBaseUrl: this.onPremiseConfig.apiBaseUrl,
 				mcpBaseUrl: this.onPremiseConfig.mcpBaseUrl,
-				isOnPremise: true,
 			}
 		}
 
@@ -257,7 +256,6 @@ class ClineEndpoint {
 					appBaseUrl: "https://staging-app.cline.bot",
 					apiBaseUrl: "https://core-api.staging.int.cline.bot",
 					mcpBaseUrl: "https://core-api.staging.int.cline.bot/v1/mcp",
-					isOnPremise: false,
 				}
 			case Environment.local:
 				return {
@@ -265,7 +263,6 @@ class ClineEndpoint {
 					appBaseUrl: "http://localhost:3000",
 					apiBaseUrl: "http://localhost:7777",
 					mcpBaseUrl: "https://api.cline.bot/v1/mcp",
-					isOnPremise: false,
 				}
 			default:
 				return {
@@ -273,7 +270,6 @@ class ClineEndpoint {
 					appBaseUrl: "https://app.cline.bot",
 					apiBaseUrl: "https://api.cline.bot",
 					mcpBaseUrl: "https://api.cline.bot/v1/mcp",
-					isOnPremise: false,
 				}
 		}
 	}
