@@ -416,7 +416,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			} catch (error) {
 				// Check if we've already pushed an error for this specific tool call (prevents duplicates during streaming)
 				const callId = block.call_id || ""
-				if (callId && config.taskState.diffErrorPushedForCallIds.has(callId)) {
+				if (callId && config.taskState.errorPushedForCallIds.has(callId)) {
 					return
 				}
 
@@ -454,7 +454,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 				// Mark this call as having had its error pushed (prevents duplicates during streaming)
 				if (callId) {
-					config.taskState.diffErrorPushedForCallIds.add(callId)
+					config.taskState.errorPushedForCallIds.add(callId)
 				}
 				if (!config.enableParallelToolCalling) {
 					config.taskState.didAlreadyUseTool = true

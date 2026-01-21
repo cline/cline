@@ -3,7 +3,7 @@ import "should"
 import { TaskState } from "../TaskState"
 
 describe("TaskState", () => {
-	describe("diffErrorPushedForCallIds", () => {
+	describe("errorPushedForCallIds", () => {
 		let taskState: TaskState
 
 		beforeEach(() => {
@@ -11,21 +11,21 @@ describe("TaskState", () => {
 		})
 
 		it("should initialize as empty Set", () => {
-			taskState.diffErrorPushedForCallIds.should.be.instanceOf(Set)
-			taskState.diffErrorPushedForCallIds.size.should.equal(0)
+			taskState.errorPushedForCallIds.should.be.instanceOf(Set)
+			taskState.errorPushedForCallIds.size.should.equal(0)
 		})
 
 		it("should track call_ids that have had errors pushed", () => {
 			const callId = "call_abc123"
 
 			// Initially not present
-			taskState.diffErrorPushedForCallIds.has(callId).should.be.false()
+			taskState.errorPushedForCallIds.has(callId).should.be.false()
 
 			// Add call_id
-			taskState.diffErrorPushedForCallIds.add(callId)
+			taskState.errorPushedForCallIds.add(callId)
 
 			// Now present
-			taskState.diffErrorPushedForCallIds.has(callId).should.be.true()
+			taskState.errorPushedForCallIds.has(callId).should.be.true()
 		})
 
 		it("should track multiple call_ids independently", () => {
@@ -34,39 +34,39 @@ describe("TaskState", () => {
 			const callId3 = "call_ghi789"
 
 			// Add first two
-			taskState.diffErrorPushedForCallIds.add(callId1)
-			taskState.diffErrorPushedForCallIds.add(callId2)
+			taskState.errorPushedForCallIds.add(callId1)
+			taskState.errorPushedForCallIds.add(callId2)
 
 			// Check tracking
-			taskState.diffErrorPushedForCallIds.has(callId1).should.be.true()
-			taskState.diffErrorPushedForCallIds.has(callId2).should.be.true()
-			taskState.diffErrorPushedForCallIds.has(callId3).should.be.false()
+			taskState.errorPushedForCallIds.has(callId1).should.be.true()
+			taskState.errorPushedForCallIds.has(callId2).should.be.true()
+			taskState.errorPushedForCallIds.has(callId3).should.be.false()
 		})
 
 		it("should clear all tracked call_ids", () => {
 			// Add multiple call_ids
-			taskState.diffErrorPushedForCallIds.add("call_1")
-			taskState.diffErrorPushedForCallIds.add("call_2")
-			taskState.diffErrorPushedForCallIds.add("call_3")
-			taskState.diffErrorPushedForCallIds.size.should.equal(3)
+			taskState.errorPushedForCallIds.add("call_1")
+			taskState.errorPushedForCallIds.add("call_2")
+			taskState.errorPushedForCallIds.add("call_3")
+			taskState.errorPushedForCallIds.size.should.equal(3)
 
 			// Clear
-			taskState.diffErrorPushedForCallIds.clear()
+			taskState.errorPushedForCallIds.clear()
 
 			// Should be empty
-			taskState.diffErrorPushedForCallIds.size.should.equal(0)
-			taskState.diffErrorPushedForCallIds.has("call_1").should.be.false()
+			taskState.errorPushedForCallIds.size.should.equal(0)
+			taskState.errorPushedForCallIds.has("call_1").should.be.false()
 		})
 
 		it("should not add duplicate call_ids (Set behavior)", () => {
 			const callId = "call_abc123"
 
-			taskState.diffErrorPushedForCallIds.add(callId)
-			taskState.diffErrorPushedForCallIds.add(callId)
-			taskState.diffErrorPushedForCallIds.add(callId)
+			taskState.errorPushedForCallIds.add(callId)
+			taskState.errorPushedForCallIds.add(callId)
+			taskState.errorPushedForCallIds.add(callId)
 
 			// Still only one entry
-			taskState.diffErrorPushedForCallIds.size.should.equal(1)
+			taskState.errorPushedForCallIds.size.should.equal(1)
 		})
 	})
 
@@ -84,7 +84,7 @@ describe("TaskState", () => {
 		 */
 		function shouldSkipDuplicateError(callId: string | undefined): boolean {
 			const id = callId || ""
-			if (id && taskState.diffErrorPushedForCallIds.has(id)) {
+			if (id && taskState.errorPushedForCallIds.has(id)) {
 				return true
 			}
 			return false
@@ -93,7 +93,7 @@ describe("TaskState", () => {
 		function markErrorPushed(callId: string | undefined): void {
 			const id = callId || ""
 			if (id) {
-				taskState.diffErrorPushedForCallIds.add(id)
+				taskState.errorPushedForCallIds.add(id)
 			}
 		}
 
@@ -159,7 +159,7 @@ describe("TaskState", () => {
 			shouldSkipDuplicateError(callId).should.be.true()
 
 			// Simulate reset between API requests
-			taskState.diffErrorPushedForCallIds.clear()
+			taskState.errorPushedForCallIds.clear()
 
 			// Same call_id should not skip after reset
 			shouldSkipDuplicateError(callId).should.be.false()
@@ -188,7 +188,7 @@ describe("TaskState", () => {
 				.should.be.true()
 
 			// Should have only added one entry
-			taskState.diffErrorPushedForCallIds.size.should.equal(1)
+			taskState.errorPushedForCallIds.size.should.equal(1)
 		})
 	})
 })
