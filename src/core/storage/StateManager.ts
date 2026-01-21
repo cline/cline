@@ -1,20 +1,20 @@
 import { ApiConfiguration, ModelInfo } from "@shared/api"
 import {
-    ApiHandlerSettingsKeys,
-    GlobalState,
-    GlobalStateAndSettings,
-    GlobalStateAndSettingsKey,
-    GlobalStateKey,
-    isSecretKey,
-    isSettingsKey,
-    LocalState,
-    LocalStateKey,
-    RemoteConfigFields,
-    SecretKey,
-    SecretKeys,
-    Secrets,
-    Settings,
-    SettingsKey,
+	ApiHandlerSettingsKeys,
+	GlobalState,
+	GlobalStateAndSettings,
+	GlobalStateAndSettingsKey,
+	GlobalStateKey,
+	isSecretKey,
+	isSettingsKey,
+	LocalState,
+	LocalStateKey,
+	RemoteConfigFields,
+	SecretKey,
+	SecretKeys,
+	Secrets,
+	Settings,
+	SettingsKey,
 } from "@shared/storage/state-keys"
 import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
@@ -22,11 +22,11 @@ import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/services/logging/Logger"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import {
-    getTaskHistoryStateFilePath,
-    readTaskHistoryFromState,
-    readTaskSettingsFromStorage,
-    writeTaskHistoryToState,
-    writeTaskSettingsToStorage,
+	getTaskHistoryStateFilePath,
+	readTaskHistoryFromState,
+	readTaskSettingsFromStorage,
+	writeTaskHistoryToState,
+	writeTaskSettingsToStorage,
 } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
 import { filterAllowedRemoteConfigFields } from "./remote-config/utils"
@@ -62,6 +62,7 @@ export class StateManager {
 		hicapModels: Record<string, ModelInfo> | null
 		aihubmixModels: Record<string, ModelInfo> | null
 		liteLlmModels: Record<string, ModelInfo> | null
+		nvidiaNimModels: Record<string, ModelInfo> | null
 	} = {
 		openRouterModels: null,
 		groqModels: null,
@@ -72,6 +73,7 @@ export class StateManager {
 		hicapModels: null,
 		aihubmixModels: null,
 		liteLlmModels: null,
+		nvidiaNimModels: null,
 	}
 
 	// Debounced persistence state
@@ -403,7 +405,8 @@ export class StateManager {
 			| "huaweiCloudMaas"
 			| "hicap"
 			| "aihubmix"
-			| "liteLlm",
+			| "liteLlm"
+			| "nvidiaNim",
 		models: Record<string, ModelInfo>,
 	): void {
 		const cacheKey = `${provider}Models` as keyof typeof this.modelInfoCache
