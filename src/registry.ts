@@ -25,6 +25,10 @@ const ClineCommands = {
 	GenerateCommit: prefix + ".generateGitCommitMessage",
 	AbortCommit: prefix + ".abortGitCommitMessage",
 	ReconstructTaskHistory: prefix + ".reconstructTaskHistory",
+	// Jupyter Notebook commands
+	JupyterGenerateCell: prefix + ".jupyterGenerateCell",
+	JupyterExplainCell: prefix + ".jupyterExplainCell",
+	JupyterImproveCell: prefix + ".jupyterImproveCell",
 }
 
 /**
