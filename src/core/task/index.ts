@@ -1705,6 +1705,7 @@ export class Task {
 
 		const providerInfo = this.getCurrentProviderInfo()
 		const ide = (await HostProvider.env.getHostVersion({})).platform || "Unknown"
+		const isCliEnvironment = ide === "Cline CLI"
 		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
 		const disableBrowserTool = browserSettings.disableToolUse ?? false
 		// cline browser tool uses image recognition for navigation (requires model image support).
@@ -1823,6 +1824,7 @@ export class Task {
 			workspaceRoots,
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
+			isCliEnvironment,
 			enableNativeToolCalls:
 				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
 				this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
