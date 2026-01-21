@@ -11,13 +11,13 @@ import {
 	SecretKeys,
 	Secrets,
 } from "@shared/storage/state-keys"
-import { ExtensionContext } from "vscode"
 import { Controller } from "@/core/controller"
+import { ClineExtensionContext } from "@/shared/clients"
 import { ClineRulesToggles } from "@/shared/cline-rules"
 import { Logger } from "@/shared/services/Logger"
 import { readTaskHistoryFromState } from "../disk"
 
-export async function readSecretsFromDisk(context: ExtensionContext): Promise<Secrets> {
+export async function readSecretsFromDisk(context: ClineExtensionContext): Promise<Secrets> {
 	const secrets = await Promise.all(SecretKeys.map((key) => context.secrets.get(key)))
 
 	return SecretKeys.reduce((acc, key, index) => {
@@ -26,7 +26,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 	}, {} as Secrets)
 }
 
-export async function readWorkspaceStateFromDisk(context: ExtensionContext): Promise<LocalState> {
+export async function readWorkspaceStateFromDisk(context: ClineExtensionContext): Promise<LocalState> {
 	const states = LocalStateKeys.map((key) => context.workspaceState.get<ClineRulesToggles | undefined>(key))
 
 	return LocalStateKeys.reduce((acc, key, index) => {
@@ -35,7 +35,7 @@ export async function readWorkspaceStateFromDisk(context: ExtensionContext): Pro
 	}, {} as LocalState)
 }
 
-export async function readGlobalStateFromDisk(context: ExtensionContext): Promise<GlobalStateAndSettings> {
+export async function readGlobalStateFromDisk(context: ClineExtensionContext): Promise<GlobalStateAndSettings> {
 	try {
 		// Batch read all state values in a single optimized pass
 		const stateValues = new Map<string, any>()

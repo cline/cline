@@ -6,8 +6,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import os from "os"
 import path from "path"
-import type { Extension, ExtensionContext, Memento, SecretStorage } from "vscode"
+import type { Memento, SecretStorage } from "vscode"
 import { ExtensionRegistryInfo } from "@/registry"
+import { ClineClient, ClineExtensionContext } from "@/shared/clients"
 import { ExtensionKind, ExtensionMode, URI } from "./vscode-shim"
 
 const SETTINGS_SUBFOLDER = "data"
@@ -22,6 +23,10 @@ const CLI_STATE_OVERRIDES: Record<string, any> = {
 	vscodeTerminalExecutionMode: "backgroundExec",
 	backgroundEditEnabled: true,
 	multiRootEnabled: false,
+	enableCheckpointsSetting: false,
+	browserSettings: {
+		disableToolUse: true,
+	},
 }
 
 /**
@@ -244,7 +249,7 @@ export function initializeCliContext(config: CliContextConfig = {}) {
 	const EXTENSION_DIR = path.resolve(__dirname, "..", "..")
 	const EXTENSION_MODE = process.env.IS_DEV === "true" ? ExtensionMode.Development : ExtensionMode.Production
 
-	const extension: Extension<void> = {
+	const extension: ClineExtensionContext["extension"] = {
 		id: ExtensionRegistryInfo.id,
 		isActive: true,
 		extensionPath: EXTENSION_DIR,
@@ -255,7 +260,9 @@ export function initializeCliContext(config: CliContextConfig = {}) {
 		extensionKind: ExtensionKind.UI,
 	}
 
-	const extensionContext: ExtensionContext = {
+	const extensionContext: ClineExtensionContext = {
+		name: ClineClient.Cli,
+
 		extension: extension,
 		extensionMode: EXTENSION_MODE,
 
