@@ -1,7 +1,12 @@
 import { PostHog } from "posthog-node"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { posthogConfig } from "../../../shared/services/config/posthog-config"
-import type { FeatureFlagPayload, FeatureFlagsSettings, IFeatureFlagsProvider } from "./IFeatureFlagsProvider"
+import type {
+	FeatureFlagPayload,
+	FeatureFlagsAndPaylods,
+	FeatureFlagsSettings,
+	IFeatureFlagsProvider,
+} from "./IFeatureFlagsProvider"
 
 /**
  * PostHog implementation of the feature flags provider interface
@@ -37,6 +42,19 @@ export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
 
 	private get distinctId(): string {
 		return getDistinctId()
+	}
+
+	async getAllFlagsAndPayloads(options: { flagKeys?: string[] }): Promise<FeatureFlagsAndPaylods | undefined> {
+		if (!this.isEnabled()) {
+			return undefined
+		}
+
+		try {
+			return await this.client.getAllFlagsAndPayloads(this.distinctId, options)
+		} catch (error) {
+			console.error(`Error getting feature flags`, error)
+			return {}
+		}
 	}
 
 	public async getFeatureFlag(flagName: string): Promise<boolean | string | undefined> {
