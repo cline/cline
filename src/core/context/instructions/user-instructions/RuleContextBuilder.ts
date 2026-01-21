@@ -81,8 +81,8 @@ export class RuleContextBuilder {
 
 		// (2) Visible + open tabs
 		const roots = deps.workspaceManager?.getRoots().map((r) => r.path) ?? [deps.cwd]
-		const rawVisiblePaths = (await HostProvider.window.getVisibleTabs({})).paths
-		const rawOpenTabPaths = (await HostProvider.window.getOpenTabs({})).paths
+		const rawVisiblePaths = (await HostProvider.window.getVisibleTabs({}))?.paths ?? []
+		const rawOpenTabPaths = (await HostProvider.window.getOpenTabs({}))?.paths ?? []
 		for (const abs of [...rawVisiblePaths, ...rawOpenTabPaths]) {
 			for (const root of roots) {
 				const rel = toWorkspaceRelativePosixPath(abs, root)
