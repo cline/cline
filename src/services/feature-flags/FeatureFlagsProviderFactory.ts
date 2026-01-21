@@ -1,7 +1,7 @@
 import { isPostHogConfigValid, posthogConfig } from "@/shared/services/config/posthog-config"
 import { Logger } from "../logging/Logger"
 import { PostHogClientProvider } from "../telemetry/providers/posthog/PostHogClientProvider"
-import type { FeatureFlagsAndPaylods, IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
+import type { FeatureFlagsAndPayloads, IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
 import { PostHogFeatureFlagsProvider } from "./providers/PostHogFeatureFlagsProvider"
 
 /**
@@ -59,7 +59,7 @@ export class FeatureFlagsProviderFactory {
  * or for testing purposes
  */
 class NoOpFeatureFlagsProvider implements IFeatureFlagsProvider {
-	async getAllFlagsAndPayloads(_: { flagKeys?: string[] }): Promise<FeatureFlagsAndPaylods | undefined> {
+	async getAllFlagsAndPayloads(_: { flagKeys?: string[] }): Promise<FeatureFlagsAndPayloads | undefined> {
 		return {}
 	}
 
