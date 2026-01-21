@@ -339,17 +339,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("multiRootEnabled", !!request.multiRootEnabled)
 		}
 
-		if (request.hooksEnabled !== undefined) {
-			const isEnabled = !!request.hooksEnabled
-
-			// Platform validation: Only allow enabling hooks on macOS and Linux
-			if (isEnabled && process.platform === "win32") {
-				throw new Error("Hooks are not yet supported on Windows")
-			}
-
-			controller.stateManager.setGlobalState("hooksEnabled", isEnabled)
-		}
-
 		if (request.subagentsEnabled !== undefined) {
 			const currentSettings = controller.stateManager.getGlobalSettingsKey("subagentsEnabled")
 			const wasEnabled = currentSettings ?? false

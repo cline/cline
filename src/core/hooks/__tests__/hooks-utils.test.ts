@@ -67,14 +67,14 @@ describe("hooks-utils", () => {
 						result.should.be.true()
 					})
 
-					it("should return false when user setting is false", () => {
+					it("should return true when user setting is false (setting is ignored)", () => {
 						const result = getHooksEnabledSafe(false)
-						result.should.be.false()
+						result.should.be.true()
 					})
 
-					it("should return false when user setting is undefined (default)", () => {
+					it("should return true when user setting is undefined (default)", () => {
 						const result = getHooksEnabledSafe(undefined)
-						result.should.be.false()
+						result.should.be.true()
 					})
 				})
 			})
@@ -88,10 +88,10 @@ describe("hooks-utils", () => {
 					configurable: true,
 				})
 
-				// macOS should respect user setting
+				// macOS should be enabled regardless of user setting
 				getHooksEnabledSafe(true).should.be.true()
-				getHooksEnabledSafe(false).should.be.false()
-				getHooksEnabledSafe(undefined).should.be.false()
+				getHooksEnabledSafe(false).should.be.true()
+				getHooksEnabledSafe(undefined).should.be.true()
 			})
 
 			it("should handle Linux platform correctly", () => {
@@ -101,10 +101,10 @@ describe("hooks-utils", () => {
 					configurable: true,
 				})
 
-				// Linux should respect user setting
+				// Linux should be enabled regardless of user setting
 				getHooksEnabledSafe(true).should.be.true()
-				getHooksEnabledSafe(false).should.be.false()
-				getHooksEnabledSafe(undefined).should.be.false()
+				getHooksEnabledSafe(false).should.be.true()
+				getHooksEnabledSafe(undefined).should.be.true()
 			})
 		})
 	})
