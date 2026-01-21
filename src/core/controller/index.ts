@@ -874,6 +874,10 @@ export class Controller {
 		const environment = ClineEnv.config().environment
 		const banners = await this.getBanners()
 
+		// Check OpenAI Codex authentication status
+		const { openAiCodexOAuthManager } = await import("@/integrations/openai-codex/oauth")
+		const openAiCodexIsAuthenticated = await openAiCodexOAuthManager.isAuthenticated()
+
 		// Set feature flag in dictation settings based on platform
 		const updatedDictationSettings = {
 			...dictationSettings,
@@ -963,6 +967,7 @@ export class Controller {
 			skillsEnabled,
 			optOutOfRemoteConfig: this.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
 			banners,
+			openAiCodexIsAuthenticated,
 		}
 	}
 
