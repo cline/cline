@@ -414,9 +414,9 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					!block.partial, // Pass the partial flag correctly
 				)
 			} catch (error) {
-				// As we set the didAlreadyUseTool flag when the tool has failed once, we don't want to add the error message to the
-				// userMessages array again on each new streaming chunk received.
-				if (!config.enableParallelToolCalling && config.taskState.didAlreadyUseTool) {
+				// Check if we've already pushed an error for this specific tool call (prevents duplicates during streaming)
+				const callId = block.call_id || ""
+				if (callId && config.taskState.errorPushedForCallIds.has(callId)) {
 					return
 				}
 
@@ -451,6 +451,11 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					config.coordinator,
 					config.taskState.toolUseIdMap,
 				)
+
+				// Mark this call as having had its error pushed (prevents duplicates during streaming)
+				if (callId) {
+					config.taskState.errorPushedForCallIds.add(callId)
+				}
 				if (!config.enableParallelToolCalling) {
 					config.taskState.didAlreadyUseTool = true
 				}
