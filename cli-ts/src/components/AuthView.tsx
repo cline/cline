@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import { AuthService } from "@/services/auth/AuthService"
 import { API_PROVIDERS_LIST } from "@/shared/api"
+import { ProviderToApiKeyMap } from "../utils/provider-map"
 import { LoadingSpinner } from "./Spinner"
 
 type AuthStep = "menu" | "provider" | "apikey" | "modelid" | "baseurl" | "saving" | "success" | "error" | "cline_auth"
@@ -16,6 +17,7 @@ interface AuthViewProps {
 	controller: any
 	onComplete?: () => void
 	onError?: () => void
+	onNavigateToWelcome?: () => void
 	// Quick setup options
 	quickSetup?: {
 		provider?: string
@@ -128,7 +130,7 @@ const TextInput: React.FC<{
 	)
 }
 
-export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onError, quickSetup }) => {
+export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onError, onNavigateToWelcome, quickSetup }) => {
 	const { exit } = useApp()
 	const [step, setStep] = useState<AuthStep>(quickSetup ? "saving" : "menu")
 	const [selectedProvider, setSelectedProvider] = useState<string>("")
@@ -141,49 +143,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	// Sort providers alphabetically
 	const sortedProviders = useMemo(() => API_PROVIDERS_LIST.slice().sort(), [])
 
-	// Mapping from provider to their API key field name
-	const providerToApiKeyField: Record<string, string | string[]> = useMemo(
-		() => ({
-			anthropic: "apiKey",
-			openrouter: "openRouterApiKey",
-			bedrock: ["awsAccessKey", "awsBedrockApiKey"],
-			openai: "openAiApiKey",
-			gemini: "geminiApiKey",
-			"openai-native": "openAiNativeApiKey",
-			ollama: "ollamaApiKey",
-			requesty: "requestyApiKey",
-			together: "togetherApiKey",
-			deepseek: "deepSeekApiKey",
-			qwen: "qwenApiKey",
-			"qwen-code": "qwenApiKey",
-			doubao: "doubaoApiKey",
-			mistral: "mistralApiKey",
-			litellm: "liteLlmApiKey",
-			moonshot: "moonshotApiKey",
-			nebius: "nebiusApiKey",
-			fireworks: "fireworksApiKey",
-			asksage: "asksageApiKey",
-			xai: "xaiApiKey",
-			sambanova: "sambanovaApiKey",
-			cerebras: "cerebrasApiKey",
-			groq: "groqApiKey",
-			huggingface: "huggingFaceApiKey",
-			"huawei-cloud-maas": "huaweiCloudMaasApiKey",
-			dify: "difyApiKey",
-			baseten: "basetenApiKey",
-			"vercel-ai-gateway": "vercelAiGatewayApiKey",
-			zai: "zaiApiKey",
-			oca: "ocaApiKey",
-			aihubmix: "aihubmixApiKey",
-			minimax: "minimaxApiKey",
-			hicap: "hicapApiKey",
-			nousResearch: "nousResearchApiKey",
-			sapaicore: ["sapAiCoreClientId", "sapAiCoreClientSecret"],
-			cline: "clineAccountId",
-		}),
-		[],
-	)
-
 	// Get configured providers (those with API keys set)
 	const configuredProviders = useMemo(() => {
 		try {
@@ -191,7 +150,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			const configured = new Set<string>()
 
 			for (const provider of sortedProviders) {
-				const keyField = providerToApiKeyField[provider]
+				const keyField = ProviderToApiKeyMap[provider]
 				if (!keyField) {
 					continue
 				}
@@ -211,7 +170,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		} catch {
 			return new Set<string>()
 		}
-	}, [sortedProviders, providerToApiKeyField])
+	}, [sortedProviders, ProviderToApiKeyMap])
 
 	// Main menu items
 	const mainMenuItems: SelectItem[] = [
@@ -252,7 +211,18 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			}
 
 			if (authState.user && authState.user.email) {
-				// Auth succeeded - transition to success
+				// Auth succeeded - save configuration and transition to success
+				const stateManager = StateManager.get()
+				const config: Record<string, string> = {
+					actModeApiProvider: "cline",
+					planModeApiProvider: "cline",
+					actModeApiModelId: "anthropic/claude-sonnet-4.5",
+					planModeApiModelId: "anthropic/claude-sonnet-4.5",
+					apiProvider: "cline",
+				}
+				stateManager.setApiConfiguration(config)
+				stateManager.flushPendingState()
+
 				setSelectedProvider("cline")
 				setModelId("anthropic/claude-sonnet-4.5")
 				setStep("success")
@@ -312,7 +282,17 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				planModeApiProvider: normalizedProvider,
 				actModeApiModelId: modelid,
 				planModeApiModelId: modelid,
-				apiKey: apikey,
+			}
+
+			// Use provider-specific API key field
+			const keyField = ProviderToApiKeyMap[normalizedProvider]
+			if (keyField) {
+				const fields = Array.isArray(keyField) ? keyField : [keyField]
+				// Set the first key field for the provider
+				config[fields[0]] = apikey
+			} else {
+				// Fallback to generic apiKey
+				config.apiKey = apikey
 			}
 
 			if (baseurl) {
@@ -321,6 +301,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 
 			stateManager.setApiConfiguration(config)
 
+			await stateManager.flushPendingState()
 			setSelectedProvider(normalizedProvider)
 			setModelId(modelid)
 			setBaseUrl(baseurl || "")
@@ -401,17 +382,27 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				planModeApiProvider: selectedProvider,
 				actModeApiModelId: model,
 				planModeApiModelId: model,
+				apiProvider: selectedProvider,
 			}
 
 			if (apiKey) {
-				config.apiKey = apiKey
+				// Use provider-specific API key field
+				const keyField = ProviderToApiKeyMap[selectedProvider]
+				if (keyField) {
+					const fields = Array.isArray(keyField) ? keyField : [keyField]
+					// Set the first key field for the provider
+					config[fields[0]] = apiKey
+				} else {
+					// Fallback to generic apiKey
+					config.apiKey = apiKey
+				}
 			}
 
 			if (base) {
 				config.openAiBaseUrl = base
 			}
-
-			await stateManager.setApiConfiguration(config)
+			stateManager.setApiConfiguration(config)
+			stateManager.flushPendingState()
 			setStep("success")
 		} catch (error) {
 			setErrorMessage(error instanceof Error ? error.message : String(error))
@@ -419,21 +410,56 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		}
 	}
 
-	// Handle exit on success/error screens
-	useInput(
-		(input, key) => {
-			if (step === "success" || step === "error") {
-				if (key.return || input === "q") {
-					if (step === "error") {
-						onError?.()
-					} else {
-						onComplete?.()
-					}
-					exit()
-				}
+	// Success screen menu items
+	const successMenuItems: SelectItem[] = useMemo(() => {
+		const items: SelectItem[] = []
+		if (onNavigateToWelcome) {
+			items.push({ label: "Start a task", value: "welcome" })
+		}
+		items.push({ label: "Exit", value: "exit" })
+		return items
+	}, [onNavigateToWelcome])
+
+	// Error screen menu items
+	const errorMenuItems: SelectItem[] = useMemo(() => {
+		const items: SelectItem[] = [{ label: "Try again", value: "retry" }]
+		if (onNavigateToWelcome) {
+			items.push({ label: "Start a task", value: "welcome" })
+		}
+		items.push({ label: "Exit", value: "exit" })
+		return items
+	}, [onNavigateToWelcome])
+
+	const handleSuccessMenuSelect = useCallback(
+		(value: string) => {
+			if (value === "welcome") {
+				onNavigateToWelcome?.()
+			} else if (value === "exit") {
+				onComplete?.()
+				exit()
 			}
 		},
-		{ isActive: step === "success" || step === "error" },
+		[onNavigateToWelcome, onComplete, exit],
+	)
+
+	const handleErrorMenuSelect = useCallback(
+		(value: string) => {
+			if (value === "retry") {
+				// Reset state and go back to menu
+				setErrorMessage("")
+				setApiKey("")
+				setModelId("")
+				setBaseUrl("")
+				setSelectedProvider("")
+				setStep("menu")
+			} else if (value === "welcome") {
+				onNavigateToWelcome?.()
+			} else if (value === "exit") {
+				onError?.()
+				exit()
+			}
+		},
+		[onNavigateToWelcome, onError, exit],
 	)
 
 	return (
@@ -523,11 +549,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					</Box>
 					<Text color="gray">{formatSeparator()}</Text>
 					<Text color="white">You can now use Cline with this provider.</Text>
-					<Text color="white">Run 'cline task "&lt;your prompt&gt;"' to begin a new task.</Text>
 					<Text> </Text>
-					<Text color="gray" dimColor>
-						(Press Enter or q to exit)
-					</Text>
+					<Select items={successMenuItems} label="What would you like to do?" onSelect={handleSuccessMenuSelect} />
 				</Box>
 			)}
 
@@ -539,9 +562,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					<Text color="gray">{formatSeparator()}</Text>
 					<Text color="red">{errorMessage}</Text>
 					<Text> </Text>
-					<Text color="gray" dimColor>
-						(Press Enter or q to exit)
-					</Text>
+					<Select items={errorMenuItems} label="What would you like to do?" onSelect={handleErrorMenuSelect} />
 				</Box>
 			)}
 		</Box>
