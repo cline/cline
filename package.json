@@ -381,7 +381,7 @@
 		"compile-standalone": "npm run check-types && npm run lint && node esbuild.mjs --standalone",
 		"compile-standalone-npm": "npm run protos && npm run protos-go && npm run check-types && npm run lint && node esbuild.mjs --standalone",
 		"compile-cli": "scripts/build-cli.sh",
-		"compile-cli-ts": "cd cli-ts && npm run build",
+		"compile-cli-ts": "cd cli-ts && npm run link",
 		"compile-cli-ts:production": "cd cli-ts && npm run build:production",
 		"watch-cli-ts": "cd cli-ts && npm run watch",
 		"dev:cli-ts": "npm run compile-cli-ts && npm run watch-cli-ts",
