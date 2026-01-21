@@ -117,13 +117,15 @@ export const ToolGroupRenderer = memo(({ messages, allMessages }: ToolGroupRende
 									</Button>
 								)}
 							</Button>
-							<ThinkingRow
-								isExpanded={isExpanded.has(tool.ts)}
-								isVisible={hasReasoning}
-								onToggle={handleThinkingToggle.bind(null, tool.ts)}
-								reasoningContent={reasoning}
-								showTitle={false}
-							/>
+							<div className="pt-2">
+								<ThinkingRow
+									isExpanded={isExpanded.has(tool.ts)}
+									isVisible={hasReasoning}
+									onToggle={handleThinkingToggle.bind(null, tool.ts)}
+									reasoningContent={reasoning}
+									showTitle={false}
+								/>
+							</div>
 							{/* Expanded content for folders/search/definitions - raw text */}
 							{isExpandable && isItemExpanded && content && (
 								<pre className="m-1 ml-4 text-xs opacity-80 whitespace-pre-wrap break-words p-2 max-h-40 overflow-auto rounded-xs">

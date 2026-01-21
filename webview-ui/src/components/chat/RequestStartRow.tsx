@@ -118,29 +118,6 @@ const findPrevCompletedApiReq = (messages: ClineMessage[], beforeIdx: number): n
 	return -1
 }
 
-// Check if there's content (text, tool messages, or task completion) after the current api_req_started
-const hasContentAfterCurrentApiReq = (messages: ClineMessage[]): boolean => {
-	const currentApiReq = findCurrentApiReq(messages)
-	if (!currentApiReq) {
-		return false
-	}
-
-	// Look for any text, tool, or completion messages after the current api_req_started
-	for (let i = currentApiReq.index + 1; i < messages.length; i++) {
-		const msg = messages[i]
-		if (
-			msg.say === "text" ||
-			msg.say === "tool" ||
-			msg.ask === "tool" ||
-			msg.ask === "completion_result" ||
-			msg.say === "completion_result"
-		) {
-			return true
-		}
-	}
-	return false
-}
-
 /**
  * Displays the current state of an active tool operation,
  */
@@ -164,6 +141,11 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 	)
 
 	const apiReqState: ApiReqState = hasError ? "error" : hasCost ? "final" : hasReasoning ? "thinking" : "pre"
+
+	// While reasoning is streaming, keep the Brain ThinkingBlock exactly as-is.
+	// Once response content starts (any text/tool/command), collapse into a compact
+	// "🧠 Thinking" row that can be expanded to show the reasoning only.
+	const showStreamingThinking = useMemo(() => hasReasoning && !hasError && !cost, [hasReasoning, hasError, cost])
 
 	// Find all exploratory tool activities that are currently in flight.
 	// Only show tools between the previous completed API request and the current incomplete one.
@@ -210,7 +192,7 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 			)}
 			{reasoningContent && (
 				<ThinkingRow
-					isExpanded={isExpanded}
+					isExpanded={isExpanded || showStreamingThinking}
 					isVisible={true}
 					onToggle={handleToggle}
 					reasoningContent={reasoningContent}
