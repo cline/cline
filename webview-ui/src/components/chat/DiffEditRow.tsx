@@ -197,12 +197,15 @@ const DiffStats = memo<{ additions: number; deletions: number }>(({ additions, d
 	</div>
 ))
 
-// Diff line component with Tailwind styling - indicator bar, optional line number, code
+// Diff line component with Tailwind styling - indicator bar, optional line number, prefix, code
 const DiffLine = memo<{ line: string; lineNumber?: number }>(({ line, lineNumber }) => {
 	const isAddition = line.startsWith("+")
 	const isDeletion = line.startsWith("-")
 	const hasSpacePrefix = line.startsWith("+ ") || line.startsWith("- ")
+	// Extract just the code content (without +/- prefix)
 	const code = isAddition || isDeletion ? line.slice(hasSpacePrefix ? 2 : 1) : line
+	// Get the prefix character to display
+	const prefix = isAddition ? "+" : isDeletion ? "-" : " "
 
 	return (
 		<div
@@ -228,10 +231,20 @@ const DiffLine = memo<{ line: string; lineNumber?: number }>(({ line, lineNumber
 					{lineNumber}
 				</span>
 			)}
+			{/* Prefix character (+/-) for backwards compatibility with traditional diff views */}
+			<span
+				className={cn(
+					"w-4 min-w-4 text-center py-0.5 select-none",
+					isAddition && "text-green-400",
+					isDeletion && "text-red-400",
+					!isAddition && !isDeletion && "text-description/50",
+				)}>
+				{prefix}
+			</span>
 			{/* Code content */}
 			<span
 				className={cn(
-					"flex-1 px-2 py-0.5 whitespace-nowrap",
+					"flex-1 pr-2 py-0.5 whitespace-nowrap",
 					isAddition && "text-green-400",
 					isDeletion && "text-red-400",
 					!isAddition && !isDeletion && "text-editor-foreground",
