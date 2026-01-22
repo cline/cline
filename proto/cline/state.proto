@@ -106,6 +106,8 @@ message Secrets {
 // in src/shared/storage/state-keys.ts and use the scripts/generate-state-proto.mjs
 // script to regenerate this list.
 message Settings {
+  reserved 152;  // was hooks_enabled (removed - now always enabled on macOS/Linux)
+
   optional string lite_llm_base_url = 1;
   optional bool lite_llm_use_prompt_cache = 2;
   map<string, string> open_ai_headers = 3;
@@ -257,7 +259,6 @@ message Settings {
   optional FocusChainSettings focus_chain_settings = 149;
   optional string custom_prompt = 150;
   optional double auto_condense_threshold = 151;
-  optional bool hooks_enabled = 152;
   optional bool subagents_enabled = 153;
   optional bool enable_parallel_tool_calling = 154;
   optional bool background_edit_enabled = 155;
@@ -384,6 +385,8 @@ message UpdateTaskSettingsRequest {
 
 // Message for updating settings
 message UpdateSettingsRequest {
+  reserved 26;  // was hooks_enabled (removed - now always enabled on macOS/Linux)
+
   Metadata metadata = 1;
   optional ModelsApiConfiguration api_configuration = 2;
   optional string telemetry_setting = 3;
@@ -408,7 +411,6 @@ message UpdateSettingsRequest {
   optional DictationSettings dictation_settings = 23;
   optional double auto_condense_threshold = 24;
   optional bool multi_root_enabled = 25;
-  optional bool hooks_enabled = 26;
   optional string vscode_terminal_execution_mode = 27;
   optional int32 max_consecutive_mistakes = 28;
   optional bool subagents_enabled = 29;
