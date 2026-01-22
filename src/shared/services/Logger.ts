@@ -2,7 +2,7 @@
  * Simple Logger utility for the extension's backend code.
  */
 export class Logger {
-	private static isVerbose = false
+	private static isVerbose = process.env.IS_DEV === "true"
 
 	private static output: (msg: string) => void = console.log
 
