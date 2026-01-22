@@ -20,6 +20,7 @@ import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/services/logging/Logger"
 import { ShowMessageType } from "@/shared/proto/index.host"
+import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import {
 	getTaskHistoryStateFilePath,
 	readTaskHistoryFromState,
@@ -104,6 +105,7 @@ export class StateManager {
 
 	private constructor(context: ExtensionContext) {
 		this.context = context
+		secretStorage.init(context.secrets)
 	}
 
 	/**
@@ -121,7 +123,7 @@ export class StateManager {
 		try {
 			// Load all extension state from disk
 			const globalState = await readGlobalStateFromDisk(context)
-			const secrets = await readSecretsFromDisk(context)
+			const secrets = await readSecretsFromDisk()
 			const workspaceState = await readWorkspaceStateFromDisk(context)
 
 			// Populate the cache with all extension state and secrets fields
@@ -779,9 +781,9 @@ export class StateManager {
 				Array.from(keys).map((key) => {
 					const value = this.secretsCache[key]
 					if (value) {
-						return this.context.secrets.store(key, value)
+						return secretStorage.store(key, value)
 					} else {
-						return this.context.secrets.delete(key)
+						return secretStorage.delete(key)
 					}
 				}),
 			)

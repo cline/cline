@@ -14,10 +14,11 @@ import {
 import { Controller } from "@/core/controller"
 import { ClineExtensionContext } from "@/shared/clients"
 import { ClineRulesToggles } from "@/shared/cline-rules"
+import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import { readTaskHistoryFromState } from "../disk"
 
-export async function readSecretsFromDisk(context: ClineExtensionContext): Promise<Secrets> {
-	const secrets = await Promise.all(SecretKeys.map((key) => context.secrets.get(key)))
+export async function readSecretsFromDisk(): Promise<Secrets> {
+	const secrets = await Promise.all(SecretKeys.map((key) => secretStorage.get(key)))
 
 	return SecretKeys.reduce((acc, key, index) => {
 		acc[key] = secrets[index]

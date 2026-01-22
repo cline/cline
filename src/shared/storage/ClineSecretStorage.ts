@@ -1,3 +1,4 @@
+import { Logger } from "@/services/logging/Logger"
 import { ClineStorage } from "./ClineStorage"
 
 export type SecretStores = VSCodeSecretStorage | ClineStorage
@@ -27,7 +28,6 @@ export class ClineSecretStorage extends ClineStorage {
 	public init(store: SecretStores) {
 		if (!this.secretStorage) {
 			this.secretStorage = store
-			console.info("[ClineSecretStorage] initialized")
 		}
 		return this.secretStorage
 	}
@@ -36,7 +36,7 @@ export class ClineSecretStorage extends ClineStorage {
 		try {
 			return key ? await this.storage.get(key) : undefined
 		} catch (error) {
-			console.error("[ClineSecretStorage]", error)
+			Logger.error("[ClineSecretStorage]", error)
 			return undefined
 		}
 	}
@@ -55,7 +55,6 @@ export class ClineSecretStorage extends ClineStorage {
 	}
 
 	protected async _delete(key: string): Promise<void> {
-		console.info("[ClineSecretStorage] deleting secret")
 		await this.storage.delete(key)
 	}
 }
