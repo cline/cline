@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import { AuthService } from "@/services/auth/AuthService"
 import { API_PROVIDERS_LIST } from "@/shared/api"
+import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import { ProviderToApiKeyMap } from "../utils/provider-map"
 import { LoadingSpinner } from "./Spinner"
 
@@ -133,7 +134,11 @@ const TextInput: React.FC<{
 export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onError, onNavigateToWelcome, quickSetup }) => {
 	const { exit } = useApp()
 	const [step, setStep] = useState<AuthStep>(quickSetup ? "saving" : "menu")
-	const [selectedProvider, setSelectedProvider] = useState<string>("")
+	const [selectedProvider, setSelectedProvider] = useState<string>(
+		StateManager.get().getApiConfiguration().actModeApiProvider ||
+			StateManager.get().getApiConfiguration().planModeApiProvider ||
+			"",
+	)
 	const [apiKey, setApiKey] = useState("")
 	const [modelId, setModelId] = useState("")
 	const [baseUrl, setBaseUrl] = useState("")
@@ -342,18 +347,30 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		[controller],
 	)
 
-	const handleApiKeySubmit = useCallback((value: string) => {
-		setApiKey(value)
-		setStep("modelid")
-	}, [])
+	const handleApiKeySubmit = useCallback(
+		(value: string) => {
+			if (!value.trim() || !selectedProvider) {
+				// Don't allow empty
+				return
+			}
+
+			// Use provider-specific API key field
+			const foundKey = ProviderToApiKeyMap[selectedProvider] || "apiKey"
+			const providerKey = Array.isArray(foundKey) ? foundKey[0] : foundKey
+
+			secretStorage.store(providerKey, value)
+
+			setApiKey(value)
+			setStep("modelid")
+		},
+		[selectedProvider],
+	)
 
 	const handleModelIdSubmit = useCallback(
 		(value: string) => {
-			if (!value.trim()) {
-				// Don't allow empty model ID
-				return
+			if (value.trim()) {
+				setModelId(value)
 			}
-			setModelId(value)
 			// Only show baseurl step for OpenAI-like providers
 			if (["openai", "openai-native"].includes(selectedProvider)) {
 				setStep("baseurl")
@@ -374,41 +391,31 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		[modelId],
 	)
 
-	const saveConfiguration = async (model: string, base: string) => {
-		try {
-			const stateManager = StateManager.get()
-			const config: Record<string, string> = {
-				actModeApiProvider: selectedProvider,
-				planModeApiProvider: selectedProvider,
-				actModeApiModelId: model,
-				planModeApiModelId: model,
-				apiProvider: selectedProvider,
-			}
-
-			if (apiKey) {
-				// Use provider-specific API key field
-				const keyField = ProviderToApiKeyMap[selectedProvider]
-				if (keyField) {
-					const fields = Array.isArray(keyField) ? keyField : [keyField]
-					// Set the first key field for the provider
-					config[fields[0]] = apiKey
-				} else {
-					// Fallback to generic apiKey
-					config.apiKey = apiKey
+	const saveConfiguration = useCallback(
+		async (model: string, base: string) => {
+			try {
+				const stateManager = StateManager.get()
+				const config: Record<string, string> = {
+					actModeApiProvider: selectedProvider,
+					planModeApiProvider: selectedProvider,
+					actModeApiModelId: model,
+					planModeApiModelId: model,
+					apiProvider: selectedProvider,
 				}
-			}
 
-			if (base) {
-				config.openAiBaseUrl = base
+				if (base) {
+					config.openAiBaseUrl = base
+				}
+				stateManager.setApiConfiguration(config)
+				stateManager.flushPendingState()
+				setStep("success")
+			} catch (error) {
+				setErrorMessage(error instanceof Error ? error.message : String(error))
+				setStep("error")
 			}
-			stateManager.setApiConfiguration(config)
-			stateManager.flushPendingState()
-			setStep("success")
-		} catch (error) {
-			setErrorMessage(error instanceof Error ? error.message : String(error))
-			setStep("error")
-		}
-	}
+		},
+		[selectedProvider],
+	)
 
 	// Success screen menu items
 	const successMenuItems: SelectItem[] = useMemo(() => {
