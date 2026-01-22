@@ -9,6 +9,7 @@ import { StateManager } from "@/core/storage/StateManager"
 import { AuthService } from "@/services/auth/AuthService"
 import { API_PROVIDERS_LIST } from "@/shared/api"
 import { secretStorage } from "@/shared/storage/ClineSecretStorage"
+import { useStdinContext } from "../context/StdinContext"
 import { ProviderToApiKeyMap } from "../utils/provider-map"
 import { LoadingSpinner } from "./Spinner"
 
@@ -58,17 +59,21 @@ const Select: React.FC<{
 	onSelect: (value: string) => void
 	label?: string
 }> = ({ items, onSelect, label }) => {
+	const { isRawModeSupported } = useStdinContext()
 	const [selectedIndex, setSelectedIndex] = useState(0)
 
-	useInput((input, key) => {
-		if (key.upArrow) {
-			setSelectedIndex((prev) => (prev > 0 ? prev - 1 : items.length - 1))
-		} else if (key.downArrow) {
-			setSelectedIndex((prev) => (prev < items.length - 1 ? prev + 1 : 0))
-		} else if (key.return) {
-			onSelect(items[selectedIndex].value)
-		}
-	})
+	useInput(
+		(input, key) => {
+			if (key.upArrow) {
+				setSelectedIndex((prev) => (prev > 0 ? prev - 1 : items.length - 1))
+			} else if (key.downArrow) {
+				setSelectedIndex((prev) => (prev < items.length - 1 ? prev + 1 : 0))
+			} else if (key.return) {
+				onSelect(items[selectedIndex].value)
+			}
+		},
+		{ isActive: isRawModeSupported },
+	)
 
 	return (
 		<Box flexDirection="column">
@@ -103,15 +108,20 @@ const TextInput: React.FC<{
 	placeholder?: string
 	isPassword?: boolean
 }> = ({ value, onChange, onSubmit, label, placeholder, isPassword }) => {
-	useInput((input, key) => {
-		if (key.return) {
-			onSubmit(value)
-		} else if (key.backspace || key.delete) {
-			onChange(value.slice(0, -1))
-		} else if (input && !key.ctrl && !key.meta) {
-			onChange(value + input)
-		}
-	})
+	const { isRawModeSupported } = useStdinContext()
+
+	useInput(
+		(input, key) => {
+			if (key.return) {
+				onSubmit(value)
+			} else if (key.backspace || key.delete) {
+				onChange(value.slice(0, -1))
+			} else if (input && !key.ctrl && !key.meta) {
+				onChange(value + input)
+			}
+		},
+		{ isActive: isRawModeSupported },
+	)
 
 	const displayValue = isPassword ? "•".repeat(value.length) : value
 

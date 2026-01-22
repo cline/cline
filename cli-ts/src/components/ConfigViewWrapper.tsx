@@ -12,6 +12,7 @@ import React, { useCallback, useEffect, useState } from "react"
 
 import type { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
+import { StdinProvider } from "../context/StdinContext"
 import { ConfigView } from "./ConfigView"
 
 interface HookInfo {
@@ -39,6 +40,7 @@ interface ConfigViewWrapperProps {
 	workspaceState: Record<string, unknown>
 	hooksEnabled: boolean
 	skillsEnabled: boolean
+	isRawModeSupported?: boolean
 }
 
 export const ConfigViewWrapper: React.FC<ConfigViewWrapperProps> = ({
@@ -48,6 +50,7 @@ export const ConfigViewWrapper: React.FC<ConfigViewWrapperProps> = ({
 	workspaceState: initialWorkspaceState,
 	hooksEnabled,
 	skillsEnabled,
+	isRawModeSupported = true,
 }) => {
 	// Settings state (managed locally for UI updates)
 	const [globalStateLocal, setGlobalStateLocal] = useState<Record<string, unknown>>(initialGlobalState)
@@ -267,30 +270,32 @@ export const ConfigViewWrapper: React.FC<ConfigViewWrapperProps> = ({
 	)
 
 	return (
-		<ConfigView
-			dataDir={dataDir}
-			globalClineRulesToggles={globalClineRulesToggles}
-			globalHooks={globalHooks}
-			globalSkills={globalSkills}
-			globalState={globalStateLocal}
-			globalWorkflowToggles={globalWorkflowToggles}
-			hooksEnabled={hooksEnabled}
-			localAgentsRulesToggles={localAgentsRulesToggles}
-			localClineRulesToggles={localClineRulesToggles}
-			localCursorRulesToggles={localCursorRulesToggles}
-			localSkills={localSkills}
-			localWindsurfRulesToggles={localWindsurfRulesToggles}
-			localWorkflowToggles={localWorkflowToggles}
-			onOpenFolder={handleOpenFolder}
-			onToggleHook={handleToggleHook}
-			onToggleRule={handleToggleRule}
-			onToggleSkill={handleToggleSkill}
-			onToggleWorkflow={handleToggleWorkflow}
-			onUpdateGlobal={handleUpdateGlobal}
-			onUpdateWorkspace={handleUpdateWorkspace}
-			skillsEnabled={skillsEnabled}
-			workspaceHooks={workspaceHooksState}
-			workspaceState={workspaceStateLocal}
-		/>
+		<StdinProvider isRawModeSupported={isRawModeSupported}>
+			<ConfigView
+				dataDir={dataDir}
+				globalClineRulesToggles={globalClineRulesToggles}
+				globalHooks={globalHooks}
+				globalSkills={globalSkills}
+				globalState={globalStateLocal}
+				globalWorkflowToggles={globalWorkflowToggles}
+				hooksEnabled={hooksEnabled}
+				localAgentsRulesToggles={localAgentsRulesToggles}
+				localClineRulesToggles={localClineRulesToggles}
+				localCursorRulesToggles={localCursorRulesToggles}
+				localSkills={localSkills}
+				localWindsurfRulesToggles={localWindsurfRulesToggles}
+				localWorkflowToggles={localWorkflowToggles}
+				onOpenFolder={handleOpenFolder}
+				onToggleHook={handleToggleHook}
+				onToggleRule={handleToggleRule}
+				onToggleSkill={handleToggleSkill}
+				onToggleWorkflow={handleToggleWorkflow}
+				onUpdateGlobal={handleUpdateGlobal}
+				onUpdateWorkspace={handleUpdateWorkspace}
+				skillsEnabled={skillsEnabled}
+				workspaceHooks={workspaceHooksState}
+				workspaceState={workspaceStateLocal}
+			/>
+		</StdinProvider>
 	)
 }

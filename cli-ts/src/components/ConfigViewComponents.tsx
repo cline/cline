@@ -4,6 +4,7 @@
 
 import { Box, Text, useInput } from "ink"
 import React, { useState } from "react"
+import { useStdinContext } from "../context/StdinContext"
 
 // ============================================================================
 // Types & Constants
@@ -192,17 +193,22 @@ interface TextInputProps {
 }
 
 export const TextInput: React.FC<TextInputProps> = ({ label, onChange, onCancel, onSubmit, type, value }) => {
-	useInput((input, key) => {
-		if (key.escape) {
-			onCancel()
-		} else if (key.return) {
-			onSubmit(value)
-		} else if (key.backspace || key.delete) {
-			onChange(value.slice(0, -1))
-		} else if (input && !key.ctrl && !key.meta) {
-			onChange(value + input)
-		}
-	})
+	const { isRawModeSupported } = useStdinContext()
+
+	useInput(
+		(input, key) => {
+			if (key.escape) {
+				onCancel()
+			} else if (key.return) {
+				onSubmit(value)
+			} else if (key.backspace || key.delete) {
+				onChange(value.slice(0, -1))
+			} else if (input && !key.ctrl && !key.meta) {
+				onChange(value + input)
+			}
+		},
+		{ isActive: isRawModeSupported },
+	)
 
 	return (
 		<Box flexDirection="column" marginTop={1}>
@@ -228,17 +234,21 @@ interface BooleanSelectProps {
 }
 
 export const BooleanSelect: React.FC<BooleanSelectProps> = ({ label, onCancel, onSelect, value }) => {
+	const { isRawModeSupported } = useStdinContext()
 	const [selected, setSelected] = useState(value)
 
-	useInput((_input, key) => {
-		if (key.escape) {
-			onCancel()
-		} else if (key.return) {
-			onSelect(selected)
-		} else if (key.upArrow || key.downArrow) {
-			setSelected((prev) => !prev)
-		}
-	})
+	useInput(
+		(_input, key) => {
+			if (key.escape) {
+				onCancel()
+			} else if (key.return) {
+				onSelect(selected)
+			} else if (key.upArrow || key.downArrow) {
+				setSelected((prev) => !prev)
+			}
+		},
+		{ isActive: isRawModeSupported },
+	)
 
 	return (
 		<Box flexDirection="column" marginTop={1}>

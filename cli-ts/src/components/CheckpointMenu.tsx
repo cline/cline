@@ -6,6 +6,7 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Box, Text, useInput } from "ink"
 import React, { useState } from "react"
+import { useStdinContext } from "../context/StdinContext"
 
 export type RestoreType = "task" | "workspace" | "taskAndWorkspace"
 
@@ -78,52 +79,56 @@ const RESTORE_TYPE_OPTIONS: { type: RestoreType; label: string; description: str
 ]
 
 export const CheckpointMenu: React.FC<CheckpointMenuProps> = ({ messages, onSelect, onCancel }) => {
+	const { isRawModeSupported } = useStdinContext()
 	const checkpoints = getCheckpointOptions(messages)
 	const [selectedCheckpoint, setSelectedCheckpoint] = useState(0)
 	const [selectedRestoreType, setSelectedRestoreType] = useState(0)
 	const [stage, setStage] = useState<"checkpoint" | "restoreType">("checkpoint")
 
-	useInput((input, key) => {
-		if (key.escape) {
-			if (stage === "restoreType") {
-				setStage("checkpoint")
-			} else {
-				onCancel()
+	useInput(
+		(input, key) => {
+			if (key.escape) {
+				if (stage === "restoreType") {
+					setStage("checkpoint")
+				} else {
+					onCancel()
+				}
+				return
 			}
-			return
-		}
 
-		if (stage === "checkpoint") {
-			if (key.upArrow) {
-				setSelectedCheckpoint((i) => Math.max(0, i - 1))
-			} else if (key.downArrow) {
-				setSelectedCheckpoint((i) => Math.min(checkpoints.length - 1, i + 1))
-			} else if (key.return && checkpoints.length > 0) {
-				setStage("restoreType")
-			}
-		} else if (stage === "restoreType") {
-			if (key.upArrow) {
-				setSelectedRestoreType((i) => Math.max(0, i - 1))
-			} else if (key.downArrow) {
-				setSelectedRestoreType((i) => Math.min(RESTORE_TYPE_OPTIONS.length - 1, i + 1))
-			} else if (key.return) {
-				const checkpoint = checkpoints[selectedCheckpoint]
-				const restoreType = RESTORE_TYPE_OPTIONS[selectedRestoreType]
-				if (checkpoint && restoreType) {
-					onSelect(checkpoint.ts, restoreType.type)
+			if (stage === "checkpoint") {
+				if (key.upArrow) {
+					setSelectedCheckpoint((i) => Math.max(0, i - 1))
+				} else if (key.downArrow) {
+					setSelectedCheckpoint((i) => Math.min(checkpoints.length - 1, i + 1))
+				} else if (key.return && checkpoints.length > 0) {
+					setStage("restoreType")
+				}
+			} else if (stage === "restoreType") {
+				if (key.upArrow) {
+					setSelectedRestoreType((i) => Math.max(0, i - 1))
+				} else if (key.downArrow) {
+					setSelectedRestoreType((i) => Math.min(RESTORE_TYPE_OPTIONS.length - 1, i + 1))
+				} else if (key.return) {
+					const checkpoint = checkpoints[selectedCheckpoint]
+					const restoreType = RESTORE_TYPE_OPTIONS[selectedRestoreType]
+					if (checkpoint && restoreType) {
+						onSelect(checkpoint.ts, restoreType.type)
+					}
 				}
 			}
-		}
 
-		// Quick number selection for checkpoints
-		if (stage === "checkpoint") {
-			const num = parseInt(input, 10)
-			if (!Number.isNaN(num) && num >= 1 && num <= checkpoints.length) {
-				setSelectedCheckpoint(num - 1)
-				setStage("restoreType")
+			// Quick number selection for checkpoints
+			if (stage === "checkpoint") {
+				const num = parseInt(input, 10)
+				if (!Number.isNaN(num) && num >= 1 && num <= checkpoints.length) {
+					setSelectedCheckpoint(num - 1)
+					setStage("restoreType")
+				}
 			}
-		}
-	})
+		},
+		{ isActive: isRawModeSupported },
+	)
 
 	if (checkpoints.length === 0) {
 		return (
@@ -200,7 +205,7 @@ export const CheckpointMenu: React.FC<CheckpointMenuProps> = ({ messages, onSele
 					)
 				})}
 			</Box>
-			<Text color="gray" dimColor marginTop={1}>
+			<Text color="gray" dimColor>
 				(↑/↓ to select, Enter to confirm, Escape to go back)
 			</Text>
 		</Box>

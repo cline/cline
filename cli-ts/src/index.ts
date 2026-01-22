@@ -17,12 +17,14 @@ import { StandaloneTerminalManager } from "@/integrations/terminal/standalone/St
 import { ErrorService } from "@/services/error/ErrorService"
 import { initializeDistinctId } from "@/services/logging/distinctId"
 import { App } from "./components/App"
+import { checkRawModeSupport } from "./context/StdinContext"
 import { createCliHostBridgeProvider } from "./controllers"
 import { CliCommentReviewController } from "./controllers/CliCommentReviewController"
 import { CliWebviewProvider } from "./controllers/CliWebviewProvider"
 import { restoreConsole } from "./utils/console"
 import { print, printError, printInfo, printWarning, separator } from "./utils/display"
 import { parseImagesFromInput, processImagePaths } from "./utils/parser"
+import { readStdinIfPiped } from "./utils/piped"
 import { getProviderModelIdKey } from "./utils/provider-map"
 import { initializeCliContext } from "./vscode-context"
 
@@ -244,6 +246,7 @@ async function runTask(
 			taskId: taskPrompt.substring(0, 30),
 			verbose: options.verbose,
 			controller: ctx.controller,
+			isRawModeSupported: checkRawModeSupport(),
 			onComplete: () => {
 				isComplete = true
 			},
@@ -316,6 +319,7 @@ async function listHistory(options: { config?: string; limit?: number; page?: nu
 			historyAllItems: sortedHistory,
 			controller: ctx.controller,
 			historyPagination: { page: initialPage, totalPages, totalCount, limit },
+			isRawModeSupported: checkRawModeSupport(),
 		}),
 		async () => {
 			await ctx.controller.stateManager.flushPendingState()
@@ -348,6 +352,7 @@ async function showConfig(options: { config?: string }) {
 			workspaceState: stateManager.getAllWorkspaceStateEntries(),
 			hooksEnabled,
 			skillsEnabled,
+			isRawModeSupported: checkRawModeSupport(),
 		}),
 		async () => {
 			await ctx.controller.stateManager.flushPendingState()
@@ -383,6 +388,7 @@ async function runAuth(options: {
 		React.createElement(App, {
 			view: "auth",
 			controller: ctx.controller,
+			isRawModeSupported: checkRawModeSupport(),
 			onComplete: () => {
 				exit(0)
 			},
@@ -472,6 +478,7 @@ async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: 
 		React.createElement(App, {
 			view: "welcome",
 			controller: ctx.controller,
+			isRawModeSupported: checkRawModeSupport(),
 			onWelcomeSubmit: (prompt: string, imagePaths: string[]) => {
 				submittedPrompt = prompt
 				submittedImagePaths = imagePaths
@@ -513,8 +520,17 @@ program
 	.option("--config <path>", "Configuration directory")
 	.option("--thinking", "Enable extended thinking (1024 token budget)")
 	.action(async (prompt, options) => {
-		if (prompt) {
-			await runTask(prompt, options)
+		// If no prompt argument, check if input is piped via stdin
+		let effectivePrompt = prompt
+		if (!effectivePrompt) {
+			const stdinInput = await readStdinIfPiped()
+			if (stdinInput) {
+				effectivePrompt = stdinInput
+			}
+		}
+
+		if (effectivePrompt) {
+			await runTask(effectivePrompt, options)
 		} else {
 			// Show welcome prompt if no prompt given
 			await showWelcome(options)
