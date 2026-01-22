@@ -1,10 +1,13 @@
 import { UpdateTerminalConnectionTimeoutResponse } from "@shared/proto/index.cline"
-import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import React, { useState } from "react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { usePlatform } from "@/context/PlatformContext"
 import { StateServiceClient } from "../../../services/grpc-client"
+import { FeatureGroup } from "../FeatureGroup"
+import { FeatureItem } from "../FeatureItem"
 import Section from "../Section"
 import TerminalOutputLineLimitSlider from "../TerminalOutputLineLimitSlider"
 import { updateSetting } from "../utils/settingsHandlers"
@@ -45,8 +48,6 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 		StateServiceClient.updateTerminalConnectionTimeout({ timeoutMs })
 			.then((response: UpdateTerminalConnectionTimeoutResponse) => {
 				const timeoutMs = response.timeoutMs
-				// Backend calls postStateToWebview(), so state will update via subscription
-				// Just sync the input value with the confirmed backend value
 				if (timeoutMs !== undefined) {
 					setInputValue((timeoutMs / 1000).toString())
 				}
@@ -63,121 +64,124 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 		}
 	}
 
-	const handleTerminalReuseChange = (event: Event) => {
-		const target = event.target as HTMLInputElement
-		const checked = target.checked
-		updateSetting("terminalReuseEnabled", checked)
-	}
-
-	const handleExecutionModeChange = (event: Event) => {
-		const target = event.target as HTMLSelectElement
-		const value = target.value === "backgroundExec" ? "backgroundExec" : "vscodeTerminal"
-		updateSetting("vscodeTerminalExecutionMode", value)
-	}
-
-	// Use any to avoid type conflicts between Event and FormEvent
-	const handleDefaultTerminalProfileChange = (event: any) => {
-		const target = event.target as HTMLSelectElement
-		const profileId = target.value
-
-		// Save immediately using the consolidated updateSettings approach
-		updateSetting("defaultTerminalProfile", profileId || "default")
-	}
-
 	const profilesToShow = availableTerminalProfiles
 
 	return (
 		<div>
 			{renderSectionHeader("terminal")}
 			<Section>
-				<div className="mb-5" id="terminal-settings-section">
-					<div className="mb-4">
-						<label className="font-medium block mb-1" htmlFor="default-terminal-profile">
-							Default Terminal Profile
-						</label>
-						<VSCodeDropdown
-							className="w-full"
-							id="default-terminal-profile"
-							onChange={handleDefaultTerminalProfileChange}
-							value={defaultTerminalProfile || "default"}>
-							{profilesToShow.map((profile) => (
-								<VSCodeOption key={profile.id} title={profile.description} value={profile.id}>
-									{profile.name}
-								</VSCodeOption>
-							))}
-						</VSCodeDropdown>
-						<p className="text-xs text-(--vscode-descriptionForeground) mt-1">
-							Select the default terminal Cline will use. 'Default' uses your VSCode global setting.
-						</p>
-					</div>
+				<div className="grid grid-cols-1 gap-4">
+					{/* TERMINAL CONFIGURATION */}
+					<FeatureGroup isGridItem={false} title="Terminal Configuration">
+						{/* Default Terminal Profile */}
+						<div className="flex items-center justify-between gap-3 px-2">
+							<label
+								className="text-sm font-medium"
+								htmlFor="default-terminal-profile"
+								style={{ color: "var(--vscode-foreground)" }}>
+								Default Terminal Profile
+							</label>
+							<div className="pr-2">
+								<Select
+									onValueChange={(profileId) => updateSetting("defaultTerminalProfile", profileId || "default")}
+									value={defaultTerminalProfile || "default"}>
+									<SelectTrigger>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{profilesToShow.map((profile) => (
+											<SelectItem key={profile.id} value={profile.id}>
+												{profile.name}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+						</div>
 
-					<div className="mb-4">
-						<div className="mb-2">
-							<label className="font-medium block mb-1">Shell integration timeout (seconds)</label>
-							<div className="flex items-center">
+						{/* Shell Integration Timeout */}
+						<div className="flex items-center justify-between gap-3 px-2">
+							<label className="text-sm font-medium" style={{ color: "var(--vscode-foreground)" }}>
+								Shell integration timeout (seconds)
+							</label>
+							<div className="pr-2">
 								<VSCodeTextField
-									className="w-full"
+									className="w-20 text-xs"
 									onBlur={handleInputBlur}
 									onChange={(event) => handleTimeoutChange(event as Event)}
-									placeholder="Enter timeout in seconds"
+									placeholder="Seconds"
 									value={inputValue}
 								/>
 							</div>
-							{inputError && <div className="text-(--vscode-errorForeground) text-xs mt-1">{inputError}</div>}
 						</div>
-						<p className="text-xs text-(--vscode-descriptionForeground)">
-							Set how long Cline waits for shell integration to activate before executing commands. Increase this
-							value if you experience terminal connection timeouts.
-						</p>
-					</div>
+						{inputError && (
+							<div className="text-xs px-2" style={{ color: "var(--vscode-errorForeground)" }}>
+								{inputError}
+							</div>
+						)}
 
-					<div className="mb-4">
-						<div className="flex items-center mb-2">
-							<VSCodeCheckbox
-								checked={terminalReuseEnabled ?? true}
-								onChange={(event) => handleTerminalReuseChange(event as Event)}>
-								Enable aggressive terminal reuse
-							</VSCodeCheckbox>
+						{/* Enable Aggressive Terminal Reuse */}
+						<FeatureItem
+							checked={terminalReuseEnabled ?? true}
+							description="When enabled, Cline will reuse existing terminal windows that aren't in the current working directory. Disable this if you experience issues with task lockout after a terminal command."
+							label="Enable aggressive terminal reuse"
+							onChange={(checked) => updateSetting("terminalReuseEnabled", checked)}
+						/>
+
+						{/* Terminal Execution Mode */}
+						{isVsCodePlatform && (
+							<div className="flex items-center justify-between gap-3 px-2">
+								<label
+									className="text-sm font-medium"
+									htmlFor="terminal-execution-mode"
+									style={{ color: "var(--vscode-foreground)" }}>
+									Terminal Execution Mode
+								</label>
+								<div className="pr-2">
+									<Select
+										onValueChange={(value) =>
+											updateSetting(
+												"vscodeTerminalExecutionMode",
+												value as "vscodeTerminal" | "backgroundExec",
+											)
+										}
+										value={vscodeTerminalExecutionMode ?? "vscodeTerminal"}>
+										<SelectTrigger>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="vscodeTerminal">VS Code Terminal</SelectItem>
+											<SelectItem value="backgroundExec">Background Exec</SelectItem>
+										</SelectContent>
+									</Select>
+								</div>
+							</div>
+						)}
+
+						{/* Terminal Output Line Limit */}
+						<div className="px-2">
+							<TerminalOutputLineLimitSlider />
 						</div>
-						<p className="text-xs text-(--vscode-descriptionForeground)">
-							When enabled, Cline will reuse existing terminal windows that aren't in the current working directory.
-							Disable this if you experience issues with task lockout after a terminal command.
-						</p>
-					</div>
-					{isVsCodePlatform && (
-						<div className="mb-4">
-							<label className="font-medium block mb-1" htmlFor="terminal-execution-mode">
-								Terminal Execution Mode
-							</label>
-							<VSCodeDropdown
-								className="w-full"
-								id="terminal-execution-mode"
-								onChange={(event) => handleExecutionModeChange(event as Event)}
-								value={vscodeTerminalExecutionMode ?? "vscodeTerminal"}>
-								<VSCodeOption value="vscodeTerminal">VS Code Terminal</VSCodeOption>
-								<VSCodeOption value="backgroundExec">Background Exec</VSCodeOption>
-							</VSCodeDropdown>
-							<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
-								Choose whether Cline runs commands in the VS Code terminal or a background process.
-							</p>
-						</div>
-					)}
-					<TerminalOutputLineLimitSlider />
-					<div className="mt-5 p-3 bg-(--vscode-textBlockQuote-background) rounded border border-(--vscode-textBlockQuote-border)">
-						<p className="text-[13px] m-0">
+					</FeatureGroup>
+
+					{/* HELP & DOCUMENTATION */}
+					<div className="p-3 rounded-md" style={{ backgroundColor: "rgba(255, 255, 255, 0.03)" }}>
+						<p className="text-xs m-0" style={{ color: "var(--vscode-foreground)" }}>
 							<strong>Having terminal issues?</strong> Check our{" "}
 							<a
-								className="text-(--vscode-textLink-foreground) underline hover:no-underline"
+								className="underline hover:no-underline"
 								href="https://docs.cline.bot/troubleshooting/terminal-quick-fixes"
 								rel="noopener noreferrer"
+								style={{ color: "var(--vscode-textLink-foreground)" }}
 								target="_blank">
 								Terminal Quick Fixes
 							</a>{" "}
 							or the{" "}
 							<a
-								className="text-(--vscode-textLink-foreground) underline hover:no-underline"
+								className="underline hover:no-underline"
 								href="https://docs.cline.bot/troubleshooting/terminal-integration-guide"
 								rel="noopener noreferrer"
+								style={{ color: "var(--vscode-textLink-foreground)" }}
 								target="_blank">
 								Complete Troubleshooting Guide
 							</a>

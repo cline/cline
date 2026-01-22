@@ -1,6 +1,6 @@
 import { McpDisplayMode } from "@shared/McpDisplayMode"
-import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import React from "react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface McpDisplayModeDropdownProps {
 	value: McpDisplayMode
@@ -12,17 +12,17 @@ interface McpDisplayModeDropdownProps {
 }
 
 const McpDisplayModeDropdown: React.FC<McpDisplayModeDropdownProps> = ({ value, onChange, id, className, style, onClick }) => {
-	const handleChange = (e: any) => {
-		const newMode = e.target.value as McpDisplayMode
-		onChange(newMode)
-	}
-
 	return (
-		<VSCodeDropdown className={className} id={id} onChange={handleChange} onClick={onClick} style={style} value={value}>
-			<VSCodeOption value="plain">Plain Text</VSCodeOption>
-			<VSCodeOption value="rich">Rich Display</VSCodeOption>
-			<VSCodeOption value="markdown">Markdown</VSCodeOption>
-		</VSCodeDropdown>
+		<Select onValueChange={onChange} value={value}>
+			<SelectTrigger className={className} id={id} onClick={onClick} style={style}>
+				<SelectValue />
+			</SelectTrigger>
+			<SelectContent>
+				<SelectItem value="plain">Plain Text</SelectItem>
+				<SelectItem value="rich">Rich Display</SelectItem>
+				<SelectItem value="markdown">Markdown</SelectItem>
+			</SelectContent>
+		</Select>
 	)
 }
 

@@ -9,30 +9,49 @@ interface FeatureGroupProps {
 
 export const FeatureGroup: React.FC<FeatureGroupProps> = ({ title, description, children, isGridItem = false }) => {
 	return (
-		<div
-			className={`p-4 rounded-md ${isGridItem ? "" : "mb-6"}`}
-			style={{
-				border: "1px solid var(--vscode-widget-border)",
-				backgroundColor: "transparent",
-			}}>
+		<div className={isGridItem ? "" : "mb-6"}>
+			{/* Title outside container */}
 			<div className={isGridItem ? "mb-2" : "mb-3"}>
 				<div
-					className={`font-medium uppercase tracking-wide ${isGridItem ? "text-[10px] mb-1" : "text-xs mb-1"}`}
+					className="text-base font-medium mb-1"
 					style={{
-						color: "var(--vscode-descriptionForeground)",
-						letterSpacing: "0.5px",
+						color: "var(--vscode-foreground)",
 					}}>
 					{title}
 				</div>
-				{description && (
-					<div
-						className={`text-[11px] leading-snug ${isGridItem ? "hidden lg:block" : ""}`}
-						style={{ color: "var(--vscode-descriptionForeground)" }}>
-						{description}
-					</div>
-				)}
 			</div>
-			<div className={isGridItem ? "space-y-2" : "space-y-4"}>{children}</div>
+
+			{/* Container with lighter background and no border */}
+			<div
+				className="px-3 py-1 rounded-md"
+				style={{
+					backgroundColor: "rgba(255, 255, 255, 0.03)",
+					border: "none",
+				}}>
+				<div className={isGridItem ? "space-y-0" : "space-y-4"}>
+					{React.Children.toArray(children)
+						.filter((child) => child) // Filter out null/undefined/false children
+						.map((child, index, array) => {
+							const isLast = index === array.length - 1
+							const showDivider = array.length > 1 && !isLast
+							return (
+								<div key={index}>
+									<div className="py-2">{child}</div>
+									{showDivider && (
+										<div
+											style={{
+												height: "1px",
+												borderBottom: "1px solid rgba(128, 128, 128, 0.15)",
+												marginTop: "2px",
+												marginBottom: "2px",
+											}}
+										/>
+									)}
+								</div>
+							)
+						})}
+				</div>
+			</div>
 		</div>
 	)
 }

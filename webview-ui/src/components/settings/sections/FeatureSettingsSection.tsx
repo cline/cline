@@ -1,9 +1,8 @@
-import { McpDisplayMode } from "@shared/McpDisplayMode"
 import { EmptyRequest } from "@shared/proto/index.cline"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
-import { VSCodeButton, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
-import McpDisplayModeDropdown from "@/components/mcp/chat-display/McpDisplayModeDropdown"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
@@ -175,25 +174,26 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						description="Defines how much effort the model applies when thinking and planning."
 						isGridItem
 						title="Reasoning & Decision Making">
-						<div>
+						<div className="flex items-center justify-between gap-3 px-2">
 							<label
-								className="block text-sm font-medium text-(--vscode-foreground) mb-2"
-								htmlFor="openai-reasoning-effort-dropdown">
+								className="text-sm font-medium"
+								htmlFor="openai-reasoning-effort-select"
+								style={{ color: "var(--vscode-foreground)" }}>
 								OpenAI Reasoning Effort
 							</label>
-							<VSCodeDropdown
-								className="w-full"
-								currentValue={openaiReasoningEffort || "medium"}
-								id="openai-reasoning-effort-dropdown"
-								onChange={(e: any) => {
-									const newValue = e.target.currentValue as OpenaiReasoningEffort
-									handleReasoningEffortChange(newValue)
-								}}>
-								<VSCodeOption value="minimal">Minimal</VSCodeOption>
-								<VSCodeOption value="low">Low</VSCodeOption>
-								<VSCodeOption value="medium">Medium</VSCodeOption>
-								<VSCodeOption value="high">High</VSCodeOption>
-							</VSCodeDropdown>
+							<div className="pr-2">
+								<Select onValueChange={handleReasoningEffortChange} value={openaiReasoningEffort || "medium"}>
+									<SelectTrigger>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="minimal">Minimal</SelectItem>
+										<SelectItem value="low">Low</SelectItem>
+										<SelectItem value="medium">Medium</SelectItem>
+										<SelectItem value="high">High</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
 						</div>
 					</FeatureGroup>
 
@@ -217,35 +217,35 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							label="Enable Focus Chain"
 							onChange={(checked) =>
 								updateSetting("focusChainSettings", { ...focusChainSettings, enabled: checked })
-							}
-						/>
-
-						{focusChainSettings?.enabled && (
-							<div className="mt-2 ml-4 pt-2 border-t border-vscode-widget-border">
-								<label
-									className="block text-xs font-medium text-(--vscode-foreground) mb-2"
-									htmlFor="focus-chain-remind-interval">
-									Reminder Interval
-								</label>
-								<VSCodeTextField
-									className="w-16 text-xs"
-									id="focus-chain-remind-interval"
-									onChange={(e: any) => {
-										const value = parseInt(e.target.value, 10)
-										if (!Number.isNaN(value) && value >= 1 && value <= 100) {
-											updateSetting("focusChainSettings", {
-												...focusChainSettings,
-												remindClineInterval: value,
-											})
-										}
-									}}
-									value={String(focusChainSettings?.remindClineInterval || 6)}
-								/>
-								<p className="text-[10px] mt-1" style={{ color: "var(--vscode-descriptionForeground)" }}>
-									Messages between reminders (1-100)
-								</p>
-							</div>
-						)}
+							}>
+							{focusChainSettings?.enabled && (
+								<div>
+									<label
+										className="block text-xs font-medium mb-2"
+										htmlFor="focus-chain-remind-interval"
+										style={{ color: "var(--vscode-foreground)" }}>
+										Reminder Interval
+									</label>
+									<VSCodeTextField
+										className="w-20 text-xs"
+										id="focus-chain-remind-interval"
+										onChange={(e: any) => {
+											const value = parseInt(e.target.value, 10)
+											if (!Number.isNaN(value) && value >= 1 && value <= 100) {
+												updateSetting("focusChainSettings", {
+													...focusChainSettings,
+													remindClineInterval: value,
+												})
+											}
+										}}
+										value={String(focusChainSettings?.remindClineInterval || 6)}
+									/>
+									<p className="text-[10px] mt-1" style={{ color: "var(--vscode-descriptionForeground)" }}>
+										Messages between reminders (1-100)
+									</p>
+								</div>
+							)}
+						</FeatureItem>
 					</FeatureGroup>
 
 					{/* CONTEXT & MEMORY OPTIMIZATION */}
@@ -259,26 +259,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							label="Enable Auto Compact"
 							onChange={(checked) => updateSetting("useAutoCondense", checked)}
 						/>
-					</FeatureGroup>
-
-					{/* OUTPUT & DISPLAY */}
-					<FeatureGroup
-						description="Defines how responses and tool outputs are rendered."
-						isGridItem
-						title="Output & Display">
-						<div>
-							<label
-								className="block text-xs font-medium text-(--vscode-foreground) mb-2"
-								htmlFor="mcp-display-mode-dropdown">
-								MCP Display Mode
-							</label>
-							<McpDisplayModeDropdown
-								className="w-full"
-								id="mcp-display-mode-dropdown"
-								onChange={(newMode: McpDisplayMode) => updateSetting("mcpDisplayMode", newMode)}
-								value={mcpDisplayMode}
-							/>
-						</div>
 					</FeatureGroup>
 
 					{/* TOOLING & AGENT CAPABILITIES */}
@@ -351,10 +331,16 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 
 						{/* Subagents - Only show on macOS and Linux */}
 						{isMacOSOrLinux() && PLATFORM_CONFIG.type === PlatformType.VSCODE && (
-							<div>
+							<FeatureItem
+								badge={{ text: "Recommended", variant: "recommended" }}
+								checked={subagentsEnabled}
+								description="Spawn subprocesses to handle focused tasks like exploring large codebases."
+								disabled={!isClineCliInstalled}
+								label="Enable Subagents"
+								onChange={(checked) => updateSetting("subagentsEnabled", checked)}>
 								{!isClineCliInstalled && (
 									<div
-										className="mb-2 p-2 rounded text-[11px]"
+										className="mb-3 p-2 rounded text-[11px]"
 										style={{
 											backgroundColor:
 												"color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 20%, transparent)",
@@ -396,21 +382,12 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									</div>
 								)}
 
-								<FeatureItem
-									badge={{ text: "Recommended", variant: "recommended" }}
-									checked={subagentsEnabled}
-									description="Spawn subprocesses to handle focused tasks like exploring large codebases."
-									disabled={!isClineCliInstalled}
-									label="Enable Subagents"
-									onChange={(checked) => updateSetting("subagentsEnabled", checked)}
-								/>
-
 								{subagentsEnabled && (
-									<div className="mt-2">
+									<div>
 										<SubagentOutputLineLimitSlider />
 									</div>
 								)}
-							</div>
+							</FeatureItem>
 						)}
 					</FeatureGroup>
 				</div>

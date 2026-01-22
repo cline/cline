@@ -108,7 +108,7 @@ const renderSectionHeader = (tabId: string) => {
 	return (
 		<SectionHeader>
 			<div className="flex items-center gap-2">
-				<tab.icon className="w-4" />
+				{tabId !== "features" && <tab.icon className="w-4" />}
 				<div style={{ fontSize: "18px", fontWeight: "normal" }}>{tab.headerText}</div>
 			</div>
 		</SectionHeader>
@@ -133,19 +133,11 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	const { version, environment } = useExtensionState()
 
 	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[0].id)
-	const [searchTerm, setSearchTerm] = useState("")
 
-	// Filter tabs based on search
-	const filteredTabs = useMemo(() => {
-		if (!searchTerm.trim()) {
-			return SETTINGS_TABS.filter((tab) => !tab.hidden)
-		}
-
-		const search = searchTerm.toLowerCase()
-		return SETTINGS_TABS.filter(
-			(tab) => !tab.hidden && (tab.name.toLowerCase().includes(search) || tab.tooltipText.toLowerCase().includes(search)),
-		)
-	}, [searchTerm])
+	// Get visible tabs (filter out hidden ones)
+	const visibleTabs = useMemo(() => {
+		return SETTINGS_TABS.filter((tab) => !tab.hidden)
+	}, [])
 
 	// Optimized message handler with early returns
 	const handleMessage = useCallback((event: MessageEvent) => {
@@ -277,28 +269,9 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 
 			<div className="flex flex-1 overflow-hidden">
 				<div className="shrink-0 flex flex-col border-r border-sidebar-background" style={{ paddingLeft: "12px" }}>
-					{/* Search Bar */}
-					<div className="p-2 border-b border-sidebar-background">
-						<div className="relative">
-							<i className="codicon codicon-search absolute left-2.5 top-1/2 -translate-y-1/2 text-sm opacity-60 pointer-events-none" />
-							<input
-								className="w-full pl-8 pr-2 py-1.5 text-sm rounded bg-transparent border border-input-border focus:outline-none focus:border-focus-border"
-								onChange={(e) => setSearchTerm(e.target.value)}
-								placeholder="Search settings..."
-								style={{
-									backgroundColor: "var(--vscode-input-background)",
-									color: "var(--vscode-input-foreground)",
-									borderColor: "var(--vscode-input-border)",
-								}}
-								type="text"
-								value={searchTerm}
-							/>
-						</div>
-					</div>
-
 					{/* Tab List */}
-					<TabList className="flex-1 flex flex-col overflow-y-auto" onValueChange={setActiveTab} value={activeTab}>
-						{filteredTabs.map(renderTabItem)}
+					<TabList className="flex-1 flex flex-col overflow-y-auto pt-2" onValueChange={setActiveTab} value={activeTab}>
+						{visibleTabs.map(renderTabItem)}
 					</TabList>
 				</div>
 
