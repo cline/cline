@@ -1,18 +1,9 @@
 import { ParseEntry, parse } from "shell-quote"
+import { Logger } from "@/services/logging/Logger"
 import { COMMAND_PERMISSIONS_ENV_VAR, CommandPermissionConfig, PermissionValidationResult, ShellOperatorMatch } from "./types"
 
-const OPERATOR_DESCRIPTIONS: Record<string, string> = {
-	";": "command chaining (semicolon)",
-	"&&": "command chaining (AND)",
-	"||": "command chaining (OR)",
-	"|": "pipe",
-	">": "output redirection",
-	">>": "append redirection",
-	"<": "input redirection",
-	">&": "file descriptor redirection",
-	"<&": "file descriptor duplication",
-	"|&": "pipe with stderr",
-}
+const REDIRECT_OPERATORS = new Set([">", ">>", "<", ">&", "<&", "|&", "<(", ">("])
+const COMMAND_SEPARATOR_OPERATORS = new Set(["&&", "||", "|", ";"])
 
 const LINE_SEPARATOR_REGEX = /[\n\r\u2028\u2029\u0085]/
 const LINE_SEPARATOR_DESCRIPTIONS: Record<string, ShellOperatorMatch> = {
@@ -24,18 +15,28 @@ const LINE_SEPARATOR_DESCRIPTIONS: Record<string, ShellOperatorMatch> = {
 }
 
 /**
+ * Result of parsing a command into segments (recursive structure)
+ */
+interface ParsedCommand {
+	segments: string[] // Individual commands between operators
+	subshells: ParsedCommand[] // Recursively parsed contents of (...) and $(...)
+	hasRedirects: boolean // Whether redirect operators (>, >>, <, etc.) were found
+}
+
+/**
  * Controls command execution permissions based on environment variable configuration.
  * Uses glob pattern matching to allow/deny specific commands.
  *
  * Configuration is read from the CLINE_COMMAND_PERMISSIONS environment variable.
- * Format: {"allow": ["pattern1", "pattern2"], "deny": ["pattern3"]}
+ * Format: {"allow": ["pattern1", "pattern2"], "deny": ["pattern3"], "allowRedirects": true}
  *
- * Rule evaluation:
- * 1. If shell operators are detected outside quotes → DENIED (security)
- * 2. If deny rules are defined and command matches a deny pattern → DENIED
- * 3. If allow rules are defined and command matches an allow pattern → ALLOWED
- * 4. If allow rules are defined but command doesn't match any → DENIED (deny by default)
- * 5. If no rules are defined (env var not set) → ALLOWED (backward compatibility)
+ * Rule evaluation for chained commands (e.g., "cd /tmp && npm test"):
+ * 1. Parse command into segments split by operators (&&, ||, |, ;)
+ * 2. Check for dangerous characters (backticks outside single quotes, newlines outside quotes)
+ * 3. If redirects detected and allowRedirects !== true → DENIED
+ * 4. Validate EACH segment against allow/deny rules - ALL must pass
+ * 5. Recursively validate any subshell contents
+ * 6. If no rules are defined (env var not set) → ALLOWED (backward compatibility)
  */
 export class CommandPermissionController {
 	private config: CommandPermissionConfig | null = null
@@ -59,7 +60,7 @@ export class CommandPermissionController {
 			return {
 				allow: Array.isArray(parsed.allow) ? parsed.allow : undefined,
 				deny: Array.isArray(parsed.deny) ? parsed.deny : undefined,
-				allowOperators: Array.isArray(parsed.allowOperators) ? parsed.allowOperators : undefined,
+				allowRedirects: typeof parsed.allowRedirects === "boolean" ? parsed.allowRedirects : undefined,
 			}
 		} catch (error) {
 			console.error(`Failed to parse ${COMMAND_PERMISSIONS_ENV_VAR}:`, error)
@@ -68,16 +69,9 @@ export class CommandPermissionController {
 	}
 
 	/**
-	 * Check if an operator is in the allowOperators list
-	 * @param operator - The operator to check
-	 * @returns true if the operator is allowed
-	 */
-	private isOperatorAllowed(operator: string): boolean {
-		return Boolean(this.config?.allowOperators?.includes(operator))
-	}
-
-	/**
-	 * Validate if a command is allowed to execute based on configured permissions
+	 * Validate if a command is allowed to execute based on configured permissions.
+	 * For chained commands (using &&, ||, |, ;), each segment is validated separately.
+	 *
 	 * @param command - The command string to validate
 	 * @returns PermissionValidationResult indicating if command is allowed and why
 	 */
@@ -87,18 +81,89 @@ export class CommandPermissionController {
 			return { allowed: true, reason: "no_config" }
 		}
 
-		// Check for shell operators FIRST (security check)
-		const shellOperator = this.detectShellOperator(command)
-		if (shellOperator) {
+		// Check for dangerous characters first (backticks in double quotes, newlines outside quotes)
+		const dangerousChar = this.detectDangerousCharsOutsideQuotes(command)
+		if (dangerousChar) {
 			return {
 				allowed: false,
 				reason: "shell_operator_detected",
-				detectedOperator: shellOperator.operator,
+				detectedOperator: dangerousChar.operator,
 			}
 		}
 
+		// Parse the command into segments recursively
+		const parseResult = this.parseCommandSegments(command)
+		if (!parseResult) {
+			// Parsing failed - be conservative and block
+			return {
+				allowed: false,
+				reason: "shell_operator_detected",
+				detectedOperator: "parse_error",
+			}
+		}
+
+		// Validate the parsed command structure
+		const result = this.validateParsedCommand(parseResult, command)
+		return result
+	}
+
+	/**
+	 * Recursively validate a parsed command structure
+	 * @param parsed - The parsed command with segments and subshells
+	 * @param fullCommand - The full original command (for error messages)
+	 * @returns PermissionValidationResult
+	 */
+	private validateParsedCommand(parsed: ParsedCommand, fullCommand: string): PermissionValidationResult {
+		// Check if redirects are allowed
+		if (parsed.hasRedirects && !this.config?.allowRedirects) {
+			return {
+				allowed: false,
+				reason: "redirect_detected",
+			}
+		}
+
+		// Validate each command segment
+		const isMultiSegment = parsed.segments.length > 1 || parsed.subshells.length > 0
+		for (const segment of parsed.segments) {
+			const result = this.validateSingleCommand(segment)
+			if (!result.allowed) {
+				// Only use segment-specific reasons for multi-segment commands
+				if (isMultiSegment) {
+					return {
+						...result,
+						failedSegment: segment,
+						reason:
+							result.reason === "denied"
+								? "segment_denied"
+								: result.reason === "no_match_deny_default"
+									? "segment_no_match"
+									: result.reason,
+					}
+				}
+				return result
+			}
+		}
+
+		// Recursively validate subshell contents
+		for (const subshell of parsed.subshells) {
+			const result = this.validateParsedCommand(subshell, fullCommand)
+			if (!result.allowed) {
+				return result
+			}
+		}
+
+		return { allowed: true, reason: "allowed" }
+	}
+
+	/**
+	 * Validate a single command (no operators) against allow/deny rules.
+	 *
+	 * @param command - A single command without shell operators
+	 * @returns PermissionValidationResult for this command
+	 */
+	private validateSingleCommand(command: string): PermissionValidationResult {
 		// Check deny rules first (deny takes precedence)
-		if (this.config.deny) {
+		if (this.config?.deny) {
 			for (const pattern of this.config.deny) {
 				if (this.matchesPattern(command, pattern)) {
 					return { allowed: false, matchedPattern: pattern, reason: "denied" }
@@ -107,7 +172,7 @@ export class CommandPermissionController {
 		}
 
 		// Check allow rules
-		if (this.config.allow && this.config.allow.length > 0) {
+		if (this.config?.allow && this.config.allow.length > 0) {
 			for (const pattern of this.config.allow) {
 				if (this.matchesPattern(command, pattern)) {
 					return { allowed: true, matchedPattern: pattern, reason: "allowed" }
@@ -119,6 +184,100 @@ export class CommandPermissionController {
 
 		// No allow rules defined, and no deny matched = allow
 		return { allowed: true, reason: "no_config" }
+	}
+
+	private parseCommandSegments(input: string): ParsedCommand {
+		let tokens: ParseEntry[] = []
+		try {
+			tokens = parse(input)
+		} catch (err) {
+			Logger.error("Error parsing command: " + err.message)
+			return { segments: [], subshells: [], hasRedirects: false }
+		}
+
+		function process(tokenList: ParseEntry[]): ParsedCommand {
+			const result: ParsedCommand = {
+				segments: [],
+				subshells: [],
+				hasRedirects: false,
+			}
+
+			let currentSegmentParts: string[] = []
+
+			const flushSegment = () => {
+				if (currentSegmentParts.length > 0) {
+					result.segments.push(currentSegmentParts.join(" "))
+					currentSegmentParts = []
+				}
+			}
+
+			for (let i = 0; i < tokenList.length; i++) {
+				const token = tokenList[i]
+
+				// 1. Handle Subshells: ( ... )
+				if (typeof token === "object" && "op" in token && token.op === "(") {
+					flushSegment()
+
+					let balance = 1
+					let j = i + 1
+					const subTokens: ParseEntry[] = []
+
+					while (j < tokenList.length && balance > 0) {
+						const subToken = tokenList[j]
+						if (typeof subToken === "object" && "op" in subToken) {
+							if (subToken.op === "(") {
+								balance++
+							}
+							if (subToken.op === ")") {
+								balance--
+							}
+						}
+
+						if (balance > 0) {
+							subTokens.push(subToken)
+						}
+						j++
+					}
+
+					result.subshells.push(process(subTokens))
+					i = j - 1 // Skip processed tokens
+					continue
+				}
+
+				// 2. Handle Logic Separators: &&, ||, ;, |
+				if (typeof token === "object" && "op" in token && COMMAND_SEPARATOR_OPERATORS.has(token.op as string)) {
+					flushSegment()
+					continue
+				}
+
+				// 3. Handle Redirect Operators: >, >>, <, etc.
+				if (typeof token === "object" && "op" in token && REDIRECT_OPERATORS.has(token.op as string)) {
+					result.hasRedirects = true
+					continue
+				}
+
+				// 4. Handle Strings (Commands and Arguments)
+				if (typeof token === "string") {
+					// Preserve the '$' for subshell interpolation $(...) in the segment
+					// so that "echo $(whoami)" becomes segment "echo $" which matches "echo *"
+					const nextToken = tokenList[i + 1]
+					if (token === "$" && typeof nextToken === "object" && "op" in nextToken && nextToken.op === "(") {
+						currentSegmentParts.push(token)
+						continue
+					}
+					currentSegmentParts.push(token)
+				}
+				// 5. Handle Glob/Pattern objects
+				else if (typeof token === "object" && "pattern" in token) {
+					currentSegmentParts.push(token.pattern)
+				}
+			}
+
+			flushSegment()
+			return result
+		}
+
+		return process(tokens)
 	}
 
 	/**
@@ -149,50 +308,6 @@ export class CommandPermissionController {
 			"s", // s flag enables dotAll (. matches newlines)
 		)
 		return regex.test(command)
-	}
-
-	/**
-	 * Detect shell operators using shell-quote parser.
-	 * This prevents command chaining/injection attacks like:
-	 *   gh pr view 123; rm -rf /
-	 *   gh pr view 123 && malicious_command
-	 *   gh pr view $(malicious_command)
-	 *
-	 * Operators inside quotes are allowed (they're literal characters):
-	 *   echo "hello; world"  # OK - semicolon is inside quotes
-	 *
-	 * @param command - The command string to check
-	 * @returns ShellOperatorMatch if an operator is found outside quotes, null otherwise
-	 */
-	private detectShellOperator(command: string): ShellOperatorMatch | null {
-		const dangerousCharMatch = this.detectDangerousCharsOutsideQuotes(command)
-		if (dangerousCharMatch) {
-			return dangerousCharMatch
-		}
-
-		try {
-			// Parse the command using shell-quote
-			// shell-quote returns an array where:
-			// - strings are regular arguments
-			// - objects with 'op' key are shell operators
-			// - objects with 'comment' key are comments
-			// - objects with 'pattern' key are glob patterns (we allow these)
-			const parsed = parse(command, (varName: string) => `$${varName}`)
-
-			// Check each parsed element for operators
-			for (const entry of parsed) {
-				const operatorMatch = this.checkParsedEntry(entry)
-				if (operatorMatch) {
-					return operatorMatch
-				}
-			}
-
-			return null
-		} catch {
-			// If parsing fails, be conservative and block the command
-			// This could indicate malformed shell syntax being used for injection
-			return { operator: "parse_error", description: "command parsing failed (potential injection)" }
-		}
 	}
 
 	/**
@@ -262,29 +377,6 @@ export class CommandPermissionController {
 			if (char === "`" && !inSingleQuote) {
 				return { operator: "`", description: "command substitution (backtick)" }
 			}
-		}
-
-		return null
-	}
-
-	/**
-	 * Check a parsed entry from shell-quote for dangerous operators.
-	 *
-	 * @param entry - A parsed entry from shell-quote
-	 * @returns ShellOperatorMatch if dangerous operator found, null otherwise
-	 */
-	private checkParsedEntry(entry: ParseEntry): ShellOperatorMatch | null {
-		// null entries, string entries, glob patterns, and comments are safe
-		if (!entry || typeof entry === "string" || "pattern" in entry || "comment" in entry) {
-			return null
-		}
-
-		if (typeof entry.op === "string") {
-			if (this.isOperatorAllowed(entry.op)) {
-				return null
-			}
-			const description = OPERATOR_DESCRIPTIONS[entry.op] || `shell operator (${entry.op})`
-			return { operator: entry.op, description }
 		}
 
 		return null
