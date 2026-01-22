@@ -341,7 +341,6 @@ async function showConfig(options: { config?: string }) {
 	const { ConfigViewWrapper } = await import("./components/ConfigViewWrapper")
 
 	// Check feature flags
-	const hooksEnabled = stateManager.getGlobalSettingsKey("hooksEnabled") ?? false
 	const skillsEnabled = stateManager.getGlobalSettingsKey("skillsEnabled") ?? false
 
 	await runInkApp(
@@ -350,7 +349,7 @@ async function showConfig(options: { config?: string }) {
 			dataDir: ctx.dataDir,
 			globalState: stateManager.getAllGlobalStateEntries(),
 			workspaceState: stateManager.getAllWorkspaceStateEntries(),
-			hooksEnabled,
+			hooksEnabled: true,
 			skillsEnabled,
 			isRawModeSupported: checkRawModeSupport(),
 		}),
