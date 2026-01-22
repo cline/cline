@@ -10,6 +10,7 @@ import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/d
 import { Logger } from "@/services/logging/Logger"
 import { DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
 import { detectEncoding } from "../misc/extract-text"
+import { sanitizeNotebookForLLM } from "../misc/notebook-utils"
 import { openFile } from "../misc/open-file"
 
 export abstract class DiffViewProvider {
@@ -169,6 +170,19 @@ export abstract class DiffViewProvider {
 	 */
 	protected abstract resetDiffView(): Promise<void>
 
+	/**
+	 * Switches to a specialized editor for specific file types after final content is available.
+	 * Called automatically by the `update` method when `isFinal` is true.
+	 *
+	 * For example, switches to Jupyter notebook editor for .ipynb files to provide
+	 * enhanced editing experience with proper notebook cell rendering.
+	 *
+	 * Default is no-op. Subclasses can override to provide specialized behavior.
+	 */
+	protected async switchToSpecializedEditor(): Promise<void> {
+		// Default no-op - subclasses can override if needed
+	}
+
 	async update(
 		accumulatedContent: string,
 		isFinal: boolean,
@@ -245,6 +259,8 @@ export abstract class DiffViewProvider {
 			await this.safelyTruncateDocument(this.streamedLines.length)
 			// Allow subclasses to perform cleanup (e.g., clearing decorations)
 			await this.onFinalUpdate()
+			// Switch to specialized editor for specific file types (e.g., Jupyter notebooks)
+			await this.switchToSpecializedEditor()
 		}
 	}
 
@@ -286,6 +302,15 @@ export abstract class DiffViewProvider {
 		return this.relPath?.toLowerCase().endsWith(".ipynb") ?? false
 	}
 
+	/**
+	 * Returns the original content sanitized for LLM context.
+	 * For notebooks, strips all outputs since they aren't needed for editing.
+	 */
+	getOriginalContentForLLM(): string | undefined {
+		if (this.originalContent === undefined) return undefined
+		return this.isNotebookFile() ? sanitizeNotebookForLLM(this.originalContent, true) : this.originalContent
+	}
+
 	async saveChanges(): Promise<{
 		newProblemsMessage: string | undefined
 		userEdits: string | undefined
@@ -308,12 +333,7 @@ export abstract class DiffViewProvider {
 		// get text after save in case there is any auto-formatting done by the editor
 		const postSaveContent = (await this.getDocumentText()) || ""
 
-		// we need to open notebook files with Notebook editor if available.
-		// Currently, HostProvider opens it with Text editor. Not opening
-		// notebook files until we fix that.
-		if (!this.isNotebookFile()) {
-			await this.showFile(this.absolutePath)
-		}
+		await this.showFile(this.absolutePath)
 		await this.closeAllDiffViews()
 
 		const newProblems = await this.getNewDiagnosticProblems()
@@ -347,11 +367,16 @@ export abstract class DiffViewProvider {
 			)
 		}
 
+		// Strip notebook outputs to reduce context size (outputs aren't needed for editing)
+		const finalContent = this.isNotebookFile()
+			? sanitizeNotebookForLLM(normalizedPostSaveContent, true)
+			: normalizedPostSaveContent
+
 		return {
 			newProblemsMessage,
 			userEdits,
 			autoFormattingEdits,
-			finalContent: normalizedPostSaveContent,
+			finalContent,
 		}
 	}
 
