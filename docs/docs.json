@@ -148,6 +148,7 @@
 									"features/hooks/samples"
 								]
 							},
+							"features/jupyter-notebooks",
 							"features/multiroot-workspace",
 							"features/plan-and-act",
 							"features/skills",
