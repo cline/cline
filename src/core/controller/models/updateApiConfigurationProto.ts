@@ -8,7 +8,7 @@ import {
 	fromProtobufOpenAiCompatibleModelInfo,
 } from "@shared/proto-conversions/models/typeConversion"
 import { buildApiHandler } from "@/core/api"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 /**

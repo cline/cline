@@ -8,10 +8,10 @@
  * - Cross-platform (macOS, Windows, Linux)
  */
 
-import { Logger } from "@services/logging/Logger"
 import * as fs from "fs"
 import * as os from "os"
 import * as path from "path"
+import { Logger } from "@/shared/services/Logger"
 
 // Configuration constants
 const MAX_TOTAL_SIZE_BYTES = 2 * 1024 * 1024 * 1024 // 2GB

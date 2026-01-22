@@ -1,6 +1,6 @@
 import { StringArray, type StringRequest } from "@shared/proto/cline/common"
-import { Logger } from "@/services/logging/Logger"
 import { fetch } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from ".."
 
 /**

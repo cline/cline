@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import { sendAddToInputEvent } from "@/core/controller/ui/subscribeToAddToInput"
 import { CommentReviewController, type OnReplyCallback, type ReviewComment } from "@/integrations/editor/CommentReviewController"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { DIFF_VIEW_URI_SCHEME } from "../VscodeDiffViewProvider"
 
 /**

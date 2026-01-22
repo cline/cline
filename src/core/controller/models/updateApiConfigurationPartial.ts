@@ -2,7 +2,7 @@ import { buildApiHandler } from "@core/api"
 import { Empty } from "@shared/proto/cline/common"
 import { UpdateApiConfigurationPartialRequest } from "@shared/proto/cline/models"
 import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 /**

@@ -1,5 +1,5 @@
-import { Logger } from "@/services/logging/Logger"
 import { ModelFamily } from "@/shared/prompts"
+import { Logger } from "@/shared/services/Logger"
 import type { ClineTool } from "@/shared/tools"
 import { ClineToolSet } from ".."
 import { getSystemPromptComponents } from "../components"

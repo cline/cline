@@ -1,8 +1,8 @@
 import { HostProvider } from "@/hosts/host-provider"
 import CheckpointTracker from "@/integrations/checkpoints/CheckpointTracker"
-import { Logger } from "@/services/logging/Logger"
 import { findLast } from "@/shared/array"
 import { ShowMessageType } from "@/shared/proto/index.host"
+import { Logger } from "@/shared/services/Logger"
 import { MessageStateHandler } from "./message-state"
 
 export async function showChangedFilesDiff(

@@ -7,7 +7,7 @@ import mammoth from "mammoth"
 import * as path from "path"
 // @ts-ignore-next-line
 import pdf from "pdf-parse/lib/pdf-parse"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { sanitizeNotebookForLLM } from "./notebook-utils"
 
 export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string): Promise<string> {

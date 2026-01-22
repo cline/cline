@@ -1,6 +1,6 @@
 import type { EmptyRequest } from "@shared/proto/cline/common"
 import { McpMarketplaceCatalog } from "@shared/proto/cline/mcp"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 /**

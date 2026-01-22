@@ -1,7 +1,7 @@
 import { fileExistsAtPath } from "@utils/fs"
 import fs from "fs/promises"
 import { join } from "path"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { GIT_DISABLED_SUFFIX } from "./CheckpointGitOperations"
 
 /**

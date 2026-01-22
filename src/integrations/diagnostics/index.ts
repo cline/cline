@@ -1,7 +1,7 @@
 import deepEqual from "fast-deep-equal"
 import * as path from "path"
-import { Logger } from "@/services/logging/Logger"
 import { Diagnostic, DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
+import { Logger } from "@/shared/services/Logger"
 import { getCwd } from "@/utils/path"
 
 export function getNewDiagnostics(oldDiagnostics: FileDiagnostics[], newDiagnostics: FileDiagnostics[]): FileDiagnostics[] {

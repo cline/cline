@@ -8,7 +8,7 @@
  */
 
 import * as path from "path"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { resolveWorkspacePath } from "./WorkspaceResolver"
 import type { WorkspaceRootManager } from "./WorkspaceRootManager"
 

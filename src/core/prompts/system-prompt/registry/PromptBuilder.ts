@@ -1,4 +1,4 @@
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import type { ClineDefaultTool } from "@/shared/tools"
 import { ClineToolSet } from "../registry/ClineToolSet"
 import { type ClineToolSpec, resolveInstruction } from "../spec"

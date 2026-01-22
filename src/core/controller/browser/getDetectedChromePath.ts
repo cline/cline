@@ -1,6 +1,6 @@
 import { ChromePath } from "@shared/proto/cline/browser"
 import { EmptyRequest } from "@shared/proto/cline/common"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { BrowserSession } from "../../../services/browser/BrowserSession"
 import { Controller } from "../index"
 

@@ -1,8 +1,8 @@
 import fs from "fs/promises"
 import path from "path"
 import * as vscode from "vscode"
-import { Logger } from "@/services/logging/Logger"
 import { HistoryItem } from "@/shared/HistoryItem"
+import { Logger } from "@/shared/services/Logger"
 import { ensureRulesDirectoryExists, readTaskHistoryFromState, writeTaskHistoryToState } from "./disk"
 
 export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionContext) {

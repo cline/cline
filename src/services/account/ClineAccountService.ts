@@ -10,9 +10,9 @@ import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import { ClineEnv } from "@/config"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { AuthService } from "../auth/AuthService"
 import { buildBasicClineHeaders } from "../EnvUtils"
-import { Logger } from "../logging/Logger"
 
 export class ClineAccountService {
 	private static instance: ClineAccountService

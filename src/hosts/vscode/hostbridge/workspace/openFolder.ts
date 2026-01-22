@@ -1,6 +1,6 @@
 import * as vscode from "vscode"
-import { Logger } from "@/services/logging/Logger"
 import { OpenFolderRequest, OpenFolderResponse } from "@/shared/proto/host/workspace"
+import { Logger } from "@/shared/services/Logger"
 
 export async function openFolder(request: OpenFolderRequest): Promise<OpenFolderResponse> {
 	try {

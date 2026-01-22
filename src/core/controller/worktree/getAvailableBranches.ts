@@ -2,7 +2,7 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import { BranchList } from "@shared/proto/cline/worktree"
 import { getAvailableBranches as getAvailableBranchesUtil } from "@utils/git-worktree"
 import { getWorkspacePath } from "@utils/path"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**

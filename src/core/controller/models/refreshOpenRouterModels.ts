@@ -5,7 +5,6 @@ import cloneDeep from "clone-deep"
 import fs from "fs/promises"
 import path from "path"
 import { StateManager } from "@/core/storage/StateManager"
-import { Logger } from "@/services/logging/Logger"
 import {
 	ANTHROPIC_MAX_THINKING_BUDGET,
 	CLAUDE_SONNET_1M_TIERS,
@@ -13,6 +12,7 @@ import {
 	openRouterClaudeSonnet451mModelId,
 } from "@/shared/api"
 import { getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from ".."
 
 type OpenRouterSupportedParams =

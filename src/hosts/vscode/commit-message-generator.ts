@@ -3,8 +3,8 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
-import { Logger } from "@/services/logging/Logger"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { getGitDiff } from "@/utils/git"
 
 /**

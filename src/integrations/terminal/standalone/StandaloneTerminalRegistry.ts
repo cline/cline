@@ -5,7 +5,7 @@
  * functionality to create, retrieve, update, and remove terminals.
  */
 
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import type { ITerminal, StandaloneTerminalOptions, TerminalInfo } from "../types"
 import { StandaloneTerminal } from "./StandaloneTerminal"
 

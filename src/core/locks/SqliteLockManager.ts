@@ -2,7 +2,7 @@ import Database from "better-sqlite3"
 import * as fs from "fs"
 import { existsSync, mkdirSync, unlinkSync } from "fs"
 import * as path from "path"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import type { LockRow, SqliteLockManagerOptions } from "./types"
 export class SqliteLockManager {
 	private db!: Database.Database

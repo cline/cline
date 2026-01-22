@@ -1,6 +1,6 @@
 import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**

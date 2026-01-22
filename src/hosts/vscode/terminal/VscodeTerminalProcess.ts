@@ -12,7 +12,7 @@ import {
 	TRUNCATE_KEEP_LINES,
 } from "@/integrations/terminal/constants"
 import type { ITerminalProcess, TerminalProcessEvents } from "@/integrations/terminal/types"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * VscodeTerminalProcess - Manages command execution in VSCode's integrated terminal.

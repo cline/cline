@@ -1,5 +1,5 @@
 import { ParseEntry, parse } from "shell-quote"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { COMMAND_PERMISSIONS_ENV_VAR, CommandPermissionConfig, PermissionValidationResult, ShellOperatorMatch } from "./types"
 
 const OPERATOR_DESCRIPTIONS: Record<string, string> = {

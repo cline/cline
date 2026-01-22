@@ -1,5 +1,5 @@
 import { WebviewProvider } from "@/core/webview"
-import { Logger } from "../logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * Shared URI handler that processes both VSCode URI events and HTTP server callbacks

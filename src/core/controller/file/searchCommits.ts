@@ -2,7 +2,7 @@ import { StringRequest } from "@shared/proto/cline/common"
 import { GitCommits } from "@shared/proto/cline/file"
 import { searchCommits as searchCommitsUtil } from "@utils/git"
 import { getWorkspacePath } from "@utils/path"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**

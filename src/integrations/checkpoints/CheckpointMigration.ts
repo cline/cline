@@ -2,7 +2,7 @@ import { fileExistsAtPath } from "@utils/fs"
 import fs from "fs/promises"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * Cleans up legacy checkpoints from task folders.

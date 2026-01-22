@@ -11,8 +11,8 @@
  * 4. Run validation to ensure correctness
  */
 
-import { Logger } from "@/services/logging/Logger"
 import { ModelFamily } from "@/shared/prompts"
+import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import { PromptVariant } from ".."
 import { SystemPromptSection } from "../templates/placeholders"

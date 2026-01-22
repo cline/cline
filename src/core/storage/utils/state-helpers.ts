@@ -13,8 +13,8 @@ import {
 } from "@shared/storage/state-keys"
 import { ExtensionContext } from "vscode"
 import { Controller } from "@/core/controller"
-import { Logger } from "@/services/logging/Logger"
 import { ClineRulesToggles } from "@/shared/cline-rules"
+import { Logger } from "@/shared/services/Logger"
 import { readTaskHistoryFromState } from "../disk"
 
 export async function readSecretsFromDisk(context: ExtensionContext): Promise<Secrets> {

@@ -1,7 +1,7 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { State } from "@shared/proto/cline/state"
-import { Logger } from "@/services/logging/Logger"
 import { ExtensionState } from "@/shared/ExtensionMessage"
+import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
 

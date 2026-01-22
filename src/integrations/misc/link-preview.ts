@@ -1,7 +1,7 @@
 import axios from "axios"
 import ogs from "open-graph-scraper"
-import { Logger } from "@/services/logging/Logger"
 import { fetch, getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 
 export interface OpenGraphData {
 	title?: string

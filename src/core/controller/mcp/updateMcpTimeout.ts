@@ -1,6 +1,6 @@
 import { McpServers, UpdateMcpTimeoutRequest } from "@shared/proto/cline/mcp"
-import { Logger } from "@/services/logging/Logger"
 import { convertMcpServersToProtoMcpServers } from "@/shared/proto-conversions/mcp/mcp-server-conversion"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**

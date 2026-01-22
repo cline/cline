@@ -5,8 +5,8 @@ import { setWelcomeViewCompleted } from "@/core/controller/state/setWelcomeViewC
 import { WebviewProvider } from "@/core/webview"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { fetch } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { buildBasicClineHeaders } from "../EnvUtils"
-import { Logger } from "../logging/Logger"
 import { AuthService } from "./AuthService"
 
 export class AuthServiceMock extends AuthService {

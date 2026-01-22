@@ -13,7 +13,7 @@ import type { LoggerMessage, ScreenshotOptions } from "puppeteer-core"
 import { Browser, connect, launch, Page, TimeoutError } from "puppeteer-core"
 import { StateManager } from "@/core/storage/StateManager"
 import { telemetryService } from "@/services/telemetry"
-import { Logger } from "../logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { discoverChromeInstances, isPortOpen, testBrowserConnection } from "./BrowserDiscovery"
 import { ensureChromiumExists } from "./utils"
 

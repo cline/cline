@@ -3,8 +3,8 @@ import * as http from "http"
 import { URL } from "url"
 import type { ExtensionContext } from "vscode"
 import { z } from "zod"
-import { Logger } from "@/services/logging/Logger"
 import { fetch } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * OpenAI Codex OAuth Configuration

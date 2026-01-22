@@ -2,8 +2,8 @@ import fs from "fs/promises"
 import sizeOf from "image-size"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
-import { Logger } from "@/services/logging/Logger"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * Supports processing of images and other file types

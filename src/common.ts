@@ -8,10 +8,10 @@ import {
 	migrateWorkspaceToGlobalStorage,
 } from "./core/storage/state-migrations"
 import { WebviewProvider } from "./core/webview"
-import { Logger } from "./services/logging/Logger"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
 import { StateManager } from "./core/storage/StateManager"
 import { openAiCodexOAuthManager } from "./integrations/openai-codex/oauth"
@@ -35,6 +35,9 @@ import { arePathsEqual } from "./utils/path"
  * @returns The webview provider
  */
 export async function initialize(context: vscode.ExtensionContext): Promise<WebviewProvider> {
+	// Configure the shared Logging class to use HostProvider's output channel
+	Logger.setOutput((msg: string) => HostProvider.get().logToChannel(msg))
+
 	try {
 		await StateManager.initialize(context)
 	} catch (error) {

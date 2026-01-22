@@ -1,5 +1,5 @@
 import { Boolean } from "@shared/proto/cline/common"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { isClineCliInstalled } from "@/utils/cli-detector"
 import { Controller } from ".."
 

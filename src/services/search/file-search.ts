@@ -7,8 +7,8 @@ import * as readline from "readline"
 import { WorkspaceRootManager } from "@/core/workspace"
 import { HostProvider } from "@/hosts/host-provider"
 import { GetOpenTabsRequest } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { getBinaryLocation } from "@/utils/fs"
-import { Logger } from "../logging/Logger"
 
 // Wrapper function for childProcess.spawn
 export type SpawnFunction = typeof childProcess.spawn

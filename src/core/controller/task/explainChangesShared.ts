@@ -2,9 +2,9 @@ import { buildApiHandler } from "@core/api"
 import { isBinaryFile } from "isbinaryfile"
 import { HostProvider } from "@/hosts/host-provider"
 import { formatContentBlockToMarkdown } from "@/integrations/misc/export-markdown"
-import { Logger } from "@/services/logging/Logger"
 import { ApiConfiguration } from "@/shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
+import { Logger } from "@/shared/services/Logger"
 
 export interface ChangedFile {
 	relativePath: string

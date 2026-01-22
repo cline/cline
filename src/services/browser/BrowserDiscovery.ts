@@ -1,6 +1,6 @@
 import axios from "axios"
 import * as net from "net"
-import { Logger } from "../logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * Check if a port is open on a given host

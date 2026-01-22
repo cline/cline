@@ -11,8 +11,8 @@
  */
 import * as path from "node:path"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
 import { blobStorage } from "../../storage/ClineBlobStorage"
-import { Logger } from "../Logger"
 import { backfillTasks } from "./backfill"
 import { SyncQueue } from "./queue"
 import type { SyncWorkerOptions } from "./worker"

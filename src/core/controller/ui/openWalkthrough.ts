@@ -2,8 +2,8 @@ import type { EmptyRequest } from "@shared/proto/cline/common"
 import { Empty } from "@shared/proto/cline/common"
 import * as vscode from "vscode"
 import { ExtensionRegistryInfo } from "@/registry"
-import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 /**

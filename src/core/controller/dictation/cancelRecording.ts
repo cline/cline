@@ -1,7 +1,7 @@
 import { RecordingResult } from "@shared/proto/cline/dictation"
 import { audioRecordingService } from "@/services/dictation/AudioRecordingService"
-import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**

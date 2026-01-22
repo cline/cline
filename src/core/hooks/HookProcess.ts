@@ -1,6 +1,6 @@
 import { ChildProcess, spawn } from "child_process"
 import { EventEmitter } from "events"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { HookProcessRegistry } from "./HookProcessRegistry"
 import { escapeShellPath } from "./shell-escape"
 

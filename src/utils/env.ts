@@ -1,7 +1,7 @@
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import open from "open"
 import { HostProvider } from "@/hosts/host-provider"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * Writes text to the system clipboard

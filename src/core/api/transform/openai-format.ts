@@ -1,6 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { Logger } from "@/services/logging/Logger"
 import {
 	ClineAssistantRedactedThinkingBlock,
 	ClineAssistantThinkingBlock,
@@ -10,6 +9,7 @@ import {
 	ClineTextContentBlock,
 	ClineUserToolResultContentBlock,
 } from "@/shared/messages/content"
+import { Logger } from "@/shared/services/Logger"
 
 // OpenAI API has a maximum tool call ID length of 40 characters
 const MAX_TOOL_CALL_ID_LENGTH = 40

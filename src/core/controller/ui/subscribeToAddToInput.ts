@@ -1,5 +1,5 @@
 import type { EmptyRequest, String as ProtoString } from "@shared/proto/cline/common"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, type StreamingResponseHandler } from "../grpc-handler"
 import type { Controller } from "../index"
 

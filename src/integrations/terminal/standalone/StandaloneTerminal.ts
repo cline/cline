@@ -6,7 +6,7 @@
  */
 
 import type { ChildProcess } from "child_process"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import type { ITerminal, StandaloneTerminalOptions } from "../types"
 
 /**

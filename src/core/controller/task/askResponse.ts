@@ -1,6 +1,6 @@
 import { Empty } from "@shared/proto/cline/common"
 import { AskResponseRequest } from "@shared/proto/cline/task"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { ClineAskResponse } from "../../../shared/WebviewMessage"
 import { Controller } from ".."
 

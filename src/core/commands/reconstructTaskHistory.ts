@@ -6,7 +6,7 @@ import { ShowMessageType } from "@shared/proto/host/window"
 import { fileExistsAtPath } from "@utils/fs"
 import * as path from "path"
 import { ulid } from "ulid"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 
 interface TaskReconstructionResult {
 	totalTasks: number

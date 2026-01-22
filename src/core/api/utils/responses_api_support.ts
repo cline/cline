@@ -1,6 +1,6 @@
 import OpenAI from "openai"
-import { Logger } from "@/services/logging/Logger"
 import { ModelInfo } from "@/shared/api"
+import { Logger } from "@/shared/services/Logger"
 
 // Type that represents the OpenAI ResponseStream with its private properties
 // The #private property issue can be resolved by using the AsyncIterable interface

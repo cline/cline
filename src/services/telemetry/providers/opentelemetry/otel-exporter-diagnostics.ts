@@ -5,7 +5,7 @@
  * Enable with: TEL_DEBUG_DIAGNOSTICS=true or IS_DEV=true
  */
 
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * Wraps a metrics exporter with minimal diagnostic logging

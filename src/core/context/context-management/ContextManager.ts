@@ -7,7 +7,7 @@ import { fileExistsAtPath } from "@utils/fs"
 import cloneDeep from "clone-deep"
 import fs from "fs/promises"
 import * as path from "path"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { getContextWindowInfo } from "./context-window-utils"
 
 enum EditType {

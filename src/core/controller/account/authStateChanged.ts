@@ -1,5 +1,5 @@
 import { AuthState, AuthStateChangedRequest } from "@shared/proto/cline/account"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 /**

@@ -9,7 +9,7 @@ import {
 	GrpcSessionLog,
 	SessionStats,
 } from "@/core/controller/grpc-recorder/types"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 
 export class GrpcRecorderNoops implements IRecorder {
 	recordRequest(_request: GrpcRequest): void {}

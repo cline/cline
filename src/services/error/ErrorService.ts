@@ -1,4 +1,4 @@
-import { Logger } from "../logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { ClineError } from "./ClineError"
 import { ErrorProviderFactory } from "./ErrorProviderFactory"
 import { IErrorProvider } from "./providers/IErrorProvider"

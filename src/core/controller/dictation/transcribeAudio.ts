@@ -1,9 +1,9 @@
 import { TranscribeAudioRequest, Transcription } from "@shared/proto/cline/dictation"
 import { HostProvider } from "@/hosts/host-provider"
 import { getVoiceTranscriptionService } from "@/services/dictation/VoiceTranscriptionService"
-import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**

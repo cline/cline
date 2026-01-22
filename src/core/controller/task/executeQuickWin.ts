@@ -1,6 +1,6 @@
 import { Empty } from "@shared/proto/cline/common"
 import { ExecuteQuickWinRequest } from "@shared/proto/cline/task"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 /**

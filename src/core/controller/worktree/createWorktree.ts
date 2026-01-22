@@ -1,8 +1,8 @@
 import { CreateWorktreeRequest, WorktreeResult } from "@shared/proto/cline/worktree"
 import { createWorktree as createWorktreeUtil, listWorktrees } from "@utils/git-worktree"
 import { getWorkspacePath } from "@utils/path"
-import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**

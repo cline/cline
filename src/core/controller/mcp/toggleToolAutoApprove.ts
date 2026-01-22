@@ -1,7 +1,7 @@
 import type { ToggleToolAutoApproveRequest } from "@shared/proto/cline/mcp"
 import { McpServers } from "@shared/proto/cline/mcp"
 import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 /**

@@ -1,6 +1,6 @@
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import * as fs from "fs/promises"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * A file-system-based implementation of DiffViewProvider that performs direct file operations

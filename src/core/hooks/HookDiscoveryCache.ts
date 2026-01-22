@@ -1,4 +1,4 @@
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { telemetryService } from "../../services/telemetry"
 import { getAllHooksDirs } from "../storage/disk"
 import { HookFactory, Hooks } from "./hook-factory"

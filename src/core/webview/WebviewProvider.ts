@@ -4,8 +4,8 @@ import axios from "axios"
 import { readFile } from "fs/promises"
 import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
-import { Logger } from "@/services/logging/Logger"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { getNonce } from "./getNonce"
 
 export abstract class WebviewProvider {

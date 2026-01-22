@@ -5,8 +5,8 @@ import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs
 import { MeterProvider } from "@opentelemetry/sdk-metrics"
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions"
 import { ExtensionRegistryInfo } from "@/registry"
-import { Logger } from "@/services/logging/Logger"
 import { OpenTelemetryClientValidConfig } from "@/shared/services/config/otel-config"
+import { Logger } from "@/shared/services/Logger"
 import {
 	createConsoleLogExporter,
 	createConsoleMetricReader,

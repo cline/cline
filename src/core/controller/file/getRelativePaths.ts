@@ -1,7 +1,7 @@
 import { RelativePaths, RelativePathsRequest } from "@shared/proto/cline/file"
 import * as path from "path"
 import { URI } from "vscode-uri"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { isDirectory } from "@/utils/fs"
 import { asRelativePath } from "@/utils/path"
 import { Controller } from ".."

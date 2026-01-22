@@ -1,5 +1,5 @@
 import type { SystemPromptContext } from "@/core/prompts/system-prompt/types"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import type { DeepPlanningVariant, DeepPlanningRegistry as IDeepPlanningRegistry } from "./types"
 import {
 	createAnthropicVariant,

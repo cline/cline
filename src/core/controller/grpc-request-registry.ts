@@ -1,4 +1,4 @@
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { StreamingResponseHandler } from "./grpc-handler"
 
 /**

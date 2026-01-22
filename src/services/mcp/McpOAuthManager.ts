@@ -3,9 +3,9 @@ import { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js"
 import type { OAuthClientInformationFull, OAuthClientMetadata, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js"
 import crypto from "crypto"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
 import { openExternal } from "@/utils/env"
 import { getMcpServerCallbackPath, getServerAuthHash } from "@/utils/mcpAuth"
-import { Logger } from "../logging/Logger"
 
 /**
  * Structure for all OAuth data stored in the single mcpOAuthSecrets JSON

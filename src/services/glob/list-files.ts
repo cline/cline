@@ -3,7 +3,7 @@ import { arePathsEqual } from "@utils/path"
 import { globby, Options } from "globby"
 import * as os from "os"
 import * as path from "path"
-import { Logger } from "../logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 
 // Constants
 const DEFAULT_IGNORE_DIRECTORIES = [

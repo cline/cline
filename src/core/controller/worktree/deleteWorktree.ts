@@ -6,7 +6,7 @@ import path from "path"
 import simpleGit from "simple-git"
 import { HostProvider } from "@/hosts/host-provider"
 import { hashWorkingDir } from "@/integrations/checkpoints/CheckpointUtils"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**

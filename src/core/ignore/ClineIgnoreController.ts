@@ -3,7 +3,7 @@ import chokidar, { FSWatcher } from "chokidar"
 import fs from "fs/promises"
 import ignore, { Ignore } from "ignore"
 import path from "path"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 
 export const LOCK_TEXT_SYMBOL = "\u{1F512}"
 

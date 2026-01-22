@@ -1,6 +1,6 @@
 import { execa } from "execa"
 import { platform } from "os"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 
 interface NotificationOptions {
 	title?: string

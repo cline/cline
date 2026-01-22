@@ -1,6 +1,6 @@
 import { Empty } from "@shared/proto/cline/common"
 import { OnboardingProgressRequest } from "@shared/proto/cline/state"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { telemetryService } from "../../../services/telemetry"
 import type { Controller } from "../index"
 

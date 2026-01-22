@@ -1,5 +1,5 @@
+import { Logger } from "@/shared/services/Logger"
 import { BlobStoreSettings, blobStorage } from "../../storage/ClineBlobStorage"
-import { Logger } from "../Logger"
 
 import { SyncQueue, SyncQueueItem } from "./queue"
 

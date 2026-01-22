@@ -2,8 +2,8 @@ import { Controller } from "@core/controller/index"
 import { serviceHandlers } from "@generated/hosts/vscode/protobus-services"
 import { GrpcRecorderBuilder } from "@/core/controller/grpc-recorder/grpc-recorder.builder"
 import { GrpcRequestRegistry } from "@/core/controller/grpc-request-registry"
-import { Logger } from "@/services/logging/Logger"
 import { ExtensionMessage } from "@/shared/ExtensionMessage"
+import { Logger } from "@/shared/services/Logger"
 import { GrpcCancel, GrpcRequest } from "@/shared/WebviewMessage"
 
 /**

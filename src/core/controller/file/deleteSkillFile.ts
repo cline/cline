@@ -1,7 +1,7 @@
 import { DeleteSkillRequest, SkillsToggles } from "@shared/proto/cline/file"
 import fs from "fs/promises"
 import path from "path"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { fileExistsAtPath } from "@/utils/fs"
 import { Controller } from ".."
 

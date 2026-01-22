@@ -1,6 +1,6 @@
 import { HostProvider } from "@/hosts/host-provider"
-import { Logger } from "@/services/logging/Logger"
 import { EmptyRequest } from "@/shared/proto/cline/common"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * Checks if the current workspace has multiple root folders open.

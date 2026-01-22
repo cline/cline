@@ -18,7 +18,7 @@ import { ShowMessageType } from "@shared/proto/host/window"
 import * as cp from "child_process"
 import * as os from "os"
 import * as util from "util"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { openExternal, writeTextToClipboard } from "@/utils/env"
 
 /**

@@ -2,10 +2,10 @@ import { RecordingResult } from "@shared/proto/cline/dictation"
 import * as os from "os"
 import { HostProvider } from "@/hosts/host-provider"
 import { audioRecordingService } from "@/services/dictation/AudioRecordingService"
-import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
 import { AUDIO_PROGRAM_CONFIG } from "@/shared/audioProgramConstants"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**

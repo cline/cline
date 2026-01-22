@@ -8,7 +8,7 @@
 
 import * as fs from "fs/promises"
 import { GlobalFileNames, getSavedApiConversationHistory, getTaskHistoryStateFilePath } from "@/core/storage/disk"
-import { Logger } from "../Logger"
+import { Logger } from "@/shared/services/Logger"
 import { syncWorker } from "./sync"
 import { getTaskTimestamp } from "./utils"
 

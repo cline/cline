@@ -5,7 +5,7 @@ import path from "node:path"
 import type Anthropic from "@anthropic-ai/sdk"
 import { execa } from "execa"
 import readline from "readline"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { getCwd } from "@/utils/path"
 import { ClaudeCodeMessage } from "./types"
 

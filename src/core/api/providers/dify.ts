@@ -1,6 +1,6 @@
-import { Logger } from "@/services/logging/Logger"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { ModelInfo } from "../../../shared/api"
 import { ApiHandler } from "../index"
 import { ApiStream } from "../transform/stream"

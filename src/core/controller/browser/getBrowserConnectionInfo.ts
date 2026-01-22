@@ -1,6 +1,6 @@
 import { BrowserConnectionInfo } from "@shared/proto/cline/browser"
 import { EmptyRequest } from "@shared/proto/cline/common"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from "../index"
 
 /**

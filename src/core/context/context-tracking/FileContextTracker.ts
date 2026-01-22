@@ -4,7 +4,7 @@ import chokidar, { FSWatcher } from "chokidar"
 import * as path from "path"
 import * as vscode from "vscode"
 import { Controller } from "@/core/controller"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { getCwd } from "@/utils/path"
 import type { FileMetadataEntry } from "./ContextTrackerTypes"
 

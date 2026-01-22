@@ -1,6 +1,6 @@
 import { exec } from "child_process"
 import { promisify } from "util"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 
 const execAsync = promisify(exec)
 const GIT_OUTPUT_LINE_LIMIT = 500

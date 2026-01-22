@@ -1,6 +1,6 @@
 import { isGPT51Model, isGPT52Model, isNextGenModelProvider } from "@utils/model-utils"
-import { Logger } from "@/services/logging/Logger"
 import { ModelFamily } from "@/shared/prompts"
+import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
