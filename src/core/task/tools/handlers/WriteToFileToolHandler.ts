@@ -1,7 +1,7 @@
 import path from "node:path"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import type { ToolUse } from "@core/assistant-message"
-import { constructNewFileContent } from "@core/assistant-message/diff"
+import { constructNewFileContent, getLineNumberFromCharIndex } from "@core/assistant-message/diff"
 import { formatResponse } from "@core/prompts/responses"
 import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
@@ -49,7 +49,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		}
 
 		try {
-			const { relPath, absolutePath, fileExists, diff, content, newContent } = result
+			const { relPath, absolutePath, fileExists, diff, content, newContent, matchIndices } = result
 
 			// Create and show partial UI message
 			const sharedMessageProps: ClineSayTool = {
@@ -60,6 +60,9 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				),
 				content: diff || content,
 				operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
+				startLineNumbers: matchIndices?.map((idx) =>
+					getLineNumberFromCharIndex(config.services.diffViewProvider.originalContent || "", idx),
+				),
 			}
 			const partialMessage = JSON.stringify(sharedMessageProps)
 
@@ -131,7 +134,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				return "" // can only happen if the sharedLogic adds an error to userMessages
 			}
 
-			const { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext } = result
+			const { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext, matchIndices } = result
 
 			// Handle approval flow
 			const sharedMessageProps: ClineSayTool = {
@@ -139,6 +142,9 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				path: getReadablePath(config.cwd, relPath),
 				content: diff || content,
 				operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
+				startLineNumbers: matchIndices?.map((idx) =>
+					getLineNumberFromCharIndex(config.services.diffViewProvider.originalContent || "", idx),
+				),
 			}
 			// if isEditingFile false, that means we have the full contents of the file already.
 			// it's important to note how this function works, you can't make the assumption that the block.partial conditional will always be called since it may immediately get complete, non-partial data. So this part of the logic will always be called.
@@ -394,6 +400,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 		// Construct newContent from diff
 		let newContent: string
+		let matchIndices: number[] = []
 		newContent = "" // default to original content if not editing
 
 		if (diff) {
@@ -408,11 +415,13 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			}
 
 			try {
-				newContent = await constructNewFileContent(
+				const result = await constructNewFileContent(
 					diff,
 					config.services.diffViewProvider.originalContent || "",
 					!block.partial, // Pass the partial flag correctly
 				)
+				newContent = result.newContent
+				matchIndices = result.matchIndices
 			} catch (error) {
 				// Check if we've already pushed an error for this specific tool call (prevents duplicates during streaming)
 				const callId = block.call_id || ""
@@ -486,7 +495,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			return
 		}
 
-		return { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext }
+		return { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext, matchIndices }
 	}
 
 	private getModelInfo(config: TaskConfig) {
