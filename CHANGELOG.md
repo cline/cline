@@ -2,8 +2,6 @@
 
 ## 3.52.1
 
-### Patch Changes
-
 - 66d7664: improve cline command permission validation logic. add cline command permission man page documentation
 - abf3081: Wiring-up "conditionals" for Cline Rules files.
 - 4533ed3: Fix drag & drop files from SSH remote workspaces into chat
