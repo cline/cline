@@ -126,7 +126,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			return await config.callbacks.sayAndCreateMissingParamError(block.name, "content")
 		}
 
-		config.taskState.consecutiveMistakeCount = 0
+		// NOTE: Do NOT reset consecutiveMistakeCount here - it should only be reset after successful completion
+		// The reset was moved to after saveChanges() succeeds to properly track consecutive failures
 
 		try {
 			const result = await this.validateAndPrepareFileOperation(config, block, rawRelPath, rawDiff, rawContent)
@@ -297,6 +298,9 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			const { newProblemsMessage, userEdits, autoFormattingEdits, finalContent } =
 				await config.services.diffViewProvider.saveChanges()
 
+			// Reset consecutive mistake counter on successful file operation
+			config.taskState.consecutiveMistakeCount = 0
+
 			config.taskState.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
 
 			// Track file edit operation
@@ -428,6 +432,9 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				if (callId && config.taskState.errorPushedForCallIds.has(callId)) {
 					return
 				}
+
+				// Increment mistake counter so tooManyMistakes check can trigger after repeated failures
+				config.taskState.consecutiveMistakeCount++
 
 				// Full original behavior - comprehensive error handling even for partial blocks
 				// Removes any existing diff_error messages to avoid duplicates.
