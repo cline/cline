@@ -2,7 +2,6 @@ import * as vscode from "vscode"
 import {
 	cleanupMcpMarketplaceCatalogFromGlobalState,
 	migrateCustomInstructionsToGlobalRules,
-	migrateHooksEnabledToBoolean,
 	migrateTaskHistoryToFile,
 	migrateWelcomeViewCompleted,
 	migrateWorkspaceToGlobalStorage,
@@ -14,6 +13,7 @@ import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { HostProvider } from "@/hosts/host-provider"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
 import { StateManager } from "./core/storage/StateManager"
+import { openAiCodexOAuthManager } from "./integrations/openai-codex/oauth"
 import { ExtensionRegistryInfo } from "./registry"
 import { BannerService } from "./services/banner/BannerService"
 import { audioRecordingService } from "./services/dictation/AudioRecordingService"
@@ -26,7 +26,6 @@ import { ShowMessageType } from "./shared/proto/host/window"
 import { syncWorker } from "./shared/services/worker/sync"
 import { getBlobStoreSettingsFromEnv } from "./shared/services/worker/worker"
 import { getLatestAnnouncementId } from "./utils/announcements"
-import { openAiCodexOAuthManager } from "./integrations/openai-codex/oauth"
 import { arePathsEqual } from "./utils/path"
 /**
  * Performs intialization for Cline that is common to all platforms.
@@ -69,9 +68,6 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 
 	// Ensure taskHistory.json exists and migrate legacy state (runs once)
 	await migrateTaskHistoryToFile(context)
-
-	// Migrate hooksEnabled from ClineFeatureSetting to boolean (one-time cleanup)
-	await migrateHooksEnabledToBoolean(context)
 
 	// Clean up MCP marketplace catalog from global state (moved to disk cache)
 	await cleanupMcpMarketplaceCatalogFromGlobalState(context)
