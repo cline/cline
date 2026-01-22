@@ -105,6 +105,7 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		error_retry: ClineSay.ERROR_RETRY,
 		hook_status: ClineSay.HOOK_STATUS,
 		hook_output_stream: ClineSay.HOOK_OUTPUT_STREAM,
+		conditional_rules_applied: ClineSay.CONDITIONAL_RULES_APPLIED,
 		generate_explanation: ClineSay.GENERATE_EXPLANATION,
 	}
 
@@ -156,6 +157,7 @@ function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 		[ClineSay.GENERATE_EXPLANATION]: "generate_explanation",
 		[ClineSay.HOOK_STATUS]: "hook_status",
 		[ClineSay.HOOK_OUTPUT_STREAM]: "hook_output_stream",
+		[ClineSay.CONDITIONAL_RULES_APPLIED]: "conditional_rules_applied",
 	}
 
 	return mapping[say]
