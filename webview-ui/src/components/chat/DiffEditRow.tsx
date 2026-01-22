@@ -197,63 +197,65 @@ const DiffStats = memo<{ additions: number; deletions: number }>(({ additions, d
 	</div>
 ))
 
-// Diff line component with Tailwind styling - indicator bar, optional line number, prefix, code
-const DiffLine = memo<{ line: string; lineNumber?: number }>(({ line, lineNumber }) => {
-	const isAddition = line.startsWith("+")
-	const isDeletion = line.startsWith("-")
-	const hasSpacePrefix = line.startsWith("+ ") || line.startsWith("- ")
-	// Extract just the code content (without +/- prefix)
-	const code = isAddition || isDeletion ? line.slice(hasSpacePrefix ? 2 : 1) : line
-	// Get the prefix character to display
-	const prefix = isAddition ? "+" : isDeletion ? "-" : " "
+// Diff line component with Tailwind styling - indicator bar, line number, prefix, code
+const DiffLine = memo<{ line: string; lineNumber?: number; showLineNumberColumn?: boolean }>(
+	({ line, lineNumber, showLineNumberColumn = true }) => {
+		const isAddition = line.startsWith("+")
+		const isDeletion = line.startsWith("-")
+		const hasSpacePrefix = line.startsWith("+ ") || line.startsWith("- ")
+		// Extract just the code content (without +/- prefix)
+		const code = isAddition || isDeletion ? line.slice(hasSpacePrefix ? 2 : 1) : line
+		// Get the prefix character to display
+		const prefix = isAddition ? "+" : isDeletion ? "-" : " "
 
-	return (
-		<div
-			className={cn(
-				"flex text-xs font-mono",
-				// Row background tint
-				isAddition && "bg-green-500/10",
-				isDeletion && "bg-red-500/10",
-				// Left indicator bar (the colored stripe)
-				isAddition && "border-l-4 border-l-green-500",
-				isDeletion && "border-l-4 border-l-red-500",
-				!isAddition && !isDeletion && "border-l-4 border-l-transparent",
-			)}>
-			{/* Line number - only shown when we have actual line positions from the backend */}
-			{lineNumber !== undefined && (
+		return (
+			<div
+				className={cn(
+					"flex text-xs font-mono",
+					// Row background tint
+					isAddition && "bg-green-500/10",
+					isDeletion && "bg-red-500/10",
+					// Left indicator bar (the colored stripe)
+					isAddition && "border-l-4 border-l-green-500",
+					isDeletion && "border-l-4 border-l-red-500",
+					!isAddition && !isDeletion && "border-l-4 border-l-transparent",
+				)}>
+				{/* Line number column - always reserve space to prevent layout shift during streaming */}
+				{showLineNumberColumn && (
+					<span
+						className={cn(
+							"w-10 min-w-10 text-right pr-2 py-0.5 select-none border-r border-code-block-background/50",
+							isAddition && "text-green-400/60",
+							isDeletion && "text-red-400/60",
+							!isAddition && !isDeletion && "text-description/50",
+						)}>
+						{lineNumber ?? ""}
+					</span>
+				)}
+				{/* Prefix character (+/-) for backwards compatibility with traditional diff views */}
 				<span
 					className={cn(
-						"w-10 min-w-10 text-right pr-2 py-0.5 select-none border-r border-code-block-background/50",
-						isAddition && "text-green-400/60",
-						isDeletion && "text-red-400/60",
+						"w-4 min-w-4 text-center py-0.5 select-none",
+						isAddition && "text-green-400",
+						isDeletion && "text-red-400",
 						!isAddition && !isDeletion && "text-description/50",
 					)}>
-					{lineNumber}
+					{prefix}
 				</span>
-			)}
-			{/* Prefix character (+/-) for backwards compatibility with traditional diff views */}
-			<span
-				className={cn(
-					"w-4 min-w-4 text-center py-0.5 select-none",
-					isAddition && "text-green-400",
-					isDeletion && "text-red-400",
-					!isAddition && !isDeletion && "text-description/50",
-				)}>
-				{prefix}
-			</span>
-			{/* Code content */}
-			<span
-				className={cn(
-					"flex-1 pr-2 py-0.5 whitespace-nowrap",
-					isAddition && "text-green-400",
-					isDeletion && "text-red-400",
-					!isAddition && !isDeletion && "text-editor-foreground",
-				)}>
-				{code}
-			</span>
-		</div>
-	)
-})
+				{/* Code content */}
+				<span
+					className={cn(
+						"flex-1 pr-2 py-0.5 whitespace-nowrap",
+						isAddition && "text-green-400",
+						isDeletion && "text-red-400",
+						!isAddition && !isDeletion && "text-editor-foreground",
+					)}>
+					{code}
+				</span>
+			</div>
+		)
+	},
+)
 
 // ============================================================================
 // Parsing Functions
