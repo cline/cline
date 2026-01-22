@@ -1,9 +1,10 @@
 ---
 title: "OpenAI Codex"
+sidebarTitle: "OpenAI Codex"
 description: "Connect your OpenAI account to Cline via OAuth for seamless access to OpenAI models."
 ---
 
-OpenAI Codex lets you connect your OpenAI account directly to Cline using OAuth, meaning you don't need to manage API keys. Simply sign in with your OpenAI account through a one-click browser authentication, and you'll automatically have access to all the models available on your OpenAI plan—no additional configuration required. This works for both individual users and enterprise team deployments.
+OpenAI Codex lets you connect your OpenAI account directly to Cline using OAuth, meaning you don't need to manage API keys. Simply sign in with your OpenAI account through a one-click browser authentication, and you'll automatically have access to all the models available on your OpenAI plan. No additional configuration required. This works for both individual users and enterprise team deployments.
 
 <Tip>
 If you prefer to use API keys instead, see the [OpenAI (API Key)](/provider-config/openai) provider configuration.
@@ -22,7 +23,7 @@ The models available to you depend on your OpenAI account's subscription tier. S
 
 <Steps>
   <Step title="Open Cline Settings">
-    Click the settings gear icon (⚙️) in the top-right corner of the Cline extension.
+    Click the settings gear icon in the top-right corner of the Cline extension.
   </Step>
   <Step title="Select OpenAI Codex Provider">
     Choose **"OpenAI Codex"** from the "API Provider" dropdown menu.
@@ -40,7 +41,6 @@ The models available to you depend on your OpenAI account's subscription tier. S
     Once authorized, you'll be returned to Cline. Choose your desired model from the **"Model"** dropdown.
   </Step>
 </Steps>
-
 
 <Note>
 If a model doesn't appear in your dropdown, it may not be available on your OpenAI subscription tier.
@@ -93,13 +93,13 @@ OAuth tokens are automatically refreshed by Cline. If you encounter authenticati
 - This is rare but can happen if your OpenAI account session expired
 - Disconnect and reconnect to refresh your authentication
 
-## Tips and Notes
+## Good to Know
 
-- **Privacy**: Cline only requests the permissions necessary to make API calls on your behalf. Your OpenAI credentials are never stored by Cline.
-- **Usage & Billing**: API usage is billed to your OpenAI account according to your subscription plan.
-- **Rate Limits**: Rate limits are determined by your OpenAI account tier, not by Cline.
+Cline only requests the permissions necessary to make API calls on your behalf. Your OpenAI credentials are never stored by Cline.
+
+API usage is billed to your OpenAI account according to your subscription plan. Rate limits are determined by your OpenAI account tier, not by Cline.
 
 ## Related Documentation
 
-- [OpenAI (API Key)](/provider-config/openai) — Alternative configuration using API keys
-- [Model Selection Guide](/core-features/model-selection-guide) — Help choosing the right model
+- [OpenAI (API Key)](/provider-config/openai): Alternative configuration using API keys
+- [Model Selection Guide](/core-features/model-selection-guide): Help choosing the right model
