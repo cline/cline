@@ -5,7 +5,6 @@
 
 import { Memento, SecretStorage } from "vscode"
 import { URI } from "vscode-uri"
-import { ClineClient } from "."
 
 enum ExtensionMode {
 	/**
@@ -28,7 +27,6 @@ enum ExtensionMode {
 }
 
 export interface ClineExtensionContext {
-	readonly name?: ClineClient
 	/**
 	 * An array to which disposables can be added. When this
 	 * extension is deactivated the disposables will be disposed.

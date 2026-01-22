@@ -8,7 +8,7 @@ import os from "os"
 import path from "path"
 import type { Memento, SecretStorage } from "vscode"
 import { ExtensionRegistryInfo } from "@/registry"
-import { ClineClient, ClineExtensionContext } from "@/shared/clients"
+import { ClineExtensionContext } from "@/shared/clients"
 import { ExtensionKind, ExtensionMode, URI } from "./vscode-shim"
 
 const SETTINGS_SUBFOLDER = "data"
@@ -261,8 +261,6 @@ export function initializeCliContext(config: CliContextConfig = {}) {
 	}
 
 	const extensionContext: ClineExtensionContext = {
-		name: ClineClient.Cli,
-
 		extension: extension,
 		extensionMode: EXTENSION_MODE,
 
