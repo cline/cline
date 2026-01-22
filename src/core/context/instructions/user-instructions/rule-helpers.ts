@@ -5,6 +5,7 @@ import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import * as path from "path"
 import { Controller } from "@/core/controller"
+import { Logger } from "@/shared/services/Logger"
 import { parseYamlFrontmatter } from "./frontmatter"
 import { evaluateRuleConditionals, RuleEvaluationContext } from "./rule-conditionals"
 
@@ -30,7 +31,7 @@ export async function readDirectoryRecursive(
 		}
 		return results
 	} catch (error) {
-		console.error(`Error reading directory ${directoryPath}: ${error}`)
+		Logger.error(`Error reading directory ${directoryPath}: ${error}`)
 		return []
 	}
 }
@@ -98,7 +99,7 @@ export async function synchronizeRuleToggles(
 			}
 		}
 	} catch (error) {
-		console.error(`Failed to synchronize rule toggles for path: ${rulesDirectoryPath}`, error)
+		Logger.error(`Failed to synchronize rule toggles for path: ${rulesDirectoryPath}`, error)
 	}
 
 	return updatedToggles
@@ -431,7 +432,7 @@ export async function deleteRuleFile(
 		}
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
-		console.error(`Error deleting file: ${errorMessage}`, error)
+		Logger.error(`Error deleting file: ${errorMessage}`, error)
 		return {
 			success: false,
 			message: `Failed to delete file.`,

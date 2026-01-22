@@ -6,6 +6,7 @@ import path from "path"
 import simpleGit from "simple-git"
 import { HostProvider } from "@/hosts/host-provider"
 import { hashWorkingDir } from "@/integrations/checkpoints/CheckpointUtils"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
@@ -40,7 +41,7 @@ export async function deleteWorktree(_controller: Controller, request: DeleteWor
 			await rm(checkpointDir, { recursive: true, force: true })
 		} catch (error) {
 			// Log but don't fail - checkpoint cleanup is best-effort
-			console.log(`Failed to cleanup checkpoints for deleted worktree: ${error}`)
+			Logger.log(`Failed to cleanup checkpoints for deleted worktree: ${error}`)
 		}
 
 		// Delete the branch if requested
@@ -62,7 +63,7 @@ export async function deleteWorktree(_controller: Controller, request: DeleteWor
 			message: request.deleteBranch ? `${result.message} and deleted branch '${request.branchName}'` : result.message,
 		})
 	} catch (error) {
-		console.error(`Error deleting worktree: ${JSON.stringify(error)}`)
+		Logger.error(`Error deleting worktree: ${JSON.stringify(error)}`)
 		return WorktreeResult.create({
 			success: false,
 			message: error instanceof Error ? error.message : String(error),

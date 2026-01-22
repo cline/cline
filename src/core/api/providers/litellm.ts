@@ -4,6 +4,7 @@ import OpenAI from "openai"
 import { StateManager } from "@/core/storage/StateManager"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { isAnthropicModelId } from "@/utils/model-utils"
 import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
@@ -70,7 +71,7 @@ export async function fetchLiteLlmModelsInfo(baseUrl: string, apiKey: string): P
 			const data: LiteLlmModelInfoResponse = await response.json()
 			return data
 		} else {
-			console.error("Failed to fetch LiteLLM model info:", response.statusText)
+			Logger.error("Failed to fetch LiteLLM model info:", response.statusText)
 			// Try with Authorization header instead
 			const retryResponse = await fetch(url, {
 				method: "GET",
@@ -84,12 +85,12 @@ export async function fetchLiteLlmModelsInfo(baseUrl: string, apiKey: string): P
 				const data: LiteLlmModelInfoResponse = await retryResponse.json()
 				return data
 			} else {
-				console.error("Failed to fetch LiteLLM model info with Authorization header:", retryResponse.statusText)
+				Logger.error("Failed to fetch LiteLLM model info with Authorization header:", retryResponse.statusText)
 				throw new Error(`Failed to fetch LiteLLM model info: ${retryResponse.statusText}`)
 			}
 		}
 	} catch (error) {
-		console.error("Error fetching LiteLLM model info:", error)
+		Logger.error("Error fetching LiteLLM model info:", error)
 		throw error
 	}
 }
@@ -169,7 +170,7 @@ export class LiteLlmHandler implements ApiHandler {
 				}
 			}
 		} catch (error) {
-			console.warn("Error getting LiteLLM model cost info:", error)
+			Logger.warn("Error getting LiteLLM model cost info:", error)
 		}
 
 		// Fallback to zero costs if we can't get the information
@@ -200,7 +201,7 @@ export class LiteLlmHandler implements ApiHandler {
 
 			return totalCost
 		} catch (error) {
-			console.error("Error calculating spend:", error)
+			Logger.error("Error calculating spend:", error)
 			return undefined
 		}
 	}

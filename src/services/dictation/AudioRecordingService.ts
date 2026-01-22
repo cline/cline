@@ -2,8 +2,8 @@ import { ChildProcess, spawn } from "node:child_process"
 import * as fs from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
-import { Logger } from "@services/logging/Logger"
 import { AUDIO_PROGRAM_CONFIG } from "@/shared/audioProgramConstants"
+import { Logger } from "@/shared/services/Logger"
 
 function isExecutable(filePath: string): boolean {
 	try {

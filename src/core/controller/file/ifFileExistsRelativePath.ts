@@ -2,6 +2,7 @@ import { workspaceResolver } from "@core/workspace"
 import { BooleanResponse, StringRequest } from "@shared/proto/cline/common"
 import { getWorkspacePath } from "@utils/path"
 import * as fs from "fs"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
@@ -15,7 +16,7 @@ export async function ifFileExistsRelativePath(_controller: Controller, request:
 
 	if (!workspacePath) {
 		// If no workspace is open, return false
-		console.error("Error in ifFileExistsRelativePath: No workspace path available") // TODO
+		Logger.error("Error in ifFileExistsRelativePath: No workspace path available") // TODO
 		return BooleanResponse.create({ value: false })
 	}
 

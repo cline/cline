@@ -50,7 +50,6 @@ import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { featureFlagsService } from "@services/feature-flags"
 import { listFiles } from "@services/glob/list-files"
-import { Logger } from "@services/logging/Logger"
 import { McpHub } from "@services/mcp/McpHub"
 import { ApiConfiguration } from "@shared/api"
 import { findLast, findLastIndex } from "@shared/array"
@@ -95,6 +94,7 @@ import {
 } from "@/shared/messages"
 import { ApiFormat } from "@/shared/proto/cline/models"
 import { ShowMessageType } from "@/shared/proto/index.host"
+import { Logger } from "@/shared/services/Logger"
 import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
 import { RuleContextBuilder } from "../context/instructions/user-instructions/RuleContextBuilder"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
@@ -403,12 +403,12 @@ export class Task {
 					})
 				) {
 					this.checkpointManager.initialize?.().catch((error: Error) => {
-						console.error("Failed to initialize multi-root checkpoint manager:", error)
+						Logger.error("Failed to initialize multi-root checkpoint manager:", error)
 						this.taskState.checkpointManagerErrorMessage = error?.message || String(error)
 					})
 				}
 			} catch (error) {
-				console.error("Failed to initialize checkpoint manager:", error)
+				Logger.error("Failed to initialize checkpoint manager:", error)
 				if (this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")) {
 					const errorMessage = error instanceof Error ? error.message : "Unknown error"
 					HostProvider.window.showMessage({
@@ -445,10 +445,10 @@ export class Task {
 
 						// Post the updated state to the webview so the UI reflects the retry attempt
 						await this.postStateToWebview().catch((e) =>
-							console.error("Error posting state to webview in onRetryAttempt:", e),
+							Logger.error("Error posting state to webview in onRetryAttempt:", e),
 						)
 					} catch (e) {
-						console.error(`[Task ${this.taskId}] Error updating api_req_started with retryStatus:`, e)
+						Logger.error(`[Task ${this.taskId}] Error updating api_req_started with retryStatus:`, e)
 					}
 				}
 			},
@@ -478,7 +478,7 @@ export class Task {
 		// Set up focus chain file watcher (async, runs in background) only if focus chain is enabled
 		if (this.FocusChainManager) {
 			this.FocusChainManager.setupFocusChainFileWatcher().catch((error) => {
-				console.error(`[Task ${this.taskId}] Failed to setup focus chain file watcher:`, error)
+				Logger.error(`[Task ${this.taskId}] Failed to setup focus chain file watcher:`, error)
 			})
 		}
 
@@ -872,7 +872,7 @@ export class Task {
 		await this.postStateToWebview()
 
 		// Log for debugging/telemetry
-		console.log(`[Task ${this.taskId}] ${hookName} hook cancelled (userInitiated: ${wasCancelled})`)
+		Logger.log(`[Task ${this.taskId}] ${hookName} hook cancelled (userInitiated: ${wasCancelled})`)
 	}
 
 	/**
@@ -945,7 +945,7 @@ export class Task {
 		try {
 			await this.clineIgnoreController.initialize()
 		} catch (error) {
-			console.error("Failed to initialize ClineIgnoreController:", error)
+			Logger.error("Failed to initialize ClineIgnoreController:", error)
 			// Optionally, inform the user or handle the error appropriately
 		}
 		// conversationHistory (for API) and clineMessages (for webview) need to be in sync
@@ -1057,7 +1057,7 @@ export class Task {
 		try {
 			await this.environmentContextTracker.recordEnvironment()
 		} catch (error) {
-			console.error("Failed to record environment metadata:", error)
+			Logger.error("Failed to record environment metadata:", error)
 		}
 
 		await this.initiateTaskLoop(userContent)
@@ -1067,7 +1067,7 @@ export class Task {
 		try {
 			await this.clineIgnoreController.initialize()
 		} catch (error) {
-			console.error("Failed to initialize ClineIgnoreController:", error)
+			Logger.error("Failed to initialize ClineIgnoreController:", error)
 			// Optionally, inform the user or handle the error appropriately
 		}
 
@@ -1327,7 +1327,7 @@ export class Task {
 		try {
 			await this.environmentContextTracker.recordEnvironment()
 		} catch (error) {
-			console.error("Failed to record environment metadata on resume:", error)
+			Logger.error("Failed to record environment metadata on resume:", error)
 		}
 
 		await this.messageStateHandler.overwriteApiConversationHistory(modifiedApiConversationHistory)
@@ -1495,11 +1495,11 @@ export class Task {
 					// The ask will be waiting when the user decides to resume
 					this.ask(askType).catch((error) => {
 						// If ask fails (e.g., task was cleared), that's okay - just log it
-						console.log("[TaskCancel] Resume ask failed (task may have been cleared):", error)
+						Logger.log("[TaskCancel] Resume ask failed (task may have been cleared):", error)
 					})
 				} catch (error) {
 					// TaskCancel hook failed - non-fatal, just log
-					console.error("[TaskCancel Hook] Failed (non-fatal):", error)
+					Logger.error("[TaskCancel Hook] Failed (non-fatal):", error)
 				}
 			}
 
@@ -1544,9 +1544,9 @@ export class Task {
 				try {
 					await releaseTaskLock(this.taskId)
 					this.taskLockAcquired = false
-					console.info(`[Task ${this.taskId}] Task lock released`)
+					Logger.info(`[Task ${this.taskId}] Task lock released`)
 				} catch (error) {
-					console.error(`[Task ${this.taskId}] Failed to release task lock:`, error)
+					Logger.error(`[Task ${this.taskId}] Failed to release task lock:`, error)
 				}
 			}
 
@@ -1672,7 +1672,7 @@ export class Task {
 				}
 
 				// Graceful degradation: Log error but continue with truncation
-				console.error("[PreCompact] Hook execution failed:", error)
+				Logger.error("[PreCompact] Hook execution failed:", error)
 			}
 		}
 
@@ -1700,7 +1700,7 @@ export class Task {
 		await pWaitFor(() => this.mcpHub.isConnecting !== true, {
 			timeout: 10_000,
 		}).catch(() => {
-			console.error("MCP servers failed to connect in time")
+			Logger.error("MCP servers failed to connect in time")
 		})
 
 		const providerInfo = this.getCurrentProviderInfo()
@@ -2275,7 +2275,7 @@ export class Task {
 				await ensureCheckpointInitialized({ checkpointManager: this.checkpointManager })
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
-				console.error("Failed to initialize checkpoint manager:", errorMessage)
+				Logger.error("Failed to initialize checkpoint manager:", errorMessage)
 				this.taskState.checkpointManagerErrorMessage = errorMessage // will be displayed right away since we saveClineMessages next which posts state to webview
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
@@ -2312,10 +2312,7 @@ export class Task {
 						}
 					})
 					.catch((error) => {
-						console.error(
-							`[TaskCheckpointManager] Failed to create checkpoint commit for task ${this.taskId}:`,
-							error,
-						)
+						Logger.error(`[TaskCheckpointManager] Failed to create checkpoint commit for task ${this.taskId}:`, error)
 					})
 			}
 		} else if (
@@ -2496,7 +2493,7 @@ export class Task {
 					// lastMessage.ts = Date.now() DO NOT update ts since it is used as a key for virtuoso list
 					lastMessage.partial = false
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
-					console.log("updating partial message", lastMessage)
+					Logger.log("updating partial message", lastMessage)
 					// await this.saveClineMessagesAndUpdateHistory()
 				}
 				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream

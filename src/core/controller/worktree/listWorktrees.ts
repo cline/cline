@@ -3,6 +3,7 @@ import { WorktreeList } from "@shared/proto/cline/worktree"
 import { getGitRootPath, listWorktrees as listWorktreesUtil } from "@utils/git-worktree"
 import { arePathsEqual, getWorkspacePath } from "@utils/path"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
@@ -75,7 +76,7 @@ export async function listWorktrees(_controller: Controller, _request: EmptyRequ
 			error: result.error || "",
 		})
 	} catch (error) {
-		console.error(`Error listing worktrees: ${JSON.stringify(error)}`)
+		Logger.error(`Error listing worktrees: ${JSON.stringify(error)}`)
 		return WorktreeList.create({
 			worktrees: [],
 			isGitRepo: false,

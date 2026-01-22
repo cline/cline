@@ -1,16 +1,11 @@
-import * as os from "os"
-import { v7 as uuidv7 } from "uuid"
+import { ModelInfo, OpenAiCodexModelId, openAiCodexDefaultModelId, openAiCodexModels } from "@shared/api"
 import OpenAI from "openai"
 import type { ChatCompletionTool } from "openai/resources/chat/completions"
-import {
-	ModelInfo,
-	OpenAiCodexModelId,
-	openAiCodexDefaultModelId,
-	openAiCodexModels,
-} from "@shared/api"
+import * as os from "os"
+import { v7 as uuidv7 } from "uuid"
+import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
-import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { convertToOpenAIResponsesInput } from "../transform/openai-response-format"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
@@ -53,7 +48,9 @@ export class OpenAiCodexHandler implements ApiHandler {
 	}
 
 	private normalizeUsage(usage: any, model: { id: string; info: ModelInfo }): ApiStreamUsageChunk | undefined {
-		if (!usage) return undefined
+		if (!usage) {
+			return undefined
+		}
 
 		const inputDetails = usage.input_tokens_details ?? usage.prompt_tokens_details
 
@@ -90,11 +87,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 		return out
 	}
 
-	async *createMessage(
-		systemPrompt: string,
-		messages: ClineStorageMessage[],
-		tools?: ChatCompletionTool[],
-	): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ChatCompletionTool[]): ApiStream {
 		const model = this.getModel()
 
 		// Reset state for this request
@@ -104,9 +97,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 		// Get access token from OAuth manager
 		let accessToken = await openAiCodexOAuthManager.getAccessToken()
 		if (!accessToken) {
-			throw new Error(
-				"Not authenticated with OpenAI Codex. Please sign in using the OpenAI Codex OAuth flow in settings.",
-			)
+			throw new Error("Not authenticated with OpenAI Codex. Please sign in using the OpenAI Codex OAuth flow in settings.")
 		}
 
 		// Format conversation for Responses API
@@ -179,11 +170,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 		return body
 	}
 
-	private async *executeRequest(
-		requestBody: any,
-		model: { id: string; info: ModelInfo },
-		accessToken: string,
-	): ApiStream {
+	private async *executeRequest(requestBody: any, model: { id: string; info: ModelInfo }, accessToken: string): ApiStream {
 		// Create AbortController for cancellation
 		this.abortController = new AbortController()
 
@@ -237,11 +224,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 		}
 	}
 
-	private async *makeCodexRequest(
-		requestBody: any,
-		model: { id: string; info: ModelInfo },
-		accessToken: string,
-	): ApiStream {
+	private async *makeCodexRequest(requestBody: any, model: { id: string; info: ModelInfo }, accessToken: string): ApiStream {
 		const url = `${CODEX_API_BASE_URL}/responses`
 
 		// Get ChatGPT account ID for organization subscriptions
@@ -302,10 +285,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 		}
 	}
 
-	private async *handleStreamResponse(
-		body: ReadableStream<Uint8Array>,
-		model: { id: string; info: ModelInfo },
-	): ApiStream {
+	private async *handleStreamResponse(body: ReadableStream<Uint8Array>, model: { id: string; info: ModelInfo }): ApiStream {
 		const reader = body.getReader()
 		const decoder = new TextDecoder()
 		let buffer = ""
@@ -317,7 +297,9 @@ export class OpenAiCodexHandler implements ApiHandler {
 				}
 
 				const { done, value } = await reader.read()
-				if (done) break
+				if (done) {
+					break
+				}
 
 				buffer += decoder.decode(value, { stream: true })
 				const lines = buffer.split("\n")
@@ -380,10 +362,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 		}
 
 		// Handle tool/function call deltas
-		if (
-			event?.type === "response.tool_call_arguments.delta" ||
-			event?.type === "response.function_call_arguments.delta"
-		) {
+		if (event?.type === "response.tool_call_arguments.delta" || event?.type === "response.function_call_arguments.delta") {
 			const callId = event.call_id || event.tool_call_id || event.id || this.pendingToolCallId
 			const name = event.name || event.function_name || this.pendingToolCallName
 			const args = event.delta || event.arguments
@@ -484,10 +463,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 	getModel(): { id: OpenAiCodexModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 
-		const id =
-			modelId && modelId in openAiCodexModels
-				? (modelId as OpenAiCodexModelId)
-				: openAiCodexDefaultModelId
+		const id = modelId && modelId in openAiCodexModels ? (modelId as OpenAiCodexModelId) : openAiCodexDefaultModelId
 
 		const info: ModelInfo = openAiCodexModels[id]
 

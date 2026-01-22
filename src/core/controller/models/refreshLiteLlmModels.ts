@@ -3,6 +3,7 @@ import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
 import { fetchLiteLlmModelsInfo } from "@/core/api/providers/litellm"
 import { StateManager } from "@/core/storage/StateManager"
 import { toProtobufModels } from "@/shared/proto-conversions/models/typeConversion"
+import { Logger } from "@/shared/services/Logger"
 import { sendLiteLlmModelsEvent } from "./subscribeToLiteLlmModels"
 
 /**
@@ -56,7 +57,7 @@ export async function refreshLiteLlmModels(): Promise<Record<string, ModelInfo>>
 			}
 		}
 	} catch (error) {
-		console.error("Error fetching LiteLLM models:", error)
+		Logger.error("Error fetching LiteLLM models:", error)
 		throw error
 	}
 
@@ -71,7 +72,7 @@ export async function refreshLiteLlmModels(): Promise<Record<string, ModelInfo>>
 			}),
 		)
 	} catch (error) {
-		console.error("Error sending LiteLLM models event:", error)
+		Logger.error("Error sending LiteLLM models event:", error)
 	}
 
 	return models

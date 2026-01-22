@@ -1,5 +1,6 @@
 import { PostHog } from "posthog-node"
 import { getDistinctId } from "@/services/logging/distinctId"
+import { Logger } from "@/shared/services/Logger"
 import { posthogConfig } from "../../../shared/services/config/posthog-config"
 import type { FeatureFlagsAndPayloads, FeatureFlagsSettings, IFeatureFlagsProvider } from "./IFeatureFlagsProvider"
 
@@ -47,7 +48,7 @@ export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
 		try {
 			return await this.client.getAllFlagsAndPayloads(this.distinctId, options)
 		} catch (error) {
-			console.error(`Error getting feature flags`, error)
+			Logger.error(`Error getting feature flags`, error)
 			return {}
 		}
 	}
@@ -66,7 +67,7 @@ export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
 			try {
 				await this.client.shutdown()
 			} catch (error) {
-				console.error("Error shutting down PostHog client:", error)
+				Logger.error("Error shutting down PostHog client:", error)
 			}
 		}
 	}

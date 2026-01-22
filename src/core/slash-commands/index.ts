@@ -2,6 +2,7 @@ import type { ApiProviderInfo } from "@core/api"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import fs from "fs/promises"
 import { telemetryService } from "@/services/telemetry"
+import { Logger } from "@/shared/services/Logger"
 import { isNativeToolCallingConfig } from "@/utils/model-utils"
 import {
 	condenseToolResponse,
@@ -204,7 +205,7 @@ export async function parseSlashCommands(
 
 					return { processedText, needsClinerulesFileCheck: false }
 				} catch (error) {
-					console.error(`Error reading workflow file ${matchingWorkflow.fullPath}: ${error}`)
+					Logger.error(`Error reading workflow file ${matchingWorkflow.fullPath}: ${error}`)
 				}
 			}
 		}

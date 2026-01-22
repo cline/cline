@@ -11,6 +11,7 @@
  */
 import * as path from "node:path"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
 import { blobStorage } from "../../storage/ClineBlobStorage"
 import { backfillTasks } from "./backfill"
 import { SyncQueue } from "./queue"
@@ -75,7 +76,7 @@ function init(options?: SyncWorkerOptions): SyncWorker | null {
 	worker.start()
 
 	if (options.backfillEnabled) {
-		backfillTasks().catch((err) => console.error("Backfill tasks failed:", err))
+		backfillTasks().catch((err) => Logger.error("Backfill tasks failed:", err))
 	}
 
 	return worker
@@ -111,7 +112,7 @@ function enqueue(taskId: string, key: string, data: string): void {
 
 		queue.enqueue(taskId, key, data)
 	} catch (err) {
-		console.error(`Failed to enqueue ${taskId}/${key} for sync:`, err)
+		Logger.error(`Failed to enqueue ${taskId}/${key} for sync:`, err)
 	}
 }
 

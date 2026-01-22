@@ -8,11 +8,11 @@ import {
 	OCI_HEADER_OPC_REQUEST_ID,
 } from "@/services/auth/oca/utils/constants"
 import { createOcaHeaders } from "@/services/auth/oca/utils/utils"
-import { Logger } from "@/services/logging/Logger"
 import { OcaModelInfo } from "@/shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiFormat } from "@/shared/proto/index.cline"
+import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, type CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -134,11 +134,11 @@ export class OcaHandler implements ApiHandler {
 				const data: { cost: number } = await response.json()
 				return data.cost
 			} else {
-				console.error("Error calculating spend:", response.statusText)
+				Logger.error("Error calculating spend:", response.statusText)
 				return undefined
 			}
 		} catch (error) {
-			console.error("Error calculating spend:", error)
+			Logger.error("Error calculating spend:", error)
 			return undefined
 		}
 	}

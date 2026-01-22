@@ -5,6 +5,7 @@ import { handleGrpcRequest, handleGrpcRequestCancel } from "@/core/controller/gr
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import type { ExtensionMessage } from "@/shared/ExtensionMessage"
+import { Logger } from "@/shared/services/Logger"
 import { WebviewMessage } from "@/shared/WebviewMessage"
 
 /*
@@ -68,7 +69,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		this.setWebviewMessageListener(webviewView.webview)
 
 		// Logs show up in bottom panel > Debug Console
-		//console.log("registering listener")
+		//Logger.log("registering listener")
 
 		// Listen for when the sidebar becomes visible
 		// https://github.com/microsoft/vscode-discussions/discussions/840
@@ -174,7 +175,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 				break
 			}
 			default: {
-				console.error("Received unhandled WebviewMessage type:", JSON.stringify(message))
+				Logger.error("Received unhandled WebviewMessage type:", JSON.stringify(message))
 			}
 		}
 	}

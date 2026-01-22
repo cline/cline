@@ -1,6 +1,7 @@
 import { machineId } from "node-machine-id"
 import { v4 as uuidv4 } from "uuid"
 import { ExtensionContext } from "vscode"
+import { Logger } from "@/shared/services/Logger"
 
 /*
  * Unique identifier for the current installation.
@@ -23,7 +24,7 @@ export async function initializeDistinctId(context: ExtensionContext, uuid: () =
 	}
 	if (!distinctId) {
 		// Fallback to generating a unique ID and keeping in global storage.
-		console.warn("No machine ID found for telemetry, generating UUID")
+		Logger.warn("No machine ID found for telemetry, generating UUID")
 		// Add a prefix to the UUID so we can see in the telemetry how many clients are don't have a machine ID.
 		distinctId = "cl-" + uuid()
 		context.globalState.update(_GENERATED_MACHINE_ID_KEY, distinctId)
@@ -31,7 +32,7 @@ export async function initializeDistinctId(context: ExtensionContext, uuid: () =
 
 	setDistinctId(distinctId)
 
-	console.log("Telemetry distinct ID initialized:", distinctId)
+	Logger.log("Telemetry distinct ID initialized:", distinctId)
 }
 
 /*
@@ -45,7 +46,7 @@ async function getMachineId(): Promise<string | undefined> {
 		const id = await machineId()
 		return id
 	} catch (error) {
-		console.log("Failed to get machine ID from node-machine-id", error)
+		Logger.log("Failed to get machine ID from node-machine-id", error)
 		return undefined
 	}
 }
@@ -56,7 +57,7 @@ async function getMachineId(): Promise<string | undefined> {
  */
 export function setDistinctId(newId: string) {
 	if (_distinctId && _distinctId !== newId) {
-		console.log(`Changing telemetry ID from ${_distinctId} to ${newId}.`)
+		Logger.log(`Changing telemetry ID from ${_distinctId} to ${newId}.`)
 	}
 	_distinctId = newId
 }
@@ -68,7 +69,7 @@ export function setDistinctId(newId: string) {
  */
 export function getDistinctId() {
 	if (!_distinctId) {
-		console.error("Telemetry ID is not initialized. Call initializeDistinctId() first.")
+		Logger.error("Telemetry ID is not initialized. Call initializeDistinctId() first.")
 	}
 	return _distinctId
 }

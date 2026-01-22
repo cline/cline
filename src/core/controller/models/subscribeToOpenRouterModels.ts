@@ -1,5 +1,6 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
 
@@ -19,7 +20,7 @@ export async function subscribeToOpenRouterModels(
 	responseStream: StreamingResponseHandler<OpenRouterCompatibleModelInfo>,
 	requestId?: string,
 ): Promise<void> {
-	console.log("[DEBUG] set up OpenRouter models subscription")
+	Logger.log("[DEBUG] set up OpenRouter models subscription")
 
 	// Add this subscription to the active subscriptions
 	activeOpenRouterModelsSubscriptions.add(responseStream)
@@ -27,7 +28,7 @@ export async function subscribeToOpenRouterModels(
 	// Register cleanup when the connection is closed
 	const cleanup = () => {
 		activeOpenRouterModelsSubscriptions.delete(responseStream)
-		console.log("[DEBUG] Cleaned up OpenRouter models subscription")
+		Logger.log("[DEBUG] Cleaned up OpenRouter models subscription")
 	}
 
 	// Register the cleanup function with the request registry if we have a requestId
@@ -48,9 +49,9 @@ export async function sendOpenRouterModelsEvent(models: OpenRouterCompatibleMode
 				models,
 				false, // Not the last message
 			)
-			console.log("[DEBUG] sending OpenRouter models event")
+			Logger.log("[DEBUG] sending OpenRouter models event")
 		} catch (error) {
-			console.error("Error sending OpenRouter models event:", error)
+			Logger.error("Error sending OpenRouter models event:", error)
 			// Remove the subscription if there was an error
 			activeOpenRouterModelsSubscriptions.delete(responseStream)
 		}

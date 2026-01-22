@@ -1,6 +1,7 @@
 import { fileExistsAtPath } from "@utils/fs"
 import fs from "fs/promises"
 import { join } from "path"
+import { Logger } from "@/shared/services/Logger"
 import { GIT_DISABLED_SUFFIX } from "./CheckpointGitOperations"
 
 /**
@@ -318,7 +319,7 @@ export const getLfsPatterns = async (workspacePath: string): Promise<string[]> =
 				.map((line) => line.split(" ")[0].trim())
 		}
 	} catch (error) {
-		console.warn("Failed to read .gitattributes:", error)
+		Logger.warn("Failed to read .gitattributes:", error)
 	}
 	return []
 }
