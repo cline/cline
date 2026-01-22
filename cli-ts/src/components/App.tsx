@@ -5,6 +5,7 @@
 
 import { Box } from "ink"
 import React, { ReactNode, useCallback, useState } from "react"
+import { StdinProvider } from "../context/StdinContext"
 import { TaskContextProvider } from "../context/TaskContext"
 import { AuthView } from "./AuthView"
 import { ConfigView } from "./ConfigView"
@@ -86,6 +87,8 @@ interface AppProps {
 	// For welcome view
 	onWelcomeSubmit?: (prompt: string, imagePaths: string[]) => void
 	onWelcomeExit?: () => void
+	// Stdin support
+	isRawModeSupported?: boolean
 }
 
 export const App: React.FC<AppProps> = ({
@@ -126,6 +129,7 @@ export const App: React.FC<AppProps> = ({
 	authQuickSetup,
 	onWelcomeSubmit,
 	onWelcomeExit,
+	isRawModeSupported = true,
 }) => {
 	const [currentView, setCurrentView] = useState<ViewType>(initialView)
 	const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(taskId)
@@ -244,5 +248,9 @@ export const App: React.FC<AppProps> = ({
 			content = null
 	}
 
-	return <Box>{content}</Box>
+	return (
+		<StdinProvider isRawModeSupported={isRawModeSupported}>
+			<Box>{content}</Box>
+		</StdinProvider>
+	)
 }

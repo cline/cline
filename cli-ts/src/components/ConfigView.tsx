@@ -12,6 +12,7 @@ import {
 } from "@shared/storage/state-keys"
 import { Box, Text, useApp, useInput } from "ink"
 import React, { useMemo, useState } from "react"
+import { useStdinContext } from "../context/StdinContext"
 import {
 	BooleanSelect,
 	buildConfigEntries,
@@ -99,6 +100,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 	onOpenFolder,
 }) => {
 	const { exit } = useApp()
+	const { isRawModeSupported } = useStdinContext()
 	const [currentTab, setCurrentTab] = useState<TabView>("settings")
 	const [isEditing, setIsEditing] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(0)
@@ -289,7 +291,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 				onOpenFolder(currentTab as "rules" | "workflows" | "hooks" | "skills", isGlobal)
 			}
 		},
-		{ isActive: !isEditing },
+		{ isActive: isRawModeSupported && !isEditing },
 	)
 
 	// Scrolling window

@@ -8,6 +8,7 @@ import React, { useCallback, useState } from "react"
 import { Controller } from "@/core/controller"
 import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
 import { StringRequest } from "@/shared/proto/cline/common"
+import { useStdinContext } from "../context/StdinContext"
 
 interface TaskHistoryItem {
 	id: string
@@ -51,6 +52,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 	onPageChange,
 	allItems,
 }) => {
+	const { isRawModeSupported } = useStdinContext()
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const [internalPage, setInternalPage] = useState(pagination?.page ?? 1)
 	const { stdout } = useStdout()
@@ -103,23 +105,26 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 		[useInternalPagination, onPageChange],
 	)
 
-	useInput((input, key) => {
-		if (key.upArrow) {
-			setSelectedIndex((prev) => Math.max(0, prev - 1))
-		} else if (key.downArrow) {
-			setSelectedIndex((prev) => Math.min(pageItems.length - 1, prev + 1))
-		} else if (key.return && pageItems[selectedIndex]) {
-			onSelect(pageItems[selectedIndex])
-		} else if (key.leftArrow && hasPrevPage) {
-			handlePageChange(currentPage - 1)
-		} else if (key.rightArrow && hasNextPage) {
-			handlePageChange(currentPage + 1)
-		} else if (input === "n" && hasNextPage) {
-			handlePageChange(currentPage + 1)
-		} else if (input === "p" && hasPrevPage) {
-			handlePageChange(currentPage - 1)
-		}
-	})
+	useInput(
+		(input, key) => {
+			if (key.upArrow) {
+				setSelectedIndex((prev) => Math.max(0, prev - 1))
+			} else if (key.downArrow) {
+				setSelectedIndex((prev) => Math.min(pageItems.length - 1, prev + 1))
+			} else if (key.return && pageItems[selectedIndex]) {
+				onSelect(pageItems[selectedIndex])
+			} else if (key.leftArrow && hasPrevPage) {
+				handlePageChange(currentPage - 1)
+			} else if (key.rightArrow && hasNextPage) {
+				handlePageChange(currentPage + 1)
+			} else if (input === "n" && hasNextPage) {
+				handlePageChange(currentPage + 1)
+			} else if (input === "p" && hasPrevPage) {
+				handlePageChange(currentPage - 1)
+			}
+		},
+		{ isActive: isRawModeSupported },
+	)
 
 	// Calculate visible window around selected item
 	const halfVisible = Math.floor(effectiveVisibleCount / 2)

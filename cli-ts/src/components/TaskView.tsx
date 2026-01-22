@@ -9,6 +9,7 @@ import { Box, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { checkpointRestore } from "@/core/controller/checkpoints/checkpointRestore"
 import { StateManager } from "@/core/storage/StateManager"
+import { useStdinContext } from "../context/StdinContext"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
 import { useCompletionSignals, useIsSpinnerActive } from "../hooks/useStateSubscriber"
 import { AskPrompt } from "./AskPrompt"
@@ -32,6 +33,7 @@ function formatSeparator(char: string = "═", width: number = 60): string {
 }
 
 export const TaskView: React.FC<TaskViewProps> = ({ taskId: _taskId, verbose = false, onComplete, onError }) => {
+	const { isRawModeSupported } = useStdinContext()
 	const state = useTaskState()
 	const { isTaskComplete, getCompletionMessage } = useCompletionSignals()
 	const isSpinnerActive = useIsSpinnerActive()
@@ -105,7 +107,7 @@ export const TaskView: React.FC<TaskViewProps> = ({ taskId: _taskId, verbose = f
 				return
 			}
 		},
-		{ isActive: !showCheckpointMenu },
+		{ isActive: isRawModeSupported && !showCheckpointMenu },
 	)
 
 	return (

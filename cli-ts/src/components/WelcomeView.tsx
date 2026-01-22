@@ -8,6 +8,7 @@ import type { Mode } from "@shared/storage/types"
 import { Box, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
+import { useStdinContext } from "../context/StdinContext"
 import {
 	checkAndWarnRipgrepMissing,
 	extractMentionQuery,
@@ -51,6 +52,7 @@ const RIPGREP_WARNING_DURATION_MS = 5000
 const MAX_SEARCH_RESULTS = 15
 
 export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, controller }) => {
+	const { isRawModeSupported } = useStdinContext()
 	const [textInput, setTextInput] = useState("")
 	const [fileResults, setFileResults] = useState<FileSearchResult[]>([])
 	const [selectedIndex, setSelectedIndex] = useState(0)
@@ -151,64 +153,67 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 		}
 	}, [mentionInfo.inMentionMode, mentionInfo.query, workspacePath])
 
-	useInput((input, key) => {
-		const inMenu = mentionInfo.inMentionMode && fileResults.length > 0
+	useInput(
+		(input, key) => {
+			const inMenu = mentionInfo.inMentionMode && fileResults.length > 0
 
-		// Menu navigation
-		if (inMenu) {
-			if (key.upArrow) {
-				setSelectedIndex((i) => (i > 0 ? i - 1 : fileResults.length - 1))
-				return
-			}
-			if (key.downArrow) {
-				setSelectedIndex((i) => (i < fileResults.length - 1 ? i + 1 : 0))
-				return
-			}
-			if (key.tab || key.return) {
-				const file = fileResults[selectedIndex]
-				if (file) {
-					setTextInput(insertMention(textInput, mentionInfo.atIndex, file.path))
+			// Menu navigation
+			if (inMenu) {
+				if (key.upArrow) {
+					setSelectedIndex((i) => (i > 0 ? i - 1 : fileResults.length - 1))
+					return
+				}
+				if (key.downArrow) {
+					setSelectedIndex((i) => (i < fileResults.length - 1 ? i + 1 : 0))
+					return
+				}
+				if (key.tab || key.return) {
+					const file = fileResults[selectedIndex]
+					if (file) {
+						setTextInput(insertMention(textInput, mentionInfo.atIndex, file.path))
+						setFileResults([])
+						setSelectedIndex(0)
+					}
+					return
+				}
+				if (key.escape) {
 					setFileResults([])
 					setSelectedIndex(0)
+					return
+				}
+			}
+
+			// Normal input handling
+			if (key.tab && !mentionInfo.inMentionMode) {
+				toggleMode()
+				return
+			}
+			if (key.return && !mentionInfo.inMentionMode) {
+				if (prompt.trim() || imagePaths.length > 0) {
+					onSubmit(prompt.trim(), imagePaths)
 				}
 				return
 			}
-			if (key.escape) {
-				setFileResults([])
-				setSelectedIndex(0)
+			if (key.escape && !mentionInfo.inMentionMode) {
+				if (escPressedOnce) {
+					onExit?.()
+				} else {
+					setEscPressedOnce(true)
+				}
 				return
 			}
-		}
-
-		// Normal input handling
-		if (key.tab && !mentionInfo.inMentionMode) {
-			toggleMode()
-			return
-		}
-		if (key.return && !mentionInfo.inMentionMode) {
-			if (prompt.trim() || imagePaths.length > 0) {
-				onSubmit(prompt.trim(), imagePaths)
+			if (key.backspace || key.delete) {
+				setTextInput((prev) => prev.slice(0, -1))
+				setEscPressedOnce(false)
+				return
 			}
-			return
-		}
-		if (key.escape && !mentionInfo.inMentionMode) {
-			if (escPressedOnce) {
-				onExit?.()
-			} else {
-				setEscPressedOnce(true)
+			if (input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow && !key.tab) {
+				setTextInput((prev) => prev + input)
+				setEscPressedOnce(false)
 			}
-			return
-		}
-		if (key.backspace || key.delete) {
-			setTextInput((prev) => prev.slice(0, -1))
-			setEscPressedOnce(false)
-			return
-		}
-		if (input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow && !key.tab) {
-			setTextInput((prev) => prev + input)
-			setEscPressedOnce(false)
-		}
-	})
+		},
+		{ isActive: isRawModeSupported },
+	)
 
 	const borderColor = mode === "act" ? "blue" : "yellow"
 

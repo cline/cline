@@ -6,6 +6,7 @@
 import type { ClineAsk } from "@shared/ExtensionMessage"
 import { Box, Text, useApp, useInput } from "ink"
 import React, { useCallback, useEffect, useRef, useState } from "react"
+import { useStdinContext } from "../context/StdinContext"
 import { useTaskController } from "../context/TaskContext"
 import { useLastCompletedAskMessage } from "../hooks/useStateSubscriber"
 import { jsonParseSafe } from "../utils/parser"
@@ -60,7 +61,7 @@ function getPromptType(ask: ClineAsk, text: string): PromptType {
 
 export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 	const { exit } = useApp()
-
+	const { isRawModeSupported } = useStdinContext()
 	const controller = useTaskController()
 	const lastAskMessage = useLastCompletedAskMessage()
 	const [textInput, setTextInput] = useState("")
@@ -195,7 +196,7 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 				}
 			}
 		},
-		{ isActive: !!lastAskMessage && !responded },
+		{ isActive: isRawModeSupported && !!lastAskMessage && !responded },
 	)
 
 	if (!lastAskMessage || responded) {
