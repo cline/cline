@@ -25,7 +25,7 @@ describe("rule loading with paths frontmatter", () => {
 			expect(res1.content).to.contain("universal.md")
 			expect(res1.content).to.contain("scoped.md")
 			expect(res1.content).to.not.contain("paths:")
-			expect(res1.activatedConditionalRules.map((r) => r.name)).to.include("scoped.md")
+			expect(res1.activatedConditionalRules.map((r) => r.name)).to.include("global:scoped.md")
 
 			const res2 = await getRuleFilesTotalContentWithMetadata(files, rulesDir, toggles, {
 				evaluationContext: { paths: ["docs/readme.md"] },
@@ -109,7 +109,7 @@ describe("rule loading with paths frontmatter", () => {
 				evaluationContext: { paths: ["src/index.ts"] },
 			})
 
-			expect(res.activatedConditionalRules.map((r) => r.name)).to.deep.equal(files)
+			expect(res.activatedConditionalRules.map((r) => r.name)).to.deep.equal(files.map((f) => `global:${f}`))
 		} finally {
 			await fs.rm(tmp, { recursive: true, force: true })
 		}

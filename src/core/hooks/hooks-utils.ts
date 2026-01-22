@@ -4,14 +4,21 @@
  * Hooks are not yet supported on Windows, so this function ensures they
  * remain disabled on that platform regardless of user settings.
  *
- * @param userSetting The user's hooks enabled setting from global state (may be undefined)
  * @returns true if hooks are enabled and supported on this platform, false otherwise
  */
-export function getHooksEnabledSafe(userSetting: boolean | undefined): boolean {
-	// Handle legacy object format: {user: boolean, featureFlag: boolean}, which
-	// can occur if the migration hasn't run yet or if reading from an old state.
-	const booleanValue = Boolean((userSetting as any)?.user ?? userSetting)
+export function getHooksEnabledSafe(): boolean {
+	// Hooks are not yet supported on Windows.
+	//
+	// NOTE: This function is the single choke point used by the task runtime and
+	// webview state to determine the *effective* hooks setting. Hard-coding here
+	// ensures hooks are always enabled everywhere (TaskStart/Resume/Cancel,
+	// PreToolUse/PostToolUse, UI grouping) without having to override multiple
+	// call sites.
+	if (process.platform === "win32") {
+		return false
+	}
 
-	// Force hooks to false on Windows (not yet supported)
-	return process.platform === "win32" ? false : booleanValue
+	// Hard-coded: always enable hooks on supported platforms (macOS/Linux),
+	// regardless of persisted user setting.
+	return true
 }

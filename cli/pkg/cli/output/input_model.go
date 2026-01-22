@@ -348,7 +348,7 @@ func (m *InputModel) handleSubmit() (tea.Model, tea.Cmd) {
 				return ChangeInputTypeMsg{
 					InputType:   InputTypeFeedback,
 					Title:       "Your feedback",
-					Placeholder: "/plan or /act to switch modes\nctrl+e to open editor",
+					Placeholder: "/plan or /act to switch modes\nctrl+e to open editor\nctrl+c to exit",
 				}
 			}
 		}

@@ -1,10 +1,23 @@
 # Changelog
 
+## [3.52.0]
+
+### Added
+
+- Users with ChatGPT Plus or Pro subscriptions can now use GPT-5 models directly through Cline without needing an API key. Authentication is handled via OAuth through OpenAI's authentication system.
+- Grok models are now moving out of free tier and into paid plans.
+- Introduces comprehensive Jupyter Notebook support for Cline, enabling AI-assisted editing of `.ipynb` files with full cell-level context awareness. 
+
+### Fixed
+- Bugs in DiffViewProvider for file editing
+- Ollama's recommended models to use correct identifiers
+
+
 ## [3.51.0]
 
 ### Added
 
-- Adding OpenAI gpt-5.2-codex  model to the model picker
+- Adding OpenAI gpt-5.2-codex model to the model picker
 
 ## [3.50.0]
 
