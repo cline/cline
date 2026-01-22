@@ -4,6 +4,7 @@ import * as cheerio from "cheerio"
 import { Browser, Page } from "puppeteer-core"
 import TurndownService from "turndown"
 import * as vscode from "vscode"
+import { globalStorage } from "@/shared/storage"
 import { ensureChromiumExists } from "./utils"
 
 export class UrlContentFetcher {
@@ -21,7 +22,7 @@ export class UrlContentFetcher {
 		}
 		const stats = await ensureChromiumExists()
 		// Read browser settings from globalState for custom args only
-		const browserSettings = this.context.globalState.get<BrowserSettings>("browserSettings", DEFAULT_BROWSER_SETTINGS)
+		const browserSettings = globalStorage.get<BrowserSettings>("browserSettings", DEFAULT_BROWSER_SETTINGS)
 		const customArgsStr = browserSettings.customArgs || ""
 		const customArgs = customArgsStr.trim() ? customArgsStr.split(/\s+/) : []
 		this.browser = await stats.puppeteer.launch({

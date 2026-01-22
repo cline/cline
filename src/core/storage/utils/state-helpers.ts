@@ -14,6 +14,7 @@ import {
 import { Controller } from "@/core/controller"
 import { ClineExtensionContext } from "@/shared/clients"
 import { ClineRulesToggles } from "@/shared/cline-rules"
+import { globalStorage } from "@/shared/storage"
 import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import { readTaskHistoryFromState } from "../disk"
 
@@ -35,13 +36,13 @@ export async function readWorkspaceStateFromDisk(context: ClineExtensionContext)
 	}, {} as LocalState)
 }
 
-export async function readGlobalStateFromDisk(context: ClineExtensionContext): Promise<GlobalStateAndSettings> {
+export async function readGlobalStateFromDisk(_context: ClineExtensionContext): Promise<GlobalStateAndSettings> {
 	try {
 		// Batch read all state values in a single optimized pass
 		const stateValues = new Map<string, any>()
 		// Read all values at once for better performance
 		for (const key of GlobalStateAndSettingKeys) {
-			const value = context.globalState.get(key as string)
+			const value = globalStorage.get(key as string)
 			stateValues.set(key, value)
 		}
 

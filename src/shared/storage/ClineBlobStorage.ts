@@ -85,6 +85,11 @@ export class ClineBlobStorage extends ClineStorage {
 		}
 	}
 
+	protected _keys(): readonly string[] {
+		// Blob storage doesn't support listing keys
+		return []
+	}
+
 	/**
 	 * Check if the storage is properly initialized and ready to use.
 	 */

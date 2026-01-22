@@ -25,11 +25,25 @@ export class ClineSecretStorage extends ClineStorage {
 		return this.secretStorage
 	}
 
+	override async get(key: string): Promise<string | undefined> {
+		try {
+			return await this._get(key)
+		} catch (error) {
+			console.error(`[${this.name}] failed to get '${key}':`, error)
+			return undefined
+		}
+	}
+
 	public init(store: SecretStores) {
 		if (!this.secretStorage) {
 			this.secretStorage = store
 		}
 		return this.secretStorage
+	}
+
+	protected _keys(): readonly string[] {
+		// Secret storage doesn't support listing keys for security reasons
+		return []
 	}
 
 	protected async _get(key: string): Promise<string | undefined> {

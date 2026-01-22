@@ -82,7 +82,7 @@ export interface ClineExtensionContext {
 
 	/**
 	 * The absolute file path of the directory containing the extension. Shorthand
-	 * notation for {@link TextDocument.uri ExtensionContext.extensionUri.fsPath} (independent of the uri scheme).
+	 * notation for {@link TextDocument.uri ClineExtensionContext.extensionUri.fsPath} (independent of the uri scheme).
 	 */
 	readonly extensionPath: string
 
@@ -96,7 +96,7 @@ export interface ClineExtensionContext {
 	 * Get the absolute path of a resource contained in the extension.
 	 *
 	 * *Note* that an absolute uri can be constructed via {@linkcode Uri.joinPath} and
-	 * {@linkcode ExtensionContext.extensionUri extensionUri}, e.g. `vscode.Uri.joinPath(context.extensionUri, relativePath);`
+	 * {@linkcode ClineExtensionContext.extensionUri extensionUri}, e.g. `vscode.Uri.joinPath(context.extensionUri, relativePath);`
 	 *
 	 * @param relativePath A relative path to a resource contained in the extension.
 	 * @returns The absolute path of the resource.
@@ -109,8 +109,8 @@ export interface ClineExtensionContext {
 	 * up to the extension. However, the parent directory is guaranteed to be existent.
 	 * The value is `undefined` when no workspace nor folder has been opened.
 	 *
-	 * Use {@linkcode ExtensionContext.workspaceState workspaceState} or
-	 * {@linkcode ExtensionContext.globalState globalState} to store key value data.
+	 * Use {@linkcode ClineExtensionContext.workspaceState workspaceState} or
+	 * {@linkcode ClineExtensionContext.globalState globalState} to store key value data.
 	 *
 	 * @see {@linkcode FileSystem workspace.fs} for how to read and write files and folders from
 	 *  an uri.
@@ -122,10 +122,10 @@ export interface ClineExtensionContext {
 	 * can store private state. The directory might not exist on disk and creation is
 	 * up to the extension. However, the parent directory is guaranteed to be existent.
 	 *
-	 * Use {@linkcode ExtensionContext.workspaceState workspaceState} or
-	 * {@linkcode ExtensionContext.globalState globalState} to store key value data.
+	 * Use {@linkcode ClineExtensionContext.workspaceState workspaceState} or
+	 * {@linkcode ClineExtensionContext.globalState globalState} to store key value data.
 	 *
-	 * @deprecated Use {@link ExtensionContext.storageUri storageUri} instead.
+	 * @deprecated Use {@link ClineExtensionContext.storageUri storageUri} instead.
 	 */
 	readonly storagePath: string | undefined
 
@@ -134,7 +134,7 @@ export interface ClineExtensionContext {
 	 * The directory might not exist on disk and creation is
 	 * up to the extension. However, the parent directory is guaranteed to be existent.
 	 *
-	 * Use {@linkcode ExtensionContext.globalState globalState} to store key value data.
+	 * Use {@linkcode ClineExtensionContext.globalState globalState} to store key value data.
 	 *
 	 * @see {@linkcode FileSystem workspace.fs} for how to read and write files and folders from
 	 *  an uri.
@@ -146,9 +146,9 @@ export interface ClineExtensionContext {
 	 * The directory might not exist on disk and creation is
 	 * up to the extension. However, the parent directory is guaranteed to be existent.
 	 *
-	 * Use {@linkcode ExtensionContext.globalState globalState} to store key value data.
+	 * Use {@linkcode ClineExtensionContext.globalState globalState} to store key value data.
 	 *
-	 * @deprecated Use {@link ExtensionContext.globalStorageUri globalStorageUri} instead.
+	 * @deprecated Use {@link ClineExtensionContext.globalStorageUri globalStorageUri} instead.
 	 */
 	readonly globalStoragePath: string
 
@@ -167,7 +167,7 @@ export interface ClineExtensionContext {
 	 * The directory might not exist on disk and creation is up to the extension. However,
 	 * the parent directory is guaranteed to be existent.
 	 *
-	 * @deprecated Use {@link ExtensionContext.logUri logUri} instead.
+	 * @deprecated Use {@link ClineExtensionContext.logUri logUri} instead.
 	 */
 	readonly logPath: string
 
@@ -208,7 +208,7 @@ interface Extension<T> {
 
 	/**
 	 * The absolute file path of the directory containing this extension. Shorthand
-	 * notation for {@link Extension.extensionUri Extension.extensionUri.fsPath} (independent of the uri scheme).
+	 * notation for {@link ClineExtensionContext.extensionUri ClineExtensionContext.extensionUri.fsPath} (independent of the uri scheme).
 	 */
 	readonly extensionPath: string
 

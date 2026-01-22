@@ -9,6 +9,7 @@ import path from "path"
 import type { Memento, SecretStorage } from "vscode"
 import { ExtensionRegistryInfo } from "@/registry"
 import { ClineClient, ClineExtensionContext } from "@/shared/clients"
+import { globalStorage } from "@/shared/storage"
 import { ExtensionKind, ExtensionMode, URI } from "./vscode-shim"
 
 const SETTINGS_SUBFOLDER = "data"
@@ -267,7 +268,7 @@ export function initializeCliContext(config: CliContextConfig = {}) {
 		extensionMode: EXTENSION_MODE,
 
 		// Set up KV stores
-		globalState: new MementoStore(path.join(DATA_DIR, "globalState.json")),
+		globalState: (globalStorage.init("cli") as any) || new MementoStore(path.join(DATA_DIR, "globalState.json")),
 		secrets: new SecretStore(path.join(DATA_DIR, "secrets.json")),
 
 		// Set up URIs

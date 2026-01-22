@@ -20,6 +20,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/services/logging/Logger"
 import { ClineExtensionContext } from "@/shared/clients"
 import { ShowMessageType } from "@/shared/proto/index.host"
+import { globalStorage } from "@/shared/storage"
 import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import {
 	getTaskHistoryStateFilePath,
@@ -734,7 +735,7 @@ export class StateManager {
 						// Route task history persistence to file, not VS Code globalState
 						return writeTaskHistoryToState(this.globalStateCache[key])
 					}
-					return this.context.globalState.update(key, this.globalStateCache[key])
+					return globalStorage.update(key, this.globalStateCache[key])
 				}),
 			)
 		} catch (error) {

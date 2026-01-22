@@ -15,6 +15,10 @@ export class ClineFileStorage extends ClineStorage {
 		this.read()
 	}
 
+	protected _keys(): readonly string[] {
+		return Array.from(this.cache.keys())
+	}
+
 	override async _get(key: string): Promise<string | undefined> {
 		try {
 			return this.cache.get(key) || undefined
