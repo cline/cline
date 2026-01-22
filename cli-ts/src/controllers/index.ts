@@ -11,6 +11,8 @@ import type {
 } from "@generated/hosts/host-bridge-client-types"
 import type { HostBridgeClientProvider, StreamingCallbacks } from "@hosts/host-provider-types"
 import * as proto from "@shared/proto/index"
+import { ClineClient } from "@/shared/clients"
+import { CLI_VERSION } from ".."
 import { printError, printInfo, printWarning } from "../utils/display"
 
 /**
@@ -90,8 +92,9 @@ export class CliEnvServiceClient implements EnvServiceClientInterface {
 
 	async getHostVersion(_request: proto.cline.EmptyRequest): Promise<proto.host.GetHostVersionResponse> {
 		return proto.host.GetHostVersionResponse.create({
-			version: "1.0.0",
-			platform: "Cline CLI",
+			version: CLI_VERSION,
+			platform: "Cline CLI - Node.js",
+			clineType: ClineClient.Cli,
 		})
 	}
 
@@ -257,6 +260,13 @@ export class CliWorkspaceServiceClient implements WorkspaceServiceClientInterfac
 	): Promise<proto.host.ExecuteCommandInTerminalResponse> {
 		printInfo(`⚙️  Executing: ${request.command}`)
 		return proto.host.ExecuteCommandInTerminalResponse.create({})
+	}
+
+	async openFolder(request: proto.host.OpenFolderRequest): Promise<proto.host.OpenFolderResponse> {
+		const path = request.path || ""
+		this.workspacePath = path
+		printInfo(`📂 Opening folder: ${path}`)
+		return proto.host.OpenFolderResponse.create({ success: true })
 	}
 }
 

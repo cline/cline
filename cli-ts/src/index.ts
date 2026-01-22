@@ -26,7 +26,7 @@ import { parseImagesFromInput, processImagePaths } from "./utils/parser"
 import { getProviderModelIdKey } from "./utils/provider-map"
 import { initializeCliContext } from "./vscode-context"
 
-const VERSION = "0.0.0"
+export const CLI_VERSION = "0.0.0"
 
 // Track active context for graceful shutdown
 let activeContext: CliContext | null = null
@@ -407,7 +407,7 @@ async function runAuth(options: {
 // Setup CLI commands
 const program = new Command()
 
-program.name("cline").description("Cline CLI - AI coding assistant in your terminal").version(VERSION)
+program.name("cline").description("Cline CLI - AI coding assistant in your terminal").version(CLI_VERSION)
 
 // Enable positional options to avoid conflicts between root and subcommand options with the same name
 program.enablePositionalOptions()
@@ -458,7 +458,7 @@ program
 program
 	.command("version")
 	.description("Show Cline CLI version number")
-	.action(() => printInfo(`Cline CLI version: ${VERSION}`))
+	.action(() => printInfo(`Cline CLI version: ${CLI_VERSION}`))
 /**
  * Show welcome prompt and run task with user input
  */

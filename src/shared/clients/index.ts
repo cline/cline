@@ -1,7 +1,7 @@
 export enum ClineClient {
-	VSCode = "vscode",
-	JetBrains = "jetbrains",
-	Cli = "cli",
+	VSCode = "VS Code",
+	JetBrains = "JetBrains",
+	Cli = "CLI",
 }
 
 import type { ClineExtensionContext } from "./context"

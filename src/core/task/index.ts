@@ -1705,7 +1705,8 @@ export class Task {
 		})
 
 		const providerInfo = this.getCurrentProviderInfo()
-		const ide = (await HostProvider.env.getHostVersion({})).platform || "Unknown"
+		const { platform, clineType } = await HostProvider.env.getHostVersion({})
+		const ide = platform || "Unknown"
 		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
 		const disableBrowserTool = browserSettings.disableToolUse ?? false
 		// cline browser tool uses image recognition for navigation (requires model image support).
@@ -1824,7 +1825,7 @@ export class Task {
 			workspaceRoots,
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
-			isCliEnvironment: this.controller.context.name === ClineClient.Cli,
+			isCliEnvironment: clineType === ClineClient.Cli,
 			enableNativeToolCalls:
 				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
 				this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
@@ -2475,6 +2476,7 @@ export class Task {
 		await this.postStateToWebview()
 
 		try {
+			const host = await HostProvider.env.getHostVersion({})
 			const taskMetrics: {
 				cacheWriteTokens: number
 				cacheReadTokens: number
@@ -2536,6 +2538,7 @@ export class Task {
 						},
 						cost: taskMetrics.totalCost,
 					},
+					metadata: { ...host },
 				})
 
 				telemetryService.captureConversationTurnEvent(
@@ -2866,6 +2869,7 @@ export class Task {
 							},
 							cost: taskMetrics.totalCost,
 						},
+						metadata: { ...host },
 					})
 				}
 			}
@@ -2958,6 +2962,7 @@ export class Task {
 						},
 						cost: taskMetrics.totalCost,
 					},
+					metadata: { ...host },
 				})
 
 				let response: ClineAskResponse
