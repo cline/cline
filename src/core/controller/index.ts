@@ -956,7 +956,7 @@ export class Controller {
 				user: this.stateManager.getGlobalSettingsKey("worktreesEnabled"),
 				featureFlag: featureFlagsService.getWorktreesEnabled(),
 			},
-			hooksEnabled: getHooksEnabledSafe(undefined),
+			hooksEnabled: getHooksEnabledSafe(),
 			lastDismissedInfoBannerVersion,
 			lastDismissedModelBannerVersion,
 			remoteConfigSettings: this.stateManager.getRemoteConfigSettings(),

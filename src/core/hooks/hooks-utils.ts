@@ -4,10 +4,9 @@
  * Hooks are not yet supported on Windows, so this function ensures they
  * remain disabled on that platform regardless of user settings.
  *
- * @param userSetting The user's hooks enabled setting from global state (may be undefined)
  * @returns true if hooks are enabled and supported on this platform, false otherwise
  */
-export function getHooksEnabledSafe(userSetting: boolean | undefined): boolean {
+export function getHooksEnabledSafe(): boolean {
 	// Hooks are not yet supported on Windows.
 	//
 	// NOTE: This function is the single choke point used by the task runtime and

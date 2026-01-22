@@ -41,7 +41,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 			let hookContextModification: string | undefined
 
 			// Run PreCompact hook right before showing the condensing message
-			const hooksEnabled = getHooksEnabledSafe(undefined)
+			const hooksEnabled = getHooksEnabledSafe()
 			if (hooksEnabled) {
 				try {
 					// Determine compaction strategy

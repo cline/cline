@@ -250,7 +250,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 	 * Errors are logged but do not affect task completion.
 	 */
 	private async runTaskCompleteHook(config: TaskConfig, block: ToolUse): Promise<void> {
-		const hooksEnabled = getHooksEnabledSafe(undefined)
+		const hooksEnabled = getHooksEnabledSafe()
 		if (!hooksEnabled) {
 			return
 		}

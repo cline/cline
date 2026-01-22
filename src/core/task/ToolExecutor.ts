@@ -582,7 +582,7 @@ export class ToolExecutor {
 			return
 		}
 
-		const hooksEnabled = getHooksEnabledSafe(undefined)
+		const hooksEnabled = getHooksEnabledSafe()
 
 		// Track if we need to cancel after hooks complete
 		let shouldCancelAfterHook = false
