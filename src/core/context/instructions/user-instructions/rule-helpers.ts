@@ -153,8 +153,25 @@ export type ActivatedConditionalRule = {
 	matchedConditions: Record<string, string[]>
 }
 
+// Prefixes used to make activated conditional rule identifiers self-explanatory in the UI.
+// NOTE: These are display identifiers (not toggle keys).
+export const RULE_SOURCE_PREFIX = {
+	workspace: "workspace",
+	global: "global",
+	remote: "remote",
+} as const
+
 export type RuleLoadResult = {
 	content: string
+	activatedConditionalRules: ActivatedConditionalRule[]
+}
+
+/**
+ * Result type for rule loading functions that return formatted instructions.
+ * Used by getGlobalClineRules and getLocalClineRules.
+ */
+export type RuleLoadResultWithInstructions = {
+	instructions?: string
 	activatedConditionalRules: ActivatedConditionalRule[]
 }
 
@@ -162,16 +179,17 @@ export const getRuleFilesTotalContentWithMetadata = async (
 	rulesFilePaths: string[],
 	basePath: string,
 	toggles: ClineRulesToggles,
-	opts?: { evaluationContext?: RuleEvaluationContext },
+	opts?: { evaluationContext?: RuleEvaluationContext; ruleNamePrefix?: keyof typeof RULE_SOURCE_PREFIX },
 ): Promise<RuleLoadResult> => {
 	const evaluationContext = opts?.evaluationContext ?? {}
+	const prefix = RULE_SOURCE_PREFIX[opts?.ruleNamePrefix ?? "global"]
 
 	type RuleLoadPart = {
 		contentPart: string | null
 		activatedRule: ActivatedConditionalRule | null
 	}
 
-	const parts: RuleLoadPart[] = await Promise.all(
+	const parts = await Promise.all(
 		rulesFilePaths.map(async (filePath) => {
 			const ruleFilePath = path.resolve(basePath, filePath)
 			const ruleFilePathRelative = path.relative(basePath, ruleFilePath)
@@ -199,7 +217,7 @@ export const getRuleFilesTotalContentWithMetadata = async (
 			}
 			const activatedRule =
 				hadFrontmatter && Object.keys(matchedConditions).length > 0
-					? { name: ruleFilePathRelative, matchedConditions }
+					? { name: `${prefix}:${ruleFilePathRelative}`, matchedConditions }
 					: null
 
 			return { contentPart: `${ruleFilePathRelative}\n${body.trim()}`, activatedRule }
@@ -245,7 +263,7 @@ export function getRemoteRulesTotalContentWithMetadata(
 		if (!passed) continue
 
 		if (hadFrontmatter && Object.keys(matchedConditions).length > 0) {
-			activatedConditionalRules.push({ name: rule.name, matchedConditions })
+			activatedConditionalRules.push({ name: `${RULE_SOURCE_PREFIX.remote}:${rule.name}`, matchedConditions })
 		}
 
 		if (combinedContent) combinedContent += "\n\n"

@@ -70,6 +70,7 @@ enum ClineSay {
   HOOK_STATUS = 30;
   HOOK_OUTPUT_STREAM = 31;
   COMMAND_PERMISSION_DENIED = 32;
+  CONDITIONAL_RULES_APPLIED = 33;
 }
 
 // Enum for ClineSayTool tool types

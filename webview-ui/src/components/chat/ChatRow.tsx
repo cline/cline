@@ -376,11 +376,36 @@ export const ChatRowContent = memo(
 			return null
 		}, [message.ask, message.say, message.text])
 
+		const conditionalRulesInfo = useMemo(() => {
+			if (message.say !== "conditional_rules_applied" || !message.text) return null
+			try {
+				const parsed = JSON.parse(message.text) as unknown
+				if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as any).rules)) {
+					return null
+				}
+				return parsed as {
+					rules: Array<{ name: string; matchedConditions: Record<string, string[]> }>
+				}
+			} catch {
+				return null
+			}
+		}, [message.say, message.text])
+
 		// Helper function to check if file is an image
 		const isImageFile = (filePath: string): boolean => {
 			const imageExtensions = [".png", ".jpg", ".jpeg", ".webp"]
 			const extension = filePath.toLowerCase().split(".").pop()
 			return extension ? imageExtensions.includes(`.${extension}`) : false
+		}
+
+		if (conditionalRulesInfo) {
+			const names = conditionalRulesInfo.rules.map((r: { name: string }) => r.name).join(", ")
+			return (
+				<div className={HEADER_CLASSNAMES}>
+					<span style={{ fontWeight: "bold" }}>Conditional rules applied:</span>
+					<span className="ph-no-capture break-words whitespace-pre-wrap">{names}</span>
+				</div>
+			)
 		}
 
 		if (tool) {
