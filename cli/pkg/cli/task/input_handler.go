@@ -287,7 +287,7 @@ func (ih *InputHandler) promptForInput(ctx context.Context) (string, bool, error
 	model := output.NewInputModelWithRegistry(
 		output.InputTypeMessage,
 		"Cline is ready for your message...",
-		"/plan or /act to switch modes\nctrl+e to open editor\ntab to autocomplete commands",
+		"/plan or /act to switch modes\ntab to autocomplete commands\nctrl+e to open editor\nctrl+c to exit",
 		currentMode,
 		ih.slashCommandRegistry,
 	)

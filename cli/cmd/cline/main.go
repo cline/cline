@@ -231,7 +231,7 @@ func promptForInitialTask(ctx context.Context, modeFlag string, workspaces []str
 
 	prompt, err := output.PromptForInitialTask(
 		"Start a new Cline task",
-		"/plan or /act to switch modes\nctrl+e to open editor\ntab to autocomplete commands",
+		"/plan or /act to switch modes\ntab to autocomplete commands\nctrl+e to open editor\nctrl+c to exit",
 		modeFlag,
 		slash.NewRegistry(ctx),
 	)
