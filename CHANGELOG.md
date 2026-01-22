@@ -1,17 +1,27 @@
 # Changelog
 
+## 3.52.1
+
+### Patch Changes
+
+- 66d7664: improve cline command permission validation logic. add cline command permission man page documentation
+- abf3081: Wiring-up "conditionals" for Cline Rules files.
+- 4533ed3: Fix drag & drop files from SSH remote workspaces into chat
+- 125cb78: Updated switch component to adhere to 3:1 contrast accessibility standard for both light and dark vscode themes
+- 5052220: Remove hooks feature setting and make it always enabled (except on Windows).
+
 ## [3.52.0]
 
 ### Added
 
 - Users with ChatGPT Plus or Pro subscriptions can now use GPT-5 models directly through Cline without needing an API key. Authentication is handled via OAuth through OpenAI's authentication system.
 - Grok models are now moving out of free tier and into paid plans.
-- Introduces comprehensive Jupyter Notebook support for Cline, enabling AI-assisted editing of `.ipynb` files with full cell-level context awareness. 
+- Introduces comprehensive Jupyter Notebook support for Cline, enabling AI-assisted editing of `.ipynb` files with full cell-level context awareness.
 
 ### Fixed
+
 - Bugs in DiffViewProvider for file editing
 - Ollama's recommended models to use correct identifiers
-
 
 ## [3.51.0]
 
