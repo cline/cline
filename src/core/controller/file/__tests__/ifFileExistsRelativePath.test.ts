@@ -4,6 +4,7 @@ import * as pathUtils from "@utils/path"
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
+import { Logger } from "@/shared/services/Logger"
 import { ifFileExistsRelativePath } from "../ifFileExistsRelativePath"
 
 describe("ifFileExistsRelativePath", () => {
@@ -21,8 +22,8 @@ describe("ifFileExistsRelativePath", () => {
 		// Stub getWorkspacePath utility
 		getWorkspacePathStub = sandbox.stub(pathUtils, "getWorkspacePath")
 
-		// Stub console.error to prevent test output pollution
-		consoleErrorStub = sandbox.stub(console, "error")
+		// Stub Logger.error to prevent test output pollution
+		consoleErrorStub = sandbox.stub(Logger, "error")
 	})
 
 	afterEach(() => {
