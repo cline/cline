@@ -16,6 +16,7 @@ const ClineCommands = {
 	AccountButton: prefix + ".accountButtonClicked",
 	WorktreesButton: prefix + ".worktreesButtonClicked",
 	TerminalOutput: prefix + ".addTerminalOutputToChat",
+	AddTerminalCommandToChat: prefix + ".addTerminalCommandToChat",
 	AddToChat: prefix + ".addToChat",
 	FixWithCline: prefix + ".fixWithCline",
 	ExplainCode: prefix + ".explainCode",

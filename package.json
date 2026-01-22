@@ -175,6 +175,11 @@
 				"category": "Cline"
 			},
 			{
+				"command": "cline.addTerminalCommandToChat",
+				"title": "Add Last Command to Cline",
+				"category": "Cline"
+			},
+			{
 				"command": "cline.focusChatInput",
 				"title": "Jump to Chat Input",
 				"category": "Cline"
@@ -307,7 +312,12 @@
 			"terminal/context": [
 				{
 					"command": "cline.addTerminalOutputToChat",
-					"group": "navigation"
+					"group": "navigation@1"
+				},
+				{
+					"command": "cline.addTerminalCommandToChat",
+					"group": "navigation@2",
+					"when": "cline.terminalHasCommandHistory"
 				}
 			],
 			"scm/title": [
