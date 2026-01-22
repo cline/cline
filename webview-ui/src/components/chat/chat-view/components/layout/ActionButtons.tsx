@@ -64,16 +64,20 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 
 	const handleActionClick = useCallback(
 		(action: ButtonActionType, text?: string, images?: string[], files?: string[]) => {
+			console.log("[CANCEL_FLOW] [ActionButtons] Button clicked:", action)
 			if (isProcessing) {
+				console.log("[CANCEL_FLOW] [ActionButtons] Already processing, ignoring click")
 				return
 			}
 			setIsProcessing(true)
 
 			// Special handling for cancel action
 			if (action === "cancel") {
+				console.log("[CANCEL_FLOW] [ActionButtons] Cancel action detected, resetting processing state")
 				setIsProcessing(false)
 			}
 
+			console.log("[CANCEL_FLOW] [ActionButtons] Calling executeButtonAction:", action)
 			messageHandlers.executeButtonAction(action, text, images, files)
 		},
 		[messageHandlers, isProcessing],
@@ -83,6 +87,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	const handleKeyDown = useCallback(
 		(event: KeyboardEvent) => {
 			if (event.key === "Escape") {
+				console.log("[CANCEL_FLOW] [ActionButtons] Escape key pressed, triggering cancel")
 				event.preventDefault()
 				event.stopPropagation()
 				messageHandlers.executeButtonAction("cancel")

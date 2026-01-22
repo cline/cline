@@ -346,15 +346,46 @@ export const ExtensionStateContextProvider: React.FC<{
 					try {
 						const stateData = JSON.parse(response.stateJson) as ExtensionState
 						setState((prevState) => {
+							const incomingTaskId = stateData.currentTaskItem?.id
+							const prevTaskId = prevState.currentTaskItem?.id
+
 							// Versioning logic for autoApprovalSettings
 							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
 							const currentVersion = prevState.autoApprovalSettings?.version ?? 1
 							const shouldUpdateAutoApproval = incomingVersion > currentVersion
-							// HACK: Preserve clineMessages if currentTaskItem is the same
-							if (stateData.currentTaskItem?.id === prevState.currentTaskItem?.id) {
-								stateData.clineMessages = stateData.clineMessages?.length
-									? stateData.clineMessages
-									: prevState.clineMessages
+							// HACK: Preserve clineMessages to avoid losing conversation history
+							// Cases where we preserve prev messages:
+							// 1. Same task ID (both defined) and prev has more messages
+							// 2. Incoming task is undefined but prev task exists (transient cancel state)
+							// 3. Different task ID but incoming has 0 messages (transient state)
+							const incomingCount = stateData.clineMessages?.length ?? 0
+							const prevCount = prevState.clineMessages?.length ?? 0
+							// Reuse incomingTaskId and prevTaskId from debug section above
+							const sameTaskId = incomingTaskId === prevTaskId
+							const bothTasksUndefined = incomingTaskId === undefined && prevTaskId === undefined
+							const incomingTaskUndefined = incomingTaskId === undefined
+							const prevTaskExists = prevTaskId !== undefined
+
+							// Evaluate each condition separately for detailed logging
+							// Condition 1: Same task, prev has more messages, but incoming > 0 (stale update during streaming)
+							const condition1 = sameTaskId && !bothTasksUndefined && prevCount > incomingCount && incomingCount > 0
+							// Condition 2 REMOVED: Was causing "double click" bug on New Task button.
+							// const condition2 = incomingTaskUndefined && prevTaskExists && prevCount > 0
+							// Condition 3: Different task ID (both defined), incoming has 0 messages (loading new task)
+							// NOTE: Only trigger if BOTH task IDs are defined - if incoming is undefined, it's an intentional clear
+							const condition3 =
+								!sameTaskId &&
+								incomingTaskId !== undefined &&
+								prevTaskId !== undefined &&
+								incomingCount === 0 &&
+								prevCount > 0
+							const shouldPreservePrev = condition1 || condition3
+
+							if (shouldPreservePrev) {
+								stateData.clineMessages = prevState.clineMessages
+								// NOTE: We do NOT preserve currentTaskItem here to allow cancel to work
+								// When user cancels, backend sends currentTaskItem: undefined intentionally
+								// Preserving it would make cancel appear stuck
 							}
 
 							const newState = {
@@ -414,8 +445,8 @@ export const ExtensionStateContextProvider: React.FC<{
 			{},
 			{
 				onResponse: () => {
-					// When history button is clicked, navigate to history view
 					console.log("[DEBUG] Received history button clicked event from gRPC stream")
+					// When history button is clicked, navigate to history view
 					navigateToHistory()
 				},
 				onError: (error) => {
@@ -432,8 +463,8 @@ export const ExtensionStateContextProvider: React.FC<{
 			{},
 			{
 				onResponse: () => {
-					// When chat button is clicked, navigate to chat
 					console.log("[DEBUG] Received chat button clicked event from gRPC stream")
+					// When chat button is clicked, navigate to chat
 					navigateToChat()
 				},
 				onError: (error) => {
@@ -580,8 +611,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		// Set up account button clicked subscription
 		accountButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToAccountButtonClicked(EmptyRequest.create(), {
 			onResponse: () => {
-				// When account button is clicked, navigate to account view
 				console.log("[DEBUG] Received account button clicked event from gRPC stream")
+				// When account button is clicked, navigate to account view
 				navigateToAccount()
 			},
 			onError: (error) => {

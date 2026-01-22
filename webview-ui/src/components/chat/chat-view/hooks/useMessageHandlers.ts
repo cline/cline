@@ -21,14 +21,19 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		setSelectedFiles,
 		setSendingDisabled,
 		setEnableButtons,
+		sendingDisabled,
 		clineAsk,
 		lastMessage,
+		messageQueue,
+		setMessageQueue,
 	} = chatState
 
 	// Handle sending a message
+	// Returns true if message was successfully sent, false otherwise
 	const handleSendMessage = useCallback(
-		async (text: string, images: string[], files: string[]) => {
+		async (text: string, images: string[], files: string[], fromQueue = false): Promise<boolean> => {
 			let messageToSend = text.trim()
+			let messageSent = false
 			const hasContent = messageToSend || images.length > 0 || files.length > 0
 
 			// Prepend the active quote if it exists
@@ -39,107 +44,150 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				messageToSend = `${prefix} ${formattedQuote} ${suffix} ${messageToSend}`
 			}
 
-			if (hasContent) {
-				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend)
-				let messageSent = false
+			if (!hasContent) {
+				return false
+			}
 
-				if (messages.length === 0) {
-					await TaskServiceClient.newTask(
-						NewTaskRequest.create({
+			// If sending is disabled and this is not from the queue, add to queue
+			if (sendingDisabled && !fromQueue) {
+				// Check queue size limit (max 5 messages)
+				if (messageQueue.length >= 5) {
+					// Queue is full, don't add and keep input so user doesn't lose their message
+					return false
+				}
+				// Generate a unique ID using timestamp + random component
+				const messageId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+				setMessageQueue((prev) => [...prev, { id: messageId, text: messageToSend, images, files }])
+				setInputValue("")
+				setSelectedImages([])
+				setSelectedFiles([])
+				return false // Message was queued, not sent
+			}
+
+			if (messages.length === 0) {
+				// Clear input BEFORE the async call to avoid race condition
+				// The newTask() call triggers a state update from the backend that can
+				// cause a React re-render before newTask() returns, which would leave
+				// the input with stale data if we clear it after the await.
+				// BUT: Don't clear if processing from queue - user may have typed new text!
+				if (!fromQueue) {
+					setInputValue("")
+					setActiveQuote(null)
+					setSelectedImages([])
+					setSelectedFiles([])
+				}
+				setSendingDisabled(true)
+				setEnableButtons(false)
+
+				// Reset auto-scroll
+				if ("disableAutoScrollRef" in chatState) {
+					;(chatState as any).disableAutoScrollRef.current = false
+				}
+
+				await TaskServiceClient.newTask(
+					NewTaskRequest.create({
+						text: messageToSend,
+						images,
+						files,
+					}),
+				)
+				return true // New task created successfully
+			}
+
+			if (clineAsk) {
+				// For resume_task and resume_completed_task, use yesButtonClicked to match Resume button behavior
+				// This ensures Enter key and Resume button work identically
+				if (clineAsk === "resume_task" || clineAsk === "resume_completed_task") {
+					await TaskServiceClient.askResponse(
+						AskResponseRequest.create({
+							responseType: "yesButtonClicked",
 							text: messageToSend,
 							images,
 							files,
 						}),
 					)
 					messageSent = true
-				} else if (clineAsk) {
-					// For resume_task and resume_completed_task, use yesButtonClicked to match Resume button behavior
-					// This ensures Enter key and Resume button work identically
-					if (clineAsk === "resume_task" || clineAsk === "resume_completed_task") {
-						await TaskServiceClient.askResponse(
-							AskResponseRequest.create({
-								responseType: "yesButtonClicked",
-								text: messageToSend,
-								images,
-								files,
-							}),
-						)
-						messageSent = true
-					} else {
-						// All other ask types use messageResponse
-						switch (clineAsk) {
-							case "followup":
-							case "plan_mode_respond":
-							case "tool":
-							case "browser_action_launch":
-							case "command":
-							case "command_output":
-							case "use_mcp_server":
-							case "completion_result":
-							case "mistake_limit_reached":
-							case "api_req_failed":
-							case "new_task":
-							case "condense":
-							case "report_bug":
-								await TaskServiceClient.askResponse(
-									AskResponseRequest.create({
-										responseType: "messageResponse",
-										text: messageToSend,
-										images,
-										files,
-									}),
-								)
-								messageSent = true
-								break
-						}
-					}
-				} else if (messages.length > 0) {
-					// No clineAsk set - check if task is actively running
-					// If so, allow interrupting it with feedback
-					const lastMessage = messages[messages.length - 1]
-					const isTaskRunning =
-						lastMessage.partial === true || (lastMessage.type === "say" && lastMessage.say === "api_req_started")
-
-					if (isTaskRunning) {
-						// Task is running - send message as interruption/feedback
-						await TaskServiceClient.askResponse(
-							AskResponseRequest.create({
-								responseType: "messageResponse",
-								text: messageToSend,
-								images,
-								files,
-							}),
-						)
-						messageSent = true
+				} else {
+					// All other ask types use messageResponse
+					switch (clineAsk) {
+						case "followup":
+						case "plan_mode_respond":
+						case "tool":
+						case "browser_action_launch":
+						case "command":
+						case "command_output":
+						case "use_mcp_server":
+						case "completion_result":
+						case "mistake_limit_reached":
+						case "api_req_failed":
+						case "new_task":
+						case "condense":
+						case "report_bug":
+							await TaskServiceClient.askResponse(
+								AskResponseRequest.create({
+									responseType: "messageResponse",
+									text: messageToSend,
+									images,
+									files,
+								}),
+							)
+							messageSent = true
+							break
 					}
 				}
+			} else if (messages.length > 0) {
+				// No clineAsk set - check if task is actively running
+				// If so, allow interrupting it with feedback
+				const lastMessage = messages[messages.length - 1]
+				const isTaskRunning =
+					lastMessage.partial === true || (lastMessage.type === "say" && lastMessage.say === "api_req_started")
 
-				// Only clear input and disable UI if message was actually sent
-				if (messageSent) {
-					setInputValue("")
-					setActiveQuote(null)
-					setSendingDisabled(true)
-					setSelectedImages([])
-					setSelectedFiles([])
-					setEnableButtons(false)
-
-					// Reset auto-scroll
-					if ("disableAutoScrollRef" in chatState) {
-						;(chatState as any).disableAutoScrollRef.current = false
-					}
+				if (isTaskRunning) {
+					// Task is running - send message as interruption/feedback
+					await TaskServiceClient.askResponse(
+						AskResponseRequest.create({
+							responseType: "messageResponse",
+							text: messageToSend,
+							images,
+							files,
+						}),
+					)
+					messageSent = true
 				}
 			}
+
+			// Only clear input and disable UI if message was actually sent
+			if (messageSent) {
+				// Don't clear input if processing from queue - user may have typed new text!
+				if (!fromQueue) {
+					setInputValue("")
+					setActiveQuote(null)
+					setSelectedImages([])
+					setSelectedFiles([])
+				}
+				setSendingDisabled(true)
+				setEnableButtons(false)
+
+				// Reset auto-scroll
+				if ("disableAutoScrollRef" in chatState) {
+					;(chatState as any).disableAutoScrollRef.current = false
+				}
+			}
+
+			return messageSent
 		},
 		[
 			messages.length,
 			clineAsk,
 			activeQuote,
+			sendingDisabled,
 			setInputValue,
 			setActiveQuote,
 			setSendingDisabled,
 			setSelectedImages,
 			setSelectedFiles,
 			setEnableButtons,
+			setMessageQueue,
 			chatState,
 		],
 	)
@@ -147,8 +195,9 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 	// Start a new task
 	const startNewTask = useCallback(async () => {
 		setActiveQuote(null)
+		setMessageQueue([])
 		await TaskServiceClient.clearTask(EmptyRequest.create({}))
-	}, [setActiveQuote])
+	}, [setActiveQuote, setMessageQueue])
 
 	// Clear input state helper
 	const clearInputState = useCallback(() => {
@@ -249,14 +298,18 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					break
 
 				case "cancel":
+					// Clear state IMMEDIATELY before async call, not after
+					// The cancelTask() call blocks until user clicks Resume, so we must
+					// clear the queue before calling it, otherwise the queue stays visible
+					setSendingDisabled(false)
+					setEnableButtons(true)
+					setMessageQueue([]) // Clear queue on cancel
+
 					if (backgroundCommandRunning) {
 						await TaskServiceClient.cancelBackgroundCommand(EmptyRequest.create({}))
 					} else {
 						await TaskServiceClient.cancelTask(EmptyRequest.create({}))
 					}
-					// Clear any pending state that might interfere with resume
-					setSendingDisabled(false)
-					setEnableButtons(true)
 					break
 
 				case "utility":
@@ -290,6 +343,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			backgroundCommandRunning,
 			setSendingDisabled,
 			setEnableButtons,
+			setMessageQueue,
 		],
 	)
 

@@ -40,6 +40,7 @@ import { BannerCardData } from "@/shared/cline/banner"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { getLatestAnnouncementId } from "@/utils/announcements"
+import { extensionLog } from "@/utils/debugLogger"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { PromptRegistry } from "../prompts/system-prompt"
 import {
@@ -326,9 +327,9 @@ export class Controller {
 		})
 
 		if (historyItem) {
-			this.task.resumeTaskFromHistory()
+			await this.task.resumeTaskFromHistory()
 		} else if (task || images || files) {
-			this.task.startTask(task, images, files)
+			await this.task.startTask(task, images, files)
 		}
 
 		return this.task.taskId
@@ -410,7 +411,6 @@ export class Controller {
 	async cancelTask() {
 		// Prevent duplicate cancellations from spam clicking
 		if (this.cancelInProgress) {
-			console.log(`[Controller.cancelTask] Cancellation already in progress, ignoring duplicate request`)
 			return
 		}
 
@@ -446,6 +446,11 @@ export class Controller {
 			if (this.task) {
 				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
 				this.task.taskState.abandoned = true
+
+				// NOTE: We DON'T clear messages here anymore.
+				// The 'abandoned' guard in ask() and say() already prevents stale messages from being added.
+				// Clearing messages here caused a bug where new tasks (not yet saved to disk) would lose
+				// their messages on cancel. The in-memory messages are the source of truth until saved.
 			}
 
 			// Small delay to ensure state manager has persisted the history update
@@ -456,19 +461,32 @@ export class Controller {
 			try {
 				const result = await this.getTaskWithId(this.task.taskId)
 				historyItem = result.historyItem
-			} catch (error) {
+			} catch {
 				// Task not in history yet (new task with no messages); catch the
 				// error to enable the agent to continue making progress.
-				console.log(`[Controller.cancelTask] Task not found in history: ${error}`)
 			}
 
-			// Only re-initialize if we found a history item, otherwise just clear
+			// Re-initialize from disk if history exists, otherwise keep current task state
 			if (historyItem) {
-				// Re-initialize task to keep it visible in UI with resume button
-				await this.initTask(undefined, undefined, undefined, historyItem, undefined)
-			} else {
-				await this.clearTask()
+				// Task was saved to disk - reload messages from disk and show resume button
+				// DON'T call initTask() here because it calls clearTask() which wipes messages!
+				try {
+					// Clear cancelInProgress BEFORE resumeTaskFromHistory() because it blocks
+					// waiting for user to click Resume. If we don't clear it here, user can't
+					// cancel again if something goes wrong with parallel tool calls.
+					this.cancelInProgress = false
+					await this.task.resumeTaskFromHistory()
+					// resumeTaskFromHistory() calls ask("resume_task") which posts state to webview
+					// So we don't need to call postStateToWebview() here
+					return
+				} catch (error) {
+					console.error(`[Controller.cancelTask] Failed to resume from history:`, error)
+					// Fall through to keep current task
+				}
 			}
+
+			// If no historyItem OR resume failed, keep the current task instance with its in-memory messages
+			// This handles the case where user cancels before first message is saved
 
 			await this.postStateToWebview()
 		} finally {
@@ -800,6 +818,12 @@ export class Controller {
 
 	async postStateToWebview() {
 		const state = await this.getStateToPostToWebview()
+		console.log(
+			`[Controller.postStateToWebview] Sending state - taskId: ${this.task?.taskId || "none"}, messages: ${state.clineMessages.length}`,
+		)
+		extensionLog.info(
+			`[postStateToWebview] Sending - taskId: ${this.task?.taskId || "none"}, messageCount: ${state.clineMessages.length}`,
+		)
 		await sendStateUpdate(state)
 	}
 
@@ -860,6 +884,9 @@ export class Controller {
 
 		const currentTaskItem = this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined
 		const clineMessages = this.task?.messageStateHandler.getClineMessages() || []
+		console.log(
+			`[Controller.getStateToPostToWebview] Got ${clineMessages.length} messages from task ${this.task?.taskId || "none"}`,
+		)
 		const checkpointManagerErrorMessage = this.task?.taskState.checkpointManagerErrorMessage
 
 		const processedTaskHistory = (taskHistory || [])
@@ -974,8 +1001,20 @@ export class Controller {
 
 	async clearTask() {
 		if (this.task) {
+			// Save current state to disk BEFORE clearing
+			// This ensures messages are persisted if user clicks "New Task" while task is running
+			try {
+				await this.task.messageStateHandler.saveClineMessagesAndUpdateHistory()
+			} catch (error) {
+				console.error(`[Controller.clearTask] Failed to save messages before clearing:`, error)
+			}
+
 			// Clear task settings cache when task ends
 			await this.stateManager.clearTaskSettings()
+
+			// DON'T clear message queues here! We just saved them to disk above.
+			// Clearing them could trigger another auto-save that overwrites with [].
+			// Since we're setting this.task = undefined below anyway, no need to clear.
 		}
 		await this.task?.abortTask()
 		this.task = undefined // removes reference to it, so once promises end it will be garbage collected
