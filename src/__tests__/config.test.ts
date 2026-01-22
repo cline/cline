@@ -512,4 +512,31 @@ describe("ClineEndpoint configuration", () => {
 			}
 		})
 	})
+
+	describe("isSelfHosted() method", () => {
+		it("should return true when not initialized (safety fallback)", async () => {
+			// Reset singleton state - already done in beforeEach, not initialized
+			ClineEndpoint.isInitialized().should.be.false()
+			ClineEndpoint.isSelfHosted().should.be.true()
+		})
+
+		it("should return true when in self-hosted mode", async () => {
+			const config = {
+				appBaseUrl: "https://app.enterprise.com",
+				apiBaseUrl: "https://api.enterprise.com",
+				mcpBaseUrl: "https://mcp.enterprise.com",
+			}
+			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(config), "utf8")
+			await ClineEndpoint.initialize()
+
+			ClineEndpoint.isSelfHosted().should.be.true()
+		})
+
+		it("should return false when in normal mode (no endpoints.json)", async () => {
+			// No endpoints.json file exists
+			await ClineEndpoint.initialize()
+
+			ClineEndpoint.isSelfHosted().should.be.false()
+		})
+	})
 })
