@@ -29,13 +29,17 @@ type ProviderListResult struct {
 }
 
 // GetProviderConfigurations retrieves and parses provider configurations from Cline Core state
-func GetProviderConfigurations(ctx context.Context, manager *task.Manager) (*ProviderListResult, error) {
+func GetProviderConfigurations(ctx context.Context) (*ProviderListResult, error) {
 	if global.Config.Verbose {
 		fmt.Println("[DEBUG] Retrieving provider configurations from Cline Core")
 	}
 
 	// Get latest state from Cline Core
-	state, err := manager.GetClient().State.GetLatestState(ctx, &cline.EmptyRequest{})
+	grpcClient, err := global.GetDefaultClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get provider configs due to unable to get gRPC client: %w", err)
+	}
+	state, err := grpcClient.State.GetLatestState(ctx, &cline.EmptyRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get state: %w", err)
 	}

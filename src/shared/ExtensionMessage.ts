@@ -211,6 +211,8 @@ export interface ClineSayTool {
 	regex?: string
 	filePattern?: string
 	operationIsLocatedInWorkspace?: boolean
+	/** Starting line numbers in the original file where each SEARCH block matched */
+	startLineNumbers?: number[]
 }
 
 export interface ClineSayHook {

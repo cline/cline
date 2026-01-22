@@ -1,10 +1,17 @@
 import { clearOnboardingModelsCache, getClineOnboardingModels } from "@/core/controller/models/getClineOnboardingModels"
 import type { OnboardingModel } from "@/shared/proto/cline/state"
 import { FEATURE_FLAGS, FeatureFlag, FeatureFlagDefaultValue } from "@/shared/services/feature-flags/feature-flags"
-import type { FeatureFlagPayload, IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
+import { telemetryService } from "../telemetry"
+import type { FeatureFlagPayload, FeatureFlagsAndPayloads, IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
 
 // Default cache time-to-live (TTL) for feature flags - an hour
 const DEFAULT_CACHE_TTL = 60 * 60 * 1000
+
+type CacheInfo = {
+	updateTime: number
+	userId: string | null
+	flagsPayload?: FeatureFlagsAndPayloads
+}
 
 /**
  * FeatureFlagsService provides feature flag functionality that works independently
@@ -23,7 +30,7 @@ export class FeatureFlagsService {
 	/**
 	 * Tracks cache update time and user ID for cache validity
 	 */
-	private cacheInfo = { updateTime: 0, userId: null as string | null }
+	private cacheInfo: CacheInfo = { updateTime: 0, userId: null }
 
 	/**
 	 * Poll all known feature flags to update their cached values
@@ -42,6 +49,11 @@ export class FeatureFlagsService {
 		this.cacheInfo = { updateTime: timesNow, userId: userId || null }
 
 		try {
+			const values = await this.provider.getAllFlagsAndPayloads({
+				flagKeys: FEATURE_FLAGS,
+			})
+			this.cacheInfo.flagsPayload = values
+
 			for (const flag of FEATURE_FLAGS) {
 				const payload = await this.getFeatureFlag(flag).catch(() => false)
 				this.cache.set(flag, payload ?? false)
@@ -57,28 +69,22 @@ export class FeatureFlagsService {
 
 	private async getFeatureFlag(flagName: FeatureFlag): Promise<FeatureFlagPayload | undefined> {
 		try {
-			const payload = await this.provider.getFeatureFlagPayload(flagName)
-			const flagValue = await this.provider.getFeatureFlag(flagName)
-			const value = payload ?? flagValue ?? FeatureFlagDefaultValue[flagName] ?? undefined
-			return value
+			const payload = this.cacheInfo.flagsPayload?.featureFlagPayloads?.[flagName]
+			const flagValue = this.cacheInfo.flagsPayload?.featureFlags?.[flagName]
+
+			telemetryService.capture({
+				event: "$feature_flag_called",
+				properties: {
+					$feature_flag: flagName,
+					$feature_flag_response: flagValue,
+				},
+			})
+
+			return payload ?? flagValue ?? FeatureFlagDefaultValue[flagName] ?? undefined
 		} catch (error) {
 			console.error(`Error checking if feature flag ${flagName} is enabled:`, error)
 			return FeatureFlagDefaultValue[flagName] ?? false
 		}
-	}
-
-	/**
-	 * Check if a feature flag is enabled
-	 * This method works regardless of telemetry settings to ensure feature flags
-	 * can control extension behavior independently of user privacy preferences.
-	 *
-	 * @param flagName The feature flag key
-	 * @returns Boolean indicating if the feature is enabled
-	 */
-	public async isFeatureFlagEnabled(flagName: FeatureFlag): Promise<boolean> {
-		const value = this.cache.has(flagName) ? this.cache.get(flagName) : await this.getFeatureFlag(flagName)
-
-		return !!value
 	}
 
 	/**
@@ -108,20 +114,6 @@ export class FeatureFlagsService {
 		}
 		clearOnboardingModelsCache()
 		return undefined
-	}
-
-	/**
-	 * Get the feature flag payload for advanced use cases
-	 * @param flagName The feature flag key
-	 * @returns The feature flag payload or null if not found
-	 */
-	public async getPayload(flagName: string): Promise<FeatureFlagPayload | null> {
-		try {
-			return (await this.provider.getFeatureFlagPayload(flagName)) ?? null
-		} catch (error) {
-			console.error(`Error retrieving feature flag payload for ${flagName}:`, error)
-			return null
-		}
 	}
 
 	/**
