@@ -4,6 +4,7 @@
  */
 
 import { Box } from "ink"
+import { TerminalInfoProvider } from "ink-picture"
 import React, { ReactNode, useCallback, useState } from "react"
 import { StdinProvider } from "../context/StdinContext"
 import { TaskContextProvider } from "../context/TaskContext"
@@ -272,7 +273,9 @@ export const App: React.FC<AppProps> = ({
 
 	return (
 		<StdinProvider isRawModeSupported={isRawModeSupported}>
-			<Box>{content}</Box>
+			<TerminalInfoProvider>
+				<Box>{content}</Box>
+			</TerminalInfoProvider>
 		</StdinProvider>
 	)
 }

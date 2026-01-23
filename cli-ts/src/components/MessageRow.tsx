@@ -8,6 +8,7 @@ import { Box, Text } from "ink"
 import React from "react"
 import { jsonParseSafe } from "../utils/parser"
 import { DiffView } from "./DiffView"
+import { MessageImage } from "./MessageImage"
 
 interface MessageRowProps {
 	message: ClineMessage
@@ -362,6 +363,23 @@ export const MessageRow: React.FC<MessageRowProps> = ({ message, verbose = false
 					<Text>{icon} </Text>
 				</Box>
 				{content}
+				{/* Render images if present */}
+				{message.images && message.images.length > 0 && (
+					<Box flexDirection="column" marginTop={1}>
+						{message.images.map((imageSrc, idx) => (
+							<MessageImage
+								caption={
+									message.images && message.images.length > 1
+										? `Image ${idx + 1} of ${message.images.length}`
+										: undefined
+								}
+								key={`${message.ts}-img-${idx}`}
+								src={imageSrc}
+								width={80}
+							/>
+						))}
+					</Box>
+				)}
 			</Box>
 		)
 	}
@@ -373,6 +391,23 @@ export const MessageRow: React.FC<MessageRowProps> = ({ message, verbose = false
 				<Text>{icon} </Text>
 				{content}
 			</Box>
+			{/* Render images if present */}
+			{message.images && message.images.length > 0 && (
+				<Box flexDirection="column" marginTop={1}>
+					{message.images.map((imageSrc, idx) => (
+						<MessageImage
+							caption={
+								message.images && message.images.length > 1
+									? `Image ${idx + 1} of ${message.images.length}`
+									: undefined
+							}
+							key={`${message.ts}-img-${idx}`}
+							src={imageSrc}
+							width={80}
+						/>
+					))}
+				</Box>
+			)}
 		</Box>
 	)
 }

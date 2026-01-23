@@ -29,7 +29,7 @@ export const useProcessedMessages = () => {
  * Detect if a message has just been completed (is asking for user input)
  */
 export const useCompletedAskMessages = () => {
-	const { state, controller } = useTaskContext()
+	const { state } = useTaskContext()
 	const processed = useProcessedMessages()
 
 	const getCompletedAskMessages = useCallback(() => {
