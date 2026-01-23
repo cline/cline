@@ -120,7 +120,7 @@ export async function refreshVercelAiGatewayModels(_controller: Controller): Pro
 			}
 
 			await fs.writeFile(vercelAiGatewayModelsFilePath, JSON.stringify(models))
-			Logger.log("Vercel AI Gateway models fetched and saved", JSON.stringify(models).slice(0, 300))
+			Logger.log("Vercel AI Gateway models fetched and saved")
 		} else {
 			Logger.error("Invalid response from Vercel AI Gateway API")
 		}
