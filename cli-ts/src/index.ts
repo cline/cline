@@ -24,9 +24,10 @@ import { CliCommentReviewController } from "./controllers/CliCommentReviewContro
 import { CliWebviewProvider } from "./controllers/CliWebviewProvider"
 import { restoreConsole } from "./utils/console"
 import { calculateRobotTopRow, queryCursorPos } from "./utils/cursor-position"
-import { print, printError, printInfo, printWarning, separator } from "./utils/display"
+import { printError, printInfo, printWarning } from "./utils/display"
 import { parseImagesFromInput, processImagePaths } from "./utils/parser"
 import { readStdinIfPiped } from "./utils/piped"
+import { runPlainTextTask } from "./utils/plain-text-task"
 import { initializeCliContext } from "./vscode-context"
 
 export const CLI_VERSION = "0.0.0"
@@ -234,14 +235,25 @@ async function runTask(
 
 	await StateManager.get().flushPendingState()
 
-	// Skip info messages in JSON mode
-	if (!options.json) {
-		printInfo(`Starting Cline task...`)
-		printInfo(`Working directory: ${ctx.workspacePath}`)
-		if (imageDataUrls.length > 0) {
-			printInfo(`Images attached: ${imageDataUrls.length}`)
-		}
-		print(separator())
+	// Detect if output is a TTY (interactive terminal) or redirected to a file/pipe
+	const isTTY = process.stdout.isTTY === true
+
+	// Use plain text mode when output is redirected or JSON mode is enabled
+	if (!isTTY || options.json) {
+		// Plain text mode: no Ink rendering, just clean text output
+		const success = await runPlainTextTask({
+			controller: ctx.controller,
+			prompt: taskPrompt,
+			imageDataUrls: imageDataUrls.length > 0 ? imageDataUrls : undefined,
+			verbose: options.verbose,
+			jsonOutput: options.json,
+		})
+
+		// Cleanup
+		await ctx.controller.stateManager.flushPendingState()
+		await ctx.controller.dispose()
+		await ErrorService.get().dispose()
+		exit(success ? 0 : 1)
 	}
 
 	let isComplete = false
