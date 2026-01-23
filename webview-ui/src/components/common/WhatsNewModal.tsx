@@ -114,7 +114,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 							</a>
 						</li>
 						<li>
-							<strong>Grok Code Fast 1: </strong> is saying goodbye (to free) this Friday at 11:00 am PT.
+							<strong>Grok Code Fast 1: </strong> is no longer free to use.
 						</li>
 					</ul>
 				</div>

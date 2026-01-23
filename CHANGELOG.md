@@ -1,12 +1,9 @@
 # Changelog
 
-## 3.52.1
+## [3.53.0]
 
-- 66d7664: improve cline command permission validation logic. add cline command permission man page documentation
-- abf3081: Wiring-up "conditionals" for Cline Rules files.
-- 4533ed3: Fix drag & drop files from SSH remote workspaces into chat
-- 125cb78: Updated switch component to adhere to 3:1 contrast accessibility standard for both light and dark vscode themes
-- 5052220: Remove hooks feature setting and make it always enabled (except on Windows).
+### Fixed
+ - Removed grok model from free tier
 
 ## [3.52.0]
 
