@@ -106,11 +106,10 @@ import { getApiMetrics } from "@shared/getApiMetrics"
 import type { Mode } from "@shared/storage/types"
 import { execSync } from "child_process"
 import { Box, Static, Text, useInput } from "ink"
-import Spinner from "ink-spinner"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
-import { useIsSpinnerActive } from "../hooks/useStateSubscriber"
+import { useSpinnerState } from "../hooks/useStateSubscriber"
 import {
 	checkAndWarnRipgrepMissing,
 	extractMentionQuery,
@@ -123,6 +122,7 @@ import { jsonParseSafe, parseImagesFromInput } from "../utils/parser"
 import { AsciiMotionCli, StaticRobotFrame } from "./AsciiMotionCli"
 import { ChatMessage } from "./ChatMessage"
 import { FileMentionMenu } from "./FileMentionMenu"
+import { ThinkingIndicator } from "./ThinkingIndicator"
 
 interface ChatViewProps {
 	controller?: any
@@ -213,7 +213,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 	// Get task state from context
 	const taskState = useTaskState()
 	const { controller: taskController } = useTaskContext()
-	const isSpinnerActive = useIsSpinnerActive()
+	const { isActive: isSpinnerActive, startTime: spinnerStartTime } = useSpinnerState()
 
 	// Input state
 	const [textInput, setTextInput] = useState("")
@@ -640,13 +640,10 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 					</Box>
 				)}
 
-				{/* Loading spinner when processing */}
+				{/* Thinking indicator when processing */}
 				{isSpinnerActive && !pendingAsk && (
 					<Box marginBottom={1}>
-						<Text color={borderColor}>
-							<Spinner />
-						</Text>
-						<Text color={borderColor}> {mode === "plan" ? "Planning" : "Thinking"}...</Text>
+						<ThinkingIndicator mode={mode} startTime={spinnerStartTime} />
 					</Box>
 				)}
 
