@@ -124,19 +124,18 @@ export const useCompletionSignals = () => {
 
 /**
  * Check if spinner should be shown (when API is thinking)
- * Returns { isActive: boolean, startTime: number | undefined }
  */
-export const useSpinnerState = (): { isActive: boolean; startTime: number | undefined } => {
+export const useIsSpinnerActive = (): boolean => {
 	const { state } = useTaskContext()
 
 	if (!state.clineMessages || state.clineMessages.length === 0) {
-		return { isActive: false, startTime: undefined }
+		return false
 	}
 
 	// If the last message is a completed ask message, don't show spinner (waiting for user input)
 	const lastMessage = state.clineMessages[state.clineMessages.length - 1]
 	if (lastMessage?.type === "ask" && !lastMessage.partial) {
-		return { isActive: false, startTime: undefined }
+		return false
 	}
 
 	// Look for most recent api_req_started that isn't followed by api_req_finished
@@ -151,20 +150,9 @@ export const useSpinnerState = (): { isActive: boolean; startTime: number | unde
 					break
 				}
 			}
-			if (!hasFinished) {
-				return { isActive: true, startTime: msg.ts }
-			}
-			return { isActive: false, startTime: undefined }
+			return !hasFinished
 		}
 	}
 
-	return { isActive: false, startTime: undefined }
-}
-
-/**
- * Check if spinner should be shown (when API is thinking)
- * @deprecated Use useSpinnerState() instead for access to start time
- */
-export const useIsSpinnerActive = (): boolean => {
-	return useSpinnerState().isActive
+	return false
 }

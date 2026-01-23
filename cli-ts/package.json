@@ -4,17 +4,18 @@
 	"description": "Cline CLI - TypeScript implementation that reuses core Cline functionality",
 	"main": "dist/cli.mjs",
 	"bin": {
-		"clinedev": "./dist/cli.mjs"
+		"cline": "./dist/cli.mjs"
 	},
 	"type": "module",
 	"scripts": {
 		"build": "node esbuild.mjs",
 		"build:production": "node esbuild.mjs --production",
 		"watch": "node esbuild.mjs --watch",
-		"dev": "npm run watch",
+		"dev": "IS_DEV=true && npm run link && npm run watch ; npm run unlink",
 		"clean": "rimraf dist",
 		"typecheck": "tsc --noEmit",
 		"link": "npm run build && npm link",
+		"unlink": "npm unlink -g @cline/cli && npm unlink -g cline",
 		"test": "vitest",
 		"test:run": "vitest run"
 	},

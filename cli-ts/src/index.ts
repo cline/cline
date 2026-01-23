@@ -16,6 +16,7 @@ import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
 import { StandaloneTerminalManager } from "@/integrations/terminal/standalone/StandaloneTerminalManager"
 import { ErrorService } from "@/services/error/ErrorService"
 import { initializeDistinctId } from "@/services/logging/distinctId"
+import { getProviderModelIdKey } from "@/shared/storage"
 import { App } from "./components/App"
 import { checkRawModeSupport } from "./context/StdinContext"
 import { createCliHostBridgeProvider } from "./controllers"
@@ -26,7 +27,6 @@ import { calculateRobotTopRow, queryCursorPos } from "./utils/cursor-position"
 import { print, printError, printInfo, printWarning, separator } from "./utils/display"
 import { parseImagesFromInput, processImagePaths } from "./utils/parser"
 import { readStdinIfPiped } from "./utils/piped"
-import { getProviderModelIdKey } from "./utils/provider-map"
 import { initializeCliContext } from "./vscode-context"
 
 export const CLI_VERSION = "0.0.0"
@@ -96,7 +96,8 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 		AuthHandler.getInstance().setEnabled(true)
 	}
 
-	const logToChannel = options.verbose ? (message: string) => printInfo(message) : () => {}
+	// TODO: Wire up with proper logging system
+	const logToChannel = () => {}
 
 	HostProvider.initialize(
 		() => new CliWebviewProvider(extensionContext),
@@ -179,6 +180,7 @@ async function runTask(
 		thinking?: boolean
 		yolo?: boolean
 		images?: string[]
+		json?: boolean
 	},
 	existingContext?: CliContext,
 ) {
@@ -232,12 +234,15 @@ async function runTask(
 
 	await StateManager.get().flushPendingState()
 
-	printInfo(`Starting Cline task...`)
-	printInfo(`Working directory: ${ctx.workspacePath}`)
-	if (imageDataUrls.length > 0) {
-		printInfo(`Images attached: ${imageDataUrls.length}`)
+	// Skip info messages in JSON mode
+	if (!options.json) {
+		printInfo(`Starting Cline task...`)
+		printInfo(`Working directory: ${ctx.workspacePath}`)
+		if (imageDataUrls.length > 0) {
+			printInfo(`Images attached: ${imageDataUrls.length}`)
+		}
+		print(separator())
 	}
-	print(separator())
 
 	let isComplete = false
 	let taskError = false
@@ -248,6 +253,7 @@ async function runTask(
 			taskId: taskPrompt.substring(0, 30),
 			verbose: options.verbose,
 			controller: ctx.controller,
+			jsonOutput: options.json,
 			isRawModeSupported: checkRawModeSupport(),
 			onComplete: () => {
 				isComplete = true
@@ -433,6 +439,7 @@ program
 	.option("-c, --cwd <path>", "Working directory for the task")
 	.option("--config <path>", "Path to Cline configuration directory")
 	.option("--thinking", "Enable extended thinking (1024 token budget)")
+	.option("--json", "Output messages as JSON instead of styled text")
 	.action((prompt, options) => runTask(prompt, options))
 
 program
@@ -523,17 +530,27 @@ async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: 
 // Interactive mode (default when no command given)
 program
 	.argument("[prompt]", "Task prompt (starts task immediately)")
+	.option("-a, --act", "Run in act mode")
+	.option("-p, --plan", "Run in plan mode")
+	.option("-y, --yolo", "Enable yolo mode (auto-approve actions)")
+	.option("-m, --model <model>", "Model to use for the task")
 	.option("-i, --images <paths...>", "Image file paths to include with the task")
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory")
 	.option("--config <path>", "Configuration directory")
 	.option("--thinking", "Enable extended thinking (1024 token budget)")
+	.option("--json", "Output messages as JSON instead of styled text")
 	.action(async (prompt, options) => {
-		// If no prompt argument, check if input is piped via stdin
+		// Always check for piped stdin content
+		const stdinInput = await readStdinIfPiped()
+
+		// Combine stdin content with prompt argument
 		let effectivePrompt = prompt
-		if (!effectivePrompt) {
-			const stdinInput = await readStdinIfPiped()
-			if (stdinInput) {
+		if (stdinInput) {
+			if (effectivePrompt) {
+				// Prepend stdin content to the prompt
+				effectivePrompt = `${stdinInput}\n\n${effectivePrompt}`
+			} else {
 				effectivePrompt = stdinInput
 			}
 		}
