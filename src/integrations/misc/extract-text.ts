@@ -79,8 +79,10 @@ async function extractTextFromIPYNB(filePath: string): Promise<string> {
 	const encoding = await detectEncoding(fileBuffer)
 	const data = iconv.decode(fileBuffer, encoding)
 
-	// Return sanitized JSON for proper editing (enhanced notebook behavior is now always enabled)
-	return sanitizeNotebookForLLM(data)
+	// Strip all outputs to reduce context size - outputs aren't needed for understanding
+	// notebook structure. For Jupyter commands, the specific cell's outputs are included
+	// separately via sanitizeCellForLLM which preserves text outputs.
+	return sanitizeNotebookForLLM(data, true)
 }
 
 /**
