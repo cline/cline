@@ -9,11 +9,21 @@
 
 import type * as acp from "@agentclientprotocol/sdk"
 import { PROTOCOL_VERSION } from "@agentclientprotocol/sdk"
+import { registerPartialMessageCallback } from "@core/controller/ui/subscribeToPartialMessage"
+import type { ClineAsk, ClineMessage as ClineMessageType } from "@shared/ExtensionMessage"
+import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import type { Controller } from "@/core/controller"
 import type { StateManager } from "@/core/storage/StateManager"
 import type { Mode } from "@/shared/storage/types"
 import { AcpHostBridgeProvider } from "./AcpHostBridgeProvider.js"
 import { AcpTerminalManager } from "./AcpTerminalManager.js"
+import { translateMessage } from "./messageTranslator.js"
+import {
+	AutoApprovalTracker,
+	getAutoApprovalIdentifier,
+	processPermissionRequest,
+	updateSessionStateAfterPermission,
+} from "./permissionHandler.js"
 import type { AcpAgentOptions, AcpSessionState, ClineAcpSession } from "./types.js"
 
 /**
@@ -47,6 +57,12 @@ export class AcpAgent implements acp.Agent {
 
 	/** Client capabilities received during initialization */
 	private clientCapabilities?: acp.ClientCapabilities
+
+	/** Auto-approval tracker for remembering "always allow" decisions */
+	private readonly autoApprovalTracker: AutoApprovalTracker = new AutoApprovalTracker()
+
+	/** Track processed message timestamps to detect new messages */
+	private processedMessageTimestamps: Set<number> = new Set()
 
 	constructor(connection: acp.AgentSideConnection, options: AcpAgentOptions) {
 		this.connection = connection
@@ -270,6 +286,14 @@ export class AcpAgent implements acp.Agent {
 	 *
 	 * This is the main entry point for user interaction. The agent
 	 * processes the prompt and sends updates back via sessionUpdate.
+	 *
+	 * The prompt flow:
+	 * 1. Extract content from the ACP prompt (text, images, files)
+	 * 2. Set up state broadcasting (subscribe to controller updates)
+	 * 3. Initialize or continue task with Controller
+	 * 4. Translate ClineMessages to ACP SessionUpdates
+	 * 5. Handle permission requests for tools/commands
+	 * 6. Return when task completes, is cancelled, or needs user input
 	 */
 	async prompt(params: acp.PromptRequest): Promise<acp.PromptResponse> {
 		const session = this.sessions.get(params.sessionId)
@@ -281,6 +305,10 @@ export class AcpAgent implements acp.Agent {
 
 		if (sessionState.isProcessing) {
 			throw new Error(`Session ${params.sessionId} is already processing a prompt`)
+		}
+
+		if (!this.controller) {
+			throw new Error("Controller not initialized. This is a bug in the ACP agent setup.")
 		}
 
 		if (this.options.debug) {
@@ -295,6 +323,23 @@ export class AcpAgent implements acp.Agent {
 		sessionState.cancelled = false
 		session.lastActivityAt = Date.now()
 
+		// Clear processed timestamps for new prompt cycle
+		this.processedMessageTimestamps.clear()
+
+		// Track cleanup functions for subscriptions
+		const cleanupFunctions: (() => void)[] = []
+
+		// Promise that resolves when task completes, is cancelled, or needs input
+		let resolvePrompt: (response: acp.PromptResponse) => void
+		let rejectPrompt: (error: Error) => void
+		const promptPromise = new Promise<acp.PromptResponse>((resolve, reject) => {
+			resolvePrompt = resolve
+			rejectPrompt = reject
+		})
+
+		// Track if we've already resolved/rejected
+		let promptResolved = false
+
 		try {
 			// Extract text content from prompt
 			const textContent = params.prompt
@@ -302,10 +347,10 @@ export class AcpAgent implements acp.Agent {
 				.map((block) => block.text)
 				.join("\n")
 
-			// Extract image content
+			// Extract image content as base64 data URLs
 			const imageContent = params.prompt
 				.filter((block): block is acp.ImageContent & { type: "image" } => block.type === "image")
-				.map((block) => block.data)
+				.map((block) => `data:${block.mimeType || "image/png"};base64,${block.data}`)
 
 			// Extract file resources (embedded resources)
 			const fileResources = params.prompt
@@ -320,27 +365,292 @@ export class AcpAgent implements acp.Agent {
 				})
 			}
 
-			// Send initial acknowledgment
-			await this.sendSessionUpdate(params.sessionId, {
-				sessionUpdate: "agent_message_chunk",
-				content: {
-					type: "text",
-					text: "",
-				},
+			// Set up state broadcasting - subscribe to controller state updates
+			const originalPostState = this.controller.postStateToWebview.bind(this.controller)
+			this.controller.postStateToWebview = async () => {
+				await originalPostState()
+				await this.handleStateUpdate(params.sessionId, sessionState)
+			}
+			cleanupFunctions.push(() => {
+				if (this.controller) {
+					this.controller.postStateToWebview = originalPostState
+				}
 			})
 
-			// TODO: Initialize Controller and process the prompt
-			// This will be fully implemented when integrating with Controller
-			// For now, return a placeholder response
+			// Subscribe to partial message events for streaming updates
+			const unsubscribePartial = registerPartialMessageCallback((protoMessage) => {
+				const message = convertProtoToClineMessage(protoMessage) as ClineMessageType
+				this.handlePartialMessage(params.sessionId, sessionState, message).catch((error) => {
+					if (this.options.debug) {
+						console.error("[AcpAgent] Error handling partial message:", error)
+					}
+				})
+			})
+			cleanupFunctions.push(unsubscribePartial)
 
-			// Check if cancelled during processing
-			if (sessionState.cancelled) {
-				return { stopReason: "cancelled" }
+			// Determine if this is a new task or continuation
+			const hasActiveTask = this.controller.task !== undefined
+
+			if (hasActiveTask && this.controller.task) {
+				// Continue existing task - respond to pending ask
+				if (this.options.debug) {
+					console.error("[AcpAgent] Continuing existing task:", this.controller.task.taskId)
+				}
+
+				// Find the last ask message and respond to it
+				const messages = this.controller.task.messageStateHandler.getClineMessages()
+				const lastAskMessage = [...messages].reverse().find((m) => m.type === "ask")
+
+				if (lastAskMessage) {
+					await this.controller.task.handleWebviewAskResponse(
+						"messageResponse",
+						textContent,
+						imageContent,
+						fileResources,
+					)
+				} else {
+					// No pending ask - treat as new user message
+					// This shouldn't normally happen but handle gracefully
+					if (this.options.debug) {
+						console.error("[AcpAgent] No pending ask found, starting new task")
+					}
+					await this.controller.initTask(textContent, imageContent, fileResources)
+				}
+			} else {
+				// Start new task
+				if (this.options.debug) {
+					console.error("[AcpAgent] Starting new task")
+				}
+				await this.controller.initTask(textContent, imageContent, fileResources)
 			}
 
-			return { stopReason: "end_turn" }
+			// Wait for task to complete, be cancelled, or need user input
+			const checkTaskState = async () => {
+				if (promptResolved) return
+
+				// Check cancellation
+				if (sessionState.cancelled) {
+					promptResolved = true
+					resolvePrompt({ stopReason: "cancelled" })
+					return
+				}
+
+				// Check if controller has a task
+				if (!this.controller?.task) {
+					// Task was cleared - likely completed or cancelled
+					promptResolved = true
+					resolvePrompt({ stopReason: "end_turn" })
+					return
+				}
+
+				const task = this.controller.task
+				const taskState = task.taskState
+
+				// Check if task is awaiting user response (followup, plan response, etc.)
+				if (taskState.isAwaitingPlanResponse || taskState.isAwaitingUserResponse) {
+					promptResolved = true
+					resolvePrompt({ stopReason: "end_turn" })
+					return
+				}
+
+				// Check if streaming has finished and there's no pending ask
+				if (!taskState.isStreaming) {
+					const messages = task.messageStateHandler.getClineMessages()
+					const lastMessage = messages[messages.length - 1]
+
+					// If last message is an ask that requires user input, we're done
+					if (lastMessage?.type === "ask") {
+						const askType = lastMessage.ask as ClineAsk
+						// followup, plan_mode_respond, act_mode_respond all require next prompt
+						if (
+							askType === "followup" ||
+							askType === "plan_mode_respond" ||
+							askType === "act_mode_respond" ||
+							askType === "completion_result" ||
+							askType === "resume_task" ||
+							askType === "resume_completed_task"
+						) {
+							promptResolved = true
+							resolvePrompt({ stopReason: "end_turn" })
+							return
+						}
+					}
+
+					// If last message is completion_result say, we're done
+					if (lastMessage?.type === "say" && lastMessage.say === "completion_result") {
+						promptResolved = true
+						resolvePrompt({ stopReason: "end_turn" })
+						return
+					}
+				}
+
+				// Continue polling
+				if (!promptResolved) {
+					setTimeout(checkTaskState, 100)
+				}
+			}
+
+			// Start checking task state
+			checkTaskState()
+
+			// Return the promise that will resolve when task completes
+			return await promptPromise
+		} catch (error) {
+			if (!promptResolved) {
+				promptResolved = true
+				// Send error as session update before returning
+				await this.sendSessionUpdate(params.sessionId, {
+					sessionUpdate: "agent_message_chunk",
+					content: {
+						type: "text",
+						text: `Error: ${error instanceof Error ? error.message : String(error)}`,
+					},
+				})
+				return { stopReason: "error" as acp.StopReason }
+			}
+			throw error
 		} finally {
+			// Clean up subscriptions
+			for (const cleanup of cleanupFunctions) {
+				try {
+					cleanup()
+				} catch (error) {
+					if (this.options.debug) {
+						console.error("[AcpAgent] Error during cleanup:", error)
+					}
+				}
+			}
 			sessionState.isProcessing = false
+		}
+	}
+
+	/**
+	 * Handle a state update from the controller.
+	 * This is called whenever Controller.postStateToWebview() is invoked.
+	 */
+	private async handleStateUpdate(sessionId: string, sessionState: AcpSessionState): Promise<void> {
+		if (!this.controller) return
+
+		try {
+			const state = await this.controller.getStateToPostToWebview()
+			const messages = state.clineMessages || []
+
+			// Process new or updated messages
+			for (const message of messages) {
+				await this.processMessage(sessionId, sessionState, message, false)
+			}
+		} catch (error) {
+			if (this.options.debug) {
+				console.error("[AcpAgent] Error handling state update:", error)
+			}
+		}
+	}
+
+	/**
+	 * Handle a partial message update (streaming content).
+	 */
+	private async handlePartialMessage(
+		sessionId: string,
+		sessionState: AcpSessionState,
+		message: ClineMessageType,
+	): Promise<void> {
+		await this.processMessage(sessionId, sessionState, message, true)
+	}
+
+	/**
+	 * Process a single ClineMessage and send appropriate ACP updates.
+	 */
+	private async processMessage(
+		sessionId: string,
+		sessionState: AcpSessionState,
+		message: ClineMessageType,
+		isPartial: boolean,
+	): Promise<void> {
+		const messageKey = message.ts
+
+		// For partial messages, always process (they're updates to existing)
+		// For complete messages, check if already processed
+		if (!isPartial && this.processedMessageTimestamps.has(messageKey)) {
+			return
+		}
+
+		// Mark as processed if complete
+		if (!isPartial) {
+			this.processedMessageTimestamps.add(messageKey)
+		}
+
+		// Translate the message to ACP updates
+		const translated = translateMessage(message, sessionState)
+
+		// Send all generated updates
+		for (const update of translated.updates) {
+			await this.sendSessionUpdate(sessionId, update)
+		}
+
+		// Handle permission requests
+		if (translated.requiresPermission && translated.permissionRequest) {
+			await this.handlePermissionRequest(sessionId, sessionState, message, translated.permissionRequest)
+		}
+	}
+
+	/**
+	 * Handle a permission request from a tool/command.
+	 */
+	private async handlePermissionRequest(
+		sessionId: string,
+		sessionState: AcpSessionState,
+		message: ClineMessageType,
+		permissionRequest: { toolCall: acp.ToolCall; options: acp.PermissionOption[] },
+	): Promise<void> {
+		if (!this.controller?.task) return
+
+		const askType = message.ask as ClineAsk
+		const identifier = getAutoApprovalIdentifier(permissionRequest.toolCall, askType)
+
+		try {
+			const result = await processPermissionRequest(
+				(sid, tc, opts) => this.requestPermission(sid, tc, opts),
+				sessionId,
+				permissionRequest.toolCall,
+				askType,
+				identifier,
+				this.autoApprovalTracker,
+			)
+
+			// Update session state
+			updateSessionStateAfterPermission(
+				sessionState,
+				permissionRequest.toolCall.toolCallId,
+				result.response === "yesButtonClicked",
+			)
+
+			// Send tool call update based on permission result
+			const status: acp.ToolCallStatus = result.response === "yesButtonClicked" ? "in_progress" : "cancelled"
+			await this.sendSessionUpdate(sessionId, {
+				sessionUpdate: "tool_call_update",
+				toolCallId: permissionRequest.toolCall.toolCallId,
+				status,
+			})
+
+			// Respond to the task's ask
+			if (result.cancelled) {
+				// User cancelled - don't respond, let task handle timeout
+				return
+			}
+
+			await this.controller.task.handleWebviewAskResponse(result.response, result.text)
+		} catch (error) {
+			if (this.options.debug) {
+				console.error("[AcpAgent] Error handling permission request:", error)
+			}
+
+			// On error, mark tool as failed
+			await this.sendSessionUpdate(sessionId, {
+				sessionUpdate: "tool_call_update",
+				toolCallId: permissionRequest.toolCall.toolCallId,
+				status: "failed",
+				rawOutput: { error: error instanceof Error ? error.message : String(error) },
+			})
 		}
 	}
 
