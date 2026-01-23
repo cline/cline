@@ -2,22 +2,23 @@ import { afterEach, beforeEach, describe, it } from "mocha"
 import * as should from "should"
 import * as sinon from "sinon"
 import { createClineAPI } from "@/exports"
+import { Logger } from "@/shared/services/Logger"
 import type { ClineAPI } from "../exports/cline"
 import { setVscodeHostProviderMock } from "./host-provider-test-utils"
 
 describe("ClineAPI Core Functionality", () => {
 	let api: ClineAPI
 	let mockController: any
-	let mockLogToChannel: sinon.SinonStub<[string], void>
+	let mockLoggerError: sinon.SinonStub
 	let sandbox: sinon.SinonSandbox
 	let _getGlobalStateStub: sinon.SinonStub
 
 	beforeEach(async () => {
 		sandbox = sinon.createSandbox()
 
-		// Create mock log function
-		mockLogToChannel = sandbox.stub<[string], void>()
-		setVscodeHostProviderMock({ logToChannel: mockLogToChannel })
+		// Stub Logger.error
+		mockLoggerError = sandbox.stub(Logger, "error")
+		setVscodeHostProviderMock({})
 
 		// Create a mock controller that matches what the real createClineAPI expects
 		// We don't import the real Controller to avoid the webview dependencies
@@ -139,7 +140,7 @@ describe("ClineAPI Core Functionality", () => {
 
 				await api.pressPrimaryButton()
 
-				sinon.assert.calledWith(mockLogToChannel, "No active task to press button for")
+				sinon.assert.calledWith(mockLoggerError, "No active task to press button for")
 			})
 		})
 
@@ -160,7 +161,7 @@ describe("ClineAPI Core Functionality", () => {
 
 				await api.pressSecondaryButton()
 
-				sinon.assert.calledWith(mockLogToChannel, "No active task to press button for")
+				sinon.assert.calledWith(mockLoggerError, "No active task to press button for")
 			})
 		})
 	})
