@@ -89,6 +89,8 @@ interface AppProps {
 	onWelcomeExit?: () => void
 	// Stdin support
 	isRawModeSupported?: boolean
+	// Robot position (calculated before Ink mounts)
+	robotTopRow?: number
 }
 
 export const App: React.FC<AppProps> = ({
@@ -130,6 +132,7 @@ export const App: React.FC<AppProps> = ({
 	onWelcomeSubmit,
 	onWelcomeExit,
 	isRawModeSupported = true,
+	robotTopRow,
 }) => {
 	const [currentView, setCurrentView] = useState<ViewType>(initialView)
 	const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(taskId)
@@ -243,7 +246,13 @@ export const App: React.FC<AppProps> = ({
 		case "welcome":
 			content = (
 				<TaskContextProvider controller={controller}>
-					<ChatView controller={controller} onComplete={onComplete} onError={onError} onExit={onWelcomeExit} />
+					<ChatView
+						controller={controller}
+						onComplete={onComplete}
+						onError={onError}
+						onExit={onWelcomeExit}
+						robotTopRow={robotTopRow}
+					/>
 				</TaskContextProvider>
 			)
 			break

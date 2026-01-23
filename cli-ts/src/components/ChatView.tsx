@@ -120,7 +120,7 @@ import {
 	searchWorkspaceFiles,
 } from "../utils/file-search"
 import { jsonParseSafe, parseImagesFromInput } from "../utils/parser"
-import { AsciiMotionCli } from "./AsciiMotionCli"
+import { AsciiMotionCli, StaticRobotFrame } from "./AsciiMotionCli"
 import { ChatMessage } from "./ChatMessage"
 import { FileMentionMenu } from "./FileMentionMenu"
 
@@ -129,6 +129,7 @@ interface ChatViewProps {
 	onExit?: () => void
 	onComplete?: () => void
 	onError?: () => void
+	robotTopRow?: number
 }
 
 const SEARCH_DEBOUNCE_MS = 150
@@ -208,7 +209,7 @@ function parseAskOptions(text: string): string[] {
 	return parts.options || []
 }
 
-export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComplete: _onComplete, onError }) => {
+export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComplete: _onComplete, onError, robotTopRow }) => {
 	// Get task state from context
 	const taskState = useTaskState()
 	const { controller: taskController } = useTaskContext()
@@ -470,7 +471,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 	useInput((input, key) => {
 		// Filter out mouse escape sequences from AsciiMotionCli's mouse tracking
 		// Mouse events look like: [<35;46;17M or contain escape characters
-		if (input.includes("\x1b") || input.includes("[<") || /\d+;\d+;\d+[Mm]/.test(input)) {
+		if (input.includes("\x1b") || input.includes("[<") || /\d+;\d+[Mm]/.test(input)) {
 			return
 		}
 
@@ -586,10 +587,14 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 			<Static items={staticItems}>
 				{(item) => {
 					if (item.type === "header") {
-						// Note: The animated robot was shown in the dynamic region during welcome state.
-						// We don't show it again in static - it just scrolls away when messages start.
+						// Show static robot frame in header (first frame, looking straight ahead)
 						return (
 							<Box flexDirection="column" key="header">
+								<StaticRobotFrame />
+								<Text> </Text>
+								<Text bold color="white">
+									{centerText("What can I do for you?")}
+								</Text>
 								<Text> </Text>
 							</Box>
 						)
@@ -605,7 +610,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 				{/* Animated robot and welcome text - only shown before messages start */}
 				{isWelcomeState && (
 					<Box flexDirection="column" marginBottom={1}>
-						<AsciiMotionCli />
+						<AsciiMotionCli robotTopRow={robotTopRow} />
+						<Text> </Text>
 						<Text bold color="white">
 							{centerText("What can I do for you?")}
 						</Text>
