@@ -46,3 +46,4 @@ test-results
 /pkg
 .secrets
 
+*.tsbuildinfo
