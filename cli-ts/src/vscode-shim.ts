@@ -3,7 +3,10 @@
  * Provides minimal stubs for VSCode types and enums used by the codebase
  */
 
+import path from "node:path"
+import pino, { type Logger } from "pino"
 import { printError, printInfo, printWarning } from "./utils/display"
+import { CLINE_CLI_DIR } from "./utils/path"
 
 // Re-export common types from vscode-uri for URI handling
 export { URI } from "vscode-uri"
@@ -33,6 +36,34 @@ export enum DiagnosticSeverity {
 export enum EndOfLine {
 	LF = 1,
 	CRLF = 2,
+}
+
+const OUTPUT_LOG_DIR = CLINE_CLI_DIR.log
+const outputChannelLoggers = new Map<string, Logger>()
+
+function toSafeLogName(name: string) {
+	const trimmed = name.trim() || "output"
+	return trimmed.replace(/[^a-zA-Z0-9._-]+/g, "-")
+}
+
+function getOutputChannelLogger(name: string) {
+	const existing = outputChannelLoggers.get(name)
+	if (existing) {
+		return existing
+	}
+
+	const safeName = toSafeLogName(name)
+	const transport = pino.transport({
+		target: "pino-roll",
+		options: {
+			file: path.join(OUTPUT_LOG_DIR, `${safeName}.log`),
+			mkdir: true,
+			frequency: "daily",
+		},
+	})
+	const logger = pino({ timestamp: pino.stdTimeFunctions.isoTime }, transport)
+	outputChannelLoggers.set(name, logger)
+	return logger
 }
 
 // Position class
@@ -259,14 +290,21 @@ export const window = {
 		printError(`[ERROR] ${message}`)
 		return undefined
 	},
-	createOutputChannel: (_name: string) => ({
-		appendLine: (line: string) => printInfo(`[${new Date().toISOString()}] ${line}`),
-		append: (text: string) => printInfo(`[${new Date().toISOString()}] ${text}`),
-		clear: () => {},
-		show: () => {},
-		hide: () => {},
-		dispose: () => {},
-	}),
+	createOutputChannel: (name: string) => {
+		const logger = getOutputChannelLogger(name)
+		return {
+			appendLine: (line: string) => {
+				logger.info({ channel: name }, line)
+			},
+			append: (text: string) => {
+				logger.info({ channel: name }, text)
+			},
+			clear: () => {},
+			show: () => {},
+			hide: () => {},
+			dispose: () => {},
+		}
+	},
 	terminals: [] as any[],
 	activeTerminal: undefined as any,
 	createTerminal: (_options?: any) => ({

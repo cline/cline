@@ -202,6 +202,8 @@ const config = {
 		"ink-picture",
 		"react",
 		"aws4fetch",
+		"pino",
+		"pino-roll",
 	],
 	supported: { "top-level-await": true },
 	banner: {
