@@ -1,22 +1,10 @@
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
+import { Environment, type EnvironmentConfig } from "./shared/config-types"
+import { Logger } from "./shared/services/Logger"
 
-import { Logger } from "@/shared/services/Logger"
-
-export enum Environment {
-	production = "production",
-	staging = "staging",
-	local = "local",
-	selfHosted = "selfHosted",
-}
-
-export interface EnvironmentConfig {
-	environment: Environment
-	appBaseUrl: string
-	apiBaseUrl: string
-	mcpBaseUrl: string
-}
+export { Environment, type EnvironmentConfig }
 
 /**
  * Schema for the endpoints.json configuration file used in on-premise deployments.
