@@ -24,6 +24,7 @@ import { Session } from "@/shared/services/Session"
 import { getProviderModelIdKey, ProviderToApiKeyMap } from "@/shared/storage"
 import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import { version as CLI_VERSION } from "../package.json"
+import { runAcpMode } from "./acp/index.js"
 import { App } from "./components/App"
 import { checkRawModeSupport } from "./context/StdinContext"
 import { createCliHostBridgeProvider } from "./controllers"
@@ -657,11 +658,22 @@ program
 	.option("--config <path>", "Configuration directory")
 	.option("--thinking", "Enable extended thinking (1024 token budget)")
 	.option("--json", "Output messages as JSON instead of styled text")
+	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
 	.action(async (prompt, options) => {
 		// Always check for piped stdin content
 		const stdinInput = await readStdinIfPiped()
 
-		// Combine stdin content with prompt argument
+		// Check for ACP mode first - this takes precedence over everything else
+		if (options.acp) {
+			await runAcpMode({
+				config: options.config,
+				cwd: options.cwd,
+				verbose: options.verbose,
+			})
+			return
+		}
+
+		// If no prompt argument, check if input is piped via stdin
 		let effectivePrompt = prompt
 		if (stdinInput) {
 			if (effectivePrompt) {

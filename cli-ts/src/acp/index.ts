@@ -45,9 +45,7 @@ export {
 	requiresPermission,
 	updateSessionStateAfterPermission,
 } from "./permissionHandler.js"
-
+// Export the ACP mode entry point
+export { type AcpModeOptions, restoreConsole, runAcpMode } from "./runAcpMode.js"
 // Re-export types
 export * from "./types.js"
-
-// Note: The following exports will be added as each module is implemented:
-// export { runAcpMode } from "./runAcpMode.js"
