@@ -75,6 +75,19 @@ class ClineEndpoint {
 	}
 
 	/**
+	 * Checks if Cline is running in self-hosted/on-premise mode.
+	 * @returns true if in selfHosted mode, or true if not initialized (safety fallback to prevent accidental external calls)
+	 */
+	public static isSelfHosted(): boolean {
+		// Safety fallback: if not initialized, treat as selfHosted
+		// to prevent accidental external service calls before configuration is loaded
+		if (!ClineEndpoint._initialized) {
+			return true
+		}
+		return ClineEndpoint.config.environment === Environment.selfHosted
+	}
+
+	/**
 	 * Returns the singleton instance.
 	 * @throws Error if not initialized
 	 */
