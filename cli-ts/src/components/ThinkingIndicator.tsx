@@ -79,7 +79,7 @@ function ShimmerText({
 	const chars = text.split("")
 
 	return (
-		<>
+		<Text>
 			{chars.map((char, i) => {
 				// Calculate distance from shimmer center position
 				// shimmerPos moves from -SHIMMER_RADIUS to textLen + SHIMMER_RADIUS
@@ -97,7 +97,7 @@ function ShimmerText({
 					</Text>
 				)
 			})}
-		</>
+		</Text>
 	)
 }
 

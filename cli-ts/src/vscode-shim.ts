@@ -4,6 +4,7 @@
  */
 
 import path from "node:path"
+import { nanoid } from "nanoid"
 import pino, { type Logger } from "pino"
 import { printError, printInfo, printWarning } from "./utils/display"
 import { CLINE_CLI_DIR } from "./utils/path"
@@ -40,11 +41,9 @@ export enum EndOfLine {
 
 const OUTPUT_LOG_DIR = CLINE_CLI_DIR.log
 const outputChannelLoggers = new Map<string, Logger>()
-
-function toSafeLogName(name: string) {
-	const trimmed = name.trim() || "output"
-	return trimmed.replace(/[^a-zA-Z0-9._-]+/g, "-")
-}
+const SESSION_ID = nanoid(8)
+const SESSION_DATE = new Date().toISOString().slice(0, 10).replace(/-/g, "")
+const SESSION_LOG_FILE = `cline-cli-${SESSION_DATE}-${SESSION_ID}.log`
 
 function getOutputChannelLogger(name: string) {
 	const existing = outputChannelLoggers.get(name)
@@ -52,13 +51,13 @@ function getOutputChannelLogger(name: string) {
 		return existing
 	}
 
-	const safeName = toSafeLogName(name)
 	const transport = pino.transport({
 		target: "pino-roll",
 		options: {
-			file: path.join(OUTPUT_LOG_DIR, `${safeName}.log`),
+			file: path.join(OUTPUT_LOG_DIR, SESSION_LOG_FILE),
 			mkdir: true,
 			frequency: "daily",
+			limit: { count: 2 },
 		},
 	})
 	const logger = pino({ timestamp: pino.stdTimeFunctions.isoTime }, transport)

@@ -171,7 +171,7 @@ function formatToolResult(result: string, maxLines: number = 5): string[] {
 	return displayLines
 }
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming }) => {
+export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
 	const { type, ask, say, text } = message
 
 	// User messages (task, user_feedback) - bubble style with background and >
@@ -303,11 +303,69 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming }
 	}
 
 	// Error messages
-	if (say === "error") {
+	if (say === "error" || (type === "ask" && ask === "api_req_failed")) {
+		// Try to parse error message if it's JSON
+		let errorMessage = text || "Unknown error"
+		if (text) {
+			const parsed = jsonParseSafe(text, { message: undefined as string | undefined })
+			if (parsed.message) {
+				errorMessage = parsed.message
+			}
+		}
 		return (
 			<Box flexDirection="column" marginBottom={1}>
 				<Box>
-					<Text color="red">⏺ Error: {text}</Text>
+					<Text color="red">⏺ Error: {errorMessage}</Text>
+				</Box>
+			</Box>
+		)
+	}
+
+	// Error retry messages
+	if (say === "error_retry" && text) {
+		const retryInfo = jsonParseSafe(text, {
+			failed: false,
+			attempt: 0,
+			maxAttempts: 3,
+			errorMessage: undefined as string | undefined,
+		})
+
+		// Parse nested errorMessage if it's a JSON string
+		let errorMsg = "Request failed"
+		if (retryInfo.errorMessage) {
+			try {
+				const errorObj = jsonParseSafe(retryInfo.errorMessage, { message: undefined as string | undefined })
+				errorMsg = errorObj.message || retryInfo.errorMessage
+			} catch {
+				errorMsg = retryInfo.errorMessage
+			}
+		}
+
+		if (retryInfo.failed) {
+			return (
+				<Box flexDirection="column" marginBottom={1}>
+					<Box flexDirection="column">
+						<Text color="red">⏺ Failed after {retryInfo.maxAttempts} retries</Text>
+						<Box marginLeft={2}>
+							<Text color="red" dimColor>
+								{errorMsg}
+							</Text>
+						</Box>
+					</Box>
+				</Box>
+			)
+		}
+		return (
+			<Box flexDirection="column" marginBottom={1}>
+				<Box flexDirection="column">
+					<Text color="yellow">
+						⏺ Retrying... (attempt {retryInfo.attempt}/{retryInfo.maxAttempts})
+					</Text>
+					<Box marginLeft={2}>
+						<Text color="yellow" dimColor>
+							{errorMsg}
+						</Text>
+					</Box>
 				</Box>
 			</Box>
 		)
@@ -413,8 +471,10 @@ interface ChatMessageListProps {
 }
 
 export const ChatMessageList: React.FC<ChatMessageListProps> = ({ messages, maxMessages }) => {
+	console.error(messages, "help")
 	// Filter out messages we don't want to display
 	const displayMessages = messages.filter((m) => {
+		console.log(m, "message filter")
 		// Skip api_req_finished, they're just markers
 		if (m.say === "api_req_finished") return false
 		// Skip empty text messages
