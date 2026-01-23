@@ -1,0 +1,35 @@
+name: Notify Slack on Issues
+
+on:
+  issues:
+    types: [opened, reopened]  # New issues AND reopened issues
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send to Slack
+        run: |
+          ACTION="${{ github.event.action }}"
+          if [ "$ACTION" = "opened" ]; then
+            EMOJI="🆕"
+            TEXT="New Issue"
+          else
+            EMOJI="🔄"
+            TEXT="Issue Reopened"
+          fi
+          
+          curl -X POST -H 'Content-type: application/json' \
+          --data "{
+            \"text\": \"$EMOJI $TEXT: #${{ github.event.issue.number }} ${{ github.event.issue.title }}\",
+            \"blocks\": [
+              {
+                \"type\": \"section\",
+                \"text\": {
+                  \"type\": \"mrkdwn\",
+                  \"text\": \"$EMOJI *$TEXT*\n<${{ github.event.issue.html_url }}|#${{ github.event.issue.number }}: ${{ github.event.issue.title }}>\nBy: ${{ github.event.issue.user.login }}\"
+                }
+              }
+            ]
+          }" \
+          ${{ secrets.SLACK_WEBHOOK_URL_ISSUES }}
