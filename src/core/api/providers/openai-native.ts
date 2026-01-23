@@ -159,7 +159,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 		// Convert ChatCompletion tools to Responses API format if provided
 		const responseTools = tools
-			?.filter((tool) => tool.type === "function")
+			?.filter((tool) => tool?.type === "function")
 			.map((tool: any) => ({
 				type: "function" as const,
 				name: tool.function.name,
