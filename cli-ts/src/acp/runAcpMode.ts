@@ -20,6 +20,7 @@ import { CliWebviewProvider } from "../controllers/CliWebviewProvider.js"
 import { createCliHostBridgeProvider } from "../controllers/index.js"
 import { initializeCliContext } from "../vscode-context.js"
 import { AcpAgent } from "./AcpAgent.js"
+import { nodeToWebReadable, nodeToWebWritable } from "./streamUtils.js"
 
 /** CLI version - should match the version in index.ts */
 const CLI_VERSION = "0.0.0"
@@ -133,7 +134,11 @@ export async function runAcpMode(options: AcpModeOptions = {}): Promise<void> {
 	}
 
 	// Step 3: Set up the JSON-RPC stream over stdio
-	const stream = ndJsonStream(process.stdin, process.stdout)
+	// ndJsonStream expects Web Streams, so we convert Node.js streams first
+	// Note: The argument order is (writable, readable) - output first, then input
+	const outputStream = nodeToWebWritable(process.stdout)
+	const inputStream = nodeToWebReadable(process.stdin)
+	const stream = ndJsonStream(outputStream, inputStream)
 
 	if (options.verbose) {
 		console.error("[ACP] Created ndJsonStream for stdio communication")
