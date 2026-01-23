@@ -12,12 +12,12 @@ import { checkpointRestore } from "@/core/controller/checkpoints/checkpointResto
 import { StateManager } from "@/core/storage/StateManager"
 import { useStdinContext } from "../context/StdinContext"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
-import { useCompletionSignals, useSpinnerState } from "../hooks/useStateSubscriber"
+import { useCompletionSignals, useIsSpinnerActive } from "../hooks/useStateSubscriber"
 import { AskPrompt } from "./AskPrompt"
 import { CheckpointMenu, RestoreType } from "./CheckpointMenu"
 import { FocusChain } from "./FocusChain"
 import { MessageList } from "./MessageList"
-import { ThinkingIndicator } from "./ThinkingIndicator"
+import { LoadingSpinner } from "./Spinner"
 
 interface TaskViewProps {
 	taskId?: string
@@ -37,8 +37,8 @@ export const TaskView: React.FC<TaskViewProps> = ({ taskId: _taskId, verbose = f
 	const { isRawModeSupported } = useStdinContext()
 	const state = useTaskState()
 	const { isTaskComplete, getCompletionMessage } = useCompletionSignals()
-	const { isActive: isSpinnerActive, startTime: spinnerStartTime } = useSpinnerState()
-	const { setIsComplete, lastError, controller } = useTaskContext()
+	const isSpinnerActive = useIsSpinnerActive()
+	const { isComplete, setIsComplete, lastError, controller } = useTaskContext()
 	const mode = useMemo<Mode>(() => StateManager.get().getGlobalSettingsKey("mode") || "act", [])
 	const [showCheckpointMenu, setShowCheckpointMenu] = useState(false)
 	const [restoreStatus, setRestoreStatus] = useState<"idle" | "restoring" | "success" | "error">("idle")
@@ -174,10 +174,10 @@ export const TaskView: React.FC<TaskViewProps> = ({ taskId: _taskId, verbose = f
 			{/* Messages list */}
 			<MessageList verbose={verbose} />
 
-			{/* Thinking indicator */}
-			{isSpinnerActive && (
+			{/* Loading spinner - hide when task is complete/exiting */}
+			{isSpinnerActive && !isComplete && (
 				<Box marginTop={1}>
-					<ThinkingIndicator mode={mode} startTime={spinnerStartTime} />
+					<LoadingSpinner />
 				</Box>
 			)}
 

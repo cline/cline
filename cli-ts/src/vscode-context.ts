@@ -8,6 +8,7 @@ import os from "os"
 import path from "path"
 import type { Memento, SecretStorage } from "vscode"
 import { ExtensionRegistryInfo } from "@/registry"
+import { Logger } from "@/services/logging/Logger"
 import { ClineExtensionContext } from "@/shared/clients"
 import { ExtensionKind, ExtensionMode, URI } from "./vscode-shim"
 
@@ -48,7 +49,7 @@ class MementoStore implements Memento {
 				this.data = JSON.parse(content)
 			}
 		} catch (error) {
-			console.error(`Failed to load state from ${this.filePath}:`, error)
+			Logger.error(`Failed to load state from ${this.filePath}:`, error)
 			this.data = {}
 		}
 	}
@@ -58,7 +59,7 @@ class MementoStore implements Memento {
 			mkdirSync(path.dirname(this.filePath), { recursive: true })
 			writeFileSync(this.filePath, JSON.stringify(this.data, null, 2))
 		} catch (error) {
-			console.error(`Failed to save state to ${this.filePath}:`, error)
+			Logger.error(`Failed to save state to ${this.filePath}:`, error)
 		}
 	}
 
@@ -130,7 +131,7 @@ class SecretStore implements SecretStorage {
 			mkdirSync(path.dirname(this.filePath), { recursive: true })
 			writeFileSync(this.filePath, JSON.stringify(this.data, null, 2))
 		} catch (error) {
-			console.error(`Failed to save secrets:`, error)
+			Logger.error(`Failed to save secrets:`, error)
 		}
 	}
 
@@ -242,8 +243,6 @@ export function initializeCliContext(config: CliContextConfig = {}) {
 	// Ensure directories exist
 	mkdirSync(DATA_DIR, { recursive: true })
 	mkdirSync(WORKSPACE_STORAGE_DIR, { recursive: true })
-
-	console.log(`[CLI] Using data directory: ${DATA_DIR}`)
 
 	// For CLI, extension dir is the root of the project (parent of cli-ts)
 	const EXTENSION_DIR = path.resolve(__dirname, "..", "..")

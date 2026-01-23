@@ -11,6 +11,7 @@ import { AuthView } from "./AuthView"
 import { ChatView } from "./ChatView"
 import { ConfigView } from "./ConfigView"
 import { HistoryView } from "./HistoryView"
+import { TaskJsonView } from "./TaskJsonView"
 import { TaskView } from "./TaskView"
 
 export type ViewType = "task" | "history" | "config" | "auth" | "welcome"
@@ -43,8 +44,11 @@ interface SkillInfo {
 interface AppProps {
 	view: ViewType
 	taskId?: string
-	verbose?: boolean
 	controller?: any
+	// Output Style
+	verbose?: boolean
+	jsonOutput?: boolean
+	// Status Callbacks
 	onComplete?: () => void
 	onError?: () => void
 	// For history view
@@ -97,6 +101,7 @@ export const App: React.FC<AppProps> = ({
 	view: initialView,
 	taskId,
 	verbose = false,
+	jsonOutput = false,
 	controller,
 	onComplete,
 	onError,
@@ -186,7 +191,11 @@ export const App: React.FC<AppProps> = ({
 		case "task":
 			content = (
 				<TaskContextProvider controller={controller}>
-					<TaskView onComplete={onComplete} onError={onError} taskId={selectedTaskId} verbose={verbose} />
+					{jsonOutput ? (
+						<TaskJsonView onComplete={onComplete} onError={onError} taskId={selectedTaskId} verbose={verbose} />
+					) : (
+						<TaskView onComplete={onComplete} onError={onError} taskId={selectedTaskId} verbose={verbose} />
+					)}
 				</TaskContextProvider>
 			)
 			break

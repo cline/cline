@@ -109,7 +109,7 @@ import { Box, Static, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
-import { useSpinnerState } from "../hooks/useStateSubscriber"
+import { useIsSpinnerActive } from "../hooks/useStateSubscriber"
 import {
 	checkAndWarnRipgrepMissing,
 	extractMentionQuery,
@@ -213,7 +213,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 	// Get task state from context
 	const taskState = useTaskState()
 	const { controller: taskController } = useTaskContext()
-	const { isActive: isSpinnerActive, startTime: spinnerStartTime } = useSpinnerState()
+	const { isActive: isSpinnerActive, startTime: spinnerStartTime } = useIsSpinnerActive()
 
 	// Input state
 	const [textInput, setTextInput] = useState("")
@@ -582,7 +582,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 	}
 
 	return (
-		<>
+		<Box>
 			{/* Static content - rendered once, stays above dynamic region */}
 			<Static items={staticItems}>
 				{(item) => {
@@ -747,6 +747,6 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 					</Text>
 				</Box>
 			</Box>
-		</>
+		</Box>
 	)
 }

@@ -107,9 +107,9 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 
 	useInput(
 		(input, key) => {
-			if (key.upArrow) {
+			if (key.upArrow || input === "k") {
 				setSelectedIndex((prev) => Math.max(0, prev - 1))
-			} else if (key.downArrow) {
+			} else if (key.downArrow || input === "j") {
 				setSelectedIndex((prev) => Math.min(pageItems.length - 1, prev + 1))
 			} else if (key.return && pageItems[selectedIndex]) {
 				onSelect(pageItems[selectedIndex])
@@ -144,7 +144,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 			<Text bold color="white">
 				{"📜 Task History (" + totalCount + " total)"}
 			</Text>
-			<Text dimColor>Use ↑↓ to navigate, Enter to select</Text>
+			<Text dimColor>Use ↑↓/j/k to navigate, Enter to select</Text>
+
 			{totalPages > 1 && (
 				<Box>
 					<Text dimColor>
@@ -196,7 +197,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 							</Box>
 						)
 					})}
-					{showDownIndicator && <Text dimColor>{"  ↓ " + (items.length - endIndex) + " more below"}</Text>}
+					{showDownIndicator && <Text dimColor>{"  ↓ " + (pageItems.length - endIndex) + " more below"}</Text>}
 				</Box>
 			)}
 

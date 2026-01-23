@@ -28,12 +28,19 @@ npm run install:all
 npm run protos
 
 # Build the CLI
-npm run compile-cli-ts
+npm run build:cli
 ```
 
 Or install the CLI globally:
 
 ```bash
+# Install all dependencies first
+npm run install:all
+
+# Ensure protos are generated
+npm run protos
+
+# Build and link the CLI globally
 cd cli-ts
 npm install
 npm run link
@@ -189,7 +196,6 @@ These options are available for the default command (running a task directly):
 
 | Option | Description |
 |--------|-------------|
-| `-i, --images <paths...>` | Image file paths to include with the task |
 | `-v, --verbose` | Show verbose output |
 | `-c, --cwd <path>` | Working directory |
 | `--config <path>` | Configuration directory |
@@ -197,20 +203,36 @@ These options are available for the default command (running a task directly):
 
 ## Development
 
-```bash
-# Build and link the package to your terminal
-npm run link
+For active development, at the root of this repo:
 
-# Set your provider (No Cline provider support yet)
-cline auth
+1. **Initial setup:**
+   ```bash
+   npm run install:all
+   npm run protos
+   ```
 
-# Run a task
-cline task "Tell me about this codebase"
-```
+2. **Make changes to cli-ts:**
+   ```bash
+   npm run cli:dev 
+   # or
+   cd cli-ts && npm run dev
+   ```
+
+3. **Test your changes:**
+   ```bash
+   cline [your-command] # In a new Terminal
+   ```
+
+4. **When done:**
+   ```bash
+   npm run cli:unlink
+   ```
 
 ### Build
 
 ```bash
+cd cli-ts
+
 # Development build with source maps
 npm run build
 

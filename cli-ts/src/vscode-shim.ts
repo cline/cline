@@ -3,6 +3,8 @@
  * Provides minimal stubs for VSCode types and enums used by the codebase
  */
 
+import { printError, printInfo, printWarning } from "./utils/display"
+
 // Re-export common types from vscode-uri for URI handling
 export { URI } from "vscode-uri"
 
@@ -246,20 +248,20 @@ export const workspace = {
 // Minimal window namespace
 export const window = {
 	showInformationMessage: async (message: string) => {
-		console.log(`[INFO] ${message}`)
+		printInfo(`[INFO] ${message}`)
 		return undefined
 	},
 	showWarningMessage: async (message: string) => {
-		console.warn(`[WARN] ${message}`)
+		printWarning(`[WARN] ${message}`)
 		return undefined
 	},
 	showErrorMessage: async (message: string) => {
-		console.error(`[ERROR] ${message}`)
+		printError(`[ERROR] ${message}`)
 		return undefined
 	},
 	createOutputChannel: (_name: string) => ({
-		appendLine: (line: string) => console.log(line),
-		append: (text: string) => process.stdout.write(text),
+		appendLine: (line: string) => printInfo(`[${new Date().toISOString()}] ${line}`),
+		append: (text: string) => printInfo(`[${new Date().toISOString()}] ${text}`),
 		clear: () => {},
 		show: () => {},
 		hide: () => {},
@@ -270,7 +272,7 @@ export const window = {
 	createTerminal: (_options?: any) => ({
 		name: "CLI Terminal",
 		processId: Promise.resolve(process.pid),
-		sendText: (text: string) => console.log(`[Terminal] ${text}`),
+		sendText: (text: string) => printInfo(`[${new Date().toISOString()}] [Terminal] ${text}`),
 		show: () => {},
 		hide: () => {},
 		dispose: () => {},
