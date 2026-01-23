@@ -106,6 +106,7 @@ import { getApiMetrics } from "@shared/getApiMetrics"
 import type { Mode } from "@shared/storage/types"
 import { execSync } from "child_process"
 import { Box, Static, Text, useInput } from "ink"
+import Spinner from "ink-spinner"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
@@ -121,7 +122,6 @@ import {
 import { jsonParseSafe, parseImagesFromInput } from "../utils/parser"
 import { ChatMessage } from "./ChatMessage"
 import { FileMentionMenu } from "./FileMentionMenu"
-import { LoadingSpinner } from "./Spinner"
 
 interface ChatViewProps {
 	controller?: any
@@ -173,12 +173,14 @@ function getGitBranch(cwd?: string): string | null {
 
 /**
  * Create a progress bar for context window usage
+ * Returns { filled, empty } strings to allow different coloring
  */
-function createContextBar(used: number, total: number, width: number = 8): string {
+function createContextBar(used: number, total: number, width: number = 8): { filled: string; empty: string } {
 	const ratio = Math.min(used / total, 1)
-	const filled = Math.round(ratio * width)
-	const empty = width - filled
-	return "█".repeat(filled) + "░".repeat(empty)
+	// Use ceil so any usage > 0 shows at least one bar
+	const filledCount = used > 0 ? Math.max(1, Math.ceil(ratio * width)) : 0
+	const emptyCount = width - filledCount
+	return { filled: "█".repeat(filledCount), empty: "█".repeat(emptyCount) }
 }
 
 /**
@@ -313,14 +315,30 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 		const completed: typeof displayMessages = []
 		let current: (typeof displayMessages)[0] | null = null
 
+		// Tool types that should skip dynamic rendering entirely.
+		// Plan and completion text tend to be very long, and because this typically
+		// exceeds the height of the user's terminal, it causes flashing issues
+		// (Ink uses clearTerminal when output >= terminal rows).
+		// These messages wait until complete before showing directly in static.
+		const skipDynamicTypes = new Set(["completion_result", "plan_mode_respond"])
+
 		for (let i = 0; i < displayMessages.length; i++) {
 			const msg = displayMessages[i]
 			const isLast = i === displayMessages.length - 1
 
-			// Last message that's partial/streaming stays in dynamic region
-			if (isLast && msg.partial) {
-				current = msg
+			// Check if this message type should skip dynamic rendering
+			const shouldSkipDynamic =
+				skipDynamicTypes.has(msg.say || "") || (msg.type === "ask" && skipDynamicTypes.has(msg.ask || ""))
+
+			if (msg.partial) {
+				// Message is still streaming
+				if (isLast && !shouldSkipDynamic) {
+					// Show in dynamic region (normal streaming)
+					current = msg
+				}
+				// If shouldSkipDynamic and partial: don't show anywhere, wait for complete
 			} else {
+				// Message is complete, add to static
 				completed.push(msg)
 			}
 		}
@@ -560,20 +578,14 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 		}
 	})
 
-	const borderColor = mode === "act" ? "blue" : "yellow"
+	const borderColor = mode === "act" ? "blueBright" : "yellow"
 	const metrics = getApiMetrics(messages)
 
 	// Determine input placeholder/prompt text
 	let inputPrompt = ""
-	let inputHint = ""
 	if (pendingAsk && !yolo) {
 		if (askType === "confirmation") {
 			inputPrompt = "(y/n)"
-			inputHint = "y to confirm, n to decline"
-		} else if (askType === "options") {
-			inputHint = "Enter number to select, or type response"
-		} else if (askType === "text") {
-			inputHint = "Type your response and press Enter"
 		}
 	}
 
@@ -609,18 +621,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 			{/* Dynamic region - only current streaming message + input */}
 			<Box flexDirection="column" width="100%">
 				{/* Current streaming message */}
-				{currentMessage && (
-					<Box marginBottom={1}>
-						<ChatMessage isStreaming message={currentMessage} />
-					</Box>
-				)}
-
-				{/* Loading spinner when processing */}
-				{isSpinnerActive && !pendingAsk && (
-					<Box>
-						<LoadingSpinner />
-					</Box>
-				)}
+				{currentMessage && <ChatMessage isStreaming message={currentMessage} />}
 
 				{/* Ripgrep warning if needed */}
 				{showRipgrepWarning && (
@@ -641,13 +642,22 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 					</Box>
 				)}
 
+				{/* Loading spinner when processing */}
+				{isSpinnerActive && !pendingAsk && (
+					<Box marginBottom={1}>
+						<Text color={borderColor}>
+							<Spinner />
+						</Text>
+						<Text color={borderColor}> {mode === "plan" ? "Planning" : "Thinking"}...</Text>
+					</Box>
+				)}
+
 				{/* Input field with border - ALWAYS shown */}
 				<Box
 					borderColor={borderColor}
 					borderStyle="round"
 					flexDirection="row"
 					justifyContent="space-between"
-					marginTop={1}
 					paddingLeft={1}
 					paddingRight={1}
 					width="100%">
@@ -685,20 +695,12 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 				{/* Row 1: Instructions (left, can wrap) | Plan/Act toggle (right, no wrap) */}
 				<Box justifyContent="space-between" paddingLeft={1} paddingRight={1} width="100%">
 					<Box flexShrink={1} flexWrap="wrap">
-						{inputHint ? (
-							<Text color="gray" dimColor>
-								{inputHint}
-							</Text>
-						) : (
-							<>
-								<Text color="gray" dimColor>
-									@ for files · / for commands ·{" "}
-								</Text>
-								<Text bold={escPressedOnce} color={escPressedOnce ? "white" : "gray"} dimColor={!escPressedOnce}>
-									{escPressedOnce ? "Press Esc again to exit" : "Esc to exit"}
-								</Text>
-							</>
-						)}
+						<Text color="gray" dimColor>
+							@ for files · / for commands ·{" "}
+						</Text>
+						<Text bold={escPressedOnce} color={escPressedOnce ? "white" : "gray"} dimColor={!escPressedOnce}>
+							{escPressedOnce ? "Press Esc again to exit" : "Esc to exit"}
+						</Text>
 					</Box>
 					<Box flexShrink={0} gap={1}>
 						<Box>
@@ -707,7 +709,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 							</Text>
 						</Box>
 						<Box>
-							<Text bold={mode === "act"} color={mode === "act" ? "blue" : "gray"}>
+							<Text bold={mode === "act"} color={mode === "act" ? "blueBright" : "gray"}>
 								{mode === "act" ? "●" : "○"} Act
 							</Text>
 						</Box>
@@ -720,14 +722,20 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 				{/* Row 2: Model/context/tokens/cost */}
 				<Box paddingLeft={1} paddingRight={1}>
 					<Text>
-						<Text color="white">{modelId.length > 20 ? modelId.substring(0, 17) + "..." : modelId}</Text>
-						<Text color="blue">
-							{" "}
-							{createContextBar(metrics.totalTokensIn + metrics.totalTokensOut, DEFAULT_CONTEXT_WINDOW)}
-						</Text>
+						<Text color="gray">{modelId.length > 20 ? modelId.substring(0, 17) + "..." : modelId}</Text> {(() => {
+							const bar = createContextBar(metrics.totalTokensIn + metrics.totalTokensOut, DEFAULT_CONTEXT_WINDOW)
+							return (
+								<>
+									<Text color="gray">{bar.filled}</Text>
+									<Text color="gray" dimColor>
+										{bar.empty}
+									</Text>
+								</>
+							)
+						})()}
 						<Text color="gray"> ({(metrics.totalTokensIn + metrics.totalTokensOut).toLocaleString()})</Text>
 						<Text color="gray"> | </Text>
-						<Text color="green">${metrics.totalCost.toFixed(3)}</Text>
+						<Text color="gray">${metrics.totalCost.toFixed(3)}</Text>
 					</Text>
 				</Box>
 
@@ -738,7 +746,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 						{gitBranch && (
 							<Text color="gray">
 								{" "}
-								(<Text color="cyan">{gitBranch}</Text>)
+								(<Text color="gray">{gitBranch}</Text>)
 							</Text>
 						)}
 					</Text>
