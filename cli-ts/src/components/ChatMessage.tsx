@@ -11,6 +11,68 @@ import { Box, Text } from "ink"
 import React from "react"
 import { jsonParseSafe } from "../utils/parser"
 
+/**
+ * Render inline markdown: **bold**, *italic*, `code`
+ * Returns array of React nodes with appropriate styling
+ */
+function renderInlineMarkdown(text: string): React.ReactNode[] {
+	const nodes: React.ReactNode[] = []
+	// Match **bold**, *italic*, or `code` - order matters (** before *)
+	const regex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g
+	let lastIndex = 0
+	let match
+
+	while ((match = regex.exec(text)) !== null) {
+		// Add text before match
+		if (match.index > lastIndex) {
+			nodes.push(text.slice(lastIndex, match.index))
+		}
+
+		const fullMatch = match[0]
+		const key = `md-${match.index}`
+
+		if (fullMatch.startsWith("**") && fullMatch.endsWith("**")) {
+			// Bold
+			nodes.push(
+				<Text bold key={key}>
+					{fullMatch.slice(2, -2)}
+				</Text>,
+			)
+		} else if (fullMatch.startsWith("*") && fullMatch.endsWith("*")) {
+			// Italic
+			nodes.push(
+				<Text italic key={key}>
+					{fullMatch.slice(1, -1)}
+				</Text>,
+			)
+		} else if (fullMatch.startsWith("`") && fullMatch.endsWith("`")) {
+			// Inline code
+			nodes.push(
+				<Text dimColor key={key}>
+					{fullMatch.slice(1, -1)}
+				</Text>,
+			)
+		}
+
+		lastIndex = regex.lastIndex
+	}
+
+	// Add remaining text
+	if (lastIndex < text.length) {
+		nodes.push(text.slice(lastIndex))
+	}
+
+	return nodes.length > 0 ? nodes : [text]
+}
+
+/**
+ * Render text with inline markdown support
+ */
+const MarkdownText: React.FC<{ children: string; color?: string }> = ({ children, color }) => {
+	const nodes = renderInlineMarkdown(children)
+	return <Text color={color}>{nodes}</Text>
+}
+
 interface ChatMessageProps {
 	message: ClineMessage
 	isStreaming?: boolean
@@ -130,8 +192,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming }
 		return (
 			<Box flexDirection="column" marginBottom={1}>
 				<Box>
-					<Text color="magenta">⏺ </Text>
-					<Text>{text}</Text>
+					<Text>⏺ </Text>
+					<MarkdownText>{text}</MarkdownText>
 				</Box>
 			</Box>
 		)
@@ -143,9 +205,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming }
 		return (
 			<Box flexDirection="column" marginBottom={1}>
 				<Box>
-					<Text color="yellow">⏺ </Text>
 					<Text color="yellow" italic>
-						{truncate(text, 200)}
+						⏺ {truncate(text, 200)}
 					</Text>
 				</Box>
 			</Box>
@@ -159,8 +220,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming }
 			return (
 				<Box flexDirection="column" marginBottom={1}>
 					<Box>
-						<Text color="blue">⏺ </Text>
-						<Text color="blue">{formatToolCall(toolInfo.toolName, toolInfo.args)}</Text>
+						<Text color="blue">⏺ {formatToolCall(toolInfo.toolName, toolInfo.args)}</Text>
 					</Box>
 				</Box>
 			)
@@ -175,15 +235,16 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming }
 			return (
 				<Box flexDirection="column" marginBottom={1}>
 					<Box>
-						<Text color="green">⏺ </Text>
-						<Text color="green">{formatToolCall(toolInfo.toolName, toolInfo.args)}</Text>
+						<Text color="green">⏺ {formatToolCall(toolInfo.toolName, toolInfo.args)}</Text>
 					</Box>
 					{hasResult && (
 						<Box flexDirection="column" marginLeft={2}>
 							{formatToolResult(toolInfo.result!, 5).map((line, idx) => (
 								<Box key={idx}>
-									<Text color="gray">⎿ </Text>
-									<Text dimColor>{line}</Text>
+									<Text dimColor>
+										{idx === 0 ? "⎿  " : "   "}
+										{line}
+									</Text>
 								</Box>
 							))}
 						</Box>
@@ -195,8 +256,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming }
 		return (
 			<Box flexDirection="column" marginBottom={1}>
 				<Box>
-					<Text color="green">⏺ </Text>
-					<Text dimColor>{truncate(text, 100)}</Text>
+					<Text color="green">⏺ {truncate(text, 100)}</Text>
 				</Box>
 			</Box>
 		)
@@ -207,8 +267,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming }
 		return (
 			<Box flexDirection="column" marginBottom={1}>
 				<Box>
-					<Text color="magenta">⏺ </Text>
-					<Text color="magenta">Bash({truncate(text, 60)})</Text>
+					<Text>⏺ Bash({truncate(text, 60)})</Text>
 				</Box>
 			</Box>
 		)
@@ -219,8 +278,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming }
 		return (
 			<Box flexDirection="column" marginBottom={1}>
 				<Box>
-					<Text color="magenta">⏺ </Text>
-					<Text color="magenta">Bash({truncate(text, 60)})</Text>
+					<Text>⏺ Bash({truncate(text, 60)})</Text>
 				</Box>
 			</Box>
 		)
@@ -234,8 +292,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming }
 				<Box flexDirection="column" marginLeft={2}>
 					{lines.map((line, idx) => (
 						<Box key={idx}>
-							<Text color="gray">⎿ </Text>
-							<Text dimColor>{line}</Text>
+							<Text dimColor>
+								{idx === 0 ? "⎿  " : "   "}
+								{line}
+							</Text>
 						</Box>
 					))}
 				</Box>
@@ -248,8 +308,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming }
 		return (
 			<Box flexDirection="column" marginBottom={1}>
 				<Box>
-					<Text color="red">⏺ </Text>
-					<Text color="red">Error: {text}</Text>
+					<Text color="red">⏺ Error: {text}</Text>
 				</Box>
 			</Box>
 		)
@@ -261,12 +320,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming }
 			<Box flexDirection="column" marginBottom={1}>
 				<Box flexDirection="column">
 					<Box>
-						<Text color="green">⏺ </Text>
-						<Text color="green">Task completed</Text>
+						<Text color="green">⏺ Task completed</Text>
 					</Box>
 					{text && (
 						<Box marginLeft={2}>
-							<Text>{text}</Text>
+							<MarkdownText>{text}</MarkdownText>
 						</Box>
 					)}
 				</Box>
@@ -285,8 +343,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming }
 		return (
 			<Box flexDirection="column" marginBottom={1}>
 				<Box>
-					<Text color="cyan">⏺ </Text>
-					<Text color="cyan">Browser({truncate(text || "", 50)})</Text>
+					<Text>⏺ Browser({truncate(text || "", 50)})</Text>
 				</Box>
 			</Box>
 		)
@@ -297,8 +354,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming }
 		return (
 			<Box flexDirection="column" marginBottom={1}>
 				<Box>
-					<Text color="cyan">⏺ </Text>
-					<Text color="cyan">MCP({truncate(text || "", 50)})</Text>
+					<Text>⏺ MCP({truncate(text || "", 50)})</Text>
 				</Box>
 			</Box>
 		)
@@ -309,8 +365,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming }
 		return (
 			<Box flexDirection="column" marginBottom={1}>
 				<Box>
-					<Text color="gray">⏺ </Text>
-					<Text color="gray">{text}</Text>
+					<Text color="gray">⏺ {text}</Text>
 				</Box>
 			</Box>
 		)
@@ -323,8 +378,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming }
 			return (
 				<Box flexDirection="column" marginBottom={1}>
 					<Box>
-						<Text color="cyan">⏺ </Text>
-						<Text>{parsed.question}</Text>
+						<Text>⏺ </Text>
+						<MarkdownText>{parsed.question}</MarkdownText>
 					</Box>
 				</Box>
 			)
@@ -339,7 +394,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming }
 				<Box flexDirection="column" marginBottom={1}>
 					<Box>
 						<Text color="yellow">⏺ </Text>
-						<Text>{parsed.response}</Text>
+						<MarkdownText color="yellow">{parsed.response}</MarkdownText>
 					</Box>
 				</Box>
 			)
