@@ -15,6 +15,7 @@ jobs:
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_URL: ${{ github.event.issue.html_url }}
           ISSUE_USER: ${{ github.event.issue.user.login }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL_ISSUES }}
         run: |
           if [ "$ACTION" = "opened" ]; then
             EMOJI="🆕"
@@ -24,17 +25,27 @@ jobs:
             TEXT="Issue Reopened"
           fi
           
-          curl -X POST -H 'Content-type: application/json' \
-          --data "{
-            \"text\": \"$EMOJI $TEXT: #$ISSUE_NUMBER $ISSUE_TITLE\",
-            \"blocks\": [
-              {
-                \"type\": \"section\",
-                \"text\": {
-                  \"type\": \"mrkdwn\",
-                  \"text\": \"$EMOJI *$TEXT*\n<$ISSUE_URL|#$ISSUE_NUMBER: $ISSUE_TITLE>\nBy: $ISSUE_USER\"
+          # Use jq to safely construct JSON payload (handles special characters in title)
+          PAYLOAD=$(jq -n \
+            --arg emoji "$EMOJI" \
+            --arg text "$TEXT" \
+            --arg number "$ISSUE_NUMBER" \
+            --arg title "$ISSUE_TITLE" \
+            --arg url "$ISSUE_URL" \
+            --arg user "$ISSUE_USER" \
+            '{
+              text: "\($emoji) \($text): #\($number) \($title)",
+              blocks: [
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "\($emoji) *\($text)*\n<\($url)|#\($number): \($title)>\nBy: \($user)"
+                  }
                 }
-              }
-            ]
-          }" \
-          ${{ secrets.SLACK_WEBHOOK_URL_ISSUES }}
+              ]
+            }')
+          
+          curl --fail -X POST -H 'Content-type: application/json' \
+            --data "$PAYLOAD" \
+            "$SLACK_WEBHOOK_URL"
