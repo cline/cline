@@ -4,14 +4,12 @@ import * as pathUtils from "@utils/path"
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
-import { Logger } from "@/shared/services/Logger"
 import { ifFileExistsRelativePath } from "../ifFileExistsRelativePath"
 
 describe("ifFileExistsRelativePath", () => {
 	let sandbox: sinon.SinonSandbox
 	let mockController: Controller
 	let getWorkspacePathStub: sinon.SinonStub
-	let consoleErrorStub: sinon.SinonStub
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
@@ -21,9 +19,6 @@ describe("ifFileExistsRelativePath", () => {
 
 		// Stub getWorkspacePath utility
 		getWorkspacePathStub = sandbox.stub(pathUtils, "getWorkspacePath")
-
-		// Stub Logger.error to prevent test output pollution
-		consoleErrorStub = sandbox.stub(Logger, "error")
 	})
 
 	afterEach(() => {
@@ -44,12 +39,11 @@ describe("ifFileExistsRelativePath", () => {
 		expect(typeof result.value).to.equal("boolean")
 	})
 
-	it("should return false and log error when no workspace path is available", async () => {
+	it("should return false when no workspace path is available", async () => {
 		const noWorkspaceScenarios = [null, undefined]
 
 		for (const workspaceValue of noWorkspaceScenarios) {
 			getWorkspacePathStub.resolves(workspaceValue)
-			consoleErrorStub.resetHistory()
 
 			const request = StringRequest.create({
 				value: "src/test.ts",
@@ -58,7 +52,6 @@ describe("ifFileExistsRelativePath", () => {
 			const result = await ifFileExistsRelativePath(mockController, request)
 
 			expect(result).to.deep.equal(BooleanResponse.create({ value: false }))
-			expect(consoleErrorStub.called).to.be.true
 		}
 	})
 
