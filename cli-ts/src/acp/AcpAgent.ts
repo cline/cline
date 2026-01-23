@@ -17,7 +17,7 @@ import type { StateManager } from "@/core/storage/StateManager"
 import type { Mode } from "@/shared/storage/types"
 import { AcpHostBridgeProvider } from "./AcpHostBridgeProvider.js"
 import { AcpTerminalManager } from "./AcpTerminalManager.js"
-import { translateMessage } from "./messageTranslator.js"
+import { createSessionState, translateMessage, translateMessages } from "./messageTranslator.js"
 import {
 	AutoApprovalTracker,
 	getAutoApprovalIdentifier,
@@ -266,8 +266,11 @@ export class AcpAgent implements acp.Agent {
 				})
 			}
 
-			// TODO: Replay conversation history via session updates
-			// This will be implemented in Phase 8 (Session Persistence)
+			// Mark session as loaded from history so prompt() knows to resume instead of start new
+			session.isLoadedFromHistory = true
+
+			// Replay conversation history via session updates
+			await this.replayConversationHistory(params.sessionId, sessionState)
 		}
 
 		return {
@@ -278,6 +281,67 @@ export class AcpAgent implements acp.Agent {
 				],
 				currentModeId: session.mode,
 			},
+		}
+	}
+
+	/**
+	 * Replay conversation history from disk via session updates.
+	 *
+	 * This loads saved ClineMessages from the task directory and
+	 * translates them to ACP SessionUpdates, sending each to the client
+	 * to reconstruct the conversation state in the UI.
+	 */
+	private async replayConversationHistory(sessionId: string, sessionState: AcpSessionState): Promise<void> {
+		try {
+			// Dynamically import disk utilities to avoid circular dependencies
+			const { getSavedClineMessages } = await import("@core/storage/disk")
+
+			// Load saved UI messages from disk
+			const uiMessages = await getSavedClineMessages(sessionId)
+
+			if (uiMessages.length === 0) {
+				if (this.options.debug) {
+					console.error("[AcpAgent] No saved messages found for session:", sessionId)
+				}
+				return
+			}
+
+			if (this.options.debug) {
+				console.error("[AcpAgent] Replaying conversation history:", {
+					sessionId,
+					messageCount: uiMessages.length,
+				})
+			}
+
+			// Create a temporary session state for translation to avoid polluting the real state
+			const replayState = createSessionState(sessionId)
+
+			// Translate all messages to ACP updates
+			const updates = translateMessages(uiMessages, replayState)
+
+			if (this.options.debug) {
+				console.error("[AcpAgent] Generated updates for replay:", {
+					sessionId,
+					updateCount: updates.length,
+				})
+			}
+
+			// Send all updates to the client to reconstruct conversation state
+			for (const update of updates) {
+				await this.sendSessionUpdate(sessionId, update)
+			}
+
+			if (this.options.debug) {
+				console.error("[AcpAgent] Conversation history replay complete:", sessionId)
+			}
+		} catch (error) {
+			// Log error but don't fail the session load - client will still have a valid session
+			if (this.options.debug) {
+				console.error("[AcpAgent] Error replaying conversation history:", {
+					sessionId,
+					error: error instanceof Error ? error.message : String(error),
+				})
+			}
 		}
 	}
 
@@ -388,10 +452,33 @@ export class AcpAgent implements acp.Agent {
 			})
 			cleanupFunctions.push(unsubscribePartial)
 
-			// Determine if this is a new task or continuation
+			// Determine if this is a new task, continuation, or loaded session resume
 			const hasActiveTask = this.controller.task !== undefined
+			const isLoadedSession = session.isLoadedFromHistory === true
 
-			if (hasActiveTask && this.controller.task) {
+			if (isLoadedSession && !hasActiveTask) {
+				// First prompt on a loaded session - resume the task from history
+				if (this.options.debug) {
+					console.error("[AcpAgent] Resuming loaded session:", params.sessionId)
+				}
+
+				// Clear the flag so subsequent prompts are handled normally
+				session.isLoadedFromHistory = false
+
+				// Resume the task using its history item
+				await this.controller.reinitExistingTaskFromId(params.sessionId)
+
+				// After reinit, the task should be in a waiting state (resume_task ask)
+				// Send the user's prompt as a response to continue
+				if (this.controller.task) {
+					await this.controller.task.handleWebviewAskResponse(
+						"messageResponse",
+						textContent,
+						imageContent,
+						fileResources,
+					)
+				}
+			} else if (hasActiveTask && this.controller.task) {
 				// Continue existing task - respond to pending ask
 				if (this.options.debug) {
 					console.error("[AcpAgent] Continuing existing task:", this.controller.task.taskId)
