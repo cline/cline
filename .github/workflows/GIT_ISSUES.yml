@@ -9,8 +9,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Send to Slack
+        env:
+          ACTION: ${{ github.event.action }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_USER: ${{ github.event.issue.user.login }}
         run: |
-          ACTION="${{ github.event.action }}"
           if [ "$ACTION" = "opened" ]; then
             EMOJI="🆕"
             TEXT="New Issue"
@@ -21,13 +26,13 @@ jobs:
           
           curl -X POST -H 'Content-type: application/json' \
           --data "{
-            \"text\": \"$EMOJI $TEXT: #${{ github.event.issue.number }} ${{ github.event.issue.title }}\",
+            \"text\": \"$EMOJI $TEXT: #$ISSUE_NUMBER $ISSUE_TITLE\",
             \"blocks\": [
               {
                 \"type\": \"section\",
                 \"text\": {
                   \"type\": \"mrkdwn\",
-                  \"text\": \"$EMOJI *$TEXT*\n<${{ github.event.issue.html_url }}|#${{ github.event.issue.number }}: ${{ github.event.issue.title }}>\nBy: ${{ github.event.issue.user.login }}\"
+                  \"text\": \"$EMOJI *$TEXT*\n<$ISSUE_URL|#$ISSUE_NUMBER: $ISSUE_TITLE>\nBy: $ISSUE_USER\"
                 }
               }
             ]
