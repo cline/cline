@@ -130,12 +130,12 @@ cli-ts/src/acp/
   - [x] Diff state changes and emit session/update notifications
   - [x] Handle streaming/partial messages
 
-### Phase 8: Session Persistence
-- [ ] **8.1** Implement `loadSession()` in AcpAgent
-  - [ ] Use existing StateManager.getGlobalStateKey("taskHistory")
-  - [ ] Find session by ID in task history
-  - [ ] Replay conversation via session/update notifications
-  - [ ] Resume session using Controller.reinitExistingTaskFromId
+### Phase 8: Session Persistence ✅
+- [x] **8.1** Implement `loadSession()` in AcpAgent
+  - [x] Use existing StateManager.getGlobalStateKey("taskHistory")
+  - [x] Find session by ID in task history
+  - [x] Replay conversation via session/update notifications (replayConversationHistory method)
+  - [x] Resume session using Controller.reinitExistingTaskFromId (in prompt() for loaded sessions)
 
 ### Phase 9: Testing & Polish
 - [ ] **9.1** Add unit tests for message translation

@@ -93,6 +93,8 @@ export interface ClineAcpSession {
 	createdAt: number
 	/** Timestamp of last activity */
 	lastActivityAt: number
+	/** Whether this session was loaded from history (needs resume on first prompt) */
+	isLoadedFromHistory?: boolean
 }
 
 /**
