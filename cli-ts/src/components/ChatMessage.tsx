@@ -174,13 +174,12 @@ function formatToolResult(result: string, maxLines: number = 5): string[] {
 export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming }) => {
 	const { type, ask, say, text } = message
 
-	// User messages (task, user_feedback)
+	// User messages (task, user_feedback) - bubble style with background and >
 	if (say === "task" || say === "user_feedback") {
 		return (
 			<Box flexDirection="column" marginBottom={1}>
-				<Box>
-					<Text color="cyan">❯ </Text>
-					<Text>{text}</Text>
+				<Box backgroundColor="gray" paddingLeft={1} paddingRight={1} width="100%">
+					<Text color="white">&gt; {text}</Text>
 				</Box>
 			</Box>
 		)
@@ -324,7 +323,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming }
 					</Box>
 					{text && (
 						<Box marginLeft={2}>
-							<MarkdownText>{text}</MarkdownText>
+							<MarkdownText color="green">{text}</MarkdownText>
 						</Box>
 					)}
 				</Box>
