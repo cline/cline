@@ -64,6 +64,6 @@ export async function cleanupLegacyCheckpoints(): Promise<void> {
 			}
 		}
 	} catch (error) {
-		throw new Error("Error cleaning up legacy checkpoints:", error)
+		throw new Error("Error cleaning up legacy checkpoints.", { cause: error })
 	}
 }
