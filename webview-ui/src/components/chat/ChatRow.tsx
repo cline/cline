@@ -144,6 +144,7 @@ export const ChatRowContent = memo(
 		mode,
 		isRequestInProgress,
 		reasoningContent,
+		responseStarted,
 	}: ChatRowContentProps) => {
 		const {
 			backgroundEditEnabled,
@@ -809,6 +810,7 @@ export const ChatRowContent = memo(
 								message={message}
 								mode={mode}
 								reasoningContent={reasoningContent}
+								responseStarted={responseStarted}
 							/>
 						)
 					case "api_req_finished":

@@ -126,7 +126,7 @@ export function groupMessages(visibleMessages: ClineMessage[]): (ClineMessage | 
 		}
 	}
 
-	visibleMessages.forEach((message) => {
+	for (const message of visibleMessages) {
 		if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
 			// complete existing browser session if any
 			endBrowserSession()
@@ -144,7 +144,7 @@ export function groupMessages(visibleMessages: ClineMessage[]): (ClineMessage | 
 					if (isCancelled) {
 						endBrowserSession()
 						result.push(message)
-						return
+						continue
 					}
 				}
 			}
@@ -167,7 +167,7 @@ export function groupMessages(visibleMessages: ClineMessage[]): (ClineMessage | 
 		} else {
 			result.push(message)
 		}
-	})
+	}
 
 	// Handle case where browser session is the last group
 	if (currentGroup.length > 0) {
@@ -614,14 +614,21 @@ export function isApiReqAbsorbable(apiReqTs: number, allMessages: ClineMessage[]
 	}
 
 	let hasLowStakesTool = false
+	let hasReasoning = false
 	for (let i = apiReqIndex + 1; i < allMessages.length; i++) {
 		const msg = allMessages[i]
 		if (msg.say === "api_req_started") {
 			break
 		}
 
-		// Reasoning and checkpoints do not affect absorbability
-		if (msg.say === "reasoning" || msg.say === "checkpoint_created") {
+		// Reasoning - mark it but don't absorb if present
+		if (msg.say === "reasoning") {
+			hasReasoning = true
+			continue
+		}
+
+		// Checkpoints do not affect absorbability
+		if (msg.say === "checkpoint_created") {
 			continue
 		}
 
@@ -642,17 +649,19 @@ export function isApiReqAbsorbable(apiReqTs: number, allMessages: ClineMessage[]
 		}
 	}
 
-	return hasLowStakesTool
+	// Don't absorb if there's reasoning - we want to show "Thoughts >"
+	return hasLowStakesTool && !hasReasoning
 }
 
 /**
  * Check if an api_req_started at a given index produces low-stakes tools
  * (regardless of whether it also produces text).
  * If so, it should be absorbed into the tool group rather than rendered separately.
- * The key is: no HIGH-stakes tools (write, edit, command, etc.)
+ * The key is: no HIGH-stakes tools (write, edit, command, etc.) AND no reasoning
  */
 function isApiReqFollowedOnlyByLowStakesTools(index: number, messages: (ClineMessage | ClineMessage[])[]): boolean {
 	let hasLowStakesTool = false
+	let hasReasoning = false
 	for (let i = index + 1; i < messages.length; i++) {
 		const item = messages[i]
 		if (Array.isArray(item)) {
@@ -664,8 +673,9 @@ function isApiReqFollowedOnlyByLowStakesTools(index: number, messages: (ClineMes
 		if (msg.say === "api_req_started") {
 			break
 		}
-		// Reasoning is allowed
+		// Reasoning - mark it but don't absorb if present
 		if (msg.say === "reasoning") {
+			hasReasoning = true
 			continue
 		}
 		// Low-stakes tool - mark it
@@ -686,7 +696,8 @@ function isApiReqFollowedOnlyByLowStakesTools(index: number, messages: (ClineMes
 			return false
 		}
 	}
-	return hasLowStakesTool
+	// Don't absorb if there's reasoning - we want to show "Thoughts >"
+	return hasLowStakesTool && !hasReasoning
 }
 
 /**

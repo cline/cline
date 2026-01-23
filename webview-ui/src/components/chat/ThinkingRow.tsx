@@ -35,6 +35,11 @@ export const ThinkingRow = memo(({ showTitle = false, reasoningContent, isVisibl
 		return null
 	}
 
+	// Don't render anything if collapsed and no title (nothing to show)
+	if (!isExpanded && !showTitle) {
+		return null
+	}
+
 	return (
 		<div className="ml-1 pl-0 mb-1 -mt-1.25">
 			{showTitle ? (
