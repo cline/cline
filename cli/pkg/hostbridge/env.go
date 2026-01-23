@@ -104,7 +104,7 @@ func (s *EnvService) Shutdown(ctx context.Context, req *cline.EmptyRequest) (*cl
 	return &cline.Empty{}, nil
 }
 
-func (s *EnvService) isTelemetryEnabled() {
+func (s *EnvService) isTelemetryEnabled() bool {
 	// In CLI mode, check the CLINE_TELEMETRY_DISABLED environment variable
 	return os.Getenv("CLINE_TELEMETRY_DISABLED") != "true"
 }
