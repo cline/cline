@@ -130,6 +130,8 @@ interface ChatViewProps {
 	onComplete?: () => void
 	onError?: () => void
 	robotTopRow?: number
+	initialPrompt?: string
+	initialImages?: string[]
 }
 
 const SEARCH_DEBOUNCE_MS = 150
@@ -195,6 +197,7 @@ function getAskPromptType(ask: ClineAsk, text: string): "confirmation" | "text" 
 		case "tool":
 		case "browser_action_launch":
 		case "use_mcp_server":
+		case "api_req_failed":
 			return "confirmation"
 		default:
 			return "none"
@@ -209,7 +212,15 @@ function parseAskOptions(text: string): string[] {
 	return parts.options || []
 }
 
-export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComplete: _onComplete, onError, robotTopRow }) => {
+export const ChatView: React.FC<ChatViewProps> = ({
+	controller,
+	onExit,
+	onComplete: _onComplete,
+	onError,
+	robotTopRow,
+	initialPrompt,
+	initialImages,
+}) => {
 	// Get task state from context
 	const taskState = useTaskState()
 	const { controller: taskController } = useTaskContext()
@@ -283,13 +294,16 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 
 	// Filter messages we want to display
 	const displayMessages = useMemo(() => {
-		return messages.filter((m) => {
+		const filtered = messages.filter((m) => {
 			if (m.say === "api_req_finished") return false
 			if (m.say === "text" && !m.text?.trim()) return false
 			if (m.say === "checkpoint_created") return false
 			if (m.say === "api_req_started") return false
+			if (m.say === "api_req_retried") return false // Redundant with error_retry messages
 			return true
 		})
+
+		return filtered
 	}, [messages])
 
 	// Split messages into completed (for Static) and current (for dynamic region)
@@ -344,7 +358,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 
 		// Add completed messages that haven't been logged yet
 		for (const msg of completedMessages) {
-			if (!loggedMessageTsRef.current.has(msg.ts)) {
+			const wasLogged = loggedMessageTsRef.current.has(msg.ts)
+			if (!wasLogged) {
 				items.push({ type: "message", message: msg })
 				loggedMessageTsRef.current.add(msg.ts)
 			}
@@ -413,6 +428,34 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 		},
 		[controller, taskController, onError],
 	)
+
+	// Auto-submit initial prompt if provided
+	useEffect(() => {
+		const autoSubmit = async () => {
+			if (!initialPrompt && (!initialImages || initialImages.length === 0)) {
+				return
+			}
+
+			const ctrl = controller || taskController
+			if (!ctrl) {
+				return
+			}
+
+			// Small delay to ensure TaskContext subscription is set up
+			// TaskContextProvider's useEffect needs to override postStateToWebview first
+			await new Promise((resolve) => setTimeout(resolve, 100))
+
+			try {
+				// initialImages are already data URLs from index.ts processing
+				await ctrl.initTask(initialPrompt || "", initialImages && initialImages.length > 0 ? initialImages : undefined)
+			} catch (_error) {
+				onError?.()
+			}
+		}
+
+		autoSubmit()
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []) // Only run once on mount
 
 	// Search for files when in mention mode
 	useEffect(() => {
@@ -633,6 +676,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 				{pendingAsk && askType === "options" && askOptions.length > 0 && !yolo && (
 					<Box flexDirection="column" marginBottom={1}>
 						{askOptions.map((opt, idx) => (
+							// biome-ignore lint/suspicious/noArrayIndexKey: static options
 							<Text color="gray" key={idx}>
 								{idx + 1}. {opt}
 							</Text>
@@ -720,12 +764,12 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 						<Text color="gray">{modelId.length > 20 ? modelId.substring(0, 17) + "..." : modelId}</Text> {(() => {
 							const bar = createContextBar(metrics.totalTokensIn + metrics.totalTokensOut, DEFAULT_CONTEXT_WINDOW)
 							return (
-								<>
+								<Text>
 									<Text color="gray">{bar.filled}</Text>
 									<Text color="gray" dimColor>
 										{bar.empty}
 									</Text>
-								</>
+								</Text>
 							)
 						})()}
 						<Text color="gray"> ({(metrics.totalTokensIn + metrics.totalTokensOut).toLocaleString()})</Text>

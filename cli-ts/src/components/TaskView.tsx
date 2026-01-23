@@ -37,7 +37,7 @@ export const TaskView: React.FC<TaskViewProps> = ({ taskId: _taskId, verbose = f
 	const { isRawModeSupported } = useStdinContext()
 	const state = useTaskState()
 	const { isTaskComplete, getCompletionMessage } = useCompletionSignals()
-	const isSpinnerActive = useIsSpinnerActive()
+	const { isActive: isSpinnerActive } = useIsSpinnerActive()
 	const { isComplete, setIsComplete, lastError, controller } = useTaskContext()
 	const mode = useMemo<Mode>(() => StateManager.get().getGlobalSettingsKey("mode") || "act", [])
 	const [showCheckpointMenu, setShowCheckpointMenu] = useState(false)

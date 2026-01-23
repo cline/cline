@@ -92,6 +92,8 @@ interface AppProps {
 	// For welcome view
 	onWelcomeSubmit?: (prompt: string, imagePaths: string[]) => void
 	onWelcomeExit?: () => void
+	initialPrompt?: string
+	initialImages?: string[]
 	// Stdin support
 	isRawModeSupported?: boolean
 	// Robot position (calculated before Ink mounts)
@@ -137,6 +139,8 @@ export const App: React.FC<AppProps> = ({
 	authQuickSetup,
 	onWelcomeSubmit,
 	onWelcomeExit,
+	initialPrompt,
+	initialImages,
 	isRawModeSupported = true,
 	robotTopRow,
 }) => {
@@ -258,6 +262,8 @@ export const App: React.FC<AppProps> = ({
 				<TaskContextProvider controller={controller}>
 					<ChatView
 						controller={controller}
+						initialImages={initialImages}
+						initialPrompt={initialPrompt}
 						onComplete={onComplete}
 						onError={onError}
 						onExit={onWelcomeExit}

@@ -124,18 +124,19 @@ export const useCompletionSignals = () => {
 
 /**
  * Check if spinner should be shown (when API is thinking)
+ * Returns an object with isActive flag and startTime timestamp
  */
-export const useIsSpinnerActive = (): boolean => {
+export const useIsSpinnerActive = (): { isActive: boolean; startTime?: number } => {
 	const { state } = useTaskContext()
 
 	if (!state.clineMessages || state.clineMessages.length === 0) {
-		return false
+		return { isActive: false }
 	}
 
 	// If the last message is a completed ask message, don't show spinner (waiting for user input)
 	const lastMessage = state.clineMessages[state.clineMessages.length - 1]
 	if (lastMessage?.type === "ask" && !lastMessage.partial) {
-		return false
+		return { isActive: false }
 	}
 
 	// Look for most recent api_req_started that isn't followed by api_req_finished
@@ -150,9 +151,12 @@ export const useIsSpinnerActive = (): boolean => {
 					break
 				}
 			}
-			return !hasFinished
+			if (!hasFinished) {
+				return { isActive: true, startTime: msg.ts }
+			}
+			return { isActive: false }
 		}
 	}
 
-	return false
+	return { isActive: false }
 }

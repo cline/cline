@@ -16,6 +16,7 @@ import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
 import { StandaloneTerminalManager } from "@/integrations/terminal/standalone/StandaloneTerminalManager"
 import { ErrorService } from "@/services/error/ErrorService"
 import { initializeDistinctId } from "@/services/logging/distinctId"
+import { Logger } from "@/shared/services/Logger"
 import { getProviderModelIdKey } from "@/shared/storage"
 import { App } from "./components/App"
 import { checkRawModeSupport } from "./context/StdinContext"
@@ -24,11 +25,12 @@ import { CliCommentReviewController } from "./controllers/CliCommentReviewContro
 import { CliWebviewProvider } from "./controllers/CliWebviewProvider"
 import { restoreConsole } from "./utils/console"
 import { calculateRobotTopRow, queryCursorPos } from "./utils/cursor-position"
-import { printError, printInfo, printWarning } from "./utils/display"
+import { printInfo, printWarning } from "./utils/display"
 import { parseImagesFromInput, processImagePaths } from "./utils/parser"
 import { readStdinIfPiped } from "./utils/piped"
 import { runPlainTextTask } from "./utils/plain-text-task"
 import { initializeCliContext } from "./vscode-context"
+import { window } from "./vscode-shim"
 
 export const CLI_VERSION = "0.0.0"
 
@@ -97,8 +99,9 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 		AuthHandler.getInstance().setEnabled(true)
 	}
 
-	// TODO: Wire up with proper logging system
-	const logToChannel = () => {}
+	const outputChannel = window.createOutputChannel("Cline CLI")
+	outputChannel.appendLine(`Cline CLI initialized. Data dir: ${DATA_DIR}, Extension dir: ${EXTENSION_DIR}`)
+	const logToChannel = (message: string) => outputChannel.appendLine(message)
 
 	HostProvider.initialize(
 		() => new CliWebviewProvider(extensionContext),
@@ -115,6 +118,9 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 
 	await ErrorService.initialize()
 	await StateManager.initialize(extensionContext)
+
+	// Configure the shared Logging class to use HostProvider's output channel
+	Logger.setOutput((msg: string) => HostProvider.get().logToChannel(msg))
 
 	const webview = HostProvider.get().createWebviewProvider() as CliWebviewProvider
 	const controller = webview.controller
@@ -146,28 +152,7 @@ async function runInkApp(element: React.ReactElement, cleanup: () => Promise<voi
 }
 
 /**
- * Wait for a condition with timeout
- */
-function waitForCondition(check: () => boolean, timeoutMs: number, intervalMs: number = 100): Promise<boolean> {
-	return new Promise((resolve) => {
-		const startTime = Date.now()
-		const poll = () => {
-			if (check()) {
-				resolve(true)
-				return
-			}
-			if (Date.now() - startTime > timeoutMs) {
-				resolve(false)
-				return
-			}
-			setTimeout(poll, intervalMs)
-		}
-		poll()
-	})
-}
-
-/**
- * Run a task with the given prompt
+ * Run a task with the given prompt - uses welcome view for consistent behavior
  */
 async function runTask(
 	prompt: string,
@@ -185,7 +170,7 @@ async function runTask(
 	},
 	existingContext?: CliContext,
 ) {
-	const ctx = existingContext || (await initializeCli(options))
+	const ctx = existingContext || (await initializeCli({ ...options, enableAuth: true }))
 
 	// Parse images from the prompt text (e.g., @/path/to/image.png)
 	const { prompt: cleanPrompt, imagePaths: parsedImagePaths } = parseImagesFromInput(prompt)
@@ -256,57 +241,45 @@ async function runTask(
 		exit(success ? 0 : 1)
 	}
 
-	let isComplete = false
+	// Use welcome view for consistent rendering (same as interactive mode)
+	// Query cursor position BEFORE Ink mounts to know where robot will render
+	const cursorPos = await queryCursorPos(process.stdin, process.stdout)
+	const terminalRows = process.stdout.rows ?? 24
+	const robotTopRow = calculateRobotTopRow(cursorPos, terminalRows)
+
 	let taskError = false
 
-	const { waitUntilExit, unmount } = render(
+	// Render the welcome view with optional initial prompt/images
+	// If prompt provided (cline task "prompt"), ChatView will auto-submit
+	// If no prompt (cline interactive), user will type it in
+	await runInkApp(
 		React.createElement(App, {
-			view: "task",
-			taskId: taskPrompt.substring(0, 30),
+			view: "welcome",
 			verbose: options.verbose,
 			controller: ctx.controller,
-			jsonOutput: options.json,
 			isRawModeSupported: checkRawModeSupport(),
-			onComplete: () => {
-				isComplete = true
-			},
+			robotTopRow,
+			initialPrompt: taskPrompt || undefined,
+			initialImages: imageDataUrls.length > 0 ? imageDataUrls : undefined,
 			onError: () => {
 				taskError = true
-				isComplete = true
+			},
+			onWelcomeExit: () => {
+				// User pressed Esc
+				exit(0)
 			},
 		}),
+		async () => {
+			await ctx.controller.stateManager.flushPendingState()
+			await ctx.controller.dispose()
+			await ErrorService.get().dispose()
+			if (taskError) {
+				printWarning("Task ended with errors.")
+				exit(1)
+			}
+			exit(0)
+		},
 	)
-
-	await ctx.controller.initTask(taskPrompt, imageDataUrls.length > 0 ? imageDataUrls : undefined)
-
-	const completed = await waitForCondition(() => isComplete, 10 * 60 * 1000)
-	if (!completed) {
-		printError("Task timeout")
-	}
-
-	// Brief delay for final render
-	await new Promise((resolve) => setTimeout(resolve, 100))
-
-	try {
-		await waitUntilExit()
-		if (taskError) {
-			process.exit(1)
-		}
-	} catch (error) {
-		printError(`Task failed: ${error instanceof Error ? error.message : String(error)}`)
-		process.exit(1)
-	} finally {
-		try {
-			unmount()
-		} catch {
-			// Already unmounted
-		}
-		restoreConsole()
-		await ctx.controller.stateManager.flushPendingState()
-		await ctx.controller.dispose()
-		await ErrorService.get().dispose()
-		exit(0)
-	}
 }
 
 /**
@@ -486,57 +459,12 @@ program
 	.description("Show Cline CLI version number")
 	.action(() => printInfo(`Cline CLI version: ${CLI_VERSION}`))
 /**
- * Show welcome prompt and run task with user input
+ * Show welcome prompt and wait for user input
+ * Just calls runTask with empty prompt to show welcome screen
  */
 async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: string; thinking?: boolean }) {
-	const ctx = await initializeCli({ ...options, enableAuth: true })
-
-	// Query cursor position BEFORE Ink mounts to know where robot will render
-	const cursorPos = await queryCursorPos(process.stdin, process.stdout)
-	const terminalRows = process.stdout.rows ?? 24
-	const robotTopRow = calculateRobotTopRow(cursorPos, terminalRows)
-
-	let submittedPrompt: string | null = null
-	let submittedImagePaths: string[] = []
-
-	const { waitUntilExit, unmount } = render(
-		React.createElement(App, {
-			view: "welcome",
-			controller: ctx.controller,
-			isRawModeSupported: checkRawModeSupport(),
-			robotTopRow,
-			onWelcomeSubmit: (prompt: string, imagePaths: string[]) => {
-				submittedPrompt = prompt
-				submittedImagePaths = imagePaths
-				unmount()
-			},
-			onWelcomeExit: () => {
-				unmount()
-				exit(0)
-			},
-		}),
-		{
-			patchConsole: false,
-		},
-	)
-
-	try {
-		await waitUntilExit()
-	} catch {
-		// App unmounted after prompt submission
-	}
-
-	if (submittedPrompt || submittedImagePaths.length > 0) {
-		// Run the task with the submitted prompt and images, reusing the existing context
-		await runTask(submittedPrompt || "", { ...options, images: submittedImagePaths }, ctx)
-	} else {
-		// User exited without submitting - clean up and exit
-		restoreConsole()
-		await ctx.controller.stateManager.flushPendingState()
-		await ctx.controller.dispose()
-		await ErrorService.get().dispose()
-		exit(0)
-	}
+	// Empty prompt will show welcome screen and wait for user input
+	await runTask("", options)
 }
 
 // Interactive mode (default when no command given)

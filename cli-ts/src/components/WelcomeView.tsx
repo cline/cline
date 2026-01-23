@@ -236,8 +236,8 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 
 			{/* Cline logo - centered */}
 			<Box alignItems="center" flexDirection="column">
-				{/* biome-ignore lint/suspicious/noArrayIndexKey: static array that never changes */}
 				{CLINE_LOGO.map((line, idx) => (
+					// biome-ignore lint/suspicious/noArrayIndexKey: static array that never changes
 					<Text color="white" key={idx}>
 						{line}
 					</Text>
