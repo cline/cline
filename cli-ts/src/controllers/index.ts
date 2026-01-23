@@ -11,7 +11,7 @@ import type {
 } from "@generated/hosts/host-bridge-client-types"
 import type { HostBridgeClientProvider, StreamingCallbacks } from "@hosts/host-provider-types"
 import * as proto from "@shared/proto/index"
-import { ClineClient } from "@/shared/clients"
+import { ClineClient } from "@/shared/cline"
 import { CLI_VERSION } from ".."
 import { printError, printInfo, printWarning } from "../utils/display"
 
