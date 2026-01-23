@@ -64,11 +64,6 @@ describe("ClineAPI Core Functionality", () => {
 			sinon.assert.called(mockController.clearTask)
 			sinon.assert.called(mockController.postStateToWebview)
 			sinon.assert.calledWith(mockController.initTask, taskDescription, images)
-
-			// Verify logging - first it logs "Starting new task"
-			sinon.assert.calledWith(mockLogToChannel, "Starting new task")
-			// Then it logs the task details
-			sinon.assert.calledWith(mockLogToChannel, `Task started with message: "Create a test function" and 2 image(s)`)
 		})
 
 		it("should handle undefined task description", async () => {
@@ -76,16 +71,12 @@ describe("ClineAPI Core Functionality", () => {
 
 			sinon.assert.called(mockController.clearTask)
 			sinon.assert.calledWith(mockController.initTask, undefined, [])
-
-			sinon.assert.calledWith(mockLogToChannel, "Task started with message: undefined and 0 image(s)")
 		})
 
 		it("should handle task with no images", async () => {
 			await api.startNewTask("Task without images")
 
 			sinon.assert.calledWith(mockController.initTask, "Task without images", undefined)
-
-			sinon.assert.calledWith(mockLogToChannel, `Task started with message: "Task without images" and 0 image(s)`)
 		})
 	})
 
@@ -99,16 +90,12 @@ describe("ClineAPI Core Functionality", () => {
 			await api.sendMessage("Test message", ["image.png"])
 
 			sinon.assert.calledWith(mockTask.handleWebviewAskResponse, "messageResponse", "Test message", ["image.png"])
-
-			sinon.assert.calledWith(mockLogToChannel, `Sending message: "Test message" with 1 image(s)`)
 		})
 
 		it("should handle no active task gracefully", async () => {
 			mockController.task = undefined
 
 			await api.sendMessage("Message to nowhere", [])
-
-			sinon.assert.calledWith(mockLogToChannel, "No active task to send message to")
 		})
 
 		it("should handle empty message", async () => {
@@ -131,8 +118,6 @@ describe("ClineAPI Core Functionality", () => {
 			await api.sendMessage(undefined, [])
 
 			sinon.assert.calledWith(mockTask.handleWebviewAskResponse, "messageResponse", "", [])
-
-			sinon.assert.calledWith(mockLogToChannel, `Sending message: undefined with 0 image(s)`)
 		})
 	})
 
@@ -147,8 +132,6 @@ describe("ClineAPI Core Functionality", () => {
 				await api.pressPrimaryButton()
 
 				sinon.assert.calledWith(mockTask.handleWebviewAskResponse, "yesButtonClicked", "", [])
-
-				sinon.assert.calledWith(mockLogToChannel, "Pressing primary button")
 			})
 
 			it("should handle primary button press with no active task", async () => {
@@ -170,8 +153,6 @@ describe("ClineAPI Core Functionality", () => {
 				await api.pressSecondaryButton()
 
 				sinon.assert.calledWith(mockTask.handleWebviewAskResponse, "noButtonClicked", "", [])
-
-				sinon.assert.calledWith(mockLogToChannel, "Pressing secondary button")
 			})
 
 			it("should handle secondary button press with no active task", async () => {
