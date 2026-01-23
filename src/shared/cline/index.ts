@@ -3,7 +3,7 @@ export * from "./context"
 export * from "./onboarding"
 
 export enum ClineClient {
-	VSCode = "VS Code",
+	VSCode = "VSCode Extension",
 	JetBrains = "JetBrains",
 	Cli = "CLI",
 }
