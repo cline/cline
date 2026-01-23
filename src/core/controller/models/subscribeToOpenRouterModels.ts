@@ -20,15 +20,12 @@ export async function subscribeToOpenRouterModels(
 	responseStream: StreamingResponseHandler<OpenRouterCompatibleModelInfo>,
 	requestId?: string,
 ): Promise<void> {
-	Logger.log("[DEBUG] set up OpenRouter models subscription")
-
 	// Add this subscription to the active subscriptions
 	activeOpenRouterModelsSubscriptions.add(responseStream)
 
 	// Register cleanup when the connection is closed
 	const cleanup = () => {
 		activeOpenRouterModelsSubscriptions.delete(responseStream)
-		Logger.log("[DEBUG] Cleaned up OpenRouter models subscription")
 	}
 
 	// Register the cleanup function with the request registry if we have a requestId

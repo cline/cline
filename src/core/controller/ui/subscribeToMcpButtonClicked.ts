@@ -19,8 +19,6 @@ export async function subscribeToMcpButtonClicked(
 	responseStream: StreamingResponseHandler<Empty>,
 	requestId?: string,
 ): Promise<void> {
-	Logger.log(`[DEBUG] set up mcpButtonClicked subscription`)
-
 	// Add this subscription to the active subscriptions
 	activeMcpButtonClickedSubscriptions.add(responseStream)
 
