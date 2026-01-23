@@ -8,6 +8,7 @@ import type { Mode } from "@shared/storage/types"
 import { Box, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
+import { getProviderDefaultModelId } from "@/shared/storage"
 import { useStdinContext } from "../context/StdinContext"
 import {
 	checkAndWarnRipgrepMissing,
@@ -64,12 +65,20 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 		return stateManager.getGlobalSettingsKey("mode") || "act"
 	})
 
+	const provider = useMemo(() => {
+		const stateManager = StateManager.get()
+		const mode = stateManager.getGlobalSettingsKey("mode") as string
+		const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
+		const currentProvider = stateManager.getGlobalSettingsKey(providerKey) as string
+		return currentProvider || "cline"
+	}, [controller])
+
 	// Get model ID based on current mode
 	const modelId = useMemo(() => {
 		const stateManager = StateManager.get()
 		const modelKey = mode === "act" ? "actModeApiModelId" : "planModeApiModelId"
-		return (stateManager.getGlobalSettingsKey(modelKey) as string) || "claude-sonnet-4-20250514"
-	}, [mode])
+		return (stateManager.getGlobalSettingsKey(modelKey) as string) || getProviderDefaultModelId(provider)
+	}, [mode, provider])
 
 	const toggleMode = useCallback(() => {
 		const newMode: Mode = mode === "act" ? "plan" : "act"

@@ -7,7 +7,7 @@ import { Box, Text, useApp, useInput } from "ink"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import { AuthService } from "@/services/auth/AuthService"
-import { API_PROVIDERS_LIST } from "@/shared/api"
+import { API_PROVIDERS_LIST, openRouterDefaultModelId } from "@/shared/api"
 import { ProviderToApiKeyMap } from "@/shared/storage"
 import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import { useStdinContext } from "../context/StdinContext"
@@ -228,18 +228,22 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			if (authState.user && authState.user.email) {
 				// Auth succeeded - save configuration and transition to success
 				const stateManager = StateManager.get()
+
+				const mode = stateManager.getGlobalSettingsKey("mode") || "act"
+				const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
+				const modelIdKey = mode === "act" ? "actModeApiModelId" : "planModeApiModelId"
+
 				const config: Record<string, string> = {
-					actModeApiProvider: "cline",
-					planModeApiProvider: "cline",
-					actModeApiModelId: "anthropic/claude-sonnet-4.5",
-					planModeApiModelId: "anthropic/claude-sonnet-4.5",
 					apiProvider: "cline",
+					[providerKey]: "cline",
+					[modelIdKey]: openRouterDefaultModelId,
 				}
+
 				stateManager.setApiConfiguration(config)
 				stateManager.flushPendingState()
 
 				setSelectedProvider("cline")
-				setModelId("anthropic/claude-sonnet-4.5")
+				setModelId(config[modelIdKey])
 				setStep("success")
 			}
 		}
