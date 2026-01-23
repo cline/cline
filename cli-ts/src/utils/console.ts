@@ -21,6 +21,7 @@ if (!isVerbose) {
 	console.warn = () => {}
 	console.error = () => {}
 	console.debug = () => {}
+	console.info = () => {}
 }
 
 /**

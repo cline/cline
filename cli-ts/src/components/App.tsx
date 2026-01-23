@@ -8,10 +8,10 @@ import React, { ReactNode, useCallback, useState } from "react"
 import { StdinProvider } from "../context/StdinContext"
 import { TaskContextProvider } from "../context/TaskContext"
 import { AuthView } from "./AuthView"
+import { ChatView } from "./ChatView"
 import { ConfigView } from "./ConfigView"
 import { HistoryView } from "./HistoryView"
 import { TaskView } from "./TaskView"
-import { WelcomeView } from "./WelcomeView"
 
 export type ViewType = "task" | "history" | "config" | "auth" | "welcome"
 
@@ -144,7 +144,7 @@ export const App: React.FC<AppProps> = ({
 	}, [])
 
 	// Handle welcome submit when navigating internally (e.g., from auth -> welcome)
-	const handleInternalWelcomeSubmit = useCallback(
+	const _handleInternalWelcomeSubmit = useCallback(
 		async (prompt: string, imagePaths: string[]) => {
 			if (onWelcomeSubmit) {
 				// If external handler provided, use it
@@ -241,7 +241,11 @@ export const App: React.FC<AppProps> = ({
 			break
 
 		case "welcome":
-			content = <WelcomeView controller={controller} onExit={onWelcomeExit} onSubmit={handleInternalWelcomeSubmit} />
+			content = (
+				<TaskContextProvider controller={controller}>
+					<ChatView controller={controller} onComplete={onComplete} onError={onError} onExit={onWelcomeExit} />
+				</TaskContextProvider>
+			)
 			break
 
 		default:
