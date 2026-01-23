@@ -124,11 +124,11 @@ cli-ts/src/acp/
   - [x] When `--acp` is set, call `runAcpMode()` instead of normal flow
   - [x] Skip React Ink rendering entirely in ACP mode
 
-### Phase 7: State Synchronization
-- [ ] **7.1** Implement state broadcasting in AcpAgent
-  - [ ] Subscribe to Controller.postStateToWebview
-  - [ ] Diff state changes and emit session/update notifications
-  - [ ] Handle streaming/partial messages
+### Phase 7: State Synchronization ✅
+- [x] **7.1** Implement state broadcasting in AcpAgent
+  - [x] Subscribe to Controller.postStateToWebview
+  - [x] Diff state changes and emit session/update notifications
+  - [x] Handle streaming/partial messages
 
 ### Phase 8: Session Persistence
 - [ ] **8.1** Implement `loadSession()` in AcpAgent
