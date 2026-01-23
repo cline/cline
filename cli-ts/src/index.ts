@@ -22,6 +22,7 @@ import { createCliHostBridgeProvider } from "./controllers"
 import { CliCommentReviewController } from "./controllers/CliCommentReviewController"
 import { CliWebviewProvider } from "./controllers/CliWebviewProvider"
 import { restoreConsole } from "./utils/console"
+import { calculateRobotTopRow, queryCursorPos } from "./utils/cursor-position"
 import { print, printError, printInfo, printWarning, separator } from "./utils/display"
 import { parseImagesFromInput, processImagePaths } from "./utils/parser"
 import { readStdinIfPiped } from "./utils/piped"
@@ -471,6 +472,11 @@ program
 async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: string; thinking?: boolean }) {
 	const ctx = await initializeCli({ ...options, enableAuth: true })
 
+	// Query cursor position BEFORE Ink mounts to know where robot will render
+	const cursorPos = await queryCursorPos(process.stdin, process.stdout)
+	const terminalRows = process.stdout.rows ?? 24
+	const robotTopRow = calculateRobotTopRow(cursorPos, terminalRows)
+
 	let submittedPrompt: string | null = null
 	let submittedImagePaths: string[] = []
 
@@ -479,6 +485,7 @@ async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: 
 			view: "welcome",
 			controller: ctx.controller,
 			isRawModeSupported: checkRawModeSupport(),
+			robotTopRow,
 			onWelcomeSubmit: (prompt: string, imagePaths: string[]) => {
 				submittedPrompt = prompt
 				submittedImagePaths = imagePaths
