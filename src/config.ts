@@ -2,6 +2,8 @@ import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
 
+import { Logger } from "@/shared/services/Logger"
+
 export enum Environment {
 	production = "production",
 	staging = "staging",
@@ -71,7 +73,7 @@ class ClineEndpoint {
 		const endpointsConfig = await ClineEndpoint.loadEndpointsFile()
 		if (endpointsConfig) {
 			ClineEndpoint._instance.onPremiseConfig = endpointsConfig
-			console.info("Cline running in on-premise mode with custom endpoints")
+			Logger.log("Cline running in self-hosted mode with custom endpoints")
 		}
 
 		ClineEndpoint._initialized = true
