@@ -9,8 +9,30 @@
 
 // Export the ACP Agent implementation
 export { AcpAgent } from "./AcpAgent.js"
+
+// Export the Host Bridge Provider (file operations delegation)
+export {
+	AcpHostBridgeProvider,
+	type FileReadOptions,
+	type FileReadResult,
+	type FileWriteResult,
+} from "./AcpHostBridgeProvider.js"
+
+// Export the Terminal Manager (terminal operations delegation)
+export {
+	AcpTerminalManager,
+	type CreateTerminalOptions,
+	type ManagedTerminal,
+	type TerminalEnvVariable,
+	type TerminalExitStatus,
+	type TerminalOperationResult,
+	type TerminalOutputResult,
+	type TerminalWaitResult,
+} from "./AcpTerminalManager.js"
+
 // Export the message translator
 export { createSessionState, translateMessage, translateMessages } from "./messageTranslator.js"
+
 // Export the permission handler
 export {
 	AutoApprovalTracker,
@@ -23,10 +45,9 @@ export {
 	requiresPermission,
 	updateSessionStateAfterPermission,
 } from "./permissionHandler.js"
+
 // Re-export types
 export * from "./types.js"
 
 // Note: The following exports will be added as each module is implemented:
 // export { runAcpMode } from "./runAcpMode.js"
-// export { AcpHostBridgeProvider } from "./AcpHostBridgeProvider.js"
-// export { AcpTerminalManager } from "./AcpTerminalManager.js"
