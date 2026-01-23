@@ -37,7 +37,7 @@ export const TaskView: React.FC<TaskViewProps> = ({ taskId: _taskId, verbose = f
 	const state = useTaskState()
 	const { isTaskComplete, getCompletionMessage } = useCompletionSignals()
 	const isSpinnerActive = useIsSpinnerActive()
-	const { setIsComplete, lastError, controller } = useTaskContext()
+	const { isComplete, setIsComplete, lastError, controller } = useTaskContext()
 	const [showCheckpointMenu, setShowCheckpointMenu] = useState(false)
 	const [restoreStatus, setRestoreStatus] = useState<"idle" | "restoring" | "success" | "error">("idle")
 	const [restoreMessage, setRestoreMessage] = useState<string | null>(null)
@@ -172,15 +172,15 @@ export const TaskView: React.FC<TaskViewProps> = ({ taskId: _taskId, verbose = f
 			{/* Messages list */}
 			<MessageList verbose={verbose} />
 
-			{/* Loading spinner */}
-			{isSpinnerActive && (
+			{/* Loading spinner - hide when task is complete/exiting */}
+			{isSpinnerActive && !isComplete && (
 				<Box marginTop={1}>
 					<LoadingSpinner />
 				</Box>
 			)}
 
 			{/* User input prompt */}
-			{!yolo && <AskPrompt />}
+			<AskPrompt />
 		</Box>
 	)
 }

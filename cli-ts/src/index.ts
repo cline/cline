@@ -96,7 +96,6 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 
 	// const logToChannel = options.verbose ? (message: string) => printInfo(message) : () => {}
 	const logToChannel = () => {}
-	process.stdin.write(`Cline CLI version: ${CLI_VERSION} - is verbose: ${options.verbose}`)
 
 	HostProvider.initialize(
 		() => new CliWebviewProvider(extensionContext),
@@ -226,9 +225,7 @@ async function runTask(
 	StateManager.get().setGlobalState(thinkingKey, thinkingBudget)
 
 	// Set yolo mode based on --yolo flag
-	if (options.yolo) {
-		StateManager.get().setGlobalState("yoloModeToggled", true)
-	}
+	StateManager.get().setGlobalState("yoloModeToggled", options.yolo === true)
 
 	await StateManager.get().flushPendingState()
 
@@ -468,26 +465,76 @@ program
 	.action(() => printInfo(`Cline CLI version: ${CLI_VERSION}`))
 /**
  * Show welcome prompt and run task with user input
+ * Uses internal view switching to avoid visual glitches when transitioning to TaskView
  */
-async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: string; thinking?: boolean }) {
+async function showWelcome(options: {
+	verbose?: boolean
+	cwd?: string
+	config?: string
+	thinking?: boolean
+	yolo?: boolean
+	plan?: boolean
+	act?: boolean
+	model?: string
+}) {
 	const ctx = await initializeCli({ ...options, enableAuth: true })
 
-	let submittedPrompt: string | null = null
-	let submittedImagePaths: string[] = []
+	// Apply options that would normally be set in runTask() BEFORE rendering
+	// This ensures they're applied when the internal view switch happens
+	if (options.plan) {
+		StateManager.get().setGlobalState("mode", "plan")
+	} else if (options.act) {
+		StateManager.get().setGlobalState("mode", "act")
+	}
 
+	if (options.model) {
+		const selectedMode = (StateManager.get().getGlobalSettingsKey("mode") || "act") as "act" | "plan"
+
+		// Get the current provider for the selected mode
+		const providerKey = selectedMode === "act" ? "actModeApiProvider" : "planModeApiProvider"
+		const currentProvider = StateManager.get().getGlobalSettingsKey(providerKey) as ApiProvider
+
+		// Update the generic model ID for the current mode
+		const modelKey = selectedMode === "act" ? "actModeApiModelId" : "planModeApiModelId"
+		StateManager.get().setGlobalState(modelKey, options.model)
+
+		// Also update the provider-specific model ID key if applicable
+		const providerModelKey = getProviderModelIdKey(currentProvider, selectedMode)
+		if (providerModelKey) {
+			StateManager.get().setGlobalState(providerModelKey, options.model)
+		}
+	}
+
+	// Set thinking budget based on --thinking flag
+	const thinkingBudget = options.thinking ? 1024 : 0
+	const currentMode = StateManager.get().getGlobalSettingsKey("mode") || "act"
+	const thinkingKey = currentMode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
+	StateManager.get().setGlobalState(thinkingKey, thinkingBudget)
+
+	// Set yolo mode based on --yolo flag
+	StateManager.get().setGlobalState("yoloModeToggled", options.yolo === true)
+
+	await StateManager.get().flushPendingState()
+
+	let taskError = false
+
+	// Don't pass onWelcomeSubmit - let App handle view switching internally
+	// This avoids unmounting and remounting which causes the PromptInput flash
 	const { waitUntilExit, unmount } = render(
 		React.createElement(App, {
 			view: "welcome",
 			controller: ctx.controller,
+			verbose: options.verbose,
 			isRawModeSupported: checkRawModeSupport(),
-			onWelcomeSubmit: (prompt: string, imagePaths: string[]) => {
-				submittedPrompt = prompt
-				submittedImagePaths = imagePaths
-				unmount()
-			},
+			// No onWelcomeSubmit - App.handleInternalWelcomeSubmit will switch views
 			onWelcomeExit: () => {
 				unmount()
-				exit(0)
+			},
+			onComplete: () => {
+				// Task completed successfully
+			},
+			onError: () => {
+				taskError = true
 			},
 		}),
 	)
@@ -495,19 +542,19 @@ async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: 
 	try {
 		await waitUntilExit()
 	} catch {
-		// App unmounted after prompt submission
+		// App unmounted
 	}
 
 	restoreConsole()
 
-	if (submittedPrompt || submittedImagePaths.length > 0) {
-		// Run the task with the submitted prompt and images, reusing the existing context
-		await runTask(submittedPrompt || "", { ...options, images: submittedImagePaths }, ctx)
+	// Clean up
+	await ctx.controller.stateManager.flushPendingState()
+	await ctx.controller.dispose()
+	await ErrorService.get().dispose()
+
+	if (taskError) {
+		exit(1)
 	} else {
-		// User exited without submitting - clean up and exit
-		await ctx.controller.stateManager.flushPendingState()
-		await ctx.controller.dispose()
-		await ErrorService.get().dispose()
 		exit(0)
 	}
 }
@@ -515,17 +562,26 @@ async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: 
 // Interactive mode (default when no command given)
 program
 	.argument("[prompt]", "Task prompt (starts task immediately)")
+	.option("-a, --act", "Run in act mode")
+	.option("-p, --plan", "Run in plan mode")
+	.option("-y, --yolo", "Enable yolo mode (auto-approve actions)")
+	.option("-m, --model <model>", "Model to use for the task")
 	.option("-i, --images <paths...>", "Image file paths to include with the task")
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory")
 	.option("--config <path>", "Configuration directory")
 	.option("--thinking", "Enable extended thinking (1024 token budget)")
 	.action(async (prompt, options) => {
-		// If no prompt argument, check if input is piped via stdin
+		// Always check for piped stdin content
+		const stdinInput = await readStdinIfPiped()
+
+		// Combine stdin content with prompt argument
 		let effectivePrompt = prompt
-		if (!effectivePrompt) {
-			const stdinInput = await readStdinIfPiped()
-			if (stdinInput) {
+		if (stdinInput) {
+			if (effectivePrompt) {
+				// Prepend stdin content to the prompt
+				effectivePrompt = `${stdinInput}\n\n${effectivePrompt}`
+			} else {
 				effectivePrompt = stdinInput
 			}
 		}

@@ -255,10 +255,10 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 				return
 			}
 
-			// List navigation
-			if (key.upArrow) {
+			// List navigation (arrow keys and vim-style j/k)
+			if (key.upArrow || input === "k") {
 				setSelectedIndex((i) => (i > 0 ? i - 1 : currentListLength - 1))
-			} else if (key.downArrow) {
+			} else if (key.downArrow || input === "j") {
 				setSelectedIndex((i) => (i < currentListLength - 1 ? i + 1 : 0))
 			}
 
@@ -507,7 +507,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 
 	// Help text based on current tab
 	const getHelpText = () => {
-		const base = "↑/↓ Navigate • Tab/1-5 Switch tabs • q/Esc Exit"
+		const base = "↑/↓/j/k Navigate • Tab/1-5 Switch tabs • q/Esc Exit"
 		if (currentTab === "settings") {
 			return `${base} • Enter/e Edit • r Reset`
 		}

@@ -21,6 +21,7 @@ import {
 import { parseImagesFromInput } from "../utils/parser"
 import { AccountInfoView } from "./AccountInfoView"
 import { FileMentionMenu } from "./FileMentionMenu"
+import { PromptInput } from "./PromptInput"
 
 interface WelcomeViewProps {
 	onSubmit: (prompt: string, imagePaths: string[]) => void
@@ -224,8 +225,6 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 		{ isActive: isRawModeSupported },
 	)
 
-	const borderColor = mode === "act" ? "blue" : "yellow"
-
 	return (
 		<Box flexDirection="column" width="100%">
 			{/* Account/Provider info at top */}
@@ -260,70 +259,38 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 				</Box>
 			)}
 
-			{/* Input field with border */}
-			<Box
-				borderColor={borderColor}
-				borderStyle="round"
-				flexDirection="row"
-				marginTop={1}
-				paddingLeft={1}
-				paddingRight={1}
-				width="100%">
-				<Text>{textInput}</Text>
-				<Text color="gray">▌</Text>
-			</Box>
-
-			{/* Model ID and Mode toggle row */}
-			<Box justifyContent="space-between" width="100%">
-				{/* Model ID on left */}
-				<Text color="gray" dimColor>
-					{modelId}
-				</Text>
-
-				{/* Mode toggle on right */}
-				<Box gap={1}>
-					<Box>
-						<Text bold={mode === "plan"} color={mode === "plan" ? "yellow" : "gray"}>
-							{mode === "plan" ? "●" : "○"} Plan
+			{/* Input with mode toggle */}
+			<PromptInput
+				helpText={
+					<React.Fragment>
+						<Text color="gray" dimColor>
+							Enter to submit · @ to mention files ·{" "}
 						</Text>
-					</Box>
-					<Box>
-						<Text bold={mode === "act"} color={mode === "act" ? "blue" : "gray"}>
-							{mode === "act" ? "●" : "○"} Act
+						<Text bold={escPressedOnce} color={escPressedOnce ? "white" : "gray"} dimColor={!escPressedOnce}>
+							{escPressedOnce ? "Press Esc again to exit" : "Esc to exit"}
 						</Text>
-					</Box>
-					<Text color="gray" dimColor>
-						(Tab)
+					</React.Fragment>
+				}
+				mode={mode}
+				modelId={modelId || ""}
+				textInput={textInput}>
+				{/* File mention menu - below input */}
+				{mentionInfo.inMentionMode && (
+					<FileMentionMenu
+						isLoading={isSearching}
+						query={mentionInfo.query}
+						results={fileResults}
+						selectedIndex={selectedIndex}
+					/>
+				)}
+
+				{/* Attached images */}
+				{imagePaths.length > 0 && (
+					<Text color="magenta">
+						📎 {imagePaths.length} image{imagePaths.length > 1 ? "s" : ""} attached
 					</Text>
-				</Box>
-			</Box>
-
-			{/* File mention menu - below input */}
-			{mentionInfo.inMentionMode && (
-				<FileMentionMenu
-					isLoading={isSearching}
-					query={mentionInfo.query}
-					results={fileResults}
-					selectedIndex={selectedIndex}
-				/>
-			)}
-
-			{/* Attached images */}
-			{imagePaths.length > 0 && (
-				<Text color="magenta">
-					📎 {imagePaths.length} image{imagePaths.length > 1 ? "s" : ""} attached
-				</Text>
-			)}
-
-			{/* Help text */}
-			<Box>
-				<Text color="gray" dimColor>
-					Enter to submit · @ to mention files ·{" "}
-				</Text>
-				<Text bold={escPressedOnce} color={escPressedOnce ? "white" : "gray"} dimColor={!escPressedOnce}>
-					{escPressedOnce ? "Press Esc again to exit" : "Esc to exit"}
-				</Text>
-			</Box>
+				)}
+			</PromptInput>
 		</Box>
 	)
 }
