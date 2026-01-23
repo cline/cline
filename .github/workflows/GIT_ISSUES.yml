@@ -1,9 +1,9 @@
 name: Notify Slack on Issues
-
+permissions:
+  contents: read
 on:
   issues:
     types: [opened, reopened]  # New issues AND reopened issues
-
 jobs:
   notify:
     runs-on: ubuntu-latest
