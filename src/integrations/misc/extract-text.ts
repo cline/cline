@@ -7,6 +7,7 @@ import mammoth from "mammoth"
 import * as path from "path"
 // @ts-ignore-next-line
 import pdf from "pdf-parse/lib/pdf-parse"
+import { Logger } from "@/shared/services/Logger"
 import { sanitizeNotebookForLLM } from "./notebook-utils"
 
 export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string): Promise<string> {
@@ -78,8 +79,10 @@ async function extractTextFromIPYNB(filePath: string): Promise<string> {
 	const encoding = await detectEncoding(fileBuffer)
 	const data = iconv.decode(fileBuffer, encoding)
 
-	// Return sanitized JSON for proper editing (enhanced notebook behavior is now always enabled)
-	return sanitizeNotebookForLLM(data)
+	// Strip all outputs to reduce context size - outputs aren't needed for understanding
+	// notebook structure. For Jupyter commands, the specific cell's outputs are included
+	// separately via sanitizeCellForLLM which preserves text outputs.
+	return sanitizeNotebookForLLM(data, true)
 }
 
 /**
@@ -172,7 +175,7 @@ async function extractTextFromExcel(filePath: string): Promise<string> {
 
 		return excelText.trim()
 	} catch (error: any) {
-		console.error(`Error extracting text from Excel ${filePath}:`, error)
+		Logger.error(`Error extracting text from Excel ${filePath}:`, error)
 		throw new Error(`Failed to extract text from Excel: ${error.message}`)
 	}
 }
@@ -191,7 +194,7 @@ export async function processFilesIntoText(files: string[]): Promise<string> {
 			const content = await extractTextFromFile(filePath)
 			return `<file_content path="${filePath.toPosix()}">\n${content}\n</file_content>`
 		} catch (error) {
-			console.error(`Error processing file ${filePath}:`, error)
+			Logger.error(`Error processing file ${filePath}:`, error)
 			return `<file_content path="${filePath.toPosix()}">\nError fetching content: ${error.message}\n</file_content>`
 		}
 	})

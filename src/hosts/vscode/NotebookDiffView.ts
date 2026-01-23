@@ -1,6 +1,7 @@
 import * as os from "os"
 import * as path from "path"
 import * as vscode from "vscode"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * Handles Jupyter notebook diff views with cell-level rendering.
@@ -48,7 +49,7 @@ export class NotebookDiffView {
 		try {
 			JSON.parse(currentContent)
 		} catch {
-			console.error(`Invalid JSON content for notebook file ${fileName}, skipping notebook diff view`)
+			Logger.error(`Invalid JSON content for notebook file ${fileName}, skipping notebook diff view`)
 			return
 		}
 
@@ -96,7 +97,7 @@ export class NotebookDiffView {
 			edit.replace(editor.document.uri, fullRange, tempContentString)
 			await vscode.workspace.applyEdit(edit)
 		} catch (error) {
-			console.error("Failed to sync temp file to editor:", error)
+			Logger.error("Failed to sync temp file to editor:", error)
 		}
 	}
 
@@ -110,7 +111,7 @@ export class NotebookDiffView {
 			try {
 				await vscode.workspace.fs.delete(this.tempModifiedUri)
 			} catch (error) {
-				console.log(`Failed to cleanup temporary file: ${error}`)
+				Logger.error(`Failed to cleanup temporary file: ${error}`)
 			}
 			this.tempModifiedUri = undefined
 		}

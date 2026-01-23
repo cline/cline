@@ -2,6 +2,7 @@ import { fileExistsAtPath } from "@utils/fs"
 import fs from "fs/promises"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * Cleans up legacy checkpoints from task folders.
@@ -67,6 +68,6 @@ export async function cleanupLegacyCheckpoints(): Promise<void> {
 		}
 	} catch (error) {
 		HostProvider.get().logToChannel(`Error cleaning up legacy checkpoints: ${error}`)
-		console.error("Error cleaning up legacy checkpoints:", error)
+		Logger.error("Error cleaning up legacy checkpoints:", error)
 	}
 }

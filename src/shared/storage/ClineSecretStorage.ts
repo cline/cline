@@ -28,14 +28,16 @@ export class ClineSecretStorage extends ClineStorage {
 	public init(store: SecretStores) {
 		if (!this.secretStorage) {
 			this.secretStorage = store
+			Logger.info("[ClineSecretStorage] initialized")
 		}
 		return this.secretStorage
 	}
 
 	protected async _get(key: string): Promise<string | undefined> {
 		try {
-			return await this.storage.get(key)
-		} catch {
+			return key ? await this.storage.get(key) : undefined
+		} catch (error) {
+			Logger.error("[ClineSecretStorage]", error)
 			return undefined
 		}
 	}
@@ -56,6 +58,7 @@ export class ClineSecretStorage extends ClineStorage {
 	}
 
 	protected async _delete(key: string): Promise<void> {
+		Logger.info("[ClineSecretStorage] deleting secret")
 		await this.storage.delete(key)
 	}
 }

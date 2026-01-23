@@ -15,6 +15,7 @@ import { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import pTimeout from "p-timeout"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { MessageStateHandler } from "../../core/task/message-state"
 import { TaskState } from "../../core/task/TaskState"
 import { ICheckpointManager } from "./types"
@@ -147,7 +148,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 
 			// Critical failure to initialize checkpoint tracker, return early
 			if (!this.state.checkpointTracker) {
-				console.error(
+				Logger.error(
 					`[TaskCheckpointManager] Failed to save checkpoint for task ${this.task.taskId}: Checkpoint tracker not available`,
 				)
 				return
@@ -177,7 +178,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 								}
 							})
 							.catch((error) => {
-								console.error(
+								Logger.error(
 									`[TaskCheckpointManager] Failed to create checkpoint commit for task ${this.task.taskId}:`,
 									error,
 								)
@@ -191,7 +192,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 				const lastFiveclineMessages = this.services.messageStateHandler.getClineMessages().slice(-3)
 				const lastCompletionResultMessage = findLast(lastFiveclineMessages, (m) => m.say === "completion_result")
 				if (lastCompletionResultMessage?.lastCheckpointHash) {
-					console.log("Completion checkpoint already exists, skipping duplicate checkpoint creation")
+					Logger.log("Completion checkpoint already exists, skipping duplicate checkpoint creation")
 					return
 				}
 
@@ -216,14 +217,14 @@ export class TaskCheckpointManager implements ICheckpointManager {
 						}
 					}
 				} else {
-					console.error(
+					Logger.error(
 						`[TaskCheckpointManager] Checkpoint tracker does not exist and could not be initialized for attempt completion for task ${this.task.taskId}`,
 					)
 				}
 			}
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Unknown error"
-			console.error(`[TaskCheckpointManager] Failed to save checkpoint for task ${this.task.taskId}:`, errorMessage)
+			Logger.error(`[TaskCheckpointManager] Failed to save checkpoint for task ${this.task.taskId}:`, errorMessage)
 		}
 	}
 
@@ -248,7 +249,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			const lastMessageWithHash = clineMessages[lastHashIndex]
 
 			if (!message) {
-				console.error(`[TaskCheckpointManager] Message not found for timestamp ${messageTs} in task ${this.task.taskId}`)
+				Logger.error(`[TaskCheckpointManager] Message not found for timestamp ${messageTs} in task ${this.task.taskId}`)
 				return {}
 			}
 
@@ -261,7 +262,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 				case "workspace":
 					if (!this.config.enableCheckpoints) {
 						const errorMessage = "Checkpoints are disabled in settings."
-						console.error(`[TaskCheckpointManager] ${errorMessage} for task ${this.task.taskId}`)
+						Logger.error(`[TaskCheckpointManager] ${errorMessage} for task ${this.task.taskId}`)
 						HostProvider.window.showMessage({
 							type: ShowMessageType.ERROR,
 							message: errorMessage,
@@ -281,7 +282,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 							this.services.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
 						} catch (error) {
 							const errorMessage = error instanceof Error ? error.message : "Unknown error"
-							console.error(
+							Logger.error(
 								`[TaskCheckpointManager] Failed to initialize checkpoint tracker for task ${this.task.taskId}:`,
 								errorMessage,
 							)
@@ -298,7 +299,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 							await this.state.checkpointTracker.resetHead(message.lastCheckpointHash)
 						} catch (error) {
 							const errorMessage = error instanceof Error ? error.message : "Unknown error"
-							console.error(
+							Logger.error(
 								`[TaskCheckpointManager] Failed to restore checkpoint for task ${this.task.taskId}:`,
 								errorMessage,
 							)
@@ -313,7 +314,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 							await this.state.checkpointTracker.resetHead(lastMessageWithHash.lastCheckpointHash)
 						} catch (error) {
 							const errorMessage = error instanceof Error ? error.message : "Unknown error"
-							console.error(
+							Logger.error(
 								`[TaskCheckpointManager] Failed to restore offset checkpoint for task ${this.task.taskId}:`,
 								errorMessage,
 							)
@@ -325,14 +326,14 @@ export class TaskCheckpointManager implements ICheckpointManager {
 						}
 					} else if (!offset && lastMessageWithHash.lastCheckpointHash && this.state.checkpointTracker) {
 						// Fallback: restore to most recent checkpoint when target message has no checkpoint hash
-						console.warn(
+						Logger.warn(
 							`[TaskCheckpointManager] Message ${messageTs} has no checkpoint hash, falling back to previous checkpoint for task ${this.task.taskId}`,
 						)
 						try {
 							await this.state.checkpointTracker.resetHead(lastMessageWithHash.lastCheckpointHash)
 						} catch (error) {
 							const errorMessage = error instanceof Error ? error.message : "Unknown error"
-							console.error(
+							Logger.error(
 								`[TaskCheckpointManager] Failed to restore fallback checkpoint for task ${this.task.taskId}:`,
 								errorMessage,
 							)
@@ -344,7 +345,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 						}
 					} else {
 						const errorMessage = "Failed to restore checkpoint: No valid checkpoint hash found"
-						console.error(`[TaskCheckpointManager] ${errorMessage} for task ${this.task.taskId}`)
+						Logger.error(`[TaskCheckpointManager] ${errorMessage} for task ${this.task.taskId}`)
 						HostProvider.window.showMessage({
 							type: ShowMessageType.ERROR,
 							message: errorMessage,
@@ -374,7 +375,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			return checkpointManagerStateUpdate
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Unknown error"
-			console.error(`[TaskCheckpointManager] Failed to restore checkpoint for task ${this.task.taskId}:`, errorMessage)
+			Logger.error(`[TaskCheckpointManager] Failed to restore checkpoint for task ${this.task.taskId}:`, errorMessage)
 			sendRelinquishControlEvent()
 			return {
 				checkpointManagerErrorMessage: errorMessage,
@@ -395,7 +396,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 		try {
 			if (!this.config.enableCheckpoints) {
 				const errorMessage = "Checkpoints are disabled in settings. Cannot show diff."
-				console.error(`[TaskCheckpointManager] ${errorMessage} for task ${this.task.taskId}`)
+				Logger.error(`[TaskCheckpointManager] ${errorMessage} for task ${this.task.taskId}`)
 				HostProvider.window.showMessage({
 					type: ShowMessageType.INFORMATION,
 					message: errorMessage,
@@ -404,18 +405,18 @@ export class TaskCheckpointManager implements ICheckpointManager {
 				return
 			}
 
-			console.log(`[TaskCheckpointManager] presentMultifileDiff for task ${this.task.taskId}, messageTs: ${messageTs}`)
+			Logger.log(`[TaskCheckpointManager] presentMultifileDiff for task ${this.task.taskId}, messageTs: ${messageTs}`)
 			const clineMessages = this.services.messageStateHandler.getClineMessages()
 			const messageIndex = clineMessages.findIndex((m) => m.ts === messageTs)
 			const message = clineMessages[messageIndex]
 			if (!message) {
-				console.error(`[TaskCheckpointManager] Message not found for timestamp ${messageTs} in task ${this.task.taskId}`)
+				Logger.error(`[TaskCheckpointManager] Message not found for timestamp ${messageTs} in task ${this.task.taskId}`)
 				relinquishButton()
 				return
 			}
 			const hash = message.lastCheckpointHash
 			if (!hash) {
-				console.error(
+				Logger.error(
 					`[TaskCheckpointManager] No checkpoint hash found for message ${messageTs} in task ${this.task.taskId}`,
 				)
 				relinquishButton()
@@ -434,7 +435,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 					this.services.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
 				} catch (error) {
 					const errorMessage = error instanceof Error ? error.message : "Unknown error"
-					console.error(
+					Logger.error(
 						`[TaskCheckpointManager] Failed to initialize checkpoint tracker for task ${this.task.taskId}:`,
 						errorMessage,
 					)
@@ -449,7 +450,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			}
 
 			if (!this.state.checkpointTracker) {
-				console.error(`[TaskCheckpointManager] Checkpoint tracker not available for task ${this.task.taskId}`)
+				Logger.error(`[TaskCheckpointManager] Checkpoint tracker not available for task ${this.task.taskId}`)
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message: "Checkpoint tracker not available",
@@ -483,7 +484,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 
 				if (!previousCheckpointHash) {
 					const errorMessage = "Unexpected error: No checkpoint hash found"
-					console.error(`[TaskCheckpointManager] ${errorMessage} for task ${this.task.taskId}`)
+					Logger.error(`[TaskCheckpointManager] ${errorMessage} for task ${this.task.taskId}`)
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
 						message: errorMessage,
@@ -527,7 +528,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			relinquishButton()
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Unknown error"
-			console.error(`[TaskCheckpointManager] Failed to present multifile diff for task ${this.task.taskId}:`, errorMessage)
+			Logger.error(`[TaskCheckpointManager] Failed to present multifile diff for task ${this.task.taskId}:`, errorMessage)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: "Failed to retrieve diff set: " + errorMessage,
@@ -551,17 +552,14 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			}
 
 			if (!this.state.checkpointTracker) {
-				console.error(`[TaskCheckpointManager] Checkpoint tracker not available for commit in task ${this.task.taskId}`)
+				Logger.error(`[TaskCheckpointManager] Checkpoint tracker not available for commit in task ${this.task.taskId}`)
 				return undefined
 			}
 
 			return await this.state.checkpointTracker.commit()
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Unknown error"
-			console.error(
-				`[TaskCheckpointManager] Failed to create checkpoint commit for task ${this.task.taskId}:`,
-				errorMessage,
-			)
+			Logger.error(`[TaskCheckpointManager] Failed to create checkpoint commit for task ${this.task.taskId}:`, errorMessage)
 			return undefined
 		}
 	}
@@ -580,12 +578,12 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			const messageIndex = findLastIndex(clineMessages, (m) => m.say === "completion_result")
 			const message = clineMessages[messageIndex]
 			if (!message) {
-				console.error(`[TaskCheckpointManager] Completion message not found for task ${this.task.taskId}`)
+				Logger.error(`[TaskCheckpointManager] Completion message not found for task ${this.task.taskId}`)
 				return false
 			}
 			const hash = message.lastCheckpointHash
 			if (!hash) {
-				console.error(
+				Logger.error(
 					`[TaskCheckpointManager] No checkpoint hash found for completion message in task ${this.task.taskId}`,
 				)
 				return false
@@ -602,7 +600,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 					this.services.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
 				} catch (error) {
 					const errorMessage = error instanceof Error ? error.message : "Unknown error"
-					console.error(
+					Logger.error(
 						`[TaskCheckpointManager] Failed to initialize checkpoint tracker for task ${this.task.taskId}:`,
 						errorMessage,
 					)
@@ -612,7 +610,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			}
 
 			if (!this.state.checkpointTracker) {
-				console.error(`[TaskCheckpointManager] Checkpoint tracker not available for task ${this.task.taskId}`)
+				Logger.error(`[TaskCheckpointManager] Checkpoint tracker not available for task ${this.task.taskId}`)
 				return false
 			}
 
@@ -633,7 +631,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			const previousCheckpointHash = lastTaskCompletedMessageCheckpointHash || firstCheckpointMessageCheckpointHash
 
 			if (!previousCheckpointHash) {
-				console.error(`[TaskCheckpointManager] No previous checkpoint hash found for task ${this.task.taskId}`)
+				Logger.error(`[TaskCheckpointManager] No previous checkpoint hash found for task ${this.task.taskId}`)
 				return false
 			}
 
@@ -642,7 +640,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			return changedFilesCount > 0
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Unknown error"
-			console.error(`[TaskCheckpointManager] Failed to check for new changes in task ${this.task.taskId}:`, errorMessage)
+			Logger.error(`[TaskCheckpointManager] Failed to check for new changes in task ${this.task.taskId}:`, errorMessage)
 			return false
 		}
 	}
@@ -813,7 +811,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			return tracker
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Unknown error"
-			console.error("Failed to initialize checkpoint tracker:", errorMessage)
+			Logger.error("Failed to initialize checkpoint tracker:", errorMessage)
 
 			// If the error was a timeout, we disable all checkpoint operations for the rest of the task
 			if (errorMessage.includes("Checkpoints taking too long to initialize")) {
@@ -850,7 +848,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 		try {
 			await this.callbacks.postStateToWebview()
 		} catch (error) {
-			console.error("Failed to post state to webview after checkpoint error:", error)
+			Logger.error("Failed to post state to webview after checkpoint error:", error)
 		}
 		// TODO - Future telemetry event capture here
 	}
@@ -879,9 +877,9 @@ export class TaskCheckpointManager implements ICheckpointManager {
 				if (primaryRoot) {
 					return primaryRoot.path
 				}
-				console.warn(`[TaskCheckpointManager] WorkspaceRootManager returned no primary root for task ${this.task.taskId}`)
+				Logger.warn(`[TaskCheckpointManager] WorkspaceRootManager returned no primary root for task ${this.task.taskId}`)
 			} catch (error) {
-				console.warn(
+				Logger.warn(
 					`[TaskCheckpointManager] Failed to get workspace path from WorkspaceRootManager for task ${this.task.taskId}:`,
 					error,
 				)
