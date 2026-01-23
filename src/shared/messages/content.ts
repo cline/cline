@@ -98,10 +98,6 @@ export interface ClineStorageMessage extends Anthropic.MessageParam {
 	 * Includes token counts, costs.
 	 */
 	metrics?: ClineMessageMetricsInfo
-	/**
-	 * Extended metadata for this message
-	 */
-	metadata?: Record<string, string>
 }
 
 /**
