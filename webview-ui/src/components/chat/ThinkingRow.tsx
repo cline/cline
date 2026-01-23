@@ -1,5 +1,6 @@
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import { memo, useEffect, useRef } from "react"
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -12,6 +13,7 @@ interface ThinkingRowProps {
 }
 
 export const ThinkingRow = memo(({ showTitle = false, reasoningContent, isVisible, isExpanded, onToggle }: ThinkingRowProps) => {
+	const { t } = useTranslation()
 	const scrollRef = useRef<HTMLDivElement>(null)
 
 	// Only auto-scroll to bottom during streaming (showCursor=true)
@@ -34,7 +36,7 @@ export const ThinkingRow = memo(({ showTitle = false, reasoningContent, isVisibl
 					onClick={onToggle}
 					variant="icon">
 					{isExpanded ? <ChevronDownIcon className="opacity-70" /> : <ChevronRightIcon className="opacity-70" />}
-					<span className="font-semibold">Thinking:</span>
+					<span className="font-semibold">{t("chat.thinkingLabel")}</span>
 					<span className="italic break-words truncate [direction:rtl] w-full">
 						{!isExpanded ? reasoningContent : ""}
 					</span>

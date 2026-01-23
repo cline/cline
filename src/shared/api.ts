@@ -584,7 +584,7 @@ export const bedrockModels = {
 		inputPrice: 0.15,
 		outputPrice: 0.6,
 		description:
-			"A state-of-the-art 120B open-weight Mixture-of-Experts language model optimized for strong reasoning, tool use, and efficient deployment on large GPUs",
+			"강력한 추론, 도구 사용 및 대형 GPU에서의 효율적인 배포에 최적화된 최첨단 120B 오픈 웨이트 Mixture-of-Experts 언어 모델",
 	},
 	"openai.gpt-oss-20b-1:0": {
 		maxTokens: 8192,
@@ -594,7 +594,7 @@ export const bedrockModels = {
 		inputPrice: 0.07,
 		outputPrice: 0.3,
 		description:
-			"A compact 20B open-weight Mixture-of-Experts language model designed for strong reasoning and tool use, ideal for edge devices and local inference.",
+			"강력한 추론과 도구 사용을 위해 설계된 컴팩트한 20B 오픈 웨이트 Mixture-of-Experts 언어 모델로, 엣지 디바이스와 로컬 추론에 이상적입니다.",
 	},
 	"qwen.qwen3-coder-30b-a3b-v1:0": {
 		maxTokens: 8192,
@@ -604,7 +604,7 @@ export const bedrockModels = {
 		inputPrice: 0.15,
 		outputPrice: 0.6,
 		description:
-			"Qwen3 Coder 30B MoE model with 3.3B activated parameters, optimized for code generation and analysis with 256K context window.",
+			"3.3B 활성화 파라미터를 가진 Qwen3 Coder 30B MoE 모델로, 256K 컨텍스트 윈도우를 통한 코드 생성 및 분석에 최적화되어 있습니다.",
 	},
 	"qwen.qwen3-coder-480b-a35b-v1:0": {
 		maxTokens: 8192,
@@ -614,7 +614,7 @@ export const bedrockModels = {
 		inputPrice: 0.22,
 		outputPrice: 1.8,
 		description:
-			"Qwen3 Coder 480B flagship MoE model with 35B activated parameters, designed for complex coding tasks with advanced reasoning capabilities and 256K context window.",
+			"35B 활성화 파라미터를 가진 Qwen3 Coder 480B 플래그십 MoE 모델로, 고급 추론 기능과 256K 컨텍스트 윈도우를 통한 복잡한 코딩 작업을 위해 설계되었습니다.",
 	},
 } as const satisfies Record<string, ModelInfo>
 
@@ -633,7 +633,7 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	cacheWritesPrice: 3.75,
 	cacheReadsPrice: 0.3,
 	description:
-		"Claude Sonnet 4.5 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
+		"Claude Sonnet 4.5는 코딩, 에이전트 검색 및 AI 에이전트 기능 전반에 걸쳐 뛰어난 지능을 제공합니다. 에이전트 코딩을 위한 강력한 선택이며, 초기 계획부터 버그 수정, 유지보수부터 대규모 리팩토링까지 전체 소프트웨어 개발 라이프사이클에 걸친 작업을 완료할 수 있습니다. 복잡한 코딩 작업의 계획과 해결 모두에서 강력한 성능을 제공하여 엔드투엔드 소프트웨어 개발 프로세스를 구동하는 이상적인 선택입니다.\n\n[블로그 포스트에서 자세히 보기](https://www.anthropic.com/claude/sonnet)",
 }
 
 // Cline custom model - Devstral
@@ -645,7 +645,7 @@ export const clineDevstralModelInfo: ModelInfo = {
 	outputPrice: 0,
 	cacheReadsPrice: 0,
 	cacheWritesPrice: 0,
-	description: "A stealth model for agentic coding tasks",
+	description: "에이전트 코딩 작업을 위한 스텔스 모델",
 }
 
 export const OPENROUTER_PROVIDER_PREFERENCES: Record<string, { order: string[]; allow_fallbacks: boolean }> = {
@@ -1746,7 +1746,7 @@ export const huggingFaceModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 		description:
-			"Large open-weight reasoning model for high-end desktops and data centers, built for complex coding, math, and general AI tasks.",
+			"복잡한 코딩, 수학 및 일반 AI 작업을 위해 구축된 하이엔드 데스크톱 및 데이터 센터용 대형 오픈 웨이트 추론 모델입니다.",
 	},
 	"openai/gpt-oss-20b": {
 		maxTokens: 32766,
@@ -1756,7 +1756,7 @@ export const huggingFaceModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 		description:
-			"Medium open-weight reasoning model that runs on most desktops, balancing strong reasoning with broad accessibility.",
+			"대부분의 데스크톱에서 실행되는 중형 오픈 웨이트 추론 모델로, 강력한 추론과 광범위한 접근성의 균형을 맞춥니다.",
 	},
 	"moonshotai/Kimi-K2-Instruct": {
 		maxTokens: 131_072,
@@ -1765,7 +1765,7 @@ export const huggingFaceModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
-		description: "Advanced reasoning model with superior performance across coding, math, and general capabilities.",
+		description: "코딩, 수학 및 일반 기능 전반에 걸쳐 뛰어난 성능을 제공하는 고급 추론 모델입니다.",
 	},
 	"deepseek-ai/DeepSeek-V3-0324": {
 		maxTokens: 8192,
@@ -1774,7 +1774,7 @@ export const huggingFaceModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
-		description: "Advanced reasoning model with superior performance across coding, math, and general capabilities.",
+		description: "코딩, 수학 및 일반 기능 전반에 걸쳐 뛰어난 성능을 제공하는 고급 추론 모델입니다.",
 	},
 	"deepseek-ai/DeepSeek-R1": {
 		maxTokens: 8192,
@@ -1783,7 +1783,7 @@ export const huggingFaceModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
-		description: "DeepSeek's reasoning model with step-by-step thinking capabilities.",
+		description: "단계별 사고 기능을 갖춘 DeepSeek의 추론 모델입니다.",
 	},
 	"deepseek-ai/DeepSeek-R1-0528": {
 		maxTokens: 64_000,
@@ -1792,7 +1792,7 @@ export const huggingFaceModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
-		description: "DeepSeek's reasoning model's latest version with step-by-step thinking capabilities",
+		description: "단계별 사고 기능을 갖춘 DeepSeek 추론 모델의 최신 버전입니다",
 	},
 	"meta-llama/Llama-3.1-8B-Instruct": {
 		maxTokens: 8192,
@@ -1801,7 +1801,7 @@ export const huggingFaceModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
-		description: "Efficient 8B parameter Llama model for general-purpose tasks.",
+		description: "범용 작업을 위한 효율적인 8B 파라미터 Llama 모델입니다.",
 	},
 } as const satisfies Record<string, ModelInfo>
 

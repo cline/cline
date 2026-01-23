@@ -3,6 +3,7 @@ import BedrockData from "@shared/providers/bedrock.json"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeRadio, VSCodeRadioGroup } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DebouncedTextField } from "../common/DebouncedTextField"
@@ -36,6 +37,7 @@ interface BedrockProviderProps {
 }
 
 export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: BedrockProviderProps) => {
+	const { t } = useTranslation()
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
 
@@ -51,9 +53,9 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					handleFieldChange("awsAuthentication", value)
 				}}
 				value={apiConfiguration?.awsAuthentication ?? (apiConfiguration?.awsProfile ? "profile" : "credentials")}>
-				<VSCodeRadio value="apikey">API Key</VSCodeRadio>
-				<VSCodeRadio value="profile">AWS Profile</VSCodeRadio>
-				<VSCodeRadio value="credentials">AWS Credentials</VSCodeRadio>
+				<VSCodeRadio value="apikey">{t("providers.bedrockApiKey")}</VSCodeRadio>
+				<VSCodeRadio value="profile">{t("providers.bedrockAwsProfile")}</VSCodeRadio>
+				<VSCodeRadio value="credentials">{t("providers.bedrockAwsCredentials")}</VSCodeRadio>
 			</VSCodeRadioGroup>
 
 			{(apiConfiguration?.awsAuthentication === undefined && apiConfiguration?.awsUseProfile) ||
@@ -64,7 +66,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					key="profile"
 					onChange={(value) => handleFieldChange("awsProfile", value)}
 					placeholder="Enter profile name (default if empty)">
-					<span className="font-medium">AWS Profile Name</span>
+					<span className="font-medium">{t("providers.bedrockAwsProfileName")}</span>
 				</DebouncedTextField>
 			) : apiConfiguration?.awsAuthentication === "apikey" ? (
 				<DebouncedTextField
@@ -74,7 +76,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					onChange={(value) => handleFieldChange("awsBedrockApiKey", value)}
 					placeholder="Enter Bedrock Api Key"
 					type="password">
-					<span className="font-medium">AWS Bedrock Api Key</span>
+					<span className="font-medium">{t("providers.bedrockAwsBedrockApiKey")}</span>
 				</DebouncedTextField>
 			) : (
 				<>
@@ -85,7 +87,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 						onChange={(value) => handleFieldChange("awsAccessKey", value)}
 						placeholder="Enter Access Key..."
 						type="password">
-						<span className="font-medium">AWS Access Key</span>
+						<span className="font-medium">{t("providers.bedrockAwsAccessKey")}</span>
 					</DebouncedTextField>
 					<DebouncedTextField
 						className="w-full"
@@ -93,7 +95,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 						onChange={(value) => handleFieldChange("awsSecretKey", value)}
 						placeholder="Enter Secret Key..."
 						type="password">
-						<span className="font-medium">AWS Secret Key</span>
+						<span className="font-medium">{t("providers.bedrockAwsSecretKey")}</span>
 					</DebouncedTextField>
 					<DebouncedTextField
 						className="w-full"
@@ -101,20 +103,20 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 						onChange={(value) => handleFieldChange("awsSessionToken", value)}
 						placeholder="Enter Session Token..."
 						type="password">
-						<span className="font-medium">AWS Session Token</span>
+						<span className="font-medium">{t("providers.bedrockAwsSessionToken")}</span>
 					</DebouncedTextField>
 				</>
 			)}
 
 			<Tooltip>
 				<TooltipContent hidden={remoteConfigSettings?.awsRegion === undefined}>
-					This setting is managed by your organization's remote configuration
+					{t("providers.openAiCompatibleRemoteConfigTooltip")}
 				</TooltipContent>
 				<TooltipTrigger>
 					<DropdownContainer className="dropdown-container mb-2.5" zIndex={DROPDOWN_Z_INDEX - 1}>
 						<div className="flex items-center gap-2 mb-1">
 							<label htmlFor="aws-region-dropdown">
-								<span className="font-medium">AWS Region</span>
+								<span className="font-medium">{t("providers.bedrockAwsRegion")}</span>
 							</label>
 							{remoteConfigSettings?.awsRegion !== undefined && (
 								<i className="codicon codicon-lock text-description text-sm flex items-center" />
@@ -141,7 +143,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 			<div className="flex flex-col">
 				<Tooltip>
 					<TooltipContent hidden={remoteConfigSettings?.awsBedrockEndpoint === undefined}>
-						This setting is managed by your organization's remote configuration
+						{t("providers.openAiCompatibleRemoteConfigTooltip")}
 					</TooltipContent>
 					<TooltipTrigger>
 						<div className="flex items-center gap-2">
@@ -155,7 +157,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 										handleFieldChange("awsBedrockEndpoint", "")
 									}
 								}}>
-								Use custom VPC endpoint
+								{t("providers.bedrockUseCustomVpcEndpoint")}
 							</VSCodeCheckbox>
 							{remoteConfigSettings?.awsBedrockEndpoint !== undefined && (
 								<i className="codicon codicon-lock text-description text-sm flex items-center" />
@@ -177,7 +179,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 
 				<Tooltip>
 					<TooltipContent hidden={remoteConfigSettings?.awsUseCrossRegionInference === undefined}>
-						This setting is managed by your organization's remote configuration
+						{t("providers.openAiCompatibleRemoteConfigTooltip")}
 					</TooltipContent>
 					<TooltipTrigger>
 						<div className="flex items-center gap-2">
@@ -189,7 +191,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 
 									handleFieldChange("awsUseCrossRegionInference", isChecked)
 								}}>
-								Use cross-region inference
+								{t("providers.bedrockUseCrossRegionInference")}
 							</VSCodeCheckbox>
 							{remoteConfigSettings?.awsUseCrossRegionInference !== undefined && (
 								<i className="codicon codicon-lock text-description text-sm" />
@@ -201,7 +203,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 				{apiConfiguration?.awsUseCrossRegionInference && selectedModelInfo.supportsGlobalEndpoint && (
 					<Tooltip>
 						<TooltipContent hidden={remoteConfigSettings?.awsUseGlobalInference === undefined}>
-							This setting is managed by your organization's remote configuration
+							{t("providers.openAiCompatibleRemoteConfigTooltip")}
 						</TooltipContent>
 						<TooltipTrigger>
 							<div className="flex items-center gap-2">
@@ -212,7 +214,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 										const isChecked = e.target.checked === true
 										handleFieldChange("awsUseGlobalInference", isChecked)
 									}}>
-									Use global inference profile
+									{t("providers.bedrockUseGlobalInferenceProfile")}
 								</VSCodeCheckbox>
 								{remoteConfigSettings?.awsUseGlobalInference !== undefined && (
 									<i className="codicon codicon-lock text-description text-sm" />
@@ -225,7 +227,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 				{selectedModelInfo.supportsPromptCache && (
 					<Tooltip>
 						<TooltipContent hidden={remoteConfigSettings?.awsBedrockUsePromptCache === undefined}>
-							This setting is managed by your organization's remote configuration
+							{t("providers.openAiCompatibleRemoteConfigTooltip")}
 						</TooltipContent>
 						<TooltipTrigger>
 							<div className="flex items-center gap-2">
@@ -236,7 +238,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 										const isChecked = e.target.checked === true
 										handleFieldChange("awsBedrockUsePromptCache", isChecked)
 									}}>
-									Use prompt caching
+									{t("providers.bedrockUsePromptCaching")}
 								</VSCodeCheckbox>
 								{remoteConfigSettings?.awsBedrockUsePromptCache !== undefined && (
 									<i className="codicon codicon-lock text-description text-sm" />
@@ -249,14 +251,14 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 
 			<p className="mt-1 text-sm text-description">
 				{apiConfiguration?.awsUseProfile
-					? "Using AWS Profile credentials from ~/.aws/credentials. Leave profile name empty to use the default profile. These credentials are only used locally to make API requests from this extension."
-					: "Authenticate by either providing the keys above or use the default AWS credential providers, i.e. ~/.aws/credentials or environment variables. These credentials are only used locally to make API requests from this extension."}
+					? t("providers.bedrockAuthDescription")
+					: t("providers.bedrockCredentialsDescription")}
 			</p>
 
 			{showModelOptions && (
 				<>
 					<label htmlFor="bedrock-model-dropdown">
-						<span className="font-medium">Model</span>
+						<span className="font-medium">{t("providers.model")}</span>
 					</label>
 					<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 2}>
 						<VSCodeDropdown
@@ -295,16 +297,13 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 									{modelId}
 								</VSCodeOption>
 							))}
-							<VSCodeOption value="custom">Custom</VSCodeOption>
+							<VSCodeOption value="custom">{t("providers.bedrockCustom")}</VSCodeOption>
 						</VSCodeDropdown>
 					</DropdownContainer>
 
 					{modeFields.awsBedrockCustomSelected && (
 						<div>
-							<p className="mt-1 text-sm text-description">
-								Select "Custom" when using the Application Inference Profile in Bedrock. Enter the Application
-								Inference Profile ARN in the Model ID field.
-							</p>
+							<p className="mt-1 text-sm text-description">{t("providers.bedrockCustomModelDescription")}</p>
 							<DebouncedTextField
 								className="w-full mt-0.5"
 								id="bedrock-model-input"
@@ -317,10 +316,10 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 									)
 								}
 								placeholder="Enter custom model ID...">
-								<span className="font-medium">Model ID</span>
+								<span className="font-medium">{t("providers.bedrockModelId")}</span>
 							</DebouncedTextField>
 							<label htmlFor="bedrock-base-model-dropdown">
-								<span className="font-medium">Base Inference Model</span>
+								<span className="font-medium">{t("providers.bedrockBaseInferenceModel")}</span>
 							</label>
 							<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 3}>
 								<VSCodeDropdown

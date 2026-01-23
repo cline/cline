@@ -1,6 +1,7 @@
 import { openAiCodexModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -19,6 +20,7 @@ interface OpenAiCodexProviderProps {
  * Uses OAuth authentication instead of API keys.
  */
 export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: OpenAiCodexProviderProps) => {
+	const { t } = useTranslation()
 	const { apiConfiguration, openAiCodexIsAuthenticated } = useExtensionState()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
@@ -45,9 +47,9 @@ export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: 
 			<div style={{ marginBottom: "15px" }}>
 				{openAiCodexIsAuthenticated ? (
 					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-						<span style={{ color: "var(--vscode-descriptionForeground)" }}>Signed in to OpenAI Codex</span>
+						<span style={{ color: "var(--vscode-descriptionForeground)" }}>{t("providers.openAiCodexSignedIn")}</span>
 						<VSCodeButton appearance="secondary" onClick={handleSignOut}>
-							Sign Out
+							{t("account.signOut")}
 						</VSCodeButton>
 					</div>
 				) : (
@@ -58,9 +60,9 @@ export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: 
 								color: "var(--vscode-descriptionForeground)",
 								marginBottom: "10px",
 							}}>
-							Sign in with your ChatGPT Plus or Pro subscription to use GPT-5 models without an API key.
+							{t("providers.openAiCodexSignInDescription")}
 						</p>
-						<VSCodeButton onClick={handleSignIn}>Sign in to OpenAI Codex</VSCodeButton>
+						<VSCodeButton onClick={handleSignIn}>{t("providers.openAiCodexSignInButton")}</VSCodeButton>
 					</div>
 				)}
 			</div>

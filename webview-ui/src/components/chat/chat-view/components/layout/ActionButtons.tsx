@@ -3,7 +3,9 @@ import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { VirtuosoHandle } from "react-virtuoso"
+import { useLanguage } from "@/hooks/useLanguage"
 import { ButtonActionType, getButtonConfig } from "../../shared/buttonConfig"
 import type { ChatState, MessageHandlers } from "../../types/chatTypes"
 
@@ -32,6 +34,8 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	messageHandlers,
 	scrollBehavior,
 }) => {
+	const { t } = useTranslation()
+	useLanguage()
 	const { inputValue, selectedImages, selectedFiles, setSendingDisabled } = chatState
 	const [isProcessing, setIsProcessing] = useState(false)
 
@@ -134,7 +138,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 			<div className="flex px-3.5">
 				<VSCodeButton
 					appearance="icon"
-					aria-label={showScrollToBottom ? "Scroll to bottom" : "Scroll to top"}
+					aria-label={showScrollToBottom ? t("chatView.scrollToBottom") : t("chatView.scrollToTop")}
 					className="text-lg text-(--vscode-primaryButton-foreground) bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_55%,transparent)] rounded-[3px] overflow-hidden cursor-pointer flex justify-center items-center flex-1 h-[25px] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_90%,transparent)] active:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_70%,transparent)] border-0"
 					onClick={showScrollToBottom ? handleScrollToBottom : handleScrollToTop}
 					onKeyDown={(e) => {
@@ -167,7 +171,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 					className={secondaryText ? "flex-1 mr-[6px]" : "flex-2"}
 					disabled={!canInteract}
 					onClick={() => handleActionClick(primaryAction, inputValue, selectedImages, selectedFiles)}>
-					{primaryText}
+					{t(primaryText)}
 				</VSCodeButton>
 			)}
 			{secondaryText && secondaryAction && (
@@ -176,7 +180,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 					className={primaryText ? "flex-1" : "flex-2"}
 					disabled={!canInteract}
 					onClick={() => handleActionClick(secondaryAction, inputValue, selectedImages, selectedFiles)}>
-					{secondaryText}
+					{t(secondaryText)}
 				</VSCodeButton>
 			)}
 		</div>

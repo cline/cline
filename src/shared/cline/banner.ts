@@ -85,20 +85,19 @@ export const BANNER_DATA: BannerCardData[] = [
 	{
 		id: "info-banner-v1",
 		icon: "lightbulb",
-		title: "Use Cline in Right Sidebar",
-		description:
-			"For the best experience, drag the Cline icon to your right sidebar. This keeps your file explorer and editor visible while you chat with Cline, making it easier to navigate your codebase and see changes in real-time. [See how →](https://docs.cline.bot/features/customization/opening-cline-in-sidebar)",
+		title: "banner.infoBanner.title",
+		description: "banner.infoBanner.description",
 	},
 
 	// Announcement with conditional actions based on user auth state
 	{
 		id: "new-model-opus-4-5-cline-users",
 		icon: "megaphone",
-		title: "Claude Opus 4.5 Now Available",
-		description: "State-of-the-art performance at 3x lower cost than Opus 4.1. Available now in the Cline provider.",
+		title: "banner.newModelOpus.title",
+		description: "banner.newModelOpus.description",
 		actions: [
 			{
-				title: "Try Now",
+				title: "banner.newModelOpus.tryNow",
 				action: BannerActionType.SetModel,
 				arg: "anthropic/claude-opus-4.5",
 			},
@@ -109,11 +108,11 @@ export const BANNER_DATA: BannerCardData[] = [
 	{
 		id: "new-model-opus-4-5-non-cline-users",
 		icon: "megaphone",
-		title: "Claude Opus 4.5 Now Available",
-		description: "State-of-the-art performance at 3x lower cost than Opus 4.1. Available now in the Cline provider.",
+		title: "banner.newModelOpus.title",
+		description: "banner.newModelOpus.description",
 		actions: [
 			{
-				title: "Get Started",
+				title: "banner.newModelOpus.getStarted",
 				action: BannerActionType.ShowAccount,
 			},
 		],
@@ -124,17 +123,16 @@ export const BANNER_DATA: BannerCardData[] = [
 	{
 		id: "cli-install-unix-v1",
 		icon: "terminal",
-		title: "CLI & Subagents Available",
+		title: "banner.cliInstallUnix.title",
 		platforms: ["mac", "linux"] satisfies BannerCardData["platforms"],
-		description:
-			"Use Cline in your terminal and enable subagent capabilities. [Learn more](https://docs.cline.bot/cline-cli/overview)",
+		description: "banner.cliInstallUnix.description",
 		actions: [
 			{
-				title: "Install",
+				title: "banner.cliInstallUnix.install",
 				action: BannerActionType.InstallCli,
 			},
 			{
-				title: "Enable Subagents",
+				title: "banner.cliInstallUnix.enableSubagents",
 				action: BannerActionType.ShowFeatureSettings,
 			},
 		],
@@ -144,9 +142,8 @@ export const BANNER_DATA: BannerCardData[] = [
 	{
 		id: "cli-info-windows-v1",
 		icon: "terminal",
-		title: "Cline CLI Info",
+		title: "banner.cliInfoWindows.title",
 		platforms: ["windows"] satisfies BannerCardData["platforms"],
-		description:
-			"Available for macOS and Linux. Coming soon to other platforms. [Learn more](https://docs.cline.bot/cline-cli/overview)",
+		description: "banner.cliInfoWindows.description",
 	},
 ]

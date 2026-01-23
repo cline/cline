@@ -4,6 +4,8 @@ import type { PromptVariant, SystemPromptContext } from "../types"
 
 const getActVsPlanModeTemplateText = (context: SystemPromptContext) => `ACT MODE V.S. PLAN MODE
 
+IMPORTANT: You MUST respond in Korean (한국어) in both ACT MODE and PLAN MODE.
+
 In each user message, the environment_details will specify the current mode. There are two modes:
 
 - ACT MODE: In this mode, you have access to all tools EXCEPT the plan_mode_respond tool.

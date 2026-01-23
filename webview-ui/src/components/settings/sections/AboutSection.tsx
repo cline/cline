@@ -1,4 +1,5 @@
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { useTranslation } from "react-i18next"
 import Section from "../Section"
 
 interface AboutSectionProps {
@@ -6,19 +7,16 @@ interface AboutSectionProps {
 	renderSectionHeader: (tabId: string) => JSX.Element | null
 }
 const AboutSection = ({ version, renderSectionHeader }: AboutSectionProps) => {
+	const { t } = useTranslation()
 	return (
 		<div>
 			{renderSectionHeader("about")}
 			<Section>
 				<div className="flex px-4 flex-col gap-2">
 					<h2 className="text-lg font-semibold">Cline v{version}</h2>
-					<p>
-						An AI assistant that can use your CLI and Editor. Cline can handle complex software development tasks
-						step-by-step with tools that let him create & edit files, explore large projects, use the browser, and
-						execute terminal commands (after you grant permission).
-					</p>
+					<p>{t("aboutSection.description")}</p>
 
-					<h3 className="text-md font-semibold">Community & Support</h3>
+					<h3 className="text-md font-semibold">{t("aboutSection.communitySupport")}</h3>
 					<p>
 						<VSCodeLink href="https://x.com/cline">X</VSCodeLink>
 						{" • "}
@@ -27,7 +25,7 @@ const AboutSection = ({ version, renderSectionHeader }: AboutSectionProps) => {
 						<VSCodeLink href="https://www.reddit.com/r/cline/"> r/cline</VSCodeLink>
 					</p>
 
-					<h3 className="text-md font-semibold">Development</h3>
+					<h3 className="text-md font-semibold">{t("aboutSection.development")}</h3>
 					<p>
 						<VSCodeLink href="https://github.com/cline/cline">GitHub</VSCodeLink>
 						{" • "}
@@ -39,7 +37,7 @@ const AboutSection = ({ version, renderSectionHeader }: AboutSectionProps) => {
 						</VSCodeLink>
 					</p>
 
-					<h3 className="text-md font-semibold">Resources</h3>
+					<h3 className="text-md font-semibold">{t("aboutSection.resources")}</h3>
 					<p>
 						<VSCodeLink href="https://docs.cline.bot/">Documentation</VSCodeLink>
 						{" • "}

@@ -12,13 +12,14 @@ export function convertBannerData(
 		onAction: (action: BannerAction) => void
 		onDismiss: (bannerId: string) => void
 	},
+	t: (key: string) => string,
 ): BannerData {
 	const { onAction, onDismiss } = handlers
 
 	// Filter and process actions
 	const filteredActions =
 		banner.actions?.map((action) => ({
-			label: action.title,
+			label: t(action.title),
 			onClick: () => onAction(action),
 		})) || []
 
@@ -27,8 +28,8 @@ export function convertBannerData(
 		icon: banner.icon ? (
 			<DynamicIcon className="size-4" name={banner.icon as React.ComponentProps<typeof DynamicIcon>["name"]} />
 		) : undefined,
-		title: banner.title,
-		description: banner.description,
+		title: t(banner.title),
+		description: t(banner.description),
 		actions: filteredActions.length > 0 ? filteredActions : undefined,
 		onDismiss: () => onDismiss(banner.id),
 	}

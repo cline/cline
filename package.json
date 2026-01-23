@@ -258,6 +258,7 @@
 			},
 			{
 				"command": "cline.generateGitCommitMessage",
+				"key": "",
 				"when": "config.git.enabled && scmProvider == git"
 			},
 			{

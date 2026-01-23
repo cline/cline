@@ -1,7 +1,9 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useLanguage } from "@/hooks/useLanguage"
 import { BrowserServiceClient } from "../../services/grpc-client"
 
 interface ConnectionInfo {
@@ -11,6 +13,8 @@ interface ConnectionInfo {
 }
 
 export const BrowserSettingsMenu = () => {
+	const { t } = useTranslation()
+	useLanguage()
 	const { browserSettings, navigateToSettings } = useExtensionState()
 	const containerRef = useRef<HTMLDivElement>(null)
 	const [showInfoPopover, setShowInfoPopover] = useState(false)
@@ -140,7 +144,7 @@ export const BrowserSettingsMenu = () => {
 				className="browser-info-icon"
 				onClick={toggleInfoPopover}
 				style={{ marginRight: "4px" }}
-				title="Browser connection info">
+				title={t("browser.connectionInfo")}>
 				<i
 					className={`codicon ${getIconClass()}`}
 					style={{
@@ -160,11 +164,11 @@ export const BrowserSettingsMenu = () => {
 						border: "1px solid var(--vscode-widget-border)",
 						boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
 					}}>
-					<h4 style={{ margin: "0 0 8px 0" }}>Browser Connection</h4>
+					<h4 style={{ margin: "0 0 8px 0" }}>{t("browser.browserConnection")}</h4>
 					{/* InfoRow - Status row container */}
 					<div className="flex flex-wrap whitespace-nowrap mb-1">
 						{/* InfoLabel - Fixed-width label */}
-						<div className="flex-none w-[90px] font-medium">Status:</div>
+						<div className="flex-none w-[90px] font-medium">{t("browser.status")}:</div>
 						{/* InfoValue - Flexible value container */}
 						<div
 							className="flex-1 break-words"
@@ -173,23 +177,25 @@ export const BrowserSettingsMenu = () => {
 									? "var(--vscode-charts-green)"
 									: "var(--vscode-errorForeground)",
 							}}>
-							{connectionInfo.isConnected ? "Connected" : "Disconnected"}
+							{connectionInfo.isConnected ? t("browser.connected") : t("browser.disconnected")}
 						</div>
 					</div>
 					{connectionInfo.isConnected && (
 						// InfoRow - Type row container
 						<div className="flex flex-wrap whitespace-nowrap mb-1">
 							{/* InfoLabel - Fixed-width label */}
-							<div className="flex-none w-[90px] font-medium">Type:</div>
+							<div className="flex-none w-[90px] font-medium">{t("browser.type")}:</div>
 							{/* InfoValue - Flexible value container */}
-							<div className="flex-1 break-words">{connectionInfo.isRemote ? "Remote" : "Local"}</div>
+							<div className="flex-1 break-words">
+								{connectionInfo.isRemote ? t("browser.remote") : t("browser.local")}
+							</div>
 						</div>
 					)}
 					{connectionInfo.isConnected && connectionInfo.isRemote && connectionInfo.host && (
 						// InfoRow - Remote host row container
 						<div className="flex flex-wrap whitespace-nowrap mb-1">
 							{/* InfoLabel - Fixed-width label */}
-							<div className="flex-none w-[90px] font-medium">Remote Host:</div>
+							<div className="flex-none w-[90px] font-medium">{t("browser.remoteHost")}:</div>
 							{/* InfoValue - Flexible value container */}
 							<div className="flex-1 break-words">{connectionInfo.host}</div>
 						</div>

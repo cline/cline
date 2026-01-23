@@ -2,6 +2,7 @@ import { xaiModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DROPDOWN_Z_INDEX } from "../ApiOptions"
 import { ApiKeyField } from "../common/ApiKeyField"
@@ -20,12 +21,12 @@ interface XaiProviderProps {
 }
 
 export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProviderProps) => {
+	const { t } = useTranslation()
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 
-	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	// Local state for reasoning effort toggle
@@ -46,17 +47,14 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 						marginTop: -10,
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					<span style={{ color: "var(--vscode-errorForeground)" }}>
-						(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
-						models. Less capable models may not work as expected.)
-					</span>
+					<span style={{ color: "var(--vscode-errorForeground)" }}>({t("providers.noteComplexPrompts")})</span>
 				</p>
 			</div>
 
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label={t("providers.model")}
 						models={xaiModels}
 						onChange={(e: any) =>
 							handleModeFieldChange(
@@ -84,13 +82,13 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 									}
 								}}
 								style={{ marginTop: 0 }}>
-								Modify reasoning effort
+								{t("providers.xaiReasoningEffortModify")}
 							</VSCodeCheckbox>
 
 							{reasoningEffortSelected && (
 								<div>
 									<label htmlFor="reasoning-effort-dropdown">
-										<span style={{}}>Reasoning Effort</span>
+										<span style={{}}>{t("providers.xaiReasoningEffort")}</span>
 									</label>
 									<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 100}>
 										<VSCodeDropdown
@@ -115,7 +113,7 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 											marginBottom: 0,
 											color: "var(--vscode-descriptionForeground)",
 										}}>
-										High effort may produce more thorough analysis but takes longer and uses more tokens.
+										{t("providers.xaiReasoningEffortDescription")}
 									</p>
 								</div>
 							)}

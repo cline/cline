@@ -4,6 +4,7 @@ import type { Worktree } from "@shared/proto/cline/worktree"
 import { TrackWorktreeViewOpenedRequest } from "@shared/proto/cline/worktree"
 import { GitBranch } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import BannerCarousel from "@/components/common/BannerCarousel"
 import WhatsNewModal from "@/components/common/WhatsNewModal"
 import HistoryPreview from "@/components/history/HistoryPreview"
@@ -14,6 +15,7 @@ import { SuggestedTasks } from "@/components/welcome/SuggestedTasks"
 import CreateWorktreeModal from "@/components/worktrees/CreateWorktreeModal"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useLanguage } from "@/hooks/useLanguage"
 import { AccountServiceClient, StateServiceClient, UiServiceClient, WorktreeServiceClient } from "@/services/grpc-client"
 import { convertBannerData } from "@/utils/bannerUtils"
 import { getCurrentPlatform } from "@/utils/platformUtils"
@@ -31,6 +33,8 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	taskHistory,
 	shouldShowQuickWins,
 }) => {
+	const { t } = useTranslation()
+	useLanguage()
 	const { lastDismissedInfoBannerVersion, lastDismissedCliBannerVersion, lastDismissedModelBannerVersion } = useExtensionState()
 
 	// Track if we've shown the "What's New" modal this session
@@ -211,23 +215,31 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	const activeBanners = useMemo(() => {
 		// Start with the hardcoded banners (bannerConfig)
 		const hardcodedBanners = bannerConfig.map((banner) =>
-			convertBannerData(banner, {
-				onAction: handleBannerAction,
-				onDismiss: handleBannerDismiss,
-			}),
+			convertBannerData(
+				banner,
+				{
+					onAction: handleBannerAction,
+					onDismiss: handleBannerDismiss,
+				},
+				t,
+			),
 		)
 
 		// Add banners from extension state (if any)
 		const extensionStateBanners = (banners ?? []).map((banner) =>
-			convertBannerData(banner, {
-				onAction: handleBannerAction,
-				onDismiss: handleBannerDismiss,
-			}),
+			convertBannerData(
+				banner,
+				{
+					onAction: handleBannerAction,
+					onDismiss: handleBannerDismiss,
+				},
+				t,
+			),
 		)
 
 		// Combine both sources: extension state banners first, then hardcoded banners
 		return [...extensionStateBanners, ...hardcodedBanners]
-	}, [bannerConfig, banners, clineUser, subagentsEnabled, handleBannerAction, handleBannerDismiss])
+	}, [bannerConfig, banners, clineUser, subagentsEnabled, handleBannerAction, handleBannerDismiss, t])
 
 	return (
 		<div className="flex flex-col flex-1 w-full h-full p-0 m-0">
@@ -268,7 +280,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 												<div className="flex items-center gap-1.5 text-xs">
 													<GitBranch className="w-3 h-3 stroke-[2.5] flex-shrink-0" />
 													<span className="break-all text-center">
-														<span className="font-semibold">Current:</span>{" "}
+														<span className="font-semibold">{t("chatView.current")}:</span>{" "}
 														{currentWorktree.branch || "detached HEAD"}
 													</span>
 												</div>
@@ -277,9 +289,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 												</span>
 											</button>
 										</TooltipTrigger>
-										<TooltipContent side="bottom">
-											View and manage git worktrees. Great for running parallel Cline tasks.
-										</TooltipContent>
+										<TooltipContent side="bottom">{t("chatView.viewManageWorktrees")}</TooltipContent>
 									</Tooltip>
 								)}
 							</div>

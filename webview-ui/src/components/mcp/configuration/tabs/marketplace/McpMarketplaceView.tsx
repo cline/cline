@@ -9,12 +9,14 @@ import {
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
 import McpMarketplaceCard from "./McpMarketplaceCard"
 import McpSubmitCard from "./McpSubmitCard"
 
 const McpMarketplaceView = () => {
+	const { t } = useTranslation()
 	const { mcpServers, mcpMarketplaceCatalog, setMcpMarketplaceCatalog, remoteConfigSettings } = useExtensionState()
 
 	const showMarketplace = remoteConfigSettings?.mcpMarketplaceEnabled !== false
@@ -60,12 +62,10 @@ const McpMarketplaceView = () => {
 	}, [items, searchQuery, selectedCategory, sortBy])
 
 	useEffect(() => {
-		// Fetch marketplace catalog on initial load
 		fetchMarketplace()
 	}, [])
 
 	useEffect(() => {
-		// Update loading state when catalog arrives
 		if (mcpMarketplaceCatalog?.items) {
 			setIsLoading(false)
 			setIsRefreshing(false)
@@ -125,7 +125,7 @@ const McpMarketplaceView = () => {
 				<div style={{ color: "var(--vscode-errorForeground)" }}>{error}</div>
 				<VSCodeButton appearance="secondary" onClick={() => fetchMarketplace(true)}>
 					<span className="codicon codicon-refresh" style={{ marginRight: "6px" }} />
-					Retry
+					{t("mcp.marketplaceView.retry")}
 				</VSCodeButton>
 			</div>
 		)
@@ -139,10 +139,9 @@ const McpMarketplaceView = () => {
 				width: "100%",
 			}}>
 			<div style={{ padding: "20px 20px 5px", display: "flex", flexDirection: "column", gap: "16px" }}>
-				{/* Search row */}
 				<VSCodeTextField
 					onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
-					placeholder="Search MCPs..."
+					placeholder={t("mcp.marketplaceView.searchPlaceholder")}
 					style={{ width: "100%" }}
 					value={searchQuery}>
 					<div
@@ -170,7 +169,6 @@ const McpMarketplaceView = () => {
 					)}
 				</VSCodeTextField>
 
-				{/* Filter row */}
 				<div
 					style={{
 						display: "flex",
@@ -185,7 +183,7 @@ const McpMarketplaceView = () => {
 							fontWeight: 500,
 							flexShrink: 0,
 						}}>
-						Filter:
+						{t("mcp.marketplaceView.filter")}
 					</span>
 					<div
 						style={{
@@ -199,7 +197,7 @@ const McpMarketplaceView = () => {
 								width: "100%",
 							}}
 							value={selectedCategory || ""}>
-							<VSCodeOption value="">All Categories</VSCodeOption>
+							<VSCodeOption value="">{t("mcp.marketplaceView.allCategories")}</VSCodeOption>
 							{categories.map((category) => (
 								<VSCodeOption key={category} value={category}>
 									{category}
@@ -209,7 +207,6 @@ const McpMarketplaceView = () => {
 					</div>
 				</div>
 
-				{/* Sort row */}
 				<div
 					style={{
 						display: "flex",
@@ -223,7 +220,7 @@ const McpMarketplaceView = () => {
 							fontWeight: 500,
 							marginTop: "3px",
 						}}>
-						Sort:
+						{t("mcp.marketplaceView.sort")}
 					</span>
 					<VSCodeRadioGroup
 						onChange={(e) => setSortBy((e.target as HTMLInputElement).value as typeof sortBy)}
@@ -233,39 +230,18 @@ const McpMarketplaceView = () => {
 							marginTop: "-2.5px",
 						}}
 						value={sortBy}>
-						<VSCodeRadio value="downloadCount">Most Installs</VSCodeRadio>
-						<VSCodeRadio value="newest">Newest</VSCodeRadio>
-						<VSCodeRadio value="stars">GitHub Stars</VSCodeRadio>
-						<VSCodeRadio value="name">Name</VSCodeRadio>
+						<VSCodeRadio value="downloadCount">{t("mcp.marketplaceView.mostInstalls")}</VSCodeRadio>
+						<VSCodeRadio value="newest">{t("mcp.marketplaceView.newest")}</VSCodeRadio>
+						<VSCodeRadio value="stars">{t("mcp.marketplaceView.githubStars")}</VSCodeRadio>
+						<VSCodeRadio value="name">{t("mcp.marketplaceView.name")}</VSCodeRadio>
 					</VSCodeRadioGroup>
 				</div>
 			</div>
 
-			<style>
-				{`
-				.mcp-search-input,
-				.mcp-select {
-				box-sizing: border-box;
-				}
-				.mcp-search-input {
-				min-width: 140px;
-				}
-				.mcp-search-input:focus,
-				.mcp-select:focus {
-				border-color: var(--vscode-focusBorder) !important;
-				}
-				.mcp-search-input:hover,
-				.mcp-select:hover {
-				opacity: 0.9;
-				}
-			`}
-			</style>
-
-			{/* Remote config banner */}
 			{remoteConfigSettings?.allowedMCPServers && (
 				<div className="flex items-center gap-2 px-5 py-3 mx-5 mb-4 bg-vscode-textBlockQuote-background border-l-[3px] border-vscode-textLink-foreground">
 					<i className="codicon codicon-lock text-sm" />
-					<span className="text-[13px]">Your organization has pre-configured the available MCP servers</span>
+					<span className="text-[13px]">{t("mcp.marketplaceView.orgConfigured")}</span>
 				</div>
 			)}
 
@@ -281,8 +257,8 @@ const McpMarketplaceView = () => {
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						{searchQuery || selectedCategory
-							? "No matching MCP servers found"
-							: "No MCP servers found in the marketplace"}
+							? t("mcp.marketplaceView.noMatching")
+							: t("mcp.marketplaceView.noServers")}
 					</div>
 				) : (
 					filteredItems.map((item) => (

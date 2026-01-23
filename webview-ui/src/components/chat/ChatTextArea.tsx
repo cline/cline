@@ -11,6 +11,7 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { AtSignIcon, PlusIcon } from "lucide-react"
 import type React from "react"
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import DynamicTextArea from "react-textarea-autosize"
 import { useWindowSize } from "react-use"
 import styled from "styled-components"
@@ -147,7 +148,7 @@ const ButtonContainer = styled.div`
 	width: 100%;
 `
 
-const ModelSelectorTooltip = styled.div<ModelSelectorTooltipProps>`
+const _ModelSelectorTooltip = styled.div<ModelSelectorTooltipProps>`
 	position: fixed;
 	bottom: calc(100% + 9px);
 	left: 15px;
@@ -261,6 +262,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
+		const { t } = useTranslation()
 		const {
 			mode,
 			apiConfiguration,
@@ -302,8 +304,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const modelSelectorRef = useRef<HTMLDivElement>(null)
 		const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 		const buttonRef = useRef<HTMLDivElement>(null)
-		const [arrowPosition, setArrowPosition] = useState(0)
-		const [menuPosition, setMenuPosition] = useState(0)
+		const [_arrowPosition, setArrowPosition] = useState(0)
+		const [_menuPosition, setMenuPosition] = useState(0)
 		const [shownTooltipMode, setShownTooltipMode] = useState<Mode | null>(null)
 		const [pendingInsertions, setPendingInsertions] = useState<string[]>([])
 		const _shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -317,7 +319,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
 
 		// Add a ref to track previous menu state
-		const prevShowModelSelector = useRef(showModelSelector)
+		const _prevShowModelSelector = useRef(showModelSelector)
 
 		// Fetch git commits when Git is selected or when typing a hash
 		useEffect(() => {
@@ -1490,12 +1492,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 					{showDimensionError && (
 						<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
-							<span className="text-error font-bold text-xs text-center">Image dimensions exceed 7500px</span>
+							<span className="text-error font-bold text-xs text-center">{t("chat.imageDimensionsExceed")}</span>
 						</div>
 					)}
 					{showUnsupportedFileError && (
 						<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
-							<span className="text-error font-bold text-xs">Files other than images are currently disabled</span>
+							<span className="text-error font-bold text-xs">{t("chat.filesOtherThanImages")}</span>
 						</div>
 					)}
 					{showSlashCommandsMenu && (
@@ -1631,7 +1633,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					/>
 					{!inputValue && selectedImages.length === 0 && selectedFiles.length === 0 && (
 						<div className="text-xs absolute bottom-5 left-6.5 right-16 text-(--vscode-input-placeholderForeground)/50 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-1">
-							Type @ for context, / for slash commands & workflows, hold shift to drag in files/images
+							{t("chat.typeAtForContext")}
 						</div>
 					)}
 					{(selectedImages.length > 0 || selectedFiles.length > 0) && (
@@ -1717,7 +1719,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						{/* ButtonGroup - always in DOM but visibility controlled */}
 						<ButtonGroup className="absolute top-0 left-0 right-0 ease-in-out w-full h-5 z-10 flex items-center">
 							<Tooltip>
-								<TooltipContent>Add Context</TooltipContent>
+								<TooltipContent>{t("chat.addContext")}</TooltipContent>
 								<TooltipTrigger>
 									<VSCodeButton
 										appearance="icon"
@@ -1733,7 +1735,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							</Tooltip>
 
 							<Tooltip>
-								<TooltipContent>Add Files & Images</TooltipContent>
+								<TooltipContent>{t("chat.addFilesAndImages")}</TooltipContent>
 								<TooltipTrigger>
 									<VSCodeButton
 										appearance="icon"
@@ -1769,7 +1771,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 											onClick={handleModelButtonClick}
 											role="button"
 											tabIndex={0}
-											title="Select Model / API Provider">
+											title={t("chat.selectModelApiProvider")}>
 											<ModelButtonContent className="text-xs">{modelDisplayName}</ModelButtonContent>
 										</ModelDisplayButton>
 									</ModelButtonWrapper>
@@ -1783,9 +1785,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							className="text-xs px-2 flex flex-col gap-1"
 							hidden={shownTooltipMode === null}
 							side="top">
-							{`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
+							{t(shownTooltipMode === "act" ? "chat.inActMode" : "chat.inPlanMode")}
 							<p className="text-description/80 text-xs mb-0">
-								Toggle w/ <kbd className="text-muted-foreground mx-1">{togglePlanActKeys}</kbd>
+								{t("chat.toggleWith")} <kbd className="text-muted-foreground mx-1">{togglePlanActKeys}</kbd>
 							</p>
 						</TooltipContent>
 						<TooltipTrigger>

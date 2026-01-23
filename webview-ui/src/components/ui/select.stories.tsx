@@ -182,35 +182,29 @@ export const Overview = () => {
 								<SelectValue placeholder={variant.placeholder} />
 							</SelectTrigger>
 							<SelectContent position="popper">
-								{variant.hasGroups && "groups" in variant ? (
-									variant?.groups?.map((group, groupIndex) => (
-										<>
-											<SelectGroup key={group.label}>
-												<SelectLabel>{group.label}</SelectLabel>
-												{group.items.map((item) => (
-													<SelectItem key={item} value={item}>
-														{item}
-													</SelectItem>
-												))}
-											</SelectGroup>
-											{groupIndex < variant.groups.length - 1 && <SelectSeparator />}
-										</>
-									))
-								) : (
-									<>
-										{"items" in variant &&
-											variant?.items?.map((item, index) => (
-												<>
-													<SelectItem key={item} value={item}>
-														{item}
-													</SelectItem>
-													{variant.hasSeparators && index < variant.items.length - 1 && (
-														<SelectSeparator />
-													)}
-												</>
-											))}
-									</>
-								)}
+								{variant.hasGroups && "groups" in variant
+									? variant?.groups?.map((group, groupIndex) => (
+											<>
+												<SelectGroup key={group.label}>
+													<SelectLabel>{group.label}</SelectLabel>
+													{group.items.map((item) => (
+														<SelectItem key={item} value={item}>
+															{item}
+														</SelectItem>
+													))}
+												</SelectGroup>
+												{groupIndex < variant.groups.length - 1 && <SelectSeparator />}
+											</>
+										))
+									: "items" in variant &&
+										variant?.items?.map((item, index) => (
+											<>
+												<SelectItem key={item} value={item}>
+													{item}
+												</SelectItem>
+												{variant.hasSeparators && index < variant.items.length - 1 && <SelectSeparator />}
+											</>
+										))}
 							</SelectContent>
 						</Select>
 					</div>

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
@@ -9,19 +10,20 @@ interface DebugSectionProps {
 }
 
 const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) => {
+	const { t } = useTranslation()
 	const { setShowWelcome } = useExtensionState()
 	return (
 		<div>
 			{renderSectionHeader("debug")}
 			<Section>
 				<Button onClick={() => onResetState()} variant="error">
-					Reset Workspace State
+					{t("debugSection.resetWorkspaceState")}
 				</Button>
 				<Button onClick={() => onResetState(true)} variant="error">
-					Reset Global State
+					{t("debugSection.resetGlobalState")}
 				</Button>
 				<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
-					This will reset all global state and secret storage in the extension.
+					{t("debugSection.resetGlobalStateDescription")}
 				</p>
 			</Section>
 			<Section>
@@ -32,7 +34,7 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 							.finally(() => setShowWelcome(true))
 					}
 					variant="secondary">
-					Reset Onboarding State
+					{t("debugSection.resetOnboardingState")}
 				</Button>
 			</Section>
 		</div>

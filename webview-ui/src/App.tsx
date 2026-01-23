@@ -10,10 +10,12 @@ import WelcomeView from "./components/welcome/WelcomeView"
 import WorktreesView from "./components/worktrees/WorktreesView"
 import { useClineAuth } from "./context/ClineAuthContext"
 import { useExtensionState } from "./context/ExtensionStateContext"
+import { useLanguage } from "./hooks/useLanguage"
 import { Providers } from "./Providers"
 import { UiServiceClient } from "./services/grpc-client"
 
 const AppContent = () => {
+	useLanguage() // Initialize i18n
 	const {
 		didHydrateState,
 		showWelcome,

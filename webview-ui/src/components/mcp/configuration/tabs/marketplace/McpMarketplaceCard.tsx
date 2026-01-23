@@ -1,6 +1,7 @@
 import { McpMarketplaceItem, McpServer } from "@shared/mcp"
 import { StringRequest } from "@shared/proto/cline/common"
 import { useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
@@ -12,6 +13,7 @@ interface McpMarketplaceCardProps {
 }
 
 const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplaceCardProps) => {
+	const { t } = useTranslation()
 	const isInstalled = installedServers.some((server) => server.name === item.mcpId)
 	const [isDownloading, setIsDownloading] = useState(false)
 	const [isLoading, setIsLoading] = useState(false)
@@ -61,9 +63,7 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 					textDecoration: "none",
 					color: "inherit",
 				}}>
-				{/* Main container with logo and content */}
 				<div style={{ display: "flex", gap: "12px" }}>
-					{/* Logo */}
 					{item.logoUrl && (
 						<img
 							alt={`${item.name} logo`}
@@ -76,7 +76,6 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 						/>
 					)}
 
-					{/* Content section */}
 					<div
 						style={{
 							flex: 1,
@@ -85,7 +84,6 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 							flexDirection: "column",
 							justifyContent: "space-between",
 						}}>
-						{/* First row: name and install button */}
 						<div
 							style={{
 								display: "flex",
@@ -103,8 +101,8 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 							</h3>
 							<div
 								onClick={async (e) => {
-									e.preventDefault() // Prevent card click when clicking install
-									e.stopPropagation() // Stop event from bubbling up to parent link
+									e.preventDefault()
+									e.stopPropagation()
 									if (!isInstalled && !isDownloading) {
 										setIsDownloading(true)
 										try {
@@ -116,7 +114,6 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 												setError(response.error)
 											} else {
 												console.log("MCP download successful:", response)
-												// Clear any previous errors on success
 												setError(null)
 											}
 										} catch (error) {
@@ -128,12 +125,15 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 								}}
 								style={{}}>
 								<StyledInstallButton $isInstalled={isInstalled} disabled={isInstalled || isDownloading}>
-									{isInstalled ? "Installed" : isDownloading ? "Installing..." : "Install"}
+									{isInstalled
+										? t("mcp.marketplaceCard.installed")
+										: isDownloading
+											? t("mcp.marketplaceCard.installing")
+											: t("mcp.marketplaceCard.install")}
 								</StyledInstallButton>
 							</div>
 						</div>
 
-						{/* Second row: metadata */}
 						<div
 							style={{
 								display: "flex",
@@ -201,30 +201,17 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 								<span style={{ wordBreak: "break-all" }}>{item.downloadCount?.toLocaleString() ?? 0}</span>
 							</div>
 							{item.requiresApiKey && (
-								<span className="codicon codicon-key" style={{ flexShrink: 0 }} title="Requires API key" />
+								<span
+									className="codicon codicon-key"
+									style={{ flexShrink: 0 }}
+									title={t("mcp.marketplaceCard.requiresApiKey")}
+								/>
 							)}
 						</div>
 					</div>
 				</div>
 
-				{/* Description and tags */}
 				<div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-					{/* {!item.isRecommended && (
-						<div
-							style={{
-								display: "flex",
-								alignItems: "center",
-								gap: "4px",
-								fontSize: "12px",
-								color: "var(--vscode-notificationsWarningIcon-foreground)",
-								marginTop: -3,
-								marginBottom: -3,
-							}}>
-							<span className="codicon codicon-warning" style={{ fontSize: "14px" }} />
-							<span>Community Made (use at your own risk)</span>
-						</div>
-					)} */}
-
 					<p style={{ fontSize: "13px", margin: 0 }}>{item.description}</p>
 					<div
 						onScroll={(e) => {
@@ -253,7 +240,7 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 							}}>
 							{item.category}
 						</span>
-						{item.tags.map((tag, index) => (
+						{item.tags.map((tag) => (
 							<span
 								key={tag}
 								style={{
@@ -266,7 +253,6 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 									display: "inline-flex",
 								}}>
 								{tag}
-								{index === item.tags.length - 1 ? "" : ""}
 							</span>
 						))}
 						<div

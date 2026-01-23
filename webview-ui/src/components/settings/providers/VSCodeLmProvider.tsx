@@ -2,6 +2,7 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useInterval } from "react-use"
 import * as vscodemodels from "vscode"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -15,6 +16,7 @@ interface VSCodeLmProviderProps {
 }
 
 export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
+	const { t } = useTranslation()
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
@@ -82,9 +84,11 @@ export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						Use models from your GitHub Copilot subscription. Install the{" "}
-						<a href="https://marketplace.visualstudio.com/items?itemName=GitHub.copilot">Copilot extension</a> and
-						enable Claude models in Copilot settings to get started.
+						{t("providers.vsCodeLmDescription")}{" "}
+						<a href="https://marketplace.visualstudio.com/items?itemName=GitHub.copilot">
+							{t("providers.vsCodeLmInstallCopilot")}
+						</a>{" "}
+						{t("common.and")} {t("providers.vsCodeLmEnableClaude")}
 					</p>
 				)}
 			</DropdownContainer>

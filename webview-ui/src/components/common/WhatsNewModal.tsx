@@ -57,7 +57,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 		)
 	}, [])
 
-	const ModelButton: React.FC<{ modelId: string; label: string }> = ({ modelId, label }) => {
+	const _ModelButton: React.FC<{ modelId: string; label: string }> = ({ modelId, label }) => {
 		const isClicked = clickedModelsRef.current.has(modelId)
 		if (isClicked) {
 			return null
@@ -70,7 +70,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 		)
 	}
 
-	const AuthButton: React.FC<{ children: React.ReactNode }> = ({ children }) =>
+	const _AuthButton: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 		clineUser ? (
 			<div className="flex gap-2 flex-wrap">{children}</div>
 		) : (

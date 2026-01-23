@@ -1,6 +1,7 @@
 import { minimaxModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -21,6 +22,7 @@ interface MinimaxProviderProps {
  * The Minimax AI Studio provider configuration component
  */
 export const MinimaxProvider = ({ showModelOptions, isPopup, currentMode }: MinimaxProviderProps) => {
+	const { t } = useTranslation()
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
@@ -51,8 +53,7 @@ export const MinimaxProvider = ({ showModelOptions, isPopup, currentMode }: Mini
 					marginTop: 3,
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				Select the API endpoint according to your region: <code>api.minimaxi.com</code> for China, or{" "}
-				<code>api.minimax.io</code> for all other locations.
+				{t("providers.minimaxEntrypointDescription")}
 			</p>
 			<ApiKeyField
 				initialValue={apiConfiguration?.minimaxApiKey || ""}

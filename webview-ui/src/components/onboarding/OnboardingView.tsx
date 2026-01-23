@@ -2,12 +2,14 @@ import type { ModelInfo } from "@shared/api"
 import type { OnboardingModel, OnboardingModelGroup, OpenRouterModelInfo } from "@shared/proto/index.cline"
 import { AlertCircleIcon, CircleCheckIcon, CircleIcon, ListIcon, LoaderCircleIcon, StarIcon, ZapIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Item, ItemContent, ItemDescription, ItemHeader, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useLanguage } from "@/hooks/useLanguage"
 import { cn } from "@/lib/utils"
 import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
 import ApiConfigurationSection from "../settings/sections/ApiConfigurationSection"
@@ -41,6 +43,7 @@ const ModelSelection = ({
 	setSearchTerm,
 	onboardingModels,
 }: ModelSelectionProps) => {
+	const { t } = useTranslation()
 	const modelGroups = onboardingModels[userType === NEW_USER_TYPE.FREE ? "free" : "power"]
 
 	const searchedModels = useMemo(() => {
@@ -130,7 +133,7 @@ const ModelSelection = ({
 			{/* SEARCH MODEL */}
 			<div className="flex w-full max-w-lg flex-col gap-6 my-4 border-t border-muted-foreground">
 				<div className="flex flex-col gap-3 mt-6" key="search-results">
-					<h4 className="text-sm font-bold text-foreground/70 uppercase mb-2">other options</h4>
+					<h4 className="text-sm font-bold text-foreground/70 uppercase mb-2">{t("onboarding.otherOptions")}</h4>
 					<Input
 						autoFocus={false}
 						className="focus-visible:border-button-background"
@@ -141,7 +144,7 @@ const ModelSelection = ({
 							setSearchTerm(e.target.value)
 						}}
 						onClick={() => onSelectModel("")}
-						placeholder="Search model..."
+						placeholder={t("onboarding.searchModel")}
 						type="search"
 						value={searchTerm}
 					/>
@@ -183,7 +186,9 @@ const ModelSelection = ({
 								return <ModelItem id={id} isSelected={isSelected} key={id} model={onboardingModel} />
 							})}
 						{searchTerm.length > 0 && searchedModels.length === 0 && (
-							<p className="px-1 mt-1 text-sm text-foreground/70">No result found for "{searchTerm}"</p>
+							<p className="px-1 mt-1 text-sm text-foreground/70">
+								{t("onboarding.noResultFound")} "{searchTerm}"
+							</p>
 						)}
 					</div>
 				</div>
@@ -197,32 +202,48 @@ type UserTypeSelectionProps = {
 	onSelectUserType: (type: NEW_USER_TYPE) => void
 }
 
-const UserTypeSelectionStep = ({ userType, onSelectUserType }: UserTypeSelectionProps) => (
-	<div className="flex flex-col w-full items-center">
-		<div className="flex w-full max-w-lg flex-col gap-3 my-2">
-			{USER_TYPE_SELECTIONS.map((option) => {
-				const isSelected = userType === option.type
+const UserTypeSelectionStep = ({ userType, onSelectUserType }: UserTypeSelectionProps) => {
+	const { t } = useTranslation()
 
-				return (
-					<Item
-						className={cn("cursor-pointer hover:cursor-pointer w-full", {
-							"bg-input-background/50 border border-input-foreground/30": isSelected,
-						})}
-						key={option.type}
-						onClick={() => onSelectUserType(option.type)}>
-						<ItemMedia className="[&_svg]:stroke-button-background" variant="icon">
-							{isSelected ? <CircleCheckIcon className="stroke-1.5" /> : <CircleIcon className="stroke-1" />}
-						</ItemMedia>
-						<ItemContent className="w-full">
-							<ItemTitle>{option.title}</ItemTitle>
-							<ItemDescription>{option.description}</ItemDescription>
-						</ItemContent>
-					</Item>
-				)
-			})}
+	return (
+		<div className="flex flex-col w-full items-center">
+			<div className="flex w-full max-w-lg flex-col gap-3 my-2">
+				{USER_TYPE_SELECTIONS.map((option) => {
+					const isSelected = userType === option.type
+					const title =
+						option.type === NEW_USER_TYPE.FREE
+							? t("onboarding.absolutelyFree")
+							: option.type === NEW_USER_TYPE.POWER
+								? t("onboarding.frontierModel")
+								: t("onboarding.bringOwnApiKey")
+					const description =
+						option.type === NEW_USER_TYPE.FREE
+							? t("onboarding.getStartedNoCost")
+							: option.type === NEW_USER_TYPE.POWER
+								? t("onboarding.frontierModelDesc")
+								: t("onboarding.bringOwnApiKeyDesc")
+
+					return (
+						<Item
+							className={cn("cursor-pointer hover:cursor-pointer w-full", {
+								"bg-input-background/50 border border-input-foreground/30": isSelected,
+							})}
+							key={option.type}
+							onClick={() => onSelectUserType(option.type)}>
+							<ItemMedia className="[&_svg]:stroke-button-background" variant="icon">
+								{isSelected ? <CircleCheckIcon className="stroke-1.5" /> : <CircleIcon className="stroke-1" />}
+							</ItemMedia>
+							<ItemContent className="w-full">
+								<ItemTitle>{title}</ItemTitle>
+								<ItemDescription>{description}</ItemDescription>
+							</ItemContent>
+						</Item>
+					)
+				})}
+			</div>
 		</div>
-	</div>
-)
+	)
+}
 
 type OnboardingStepContentProps = {
 	step: number
@@ -271,6 +292,8 @@ const OnboardingStepContent = ({
 }
 
 const OnboardingView = ({ onboardingModels }: { onboardingModels: OnboardingModelGroup }) => {
+	const { t } = useTranslation()
+	useLanguage()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 	const { openRouterModels, hideSettings, hideAccount, setShowWelcome } = useExtensionState()
 
@@ -368,11 +391,38 @@ const OnboardingView = ({ onboardingModels }: { onboardingModels: OnboardingMode
 
 	const stepDisplayInfo = useMemo(() => {
 		const step = stepNumber === 0 || stepNumber === 2 ? STEP_CONFIG[stepNumber] : null
-		const title = step ? step.title : userType ? STEP_CONFIG[userType].title : STEP_CONFIG[0].title
-		const description = step ? step.description : null
-		const buttons = step ? step.buttons : userType ? STEP_CONFIG[userType].buttons : STEP_CONFIG[0].buttons
+		const title = step
+			? stepNumber === 0
+				? t("onboarding.howWillYouUseCline")
+				: t("onboarding.almostThere")
+			: userType === NEW_USER_TYPE.FREE
+				? t("onboarding.selectFreeModel")
+				: userType === NEW_USER_TYPE.POWER
+					? t("onboarding.selectYourModel")
+					: t("onboarding.configureProvider")
+		const description = step
+			? stepNumber === 0
+				? t("onboarding.selectOptionBelow")
+				: t("onboarding.completeAccountCreation")
+			: null
+		const buttons = step
+			? stepNumber === 0
+				? [
+						{ text: t("onboarding.continue"), action: "next" as const, variant: "default" as const },
+						{ text: t("onboarding.loginToCline"), action: "signin" as const, variant: "secondary" as const },
+					]
+				: [{ text: t("onboarding.back"), action: "back" as const, variant: "secondary" as const }]
+			: userType === NEW_USER_TYPE.BYOK
+				? [
+						{ text: t("onboarding.continue"), action: "done" as const, variant: "default" as const },
+						{ text: t("onboarding.back"), action: "back" as const, variant: "secondary" as const },
+					]
+				: [
+						{ text: t("onboarding.createMyAccount"), action: "signup" as const, variant: "default" as const },
+						{ text: t("onboarding.back"), action: "back" as const, variant: "secondary" as const },
+					]
 		return { title, description, buttons }
-	}, [stepNumber, userType])
+	}, [stepNumber, userType, t])
 
 	return (
 		<div className="fixed inset-0 p-0 flex flex-col w-full">
@@ -416,7 +466,7 @@ const OnboardingView = ({ onboardingModels }: { onboardingModels: OnboardingMode
 
 					{stepNumber !== 2 && (
 						<div className="items-center justify-center flex text-sm text-foreground gap-2 mb-3 text-pretty">
-							<AlertCircleIcon className="shrink-0 size-2" /> You can change this later in settings
+							<AlertCircleIcon className="shrink-0 size-2" /> {t("onboarding.changeInSettings")}
 						</div>
 					)}
 				</footer>

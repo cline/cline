@@ -383,7 +383,7 @@ message UpdateTaskSettingsRequest {
 
 // Message for updating settings
 message UpdateSettingsRequest {
-  reserved 26;  // was hooks_enabled (removed - now always enabled on macOS/Linux)
+  reserved 26; // was hooks_enabled (removed - now always enabled on macOS/Linux)
 
   Metadata metadata = 1;
   optional ModelsApiConfiguration api_configuration = 2;

@@ -51,7 +51,9 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 		(worktree: WorktreeProto) => {
 			// The main worktree is typically the first one listed and is where .git directory lives
 			// It's also usually the one that's marked as "bare" or is the original clone location
-			if (worktrees.length === 0) return false
+			if (worktrees.length === 0) {
+				return false
+			}
 			return worktree.path === worktrees[0]?.path || worktree.isBare
 		},
 		[worktrees],
@@ -165,7 +167,9 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 
 	// Get the main branch name (first worktree's branch, usually main/master)
 	const getMainBranch = useCallback(() => {
-		if (worktrees.length === 0) return "main"
+		if (worktrees.length === 0) {
+			return "main"
+		}
 		return worktrees[0]?.branch || "main"
 	}, [worktrees])
 
@@ -186,7 +190,9 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 
 	// Handle merge
 	const handleMergeWorktree = useCallback(async () => {
-		if (!mergeWorktree) return
+		if (!mergeWorktree) {
+			return
+		}
 
 		setIsMerging(true)
 		setMergeError(null)
@@ -218,7 +224,9 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 
 	// Ask Cline to resolve conflicts
 	const handleAskClineToResolve = useCallback(async () => {
-		if (!mergeResult || !mergeResult.hasConflicts) return
+		if (!mergeResult || !mergeResult.hasConflicts) {
+			return
+		}
 
 		const conflictList = mergeResult.conflictingFiles.join(", ")
 		const prompt = `I tried to merge branch '${mergeResult.sourceBranch}' into '${mergeResult.targetBranch}' but there are merge conflicts in the following files: ${conflictList}

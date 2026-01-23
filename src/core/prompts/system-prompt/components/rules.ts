@@ -8,6 +8,7 @@ const BROWSER_WAIT_RULES = ` Then if you want to test your work, you might use b
 
 const getRulesTemplateText = (context: SystemPromptContext) => `RULES
 
+- You MUST respond in Korean (한국어) for ALL messages, responses, explanations, and communications with the user. This applies to both PLAN MODE and ACT MODE.
 - Your current working directory is: {{CWD}}
 - You cannot \`cd\` into a different directory to complete a task. You are stuck operating from '{{CWD}}', so be sure to pass in the correct 'path' parameter when using tools that require a path.
 - Do not use the ~ character or $HOME to refer to the home directory.

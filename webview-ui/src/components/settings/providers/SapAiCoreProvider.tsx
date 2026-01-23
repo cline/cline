@@ -2,6 +2,7 @@ import { SapAiCoreModelDeployment, SapAiCoreModelsRequest } from "@shared/proto/
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { DebouncedTextField } from "../common/DebouncedTextField"
@@ -23,6 +24,7 @@ interface SapAiCoreProviderProps {
  * The SAP AI Core provider configuration component
  */
 export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: SapAiCoreProviderProps) => {
+	const { t } = useTranslation()
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
 
@@ -137,9 +139,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 				<span className="font-medium">AI Core Client Id</span>
 			</DebouncedTextField>
 			{apiConfiguration?.sapAiCoreClientId && (
-				<p className="text-xs text-(--vscode-descriptionForeground)">
-					Client Id is set. To change it, please re-enter the value.
-				</p>
+				<p className="text-xs text-(--vscode-descriptionForeground)">{t("providers.sapAiCoreClientIdSet")}</p>
 			)}
 
 			<DebouncedTextField
@@ -151,9 +151,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 				<span className="font-medium">AI Core Client Secret</span>
 			</DebouncedTextField>
 			{apiConfiguration?.sapAiCoreClientSecret && (
-				<p className="text-xs text-(--vscode-descriptionForeground)">
-					Client Secret is set. To change it, please re-enter the value.
-				</p>
+				<p className="text-xs text-(--vscode-descriptionForeground)">{t("providers.sapAiCoreClientSecretSet")}</p>
 			)}
 
 			<DebouncedTextField
@@ -181,11 +179,11 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 			</DebouncedTextField>
 
 			<p className="text-xs mt-1.5 text-(--vscode-descriptionForeground)">
-				These credentials are stored locally and only used to make API requests from this extension.
+				{t("providers.sapAiCoreCredentialsDescription")}
 				<VSCodeLink
 					className="inline"
 					href="https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/access-sap-ai-core-via-api">
-					You can find more information about SAP AI Core API access here.
+					{t("providers.sapAiCoreMoreInfo")}
 				</VSCodeLink>
 			</p>
 

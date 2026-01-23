@@ -12,6 +12,7 @@ import {
 	Wrench,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useEvent } from "react-use"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -100,8 +101,18 @@ type SettingsViewProps = {
 }
 
 // Helper to render section header - moved outside component for better performance
-const renderSectionHeader = (tabId: string) => {
-	const tab = SETTINGS_TABS.find((t) => t.id === tabId)
+const renderSectionHeader = (tabId: string, t: any) => {
+	const tabMap: Record<string, { icon: LucideIcon; text: string }> = {
+		"api-config": { icon: SlidersHorizontal, text: t("settings.headers.apiConfiguration") },
+		features: { icon: CheckCheck, text: t("settings.headers.featureSettings") },
+		browser: { icon: SquareMousePointer, text: t("settings.headers.browserSettings") },
+		terminal: { icon: SquareTerminal, text: t("settings.headers.terminalSettings") },
+		general: { icon: Wrench, text: t("settings.headers.generalSettings") },
+		about: { icon: Info, text: t("settings.headers.about") },
+		debug: { icon: FlaskConical, text: t("settings.headers.debug") },
+	}
+
+	const tab = tabMap[tabId]
 	if (!tab) {
 		return null
 	}
@@ -110,13 +121,72 @@ const renderSectionHeader = (tabId: string) => {
 		<SectionHeader>
 			<div className="flex items-center gap-2">
 				<tab.icon className="w-4" />
-				<div>{tab.headerText}</div>
+				<div>{tab.text}</div>
 			</div>
 		</SectionHeader>
 	)
 }
 
 const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
+	const { t } = useTranslation()
+
+	// Memoize SETTINGS_TABS with translations
+	const SETTINGS_TABS_TRANSLATED = useMemo(
+		() => [
+			{
+				id: "api-config",
+				name: t("settings.tabs.apiConfig"),
+				tooltipText: t("settings.tooltips.apiConfiguration"),
+				headerText: t("settings.headers.apiConfiguration"),
+				icon: SlidersHorizontal,
+			},
+			{
+				id: "features",
+				name: t("settings.tabs.features"),
+				tooltipText: t("settings.tooltips.featureSettings"),
+				headerText: t("settings.headers.featureSettings"),
+				icon: CheckCheck,
+			},
+			{
+				id: "browser",
+				name: t("settings.tabs.browser"),
+				tooltipText: t("settings.tooltips.browserSettings"),
+				headerText: t("settings.headers.browserSettings"),
+				icon: SquareMousePointer,
+			},
+			{
+				id: "terminal",
+				name: t("settings.tabs.terminal"),
+				tooltipText: t("settings.tooltips.terminalSettings"),
+				headerText: t("settings.headers.terminalSettings"),
+				icon: SquareTerminal,
+			},
+			{
+				id: "general",
+				name: t("settings.tabs.general"),
+				tooltipText: t("settings.tooltips.generalSettings"),
+				headerText: t("settings.headers.generalSettings"),
+				icon: Wrench,
+			},
+			{
+				id: "about",
+				name: t("settings.tabs.about"),
+				tooltipText: t("settings.tooltips.about"),
+				headerText: t("settings.headers.about"),
+				icon: Info,
+			},
+			{
+				id: "debug",
+				name: t("settings.tabs.debug"),
+				tooltipText: t("settings.tooltips.debugTools"),
+				headerText: t("settings.headers.debug"),
+				icon: FlaskConical,
+				hidden: !IS_DEV,
+			},
+		],
+		[t],
+	)
+
 	// Memoize to avoid recreation
 	const TAB_CONTENT_MAP = useMemo(
 		() => ({
@@ -195,7 +265,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 
 	// Memoized tab item renderer
 	const renderTabItem = useCallback(
-		(tab: (typeof SETTINGS_TABS)[0]) => {
+		(tab: (typeof SETTINGS_TABS_TRANSLATED)[0]) => {
 			return (
 				<TabTrigger className="flex justify-baseline" data-testid={`tab-${tab.id}`} key={tab.id} value={tab.id}>
 					<Tooltip key={tab.id}>
@@ -228,7 +298,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		}
 
 		// Special props for specific components
-		const props: any = { renderSectionHeader }
+		const props: any = { renderSectionHeader: (tabId: string) => renderSectionHeader(tabId, t) }
 		if (activeTab === "debug") {
 			props.onResetState = handleResetState
 		} else if (activeTab === "about") {
@@ -236,7 +306,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		}
 
 		return <Component {...props} />
-	}, [activeTab, handleResetState, version])
+	}, [activeTab, handleResetState, version, t])
 
 	const titleColor = getEnvironmentColor(environment)
 
@@ -245,11 +315,11 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			<TabHeader className="flex justify-between items-center gap-2">
 				<div className="flex items-center gap-1">
 					<h3 className="text-md m-0" style={{ color: titleColor }}>
-						Settings
+						{t("settings.title")}
 					</h3>
 				</div>
 				<div className="flex gap-2">
-					<VSCodeButton onClick={onDone}>Done</VSCodeButton>
+					<VSCodeButton onClick={onDone}>{t("settings.done")}</VSCodeButton>
 				</div>
 			</TabHeader>
 
@@ -258,7 +328,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 					className="shrink-0 flex flex-col overflow-y-auto border-r border-sidebar-background"
 					onValueChange={setActiveTab}
 					value={activeTab}>
-					{SETTINGS_TABS.filter((tab) => !tab.hidden).map(renderTabItem)}
+					{SETTINGS_TABS_TRANSLATED.filter((tab) => !tab.hidden).map(renderTabItem)}
 				</TabList>
 
 				<TabContent className="flex-1 overflow-auto">{ActiveContent}</TabContent>

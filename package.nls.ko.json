@@ -1,0 +1,45 @@
+{
+  "extension.displayName": "Cline",
+  "extension.description": "IDE에서 파일 생성/편집, 명령 실행, 브라우저 사용 등을 수행할 수 있는 자율 코딩 에이전트입니다. 모든 단계마다 사용자의 승인을 받습니다.",
+  
+  "viewsContainers.activitybar.claude-dev-ActivityBar.title": "Cline",
+  "configuration.title": "Cline",
+  
+  "walkthrough.title": "코딩 파트너 Cline을 만나보세요",
+  "walkthrough.description": "Cline은 개발자처럼 생각하고 코딩합니다. 다음 5가지 방법으로 활용해보세요:",
+  
+  "walkthrough.step1.title": "프롬프트가 아닌 목표로 시작하기",
+  "walkthrough.step1.description": "Cline에게 달성하고자 하는 것을 말해주세요. 진정한 파트너처럼 계획하고, 질문하고, 코딩합니다.",
+  
+  "walkthrough.step2.title": "Cline이 코드베이스를 학습하도록 하기",
+  "walkthrough.step2.description": "프로젝트를 가리키면 Cline이 이해를 구축하여 스마트하고 컨텍스트를 인식하는 변경을 수행합니다.",
+  
+  "walkthrough.step3.title": "항상 최고의 AI 모델 사용",
+  "walkthrough.step3.description": "Cline은 최첨단 AI로 여러분을 지원하며, 최고의 모델(Anthropic, Gemini, OpenAI 등)에 연결합니다.",
+  
+  "walkthrough.step4.title": "강력한 도구로 확장하기 (MCP)",
+  "walkthrough.step4.description": "데이터베이스, API에 연결하거나 MCP 마켓플레이스에서 새로운 기능을 발견하세요.",
+  
+  "walkthrough.step5.title": "항상 제어권은 사용자에게",
+  "walkthrough.step5.description": "Cline의 계획과 차이점을 검토하세요. 변경이 발생하기 전에 승인합니다. 놀라운 일은 없습니다.",
+  
+  "command.plusButtonClicked": "새 작업",
+  "command.mcpButtonClicked": "MCP 서버",
+  "command.historyButtonClicked": "히스토리",
+  "command.accountButtonClicked": "계정",
+  "command.settingsButtonClicked": "설정",
+  "command.addToChat": "Cline에 추가",
+  "command.addTerminalOutputToChat": "Cline에 추가",
+  "command.focusChatInput": "채팅 입력으로 이동",
+  "command.generateGitCommitMessage": "Cline으로 커밋 메시지 생성",
+  "command.abortGitCommitMessage": "Cline으로 커밋 메시지 생성 - 중지",
+  "command.explainCode": "Cline으로 설명",
+  "command.improveCode": "Cline으로 개선",
+  "command.jupyterGenerateCell": "Cline으로 Jupyter 셀 생성",
+  "command.jupyterExplainCell": "Cline으로 Jupyter 셀 설명",
+  "command.jupyterImproveCell": "Cline으로 Jupyter 셀 개선",
+  "command.openWalkthrough": "워크스루 열기",
+  "command.reconstructTaskHistory": "작업 히스토리 재구성",
+  "command.reviewComment.reply": "답글",
+  "command.reviewComment.addToChat": "Cline 채팅에 추가"
+}

@@ -4,6 +4,7 @@ import { EmptyRequest, StringRequest } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import React, { useCallback, useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient, OcaAccountServiceClient } from "@/services/grpc-client"
 import { VSC_BUTTON_BACKGROUND, VSC_BUTTON_FOREGROUND, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
@@ -221,6 +222,7 @@ function useOcaModels({
  * The Oca provider configuration component
  */
 export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
+	const { t } = useTranslation()
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
@@ -283,7 +285,7 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 								const checked = (e?.target as HTMLInputElement)?.checked
 								handleToggleMode(checked ? "internal" : "external")
 							}}>
-							I’m an Oracle Employee
+							I'm an Oracle Employee
 						</VSCodeCheckbox>
 					</div>
 					<VSCodeButton
@@ -301,13 +303,12 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 						Sign in with Oracle Code Assist
 					</VSCodeButton>
 					<p className="text-xs mt-0 text-(--vscode-descriptionForeground)">
-						Please ask your IT administrator to set up Oracle Code Assist as a model provider. Oracle Employees,
-						please see the{" "}
+						{t("providers.ocaAdminSetupRequired")}{" "}
 						<VSCodeLink
 							href="https://confluence.oraclecorp.com/confluence/display/AICODE/Oracle+Code+Assist+via+Cline"
 							rel="noopener noreferrer"
 							target="_blank">
-							quickstart guide
+							{t("providers.ocaQuickstartGuide")}
 						</VSCodeLink>
 					</p>
 				</div>
@@ -432,7 +433,7 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 									marginBottom: 18,
 									marginTop: 2,
 								}}>
-								Have an idea for Oracle Code Assist?
+								{t("providers.ocaFeedbackTitle")}
 							</div>
 						</div>
 						<div
@@ -467,7 +468,7 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 									cursor: "pointer",
 								}}
 								target="_blank">
-								Provide feedback
+								{t("providers.ocaProvideFeedback")}
 							</a>
 						</div>
 					</InfoCard>

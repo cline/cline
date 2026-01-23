@@ -1,5 +1,6 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { memo } from "react"
+import { useTranslation } from "react-i18next"
 import CreditLimitError from "@/components/chat/CreditLimitError"
 import { Button } from "@/components/ui/button"
 import { useClineAuth, useClineSignIn } from "@/context/ClineAuthContext"
@@ -15,6 +16,7 @@ interface ErrorRowProps {
 }
 
 const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStreamingFailedMessage }: ErrorRowProps) => {
+	const { t } = useTranslation()
 	const { clineUser } = useClineAuth()
 	const rawApiError = apiRequestFailedMessage || apiReqStreamingFailedMessage
 
@@ -70,11 +72,11 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 							{/* Windows Powershell Issue */}
 							{errorMessage?.toLowerCase()?.includes("powershell") && (
 								<div>
-									It seems like you're having Windows PowerShell issues, please see this{" "}
+									{t("errorRow.powershellIssue")}{" "}
 									<a
 										className="underline text-inherit"
 										href="https://github.com/cline/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22">
-										troubleshooting guide
+										{t("errorRow.troubleshootingGuide")}
 									</a>
 									.
 								</div>
@@ -88,7 +90,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 								{/* The user is signed in or not using cline provider */}
 								{isClineProvider && !clineUser ? (
 									<Button className="w-full mb-4" disabled={isLoginLoading} onClick={handleSignIn}>
-										Sign in to Cline
+										{t("chat.signInToCline")}
 										{isLoginLoading && (
 											<span className="ml-1 animate-spin">
 												<span className="codicon codicon-refresh"></span>
@@ -96,7 +98,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 										)}
 									</Button>
 								) : (
-									<span className="mb-4 text-description">(Click "Retry" below)</span>
+									<span className="mb-4 text-description">({t("chat.clickRetryBelow")})</span>
 								)}
 							</div>
 						</p>
@@ -109,17 +111,14 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 			case "diff_error":
 				return (
 					<div className="flex flex-col p-2 rounded text-xs opacity-80 bg-quote text-foreground">
-						<div>The model used search patterns that don't match anything in the file. Retrying...</div>
+						<div>{t("chat.diffError")}</div>
 					</div>
 				)
 
 			case "clineignore_error":
 				return (
 					<div className="flex flex-col p-2 rounded text-xs opacity-80 bg-quote text-foreground">
-						<div>
-							Cline tried to access <code>{message.text}</code> which is blocked by the <code>.clineignore</code>
-							file.
-						</div>
+						<div>{t("chat.clineignoreError", { file: message.text, clineignore: ".clineignore" })}</div>
 					</div>
 				)
 

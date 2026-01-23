@@ -1,6 +1,7 @@
 import { geminiModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
@@ -31,10 +32,10 @@ interface GeminiProviderProps {
  * The Gemini provider configuration component
  */
 export const GeminiProvider = ({ showModelOptions, isPopup, currentMode }: GeminiProviderProps) => {
+	const { t } = useTranslation()
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
-	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	const geminiThinkingLevel =
@@ -51,7 +52,7 @@ export const GeminiProvider = ({ showModelOptions, isPopup, currentMode }: Gemin
 
 			<BaseUrlField
 				initialValue={apiConfiguration?.geminiBaseUrl}
-				label="Use custom base URL"
+				label={t("providers.useCustomBaseUrl")}
 				onChange={(value) => handleFieldChange("geminiBaseUrl", value)}
 				placeholder="Default: https://generativelanguage.googleapis.com"
 			/>
@@ -59,7 +60,7 @@ export const GeminiProvider = ({ showModelOptions, isPopup, currentMode }: Gemin
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label={t("providers.model")}
 						models={geminiModels}
 						onChange={(e: any) =>
 							handleModeFieldChange(
@@ -71,7 +72,6 @@ export const GeminiProvider = ({ showModelOptions, isPopup, currentMode }: Gemin
 						selectedModelId={selectedModelId}
 					/>
 
-					{/* When ThinkLevel is set, thinking budget cannot be adjusted and must be enabled */}
 					{SUPPORTED_THINKING_MODELS.includes(selectedModelId) &&
 						!selectedModelInfo.thinkingConfig?.geminiThinkingLevel && (
 							<ThinkingBudgetSlider
@@ -83,7 +83,7 @@ export const GeminiProvider = ({ showModelOptions, isPopup, currentMode }: Gemin
 					{selectedModelInfo.thinkingConfig?.supportsThinkingLevel && (
 						<DropdownContainer className="dropdown-container" style={{ marginTop: "8px" }} zIndex={1}>
 							<label htmlFor="thinking-level">
-								<span className="font-medium">Thinking Level</span>
+								<span className="font-medium">{t("providers.thinkingLevel")}</span>
 							</label>
 							<VSCodeDropdown
 								className="w-full"

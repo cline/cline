@@ -2,6 +2,7 @@ import { vertexGlobalModels, vertexModels } from "@shared/api"
 import VertexData from "@shared/providers/vertex.json"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DROPDOWN_Z_INDEX, DropdownContainer } from "../ApiOptions"
 import { DebouncedTextField } from "../common/DebouncedTextField"
@@ -41,13 +42,12 @@ const REGIONS = VertexData.regions
  * The GCP Vertex AI provider configuration component
  */
 export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: VertexProviderProps) => {
+	const { t } = useTranslation()
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
-	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
-	// Determine which models to use based on region
 	const modelsToUse = apiConfiguration?.vertexRegion === "global" ? vertexGlobalModels : vertexModels
 
 	const geminiThinkingLevel =
@@ -106,23 +106,23 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 					marginTop: "5px",
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				To use Google Cloud Vertex AI, you need to
+				{t("providers.vertexSetupStep1")}
 				<VSCodeLink
 					href="https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#before_you_begin"
 					style={{ display: "inline", fontSize: "inherit" }}>
-					{"1) create a Google Cloud account › enable the Vertex AI API › enable the desired Claude models,"}
+					{t("providers.vertexSetupStep1Link")}
 				</VSCodeLink>{" "}
 				<VSCodeLink
 					href="https://cloud.google.com/docs/authentication/provide-credentials-adc#google-idp"
 					style={{ display: "inline", fontSize: "inherit" }}>
-					{"2) install the Google Cloud CLI › configure Application Default Credentials."}
+					{t("providers.vertexSetupStep2Link")}
 				</VSCodeLink>
 			</p>
 
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label={t("providers.model")}
 						models={modelsToUse}
 						onChange={(e: any) =>
 							handleModeFieldChange(
@@ -142,7 +142,7 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 					{selectedModelInfo.thinkingConfig?.supportsThinkingLevel && (
 						<DropdownContainer className="dropdown-container" style={{ marginTop: "8px" }} zIndex={1}>
 							<label htmlFor="thinking-level">
-								<span style={{ fontWeight: 500 }}>Thinking Level</span>
+								<span style={{ fontWeight: 500 }}>{t("providers.thinkingLevel")}</span>
 							</label>
 							<VSCodeDropdown
 								className="w-full"

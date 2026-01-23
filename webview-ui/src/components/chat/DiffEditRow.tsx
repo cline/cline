@@ -111,7 +111,9 @@ const FileBlock = memo<{ file: Patch; isStreaming: boolean; startLineNumber?: nu
 		// Only calculate line numbers if we have actual positions from the backend
 		// When startLineNumber is undefined (e.g., V2 diff or no match indices), we skip line numbers entirely
 		const lineNumbers = useMemo(() => {
-			if (startLineNumber === undefined) return undefined
+			if (startLineNumber === undefined) {
+				return undefined
+			}
 
 			let oldLine = startLineNumber
 			let newLine = startLineNumber
@@ -338,7 +340,9 @@ function parseNewFormat(content: string): Patch[] {
 	}
 
 	const startNewChunk = () => {
-		if (!currentFile) return
+		if (!currentFile) {
+			return
+		}
 		pushCurrentChunk()
 		currentChunk = {
 			action: currentFile.action,

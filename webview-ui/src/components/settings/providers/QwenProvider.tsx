@@ -2,6 +2,7 @@ import { internationalQwenModels, mainlandQwenModels, QwenApiRegions } from "@sh
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DROPDOWN_Z_INDEX } from "../ApiOptions"
 import { ApiKeyField } from "../common/ApiKeyField"
@@ -40,10 +41,10 @@ export const qwenApiOptions: QwenApiRegions[] = Object.values(QwenApiRegions)
  * The Alibaba Qwen provider configuration component
  */
 export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenProviderProps) => {
+	const { t } = useTranslation()
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
-	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	// Determine which models to use based on API line selection
@@ -79,8 +80,7 @@ export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenPro
 					marginTop: 3,
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				Please select the appropriate API interface based on your location. If you are in China, choose the China API
-				interface. Otherwise, choose the International API interface.
+				{t("providers.qwenApiLineDescription")}
 			</p>
 
 			<ApiKeyField
@@ -93,7 +93,7 @@ export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenPro
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label={t("providers.model")}
 						models={qwenModels}
 						onChange={(e: any) =>
 							handleModeFieldChange(

@@ -1,4 +1,5 @@
 import React from "react"
+import { useTranslation } from "react-i18next"
 
 interface ChatErrorBoundaryProps {
 	children: React.ReactNode
@@ -47,14 +48,27 @@ export class ChatErrorBoundary extends React.Component<ChatErrorBoundaryProps, C
 						borderRadius: "4px",
 						backgroundColor: "var(--vscode-inputValidation-errorBackground, rgba(255, 0, 0, 0.1))",
 					}}>
-					<h3 style={{ margin: "0 0 8px 0" }}>{errorTitle || "Something went wrong displaying this content"}</h3>
-					<p style={{ margin: "0" }}>{errorBody || `Error: ${this.state.error?.message || "Unknown error"}`}</p>
+					<ErrorContent errorBody={errorBody} errorMessage={this.state.error?.message} errorTitle={errorTitle} />
 				</div>
 			)
 		}
 
 		return this.props.children
 	}
+}
+
+const ErrorContent: React.FC<{ errorTitle?: string; errorMessage?: string; errorBody?: string }> = ({
+	errorTitle,
+	errorMessage,
+	errorBody,
+}) => {
+	const { t } = useTranslation()
+	return (
+		<>
+			<h3 style={{ margin: "0 0 8px 0" }}>{errorTitle || t("chat.somethingWentWrong")}</h3>
+			<p style={{ margin: "0" }}>{errorBody || `${t("chat.error")}: ${errorMessage || t("chat.unknownError")}`}</p>
+		</>
+	)
 }
 
 /**
