@@ -47,11 +47,10 @@ function formatElapsedTime(ms: number): string {
  * Blend base color towards white based on factor (0 = base color, 1 = white)
  */
 function blendTowardsWhite(baseColor: string, factor: number): string {
-	// Base colors matching Ink/chalk ANSI color output
-	// These values approximate what terminals render for these named colors
+	// Base colors - bright and vivid to match Ink's blueBright/yellow
 	const colors: Record<string, { r: number; g: number; b: number }> = {
-		blueBright: { r: 85, g: 85, b: 255 }, // ANSI bright blue
-		yellow: { r: 205, g: 205, b: 0 }, // ANSI yellow (more muted than pure yellow)
+		blueBright: { r: 140, g: 170, b: 255 }, // Light purple-blue
+		yellow: { r: 255, g: 255, b: 0 }, // Bright yellow
 	}
 	const base = colors[baseColor] || colors.blueBright
 	const t = Math.max(0, Math.min(1, factor))
@@ -117,7 +116,7 @@ export const ThinkingIndicator: React.FC<ThinkingIndicatorProps> = ({ mode = "ac
 
 	// Full text including spinner
 	const spinnerChar = SPINNER_FRAMES[spinnerFrame]
-	const fullText = `${spinnerChar} ${message}...`
+	const fullText = `${spinnerChar} ${message}…`
 
 	// Animate spinner
 	useEffect(() => {
