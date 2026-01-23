@@ -125,9 +125,6 @@ class ClineTempManagerImpl {
 						await fs.promises.unlink(fileInfo.path)
 						deletedCount++
 						freedBytes += fileInfo.size
-						Logger.info(
-							`Cleaned up old temp file: ${path.basename(fileInfo.path)} (age: ${Math.round(age / 3600000)}h)`,
-						)
 					} catch {
 						// File might have been deleted by another process
 					}
@@ -150,9 +147,6 @@ class ClineTempManagerImpl {
 						totalSize -= fileInfo.size
 						deletedCount++
 						freedBytes += fileInfo.size
-						Logger.info(
-							`Cleaned up temp file for space: ${path.basename(fileInfo.path)} (${Math.round(fileInfo.size / 1024)}KB)`,
-						)
 					} catch {
 						// File might have been deleted by another process
 					}

@@ -60,7 +60,6 @@ export class AudioRecordingService {
 			return
 		}
 
-		Logger.info("Terminating recording process...")
 		this.recordingProcess.kill("SIGINT")
 
 		// Wait for the process to finish with timeout

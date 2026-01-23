@@ -242,7 +242,7 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 			Logger.error("Invalid response from OpenRouter API")
 		}
 		await fs.writeFile(openRouterModelsFilePath, JSON.stringify(models))
-		Logger.log("OpenRouter models fetched and saved", JSON.stringify(models).slice(0, 300))
+		Logger.log("OpenRouter models fetched and saved")
 	} catch (error) {
 		Logger.error("Error fetching OpenRouter models:", error)
 

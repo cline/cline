@@ -55,7 +55,6 @@ export class GrpcRequestRegistry {
 			timestamp: new Date(),
 			responseStream,
 		})
-		Logger.log(`[DEBUG] Registered request: ${requestId}`)
 	}
 
 	/**
@@ -70,9 +69,8 @@ export class GrpcRequestRegistry {
 		}
 		try {
 			requestInfo.cleanup()
-			Logger.debug(`Cleaned up request: ${requestId}`)
 		} catch (error) {
-			Logger.debug(`Error cleaning up request ${requestId}:`, error)
+			Logger.error(`Error cleaning up request ${requestId}:`, error)
 		}
 		this.activeRequests.delete(requestId)
 		return true

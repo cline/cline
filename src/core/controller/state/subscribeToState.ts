@@ -27,7 +27,6 @@ export async function subscribeToState(
 	// Register cleanup when the connection is closed
 	const cleanup = () => {
 		activeStateSubscriptions.delete(responseStream)
-		//Logger.log(`[DEBUG] Cleaned up state subscription`)
 	}
 
 	// Register the cleanup function with the request registry if we have a requestId
