@@ -3334,6 +3334,7 @@ export const cerebrasModels = {
 		contextWindow: 131072,
 		supportsImages: false,
 		supportsPromptCache: false,
+		temperature: 0.9,
 		inputPrice: 0,
 		outputPrice: 0,
 		description:
