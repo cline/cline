@@ -99,18 +99,18 @@ cli-ts/src/acp/
   - [x] Translate responses back to Controller.task.handleWebviewAskResponse
   - [x] AutoApprovalTracker class for tracking "always allow" decisions
 
-### Phase 5: Host Bridge (File/Terminal Delegation)
-- [ ] **5.1** Create `cli-ts/src/acp/AcpHostBridgeProvider.ts`
-  - [ ] Implement file read delegation via `connection.readTextFile()`
-  - [ ] Implement file write delegation via `connection.writeTextFile()`
-  - [ ] Check client capabilities before delegating
+### Phase 5: Host Bridge (File/Terminal Delegation) ✅
+- [x] **5.1** Create `cli-ts/src/acp/AcpHostBridgeProvider.ts`
+  - [x] Implement file read delegation via `connection.readTextFile()`
+  - [x] Implement file write delegation via `connection.writeTextFile()`
+  - [x] Check client capabilities before delegating
 
-- [ ] **5.2** Create `cli-ts/src/acp/AcpTerminalManager.ts`
-  - [ ] Implement `createTerminal()` using client's `terminal/create`
-  - [ ] Implement output retrieval via `terminal/output`
-  - [ ] Implement `waitForExit()` via `terminal/wait_for_exit`
-  - [ ] Implement `release()` via `terminal/release`
-  - [ ] Implement `kill()` via `terminal/kill`
+- [x] **5.2** Create `cli-ts/src/acp/AcpTerminalManager.ts`
+  - [x] Implement `createTerminal()` using client's `terminal/create`
+  - [x] Implement output retrieval via `terminal/output`
+  - [x] Implement `waitForExit()` via `terminal/wait_for_exit`
+  - [x] Implement `release()` via `terminal/release`
+  - [x] Implement `kill()` via `terminal/kill`
 
 ### Phase 6: Entry Point Integration
 - [ ] **6.1** Create `cli-ts/src/acp/runAcpMode.ts`
