@@ -25,7 +25,7 @@ async function handleInstallWithCline(
 	await controller.postStateToWebview()
 	await controller.initTask(installTask)
 
-	HostProvider.get().logToChannel(`Started task to install ${dependencyName}`)
+	Logger.log(`[handleInstallWithCline] Started task to install ${dependencyName}`)
 }
 
 /**
