@@ -120,6 +120,7 @@ import {
 	searchWorkspaceFiles,
 } from "../utils/file-search"
 import { jsonParseSafe, parseImagesFromInput } from "../utils/parser"
+import { AsciiMotionCli } from "./AsciiMotionCli"
 import { ChatMessage } from "./ChatMessage"
 import { FileMentionMenu } from "./FileMentionMenu"
 
@@ -129,26 +130,6 @@ interface ChatViewProps {
 	onComplete?: () => void
 	onError?: () => void
 }
-
-// ASCII art Cline logo
-const CLINE_LOGO = [
-	"            :::::::            ",
-	"           :::::::::           ",
-	"       :::::::::::::::::       ",
-	"    :::::::::::::::::::::::    ",
-	"   :::::::::::::::::::::::::   ",
-	"  :::::::::::::::::::::::::::  ",
-	"  :::::::   :::::::   :::::::  ",
-	" :::::::     :::::     ::::::: ",
-	"::::::::     :::::     ::::::::",
-	"::::::::     :::::     ::::::::",
-	" :::::::     :::::     ::::::: ",
-	"  :::::::   :::::::   :::::::  ",
-	"  :::::::::::::::::::::::::::  ",
-	"   :::::::::::::::::::::::::   ",
-	"    :::::::::::::::::::::::    ",
-	"       ::::::::::::::::       ",
-]
 
 const SEARCH_DEBOUNCE_MS = 150
 const RIPGREP_WARNING_DURATION_MS = 5000
@@ -346,12 +327,16 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 		return { completedMessages: completed, currentMessage: current }
 	}, [displayMessages])
 
+	// Determine if we're in welcome state (no messages yet)
+	const isWelcomeState = displayMessages.length === 0
+
 	// Build Static items - each item is rendered once and stays above dynamic content
 	const staticItems = useMemo(() => {
 		const items: Array<{ type: "header" } | { type: "message"; message: (typeof displayMessages)[0] }> = []
 
-		// Add header as first item (rendered once)
-		if (!headerLoggedRef.current) {
+		// Add header as first item ONLY after messages start (so animated robot shows first)
+		// Once messages exist, add header to static so it scrolls up with history
+		if (!headerLoggedRef.current && displayMessages.length > 0) {
 			items.push({ type: "header" })
 			headerLoggedRef.current = true
 		}
@@ -365,7 +350,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 		}
 
 		return items
-	}, [completedMessages])
+	}, [completedMessages, displayMessages.length])
 
 	// Check for pending ask message
 	const lastMessage = messages[messages.length - 1]
@@ -483,6 +468,12 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 
 	// Handle keyboard input
 	useInput((input, key) => {
+		// Filter out mouse escape sequences from AsciiMotionCli's mouse tracking
+		// Mouse events look like: [<35;46;17M or contain escape characters
+		if (input.includes("\x1b") || input.includes("[<") || /\d+;\d+;\d+[Mm]/.test(input)) {
+			return
+		}
+
 		const inMenu = mentionInfo.inMentionMode && fileResults.length > 0
 
 		// Menu navigation
@@ -595,19 +586,10 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 			<Static items={staticItems}>
 				{(item) => {
 					if (item.type === "header") {
+						// Note: The animated robot was shown in the dynamic region during welcome state.
+						// We don't show it again in static - it just scrolls away when messages start.
 						return (
 							<Box flexDirection="column" key="header">
-								{/* Cline logo - manually centered */}
-								{CLINE_LOGO.map((line, idx) => (
-									<Text color="white" key={idx}>
-										{centerText(line)}
-									</Text>
-								))}
-
-								{/* Main prompt - manually centered */}
-								<Text bold color="white">
-									{centerText("What can I do for you?")}
-								</Text>
 								<Text> </Text>
 							</Box>
 						)
@@ -620,6 +602,16 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 
 			{/* Dynamic region - only current streaming message + input */}
 			<Box flexDirection="column" width="100%">
+				{/* Animated robot and welcome text - only shown before messages start */}
+				{isWelcomeState && (
+					<Box flexDirection="column" marginBottom={1}>
+						<AsciiMotionCli />
+						<Text bold color="white">
+							{centerText("What can I do for you?")}
+						</Text>
+					</Box>
+				)}
+
 				{/* Current streaming message */}
 				{currentMessage && <ChatMessage isStreaming message={currentMessage} />}
 
