@@ -18,6 +18,7 @@ import { ErrorService } from "@/services/error/ErrorService"
 import { initializeDistinctId } from "@/services/logging/distinctId"
 import { Logger } from "@/shared/services/Logger"
 import { getProviderModelIdKey } from "@/shared/storage"
+import { version as CLI_VERSION } from "../package.json"
 import { App } from "./components/App"
 import { checkRawModeSupport } from "./context/StdinContext"
 import { createCliHostBridgeProvider } from "./controllers"
@@ -31,8 +32,6 @@ import { readStdinIfPiped } from "./utils/piped"
 import { runPlainTextTask } from "./utils/plain-text-task"
 import { initializeCliContext } from "./vscode-context"
 import { window } from "./vscode-shim"
-
-export const CLI_VERSION = "0.0.0"
 
 // Track active context for graceful shutdown
 let activeContext: CliContext | null = null

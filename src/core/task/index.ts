@@ -1705,8 +1705,9 @@ export class Task {
 		})
 
 		const providerInfo = this.getCurrentProviderInfo()
-		const ide = (await HostProvider.env.getHostVersion({}))?.platform || "Unknown"
-		const isCliEnvironment = ide === ClineClient.Cli
+		const host = await HostProvider.env.getHostVersion({})
+		const ide = host?.platform || "Unknown"
+		const isCliEnvironment = host.clineType === ClineClient.Cli
 		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
 		const disableBrowserTool = browserSettings.disableToolUse ?? false
 		// cline browser tool uses image recognition for navigation (requires model image support).

@@ -1,6 +1,6 @@
 {
 	"name": "@cline/cli",
-	"version": "1.0.0",
+	"version": "0.0.0",
 	"description": "Cline CLI - TypeScript implementation that reuses core Cline functionality",
 	"main": "dist/cli.mjs",
 	"bin": {
