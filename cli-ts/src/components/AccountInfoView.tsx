@@ -35,7 +35,7 @@ function formatBalance(balance: number | null): string {
 	return `$${(balance / 1000000).toFixed(2)}`
 }
 
-export const AccountInfoView: React.FC<AccountInfoViewProps> = ({ controller }) => {
+export const AccountInfoView: React.FC<AccountInfoViewProps> = React.memo(({ controller }) => {
 	const [provider, setProvider] = useState<string | null>(null)
 	const [balance, setBalance] = useState<number | null>(null)
 	const [organization, setOrganization] = useState<ClineAccountOrganization | null>(null)
@@ -191,4 +191,4 @@ export const AccountInfoView: React.FC<AccountInfoViewProps> = ({ controller }) 
 			</Box>
 		</Box>
 	)
-}
+})

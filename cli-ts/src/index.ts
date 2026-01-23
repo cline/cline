@@ -41,6 +41,7 @@ function setupSignalHandlers() {
 			process.exit(1)
 		}
 		isShuttingDown = true
+
 		printWarning(`\n${signal} received, shutting down...`)
 
 		try {
@@ -126,7 +127,7 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
  * Run an Ink app with proper cleanup handling
  */
 async function runInkApp(element: React.ReactElement, cleanup: () => Promise<void>): Promise<void> {
-	const { waitUntilExit, unmount } = render(element)
+	const { waitUntilExit, unmount } = render(element, { incrementalRendering: true })
 
 	try {
 		await waitUntilExit()
@@ -488,6 +489,9 @@ async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: 
 				exit(0)
 			},
 		}),
+		{
+			patchConsole: false,
+		},
 	)
 
 	try {
@@ -496,13 +500,12 @@ async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: 
 		// App unmounted after prompt submission
 	}
 
-	restoreConsole()
-
 	if (submittedPrompt || submittedImagePaths.length > 0) {
 		// Run the task with the submitted prompt and images, reusing the existing context
 		await runTask(submittedPrompt || "", { ...options, images: submittedImagePaths }, ctx)
 	} else {
 		// User exited without submitting - clean up and exit
+		restoreConsole()
 		await ctx.controller.stateManager.flushPendingState()
 		await ctx.controller.dispose()
 		await ErrorService.get().dispose()
