@@ -1,5 +1,6 @@
 import type { BooleanRequest } from "@shared/proto/cline/common"
 import { Empty } from "@shared/proto/cline/common"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 /**
@@ -14,8 +15,11 @@ export async function setWelcomeViewCompleted(controller: Controller, request: B
 		controller.stateManager.setGlobalState("welcomeViewCompleted", request.value)
 
 		await controller.postStateToWebview()
+
+		Logger.log(`Welcome view completed set to: ${request.value}`)
 		return Empty.create({})
 	} catch (error) {
+		Logger.error("Failed to set welcome view completed:", error)
 		throw error
 	}
 }

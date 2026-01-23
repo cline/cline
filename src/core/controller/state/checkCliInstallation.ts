@@ -1,4 +1,5 @@
 import { Boolean } from "@shared/proto/cline/common"
+import { Logger } from "@/shared/services/Logger"
 import { isClineCliInstalled } from "@/utils/cli-detector"
 import { Controller } from ".."
 
@@ -12,7 +13,7 @@ export async function checkCliInstallation(_controller: Controller): Promise<Boo
 		const isInstalled = await isClineCliInstalled()
 		return Boolean.create({ value: isInstalled })
 	} catch (error) {
-		console.error("Failed to check CLI installation:", error)
+		Logger.error("Failed to check CLI installation:", error)
 		return Boolean.create({ value: false })
 	}
 }

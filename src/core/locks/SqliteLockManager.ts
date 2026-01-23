@@ -2,6 +2,7 @@ import Database from "better-sqlite3"
 import * as fs from "fs"
 import { existsSync, mkdirSync, unlinkSync } from "fs"
 import * as path from "path"
+import { Logger } from "@/shared/services/Logger"
 import type { LockRow, SqliteLockManagerOptions } from "./types"
 export class SqliteLockManager {
 	private db!: Database.Database
@@ -18,14 +19,14 @@ export class SqliteLockManager {
 		try {
 			mkdirSync(dbDir, { recursive: true })
 		} catch (error) {
-			console.error(`CRITICAL ERROR: Failed to create SQLite database directory ${dbDir}:`, error)
+			Logger.error(`CRITICAL ERROR: Failed to create SQLite database directory ${dbDir}:`, error)
 			throw new Error(`Failed to create SQLite database directory: ${error}`)
 		}
 
 		try {
 			this.initializeDatabaseWithLockSync()
 		} catch (error) {
-			console.error(`CRITICAL ERROR: Failed to initialize SQLite database at ${this.dbPath}:`, error)
+			Logger.error(`CRITICAL ERROR: Failed to initialize SQLite database at ${this.dbPath}:`, error)
 			throw new Error(`Failed to initialize SQLite database: ${error}`)
 		}
 	}
@@ -99,17 +100,17 @@ export class SqliteLockManager {
 				if (isNaN(timestamp) || Date.now() - timestamp > this.STALE_LOCK_TIMEOUT) {
 					// Stale lock, remove it
 					unlinkSync(lockFile)
-					console.warn(`Removed stale database lock file: ${lockFile}`)
+					Logger.warn(`Removed stale database lock file: ${lockFile}`)
 				}
 			} catch (readError) {
 				// If we can't read the timestamp, assume it's stale
 				unlinkSync(lockFile)
-				console.warn(`Removed unreadable database lock file: ${lockFile}`)
+				Logger.warn(`Removed unreadable database lock file: ${lockFile}`)
 			}
 		} catch (error: any) {
 			if (error.code !== "ENOENT") {
 				// Lock file doesn't exist, which is fine
-				console.warn(`Error checking lock file ${lockFile}:`, error)
+				Logger.warn(`Error checking lock file ${lockFile}:`, error)
 			}
 		}
 	}
@@ -284,7 +285,7 @@ export class SqliteLockManager {
 		const deletedCount = deleteOrphans.run().changes
 
 		if (deletedCount > 0) {
-			console.log(`Cleaned up ${deletedCount} orphaned folder lock(s)`)
+			Logger.log(`Cleaned up ${deletedCount} orphaned folder lock(s)`)
 		}
 	}
 

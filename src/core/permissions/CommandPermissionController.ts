@@ -1,5 +1,5 @@
 import { ParseEntry, parse } from "shell-quote"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { COMMAND_PERMISSIONS_ENV_VAR, CommandPermissionConfig, PermissionValidationResult, ShellOperatorMatch } from "./types"
 
 const REDIRECT_OPERATORS = new Set([">", ">>", "<", ">&", "<&", "|&", "<(", ">("])
@@ -63,7 +63,7 @@ export class CommandPermissionController {
 				allowRedirects: typeof parsed.allowRedirects === "boolean" ? parsed.allowRedirects : undefined,
 			}
 		} catch (error) {
-			console.error(`Failed to parse ${COMMAND_PERMISSIONS_ENV_VAR}:`, error)
+			Logger.error(`Failed to parse ${COMMAND_PERMISSIONS_ENV_VAR}:`, error)
 			return null
 		}
 	}

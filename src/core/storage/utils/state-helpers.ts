@@ -11,9 +11,10 @@ import {
 	SecretKeys,
 	Secrets,
 } from "@shared/storage/state-keys"
+import { ExtensionContext } from "vscode"
 import { Controller } from "@/core/controller"
-import { ClineExtensionContext } from "@/shared/clients"
 import { ClineRulesToggles } from "@/shared/cline-rules"
+import { Logger } from "@/shared/services/Logger"
 import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import { readTaskHistoryFromState } from "../disk"
 
@@ -26,7 +27,7 @@ export async function readSecretsFromDisk(): Promise<Secrets> {
 	}, {} as Secrets)
 }
 
-export async function readWorkspaceStateFromDisk(context: ClineExtensionContext): Promise<LocalState> {
+export async function readWorkspaceStateFromDisk(context: ExtensionContext): Promise<LocalState> {
 	const states = LocalStateKeys.map((key) => context.workspaceState.get<ClineRulesToggles | undefined>(key))
 
 	return LocalStateKeys.reduce((acc, key, index) => {
@@ -35,7 +36,7 @@ export async function readWorkspaceStateFromDisk(context: ClineExtensionContext)
 	}, {} as LocalState)
 }
 
-export async function readGlobalStateFromDisk(context: ClineExtensionContext): Promise<GlobalStateAndSettings> {
+export async function readGlobalStateFromDisk(context: ExtensionContext): Promise<GlobalStateAndSettings> {
 	try {
 		// Batch read all state values in a single optimized pass
 		const stateValues = new Map<string, any>()
@@ -87,7 +88,7 @@ export async function readGlobalStateFromDisk(context: ClineExtensionContext): P
 
 		return result as GlobalStateAndSettings
 	} catch (error) {
-		console.error("[StateHelpers] Failed to read global state:", error)
+		Logger.error("[StateHelpers] Failed to read global state:", error)
 		throw error
 	}
 }
@@ -131,7 +132,7 @@ export async function resetGlobalState(controller: Controller) {
 
 	await Promise.all(GlobalStateAndSettingKeys.map((key) => context.globalState.update(key, undefined)))
 
-	await Promise.all(SecretKeys.map((key) => context.secrets.delete(key)))
+	await Promise.all(SecretKeys.map((key) => secretStorage.delete(key)))
 
 	await controller.stateManager.reInitialize()
 }

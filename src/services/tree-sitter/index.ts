@@ -3,6 +3,7 @@ import { listFiles } from "@services/glob/list-files"
 import { fileExistsAtPath } from "@utils/fs"
 import * as fs from "fs/promises"
 import * as path from "path"
+import { Logger } from "@/shared/services/Logger"
 import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
 
 // TODO: implement caching behavior to avoid having to keep analyzing project for new tasks.
@@ -173,7 +174,7 @@ async function parseFile(
 			lastLine = endLine
 		})
 	} catch (error) {
-		console.log(`Error parsing file: ${error}\n`)
+		Logger.log(`Error parsing file: ${error}\n`)
 	}
 
 	if (formattedOutput.length > 0) {

@@ -3,6 +3,7 @@ import { StateManager } from "@core/storage/StateManager"
 import { RemoteMCPServer } from "@shared/remote-config/schema"
 import * as fs from "fs/promises"
 import type { McpHub } from "@/services/mcp/McpHub"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * Synchronizes remote MCP servers from remote config to the local MCP settings file
@@ -87,6 +88,6 @@ export async function syncRemoteMcpServersToSettings(
 			}
 		}
 	} catch (error) {
-		console.error("[RemoteConfig] Failed to sync remote MCP servers:", error)
+		Logger.error("[RemoteConfig] Failed to sync remote MCP servers:", error)
 	}
 }

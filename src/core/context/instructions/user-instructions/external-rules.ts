@@ -12,6 +12,7 @@ import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import path from "path"
 import { Controller } from "@/core/controller"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * Refreshes the toggles for windsurf, cursor, and agents rules
@@ -75,7 +76,7 @@ export const getLocalWindsurfRules = async (cwd: string, toggles: ClineRulesTogg
 					}
 				}
 			} catch {
-				console.error(`Failed to read .windsurfrules file at ${windsurfRulesFilePath}`)
+				Logger.error(`Failed to read .windsurfrules file at ${windsurfRulesFilePath}`)
 			}
 		}
 	}
@@ -101,7 +102,7 @@ export const getLocalCursorRules = async (cwd: string, toggles: ClineRulesToggle
 					}
 				}
 			} catch {
-				console.error(`Failed to read .cursorrules file at ${cursorRulesFilePath}`)
+				Logger.error(`Failed to read .cursorrules file at ${cursorRulesFilePath}`)
 			}
 		}
 	}
@@ -119,7 +120,7 @@ export const getLocalCursorRules = async (cwd: string, toggles: ClineRulesToggle
 					cursorRulesDirInstructions = formatResponse.cursorRulesLocalDirectoryInstructions(cwd, rulesFilesTotalContent)
 				}
 			} catch {
-				console.error(`Failed to read .cursor/rules directory at ${cursorRulesDirPath}`)
+				Logger.error(`Failed to read .cursor/rules directory at ${cursorRulesDirPath}`)
 			}
 		}
 	}
@@ -149,7 +150,7 @@ async function findAgentsMdFiles(cwd: string): Promise<string[]> {
 			return basename === GlobalFileNames.agentsRulesFile.toLowerCase()
 		})
 	} catch (error) {
-		console.error(`Failed to find agents.md files in ${cwd}:`, error)
+		Logger.error(`Failed to find agents.md files in ${cwd}:`, error)
 		return []
 	}
 }
@@ -184,7 +185,7 @@ export const getLocalAgentsRules = async (cwd: string, toggles: ClineRulesToggle
 					}
 					return null
 				} catch (error) {
-					console.error(`Failed to read agents.md file at ${filePath}:`, error)
+					Logger.error(`Failed to read agents.md file at ${filePath}:`, error)
 					return null
 				}
 			}),
@@ -194,7 +195,7 @@ export const getLocalAgentsRules = async (cwd: string, toggles: ClineRulesToggle
 			return formatResponse.agentsRulesLocalFileInstructions(cwd, combinedContent)
 		}
 	} catch (error) {
-		console.error("Failed to read agents.md files:", error)
+		Logger.error("Failed to read agents.md files:", error)
 	}
 
 	return undefined

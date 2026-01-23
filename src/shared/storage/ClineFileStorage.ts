@@ -1,5 +1,6 @@
 import * as fs from "node:fs"
 import * as path from "node:path"
+import { Logger } from "../services/Logger"
 import { ClineStorage } from "./ClineStorage"
 
 /**
@@ -37,7 +38,7 @@ export class ClineFileStorage extends ClineStorage {
 			this.cache.delete(key)
 			await this.write()
 		} catch (error) {
-			console.error("FileBasedStorage", error)
+			Logger.error("FileBasedStorage", error)
 		}
 	}
 
@@ -66,7 +67,7 @@ export class ClineFileStorage extends ClineStorage {
 			const json = Object.fromEntries(this.cache)
 			await fs.promises.writeFile(this.fsPath, JSON.stringify(json, null, 2), "utf-8")
 		} catch (error) {
-			console.error("FileBasedStorage", error)
+			Logger.error("FileBasedStorage", error)
 		}
 	}
 }

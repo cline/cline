@@ -1,7 +1,7 @@
 import { machineId } from "node-machine-id"
 import { v4 as uuidv4 } from "uuid"
 import { ExtensionContext } from "vscode"
-import { Logger } from "./Logger"
+import { Logger } from "@/shared/services/Logger"
 
 /*
  * Unique identifier for the current installation.
@@ -32,7 +32,7 @@ export async function initializeDistinctId(context: ExtensionContext, uuid: () =
 
 	setDistinctId(distinctId)
 
-	console.log("Telemetry distinct ID initialized:", distinctId)
+	Logger.log("Telemetry distinct ID initialized:", distinctId)
 }
 
 /*

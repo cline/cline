@@ -1,5 +1,6 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { ClineMessage } from "@shared/proto/cline/ui"
+import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
 
@@ -62,7 +63,7 @@ export async function sendPartialMessageEvent(partialMessage: ClineMessage): Pro
 				false, // Not the last message
 			)
 		} catch (error) {
-			console.error("Error sending partial message event:", error)
+			Logger.error("Error sending partial message event:", error)
 			// Remove the subscription if there was an error
 			activePartialMessageSubscriptions.delete(responseStream)
 		}
@@ -73,7 +74,7 @@ export async function sendPartialMessageEvent(partialMessage: ClineMessage): Pro
 		try {
 			callback(partialMessage)
 		} catch (error) {
-			console.error("Error in partial message callback:", error)
+			Logger.error("Error in partial message callback:", error)
 		}
 	}
 

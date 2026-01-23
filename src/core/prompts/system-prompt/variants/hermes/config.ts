@@ -1,8 +1,10 @@
 import { ModelFamily } from "@/shared/prompts"
+import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import { isHermesModelFamily } from "@/utils/model-utils"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
+import { validateVariant } from "../variant-validator"
 import { hermesComponentOverrides } from "./overrides"
 import { baseTemplate } from "./template"
 
@@ -67,6 +69,17 @@ export const config = createVariant(ModelFamily.HERMES)
 	.overrideComponent(SystemPromptSection.TASK_PROGRESS, hermesComponentOverrides[SystemPromptSection.TASK_PROGRESS])
 	.overrideComponent(SystemPromptSection.MCP, hermesComponentOverrides[SystemPromptSection.MCP])
 	.build()
+
+// Compile-time validation
+const validationResult = validateVariant({ ...config, id: "hermes" }, { strict: true })
+if (!validationResult.isValid) {
+	Logger.error("Hermes variant configuration validation failed:", validationResult.errors)
+	throw new Error(`Invalid Hermes variant configuration: ${validationResult.errors.join(", ")}`)
+}
+
+if (validationResult.warnings.length > 0) {
+	Logger.warn("Hermes variant configuration warnings:", validationResult.warnings)
+}
 
 // Export type information for better IDE support
 export type HermesVariantConfig = typeof config

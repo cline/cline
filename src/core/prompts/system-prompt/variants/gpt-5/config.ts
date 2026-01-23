@@ -1,8 +1,10 @@
 import { isGPT5ModelFamily, isNextGenModelProvider } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
+import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
+import { validateVariant } from "../variant-validator"
 import { GPT_5_TEMPLATE_OVERRIDES } from "./template"
 
 // Type-safe variant configuration using the builder pattern
@@ -73,6 +75,17 @@ export const config = createVariant(ModelFamily.GPT_5)
 		template: GPT_5_TEMPLATE_OVERRIDES.RULES,
 	})
 	.build()
+
+// Compile-time validation
+const validationResult = validateVariant({ ...config, id: ModelFamily.GPT_5 }, { strict: true })
+if (!validationResult.isValid) {
+	Logger.error("GPT-5 variant configuration validation failed:", validationResult.errors)
+	throw new Error(`Invalid GPT-5 variant configuration: ${validationResult.errors.join(", ")}`)
+}
+
+if (validationResult.warnings.length > 0) {
+	Logger.warn("GPT-5 variant configuration warnings:", validationResult.warnings)
+}
 
 // Export type information for better IDE support
 export type GPT5VariantConfig = typeof config

@@ -3,8 +3,8 @@ import { StringRequest } from "@shared/proto/cline/common"
 import { McpDownloadResponse } from "@shared/proto/cline/mcp"
 import axios from "axios"
 import { ClineEnv } from "@/config"
-import { Logger } from "@/services/logging/Logger"
 import { getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 
@@ -90,7 +90,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			requiresApiKey: mcpDetails.requiresApiKey,
 		})
 	} catch (error) {
-		console.error("Failed to download MCP:", error)
+		Logger.error("Failed to download MCP:", error)
 		let errorMessage = "Failed to download MCP"
 
 		if (axios.isAxiosError(error)) {
