@@ -1,0 +1,32 @@
+/**
+ * ACP (Agent Client Protocol) integration for Cline CLI.
+ *
+ * This module provides ACP-compliant agent functionality, allowing Cline
+ * to be used as a subprocess agent by editors like Zed, JetBrains, etc.
+ *
+ * @module acp
+ */
+
+// Export the ACP Agent implementation
+export { AcpAgent } from "./AcpAgent.js"
+// Export the message translator
+export { createSessionState, translateMessage, translateMessages } from "./messageTranslator.js"
+// Export the permission handler
+export {
+	AutoApprovalTracker,
+	createPermissionRequest,
+	getAutoApprovalIdentifier,
+	getPermissionOptionsForAskType,
+	handlePermissionResponse,
+	type PermissionHandlerResult,
+	processPermissionRequest,
+	requiresPermission,
+	updateSessionStateAfterPermission,
+} from "./permissionHandler.js"
+// Re-export types
+export * from "./types.js"
+
+// Note: The following exports will be added as each module is implemented:
+// export { runAcpMode } from "./runAcpMode.js"
+// export { AcpHostBridgeProvider } from "./AcpHostBridgeProvider.js"
+// export { AcpTerminalManager } from "./AcpTerminalManager.js"
