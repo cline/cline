@@ -4,7 +4,7 @@
 export class Logger {
 	private static isVerbose = process.env.IS_DEV === "true"
 
-	private static output: (msg: string) => void = console.log
+	private static output: (msg: string) => void = Logger.isVerbose ? console.log : () => {}
 
 	/**
 	 * Configure the output function for Logger.

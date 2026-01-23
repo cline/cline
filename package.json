@@ -4,6 +4,10 @@
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
 	"version": "3.52.0",
 	"icon": "assets/icons/icon.png",
+	"workspaces": [
+		"cli-ts",
+		"webview-ui"
+	],
 	"engines": {
 		"vscode": "^1.84.0"
 	},
@@ -437,7 +441,10 @@
 		"docs:check-links": "cd docs && npm run check",
 		"docs:rename-file": "cd docs && npm run rename",
 		"report-issue": "node scripts/report-issue.js",
-		"storybook": "cd webview-ui && npm run storybook"
+		"storybook": "cd webview-ui && npm run storybook",
+		"cli:dev": "cd cli-ts && npm run dev",
+		"cli:unlink": "cd cli-ts && npm run unlink",
+		"build:cli": "npm run install:all && npm run protos && cd cli-ts && npm run build"
 	},
 	"lint-staged": {
 		"src/shared/storage/state-keys.ts": [

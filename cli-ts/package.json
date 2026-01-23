@@ -1,0 +1,49 @@
+{
+	"name": "@cline/cli",
+	"version": "1.0.0",
+	"description": "Cline CLI - TypeScript implementation that reuses core Cline functionality",
+	"main": "dist/cli.mjs",
+	"bin": {
+		"cline": "./dist/cli.mjs"
+	},
+	"type": "module",
+	"scripts": {
+		"build": "node esbuild.mjs",
+		"build:production": "node esbuild.mjs --production",
+		"watch": "node esbuild.mjs --watch",
+		"dev": "IS_DEV=true && npm run link && npm run watch ; npm run unlink",
+		"clean": "rimraf dist",
+		"typecheck": "tsc --noEmit",
+		"link": "npm run build && npm link",
+		"unlink": "npm unlink -g @cline/cli && npm unlink -g cline",
+		"test": "vitest",
+		"test:run": "vitest run"
+	},
+	"keywords": [
+		"cline",
+		"cli",
+		"ai",
+		"coding-assistant"
+	],
+	"author": "Cline Bot Inc.",
+	"license": "Apache-2.0",
+	"devDependencies": {
+		"@types/node": "20.x",
+		"@types/prompts": "^2.4.9",
+		"@types/react": "^18.3.27",
+		"esbuild": "^0.25.0",
+		"ink-testing-library": "^4.0.0",
+		"rimraf": "^6.0.1",
+		"typescript": "^5.4.5",
+		"vitest": "^4.0.17"
+	},
+	"dependencies": {
+		"chalk": "^5.3.0",
+		"commander": "^12.1.0",
+		"ink": "^5.0.1",
+		"ink-spinner": "^5.0.0",
+		"ora": "^8.0.1",
+		"prompts": "^2.4.2",
+		"react": "^18.3.0"
+	}
+}
