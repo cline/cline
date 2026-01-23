@@ -193,7 +193,7 @@ const config = {
 	target: "node20",
 	outfile: path.join(__dirname, "dist", "cli.mjs"),
 	// These modules need to load files from the module directory at runtime
-	external: ["@grpc/reflection", "grpc-health-check", "better-sqlite3", "ink", "ink-spinner", "react"],
+	external: ["@grpc/reflection", "grpc-health-check", "better-sqlite3", "ink", "ink-spinner", "react", "aws4fetch"],
 	supported: { "top-level-await": true },
 	banner: {
 		js: `#!/usr/bin/env node
