@@ -112,17 +112,17 @@ cli-ts/src/acp/
   - [x] Implement `release()` via `terminal/release`
   - [x] Implement `kill()` via `terminal/kill`
 
-### Phase 6: Entry Point Integration
-- [ ] **6.1** Create `cli-ts/src/acp/runAcpMode.ts`
-  - [ ] Redirect console.log/info/warn/debug to stderr (stdout reserved for ACP)
-  - [ ] Set up ndJsonStream with stdin/stdout
-  - [ ] Create AgentSideConnection
-  - [ ] Keep process alive with stdin.resume()
+### Phase 6: Entry Point Integration ✅
+- [x] **6.1** Create `cli-ts/src/acp/runAcpMode.ts`
+  - [x] Redirect console.log/info/warn/debug to stderr (stdout reserved for ACP)
+  - [x] Set up ndJsonStream with stdin/stdout
+  - [x] Create AgentSideConnection
+  - [x] Keep process alive with stdin.resume()
 
-- [ ] **6.2** Modify `cli-ts/src/index.ts`
-  - [ ] Add `--acp` flag to commander (root level)
-  - [ ] When `--acp` is set, call `runAcpMode()` instead of normal flow
-  - [ ] Skip React Ink rendering entirely in ACP mode
+- [x] **6.2** Modify `cli-ts/src/index.ts`
+  - [x] Add `--acp` flag to commander (root level)
+  - [x] When `--acp` is set, call `runAcpMode()` instead of normal flow
+  - [x] Skip React Ink rendering entirely in ACP mode
 
 ### Phase 7: State Synchronization
 - [ ] **7.1** Implement state broadcasting in AcpAgent

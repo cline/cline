@@ -12,6 +12,8 @@ import { PROTOCOL_VERSION } from "@agentclientprotocol/sdk"
 import type { Controller } from "@/core/controller"
 import type { StateManager } from "@/core/storage/StateManager"
 import type { Mode } from "@/shared/storage/types"
+import { AcpHostBridgeProvider } from "./AcpHostBridgeProvider.js"
+import { AcpTerminalManager } from "./AcpTerminalManager.js"
 import type { AcpAgentOptions, AcpSessionState, ClineAcpSession } from "./types.js"
 
 /**
@@ -30,6 +32,12 @@ export class AcpAgent implements acp.Agent {
 
 	/** Runtime state for active sessions */
 	private readonly sessionStates: Map<string, AcpSessionState> = new Map()
+
+	/** Host bridge providers per session (for file operations delegation) */
+	private readonly hostBridgeProviders: Map<string, AcpHostBridgeProvider> = new Map()
+
+	/** Terminal managers per session (for terminal operations delegation) */
+	private readonly terminalManagers: Map<string, AcpTerminalManager> = new Map()
 
 	/** Controller instance - lazily initialized per session */
 	private controller?: Controller
@@ -130,6 +138,28 @@ export class AcpAgent implements acp.Agent {
 
 		this.sessionStates.set(sessionId, sessionState)
 
+		// Create host bridge provider for file operations delegation
+		const hostBridgeProvider = new AcpHostBridgeProvider(
+			this.connection,
+			this.clientCapabilities,
+			sessionId,
+			this.options.debug,
+		)
+		this.hostBridgeProviders.set(sessionId, hostBridgeProvider)
+
+		// Create terminal manager for terminal operations delegation
+		const terminalManager = new AcpTerminalManager(this.connection, this.clientCapabilities, sessionId, this.options.debug)
+		this.terminalManagers.set(sessionId, terminalManager)
+
+		if (this.options.debug) {
+			console.error("[AcpAgent] Session providers created:", {
+				sessionId,
+				canReadFile: hostBridgeProvider.canReadFile(),
+				canWriteFile: hostBridgeProvider.canWriteFile(),
+				canUseTerminal: terminalManager.canUseTerminal(),
+			})
+		}
+
 		// Initialize Controller if needed
 		// Note: Full controller initialization will happen when processing the first prompt
 		// to avoid blocking session creation
@@ -192,6 +222,33 @@ export class AcpAgent implements acp.Agent {
 			}
 
 			this.sessionStates.set(params.sessionId, sessionState)
+
+			// Create host bridge provider for file operations delegation
+			const hostBridgeProvider = new AcpHostBridgeProvider(
+				this.connection,
+				this.clientCapabilities,
+				params.sessionId,
+				this.options.debug,
+			)
+			this.hostBridgeProviders.set(params.sessionId, hostBridgeProvider)
+
+			// Create terminal manager for terminal operations delegation
+			const terminalManager = new AcpTerminalManager(
+				this.connection,
+				this.clientCapabilities,
+				params.sessionId,
+				this.options.debug,
+			)
+			this.terminalManagers.set(params.sessionId, terminalManager)
+
+			if (this.options.debug) {
+				console.error("[AcpAgent] Session providers created for loaded session:", {
+					sessionId: params.sessionId,
+					canReadFile: hostBridgeProvider.canReadFile(),
+					canWriteFile: hostBridgeProvider.canWriteFile(),
+					canUseTerminal: terminalManager.canUseTerminal(),
+				})
+			}
 
 			// TODO: Replay conversation history via session updates
 			// This will be implemented in Phase 8 (Session Persistence)
@@ -468,5 +525,21 @@ export class AcpAgent implements acp.Agent {
 	 */
 	getClientCapabilities(): acp.ClientCapabilities | undefined {
 		return this.clientCapabilities
+	}
+
+	/**
+	 * Get the host bridge provider for a session.
+	 * Used for delegating file operations to the ACP client.
+	 */
+	getHostBridgeProvider(sessionId: string): AcpHostBridgeProvider | undefined {
+		return this.hostBridgeProviders.get(sessionId)
+	}
+
+	/**
+	 * Get the terminal manager for a session.
+	 * Used for delegating terminal operations to the ACP client.
+	 */
+	getTerminalManager(sessionId: string): AcpTerminalManager | undefined {
+		return this.terminalManagers.get(sessionId)
 	}
 }
