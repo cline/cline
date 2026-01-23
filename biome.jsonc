@@ -44,7 +44,7 @@
 			"style": {
 				"useNodejsImportProtocol": "off",
 				"useImportType": "off",
-				"useBlockStatements": "warn",
+				"useBlockStatements": "off",
 				"useNamingConvention": "off",
 				"useThrowOnlyError": "info",
 				"useConsistentArrayType": "off",
