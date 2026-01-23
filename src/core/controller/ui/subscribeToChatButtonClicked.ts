@@ -19,8 +19,6 @@ export async function subscribeToChatButtonClicked(
 	responseStream: StreamingResponseHandler<Empty>,
 	requestId?: string,
 ): Promise<void> {
-	Logger.log(`[DEBUG] set up chatButtonClicked subscription`)
-
 	// Add this subscription to the active subscriptions
 	activeChatButtonClickedSubscriptions.add(responseStream)
 

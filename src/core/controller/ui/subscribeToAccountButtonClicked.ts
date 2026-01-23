@@ -19,8 +19,6 @@ export async function subscribeToAccountButtonClicked(
 	responseStream: StreamingResponseHandler<Empty>,
 	requestId?: string,
 ): Promise<void> {
-	Logger.log(`[DEBUG] set up accountButtonClicked subscription`)
-
 	// Add this subscription to the active subscriptions
 	activeAccountButtonClickedSubscriptions.add(responseStream)
 
