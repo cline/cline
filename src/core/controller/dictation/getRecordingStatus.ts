@@ -1,5 +1,6 @@
 import { RecordingStatus } from "@shared/proto/cline/dictation"
 import { audioRecordingService } from "@/services/dictation/AudioRecordingService"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * Gets the current recording status
@@ -15,7 +16,7 @@ export const getRecordingStatus = async (): Promise<RecordingStatus> => {
 			error: status.error ?? "",
 		})
 	} catch (error) {
-		console.error("Error getting recording status:", error)
+		Logger.error("Error getting recording status:", error)
 		return RecordingStatus.create({
 			isRecording: false,
 			durationSeconds: 0,

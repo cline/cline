@@ -1,8 +1,10 @@
 import { isGLMModelFamily, isLocalModel, isNextGenModelFamily, isNextGenModelProvider } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
+import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
+import { validateVariant } from "../variant-validator"
 import { baseTemplate } from "./template"
 
 export const config = createVariant(ModelFamily.GENERIC)
@@ -70,6 +72,17 @@ export const config = createVariant(ModelFamily.GENERIC)
 	})
 	.config({})
 	.build()
+
+// Compile-time validation
+const validationResult = validateVariant({ ...config, id: "generic" }, { strict: true })
+if (!validationResult.isValid) {
+	Logger.error("Generic variant configuration validation failed:", validationResult.errors)
+	throw new Error(`Invalid generic variant configuration: ${validationResult.errors.join(", ")}`)
+}
+
+if (validationResult.warnings.length > 0) {
+	Logger.warn("Generic variant configuration warnings:", validationResult.warnings)
+}
 
 // Export type information for better IDE support
 export type GenericVariantConfig = typeof config

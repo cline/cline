@@ -24,6 +24,7 @@ import open from "open"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import type { FolderLockWithRetryResult } from "src/core/locks/types"
+import type * as vscode from "vscode"
 import { ClineEnv } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
@@ -33,12 +34,11 @@ import { LogoutReason } from "@/services/auth/types"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
-import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
-import { ClineExtensionContext } from "@/shared/clients"
 import { BannerCardData } from "@/shared/cline/banner"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { PromptRegistry } from "../prompts/system-prompt"
@@ -95,7 +95,7 @@ export class Controller {
 					detectRoots: detectWorkspaceRoots,
 				})
 			} catch (error) {
-				console.error("[Controller] Failed to initialize workspace manager:", error)
+				Logger.error("[Controller] Failed to initialize workspace manager:", error)
 			}
 		}
 		return this.workspaceManager
@@ -117,7 +117,7 @@ export class Controller {
 		this.remoteConfigTimer = setInterval(() => fetchRemoteConfig(this), 3600000) // 1 hour
 	}
 
-	constructor(readonly context: ClineExtensionContext) {
+	constructor(readonly context: vscode.ExtensionContext) {
 		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		HostProvider.get().logToChannel("ClineProvider instantiated")
 		this.stateManager = StateManager.get()
@@ -149,7 +149,7 @@ export class Controller {
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints().catch((error) => {
-			console.error("Failed to cleanup legacy checkpoints:", error)
+			Logger.error("Failed to cleanup legacy checkpoints:", error)
 		})
 
 		// Check CLI installation status once on startup
@@ -170,6 +170,8 @@ export class Controller {
 
 		await this.clearTask()
 		this.mcpHub.dispose()
+
+		Logger.error("Controller disposed")
 	}
 
 	// Auth methods
@@ -289,9 +291,9 @@ export class Controller {
 
 		taskLockAcquired = lockResult.acquired
 		if (lockResult.acquired) {
-			console.debug(`[Task ${taskId}] Task lock acquired`)
+			Logger.debug(`[Task ${taskId}] Task lock acquired`)
 		} else {
-			console.debug(`[Task ${taskId}] Task lock skipped (VS Code)`)
+			Logger.debug(`[Task ${taskId}] Task lock skipped (VS Code)`)
 		}
 
 		await this.stateManager.loadTaskSettings(taskId)
@@ -586,7 +588,7 @@ export class Controller {
 
 			await this.postStateToWebview()
 		} catch (error) {
-			console.error("Failed to handle auth callback:", error)
+			Logger.error("Failed to handle auth callback:", error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: "Failed to log in to OCA",
@@ -605,7 +607,7 @@ export class Controller {
 				message: `Successfully authenticated MCP server`,
 			})
 		} catch (error) {
-			console.error("Failed to complete MCP OAuth:", error)
+			Logger.error("Failed to complete MCP OAuth:", error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: `Failed to authenticate MCP server`,
@@ -663,7 +665,7 @@ export class Controller {
 			}
 			return catalog
 		} catch (error) {
-			console.error("Failed to refresh MCP marketplace:", error)
+			Logger.error("Failed to refresh MCP marketplace:", error)
 			return undefined
 		}
 	}
@@ -680,7 +682,7 @@ export class Controller {
 				throw new Error("Invalid response from OpenRouter API")
 			}
 		} catch (error) {
-			console.error("Error exchanging code for API key:", error)
+			Logger.error("Error exchanging code for API key:", error)
 			throw error
 		}
 
@@ -734,7 +736,7 @@ export class Controller {
 				return appendClineStealthModels(models)
 			}
 		} catch (error) {
-			console.error("Error reading cached OpenRouter models:", error)
+			Logger.error("Error reading cached OpenRouter models:", error)
 		}
 		return undefined
 	}

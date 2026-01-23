@@ -1,5 +1,6 @@
 import * as fs from "node:fs"
 import * as path from "node:path"
+import { Logger } from "@/shared/services/Logger"
 import { SEVEN_DAYS_MS } from "./worker"
 
 /**
@@ -99,7 +100,7 @@ export class SyncQueue {
 				this.data = JSON.parse(content)
 			}
 		} catch (error) {
-			console.error("[SyncQueue] Failed to load queue data:", error)
+			Logger.error("[SyncQueue] Failed to load queue data:", error)
 			this.data = { items: {} }
 		}
 	}
@@ -134,7 +135,7 @@ export class SyncQueue {
 			fs.renameSync(tmpPath, this.queuePath)
 			this.isDirty = false
 		} catch (error) {
-			console.error("[SyncQueue] Failed to write queue data:", error)
+			Logger.error("[SyncQueue] Failed to write queue data:", error)
 		}
 	}
 
@@ -381,7 +382,7 @@ export class SyncQueue {
 
 		if (keysToRemove.length > 0) {
 			this.scheduleWrite()
-			console.warn(`[SyncQueue] Evicted ${keysToRemove.length} items to enforce max size of ${maxSize}`)
+			Logger.warn(`[SyncQueue] Evicted ${keysToRemove.length} items to enforce max size of ${maxSize}`)
 		}
 
 		return keysToRemove.length

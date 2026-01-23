@@ -48,7 +48,9 @@ export class OpenAiCodexHandler implements ApiHandler {
 	}
 
 	private normalizeUsage(usage: any, model: { id: string; info: ModelInfo }): ApiStreamUsageChunk | undefined {
-		if (!usage) return undefined
+		if (!usage) {
+			return undefined
+		}
 
 		const inputDetails = usage.input_tokens_details ?? usage.prompt_tokens_details
 
@@ -295,7 +297,9 @@ export class OpenAiCodexHandler implements ApiHandler {
 				}
 
 				const { done, value } = await reader.read()
-				if (done) break
+				if (done) {
+					break
+				}
 
 				buffer += decoder.decode(value, { stream: true })
 				const lines = buffer.split("\n")

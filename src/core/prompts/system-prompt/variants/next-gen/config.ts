@@ -1,8 +1,10 @@
 import { isGPT5ModelFamily, isLocalModel, isNextGenModelFamily, isNextGenModelProvider } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
+import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
+import { validateVariant } from "../variant-validator"
 import { baseTemplate, rules_template } from "./template"
 
 // Type-safe variant configuration using the builder pattern
@@ -76,6 +78,17 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 		template: rules_template,
 	})
 	.build()
+
+// Compile-time validation
+const validationResult = validateVariant({ ...config, id: ModelFamily.NEXT_GEN }, { strict: true })
+if (!validationResult.isValid) {
+	Logger.error("Next-gen variant configuration validation failed:", validationResult.errors)
+	throw new Error(`Invalid next-gen variant configuration: ${validationResult.errors.join(", ")}`)
+}
+
+if (validationResult.warnings.length > 0) {
+	Logger.warn("Next-gen variant configuration warnings:", validationResult.warnings)
+}
 
 // Export type information for better IDE support
 export type NextGenVariantConfig = typeof config

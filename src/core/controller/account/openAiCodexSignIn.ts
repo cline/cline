@@ -2,6 +2,7 @@ import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { ShowMessageType } from "@shared/proto/host/window"
 import { HostProvider } from "@/hosts/host-provider"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
+import { Logger } from "@/shared/services/Logger"
 import { openExternal } from "@/utils/env"
 import { Controller } from ".."
 
@@ -29,7 +30,7 @@ export async function openAiCodexSignIn(controller: Controller, _: EmptyRequest)
 				await controller.postStateToWebview()
 			})
 			.catch((error) => {
-				console.error("[openAiCodexSignIn] OAuth callback failed:", error)
+				Logger.error("[openAiCodexSignIn] OAuth callback failed:", error)
 				openAiCodexOAuthManager.cancelAuthorizationFlow()
 				// Don't show notification for timeouts (user likely just abandoned)
 				const errorMessage = error instanceof Error ? error.message : String(error)
@@ -41,7 +42,7 @@ export async function openAiCodexSignIn(controller: Controller, _: EmptyRequest)
 				}
 			})
 	} catch (error) {
-		console.error("[openAiCodexSignIn] Failed to start OAuth flow:", error)
+		Logger.error("[openAiCodexSignIn] Failed to start OAuth flow:", error)
 		openAiCodexOAuthManager.cancelAuthorizationFlow()
 		throw error
 	}

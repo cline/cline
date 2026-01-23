@@ -268,7 +268,6 @@ export class ToolExecutor {
 	 * @param block The tool use block that caused the error
 	 */
 	private async handleError(action: string, error: Error, block: ToolUse): Promise<void> {
-		console.log(error)
 		const errorString = `Error ${action}: ${error.message}`
 		await this.say("error", errorString)
 

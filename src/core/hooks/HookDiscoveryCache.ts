@@ -1,4 +1,4 @@
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { telemetryService } from "../../services/telemetry"
 import { getAllHooksDirs } from "../storage/disk"
 import { HookFactory, Hooks } from "./hook-factory"
@@ -183,7 +183,7 @@ export class HookDiscoveryCache {
 
 				return scripts
 			} catch (error) {
-				console.error(`Error scanning for ${hookName} hooks:`, error)
+				Logger.error(`Error scanning for ${hookName} hooks:`, error)
 				// Return empty array on error - don't break the whole system
 				return []
 			} finally {

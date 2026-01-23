@@ -5,6 +5,7 @@ import { audioRecordingService } from "@/services/dictation/AudioRecordingServic
 import { telemetryService } from "@/services/telemetry"
 import { AUDIO_PROGRAM_CONFIG } from "@/shared/audioProgramConstants"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
@@ -143,7 +144,7 @@ export const startRecording = async (controller: Controller): Promise<RecordingR
 			error: result.error || "",
 		})
 	} catch (error) {
-		console.error("Error starting recording:", error)
+		Logger.error("Error starting recording:", error)
 		const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
 
 		// Handle different error types

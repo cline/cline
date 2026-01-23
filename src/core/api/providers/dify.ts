@@ -1,6 +1,6 @@
-import { Logger } from "@/services/logging/Logger"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { ModelInfo } from "../../../shared/api"
 import { ApiHandler } from "../index"
 import { ApiStream } from "../transform/stream"
@@ -144,7 +144,7 @@ export class DifyHandler implements ApiHandler {
 
 		if (!response.ok) {
 			const errorText = await response.text()
-			Logger.debug("[DIFY DEBUG] Error response:", errorText)
+			Logger.error("[DIFY DEBUG] Error response:", errorText)
 			throw new Error(`Dify API error: ${response.status} ${response.statusText} - ${errorText}`)
 		}
 
@@ -300,7 +300,7 @@ export class DifyHandler implements ApiHandler {
 								}
 							}
 						} catch (e) {
-							Logger.info("[DIFY DEBUG] Failed to parse JSON:", data, "Error:", e)
+							Logger.warn("[DIFY DEBUG] Failed to parse JSON:", data, "Error:", e)
 						}
 					} else if (line.trim() !== "") {
 						Logger.log(
@@ -360,7 +360,7 @@ export class DifyHandler implements ApiHandler {
 					streamDuration: Date.now() - lastEventTime,
 					conversationId: this.conversationId,
 				}
-				Logger.info("[DIFY DEBUG] No content was yielded! Diagnostic info:", diagnosticInfo)
+				Logger.error("[DIFY DEBUG] No content was yielded! Diagnostic info:", diagnosticInfo)
 
 				// If we have any accumulated text at all, yield it as a fallback
 				if (fullText.trim()) {

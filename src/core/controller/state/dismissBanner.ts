@@ -1,6 +1,7 @@
 import { BannerService } from "@/services/banner/BannerService"
 import type { StringRequest } from "@/shared/proto/cline/common"
 import { Empty } from "@/shared/proto/cline/common"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from ".."
 
 /**
@@ -19,7 +20,7 @@ export async function dismissBanner(controller: Controller, request: StringReque
 		await BannerService.get().dismissBanner(bannerId)
 		await controller.postStateToWebview()
 	} catch (error) {
-		console.error("Failed to dismiss banner:", error)
+		Logger.error("Failed to dismiss banner:", error)
 	}
 	return {}
 }

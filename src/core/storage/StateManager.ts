@@ -16,10 +16,10 @@ import {
 	SettingsKey,
 } from "@shared/storage/state-keys"
 import chokidar, { FSWatcher } from "chokidar"
+import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
-import { Logger } from "@/services/logging/Logger"
-import { ClineExtensionContext } from "@/shared/clients"
 import { ShowMessageType } from "@/shared/proto/index.host"
+import { Logger } from "@/shared/services/Logger"
 import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import {
 	getTaskHistoryStateFilePath,
@@ -61,7 +61,7 @@ export class StateManager {
 	private remoteConfigCache: Partial<RemoteConfigFields> = {} as RemoteConfigFields
 	private secretsCache: Secrets = {} as Secrets
 	private workspaceStateCache: LocalState = {} as LocalState
-	private context: ClineExtensionContext
+	private context: ExtensionContext
 	private isInitialized = false
 
 	// In-memory model info cache (not persisted to disk)
@@ -103,7 +103,7 @@ export class StateManager {
 	// Callback to sync external state changes with the UI client
 	onSyncExternalChange?: () => void | Promise<void>
 
-	private constructor(context: ClineExtensionContext) {
+	private constructor(context: ExtensionContext) {
 		this.context = context
 		secretStorage.init(context.secrets)
 	}
@@ -111,7 +111,7 @@ export class StateManager {
 	/**
 	 * Initialize the cache by loading data from disk
 	 */
-	public static async initialize(context: ClineExtensionContext): Promise<StateManager> {
+	public static async initialize(context: ExtensionContext): Promise<StateManager> {
 		if (!StateManager.instance) {
 			StateManager.instance = new StateManager(context)
 		}
@@ -135,7 +135,7 @@ export class StateManager {
 
 			StateManager.instance.isInitialized = true
 		} catch (error) {
-			console.error("[StateManager] Failed to initialize:", error)
+			Logger.error("[StateManager] Failed to initialize:", error)
 			throw error
 		}
 
@@ -270,7 +270,7 @@ export class StateManager {
 		} catch (error) {
 			// If reading fails, just use empty cache
 
-			console.error("[StateManager] Failed to load task settings:", error)
+			Logger.error("[StateManager] Failed to load task settings:", error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: `Failed to load task settings, defaulting to globally selected settings.`,
@@ -290,7 +290,7 @@ export class StateManager {
 				// Clear pending set after successful persistence
 				this.pendingTaskState.clear()
 			} catch (error) {
-				console.error("[StateManager] Failed to persist task settings before clearing:", error)
+				Logger.error("[StateManager] Failed to persist task settings before clearing:", error)
 				// If persistence fails, we just move on with clearing the in-memory state.
 				// clearTaskSettings realistically probably won't be called in the small window of time between task settings being set and their persistence anyways
 			}
@@ -484,7 +484,7 @@ export class StateManager {
 						await this.onSyncExternalChange?.()
 					}
 				} catch (err) {
-					console.error("[StateManager] Failed to reload task history on change:", err)
+					Logger.error("[StateManager] Failed to reload task history on change:", err)
 				}
 			}
 
@@ -495,9 +495,9 @@ export class StateManager {
 					this.globalStateCache["taskHistory"] = []
 					await this.onSyncExternalChange?.()
 				})
-				.on("error", (error) => console.error("[StateManager] TaskHistory watcher error:", error))
+				.on("error", (error) => Logger.error("[StateManager] TaskHistory watcher error:", error))
 		} catch (err) {
-			console.error("[StateManager] Failed to set up taskHistory watcher:", err)
+			Logger.error("[StateManager] Failed to set up taskHistory watcher:", err)
 		}
 	}
 
@@ -737,7 +737,7 @@ export class StateManager {
 				}),
 			)
 		} catch (error) {
-			console.error("[StateManager] Failed to persist global state batch:", error)
+			Logger.error("[StateManager] Failed to persist global state batch:", error)
 			throw error
 		}
 	}
@@ -767,7 +767,7 @@ export class StateManager {
 				}),
 			)
 		} catch (error) {
-			console.error("[StateManager] Failed to persist task settings batch:", error)
+			Logger.error("[StateManager] Failed to persist task settings batch:", error)
 			throw error
 		}
 	}
@@ -781,14 +781,14 @@ export class StateManager {
 				Array.from(keys).map((key) => {
 					const value = this.secretsCache[key]
 					if (value) {
-						return secretStorage.store(key, value)
+						return this.context.secrets.store(key, value)
 					} else {
-						return secretStorage.delete(key)
+						return this.context.secrets.delete(key)
 					}
 				}),
 			)
 		} catch (error) {
-			console.error("Failed to persist secrets batch:", error)
+			Logger.error("Failed to persist secrets batch:", error)
 			throw error
 		}
 	}
@@ -805,7 +805,7 @@ export class StateManager {
 				}),
 			)
 		} catch (error) {
-			console.error("Failed to persist workspace state batch:", error)
+			Logger.error("Failed to persist workspace state batch:", error)
 			throw error
 		}
 	}
@@ -867,7 +867,7 @@ export class StateManager {
 	/**
 	 * Get all global state entries (for debugging/inspection)
 	 */
-	getAllGlobalStateEntries(): Record<string, unknown> {
+	public getAllGlobalStateEntries(): Record<string, unknown> {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
@@ -877,7 +877,7 @@ export class StateManager {
 	/**
 	 * Get all workspace state entries (for debugging/inspection)
 	 */
-	getAllWorkspaceStateEntries(): Record<string, unknown> {
+	public getAllWorkspaceStateEntries(): Record<string, unknown> {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}

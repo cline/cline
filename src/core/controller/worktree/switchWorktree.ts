@@ -1,5 +1,6 @@
 import { SwitchWorktreeRequest, WorktreeResult } from "@shared/proto/cline/worktree"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
@@ -36,7 +37,7 @@ export async function switchWorktree(controller: Controller, request: SwitchWork
 			message: `Switched to worktree at ${request.path}`,
 		})
 	} catch (error) {
-		console.error(`Error switching worktree: ${JSON.stringify(error)}`)
+		Logger.error(`Error switching worktree: ${JSON.stringify(error)}`)
 		return WorktreeResult.create({
 			success: false,
 			message: error instanceof Error ? error.message : String(error),

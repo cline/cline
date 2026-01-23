@@ -8,6 +8,7 @@ import { telemetryService } from "@services/telemetry"
 import { findLastIndex } from "@shared/array"
 import { COMPLETION_RESULT_CHANGES_FLAG } from "@shared/ExtensionMessage"
 import { ClineDefaultTool } from "@shared/tools"
+import { Logger } from "@/shared/services/Logger"
 import type { ToolResponse } from "../../index"
 import { buildUserFeedbackContent } from "../../utils/buildUserFeedbackContent"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
@@ -280,7 +281,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 			})
 		} catch (error) {
 			// TaskComplete hook failed - non-fatal, just log
-			console.error("[TaskComplete Hook] Failed (non-fatal):", error)
+			Logger.error("[TaskComplete Hook] Failed (non-fatal):", error)
 		}
 	}
 }

@@ -1,8 +1,10 @@
 import { ModelFamily } from "@/shared/prompts"
+import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import { isDevstralModelFamily } from "@/utils/model-utils"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
+import { validateVariant } from "../variant-validator"
 import { DEVSTRAL_AGENT_ROLE_TEMPLATE } from "./overrides"
 import { baseTemplate } from "./template"
 
@@ -61,6 +63,17 @@ export const config = createVariant(ModelFamily.DEVSTRAL)
 		template: DEVSTRAL_AGENT_ROLE_TEMPLATE,
 	})
 	.build()
+
+// Compile-time validation
+const validationResult = validateVariant({ ...config, id: "devstral" }, { strict: true })
+if (!validationResult.isValid) {
+	Logger.error("Devstral variant configuration validation failed:", validationResult.errors)
+	throw new Error(`Invalid Devstral variant configuration: ${validationResult.errors.join(", ")}`)
+}
+
+if (validationResult.warnings.length > 0) {
+	Logger.warn("Devstral variant configuration warnings:", validationResult.warnings)
+}
 
 // Export type information for better IDE support
 export type DevstralVariantConfig = typeof config

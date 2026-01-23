@@ -8,10 +8,10 @@ import {
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
-import { Logger } from "@/services/logging/Logger"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiFormat } from "@/shared/proto/cline/models"
+import { Logger } from "@/shared/services/Logger"
 import { isGPT5ModelFamily } from "@/utils/model-utils"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
@@ -135,7 +135,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 				try {
 					yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 				} catch (error) {
-					console.error("Error processing tool call delta:", error, delta.tool_calls)
+					Logger.error("Error processing tool call delta:", error, delta.tool_calls)
 				}
 			}
 
@@ -316,11 +316,11 @@ export class OpenAiNativeHandler implements ApiHandler {
 				chunk.response?.status === "incomplete" &&
 				chunk.response?.incomplete_details?.reason === "max_output_tokens"
 			) {
-				console.log("Ran out of tokens")
+				Logger.log("Ran out of tokens")
 				if (chunk.response?.output_text?.length > 0) {
-					console.log("Partial output:", chunk.response.output_text)
+					Logger.log("Partial output:", chunk.response.output_text)
 				} else {
-					console.log("Ran out of tokens during reasoning")
+					Logger.log("Ran out of tokens during reasoning")
 				}
 			}
 

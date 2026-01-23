@@ -1,7 +1,7 @@
 import { findLastIndex } from "@shared/array"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { ClineStorageMessage } from "@shared/messages/content"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import type { ContextManager } from "../context/context-management/ContextManager"
 import type { MessageStateHandler } from "../task/message-state"
 
@@ -66,7 +66,7 @@ export function extractTokenUsageFromMessage(message: ClineMessage | undefined):
 			tokensOutCache: apiReqInfo.cacheReads || 0,
 		}
 	} catch (error) {
-		console.error("[PreCompact] Failed to parse API request token usage:", error)
+		Logger.error("[PreCompact] Failed to parse API request token usage:", error)
 		return defaultUsage
 	}
 }
@@ -287,7 +287,7 @@ export async function executePreCompactHookWithCleanup(params: PreCompactHookPar
 				await cleanupConversationHistoryFile(contextRawPath)
 			}
 		} catch (cleanupError) {
-			console.error("[PreCompact] Failed to cleanup context files:", cleanupError)
+			Logger.error("[PreCompact] Failed to cleanup context files:", cleanupError)
 			// Don't throw - cleanup failure shouldn't mask original error
 		}
 	}

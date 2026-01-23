@@ -14,6 +14,7 @@ import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import path from "path"
 import { Controller } from "@/core/controller"
+import { Logger } from "@/shared/services/Logger"
 import { parseYamlFrontmatter } from "./frontmatter"
 import { evaluateRuleConditionals, type RuleEvaluationContext } from "./rule-conditionals"
 
@@ -45,10 +46,10 @@ export const getGlobalClineRules = async (
 					activatedConditionalRules.push(...rulesFilesTotal.activatedConditionalRules)
 				}
 			} catch {
-				console.error(`Failed to read .clinerules directory at ${globalClineRulesFilePath}`)
+				Logger.error(`Failed to read .clinerules directory at ${globalClineRulesFilePath}`)
 			}
 		} else {
-			console.error(`${globalClineRulesFilePath} is not a directory`)
+			Logger.error(`${globalClineRulesFilePath} is not a directory`)
 		}
 	}
 
@@ -105,7 +106,7 @@ export const getLocalClineRules = async (
 					activatedConditionalRules.push(...rulesFilesTotal.activatedConditionalRules)
 				}
 			} catch {
-				console.error(`Failed to read .clinerules directory at ${clineRulesFilePath}`)
+				Logger.error(`Failed to read .clinerules directory at ${clineRulesFilePath}`)
 			}
 		} else {
 			try {
@@ -137,7 +138,7 @@ export const getLocalClineRules = async (
 					}
 				}
 			} catch {
-				console.error(`Failed to read .clinerules file at ${clineRulesFilePath}`)
+				Logger.error(`Failed to read .clinerules file at ${clineRulesFilePath}`)
 			}
 		}
 	}
