@@ -241,8 +241,9 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 	const [respondedToAsk, setRespondedToAsk] = useState<number | null>(null)
 
 	// Track which messages have been rendered to Static (by timestamp)
-	const [loggedMessageTs, setLoggedMessageTs] = useState<Set<number>>(new Set())
-	const [headerLogged, setHeaderLogged] = useState(false)
+	// Using refs instead of state to avoid extra renders during streaming->static transition
+	const loggedMessageTsRef = useRef<Set<number>>(new Set())
+	const headerLoggedRef = useRef(false)
 	const [gitBranch, setGitBranch] = useState<string | null>(null)
 
 	// Mode state
@@ -327,48 +328,26 @@ export const ChatView: React.FC<ChatViewProps> = ({ controller, onExit, onComple
 		return { completedMessages: completed, currentMessage: current }
 	}, [displayMessages])
 
-	// Track newly completed messages to add to Static
-	useEffect(() => {
-		const newLogged = new Set(loggedMessageTs)
-		let hasNew = false
-
-		for (const msg of completedMessages) {
-			if (!newLogged.has(msg.ts)) {
-				newLogged.add(msg.ts)
-				hasNew = true
-			}
-		}
-
-		if (hasNew) {
-			setLoggedMessageTs(newLogged)
-		}
-	}, [completedMessages, loggedMessageTs])
-
 	// Build Static items - each item is rendered once and stays above dynamic content
 	const staticItems = useMemo(() => {
 		const items: Array<{ type: "header" } | { type: "message"; message: (typeof displayMessages)[0] }> = []
 
 		// Add header as first item (rendered once)
-		if (!headerLogged) {
+		if (!headerLoggedRef.current) {
 			items.push({ type: "header" })
+			headerLoggedRef.current = true
 		}
 
 		// Add completed messages that haven't been logged yet
 		for (const msg of completedMessages) {
-			if (!loggedMessageTs.has(msg.ts)) {
+			if (!loggedMessageTsRef.current.has(msg.ts)) {
 				items.push({ type: "message", message: msg })
+				loggedMessageTsRef.current.add(msg.ts)
 			}
 		}
 
 		return items
-	}, [headerLogged, completedMessages, loggedMessageTs])
-
-	// Mark header as logged after first render
-	useEffect(() => {
-		if (!headerLogged && staticItems.some((item) => item.type === "header")) {
-			setHeaderLogged(true)
-		}
-	}, [headerLogged, staticItems])
+	}, [completedMessages])
 
 	// Check for pending ask message
 	const lastMessage = messages[messages.length - 1]
