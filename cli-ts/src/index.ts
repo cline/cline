@@ -178,6 +178,7 @@ async function runTask(
 		thinking?: boolean
 		yolo?: boolean
 		images?: string[]
+		json?: boolean
 	},
 	existingContext?: CliContext,
 ) {
@@ -229,12 +230,15 @@ async function runTask(
 
 	await StateManager.get().flushPendingState()
 
-	printInfo(`Starting Cline task...`)
-	printInfo(`Working directory: ${ctx.workspacePath}`)
-	if (imageDataUrls.length > 0) {
-		printInfo(`Images attached: ${imageDataUrls.length}`)
+	// Skip info messages in JSON mode
+	if (!options.json) {
+		printInfo(`Starting Cline task...`)
+		printInfo(`Working directory: ${ctx.workspacePath}`)
+		if (imageDataUrls.length > 0) {
+			printInfo(`Images attached: ${imageDataUrls.length}`)
+		}
+		print(separator())
 	}
-	print(separator())
 
 	let isComplete = false
 	let taskError = false
@@ -244,6 +248,7 @@ async function runTask(
 			view: "task",
 			taskId: taskPrompt.substring(0, 30),
 			verbose: options.verbose,
+			jsonOutput: options.json,
 			controller: ctx.controller,
 			isRawModeSupported: checkRawModeSupport(),
 			onComplete: () => {
@@ -430,6 +435,7 @@ program
 	.option("-c, --cwd <path>", "Working directory for the task")
 	.option("--config <path>", "Path to Cline configuration directory")
 	.option("--thinking", "Enable extended thinking (1024 token budget)")
+	.option("--json", "Output messages as JSON instead of styled text")
 	.action((prompt, options) => runTask(prompt, options))
 
 program
@@ -571,6 +577,7 @@ program
 	.option("-c, --cwd <path>", "Working directory")
 	.option("--config <path>", "Configuration directory")
 	.option("--thinking", "Enable extended thinking (1024 token budget)")
+	.option("--json", "Output messages as JSON instead of styled text")
 	.action(async (prompt, options) => {
 		// Always check for piped stdin content
 		const stdinInput = await readStdinIfPiped()

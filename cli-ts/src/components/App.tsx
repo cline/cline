@@ -10,6 +10,7 @@ import { TaskContextProvider } from "../context/TaskContext"
 import { AuthView } from "./AuthView"
 import { ConfigView } from "./ConfigView"
 import { HistoryView } from "./HistoryView"
+import { JsonTaskView } from "./JsonTaskView"
 import { TaskView } from "./TaskView"
 import { WelcomeView } from "./WelcomeView"
 
@@ -44,6 +45,7 @@ interface AppProps {
 	view: ViewType
 	taskId?: string
 	verbose?: boolean
+	jsonOutput?: boolean
 	controller?: any
 	onComplete?: () => void
 	onError?: () => void
@@ -95,6 +97,7 @@ export const App: React.FC<AppProps> = ({
 	view: initialView,
 	taskId,
 	verbose = false,
+	jsonOutput = false,
 	controller,
 	onComplete,
 	onError,
@@ -183,7 +186,11 @@ export const App: React.FC<AppProps> = ({
 		case "task":
 			content = (
 				<TaskContextProvider controller={controller}>
-					<TaskView onComplete={onComplete} onError={onError} taskId={selectedTaskId} verbose={verbose} />
+					{jsonOutput ? (
+						<JsonTaskView onComplete={onComplete} onError={onError} taskId={selectedTaskId} verbose={verbose} />
+					) : (
+						<TaskView onComplete={onComplete} onError={onError} taskId={selectedTaskId} verbose={verbose} />
+					)}
 				</TaskContextProvider>
 			)
 			break
