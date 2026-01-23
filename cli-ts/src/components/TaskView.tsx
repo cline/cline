@@ -5,18 +5,19 @@
 
 import { exit } from "node:process"
 import { CheckpointRestoreRequest } from "@shared/proto/cline/checkpoints"
+import type { Mode } from "@shared/storage/types"
 import { Box, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { checkpointRestore } from "@/core/controller/checkpoints/checkpointRestore"
 import { StateManager } from "@/core/storage/StateManager"
 import { useStdinContext } from "../context/StdinContext"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
-import { useCompletionSignals, useIsSpinnerActive } from "../hooks/useStateSubscriber"
+import { useCompletionSignals, useSpinnerState } from "../hooks/useStateSubscriber"
 import { AskPrompt } from "./AskPrompt"
 import { CheckpointMenu, RestoreType } from "./CheckpointMenu"
 import { FocusChain } from "./FocusChain"
 import { MessageList } from "./MessageList"
-import { LoadingSpinner } from "./Spinner"
+import { ThinkingIndicator } from "./ThinkingIndicator"
 
 interface TaskViewProps {
 	taskId?: string
@@ -36,8 +37,9 @@ export const TaskView: React.FC<TaskViewProps> = ({ taskId: _taskId, verbose = f
 	const { isRawModeSupported } = useStdinContext()
 	const state = useTaskState()
 	const { isTaskComplete, getCompletionMessage } = useCompletionSignals()
-	const isSpinnerActive = useIsSpinnerActive()
+	const { isActive: isSpinnerActive, startTime: spinnerStartTime } = useSpinnerState()
 	const { setIsComplete, lastError, controller } = useTaskContext()
+	const mode = useMemo<Mode>(() => StateManager.get().getGlobalSettingsKey("mode") || "act", [])
 	const [showCheckpointMenu, setShowCheckpointMenu] = useState(false)
 	const [restoreStatus, setRestoreStatus] = useState<"idle" | "restoring" | "success" | "error">("idle")
 	const [restoreMessage, setRestoreMessage] = useState<string | null>(null)
@@ -172,10 +174,10 @@ export const TaskView: React.FC<TaskViewProps> = ({ taskId: _taskId, verbose = f
 			{/* Messages list */}
 			<MessageList verbose={verbose} />
 
-			{/* Loading spinner */}
+			{/* Thinking indicator */}
 			{isSpinnerActive && (
 				<Box marginTop={1}>
-					<LoadingSpinner />
+					<ThinkingIndicator mode={mode} startTime={spinnerStartTime} />
 				</Box>
 			)}
 
