@@ -16,6 +16,8 @@ export function createClineAPI(sidebarController: Controller): ClineAPI {
 		sendMessage: async (message?: string, images?: string[]) => {
 			if (sidebarController.task) {
 				await sidebarController.task.handleWebviewAskResponse("messageResponse", message || "", images || [])
+			} else {
+				Logger.error("No active task to send message to")
 			}
 		},
 
@@ -23,7 +25,7 @@ export function createClineAPI(sidebarController: Controller): ClineAPI {
 			if (sidebarController.task) {
 				await sidebarController.task.handleWebviewAskResponse("yesButtonClicked", "", [])
 			} else {
-				Logger.error("No active task to press primary button for")
+				Logger.error("No active task to press button for")
 			}
 		},
 
@@ -31,7 +33,7 @@ export function createClineAPI(sidebarController: Controller): ClineAPI {
 			if (sidebarController.task) {
 				await sidebarController.task.handleWebviewAskResponse("noButtonClicked", "", [])
 			} else {
-				Logger.error("No active task to press secondary button for")
+				Logger.error("No active task to press button for")
 			}
 		},
 	}
