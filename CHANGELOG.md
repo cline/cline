@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.53.1]
+
+### Fixed
+ - Bug in responses API
+
 ## [3.53.0]
 
 ### Fixed
