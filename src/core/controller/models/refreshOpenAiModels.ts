@@ -3,6 +3,7 @@ import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import type { AxiosRequestConfig } from "axios"
 import axios from "axios"
 import { getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
@@ -32,7 +33,7 @@ export async function refreshOpenAiModels(_controller: Controller, request: Open
 
 		return StringArray.create({ values: models })
 	} catch (error) {
-		console.error("Error fetching OpenAI models:", error)
+		Logger.error("Error fetching OpenAI models:", error)
 		return StringArray.create({ values: [] })
 	}
 }

@@ -7,6 +7,7 @@ import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch, getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
@@ -80,7 +81,7 @@ export class OpenRouterHandler implements ApiHandler {
 			// Check for error field directly on chunk
 			if ("error" in chunk) {
 				const error = chunk.error as OpenRouterErrorResponse["error"]
-				console.error(`OpenRouter API Error: ${error?.code} - ${error?.message}`)
+				Logger.error(`OpenRouter API Error: ${error?.code} - ${error?.message}`)
 				// Include metadata in the error message if available
 				const metadataStr = error.metadata ? `\nMetadata: ${JSON.stringify(error.metadata, null, 2)}` : ""
 				throw new Error(`OpenRouter API Error ${error.code}: ${error.message}${metadataStr}`)
@@ -95,7 +96,7 @@ export class OpenRouterHandler implements ApiHandler {
 				const choiceWithError = choice as any
 				if (choiceWithError.error) {
 					const error = choiceWithError.error
-					console.error(
+					Logger.error(
 						`OpenRouter Mid-Stream Error: ${error?.code || "Unknown"} - ${error?.message || "Unknown error"}`,
 					)
 					// Format error details
@@ -179,7 +180,7 @@ export class OpenRouterHandler implements ApiHandler {
 			try {
 				const generationIterator = this.fetchGenerationDetails(this.lastGenerationId)
 				const generation = (await generationIterator.next()).value
-				// console.log("OpenRouter generation details:", generation)
+				// Logger.log("OpenRouter generation details:", generation)
 				return {
 					type: "usage",
 					cacheWriteTokens: 0,
@@ -191,7 +192,7 @@ export class OpenRouterHandler implements ApiHandler {
 				}
 			} catch (error) {
 				// ignore if fails
-				console.error("Error fetching OpenRouter generation details:", error)
+				Logger.error("Error fetching OpenRouter generation details:", error)
 			}
 		}
 		return undefined
@@ -199,7 +200,7 @@ export class OpenRouterHandler implements ApiHandler {
 
 	@withRetry({ maxRetries: 4, baseDelay: 250, maxDelay: 1000, retryAllErrors: true })
 	async *fetchGenerationDetails(genId: string) {
-		// console.log("Fetching generation details for:", genId)
+		// Logger.log("Fetching generation details for:", genId)
 		try {
 			const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
 				headers: {
@@ -211,7 +212,7 @@ export class OpenRouterHandler implements ApiHandler {
 			yield response.data?.data
 		} catch (error) {
 			// ignore if fails
-			console.error("Error fetching OpenRouter generation details:", error)
+			Logger.error("Error fetching OpenRouter generation details:", error)
 			throw error
 		}
 	}

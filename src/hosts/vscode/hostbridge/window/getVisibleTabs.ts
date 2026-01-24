@@ -4,5 +4,5 @@ import { GetVisibleTabsRequest, GetVisibleTabsResponse } from "@/shared/proto/ho
 export async function getVisibleTabs(_: GetVisibleTabsRequest): Promise<GetVisibleTabsResponse> {
 	const visibleTabPaths = window.visibleTextEditors?.map((editor) => editor.document?.uri?.fsPath).filter(Boolean)
 
-	return GetVisibleTabsResponse.create({ paths: visibleTabPaths })
+	return GetVisibleTabsResponse.create({ paths: visibleTabPaths ?? [] })
 }

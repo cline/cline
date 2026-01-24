@@ -3,6 +3,7 @@ import axios from "axios"
 import { jwtDecode } from "jwt-decode"
 import { Controller } from "@/core/controller"
 import { getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import type { OcaConfig } from "../utils/types"
 import { generateCodeVerifier, generateRandomString, pkceChallengeFromVerifier } from "../utils/utils"
 
@@ -93,7 +94,7 @@ export class OcaAuthProvider {
 		// Otherwise, try to refresh using the refresh token
 		const userRefreshToken = controller.stateManager.getSecretKey("ocaRefreshToken")
 		if (!userRefreshToken) {
-			console.error("No stored authentication credential found.")
+			Logger.error("No stored authentication credential found.")
 			return null
 		}
 		try {
@@ -119,7 +120,7 @@ export class OcaAuthProvider {
 				controller.stateManager.setSecret("ocaRefreshToken", refreshToken)
 				controller.stateManager.setSecret("ocaApiKey", accessToken)
 			} else {
-				console.warn("No refresh token received during OCA token refresh.")
+				Logger.warn("No refresh token received during OCA token refresh.")
 				throw new OcaRefreshError("No refresh token received during OCA token refresh.")
 			}
 			const userInfo: OcaUserInfo = await this.getUserAccountInfo(accessToken)
@@ -132,7 +133,7 @@ export class OcaAuthProvider {
 			const desc = data?.error_description || (isAxios ? (err as any).message : undefined)
 			const invalidGrant = (status === 400 && code === "invalid_grant") || status === 401
 
-			console.error("OCA refresh failed", { status, code, desc })
+			Logger.error("OCA refresh failed", { status, code, desc })
 
 			throw new OcaRefreshError(desc || "OCA refresh failed", status, code, invalidGrant, data)
 		}
@@ -221,7 +222,7 @@ export class OcaAuthProvider {
 			// Step 4: Return only the access_token for downstream use
 			return { user: userInfo, apiKey: accessToken }
 		} catch (error) {
-			console.error("oca sign-in error", "error")
+			Logger.error("oca sign-in error", "error")
 			throw error
 		}
 	}

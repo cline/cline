@@ -1,5 +1,6 @@
 import * as path from "path"
 import simpleGit from "simple-git"
+import { Logger } from "@/shared/services/Logger"
 import { copyWorktreeIncludeFiles } from "./worktree-include"
 
 export interface Worktree {
@@ -318,7 +319,7 @@ export async function getAvailableBranches(cwd: string): Promise<BranchInfo> {
 			currentBranch,
 		}
 	} catch (error) {
-		console.error("Error getting available branches:", error)
+		Logger.error("Error getting available branches:", error)
 		return { localBranches: [], remoteBranches: [], currentBranch: "" }
 	}
 }

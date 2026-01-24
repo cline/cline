@@ -1,6 +1,6 @@
 {
 	"name": "cline",
-	"version": "1.0.9",
+	"version": "1.0.10",
 	"description": "Autonomous coding agent CLI - capable of creating/editing files, running commands, using the browser, and more",
 	"main": "cline-core.js",
 	"bin": {

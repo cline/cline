@@ -14,6 +14,7 @@ import {
 import { ExtensionContext } from "vscode"
 import { Controller } from "@/core/controller"
 import { ClineRulesToggles } from "@/shared/cline-rules"
+import { Logger } from "@/shared/services/Logger"
 import { readTaskHistoryFromState } from "../disk"
 
 export async function readSecretsFromDisk(context: ExtensionContext): Promise<Secrets> {
@@ -86,7 +87,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 
 		return result as GlobalStateAndSettings
 	} catch (error) {
-		console.error("[StateHelpers] Failed to read global state:", error)
+		Logger.error("[StateHelpers] Failed to read global state:", error)
 		throw error
 	}
 }

@@ -5,6 +5,7 @@ import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import * as os from "os"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
 import { Setting } from "@/shared/proto/index.host"
+import { Logger } from "@/shared/services/Logger"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
 import { setDistinctId } from "../logging/distinctId"
@@ -347,7 +348,7 @@ export class TelemetryService {
 		private telemetryMetadata: TelemetryMetadata,
 	) {
 		this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
-		console.info(`[TelemetryService] Initialized with ${providers.length} telemetry provider(s)`)
+		Logger.info(`[TelemetryService] Initialized with ${providers.length} telemetry provider(s)`)
 	}
 
 	public addProvider(provider: ITelemetryProvider) {
@@ -436,7 +437,7 @@ export class TelemetryService {
 					provider.log(event, properties)
 				}
 			} catch (error) {
-				console.error(`[TelemetryService] Provider failed for event ${event}:`, error)
+				Logger.error(`[TelemetryService] Provider failed for event ${event}:`, error)
 			}
 		})
 	}
@@ -461,7 +462,7 @@ export class TelemetryService {
 			try {
 				provider.recordCounter(name, value, attrs, description, required)
 			} catch (error) {
-				console.error(`[TelemetryService] recordCounter failed: ${name}`, error)
+				Logger.error(`[TelemetryService] recordCounter failed: ${name}`, error)
 			}
 		})
 	}
@@ -478,7 +479,7 @@ export class TelemetryService {
 			try {
 				provider.recordHistogram(name, value, attrs, description, required)
 			} catch (error) {
-				console.error(`[TelemetryService] recordHistogram failed: ${name}`, error)
+				Logger.error(`[TelemetryService] recordHistogram failed: ${name}`, error)
 			}
 		})
 	}
@@ -499,7 +500,7 @@ export class TelemetryService {
 			try {
 				provider.recordGauge(name, value, attrs, description, required)
 			} catch (error) {
-				console.error(`[TelemetryService] recordGauge failed: ${name}`, error)
+				Logger.error(`[TelemetryService] recordGauge failed: ${name}`, error)
 			}
 		})
 	}
@@ -603,7 +604,7 @@ export class TelemetryService {
 			try {
 				provider.identifyUser(userInfo, propertiesWithMetadata)
 			} catch (error) {
-				console.error(`[TelemetryService] Provider failed for user identification:`, error)
+				Logger.error(`[TelemetryService] Provider failed for user identification:`, error)
 			}
 		})
 
@@ -800,7 +801,7 @@ export class TelemetryService {
 	) {
 		// Ensure required parameters are provided
 		if (!ulid || !provider || !model || !source) {
-			console.warn("TelemetryService: Missing required parameters for message capture")
+			Logger.warn("TelemetryService: Missing required parameters for message capture")
 			return
 		}
 
@@ -943,7 +944,7 @@ export class TelemetryService {
 	 * @param feedbackType The type of feedback ("thumbs_up" or "thumbs_down")
 	 */
 	public captureTaskFeedback(ulid: string, feedbackType: TaskFeedbackType) {
-		console.info("TelemetryService: Capturing task feedback", {
+		Logger.info("TelemetryService: Capturing task feedback", {
 			ulid,
 			feedbackType,
 		})
@@ -2262,7 +2263,7 @@ export class TelemetryService {
 			telemetryFn()
 		} catch (error) {
 			const contextStr = context ? ` [Context: ${context}]` : ""
-			console.error(`[Telemetry] Failed to capture telemetry${contextStr}:`, error)
+			Logger.error(`[Telemetry] Failed to capture telemetry${contextStr}:`, error)
 		}
 	}
 
