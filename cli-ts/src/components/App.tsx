@@ -155,40 +155,6 @@ export const App: React.FC<AppProps> = ({
 		setCurrentView("welcome")
 	}, [])
 
-	// Handle welcome submit when navigating internally (e.g., from auth -> welcome)
-	const _handleInternalWelcomeSubmit = useCallback(
-		async (prompt: string, imagePaths: string[]) => {
-			if (onWelcomeSubmit) {
-				// If external handler provided, use it
-				onWelcomeSubmit(prompt, imagePaths)
-			} else if (controller && prompt.trim()) {
-				// Otherwise, start a task directly via controller
-				setCurrentView("task")
-				// Convert image paths to data URLs if needed
-				const imageDataUrls =
-					imagePaths.length > 0
-						? await Promise.all(
-								imagePaths.map(async (p) => {
-									try {
-										const fs = await import("fs/promises")
-										const path = await import("path")
-										const data = await fs.readFile(p)
-										const ext = path.extname(p).toLowerCase().slice(1)
-										const mimeType = ext === "jpg" ? "jpeg" : ext
-										return `data:image/${mimeType};base64,${data.toString("base64")}`
-									} catch {
-										return null
-									}
-								}),
-							)
-						: []
-				const validImages = imageDataUrls.filter((img): img is string => img !== null)
-				await controller.initTask(prompt.trim(), validImages.length > 0 ? validImages : undefined)
-			}
-		},
-		[onWelcomeSubmit, controller],
-	)
-
 	let content: ReactNode
 
 	switch (currentView) {

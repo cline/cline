@@ -103,7 +103,7 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 	const logToChannel = (message: string) => outputChannel.appendLine(message)
 
 	HostProvider.initialize(
-		() => new CliWebviewProvider(extensionContext),
+		() => new CliWebviewProvider(extensionContext as any),
 		() => new FileEditProvider(),
 		() => new CliCommentReviewController(),
 		() => new StandaloneTerminalManager(),
@@ -116,7 +116,7 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 	)
 
 	await ErrorService.initialize()
-	await StateManager.initialize(extensionContext)
+	await StateManager.initialize(extensionContext as any)
 
 	// Configure the shared Logging class to use HostProvider's output channel
 	Logger.setOutput((msg: string) => HostProvider.get().logToChannel(msg))
