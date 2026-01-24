@@ -204,6 +204,7 @@ const config = {
 		"aws4fetch",
 		"pino",
 		"pino-roll",
+		"keytar",
 	],
 	supported: { "top-level-await": true },
 	banner: {

@@ -11,8 +11,8 @@ import type {
 } from "@generated/hosts/host-bridge-client-types"
 import type { HostBridgeClientProvider, StreamingCallbacks } from "@hosts/host-provider-types"
 import * as proto from "@shared/proto/index"
-import { ClineClient } from "@/shared/clients"
-import { CLI_VERSION } from ".."
+import { ClineClient } from "@/shared/cline"
+import { version as CLI_VERSION } from "../../package.json"
 import { printError, printInfo, printWarning } from "../utils/display"
 
 /**
@@ -121,6 +121,14 @@ export class CliEnvServiceClient implements EnvServiceClientInterface {
 		)
 		// Return unsubscribe function
 		return () => {}
+	}
+
+	debugLog(request: proto.cline.StringRequest): Promise<proto.cline.Empty> {
+		const message = request.value || ""
+		if (process.env.IS_DEV) {
+			printInfo(`[DebugLog] ${message}`)
+		}
+		return Promise.resolve(proto.cline.Empty.create())
 	}
 
 	async shutdown(_request: proto.cline.EmptyRequest): Promise<proto.cline.Empty> {
