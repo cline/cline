@@ -1,7 +1,7 @@
 {
 	"name": "claude-dev",
 	"displayName": "Cline",
-	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
+	"description": "IDE에서 바로 사용할 수 있는 자율 코딩 에이전트로, 파일 생성/편집, 명령 실행, 브라우저 사용 등을 모든 단계에서 사용자의 허가를 받아 수행합니다.",
 	"version": "3.52.0",
 	"icon": "assets/icons/icon.png",
 	"engines": {
@@ -58,45 +58,45 @@
 		"walkthroughs": [
 			{
 				"id": "ClineWalkthrough",
-				"title": "Meet Cline, your new coding partner",
-				"description": "Cline codes like a developer because it thinks like one. Here are 5 ways to put it to work:",
+				"title": "새로운 코딩 파트너, AACA Cline을 만나보세요",
+				"description": "AACA Cline은 개발자처럼 생각하기 때문에 개발자처럼 코딩합니다. 활용할 수 있는 5가지 방법을 소개합니다:",
 				"steps": [
 					{
 						"id": "welcome",
-						"title": "Start with a Goal, Not Just a Prompt",
-						"description": "Tell Cline what you want to achieve. It plans, asks, and then codes, like a true partner.",
+						"title": "단순한 프롬프트가 아닌 목표로 시작하세요",
+						"description": "AACA Cline에게 달성하고자 하는 것을 알려주세요. 진정한 파트너처럼 계획하고, 질문하고, 코딩합니다.",
 						"media": {
 							"markdown": "walkthrough/step1.md"
 						}
 					},
 					{
 						"id": "learn",
-						"title": "Let Cline Learn Your Codebase",
-						"description": "Point Cline to your project. It builds understanding to make smart, context-aware changes.",
+						"title": "AACA Cline이 코드베이스를 학습하도록 하세요",
+						"description": "AACA Cline에게 프로젝트를 알려주세요. 스마트하고 컨텍스트를 인식하는 변경을 위해 이해를 구축합니다.",
 						"media": {
 							"markdown": "walkthrough/step2.md"
 						}
 					},
 					{
 						"id": "advanced-features",
-						"title": "Always Use the Best AI Models",
-						"description": "Cline empowers you with State-of-the-Art AI, connecting to top models (Anthropic, Gemini, OpenAI & more).",
+						"title": "항상 최고의 AI 모델을 사용하세요",
+						"description": "AACA Cline은 최첨단 AI로 여러분을 지원하며, 최고의 모델(Anthropic, Gemini, OpenAI 등)에 연결합니다.",
 						"media": {
 							"markdown": "walkthrough/step3.md"
 						}
 					},
 					{
 						"id": "mcp",
-						"title": "Extend with Powerful Tools (MCP)",
-						"description": "Connect to databases, APIs, or discover new capabilities in the MCP Marketplace.",
+						"title": "강력한 도구로 확장하세요 (MCP)",
+						"description": "데이터베이스, API에 연결하거나 MCP 마켓플레이스에서 새로운 기능을 발견하세요.",
 						"media": {
 							"markdown": "walkthrough/step4.md"
 						}
 					},
 					{
 						"id": "getting-started",
-						"title": "You're Always in Control",
-						"description": "Review Cline's plans and diffs. Approve changes before they happen. No surprises.",
+						"title": "항상 여러분이 제어합니다",
+						"description": "AACA Cline의 계획과 변경사항을 검토하세요. 변경이 발생하기 전에 승인합니다. 놀라운 일은 없습니다.",
 						"media": {
 							"markdown": "walkthrough/step5.md"
 						},
@@ -111,7 +111,7 @@
 			"activitybar": [
 				{
 					"id": "claude-dev-ActivityBar",
-					"title": "Cline",
+					"title": "AACA Cline",
 					"icon": "assets/icons/icon.svg"
 				}
 			]
@@ -129,116 +129,116 @@
 		"commands": [
 			{
 				"command": "cline.plusButtonClicked",
-				"title": "New Task",
+				"title": "새 작업",
 				"icon": "$(add)"
 			},
 			{
 				"command": "cline.mcpButtonClicked",
-				"title": "MCP Servers",
+				"title": "MCP 서버",
 				"icon": "$(server)"
 			},
 			{
 				"command": "cline.historyButtonClicked",
-				"title": "History",
+				"title": "히스토리",
 				"icon": "$(history)"
 			},
 			{
 				"command": "cline.accountButtonClicked",
-				"title": "Account",
+				"title": "계정",
 				"icon": "$(account)"
 			},
 			{
 				"command": "cline.settingsButtonClicked",
-				"title": "Settings",
+				"title": "설정",
 				"icon": "$(settings-gear)"
 			},
 			{
 				"command": "cline.dev.createTestTasks",
-				"title": "Create Test Tasks",
-				"category": "Cline",
+				"title": "테스트 작업 생성",
+				"category": "AACA Cline",
 				"when": "cline.isDevMode"
 			},
 			{
 				"command": "cline.dev.expireMcpOAuthTokens",
-				"title": "Expire MCP OAuth Tokens (for testing)",
-				"category": "Cline",
+				"title": "MCP OAuth 토큰 만료 (테스트용)",
+				"category": "AACA Cline",
 				"when": "cline.isDevMode"
 			},
 			{
 				"command": "cline.addToChat",
-				"title": "Add to Cline",
-				"category": "Cline"
+				"title": "AACA Cline에 추가",
+				"category": "AACA Cline"
 			},
 			{
 				"command": "cline.addTerminalOutputToChat",
-				"title": "Add to Cline",
-				"category": "Cline"
+				"title": "AACA Cline에 추가",
+				"category": "AACA Cline"
 			},
 			{
 				"command": "cline.focusChatInput",
-				"title": "Jump to Chat Input",
-				"category": "Cline"
+				"title": "채팅 입력으로 이동",
+				"category": "AACA Cline"
 			},
 			{
 				"command": "cline.generateGitCommitMessage",
-				"title": "Generate Commit Message with Cline",
-				"category": "Cline",
+				"title": "AACA Cline으로 커밋 메시지 생성",
+				"category": "AACA Cline",
 				"icon": "$(cline-icon)"
 			},
 			{
 				"command": "cline.abortGitCommitMessage",
-				"title": "Generate Commit Message with Cline - Stop",
-				"category": "Cline",
+				"title": "AACA Cline으로 커밋 메시지 생성 - 중지",
+				"category": "AACA Cline",
 				"icon": "$(debug-stop)"
 			},
 			{
 				"command": "cline.explainCode",
-				"title": "Explain with Cline",
-				"category": "Cline"
+				"title": "AACA Cline으로 설명",
+				"category": "AACA Cline"
 			},
 			{
 				"command": "cline.improveCode",
-				"title": "Improve with Cline",
-				"category": "Cline"
+				"title": "AACA Cline으로 개선",
+				"category": "AACA Cline"
 			},
 			{
 				"command": "cline.jupyterGenerateCell",
-				"title": "Generate Jupyter Cell with Cline",
-				"category": "Cline",
+				"title": "AACA Cline으로 Jupyter 셀 생성",
+				"category": "AACA Cline",
 				"icon": "$(sparkle)"
 			},
 			{
 				"command": "cline.jupyterExplainCell",
-				"title": "Explain Jupyter Cell with Cline",
-				"category": "Cline",
+				"title": "AACA Cline으로 Jupyter 셀 설명",
+				"category": "AACA Cline",
 				"icon": "$(question)"
 			},
 			{
 				"command": "cline.jupyterImproveCell",
-				"title": "Improve Jupyter Cell with Cline",
-				"category": "Cline",
+				"title": "AACA Cline으로 Jupyter 셀 개선",
+				"category": "AACA Cline",
 				"icon": "$(lightbulb)"
 			},
 			{
 				"command": "cline.openWalkthrough",
-				"title": "Open Walkthrough",
-				"category": "Cline"
+				"title": "워크스루 열기",
+				"category": "AACA Cline"
 			},
 			{
 				"command": "cline.reconstructTaskHistory",
-				"title": "Reconstruct Task History",
-				"category": "Cline"
+				"title": "작업 히스토리 재구성",
+				"category": "AACA Cline"
 			},
 			{
 				"command": "cline.reviewComment.reply",
-				"title": "Reply",
-				"category": "Cline",
+				"title": "답글",
+				"category": "AACA Cline",
 				"enablement": "!commentIsEmpty"
 			},
 			{
 				"command": "cline.reviewComment.addToChat",
-				"title": "Add to Cline Chat",
-				"category": "Cline",
+				"title": "AACA Cline 채팅에 추가",
+				"category": "AACA Cline",
 				"icon": "$(link-external)"
 			}
 		],
@@ -372,7 +372,7 @@
 			]
 		},
 		"configuration": {
-			"title": "Cline",
+			"title": "AACA Cline",
 			"properties": {}
 		}
 	},

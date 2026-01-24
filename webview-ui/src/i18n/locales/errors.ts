@@ -16,8 +16,8 @@ export const errorMessages = {
 
 		// Authentication errors
 		authenticationFailed: "Authentication failed. Please sign in to continue.",
-		signInRequired: "Please sign in to access Cline services.",
-		signInToCline: "Sign in to Cline",
+		signInRequired: "Please sign in to access AACA Cline services.",
+		signInToCline: "Sign in to AACA Cline",
 		clickRetryBelow: "Click retry below",
 
 		// Credit/Balance errors
@@ -36,7 +36,7 @@ export const errorMessages = {
 
 		// File operation errors
 		diffError: "The model used search patterns that don't match anything in the file. Retrying...",
-		clineignoreError: "Cline tried to access {{file}}, but it's blocked by {{clineignore}}.",
+		clineignoreError: "AACA Cline tried to access {{file}}, but it's blocked by {{clineignore}}.",
 		fileNotFound: "File not found",
 		fileReadError: "Failed to read file",
 		fileWriteError: "Failed to write file",
@@ -46,7 +46,7 @@ export const errorMessages = {
 		commandTimeout: "Command timed out",
 		shellIntegrationUnavailable: "Shell Integration Unavailable",
 		shellIntegrationWarning:
-			'Cline may have trouble viewing the command\'s output. Please update VSCode (CMD/CTRL + Shift + P → "Update") and make sure you\'re using a supported shell: zsh, bash, fish, or PowerShell (CMD/CTRL + Shift + P → "Terminal: Select Default Profile").',
+			'AACA Cline may have trouble viewing the command\'s output. Please update VSCode (CMD/CTRL + Shift + P → "Update") and make sure you\'re using a supported shell: zsh, bash, fish, or PowerShell (CMD/CTRL + Shift + P → "Terminal: Select Default Profile").',
 		stillHavingTrouble: "Still having trouble?",
 
 		// PowerShell specific
@@ -88,7 +88,7 @@ export const errorMessages = {
 		worktreeIncludeCreateFailed: "Failed to create .worktreeinclude",
 		worktreeDeleteFailed: "Failed to delete worktree",
 		worktreeMergeFailed: "Failed to merge worktree",
-		worktreeCreateTaskFailed: "Failed to create task for Cline",
+		worktreeCreateTaskFailed: "Failed to create task for AACA Cline",
 		worktreeCreateFailed: "Failed to create worktree",
 
 		// Voice recorder errors
@@ -132,7 +132,7 @@ export const errorMessages = {
 		// Task errors
 		taskCancelled: "Task was cancelled",
 		taskFailed: "Task failed",
-		mistakeLimitReached: "Cline is having trouble...",
+		mistakeLimitReached: "AACA Cline is having trouble...",
 
 		// Generic action errors
 		actionFailed: "Action failed",
@@ -155,8 +155,8 @@ export const errorMessages = {
 
 		// 인증 오류
 		authenticationFailed: "인증에 실패했습니다. 계속하려면 로그인해주세요.",
-		signInRequired: "Cline 서비스를 이용하려면 로그인해주세요.",
-		signInToCline: "Cline에 로그인",
+		signInRequired: "AACA Cline 서비스를 이용하려면 로그인해주세요.",
+		signInToCline: "AACA Cline에 로그인",
 		clickRetryBelow: "아래 재시도 버튼을 클릭하세요",
 
 		// 크레딧/잔액 오류
@@ -175,7 +175,7 @@ export const errorMessages = {
 
 		// 파일 작업 오류
 		diffError: "모델이 파일에서 일치하는 항목이 없는 검색 패턴을 사용했습니다. 재시도 중...",
-		clineignoreError: "Cline이 {{file}}에 접근하려 했지만 {{clineignore}}에 의해 차단되었습니다.",
+		clineignoreError: "AACA Cline이 {{file}}에 접근하려 했지만 {{clineignore}}에 의해 차단되었습니다.",
 		fileNotFound: "파일을 찾을 수 없음",
 		fileReadError: "파일 읽기 실패",
 		fileWriteError: "파일 쓰기 실패",
@@ -185,7 +185,7 @@ export const errorMessages = {
 		commandTimeout: "명령 시간 초과",
 		shellIntegrationUnavailable: "셸 통합을 사용할 수 없음",
 		shellIntegrationWarning:
-			'Cline이 명령 출력을 보는 데 문제가 있을 수 있습니다. VSCode를 업데이트하고(CMD/CTRL + Shift + P → "Update") 지원되는 셸(zsh, bash, fish 또는 PowerShell)을 사용하고 있는지 확인하세요(CMD/CTRL + Shift + P → "Terminal: Select Default Profile").',
+			'AACA Cline이 명령 출력을 보는 데 문제가 있을 수 있습니다. VSCode를 업데이트하고(CMD/CTRL + Shift + P → "Update") 지원되는 셸(zsh, bash, fish 또는 PowerShell)을 사용하고 있는지 확인하세요(CMD/CTRL + Shift + P → "Terminal: Select Default Profile").',
 		stillHavingTrouble: "여전히 문제가 있나요?",
 
 		// PowerShell 관련
@@ -227,7 +227,7 @@ export const errorMessages = {
 		worktreeIncludeCreateFailed: ".worktreeinclude 생성에 실패했습니다",
 		worktreeDeleteFailed: "워크트리 삭제에 실패했습니다",
 		worktreeMergeFailed: "워크트리 병합에 실패했습니다",
-		worktreeCreateTaskFailed: "Cline용 작업을 생성하지 못했습니다",
+		worktreeCreateTaskFailed: "AACA Cline용 작업을 생성하지 못했습니다",
 		worktreeCreateFailed: "워크트리 생성에 실패했습니다",
 
 		// 음성 녹음 오류

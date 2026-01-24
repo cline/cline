@@ -36,7 +36,7 @@ const McpSubmitCard = () => {
 				</h3>
 				<p style={{ fontSize: "13px", margin: 0, color: "var(--vscode-descriptionForeground)" }}>
 					{t("mcp.submitCard.description")}{" "}
-					<a href="https://github.com/cline/mcp-marketplace">github.com/cline/mcp-marketplace</a>
+					<a href="https://github.com/cline/mcp-marketplace">{t("mcp.submitCard.repositoryUrl")}</a>
 				</p>
 			</div>
 		</div>

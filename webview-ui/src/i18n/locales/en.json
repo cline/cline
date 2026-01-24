@@ -1,13 +1,45 @@
 {
-	"welcome": "Welcome to Cline",
+	"welcome": "Welcome to AACA Cline",
 	"welcomeDescription": "I can do all kinds of tasks thanks to breakthroughs in Claude 4 Sonnet's agentic coding capabilities and access to tools that let me create & edit files, explore complex projects, use a browser, and execute terminal commands. I can even use MCP to create new tools and extend my own capabilities.",
 	"getStartedFree": "Get Started for Free",
 	"useOwnApiKey": "Use your own API key",
 	"letsGo": "Let's go!",
 	"signUpDescription": "Sign up for an account to get started for free, or use an API key that provides access to models like Claude Sonnet.",
-
 	"newTask": "New Task",
-	"settings": "Settings",
+	"settings": {
+		"title": "Settings",
+		"done": "Done",
+		"tabs": {
+			"apiConfig": "API Configuration",
+			"features": "Features",
+			"browser": "Browser",
+			"terminal": "Terminal",
+			"general": "General",
+			"about": "About",
+			"debug": "Debug"
+		},
+		"tooltips": {
+			"apiConfiguration": "API Configuration",
+			"featureSettings": "Feature Settings",
+			"browserSettings": "Browser Settings",
+			"terminalSettings": "Terminal Settings",
+			"generalSettings": "General Settings",
+			"about": "About AACA Cline",
+			"debugTools": "Debug Tools"
+		},
+		"headers": {
+			"apiConfiguration": "API Configuration",
+			"featureSettings": "Feature Settings",
+			"browserSettings": "Browser Settings",
+			"terminalSettings": "Terminal Settings",
+			"generalSettings": "General Settings",
+			"about": "About",
+			"debug": "Debug"
+		},
+		"useCompactPrompt": "Use Compact Prompt",
+		"compactPromptDescription": "Use a streamlined prompt for local model providers.",
+		"compactPromptWarning": "Warning: This option may affect model performance."
+	},
 	"history": "History",
 	"send": "Send",
 	"cancel": "Cancel",
@@ -16,12 +48,10 @@
 	"done": "Done",
 	"typeMessage": "Type a message...",
 	"typeTaskHere": "Type your task here...",
-
 	"apiConfiguration": "API Configuration",
 	"model": "Model",
 	"apiKey": "API Key",
 	"save": "Save",
-
 	"settingsTabs": {
 		"apiConfig": "API Configuration",
 		"features": "Features",
@@ -31,7 +61,6 @@
 		"about": "About",
 		"debug": "Debug"
 	},
-
 	"settingsHeaders": {
 		"apiConfiguration": "API Configuration",
 		"featureSettings": "Feature Settings",
@@ -40,7 +69,6 @@
 		"generalSettings": "General Settings",
 		"about": "About"
 	},
-
 	"chat": {
 		"scrollToBottom": "Scroll to bottom",
 		"thinking": "Thinking...",
@@ -60,11 +88,10 @@
 		"filesOtherThanImages": "Files other than images are currently disabled",
 		"typeAtForContext": "Type @ for context, / for slash commands & workflows, hold shift to drag in files/images",
 		"thinkingLabel": "Thinking:",
-		"inPlanMode": "In Plan mode, Cline will gather information to architect a plan",
-		"inActMode": "In Act mode, Cline will complete the task immediately",
+		"inPlanMode": "In Plan mode, AACA Cline will gather information to architect a plan",
+		"inActMode": "In Act mode, AACA Cline will complete the task immediately",
 		"toggleWith": "Toggle w/"
 	},
-
 	"creditLimitError": {
 		"currentBalance": "Current Balance",
 		"totalSpent": "Total Spent",
@@ -72,14 +99,12 @@
 		"buyCredits": "Buy Credits",
 		"retryRequest": "Retry Request"
 	},
-
 	"userMessage": {
 		"restoreAll": "Restore All",
 		"restoreAllTitle": "Restore both the chat and workspace files to this checkpoint and send your edited message",
 		"restoreChat": "Restore Chat",
 		"restoreChatTitle": "Restore just the chat to this checkpoint and send your edited message"
 	},
-
 	"task": {
 		"newTask": "New Task",
 		"copyTask": "Copy Task",
@@ -89,7 +114,6 @@
 		"noTaskHistory": "No task history",
 		"startNewTask": "Start new task"
 	},
-
 	"browser": {
 		"launchBrowser": "Launch Browser",
 		"closeBrowser": "Close Browser",
@@ -104,8 +128,8 @@
 		"remote": "Remote",
 		"local": "Local",
 		"remoteHost": "Remote Host",
-		"clineIsUsingBrowser": "Cline is using the browser:",
-		"clineWantsToUseBrowser": "Cline wants to use the browser:",
+		"clineIsUsingBrowser": "AACA Cline is using the browser:",
+		"clineWantsToUseBrowser": "AACA Cline wants to use the browser:",
 		"step": "Step",
 		"of": "of",
 		"previous": "Previous",
@@ -119,13 +143,11 @@
 		"scrollUp": "Scroll up",
 		"noNewLogs": "(No new logs)"
 	},
-
 	"terminal": {
 		"runCommand": "Run Command",
 		"commandOutput": "Command Output",
 		"proceedWhileRunning": "Proceed While Running"
 	},
-
 	"files": {
 		"createFile": "Create File",
 		"editFile": "Edit File",
@@ -133,16 +155,83 @@
 		"deleteFile": "Delete File",
 		"listFiles": "List Files"
 	},
-
 	"mcp": {
 		"mcpServers": "MCP Servers",
 		"addServer": "Add Server",
 		"removeServer": "Remove Server",
 		"serverStatus": "Server Status",
 		"connected": "Connected",
-		"disconnected": "Disconnected"
+		"disconnected": "Disconnected",
+		"imageFrom": "Image from",
+		"configuration": {
+			"mcpServers": "MCP Servers",
+			"done": "Done",
+			"marketplace": "Marketplace",
+			"remoteServers": "Remote Servers",
+			"configure": "Configure"
+		},
+		"responseDisplay": {
+			"response": "Response",
+			"responseError": "Response (Error)",
+			"errorParsing": "Error parsing response:"
+		},
+		"imagePreview": {
+			"loadingFrom": "Loading image from {hostname}...",
+			"waitingTime": "Waiting",
+			"failedToLoadImage": "Failed to load image",
+			"clickToOpenBrowser": "Click to open in browser",
+			"svgFrom": "SVG from"
+		},
+		"addRemoteServer": {
+			"serverNamePlaceholder": "mcp-server",
+			"serverUrlPlaceholder": "https://example.com/mcp-server"
+		},
+		"submitCard": {
+			"repositoryUrl": "github.com/cline/mcp-marketplace"
+		},
+		"loadingImage": "이미지 로딩 중",
+		"waitingFor": "대기 중",
+		"failedToLoad": "로드 실패",
+		"clickToOpen": "클릭하여 브라우저에서 열기",
+		"servers": "MCP 서버",
+		"configure": "구성",
+		"scrollToBottom": "맨 아래로 스크롤",
+		"scrollToTop": "맨 위로 스크롤",
+		"retry": "재시도",
+		"startNewTask": "새 작업 시작",
+		"proceedAnyways": "계속 진행",
+		"approve": "승인",
+		"reject": "거부",
+		"save": "저장",
+		"runCommand": "명령 실행",
+		"proceedWhileRunning": "실행 중 계속",
+		"resumeTask": "작업 재개",
+		"startNewTaskWithContext": "컨텍스트와 함께 새 작업 시작",
+		"condenseConversation": "대화 압축",
+		"reportGitHubIssue": "GitHub 이슈 보고",
+		"cancel": "취소",
+		"newWorktreeWindow": "새 Worktree 창",
+		"createNewWorktree": "새 git worktree를 생성하고 별도의 창에서 엽니다. 병렬 AACA Cline 작업을 실행하기에 좋습니다.",
+		"current": "현재",
+		"viewManageWorktrees": "git worktree를 보고 관리합니다. 병렬 AACA Cline 작업을 실행하기에 좋습니다.",
+		"toolGroup": {
+			"context": "컨텍스트",
+			"clineRead": "읽음",
+			"file": "파일",
+			"files": "파일",
+			"folder": "폴더",
+			"folders": "폴더",
+			"definition": "정의",
+			"definitions": "정의",
+			"performedSearch": "검색",
+			"searches": "검색",
+			"patterns": "패턴",
+			"in": "위치"
+		},
+		"serversToggleList": {
+			"noServersInstalled": "설치된 MCP 서버가 없습니다"
+		}
 	},
-
 	"chatView": {
 		"scrollToBottom": "Scroll to bottom",
 		"scrollToTop": "Scroll to top",
@@ -160,9 +249,12 @@
 		"reportGitHubIssue": "Report GitHub issue",
 		"cancel": "Cancel",
 		"newWorktreeWindow": "New Worktree Window",
-		"createNewWorktree": "Create a new git worktree and open it in a separate window. Great for running parallel Cline tasks.",
+		"createNewWorktree": "Create a new git worktree and open it in a separate window. Great for running parallel AACA Cline tasks.",
 		"current": "Current",
-		"viewManageWorktrees": "View and manage git worktrees. Great for running parallel Cline tasks.",
+		"viewManageWorktrees": "View and manage git worktrees. Great for running parallel AACA Cline tasks.",
+		"serversToggleList": {
+			"noServersInstalled": "No MCP servers installed"
+		},
 		"toolGroup": {
 			"context": "Context",
 			"clineRead": "read",
@@ -176,9 +268,199 @@
 			"searches": "searches",
 			"patterns": "patterns",
 			"in": "in"
+		},
+		"addServer": "서버 추가",
+		"localServer": "로컬 서버",
+		"remoteServer": "원격 서버",
+		"serverName": "서버 이름",
+		"command": "명령",
+		"args": "인수",
+		"env": "환경 변수",
+		"url": "URL",
+		"apiKey": "API 키",
+		"delete": "삭제",
+		"edit": "편집",
+		"enable": "활성화",
+		"disable": "비활성화",
+		"tools": "도구",
+		"resources": "리소스",
+		"prompts": "프롬프트",
+		"marketplace": "마켓플레이스",
+		"installed": "설치됨",
+		"available": "사용 가능",
+		"search": "검색",
+		"install": "설치",
+		"uninstall": "제거",
+		"update": "업데이트",
+		"version": "버전",
+		"description": "설명",
+		"author": "작성자",
+		"license": "라이선스",
+		"homepage": "홈페이지",
+		"repository": "저장소",
+		"documentation": "문서",
+		"support": "지원",
+		"report": "보고",
+		"submit": "제출",
+		"submitServer": "서버 제출",
+		"serverDetails": "서버 세부정보",
+		"connectionStatus": "연결 상태",
+		"connected": "연결됨",
+		"disconnected": "연결 끊김",
+		"connecting": "연결 중",
+		"error": "오류",
+		"close": "닫기",
+		"back": "뒤로",
+		"next": "다음",
+		"finish": "완료",
+		"loading": "로딩 중",
+		"noServers": "서버 없음",
+		"noTools": "도구 없음",
+		"noResources": "리소스 없음",
+		"noPrompts": "프롬프트 없음",
+		"noResults": "결과 없음",
+		"displayMode": "표시 모드",
+		"compact": "간결",
+		"detailed": "상세",
+		"imageFrom": "이미지 출처",
+		"imagePreview": {
+			"loadingFrom": "에서 이미지 로딩 중...",
+			"waitingTime": "대기 중",
+			"failedToLoadImage": "이미지 로드 실패",
+			"clickToOpenBrowser": "클릭하여 브라우저에서 열기",
+			"svgFrom": "SVG 출처"
+		},
+		"linkPreview": {
+			"loadingPreview": "미리보기 로딩 중",
+			"waitingTime": "대기 중",
+			"unableToLoad": "미리보기를 로드할 수 없습니다",
+			"timeoutError": "미리보기 요청 시간 초과",
+			"networkError": "네트워크 오류로 미리보기 로드 실패",
+			"clickToOpenBrowser": "클릭하여 브라우저에서 열기",
+			"noTitle": "제목 없음",
+			"noDescription": "설명 없음"
+		},
+		"displayModeDropdown": {
+			"plainText": "일반 텍스트",
+			"richDisplay": "리치 표시",
+			"markdown": "마크다운"
+		},
+		"configuration": {
+			"mcpServers": "MCP 서버",
+			"done": "완료",
+			"marketplace": "마켓플레이스",
+			"remoteServers": "원격 서버",
+			"configure": "구성"
+		},
+		"addLocalServer": {
+			"description": "cline_mcp_settings.json에서 로컬 MCP 서버를 구성하여 추가하세요. JSON 구성에서 서버 이름, 명령, 인수 및 필요한 환경 변수를 지정해야 합니다. 자세한 내용은",
+			"here": "여기",
+			"openSettings": "cline_mcp_settings.json 열기"
+		},
+		"addRemoteServer": {
+			"description": "이름과 URL 엔드포인트를 제공하여 원격 MCP 서버를 추가하세요. 자세한 내용은",
+			"here": "여기",
+			"serverName": "서버 이름",
+			"serverUrl": "서버 URL",
+			"transportType": "전송 유형",
+			"streamableHttp": "스트리밍 HTTP",
+			"sseLegacy": "SSE (레거시)",
+			"serverNameRequired": "서버 이름이 필요합니다",
+			"serverUrlRequired": "서버 URL이 필요합니다",
+			"invalidUrl": "잘못된 URL 형식",
+			"connecting": "연결 중...",
+			"addServer": "서버 추가",
+			"editConfiguration": "구성 편집"
+		},
+		"configureServers": {
+			"mcpDescription": "는 로컬에서 실행되는 MCP 서버와의 통신을 가능하게 하여 AACA Cline의 기능을 확장하는 추가 도구와 리소스를 제공합니다.",
+			"communityServers": "커뮤니티 제작 서버",
+			"askAACA Cline": "를 사용하거나 AACA Cline에게 워크플로우에 특화된 새로운 도구를 만들도록 요청할 수 있습니다 (예: \"최신 npm 문서를 가져오는 도구 추가\").",
+			"seeDemo": "데모 보기",
+			"orgManagesServers": "조직에서 일부 MCP 서버를 관리합니다",
+			"configureMcpServers": "MCP 서버 구성",
+			"advancedSettings": "고급 MCP 설정",
+			"modelContextProtocol": "Model Context Protocol"
+		},
+		"serverRow": {
+			"restartServer": "서버 재시작",
+			"deleteServer": "서버 삭제",
+			"authenticate": "인증",
+			"retrying": "재시도 중...",
+			"retryConnection": "연결 재시도",
+			"deleting": "삭제 중...",
+			"tools": "도구",
+			"resources": "리소스",
+			"autoApproveAll": "모든 도구 자동 승인",
+			"noToolsFound": "도구를 찾을 수 없습니다",
+			"noResourcesFound": "리소스를 찾을 수 없습니다",
+			"requestTimeout": "요청 제한 시간",
+			"restarting": "재시작 중...",
+			"restartServerBtn": "서버 재시작",
+			"deleteServerBtn": "서버 삭제",
+			"cannotDisable": "조직에서 활성화한 서버이므로 비활성화할 수 없습니다",
+			"timeoutOptions": {
+				"30seconds": "30초",
+				"1minute": "1분",
+				"5minutes": "5분",
+				"10minutes": "10분",
+				"30minutes": "30분",
+				"1hour": "1시간"
+			}
+		},
+		"toolRow": {
+			"autoApprove": "자동 승인",
+			"parameters": "매개변수",
+			"noDescription": "설명 없음"
+		},
+		"resourceRow": {
+			"returns": "반환",
+			"unknown": "알 수 없음",
+			"noDescription": "설명 없음"
+		},
+		"marketplaceView": {
+			"retry": "재시도",
+			"searchPlaceholder": "MCP 검색...",
+			"filter": "필터:",
+			"allCategories": "모든 카테고리",
+			"sort": "정렬:",
+			"mostInstalls": "설치 수",
+			"newest": "최신순",
+			"githubStars": "GitHub 스타",
+			"name": "이름",
+			"orgConfigured": "조직에서 사용 가능한 MCP 서버를 미리 구성했습니다",
+			"noMatching": "일치하는 MCP 서버를 찾을 수 없습니다",
+			"noServers": "마켓플레이스에서 MCP 서버를 찾을 수 없습니다"
+		},
+		"marketplaceCard": {
+			"installed": "설치됨",
+			"installing": "설치 중...",
+			"install": "설치",
+			"requiresApiKey": "API 키 필요"
+		},
+		"submitCard": {
+			"title": "MCP 서버 제출",
+			"description": "에 이슈를 제출하여 다른 사람들이 훌륭한 MCP 서버를 발견할 수 있도록 도와주세요"
 		}
 	},
-
+	"errors": {
+		"linkPreviewFetchFailed": "Failed to fetch link preview",
+		"linkPreviewUnknownError": "Unknown error occurred",
+		"linkPreviewLoading": "Loading preview from {host}...",
+		"linkPreviewWaitingMinutes": "Waiting {minutes}m {seconds}s...",
+		"linkPreviewWaitingSeconds": "Waiting {seconds}s...",
+		"linkPreviewUnableToLoad": "Unable to load preview",
+		"linkPreviewTimedOut": "Preview request timed out",
+		"linkPreviewNetworkError": "Network error loading preview",
+		"linkPreviewClickToOpen": "Click to open in browser",
+		"linkPreviewNoDescription": "No description available",
+		"linkPreviewNoTitle": "No title",
+		"linkPreviewErrorTitle": "Something went wrong displaying this link preview",
+		"mcpResponseProcessingFailed": "Failed to process MCP response",
+		"addRemoteServerFailed": "Failed to add remote server",
+		"mcpMarketplaceLoadFailed": "Failed to load MCP marketplace",
+		"imagePreviewErrorTitle": "Something went wrong displaying this image"
+	},
 	"taskHeader": {
 		"compactTask": "Compact Task",
 		"copyText": "Copy Text",
@@ -217,17 +499,16 @@
 		"collapseFocusChain": "Collapse focus chain",
 		"expandFocusChain": "Expand focus chain"
 	},
-
 	"featureSettings": {
 		"new": "NEW",
-		"clineCliRequired": "Cline for CLI is required for subagents. Install it with:",
+		"clineCliRequired": "AACA Cline for CLI is required for subagents. Install it with:",
 		"thenRun": ", then run",
-		"toAuthenticate": "To authenticate with Cline or configure an API provider.",
+		"toAuthenticate": "To authenticate with AACA Cline or configure an API provider.",
 		"installNow": "Install Now",
 		"subagentsEnabled": "Subagents Enabled",
 		"enableSubagents": "Enable Subagents",
 		"experimental": "Experimental:",
-		"subagentsDescription": "Allows Cline to spawn subprocesses to handle focused tasks like exploring large codebases, keeping your main context clean.",
+		"subagentsDescription": "Allows AACA Cline to spawn subprocesses to handle focused tasks like exploring large codebases, keeping your main context clean.",
 		"enableCheckpoints": "Enable Checkpoints",
 		"checkpointsDescription": "Enables extension to save checkpoints of workspace throughout the task. Uses git under the hood which may not work well with large workspaces.",
 		"mcpDisplayMode": "MCP Display Mode",
@@ -243,16 +524,16 @@
 		"enableFocusChain": "Enable Focus Chain",
 		"focusChainDescription": "Enables enhanced task progress tracking and automatic focus chain list management throughout tasks.",
 		"focusChainReminderInterval": "Focus Chain Reminder Interval",
-		"focusChainReminderDescription": "Interval (in messages) to remind Cline about its focus chain checklist (1-100). Lower values provide more frequent reminders.",
+		"focusChainReminderDescription": "Interval (in messages) to remind AACA Cline about its focus chain checklist (1-100). Lower values provide more frequent reminders.",
 		"enableDictation": "Enable Dictation",
-		"dictationDescription": "Enables speech-to-text transcription using your Cline account. Uses the Aqua Voice's Avalon model, at $0.0065 credits per minute of audio processed. 5 minutes max per message.",
+		"dictationDescription": "Enables speech-to-text transcription using your AACA Cline account. Uses the Aqua Voice's Avalon model, at $0.0065 credits per minute of audio processed. 5 minutes max per message.",
 		"enableAutoCompact": "Enable Auto Compact",
 		"autoCompactDescription": "Enables advanced context management system which uses LLM based condensing for next-gen models.",
 		"learnMore": "Learn more",
-		"enableClineWebTools": "Enable Cline Web Tools",
-		"clineWebToolsDescription": "Enables websearch and webfetch tools while using the Cline provider.",
+		"enableAACA ClineWebTools": "Enable AACA Cline Web Tools",
+		"clineWebToolsDescription": "Enables websearch and webfetch tools while using the AACA Cline provider.",
 		"enableWorktrees": "Enable Worktrees",
-		"worktreesDescription": "Enables git worktree management for running parallel Cline tasks.",
+		"worktreesDescription": "Enables git worktree management for running parallel AACA Cline tasks.",
 		"enableNativeToolCall": "Enable Native Tool Call",
 		"nativeToolCallDescription": "Uses the model's native tool calling API instead of XML-based tool parsing. This will improve performance for supported models.",
 		"enableParallelToolCalling": "Enable Parallel Tool Calling",
@@ -264,20 +545,19 @@
 		"enableSkills": "Enable Skills",
 		"skillsDescription": "Enables Skills for reusable, on-demand agent instructions from .cline/skills/ directories.",
 		"enableYoloMode": "Enable YOLO Mode",
-		"yoloModeWarning": "EXPERIMENTAL & DANGEROUS: This mode disables safety checks and user confirmations. Cline will automatically approve all actions without asking. Use with extreme caution.",
+		"yoloModeWarning": "EXPERIMENTAL & DANGEROUS: This mode disables safety checks and user confirmations. AACA Cline will automatically approve all actions without asking. Use with extreme caution.",
 		"remoteConfigManaged": "This setting is managed by your organization's remote configuration"
 	},
-
 	"browserSettings": {
 		"disableBrowserToolUsage": "Disable browser tool usage",
-		"disableBrowserDescription": "Prevent Cline from using browser actions (e.g. launch, click, type).",
+		"disableBrowserDescription": "Prevent AACA Cline from using browser actions (e.g. launch, click, type).",
 		"viewportSize": "Viewport size",
 		"viewportSizeDescription": "Set the size of the browser viewport for screenshots and interactions.",
 		"useRemoteBrowserConnection": "Use remote browser connection",
 		"checkingConnection": "Checking connection...",
 		"connected": "Connected",
 		"notConnected": "Not connected",
-		"remoteBrowserDescription": "Enable Cline to use your Chrome",
+		"remoteBrowserDescription": "Enable AACA Cline to use your Chrome",
 		"notDetected": "(not detected on your machine)",
 		"customPathDescription": ". You can specify a custom path below. Using a remote browser connection requires starting Chrome in debug mode",
 		"manuallyOrButton": " manually (<code>--remote-debugging-port=9222</code>) or using the button below. Enter the host address or leave it blank for automatic discovery.",
@@ -288,34 +568,31 @@
 		"customBrowserArguments": "Custom Browser Arguments (Optional)",
 		"customBrowserArgumentsDescription": "Space-separated arguments to pass to the browser executable."
 	},
-
 	"terminalSettings": {
 		"defaultTerminalProfile": "Default Terminal Profile",
-		"defaultTerminalProfileDescription": "Select the default terminal Cline will use. 'Default' uses your VSCode global setting.",
+		"defaultTerminalProfileDescription": "Select the default terminal AACA Cline will use. 'Default' uses your VSCode global setting.",
 		"shellIntegrationTimeout": "Shell integration timeout (seconds)",
-		"shellIntegrationTimeoutDescription": "Set how long Cline waits for shell integration to activate before executing commands. Increase this value if you experience terminal connection timeouts.",
+		"shellIntegrationTimeoutDescription": "Set how long AACA Cline waits for shell integration to activate before executing commands. Increase this value if you experience terminal connection timeouts.",
 		"enterPositiveNumber": "Please enter a positive number",
 		"enableAggressiveTerminalReuse": "Enable aggressive terminal reuse",
-		"aggressiveTerminalReuseDescription": "When enabled, Cline will reuse existing terminal windows that aren't in the current working directory. Disable this if you experience issues with task lockout after a terminal command.",
+		"aggressiveTerminalReuseDescription": "When enabled, AACA Cline will reuse existing terminal windows that aren't in the current working directory. Disable this if you experience issues with task lockout after a terminal command.",
 		"terminalExecutionMode": "Terminal Execution Mode",
-		"terminalExecutionModeDescription": "Choose whether Cline runs commands in the VS Code terminal or a background process.",
+		"terminalExecutionModeDescription": "Choose whether AACA Cline runs commands in the VS Code terminal or a background process.",
 		"vscodeTerminal": "VS Code Terminal",
 		"backgroundExec": "Background Exec",
 		"havingTerminalIssues": "Having terminal issues?",
 		"terminalQuickFixes": "Terminal Quick Fixes",
 		"completeTroubleshootingGuide": "Complete Troubleshooting Guide"
 	},
-
 	"generalSettings": {
 		"allowErrorUsageReporting": "Allow error and usage reporting",
-		"telemetryDescription": "Help improve Cline by sending usage data and error reports. No code, prompts, or personal information are ever sent.",
+		"telemetryDescription": "Help improve AACA Cline by sending usage data and error reports. No code, prompts, or personal information are ever sent.",
 		"telemetryOverview": "telemetry overview",
 		"privacyPolicy": "privacy policy",
 		"forMoreDetails": "for more details.",
 		"and": "and",
 		"remoteConfigManaged": "This setting is managed by your organization's remote configuration"
 	},
-
 	"autoApprove": {
 		"autoApprove": "Auto-approve",
 		"none": "None",
@@ -324,11 +601,10 @@
 		"disableInSettings": "Disable it in Settings",
 		"closeSettings": "Close auto-approve settings",
 		"openSettings": "Open auto-approve settings",
-		"description": "Let Cline take these actions without asking for approval.",
+		"description": "Let AACA Cline take these actions without asking for approval.",
 		"docs": "Docs",
 		"enableNotifications": "Enable notifications"
 	},
-
 	"account": {
 		"account": "Account",
 		"signIn": "Sign In",
@@ -336,7 +612,7 @@
 		"credits": "Credits",
 		"usage": "Usage",
 		"signUpDescription": "Sign up for an account to get access to the latest models, billing dashboard to view usage and credits, and more upcoming features.",
-		"signUpWithCline": "Sign up with Cline",
+		"signUpWithAACA Cline": "Sign up with AACA Cline",
 		"byContinuing": "By continuing, you agree to the",
 		"termsOfService": "Terms of Service",
 		"and": "and",
@@ -360,9 +636,8 @@
 		"cannotChangeRemoteConfig": "This cannot be changed while your organization has remote configuration enabled.",
 		"dashboard": "Dashboard",
 		"logOut": "Log out",
-		"clineEnvironment": "Cline Environment"
+		"clineEnvironment": "AACA Cline Environment"
 	},
-
 	"common": {
 		"loading": "Loading...",
 		"success": "Success",
@@ -386,7 +661,6 @@
 		"yes": "Yes",
 		"no": "No"
 	},
-
 	"providers": {
 		"apiKey": "API Key",
 		"enterApiKey": "Enter API Key...",
@@ -409,6 +683,193 @@
 		"modelConfiguration": "Model Configuration",
 		"requestTimeout": "Request Timeout (ms)",
 		"enterModelId": "Enter Model ID...",
-		"noteComplexPrompts": "Note: Cline uses complex prompts and works best with Claude models. Less capable models may not work as expected."
+		"noteComplexPrompts": "Note: AACA Cline uses complex prompts and works best with Claude models. Less capable models may not work as expected.",
+		"lmStudioDescription": "LM Studio를 사용하면 컴퓨터에서 로컬로 모델을 실행할 수 있습니다. 시작 방법에 대한 지침은",
+		"quickstartGuide": "빠른 시작 가이드",
+		"lmStudioServerNote": "를 참조하세요. 이 확장 프로그램과 함께 사용하려면 LM Studio의",
+		"localServer": "로컬 서버",
+		"featureWith": "기능을",
+		"toUseWithExtension": "로 시작해야 합니다.",
+		"ollamaDescription": "Ollama를 사용하면 컴퓨터에서 로컬로 모델을 실행할 수 있습니다. 시작 방법에 대한 지침은",
+		"unableToFetchModels": "Ollama 서버에서 모델을 가져올 수 없습니다. Ollama가 실행 중이고 액세스 가능한지 확인하거나 위에서 모델 ID를 수동으로 입력하세요.",
+		"maxTimeoutDescription": "API 응답을 기다리는 최대 시간(밀리초)입니다.",
+		"notEditableEndpointValue": "편집 불가 - 연결된 엔드포인트에서 반환된 값입니다",
+		"lmStudioModelPlaceholder": "예: meta-llama-3.1-8b-instruct",
+		"ollamaApiKeyHelp": "인증된 Ollama 인스턴스 또는 클라우드 서비스를 위한 선택적 API 키입니다. 로컬 설치의 경우 비워두세요.",
+		"ollamaApiKeyPlaceholder": "API 키 입력 (선택 사항)...",
+		"ollamaModelSearchPlaceholder": "모델 검색 및 선택...",
+		"ollamaModelExamplePlaceholder": "예: llama3.1",
+		"ollamaContextPlaceholder": "예: 32768",
+		"ollamaTimeoutPlaceholder": "기본값: 30000 (30초)",
+		"claudeCodeCliPath": "Claude Code CLI 경로",
+		"claudeCodeCliPathDescription": "Claude Code CLI 경로입니다.",
+		"claudeCodeUseLatestVersion": "기본적으로 최신 버전의 {model}을 사용합니다.",
+		"difyDescription": "Dify는 통합 API를 통해 다양한 AI 모델에 대한 액세스를 제공하는 플랫폼입니다. Dify 인스턴스 URL과 API 키를 구성하여 시작하세요.",
+		"difyModelNote": "참고: 모델 선택은 Dify 애플리케이션 구성 내에서 처리됩니다.",
+		"huggingFaceKeyDescription": "이 키는 로컬에 저장되며 이 확장 프로그램에서 API 요청을 하는 데만 사용됩니다. Hugging Face 프로바이더 설정에 따라 가격이 달라지며 API를 통해 일관되게 제공되지 않기 때문에 여기에 가격을 표시하지 않습니다",
+		"huggingFaceGetApiKey": "여기에서 API 키 받기",
+		"liteLlmThinkingModeInfo": "확장된 사고는 Sonnet-4, o3-mini, Deepseek R1 등과 같은 모델에서 사용할 수 있습니다. 자세한 내용은",
+		"liteLlmThinkingModeConfig": "사고 모드 구성",
+		"liteLlmDescription": "LiteLLM은 다양한 LLM 프로바이더의 모델에 액세스할 수 있는 통합 인터페이스를 제공합니다. 자세한 내용은",
+		"minimaxEntrypointDescription": "지역에 따라 API 엔드포인트를 선택하세요: 중국의 경우 <code>api.minimaxi.com</code>, 기타 모든 지역의 경우 <code>api.minimax.io</code>.",
+		"openAiCodexSignedIn": "OpenAI Codex에 로그인됨",
+		"openAiCodexSignInDescription": "API 키 없이 GPT-5 모델을 사용하려면 ChatGPT Plus 또는 Pro 구독으로 로그인하세요.",
+		"openAiCodexSignInButton": "OpenAI Codex에 로그인",
+		"qwenApiLineDescription": "위치에 따라 적절한 API 인터페이스를 선택하세요. 중국에 있는 경우 China API 인터페이스를 선택하세요. 그렇지 않으면 International API 인터페이스를 선택하세요.",
+		"vsCodeLmDescription": "GitHub Copilot 구독의 모델을 사용하세요.",
+		"vsCodeLmInstallCopilot": "Copilot 확장 프로그램을 설치하고",
+		"vsCodeLmEnableClaude": "Copilot 설정에서 Claude 모델을 활성화하여 시작하세요.",
+		"bedrockAuthDescription": "AWS Profile 자격 증명을 ~/.aws/credentials에서 사용합니다. 프로필 이름을 비워두면 기본 프로필을 사용합니다. 이러한 자격 증명은 이 확장 프로그램에서 API 요청을 하기 위해 로컬에서만 사용됩니다.",
+		"bedrockCredentialsDescription": "위의 키를 제공하거나 기본 AWS 자격 증명 프로바이더(예: ~/.aws/credentials 또는 환경 변수)를 사용하여 인증합니다. 이러한 자격 증명은 이 확장 프로그램에서 API 요청을 하기 위해 로컬에서만 사용됩니다.",
+		"bedrockCustomModelDescription": "Bedrock에서 Application Inference Profile을 사용할 때 \"Custom\"을 선택하세요. Model ID 필드에 Application Inference Profile ARN을 입력하세요.",
+		"ocaAdminSetupRequired": "IT 관리자에게 Oracle Code Assist를 모델 프로바이더로 설정하도록 요청하세요. Oracle 직원은",
+		"ocaQuickstartGuide": "빠른 시작 가이드",
+		"ocaFeedbackTitle": "Oracle Code Assist에 대한 아이디어가 있으신가요?",
+		"ocaProvideFeedback": "피드백 제공",
+		"sapAiCoreClientIdSet": "Client Id가 설정되었습니다. 변경하려면 값을 다시 입력하세요.",
+		"sapAiCoreClientSecretSet": "Client Secret이 설정되었습니다. 변경하려면 값을 다시 입력하세요.",
+		"sapAiCoreCredentialsDescription": "이러한 자격 증명은 로컬에 저장되며 이 확장 프로그램에서 API 요청을 하는 데만 사용됩니다.",
+		"sapAiCoreMoreInfo": "SAP AI Core API 액세스에 대한 자세한 정보는 여기에서 확인할 수 있습니다.",
+		"vercelKeyDescription": "이 키는 로컬에 저장되며 이 확장 프로그램에서 API 요청을 하는 데만 사용됩니다.",
+		"vercelGetApiKey": "Vercel AI Gateway API 키는",
+		"vercelSignUpHere": "여기에서 가입하여",
+		"vercelGetApiKeySuffix": "받을 수 있습니다.",
+		"vertexSetupStep1": "Google Cloud Vertex AI를 사용하려면",
+		"vertexSetupStep1Link": "1) Google Cloud 계정 생성 › Vertex AI API 활성화 › 원하는 Claude 모델 활성화,",
+		"vertexSetupStep2Link": "2) Google Cloud CLI 설치 › Application Default Credentials 구성.",
+		"xaiReasoningEffortModify": "추론 노력 수정",
+		"xaiReasoningEffort": "추론 노력",
+		"xaiReasoningEffortDescription": "높은 노력은 더 철저한 분석을 생성할 수 있지만 시간이 더 오래 걸리고 더 많은 토큰을 사용합니다.",
+		"zaiEntrypointDescription": "위치에 따라 적절한 API 엔드포인트를 선택하세요. 중국에 있는 경우 open.bigmodel.cn을 선택하세요. 그렇지 않으면 api.z.ai를 선택하세요.",
+		"bedrockApiKey": "API Key",
+		"bedrockAwsProfile": "AWS Profile",
+		"bedrockAwsCredentials": "AWS Credentials",
+		"bedrockAwsProfileName": "AWS Profile Name",
+		"bedrockAwsBedrockApiKey": "AWS Bedrock Api Key",
+		"bedrockAwsAccessKey": "AWS Access Key",
+		"bedrockAwsSecretKey": "AWS Secret Key",
+		"bedrockAwsSessionToken": "AWS Session Token",
+		"bedrockAwsRegion": "AWS Region",
+		"bedrockSelectRegion": "Select a region...",
+		"bedrockUseCustomVpcEndpoint": "Use custom VPC endpoint",
+		"bedrockUseCrossRegionInference": "Use cross-region inference",
+		"bedrockUseGlobalInferenceProfile": "Use global inference profile",
+		"bedrockUsePromptCaching": "Use prompt caching",
+		"bedrockSelectModel": "Select a model...",
+		"bedrockCustom": "Custom",
+		"bedrockModelId": "Model ID",
+		"bedrockBaseInferenceModel": "Base Inference Model",
+		"difyBaseUrl": "Base URL",
+		"liteLlmBaseUrlOptional": "Base URL (optional)",
+		"liteLlmApiKey": "API Key",
+		"ocaReasoningEffort": "Reasoning Effort",
+		"ocaConnecting": "Connecting…",
+		"ocaSignedIn": "Signed in",
+		"ocaUnknownUser": "Unknown User",
+		"ocaLogOut": "Log out",
+		"ocaCustomBaseUrl": "Custom Base URL (optional)",
+		"ocaFailedToRefresh": "Failed to refresh models. Check your session or network.",
+		"ocaRetry": "Retry",
+		"ocaSignInAgain": "Sign in again",
+		"ocaImAnOracleEmployee": "I'm an Oracle Employee",
+		"ocaSignInWithOracle": "Sign in with Oracle Code Assist",
+		"openAiCompatibleRemoteConfigTooltip": "This setting is managed by your organization's remote configuration",
+		"openAiCompatibleUseAzureIdentity": "Use Azure Identity Authentication",
+		"openAiCompatibleSupportsImages": "Supports Images",
+		"openAiCompatibleEnableR1Format": "Enable R1 messages format",
+		"openAiCompatibleContextWindowSize": "Context Window Size",
+		"openAiCompatibleMaxOutputTokens": "Max Output Tokens",
+		"openAiCompatibleInputPrice": "Input Price / 1M tokens",
+		"openAiCompatibleOutputPrice": "Output Price / 1M tokens",
+		"openAiCompatibleTemperature": "Temperature",
+		"sapAiCoreOrchestrationMode": "Orchestration Mode",
+		"sapAiCoreLoadingModels": "Loading models...",
+		"sapAiCoreOrchestrationEnabled": "When enabled, provides access to all available models without requiring individual deployments.",
+		"sapAiCoreOrchestrationDisabled": "When disabled, provides access only to deployed models in your AI Core service instance.",
+		"sapAiCoreUnableToFetch": "Unable to fetch models from SAP AI Core service instance. Please check your SAP AI Core configuration or ensure your deployments are deployed and running in the service instance",
+		"sapAiCoreConfigureCredentials": "Please configure your SAP AI Core credentials to see available models.",
+		"vsCodeLmSelectModel": "Select a model...",
+		"vsCodeLmLanguageModel": "Language Model",
+		"vercelAiGatewayApiKey": "Vercel AI Gateway API Key",
+		"vertexGoogleCloudProjectId": "Google Cloud Project ID",
+		"vertexGoogleCloudRegion": "Google Cloud Region",
+		"vertexSelectRegion": "Select a region..."
+	},
+	"onboarding": {
+		"howWillYouUseAACA Cline": "AACA Cline을 어떻게 사용하시겠습니까?",
+		"selectOptionBelow": "시작하려면 아래 옵션을 선택하세요.",
+		"selectFreeModel": "무료 모델 선택",
+		"selectYourModel": "모델 선택",
+		"configureProvider": "프로바이더 설정",
+		"almostThere": "거의 다 왔습니다!",
+		"completeAccountCreation": "브라우저에서 계정 생성을 완료하세요. 그런 다음 여기로 돌아와서 마무리하세요.",
+		"absolutelyFree": "완전 무료",
+		"getStartedNoCost": "무료로 시작하기",
+		"frontierModel": "최신 모델",
+		"frontierModelDesc": "Claude 4.5, GPT-5 Codex 등",
+		"bringOwnApiKey": "자신의 API 키 사용",
+		"bringOwnApiKeyDesc": "원하는 프로바이더로 AACA Cline 사용",
+		"continue": "계속",
+		"loginToAACA Cline": "AACA Cline에 로그인",
+		"createMyAccount": "계정 만들기",
+		"back": "뒤로",
+		"changeInSettings": "나중에 설정에서 변경할 수 있습니다",
+		"searchModel": "모델 검색...",
+		"otherOptions": "기타 옵션",
+		"noResultFound": "검색 결과 없음"
+	},
+	"aboutSection": {
+		"description": "CLI와 편집기를 사용할 수 있는 AI 어시스턴트입니다. AACA Cline은 파일 생성 및 편집, 대규모 프로젝트 탐색, 브라우저 사용, 터미널 명령 실행(권한 부여 후) 도구를 통해 복잡한 소프트웨어 개발 작업을 단계별로 처리할 수 있습니다.",
+		"communitySupport": "커뮤니티 및 지원",
+		"development": "개발",
+		"resources": "리소스"
+	},
+	"apiConfigSection": {
+		"planMode": "Plan 모드",
+		"actMode": "Act 모드",
+		"useDifferentModels": "Plan 및 Act 모드에 다른 모델 사용",
+		"useDifferentModelsDescription": "Plan 및 Act 모드 간 전환 시 이전 모드에서 사용한 API 및 모델이 유지됩니다. 예를 들어 강력한 추론 모델로 계획을 수립하고 저렴한 코딩 모델로 실행할 때 유용합니다."
+	},
+	"debugSection": {
+		"resetWorkspaceState": "워크스페이스 상태 초기화",
+		"resetGlobalState": "전역 상태 초기화",
+		"resetGlobalStateDescription": "확장 프로그램의 모든 전역 상태 및 비밀 저장소를 초기화합니다.",
+		"resetOnboardingState": "온보딩 상태 초기화"
+	},
+	"preferredLanguage": {
+		"label": "선호 언어",
+		"description": "AACA Cline이 의사소통에 사용할 언어입니다."
+	},
+	"terminalOutputLimit": {
+		"label": "터미널 출력 제한",
+		"description": "명령 실행 시 터미널 출력에 포함할 최대 라인 수입니다. 초과하면 중간 라인이 제거되어 토큰을 절약합니다."
+	},
+	"banner": {
+		"infoBanner": {
+			"title": "오른쪽 사이드바에서 AACA Cline 사용하기",
+			"description": "최상의 경험을 위해 AACA Cline 아이콘을 오른쪽 사이드바로 드래그하세요. 이렇게 하면 AACA Cline과 채팅하는 동안 파일 탐색기와 편집기를 볼 수 있어 코드베이스를 탐색하고 변경 사항을 실시간으로 확인하기 쉽습니다. [방법 보기 →](https://docs.cline.bot/features/customization/opening-cline-in-sidebar)"
+		},
+		"newModelOpus": {
+			"title": "Claude Opus 4.5 사용 가능",
+			"description": "Opus 4.1보다 3배 낮은 비용으로 최첨단 성능을 제공합니다. AACA Cline 프로바이더에서 지금 사용 가능합니다.",
+			"tryNow": "지금 사용해보기",
+			"getStarted": "시작하기"
+		},
+		"cliInstallUnix": {
+			"title": "CLI 및 서브에이전트 사용 가능",
+			"description": "터미널에서 AACA Cline을 사용하고 서브에이전트 기능을 활성화하세요. [자세히 보기](https://docs.cline.bot/cline-cli/overview)",
+			"install": "설치",
+			"enableSubagents": "서브에이전트 활성화"
+		},
+		"cliInfoWindows": {
+			"title": "AACA Cline CLI 정보",
+			"description": "macOS 및 Linux에서 사용 가능합니다. 다른 플랫폼에서도 곱 제공될 예정입니다. [자세히 보기](https://docs.cline.bot/cline-cli/overview)"
+		}
+	},
+	"home": {
+		"whatCanIDo": "무엇을 도와드릴까요?",
+		"takeATour": "둘러보기",
+		"recentTasks": "최근 작업",
+		"noRecentTasks": "최근 작업이 없습니다"
 	}
 }

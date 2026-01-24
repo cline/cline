@@ -83,7 +83,7 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 							setServerName((e.target as HTMLInputElement).value)
 							setError("")
 						}}
-						placeholder="mcp-server"
+						placeholder={t("mcp.addRemoteServer.serverNamePlaceholder")}
 						value={serverName}>
 						{t("mcp.addRemoteServer.serverName")}
 					</VSCodeTextField>
@@ -97,7 +97,7 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 							setServerUrl((e.target as HTMLInputElement).value)
 							setError("")
 						}}
-						placeholder="https://example.com/mcp-server"
+						placeholder={t("mcp.addRemoteServer.serverUrlPlaceholder")}
 						value={serverUrl}>
 						{t("mcp.addRemoteServer.serverUrl")}
 					</VSCodeTextField>

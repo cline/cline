@@ -236,8 +236,9 @@ const ImagePreviewContent: React.FC<ImagePreviewProps> = ({ url }) => {
 const MemoizedImagePreview = React.memo(ImagePreviewContent, (prevProps, nextProps) => prevProps.url === nextProps.url)
 
 const ImagePreviewWithErrorBoundary: React.FC<ImagePreviewProps> = (props) => {
+	const { t } = useTranslation()
 	return (
-		<ChatErrorBoundary errorTitle="Something went wrong displaying this image">
+		<ChatErrorBoundary errorTitle={t("errors.imagePreviewErrorTitle")}>
 			<MemoizedImagePreview {...props} />
 		</ChatErrorBoundary>
 	)
