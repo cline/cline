@@ -7,6 +7,7 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { fileExistsAtPath } from "@/utils/fs"
 import { Controller } from ".."
+import { getCoreMessage } from "../../coreMessages"
 import { openFile } from "./openFile"
 
 const SKILL_TEMPLATE = `---
@@ -73,7 +74,7 @@ export async function createSkillFile(controller: Controller, request: CreateSki
 	if (await fileExistsAtPath(skillDir)) {
 		await HostProvider.window.showMessage({
 			type: ShowMessageType.WARNING,
-			message: `Skill "${sanitizedName}" already exists`,
+			message: getCoreMessage("createSkillAlreadyExists", { name: sanitizedName }),
 		})
 		// Return current toggles
 		const globalToggles = controller.stateManager.getGlobalSettingsKey("globalSkillsToggles") || {}

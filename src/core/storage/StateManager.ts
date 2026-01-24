@@ -20,6 +20,7 @@ import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
+import { getCoreMessage } from "../coreMessages"
 import {
 	getTaskHistoryStateFilePath,
 	readTaskHistoryFromState,
@@ -271,7 +272,7 @@ export class StateManager {
 			Logger.error("[StateManager] Failed to load task settings:", error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: `Failed to load task settings, defaulting to globally selected settings.`,
+				message: getCoreMessage("stateManagerLoadTaskSettingsFailed"),
 			})
 		}
 	}

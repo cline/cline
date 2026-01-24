@@ -61,7 +61,7 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 			onServerAdded()
 		} catch (error) {
 			setIsSubmitting(false)
-			setError(error instanceof Error ? error.message : "Failed to add server")
+			setError(error instanceof Error ? error.message : t("errors.addRemoteServerFailed"))
 		}
 	}
 

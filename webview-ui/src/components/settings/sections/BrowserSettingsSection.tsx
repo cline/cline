@@ -149,7 +149,7 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({ 
 				console.error("Error relaunching Chrome:", error)
 				setRelaunchResult({
 					success: false,
-					message: `Error relaunching Chrome: ${error.message}`,
+					message: t("errors.browserRelaunchFailed", { message: error.message }),
 				})
 				setDebugMode(false)
 			})

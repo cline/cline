@@ -8,6 +8,7 @@ import * as telemetry from "@/services/telemetry"
 import * as pathUtils from "@/utils/path"
 import { setupWorkspaceManager } from "../setup"
 import { WorkspaceRootManager } from "../WorkspaceRootManager"
+import { getCoreMessage } from "../../coreMessages"
 
 describe("setupWorkspaceManager", () => {
 	const sandbox = sinon.createSandbox()
@@ -185,6 +186,6 @@ describe("setupWorkspaceManager", () => {
 		const showMessageSpy = HostProvider.window.showMessage as sinon.SinonStub
 		expect(showMessageSpy.calledOnce).to.equal(true)
 		const msg = showMessageSpy.getCall(0).args[0]
-		expect(msg?.message || "").to.match(/Failed to initialize workspace/i)
+		expect(msg?.message || "").to.equal(getCoreMessage("workspaceInitFailedFallback"))
 	})
 })

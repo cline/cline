@@ -83,7 +83,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 			}
 		} catch (error) {
 			console.error("Error fetching SAP AI Core models:", error)
-			setModelError("Failed to fetch models. Please check your configuration.")
+			setModelError(t("errors.sapAiCoreFetchModelsFailed"))
 			setSapAiCoreModelDeployments([])
 			setOrchestrationAvailable(false)
 			setHasCheckedOrchestration(true)
@@ -96,6 +96,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 		apiConfiguration?.sapAiCoreBaseUrl,
 		apiConfiguration?.sapAiCoreTokenUrl,
 		apiConfiguration?.sapAiResourceGroup,
+		t,
 	])
 
 	// Fetch models when configuration changes

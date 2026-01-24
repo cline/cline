@@ -53,7 +53,11 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 						return (
 							<p className="m-0 whitespace-pre-wrap text-error wrap-anywhere">
 								{errorMessage}
-								{requestId && <div>Request ID: {requestId}</div>}
+								{requestId && (
+									<div>
+										{t("errors.requestId")}: {requestId}
+									</div>
+								)}
 							</p>
 						)
 					}
@@ -66,17 +70,21 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 								{providerId && <span className="uppercase">[{providerId}] </span>}
 								{errorCode && <span>{errorCode}</span>}
 								{errorMessage}
-								{requestId && <div>Request ID: {requestId}</div>}
+								{requestId && (
+									<div>
+										{t("errors.requestId")}: {requestId}
+									</div>
+								)}
 							</header>
 
 							{/* Windows Powershell Issue */}
 							{errorMessage?.toLowerCase()?.includes("powershell") && (
 								<div>
-									{t("errorRow.powershellIssue")}{" "}
+									{t("errors.powershellIssue")}{" "}
 									<a
 										className="underline text-inherit"
 										href="https://github.com/cline/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22">
-										{t("errorRow.troubleshootingGuide")}
+										{t("errors.troubleshootingGuide")}
 									</a>
 									.
 								</div>
@@ -90,7 +98,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 								{/* The user is signed in or not using cline provider */}
 								{isClineProvider && !clineUser ? (
 									<Button className="w-full mb-4" disabled={isLoginLoading} onClick={handleSignIn}>
-										{t("chat.signInToCline")}
+										{t("errors.signInToCline")}
 										{isLoginLoading && (
 											<span className="ml-1 animate-spin">
 												<span className="codicon codicon-refresh"></span>
@@ -98,7 +106,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 										)}
 									</Button>
 								) : (
-									<span className="mb-4 text-description">({t("chat.clickRetryBelow")})</span>
+									<span className="mb-4 text-description">({t("errors.clickRetryBelow")})</span>
 								)}
 							</div>
 						</p>
@@ -111,14 +119,14 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 			case "diff_error":
 				return (
 					<div className="flex flex-col p-2 rounded text-xs opacity-80 bg-quote text-foreground">
-						<div>{t("chat.diffError")}</div>
+						<div>{t("errors.diffError")}</div>
 					</div>
 				)
 
 			case "clineignore_error":
 				return (
 					<div className="flex flex-col p-2 rounded text-xs opacity-80 bg-quote text-foreground">
-						<div>{t("chat.clineignoreError", { file: message.text, clineignore: ".clineignore" })}</div>
+						<div>{t("errors.clineignoreError", { file: message.text, clineignore: ".clineignore" })}</div>
 					</div>
 				)
 

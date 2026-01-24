@@ -6,6 +6,7 @@ import { ShowMessageType } from "@shared/proto/host/window"
 import { fileExistsAtPath } from "@utils/fs"
 import * as path from "path"
 import { ulid } from "ulid"
+import { getCoreMessage } from "@/core/coreMessages"
 import { Logger } from "@/shared/services/Logger"
 
 interface TaskReconstructionResult {
@@ -25,14 +26,13 @@ export async function reconstructTaskHistory(showNotifications = true): Promise<
 		// Show confirmation dialog using HostProvider
 		const proceed = await HostProvider.window.showMessage({
 			type: ShowMessageType.WARNING,
-			message:
-				"This will rebuild your task history from existing task data. This operation will backup your current task history and attempt to reconstruct it from task folders. Continue?",
+			message: getCoreMessage("reconstructConfirm"),
 			options: {
-				items: ["Yes, Reconstruct", "Cancel"],
+				items: [getCoreMessage("reconstructOptionConfirm"), getCoreMessage("commonCancel")],
 			},
 		})
 
-		if (proceed?.selectedOption !== "Yes, Reconstruct") {
+		if (proceed?.selectedOption !== getCoreMessage("reconstructOptionConfirm")) {
 			return null
 		}
 
@@ -40,7 +40,7 @@ export async function reconstructTaskHistory(showNotifications = true): Promise<
 			// Show initial progress message
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
-				message: "Reconstructing task history...",
+				message: getCoreMessage("reconstructing"),
 			})
 		}
 
@@ -49,7 +49,12 @@ export async function reconstructTaskHistory(showNotifications = true): Promise<
 		// Show results
 		if (showNotifications) {
 			if (result.errors.length > 0) {
-				const errorMessage = `Reconstruction completed with warnings:\n- Reconstructed: ${result.reconstructedTasks} tasks\n- Skipped: ${result.skippedTasks} tasks\n- Errors: ${result.errors.length}\n\nFirst few errors:\n${result.errors.slice(0, 3).join("\n")}`
+				const errorMessage = getCoreMessage("reconstructWarnings", {
+					reconstructed: result.reconstructedTasks,
+					skipped: result.skippedTasks,
+					errors: result.errors.length,
+					errorList: result.errors.slice(0, 3).join("\n"),
+				})
 
 				HostProvider.window.showMessage({
 					type: ShowMessageType.WARNING,
@@ -58,7 +63,7 @@ export async function reconstructTaskHistory(showNotifications = true): Promise<
 			} else {
 				HostProvider.window.showMessage({
 					type: ShowMessageType.INFORMATION,
-					message: `Task history successfully reconstructed! Found and restored ${result.reconstructedTasks} tasks.`,
+					message: getCoreMessage("reconstructSuccess", { reconstructed: result.reconstructedTasks }),
 				})
 			}
 		}
@@ -69,7 +74,7 @@ export async function reconstructTaskHistory(showNotifications = true): Promise<
 		if (showNotifications) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: `Failed to reconstruct task history: ${errorMessage}`,
+				message: getCoreMessage("reconstructFailed", { error: errorMessage }),
 			})
 		}
 		return null
@@ -92,7 +97,7 @@ async function performTaskHistoryReconstruction(): Promise<TaskReconstructionRes
 
 	// Check if tasks directory exists
 	if (!(await fileExistsAtPath(tasksDir))) {
-		throw new Error("No tasks directory found. Nothing to reconstruct.")
+		throw new Error(getCoreMessage("reconstructNoTasksDir"))
 	}
 
 	// Scan for task directories
@@ -100,7 +105,7 @@ async function performTaskHistoryReconstruction(): Promise<TaskReconstructionRes
 	result.totalTasks = taskIds.length
 
 	if (taskIds.length === 0) {
-		throw new Error("No task directories found. Nothing to reconstruct.")
+		throw new Error(getCoreMessage("reconstructNoTaskDirs"))
 	}
 
 	// Process each task
@@ -118,7 +123,7 @@ async function performTaskHistoryReconstruction(): Promise<TaskReconstructionRes
 		} catch (error) {
 			result.skippedTasks++
 			const errorMsg = error instanceof Error ? error.message : String(error)
-			result.errors.push(`Task ${taskId}: ${errorMsg}`)
+			result.errors.push(getCoreMessage("reconstructTaskFailed", { taskId, error: errorMsg }))
 		}
 	}
 
@@ -158,7 +163,7 @@ async function scanTaskDirectories(tasksDir: string): Promise<string[]> {
 			.map((entry) => entry.name)
 			.filter((name) => /^\d+$/.test(name)) // Only numeric task IDs
 	} catch (error) {
-		throw new Error(`Failed to scan tasks directory: ${error}`)
+		throw new Error(getCoreMessage("reconstructScanFailed", { error: String(error) }))
 	}
 }
 
@@ -194,7 +199,7 @@ async function reconstructTaskHistoryItem(taskId: string): Promise<HistoryItem |
 
 		return historyItem
 	} catch (error) {
-		throw new Error(`Failed to reconstruct task ${taskId}: ${error}`)
+		throw new Error(getCoreMessage("reconstructTaskFailed", { taskId, error: String(error) }))
 	}
 }
 
@@ -220,7 +225,7 @@ function extractTaskInformation(clineMessages: ClineMessage[], metadata: any): T
 	const timestamp = clineMessages.length > 0 ? clineMessages[0].ts : Date.now()
 
 	// Extract task description
-	let taskDescription = "Untitled Task"
+	let taskDescription = getCoreMessage("reconstructUntitledTask")
 	if (firstUserMessage?.text) {
 		// Clean up the task description
 		const cleanText = firstUserMessage.text

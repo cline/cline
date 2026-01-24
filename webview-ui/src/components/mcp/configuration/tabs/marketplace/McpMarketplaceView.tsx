@@ -88,7 +88,7 @@ const McpMarketplaceView = () => {
 				})
 				.catch((error) => {
 					console.error("Error refreshing MCP marketplace:", error)
-					setError("Failed to load marketplace data")
+					setError(t("errors.mcpMarketplaceLoadFailed"))
 					setIsLoading(false)
 					setIsRefreshing(false)
 				})

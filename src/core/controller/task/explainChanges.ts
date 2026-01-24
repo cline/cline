@@ -7,6 +7,7 @@ import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 import { sendRelinquishControlEvent } from "../ui/subscribeToRelinquishControl"
+import { getCoreMessage } from "../../coreMessages"
 import {
 	buildDiffContent,
 	openDiffView,
@@ -34,7 +35,7 @@ export async function explainChanges(controller: Controller, request: ExplainCha
 		if (!controller.task) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: "No active task",
+				message: getCoreMessage("explainChangesNoActiveTask"),
 			})
 			relinquishButton()
 			return Empty.create({})
@@ -44,7 +45,7 @@ export async function explainChanges(controller: Controller, request: ExplainCha
 		if (!checkpointManager) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: "Checkpoints not enabled",
+				message: getCoreMessage("explainChangesCheckpointsNotEnabled"),
 			})
 			relinquishButton()
 			return Empty.create({})
@@ -54,7 +55,7 @@ export async function explainChanges(controller: Controller, request: ExplainCha
 		if (!checkpointManager.config?.enableCheckpoints) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
-				message: "Checkpoints are disabled in settings. Cannot review changes.",
+				message: getCoreMessage("explainChangesCheckpointsDisabled"),
 			})
 			relinquishButton()
 			return Empty.create({})
@@ -65,7 +66,7 @@ export async function explainChanges(controller: Controller, request: ExplainCha
 		if (!messageStateHandler) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: "Message state handler not available",
+				message: getCoreMessage("explainChangesMessageStateHandlerUnavailable"),
 			})
 			relinquishButton()
 			return Empty.create({})
@@ -104,12 +105,12 @@ export async function explainChanges(controller: Controller, request: ExplainCha
 				)
 				messageStateHandler.setCheckpointTracker(checkpointManager.state.checkpointTracker)
 			} catch (error) {
-				const errorMessage = error instanceof Error ? error.message : "Unknown error"
+				const errorMessage = error instanceof Error ? error.message : getCoreMessage("unknownErrorOccurred")
 				Logger.error(`[explainChanges] Failed to initialize checkpoint tracker:`, errorMessage)
 				checkpointManager.state.checkpointManagerErrorMessage = errorMessage
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
-					message: errorMessage,
+					message: getCoreMessage("explainChangesFailed", { error: errorMessage }),
 				})
 				relinquishButton()
 				return Empty.create({})
@@ -121,7 +122,7 @@ export async function explainChanges(controller: Controller, request: ExplainCha
 			Logger.error(`[explainChanges] Checkpoint tracker not available`)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: "Checkpoint tracker not available",
+				message: getCoreMessage("explainChangesCheckpointTrackerUnavailable"),
 			})
 			relinquishButton()
 			return Empty.create({})
@@ -142,7 +143,7 @@ export async function explainChanges(controller: Controller, request: ExplainCha
 		if (!previousCheckpointHash) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: "Unexpected error: No checkpoint hash found",
+				message: getCoreMessage("explainChangesNoCheckpointHash"),
 			})
 			relinquishButton()
 			return Empty.create({})
@@ -152,7 +153,7 @@ export async function explainChanges(controller: Controller, request: ExplainCha
 		if (!changedFiles?.length) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
-				message: "No changes found to review",
+				message: getCoreMessage("explainChangesNoChangesFound"),
 			})
 			relinquishButton()
 			return Empty.create({})
@@ -163,7 +164,7 @@ export async function explainChanges(controller: Controller, request: ExplainCha
 		if (!apiConfiguration) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: "API configuration not available",
+				message: getCoreMessage("explainChangesApiConfigUnavailable"),
 			})
 			relinquishButton()
 			return Empty.create({})
@@ -185,7 +186,7 @@ export async function explainChanges(controller: Controller, request: ExplainCha
 
 		// If 2 or fewer files, open the diff view first so user sees it immediately
 		if (!shouldRevealComments) {
-			await openDiffView("Explain Changes", changedFiles)
+			await openDiffView(getCoreMessage("explainChangesTitle"), changedFiles)
 		}
 
 		// Capture reference to the task for abort checking
@@ -233,18 +234,18 @@ export async function explainChanges(controller: Controller, request: ExplainCha
 
 		// After all comments are done, open the multi-diff view to show everything together (if 3+ files)
 		if (shouldRevealComments) {
-			await openDiffView("Explain Changes", changedFiles)
+			await openDiffView(getCoreMessage("explainChangesTitle"), changedFiles)
 		}
 
 		// Relinquish button after comments are done
 		relinquishButton()
 		return Empty.create({})
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : "Unknown error"
+		const errorMessage = error instanceof Error ? error.message : getCoreMessage("unknownErrorOccurred")
 		Logger.error("Error in explainChanges:", errorMessage)
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: "Failed to explain changes: " + errorMessage,
+			message: getCoreMessage("explainChangesFailed", { error: errorMessage }),
 		})
 		sendRelinquishControlEvent()
 		return Empty.create({})

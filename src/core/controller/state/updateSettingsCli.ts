@@ -14,6 +14,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
+import { getCoreMessage } from "../../coreMessages"
 import { telemetryService } from "../../../services/telemetry"
 import { Controller } from ".."
 import { accountLogoutClicked } from "../account/accountLogoutClicked"
@@ -247,7 +248,10 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 
 					// Show information message if terminals were closed
 					if (closedCount > 0) {
-						const message = `Closed ${closedCount} ${closedCount === 1 ? "terminal" : "terminals"} with different profile.`
+						const message =
+							closedCount === 1
+								? getCoreMessage("terminalProfileClosedSingle", { count: closedCount })
+								: getCoreMessage("terminalProfileClosedMultiple", { count: closedCount })
 						HostProvider.window.showMessage({
 							type: ShowMessageType.INFORMATION,
 							message,
@@ -257,8 +261,9 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 					// Show warning if there are busy terminals that couldn't be closed
 					if (busyTerminalsCount > 0) {
 						const message =
-							`${busyTerminalsCount} busy ${busyTerminalsCount === 1 ? "terminal has" : "terminals have"} a different profile. ` +
-							`Close ${busyTerminalsCount === 1 ? "it" : "them"} to use the new profile for all commands.`
+							busyTerminalsCount === 1
+								? getCoreMessage("terminalProfileBusySingle", { count: busyTerminalsCount })
+								: getCoreMessage("terminalProfileBusyMultiple", { count: busyTerminalsCount })
 						HostProvider.window.showMessage({
 							type: ShowMessageType.WARNING,
 							message,

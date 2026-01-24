@@ -5,6 +5,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
+import { getCoreMessage } from "../../coreMessages"
 
 /**
  * Deletes a rule file from either global or workspace rules directory
@@ -43,9 +44,8 @@ export async function deleteRuleFile(controller: Controller, request: RuleFileRe
 
 	const fileName = getWorkspaceBasename(request.rulePath, "Controller.deleteRuleFile")
 
-	const fileTypeName = request.type === "workflow" ? "workflow" : "rule"
-
-	const message = `${fileTypeName} file "${fileName}" deleted successfully`
+	const fileTypeName = request.type === "workflow" ? getCoreMessage("fileTypeWorkflow") : getCoreMessage("fileTypeRule")
+	const message = getCoreMessage("ruleFileDeleted", { fileType: fileTypeName, fileName })
 	HostProvider.window.showMessage({
 		type: ShowMessageType.INFORMATION,
 		message,

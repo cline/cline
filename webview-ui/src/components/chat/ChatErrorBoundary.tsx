@@ -1,5 +1,6 @@
 import React from "react"
 import { useTranslation } from "react-i18next"
+import i18n from "@/i18n/config"
 
 interface ChatErrorBoundaryProps {
 	children: React.ReactNode
@@ -65,8 +66,10 @@ const ErrorContent: React.FC<{ errorTitle?: string; errorMessage?: string; error
 	const { t } = useTranslation()
 	return (
 		<>
-			<h3 style={{ margin: "0 0 8px 0" }}>{errorTitle || t("chat.somethingWentWrong")}</h3>
-			<p style={{ margin: "0" }}>{errorBody || `${t("chat.error")}: ${errorMessage || t("chat.unknownError")}`}</p>
+			<h3 style={{ margin: "0 0 8px 0" }}>{errorTitle || t("errors.somethingWentWrong")}</h3>
+			<p style={{ margin: "0" }}>
+				{errorBody || `${t("errors.error")}: ${errorMessage || t("errors.unknownError")}`}
+			</p>
 		</>
 	)
 }
@@ -135,7 +138,10 @@ export class ErrorAfterDelay extends React.Component<ErrorAfterDelayProps, Error
 					borderRadius: "0 0 0 4px",
 					zIndex: 100,
 				}}>
-				Error in {this.state.tickCount}/{this.props.numSecondsToWait ?? 5} seconds
+				{i18n.t("errors.errorAfterDelay", {
+					current: this.state.tickCount,
+					total: this.props.numSecondsToWait ?? 5,
+				})}
 			</div>
 		)
 	}

@@ -5,8 +5,10 @@ export const errorMessages = {
 		somethingWentWrong: "Something went wrong",
 		error: "Error",
 		unknownError: "Unknown error",
+		tryAgain: "Try Again",
 
 		// API errors
+		apiError: "API Error",
 		apiRequestFailed: "API Request Failed",
 		apiRequestCancelled: "API Request Cancelled",
 		networkError: "Network error: Unable to connect to the API server. Please check your internet connection and try again.",
@@ -65,6 +67,57 @@ export const errorMessages = {
 		invalidInput: "Invalid input",
 		requiredField: "This field is required",
 
+		// MCP UI errors
+		mcpMarketplaceLoadFailed: "Failed to load marketplace data",
+		addRemoteServerFailed: "Failed to add server",
+		mcpResponseProcessingFailed: "Failed to process response content. Switch to plain text mode to view safely.",
+
+		// Cline rules errors
+		skillNameInvalid: "Skill name can only contain letters, numbers, dashes, and underscores",
+		ruleFileExtensionInvalid: "Only .md, .txt, or no file extension allowed",
+
+		// Provider errors
+		sapAiCoreFetchModelsFailed: "Failed to fetch models. Please check your configuration.",
+		ocaRefreshModelsFailed: "Failed to refresh models. Check your session or network.",
+
+		// Browser errors
+		browserRelaunchFailed: "Error relaunching Chrome: {{message}}",
+
+		// Worktree errors
+		worktreesLoadFailed: "Failed to load worktrees",
+		worktreeIncludeCreateFailed: "Failed to create .worktreeinclude",
+		worktreeDeleteFailed: "Failed to delete worktree",
+		worktreeMergeFailed: "Failed to merge worktree",
+		worktreeCreateTaskFailed: "Failed to create task for Cline",
+		worktreeCreateFailed: "Failed to create worktree",
+
+		// Voice recorder errors
+		voiceRecorderStartFailed: "Failed to start recording",
+		voiceRecorderStopFailed: "Failed to stop recording",
+		voiceRecorderNoAudioData: "No audio data received",
+		voiceRecorderCancelFailed: "Failed to cancel recording",
+		voiceRecorderErrorGeneric: "An error occurred",
+
+		// Chat explanation errors
+		explanationGenerationFailed: "Failed to generate explanation",
+
+		// Link preview errors
+		linkPreviewErrorTitle: "Something went wrong displaying this link preview",
+		linkPreviewFetchFailed: "Failed to fetch Open Graph data",
+		linkPreviewUnknownError: "Unknown error occurred",
+		linkPreviewUnableToLoad: "Unable to load preview",
+		linkPreviewTimedOut: "Preview request timed out",
+		linkPreviewNetworkError: "Network error loading preview",
+		linkPreviewClickToOpen: "Click to open in browser",
+		linkPreviewNoDescription: "No description available",
+		linkPreviewNoTitle: "No title",
+		linkPreviewLoading: "Loading preview for {{host}}...",
+		linkPreviewWaitingSeconds: "Waiting for {{seconds}}s...",
+		linkPreviewWaitingMinutes: "Waiting for {{minutes}}m {{seconds}}s...",
+
+		// Demo error boundary
+		errorAfterDelay: "Error in {{current}}/{{total}} seconds",
+
 		// Recording errors
 		recordingFailed: "Failed to start recording",
 		recordingStopFailed: "Failed to stop recording",
@@ -91,8 +144,10 @@ export const errorMessages = {
 		somethingWentWrong: "문제가 발생했습니다",
 		error: "오류",
 		unknownError: "알 수 없는 오류",
+		tryAgain: "다시 시도",
 
 		// API 오류
+		apiError: "API 오류",
 		apiRequestFailed: "API 요청 실패",
 		apiRequestCancelled: "API 요청 취소됨",
 		networkError: "네트워크 오류: API 서버에 연결할 수 없습니다. 인터넷 연결을 확인하고 다시 시도해주세요.",
@@ -150,6 +205,57 @@ export const errorMessages = {
 		validationError: "유효성 검사 오류",
 		invalidInput: "잘못된 입력",
 		requiredField: "필수 항목입니다",
+
+		// MCP UI 오류
+		mcpMarketplaceLoadFailed: "마켓플레이스 데이터를 불러오지 못했습니다",
+		addRemoteServerFailed: "서버 추가에 실패했습니다",
+		mcpResponseProcessingFailed: "응답 내용을 처리하지 못했습니다. 안전하게 보려면 일반 텍스트 모드로 전환하세요.",
+
+		// Cline 규칙 오류
+		skillNameInvalid: "스킬 이름은 영문, 숫자, 하이픈, 밑줄만 사용할 수 있습니다",
+		ruleFileExtensionInvalid: "확장자는 .md, .txt 또는 없음만 허용됩니다",
+
+		// 프로바이더 오류
+		sapAiCoreFetchModelsFailed: "모델을 가져오지 못했습니다. 설정을 확인하세요.",
+		ocaRefreshModelsFailed: "모델을 새로고침하지 못했습니다. 세션이나 네트워크를 확인하세요.",
+
+		// 브라우저 오류
+		browserRelaunchFailed: "Chrome 재실행 오류: {{message}}",
+
+		// 워크트리 오류
+		worktreesLoadFailed: "워크트리를 불러오지 못했습니다",
+		worktreeIncludeCreateFailed: ".worktreeinclude 생성에 실패했습니다",
+		worktreeDeleteFailed: "워크트리 삭제에 실패했습니다",
+		worktreeMergeFailed: "워크트리 병합에 실패했습니다",
+		worktreeCreateTaskFailed: "Cline용 작업을 생성하지 못했습니다",
+		worktreeCreateFailed: "워크트리 생성에 실패했습니다",
+
+		// 음성 녹음 오류
+		voiceRecorderStartFailed: "녹음을 시작하지 못했습니다",
+		voiceRecorderStopFailed: "녹음을 중지하지 못했습니다",
+		voiceRecorderNoAudioData: "오디오 데이터를 받지 못했습니다",
+		voiceRecorderCancelFailed: "녹음을 취소하지 못했습니다",
+		voiceRecorderErrorGeneric: "오류가 발생했습니다",
+
+		// 채팅 설명 오류
+		explanationGenerationFailed: "설명을 생성하지 못했습니다",
+
+		// 링크 미리보기 오류
+		linkPreviewErrorTitle: "이 링크 미리보기를 표시하는 중 문제가 발생했습니다",
+		linkPreviewFetchFailed: "Open Graph 데이터를 가져오지 못했습니다",
+		linkPreviewUnknownError: "알 수 없는 오류가 발생했습니다",
+		linkPreviewUnableToLoad: "미리보기를 불러올 수 없습니다",
+		linkPreviewTimedOut: "미리보기 요청 시간이 초과되었습니다",
+		linkPreviewNetworkError: "미리보기 로딩 중 네트워크 오류",
+		linkPreviewClickToOpen: "클릭하여 브라우저에서 열기",
+		linkPreviewNoDescription: "설명이 없습니다",
+		linkPreviewNoTitle: "제목 없음",
+		linkPreviewLoading: "{{host}} 미리보기 로딩 중...",
+		linkPreviewWaitingSeconds: "{{seconds}}초 대기 중...",
+		linkPreviewWaitingMinutes: "{{minutes}}분 {{seconds}}초 대기 중...",
+
+		// 데모 에러 바운더리
+		errorAfterDelay: "오류 발생까지 {{current}}/{{total}}초",
 
 		// 녹음 오류
 		recordingFailed: "녹음 시작 실패",

@@ -2,6 +2,7 @@ import { TranscribeAudioRequest } from "@shared/proto/cline/dictation"
 import { EmptyRequest } from "@shared/proto/index.cline"
 import { SquareIcon, StopCircleIcon } from "lucide-react"
 import React, { useCallback, useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -27,6 +28,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 	language = "en",
 	isAuthenticated = false,
 }) => {
+	const { t } = useTranslation()
 	const [isRecording, setIsRecording] = useState(false)
 	const [isProcessing, setIsProcessing] = useState(false)
 	const [isStarting, setIsStarting] = useState(false) // New state for loading
@@ -62,7 +64,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 
 			if (!response.success) {
 				console.error("Failed to start recording:", response.error)
-				setError(response.error || "Failed to start recording")
+				setError(response.error || t("errors.voiceRecorderStartFailed"))
 				return
 			}
 
@@ -71,13 +73,13 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			console.log("Recording started successfully")
 		} catch (error) {
 			console.error("Error starting recording:", error)
-			const errorMessage = error instanceof Error ? error.message : "Failed to start recording"
+			const errorMessage = error instanceof Error ? error.message : t("errors.voiceRecorderStartFailed")
 			setError(errorMessage)
 		} finally {
 			// Always clear the starting state
 			setIsStarting(false)
 		}
-	}, [onProcessingStateChange])
+	}, [onProcessingStateChange, t])
 
 	const stopRecording = useCallback(async () => {
 		try {
@@ -91,7 +93,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			if (!response.success) {
 				console.error("Failed to stop recording:", response.error)
 				setIsProcessing(false)
-				const errorMessage = response.error || "Failed to stop recording"
+				const errorMessage = response.error || t("errors.voiceRecorderStopFailed")
 				setError(errorMessage)
 				onTranscription("")
 				return
@@ -99,7 +101,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 
 			if (!response.audioBase64) {
 				setIsProcessing(false)
-				const errorMessage = "No audio data received"
+				const errorMessage = t("errors.voiceRecorderNoAudioData")
 				setError(errorMessage)
 				onTranscription("")
 				return
@@ -131,13 +133,13 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			}
 		} catch (error) {
 			console.error("Error stopping recording:", error)
-			const errorMessage = error instanceof Error ? error.message : "An error occurred"
+			const errorMessage = error instanceof Error ? error.message : t("errors.voiceRecorderErrorGeneric")
 			setError(errorMessage)
 			onTranscription("")
 		} finally {
 			setIsProcessing(false)
 		}
-	}, [onTranscription, onProcessingStateChange])
+	}, [onTranscription, onProcessingStateChange, t])
 
 	// Poll recording status while recording to update duration
 	useEffect(() => {
@@ -188,17 +190,17 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 
 			if (!response.success) {
 				console.error("Failed to cancel recording:", response.error)
-				setError(response.error || "Failed to cancel recording")
+				setError(response.error || t("errors.voiceRecorderCancelFailed"))
 				return
 			}
 
 			console.log("Recording canceled successfully")
 		} catch (error) {
 			console.error("Error canceling recording:", error)
-			const errorMessage = error instanceof Error ? error.message : "Failed to cancel recording"
+			const errorMessage = error instanceof Error ? error.message : t("errors.voiceRecorderCancelFailed")
 			setError(errorMessage)
 		}
-	}, [onProcessingStateChange, onTranscription])
+	}, [onProcessingStateChange, onTranscription, t])
 
 	const handleStartClick = useCallback(() => {
 		if (disabled || isProcessing || isStarting) {

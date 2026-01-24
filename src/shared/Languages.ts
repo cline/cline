@@ -1,5 +1,6 @@
 export type LanguageKey =
 	| "en"
+	| "ko"
 	| "ar"
 	| "pt-BR"
 	| "cs"
@@ -9,7 +10,6 @@ export type LanguageKey =
 	| "hu"
 	| "it"
 	| "ja"
-	| "ko"
 	| "pl"
 	| "pt-PT"
 	| "ru"
@@ -20,6 +20,7 @@ export type LanguageKey =
 
 export type LanguageDisplay =
 	| "English"
+	| "Korean - 한국어"
 	| "Arabic - العربية"
 	| "Portuguese - Português (Brasil)"
 	| "Czech - Čeština"
@@ -29,7 +30,6 @@ export type LanguageDisplay =
 	| "Hungarian - Magyar"
 	| "Italian - Italiano"
 	| "Japanese - 日本語"
-	| "Korean - 한국어"
 	| "Polish - Polski"
 	| "Portuguese - Português (Portugal)"
 	| "Russian - Русский"
@@ -38,7 +38,7 @@ export type LanguageDisplay =
 	| "Traditional Chinese - 繁體中文"
 	| "Turkish - Türkçe"
 
-export const DEFAULT_LANGUAGE_SETTINGS: LanguageKey = "en"
+export const DEFAULT_LANGUAGE_SETTINGS: LanguageKey = "ko"
 
 export const languageOptions: { key: LanguageKey; display: LanguageDisplay }[] = [
 	{ key: "en", display: "English" },

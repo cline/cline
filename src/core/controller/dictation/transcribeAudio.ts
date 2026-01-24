@@ -5,6 +5,7 @@ import { telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
+import { getCoreMessage } from "../../coreMessages"
 
 /**
  * Transcribes audio using Cline transcription service
@@ -62,7 +63,7 @@ export const transcribeAudio = async (controller: Controller, request: Transcrib
 	} catch (error) {
 		Logger.error("Error transcribing audio:", error)
 		const durationMs = Date.now() - startTime
-		const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
+		const errorMessage = error instanceof Error ? error.message : getCoreMessage("unknownErrorOccurred")
 
 		telemetryService.captureVoiceTranscriptionError(taskId, "unexpected_error", errorMessage, durationMs)
 

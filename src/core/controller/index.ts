@@ -41,6 +41,7 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getCwd, getDesktopDir } from "@/utils/path"
+import { getCoreMessage } from "../coreMessages"
 import { PromptRegistry } from "../prompts/system-prompt"
 import {
 	ensureCacheDirectoryExists,
@@ -193,12 +194,12 @@ export class Controller {
 			await this.postStateToWebview()
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
-				message: "Successfully logged out of Cline",
+				message: getCoreMessage("logoutSuccessCline"),
 			})
 		} catch (_error) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
-				message: "Logout failed",
+				message: getCoreMessage("logoutFailedCline"),
 			})
 		}
 	}
@@ -210,12 +211,12 @@ export class Controller {
 			await this.postStateToWebview()
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
-				message: "Successfully logged out of OCA",
+				message: getCoreMessage("logoutSuccessOca"),
 			})
 		} catch (_error) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
-				message: "OCA Logout failed",
+				message: getCoreMessage("logoutFailedOca"),
 			})
 		}
 	}
@@ -540,7 +541,7 @@ export class Controller {
 			Logger.error("Failed to handle auth callback:", error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: "Failed to log in to Cline",
+				message: getCoreMessage("loginFailedCline"),
 			})
 			// Even on login failure, we preserve any existing tokens
 			// Only clear tokens on explicit logout
@@ -591,7 +592,7 @@ export class Controller {
 			Logger.error("Failed to handle auth callback:", error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: "Failed to log in to OCA",
+				message: getCoreMessage("loginFailedOca"),
 			})
 			// Even on login failure, we preserve any existing tokens
 			// Only clear tokens on explicit logout
@@ -604,13 +605,13 @@ export class Controller {
 			await this.postStateToWebview()
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
-				message: `Successfully authenticated MCP server`,
+				message: getCoreMessage("mcpAuthSuccess"),
 			})
 		} catch (error) {
 			Logger.error("Failed to complete MCP OAuth:", error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: `Failed to authenticate MCP server`,
+				message: getCoreMessage("mcpAuthFailed"),
 			})
 		}
 	}

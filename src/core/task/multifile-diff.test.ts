@@ -8,6 +8,7 @@ import CheckpointTracker from "@/integrations/checkpoints/CheckpointTracker"
 import { ClineMessage } from "@/shared/ExtensionMessage"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
+import { getCoreMessage } from "../coreMessages"
 
 describe("multifile-diff", () => {
 	let sandbox: sinon.SinonSandbox
@@ -101,7 +102,7 @@ describe("multifile-diff", () => {
 			expect(checkpointTrackerStub.getDiffSet.calledWith("previous123", mockHash)).to.be.true
 			expect(
 				(HostProvider.diff.openMultiFileDiff as sinon.SinonStub).calledWith({
-					title: "New changes",
+					title: getCoreMessage("diffTitleNewChanges"),
 					diffs: [
 						{
 							filePath: "/project/src/file1.ts",
@@ -143,7 +144,7 @@ describe("multifile-diff", () => {
 			expect(checkpointTrackerStub.getDiffSet.calledWith(mockHash)).to.be.true
 			expect(
 				(HostProvider.diff.openMultiFileDiff as sinon.SinonStub).calledWith({
-					title: "Changes since snapshot",
+					title: getCoreMessage("diffTitleChangesSinceSnapshot"),
 					diffs: [
 						{
 							filePath: "/project/README.md",
@@ -199,7 +200,7 @@ describe("multifile-diff", () => {
 			expect(
 				(HostProvider.window.showMessage as sinon.SinonStub).calledWith({
 					type: ShowMessageType.INFORMATION,
-					message: "No changes found",
+					message: getCoreMessage("diffNoChangesFound"),
 				}),
 			).to.be.true
 			expect((HostProvider.diff.openMultiFileDiff as sinon.SinonStub).called).to.be.false
@@ -217,7 +218,7 @@ describe("multifile-diff", () => {
 			expect(
 				(HostProvider.window.showMessage as sinon.SinonStub).calledWith({
 					type: ShowMessageType.ERROR,
-					message: "Failed to retrieve diff set: " + errorMessage,
+					message: getCoreMessage("diffRetrieveFailed", { error: errorMessage }),
 				}),
 			).to.be.true
 			expect((HostProvider.diff.openMultiFileDiff as sinon.SinonStub).called).to.be.false
@@ -274,7 +275,7 @@ describe("multifile-diff", () => {
 			expect(
 				(HostProvider.window.showMessage as sinon.SinonStub).calledWith({
 					type: ShowMessageType.ERROR,
-					message: "Unexpected error: No checkpoint hash found",
+					message: getCoreMessage("diffUnexpectedNoCheckpointHash"),
 				}),
 			).to.be.true
 			expect(checkpointTrackerStub.getDiffSet.called).to.be.false

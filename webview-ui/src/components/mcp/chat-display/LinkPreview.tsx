@@ -1,7 +1,9 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import DOMPurify from "dompurify"
 import React from "react"
+import { useTranslation } from "react-i18next"
 import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
+import i18n from "@/i18n/config"
 import { WebServiceClient } from "@/services/grpc-client"
 import { getSafeHostname, normalizeRelativeUrl } from "./utils/mcpRichUtil"
 
@@ -132,14 +134,14 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 					loading: false,
 					hasCompletedFetch: true,
 				})
-			} else {
-				this.setState({
-					error: "network",
-					errorMessage: "Failed to fetch Open Graph data",
-					loading: false,
-					hasCompletedFetch: true,
-				})
-			}
+				} else {
+					this.setState({
+						error: "network",
+						errorMessage: i18n.t("errors.linkPreviewFetchFailed"),
+						loading: false,
+						hasCompletedFetch: true,
+					})
+				}
 
 			// Clean up the heartbeat interval
 			// (No message listener is needed with gRPC, unlike the previous message-based approach)
@@ -155,7 +157,7 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 		} catch (err) {
 			this.setState({
 				error: "general",
-				errorMessage: err instanceof Error ? err.message : "Unknown error occurred",
+				errorMessage: err instanceof Error ? err.message : i18n.t("errors.linkPreviewUnknownError"),
 				loading: false,
 				hasCompletedFetch: true, // Mark as completed on error
 			})
@@ -205,13 +207,16 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 								}
 							`}
 						</style>
-						Loading preview for {getSafeHostname(url)}...
+						{i18n.t("errors.linkPreviewLoading", { host: getSafeHostname(url) })}
 					</div>
 					{elapsedSeconds > 5 && (
 						<div style={{ fontSize: "11px", color: "var(--vscode-descriptionForeground)" }}>
 							{elapsedSeconds > 60
-								? `Waiting for ${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s...`
-								: `Waiting for ${elapsedSeconds}s...`}
+								? i18n.t("errors.linkPreviewWaitingMinutes", {
+										minutes: Math.floor(elapsedSeconds / 60),
+										seconds: elapsedSeconds % 60,
+									})
+								: i18n.t("errors.linkPreviewWaitingSeconds", { seconds: elapsedSeconds })}
 						</div>
 					)}
 				</div>
@@ -220,12 +225,12 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 
 		// Handle different error states with specific messages
 		if (error) {
-			let errorDisplay = "Unable to load preview"
+			let errorDisplay = i18n.t("errors.linkPreviewUnableToLoad")
 
 			if (error === "timeout") {
-				errorDisplay = "Preview request timed out"
+				errorDisplay = i18n.t("errors.linkPreviewTimedOut")
 			} else if (error === "network") {
-				errorDisplay = "Network error loading preview"
+				errorDisplay = i18n.t("errors.linkPreviewNetworkError")
 			}
 
 			return (
@@ -255,7 +260,7 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 					<div style={{ fontSize: "12px", marginTop: "4px" }}>{getSafeHostname(url)}</div>
 					{errorMessage && <div style={{ fontSize: "11px", marginTop: "4px", opacity: 0.8 }}>{errorMessage}</div>}
 					<div style={{ fontSize: "11px", marginTop: "8px", color: "var(--vscode-textLink-foreground)" }}>
-						Click to open in browser
+						{i18n.t("errors.linkPreviewClickToOpen")}
 					</div>
 				</div>
 			)
@@ -264,7 +269,7 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 		// Create a fallback object if ogData is null
 		const data = ogData || {
 			title: getSafeHostname(url),
-			description: "No description available",
+			description: i18n.t("errors.linkPreviewNoDescription"),
 			siteName: getSafeHostname(url),
 			url: url,
 		}
@@ -348,7 +353,7 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 								overflow: "hidden",
 								textOverflow: "ellipsis",
 							}}>
-							{data.title || "No title"}
+							{data.title || i18n.t("errors.linkPreviewNoTitle")}
 						</div>
 
 						<div
@@ -385,7 +390,7 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 								WebkitBoxOrient: "vertical",
 								textOverflow: "ellipsis",
 							}}>
-							{data.description || "No description available"}
+							{data.description || i18n.t("errors.linkPreviewNoDescription")}
 						</div>
 					</div>
 				</div>
@@ -402,8 +407,9 @@ const MemoizedLinkPreview = React.memo(
 
 // Wrap the LinkPreview component with an error boundary
 const LinkPreviewWithErrorBoundary: React.FC<LinkPreviewProps> = (props) => {
+	const { t } = useTranslation()
 	return (
-		<ChatErrorBoundary errorTitle="Something went wrong displaying this link preview">
+		<ChatErrorBoundary errorTitle={t("errors.linkPreviewErrorTitle")}>
 			<MemoizedLinkPreview {...props} />
 		</ChatErrorBoundary>
 	)

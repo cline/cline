@@ -5,6 +5,7 @@ import { CommandContext, Empty } from "@/shared/proto/index.cline"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from "../index"
+import { getCoreMessage } from "../../coreMessages"
 
 export async function explainWithCline(
 	controller: Controller,
@@ -14,7 +15,7 @@ export async function explainWithCline(
 	if (!request.selectedText?.trim() && !notebookContext) {
 		HostProvider.window.showMessage({
 			type: ShowMessageType.INFORMATION,
-			message: "Please select some code to explain.",
+			message: getCoreMessage("explainSelectCode"),
 		})
 		return {}
 	}

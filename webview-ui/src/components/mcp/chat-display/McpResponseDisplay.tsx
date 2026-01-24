@@ -113,6 +113,8 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 		setIsLoading(true)
 		setError(null)
 
+		const responseProcessingFailedMessage = t("errors.mcpResponseProcessingFailed")
+
 		// Use the orchestrator function from mcpRichUtil
 		const cleanup = processResponseUrls(
 			responseText || "",
@@ -128,10 +130,11 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 				setError(errorMessage)
 				setIsLoading(false)
 			},
+			responseProcessingFailedMessage,
 		)
 
 		return cleanup
-	}, [responseText, mcpDisplayMode, isExpanded])
+	}, [responseText, mcpDisplayMode, isExpanded, t])
 
 	// Helper function to render a display segment
 	const renderSegment = (segment: DisplaySegment): JSX.Element => {

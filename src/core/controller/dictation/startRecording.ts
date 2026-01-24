@@ -6,6 +6,7 @@ import { telemetryService } from "@/services/telemetry"
 import { AUDIO_PROGRAM_CONFIG } from "@/shared/audioProgramConstants"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
+import { getCoreMessage } from "@/core/coreMessages"
 import { Controller } from ".."
 
 /**
@@ -35,7 +36,7 @@ async function handleCopyCommand(installCommand: string): Promise<void> {
 	await HostProvider.env.clipboardWriteText({ value: installCommand })
 	await HostProvider.window.showMessage({
 		type: ShowMessageType.INFORMATION,
-		message: `Installation command copied to clipboard: ${installCommand}`,
+		message: getCoreMessage("dictationInstallCopied", { command: installCommand }),
 		options: { items: [] },
 	})
 }
@@ -48,13 +49,16 @@ async function handleMissingDependency(
 	platform: string,
 	config: (typeof AUDIO_PROGRAM_CONFIG)[keyof typeof AUDIO_PROGRAM_CONFIG],
 ): Promise<void> {
-	const installWithCline = "Install with Cline"
-	const installManually = "Copy Command"
-	const dismiss = "Dismiss"
+	const installWithCline = getCoreMessage("dictationInstallWithCline")
+	const installManually = getCoreMessage("dictationCopyCommand")
+	const dismiss = getCoreMessage("commonDismiss")
 
 	const action = await HostProvider.window.showMessage({
 		type: ShowMessageType.INFORMATION,
-		message: `${config.dependencyName} is required for voice recording. ${config.installDescription}`,
+		message: getCoreMessage("dictationDependencyRequired", {
+			dependency: config.dependencyName,
+			description: config.installDescription,
+		}),
 		options: { items: [installWithCline, installManually, dismiss] },
 	})
 
@@ -70,10 +74,10 @@ async function handleMissingDependency(
  * Handles sign-in errors for dictation
  */
 async function handleSignInError(controller: Controller, errorMessage: string): Promise<void> {
-	const signInAction = "Sign in to Cline"
+	const signInAction = getCoreMessage("dictationSignInCline")
 	const action = await HostProvider.window.showMessage({
 		type: ShowMessageType.ERROR,
-		message: `Voice recording error: ${errorMessage}`,
+		message: getCoreMessage("dictationError", { error: errorMessage }),
 		options: { items: [signInAction] },
 	})
 
@@ -88,7 +92,7 @@ async function handleSignInError(controller: Controller, errorMessage: string): 
 async function showGenericError(errorMessage: string): Promise<void> {
 	await HostProvider.window.showMessage({
 		type: ShowMessageType.ERROR,
-		message: `Voice recording error: ${errorMessage}`,
+		message: getCoreMessage("dictationError", { error: errorMessage }),
 		options: { items: [] },
 	})
 }
@@ -115,7 +119,7 @@ export const startRecording = async (controller: Controller): Promise<RecordingR
 		// Verify user authentication
 		const userInfo = controller.authService.getInfo()
 		if (!userInfo?.user?.uid) {
-			throw new Error("Please sign in to your Cline Account to use Dictation.")
+			throw new Error(getCoreMessage("dictationSignInRequired"))
 		}
 
 		// Attempt to start recording

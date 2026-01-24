@@ -35,6 +35,7 @@ import {
 	TriangleAlertIcon,
 } from "lucide-react"
 import { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useSize } from "react-use"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
@@ -147,6 +148,7 @@ export const ChatRowContent = memo(
 		reasoningContent,
 		responseStarted,
 	}: ChatRowContentProps) => {
+		const { t } = useTranslation()
 		const {
 			backgroundEditEnabled,
 			mcpServers,
@@ -970,7 +972,7 @@ export const ChatRowContent = memo(
 										{isGenerating
 											? "Generating explanation"
 											: isError
-												? "Failed to generate explanation"
+												? t("errors.explanationGenerationFailed")
 												: wasCancelled
 													? "Explanation cancelled"
 													: "Generated explanation"}

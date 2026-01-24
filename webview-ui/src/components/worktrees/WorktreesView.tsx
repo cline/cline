@@ -10,6 +10,7 @@ import {
 import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { AlertCircle, Check, ExternalLink, FolderOpen, GitBranch, GitMerge, Loader2, Plus, Trash2, X } from "lucide-react"
 import { memo, useCallback, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, TaskServiceClient, WorktreeServiceClient } from "@/services/grpc-client"
@@ -23,6 +24,7 @@ type WorktreesViewProps = {
 
 const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 	const { environment } = useExtensionState()
+	const { t } = useTranslation()
 	const [worktrees, setWorktrees] = useState<WorktreeProto[]>([])
 	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
@@ -75,11 +77,11 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 			setGitRootPath((prev) => (prev === response.gitRootPath ? prev : response.gitRootPath))
 			setError((prev) => (response.error ? response.error : prev === null ? null : prev))
 		} catch (err) {
-			setError(err instanceof Error ? err.message : "Failed to load worktrees")
+			setError(err instanceof Error ? err.message : t("errors.worktreesLoadFailed"))
 		} finally {
 			setIsLoading(false)
 		}
-	}, [])
+	}, [t])
 
 	// Load .worktreeinclude status
 	const loadWorktreeIncludeStatus = useCallback(async () => {
@@ -110,11 +112,11 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 				setError(result.message)
 			}
 		} catch (err) {
-			setError(err instanceof Error ? err.message : "Failed to create .worktreeinclude")
+			setError(err instanceof Error ? err.message : t("errors.worktreeIncludeCreateFailed"))
 		} finally {
 			setIsCreatingWorktreeInclude(false)
 		}
-	}, [gitignoreContent])
+	}, [gitignoreContent, t])
 
 	// Initial load
 	useEffect(() => {
@@ -146,10 +148,10 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 					await loadWorktrees()
 				}
 			} catch (err) {
-				setError(err instanceof Error ? err.message : "Failed to delete worktree")
+				setError(err instanceof Error ? err.message : t("errors.worktreeDeleteFailed"))
 			}
 		},
-		[loadWorktrees],
+		[loadWorktrees, t],
 	)
 
 	const handleSwitchWorktree = useCallback(async (path: string, newWindow: boolean) => {
@@ -216,11 +218,11 @@ const WorktreesView = ({ onDone }: WorktreesViewProps) => {
 				setMergeError(result.message)
 			}
 		} catch (err) {
-			setMergeError(err instanceof Error ? err.message : "Failed to merge worktree")
+			setMergeError(err instanceof Error ? err.message : t("errors.worktreeMergeFailed"))
 		} finally {
 			setIsMerging(false)
 		}
-	}, [mergeWorktree, getMainBranch, deleteAfterMerge, loadWorktrees])
+	}, [mergeWorktree, getMainBranch, deleteAfterMerge, loadWorktrees, t])
 
 	// Ask Cline to resolve conflicts
 	const handleAskClineToResolve = useCallback(async () => {
@@ -240,9 +242,9 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 			// Close worktrees view to show the chat with the new task
 			onDone()
 		} catch (err) {
-			setMergeError(err instanceof Error ? err.message : "Failed to create task for Cline")
+			setMergeError(err instanceof Error ? err.message : t("errors.worktreeCreateTaskFailed"))
 		}
-	}, [mergeResult, mergeWorktree, closeMergeModal, onDone])
+	}, [mergeResult, mergeWorktree, closeMergeModal, onDone, t])
 
 	return (
 		<div className="fixed inset-0 flex flex-col overflow-hidden">

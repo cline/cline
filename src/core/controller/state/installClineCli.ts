@@ -4,6 +4,7 @@ import { ExecuteCommandInTerminalRequest } from "@shared/proto/host/workspace"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
+import { getCoreMessage } from "../../coreMessages"
 
 /**
  * Handles the installation of the Cline CLI tool
@@ -30,7 +31,9 @@ export async function installClineCli(_controller: Controller, _request: EmptyRe
 		Logger.error("Error executing CLI installation:", error)
 		await HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: `Failed to start CLI installation: ${error instanceof Error ? error.message : "Unknown error"}`,
+			message: getCoreMessage("installCliFailed", {
+				error: error instanceof Error ? error.message : getCoreMessage("unknownErrorOccurred"),
+			}),
 			options: { items: [] },
 		})
 	}

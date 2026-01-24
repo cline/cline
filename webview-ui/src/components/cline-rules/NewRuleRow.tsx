@@ -1,6 +1,7 @@
 import { CreateHookRequest, CreateSkillRequest, RuleFileRequest } from "@shared/proto/index.cline"
 import { PlusIcon } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useClickAway } from "react-use"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -25,6 +26,7 @@ const HOOK_TYPES = [
 ]
 
 const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType, existingHooks = [], workspaceName }) => {
+	const { t } = useTranslation()
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [filename, setFilename] = useState("")
 	const inputRef = useRef<HTMLInputElement>(null)
@@ -90,7 +92,7 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType, existingHoo
 			if (ruleType === "skill") {
 				// Validate skill name - only allow alphanumeric, dashes, underscores
 				if (!/^[a-zA-Z0-9_-]+$/.test(trimmedFilename)) {
-					setError("Skill name can only contain letters, numbers, dashes, and underscores")
+					setError(t("errors.skillNameInvalid"))
 					return
 				}
 
@@ -114,7 +116,7 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType, existingHoo
 			const extension = getExtension(trimmedFilename)
 
 			if (!isValidExtension(extension)) {
-				setError("Only .md, .txt, or no file extension allowed")
+				setError(t("errors.ruleFileExtensionInvalid"))
 				return
 			}
 

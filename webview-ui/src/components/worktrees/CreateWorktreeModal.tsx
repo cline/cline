@@ -3,6 +3,7 @@ import { CreateWorktreeRequest, SwitchWorktreeRequest } from "@shared/proto/clin
 import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { AlertCircle, AlertTriangle, Loader2, X } from "lucide-react"
 import { memo, useCallback, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { WorktreeServiceClient } from "@/services/grpc-client"
 
 interface CreateWorktreeModalProps {
@@ -15,6 +16,7 @@ interface CreateWorktreeModalProps {
 }
 
 const CreateWorktreeModal = ({ open, onClose, openAfterCreate = false, onSuccess }: CreateWorktreeModalProps) => {
+	const { t } = useTranslation()
 	const [newWorktreePath, setNewWorktreePath] = useState("")
 	const [newBranchName, setNewBranchName] = useState("")
 	const [isCreating, setIsCreating] = useState(false)
@@ -88,11 +90,11 @@ const CreateWorktreeModal = ({ open, onClose, openAfterCreate = false, onSuccess
 				onClose()
 			}
 		} catch (err) {
-			setCreateError(err instanceof Error ? err.message : "Failed to create worktree")
+			setCreateError(err instanceof Error ? err.message : t("errors.worktreeCreateFailed"))
 		} finally {
 			setIsCreating(false)
 		}
-	}, [newWorktreePath, newBranchName, openAfterCreate, onSuccess, onClose])
+	}, [newWorktreePath, newBranchName, openAfterCreate, onSuccess, onClose, t])
 
 	if (!open) {
 		return null

@@ -285,8 +285,7 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 							</VSCodeLink>
 						</>
 					) : (
-						"Select a model from the dropdown above. The extension fetches available models from your Vercel AI
-							Gateway configuration."
+						"Select a model from the dropdown above. The extension fetches available models from your Vercel AI Gateway configuration."
 					)}
 				</p>
 			)}

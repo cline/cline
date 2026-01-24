@@ -96,6 +96,7 @@ import { ApiFormat } from "@/shared/proto/cline/models"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
+import { getTaskMessage, TaskMessageKey } from "./taskMessages"
 import { RuleContextBuilder } from "../context/instructions/user-instructions/RuleContextBuilder"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { discoverSkills, getAvailableSkills } from "../context/instructions/user-instructions/skills"
@@ -198,6 +199,15 @@ export class Task {
 	// Service handlers
 	api: ApiHandler
 	terminalManager: ITerminalManager
+
+	private getPreferredLanguageKey() {
+		const preferredLanguageRaw = this.stateManager.getGlobalSettingsKey("preferredLanguage")
+		return getLanguageKey(preferredLanguageRaw as LanguageDisplay)
+	}
+
+	private tTaskMessage(key: TaskMessageKey, params?: Record<string, string | number>) {
+		return getTaskMessage(key, this.getPreferredLanguageKey(), params)
+	}
 	private urlContentFetcher: UrlContentFetcher
 	browserSession: BrowserSession
 	contextManager: ContextManager
@@ -371,7 +381,7 @@ export class Task {
 
 		if (isMultiRootWorkspace && checkpointsEnabled) {
 			// Set checkpoint manager error message to display warning in TaskHeader
-			this.taskState.checkpointManagerErrorMessage = "Checkpoints are not currently supported in multi-root workspaces."
+			this.taskState.checkpointManagerErrorMessage = this.tTaskMessage("checkpointUnsupportedMultiRoot")
 		}
 
 		// Initialize checkpoint manager based on workspace configuration
@@ -410,10 +420,10 @@ export class Task {
 			} catch (error) {
 				Logger.error("Failed to initialize checkpoint manager:", error)
 				if (this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")) {
-					const errorMessage = error instanceof Error ? error.message : "Unknown error"
+					const errorMessage = error instanceof Error ? error.message : this.tTaskMessage("unknownError")
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
-						message: `Failed to initialize checkpoint manager: ${errorMessage}`,
+						message: this.tTaskMessage("checkpointManagerInitFailed", { error: errorMessage }),
 					})
 				}
 			}
@@ -815,11 +825,16 @@ export class Task {
 	}
 
 	async sayAndCreateMissingParamError(toolName: ClineDefaultTool, paramName: string, relPath?: string) {
+		const pathPart = relPath
+			? this.tTaskMessage("missingToolParamPathPart", { path: relPath.toPosix() })
+			: ""
 		await this.say(
 			"error",
-			`Cline tried to use ${toolName}${
-				relPath ? ` for '${relPath.toPosix()}'` : ""
-			} without value for required parameter '${paramName}'. Retrying...`,
+			this.tTaskMessage("missingToolParamError", {
+				toolName,
+				pathPart,
+				paramName,
+			}),
 		)
 		return formatResponse.toolError(formatResponse.missingToolParameterError(paramName))
 	}
@@ -1604,7 +1619,7 @@ export class Task {
 			}
 
 			// Notify UI that hook was cancelled
-			await this.say("hook_output_stream", "\nHook execution cancelled by user")
+		await this.say("hook_output_stream", `\n${this.tTaskMessage("hookExecutionCancelled")}`)
 
 			// Return success - let caller (abortTask) handle next steps
 			// DON'T call abortTask() here to avoid infinite recursion
@@ -1890,7 +1905,7 @@ export class Task {
 					// If the conversation has more than 3 messages, we can truncate again. If not, then the conversation is bricked.
 					// ToDo: Allow the user to change their input if this is the case.
 					if (truncatedConversationHistory.length > 3) {
-						clineError.message = "Context window exceeded. Click retry to truncate the conversation and try again."
+						clineError.message = this.tTaskMessage("contextWindowExceededRetry")
 						this.taskState.didAutomaticallyRetryFailedApiRequest = false
 					}
 				}
@@ -2205,9 +2220,9 @@ export class Task {
 		if (this.taskState.consecutiveMistakeCount >= this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")) {
 			// In yolo mode, don't wait for user input - fail the task
 			if (this.stateManager.getGlobalSettingsKey("yoloModeToggled")) {
-				const errorMessage =
-					`[YOLO MODE] Task failed: Too many consecutive mistakes (${this.taskState.consecutiveMistakeCount}). ` +
-					`The model may not be capable enough for this task. Consider using a more capable model.`
+				const errorMessage = this.tTaskMessage("yoloTooManyMistakes", {
+					count: this.taskState.consecutiveMistakeCount,
+				})
 				await this.say("error", errorMessage)
 				// End the task loop with failure
 				return true // didEndLoop = true, signals task completion/failure
@@ -2216,15 +2231,15 @@ export class Task {
 			const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 			if (autoApprovalSettings.enableNotifications) {
 				showSystemNotification({
-					subtitle: "Error",
-					message: "Cline is having trouble. Would you like to continue the task?",
+					subtitle: this.tTaskMessage("errorSubtitle"),
+					message: this.tTaskMessage("taskTroubleContinue"),
 				})
 			}
 			const { response, text, images, files } = await this.ask(
 				"mistake_limit_reached",
 				this.api.getModel().id.includes("claude")
-					? `This may indicate a failure in his thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "Try breaking down the task into smaller steps").`
-					: "Cline uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 4 Sonnet for its advanced agentic coding capabilities.",
+					? this.tTaskMessage("mistakeLimitClaudeGuidance")
+					: this.tTaskMessage("mistakeLimitOtherModelsGuidance"),
 			)
 			if (response === "messageResponse") {
 				// Display the user's message in the chat UI
@@ -2274,12 +2289,12 @@ export class Task {
 			try {
 				await ensureCheckpointInitialized({ checkpointManager: this.checkpointManager })
 			} catch (error) {
-				const errorMessage = error instanceof Error ? error.message : "Unknown error"
+				const errorMessage = error instanceof Error ? error.message : this.tTaskMessage("unknownError")
 				Logger.error("Failed to initialize checkpoint manager:", errorMessage)
 				this.taskState.checkpointManagerErrorMessage = errorMessage // will be displayed right away since we saveClineMessages next which posts state to webview
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
-					message: `Checkpoint initialization timed out: ${errorMessage}`,
+					message: this.tTaskMessage("checkpointInitTimedOut", { error: errorMessage }),
 				})
 			}
 		}
@@ -2413,7 +2428,7 @@ export class Task {
 		if (clinerulesError === true) {
 			await this.say(
 				"error",
-				"Issue with processing the /newrule command. Double check that, if '.clinerules' already exists, it's a directory and not a file. Otherwise there was an issue referencing this file/directory.",
+				this.tTaskMessage("newruleProcessingIssue"),
 			)
 		}
 
@@ -2442,7 +2457,9 @@ export class Task {
 		await this.say(
 			"api_req_started",
 			JSON.stringify({
-				request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n") + "\n\nLoading...",
+				request:
+					userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n") +
+					`\n\n${this.tTaskMessage("loading")}`,
 			}),
 		)
 
@@ -2521,8 +2538,8 @@ export class Task {
 								assistantMessage +
 								`\n\n[${
 									cancelReason === "streaming_failed"
-										? "Response interrupted by API Error"
-										: "Response interrupted by user"
+										? this.tTaskMessage("responseInterruptedApiError")
+										: this.tTaskMessage("responseInterruptedUser")
 								}]`,
 						},
 					],
@@ -2685,7 +2702,7 @@ export class Task {
 
 					if (this.taskState.didRejectTool) {
 						// userContent has a tool rejection, so interrupt the assistant's response to present the user's feedback
-						assistantMessage += "\n\n[Response interrupted by user feedback]"
+						assistantMessage += `\n\n[${this.tTaskMessage("responseInterruptedUserFeedback")}]`
 						// this.userMessageContentReady = true // instead of setting this preemptively, we allow the present iterator to finish and set userMessageContentReady when its ready
 						break
 					}
@@ -2695,7 +2712,7 @@ export class Task {
 					// UPDATE: it's better UX to interrupt the request at the cost of the api cost not being retrieved
 					if (!this.isParallelToolCallingEnabled() && this.taskState.didAlreadyUseTool) {
 						assistantMessage +=
-							"\n\n[Response interrupted by a tool use result. Only one tool may be used at a time and should be placed at the end of the message.]"
+							`\n\n[${this.tTaskMessage("responseInterruptedToolUse")}]`
 						break
 					}
 				}
@@ -2935,8 +2952,7 @@ export class Task {
 					isNativeToolCall: this.useNativeToolCalls,
 				})
 
-				const baseErrorMessage =
-					"Invalid API Response: The provider returned an empty or unparsable response. This is a provider-side issue where the model failed to generate valid output or returned tool calls that Cline cannot process. Retrying the request may help resolve this issue."
+				const baseErrorMessage = this.tTaskMessage("invalidApiResponse")
 				const errorText = reqId ? `${baseErrorMessage} (Request ID: ${reqId})` : baseErrorMessage
 
 				await this.say("error", errorText)
@@ -2945,7 +2961,7 @@ export class Task {
 					content: [
 						{
 							type: "text",
-							text: "Failure: I did not provide a response.",
+							text: this.tTaskMessage("failureNoResponse"),
 						},
 					],
 					modelInfo,
@@ -2962,7 +2978,7 @@ export class Task {
 
 				let response: ClineAskResponse
 
-				const noResponseErrorMessage = "No assistant message was received. Would you like to retry the request?"
+				const noResponseErrorMessage = this.tTaskMessage("noAssistantMessageRetry")
 
 				if (this.taskState.autoRetryAttempts < 3) {
 					// Auto-retry enabled with max 3 attempts: automatically approve the retry

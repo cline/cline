@@ -357,7 +357,7 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 							aria-live="polite"
 							className={`mt-2 text-[13px] [color:var(${VSC_DESCRIPTION_FOREGROUND})]`}
 							role="status">
-							<div>Failed to refresh models. Check your session or network.</div>
+							<div>{t("errors.ocaRefreshModelsFailed")}</div>
 							<div className="mt-2 flex gap-2">
 								<VSCodeButton appearance="secondary" onClick={handleRefresh}>
 									Retry

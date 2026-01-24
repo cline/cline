@@ -4,6 +4,7 @@ import path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
+import { getCoreMessage } from "../../coreMessages"
 import { fileExistsAtPath } from "../../../utils/fs"
 import { Controller } from ".."
 
@@ -22,16 +23,17 @@ export async function deleteTasksWithIds(controller: Controller, request: String
 	const taskCount = request.value.length
 	const message =
 		taskCount === 1
-			? "Are you sure you want to delete this task? This action cannot be undone."
-			: `Are you sure you want to delete these ${taskCount} tasks? This action cannot be undone.`
+			? getCoreMessage("deleteTasksConfirmSingle")
+			: getCoreMessage("deleteTasksConfirmMultiple", { count: taskCount })
+	const deleteOption = getCoreMessage("deleteTasksOptionDelete")
 
 	const userChoice = await HostProvider.window.showMessage({
 		type: ShowMessageType.WARNING,
 		message,
-		options: { modal: true, items: ["Delete"] },
+		options: { modal: true, items: [deleteOption] },
 	})
 
-	if (userChoice.selectedOption !== "Delete") {
+	if (userChoice.selectedOption !== deleteOption) {
 		return Empty.create()
 	}
 

@@ -3,6 +3,7 @@ import CheckpointTracker from "@/integrations/checkpoints/CheckpointTracker"
 import { findLast } from "@/shared/array"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
+import { getCoreMessage } from "../coreMessages"
 import { MessageStateHandler } from "./message-state"
 
 export async function showChangedFilesDiff(
@@ -35,7 +36,9 @@ export async function showChangedFilesDiff(
 	if (!changedFiles.length) {
 		return
 	}
-	const title = seeNewChangesSinceLastTaskCompletion ? "New changes" : "Changes since snapshot"
+	const title = seeNewChangesSinceLastTaskCompletion
+		? getCoreMessage("diffTitleNewChanges")
+		: getCoreMessage("diffTitleChangesSinceSnapshot")
 	const diffs = changedFiles.map((file) => ({
 		filePath: file.absolutePath,
 		leftContent: file.before,
@@ -74,15 +77,15 @@ async function getChangedFiles(
 		if (!changedFiles.length) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
-				message: "No changes found",
+				message: getCoreMessage("diffNoChangesFound"),
 			})
 		}
 		return changedFiles
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : "Unknown error"
+		const errorMessage = error instanceof Error ? error.message : getCoreMessage("unknownErrorOccurred")
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: "Failed to retrieve diff set: " + errorMessage,
+			message: getCoreMessage("diffRetrieveFailed", { error: errorMessage }),
 		})
 		return []
 	}
@@ -112,7 +115,7 @@ async function getChangesSinceLastTaskCompletion(
 	if (!previousCheckpointHash) {
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: "Unexpected error: No checkpoint hash found",
+			message: getCoreMessage("diffUnexpectedNoCheckpointHash"),
 		})
 		return []
 	}

@@ -330,6 +330,7 @@ export const processResponseUrls = (
 	onMatchesFound: (matches: UrlMatch[]) => void,
 	onMatchesUpdated: (matches: UrlMatch[]) => void,
 	onError: (error: string) => void,
+	errorMessage: string,
 ): (() => void) => {
 	const cancellationToken = { cancelled: false }
 
@@ -344,7 +345,7 @@ export const processResponseUrls = (
 			// Process URLs in the background
 			await processUrlTypes(matches, onMatchesUpdated, cancellationToken)
 		} catch (_error) {
-			onError("Failed to process response content. Switch to plain text mode to view safely.")
+			onError(errorMessage)
 		}
 	}
 

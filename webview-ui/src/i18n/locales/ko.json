@@ -103,7 +103,6 @@
 		"scrollToBottom": "맨 아래로 스크롤",
 		"thinking": "생각 중...",
 		"streaming": "스트리밍 중...",
-		"error": "오류",
 		"retry": "재시도",
 		"copy": "복사",
 		"copied": "복사됨",
@@ -118,21 +117,10 @@
 		"imageDimensionsExceed": "이미지 크기가 7500px를 초과합니다",
 		"filesOtherThanImages": "이미지 외의 파일은 현재 비활성화되어 있습니다",
 		"typeAtForContext": "@ 를 입력하면 컨텍스트, / 를 입력하면 슬래시 명령 및 워크플로우, Shift를 누른 채 파일/이미지를 드래그하세요",
-		"signInToCline": "Cline에 로그인",
-		"clickRetryBelow": "(아래 \"재시도\" 클릭)",
-		"diffError": "모델이 파일에서 일치하는 항목이 없는 검색 패턴을 사용했습니다. 재시도 중...",
-		"clineignoreError": "Cline이 {file}에 접근하려고 했지만 {clineignore} 파일에 의해 차단되었습니다.",
 		"thinkingLabel": "생각 중:",
 		"inPlanMode": "Plan 모드에서 Cline은 계획을 수립하기 위해 정보를 수집합니다",
 		"inActMode": "Act 모드에서 Cline은 즉시 작업을 완료합니다",
-		"toggleWith": "토글",
-		"somethingWentWrong": "콘텐츠를 표시하는 중 문제가 발생했습니다",
-		"unknownError": "알 수 없는 오류"
-	},
-
-	"errorRow": {
-		"powershellIssue": "Windows PowerShell 문제가 있는 것 같습니다. 다음을 참조하세요",
-		"troubleshootingGuide": "문제 해결 가이드"
+		"toggleWith": "토글"
 	},
 
 	"creditLimitError": {
@@ -465,13 +453,6 @@
 		"dashboard": "대시보드",
 		"logOut": "로그아웃",
 		"clineEnvironment": "Cline 환경"
-	},
-
-	"errors": {
-		"apiError": "API 오류",
-		"networkError": "네트워크 오류",
-		"unknownError": "알 수 없는 오류",
-		"tryAgain": "다시 시도"
 	},
 
 	"common": {

@@ -19,6 +19,7 @@ import { isDirectory } from "@/utils/fs"
 import { getCwd } from "@/utils/path"
 import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
 import type { WorkspaceRootManager } from "../workspace"
+import { getCoreMessage } from "../coreMessages"
 
 export async function openMention(mention?: string): Promise<void> {
 	if (!mention) {
@@ -101,7 +102,7 @@ export async function parseMentions(
 			launchBrowserError = error
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: `Error fetching content for ${urlMention}: ${error.message}`,
+				message: getCoreMessage("mentionFetchErrorForUrl", { url: urlMention, error: error.message }),
 			})
 		}
 	}
@@ -133,7 +134,7 @@ export async function parseMentions(
 				} catch (error) {
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
-						message: `Error fetching content for ${mention}: ${error.message}`,
+						message: getCoreMessage("mentionFetchErrorForUrl", { url: mention, error: error.message }),
 					})
 					result = `Error fetching content: ${error.message}`
 					// Track failed URL mention

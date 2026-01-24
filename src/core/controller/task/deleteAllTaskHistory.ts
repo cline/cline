@@ -4,6 +4,7 @@ import path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
+import { getCoreMessage } from "../../coreMessages"
 import { fileExistsAtPath } from "../../../utils/fs"
 import { Controller } from ".."
 
@@ -22,14 +23,16 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 		const taskHistory = controller.stateManager.getGlobalStateKey("taskHistory")
 		const totalTasks = taskHistory.length
 
+		const deleteAllExceptFavoritesOption = getCoreMessage("deleteAllOptionExceptFavorites")
+		const deleteEverythingOption = getCoreMessage("deleteAllOptionEverything")
 		const userChoice = (
 			await HostProvider.window.showMessage(
 				ShowMessageRequest.create({
 					type: ShowMessageType.WARNING,
-					message: "What would you like to delete?",
+					message: getCoreMessage("deleteAllPrompt"),
 					options: {
 						modal: true,
-						items: ["Delete All Except Favorites", "Delete Everything"],
+						items: [deleteAllExceptFavoritesOption, deleteEverythingOption],
 					},
 				}),
 			)
@@ -43,7 +46,7 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 		}
 
 		// If preserving favorites, filter out non-favorites
-		if (userChoice === "Delete All Except Favorites") {
+		if (userChoice === deleteAllExceptFavoritesOption) {
 			const favoritedTasks = taskHistory.filter((task) => task.isFavorited === true)
 
 			// If there are favorited tasks, update state
@@ -69,10 +72,10 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 				const answer = (
 					await HostProvider.window.showMessage({
 						type: ShowMessageType.WARNING,
-						message: "No favorited tasks found. Would you like to delete all tasks anyway?",
+						message: getCoreMessage("deleteAllNoFavoritesConfirm"),
 						options: {
 							modal: true,
-							items: ["Delete All Tasks"],
+							items: [getCoreMessage("deleteAllNoFavoritesOptionDeleteAll")],
 						},
 					})
 				).selectedOption
@@ -105,7 +108,9 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 		} catch (error) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: `Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`,
+				message: getCoreMessage("deleteAllError", {
+					error: error instanceof Error ? error.message : String(error),
+				}),
 			})
 		}
 

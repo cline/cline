@@ -4,6 +4,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { Logger } from "@/shared/services/Logger"
 import { openExternal } from "@/utils/env"
+import { getCoreMessage } from "@/core/coreMessages"
 import { Controller } from ".."
 
 /**
@@ -25,7 +26,7 @@ export async function openAiCodexSignIn(controller: Controller, _: EmptyRequest)
 			.then(async () => {
 				HostProvider.window.showMessage({
 					type: ShowMessageType.INFORMATION,
-					message: "Successfully signed in to OpenAI Codex",
+					message: getCoreMessage("openAiCodexSignInSuccess"),
 				})
 				await controller.postStateToWebview()
 			})
@@ -37,7 +38,7 @@ export async function openAiCodexSignIn(controller: Controller, _: EmptyRequest)
 				if (!errorMessage.includes("timed out")) {
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
-						message: `OpenAI Codex sign in failed: ${errorMessage}`,
+						message: getCoreMessage("openAiCodexSignInFailed", { error: errorMessage }),
 					})
 				}
 			})

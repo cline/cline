@@ -6,6 +6,7 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
+import { getCoreMessage } from "../../coreMessages"
 
 /**
  * Resets the extension state to its defaults
@@ -18,13 +19,13 @@ export async function resetState(controller: Controller, request: ResetStateRequ
 		if (request.global) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
-				message: "Resetting global state...",
+				message: getCoreMessage("resetGlobalState"),
 			})
 			await resetGlobalState(controller)
 		} else {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
-				message: "Resetting workspace state...",
+				message: getCoreMessage("resetWorkspaceState"),
 			})
 			await resetWorkspaceState(controller)
 		}
@@ -36,7 +37,7 @@ export async function resetState(controller: Controller, request: ResetStateRequ
 
 		HostProvider.window.showMessage({
 			type: ShowMessageType.INFORMATION,
-			message: "State reset",
+			message: getCoreMessage("resetStateSuccess"),
 		})
 		await controller.postStateToWebview()
 
@@ -47,7 +48,9 @@ export async function resetState(controller: Controller, request: ResetStateRequ
 		Logger.error("Error resetting state:", error)
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: `Failed to reset state: ${error instanceof Error ? error.message : String(error)}`,
+			message: getCoreMessage("resetStateFailed", {
+				error: error instanceof Error ? error.message : String(error),
+			}),
 		})
 		throw error
 	}

@@ -45,7 +45,6 @@
 		"scrollToBottom": "Scroll to bottom",
 		"thinking": "Thinking...",
 		"streaming": "Streaming...",
-		"error": "Error",
 		"retry": "Retry",
 		"copy": "Copy",
 		"copied": "Copied",
@@ -60,21 +59,10 @@
 		"imageDimensionsExceed": "Image dimensions exceed 7500px",
 		"filesOtherThanImages": "Files other than images are currently disabled",
 		"typeAtForContext": "Type @ for context, / for slash commands & workflows, hold shift to drag in files/images",
-		"signInToCline": "Sign in to Cline",
-		"clickRetryBelow": "(Click \"Retry\" below)",
-		"diffError": "The model used search patterns that don't match anything in the file. Retrying...",
-		"clineignoreError": "Cline tried to access {file} which is blocked by the {clineignore} file.",
 		"thinkingLabel": "Thinking:",
 		"inPlanMode": "In Plan mode, Cline will gather information to architect a plan",
 		"inActMode": "In Act mode, Cline will complete the task immediately",
-		"toggleWith": "Toggle w/",
-		"somethingWentWrong": "Something went wrong displaying this content",
-		"unknownError": "Unknown error"
-	},
-
-	"errorRow": {
-		"powershellIssue": "It seems like you're having Windows PowerShell issues, please see this",
-		"troubleshootingGuide": "troubleshooting guide"
+		"toggleWith": "Toggle w/"
 	},
 
 	"creditLimitError": {
@@ -373,13 +361,6 @@
 		"dashboard": "Dashboard",
 		"logOut": "Log out",
 		"clineEnvironment": "Cline Environment"
-	},
-
-	"errors": {
-		"apiError": "API Error",
-		"networkError": "Network Error",
-		"unknownError": "Unknown Error",
-		"tryAgain": "Try Again"
 	},
 
 	"common": {

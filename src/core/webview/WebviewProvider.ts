@@ -7,6 +7,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { getNonce } from "./getNonce"
+import { getCoreMessage } from "../coreMessages"
 
 export abstract class WebviewProvider {
 	private static instance: WebviewProvider | null = null
@@ -172,8 +173,7 @@ export abstract class WebviewProvider {
 			if (process.env.IS_DEV) {
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
-					message:
-						"Cline: Local webview dev server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR. Using bundled assets.",
+					message: getCoreMessage("devServerNotRunning"),
 				})
 			}
 

@@ -8,6 +8,7 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { Controller } from ".."
+import { getCoreMessage } from "../../coreMessages"
 import { openFile } from "./openFile"
 
 /**
@@ -40,10 +41,13 @@ export async function createRuleFile(controller: Controller, request: RuleFileRe
 		throw new Error("Failed to create file.")
 	}
 
-	const fileTypeName = request.type === "workflow" ? "workflow" : "rule"
+	const fileTypeName = request.type === "workflow" ? getCoreMessage("fileTypeWorkflow") : getCoreMessage("fileTypeRule")
 
 	if (fileExists) {
-		const message = `${fileTypeName} file "${request.filename}" already exists.`
+		const message = getCoreMessage("ruleFileAlreadyExists", {
+			fileType: fileTypeName,
+			fileName: request.filename,
+		})
 		HostProvider.window.showMessage({
 			type: ShowMessageType.WARNING,
 			message,
@@ -60,7 +64,12 @@ export async function createRuleFile(controller: Controller, request: RuleFileRe
 
 		await openFile(controller, { value: filePath })
 
-		const message = `Created new ${request.isGlobal ? "global" : "workspace"} ${fileTypeName} file: ${request.filename}`
+		const scope = request.isGlobal ? getCoreMessage("ruleScopeGlobal") : getCoreMessage("ruleScopeWorkspace")
+		const message = getCoreMessage("ruleFileCreated", {
+			scope,
+			fileType: fileTypeName,
+			fileName: request.filename,
+		})
 		HostProvider.window.showMessage({
 			type: ShowMessageType.INFORMATION,
 			message,

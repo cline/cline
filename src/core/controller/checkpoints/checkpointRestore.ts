@@ -6,6 +6,7 @@ import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import { ClineCheckpointRestore } from "../../../shared/WebviewMessage"
 import { Controller } from ".."
+import { getCoreMessage } from "../../coreMessages"
 
 export async function checkpointRestore(controller: Controller, request: CheckpointRestoreRequest): Promise<Empty> {
 	await controller.cancelTask() // we cannot alter message history say if the task is active, as it could be in the middle of editing a file or running a command, which expect the ask to be responded to rather than being superseded by a new message eg add deleted_api_reqs
@@ -18,7 +19,7 @@ export async function checkpointRestore(controller: Controller, request: Checkpo
 			Logger.log("Failed to init new Cline instance to restore checkpoint", error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: "Failed to restore checkpoint",
+				message: getCoreMessage("checkpointRestoreFailed"),
 			})
 			throw error
 		})

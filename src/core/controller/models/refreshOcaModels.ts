@@ -15,6 +15,7 @@ import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import { GlobalStateAndSettings } from "@/shared/storage/state-keys"
 import { Controller } from ".."
+import { getCoreMessage } from "../../coreMessages"
 
 /**
  * Refreshes the Oca models and returns the updated model list
@@ -33,11 +34,12 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 	let defaultModelId: string | undefined
 	const ocaAccessToken = await OcaAuthService.getInstance().getAuthToken()
 	if (!ocaAccessToken) {
+		const authMessage = getCoreMessage("ocaNotAuthenticated")
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: "Not authenticated with OCA. Please sign in first.",
+			message: authMessage,
 		})
-		return OcaCompatibleModelInfo.create({ error: "Not authenticated with OCA" })
+		return OcaCompatibleModelInfo.create({ error: getCoreMessage("ocaNotAuthenticatedError") })
 	}
 	const ocaMode = controller.stateManager.getGlobalSettingsKey("ocaMode") || "internal"
 	const baseUrl = request.value || (ocaMode === "internal" ? DEFAULT_INTERNAL_OCA_BASE_URL : DEFAULT_EXTERNAL_OCA_BASE_URL)
@@ -50,7 +52,7 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 			if (response.data.data.length === 0) {
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
-					message: "No models found. Did you set up your OCA access (possibly through entitlements)?",
+					message: getCoreMessage("ocaNoModelsFound"),
 				})
 			}
 			for (const model of response.data.data) {
@@ -150,31 +152,37 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
-				message: `Refreshed OCA models from ${baseUrl}`,
+				message: getCoreMessage("ocaModelsRefreshed", { baseUrl }),
 			})
 			await controller.postStateToWebview?.()
 		} else {
 			Logger.error("Invalid response from OCA API")
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: `Failed to fetch OCA models. Please check your configuration from ${baseUrl}`,
+				message: getCoreMessage("ocaFetchFailed", { baseUrl }),
 			})
 		}
 	} catch (err) {
 		let userMsg
 		if (err.response) {
 			// The request was made and the server responded with a status code that falls out of the range of 2xx
-			userMsg = `Did you set up your OCA access (possibly through entitlements)? OCA service returned ${err.response.status} ${err.response.statusText}.`
+			userMsg = getCoreMessage("ocaServiceErrorStatus", {
+				status: err.response.status,
+				statusText: err.response.statusText,
+			})
 		} else if (err.request) {
 			// The request was made but no response was received
-			userMsg = `Unable to access the OCA backend. Is your endpoint and proxy configured properly? Please see the troubleshooting guide.`
+			userMsg = getCoreMessage("ocaBackendUnavailable")
 		} else {
 			userMsg = err.message
 			Logger.error(userMsg, err)
 		}
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: `Error refreshing OCA models. ` + userMsg + ` opc-request-id: ${headers["opc-request-id"]}`,
+			message: getCoreMessage("ocaRefreshError", {
+				details: userMsg,
+				requestId: headers["opc-request-id"],
+			}),
 		})
 		return OcaCompatibleModelInfo.create({ error: userMsg })
 	}
