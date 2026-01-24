@@ -98,7 +98,7 @@ export class Controller {
 					detectRoots: detectWorkspaceRoots,
 				})
 			} catch (error) {
-				console.error("[Controller] Failed to initialize workspace manager:", error)
+				Logger.error("[Controller] Failed to initialize workspace manager:", error)
 			}
 		}
 		return this.workspaceManager
@@ -132,13 +132,13 @@ export class Controller {
 				// Rate limit: ignore errors within 5 seconds of last error (fixes #8004)
 				if (timeSinceLastError < 5000) {
 					this.persistenceErrorState.errorCount++
-					console.warn(`[Controller] Persistence error suppressed (${this.persistenceErrorState.errorCount} in 5s)`)
+					Logger.warn(`[Controller] Persistence error suppressed (${this.persistenceErrorState.errorCount} in 5s)`)
 					return
 				}
 
 				// Prevent concurrent recovery attempts
 				if (this.persistenceErrorState.isRecovering) {
-					console.warn("[Controller] Recovery already in progress, skipping")
+					Logger.warn("[Controller] Recovery already in progress, skipping")
 					return
 				}
 
@@ -146,7 +146,7 @@ export class Controller {
 				this.persistenceErrorState.errorCount = 1
 				this.persistenceErrorState.isRecovering = true
 
-				console.error("[Controller] Cache persistence failed, recovering:", error)
+				Logger.error("[Controller] Cache persistence failed, recovering:", error)
 				try {
 					await StateManager.get().reInitialize(this.task?.taskId)
 					await this.postStateToWebview()
@@ -155,7 +155,7 @@ export class Controller {
 						message: "Saving settings to storage failed.",
 					})
 				} catch (recoveryError) {
-					console.error("[Controller] Cache recovery failed:", recoveryError)
+					Logger.error("[Controller] Cache recovery failed:", recoveryError)
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
 						message: "Failed to save settings. Please restart the extension.",
@@ -185,7 +185,7 @@ export class Controller {
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints().catch((error) => {
-			console.error("Failed to cleanup legacy checkpoints:", error)
+			Logger.error("Failed to cleanup legacy checkpoints:", error)
 		})
 
 		// Check CLI installation status once on startup
@@ -207,7 +207,7 @@ export class Controller {
 		await this.clearTask()
 		this.mcpHub.dispose()
 
-		console.error("Controller disposed")
+		Logger.error("Controller disposed")
 	}
 
 	// Auth methods
@@ -326,9 +326,9 @@ export class Controller {
 
 		taskLockAcquired = lockResult.acquired
 		if (lockResult.acquired) {
-			console.debug(`[Task ${taskId}] Task lock acquired`)
+			Logger.debug(`[Task ${taskId}] Task lock acquired`)
 		} else {
-			console.debug(`[Task ${taskId}] Task lock skipped (VS Code)`)
+			Logger.debug(`[Task ${taskId}] Task lock skipped (VS Code)`)
 		}
 
 		await this.stateManager.loadTaskSettings(taskId)
@@ -445,7 +445,7 @@ export class Controller {
 	async cancelTask() {
 		// Prevent duplicate cancellations from spam clicking
 		if (this.cancelInProgress) {
-			console.log(`[Controller.cancelTask] Cancellation already in progress, ignoring duplicate request`)
+			Logger.info(`[Controller.cancelTask] Cancellation already in progress, ignoring duplicate request`)
 			return
 		}
 
@@ -462,7 +462,7 @@ export class Controller {
 			try {
 				await this.task.abortTask()
 			} catch (error) {
-				console.error("Failed to abort task", error)
+				Logger.error("Failed to abort task", error)
 			}
 
 			await pWaitFor(
@@ -475,7 +475,7 @@ export class Controller {
 					timeout: 3_000,
 				},
 			).catch(() => {
-				console.error("Failed to abort task")
+				Logger.error("Failed to abort task")
 			})
 
 			if (this.task) {
@@ -494,7 +494,7 @@ export class Controller {
 			} catch (error) {
 				// Task not in history yet (new task with no messages); catch the
 				// error to enable the agent to continue making progress.
-				console.log(`[Controller.cancelTask] Task not found in history: ${error}`)
+				Logger.info(`[Controller.cancelTask] Task not found in history: ${error}`)
 			}
 
 			// Only re-initialize if we found a history item, otherwise just clear
@@ -570,7 +570,7 @@ export class Controller {
 
 			await this.postStateToWebview()
 		} catch (error) {
-			console.error("Failed to handle auth callback:", error)
+			Logger.error("Failed to handle auth callback:", error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: "Failed to log in to Cline",
@@ -621,7 +621,7 @@ export class Controller {
 
 			await this.postStateToWebview()
 		} catch (error) {
-			console.error("Failed to handle auth callback:", error)
+			Logger.error("Failed to handle auth callback:", error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: "Failed to log in to OCA",
@@ -640,7 +640,7 @@ export class Controller {
 				message: `Successfully authenticated MCP server`,
 			})
 		} catch (error) {
-			console.error("Failed to complete MCP OAuth:", error)
+			Logger.error("Failed to complete MCP OAuth:", error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: `Failed to authenticate MCP server`,
@@ -698,7 +698,7 @@ export class Controller {
 			}
 			return catalog
 		} catch (error) {
-			console.error("Failed to refresh MCP marketplace:", error)
+			Logger.error("Failed to refresh MCP marketplace:", error)
 			return undefined
 		}
 	}
@@ -715,7 +715,7 @@ export class Controller {
 				throw new Error("Invalid response from OpenRouter API")
 			}
 		} catch (error) {
-			console.error("Error exchanging code for API key:", error)
+			Logger.error("Error exchanging code for API key:", error)
 			throw error
 		}
 
@@ -769,7 +769,7 @@ export class Controller {
 				return appendClineStealthModels(models)
 			}
 		} catch (error) {
-			console.error("Error reading cached OpenRouter models:", error)
+			Logger.error("Error reading cached OpenRouter models:", error)
 		}
 		return undefined
 	}
@@ -815,7 +815,7 @@ export class Controller {
 
 	async exportTaskWithId(id: string) {
 		const { taskDirPath } = await this.getTaskWithId(id)
-		console.log(`[EXPORT] Opening task directory: ${taskDirPath}`)
+		Logger.info(`[EXPORT] Opening task directory: ${taskDirPath}`)
 		await open(taskDirPath)
 	}
 
@@ -1040,7 +1040,7 @@ export class Controller {
 			try {
 				BannerService.initialize(this)
 			} catch (error) {
-				console.error("Failed to initialize BannerService:", error)
+				Logger.error("Failed to initialize BannerService:", error)
 			}
 		}
 	}
@@ -1056,7 +1056,7 @@ export class Controller {
 				return await BannerService.get().getNonDismissedBanners()
 			}
 		} catch (error) {
-			console.error("Failed to fetch banners:", error)
+			Logger.error("Failed to fetch banners:", error)
 		}
 		return []
 	}

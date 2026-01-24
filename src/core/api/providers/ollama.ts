@@ -117,7 +117,7 @@ export class OllamaHandler implements ApiHandler {
 		} catch (error) {
 			// Check if it's a cancellation error
 			if (error?.message?.includes("cancelled by user")) {
-				console.log("Ollama request cancelled by user")
+				Logger.info("Ollama request cancelled by user")
 				throw error // Re-throw to propagate cancellation
 			}
 
@@ -144,7 +144,7 @@ export class OllamaHandler implements ApiHandler {
 	 */
 	public abortCurrentRequest(): void {
 		if (this.currentAbortController) {
-			console.log("Aborting current Ollama request...")
+			Logger.info("Aborting current Ollama request...")
 			this.currentAbortController.abort()
 		}
 	}
