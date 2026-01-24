@@ -36,8 +36,9 @@ import { arePathsEqual } from "./utils/path"
  * @throws ClineConfigurationError if endpoints.json exists but is invalid
  */
 export async function initialize(context: vscode.ExtensionContext): Promise<WebviewProvider> {
-	// Configure the shared Logging class to use HostProvider's output channel
-	Logger.setOutput((msg: string) => HostProvider.get().logToChannel(msg))
+	// Configure the shared Logging class to use HostProvider's output channels and debug logger
+	Logger.subscribe((msg: string) => HostProvider.get().logToChannel(msg)) // File system logging
+	Logger.subscribe((msg: string) => HostProvider.env.debugLog({ value: msg })) // Host debug logging
 
 	// Initialize ClineEndpoint configuration first (reads ~/.cline/endpoints.json if present)
 	// This must be done before any other code that calls ClineEnv.config()
