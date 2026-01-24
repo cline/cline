@@ -20,8 +20,13 @@ import { TelemetrySetting } from "./TelemetrySetting"
 import { UserInfo } from "./UserInfo"
 // webview will hold state
 export interface ExtensionMessage {
-	type: "grpc_response" // New type for gRPC responses
+	type: "grpc_response" | "customSystemPrompts.response" // gRPC responses and custom system prompts
 	grpc_response?: GrpcResponse
+	action?: string
+	prompts?: any[]
+	activePromptId?: string
+	success?: boolean
+	error?: string
 }
 
 export type GrpcResponse = {
