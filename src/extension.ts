@@ -31,6 +31,13 @@ import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendShowWebviewEvent } from "./core/controller/ui/subscribeToShowWebview"
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
+import {
+	cleanupMcpMarketplaceCatalogFromGlobalState,
+	migrateCustomInstructionsToGlobalRules,
+	migrateTaskHistoryToFile,
+	migrateWelcomeViewCompleted,
+	migrateWorkspaceToGlobalStorage,
+} from "./core/storage/state-migrations"
 import { workspaceResolver } from "./core/workspace"
 import { findMatchingNotebookCell, getContextForCommand, showWebview } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMsg } from "./hosts/vscode/commit-message-generator"
@@ -50,6 +57,7 @@ import { ClineTempManager } from "./services/temp"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { fileExistsAtPath } from "./utils/fs"
+
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
@@ -689,4 +697,35 @@ if (IS_DEV && IS_DEV !== "false") {
 
 		vscode.commands.executeCommand("workbench.action.reloadWindow")
 	})
+}
+
+export async function performStorageMigrations(context: ExtensionContext): Promise<void> {
+	try {
+		// If they still have the old welcomeViewCompleted flag,
+		// we know they haven't had the migrations run yet.
+		if (!context.globalState.get<boolean>("welcomeViewCompleted")) {
+			// If has already been migrated, skip
+			return
+		}
+
+		// Migrate custom instructions to global Cline rules (one-time cleanup)
+		await migrateCustomInstructionsToGlobalRules(context)
+
+		// Migrate welcomeViewCompleted setting based on existing API keys (one-time cleanup)
+		await migrateWelcomeViewCompleted(context)
+
+		// Migrate workspace storage values back to global storage (reverting previous migration)
+		await migrateWorkspaceToGlobalStorage(context)
+
+		// Ensure taskHistory.json exists and migrate legacy state (runs once)
+		await migrateTaskHistoryToFile(context)
+
+		// Clean up MCP marketplace catalog from global state (moved to disk cache)
+		await cleanupMcpMarketplaceCatalogFromGlobalState(context)
+
+		// Makes sure we don't run migrations again
+		context.globalState.update("welcomeViewCompleted", undefined)
+	} catch (error) {
+		Logger.error("Migration Failed:", error)
+	}
 }
