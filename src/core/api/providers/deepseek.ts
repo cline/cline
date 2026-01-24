@@ -1,4 +1,5 @@
 import { DeepSeekModelId, deepSeekDefaultModelId, deepSeekModels, ModelInfo } from "@shared/api"
+import { getDefaultBaseUrl } from "@shared/api-endpoints"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
@@ -31,7 +32,7 @@ export class DeepSeekHandler implements ApiHandler {
 			}
 			try {
 				this.client = new OpenAI({
-					baseURL: "https://api.deepseek.com/v1",
+					baseURL: getDefaultBaseUrl("deepseek"),
 					apiKey: this.options.deepSeekApiKey,
 					fetch, // Use configured fetch with proxy support
 				})

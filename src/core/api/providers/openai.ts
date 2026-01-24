@@ -1,5 +1,6 @@
 import { DefaultAzureCredential, getBearerTokenProvider } from "@azure/identity"
 import { azureOpenAiDefaultApiVersion, ModelInfo, OpenAiCompatibleModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { getDefaultBaseUrl } from "@shared/api-endpoints"
 import OpenAI, { AzureOpenAI } from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -72,7 +73,7 @@ export class OpenAiHandler implements ApiHandler {
 					}
 				} else {
 					this.client = new OpenAI({
-						baseURL: this.options.openAiBaseUrl,
+						baseURL: this.options.openAiBaseUrl || getDefaultBaseUrl("openai"),
 						apiKey: this.options.openAiApiKey,
 						defaultHeaders: this.options.openAiHeaders,
 						fetch,

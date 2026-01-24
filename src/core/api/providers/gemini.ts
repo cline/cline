@@ -9,6 +9,7 @@ import {
 	ThinkingLevel,
 } from "@google/genai"
 import { GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
+import { getDefaultBaseUrl } from "@shared/api-endpoints"
 import { telemetryService } from "@/services/telemetry"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
@@ -134,7 +135,11 @@ export class GeminiHandler implements ApiHandler {
 		// Set up base generation config
 		const requestConfig: GenerateContentConfig = {
 			// Add base URL if configured
-			httpOptions: this.options.geminiBaseUrl ? { baseUrl: this.options.geminiBaseUrl } : undefined,
+			httpOptions: this.options.geminiBaseUrl
+				? { baseUrl: this.options.geminiBaseUrl }
+				: getDefaultBaseUrl("gemini")
+					? { baseUrl: getDefaultBaseUrl("gemini")! }
+					: undefined,
 			systemInstruction: systemPrompt,
 			// Set temperature (default to 0)
 			// Gemini 3.0 recommends 1.0

@@ -1,6 +1,7 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { StateManager } from "@core/storage/StateManager"
 import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
+import { getDefaultBaseUrl } from "@shared/api-endpoints"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
 import OpenAI from "openai"
@@ -41,7 +42,7 @@ export class OpenRouterHandler implements ApiHandler {
 			}
 			try {
 				this.client = new OpenAI({
-					baseURL: "https://openrouter.ai/api/v1",
+					baseURL: getDefaultBaseUrl("openrouter"),
 					apiKey: this.options.openRouterApiKey,
 					defaultHeaders: {
 						"HTTP-Referer": "https://cline.bot", // Optional, for including your app on openrouter.ai rankings.

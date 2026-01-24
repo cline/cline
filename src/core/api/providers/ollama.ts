@@ -1,4 +1,5 @@
 import { type ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { getDefaultBaseUrl } from "@shared/api-endpoints"
 import { type Config, type Message, Ollama } from "ollama"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
@@ -31,7 +32,7 @@ export class OllamaHandler implements ApiHandler {
 		if (!this.client) {
 			try {
 				const clientOptions: Partial<Config> = {
-					host: this.options.ollamaBaseUrl,
+					host: this.options.ollamaBaseUrl || getDefaultBaseUrl("ollama"),
 					fetch,
 				}
 
