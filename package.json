@@ -11,7 +11,7 @@
 		"name": "Cline Bot Inc."
 	},
 	"license": "Apache-2.0",
-	"publisher": "saoudrizwan",
+	"publisher": "bcline-dev",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/cline/cline"
@@ -110,17 +110,17 @@
 		"viewsContainers": {
 			"activitybar": [
 				{
-					"id": "claude-dev-ActivityBar",
-					"title": "Cline",
+					"id": "bcline-ActivityBar",
+					"title": "BCline",
 					"icon": "assets/icons/icon.svg"
 				}
 			]
 		},
 		"views": {
-			"claude-dev-ActivityBar": [
+			"bcline-ActivityBar": [
 				{
 					"type": "webview",
-					"id": "claude-dev.SidebarProvider",
+					"id": "bcline.SidebarProvider",
 					"name": "",
 					"icon": "assets/icons/icon.svg"
 				}
@@ -128,115 +128,115 @@
 		},
 		"commands": [
 			{
-				"command": "cline.plusButtonClicked",
+				"command": "bcline.plusButtonClicked",
 				"title": "New Task",
 				"icon": "$(add)"
 			},
 			{
-				"command": "cline.mcpButtonClicked",
+				"command": "bcline.mcpButtonClicked",
 				"title": "MCP Servers",
 				"icon": "$(server)"
 			},
 			{
-				"command": "cline.historyButtonClicked",
+				"command": "bcline.historyButtonClicked",
 				"title": "History",
 				"icon": "$(history)"
 			},
 			{
-				"command": "cline.accountButtonClicked",
+				"command": "bcline.accountButtonClicked",
 				"title": "Account",
 				"icon": "$(account)"
 			},
 			{
-				"command": "cline.settingsButtonClicked",
+				"command": "bcline.settingsButtonClicked",
 				"title": "Settings",
 				"icon": "$(settings-gear)"
 			},
 			{
-				"command": "cline.dev.createTestTasks",
+				"command": "bcline.dev.createTestTasks",
 				"title": "Create Test Tasks",
 				"category": "Cline",
-				"when": "cline.isDevMode"
+				"when": "bcline.isDevMode"
 			},
 			{
-				"command": "cline.dev.expireMcpOAuthTokens",
+				"command": "bcline.dev.expireMcpOAuthTokens",
 				"title": "Expire MCP OAuth Tokens (for testing)",
 				"category": "Cline",
-				"when": "cline.isDevMode"
+				"when": "bcline.isDevMode"
 			},
 			{
-				"command": "cline.addToChat",
+				"command": "bcline.addToChat",
 				"title": "Add to Cline",
 				"category": "Cline"
 			},
 			{
-				"command": "cline.addTerminalOutputToChat",
+				"command": "bcline.addTerminalOutputToChat",
 				"title": "Add to Cline",
 				"category": "Cline"
 			},
 			{
-				"command": "cline.focusChatInput",
+				"command": "bcline.focusChatInput",
 				"title": "Jump to Chat Input",
 				"category": "Cline"
 			},
 			{
-				"command": "cline.generateGitCommitMessage",
+				"command": "bcline.generateGitCommitMessage",
 				"title": "Generate Commit Message with Cline",
 				"category": "Cline",
 				"icon": "$(cline-icon)"
 			},
 			{
-				"command": "cline.abortGitCommitMessage",
+				"command": "bcline.abortGitCommitMessage",
 				"title": "Generate Commit Message with Cline - Stop",
 				"category": "Cline",
 				"icon": "$(debug-stop)"
 			},
 			{
-				"command": "cline.explainCode",
+				"command": "bcline.explainCode",
 				"title": "Explain with Cline",
 				"category": "Cline"
 			},
 			{
-				"command": "cline.improveCode",
+				"command": "bcline.improveCode",
 				"title": "Improve with Cline",
 				"category": "Cline"
 			},
 			{
-				"command": "cline.jupyterGenerateCell",
+				"command": "bcline.jupyterGenerateCell",
 				"title": "Generate Jupyter Cell with Cline",
 				"category": "Cline",
 				"icon": "$(sparkle)"
 			},
 			{
-				"command": "cline.jupyterExplainCell",
+				"command": "bcline.jupyterExplainCell",
 				"title": "Explain Jupyter Cell with Cline",
 				"category": "Cline",
 				"icon": "$(question)"
 			},
 			{
-				"command": "cline.jupyterImproveCell",
+				"command": "bcline.jupyterImproveCell",
 				"title": "Improve Jupyter Cell with Cline",
 				"category": "Cline",
 				"icon": "$(lightbulb)"
 			},
 			{
-				"command": "cline.openWalkthrough",
+				"command": "bcline.openWalkthrough",
 				"title": "Open Walkthrough",
 				"category": "Cline"
 			},
 			{
-				"command": "cline.reconstructTaskHistory",
+				"command": "bcline.reconstructTaskHistory",
 				"title": "Reconstruct Task History",
 				"category": "Cline"
 			},
 			{
-				"command": "cline.reviewComment.reply",
+				"command": "bcline.reviewComment.reply",
 				"title": "Reply",
 				"category": "Cline",
 				"enablement": "!commentIsEmpty"
 			},
 			{
-				"command": "cline.reviewComment.addToChat",
+				"command": "bcline.reviewComment.addToChat",
 				"title": "Add to Cline Chat",
 				"category": "Cline",
 				"icon": "$(link-external)"
@@ -246,10 +246,10 @@
 			{
 				"command": "editor.action.submitComment",
 				"key": "enter",
-				"when": "commentEditorFocused && commentController == cline-ai-review && !commentIsEmpty"
+				"when": "commentEditorFocused && commentController == bcline-ai-review && !commentIsEmpty"
 			},
 			{
-				"command": "cline.addToChat",
+				"command": "bcline.addToChat",
 				"key": "cmd+'",
 				"mac": "cmd+'",
 				"win": "ctrl+'",
@@ -257,11 +257,11 @@
 				"when": "editorHasSelection"
 			},
 			{
-				"command": "cline.generateGitCommitMessage",
+				"command": "bcline.generateGitCommitMessage",
 				"when": "config.git.enabled && scmProvider == git"
 			},
 			{
-				"command": "cline.focusChatInput",
+				"command": "bcline.focusChatInput",
 				"key": "cmd+'",
 				"mac": "cmd+'",
 				"win": "ctrl+'",
@@ -272,54 +272,54 @@
 		"menus": {
 			"view/title": [
 				{
-					"command": "cline.plusButtonClicked",
+					"command": "bcline.plusButtonClicked",
 					"group": "navigation@1",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == bcline.SidebarProvider"
 				},
 				{
-					"command": "cline.mcpButtonClicked",
+					"command": "bcline.mcpButtonClicked",
 					"group": "navigation@2",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == bcline.SidebarProvider"
 				},
 				{
-					"command": "cline.historyButtonClicked",
+					"command": "bcline.historyButtonClicked",
 					"group": "navigation@3",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == bcline.SidebarProvider"
 				},
 				{
-					"command": "cline.accountButtonClicked",
+					"command": "bcline.accountButtonClicked",
 					"group": "navigation@5",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == bcline.SidebarProvider"
 				},
 				{
-					"command": "cline.settingsButtonClicked",
+					"command": "bcline.settingsButtonClicked",
 					"group": "navigation@6",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == bcline.SidebarProvider"
 				}
 			],
 			"editor/context": [
 				{
-					"command": "cline.addToChat",
+					"command": "bcline.addToChat",
 					"group": "navigation",
 					"when": "editorHasSelection"
 				}
 			],
 			"terminal/context": [
 				{
-					"command": "cline.addTerminalOutputToChat",
+					"command": "bcline.addTerminalOutputToChat",
 					"group": "navigation"
 				}
 			],
 			"scm/title": [
 				{
-					"command": "cline.generateGitCommitMessage",
+					"command": "bcline.generateGitCommitMessage",
 					"group": "navigation",
-					"when": "config.git.enabled && scmProvider == git && !cline.isGeneratingCommit"
+					"when": "config.git.enabled && scmProvider == git && !bcline.isGeneratingCommit"
 				},
 				{
-					"command": "cline.abortGitCommitMessage",
+					"command": "bcline.abortGitCommitMessage",
 					"group": "navigation",
-					"when": "config.git.enabled && scmProvider == git && cline.isGeneratingCommit"
+					"when": "config.git.enabled && scmProvider == git && bcline.isGeneratingCommit"
 				}
 			],
 			"notebook/toolbar": [
@@ -343,30 +343,30 @@
 			],
 			"commandPalette": [
 				{
-					"command": "cline.generateGitCommitMessage",
-					"when": "config.git.enabled && !cline.isGeneratingCommit"
+					"command": "bcline.generateGitCommitMessage",
+					"when": "config.git.enabled && !bcline.isGeneratingCommit"
 				},
 				{
-					"command": "cline.abortGitCommitMessage",
-					"when": "config.git.enabled && cline.isGeneratingCommit"
+					"command": "bcline.abortGitCommitMessage",
+					"when": "config.git.enabled && bcline.isGeneratingCommit"
 				},
 				{
-					"command": "cline.reviewComment.reply",
+					"command": "bcline.reviewComment.reply",
 					"when": "false"
 				}
 			],
 			"comments/commentThread/context": [
 				{
-					"command": "cline.reviewComment.reply",
+					"command": "bcline.reviewComment.reply",
 					"group": "inline",
-					"when": "commentController == cline-ai-review"
+					"when": "commentController == bcline-ai-review"
 				}
 			],
 			"comments/commentThread/title": [
 				{
-					"command": "cline.reviewComment.addToChat",
+					"command": "bcline.reviewComment.addToChat",
 					"group": "inline",
-					"when": "commentController == cline-ai-review"
+					"when": "commentController == bcline-ai-review"
 				}
 			]
 		},

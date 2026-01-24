@@ -161,7 +161,7 @@ export class AudioRecordingService {
 				Logger.warn("Process termination timed out after 5 seconds, forcing kill...")
 				try {
 					this.recordingProcess?.kill("SIGKILL")
-				} catch (e) {
+				} catch (_e) {
 					// Ignore - process may already be dead
 				}
 				resolve()

@@ -1,6 +1,6 @@
 import { name, publisher, version } from "../package.json"
 
-const prefix = name === "claude-dev" ? "cline" : name
+const prefix = name === "claude-dev" ? "cline" : name === "bcline" ? "bcline" : name
 
 /**
  * List of commands with the name of the extension they are registered under.

@@ -7,7 +7,8 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 		const {
 			apiProvider,
 			openAiModelId,
-			requestyModelId,
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
+			requestyModelId: _requestyModelId,
 			togetherModelId,
 			ollamaModelId,
 			lmStudioModelId,

@@ -162,7 +162,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Initialize test mode and add disposables to context
 	context.subscriptions.push(...testModeWatchers)
 
-	vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV && IS_DEV === "true")
+	vscode.commands.executeCommand("setContext", "bcline.isDevMode", IS_DEV && IS_DEV === "true")
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(VscodeWebviewProvider.SIDEBAR_ID, webview, {
@@ -499,10 +499,14 @@ export async function activate(context: vscode.ExtensionContext) {
 					"Generate Notebook Cell",
 					"Enter your prompt for generating notebook cell (press Enter to confirm & Esc to cancel)",
 				)
-				if (!userPrompt) return
+				if (!userPrompt) {
+					return
+				}
 
 				const ctx = await getNotebookCommandContext(range, diagnostics)
-				if (!ctx) return
+				if (!ctx) {
+					return
+				}
 
 				const notebookContext = `User prompt: ${userPrompt}
 Insert a new Jupyter notebook cell above or below the current cell based on user prompt.
@@ -523,7 +527,9 @@ ${ctx.cellJson || "{}"}
 			commands.JupyterExplainCell,
 			async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
 				const ctx = await getNotebookCommandContext(range, diagnostics)
-				if (!ctx) return
+				if (!ctx) {
+					return
+				}
 
 				const notebookContext = ctx.cellJson
 					? `\n\nCurrent Notebook Cell Context (JSON, sanitized of image data):\n\`\`\`json\n${ctx.cellJson}\n\`\`\``
@@ -542,10 +548,14 @@ ${ctx.cellJson || "{}"}
 					"Improve Notebook Cell",
 					"Enter your prompt for improving the current notebook cell (press Enter to confirm & Esc to cancel)",
 				)
-				if (!userPrompt) return
+				if (!userPrompt) {
+					return
+				}
 
 				const ctx = await getNotebookCommandContext(range, diagnostics)
-				if (!ctx) return
+				if (!ctx) {
+					return
+				}
 
 				const notebookContext = `User prompt: ${userPrompt}
 ${NOTEBOOK_EDIT_INSTRUCTIONS}

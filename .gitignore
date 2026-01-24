@@ -46,3 +46,26 @@ test-results
 /pkg
 .secrets
 
+
+# Python virtual environment
+venv/
+
+# Temporary/personal files
+*.jpeg
+*.log
+NUL
+temp_*.html
+.message-queue/
+.claude/
+
+# Personal scripts and docs
+*.ps1
+*.py
+build.md
+compare_vsix_output.txt
+copilot-to-cline.txt
+gemini-3way-test.txt
+REMOTE_LAPTOP_*.md
+scripts/auto-rebuild.sh
+scripts/verify-features.sh
+src/utils/web-api-polyfills.ts
