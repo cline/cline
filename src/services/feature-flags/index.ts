@@ -19,9 +19,7 @@ let _featureFlagsServiceInstance: FeatureFlagsService | null = null
  */
 export function getFeatureFlagsService(): FeatureFlagsService {
 	if (!_featureFlagsServiceInstance) {
-		const provider = FeatureFlagsProviderFactory.createProvider({
-			type: "posthog",
-		})
+		const provider = FeatureFlagsProviderFactory.createProvider(FeatureFlagsProviderFactory.getDefaultConfig())
 		_featureFlagsServiceInstance = new FeatureFlagsService(provider)
 	}
 	return _featureFlagsServiceInstance
