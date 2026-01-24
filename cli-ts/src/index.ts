@@ -17,6 +17,7 @@ import { StandaloneTerminalManager } from "@/integrations/terminal/standalone/St
 import { BannerService } from "@/services/banner/BannerService"
 import { ErrorService } from "@/services/error/ErrorService"
 import { initializeDistinctId } from "@/services/logging/distinctId"
+import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
 import { getProviderModelIdKey } from "@/shared/storage"
 import { version as CLI_VERSION } from "../package.json"
@@ -129,6 +130,8 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 
 	BannerService.initialize(webview.controller)
 
+	telemetryService.captureHostEvent("cline_cli", "initialized")
+
 	const ctx = { extensionContext, dataDir: DATA_DIR, extensionDir: EXTENSION_DIR, workspacePath, controller }
 	activeContext = ctx
 	return ctx
@@ -185,10 +188,15 @@ async function runTask(
 	// Use clean prompt (with image refs removed)
 	const taskPrompt = cleanPrompt || prompt
 
+	// Task without prompt starts in interactive mode
+	telemetryService.captureHostEvent("task_command", prompt ? "task" : "interactive")
+
 	if (options.plan) {
 		StateManager.get().setGlobalState("mode", "plan")
+		telemetryService.captureHostEvent("mode_flag", "plan")
 	} else if (options.act) {
 		StateManager.get().setGlobalState("mode", "act")
+		telemetryService.captureHostEvent("mode_flag", "act")
 	}
 
 	if (options.model) {
@@ -207,6 +215,8 @@ async function runTask(
 		if (providerModelKey) {
 			StateManager.get().setGlobalState(providerModelKey, options.model)
 		}
+
+		telemetryService.captureHostEvent("model_flag", options.model)
 	}
 
 	// Set thinking budget based on --thinking flag
@@ -215,9 +225,14 @@ async function runTask(
 	const thinkingKey = currentMode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
 	StateManager.get().setGlobalState(thinkingKey, thinkingBudget)
 
+	if (options.thinking) {
+		telemetryService.captureHostEvent("thinking_flag", "true")
+	}
+
 	// Set yolo mode based on --yolo flag
 	if (options.yolo) {
 		StateManager.get().setGlobalState("yoloModeToggled", true)
+		telemetryService.captureHostEvent("yolo_flag", "true")
 	}
 
 	await StateManager.get().flushPendingState()
@@ -227,6 +242,7 @@ async function runTask(
 
 	// Use plain text mode when output is redirected or JSON mode is enabled
 	if (!isTTY || options.json) {
+		telemetryService.captureHostEvent("plain_text_mode", options.json ? "json" : "redirected_output")
 		// Plain text mode: no Ink rendering, just clean text output
 		const success = await runPlainTextTask({
 			controller: ctx.controller,
@@ -298,13 +314,14 @@ async function listHistory(options: { config?: string; limit?: number; page?: nu
 	const totalCount = sortedHistory.length
 	const totalPages = Math.ceil(totalCount / limit)
 
+	telemetryService.captureHostEvent("history_command", "executed")
+
 	if (sortedHistory.length === 0) {
 		printInfo("No task history found.")
 		await ctx.controller.stateManager.flushPendingState()
 		await ctx.controller.dispose()
 		await ErrorService.get().dispose()
 		exit(0)
-		return
 	}
 
 	await runInkApp(
@@ -334,6 +351,8 @@ async function showConfig(options: { config?: string }) {
 
 	// Dynamically import the wrapper to avoid circular dependencies
 	const { ConfigViewWrapper } = await import("./components/ConfigViewWrapper")
+
+	telemetryService.captureHostEvent("config_command", "executed")
 
 	// Check feature flags
 	const skillsEnabled = stateManager.getGlobalSettingsKey("skillsEnabled") ?? false
@@ -376,6 +395,8 @@ async function runAuth(options: {
 		? { provider: options.provider, apikey: options.apikey, modelid: options.modelid, baseurl: options.baseurl }
 		: undefined
 
+	telemetryService.captureHostEvent("auth_command", hasQuickSetupFlags ? "quick_setup" : "interactive")
+
 	let authError = false
 
 	await runInkApp(
@@ -384,10 +405,12 @@ async function runAuth(options: {
 			controller: ctx.controller,
 			isRawModeSupported: checkRawModeSupport(),
 			onComplete: () => {
+				telemetryService.captureHostEvent("auth", "completed")
 				exit(0)
 			},
 			onError: () => {
 				authError = true
+				telemetryService.captureHostEvent("auth", "error")
 			},
 			authQuickSetup: quickSetup,
 		}),
@@ -495,6 +518,8 @@ program
 			} else {
 				effectivePrompt = stdinInput
 			}
+
+			telemetryService.captureHostEvent("piped", "detached")
 		}
 
 		if (effectivePrompt) {
