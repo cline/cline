@@ -27,15 +27,24 @@ import { syncWorker } from "./shared/services/worker/sync"
 import { getBlobStoreSettingsFromEnv } from "./shared/services/worker/worker"
 import { getLatestAnnouncementId } from "./utils/announcements"
 import { arePathsEqual } from "./utils/path"
+
 /**
  * Performs intialization for Cline that is common to all platforms.
  *
  * @param context
  * @returns The webview provider
+ * @throws ClineConfigurationError if endpoints.json exists but is invalid
  */
 export async function initialize(context: vscode.ExtensionContext): Promise<WebviewProvider> {
-	// Configure the shared Logging class to use HostProvider's output channel
-	Logger.setOutput((msg: string) => HostProvider.get().logToChannel(msg))
+	// Configure the shared Logging class to use HostProvider's output channels and debug logger
+	Logger.subscribe((msg: string) => HostProvider.get().logToChannel(msg)) // File system logging
+	Logger.subscribe((msg: string) => HostProvider.env.debugLog({ value: msg })) // Host debug logging
+
+	// Initialize ClineEndpoint configuration first (reads ~/.cline/endpoints.json if present)
+	// This must be done before any other code that calls ClineEnv.config()
+	// Throws ClineConfigurationError if config file exists but is invalid
+	const { ClineEndpoint } = await import("./config")
+	await ClineEndpoint.initialize()
 
 	try {
 		await StateManager.initialize(context)

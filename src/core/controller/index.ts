@@ -119,7 +119,6 @@ export class Controller {
 
 	constructor(readonly context: vscode.ExtensionContext) {
 		PromptRegistry.getInstance() // Ensure prompts and tools are registered
-		HostProvider.get().logToChannel("ClineProvider instantiated")
 		this.stateManager = StateManager.get()
 		StateManager.get().registerCallbacks({
 			onPersistenceError: async ({ error }: PersistenceErrorEvent) => {
@@ -154,6 +153,8 @@ export class Controller {
 
 		// Check CLI installation status once on startup
 		checkCliInstallation(this)
+
+		Logger.log("[Controller] ClineProvider instantiated")
 	}
 
 	/*
@@ -872,7 +873,8 @@ export class Controller {
 		const platform = process.platform as Platform
 		const distinctId = getDistinctId()
 		const version = ExtensionRegistryInfo.version
-		const environment = ClineEnv.config().environment
+		const clineConfig = ClineEnv.config()
+		const environment = clineConfig.environment
 		const banners = await this.getBanners()
 
 		// Check OpenAI Codex authentication status
