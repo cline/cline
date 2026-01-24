@@ -103,11 +103,14 @@
 
 import type { ClineAsk } from "@shared/ExtensionMessage"
 import { getApiMetrics } from "@shared/getApiMetrics"
+import { StringRequest } from "@shared/proto/cline/common"
 import type { Mode } from "@shared/storage/types"
 import { execSync } from "child_process"
 import { Box, Static, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
 import { StateManager } from "@/core/storage/StateManager"
+import { Logger } from "@/shared/services/Logger"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
 import { useIsSpinnerActive } from "../hooks/useStateSubscriber"
 import {
@@ -132,6 +135,7 @@ interface ChatViewProps {
 	robotTopRow?: number
 	initialPrompt?: string
 	initialImages?: string[]
+	taskId?: string
 }
 
 const SEARCH_DEBOUNCE_MS = 150
@@ -220,6 +224,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	robotTopRow,
 	initialPrompt,
 	initialImages,
+	taskId,
 }) => {
 	// Get task state from context
 	const taskState = useTaskState()
@@ -290,6 +295,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		setGitBranch(getGitBranch(workspacePath))
 	}, [workspacePath])
 
+	// Load existing task when taskId is provided
+	useEffect(() => {
+		if (!taskId) return
+
+		const ctrl = controller || taskController
+		if (!ctrl) return
+
+		// Load the task by ID
+		showTaskWithId(ctrl, StringRequest.create({ value: taskId })).catch((error) => {
+			Logger.error("Error loading task:", error)
+			onError?.()
+		})
+	}, [taskId, controller, taskController, onError])
+
 	const messages = taskState.clineMessages || []
 
 	// Filter messages we want to display
@@ -342,8 +361,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		return { completedMessages: completed, currentMessage: current }
 	}, [displayMessages])
 
-	// Determine if we're in welcome state (no messages yet)
-	const isWelcomeState = displayMessages.length === 0
+	// Determine if we're in welcome state (no messages yet and not resuming a task)
+	const isWelcomeState = displayMessages.length === 0 && !taskId
 
 	// Build Static items - each item is rendered once and stays above dynamic content
 	const staticItems = useMemo(() => {
