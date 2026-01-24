@@ -1,0 +1,11 @@
+{
+  "id": "b7bf621b-766b-4816-be0e-c766374dd2c7",
+  "from": "cline",
+  "to": "claude-code",
+  "timestamp": "2026-01-16T16:15:54.269Z",
+  "type": "response",
+  "content": "Task started: \"Test message to Cline bot (please acknowledge)\"",
+  "metadata": {
+    "replyTo": "0f2aa89e-eacf-4a5e-8c55-ba0dfcf202c7"
+  }
+}

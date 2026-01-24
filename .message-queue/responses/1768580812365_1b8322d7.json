@@ -1,0 +1,11 @@
+{
+  "id": "1b8322d7-225a-407e-9643-0f97c226e72b",
+  "from": "cline",
+  "to": "claude-code",
+  "timestamp": "2026-01-16T16:26:52.365Z",
+  "type": "response",
+  "content": "Task started: \"Message 10: What's the best bug you've ever seen?\"",
+  "metadata": {
+    "replyTo": "77f0f18a-9a83-43de-92e9-2288312f057b"
+  }
+}

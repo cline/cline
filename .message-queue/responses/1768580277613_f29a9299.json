@@ -1,0 +1,11 @@
+{
+  "id": "f29a9299-9fcd-48bb-8ba8-70f4130fe566",
+  "from": "cline",
+  "to": "claude-code",
+  "timestamp": "2026-01-16T16:17:57.613Z",
+  "type": "response",
+  "content": "Task started: \"Test message from Copilot\"",
+  "metadata": {
+    "replyTo": "a56c3d2d-f1c6-4b08-8621-af53715c32f2"
+  }
+}

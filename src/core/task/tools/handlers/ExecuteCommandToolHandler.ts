@@ -118,8 +118,19 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		// Check command permission validation (CLINE_COMMAND_PERMISSIONS env var)
 		const permissionResult = config.services.commandPermissionController.validateCommand(actualCommand)
 		if (!permissionResult.allowed) {
-			const matchedPattern = permissionResult.matchedPattern ? ` (matched pattern: ${permissionResult.matchedPattern})` : ""
-			const errorMessage = `Command "${actualCommand}" was denied by CLINE_COMMAND_PERMISSIONS. Reason: ${permissionResult.reason}${matchedPattern}`
+			let errorMessage: string
+			if (permissionResult.failedSegment) {
+				errorMessage =
+					`Command "${actualCommand}" was denied by CLINE_COMMAND_PERMISSIONS. ` +
+					`Segment "${permissionResult.failedSegment}" ${permissionResult.reason}.`
+			} else {
+				const matchedPattern = permissionResult.matchedPattern
+					? ` (matched pattern: ${permissionResult.matchedPattern})`
+					: ""
+				errorMessage =
+					`Command "${actualCommand}" was denied by CLINE_COMMAND_PERMISSIONS. ` +
+					`Reason: ${permissionResult.reason}${matchedPattern}`
+			}
 			await config.callbacks.say("command_permission_denied", errorMessage)
 			return formatResponse.toolError(formatResponse.permissionDeniedError(errorMessage))
 		}

@@ -1,0 +1,87 @@
+
+[0;34m╔══════════════════════════════════════════════════╗[0m
+[0;34m║     BCline Automated Build Script v1.0          ║[0m
+[0;34m║     Building: BCline v3.39.2-complete            ║[0m
+[0;34m╚══════════════════════════════════════════════════╝[0m
+
+[0;34m===================================================[0m
+[0;34mStep 0: Checking Prerequisites[0m
+[0;34m===================================================[0m
+Node.js version: v20.11.1
+npm version: 10.2.4
+Current branch: bcline-3.39.2-complete
+[0;32m✅ Prerequisites check passed[0m
+
+[0;34m===================================================[0m
+[0;34mStep 0.5: Verifying Package Versions[0m
+[0;34m===================================================[0m
+Root TypeScript version:
+		"typescript": "^5.4.5"
+Webview TypeScript version:
+		"typescript": "^5.4.5",
+Webview Vite version:
+		"vite": "^5.4.11",
+[1;33m⚠️  TypeScript versions don't match between root and webview[0m
+[1;33m⚠️  This may cause issues![0m
+[0;32m✅ Version check complete[0m
+
+
+[0;34m===================================================[0m
+[0;34mStep 1: Cleaning Build Artifacts[0m
+[0;34m===================================================[0m
+Removing node_modules...
+Removing build outputs...
+Removing lock files...
+Removing generated files...
+[0;32m✅ Clean complete[0m
+
+[0;34m===================================================[0m
+[0;34mStep 2: Installing Root Dependencies[0m
+[0;34m===================================================[0m
+npm WARN EBADENGINE Unsupported engine {
+npm WARN EBADENGINE   package: 'vite@7.2.6',
+npm WARN EBADENGINE   required: { node: '^20.19.0 || >=22.12.0' },
+npm WARN EBADENGINE   current: { node: 'v20.11.1', npm: '10.2.4' }
+npm WARN EBADENGINE }
+npm WARN EBADENGINE Unsupported engine {
+npm WARN EBADENGINE   package: 'cheerio@1.1.2',
+npm WARN EBADENGINE   required: { node: '>=20.18.1' },
+npm WARN EBADENGINE   current: { node: 'v20.11.1', npm: '10.2.4' }
+npm WARN EBADENGINE }
+npm WARN EBADENGINE Unsupported engine {
+npm WARN EBADENGINE   package: 'lint-staged@16.2.7',
+npm WARN EBADENGINE   required: { node: '>=20.17' },
+npm WARN EBADENGINE   current: { node: 'v20.11.1', npm: '10.2.4' }
+npm WARN EBADENGINE }
+npm WARN EBADENGINE Unsupported engine {
+npm WARN EBADENGINE   package: 'undici@7.16.0',
+npm WARN EBADENGINE   required: { node: '>=20.18.1' },
+npm WARN EBADENGINE   current: { node: 'v20.11.1', npm: '10.2.4' }
+npm WARN EBADENGINE }
+npm WARN EBADENGINE Unsupported engine {
+npm WARN EBADENGINE   package: 'nano-spawn@2.0.0',
+npm WARN EBADENGINE   required: { node: '>=20.17' },
+npm WARN EBADENGINE   current: { node: 'v20.11.1', npm: '10.2.4' }
+npm WARN EBADENGINE }
+npm WARN deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm WARN deprecated lodash.isequal@4.5.0: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.
+npm WARN deprecated rimraf@2.7.1: Rimraf versions prior to v4 are no longer supported
+npm WARN deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm WARN deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm WARN deprecated gauge@5.0.2: This package is no longer supported.
+npm WARN deprecated fstream@1.0.12: This package is no longer supported.
+npm WARN deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+
+added 885 packages, and audited 886 packages in 1m
+
+149 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+Installed 540 packages
+[0;32m✅ Root dependencies installed[0m
+
+[0;34m===================================================[0m
+[0;34mStep 3: Setting up grpc-tools Native Binaries[0m
+[0;34m===================================================[0m
+build-bcline.sh: line 148: cd: node_modules/grpc-tools: No such file or directory

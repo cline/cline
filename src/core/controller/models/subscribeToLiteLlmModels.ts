@@ -1,5 +1,6 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
 
@@ -46,7 +47,7 @@ export async function sendLiteLlmModelsEvent(models: OpenRouterCompatibleModelIn
 				false, // Not the last message
 			)
 		} catch (error) {
-			console.error("Error sending LiteLLM models event:", error)
+			Logger.error("Error sending LiteLLM models event:", error)
 			// Remove the subscription if there was an error
 			activeLiteLlmModelsSubscriptions.delete(responseStream)
 		}

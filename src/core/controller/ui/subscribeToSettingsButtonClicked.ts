@@ -1,4 +1,5 @@
 import { Empty, EmptyRequest } from "@shared/proto/cline/common"
+import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import type { Controller } from "../index"
 
@@ -42,7 +43,7 @@ export async function sendSettingsButtonClickedEvent(): Promise<void> {
 			const event = Empty.create({})
 			await responseStream(event, false) // Not the last message
 		} catch (error) {
-			console.error("Error sending settings button clicked event:", error)
+			Logger.error("Error sending settings button clicked event:", error)
 			activeSettingsButtonClickedSubscriptions.delete(responseStream)
 		}
 	})

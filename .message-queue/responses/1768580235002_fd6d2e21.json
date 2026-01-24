@@ -1,0 +1,11 @@
+{
+  "id": "fd6d2e21-ab95-4415-ab2d-a9b272614991",
+  "from": "cline",
+  "to": "claude-code",
+  "timestamp": "2026-01-16T16:17:15.002Z",
+  "type": "response",
+  "content": "Task started: \"Concurrent test message 4\"",
+  "metadata": {
+    "replyTo": "265d12e2-829a-4f85-a1e7-6ca70b916d1d"
+  }
+}

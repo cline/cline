@@ -1,0 +1,11 @@
+{
+  "id": "32c117ab-e92c-49ae-b218-b6ff2534e9d4",
+  "from": "cline",
+  "to": "claude-code",
+  "timestamp": "2026-01-16T16:26:12.844Z",
+  "type": "response",
+  "content": "Error: Error: StateManager must be initialized before attempting to access state.",
+  "metadata": {
+    "replyTo": "b7d21a77-5319-4c19-ae51-7bcc18477813"
+  }
+}

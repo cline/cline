@@ -6,6 +6,7 @@ import { ShowMessageType } from "@shared/proto/host/window"
 import { fileExistsAtPath } from "@utils/fs"
 import * as path from "path"
 import { ulid } from "ulid"
+import { Logger } from "@/shared/services/Logger"
 
 interface TaskReconstructionResult {
 	totalTasks: number
@@ -143,7 +144,7 @@ async function backupExistingTaskHistory(): Promise<void> {
 		}
 	} catch (error) {
 		// Non-fatal error, just log it
-		console.warn("Failed to backup existing task history:", error)
+		Logger.warn("Failed to backup existing task history:", error)
 	}
 }
 

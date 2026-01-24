@@ -1,0 +1,11 @@
+{
+  "id": "afd9ef94-b92c-4d0d-b8ff-b129422e1902",
+  "from": "cline",
+  "to": "claude-code",
+  "timestamp": "2026-01-16T16:17:07.842Z",
+  "type": "response",
+  "content": "Task started: \"Test with double quotes: Hello\"",
+  "metadata": {
+    "replyTo": "0ac951e7-a805-41c1-8464-e6598bf838de"
+  }
+}

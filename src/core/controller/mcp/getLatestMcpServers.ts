@@ -1,6 +1,7 @@
 import type { Empty } from "@shared/proto/cline/common"
 import { McpServers } from "@shared/proto/cline/mcp"
 import { convertMcpServersToProtoMcpServers } from "@/shared/proto-conversions/mcp/mcp-server-conversion"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 /**
@@ -19,7 +20,7 @@ export async function getLatestMcpServers(controller: Controller, _request: Empt
 
 		return McpServers.create({ mcpServers: protoServers })
 	} catch (error) {
-		console.error("Error fetching latest MCP servers:", error)
+		Logger.error("Error fetching latest MCP servers:", error)
 		throw error
 	}
 }

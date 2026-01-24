@@ -1,0 +1,11 @@
+{
+  "id": "a243459e-2c67-460a-a484-099806061695",
+  "from": "cline",
+  "to": "claude-code",
+  "timestamp": "2026-01-16T16:25:13.703Z",
+  "type": "response",
+  "content": "Task started: \"Hello Cline! This is message 1 - How are you doing today?\"",
+  "metadata": {
+    "replyTo": "4215f0b8-b72e-4be3-bed8-58798170a88e"
+  }
+}

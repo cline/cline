@@ -3,6 +3,7 @@ import chokidar, { FSWatcher } from "chokidar"
 import fs from "fs/promises"
 import ignore, { Ignore } from "ignore"
 import path from "path"
+import { Logger } from "@/shared/services/Logger"
 
 export const LOCK_TEXT_SYMBOL = "\u{1F512}"
 
@@ -64,7 +65,7 @@ export class ClineIgnoreController {
 		})
 
 		this.fileWatcher.on("error", (error) => {
-			console.error("Error watching .clineignore file:", error)
+			Logger.error("Error watching .clineignore file:", error)
 		})
 	}
 
@@ -87,7 +88,7 @@ export class ClineIgnoreController {
 			}
 		} catch (error) {
 			// Should never happen: reading file failed even though it exists
-			console.error("Unexpected error loading .clineignore:", error)
+			Logger.error("Unexpected error loading .clineignore:", error)
 		}
 	}
 
@@ -139,7 +140,7 @@ export class ClineIgnoreController {
 		const resolvedIncludePath = path.join(this.cwd, includePath)
 
 		if (!(await fileExistsAtPath(resolvedIncludePath))) {
-			console.debug(`[ClineIgnore] Included file not found: ${resolvedIncludePath}`)
+			Logger.debug(`[ClineIgnore] Included file not found: ${resolvedIncludePath}`)
 			return null
 		}
 
@@ -164,7 +165,7 @@ export class ClineIgnoreController {
 			// Ignore expects paths to be path.relative()'d
 			return !this.ignoreInstance.ignores(relativePath)
 		} catch (_error) {
-			// console.error(`Error validating access for ${filePath}:`, error)
+			// Logger.error(`Error validating access for ${filePath}:`, error)
 			// Ignore is designed to work with relative file paths, so will throw error for paths outside cwd. We are allowing access to all files outside cwd.
 			return true
 		}
@@ -241,7 +242,7 @@ export class ClineIgnoreController {
 				.filter((x) => x.allowed)
 				.map((x) => x.path)
 		} catch (error) {
-			console.error("Error filtering paths:", error)
+			Logger.error("Error filtering paths:", error)
 			return [] // Fail closed for security
 		}
 	}

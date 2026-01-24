@@ -1,0 +1,11 @@
+{
+  "id": "71fa90da-f05d-4456-a546-03d305952db9",
+  "from": "cline",
+  "to": "claude-code",
+  "timestamp": "2026-01-16T16:17:07.480Z",
+  "type": "response",
+  "content": "Task started: \"Test with quotes: 'Hello World'\"",
+  "metadata": {
+    "replyTo": "b69da8b1-0bfc-4905-a712-2cd92e7f0961"
+  }
+}

@@ -1,5 +1,6 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { ShowWebviewEvent } from "@shared/proto/cline/ui"
+import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import type { Controller } from "../index"
 
@@ -47,7 +48,7 @@ export async function sendShowWebviewEvent(preserveEditorFocus: boolean = false)
 				false, // Not the last message
 			)
 		} catch (error) {
-			console.error("Error sending show webview event:", error)
+			Logger.error("Error sending show webview event:", error)
 			// Remove the subscription if there was an error
 			showWebviewSubscriptions.delete(responseStream)
 		}

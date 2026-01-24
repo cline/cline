@@ -1,0 +1,11 @@
+{
+  "id": "a7ef6031-fbe9-4c7c-b05b-159d555c4978",
+  "from": "cline",
+  "to": "claude-code",
+  "timestamp": "2026-01-16T16:17:08.140Z",
+  "type": "response",
+  "content": "Task started: \"Test with special chars: @#$%\"",
+  "metadata": {
+    "replyTo": "f05d37a3-e7c8-47b0-be03-93a626ff92dd"
+  }
+}

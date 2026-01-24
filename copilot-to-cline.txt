@@ -1,0 +1,23 @@
+You are working on the cline VSCode extension codebase at C:\Users\bob43\Downloads\cline-main
+
+**BUG TO FIX: GitHub Issue #7876 - Claude Sonnet 4.5 Thinking is on a single line**
+
+**Problem Description:**
+- When using Claude Sonnet 4.5 with Thinking/Extended thinking enabled, the thinking blocks display as one very long unreadable line instead of properly formatted text with newlines
+- The thinking content should show properly formatted with line breaks, but instead all newlines are missing or not being rendered
+- This makes the thinking output completely unreadable
+
+**Steps to Reproduce:**
+1. Do any task with Claude Sonnet 4.5 which involves Thinking steps
+2. Observe the Thinking blocks - they have a single, very long line in them
+3. Newlines are missing or not rendered
+
+**Your Task:**
+1. Search the codebase to find where thinking blocks are rendered in the UI
+2. Look for components that handle Claude's thinking/extended thinking content
+3. Find where the thinking text content is processed and displayed
+4. Identify why newlines are being stripped or not rendered
+5. Propose a fix that preserves newlines in the thinking block display
+6. Show me the exact file(s) and code changes needed
+
+Focus on files in src/webview or related UI components that render Claude API responses.

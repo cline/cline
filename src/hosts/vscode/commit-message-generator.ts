@@ -4,6 +4,7 @@ import * as vscode from "vscode"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { getGitDiff } from "@/utils/git"
 
 /**
@@ -89,7 +90,7 @@ async function orchestrateWorkspaceCommitMsgGeneration(stateManager: StateManage
 			try {
 				await generateCommitMsgForRepository(stateManager, repo)
 			} catch (error) {
-				console.error(`Failed to generate commit message for ${repo.rootUri.fsPath}:`, error)
+				Logger.error(`Failed to generate commit message for ${repo.rootUri.fsPath}:`, error)
 			}
 		}
 	} else {

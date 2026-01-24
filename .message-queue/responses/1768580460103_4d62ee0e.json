@@ -1,0 +1,11 @@
+{
+  "id": "4d62ee0e-3032-403f-9c65-968db3a41492",
+  "from": "cline",
+  "to": "claude-code",
+  "timestamp": "2026-01-16T16:21:00.103Z",
+  "type": "response",
+  "content": "Task started: \"Hello from PowerShell! This is a test message.\"",
+  "metadata": {
+    "replyTo": "3da29783-5325-4bd0-be89-8bf8402b4f97"
+  }
+}

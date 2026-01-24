@@ -1,5 +1,6 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { TaskResponse } from "@shared/proto/cline/task"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 
@@ -62,7 +63,7 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 			cacheReads: fetchedItem.cacheReads || 0,
 		})
 	} catch (error) {
-		console.error("Error in showTaskWithId:", error)
+		Logger.error("Error in showTaskWithId:", error)
 		throw error
 	}
 }

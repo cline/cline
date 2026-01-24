@@ -108,7 +108,6 @@ message Secrets {
 message Settings {
   optional string lite_llm_base_url = 1;
   optional bool lite_llm_use_prompt_cache = 2;
-  map<string, string> open_ai_headers = 3;
   optional string anthropic_base_url = 4;
   optional string open_router_provider_sorting = 5;
   optional string aws_region = 6;
@@ -257,7 +256,6 @@ message Settings {
   optional FocusChainSettings focus_chain_settings = 149;
   optional string custom_prompt = 150;
   optional double auto_condense_threshold = 151;
-  optional bool hooks_enabled = 152;
   optional bool subagents_enabled = 153;
   optional bool enable_parallel_tool_calling = 154;
   optional bool background_edit_enabled = 155;
@@ -277,6 +275,8 @@ message Settings {
   optional int32 open_telemetry_log_batch_size = 169;
   optional int32 open_telemetry_log_batch_timeout = 170;
   optional int32 open_telemetry_log_max_queue_size = 171;
+  optional bool worktrees_enabled = 172;
+  map<string, string> open_ai_headers = 173;
 }
 
 message DictationSettings {
@@ -383,6 +383,8 @@ message UpdateTaskSettingsRequest {
 
 // Message for updating settings
 message UpdateSettingsRequest {
+  reserved 26; // was hooks_enabled (removed - now always enabled on macOS/Linux)
+
   Metadata metadata = 1;
   optional ModelsApiConfiguration api_configuration = 2;
   optional string telemetry_setting = 3;
@@ -407,7 +409,6 @@ message UpdateSettingsRequest {
   optional DictationSettings dictation_settings = 23;
   optional double auto_condense_threshold = 24;
   optional bool multi_root_enabled = 25;
-  optional bool hooks_enabled = 26;
   optional string vscode_terminal_execution_mode = 27;
   optional int32 max_consecutive_mistakes = 28;
   optional bool subagents_enabled = 29;
@@ -421,6 +422,7 @@ message UpdateSettingsRequest {
   optional string oca_reasoning_effort = 37;
   optional bool skills_enabled = 38;
   optional bool opt_out_of_remote_config = 39;
+  optional bool worktrees_enabled = 40;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {

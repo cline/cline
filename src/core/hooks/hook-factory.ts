@@ -1,5 +1,6 @@
 import fs from "fs/promises"
 import path from "path"
+import { Logger } from "@/shared/services/Logger"
 import { version as clineVersion } from "../../../package.json"
 import { getDistinctId } from "../../services/logging/distinctId"
 import { telemetryService } from "../../services/telemetry"
@@ -341,7 +342,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 					// Validate and truncate context modification if too large
 					if (output.contextModification && output.contextModification.length > MAX_CONTEXT_MODIFICATION_SIZE) {
-						console.warn(
+						Logger.warn(
 							`Hook ${this.hookName} returned contextModification of ${output.contextModification.length} bytes, ` +
 								`truncating to ${MAX_CONTEXT_MODIFICATION_SIZE} bytes`,
 						)
@@ -408,7 +409,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 							// Validate and truncate context modification if too large
 							if (output.contextModification && output.contextModification.length > MAX_CONTEXT_MODIFICATION_SIZE) {
-								console.warn(
+								Logger.warn(
 									`Hook ${this.hookName} returned contextModification of ${output.contextModification.length} bytes, ` +
 										`truncating to ${MAX_CONTEXT_MODIFICATION_SIZE} bytes`,
 								)
@@ -437,9 +438,9 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 				// Log warning if non-zero exit but valid JSON (for developers)
 				if (exitCode !== 0) {
-					console.warn(`[Hook ${this.hookName}] Exited with code ${exitCode} but provided valid JSON response`)
+					Logger.warn(`[Hook ${this.hookName}] Exited with code ${exitCode} but provided valid JSON response`)
 					if (stderr) {
-						console.warn(`[Hook ${this.hookName}] stderr: ${stderr}`)
+						Logger.warn(`[Hook ${this.hookName}] stderr: ${stderr}`)
 					}
 				}
 
@@ -482,7 +483,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 			// No valid JSON found
 			if (exitCode === 0) {
 				// Hook succeeded but didn't provide JSON - allow execution (no cancellation)
-				console.warn(`[Hook ${this.hookName}] Completed successfully but no JSON response found`)
+				Logger.warn(`[Hook ${this.hookName}] Completed successfully but no JSON response found`)
 				const durationMs = performance.now() - startTime
 
 				// Capture success telemetry even without JSON

@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as vscode from "vscode"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * Safely converts a value into a plain object.
@@ -23,7 +24,7 @@ export function asObjectSafe(value: any): object {
 
 		return {}
 	} catch (error) {
-		console.warn("Cline <Language Model API>: Failed to parse object:", error)
+		Logger.warn("Cline <Language Model API>: Failed to parse object:", error)
 		return {}
 	}
 }

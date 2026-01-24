@@ -1,5 +1,6 @@
 import { ChildProcess, spawn } from "child_process"
 import { EventEmitter } from "events"
+import { Logger } from "@/shared/services/Logger"
 import { HookProcessRegistry } from "./HookProcessRegistry"
 import { escapeShellPath } from "./shell-escape"
 
@@ -230,7 +231,7 @@ export class HookProcess extends EventEmitter {
 				this.outputTruncated = true
 				const truncationMsg = "\n\n[Output truncated: exceeded 1MB limit]"
 				this.emit("line", truncationMsg, stream)
-				console.warn(`[HookProcess] Output exceeded ${MAX_HOOK_OUTPUT_SIZE} bytes, truncating`)
+				Logger.warn(`[HookProcess] Output exceeded ${MAX_HOOK_OUTPUT_SIZE} bytes, truncating`)
 			}
 			return // Drop further output
 		}
@@ -362,7 +363,7 @@ export class HookProcess extends EventEmitter {
 			}
 		} catch (error) {
 			// Process might already be dead, which is fine
-			console.debug(`[HookProcess] Error during termination: ${error}`)
+			Logger.debug(`[HookProcess] Error during termination: ${error}`)
 		} finally {
 			// Clear timeout regardless
 			if (this.timeoutHandle) {

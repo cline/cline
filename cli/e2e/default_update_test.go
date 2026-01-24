@@ -23,7 +23,7 @@ func TestMultiInstanceDefaultUnchanged(t *testing.T) {
 	if len(out1.CoreInstances) != 1 {
 		t.Fatalf("expected 1 instance, got %d", len(out1.CoreInstances))
 	}
-	firstAddr := out1.CoreInstances[0].Address
+	firstAddr := out1.CoreInstances[0].CoreAddress
 	waitForAddressHealthy(t, firstAddr, defaultTimeout)
 
 	// Start second instance
@@ -56,29 +56,29 @@ func TestDefaultJsonUpdateAfterRemoval(t *testing.T) {
 
 	// Choose second as new default
 	target := out.CoreInstances[1]
-	waitForAddressHealthy(t, target.Address, defaultTimeout)
+	waitForAddressHealthy(t, target.CoreAddress, defaultTimeout)
 
 	// Set as default
-	_ = mustRunCLI(ctx, t, "instance", "use", target.Address)
+	_ = mustRunCLI(ctx, t, "instance", "use", target.CoreAddress)
 
 	// Verify default switched
 	out = listInstancesJSON(ctx, t)
-	if out.DefaultInstance != target.Address {
-		t.Fatalf("default_instance not updated to %s (got %s)", target.Address, out.DefaultInstance)
+	if out.DefaultInstance != target.CoreAddress {
+		t.Fatalf("default_instance not updated to %s (got %s)", target.CoreAddress, out.DefaultInstance)
 	}
 
 	// Kill the default instance using runtime PID discovery
-	corePID := getCorePID(t, target.Address)
+	corePID := getCorePID(t, target.CoreAddress)
 	if corePID <= 0 {
-		t.Fatalf("could not find PID for core process at %s", target.Address)
+		t.Fatalf("could not find PID for core process at %s", target.CoreAddress)
 	}
-	t.Logf("Killing cline-core process PID %d for instance %s", corePID, target.Address)
+	t.Logf("Killing cline-core process PID %d for instance %s", corePID, target.CoreAddress)
 	if err := syscall.Kill(corePID, syscall.SIGKILL); err != nil {
 		t.Fatalf("kill pid %d: %v", corePID, err)
 	}
 
 	// Wait for removal
-	waitForAddressRemoved(t, target.Address, longTimeout)
+	waitForAddressRemoved(t, target.CoreAddress, longTimeout)
 
 	// Clean up dangling host process (SIGKILL leaves these behind by design)
 	t.Logf("Cleaning up dangling host process on port %d", target.HostPort())
@@ -91,7 +91,7 @@ func TestDefaultJsonUpdateAfterRemoval(t *testing.T) {
 	if len(out.CoreInstances) > 0 {
 		found := false
 		for _, it := range out.CoreInstances {
-			if out.DefaultInstance == it.Address {
+			if out.DefaultInstance == it.CoreAddress {
 				found = true
 				break
 			}

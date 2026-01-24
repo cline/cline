@@ -1,4 +1,5 @@
 import type { SystemPromptContext } from "@/core/prompts/system-prompt/types"
+import { Logger } from "@/shared/services/Logger"
 import type { DeepPlanningVariant, DeepPlanningRegistry as IDeepPlanningRegistry } from "./types"
 import {
 	createAnthropicVariant,
@@ -78,7 +79,7 @@ class DeepPlanningRegistry implements IDeepPlanningRegistry {
 			return this.genericVariant
 		} catch (error) {
 			// On any error, safely fall back to generic variant
-			console.warn("Error selecting deep-planning variant, falling back to generic:", error)
+			Logger.warn("Error selecting deep-planning variant, falling back to generic:", error)
 			return this.genericVariant
 		}
 	}
