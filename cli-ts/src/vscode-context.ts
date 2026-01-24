@@ -10,8 +10,9 @@ import type { Memento } from "vscode"
 import { ExtensionRegistryInfo } from "@/registry"
 import { ClineExtensionContext } from "@/shared/cline"
 import { Logger } from "@/shared/services/Logger"
+import { ClineFileStorage } from "@/shared/storage"
 import { name as appName } from "../package.json"
-import { ClineCredentialStorage } from "./providers/secrets"
+import { ClineCredentialStorage } from "./providers/keychains"
 import { ExtensionKind, ExtensionMode, SecretStorage, URI } from "./vscode-shim"
 
 const SETTINGS_SUBFOLDER = "data"
@@ -236,10 +237,10 @@ export function initializeCliContext(config: CliContextConfig = {}) {
 	const CLINE_DIR = config.clineDir || process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
 	const DATA_DIR = path.join(CLINE_DIR, SETTINGS_SUBFOLDER)
 
-	const USER_SECRET_DIR = process.env.CLINE_SECRET_DIR
-	const secretStore = USER_SECRET_DIR
-		? new SecretStore(path.join(USER_SECRET_DIR, "auth.json"))
-		: new ClineCredentialStorage(appName, DATA_DIR)
+	// Use keychain-based storage if enabled
+	const useKeychain = process.env.CLINE_SECRETS_STORE === "keychain"
+	const SECRETS_PATH = path.join(DATA_DIR, "secrets.json")
+	const secretStore = useKeychain ? new ClineCredentialStorage(appName, SECRETS_PATH) : new ClineFileStorage(SECRETS_PATH)
 
 	// Workspace storage should always be under ~/.cline/data/workspaces/<hash>/
 	// where hash is derived from the workspace path to keep workspaces isolated

@@ -1,5 +1,4 @@
 import keytar from "keytar"
-import path from "path"
 import { ClineFileStorage, ClineStorage } from "@/shared/storage"
 import { printInfo } from "../utils/display"
 
@@ -9,7 +8,7 @@ export class ClineCredentialStorage extends ClineStorage {
 
 	constructor(
 		private readonly service: string,
-		private readonly backupDir: string,
+		pathPath: string,
 	) {
 		super()
 
@@ -22,7 +21,7 @@ export class ClineCredentialStorage extends ClineStorage {
 				})
 			})
 			.catch(() => {
-				this.backupStorage = new ClineFileStorage(path.join(this.backupDir, "auth.json"))
+				this.backupStorage = new ClineFileStorage(pathPath)
 			})
 	}
 

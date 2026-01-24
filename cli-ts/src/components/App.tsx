@@ -260,15 +260,20 @@ export const App: React.FC<AppProps> = ({
 		case "welcome":
 			content = (
 				<TaskContextProvider controller={controller}>
-					<ChatView
-						controller={controller}
-						initialImages={initialImages}
-						initialPrompt={initialPrompt}
-						onComplete={onComplete}
-						onError={onError}
-						onExit={onWelcomeExit}
-						robotTopRow={robotTopRow}
-					/>
+					{jsonOutput ? (
+						<TaskJsonView onComplete={onComplete} onError={onError} taskId={selectedTaskId} verbose={verbose} />
+					) : (
+						<ChatView
+							controller={controller}
+							initialImages={initialImages}
+							initialPrompt={initialPrompt}
+							onComplete={onComplete}
+							onError={onError}
+							onExit={onWelcomeExit}
+							robotTopRow={robotTopRow}
+							taskId={selectedTaskId}
+						/>
+					)}
 				</TaskContextProvider>
 			)
 			break
