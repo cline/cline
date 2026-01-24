@@ -12,7 +12,7 @@ import { ClineExtensionContext } from "@/shared/cline"
 import { Logger } from "@/shared/services/Logger"
 import { ClineFileStorage } from "@/shared/storage"
 import { name as appName } from "../package.json"
-import { ClineCredentialStorage } from "./providers/keychains"
+import { ClineCredentialStorage } from "./controllers/keychains"
 import { ExtensionKind, ExtensionMode, SecretStorage, URI } from "./vscode-shim"
 
 const SETTINGS_SUBFOLDER = "data"
