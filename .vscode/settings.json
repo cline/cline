@@ -29,5 +29,17 @@
 		"source.organizeImports.biome": "always"
 	},
 	// Disable auto-forwarding ports to prevent Simple Browser from opening the Vite dev server
-	"remote.autoForwardPorts": false
+	"remote.autoForwardPorts": false,
+	// Go language server settings
+	"go.toolsManagement.autoUpdate": true,
+	"go.useLanguageServer": true,
+	"gopls": {
+		"build.directoryFilters": [
+			"-node_modules"
+		],
+		"formatting.gofumpt": true,
+		"build.env": {
+			"GOPATH": "/Users/honghyosang/go"
+		}
+	}
 }
