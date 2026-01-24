@@ -4,14 +4,24 @@
 export class Logger {
 	private static isVerbose = process.env.IS_DEV === "true"
 
-	private static output: (msg: string) => void = console.log
+	private static subscribers: Set<(msg: string) => void> = new Set()
+
+	private static output(msg: string): void {
+		for (const subscriber of Logger.subscribers) {
+			try {
+				subscriber(msg)
+			} catch {
+				// ignore errors from subscribers
+			}
+		}
+	}
 
 	/**
 	 * Configure the output function for Logger.
 	 * Call this once at extension startup to inject the host-specific logger.
 	 */
 	static setOutput(outputFn: (msg: string) => void) {
-		Logger.output = outputFn
+		Logger.subscribers.add(outputFn)
 	}
 
 	static error(message: string, ...args: any[]) {

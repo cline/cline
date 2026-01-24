@@ -34,7 +34,7 @@ import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { workspaceResolver } from "./core/workspace"
 import { findMatchingNotebookCell, getContextForCommand, showWebview } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMsg } from "./hosts/vscode/commit-message-generator"
-import { createVSCodeOutputChannel } from "./hosts/vscode/hostbridge/env/appendOutputLog"
+import { registerClineOutputChannel } from "./hosts/vscode/hostbridge/env/debugLog"
 import {
 	disposeVscodeCommentReviewController,
 	getVscodeCommentReviewController,
@@ -594,7 +594,7 @@ async function showJupyterPromptInput(title: string, placeholder: string): Promi
 }
 
 function setupHostProvider(context: ExtensionContext) {
-	const outputChannel = createVSCodeOutputChannel(context, "Cline")
+	const outputChannel = registerClineOutputChannel(context)
 	outputChannel.appendLine("Setting up vscode host providers...")
 
 	const createWebview = () => new VscodeWebviewProvider(context)
@@ -609,7 +609,7 @@ function setupHostProvider(context: ExtensionContext) {
 		createCommentReview,
 		createTerminalManager,
 		vscodeHostBridgeClient,
-		outputChannel.appendLine,
+		() => {}, // No-op logger, logging is handled via HostProvider.env.debugLog
 		getCallbackUrl,
 		getBinaryLocation,
 		context.extensionUri.fsPath,

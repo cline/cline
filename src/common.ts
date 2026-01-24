@@ -37,7 +37,7 @@ import { arePathsEqual } from "./utils/path"
  */
 export async function initialize(context: vscode.ExtensionContext): Promise<WebviewProvider> {
 	// Configure the shared Logging class to use HostProvider's output channel
-	Logger.setOutput((msg: string) => HostProvider.get().logToChannel(msg))
+	Logger.setOutput((msg: string) => HostProvider.env.debugLog({ value: msg }))
 
 	// Initialize ClineEndpoint configuration first (reads ~/.cline/endpoints.json if present)
 	// This must be done before any other code that calls ClineEnv.config()
