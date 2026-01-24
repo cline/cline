@@ -238,8 +238,8 @@ export function initializeCliContext(config: CliContextConfig = {}) {
 
 	let secretStore: unknown = new ClineCredentialStorage(appName)
 	const SECRET_DIR = process.env.CLINE_SECRET_DIR
-	if (!SECRET_DIR && !ClineCredentialStorage.ok()) {
-		secretStore = new SecretStore(path.join(DATA_DIR, "secrets.json"))
+	if (SECRET_DIR) {
+		secretStore = new SecretStore(path.join(SECRET_DIR, "auth.json"))
 	}
 
 	// Workspace storage should always be under ~/.cline/data/workspaces/<hash>/
