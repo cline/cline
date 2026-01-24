@@ -3,6 +3,7 @@ import { ModelInfo, NvidiaNimModelId, nvidiaNimDefaultModelId, nvidiaNimModels }
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { Logger } from "@/services/logging/Logger"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from ".."
@@ -176,7 +177,7 @@ export class NvidiaNimHandler implements ApiHandler {
 		} catch (error: any) {
 			// Handle streaming errors gracefully
 			if (error?.message?.includes("aborted")) {
-				console.warn("Nvidia NIM stream was aborted by client")
+				Logger.warn("Nvidia NIM stream was aborted by client")
 				return
 			}
 			throw new Error(`Nvidia NIM streaming error: ${error?.message || "Unknown error"}`)
