@@ -80,6 +80,8 @@ export class CliDiffServiceClient implements DiffServiceClientInterface {
 export class CliEnvServiceClient implements EnvServiceClientInterface {
 	private clipboardContent: string = ""
 
+	private telemetrySetting = proto.host.Setting.ENABLED
+
 	async clipboardWriteText(request: proto.cline.StringRequest): Promise<proto.cline.Empty> {
 		this.clipboardContent = request.value || ""
 		printInfo(`📋 Copied to clipboard`)
@@ -105,7 +107,7 @@ export class CliEnvServiceClient implements EnvServiceClientInterface {
 
 	async getTelemetrySettings(_request: proto.cline.EmptyRequest): Promise<proto.host.GetTelemetrySettingsResponse> {
 		return proto.host.GetTelemetrySettingsResponse.create({
-			isEnabled: proto.host.Setting.DISABLED,
+			isEnabled: this.telemetrySetting,
 		})
 	}
 
@@ -116,7 +118,7 @@ export class CliEnvServiceClient implements EnvServiceClientInterface {
 		// Send initial settings
 		callbacks.onResponse(
 			proto.host.TelemetrySettingsEvent.create({
-				isEnabled: proto.host.Setting.DISABLED,
+				isEnabled: this.telemetrySetting,
 			}),
 		)
 		// Return unsubscribe function
