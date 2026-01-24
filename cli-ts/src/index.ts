@@ -95,6 +95,8 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 		workspaceDir: workspacePath,
 	})
 
+	await initializeDistinctId(extensionContext)
+
 	if (options.enableAuth) {
 		AuthHandler.getInstance().setEnabled(true)
 	}
@@ -124,8 +126,6 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 
 	const webview = HostProvider.get().createWebviewProvider() as CliWebviewProvider
 	const controller = webview.controller
-
-	await initializeDistinctId(extensionContext)
 
 	BannerService.initialize(webview.controller)
 
