@@ -11,6 +11,25 @@ import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
+/**
+ * Checks if a string contains XML tool calling patterns.
+ * DeepSeek V3.2 sometimes emits tool calls in reasoning_content using XML format,
+ * which can cause issues if not detected and handled properly.
+ * @see https://github.com/cline/cline/issues/8365
+ */
+function containsXmlToolPattern(text: string): boolean {
+	// Match common XML tool patterns like <tool_call>, <function_call>, <invoke>, etc.
+	const xmlToolPatterns = [
+		/<tool_call>/i,
+		/<\/tool_call>/i,
+		/<function_call>/i,
+		/<\/function_call>/i,
+		/<invoke\s+name=/i,
+		/<tool\s+name=/i,
+	]
+	return xmlToolPatterns.some((pattern) => pattern.test(text))
+}
+
 interface DeepSeekHandlerOptions extends CommonApiHandlerOptions {
 	deepSeekApiKey?: string
 	apiModelId?: string
@@ -117,9 +136,21 @@ export class DeepSeekHandler implements ApiHandler {
 			}
 
 			if (delta && "reasoning_content" in delta && delta.reasoning_content) {
-				yield {
-					type: "reasoning",
-					reasoning: (delta.reasoning_content as string | undefined) || "",
+				const reasoningText = (delta.reasoning_content as string | undefined) || ""
+				// DeepSeek V3.2 sometimes emits XML tool calls in reasoning_content,
+				// which can cause infinite loops. If we detect XML tool patterns,
+				// yield as text instead of reasoning to allow proper processing.
+				// See: https://github.com/cline/cline/issues/8365
+				if (containsXmlToolPattern(reasoningText)) {
+					yield {
+						type: "text",
+						text: reasoningText,
+					}
+				} else {
+					yield {
+						type: "reasoning",
+						reasoning: reasoningText,
+					}
 				}
 			}
 

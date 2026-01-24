@@ -177,6 +177,43 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 	return undefined
 }
 
+/**
+ * Safely parse a float value, handling edge cases like ".25" or "0."
+ * @param value - The string value to parse
+ * @param defaultValue - Default value to return if parsing fails
+ * @returns The parsed number or the default value
+ */
+export function safeParseFloat(value: string | undefined | null, defaultValue = 0): number {
+	if (value === undefined || value === null || value === "") {
+		return defaultValue
+	}
+	// Handle cases like ".25" by prepending "0"
+	let normalizedValue = value.trim()
+	if (normalizedValue.startsWith(".")) {
+		normalizedValue = "0" + normalizedValue
+	}
+	// Handle cases like "25." by appending "0"
+	if (normalizedValue.endsWith(".")) {
+		normalizedValue = normalizedValue + "0"
+	}
+	const parsed = parseFloat(normalizedValue)
+	return isNaN(parsed) ? defaultValue : parsed
+}
+
+/**
+ * Safely parse an integer value
+ * @param value - The string value to parse
+ * @param defaultValue - Default value to return if parsing fails
+ * @returns The parsed integer or the default value
+ */
+export function safeParseInt(value: string | undefined | null, defaultValue = 0): number {
+	if (value === undefined || value === null || value === "") {
+		return defaultValue
+	}
+	const parsed = parseInt(value.trim(), 10)
+	return isNaN(parsed) ? defaultValue : parsed
+}
+
 export function validateModelId(
 	currentMode: Mode,
 	apiConfiguration?: ApiConfiguration,
