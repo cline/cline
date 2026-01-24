@@ -17,10 +17,9 @@ export class Logger {
 	}
 
 	/**
-	 * Configure the output function for Logger.
-	 * Call this once at extension startup to inject the host-specific logger.
+	 * Register a callback to receive log output messages.
 	 */
-	static setOutput(outputFn: (msg: string) => void) {
+	static subscribe(outputFn: (msg: string) => void) {
 		Logger.subscribers.add(outputFn)
 	}
 
