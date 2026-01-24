@@ -31,6 +31,7 @@
 		"@types/node": "20.x",
 		"@types/prompts": "^2.4.9",
 		"@types/react": "^19.2.9",
+		"dotenv": "^17.2.3",
 		"esbuild": "^0.25.0",
 		"ink-testing-library": "^4.0.0",
 		"rimraf": "^6.0.1",
