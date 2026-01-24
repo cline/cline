@@ -1,5 +1,6 @@
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import * as fs from "fs/promises"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * A file-system-based implementation of DiffViewProvider that performs direct file operations
@@ -113,7 +114,7 @@ export class FileEditProvider extends DiffViewProvider {
 			await fs.writeFile(this.absolutePath, this.documentContent, { encoding: this.fileEncoding as BufferEncoding })
 			return true
 		} catch (error) {
-			console.error(`Failed to save document to ${this.absolutePath}:`, error)
+			Logger.error(`Failed to save document to ${this.absolutePath}:`, error)
 			return false
 		}
 	}

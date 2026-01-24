@@ -4,6 +4,7 @@ import { URL } from "url"
 import type { ExtensionContext } from "vscode"
 import { z } from "zod"
 import { fetch } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * OpenAI Codex OAuth Configuration
@@ -87,11 +88,7 @@ function parseJwtClaims(token: string): IdTokenClaims | undefined {
  * 3. First organization ID
  */
 function extractAccountIdFromClaims(claims: IdTokenClaims): string | undefined {
-	return (
-		claims.chatgpt_account_id ||
-		claims["https://api.openai.com/auth"]?.chatgpt_account_id ||
-		claims.organizations?.[0]?.id
-	)
+	return claims.chatgpt_account_id || claims["https://api.openai.com/auth"]?.chatgpt_account_id || claims.organizations?.[0]?.id
 }
 
 /**
@@ -148,9 +145,7 @@ function parseOAuthErrorDetails(errorText: string): { errorCode?: string; errorM
 		const errorCode: string | undefined =
 			typeof errorField === "string"
 				? errorField
-				: errorField &&
-					  typeof errorField === "object" &&
-					  typeof (errorField as Record<string, unknown>).type === "string"
+				: errorField && typeof errorField === "object" && typeof (errorField as Record<string, unknown>).type === "string"
 					? ((errorField as Record<string, unknown>).type as string)
 					: undefined
 
@@ -381,9 +376,9 @@ export class OpenAiCodexOAuthManager {
 			return newCredentials.access_token
 		} catch (error) {
 			this.refreshPromise = null
-			console.error("[openai-codex-oauth] Failed to force refresh token:", error)
+			Logger.error("[openai-codex-oauth] Failed to force refresh token:", error)
 			if (error instanceof OpenAiCodexOAuthTokenError && error.isLikelyInvalidGrant()) {
-				console.log("[openai-codex-oauth] Refresh token appears invalid; clearing stored credentials")
+				Logger.log("[openai-codex-oauth] Refresh token appears invalid; clearing stored credentials")
 				await this.clearCredentials()
 			}
 			return null
@@ -408,7 +403,7 @@ export class OpenAiCodexOAuthManager {
 			this.credentials = openAiCodexCredentialsSchema.parse(parsed)
 			return this.credentials
 		} catch (error) {
-			console.error("[openai-codex-oauth] Failed to load credentials:", error)
+			Logger.error("[openai-codex-oauth] Failed to load credentials:", error)
 			return null
 		}
 	}
@@ -463,11 +458,11 @@ export class OpenAiCodexOAuthManager {
 				await this.saveCredentials(newCredentials)
 			} catch (error) {
 				this.refreshPromise = null
-				console.error("[openai-codex-oauth] Failed to refresh token:", error)
+				Logger.error("[openai-codex-oauth] Failed to refresh token:", error)
 
 				// Only clear secrets when the refresh token is clearly invalid/revoked.
 				if (error instanceof OpenAiCodexOAuthTokenError && error.isLikelyInvalidGrant()) {
-					console.log("[openai-codex-oauth] Refresh token appears invalid; clearing stored credentials")
+					Logger.log("[openai-codex-oauth] Refresh token appears invalid; clearing stored credentials")
 					await this.clearCredentials()
 				}
 				return null

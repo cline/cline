@@ -16,11 +16,11 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { formatResponse } from "@core/prompts/responses"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
-import { Logger } from "@services/logging/Logger"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@services/telemetry"
 import { ClineTempManager } from "@services/temp"
 import { COMMAND_CANCEL_TOKEN } from "@shared/ExtensionMessage"
 import * as fs from "fs"
+import { Logger } from "@/shared/services/Logger"
 import {
 	BUFFER_STUCK_TIMEOUT_MS,
 	CHUNK_BYTE_SIZE,

@@ -1,4 +1,5 @@
 import { Empty, EmptyRequest } from "@shared/proto/cline/common"
+import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
 
@@ -50,7 +51,7 @@ export async function sendWorktreesButtonClickedEvent(): Promise<void> {
 				false, // Not the last message
 			)
 		} catch (error) {
-			console.error("Error sending worktrees button clicked event:", error)
+			Logger.error("Error sending worktrees button clicked event:", error)
 			// Remove the subscription if there was an error
 			activeWorktreesButtonClickedSubscriptions.delete(responseStream)
 		}

@@ -8,6 +8,7 @@ import { ClineMessage } from "@/shared/ExtensionMessage"
 import { getApiMetrics } from "@/shared/getApiMetrics"
 import { HistoryItem } from "@/shared/HistoryItem"
 import { ClineStorageMessage } from "@/shared/messages/content"
+import { Logger } from "@/shared/services/Logger"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { ensureTaskDirectoryExists, saveApiConversationHistory, saveClineMessages } from "../storage/disk"
 import { TaskState } from "./TaskState"
@@ -101,7 +102,7 @@ export class MessageStateHandler {
 				// returns # of bytes, size/1000/1000 = MB
 				taskDirSize = await getFolderSize.loose(taskDir)
 			} catch (error) {
-				console.error("Failed to get task directory size:", taskDir, error)
+				Logger.error("Failed to get task directory size:", taskDir, error)
 			}
 			const cwd = await getCwd(getDesktopDir())
 			await this.updateTaskHistory({
@@ -123,7 +124,7 @@ export class MessageStateHandler {
 				modelId: lastModelInfo?.modelInfo?.modelId,
 			})
 		} catch (error) {
-			console.error("Failed to save cline messages:", error)
+			Logger.error("Failed to save cline messages:", error)
 		}
 	}
 

@@ -8,6 +8,7 @@ import * as iconv from "iconv-lite"
 import { HostProvider } from "@/hosts/host-provider"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
 import { DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
+import { Logger } from "@/shared/services/Logger"
 import { detectEncoding } from "../misc/extract-text"
 import { sanitizeNotebookForLLM } from "../misc/notebook-utils"
 import { openFile } from "../misc/open-file"
@@ -182,6 +183,10 @@ export abstract class DiffViewProvider {
 		// Default no-op - subclasses can override if needed
 	}
 
+	private lastUpdateContentLength = -1
+	private lastUpdateTime = 0
+	private static readonly UPDATE_THROTTLE_MS = 100 // Throttle updates to max 10/second during streaming
+
 	async update(
 		accumulatedContent: string,
 		isFinal: boolean,
@@ -189,6 +194,25 @@ export abstract class DiffViewProvider {
 	) {
 		if (!this.isEditing) {
 			throw new Error("Not editing any file")
+		}
+
+		// Throttle updates during streaming to prevent performance issues with large files
+		// This is especially important for notebooks where streaming can trigger thousands of calls
+		if (!isFinal) {
+			const now = Date.now()
+			const contentLength = accumulatedContent.length
+			const timeSinceLastUpdate = now - this.lastUpdateTime
+
+			// Skip if: no content, content unchanged, or throttle period not elapsed
+			if (contentLength === 0 || contentLength === this.lastUpdateContentLength) {
+				return
+			}
+			if (timeSinceLastUpdate < DiffViewProvider.UPDATE_THROTTLE_MS) {
+				return // Throttle: too soon since last update
+			}
+
+			this.lastUpdateContentLength = contentLength
+			this.lastUpdateTime = now
 		}
 
 		// --- Fix to prevent duplicate BOM ---
@@ -391,15 +415,15 @@ export abstract class DiffViewProvider {
 			await this.saveDocument()
 			await this.closeAllDiffViews()
 			await fs.rm(this.absolutePath, { force: true })
-			console.log(`File ${this.absolutePath} has been deleted.`)
+			Logger.log(`File ${this.absolutePath} has been deleted.`)
 
 			// Remove only the directories we created, in reverse order
 			for (let i = this.createdDirs.length - 1; i >= 0; i--) {
 				try {
 					await fs.rmdir(this.createdDirs[i])
-					console.log(`Directory ${this.createdDirs[i]} has been deleted.`)
+					Logger.log(`Directory ${this.createdDirs[i]} has been deleted.`)
 				} catch (error) {
-					console.log(`Could not delete directory ${this.createdDirs[i]}`, error)
+					Logger.log(`Could not delete directory ${this.createdDirs[i]}`, error)
 				}
 			}
 		} else {
@@ -411,7 +435,7 @@ export abstract class DiffViewProvider {
 			await this.replaceText(this.originalContent ?? "", { startLine: 0, endLine: lineCount }, undefined)
 
 			await this.saveDocument()
-			console.log(`File ${this.absolutePath} has been reverted to its original content.`)
+			Logger.log(`File ${this.absolutePath} has been reverted to its original content.`)
 			if (this.documentWasOpen) {
 				openFile(this.absolutePath, true)
 			}
@@ -453,9 +477,9 @@ export abstract class DiffViewProvider {
 		// Delete the file
 		try {
 			await fs.rm(fileLocation, { force: true })
-			console.log(`File ${fileLocation} has been deleted.`)
+			Logger.log(`File ${fileLocation} has been deleted.`)
 		} catch (error) {
-			console.error(`Failed to delete file ${fileLocation}:`, error)
+			Logger.error(`Failed to delete file ${fileLocation}:`, error)
 		}
 
 		this.isEditing = false
@@ -477,6 +501,8 @@ export abstract class DiffViewProvider {
 		this.streamedLines = []
 		this.createdDirs = []
 		this.newContent = undefined
+		this.lastUpdateContentLength = -1
+		this.lastUpdateTime = 0
 
 		await this.resetDiffView()
 	}

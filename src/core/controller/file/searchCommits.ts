@@ -2,6 +2,7 @@ import { StringRequest } from "@shared/proto/cline/common"
 import { GitCommits } from "@shared/proto/cline/file"
 import { searchCommits as searchCommitsUtil } from "@utils/git"
 import { getWorkspacePath } from "@utils/path"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
@@ -21,7 +22,7 @@ export async function searchCommits(_controller: Controller, request: StringRequ
 
 		return GitCommits.create({ commits })
 	} catch (error) {
-		console.error(`Error searching commits: ${JSON.stringify(error)}`)
+		Logger.error(`Error searching commits: ${JSON.stringify(error)}`)
 		return GitCommits.create({ commits: [] })
 	}
 }

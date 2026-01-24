@@ -2,6 +2,7 @@ import { type ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { type Config, type Message, Ollama } from "ollama"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOllamaMessages } from "../transform/ollama-format"
@@ -93,7 +94,7 @@ export class OllamaHandler implements ApiHandler {
 					}
 				}
 			} catch (streamError: any) {
-				console.error("Error processing Ollama stream:", streamError)
+				Logger.error("Error processing Ollama stream:", streamError)
 				throw new Error(`Ollama stream processing error: ${streamError.message || "Unknown error"}`)
 			}
 		} catch (error) {
@@ -107,7 +108,7 @@ export class OllamaHandler implements ApiHandler {
 			const statusCode = error.status || error.statusCode
 			const errorMessage = error.message || "Unknown error"
 
-			console.error(`Ollama API error (${statusCode || "unknown"}): ${errorMessage}`)
+			Logger.error(`Ollama API error (${statusCode || "unknown"}): ${errorMessage}`)
 			throw error
 		}
 	}

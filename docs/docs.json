@@ -199,6 +199,7 @@
 									"provider-config/anthropic",
 									"provider-config/claude-code",
 									"provider-config/openai",
+									"provider-config/openai-codex",
 									"provider-config/openrouter",
 									"provider-config/cerebras",
 									"provider-config/deepseek",

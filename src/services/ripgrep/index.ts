@@ -2,6 +2,7 @@ import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import * as childProcess from "child_process"
 import * as path from "path"
 import * as readline from "readline"
+import { Logger } from "@/shared/services/Logger"
 import { getBinaryLocation } from "@/utils/fs"
 
 /*
@@ -140,7 +141,7 @@ export async function regexSearchFiles(
 					}
 				}
 			} catch (error) {
-				console.error("Error parsing ripgrep output:", error)
+				Logger.error("Error parsing ripgrep output:", error)
 			}
 		}
 	})

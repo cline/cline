@@ -6,6 +6,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { getErrorLevelFromString } from "@/services/error"
 import { getDistinctId, setDistinctId } from "@/services/logging/distinctId"
 import { Setting } from "@/shared/proto/index.host"
+import { Logger } from "@/shared/services/Logger"
 import type { ClineAccountUserInfo } from "../../../auth/AuthService"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../ITelemetryProvider"
 
@@ -54,7 +55,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 		const loggerReady = !!this.logger
 		const meterReady = !!this.meter
 		if (loggerReady || meterReady) {
-			console.log(`[OTEL] Provider initialized - Logger: ${loggerReady}, Meter: ${meterReady}`)
+			Logger.log(`[OTEL] Provider initialized - Logger: ${loggerReady}, Meter: ${meterReady}`)
 		}
 	}
 
@@ -187,7 +188,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 			const options = description ? { description } : undefined
 			counter = this.meter.createCounter(name, options)
 			this.counters.set(name, counter)
-			console.log(`[OTEL] Created counter: ${name}`)
+			Logger.log(`[OTEL] Created counter: ${name}`)
 		}
 
 		counter.add(value, this.flattenProperties(attributes))
@@ -213,7 +214,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 			const options = description ? { description } : undefined
 			histogram = this.meter.createHistogram(name, options)
 			this.histograms.set(name, histogram)
-			console.log(`[OTEL] Created histogram: ${name}`)
+			Logger.log(`[OTEL] Created histogram: ${name}`)
 		}
 
 		histogram.record(value, this.flattenProperties(attributes))
@@ -270,7 +271,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 			})
 
 			this.gauges.set(name, gauge)
-			console.log(`[OTEL] Created gauge: ${name}`)
+			Logger.log(`[OTEL] Created gauge: ${name}`)
 		}
 
 		series.set(attrKey, { value, attributes })

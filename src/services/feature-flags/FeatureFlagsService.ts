@@ -1,6 +1,7 @@
 import { clearOnboardingModelsCache, getClineOnboardingModels } from "@/core/controller/models/getClineOnboardingModels"
 import type { OnboardingModel } from "@/shared/proto/cline/state"
 import { FEATURE_FLAGS, FeatureFlag, FeatureFlagDefaultValue } from "@/shared/services/feature-flags/feature-flags"
+import { Logger } from "@/shared/services/Logger"
 import { telemetryService } from "../telemetry"
 import type { FeatureFlagPayload, FeatureFlagsAndPayloads, IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
 
@@ -82,7 +83,7 @@ export class FeatureFlagsService {
 
 			return payload ?? flagValue ?? FeatureFlagDefaultValue[flagName] ?? undefined
 		} catch (error) {
-			console.error(`Error checking if feature flag ${flagName} is enabled:`, error)
+			Logger.error(`Error checking if feature flag ${flagName} is enabled:`, error)
 			return FeatureFlagDefaultValue[flagName] ?? false
 		}
 	}
