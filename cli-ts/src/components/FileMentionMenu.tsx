@@ -41,18 +41,16 @@ export const FileMentionMenu: React.FC<FileMentionMenuProps> = ({ results, selec
 		)
 	}
 
-	// Show max 8 items, centered around selected item
-	const maxVisible = 8
+	// Show max 5 items, centered around selected item
+	const maxVisible = 5
 	let startIndex = 0
 	let endIndex = results.length
 
 	if (results.length > maxVisible) {
-		// Center the selected item in the visible window
 		const halfWindow = Math.floor(maxVisible / 2)
 		startIndex = Math.max(0, selectedIndex - halfWindow)
 		endIndex = Math.min(results.length, startIndex + maxVisible)
 
-		// Adjust if we're near the end
 		if (endIndex - startIndex < maxVisible) {
 			startIndex = Math.max(0, endIndex - maxVisible)
 		}
@@ -62,12 +60,6 @@ export const FileMentionMenu: React.FC<FileMentionMenuProps> = ({ results, selec
 
 	return (
 		<Box flexDirection="column" marginBottom={1} paddingLeft={1} paddingRight={1}>
-			{startIndex > 0 && (
-				<Text color="gray" dimColor>
-					↑ {startIndex} more...
-				</Text>
-			)}
-
 			{visibleResults.map((result, idx) => {
 				const actualIndex = startIndex + idx
 				const isSelected = actualIndex === selectedIndex
@@ -75,25 +67,12 @@ export const FileMentionMenu: React.FC<FileMentionMenuProps> = ({ results, selec
 
 				return (
 					<Box key={result.path}>
-						<Text backgroundColor={isSelected ? "blue" : undefined} color={isSelected ? "white" : undefined}>
-							{isSelected ? "❯ " : "  "}
-							{displayPath}
+						<Text color={isSelected ? "blueBright" : undefined}>
+							{isSelected ? "❯" : " "} {displayPath}
 						</Text>
 					</Box>
 				)
 			})}
-
-			{endIndex < results.length && (
-				<Text color="gray" dimColor>
-					↓ {results.length - endIndex} more...
-				</Text>
-			)}
-
-			<Box>
-				<Text color="cyan" dimColor>
-					↑/↓ to select, Tab/Enter to insert
-				</Text>
-			</Box>
 		</Box>
 	)
 }
