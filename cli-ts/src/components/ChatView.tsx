@@ -588,11 +588,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		// Slash command menu navigation (takes priority over file menu)
 		if (inSlashMenu) {
 			if (key.upArrow) {
-				setSelectedSlashIndex((i) => (i > 0 ? i - 1 : filteredCommands.length - 1))
+				setSelectedSlashIndex((i) => Math.max(0, i - 1))
 				return
 			}
 			if (key.downArrow) {
-				setSelectedSlashIndex((i) => (i < filteredCommands.length - 1 ? i + 1 : 0))
+				setSelectedSlashIndex((i) => Math.min(filteredCommands.length - 1, i + 1))
 				return
 			}
 			if (key.tab || key.return) {
@@ -614,11 +614,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		// File mention menu navigation
 		if (inFileMenu) {
 			if (key.upArrow) {
-				setSelectedIndex((i) => (i > 0 ? i - 1 : fileResults.length - 1))
+				setSelectedIndex((i) => Math.max(0, i - 1))
 				return
 			}
 			if (key.downArrow) {
-				setSelectedIndex((i) => (i < fileResults.length - 1 ? i + 1 : 0))
+				setSelectedIndex((i) => Math.min(fileResults.length - 1, i + 1))
 				return
 			}
 			if (key.tab || key.return) {
@@ -707,6 +707,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const borderColor = mode === "act" ? "blueBright" : "yellow"
 	const metrics = getApiMetrics(messages)
 	const showSlashMenu = slashInfo.inSlashMode && !slashMenuDismissed
+	const showFileMenu = mentionInfo.inMentionMode && !showSlashMenu
 
 	// Determine input placeholder/prompt text
 	let inputPrompt = ""
@@ -814,7 +815,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				)}
 
 				{/* File mention menu - below input (only when not in slash mode) */}
-				{mentionInfo.inMentionMode && !showSlashMenu && (
+				{showFileMenu && (
 					<Box paddingLeft={1} paddingRight={1}>
 						<FileMentionMenu
 							isLoading={isSearching}
@@ -834,8 +835,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					</Box>
 				)}
 
-				{/* Footer - hidden when slash menu is shown */}
-				{!showSlashMenu && (
+				{/* Footer - hidden when any menu is shown */}
+				{!showSlashMenu && !showFileMenu && (
 					<>
 						{/* Row 1: Instructions (left, can wrap) | Plan/Act toggle (right, no wrap) */}
 						<Box justifyContent="space-between" paddingLeft={1} paddingRight={1} width="100%">
