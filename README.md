@@ -48,4 +48,4 @@
 
 ## 라이선스
 
-[Apache 2.0 © 2025 Cline Bot Inc.](./LICENSE)
+[Apache 2.0 © 2025 (주) 애버커스 ](./LICENSE)
