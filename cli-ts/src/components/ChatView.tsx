@@ -101,14 +101,18 @@
  * - log-update: node_modules/ink/build/log-update.js (eraseLines logic)
  */
 
-import { combineCommandSequences } from "@shared/combineCommandSequences"
-import type { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineAsk } from "@shared/ExtensionMessage"
 import { getApiMetrics } from "@shared/getApiMetrics"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import type { SlashCommandInfo } from "@shared/proto/cline/slash"
 import type { Mode } from "@shared/storage/types"
 import { execSync } from "child_process"
 import { Box, Static, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { getAvailableSlashCommands } from "@/core/controller/slash/getAvailableSlashCommands"
+import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
 import { StateManager } from "@/core/storage/StateManager"
+import { Logger } from "@/shared/services/Logger"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
 import { useIsSpinnerActive } from "../hooks/useStateSubscriber"
 import {
@@ -120,11 +124,11 @@ import {
 	searchWorkspaceFiles,
 } from "../utils/file-search"
 import { jsonParseSafe, parseImagesFromInput } from "../utils/parser"
-import { isFileEditTool, parseToolFromMessage } from "../utils/tools"
-import { ActionButtons, type ButtonActionType, getButtonConfig } from "./ActionButtons"
+import { extractSlashQuery, filterCommands, insertSlashCommand } from "../utils/slash-commands"
 import { AsciiMotionCli, StaticRobotFrame } from "./AsciiMotionCli"
 import { ChatMessage } from "./ChatMessage"
 import { FileMentionMenu } from "./FileMentionMenu"
+import { SlashCommandMenu } from "./SlashCommandMenu"
 import { ThinkingIndicator } from "./ThinkingIndicator"
 
 interface ChatViewProps {
@@ -135,6 +139,7 @@ interface ChatViewProps {
 	robotTopRow?: number
 	initialPrompt?: string
 	initialImages?: string[]
+	taskId?: string
 }
 
 const SEARCH_DEBOUNCE_MS = 150
@@ -223,14 +228,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	robotTopRow,
 	initialPrompt,
 	initialImages,
+	taskId,
 }) => {
 	// Get task state from context
 	const taskState = useTaskState()
 	const { controller: taskController } = useTaskContext()
 	const { isActive: isSpinnerActive, startTime: spinnerStartTime } = useIsSpinnerActive()
-
-	// Prefer prop controller over context controller (memoized for stable reference in callbacks)
-	const ctrl = useMemo(() => controller || taskController, [controller, taskController])
 
 	// Input state
 	const [textInput, setTextInput] = useState("")
@@ -238,8 +241,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const [isSearching, setIsSearching] = useState(false)
 	const [showRipgrepWarning, setShowRipgrepWarning] = useState(false)
+	const [escPressedOnce, setEscPressedOnce] = useState(false)
 	const [respondedToAsk, setRespondedToAsk] = useState<number | null>(null)
 
+	// Slash command state
+	const [availableCommands, setAvailableCommands] = useState<SlashCommandInfo[]>([])
+	const [selectedSlashIndex, setSelectedSlashIndex] = useState(0)
+	const [slashMenuDismissed, setSlashMenuDismissed] = useState(false)
+	const lastSlashIndexRef = useRef<number>(-1)
+
+	// Track which messages have been rendered to Static (by timestamp)
+	// Using refs instead of state to avoid extra renders during streaming->static transition
+	const loggedMessageTsRef = useRef<Set<number>>(new Set())
+	const headerLoggedRef = useRef(false)
 	const [gitBranch, setGitBranch] = useState<string | null>(null)
 
 	// Mode state
@@ -257,13 +271,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		return (stateManager.getGlobalSettingsKey(modelKey) as string) || "claude-sonnet-4-20250514"
 	}, [mode])
 
-	// Get thinking budget based on current mode
-	const thinkingBudget = useMemo(() => {
-		const stateManager = StateManager.get()
-		const budgetKey = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
-		return (stateManager.getGlobalSettingsKey(budgetKey) as number | undefined) || 0
-	}, [mode])
-
 	const toggleMode = useCallback(() => {
 		const newMode: Mode = mode === "act" ? "plan" : "act"
 		setMode(newMode)
@@ -279,9 +286,24 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	const { prompt, imagePaths } = parseImagesFromInput(textInput)
 	const mentionInfo = useMemo(() => extractMentionQuery(textInput), [textInput])
+	const slashInfo = useMemo(() => extractSlashQuery(textInput), [textInput])
+	const filteredCommands = useMemo(
+		() => filterCommands(availableCommands, slashInfo.query),
+		[availableCommands, slashInfo.query],
+	)
+
+	// Reset slash menu dismissed state when a new slash is typed
+	useEffect(() => {
+		if (slashInfo.slashIndex !== lastSlashIndexRef.current) {
+			lastSlashIndexRef.current = slashInfo.slashIndex
+			setSlashMenuDismissed(false)
+			setSelectedSlashIndex(0)
+		}
+	}, [slashInfo.slashIndex])
 
 	const workspacePath = useMemo(() => {
 		try {
+			const ctrl = controller || taskController
 			const root = ctrl?.getWorkspaceManagerSync?.()?.getPrimaryRoot?.()
 			if (root?.path) {
 				return root.path
@@ -290,12 +312,47 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			// Fallback to cwd
 		}
 		return process.cwd()
-	}, [ctrl])
+	}, [controller, taskController])
 
 	// Get git branch on mount
 	useEffect(() => {
 		setGitBranch(getGitBranch(workspacePath))
 	}, [workspacePath])
+
+	// Load existing task when taskId is provided
+	useEffect(() => {
+		if (!taskId) return
+
+		const ctrl = controller || taskController
+		if (!ctrl) return
+
+		// Load the task by ID
+		showTaskWithId(ctrl, StringRequest.create({ value: taskId })).catch((error) => {
+			Logger.error("Error loading task:", error)
+			onError?.()
+		})
+	}, [taskId, controller, taskController, onError])
+
+	// Load available slash commands on mount
+	useEffect(() => {
+		const loadCommands = async () => {
+			const ctrl = controller || taskController
+			if (!ctrl) return
+			try {
+				const response = await getAvailableSlashCommands(ctrl, EmptyRequest.create())
+				// Filter to only CLI-compatible commands, sort workflows first
+				const cliCommands = response.commands.filter((cmd) => cmd.cliCompatible !== false)
+				const sorted = [
+					...cliCommands.filter((cmd) => cmd.section === "custom"),
+					...cliCommands.filter((cmd) => cmd.section !== "custom"),
+				]
+				setAvailableCommands(sorted)
+			} catch {
+				// Fallback: commands will be empty, menu won't show
+			}
+		}
+		loadCommands()
+	}, [controller, taskController])
 
 	const messages = taskState.clineMessages || []
 
@@ -303,14 +360,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const displayMessages = useMemo(() => {
 		const filtered = messages.filter((m) => {
 			if (m.say === "api_req_finished") return false
+			if (m.say === "text" && !m.text?.trim()) return false
 			if (m.say === "checkpoint_created") return false
 			if (m.say === "api_req_started") return false
 			if (m.say === "api_req_retried") return false // Redundant with error_retry messages
 			return true
 		})
 
-		// Combine command messages with their output (like webview does)
-		return combineCommandSequences(filtered)
+		return filtered
 	}, [messages])
 
 	// Split messages into completed (for Static) and current (for dynamic region)
@@ -325,54 +382,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		// These messages wait until complete before showing directly in static.
 		const skipDynamicTypes = new Set(["completion_result", "plan_mode_respond"])
 
-		// Check if a followup message has options but no selection yet
-		const isUnselectedFollowup = (msg: (typeof displayMessages)[0]) => {
-			if (msg.type === "ask" && msg.ask === "followup" && msg.text) {
-				try {
-					const parsed = JSON.parse(msg.text)
-					return parsed.options && parsed.options.length > 0 && !parsed.selected
-				} catch {
-					return false
-				}
-			}
-			return false
-		}
-
-		// Check if message is a file edit tool (should skip dynamic to avoid rendering issues)
-		const isFileEditToolMessage = (msg: (typeof displayMessages)[0]) => {
-			if ((msg.say === "tool" || msg.ask === "tool") && msg.text) {
-				const toolInfo = parseToolFromMessage(msg.text)
-				return toolInfo ? isFileEditTool(toolInfo.toolName) : false
-			}
-			return false
-		}
-
-		// Check if a command should stay in dynamic region
-		// Commands need to wait for output to be combined before going to static
-		const shouldCommandStayInDynamic = (msg: (typeof displayMessages)[0], isLast: boolean) => {
-			const isCommand = msg.ask === "command" || msg.say === "command"
-			if (!isCommand) return false
-
-			// If not completed, definitely stay in dynamic
-			if (!msg.commandCompleted) return true
-
-			// If completed but no output yet AND still the last message,
-			// stay in dynamic to allow output to be combined
-			const hasOutput = msg.text?.includes("Output:") ?? false
-			if (!hasOutput && isLast) return true
-
-			return false
-		}
-
 		for (let i = 0; i < displayMessages.length; i++) {
 			const msg = displayMessages[i]
 			const isLast = i === displayMessages.length - 1
 
 			// Check if this message type should skip dynamic rendering
 			const shouldSkipDynamic =
-				skipDynamicTypes.has(msg.say || "") ||
-				(msg.type === "ask" && skipDynamicTypes.has(msg.ask || "")) ||
-				isFileEditToolMessage(msg)
+				skipDynamicTypes.has(msg.say || "") || (msg.type === "ask" && skipDynamicTypes.has(msg.ask || ""))
 
 			if (msg.partial) {
 				// Message is still streaming
@@ -381,15 +397,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					current = msg
 				}
 				// If shouldSkipDynamic and partial: don't show anywhere, wait for complete
-			} else if (isLast && isUnselectedFollowup(msg)) {
-				// Keep unselected followup in dynamic region so it updates when selected
-				current = msg
-			} else if (shouldCommandStayInDynamic(msg, isLast)) {
-				// Command needs to stay in dynamic to allow output to be combined
-				if (isLast) {
-					current = msg
-				}
-				// If not last but should stay in dynamic, don't add to static yet
 			} else {
 				// Message is complete, add to static
 				completed.push(msg)
@@ -399,26 +406,27 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		return { completedMessages: completed, currentMessage: current }
 	}, [displayMessages])
 
-	// Determine if we're in welcome state (no messages yet)
-	const isWelcomeState = displayMessages.length === 0
+	// Determine if we're in welcome state (no messages yet and not resuming a task)
+	const isWelcomeState = displayMessages.length === 0 && !taskId
 
 	// Build Static items - each item is rendered once and stays above dynamic content
-	// We pass ALL completed messages to Static and let Ink handle deduplication by key.
-	// Static internally tracks which keys have been rendered and only renders new ones.
 	const staticItems = useMemo(() => {
-		const items: Array<
-			{ key: string; type: "header" } | { key: string; type: "message"; message: (typeof displayMessages)[0] }
-		> = []
+		const items: Array<{ type: "header" } | { type: "message"; message: (typeof displayMessages)[0] }> = []
 
 		// Add header as first item ONLY after messages start (so animated robot shows first)
 		// Once messages exist, add header to static so it scrolls up with history
-		if (displayMessages.length > 0) {
-			items.push({ key: "header", type: "header" })
+		if (!headerLoggedRef.current && displayMessages.length > 0) {
+			items.push({ type: "header" })
+			headerLoggedRef.current = true
 		}
 
-		// Pass ALL completed messages to Static - it will dedupe by key internally
+		// Add completed messages that haven't been logged yet
 		for (const msg of completedMessages) {
-			items.push({ key: String(msg.ts), type: "message", message: msg })
+			const wasLogged = loggedMessageTsRef.current.has(msg.ts)
+			if (!wasLogged) {
+				items.push({ type: "message", message: msg })
+				loggedMessageTsRef.current.add(msg.ts)
+			}
 		}
 
 		return items
@@ -434,6 +442,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	// Send response to ask message
 	const sendAskResponse = useCallback(
 		async (responseType: string, text?: string) => {
+			const ctrl = controller || taskController
 			if (!ctrl?.task || !pendingAsk) return
 
 			setRespondedToAsk(pendingAsk.ts)
@@ -445,66 +454,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				// Controller may be disposed
 			}
 		},
-		[ctrl, pendingAsk],
-	)
-
-	// Handle cancel/interrupt
-	const handleCancel = useCallback(async () => {
-		if (!ctrl) return
-
-		try {
-			await ctrl.cancelTask()
-		} catch {
-			// Controller may be disposed
-		}
-	}, [ctrl])
-
-	// Get button config based on the last message state
-	const buttonConfig = useMemo(() => {
-		const lastMsg = messages[messages.length - 1] as ClineMessage | undefined
-		return getButtonConfig(lastMsg, isSpinnerActive)
-	}, [messages, isSpinnerActive])
-
-	// Handle button actions (1 for primary, 2 for secondary)
-	const handleButtonAction = useCallback(
-		async (action: ButtonActionType | undefined, _isPrimary: boolean) => {
-			if (!action) return
-
-			if (!ctrl) return
-
-			switch (action) {
-				case "approve":
-				case "retry":
-					sendAskResponse("yesButtonClicked")
-					break
-				case "reject":
-					// Check for resume states that should trigger exit
-					if (pendingAsk?.ask === "resume_task" || pendingAsk?.ask === "resume_completed_task") {
-						onExit?.()
-					} else {
-						sendAskResponse("noButtonClicked")
-					}
-					break
-				case "proceed":
-					// Proceed can be either yesButtonClicked or messageResponse depending on context
-					sendAskResponse("yesButtonClicked")
-					break
-				case "new_task":
-					// For now, signal to start a new task (user can type new prompt)
-					setRespondedToAsk(pendingAsk?.ts || null)
-					setTextInput("")
-					break
-				case "cancel":
-					handleCancel()
-					break
-			}
-		},
-		[controller, taskController, sendAskResponse, pendingAsk, onExit, handleCancel],
+		[controller, taskController, pendingAsk],
 	)
 
 	// Handle task submission (new task)
 	const handleSubmit = useCallback(
 		async (text: string, images: string[]) => {
+			const ctrl = controller || taskController
 			if (!ctrl || !text.trim()) return
 
 			setTextInput("")
@@ -534,7 +490,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				onError?.()
 			}
 		},
-		[ctrl, onError],
+		[controller, taskController, onError],
 	)
 
 	// Auto-submit initial prompt if provided
@@ -626,10 +582,37 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			return
 		}
 
-		const inMenu = mentionInfo.inMentionMode && fileResults.length > 0
+		const inSlashMenu = slashInfo.inSlashMode && filteredCommands.length > 0 && !slashMenuDismissed
+		const inFileMenu = mentionInfo.inMentionMode && fileResults.length > 0 && !inSlashMenu
 
-		// Menu navigation
-		if (inMenu) {
+		// Slash command menu navigation (takes priority over file menu)
+		if (inSlashMenu) {
+			if (key.upArrow) {
+				setSelectedSlashIndex((i) => (i > 0 ? i - 1 : filteredCommands.length - 1))
+				return
+			}
+			if (key.downArrow) {
+				setSelectedSlashIndex((i) => (i < filteredCommands.length - 1 ? i + 1 : 0))
+				return
+			}
+			if (key.tab || key.return) {
+				const cmd = filteredCommands[selectedSlashIndex]
+				if (cmd) {
+					setTextInput(insertSlashCommand(textInput, slashInfo.slashIndex, cmd.name))
+					setSelectedSlashIndex(0)
+				}
+				return
+			}
+			if (key.escape) {
+				// Dismiss the menu without modifying text
+				setSlashMenuDismissed(true)
+				setSelectedSlashIndex(0)
+				return
+			}
+		}
+
+		// File mention menu navigation
+		if (inFileMenu) {
 			if (key.upArrow) {
 				setSelectedIndex((i) => (i > 0 ? i - 1 : fileResults.length - 1))
 				return
@@ -654,68 +637,87 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// Handle button actions (1 for primary, 2 for secondary)
-		// Only when buttons are enabled, not streaming, and no text has been typed
-		if (buttonConfig.enableButtons && !isSpinnerActive && textInput === "" && !yolo) {
-			if (input === "1" && buttonConfig.primaryAction) {
-				handleButtonAction(buttonConfig.primaryAction, true)
-				return
-			}
-			if (input === "2" && buttonConfig.secondaryAction) {
-				handleButtonAction(buttonConfig.secondaryAction, false)
-				return
-			}
-		}
-
-		// Handle ask responses for options and text input
+		// Handle ask responses
 		if (pendingAsk && !yolo) {
-			// Allow sending text message for any ask type where sending is enabled
-			if (key.return && textInput.trim() && !buttonConfig.sendingDisabled) {
-				sendAskResponse("messageResponse", textInput.trim())
-				return
-			}
-			// Number selection for options (only when no text typed yet)
-			if (askType === "options") {
+			if (askType === "confirmation") {
+				// y/n confirmation
+				if (input.toLowerCase() === "y") {
+					sendAskResponse("yesButtonClicked")
+					return
+				} else if (input.toLowerCase() === "n") {
+					if (pendingAsk.ask === "resume_task" || pendingAsk.ask === "resume_completed_task") {
+						onExit?.()
+						return
+					}
+					sendAskResponse("noButtonClicked")
+					return
+				}
+			} else if (askType === "options") {
+				// Number selection for options, or free text
+				if (key.return && textInput.trim()) {
+					sendAskResponse("messageResponse", textInput.trim())
+					return
+				}
+				// Check if it's a number for option selection (only when no text typed yet)
 				const num = parseInt(input, 10)
 				if (textInput === "" && !Number.isNaN(num) && num >= 1 && num <= askOptions.length) {
 					const selectedOption = askOptions[num - 1]
-					sendAskResponse("messageResponse", selectedOption)
+					sendAskResponse("optionSelected", selectedOption)
+					return
+				}
+			} else if (askType === "text") {
+				// Text input mode
+				if (key.return && textInput.trim()) {
+					sendAskResponse("messageResponse", textInput.trim())
 					return
 				}
 			}
 		}
 
 		// Normal input handling
-		if (key.tab && !mentionInfo.inMentionMode) {
+		if (key.tab && !mentionInfo.inMentionMode && !slashInfo.inSlashMode) {
 			toggleMode()
 			return
 		}
-		if (key.return && !mentionInfo.inMentionMode && !pendingAsk) {
+		if (key.return && !mentionInfo.inMentionMode && !slashInfo.inSlashMode && !pendingAsk) {
 			if (prompt.trim() || imagePaths.length > 0) {
 				handleSubmit(prompt.trim(), imagePaths)
 			}
 			return
 		}
+		if (key.escape && !mentionInfo.inMentionMode) {
+			if (escPressedOnce) {
+				onExit?.()
+			} else {
+				setEscPressedOnce(true)
+			}
+			return
+		}
 		if (key.backspace || key.delete) {
 			setTextInput((prev) => prev.slice(0, -1))
+			setEscPressedOnce(false)
 			return
 		}
 		if (input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow && !key.tab) {
 			setTextInput((prev) => prev + input)
+			setEscPressedOnce(false)
 		}
 	})
 
 	const borderColor = mode === "act" ? "blueBright" : "yellow"
 	const metrics = getApiMetrics(messages)
+	const showSlashMenu = slashInfo.inSlashMode && !slashMenuDismissed
 
-	// Determine input placeholder/prompt text (no longer needed with buttons, but keep for options/text modes)
+	// Determine input placeholder/prompt text
 	let inputPrompt = ""
-	if (pendingAsk && !yolo && askType === "options" && askOptions.length > 0) {
-		inputPrompt = `(1-${askOptions.length} or type)`
+	if (pendingAsk && !yolo) {
+		if (askType === "confirmation") {
+			inputPrompt = "(y/n)"
+		}
 	}
 
 	return (
-		<Box flexDirection="column" width="100%">
+		<Box>
 			{/* Static content - rendered once, stays above dynamic region */}
 			<Static items={staticItems}>
 				{(item) => {
@@ -734,11 +736,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					}
 
 					// Completed message
-					return (
-						<Box key={item.message.ts} paddingX={1} width="100%">
-							<ChatMessage message={item.message} mode={mode} />
-						</Box>
-					)
+					return <ChatMessage key={item.message.ts} message={item.message} />
 				}}
 			</Static>
 
@@ -756,11 +754,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				)}
 
 				{/* Current streaming message */}
-				{currentMessage && (
-					<Box paddingX={1} width="100%">
-						<ChatMessage isStreaming message={currentMessage} mode={mode} />
-					</Box>
-				)}
+				{currentMessage && <ChatMessage isStreaming message={currentMessage} />}
 
 				{/* Ripgrep warning if needed */}
 				{showRipgrepWarning && (
@@ -770,11 +764,24 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					</Box>
 				)}
 
-				{/* Action buttons for tool approvals and other asks (not during streaming) */}
-				{buttonConfig.enableButtons && !isSpinnerActive && !yolo && <ActionButtons config={buttonConfig} mode={mode} />}
+				{/* Options list for ask prompts */}
+				{pendingAsk && askType === "options" && askOptions.length > 0 && !yolo && (
+					<Box flexDirection="column" marginBottom={1}>
+						{askOptions.map((opt, idx) => (
+							// biome-ignore lint/suspicious/noArrayIndexKey: static options
+							<Text color="gray" key={idx}>
+								{idx + 1}. {opt}
+							</Text>
+						))}
+					</Box>
+				)}
 
 				{/* Thinking indicator when processing */}
-				{isSpinnerActive && <ThinkingIndicator mode={mode} onCancel={handleCancel} startTime={spinnerStartTime} />}
+				{isSpinnerActive && !pendingAsk && (
+					<Box marginBottom={1}>
+						<ThinkingIndicator mode={mode} startTime={spinnerStartTime} />
+					</Box>
+				)}
 
 				{/* Input field with border - ALWAYS shown */}
 				<Box
@@ -786,7 +793,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					paddingRight={1}
 					width="100%">
 					<Box>
-						{inputPrompt && <Text color="gray">{inputPrompt} </Text>}
+						{inputPrompt && <Text color="yellow">{inputPrompt} </Text>}
 						<Text>{textInput}</Text>
 						<Text color="gray">▌</Text>
 					</Box>
@@ -795,8 +802,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					</Text>
 				</Box>
 
-				{/* File mention menu - below input */}
-				{mentionInfo.inMentionMode && (
+				{/* Slash command menu - below input (takes priority over file menu) */}
+				{showSlashMenu && (
+					<Box paddingLeft={1} paddingRight={1}>
+						<SlashCommandMenu
+							commands={filteredCommands}
+							query={slashInfo.query}
+							selectedIndex={selectedSlashIndex}
+						/>
+					</Box>
+				)}
+
+				{/* File mention menu - below input (only when not in slash mode) */}
+				{mentionInfo.inMentionMode && !showSlashMenu && (
 					<Box paddingLeft={1} paddingRight={1}>
 						<FileMentionMenu
 							isLoading={isSearching}
@@ -816,63 +834,74 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					</Box>
 				)}
 
-				{/* Row 1: Instructions (left, can wrap) | Plan/Act toggle (right, no wrap) */}
-				<Box justifyContent="space-between" paddingLeft={1} paddingRight={1} width="100%">
-					<Box flexShrink={1} flexWrap="wrap">
-						<Text color="gray" dimColor>
-							@ for files · / for commands
-						</Text>
-					</Box>
-					<Box flexShrink={0} gap={1}>
-						<Box>
-							<Text bold={mode === "plan"} color={mode === "plan" ? "yellow" : "gray"}>
-								{mode === "plan" ? "●" : "○"} Plan
-							</Text>
-						</Box>
-						<Box>
-							<Text bold={mode === "act"} color={mode === "act" ? "blueBright" : "gray"}>
-								{mode === "act" ? "●" : "○"} Act
-							</Text>
-						</Box>
-						<Text color="gray" dimColor>
-							(Tab)
-						</Text>
-					</Box>
-				</Box>
-
-				{/* Row 2: Model/context/tokens/cost */}
-				<Box paddingLeft={1} paddingRight={1}>
-					<Text>
-						<Text color="gray">{modelId.length > 20 ? modelId.substring(0, 17) + "..." : modelId}</Text> {(() => {
-							const bar = createContextBar(metrics.totalTokensIn + metrics.totalTokensOut, DEFAULT_CONTEXT_WINDOW)
-							return (
-								<Text>
-									<Text color="gray">{bar.filled}</Text>
-									<Text color="gray" dimColor>
-										{bar.empty}
-									</Text>
+				{/* Footer - hidden when slash menu is shown */}
+				{!showSlashMenu && (
+					<>
+						{/* Row 1: Instructions (left, can wrap) | Plan/Act toggle (right, no wrap) */}
+						<Box justifyContent="space-between" paddingLeft={1} paddingRight={1} width="100%">
+							<Box flexShrink={1} flexWrap="wrap">
+								<Text color="gray" dimColor>
+									@ for files · / for commands ·{" "}
 								</Text>
-							)
-						})()}
-						<Text color="gray"> ({(metrics.totalTokensIn + metrics.totalTokensOut).toLocaleString()})</Text>
-						<Text color="gray"> | </Text>
-						<Text color="gray">${metrics.totalCost.toFixed(3)}</Text>
-						{thinkingBudget > 0 && <Text color="gray"> | thinking: {thinkingBudget.toLocaleString()}</Text>}
-					</Text>
-				</Box>
+								<Text bold={escPressedOnce} color={escPressedOnce ? "white" : "gray"} dimColor={!escPressedOnce}>
+									{escPressedOnce ? "Press Esc again to exit" : "Esc to exit"}
+								</Text>
+							</Box>
+							<Box flexShrink={0} gap={1}>
+								<Box>
+									<Text bold={mode === "plan"} color={mode === "plan" ? "yellow" : "gray"}>
+										{mode === "plan" ? "●" : "○"} Plan
+									</Text>
+								</Box>
+								<Box>
+									<Text bold={mode === "act"} color={mode === "act" ? "blueBright" : "gray"}>
+										{mode === "act" ? "●" : "○"} Act
+									</Text>
+								</Box>
+								<Text color="gray" dimColor>
+									(Tab)
+								</Text>
+							</Box>
+						</Box>
 
-				{/* Row 3: Repo/branch */}
-				<Box paddingLeft={1} paddingRight={1}>
-					<Text color="gray">
-						{workspacePath.split("/").pop() || workspacePath}
-						{gitBranch && (
-							<Text color="gray">
-								{" "}
-								(<Text color="gray">{gitBranch}</Text>)
+						{/* Row 2: Model/context/tokens/cost */}
+						<Box paddingLeft={1} paddingRight={1}>
+							<Text>
+								<Text color="gray">{modelId.length > 20 ? modelId.substring(0, 17) + "..." : modelId}</Text>{" "}
+								{(() => {
+									const bar = createContextBar(
+										metrics.totalTokensIn + metrics.totalTokensOut,
+										DEFAULT_CONTEXT_WINDOW,
+									)
+									return (
+										<Text>
+											<Text color="gray">{bar.filled}</Text>
+											<Text color="gray" dimColor>
+												{bar.empty}
+											</Text>
+										</Text>
+									)
+								})()}
+								<Text color="gray"> ({(metrics.totalTokensIn + metrics.totalTokensOut).toLocaleString()})</Text>
+								<Text color="gray"> | </Text>
+								<Text color="gray">${metrics.totalCost.toFixed(3)}</Text>
 							</Text>
-						)}
-					</Text>
-				</Box>
+						</Box>
+
+						{/* Row 3: Repo/branch */}
+						<Box paddingLeft={1} paddingRight={1}>
+							<Text color="gray">
+								{workspacePath.split("/").pop() || workspacePath}
+								{gitBranch && (
+									<Text color="gray">
+										{" "}
+										(<Text color="gray">{gitBranch}</Text>)
+									</Text>
+								)}
+							</Text>
+						</Box>
+					</>
+				)}
 			</Box>
 		</Box>
 	)
