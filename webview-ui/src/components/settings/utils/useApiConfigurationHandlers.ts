@@ -57,7 +57,7 @@ export const useApiConfigurationHandlers = () => {
 
 	const handleModeFieldChange = async <PlanK extends keyof ApiConfiguration, ActK extends keyof ApiConfiguration>(
 		fieldPair: { plan: PlanK; act: ActK },
-		value: ApiConfiguration[PlanK] & ApiConfiguration[ActK], // Intersection ensures value is compatible with both field types
+		value: ApiConfiguration[PlanK] & ApiConfiguration[ActK],
 		currentMode: Mode,
 	) => {
 		if (planActSeparateModelsSetting) {

@@ -1,17 +1,14 @@
 import { McpDisplayMode } from "@shared/McpDisplayMode"
 import { EmptyRequest } from "@shared/proto/index.cline"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
-import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import McpDisplayModeDropdown from "@/components/mcp/chat-display/McpDisplayModeDropdown"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
-import { isMacOSOrLinux } from "@/utils/platformUtils"
 import Section from "../Section"
-import SubagentOutputLineLimitSlider from "../SubagentOutputLineLimitSlider"
 import { updateSetting } from "../utils/settingsHandlers"
 
 interface FeatureSettingsSectionProps {
@@ -34,13 +31,12 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		multiRootSetting,
 		skillsEnabled,
 		remoteConfigSettings,
-		subagentsEnabled,
 		nativeToolCallSetting,
 		enableParallelToolCalling,
 		backgroundEditEnabled,
 	} = useExtensionState()
 
-	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
+	const [_isClineCliInstalled, setIsClineCliInstalled] = useState(false)
 
 	const handleReasoningEffortChange = (newValue: OpenaiReasoningEffort) => {
 		updateSetting("openaiReasoningEffort", newValue)
@@ -66,7 +62,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 			{renderSectionHeader("features")}
 			<Section>
 				<div style={{ marginBottom: 20 }}>
-					{isMacOSOrLinux() && PLATFORM_CONFIG.type === PlatformType.VSCODE && (
+					{/* TODO; Cline CLI 부분 {isMacOSOrLinux() && PLATFORM_CONFIG.type === PlatformType.VSCODE && (
 						<div
 							className="relative p-3 mb-3 rounded-md"
 							id="subagents-section"
@@ -160,7 +156,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								</div>
 							)}
 						</div>
-					)}
+					)} */}
 
 					<div>
 						<VSCodeCheckbox

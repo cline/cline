@@ -183,6 +183,7 @@ message ModelsApiSecrets {
   optional string oca_refresh_token = 37;
   optional string minimax_api_key = 38;
   optional string aihubmix_api_key = 39;
+  optional string skax_api_key = 40;
 }
 
 // API configuration options (non-secret settings)
@@ -232,6 +233,7 @@ message ModelsApiOptions {
   optional string aihubmix_base_url = 42;
   optional string aihubmix_app_code = 43;
   optional bool azure_identity = 44;
+  optional string skax_base_url = 45;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -269,6 +271,8 @@ message ModelsApiOptions {
   optional OcaModelInfo plan_mode_oca_model_info = 132;
   optional string plan_mode_aihubmix_model_id = 133;
   optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 134;
+  optional string plan_mode_skax_model_id = 135;
+  optional OpenAiCompatibleModelInfo plan_mode_skax_model_info = 136;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -306,6 +310,8 @@ message ModelsApiOptions {
   optional OcaModelInfo act_mode_oca_model_info = 232;
   optional string act_mode_aihubmix_model_id = 233;
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 234;
+  optional string act_mode_skax_model_id = 235;
+  optional OpenAiCompatibleModelInfo act_mode_skax_model_info = 236;
 }
 
 // Request for updating API configuration (legacy - uses combined configuration)
@@ -440,6 +446,7 @@ enum ApiProvider {
   AIHUBMIX = 38;
   NOUSRESEARCH = 39;
   OPENAI_CODEX = 40;
+  SKAX = 41;
 }
 
 enum ApiFormat {
@@ -576,6 +583,8 @@ message ModelsApiConfiguration {
   optional string aihubmix_app_code = 84;
   optional string nous_research_api_key = 85;
   optional bool azure_identity = 86;
+  optional string skax_api_key = 87;
+  optional string skax_base_url = 88;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -618,6 +627,8 @@ message ModelsApiConfiguration {
   optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 137;
   optional string plan_mode_nous_research_model_id = 138;
   optional string gemini_plan_mode_thinking_level = 139;
+  optional string plan_mode_skax_model_id = 140;
+  optional OpenAiCompatibleModelInfo plan_mode_skax_model_info = 141;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -660,4 +671,6 @@ message ModelsApiConfiguration {
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 237;
   optional string act_mode_nous_research_model_id = 238;
   optional string gemini_act_mode_thinking_level = 239;
+  optional string act_mode_skax_model_id = 240;
+  optional OpenAiCompatibleModelInfo act_mode_skax_model_info = 241;
 }

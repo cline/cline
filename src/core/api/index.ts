@@ -38,6 +38,7 @@ import { QwenCodeHandler } from "./providers/qwen-code"
 import { RequestyHandler } from "./providers/requesty"
 import { SambanovaHandler } from "./providers/sambanova"
 import { SapAiCoreHandler } from "./providers/sapaicore"
+import { SkaxHandler } from "./providers/skax"
 import { TogetherHandler } from "./providers/together"
 import { VercelAIGatewayHandler } from "./providers/vercel-ai-gateway"
 import { VertexHandler } from "./providers/vertex"
@@ -197,6 +198,14 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				deepSeekApiKey: options.deepSeekApiKey,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+			})
+		case "skax":
+			return new SkaxHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				skaxApiKey: options.skaxApiKey,
+				skaxBaseUrl: options.skaxBaseUrl,
+				skaxModelId: mode === "plan" ? options.planModeSkaxModelId : options.actModeSkaxModelId,
+				skaxModelInfo: mode === "plan" ? options.planModeSkaxModelInfo : options.actModeSkaxModelInfo,
 			})
 		case "requesty":
 			return new RequestyHandler({

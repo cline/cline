@@ -323,6 +323,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.NOUSRESEARCH
 		case "openai-codex":
 			return ProtoApiProvider.OPENAI_CODEX
+		case "skax":
+			return ProtoApiProvider.SKAX
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -413,6 +415,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "nousResearch"
 		case ProtoApiProvider.OPENAI_CODEX:
 			return "openai-codex"
+		case ProtoApiProvider.SKAX:
+			return "skax"
 		default:
 			return "anthropic"
 	}
@@ -505,6 +509,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		aihubmixAppCode: config.aihubmixAppCode,
 		hicapApiKey: config.hicapApiKey,
 		hicapModelId: config.hicapModelId,
+		skaxApiKey: config.skaxApiKey,
+		skaxBaseUrl: config.skaxBaseUrl,
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider ? convertApiProviderToProto(config.planModeApiProvider) : undefined,
@@ -547,6 +553,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeNousResearchModelId: config.planModeNousResearchModelId,
 		planModeVercelAiGatewayModelId: config.planModeVercelAiGatewayModelId,
 		planModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.planModeVercelAiGatewayModelInfo),
+		planModeSkaxModelId: config.planModeSkaxModelId,
+		planModeSkaxModelInfo: convertOpenAiCompatibleModelInfoToProto(config.planModeSkaxModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider ? convertApiProviderToProto(config.actModeApiProvider) : undefined,
@@ -589,6 +597,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeNousResearchModelId: config.actModeNousResearchModelId,
 		actModeVercelAiGatewayModelId: config.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.actModeVercelAiGatewayModelInfo),
+		actModeSkaxModelId: config.actModeSkaxModelId,
+		actModeSkaxModelInfo: convertOpenAiCompatibleModelInfoToProto(config.actModeSkaxModelInfo),
 	}
 }
 
@@ -679,6 +689,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		hicapApiKey: protoConfig.hicapApiKey,
 		hicapModelId: protoConfig.hicapModelId,
 		nousResearchApiKey: protoConfig.nousResearchApiKey,
+		skaxApiKey: protoConfig.skaxApiKey,
+		skaxBaseUrl: protoConfig.skaxBaseUrl,
 
 		// Plan mode configurations
 		planModeApiProvider:
@@ -724,6 +736,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeNousResearchModelId: protoConfig.planModeNousResearchModelId,
 		planModeVercelAiGatewayModelId: protoConfig.planModeVercelAiGatewayModelId,
 		planModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.planModeVercelAiGatewayModelInfo),
+		planModeSkaxModelId: protoConfig.planModeSkaxModelId,
+		planModeSkaxModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.planModeSkaxModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider:
@@ -767,5 +781,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeNousResearchModelId: protoConfig.actModeNousResearchModelId,
 		actModeVercelAiGatewayModelId: protoConfig.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.actModeVercelAiGatewayModelInfo),
+		actModeSkaxModelId: protoConfig.actModeSkaxModelId,
+		actModeSkaxModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.actModeSkaxModelInfo),
 	}
 }

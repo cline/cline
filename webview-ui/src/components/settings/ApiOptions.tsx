@@ -47,6 +47,7 @@ import { QwenProvider } from "./providers/QwenProvider"
 import { RequestyProvider } from "./providers/RequestyProvider"
 import { SambanovaProvider } from "./providers/SambanovaProvider"
 import { SapAiCoreProvider } from "./providers/SapAiCoreProvider"
+import { SkaxProvider } from "./providers/SkaxProvider"
 import { TogetherProvider } from "./providers/TogetherProvider"
 import { VercelAIGatewayProvider } from "./providers/VercelAIGatewayProvider"
 import { VertexProvider } from "./providers/VertexProvider"
@@ -92,6 +93,11 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 
 	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode)
+
+	console.log("[ApiOptions] Current provider:", selectedProvider, "currentMode:", currentMode, "apiConfiguration:", {
+		planModeApiProvider: apiConfiguration?.planModeApiProvider,
+		actModeApiProvider: apiConfiguration?.actModeApiProvider,
+	})
 
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
@@ -182,6 +188,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	}, [searchableItems, searchTerm, fuse, currentProviderLabel])
 
 	const handleProviderChange = (newProvider: string) => {
+		console.log("[ApiOptions] Changing provider to:", newProvider, "currentMode:", currentMode)
 		handleModeFieldChange({ plan: "planModeApiProvider", act: "actModeApiProvider" }, newProvider as any, currentMode)
 		setIsDropdownVisible(false)
 		setSelectedIndex(-1)
@@ -328,8 +335,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						<ProviderDropdownList ref={dropdownListRef}>
 							{providerSearchResults.map((item, index) => (
 								<ProviderDropdownItem
+									$isSelected={index === selectedIndex}
 									data-testid={`provider-option-${item.value}`}
-									isSelected={index === selectedIndex}
 									key={item.value}
 									onClick={() => handleProviderChange(item.value)}
 									onMouseEnter={() => setSelectedIndex(index)}
@@ -394,6 +401,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{apiConfiguration && selectedProvider === "deepseek" && (
 				<DeepSeekProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
+			{apiConfiguration && selectedProvider === "skax" && (
+				<SkaxProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "together" && (
@@ -547,13 +558,13 @@ const ProviderDropdownList = styled.div`
 	border-bottom-right-radius: 3px;
 `
 
-const ProviderDropdownItem = styled.div<{ isSelected: boolean }>`
+const ProviderDropdownItem = styled.div<{ $isSelected: boolean }>`
 	padding: 5px 10px;
 	cursor: pointer;
 	word-break: break-all;
 	white-space: normal;
 
-	background-color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionBackground)" : "inherit")};
+	background-color: ${({ $isSelected }) => ($isSelected ? "var(--vscode-list-activeSelectionBackground)" : "inherit")};
 
 	&:hover {
 		background-color: var(--vscode-list-activeSelectionBackground);

@@ -16,6 +16,7 @@ export type ApiProvider =
 	| "requesty"
 	| "together"
 	| "deepseek"
+	| "skax"
 	| "qwen"
 	| "qwen-code"
 	| "doubao"

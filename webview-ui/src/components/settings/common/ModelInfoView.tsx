@@ -204,7 +204,7 @@ export const ModelInfoView = ({
 		<div style={{ marginTop: 4 }}>
 			{/* Description */}
 			{modelInfo.description && (
-				<ModelDescriptionMarkdown isPopup={isPopup} key="description" markdown={modelInfo.description} />
+				<ModelDescriptionMarkdown isPopup={isPopup} markdown={modelInfo.description} modelKey="description" />
 			)}
 
 			{/* Compact Info Row: Context, Input, Output */}

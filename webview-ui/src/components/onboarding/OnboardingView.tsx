@@ -299,7 +299,8 @@ const OnboardingView = ({ onboardingModels }: { onboardingModels: OnboardingMode
 
 	const [stepNumber, setStepNumber] = useState(0)
 	const [isActionLoading, setIsActionLoading] = useState(false)
-	const [userType, setUserType] = useState<NEW_USER_TYPE>(NEW_USER_TYPE.FREE)
+	// const [userType, setUserType] = useState<NEW_USER_TYPE>(NEW_USER_TYPE.FREE)
+	const [userType, setUserType] = useState<NEW_USER_TYPE>(NEW_USER_TYPE.BYOK)
 
 	const [selectedModelId, setSelectedModelId] = useState("")
 	const [searchTerm, setSearchTerm] = useState("")
@@ -409,7 +410,7 @@ const OnboardingView = ({ onboardingModels }: { onboardingModels: OnboardingMode
 			? stepNumber === 0
 				? [
 						{ text: t("onboarding.continue"), action: "next" as const, variant: "default" as const },
-						{ text: t("onboarding.loginToCline"), action: "signin" as const, variant: "secondary" as const },
+						// { text: t("onboarding.loginToCline"), action: "signin" as const, variant: "secondary" as const },
 					]
 				: [{ text: t("onboarding.back"), action: "back" as const, variant: "secondary" as const }]
 			: userType === NEW_USER_TYPE.BYOK

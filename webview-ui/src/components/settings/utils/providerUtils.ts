@@ -68,6 +68,7 @@ import {
 	xaiDefaultModelId,
 	xaiModels,
 } from "@shared/api"
+import { skaxDefaultModelId, skaxModels } from "@shared/skax-models"
 import { Mode } from "@shared/storage/types"
 
 /**
@@ -97,6 +98,8 @@ export function getModelsForProvider(
 			return openAiCodexModels
 		case "deepseek":
 			return deepSeekModels
+		case "skax":
+			return skaxModels
 		case "qwen":
 			return apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels
 		case "qwen-code":
@@ -229,6 +232,8 @@ export function normalizeApiConfiguration(
 			return getProviderData(openAiCodexModels, openAiCodexDefaultModelId)
 		case "deepseek":
 			return getProviderData(deepSeekModels, deepSeekDefaultModelId)
+		case "skax":
+			return getProviderData(skaxModels, skaxDefaultModelId)
 		case "qwen":
 			const qwenModels = apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels
 			const qwenDefaultId =
@@ -487,6 +492,14 @@ export function normalizeApiConfiguration(
 						? nousResearchModels[nousResearchModelId as keyof typeof nousResearchModels]
 						: nousResearchModels[nousResearchDefaultModelId],
 			}
+		case "together":
+			const togetherModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeTogetherModelId : apiConfiguration?.actModeTogetherModelId
+			return {
+				selectedProvider: provider,
+				selectedModelId: togetherModelId || "",
+				selectedModelInfo: openAiModelInfoSaneDefaults,
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -514,6 +527,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			requestyModelId: undefined,
 			openAiModelId: undefined,
 			openRouterModelId: undefined,
+			skaxModelId: undefined,
 			groqModelId: undefined,
 			basetenModelId: undefined,
 			huggingFaceModelId: undefined,
@@ -526,6 +540,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			// Model info objects
 			openAiModelInfo: undefined,
 			liteLlmModelInfo: undefined,
+			skaxModelInfo: undefined,
 			openRouterModelInfo: undefined,
 			requestyModelInfo: undefined,
 			groqModelInfo: undefined,
@@ -560,6 +575,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		liteLlmModelId: mode === "plan" ? apiConfiguration.planModeLiteLlmModelId : apiConfiguration.actModeLiteLlmModelId,
 		requestyModelId: mode === "plan" ? apiConfiguration.planModeRequestyModelId : apiConfiguration.actModeRequestyModelId,
 		openAiModelId: mode === "plan" ? apiConfiguration.planModeOpenAiModelId : apiConfiguration.actModeOpenAiModelId,
+		skaxModelId: mode === "plan" ? apiConfiguration.planModeSkaxModelId : apiConfiguration.actModeSkaxModelId,
 		openRouterModelId:
 			mode === "plan" ? apiConfiguration.planModeOpenRouterModelId : apiConfiguration.actModeOpenRouterModelId,
 		groqModelId: mode === "plan" ? apiConfiguration.planModeGroqModelId : apiConfiguration.actModeGroqModelId,
@@ -578,6 +594,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 
 		// Model info objects
 		openAiModelInfo: mode === "plan" ? apiConfiguration.planModeOpenAiModelInfo : apiConfiguration.actModeOpenAiModelInfo,
+		skaxModelInfo: mode === "plan" ? apiConfiguration.planModeSkaxModelInfo : apiConfiguration.actModeSkaxModelInfo,
 		liteLlmModelInfo: mode === "plan" ? apiConfiguration.planModeLiteLlmModelInfo : apiConfiguration.actModeLiteLlmModelInfo,
 		openRouterModelInfo:
 			mode === "plan" ? apiConfiguration.planModeOpenRouterModelInfo : apiConfiguration.actModeOpenRouterModelInfo,
@@ -675,6 +692,13 @@ export async function syncModeConfigurations(
 			updates.actModeOpenAiModelId = sourceFields.openAiModelId
 			updates.planModeOpenAiModelInfo = sourceFields.openAiModelInfo
 			updates.actModeOpenAiModelInfo = sourceFields.openAiModelInfo
+			break
+
+		case "skax":
+			updates.planModeSkaxModelId = sourceFields.skaxModelId
+			updates.actModeSkaxModelId = sourceFields.skaxModelId
+			updates.planModeSkaxModelInfo = sourceFields.skaxModelInfo
+			updates.actModeSkaxModelInfo = sourceFields.skaxModelInfo
 			break
 
 		case "ollama":
@@ -877,6 +901,12 @@ export const getProviderInfo = (
 					effectiveMode === "plan" ? apiConfiguration.planModeOpenAiModelId : apiConfiguration.actModeOpenAiModelId,
 				baseUrl: apiConfiguration.openAiBaseUrl,
 				helpText: "Add your OpenAI API key and endpoint",
+			}
+		case "skax":
+			return {
+				modelId: effectiveMode === "plan" ? apiConfiguration.planModeSkaxModelId : apiConfiguration.actModeSkaxModelId,
+				baseUrl: apiConfiguration.skaxBaseUrl,
+				helpText: "Add your SKAX API key in settings",
 			}
 		case "vscode-lm":
 			return {

@@ -2,7 +2,11 @@
 	"list": [
 		{
 			"value": "ollama",
-			"label": "Ollama"
+			"label": "AACA Cline Local Models"
+		},
+		{
+			"value": "skax",
+			"label": "SKAX"
 		},
 		{
 			"value": "cline",
