@@ -1,0 +1,97 @@
+---
+title: "Configuration Overview"
+sidebarTitle: "Overview"
+description: "Understanding enterprise configuration options for inference providers and system settings"
+---
+
+Cline offers two distinct approaches to configure inference providers and system settings for your organization. Understanding the difference between these approaches will help you choose the right configuration method for your needs.
+
+## Configuration Types
+
+<Info>
+**Need help choosing?** See the [Deployment Guide](/enterprise-solutions/configuration/choosing-your-deployment) for a detailed comparison and decision tree.
+</Info>
+
+<CardGroup cols={2}>
+  <Card title="SaaS Provider Configuration" icon="cloud" href="/enterprise-solutions/configuration/remote-configuration/overview">
+    **Simple cloud-based setup**
+    
+    Configure inference providers through the Cline [admin console](https://app.cline.bot/dashboard). Ideal for quick organizational deployment with minimal infrastructure requirements.
+  </Card>
+  
+  <Card title="Self-Hosted Configuration" icon="server" href="/enterprise-solutions/configuration/infrastructure-configuration/overview">
+    **Advanced enterprise setup**
+    
+    Deep infrastructure integration with VPC endpoints, multi-account support, compliance features, and custom workflows on your own infrastructure.
+  </Card>
+</CardGroup>
+
+## Choosing the Right Configuration
+
+### Use SaaS Configuration When:
+- **Quick Setup**: You need to get your team up and running quickly
+- **Centralized Management**: You want simple, cloud-based provider management
+- **Standard Requirements**: Your organization has typical security and compliance needs
+- **Small to Medium Teams**: You're managing dozens to hundreds of users
+
+### Use Self-Hosted Configuration When:
+- **Enterprise Security**: You need advanced security features and compliance controls
+- **Complex Infrastructure**: You have existing AWS/GCP infrastructure to integrate with
+- **Custom Workflows**: You need custom rules, workflows, and automation
+- **Large Organizations**: You're managing hundreds to thousands of users
+- **Air-Gapped Environments**: You need on-premises or restricted network deployment
+
+## Configuration Comparison
+
+| Feature | SaaS Configuration | Self-Hosted Configuration |
+|---------|-------------------|---------------------------|
+| **Setup Complexity** | Simple | Advanced |
+| **Deployment Time** | Minutes | Days to Weeks |
+| **Infrastructure Required** | None | AWS/GCP/Azure |
+| **Compliance Features** | Basic | Advanced |
+| **Custom Rules** | No | Yes |
+| **Multi-Account Support** | No | Yes |
+| **VPC Integration** | No | Yes |
+| **Cost** | Lower | Higher |
+
+## Getting Started
+
+<Steps>
+<Step title="Evaluate Your Requirements">
+Review your organization's security, compliance, and infrastructure requirements to determine which configuration approach fits your needs.
+</Step>
+
+<Step title="Choose Your Path">
+Select either SaaS Configuration for simple setup or Self-Hosted Configuration for advanced enterprise features. Use the [Deployment Guide](/enterprise-solutions/configuration/choosing-your-deployment) if you need help deciding.
+</Step>
+
+<Step title="Follow Configuration Guide">
+Complete the setup process using the detailed guides for your chosen configuration type.
+</Step>
+
+<Step title="Onboard Team Members">
+Once configured, team members can connect using the provider-specific member guides.
+</Step>
+</Steps>
+
+---
+
+## Available Providers
+
+Both configuration approaches support the same core inference providers:
+
+<CardGroup cols={3}>
+  <Card title="AWS Bedrock" icon="aws">
+    Enterprise AI models with AWS infrastructure integration and security features.
+  </Card>
+  
+  <Card title="LiteLLM" icon="layer-group">
+    Unified proxy for accessing 100+ AI models through a single interface.
+  </Card>
+  
+  <Card title="Google Vertex AI" icon="google">
+    Google Cloud's AI platform with advanced ML capabilities and global infrastructure.
+  </Card>
+</CardGroup>
+
+The main difference lies in how these providers are configured and managed within your organization's infrastructure and security requirements.

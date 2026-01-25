@@ -1,0 +1,432 @@
+{
+	"$schema": "https://mintlify.com/docs.json",
+	"theme": "linden",
+	"name": "Cline",
+	"description": "복잡한 작업을 위한 AI 기반 코딩 에이전트",
+	"colors": {
+		"primary": "#9D4EDD",
+		"light": "#F0E6FF",
+		"dark": "#000000"
+	},
+	"logo": {
+		"light": "/assets/Cline_Logo-complete_black.png",
+		"dark": "/assets/Cline_Logo-complete_white.png"
+	},
+	"favicon": {
+		"light": "/assets/robot_panel_light.png",
+		"dark": "/assets/robot_panel_dark.png"
+	},
+	"background": {
+		"color": {
+			"light": "#fafaf9",
+			"dark": "#0f0f0f"
+		}
+	},
+	"styling": {
+		"eyebrows": "breadcrumbs",
+		"codeblocks": "system",
+		"css": "styles.css"
+	},
+	"appearance": {
+		"default": "system",
+		"strict": false
+	},
+	"fonts": {
+		"family": "Geist Sans"
+	},
+	"navbar": {
+		"links": [
+			{
+				"label": "GitHub",
+				"icon": "github",
+				"href": "https://github.com/cline/cline"
+			},
+			{
+				"label": "Discord",
+				"icon": "discord",
+				"href": "https://discord.gg/cline"
+			}
+		],
+		"primary": {
+			"type": "button",
+			"label": "Cline 설치",
+			"href": "https://cline.bot/install?utm_source=website&utm_medium=header"
+		}
+	},
+	"navigation": {
+		"tabs": [
+			{
+				"tab": "문서",
+				"icon": "square-terminal",
+				"groups": [
+					{
+						"group": "소개",
+						"pages": [
+							"introduction/welcome",
+							"introduction/overview"
+						]
+					},
+					{
+						"group": "시작하기",
+						"pages": [
+							"getting-started/installing-cline",
+							"getting-started/selecting-your-model",
+							"getting-started/your-first-project"
+						]
+					},
+					{
+						"group": "모범 사례",
+						"pages": [
+							"prompting/understanding-context-management",
+							"prompting/prompt-engineering-guide",
+							"prompting/cline-memory-bank"
+						]
+					},
+					{
+						"group": "CLI",
+						"pages": [
+							"cline-cli/overview",
+							"cline-cli/installation",
+							"cline-cli/three-core-flows",
+							{
+								"group": "CLI 샘플",
+								"pages": [
+									"cline-cli/samples/overview",
+									"cline-cli/samples/github-issue-rca",
+									"cline-cli/samples/github-integration"
+								]
+							},
+							"cline-cli/cli-reference"
+						]
+					},
+					{
+						"group": "기능",
+						"pages": [
+							{
+								"group": "@ 멘션",
+								"pages": [
+									"features/at-mentions/overview",
+									"features/at-mentions/file-mentions",
+									"features/at-mentions/terminal-mentions",
+									"features/at-mentions/problem-mentions",
+									"features/at-mentions/git-mentions",
+									"features/at-mentions/url-mentions"
+								]
+							},
+							"features/auto-approve",
+							"features/auto-compact",
+							"features/background-edit",
+							"features/checkpoints",
+							"features/cline-rules",
+							{
+								"group": "명령어 및 단축키",
+								"pages": [
+									"features/commands-and-shortcuts/overview",
+									"features/commands-and-shortcuts/code-commands",
+									"features/commands-and-shortcuts/terminal-integration",
+									"features/commands-and-shortcuts/git-integration",
+									"features/commands-and-shortcuts/keyboard-shortcuts"
+								]
+							},
+							{
+								"group": "커스터마이징",
+								"pages": [
+									"features/customization/opening-cline-in-sidebar",
+									"features/customization/disable-terminal-pagers"
+								]
+							},
+							"features/dictation",
+							"features/drag-and-drop",
+							"features/editing-messages",
+							"features/explain-changes",
+							"features/focus-chain",
+							{
+								"group": "훅",
+								"pages": [
+									"features/hooks/index",
+									"features/hooks/hook-reference",
+									"features/hooks/samples"
+								]
+							},
+							"features/jupyter-notebooks",
+							"features/multiroot-workspace",
+							"features/plan-and-act",
+							"features/skills",
+							{
+								"group": "슬래시 명령어",
+								"pages": [
+									"features/slash-commands/new-task",
+									"features/slash-commands/new-rule",
+									"features/slash-commands/explain-changes",
+									"features/slash-commands/smol",
+									"features/slash-commands/report-bug",
+									"features/slash-commands/deep-planning"
+								]
+							},
+							{
+								"group": "워크플로",
+								"pages": [
+									"features/slash-commands/workflows/index",
+									"features/slash-commands/workflows/quickstart",
+									"features/slash-commands/workflows/best-practices"
+								]
+							},
+							{
+								"group": "작업 관리",
+								"pages": [
+									"features/tasks/understanding-tasks",
+									"features/tasks/task-management"
+								]
+							},
+							"features/worktrees",
+							"features/yolo-mode"
+						]
+					},
+					{
+						"group": "모델 및 제공자 설정",
+						"pages": [
+							{
+								"group": "모델 선택",
+								"pages": [
+									"core-features/model-selection-guide",
+									"model-config/model-comparison",
+									"model-config/context-windows"
+								]
+							},
+							{
+								"group": "클라우드 제공자",
+								"pages": [
+									"provider-config/anthropic",
+									"provider-config/claude-code",
+									"provider-config/openai",
+									"provider-config/openai-codex",
+									"provider-config/openrouter",
+									"provider-config/cerebras",
+									"provider-config/deepseek",
+									"provider-config/groq",
+									"provider-config/xai-grok",
+									"provider-config/mistral-ai",
+									"provider-config/doubao",
+									"provider-config/fireworks",
+									"provider-config/zai",
+									"provider-config/gcp-vertex-ai",
+									"provider-config/baseten",
+									{
+										"group": "AWS Bedrock",
+										"pages": [
+											"provider-config/aws-bedrock/api-key",
+											"provider-config/aws-bedrock/iam-credentials",
+											"provider-config/aws-bedrock/cli-profile"
+										]
+									}
+								]
+							},
+							{
+								"group": "로컬에서 모델 실행",
+								"pages": [
+									"running-models-locally/overview",
+									"running-models-locally/ollama",
+									"running-models-locally/lm-studio"
+								]
+							},
+							{
+								"group": "고급 설정",
+								"pages": [
+									"provider-config/openai-compatible",
+									"provider-config/litellm-and-cline-using-codestral",
+									"provider-config/vscode-language-model-api",
+									"provider-config/sap-aicore",
+									"provider-config/vercel-ai-gateway",
+									"provider-config/requesty"
+								]
+							}
+						]
+					},
+					{
+						"group": "MCP 통합",
+						"pages": [
+							"mcp/mcp-overview",
+							"mcp/adding-mcp-servers-from-github",
+							"mcp/configuring-mcp-servers",
+							"mcp/connecting-to-a-remote-server",
+							"mcp/mcp-marketplace",
+							"mcp/mcp-server-development-protocol",
+							"mcp/mcp-transport-mechanisms"
+						]
+					},
+					{
+						"group": "Cline 도구 레퍼런스",
+						"pages": [
+							"exploring-clines-tools/cline-tools-guide",
+							"exploring-clines-tools/new-task-tool",
+							"exploring-clines-tools/remote-browser-support"
+						]
+					},
+					{
+						"group": "참조",
+						"pages": [
+							"troubleshooting/networking-and-proxies",
+							"troubleshooting/terminal-quick-fixes",
+							"troubleshooting/terminal-integration-guide",
+							"troubleshooting/task-history-recovery",
+							"more-info/telemetry"
+						]
+					}
+				]
+			},
+			{
+				"tab": "엔터프라이즈",
+				"icon": "building",
+				"groups": [
+					{
+						"group": "엔터프라이즈 솔루션",
+						"pages": [
+							"enterprise-solutions/overview",
+							"enterprise-solutions/onboarding",
+							"enterprise-solutions/sso-setup",
+							"enterprise-solutions/team-management/managing-members",
+							{
+								"group": "SaaS 제공자 설정",
+								"pages": [
+									"enterprise-solutions/configuration/remote-configuration/overview",
+									{
+										"group": "AWS Bedrock",
+										"pages": [
+											"enterprise-solutions/configuration/remote-configuration/aws-bedrock/admin-configuration",
+											"enterprise-solutions/configuration/remote-configuration/aws-bedrock/member-configuration"
+										]
+									},
+									{
+										"group": "LiteLLM",
+										"pages": [
+											"enterprise-solutions/configuration/remote-configuration/litellm/admin-configuration",
+											"enterprise-solutions/configuration/remote-configuration/litellm/member-configuration"
+										]
+									},
+									{
+										"group": "Google Vertex AI",
+										"pages": [
+											"enterprise-solutions/configuration/remote-configuration/google-vertex/admin-configuration",
+											"enterprise-solutions/configuration/remote-configuration/google-vertex/member-configuration"
+										]
+									}
+								]
+							},
+							{
+								"group": "다른 Cline 기능 제어",
+								"pages": [
+									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/yolo-mode"
+								]
+							},
+							{
+								"group": "모니터링",
+								"pages": [
+									"enterprise-solutions/monitoring/overview",
+									"enterprise-solutions/monitoring/telemetry",
+									"enterprise-solutions/monitoring/opentelemetry",
+									"enterprise-solutions/monitoring/opentelemetry_override"
+								]
+							}
+						]
+					}
+				]
+			},
+			{
+				"tab": "학습",
+				"icon": "graduation-cap",
+				"href": "https://cline.bot/learn"
+			}
+		]
+	},
+	"footer": {
+		"socials": {
+			"x": "https://x.com/cline",
+			"github": "https://github.com/cline/cline",
+			"discord": "https://discord.gg/cline"
+		}
+	},
+	"anchors": [
+		{
+			"name": "개요",
+			"icon": "house",
+			"url": "introduction/overview"
+		}
+	],
+	"redirects": [
+		{
+			"source": "/getting-started/installing-cline-jetbrains",
+			"destination": "/getting-started/installing-cline"
+		},
+		{
+			"source": "/getting-started/what-is-cline",
+			"destination": "/introduction/overview"
+		},
+		{
+			"source": "/getting-started/overview",
+			"destination": "/introduction/overview"
+		},
+		{
+			"source": "/introduction",
+			"destination": "/introduction/welcome"
+		},
+		{
+			"source": "/getting-started/model-selection-guide",
+			"destination": "/core-features/model-selection-guide"
+		},
+		{
+			"source": "/provider-config/ollama",
+			"destination": "/running-models-locally/ollama"
+		},
+		{
+			"source": "/running-models-locally/read-me-first",
+			"destination": "/running-models-locally/overview"
+		},
+		{
+			"source": "/getting-started/understanding-context-management",
+			"destination": "/prompting/understanding-context-management"
+		},
+		{
+			"source": "/best-practices/understanding-context-management",
+			"destination": "/prompting/understanding-context-management"
+		},
+		{
+			"source": "/getting-started/your-first-task",
+			"destination": "/getting-started/your-first-project"
+		},
+		{
+			"source": "/cline-cli/samples",
+			"destination": "/cline-cli/samples/overview"
+		},
+		{
+			"source": "/features/hooks/real-world-examples",
+			"destination": "/features/hooks/samples"
+		},
+		{
+			"source": "/enterprise-solutions/configure-AWS-Bedrock-Admin",
+			"destination": "/enterprise-solutions/configuration/remote-configuration/aws-bedrock/admin-configuration"
+		},
+		{
+			"source": "/enterprise-solutions/configure-AWS-Bedrock-Member",
+			"destination": "/enterprise-solutions/configuration/remote-configuration/aws-bedrock/member-configuration"
+		},
+		{
+			"source": "/enterprise-solutions/configure-workOS-authkit",
+			"destination": "/enterprise-solutions/onboarding"
+		},
+		{
+			"source": "/enterprise-solutions/Onboarding your Organization",
+			"destination": "/enterprise-solutions/onboarding"
+		},
+		{
+			"source": "/enterprise-solutions/team-management/overview",
+			"destination": "/enterprise-solutions/team-management/managing-members"
+		},
+		{
+			"source": "/enterprise-solutions/team-management/roles-and-permissions",
+			"destination": "/enterprise-solutions/team-management/managing-members"
+		}
+	],
+	"search": {
+		"prompt": "Cline 문서 검색..."
+	}
+}

@@ -1,0 +1,98 @@
+---
+title: "Terminal Integration"
+sidebarTitle: "Terminal Integration"
+---
+
+Cline's terminal integration lets you bring your terminal output directly into your conversations with Cline. Instead of copying and pasting error messages or command results, you can send them to Cline with a simple right-click in the terminal.
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/terminal-integration.png"
+		alt="Terminal Integration"
+	/>
+</Frame>
+
+## Right-Click Terminal Integration
+
+When you're working in the VSCode terminal and see output you want to discuss with Cline:
+
+1. Right-click in the terminal
+2. Select "Add to Cline" from the context menu
+3. The terminal output is immediately sent to the Cline chat panel
+
+This is perfect for:
+
+-   Debugging build errors
+-   Understanding test failures
+-   Analyzing command output
+-   Getting help with error messages
+
+The right-click terminal integration is especially useful when you're already working in the terminal and encounter an issue.
+
+Instead of switching context to the Cline chat panel and typing a description of the problem, you can send the terminal output directly to Cline with just a couple of clicks.
+
+Alternatively, you can use the [`@terminal`](/features/at-mentions/terminal-mentions) mention to send the full terminal output to Cline.
+
+<Tip>
+	For information about using `@terminal` mentions in your chat messages, see the [Terminal
+	Mentions](/features/at-mentions/terminal-mentions) documentation.
+</Tip>
+
+## How Terminal Integration Works
+
+When you use the right-click terminal integration, Cline:
+
+1. Captures the terminal output with all formatting preserved
+2. Includes the complete context, including command history and results
+3. Formats it appropriately for the AI to understand
+4. Enables the AI to see exactly what you're seeing
+
+This gives Cline the full context it needs to provide accurate help with terminal-related issues.
+
+## Behind the Scenes
+
+The terminal integration uses a clever technique to capture terminal output:
+
+1. When you trigger the integration, Cline:
+
+    - Temporarily saves your current clipboard content
+    - Selects all terminal content (or uses your existing selection)
+    - Copies it to the clipboard
+    - Reads the clipboard to get the terminal content
+    - Restores your original clipboard content
+
+2. The terminal content is then:
+    - Formatted with proper syntax highlighting
+    - Added to your message or sent as a new message
+    - Enhanced with additional context when needed
+
+This approach ensures that all terminal output, including colors and formatting, is accurately captured without affecting your clipboard.
+
+## Tips for Effective Use
+
+-   **Use terminal integration for error messages**: When you encounter an error in the terminal, sending it to Cline often results in faster resolution than trying to describe the error.
+
+-   **Select specific output when needed**: By default, the integration captures all terminal content, but you can also select specific lines before right-clicking to focus on just the relevant output.
+
+-   **Combine terminal outputs with file mentions**: After sending terminal output to Cline, you can enhance your question by mentioning relevant files using the @ mentions feature.
+
+-   **Contextualize build & test outputs with the terminal**: Terminal integration is particularly useful for understanding complex build errors or test failures that span multiple lines.
+
+Next time you're staring at a cryptic error message in your terminal, try using Cline's terminal integration instead of copying and pasting. You'll get more accurate help because Cline can see the complete terminal context with proper formatting.
+
+## Troubleshooting Terminal Issues
+
+If you're experiencing issues with terminal integration, such as "Shell Integration Unavailable" or commands not showing output, please refer to our comprehensive [Terminal Integration Troubleshooting Guide](/troubleshooting/terminal-integration-guide).
+
+The troubleshooting guide covers:
+
+-   Common terminal integration issues and quick fixes
+-   Platform-specific solutions for Windows, macOS, and Linux
+-   Shell-specific configurations for zsh, bash, PowerShell, and more
+-   Advanced debugging techniques
+-   Terminal settings optimization
+
+<Tip>
+	**Quick Fix**: Most terminal issues can be resolved by switching to bash in the Cline settings and increasing the shell
+	integration timeout to 10 seconds.
+</Tip>

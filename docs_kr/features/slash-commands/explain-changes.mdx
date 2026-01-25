@@ -1,0 +1,286 @@
+---
+title: "Explain Changes Command"
+sidebarTitle: "/explain-changes"
+---
+<Note>
+This command is only available in **VS Code**. The diff view with inline comments requires VS Code's native diff capabilities.
+</Note>
+
+`/explain-changes` is a slash command that generates AI-powered explanations for any git diff. Unlike the [Explain Changes button](/features/explain-changes) which explains changes from a completed task, this command lets you explain changes between any two git references - commits, branches, tags, PRs, staged changes, or your working directory.
+
+
+	<video
+		src="https://storage.googleapis.com/cline_public_images/slash-code-explain.mp4"
+		autoPlay
+		loop
+		muted
+		playsInline
+	/>
+
+## Requirements
+
+<Note>
+The `/explain-changes` command requires a **git repository**. Make sure you're working in a directory that has been initialized with git.
+</Note>
+
+For PR explanations, you'll need the [GitHub CLI (gh)](https://cli.github.com/) installed and authenticated. For GitLab merge request explanations, you'll need the [GitLab CLI (glab)](https://gitlab.com/gitlab-org/cli) installed and authenticated.
+
+Unlike the Explain Changes button, this command does **not** require checkpoints to be enabled since it uses git references directly.
+
+
+## Using the Command
+
+Type `/explain-changes` in the chat input. Cline will:
+
+1. Analyze your git history to understand what changes exist
+2. Gather context by reading relevant files
+3. Determine appropriate git references to compare
+4. Generate a diff view with streaming inline explanations
+
+
+## How It Works
+
+When you use `/explain-changes`, Cline:
+
+1. **Gathers context**: Runs git commands to understand your repository state
+2. **Identifies changes**: Determines which files changed between references
+3. **Reads relevant files**: Builds context for better explanations
+4. **Calls generate_explanation**: Creates the diff view and streams explanations
+5. **Displays results**: Opens a multi-file diff with inline comments
+
+## Use Cases
+
+### Explain the Last Commit
+
+The most common use case - understand what changed in the most recent commit:
+
+```
+/explain-changes
+```
+
+Cline will examine HEAD and compare it to HEAD~1, explaining all the changes in that commit.
+
+**When to use:**
+- After pulling changes from a teammate
+- Reviewing your own work before pushing
+- Understanding what a merge commit brought in
+
+### Explain Uncommitted Changes
+
+Understand your work-in-progress changes before committing:
+
+```
+/explain-changes for my uncommitted work
+```
+
+Cline compares HEAD to your working directory, explaining all modified files.
+
+**When to use:**
+- Before staging changes to ensure they're complete
+- After a long coding session to remember what you changed
+- To verify changes before creating a commit
+
+### Explain Staged Changes
+
+Review exactly what you're about to commit:
+
+```
+/explain-changes for my staged changes
+```
+
+Cline examines only the changes you've staged with `git add`.
+
+**When to use:**
+- Final review before committing
+- When you've staged a subset of changes and want to verify
+- To ensure you haven't accidentally staged unintended files
+
+### Explain a Specific Commit
+
+Understand any commit in your history:
+
+```
+/explain-changes for commit abc123
+```
+
+Or by commit message:
+
+```
+/explain-changes for the commit that added authentication
+```
+
+Cline will find the commit and explain what it changed.
+
+**When to use:**
+- Investigating when a bug was introduced
+- Understanding historical decisions
+- Learning how a feature was implemented
+
+### Explain a Range of Commits
+
+Understand multiple commits at once:
+
+```
+/explain-changes for the last 3 commits
+```
+
+Or a specific range:
+
+```
+/explain-changes from v1.0.0 to v1.1.0
+```
+
+Cline compares the endpoints and explains all changes between them.
+
+**When to use:**
+- Understanding what changed in a release
+- Reviewing a series of related commits
+- Catching up after being away from the project
+
+### Explain a Pull Request
+
+Get AI explanations for any PR:
+
+```
+/explain-changes for PR #42
+```
+
+Cline uses the GitHub CLI to fetch PR details and explain the changes.
+
+**When to use:**
+- Reviewing someone else's PR
+- Understanding a PR before approving
+- Learning from PRs in open source projects
+- Preparing to give PR feedback
+
+### Explain Branch Differences
+
+Compare any two branches:
+
+```
+/explain-changes between main and feature-branch
+```
+
+Or see what's changed on a feature branch:
+
+```
+/explain-changes for everything on my-feature that's not in main
+```
+
+**When to use:**
+- Before merging a feature branch
+- Understanding divergence between branches
+- Planning a merge or rebase strategy
+- Reviewing what a colleague has been working on
+
+### Explain Changes to Specific Files
+
+Focus on particular files or directories:
+
+```
+/explain-changes for src/auth in the last 5 commits
+```
+
+Cline filters the diff to show only relevant changes.
+
+**When to use:**
+- Understanding changes to a specific module
+- Tracking modifications to critical files
+- Learning how a particular feature evolved
+
+### Explain Changes Since a Tag
+
+Understand what's changed since a release:
+
+```
+/explain-changes since v2.0.0
+```
+
+Cline compares the tag to HEAD and explains all subsequent changes.
+
+**When to use:**
+- Preparing release notes
+- Understanding what's new since a deployment
+- Identifying changes for a changelog
+
+### Explain a Merge Commit
+
+Understand what a merge brought in:
+
+```
+/explain-changes for the merge from feature-x
+```
+
+Cline explains all the changes that were merged.
+
+**When to use:**
+- After merging a large feature branch
+- Understanding what a merge conflict resolution changed
+- Reviewing what others merged into main
+
+### Explain Stashed Changes
+
+Review what's in your stash:
+
+```
+/explain-changes for my stashed changes
+```
+
+Cline examines stash@{0} and explains its contents.
+
+**When to use:**
+- Before applying a stash
+- Deciding whether to keep or drop a stash
+- Remembering what you stashed days ago
+
+## Interactive Comments
+
+Just like the [Explain Changes](/features/explain-changes) button, the generated comments are fully interactive:
+
+### Reply to Comments
+
+Ask follow-up questions directly in any comment thread:
+
+- "Why was this function refactored?"
+- "What's the purpose of this new parameter?"
+- "Could this cause any breaking changes?"
+- "Is this change backwards compatible?"
+
+The AI responds with context-aware explanations, understanding both the code and the broader changes.
+
+### Move to Main Chat
+
+Click the title area of any comment thread to move that conversation into Cline's main chat. This is useful when:
+
+- You want Cline to make additional changes
+- The discussion reveals something that needs more investigation
+- You want to continue working with full Cline capabilities
+- A review comment sparks an idea for improvements
+
+### The generate_explanation Tool
+
+Under the hood, `/explain-changes` uses the `generate_explanation` tool with these parameters:
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `title` | Descriptive title for the diff view | "Changes in commit abc123" |
+| `from_ref` | Git reference for the "before" state | `HEAD~1`, `main`, `origin/main` |
+| `to_ref` | Git reference for the "after" state (optional) | `HEAD`, `develop` |
+
+If `to_ref` is omitted, the tool compares against the working directory.
+
+## Tips for Better Explanations
+
+1. **Be specific**: Instead of just `/explain-changes`, tell Cline what you want explained. "Explain the authentication changes in PR #42" gives better context than just "explain PR #42".
+
+2. **Ask about intent**: The AI can explain not just what changed but why. Ask follow-up questions like "What problem was this solving?"
+
+3. **Chain with other commands**: Use `/explain-changes` after investigating an issue to understand potential fixes, then continue with Cline to implement improvements.
+
+4. **Use for learning**: When onboarding to a new codebase, use `/explain-changes` on significant PRs or commits to understand how features were built.
+
+## Related Features
+
+- [Explain Changes](/features/explain-changes) - The button-based version for task completions
+- [Checkpoints](/features/checkpoints) - Enables the Explain Changes button
+- [@git mentions](/features/at-mentions/git-mentions) - Reference git diffs in your prompts

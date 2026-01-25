@@ -1,0 +1,51 @@
+---
+title: "Fireworks AI"
+description: "Learn how to configure and use Fireworks AI models with Cline. Access high-performance open-source language models with fast, cost-effective APIs."
+---
+
+Cline supports accessing models through the Fireworks AI platform, which offers fast, cost-effective access to a wide range of state-of-the-art open-source language models. Built for speed and reliability, Fireworks AI provides serverless deployment options with OpenAI-compatible APIs and context windows up to 256,000 tokens.
+
+**Website:** [https://fireworks.ai/](https://fireworks.ai/)
+
+### Getting an API Key
+
+1. **Sign Up/Sign In:** Go to [Fireworks AI](https://fireworks.ai/) and create an account or sign in.
+2. **Navigate to API Keys:** After logging in, go to the [API Keys page](https://app.fireworks.ai/settings/users/api-keys) in the account settings.
+3. **Create a Key:** Click "Create API key" and give your key a descriptive name (e.g., "Cline").
+4. **Copy the Key:** **Important:** Copy the API key _immediately_. You will not be able to see it again. Store it securely.
+
+### Supported Models
+
+Cline supports the following Fireworks AI models:
+
+-   `accounts/fireworks/models/kimi-k2-instruct` (Default)
+-   `accounts/fireworks/models/qwen3-235b-a22b-instruct-2507`
+-   `accounts/fireworks/models/qwen3-coder-480b-a35b-instruct`
+-   `accounts/fireworks/models/deepseek-r1-0528`
+-   `accounts/fireworks/models/deepseek-v3`
+
+**Model Details:**
+
+| Model | Context Window | Best For | Pricing (per 1M tokens) |
+|-------|----------------|----------|-------------------------|
+| Kimi K2 | 128K | General tasks, agentic capabilities | \$0.60 input, \$2.50 output |
+| Qwen3 235B | 256K | Cost-effective general use | \$0.22 input, \$0.88 output |
+| Qwen3 Coder | 256K | Code generation and debugging | \$0.45 input, \$1.80 output |
+| DeepSeek R1 | 160K | Complex reasoning, function calling | \$3.00 input, \$8.00 output |
+| DeepSeek V3 | 128K | Strong general performance | \$0.90 input, \$0.90 output |
+
+### Configuration in Cline
+
+1. **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
+2. **Select Provider:** Choose "Fireworks AI" from the "API Provider" dropdown.
+3. **Enter API Key:** Paste your Fireworks AI API key into the "Fireworks AI API Key" field.
+4. **Select Model:** Choose your desired model from the "Model" dropdown. The default model is Kimi K2.
+
+### Tips and Notes
+
+-   **Cost-Effective:** Fireworks AI offers significantly lower pricing than proprietary models while maintaining competitive performance.
+-   **Large Context Windows:** Most models support 128K-256K tokens, suitable for processing large documents and maintaining extended conversations.
+-   **OpenAI Compatibility:** The provider uses an OpenAI-compatible API format with streaming support and usage tracking.
+-   **Rate Limits:** Fireworks AI has usage-based rate limits. Monitor your usage in the dashboard and consider upgrading your plan if needed.
+-   **API Keys:** Stored locally on your machine for security.
+-   **Pricing:** See the [Fireworks AI pricing page](https://fireworks.ai/pricing) for current rates. Prices shown are per million tokens.

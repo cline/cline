@@ -1,0 +1,84 @@
+---
+title: "개요"
+description: "CLI 설치, 첫 작업 실행, 코드 리뷰 자동화 및 개발 워크플로에 AI 에이전트를 통합하는 방법을 알아보세요"
+---
+
+<Warning>
+**미리보기 릴리스 - macOS 및 Linux 전용**
+
+Cline CLI는 현재 미리보기 단계이며 macOS와 Linux에서만 사용할 수 있습니다. Windows 지원은 곧 제공될 예정입니다.
+</Warning>
+
+## Cline CLI란?
+
+Cline CLI는 터미널에서 AI 코딩 에이전트를 직접 실행합니다. CI/CD에서 git diff를 파이프로 전달해 코드 리뷰를 자동화하거나, 병렬 개발을 위해 여러 인스턴스를 동시에 실행하거나, 기존 셸 워크플로에 Cline을 통합할 수 있습니다.
+
+CLI는 시스템 전반의 인스턴스를 추적하고, 사람과 스크립트 모두를 위한 형식(JSON, 일반 텍스트, 풍부한 터미널 출력)으로 결과를 출력합니다.
+
+<Tip>
+바로 시작하고 싶나요? [설치 가이드](/cline-cli/installation)를 확인해 Cline CLI를 설치하고 첫 작업을 실행해 보세요.
+</Tip>
+
+## 지원하는 모델 제공자
+
+Cline CLI는 여러 AI 모델 제공자를 지원하여 필요에 맞는 모델을 선택할 수 있습니다:
+
+- **Anthropic**
+- **OpenAI**
+- **OpenAI Compatible**
+- **OpenRouter**
+- **X AI (Grok)**
+- **AWS Bedrock**
+- **Google Gemini**
+- **Ollama**
+- **Cerebras**
+
+설치 중 `cline auth` 명령으로 선호하는 제공자를 인증하고 구성할 수 있습니다.
+
+## 무엇을 만들 수 있나요
+
+**자동 코드 유지보수**
+- 매일 실행을 예약해 코드베이스 전체의 린팅 이슈를 식별하고 수정
+- 보안 취약점을 스캔하고 자동으로 패치하는 작업 생성
+- 사용 중단된 의존성을 업데이트하고 테스트를 실행하는 스크립트 구축
+
+**멀티 인스턴스 개발**
+- 프런트엔드와 백엔드를 각각 다른 Cline 인스턴스로 동시에 실행
+- 서로 분리된 상태를 가진 기능 브랜치별 인스턴스 생성
+- 여러 PR에 대한 병렬 리뷰 프로세스 구축
+
+**커스텀 워크플로**
+- Cline과 git 훅을 결합한 셸 스크립트로 커밋 전 분석 수행
+- 복잡한 데이터 구조를 Cline에 파이프로 전달해 처리하는 커스텀 명령 생성
+- 기존 도구 체인(jq, grep, awk)과 통합해 고급 자동화 구현
+
+**CI/CD 통합**
+- GitHub Actions에 Cline을 추가해 모든 PR에서 자동 코드 리뷰 수행
+- GitLab 파이프라인에서 스키마 변경으로부터 마이그레이션 스크립트 생성
+- Jenkins 작업에서 테스트 실패를 분석하고 수정안을 제안하도록 구성
+
+## 훅 통합
+
+[훅](/features/hooks/index)은 Cline 워크플로의 특정 지점에 커스텀 로직을 주입하여 작업을 검증하고 정책을 강제할 수 있게 합니다. 명령줄에서 작업을 실행할 때 훅을 활성화할 수 있습니다:
+
+```bash
+# 작업에 훅 활성화
+cline "What does this repo do?" -s hooks_enabled=true
+
+# CLI로 전역 훅 설정
+cline config set hooks-enabled=true
+```
+
+이를 통해 자동화 워크플로, CI/CD 파이프라인, 헤드리스 작업 실행에 훅을 통합해 모든 환경에서 일관된 정책 집행이 가능합니다.
+
+## 더 알아보기
+
+<Columns cols={2}>
+  <Card title="설치" icon="download" href="/cline-cli/installation">
+    Cline CLI를 설치하고 계정으로 인증해 시작하세요.
+  </Card>
+  
+  <Card title="세 가지 핵심 흐름" icon="route" href="/cline-cli/three-core-flows">
+    Cline CLI를 사용하는 세 가지 방식(대화형 모드, 헤드리스 자동화, 멀티 인스턴스 병렬화)을 익히세요.
+  </Card>
+</Columns>

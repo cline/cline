@@ -1,0 +1,86 @@
+---
+title: "Claude Code"
+description: "Use your Claude Max or Pro subscription with Cline instead of paying per token. Learn how to set up and configure the Claude Code provider."
+---
+
+**Website:** [https://docs.anthropic.com/en/docs/claude-code/setup](https://docs.anthropic.com/en/docs/claude-code/setup)
+
+The Claude Code provider lets you use your existing Claude subscription with Cline. If you have Claude Max or Pro, this means you can use Claude in Cline without paying extra API costs.
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/claude-code-use-opus.gif"
+		alt="Using the Claude Code provider in Cline with Opus model"
+	/>
+</Frame>
+
+## Setup
+
+First, you'll need to install and authenticate Claude Code on your system:
+
+1. **Install Claude Code**: Follow Anthropic's [official setup guide](https://docs.anthropic.com/en/docs/claude-code/setup) to install and authenticate the Claude CLI.
+
+2. **Configure in Cline**:
+    - Open Cline settings (⚙️ icon)
+    - Select **Claude Code** from the **API Provider** dropdown
+    - Set the path to your Claude CLI executable (usually just `claude` if it's in your PATH)
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/claude-code-setup.gif"
+		alt="Setting up the Claude Code provider in Cline"
+	/>
+</Frame>
+
+<br />
+
+### Finding your Claude Code path
+
+-   **macOS / Linux / WSL / Git Bash**: `which claude`
+-   **Windows Command Prompt**: `where claude`
+
+## Supported Models
+
+The Claude Code provider supports these models:
+
+-   `claude-sonnet-4-20250514` (Recommended)
+-   `claude-opus-4-1-20250805`
+-   `claude-opus-4-20250514`
+-   `claude-3-7-sonnet-20250219`
+-   `claude-3-5-sonnet-20241022`
+-   `claude-3-5-haiku-20241022`
+
+## How it works
+
+When you use Claude Code with Cline, here's what happens behind the scenes:
+
+Cline wraps the Claude Code CLI to handle your requests. Each time you send a message, Cline starts a new `claude` process, sends your conversation, and streams the response back. The AI reasoning comes from Claude Code, but all the actual file editing, terminal commands, and other tools are handled by Cline.
+
+The main difference you'll notice is that responses don't stream character-by-character like other providers. Instead, Claude Code processes your full request before sending back the complete response.
+
+## Limitations
+
+There are a few things to keep in mind with Claude Code:
+
+-   Images in your messages get converted to text placeholders since Claude Code doesn't support image uploads through the CLI
+-   Prompt caching isn't available with this provider
+-   Responses don't stream in real-time like other providers
+
+## Troubleshooting
+
+If you run into issues:
+
+**Authentication problems**: Make sure you're logged into Claude Code with your subscription account. Run `claude auth status` to check.
+
+**Path issues**: Double-check that the Claude CLI path in Cline's settings is correct. Try running `claude --version` in your terminal to verify it's working.
+
+**Still having trouble?** We're actively improving this integration. Report issues on our [GitHub](https://github.com/cline/cline/issues) or ask for help in our [Discord](https://discord.gg/cline).
+
+## Usage with subscriptions
+
+If you have a Claude Max subscription, your usage in Cline shows up as $0.00 in the billing interface since you're not paying additional API costs. Your usage still counts against your subscription limits, but you won't see per-token charges.
+
+For more details about using Claude Code with your subscription, check out Anthropic's documentation:
+
+-   [Claude Code Setup Guide](https://docs.anthropic.com/en/docs/claude-code/setup)
+-   [Using Claude Code with Pro/Max Plans](https://support.anthropic.com/en/articles/11145838-using-claude-code-with-your-pro-or-max-plan)

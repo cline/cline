@@ -1,0 +1,121 @@
+---
+title: "LM Studio"
+description: "A quick guide to setting up LM Studio for local AI model execution with Cline."
+---
+
+## Setting Up LM Studio with Cline
+
+Run AI models locally using LM Studio with Cline.
+
+### Prerequisites
+
+-   Windows, macOS, or Linux computer with AVX2 support
+-   Cline installed in VS Code
+
+### Setup Steps
+
+#### 1. Install LM Studio
+
+-   Visit [lmstudio.ai](https://lmstudio.ai)
+-   Download and install for your operating system
+
+<Frame>
+	<img src="https://storage.googleapis.com/cline_public_images/docs/assets/image%20(7).png" alt="LM Studio download page" />
+</Frame>
+
+#### 2. Launch LM Studio
+
+-   Open the installed application
+-   You'll see four tabs on the left: **Chat**, **Developer** (where you will start the server), **My Models** (where your downloaded models are stored), **Discover** (add new models)
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/image%20(10).png"
+		alt="LM Studio interface overview"
+	/>
+</Frame>
+
+#### 3. Download a Model
+
+-   Browse the "Discover" page
+-   Select and download your preferred model
+-   Wait for download to complete
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/lm-studio-download-model.gif"
+		alt="Downloading a model in LM Studio"
+	/>
+</Frame>
+
+#### 4. Start the Server
+
+-   Navigate to the "Developer" tab
+-   Toggle the server switch to "Running"
+-   Note: The server will run at `http://localhost:1234`
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/lm-studio-starting-server.gif"
+		alt="Starting the LM Studio server"
+	/>
+</Frame>
+
+#### 5. Configure Cline
+
+1. Open VS Code
+2. Click Cline settings icon
+3. Select "LM Studio" as API provider
+4. Select your model from the available options
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/lm-studio-select-model-cline.gif"
+		alt="Configuring Cline with LM Studio"
+	/>
+</Frame>
+
+### Recommended Model and Settings
+
+For the best experience with Cline, use **Qwen3 Coder 30B A3B Instruct**. This model delivers strong coding performance and reliable tool use.
+
+#### Critical Settings
+
+After loading your model in the Developer tab, configure these settings:
+
+1. **Context Length**: Set to 262,144 (the model's maximum)
+2. **KV Cache Quantization**: Leave unchecked (critical for consistent performance)
+3. **Flash Attention**: Enable if available (improves performance)
+
+#### Quantization Guide
+
+Choose quantization based on your RAM:
+
+- **32GB RAM**: Use 4-bit quantization (~17GB download)
+- **64GB RAM**: Use 8-bit quantization (~32GB download) for better quality
+- **128GB+ RAM**: Consider full precision or larger models
+
+#### Model Format
+
+- **Mac (Apple Silicon)**: Use MLX format for optimized performance
+- **Windows/Linux**: Use GGUF format
+
+### Enable Compact Prompts
+
+For optimal performance with local models, enable compact prompts in Cline settings. This reduces the prompt size by 90% while maintaining core functionality.
+
+Navigate to Cline Settings → Features → Use Compact Prompt and toggle it on.
+
+### Important Notes
+
+-   Start LM Studio before using with Cline
+-   Keep LM Studio running in background
+-   First model download may take several minutes depending on size
+-   Models are stored locally after download
+
+### Troubleshooting
+
+1. If Cline can't connect to LM Studio:
+2. Verify LM Studio server is running (check Developer tab)
+3. Ensure a model is loaded
+4. Check your system meets hardware requirements

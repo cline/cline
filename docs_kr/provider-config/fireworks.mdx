@@ -1,0 +1,131 @@
+---
+title: "Fireworks AI"
+description: "Learn how to configure and use Fireworks AI's lightning-fast inference platform with Cline. Experience up to 4x faster inference speeds with optimized models and competitive pricing."
+---
+
+Fireworks AI is a leading infrastructure platform for generative AI that focuses on delivering exceptional performance through optimized inference capabilities. With up to 4x faster inference speeds than alternative platforms and support for over 40 different AI models, Fireworks eliminates the operational complexity of running AI models at scale.
+
+**Website:** [https://fireworks.ai/](https://fireworks.ai/)
+
+### Getting an API Key
+
+1.  **Sign Up/Sign In:** Go to [Fireworks AI](https://fireworks.ai/) and create an account or sign in.
+2.  **Navigate to API Keys:** Access the API keys section in your dashboard.
+3.  **Create a Key:** Generate a new API key. Give it a descriptive name (e.g., "Cline").
+4.  **Copy the Key:** Copy the API key immediately. Store it securely.
+
+### Supported Models
+
+Fireworks AI supports a wide variety of models across different categories. Popular models include:
+
+**Text Generation Models:**
+-   Llama 3.1 series (8B, 70B, 405B)
+-   Mixtral 8x7B and 8x22B
+-   Qwen 2.5 series
+-   DeepSeek models with reasoning capabilities
+-   Code Llama models for programming tasks
+
+**Vision Models:**
+-   Llama 3.2 Vision models
+-   Qwen 2-VL models
+
+**Embedding Models:**
+-   Various text embedding models for semantic search
+
+The platform curates, optimizes, and deploys models with custom kernels and inference optimizations for maximum performance.
+
+### Configuration in Cline
+
+1.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
+2.  **Select Provider:** Choose "Fireworks" from the "API Provider" dropdown.
+3.  **Enter API Key:** Paste your Fireworks API key into the "Fireworks API Key" field.
+4.  **Enter Model ID:** Specify the model you want to use (e.g., "accounts/fireworks/models/llama-v3p1-70b-instruct").
+5.  **Configure Tokens:** Optionally set max completion tokens and context window size.
+
+### Fireworks AI's Performance Focus
+
+Fireworks AI's competitive advantages center on performance optimization and developer experience:
+
+#### Lightning-Fast Inference
+- **Up to 4x faster inference** than alternative platforms
+- **250% higher throughput** compared to open source inference engines
+- **50% faster speed** with significantly reduced latency
+- **6x lower cost** than HuggingFace Endpoints with 2.5x generation speed
+
+#### Advanced Optimization Technology
+- **Custom kernels** and inference optimizations increase throughput per GPU
+- **Multi-LoRA architecture** enables efficient resource sharing
+- **Hundreds of fine-tuned model variants** can run on shared base model infrastructure
+- **Asset-light model** focuses on optimization software rather than expensive GPU ownership
+
+#### Comprehensive Model Support
+- **40+ different AI models** curated and optimized for performance
+- **Multiple GPU types** supported: A100, H100, H200, B200, AMD MI300X
+- **Pay-per-GPU-second billing** with no extra charges for start-up times
+- **OpenAI API compatibility** for seamless integration
+
+### Pricing Structure
+
+Fireworks AI uses a usage-based pricing model with competitive rates:
+
+#### Text and Vision Models (2025)
+| Parameter Count | Price per 1M Input Tokens |
+|---|---|
+| Less than 4B parameters | $0.10 |
+| 4B - 16B parameters | $0.20 |
+| More than 16B parameters | $0.90 |
+| MoE 0B - 56B parameters | $0.50 |
+
+#### Fine-Tuning Services
+| Base Model Size | Price per 1M Training Tokens |
+|---|---|
+| Up to 16B parameters | $0.50 |
+| 16.1B - 80B parameters | $3.00 |
+| DeepSeek R1 / V3 | $10.00 |
+
+#### Dedicated Deployments
+| GPU Type | Price per Hour |
+|---|---|
+| A100 80GB | $2.90 |
+| H100 80GB | $5.80 |
+| H200 141GB | $6.99 |
+| B200 180GB | $11.99 |
+| AMD MI300X | $4.99 |
+
+### Special Features
+
+#### Fine-Tuning Capabilities
+Fireworks offers sophisticated fine-tuning services accessible through CLI interface, supporting JSON-formatted data from databases like MongoDB Atlas. Fine-tuned models cost the same as base models for inference.
+
+#### Developer Experience
+- **Browser playground** for direct model interaction
+- **REST API** with OpenAI compatibility
+- **Comprehensive cookbook** with ready-to-use recipes
+- **Multiple deployment options** from serverless to dedicated GPUs
+
+#### Enterprise Features
+- **HIPAA and SOC 2 Type II compliance** for regulated industries
+- **Self-serve onboarding** for developers
+- **Enterprise sales** for larger deployments
+- **Post-paid billing options** and Business tier
+
+#### Reasoning Model Support
+Advanced support for reasoning models with `<think>` tag processing and reasoning content extraction, making complex multi-step reasoning practical for real-time applications.
+
+### Performance Advantages
+
+Fireworks AI's optimization delivers measurable improvements:
+- **250% higher throughput** vs open source engines
+- **50% faster speed** with reduced latency
+- **6x cost reduction** compared to alternatives
+- **2.5x generation speed** improvement per request
+
+### Tips and Notes
+
+-   **Model Selection:** Choose models based on your specific use case - smaller models for speed, larger models for complex reasoning.
+-   **Performance Focus:** Fireworks excels at making AI inference fast and cost-effective through advanced optimizations.
+-   **Fine-Tuning:** Leverage fine-tuning capabilities to improve model accuracy with your proprietary data.
+-   **Compliance:** HIPAA and SOC 2 Type II compliance enables use in regulated industries.
+-   **Pricing Model:** Usage-based pricing scales with your success rather than traditional seat-based models.
+-   **Developer Resources:** Extensive documentation and cookbook recipes accelerate implementation.
+-   **GPU Options:** Multiple GPU types available for dedicated deployments based on performance needs.

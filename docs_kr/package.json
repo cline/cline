@@ -1,0 +1,22 @@
+{
+	"name": "docs",
+	"version": "1.0.0",
+	"main": "index.js",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1",
+		"dev": "mintlify dev",
+		"check": "mintlify broken-links",
+		"rename": "mintlify rename"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"description": "",
+	"dependencies": {
+		"mintlify": "^4.2.249"
+	},
+	"overrides": {
+		"tar-fs": "^3.1.1",
+		"js-yaml": "^4.1.1"
+	}
+}

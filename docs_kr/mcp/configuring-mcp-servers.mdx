@@ -1,0 +1,166 @@
+---
+title: "Configuring MCP Servers"
+---
+
+## Global MCP Server Inclusion Mode
+
+Utilizing MCP servers will increase your token usage. Cline offers the ability to restrict or disable MCP server functionality as desired.
+
+1. Click the "MCP Servers" icon in the top navigation bar of the Cline extension.
+2. Select the "Configure" tab, and then Click the "Advanced MCP Settings" link at the bottom of that pane.
+3. Cline will open a new settings window. find `Cline>Mcp:Mode` and make your selection from the dropdown menu.
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/MCP-settings-edit%20(1).png"
+		alt="MCP settings edit"
+	/>
+</Frame>
+
+## Managing Individual MCP Servers
+
+Each MCP server has its own configuration panel where you can modify settings, manage tools, and control its operation. To access these settings:
+
+1. Click the "MCP Servers" icon in the top navigation bar of the Cline extension.
+2. Locate the MCP server you want to manage in the list, and open it by clicking on its name.
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/MCP-settings-individual.png"
+		alt="MCP settings individual"
+	/>
+</Frame>
+
+### Deleting a Server
+
+1. Click the Trash icon next to the MCP server you would like to delete, or the red Delete Server button at the bottom of the MCP server config box.
+
+**NOTE:** There is no delete confirmation dialog box
+
+### Restarting a Server
+
+1. Click the Restart button next to the MCP server you would like to restart, or the gray Restart Server button at the bottom of the MCP server config box.
+
+### Enabling or Disabling a Server
+
+1. Click the toggle switch next to the MCP server to enable/disable servers individually.
+
+### Network Timeout
+
+To set the maximum time to wait for a response after a tool call to the MCP server:
+
+1. Click the `Network Timeout` dropdown at the bottom of the individual MCP server's config box and change the time. Default is 1 minute but it can be set between 30 seconds and 1 hour.
+
+## Editing MCP Settings Files
+
+Settings for all installed MCP servers are located in the `cline_mcp_settings.json` file:
+
+1. Click the MCP Servers icon at the top navigation bar of the Cline pane.
+2. Select the "Configure" tab.
+3. Click the "Configure MCP Servers" button at the bottom of the pane.
+
+The file uses a JSON format with a `mcpServers` object containing named server configurations:
+
+```json
+{
+	"mcpServers": {
+		"server1": {
+			"command": "python",
+			"args": ["/path/to/server.py"],
+			"env": {
+				"API_KEY": "your_api_key"
+			},
+			"alwaysAllow": ["tool1", "tool2"],
+			"disabled": false
+		}
+	}
+}
+```
+
+_Example of MCP Server config in Cline (STDIO Transport)_
+
+---
+
+## Understanding Transport Types
+
+MCP supports two transport types for server communication:
+
+### STDIO Transport
+
+Used for local servers running on your machine:
+
+-   Communicates via standard input/output streams
+-   Lower latency (no network overhead)
+-   Better security (no network exposure)
+-   Simpler setup (no HTTP server needed)
+-   Runs as a child process on your machine
+
+For more in-depth information about how STDIO transport works, see [MCP Transport Mechanisms](/mcp/mcp-transport-mechanisms).
+
+STDIO configuration example:
+
+```json
+{
+	"mcpServers": {
+		"local-server": {
+			"command": "node",
+			"args": ["/path/to/server.js"],
+			"env": {
+				"API_KEY": "your_api_key"
+			},
+			"alwaysAllow": ["tool1", "tool2"],
+			"disabled": false
+		}
+	}
+}
+```
+
+### SSE Transport
+
+Used for remote servers accessed over HTTP/HTTPS:
+
+-   Communicates via Server-Sent Events protocol
+-   Can be hosted on a different machine
+-   Supports multiple client connections
+-   Requires network access
+-   Allows centralized deployment and management
+
+For more in-depth information about how SSE transport works, see [MCP Transport Mechanisms](/mcp/mcp-transport-mechanisms).
+
+SSE configuration example:
+
+```json
+{
+	"mcpServers": {
+		"remote-server": {
+			"url": "https://your-server-url.com/mcp",
+			"headers": {
+				"Authorization": "Bearer your-token"
+			},
+			"alwaysAllow": ["tool3"],
+			"disabled": false
+		}
+	}
+}
+```
+
+---
+
+## Using MCP Tools in Your Workflow
+
+After configuring an MCP server, Cline will automatically detect available tools and resources. To use them:
+
+1. Type your request in Cline's conversation window
+2. Cline will identify when an MCP tool can help with your task
+3. Approve the tool use when prompted (or use auto-approval)
+
+Example: "Analyze the performance of my API" might use an MCP tool that tests API endpoints.
+
+## Troubleshooting MCP Servers
+
+Common issues and solutions:
+
+-   **Server Not Responding:** Check if the server process is running and verify network connectivity
+-   **Permission Errors:** Ensure proper API keys and credentials are configured in your `mcp_settings.json` file
+-   **Tool Not Available:** Confirm the server is properly implementing the tool and it's not disabled in settings
+-   **Slow Performance:** Try adjusting the network timeout value for the specific MCP server

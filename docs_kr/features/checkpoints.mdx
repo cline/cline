@@ -1,0 +1,103 @@
+---
+title: "Checkpoints"
+sidebarTitle: "Checkpoints"
+---
+
+Checkpoints automatically save snapshots of your workspace after each step in a task. This feature lets you track changes, roll back when needed, and experiment confidently with your code.
+
+## How Checkpoints Work
+
+Cline creates a checkpoint after each tool use (file edits, commands, etc.). These checkpoints:
+
+-   Work alongside your Git workflow without interference
+-   Maintain context between restores
+-   Use a shadow Git repository to track changes
+
+For example, if you're working on a feature and Cline makes multiple file changes, each change creates a checkpoint. This means you can review each modification and, if needed, roll back to any point without affecting your main Git repository.
+
+## Enabling or Disabling Checkpoints
+
+Checkpoints are enabled by default in Cline. To toggle this feature:
+
+1. Open the Cline settings by clicking the gear icon in the Cline panel
+2. Go to "Feature Settings"
+3. Toggle the **"Enable Checkpoints"** checkbox on or off
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/checkpoints.gif"
+		alt="Checkpoints toggle in settings"
+	/>
+</Frame>
+
+### When to Disable Checkpoints
+
+While checkpoints provide valuable safety nets, you might want to disable them in certain situations:
+
+-   **Large repositories**: If you're working with very large codebases, checkpoints may use additional storage space
+-   **Performance concerns**: On systems with limited resources, disabling checkpoints can slightly improve performance
+-   **Simple tasks**: For quick, low-risk operations where rollback isn't needed
+
+
+## Viewing Changes & Restoring
+
+After each tool use, you can:
+
+1. Click the "Compare" button to see modified files
+2. Click the "Restore" button to open restore options
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/image%20(13).png"
+		alt="Checkpoint comparison and restore options"
+	/>
+</Frame>
+
+## Restore Options
+
+To restore to a previous point:
+
+1. Click the "Restore" button next to any step
+2. Choose from three options:
+    - **Restore Task and Workspace**: Reset both codebase and task to that point
+    - **Restore Task Only**: Keep codebase changes but revert task context
+    - **Restore Workspace Only**: Reset codebase while preserving task context
+
+Example: If Cline makes changes you don't like while styling a component, you can use "Restore Workspace Only" to revert the code changes while keeping the conversation context, allowing you to try a different approach.
+
+<Frame caption="Reverting both codebase and task to before any changes were made to start fresh">
+	<img src="https://storage.googleapis.com/cline_public_images/docs/assets/checkpointsDemo.gif" alt="Checkpoint restore demo" />
+</Frame>
+
+## Use Cases
+
+Checkpoints let you be more experimental with Cline. While human coding is often methodical and iterative, AI can make substantial changes quickly. Checkpoints help you track these changes and revert if needed.
+
+### Using Auto-Approve Mode
+
+-   Provides safety net for rapid iterations
+-   Makes it easy to undo unexpected results
+
+### Testing Different Approaches
+
+-   Try multiple solutions confidently
+-   Compare different implementations
+-   Quickly revert to working states
+-   Ideal for exploring different design patterns or architectural approaches
+
+## Best Practices
+
+1. Use checkpoints as safety nets when experimenting
+2. Leverage auto-approve mode more confidently, knowing you can always roll back
+3. Restore selectively based on needs:
+    - Use "Restore Task and Workspace" for a fresh start
+    - Use "Restore Task Only" to try different prompts, but keep file changes
+    - Use "Restore Workspace Only" to attempt different implementations while preserving conversation context
+
+## Relationship with Message Editing
+
+The [message editing feature](/features/editing-messages) uses checkpoints under the hood when you select the "Restore All" option. This allows you to not only edit and resubmit your message but also restore your workspace to the state it was in at that point in the conversation.
+
+## Deleting Checkpoints
+
+You can delete all checkpoints by using the **"Delete All History"** button in the task history menu. Note that this will also delete all tasks. Checkpoints are stored in VS Code's globalStorage.

@@ -1,0 +1,469 @@
+---
+title: "CLI 레퍼런스"
+description: "Cline CLI의 구성, 인스턴스 관리, 작업 명령을 포함한 전체 명령 참조"
+---
+
+Cline CLI의 전체 명령 참조입니다. 모든 명령, 옵션, 구성에 대한 상세 문서로 사용하세요.
+
+터미널에서 빠르게 도움말을 보려면:
+
+```bash
+cline --help          # 모든 명령 표시
+cline task --help     # 작업 관련 명령 표시
+man cline             # 전체 매뉴얼 페이지 보기
+```
+
+## 매뉴얼 페이지
+
+Cline CLI의 전체 매뉴얼 페이지:
+
+```
+CLINE(1)                         User Commands                        CLINE(1)
+
+NAME
+       cline - Cline AI 코딩 에이전트를 오케스트레이션하고 상호작용
+
+SYNOPSIS
+       cline [prompt] [options]
+
+       cline command [subcommand] [options] [arguments]
+
+DESCRIPTION
+       Try: cat README.md | cline "Summarize this for me:"
+
+       cline은 여러 Cline AI 코딩 에이전트를 오케스트레이션하는
+       명령줄 인터페이스입니다. Cline은 프로젝트 전반에서 코드를 읽고,
+       쓰고, 실행할 수 있는 자율 AI 에이전트입니다. Cline Core가
+       독립 실행 서비스로 동작하고, CLI는 작업, 인스턴스, 에이전트
+       상호작용을 관리하는 스크립트형 인터페이스로 동작하는
+       클라이언트-서버 아키텍처를 사용합니다.
+
+       CLI는 대화형 사용과 자동화를 모두 염두에 두고 설계되어
+       CI/CD 파이프라인, 병렬 작업 실행, 터미널 기반 워크플로에
+       적합합니다. 여러 프런트엔드(CLI, VSCode, JetBrains)가 동일한
+       Cline Core 인스턴스에 연결할 수 있어 환경 간 작업 인계가
+       원활합니다.
+
+MODES OF OPERATION
+       Instant Task Mode
+              가장 간단한 실행 방식: cline "prompt here"를 실행하면
+              즉시 인스턴스를 생성하고, 작업을 만들고, 채팅 모드로
+              들어갑니다. 이는 cline instance new && cline task new &&
+              cline task chat를 순서대로 실행하는 것과 같습니다.
+
+       Subcommand Mode
+              고급 사용법: cline <command> [subcommand] [options]로
+              인스턴스, 작업, 인증, 구성에 대한 세밀한 제어를 제공합니다.
+
+AGENT BEHAVIOR
+       Cline은 두 가지 기본 모드로 동작합니다:
+
+       ACT MODE
+              Cline이 도구를 적극적으로 사용하여 작업을 수행합니다.
+              파일 읽기, 코드 작성, 명령 실행, 헤드리스 브라우저 사용 등
+              다양한 작업을 할 수 있습니다. 기본 실행 모드입니다.
+
+       PLAN MODE
+              구현 전에 정보를 수집하고 상세한 계획을 만듭니다.
+              코드베이스를 탐색하고, 추가 질문을 하며, 사용자의 승인을
+              받은 뒤 ACT MODE로 전환합니다.
+
+INSTANT TASK OPTIONS
+       즉시 작업 문법 cline "prompt"를 사용할 때 다음 옵션을 사용할 수 있습니다:
+
+       -o, --oneshot
+              완전 자율 모드. 작업 완료 후 종료합니다.
+              예: cline -o "what's 6 + 8?"
+
+       -s, --setting setting value
+              이 작업에 한해 설정을 덮어씁니다.
+
+       -y, --no-interactive, --yolo
+              완전 자율 모드를 활성화합니다. 모든 상호작용을 비활성화합니다:
+
+              • ask_followup_question 도구 비활성화
+
+              • attempt_completion 자동 실행
+
+              • execute_command 비차단 모드로 타임아웃 실행
+
+              • PLAN MODE가 자동으로 ACT MODE로 전환
+
+       -m, --mode mode
+              시작 모드. 옵션: act(기본), plan
+
+       -w, --workspace path
+              추가 워크스페이스 경로. 여러 번 지정 가능하며,
+              여러 디렉터리를 포함할 수 있습니다. 현재 작업 디렉터리는
+              항상 첫 번째 워크스페이스로 포함됩니다.
+              예: cline -w /path/to/other/project "refactor shared code"
+
+GLOBAL OPTIONS
+       모든 하위 명령에 공통으로 적용되는 옵션:
+
+       -F, --output-format format
+              출력 형식. 옵션: rich(기본), json, plain
+
+       -h, --help
+              명령 도움말 표시
+
+       -v, --verbose
+              디버깅용 자세한 출력 활성화
+
+COMMANDS
+   인증
+       cline auth [provider] [key]
+
+       cline a [provider] [key]
+              AI 모델 제공자 인증을 설정합니다. 인자가 없으면
+              대화형 마법사를 실행합니다. provider만 지정하면 키를
+              요청하거나 해당 OAuth 흐름을 시작합니다.
+
+   인스턴스 관리
+       Cline Core 인스턴스는 백그라운드에서 실행되는 독립 에이전트
+       프로세스입니다. 여러 인스턴스를 동시에 실행해 병렬 작업을
+       수행할 수 있습니다.
+
+       cline instance
+
+       cline i
+              인스턴스 관리 도움말 표시
+
+       cline instance new [-d|--default]
+
+       cline i n [-d|--default]
+              새 Cline Core 인스턴스를 생성합니다. --default를 사용하면
+              이후 명령의 기본 인스턴스로 설정됩니다.
+
+       cline instance list
+
+       cline i l
+              실행 중인 모든 Cline Core 인스턴스의 주소와 상태를 목록으로 표시합니다.
+
+       cline instance default address
+
+       cline i d address
+              --address를 매번 지정하지 않도록 기본 인스턴스를 설정합니다.
+
+       cline instance kill address [-a|--all]
+
+       cline i k address [-a|--all]
+              Cline Core 인스턴스를 종료합니다. --all로 모든 인스턴스를 종료합니다.
+
+   작업 관리
+       작업은 Cline이 수행하는 개별 업무 단위입니다. 작업에는
+       대화 기록, 체크포인트, 설정이 유지됩니다.
+
+       cline task [-a|--address ADDR]
+
+       cline t [-a|--address ADDR]
+              작업 관리 도움말 표시. --address 플래그로 사용할 Cline Core
+              인스턴스를 지정합니다(예: localhost:50052).
+
+       cline task new prompt [options]
+
+       cline t n prompt [options]
+              기본 또는 지정 인스턴스에 새 작업을 생성합니다.
+              옵션:
+
+              -s, --setting setting value
+                     작업별 설정 지정
+
+              -y, --no-interactive, --yolo
+                     자율 모드 활성화
+
+              -m, --mode mode
+                     시작 모드(act 또는 plan)
+
+       cline task open task-id [options]
+
+       cline t o task-id [options]
+              이전 작업을 히스토리에서 재개합니다.
+              task new와 동일한 옵션을 지원합니다.
+
+       cline task list
+
+       cline t l
+              히스토리의 모든 작업을 id와 스니펫과 함께 목록으로 표시합니다.
+
+       cline task chat
+
+       cline t c
+              현재 작업의 대화형 채팅 모드로 들어갑니다.
+              Cline과의 양방향 대화를 허용합니다.
+
+       cline task send [message] [options]
+
+       cline t s [message] [options]
+              Cline에게 메시지를 전송합니다. 메시지가 없으면 stdin에서 읽습니다.
+              옵션:
+
+              -a, --approve
+                     Cline의 제안된 작업을 승인
+
+              -d, --deny
+                     Cline의 제안된 작업을 거부
+
+              -f, --file FILE
+                     메시지에 파일 첨부
+
+              -y, --no-interactive, --yolo
+                     자율 모드 활성화
+
+              -m, --mode mode
+                     모드 전환(act 또는 plan)
+
+       cline task view [-f|--follow] [-c|--follow-complete]
+
+       cline t v [-f|--follow] [-c|--follow-complete]
+              현재 대화를 표시합니다. --follow로 실시간 업데이트를 스트리밍하거나,
+              --follow-complete로 작업 완료까지 추적합니다.
+
+       cline task restore checkpoint
+
+       cline t r checkpoint
+              작업을 이전 체크포인트 상태로 복원합니다.
+
+       cline task pause
+
+       cline t p
+              작업 실행을 일시정지합니다.
+
+   구성
+       구성은 전역으로 설정할 수 있습니다. 작업에 한해 --setting 플래그로
+       전역 설정을 덮어쓸 수 있습니다.
+
+       cline config
+
+       cline c
+
+       cline config set key value
+
+       cline c s key value
+              구성 변수를 설정합니다.
+
+       cline config get key
+
+       cline c g key
+              구성 변수를 읽습니다.
+
+       cline config list
+
+       cline c l
+              모든 구성 변수와 값을 목록으로 표시합니다.
+
+   컨텍스트 윈도우 구성
+       로컬 모델 제공자는 컨텍스트 윈도우 크기를 설정할 수 있습니다:
+
+       Ollama
+              cline config s ollama-api-options-ctx-num=32768
+
+       LM Studio
+              cline config s lm-studio-max-tokens=32768
+
+       다른 제공자(Anthropic, OpenRouter 등)는 모델 메타데이터에
+       정의된 컨텍스트 크기를 사용하며 사용자 설정이 불가합니다.
+       Cline은 각 모델의 기본 컨텍스트 제한을 자동으로 사용합니다.
+
+TASK SETTINGS
+       작업 설정은 ~/.cline/x/tasks 디렉터리에 저장됩니다. cline task open으로
+       작업을 재개하면 설정이 자동으로 복원됩니다.
+
+       일반적인 설정:
+
+       yolo   자율 모드 활성화(true/false)
+
+       mode   시작 모드(act/plan)
+
+       hooks_enabled
+              작업의 훅 활성/비활성(true/false)
+
+HOOKS INTEGRATION
+       훅은 Cline의 워크플로 특정 지점에 커스텀 로직을 주입할 수 있게 합니다.
+       실행 전 검증, 도구 사용 모니터링, AI 결정에 대한 제어가 가능해
+       자동화 워크플로, CI/CD 파이프라인, 헤드리스 작업 실행에 통합할 수 있습니다.
+
+       작업에 훅 활성화:
+
+              cline "prompt" -s hooks_enabled=true
+
+       전역 훅 설정:
+
+              cline config set hooks-enabled=true
+              cline config get hooks-enabled
+
+       참고: CLI의 훅은 macOS와 Linux에서만 지원됩니다.
+
+       전체 훅 문서:
+       <https://docs.cline.bot/features/hooks/index>
+
+NOTES & EXAMPLES
+       cline task send와 cline task new는 stdin 입력을 지원하여
+       강력한 파이프라인 조합이 가능합니다:
+
+              cat requirements.txt | cline task send
+              echo "Refactor this code" | cline -y
+
+   인스턴스 관리
+       여러 Cline 인스턴스를 관리합니다:
+
+              # 새 인스턴스를 시작하고 기본으로 설정
+              cline instance new --default
+
+              # 실행 중인 인스턴스 목록
+              cline instance list
+
+              # 특정 인스턴스 종료
+              cline instance kill localhost:50052
+
+              # 모든 CLI 인스턴스 종료
+              cline instance kill --all-cli
+
+   작업 히스토리
+       작업 히스토리를 관리합니다:
+
+              # 이전 작업 목록
+              cline task list
+
+              # 이전 작업 재개
+              cline task open 1760501486669
+
+              # 대화 기록 보기
+              cline task view
+
+              # 이 작업으로 대화형 채팅 시작
+              cline task chat
+
+ARCHITECTURE
+       Cline은 3계층 아키텍처로 동작합니다:
+
+       프레젠테이션 레이어
+              Cline Core와 gRPC로 연결되는 사용자 인터페이스(CLI, VSCode, JetBrains)
+
+       Cline Core
+              작업 관리, AI 모델 통합, 상태 관리, 도구 오케스트레이션,
+              실시간 스트리밍 업데이트를 처리하는 자율 에이전트 서비스
+
+       호스트 제공자 레이어
+              Cline Core가 호스트 시스템과 상호작용할 때 사용하는
+              환경별 통합(VSCode API, JetBrains API, 셸 API)
+
+BUGS
+       버그 제보: <https://github.com/cline/cline/issues>
+
+       실시간 도움을 원한다면 Discord 커뮤니티에 참여하세요:
+       <https://discord.gg/cline>
+
+SEE ALSO
+       전체 문서: <https://docs.cline.bot>
+
+AUTHORS
+       Cline은 Abacus Inc.와 오픈 소스 커뮤니티가 개발합니다.
+
+COPYRIGHT
+       Copyright © 2025 Abacus Inc. Licensed under the Apache License 2.0.
+```
+
+## JSON 출력 (-F json)
+
+`-F json`(또는 `--output-format json`)으로 명령을 실행하면 Cline이 각 클라이언트 메시지를 JSON으로 출력합니다.
+
+### ClineMessage 스키마
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `type` | `"ask" or "say"` | Yes | 최상위 메시지 분류입니다. |
+| `text` | `string` | Yes | 사람이 읽을 수 있는 메시지 내용입니다. |
+| `ts` | `number` | Yes | 밀리초 단위 Unix epoch 타임스탬프입니다. |
+| `reasoning` | `string` | No | 비어 있으면 생략됩니다. |
+| `say` | `string` | No | 비어 있으면 생략됩니다. `type`이 `"say"`일 때 포함됩니다. |
+| `ask` | `string` | No | 비어 있으면 생략됩니다. `type`이 `"ask"`일 때 포함됩니다. |
+| `partial` | `boolean` | No | false면 생략됩니다. 스트리밍 업데이트는 `true`입니다. |
+| `images` | `string[]` | No | 비어 있으면 생략됩니다. 포함된 이미지 URI입니다. |
+| `files` | `string[]` | No | 비어 있으면 생략됩니다. 첨부된 파일 경로입니다. |
+| `lastCheckpointHash` | `string` | No | 비어 있으면 생략됩니다. 체크포인트 해시입니다. |
+| `isCheckpointCheckedOut` | `boolean` | No | false면 생략됩니다. 체크포인트 체크아웃 여부입니다. |
+| `isOperationOutsideWorkspace` | `boolean` | No | false면 생략됩니다. 작업이 워크스페이스 밖에서 실행되었는지 여부입니다. |
+
+<Note>
+대부분의 필드는 선택 사항이며 비어 있으면 생략됩니다. 이 출력을 파싱할 때는 누락된 필드를 빈 문자열이 아니라 “없음”으로 처리하세요.
+</Note>
+
+### 예시
+
+```json
+{
+  "type": "say",
+  "text": "Cline이 명령을 실행하려고 합니다.",
+  "ts": 1760501486669,
+  "say": "command",
+  "partial": false
+}
+```
+
+### 셸 자동완성
+
+다양한 셸용 자동완성 스크립트를 생성합니다:
+
+#### Bash
+
+```bash
+# bash 완성 스크립트 생성
+cline completion bash > /etc/bash_completion.d/cline
+
+# 사용자 단위 설치
+cline completion bash > ~/.local/share/bash-completion/completions/cline
+```
+
+#### Zsh
+
+```bash
+# zsh 완성 스크립트 생성
+cline completion zsh > "${fpath[1]}/_cline"
+
+# 또는 .zshrc에 추가
+echo 'source <(cline completion zsh)' >> ~/.zshrc
+```
+
+#### Fish
+
+```bash
+# fish 완성 스크립트 생성
+cline completion fish > ~/.config/fish/completions/cline.fish
+```
+
+#### PowerShell
+
+```powershell
+# PowerShell 완성 스크립트 생성
+cline completion powershell > cline.ps1
+
+# PowerShell 프로필에 추가
+Add-Content $PROFILE "cline completion powershell | Out-String | Invoke-Expression"
+```
+
+### 버전 명령
+
+```bash
+# 버전 정보 표시
+cline version
+```
+
+### 환경 변수
+
+#### CLINE_DIR
+
+Cline 디렉터리 기본 위치를 재정의합니다:
+
+```bash
+# 기본 Cline 디렉터리 재정의
+export CLINE_DIR=/custom/path
+
+# 기본값: ~/.cline
+```
+
+이 디렉터리는 다음에 사용됩니다:
+- 인스턴스 레지스트리 데이터베이스
+- 구성 파일
+- 작업 히스토리
+- 체크포인트

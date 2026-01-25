@@ -1,0 +1,107 @@
+---
+title: "MCP Overview"
+description: "Learn about Model Context Protocol (MCP) servers, their capabilities, and how Cline can help build and use them. MCP standardizes how applications provide context to LLMs, acting like a USB-C port for AI applications."
+---
+
+## Quick Links
+
+-   [Building MCP Servers from GitHub](/mcp/adding-mcp-servers-from-github)
+-   [Building Custom MCP Servers from Scratch](/mcp/mcp-server-development-protocol)
+
+## Overview
+
+Model Context Protocol is an open protocol that standardizes how applications provide context to LLMs. Think of MCP like a USB-C port for AI applications; it provides a standardized way to connect AI models to different data sources and tools. MCP servers act as intermediaries between large language models (LLMs), such as Claude, and external tools or data sources. They are small programs that expose functionalities to LLMs, enabling them to interact with the outside world through the MCP. An MCP server is essentially like an API that an LLM can use.
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/mcp-diagram.png"
+		alt="MCP diagram showing how MCP servers connect LLMs to external tools and data sources"
+	/>
+</Frame>
+
+## Key Concepts
+
+MCP servers define a set of "**tools,**" which are functions the LLM can execute. These tools offer a wide range of capabilities.
+
+**Here's how MCP works:**
+
+-   **MCP hosts** discover the capabilities of connected servers and load their tools, prompts, and resources.
+-   **Resources** provide consistent access to read-only data, akin to file paths or database queries.
+-   **Security** is ensured as servers isolate credentials and sensitive data. Interactions require explicit user approval.
+
+## Use Cases
+
+The potential of MCP servers is vast. They can be used for a variety of purposes.
+
+**Here are some concrete examples of how MCP servers can be used:**
+
+-   **Web Services and API Integration:**
+    -   Monitor GitHub repositories for new issues
+    -   Post updates to Twitter based on specific triggers
+    -   Retrieve real-time weather data for location-based services
+-   **Browser Automation:**
+    -   Automate web application testing
+    -   Scrape e-commerce sites for price comparisons
+    -   Generate screenshots for website monitoring
+-   **Database Queries:**
+    -   Generate weekly sales reports
+    -   Analyze customer behavior patterns
+    -   Create real-time dashboards for business metrics
+-   **Project and Task Management:**
+    -   Automate Jira ticket creation based on code commits
+    -   Generate weekly progress reports
+    -   Create task dependencies based on project requirements
+-   **Codebase Documentation:**
+    -   Generate API documentation from code comments
+    -   Create architecture diagrams from code structure
+    -   Maintain up-to-date README files
+
+## Getting Started
+
+Cline does not come with any pre-installed MCP servers. You'll need to find and install them separately.
+
+**Choose the right approach for your needs:**
+
+-   **Community Repositories:** Check for community-maintained lists of MCP servers on GitHub. See [Adding MCP Servers from Github](/mcp/adding-mcp-servers-from-github)
+-   **Cline Marketplace:** Install one from Cline's [MCP Marketplace](/mcp/mcp-marketplace)
+-   **Ask Cline:** You can ask Cline to help you find or create MCP servers
+-   **Build Your Own:** Create custom MCP servers using the [MCP SDK](https://github.com/modelcontextprotocol/)
+-   **Customize Existing Servers:** Modify existing servers to fit your specific requirements
+
+## Integration with Cline
+
+Cline simplifies the building and use of MCP servers through its AI capabilities.
+
+### Building MCP Servers
+
+-   **Natural language understanding:** Instruct Cline in natural language to build an MCP server by describing its functionalities. Cline will interpret your instructions and generate the necessary code.
+-   **Cloning and building servers:** Cline can clone existing MCP server repositories from GitHub and build them automatically.
+-   **Configuration and dependency management:** Cline handles configuration files, environment variables, and dependencies.
+-   **Troubleshooting and debugging:** Cline helps identify and resolve errors during development.
+
+### Using MCP Servers
+
+-   **Tool execution:** Cline seamlessly integrates with MCP servers, allowing you to execute their defined tools.
+-   **Context-aware interactions:** Cline can intelligently suggest using relevant tools based on conversation context.
+-   **Dynamic integrations:** Combine multiple MCP server capabilities for complex tasks. For example, Cline could use a GitHub server to get data and a Notion server to create a formatted report.
+
+## Security Considerations
+
+When working with MCP servers, it's important to follow security best practices:
+
+-   **Authentication:** Always use secure authentication methods for API access
+-   **Environment Variables:** Store sensitive information in environment variables
+-   **Access Control:** Limit server access to authorized users only
+-   **Data Validation:** Validate all inputs to prevent injection attacks
+-   **Logging:** Implement secure logging practices without exposing sensitive data
+
+## Resources
+
+There are various resources available for finding and learning about MCP servers.
+
+**Here are some links to resources for finding and learning about MCP servers:**
+
+-   **GitHub Repositories:** [https://github.com/modelcontextprotocol/servers](https://github.com/modelcontextprotocol/servers) and [https://github.com/punkpeye/awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers)
+-   **Online Directories:** [https://mcpservers.org/](https://mcpservers.org/), [https://mcp.so/](https://mcp.so/), and [https://glama.ai/mcp/servers](https://glama.ai/mcp/servers)
+-   **PulseMCP:** [https://www.pulsemcp.com/](https://www.pulsemcp.com/)
+-   **YouTube Tutorial (AI-Driven Coder):** A video guide for building and using MCP servers: [https://www.youtube.com/watch?v=b5pqTNiuuJg](https://www.youtube.com/watch?v=b5pqTNiuuJg)

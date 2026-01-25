@@ -1,0 +1,113 @@
+---
+title: "Remote Browser Support"
+description: "Remote browser support allows Cline to utilize a remote Chrome instance, leveraging authentication tokens and session cookies relevant to certain web development test cases."
+---
+
+The Remote Browser feature in Cline allows the AI assistant to interact with web content directly through a controlled browser instance. This enables several powerful capabilities:
+
+-   Viewing and interacting with websites
+-   Testing locally running web applications
+-   Monitoring console logs and errors
+-   Performing browser actions like clicking, typing, and scrolling
+
+## Remote Browser in Cline
+
+### What is Remote Browser?
+
+Remote Browser allows Cline to view and interact with websites directly. This feature enables Cline to:
+
+-   Visit websites and view their content
+-   Test your locally running web applications
+-   Fill out forms and click on elements
+-   Capture screenshots of what it sees
+-   Scroll through pages to see more content
+
+### How to Use Remote Browser
+
+#### Basic Commands
+
+You can ask Cline to use the browser with simple instructions:
+
+-   **Open a website**: "Use the browser to check the website at [https://example.com](https://example.com/)"
+-   **Click on elements**: "Click the login button"
+-   **Type text**: "Type 'Hello world' in the search box"
+-   **Scroll the page**: "Scroll down to see more content"
+-   **Close the browser**: "Close the browser now"
+
+#### Example Workflows
+
+**Testing a Web Application:**
+
+```javascript
+Can you start my React app with "npm start" and then check if it's working properly at http://localhost:3000?
+```
+
+**Analyzing a Website:**
+
+```javascript
+Can you visit https://example.com and tell me what you think about its design and layout?
+```
+
+**Filling Out a Form:**
+
+```javascript
+Please go to https://example.com/contact, fill out the contact form with some test data, and submit it.
+```
+
+### Important Things to Know
+
+#### One Browser at a Time
+
+Cline can only use one browser at a time. If you want to visit a different website, you can either:
+
+-   Ask Cline to navigate to a new URL within the same browser session
+-   Ask Cline to close the current browser and open a new one
+
+#### Browser Must Be Closed Before Using Other Tools
+
+If you want Cline to edit files or run commands after using the browser, you must first ask it to close the browser:
+
+```javascript
+Close the browser and then update the CSS file to fix the alignment issue we saw.
+```
+
+#### What Cline Sees
+
+The browser has a fixed viewport size (900x600 pixels by default), similar to a small laptop screen. Cline will share screenshots after each action so you can see exactly what it sees.
+
+#### Console Logs
+
+Cline captures browser console logs, which can be helpful for debugging web applications. These logs are included with each screenshot.
+
+### Common Use Cases
+
+-   **Web Development**: Test your websites and web applications
+-   **UI/UX Review**: Get feedback on website design and usability
+-   **Content Research**: Have Cline browse websites to gather information
+-   **Form Testing**: Verify that forms work correctly
+-   **Responsive Design Testing**: Check how websites look at different screen sizes
+
+### Troubleshooting
+
+-   **If a website doesn't load**: Try providing a direct URL with the http:// or https:// prefix
+-   **If clicking doesn't work**: Try describing the location of the element more precisely
+-   **If the browser seems stuck**: Ask Cline to close the browser and try again
+
+### Using Remote Browser with VS Code in WSL
+
+When running VS Code in WSL, you'll need to configure Windows to allow WSL to connect to Chrome. Follow these steps:
+
+#### Open PowerShell as Administrator and Run:
+
+```powershell
+# Allow WSL to connect to Chrome's debugging port
+New-NetFirewallRule -DisplayName "WSL Chrome Debug" -Direction Inbound -LocalPort 9222 -Protocol TCP -Action Allow
+```
+
+#### Configure Cline in VS Code:
+
+1. Open VS Code settings
+2. Search for "Cline: Chrome Executable Path"
+3. Set the value to the path of your Chrome executable (e.g., `C:\Program Files\Google\Chrome\Application\chrome.exe`)
+
+Cline should now be able to use the Remote Browser feature from within WSL.

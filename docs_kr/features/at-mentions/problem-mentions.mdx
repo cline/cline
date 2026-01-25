@@ -1,0 +1,52 @@
+---
+title: "Problem Mentions"
+sidebarTitle: "Problem Mentions"
+---
+
+The problems mention gives Cline instant access to all the errors and warnings in your workspace. Just type `@problems` and Cline can see every diagnostic issue VSCode has detected.
+
+When you type `@` in chat, select "Problems" from the menu or just type `@problems` directly. Cline will immediately see all the errors and warnings from your workspace, complete with file locations and error messages.
+
+I use the problems mention constantly when I'm stuck on build errors or TypeScript issues. Instead of trying to describe the errors or copy them one by one, I just ask:
+
+```
+I'm getting these TypeScript errors and I'm not sure how to fix them: @problems
+
+Can you help me understand what's wrong and how to fix it?
+```
+
+This gives Cline the complete list of errors with their exact locations and messages. Cline can then analyze the patterns across multiple errors and suggest comprehensive solutions.
+
+The problems mention is especially powerful when combined with file mentions. When I'm dealing with complex type errors, I'll reference both:
+
+```
+I'm getting these type errors: @problems
+
+Here's my component: @/src/components/DataTable.tsx
+And the types file: @/src/types/api.ts
+
+How can I fix these issues?
+```
+
+This approach gives Cline everything it needs - the exact errors, the component code, and the type definitions - all without me having to copy anything manually.
+
+Next time you're stuck on errors, try using `@problems` instead of copying error messages. You'll get more accurate help because Cline can see the complete error context and locations.
+
+## How It Works Under the Hood
+
+When you use the problems mention in your message, here's what happens behind the scenes:
+
+1. When you send your message, Cline detects the `@problems` pattern in your text
+2. The extension calls VSCode's built-in `vscode.languages.getDiagnostics()` API to get all errors and warnings
+3. It formats these diagnostics into a structured text representation with file paths, line numbers, and error messages
+4. The formatted problems list is appended to your message in a structured format:
+    ```
+    <workspace_diagnostics>
+    /path/to/file.js:10:5 - error TS2322: Type 'string' is not assignable to type 'number'.
+    /path/to/file.js:15:3 - warning: This variable is never used.
+    </workspace_diagnostics>
+    ```
+5. This enhanced message with the embedded diagnostics is sent to the AI
+6. The AI can now "see" all the errors and warnings in your workspace, complete with their locations and messages
+
+This process happens automatically whenever you use the problems mention, giving the AI a comprehensive view of all the issues in your workspace without you having to copy them manually.

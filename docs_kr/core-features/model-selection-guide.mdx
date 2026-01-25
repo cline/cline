@@ -1,0 +1,199 @@
+---
+title: "모델 선택 가이드"
+description: "최종 업데이트: 2025년 8월 20일."
+---
+
+새 모델이 계속 등장하므로, 이 가이드는 현재 Cline과 잘 맞는 선택지에 초점을 맞춥니다. 환경이 변하면 지속적으로 업데이트하겠습니다.
+
+<Callout type="tip">
+**모델 선택이 처음이신가요?** 모델 선택과 구성에 대한 جامع한 안내는 [Cline 학습 경로의 모듈 2](https://cline.bot/learn)를 참고하세요.
+</Callout>
+
+## AI 모델이란?
+
+AI 모델은 Cline을 움직이는 "두뇌"라고 생각하면 됩니다. Cline에 코드 작성, 버그 수정, 리팩터링을 요청하면, 실제로 요청을 이해하고 결과를 생성하는 것은 모델입니다.
+
+**핵심 요점:**
+- **모델은 자연어와 코드를 이해하는 학습된 AI 시스템**입니다.
+- **모델마다 강점이 다릅니다.** 어떤 모델은 복잡한 추론에 강하고, 다른 모델은 속도나 비용 효율을 우선합니다.
+- **어떤 모델을 사용할지 직접 선택**합니다. 작업에 맞는 전문가를 고르듯 선택하세요.
+- **모델은 API 제공자를 통해 접근**합니다. Anthropic, OpenAI, OpenRouter 같은 회사가 모델을 호스팅합니다.
+
+**왜 중요한가요?** 선택한 모델은 Cline의 역량, 응답 품질, 속도, 비용에 직접적인 영향을 줍니다. 프리미엄 모델은 복잡한 리팩터링을 훌륭하게 처리하지만 비용이 높고, 예산형 모델은 반복 작업에 충분하면서 훨씬 저렴합니다.
+
+## Cline에서 모델 선택하기
+
+다음 5단계를 따라 선호하는 모델로 Cline을 설정하세요:
+
+### 1단계: Cline 설정 열기
+
+먼저 Cline의 설정 패널에 접근합니다.
+
+**설정을 여는 두 가지 방법:**
+- **빠른 방법**: Cline 채팅 화면 우측 상단의 **톱니바퀴 아이콘(⚙️)** 클릭
+- **명령 팔레트**: **Cmd/Ctrl + Shift + P** → "Cline: Open Settings" 입력
+
+<Frame>
+  <img src="https://storage.googleapis.com/cline_public_images/step1-config.png" alt="Cline 설정 패널" />
+</Frame>
+
+설정 패널이 열리며 상단에 "API Provider"가 표시됩니다.
+
+<Note>
+설정 패널은 마지막 구성을 기억하므로 보통 한 번만 설정하면 됩니다.
+</Note>
+
+### 2단계: API 제공자 선택
+
+드롭다운 메뉴에서 원하는 AI 제공자를 선택하세요.
+
+<Frame>
+  <img src="https://storage.googleapis.com/cline_public_images/step2-provider.png" alt="Cline 설정 패널" />
+</Frame>
+
+**주요 제공자 한눈에 보기:**
+
+| 제공자 | 적합한 용도 | 비고 |
+|----------|----------|-------|
+| **Cline** | 가장 쉬운 설정 | API 키 불필요, 스텔스 모델 포함 다수 모델 접근 가능 |
+| **OpenRouter** | 가성비 | 다양한 모델, 경쟁력 있는 가격 |
+| **Anthropic** | 안정성 | Claude 모델, 도구 사용 신뢰도 높음 |
+| **OpenAI** | 최신 기술 | GPT 모델 |
+| **Google Gemini** | 긴 컨텍스트 | Google AI 모델 |
+| **AWS Bedrock** | 엔터프라이즈 | 고급 기능 |
+| **Ollama** | 프라이버시 | 로컬에서 모델 실행 |
+
+Cerebras, Vertex AI, Azure 등 더 많은 옵션은 [전체 제공자 목록](/provider-config)을 참고하세요.
+
+<Info>
+**초보자 추천:** **Cline** 제공자로 시작하세요. API 키 관리가 필요 없고, 여러 모델을 즉시 사용할 수 있으며, 파트너 제공자를 통한 간헐적 무료 추론도 가능합니다.
+</Info>
+
+### 3단계: API 키 추가(또는 로그인)
+
+다음 단계는 선택한 제공자에 따라 다릅니다.
+
+#### **Cline** 제공자를 선택한 경우:
+
+- **API 키가 필요 없습니다!** Cline 계정으로 로그인만 하면 됩니다.
+- 안내에 따라 **Sign In** 버튼을 클릭
+- [app.cline.bot](https://app.cline.bot)로 이동해 인증
+- 인증 후 IDE로 돌아오기
+
+#### 다른 제공자를 선택한 경우:
+
+선택한 제공자에서 API 키를 발급받아야 합니다:
+
+1. **제공자 사이트에서 API 키 발급:**
+   - **Anthropic**: [console.anthropic.com](https://console.anthropic.com/)
+   - **OpenRouter**: [openrouter.ai/keys](https://openrouter.ai/keys)
+   - **OpenAI**: [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+   - **Google**: [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+   - **기타**: [제공자 설정 가이드](/provider-config) 참고
+
+2. **새 API 키 생성**
+
+3. **API 키를 클립보드에 복사**
+
+4. Cline 설정의 **"API Key"** 필드에 **붙여넣기**
+
+5. **자동 저장** - 키는 에디터의 시크릿 저장소에 안전하게 보관됩니다.
+
+<Frame>
+  <img src="https://storage.googleapis.com/cline_public_images/step3-API.png" alt="Cline API 선택" />
+</Frame>
+
+<Warning>
+**대부분의 제공자는 결제 정보가 필요합니다**: 키 생성 전에 결제 정보를 요구하는 경우가 많습니다. 보통 사용량 기반 과금이며, 코딩 작업 1건당 $0.01~$0.10 수준입니다.
+</Warning>
+
+### 4단계: 모델 선택
+
+API 키를 추가(또는 로그인)하면 **"Model"** 드롭다운이 활성화됩니다.
+
+<Frame>
+  <img src="https://storage.googleapis.com/cline_public_images/step4-model.png" alt="Cline 모델 선택" />
+</Frame>
+
+**빠른 모델 선택 가이드:**
+
+| 우선순위 | 추천 모델 | 이유 |
+|---------------|-------------------|-----|
+| **최대 안정성** | Claude Sonnet 4.5 | 도구 사용 신뢰도가 가장 높고 복잡한 작업에 강함 |
+| **최고 가성비** | DeepSeek V3 또는 Qwen3 Coder | 합리적인 비용 대비 높은 성능 |
+| **최고 속도** | Cerebras의 Qwen3 Coder | 매우 빠른 응답 |
+| **로컬 실행** | 모든 Ollama 모델 | 완전한 프라이버시, 인터넷 불필요 |
+| **최신 기능** | GPT-5 | OpenAI 최신 역량 |
+
+잘 모르겠다면 안정성을 위해 **Claude Sonnet 4.5** 또는 가성비를 위해 **DeepSeek V3**로 시작하세요.
+
+<Tip>
+대화 기록을 잃지 않고 언제든 모델을 바꿀 수 있습니다. 다양한 모델을 시험해 보고 작업에 가장 잘 맞는 선택지를 찾으세요.
+</Tip>
+
+아래의 [모델 비교 표](#current-top-models)를 참고하면 사양과 가격을 자세히 확인할 수 있습니다.
+
+### 5단계: Cline 사용 시작
+
+**축하합니다! 설정이 완료되었습니다.** 이제 Cline으로 코딩을 시작해 보세요:
+
+1. **Cline 채팅창에 요청 입력**
+   - 예: "로그인 폼을 위한 React 컴포넌트를 만들어줘"
+   - 예: "이 TypeScript 오류를 디버깅해줘"
+   - 예: "이 함수를 더 효율적으로 리팩터링해줘"
+
+2. **Enter**를 누르거나 전송 아이콘 클릭
+
+## 올바른 모델 고르기
+
+모델 선택은 여러 요소의 균형을 맞추는 일입니다. 다음 프레임워크를 활용해 최적의 선택을 하세요:
+
+<Note>
+**프로 팁**: Plan 모드와 Act 모드에 서로 다른 모델을 설정하세요. 예를 들어 계획 단계는 예산형 모델, 구현 단계는 프리미엄 모델을 사용하는 것이 효과적입니다.
+</Note>
+
+### 핵심 선택 요소
+
+| 요소 | 고려 사항 | 추천 |
+|--------|------------------|----------------|
+| **작업 복잡도** | 단순 수정 vs 복잡 리팩터링 | 반복 작업은 예산형, 복잡 작업은 프리미엄 |
+| **예산** | 월 사용 가능 비용 | $10-$30: 예산형, $30-$100: 중급, $100+: 프리미엄 |
+| **컨텍스트 윈도우** | 프로젝트 규모와 파일 수 | 소규모: 32K-128K, 중간: 128K-200K, 대규모: 400K+ |
+| **속도** | 응답 시간 요구 | 대화형: 빠른 모델, 백그라운드: 추론형 모델도 OK |
+| **도구 신뢰성** | 복잡한 작업 | Claude는 도구 사용에 강함; 워크플로로 테스트 권장 |
+| **제공자** | 접근성/가격 | OpenRouter: 선택 폭, Direct: 빠름/신뢰성, Local: 프라이버시 |
+
+## 모델 비교 자료
+
+모델 비교, 가격, 성능 지표는 다음을 참고하세요:
+- [**모델 비교 및 가격**](/model-config/model-comparison) - 가격표 및 성능 벤치마크
+- [**컨텍스트 윈도우 가이드**](/model-config/context-windows) - 컨텍스트 사용 이해 및 최적화
+
+## 오픈 소스 vs 클로즈드 소스
+
+### 오픈 소스의 장점
+- **여러 제공자**가 호스팅 경쟁
+- **경쟁으로 인한 더 낮은 비용**
+- **제공자 선택권** - 한 곳이 중단되면 교체 가능
+- **빠른 혁신 주기**
+
+### 사용 가능한 오픈 소스 모델
+- **Qwen3 Coder** (Apache 2.0)
+- **Z AI GLM 4.5** (MIT)
+- **Kimi K2** (Open source)
+- **DeepSeek 시리즈** (다양한 라이선스)
+
+## 빠른 의사결정 매트릭스
+
+| 원한다면... | 이 모델 |
+|----------------|----------|
+| 그냥 잘 되는 것 | Claude Sonnet 4.5 |
+| 비용 절감 | DeepSeek V3 또는 Qwen3 계열 |
+| 거대한 컨텍스트 | Gemini 2.5 Pro 또는 Claude Sonnet 4.5 |
+| 오픈 소스 | Qwen3 Coder, Z AI GLM 4.5, 또는 Kimi K2 |
+| 최신 기술 | GPT-5 |
+| 속도 | Cerebras의 Qwen3 Coder(가장 빠름) |
+
+## 다른 사람들은 무엇을 쓰고 있나요
+
+커뮤니티의 실제 사용 패턴을 보려면 [OpenRouter의 Cline 사용 통계](https://openrouter.ai/apps?url=https%3A%2F%2Fcline.bot%2F)를 확인하세요.

@@ -1,0 +1,383 @@
+---
+title: "GitHub 이슈 RCA 샘플"
+description: "Cline CLI로 GitHub 이슈의 근본 원인을 자동 분석합니다."
+---
+
+# GitHub 근본 원인 분석
+
+Cline CLI를 사용한 GitHub 이슈 자동 분석 샘플입니다. 이 스크립트는 Cline의 자율 AI 기능을 사용해 GitHub 이슈를 가져오고 분석하여 근본 원인을 식별하며, 개발 워크플로에 쉽게 통합할 수 있는 깔끔하고 파싱 가능한 결과를 출력합니다.
+
+<Note>
+**Cline CLI가 처음이신가요?** 이 샘플은 [설치 가이드](https://docs.cline.bot/cline-cli/installation)를 이미 완료하고 `cline auth`로 인증을 마쳤다는 전제로 작성되었습니다. 아직 Cline CLI를 설정하지 않았다면 먼저 그 작업부터 진행하세요.
+</Note>
+
+<Frame>
+  <img src="https://storage.googleapis.com/cline_public_images/cli-rca.gif" alt="CLI 근본 원인 분석 데모" width="600" />
+</Frame>
+
+## 사전 준비
+
+이 샘플은 다음을 이미 완료했다고 가정합니다:
+
+- **Cline CLI** 설치 및 인증([설치 가이드](https://docs.cline.bot/cline-cli/installation))
+- **최소 1개 이상의 AI 모델 제공자** 구성(OpenRouter, Anthropic, OpenAI 등)
+- **Cline CLI 명령**에 대한 기본 이해
+
+추가로 다음이 필요합니다:
+
+- **GitHub CLI**(`gh`) 설치 및 인증
+- JSON 파싱을 위한 **jq** 설치
+- **bash** 셸(또는 호환 셸)
+
+### 설치 안내
+
+#### macOS
+
+<Note>
+이 안내는 [Homebrew](https://brew.sh/) 설치가 필요합니다. Homebrew가 없다면 다음을 먼저 실행하세요:
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+</Note>
+
+```bash
+# GitHub CLI 설치
+brew install gh
+
+# jq 설치
+brew install jq
+
+# GitHub 인증
+gh auth login
+```
+
+#### Linux
+
+```bash
+# GitHub CLI 설치 (Debian/Ubuntu)
+sudo apt install gh
+
+# 다른 Linux 배포판은 다음을 참고: https://cli.github.com/manual/installation
+
+# jq 설치 (Debian/Ubuntu)
+sudo apt install jq
+
+# GitHub 인증
+gh auth login
+```
+
+## 스크립트 받기
+
+**옵션 1: curl로 직접 다운로드**
+```bash
+curl -O https://raw.githubusercontent.com/cline/cline/main/src/samples/cli/github-issue-rca/analyze-issue.sh
+```
+
+**옵션 2: 전체 스크립트 복사**
+
+<Accordion title="전체 analyze-issue.sh 스크립트 보기">
+
+```bash
+#!/bin/bash
+# Analyze a GitHub issue using Cline CLI
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 <github-issue-url> [prompt] [address]"
+    echo "Example: $0 https://github.com/owner/repo/issues/123"
+    echo "Example: $0 https://github.com/owner/repo/issues/123 'What is the root cause of this issue?'"
+    echo "Example: $0 https://github.com/owner/repo/issues/123 'What is the root cause of this issue?' 127.0.0.1:46529"
+    exit 1
+fi
+
+# Gather the args
+ISSUE_URL="$1"
+PROMPT="${2:-What is the root cause of this issue?}"
+if [ -n "$3" ]; then
+    ADDRESS="--address $3"
+fi
+
+# Ask Cline for its analysis, showing only the summary
+cline -y "$PROMPT: $ISSUE_URL" --mode act $ADDRESS -F json | \
+    sed -n '/^{/,$p' | \
+    jq -r 'select(.say == "completion_result") | .text' | \
+    sed 's/\\n/\n/g'
+```
+
+</Accordion>
+
+<Note>
+**스크립트를 다운로드하거나 생성한 후** 다음 명령으로 실행 권한을 부여하세요:
+```bash
+chmod +x analyze-issue.sh
+```
+</Note>
+
+## 빠른 사용 예시
+
+### 기본 사용
+
+스크립트를 저장한 디렉터리에서 다음 명령을 실행해 기본 근본 원인 프롬프트로 이슈를 분석합니다:
+
+```bash
+./analyze-issue.sh https://github.com/owner/repo/issues/123
+```
+
+이렇게 하면:
+- 저장소의 이슈 #123을 가져옴
+- 이슈를 분석해 근본 원인을 식별
+- 권장 사항과 함께 상세 분석 제공
+
+### 커스텀 분석 프롬프트
+
+이슈에 대해 특정 질문을 합니다:
+
+```bash
+./analyze-issue.sh https://github.com/owner/repo/issues/456 "보안 영향은 무엇인가요?"
+```
+
+### 특정 Cline 인스턴스 사용
+
+주소로 특정 Cline 인스턴스를 지정합니다:
+
+```bash
+./analyze-issue.sh https://github.com/owner/repo/issues/123 \
+    "이 이슈의 근본 원인은 무엇인가요?" \
+    127.0.0.1:46529
+```
+
+<Warning>
+다음과 같은 경우에 유용합니다:
+- 여러 Cline 인스턴스를 실행 중인 경우
+- 원격 Cline 서버를 사용하는 경우
+- 특정 구성을 테스트하는 경우
+</Warning>
+
+<Note>
+스크립트는 이슈 가져오기 → Cline 분석 → 결과 표시까지 자동으로 처리합니다. 분석 시간은 이슈 복잡도에 따라 보통 30~60초 정도입니다.
+</Note>
+
+## 동작 방식
+
+스크립트의 각 구성 요소를 분석해 어떻게 동작하는지 알아봅니다.
+
+### 인자 검증
+
+스크립트는 입력을 검증하고 사용법을 안내합니다:
+
+```bash
+if [ -z "$1" ]; then
+    echo "Usage: $0 <github-issue-url> [prompt] [address]"
+    echo "Example: $0 https://github.com/owner/repo/issues/123"
+    echo "Example: $0 https://github.com/owner/repo/issues/123 'What is the root cause?'"
+    echo "Example: $0 https://github.com/owner/repo/issues/123 'Analyze security impact' 127.0.0.1:46529"
+    exit 1
+fi
+```
+
+**핵심 포인트:**
+- 필수 GitHub 이슈 URL 검증
+- 명확한 사용 예시 제공
+- 선택적 커스텀 프롬프트 지원
+- 선택적 Cline 인스턴스 주소 지원
+
+### 인자 파싱
+
+스크립트가 인자를 추출하고 설정합니다:
+
+```bash
+# Gather the args
+ISSUE_URL="$1"
+PROMPT="${2:-What is the root cause of this issue?}"
+if [ -n "$3" ]; then
+    ADDRESS="--address $3"
+fi
+```
+
+**설명:**
+- `ISSUE_URL="$1"` - 첫 번째 인자는 항상 이슈 URL
+- `PROMPT="${2:-...}"` - 두 번째 인자는 선택 사항이며, 기본값은 근본 원인 분석
+- `ADDRESS` - 세 번째 인자는 선택 사항이며, 제공되면 설정
+
+### 핵심 분석 파이프라인
+
+여기서 핵심 동작이 수행됩니다:
+
+```bash
+# Ask Cline for his analysis, showing only the summary
+cline -y "$PROMPT: $ISSUE_URL" --mode act $ADDRESS -F json | \
+    sed -n '/^{/,$p' | \
+    jq -r 'select(.say == "completion_result") | .text' | \
+    sed 's/\\n/\n/g'
+```
+
+<Accordion title="파이프라인 분해: 각 구성 요소 이해하기">
+
+**1. `cline -y "$PROMPT: $ISSUE_URL"`**
+   - `-y`는 yolo 모드(사용자 상호작용 없음) 활성화
+   - 이슈 URL과 함께 프롬프트 구성
+
+**2. `--mode act`**
+   - 적극적 조사에 필요한 act 모드 활성화
+   - Cline이 도구(파일 읽기, 명령 실행 등)를 사용하도록 허용
+
+**3. `$ADDRESS`**
+   - 특정 인스턴스를 위한 선택적 주소 플래그
+   - 설정 시 `--address <ip:port>`로 확장
+
+**4. `-F json`**
+   - 파싱을 위한 JSON 출력
+
+**5. `sed -n '/^{/,$p'`**
+   - 출력에서 JSON만 추출
+   - JSON 이전의 비 JSON 라인을 건너뜀
+
+**6. `jq -r 'select(.say == "completion_result") | .text'`**
+   - 완료 결과 메시지만 필터링
+   - 텍스트 필드를 추출
+   - `-r`는 raw 문자열 출력(따옴표 제거)
+
+**7. `sed 's/\\n/\n/g'`**
+   - 이스케이프된 줄바꿈을 실제 줄바꿈으로 변환
+   - 출력 가독성 개선
+
+</Accordion>
+
+## 출력 예시
+
+실제 Flutter 이슈를 분석한 예시:
+
+```bash
+$ ./analyze-issue.sh https://github.com/csells/flutter_counter/issues/2
+```
+
+**출력:**
+
+```markdown
+**Root Cause Analysis of Issue #2: "setState isn't cutting it"**
+
+After examining the GitHub issue and analyzing the Flutter counter codebase, 
+I've identified the root cause of why setState() is insufficient for this 
+project's needs:
+
+## Current Implementation Problems
+
+The current Flutter counter app uses setState() for state management, which 
+has several limitations:
+
+1. **Local State Only**: setState() only works within a single widget, making 
+   it difficult to share state across the app
+2. **Rebuild Overhead**: Every setState() call rebuilds the entire widget tree, 
+   causing performance issues with complex UIs
+3. **No State Persistence**: State is lost when the widget is disposed
+4. **Testing Challenges**: setState-based logic is tightly coupled to the UI, 
+   making unit testing difficult
+
+## Why This Matters
+
+As the app grows beyond a simple counter, these limitations become critical:
+- Multiple screens need to access the count
+- State needs to persist across navigation
+- Business logic should be testable independently
+- UI should only rebuild when necessary
+
+## Recommended Solutions
+
+The issue mentions "Provider or Bloc" - both are excellent alternatives:
+
+1. **Provider**: Simple, lightweight state management using InheritedWidget
+   - Easy migration path from setState
+   - Good for small to medium apps
+   - Official Flutter recommendation
+
+2. **Bloc**: More structured approach with clear separation between events, 
+   states, and business logic
+   - Better for complex apps
+   - Excellent testability
+   - Clear architectural patterns
+
+3. **Riverpod**: Modern alternative to Provider with better performance and 
+   developer experience
+   - Compile-time safety
+   - Better testing support
+   - More flexible than Provider
+
+4. **GetX**: Full-featured solution with state management, routing, and 
+   dependency injection
+   - Minimal boilerplate
+   - Fast and lightweight
+   - All-in-one solution
+
+## Next Steps
+
+The current codebase needs refactoring to implement proper state management 
+architecture to handle more complex state scenarios effectively. Provider 
+would be the easiest migration path while Bloc provides better long-term 
+scalability.
+```
+
+## 이 패턴을 사용할 때
+
+이 스크립트 패턴은 자동화된 GitHub 이슈 분석이 워크플로를 가속할 수 있는 다양한 개발 시나리오에 적합합니다.
+
+### 버그 조사
+
+수동 코드 탐색 없이 버그 보고서를 빠르게 분석하고 근본 원인을 식별합니다:
+
+```bash
+./analyze-issue.sh https://github.com/project/repo/issues/123 \
+    "이 버그의 근본 원인은 무엇인가요?"
+```
+
+### 기능 요청 분석
+
+기능 요청의 맥락과 영향을 이해합니다:
+
+```bash
+./analyze-issue.sh https://github.com/project/repo/issues/456 \
+    "구현상의 어려움은 무엇인가요?"
+```
+
+### 보안 감사
+
+보고된 이슈의 보안 영향을 평가합니다:
+
+```bash
+./analyze-issue.sh https://github.com/project/repo/issues/789 \
+    "보안상 어떤 영향이 있나요?"
+```
+
+### 문서 생성
+
+이슈로부터 상세 기술 문서를 생성합니다:
+
+```bash
+./analyze-issue.sh https://github.com/project/repo/issues/654 \
+    "이 이슈에 대한 상세 기술 문서를 작성해 주세요"
+```
+
+### 코드 리뷰 보조
+
+제안된 변경 사항에 대한 2차 의견을 얻습니다:
+
+```bash
+./analyze-issue.sh https://github.com/project/repo/issues/987 \
+    "제안된 해결 접근을 리뷰해 주세요"
+```
+
+## 마무리
+
+이 샘플은 Cline CLI로 자율 GitHub 이슈 분석 도구를 만드는 방법을 보여줍니다:
+
+1. Cline의 능력으로 **자율 CLI 도구 구축**
+2. Cline CLI의 **구조화된 JSON 출력 파싱**
+3. **커스텀 프롬프트**로 유연한 자동화 스크립트 생성
+4. **GitHub 이슈 분석** 통합
+5. **커맨드라인 인자** 처리
+
+이 패턴은 PR 리뷰, 문서 생성, 코드 품질 분석 등 다양한 자동화 시나리오에 적용할 수 있습니다.
+
+## 관련 자료
+
+- [CLI 설치 가이드](https://docs.cline.bot/cline-cli/installation)
+- [CLI 레퍼런스 문서](https://docs.cline.bot/cline-cli/cli-reference)
+- [세 가지 핵심 흐름](https://docs.cline.bot/cline-cli/three-core-flows)
