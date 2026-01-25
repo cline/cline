@@ -169,4 +169,4 @@ Cline이 작업을 진행하는 동안 확장 프로그램은 각 단계에서 �
 
 ## 라이센스
 
-[Apache 2.0 © 2025 Cline Bot Inc.](/LICENSE)
+[Apache 2.0 © 2025 Abacus Inc.](/LICENSE)

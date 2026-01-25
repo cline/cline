@@ -187,4 +187,4 @@ Cline 可以直接在您的編輯器中建立和編輯檔案，並顯示變更�
 
 ## 授權條款
 
-[Apache 2.0 © 2025 Cline Bot Inc.](./LICENSE)
+[Apache 2.0 © 2025 Abacus Inc.](./LICENSE)

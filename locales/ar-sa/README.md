@@ -186,4 +186,4 @@
 
 ## الرخصة
 
-[Apache 2.0 © 2025 Cline Bot Inc.](./LICENSE)
+[Apache 2.0 © 2025 Abacus Inc.](./LICENSE)
