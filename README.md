@@ -1,8 +1,6 @@
-<div align="center"><sub>
-English | <a href="https://github.com/cline/cline/blob/main/locales/es/README.md" target="_blank">Español</a> | <a href="https://github.com/cline/cline/blob/main/locales/de/README.md" target="_blank">Deutsch</a> | <a href="https://github.com/cline/cline/blob/main/locales/ja/README.md" target="_blank">日本語</a> | <a href="https://github.com/cline/cline/blob/main/locales/zh-cn/README.md" target="_blank">简体中文</a> | <a href="https://github.com/cline/cline/blob/main/locales/zh-tw/README.md" target="_blank">繁體中文</a> | <a href="https://github.com/cline/cline/blob/main/locales/ko/README.md" target="_blank">한국어</a>
-</sub></div>
+# AACA Cline
 
-# Cline
+> 이 프로젝트는 [Cline](https://github.com/cline/cline)을 포크하여 한글화를 포함한 다국어 버전으로 제작되었습니다.
 
 <p align="center">
   <img src="https://media.githubusercontent.com/media/cline/cline/main/assets/docs/demo.gif" width="100%" />
@@ -137,13 +135,9 @@ Cline이 작업을 진행하면서 확장 프로그램은 각 단계에서 워�
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
-## 기여하기
+## 원본 프로젝트
 
-프로젝트에 기여하려면 [기여 가이드](CONTRIBUTING.md)를 참조하여 기본 사항을 배우세요. [Discord](https://discord.gg/cline)에 가입하여 `#contributors` 채널에서 다른 기여자들과 채팅할 수도 있습니다. 정규직 일자리를 찾고 있다면 [채용 페이지](https://cline.bot/join-us)에서 공개 채용 정보를 확인하세요!
-
-## 엔터프라이즈
-
-엔터프라이즈급 제어 기능을 갖춘 동일한 Cline 경험을 얻으세요: SSO(SAML/OIDC), 글로벌 정책 및 구성, 감사 추적을 통한 관찰 가능성, 프라이빗 네트워킹(VPC/프라이빗 링크), 자체 호스팅 또는 온프레미스 배포, 엔터프라이즈 지원. [엔터프라이즈 페이지](https://cline.bot/enterprise)에서 자세히 알아보거나 [문의하기](https://cline.bot/contact-sales).
+이 프로젝트는 [Cline](https://github.com/cline/cline)의 포크 버전입니다. 원본 프로젝트에 대한 자세한 정보는 [공식 Cline 저장소](https://github.com/cline/cline)를 참조하세요.
 
 ## 라이선스
 
