@@ -124,7 +124,7 @@ import {
 	searchWorkspaceFiles,
 } from "../utils/file-search"
 import { jsonParseSafe, parseImagesFromInput } from "../utils/parser"
-import { extractSlashQuery, filterCommands, insertSlashCommand } from "../utils/slash-commands"
+import { extractSlashQuery, filterCommands, insertSlashCommand, sortCommandsWorkflowsFirst } from "../utils/slash-commands"
 import { AsciiMotionCli, StaticRobotFrame } from "./AsciiMotionCli"
 import { ChatMessage } from "./ChatMessage"
 import { FileMentionMenu } from "./FileMentionMenu"
@@ -341,13 +341,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			if (!ctrl) return
 			try {
 				const response = await getAvailableSlashCommands(ctrl, EmptyRequest.create())
-				// Filter to only CLI-compatible commands, sort workflows first
 				const cliCommands = response.commands.filter((cmd) => cmd.cliCompatible !== false)
-				const sorted = [
-					...cliCommands.filter((cmd) => cmd.section === "custom"),
-					...cliCommands.filter((cmd) => cmd.section !== "custom"),
-				]
-				setAvailableCommands(sorted)
+				setAvailableCommands(sortCommandsWorkflowsFirst(cliCommands))
 			} catch {
 				// Fallback: commands will be empty, menu won't show
 			}

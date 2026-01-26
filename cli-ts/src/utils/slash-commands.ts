@@ -11,6 +11,40 @@ export interface SlashQueryInfo {
 	slashIndex: number
 }
 
+export interface VisibleWindow<T> {
+	items: T[]
+	startIndex: number
+}
+
+/**
+ * Calculate visible window for a scrollable list menu.
+ * Centers the selected item in the visible window when possible.
+ * Returns the visible items and the start index for selection tracking.
+ */
+export function getVisibleWindow<T>(items: T[], selectedIndex: number, maxVisible: number = 5): VisibleWindow<T> {
+	if (items.length <= maxVisible) {
+		return { items, startIndex: 0 }
+	}
+
+	const halfWindow = Math.floor(maxVisible / 2)
+	let startIndex = Math.max(0, selectedIndex - halfWindow)
+	const endIndex = Math.min(items.length, startIndex + maxVisible)
+
+	// Adjust if we're near the end
+	if (endIndex - startIndex < maxVisible) {
+		startIndex = Math.max(0, endIndex - maxVisible)
+	}
+
+	return { items: items.slice(startIndex, endIndex), startIndex }
+}
+
+/**
+ * Sort commands with workflows (custom section) first, then default commands.
+ */
+export function sortCommandsWorkflowsFirst(commands: SlashCommandInfo[]): SlashCommandInfo[] {
+	return [...commands.filter((cmd) => cmd.section === "custom"), ...commands.filter((cmd) => cmd.section !== "custom")]
+}
+
 /**
  * Extract slash command query from input text.
  * Returns info about whether we're in slash mode and what the query is.

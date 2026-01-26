@@ -6,6 +6,7 @@
 import type { SlashCommandInfo } from "@shared/proto/cline/slash"
 import { Box, Text } from "ink"
 import React from "react"
+import { getVisibleWindow } from "../utils/slash-commands"
 
 interface SlashCommandMenuProps {
 	commands: SlashCommandInfo[]
@@ -22,29 +23,12 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ commands, se
 		)
 	}
 
-	// Show max 5 items, centered around selected item
-	// Commands are already sorted (workflows first) by ChatView
-	const maxVisible = 5
-	let startIndex = 0
-	let endIndex = commands.length
-
-	if (commands.length > maxVisible) {
-		const halfWindow = Math.floor(maxVisible / 2)
-		startIndex = Math.max(0, selectedIndex - halfWindow)
-		endIndex = Math.min(commands.length, startIndex + maxVisible)
-
-		if (endIndex - startIndex < maxVisible) {
-			startIndex = Math.max(0, endIndex - maxVisible)
-		}
-	}
-
-	const visibleCommands = commands.slice(startIndex, endIndex)
+	const { items: visibleCommands, startIndex } = getVisibleWindow(commands, selectedIndex)
 
 	return (
 		<Box flexDirection="column" marginBottom={1} paddingLeft={1} paddingRight={1}>
 			{visibleCommands.map((cmd, idx) => {
-				const actualIndex = startIndex + idx
-				const isSelected = actualIndex === selectedIndex
+				const isSelected = startIndex + idx === selectedIndex
 				// Only show description for default commands (not workflows)
 				const showDescription = cmd.section === "default" || !cmd.section
 

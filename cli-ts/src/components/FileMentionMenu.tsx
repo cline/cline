@@ -6,6 +6,7 @@
 import { Box, Text } from "ink"
 import React from "react"
 import type { FileSearchResult } from "../utils/file-search"
+import { getVisibleWindow } from "../utils/slash-commands"
 
 interface FileMentionMenuProps {
 	results: FileSearchResult[]
@@ -41,28 +42,12 @@ export const FileMentionMenu: React.FC<FileMentionMenuProps> = ({ results, selec
 		)
 	}
 
-	// Show max 5 items, centered around selected item
-	const maxVisible = 5
-	let startIndex = 0
-	let endIndex = results.length
-
-	if (results.length > maxVisible) {
-		const halfWindow = Math.floor(maxVisible / 2)
-		startIndex = Math.max(0, selectedIndex - halfWindow)
-		endIndex = Math.min(results.length, startIndex + maxVisible)
-
-		if (endIndex - startIndex < maxVisible) {
-			startIndex = Math.max(0, endIndex - maxVisible)
-		}
-	}
-
-	const visibleResults = results.slice(startIndex, endIndex)
+	const { items: visibleResults, startIndex } = getVisibleWindow(results, selectedIndex)
 
 	return (
 		<Box flexDirection="column" marginBottom={1} paddingLeft={1} paddingRight={1}>
 			{visibleResults.map((result, idx) => {
-				const actualIndex = startIndex + idx
-				const isSelected = actualIndex === selectedIndex
+				const isSelected = startIndex + idx === selectedIndex
 				const displayPath = truncatePath(result.path)
 
 				return (
