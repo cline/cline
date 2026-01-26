@@ -407,6 +407,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		if (item.key === "separateModels") {
 			setSeparateModels(newValue)
 			stateManager.setGlobalState("planActSeparateModelsSetting", newValue)
+			// When disabling separate models, sync plan model to act model
+			if (!newValue) {
+				const actModel = stateManager.getGlobalSettingsKey("actModeApiModelId")
+				stateManager.setGlobalState("planModeApiModelId", actModel)
+			}
 			return
 		}
 
@@ -479,12 +484,19 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 	const handleModelSelect = useCallback(
 		(modelId: string) => {
 			if (!pickingModelKey) return
-			const stateKey = pickingModelKey === "actModelId" ? "actModeApiModelId" : "planModeApiModelId"
-			stateManager.setGlobalState(stateKey, modelId)
+			if (separateModels) {
+				// Only update the selected mode's model
+				const stateKey = pickingModelKey === "actModelId" ? "actModeApiModelId" : "planModeApiModelId"
+				stateManager.setGlobalState(stateKey, modelId)
+			} else {
+				// Update both modes to keep them in sync
+				stateManager.setGlobalState("actModeApiModelId", modelId)
+				stateManager.setGlobalState("planModeApiModelId", modelId)
+			}
 			setIsPickingModel(false)
 			setPickingModelKey(null)
 		},
-		[pickingModelKey, stateManager],
+		[pickingModelKey, separateModels, stateManager],
 	)
 
 	// Handle language selection from picker
@@ -579,10 +591,16 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 
 		switch (item.key) {
 			case "actModelId":
-				stateManager.setGlobalState("actModeApiModelId", editValue || undefined)
-				break
 			case "planModelId":
-				stateManager.setGlobalState("planModeApiModelId", editValue || undefined)
+				if (separateModels) {
+					// Only update the selected mode's model
+					const stateKey = item.key === "actModelId" ? "actModeApiModelId" : "planModeApiModelId"
+					stateManager.setGlobalState(stateKey, editValue || undefined)
+				} else {
+					// Update both modes to keep them in sync
+					stateManager.setGlobalState("actModeApiModelId", editValue || undefined)
+					stateManager.setGlobalState("planModeApiModelId", editValue || undefined)
+				}
 				break
 			case "language":
 				setPreferredLanguage(editValue)
@@ -590,7 +608,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 				break
 		}
 		setIsEditing(false)
-	}, [items, selectedIndex, editValue, stateManager])
+	}, [items, selectedIndex, editValue, separateModels, stateManager])
 
 	// Navigate to next/prev item, skipping non-interactive items
 	const navigateItems = useCallback(
