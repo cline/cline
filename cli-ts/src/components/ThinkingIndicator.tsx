@@ -4,6 +4,7 @@
 
 import { Box, Text, useInput } from "ink"
 import React, { useEffect, useMemo, useState } from "react"
+import { COLORS } from "../constants/colors"
 
 interface ThinkingIndicatorProps {
 	mode?: "act" | "plan"
@@ -52,7 +53,7 @@ const ShimmerText: React.FC<{ text: string; color: string; shimmerPos: number }>
 
 export const ThinkingIndicator: React.FC<ThinkingIndicatorProps> = ({ mode = "act", startTime, onCancel }) => {
 	const message = mode === "plan" ? "Planning" : "Acting"
-	const color = mode === "plan" ? "yellow" : "blueBright"
+	const color = mode === "plan" ? "yellow" : COLORS.primaryBlue
 
 	// Handle esc key to cancel
 	useInput((_input, key) => {

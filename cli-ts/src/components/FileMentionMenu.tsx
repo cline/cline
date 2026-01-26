@@ -5,6 +5,7 @@
 
 import { Box, Text } from "ink"
 import React from "react"
+import { COLORS } from "../constants/colors"
 import type { FileSearchResult } from "../utils/file-search"
 import { getVisibleWindow } from "../utils/slash-commands"
 
@@ -53,7 +54,7 @@ export const FileMentionMenu: React.FC<FileMentionMenuProps> = ({ results, selec
 
 				return (
 					<Box key={result.path}>
-						<Text color={isSelected ? "blueBright" : undefined}>
+						<Text color={isSelected ? COLORS.primaryBlue : undefined}>
 							{isSelected ? "❯" : " "} {displayPath}
 						</Text>
 					</Box>

@@ -114,6 +114,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { getAvailableSlashCommands } from "@/core/controller/slash/getAvailableSlashCommands"
 import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
 import { StateManager } from "@/core/storage/StateManager"
+import { COLORS } from "../constants/colors"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
 import { useIsSpinnerActive } from "../hooks/useStateSubscriber"
 import { moveCursorDown, moveCursorUp } from "../utils/cursor"
@@ -895,7 +896,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		}
 	})
 
-	const borderColor = mode === "act" ? "blueBright" : "yellow"
+	const borderColor = mode === "act" ? COLORS.primaryBlue : "yellow"
 	const metrics = getApiMetrics(messages)
 	const showSlashMenu = slashInfo.inSlashMode && !slashMenuDismissed
 	const showFileMenu = mentionInfo.inMentionMode && !showSlashMenu
@@ -1041,7 +1042,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 									</Text>
 								</Box>
 								<Box>
-									<Text bold={mode === "act"} color={mode === "act" ? "blueBright" : "gray"}>
+									<Text bold={mode === "act"} color={mode === "act" ? COLORS.primaryBlue : "gray"}>
 										{mode === "act" ? "●" : "○"} Act
 									</Text>
 								</Box>

@@ -6,6 +6,7 @@
 import { Box, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
+import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import {
 	getProviderDisplayName,
@@ -134,7 +135,7 @@ export const ImportView: React.FC<ImportViewProps> = ({ source, onComplete, onCa
 				<Text> </Text>
 				{keys.map((k, i) => (
 					<Box key={`${k.provider}-${i}`}>
-						<Text color={i === selectedIndex ? "blueBright" : undefined}>
+						<Text color={i === selectedIndex ? COLORS.primaryBlue : undefined}>
 							{i === selectedIndex ? "❯ " : "  "}
 							{getProviderDisplayName(k.provider)}
 						</Text>
@@ -173,13 +174,13 @@ export const ImportView: React.FC<ImportViewProps> = ({ source, onComplete, onCa
 				)}
 				<Text> </Text>
 				<Box>
-					<Text color={confirmIndex === 0 ? "blueBright" : undefined}>
+					<Text color={confirmIndex === 0 ? COLORS.primaryBlue : undefined}>
 						{confirmIndex === 0 ? "❯ " : "  "}
 						Confirm import
 					</Text>
 				</Box>
 				<Box>
-					<Text color={confirmIndex === 1 ? "blueBright" : undefined}>
+					<Text color={confirmIndex === 1 ? COLORS.primaryBlue : undefined}>
 						{confirmIndex === 1 ? "❯ " : "  "}
 						Cancel
 					</Text>

@@ -5,6 +5,7 @@
 
 import { Box, Text } from "ink"
 import React, { ReactNode } from "react"
+import { COLORS } from "../constants/colors"
 
 export interface PanelTab {
 	key: string
@@ -26,10 +27,10 @@ export const Panel: React.FC<PanelProps> = ({ label, tabs, currentTab, children 
 	const currentTabIndex = currentTab && tabs ? tabs.findIndex((t) => t.key === currentTab) : 0
 
 	return (
-		<Box borderColor="blueBright" borderStyle="round" flexDirection="column" width="100%">
+		<Box borderColor={COLORS.primaryBlue} borderStyle="round" flexDirection="column" width="100%">
 			{/* Header */}
 			<Box paddingLeft={1} paddingRight={1}>
-				<Text bold color="blueBright">
+				<Text bold color={COLORS.primaryBlue}>
 					{label}
 				</Text>
 				<Text color="gray" dimColor>
@@ -44,7 +45,7 @@ export const Panel: React.FC<PanelProps> = ({ label, tabs, currentTab, children 
 					{tabs.map((tab, idx) => {
 						const isActive = idx === currentTabIndex
 						return (
-							<Text bold={isActive} color={isActive ? "blueBright" : "gray"} inverse={isActive} key={tab.key}>
+							<Text bold={isActive} color={isActive ? COLORS.primaryBlue : "gray"} inverse={isActive} key={tab.key}>
 								{` ${tab.label} `}
 							</Text>
 						)
@@ -58,7 +59,7 @@ export const Panel: React.FC<PanelProps> = ({ label, tabs, currentTab, children 
 
 			{/* Separator line */}
 			<Box>
-				<Text bold color="blueBright">
+				<Text bold color={COLORS.primaryBlue}>
 					{"─".repeat(process.stdout.columns - 2)}
 				</Text>
 			</Box>
