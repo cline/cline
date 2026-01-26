@@ -177,7 +177,7 @@ export async function parseSlashCommands(
 							return { processedText, needsClinerulesFileCheck: false }
 						}
 					} catch (error) {
-						console.error(`Error fetching MCP prompt ${commandName}: ${error}`)
+						Logger.error(`Error fetching MCP prompt ${commandName}: ${error}`)
 					}
 				}
 			}
