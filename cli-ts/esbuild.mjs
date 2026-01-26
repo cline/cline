@@ -1,5 +1,3 @@
-import "dotenv/config"
-
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -171,29 +169,13 @@ const buildEnvVars = {
 	"process.env.IS_CLI": JSON.stringify("true"),
 }
 
-const buildTimeEnvs = [
-	"TELEMETRY_SERVICE_API_KEY",
-	"ERROR_SERVICE_API_KEY",
-	"POSTHOG_TELEMETRY_ENABLED",
-	"OTEL_TELEMETRY_ENABLED",
-	"OTEL_LOGS_EXPORTER",
-	"OTEL_METRICS_EXPORTER",
-	"OTEL_EXPORTER_OTLP_PROTOCOL",
-	"OTEL_EXPORTER_OTLP_ENDPOINT",
-	"OTEL_EXPORTER_OTLP_HEADERS",
-	"OTEL_METRIC_EXPORT_INTERVAL",
-	"CLINE_ENVIRONMENT",
-]
-
-buildTimeEnvs.forEach((envVar) => {
-	if (process.env[envVar]) {
-		console.log(`[cli-ts esbuild] ${envVar} env var is set`)
-		buildEnvVars[`process.env.${envVar}`] = JSON.stringify(process.env[envVar])
-	}
-})
-
 if (production) {
 	buildEnvVars["process.env.IS_DEV"] = "false"
+}
+
+// Set the environment
+if (process.env.CLINE_ENVIRONMENT) {
+	buildEnvVars["process.env.CLINE_ENVIRONMENT"] = JSON.stringify(process.env.CLINE_ENVIRONMENT)
 }
 
 const config = {
@@ -222,7 +204,6 @@ const config = {
 		"aws4fetch",
 		"pino",
 		"pino-roll",
-		"keytar",
 	],
 	supported: { "top-level-await": true },
 	banner: {

@@ -53,10 +53,6 @@ export class ClineFileStorage extends ClineStorage {
 				}
 			}
 		} catch (error) {
-			// File doesn't exist yet - start with empty cache
-			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-				return
-			}
 			throw error
 		}
 	}

@@ -5,7 +5,6 @@
 
 import { Memento, SecretStorage } from "vscode"
 import { URI } from "vscode-uri"
-import { ClineStorage } from "../storage"
 
 enum ExtensionMode {
 	/**
@@ -72,7 +71,7 @@ export interface ClineExtensionContext {
 	 * A storage utility for secrets. Secrets are persisted across reloads and are independent of the
 	 * current opened {@link workspace.workspaceFolders workspace}.
 	 */
-	readonly secrets: SecretStorage | ClineStorage
+	readonly secrets: SecretStorage
 
 	/**
 	 * The uri of the directory containing the extension.
