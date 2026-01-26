@@ -149,7 +149,11 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
  * Run an Ink app with proper cleanup handling
  */
 async function runInkApp(element: React.ReactElement, cleanup: () => Promise<void>): Promise<void> {
-	const { waitUntilExit, unmount } = render(element, { incrementalRendering: true })
+	// Note: incrementalRendering is disabled because it causes UI glitches on terminal resize.
+	// Ink's incremental rendering tries to erase N lines based on previous output height,
+	// but when the terminal shrinks, this leaves artifacts. Gemini CLI only enables
+	// incrementalRendering when alternateBuffer is also enabled (which we don't use).
+	const { waitUntilExit, unmount } = render(element)
 
 	try {
 		await waitUntilExit()
