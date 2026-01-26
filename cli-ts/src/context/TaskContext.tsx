@@ -46,6 +46,13 @@ export const TaskContextProvider: React.FC<TaskContextProviderProps> = ({ contro
 		const handleStateUpdate = async () => {
 			try {
 				const newState = await controller.getStateToPostToWebview()
+				// Ignore transient empty messages state during cancel/reinit
+				// When clearTask() runs, messages briefly become [] before new task loads them
+				const hadMessages = (stateRef.current.clineMessages?.length ?? 0) > 0
+				const hasMessages = (newState.clineMessages?.length ?? 0) > 0
+				if (hadMessages && !hasMessages) {
+					return
+				}
 				setState(newState)
 			} catch (error) {
 				setLastError(error instanceof Error ? error.message : String(error))
