@@ -12,11 +12,17 @@ import { PROTOCOL_VERSION } from "@agentclientprotocol/sdk"
 import { registerPartialMessageCallback } from "@core/controller/ui/subscribeToPartialMessage"
 import type { ClineAsk, ClineMessage as ClineMessageType } from "@shared/ExtensionMessage"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
-import type { Controller } from "@/core/controller"
-import type { StateManager } from "@/core/storage/StateManager"
+import { Controller } from "@/core/controller"
+import { StateManager } from "@/core/storage/StateManager"
+import { AuthHandler } from "@/hosts/external/AuthHandler.js"
+import { ExternalCommentReviewController } from "@/hosts/external/ExternalCommentReviewController.js"
+import { ExternalWebviewProvider } from "@/hosts/external/ExternalWebviewProvider.js"
+import { HostProvider } from "@/hosts/host-provider.js"
+import { StandaloneTerminalManager } from "@/integrations/terminal/index.js"
 import type { Mode } from "@/shared/storage/types"
-import { AcpHostBridgeProvider } from "./AcpHostBridgeProvider.js"
-import { AcpTerminalManager } from "./AcpTerminalManager.js"
+import { CliContextResult, initializeCliContext } from "../vscode-context.js"
+import { ACPDiffViewProvider } from "./ACPDiffViewProvider.js"
+import { ACPHostBridgeClientProvider } from "./ACPHostBridgeClientProvider.js"
 import { createSessionState, translateMessage, translateMessages } from "./messageTranslator.js"
 import {
 	AutoApprovalTracker,
@@ -36,24 +42,11 @@ import type { AcpAgentOptions, AcpSessionState, ClineAcpSession } from "./types.
 export class AcpAgent implements acp.Agent {
 	private readonly connection: acp.AgentSideConnection
 	private readonly options: AcpAgentOptions
-
-	/** Active sessions managed by this agent */
-	private readonly sessions: Map<string, ClineAcpSession> = new Map()
+	private readonly ctx: CliContextResult
+	readonly sessions: Map<string, ClineAcpSession> = new Map()
 
 	/** Runtime state for active sessions */
 	private readonly sessionStates: Map<string, AcpSessionState> = new Map()
-
-	/** Host bridge providers per session (for file operations delegation) */
-	private readonly hostBridgeProviders: Map<string, AcpHostBridgeProvider> = new Map()
-
-	/** Terminal managers per session (for terminal operations delegation) */
-	private readonly terminalManagers: Map<string, AcpTerminalManager> = new Map()
-
-	/** Controller instance - lazily initialized per session */
-	private controller?: Controller
-
-	/** State manager reference */
-	private stateManager?: StateManager
 
 	/** Client capabilities received during initialization */
 	private clientCapabilities?: acp.ClientCapabilities
@@ -64,16 +57,16 @@ export class AcpAgent implements acp.Agent {
 	/** Track processed message timestamps to detect new messages */
 	private processedMessageTimestamps: Set<number> = new Set()
 
+	/** Track last sent content length for partial messages to avoid duplicates */
+	private partialMessageLastLength: Map<number, number> = new Map()
+
+	/** Current active session ID for use by DiffViewProvider */
+	private currentActiveSessionId: string | undefined
+
 	constructor(connection: acp.AgentSideConnection, options: AcpAgentOptions) {
 		this.connection = connection
 		this.options = options
-
-		if (this.options.debug) {
-			console.error("[AcpAgent] Initialized with options:", {
-				version: options.version,
-				globalStoragePath: options.globalStoragePath,
-			})
-		}
+		this.ctx = initializeCliContext()
 	}
 
 	/**
@@ -85,34 +78,75 @@ export class AcpAgent implements acp.Agent {
 	async initialize(params: acp.InitializeRequest): Promise<acp.InitializeResponse> {
 		this.clientCapabilities = params.clientCapabilities
 
-		if (this.options.debug) {
-			console.error("[AcpAgent] initialize called with:", {
-				protocolVersion: params.protocolVersion,
-				clientCapabilities: params.clientCapabilities,
-			})
-		}
+		this.initializeHostProvider(params.clientCapabilities)
 
-		const agentCapabilities: acp.AgentCapabilities = {
-			loadSession: true,
-			promptCapabilities: {
-				image: true,
-				audio: false,
-				embeddedContext: true,
-			},
-			mcpCapabilities: {
-				http: true,
-				sse: true,
-			},
-		}
+		await StateManager.initialize(this.ctx.extensionContext)
 
 		return {
 			protocolVersion: PROTOCOL_VERSION,
-			agentCapabilities,
+			agentCapabilities: {
+				loadSession: true,
+				promptCapabilities: {
+					image: true,
+					audio: false,
+					embeddedContext: true,
+				},
+				mcpCapabilities: {
+					http: true,
+					sse: false, // deprecated by MCP spec
+				},
+			},
 			agentInfo: {
 				name: "cline",
 				version: this.options.version,
 			},
 		}
+	}
+
+	initializeHostProvider(clientCapabilities?: acp.ClientCapabilities): void {
+		const hostBridgeClientProvider = new ACPHostBridgeClientProvider(
+			this.connection,
+			clientCapabilities,
+			() => this.currentActiveSessionId,
+			() => this.sessions.get(this.currentActiveSessionId ?? "")?.cwd ?? process.cwd(),
+			this.options.debug,
+			this.options.version,
+		)
+
+		HostProvider.initialize(
+			() => new ExternalWebviewProvider(this.ctx.extensionContext),
+			() => {
+				return new ACPDiffViewProvider(
+					this.connection,
+					clientCapabilities,
+					() => this.currentActiveSessionId,
+					this.options.debug,
+				)
+			},
+			() => new ExternalCommentReviewController(),
+			() => {
+				if (clientCapabilities?.terminal) {
+					return new StandaloneTerminalManager()
+					// TODO AcpTerminalManager
+					// return new AcpTerminalManager(
+					// 	this.connection,
+					// 	params.clientCapabilities,
+					// 	() => this.currentActiveSessionId,
+					// 	this.options.debug,
+					// )
+				} else {
+					return new StandaloneTerminalManager()
+				}
+			},
+			hostBridgeClientProvider,
+			(message: string) => console.log(message),
+			async () => {
+				return AuthHandler.getInstance().getCallbackUrl()
+			},
+			async () => "", // get binary location not needed in ACP mode
+			this.ctx.EXTENSION_DIR,
+			this.ctx.DATA_DIR,
+		)
 	}
 
 	/**
@@ -132,14 +166,18 @@ export class AcpAgent implements acp.Agent {
 			})
 		}
 
-		// Create session record
+		// Create Controller for this session
+		const controller = new Controller(this.ctx.extensionContext)
+
+		// Create session record with all resources
 		const session: ClineAcpSession = {
 			sessionId,
 			cwd: params.cwd,
-			mode: "act", // Default to act mode
+			mode: (await controller.getStateToPostToWebview()).mode,
 			mcpServers: params.mcpServers ?? [],
 			createdAt: Date.now(),
 			lastActivityAt: Date.now(),
+			controller,
 		}
 
 		this.sessions.set(sessionId, session)
@@ -153,32 +191,6 @@ export class AcpAgent implements acp.Agent {
 		}
 
 		this.sessionStates.set(sessionId, sessionState)
-
-		// Create host bridge provider for file operations delegation
-		const hostBridgeProvider = new AcpHostBridgeProvider(
-			this.connection,
-			this.clientCapabilities,
-			sessionId,
-			this.options.debug,
-		)
-		this.hostBridgeProviders.set(sessionId, hostBridgeProvider)
-
-		// Create terminal manager for terminal operations delegation
-		const terminalManager = new AcpTerminalManager(this.connection, this.clientCapabilities, sessionId, this.options.debug)
-		this.terminalManagers.set(sessionId, terminalManager)
-
-		if (this.options.debug) {
-			console.error("[AcpAgent] Session providers created:", {
-				sessionId,
-				canReadFile: hostBridgeProvider.canReadFile(),
-				canWriteFile: hostBridgeProvider.canWriteFile(),
-				canUseTerminal: terminalManager.canUseTerminal(),
-			})
-		}
-
-		// Initialize Controller if needed
-		// Note: Full controller initialization will happen when processing the first prompt
-		// to avoid blocking session creation
 
 		return {
 			sessionId,
@@ -217,7 +229,10 @@ export class AcpAgent implements acp.Agent {
 				throw new Error(`Session not found: ${params.sessionId}`)
 			}
 
-			// Recreate session from history
+			// Create Controller for this session
+			const controller = await this.createController()
+
+			// Recreate session from history with all resources
 			session = {
 				sessionId: params.sessionId,
 				cwd: params.cwd,
@@ -225,6 +240,8 @@ export class AcpAgent implements acp.Agent {
 				mcpServers: params.mcpServers ?? [],
 				createdAt: historyItem.ts,
 				lastActivityAt: Date.now(),
+				isLoadedFromHistory: true, // Mark session as loaded from history so prompt() knows to resume
+				controller,
 			}
 
 			this.sessions.set(params.sessionId, session)
@@ -239,35 +256,12 @@ export class AcpAgent implements acp.Agent {
 
 			this.sessionStates.set(params.sessionId, sessionState)
 
-			// Create host bridge provider for file operations delegation
-			const hostBridgeProvider = new AcpHostBridgeProvider(
-				this.connection,
-				this.clientCapabilities,
-				params.sessionId,
-				this.options.debug,
-			)
-			this.hostBridgeProviders.set(params.sessionId, hostBridgeProvider)
-
-			// Create terminal manager for terminal operations delegation
-			const terminalManager = new AcpTerminalManager(
-				this.connection,
-				this.clientCapabilities,
-				params.sessionId,
-				this.options.debug,
-			)
-			this.terminalManagers.set(params.sessionId, terminalManager)
-
 			if (this.options.debug) {
-				console.error("[AcpAgent] Session providers created for loaded session:", {
+				console.error("[AcpAgent] Session loaded with resources:", {
 					sessionId: params.sessionId,
-					canReadFile: hostBridgeProvider.canReadFile(),
-					canWriteFile: hostBridgeProvider.canWriteFile(),
-					canUseTerminal: terminalManager.canUseTerminal(),
+					hasController: !!controller,
 				})
 			}
-
-			// Mark session as loaded from history so prompt() knows to resume instead of start new
-			session.isLoadedFromHistory = true
 
 			// Replay conversation history via session updates
 			await this.replayConversationHistory(params.sessionId, sessionState)
@@ -284,6 +278,10 @@ export class AcpAgent implements acp.Agent {
 		}
 	}
 
+	private async createController(): Promise<Controller> {
+		return {} as Controller
+	}
+
 	/**
 	 * Replay conversation history from disk via session updates.
 	 *
@@ -291,7 +289,7 @@ export class AcpAgent implements acp.Agent {
 	 * translates them to ACP SessionUpdates, sending each to the client
 	 * to reconstruct the conversation state in the UI.
 	 */
-	private async replayConversationHistory(sessionId: string, sessionState: AcpSessionState): Promise<void> {
+	private async replayConversationHistory(sessionId: string): Promise<void> {
 		try {
 			// Dynamically import disk utilities to avoid circular dependencies
 			const { getSavedClineMessages } = await import("@core/storage/disk")
@@ -371,8 +369,9 @@ export class AcpAgent implements acp.Agent {
 			throw new Error(`Session ${params.sessionId} is already processing a prompt`)
 		}
 
-		if (!this.controller) {
-			throw new Error("Controller not initialized. This is a bug in the ACP agent setup.")
+		const controller = session.controller
+		if (!controller) {
+			throw new Error("Controller not initialized for session. This is a bug in the ACP agent setup.")
 		}
 
 		if (this.options.debug) {
@@ -382,23 +381,25 @@ export class AcpAgent implements acp.Agent {
 			})
 		}
 
-		// Mark session as processing
+		// Mark session as processing and set as current active session
 		sessionState.isProcessing = true
 		sessionState.cancelled = false
 		session.lastActivityAt = Date.now()
+		this.currentActiveSessionId = params.sessionId
 
 		// Clear processed timestamps for new prompt cycle
 		this.processedMessageTimestamps.clear()
+		this.partialMessageLastLength.clear()
 
 		// Track cleanup functions for subscriptions
 		const cleanupFunctions: (() => void)[] = []
 
 		// Promise that resolves when task completes, is cancelled, or needs input
 		let resolvePrompt: (response: acp.PromptResponse) => void
-		let rejectPrompt: (error: Error) => void
+		let _rejectPrompt: (error: Error) => void
 		const promptPromise = new Promise<acp.PromptResponse>((resolve, reject) => {
 			resolvePrompt = resolve
-			rejectPrompt = reject
+			_rejectPrompt = reject
 		})
 
 		// Track if we've already resolved/rejected
@@ -430,15 +431,13 @@ export class AcpAgent implements acp.Agent {
 			}
 
 			// Set up state broadcasting - subscribe to controller state updates
-			const originalPostState = this.controller.postStateToWebview.bind(this.controller)
-			this.controller.postStateToWebview = async () => {
+			const originalPostState = controller.postStateToWebview.bind(controller)
+			controller.postStateToWebview = async () => {
 				await originalPostState()
-				await this.handleStateUpdate(params.sessionId, sessionState)
+				await this.handleStateUpdate(params.sessionId, sessionState, controller)
 			}
 			cleanupFunctions.push(() => {
-				if (this.controller) {
-					this.controller.postStateToWebview = originalPostState
-				}
+				controller.postStateToWebview = originalPostState
 			})
 
 			// Subscribe to partial message events for streaming updates
@@ -453,7 +452,7 @@ export class AcpAgent implements acp.Agent {
 			cleanupFunctions.push(unsubscribePartial)
 
 			// Determine if this is a new task, continuation, or loaded session resume
-			const hasActiveTask = this.controller.task !== undefined
+			const hasActiveTask = controller.task !== undefined
 			const isLoadedSession = session.isLoadedFromHistory === true
 
 			if (isLoadedSession && !hasActiveTask) {
@@ -466,54 +465,46 @@ export class AcpAgent implements acp.Agent {
 				session.isLoadedFromHistory = false
 
 				// Resume the task using its history item
-				await this.controller.reinitExistingTaskFromId(params.sessionId)
+				await controller.reinitExistingTaskFromId(params.sessionId)
 
 				// After reinit, the task should be in a waiting state (resume_task ask)
 				// Send the user's prompt as a response to continue
-				if (this.controller.task) {
-					await this.controller.task.handleWebviewAskResponse(
-						"messageResponse",
-						textContent,
-						imageContent,
-						fileResources,
-					)
+				if (controller.task) {
+					await controller.task.handleWebviewAskResponse("messageResponse", textContent, imageContent, fileResources)
 				}
-			} else if (hasActiveTask && this.controller.task) {
+			} else if (hasActiveTask && controller.task) {
 				// Continue existing task - respond to pending ask
 				if (this.options.debug) {
-					console.error("[AcpAgent] Continuing existing task:", this.controller.task.taskId)
+					console.error("[AcpAgent] Continuing existing task:", controller.task.taskId)
 				}
 
 				// Find the last ask message and respond to it
-				const messages = this.controller.task.messageStateHandler.getClineMessages()
+				const messages = controller.task.messageStateHandler.getClineMessages()
 				const lastAskMessage = [...messages].reverse().find((m) => m.type === "ask")
 
 				if (lastAskMessage) {
-					await this.controller.task.handleWebviewAskResponse(
-						"messageResponse",
-						textContent,
-						imageContent,
-						fileResources,
-					)
+					await controller.task.handleWebviewAskResponse("messageResponse", textContent, imageContent, fileResources)
 				} else {
 					// No pending ask - treat as new user message
 					// This shouldn't normally happen but handle gracefully
 					if (this.options.debug) {
 						console.error("[AcpAgent] No pending ask found, starting new task")
 					}
-					await this.controller.initTask(textContent, imageContent, fileResources)
+					await controller.initTask(textContent, imageContent, fileResources)
 				}
 			} else {
 				// Start new task
 				if (this.options.debug) {
 					console.error("[AcpAgent] Starting new task")
 				}
-				await this.controller.initTask(textContent, imageContent, fileResources)
+				await controller.initTask(textContent, imageContent, fileResources)
 			}
 
 			// Wait for task to complete, be cancelled, or need user input
 			const checkTaskState = async () => {
-				if (promptResolved) return
+				if (promptResolved) {
+					return
+				}
 
 				// Check cancellation
 				if (sessionState.cancelled) {
@@ -523,18 +514,18 @@ export class AcpAgent implements acp.Agent {
 				}
 
 				// Check if controller has a task
-				if (!this.controller?.task) {
+				if (!controller.task) {
 					// Task was cleared - likely completed or cancelled
 					promptResolved = true
 					resolvePrompt({ stopReason: "end_turn" })
 					return
 				}
 
-				const task = this.controller.task
+				const task = controller.task
 				const taskState = task.taskState
 
 				// Check if task is awaiting user response (followup, plan response, etc.)
-				if (taskState.isAwaitingPlanResponse || taskState.isAwaitingUserResponse) {
+				if (taskState.isAwaitingPlanResponse) {
 					promptResolved = true
 					resolvePrompt({ stopReason: "end_turn" })
 					return
@@ -615,15 +606,18 @@ export class AcpAgent implements acp.Agent {
 	 * Handle a state update from the controller.
 	 * This is called whenever Controller.postStateToWebview() is invoked.
 	 */
-	private async handleStateUpdate(sessionId: string, sessionState: AcpSessionState): Promise<void> {
-		if (!this.controller) return
-
+	private async handleStateUpdate(sessionId: string, sessionState: AcpSessionState, controller: Controller): Promise<void> {
 		try {
-			const state = await this.controller.getStateToPostToWebview()
+			const state = await controller.getStateToPostToWebview()
 			const messages = state.clineMessages || []
 
 			// Process new or updated messages
 			for (const message of messages) {
+				// Skip messages that are being handled by the partial message callback
+				// (streaming text messages). These are handled via handlePartialMessage.
+				if (this.partialMessageLastLength.has(message.ts)) {
+					continue
+				}
 				await this.processMessage(sessionId, sessionState, message, false)
 			}
 		} catch (error) {
@@ -641,6 +635,16 @@ export class AcpAgent implements acp.Agent {
 		sessionState: AcpSessionState,
 		message: ClineMessageType,
 	): Promise<void> {
+		const messageKey = message.ts
+		const contentLength = (message.text?.length ?? 0) + (message.reasoning?.length ?? 0)
+		const lastLength = this.partialMessageLastLength.get(messageKey) ?? 0
+
+		// Only process if content has actually grown
+		if (contentLength <= lastLength) {
+			return
+		}
+
+		this.partialMessageLastLength.set(messageKey, contentLength)
 		await this.processMessage(sessionId, sessionState, message, true)
 	}
 
@@ -687,9 +691,13 @@ export class AcpAgent implements acp.Agent {
 		sessionId: string,
 		sessionState: AcpSessionState,
 		message: ClineMessageType,
-		permissionRequest: { toolCall: acp.ToolCall; options: acp.PermissionOption[] },
+		permissionRequest: any,
 	): Promise<void> {
-		if (!this.controller?.task) return
+		const session = this.sessions.get(sessionId)
+		const controller = session?.controller
+		if (!controller?.task) {
+			return
+		}
 
 		const askType = message.ask as ClineAsk
 		const identifier = getAutoApprovalIdentifier(permissionRequest.toolCall, askType)
@@ -725,7 +733,7 @@ export class AcpAgent implements acp.Agent {
 				return
 			}
 
-			await this.controller.task.handleWebviewAskResponse(result.response, result.text)
+			await controller.task.handleWebviewAskResponse(result.response, result.text)
 		} catch (error) {
 			if (this.options.debug) {
 				console.error("[AcpAgent] Error handling permission request:", error)
@@ -748,6 +756,7 @@ export class AcpAgent implements acp.Agent {
 	 * stop any ongoing processing for the specified session.
 	 */
 	async cancel(params: acp.CancelNotification): Promise<void> {
+		const session = this.sessions.get(params.sessionId)
 		const sessionState = this.sessionStates.get(params.sessionId)
 
 		if (this.options.debug) {
@@ -761,9 +770,10 @@ export class AcpAgent implements acp.Agent {
 			sessionState.cancelled = true
 
 			// If we have an active controller task, cancel it
-			if (this.controller?.task) {
+			const controller = session?.controller
+			if (controller?.task) {
 				try {
-					await this.controller.cancelTask()
+					await controller.cancelTask()
 				} catch (error) {
 					if (this.options.debug) {
 						console.error("[AcpAgent] Error cancelling task:", error)
@@ -805,12 +815,13 @@ export class AcpAgent implements acp.Agent {
 		session.lastActivityAt = Date.now()
 
 		// Update Controller mode if active
-		if (this.controller && this.stateManager) {
-			this.stateManager.setGlobalState("mode", session.mode)
+		const controller = session.controller
+		if (controller) {
+			controller.stateManager.setGlobalState("mode", session.mode)
 
 			// If there's an active task, switch its mode
-			if (this.controller.task) {
-				await this.controller.togglePlanActMode(session.mode)
+			if (controller.task) {
+				await controller.togglePlanActMode(session.mode)
 			}
 		}
 
@@ -870,73 +881,27 @@ export class AcpAgent implements acp.Agent {
 
 	/**
 	 * Find a task in the task history by ID.
+	 * Uses the global StateManager singleton to access task history.
 	 */
-	private async findTaskInHistory(taskId: string): Promise<{ id: string; ts: number; task: string } | undefined> {
-		if (!this.stateManager) {
-			return undefined
-		}
-
-		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory") ?? []
+	private async findTaskInHistory(taskId: string): Promise<
+		| {
+				id: string
+				ts: number
+				task: string
+		  }
+		| undefined
+	> {
+		const taskHistory = StateManager.get().getGlobalStateKey("taskHistory") ?? []
 		return taskHistory.find((item: { id: string }) => item.id === taskId)
 	}
 
-	/**
-	 * Set the Controller instance for this agent.
-	 * Called by runAcpMode after initializing the CLI infrastructure.
-	 */
-	setController(controller: Controller): void {
-		this.controller = controller
-		this.stateManager = controller.stateManager
-	}
-
-	/**
-	 * Get the current session by ID.
-	 */
-	getSession(sessionId: string): ClineAcpSession | undefined {
-		return this.sessions.get(sessionId)
-	}
-
-	/**
-	 * Get the session state by ID.
-	 */
-	getSessionState(sessionId: string): AcpSessionState | undefined {
-		return this.sessionStates.get(sessionId)
-	}
-
-	/**
-	 * Check if a session exists.
-	 */
-	hasSession(sessionId: string): boolean {
-		return this.sessions.has(sessionId)
-	}
-
-	/**
-	 * Get the connection instance.
-	 */
-	getConnection(): acp.AgentSideConnection {
-		return this.connection
-	}
-
-	/**
-	 * Get client capabilities.
-	 */
-	getClientCapabilities(): acp.ClientCapabilities | undefined {
-		return this.clientCapabilities
-	}
-
-	/**
-	 * Get the host bridge provider for a session.
-	 * Used for delegating file operations to the ACP client.
-	 */
-	getHostBridgeProvider(sessionId: string): AcpHostBridgeProvider | undefined {
-		return this.hostBridgeProviders.get(sessionId)
-	}
-
-	/**
-	 * Get the terminal manager for a session.
-	 * Used for delegating terminal operations to the ACP client.
-	 */
-	getTerminalManager(sessionId: string): AcpTerminalManager | undefined {
-		return this.terminalManagers.get(sessionId)
+	async shutdown(): Promise<void> {
+		for (const [sessionId, session] of this.sessions) {
+			await session.controller?.task?.abortTask()
+			await session.controller?.stateManager.flushPendingState()
+			await session.controller?.dispose()
+			this.sessions.delete(sessionId)
+			this.sessionStates.delete(sessionId)
+		}
 	}
 }

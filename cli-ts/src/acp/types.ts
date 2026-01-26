@@ -5,6 +5,7 @@
  */
 
 import type * as acp from "@agentclientprotocol/sdk"
+import type { Controller } from "@/core/controller"
 
 // Re-export common ACP types for convenience
 export type {
@@ -95,6 +96,10 @@ export interface ClineAcpSession {
 	lastActivityAt: number
 	/** Whether this session was loaded from history (needs resume on first prompt) */
 	isLoadedFromHistory?: boolean
+
+	// Session Resources
+	/** Controller instance for this session (manages task execution) */
+	controller?: Controller
 }
 
 /**
@@ -134,8 +139,6 @@ export type ClineToAcpUpdateMapping = {
 export interface AcpAgentOptions {
 	/** CLI version string */
 	version: string
-	/** Global storage path for task history */
-	globalStoragePath: string
 	/** Whether debug logging is enabled */
 	debug?: boolean
 }
