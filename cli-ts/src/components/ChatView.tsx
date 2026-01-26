@@ -1064,7 +1064,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						<Box paddingLeft={1} paddingRight={1}>
 							<Text>
 								<Text color="gray">
-									{modelId.length > 20 ? modelId.substring(0, 17) + "..." : modelId}
+									{modelId}
 									{thinkingBudget > 0 && " (thinking)"}
 								</Text>{" "}
 								{(() => {
