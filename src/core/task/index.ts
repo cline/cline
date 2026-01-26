@@ -3350,7 +3350,7 @@ export class Task {
 				// don't want to immediately access desktop since it would show permission popup
 				details += "(Desktop files not shown automatically. Use list_files to explore if needed.)"
 			} else {
-				const [files, didHitLimit] = await listFiles(this.cwd, true, 200)
+				const [files, didHitLimit] = await listFiles(this.cwd, true, 200, this.clineIgnoreController)
 				const result = formatResponse.formatFilesList(this.cwd, files, didHitLimit, this.clineIgnoreController)
 				details += result
 			}
