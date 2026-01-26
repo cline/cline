@@ -9,20 +9,16 @@ import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import { AuthService } from "@/services/auth/AuthService"
 import { API_PROVIDERS_LIST, openRouterDefaultModelId } from "@/shared/api"
-import providersData from "@/shared/providers/providers.json"
 import { ProviderToApiKeyMap } from "@/shared/storage"
 import { getAllFeaturedModels } from "../constants/featured-models"
 import { useStdinContext } from "../context/StdinContext"
 import { useScrollableList } from "../hooks/useScrollableList"
 import { type DetectedSources, detectImportSources, type ImportSource } from "../utils/import-configs"
+import { ApiKeyInput } from "./ApiKeyInput"
 import { StaticRobotFrame } from "./AsciiMotionCli"
 import { ImportView } from "./ImportView"
 import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
-
-// Create a lookup map from provider value to display label
-const providerLabels: Record<string, string> = Object.fromEntries(
-	providersData.list.map((p: { value: string; label: string }) => [p.value, p.label]),
-)
+import { getProviderLabel, POPULAR_PROVIDERS } from "./ProviderPicker"
 
 type AuthStep =
 	| "menu"
@@ -58,16 +54,6 @@ interface SelectItem {
 	label: string
 	value: string
 }
-
-/**
- * Get provider display name from provider ID
- */
-function getProviderLabel(providerId: string): string {
-	return providerLabels[providerId] || providerId
-}
-
-// Popular providers to show at the top of the list
-const POPULAR_PROVIDERS = ["anthropic", "openai-native", "openai", "gemini", "bedrock", "openrouter"]
 
 /**
  * Select component with keyboard navigation
@@ -652,17 +638,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 
 			case "apikey":
 				return (
-					<Box flexDirection="column">
-						<Text color="white">{getProviderLabel(selectedProvider)} API Key</Text>
-						<Text> </Text>
-						<Text color="gray">Paste your API key below</Text>
-						<Text> </Text>
-						<TextInput isPassword={true} onChange={setApiKey} onSubmit={handleApiKeySubmit} value={apiKey} />
-						<Text> </Text>
-						<Text color="gray" dimColor>
-							Enter to continue, Esc to go back
-						</Text>
-					</Box>
+					<ApiKeyInput
+						isActive={step === "apikey"}
+						onCancel={goBack}
+						onChange={setApiKey}
+						onSubmit={() => handleApiKeySubmit(apiKey)}
+						providerName={getProviderLabel(selectedProvider)}
+						value={apiKey}
+					/>
 				)
 
 			case "modelid":
@@ -825,8 +808,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const { isRawModeSupported } = useStdinContext()
 	const [menuIndex, setMenuIndex] = useState(0)
 
-	// Steps that allow going back with escape
-	const canGoBack = ["provider", "apikey", "modelid", "baseurl", "cline_auth", "cline_model", "error"].includes(step)
+	// Steps that allow going back with escape (apikey handled by ApiKeyInput component)
+	const canGoBack = ["provider", "modelid", "baseurl", "cline_auth", "cline_model", "error"].includes(step)
 
 	useInput(
 		(input, key) => {
