@@ -203,8 +203,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 		)
 	}
 
-	// Assistant text response and reasoning
-	if (say === "text" || say === "reasoning") {
+	// Assistant text response (hide reasoning traces - they're verbose and clutter the UI)
+	if (say === "reasoning") {
+		return null
+	}
+	if (say === "text") {
 		if (!text?.trim()) return null
 		return (
 			<Box flexDirection="column" marginBottom={1} width="100%">
