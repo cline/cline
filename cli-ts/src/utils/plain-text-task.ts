@@ -28,7 +28,8 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 	// Track completion state
 	let isComplete = false
 	let hasError = false
-	const processedMessages = new Set<number>()
+	const processedMessages = new Map<number, number>() // index -> last output text length
+	let lastStreamingMessageIndex = -1 // track open streaming line that needs closing
 
 	// Subscribe to state updates
 	const originalPostState = controller.postStateToWebview.bind(controller)
@@ -40,16 +41,32 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 
 			// Process new messages
 			for (let i = 0; i < messages.length; i++) {
-				if (processedMessages.has(i)) continue
-
 				const message = messages[i]
-				processedMessages.add(i)
+				const currentTextLength = message.text?.length ?? 0
+				const lastOutputLength = processedMessages.get(i) ?? 0
+
+				// Skip if no new content to output
+				if (currentTextLength <= lastOutputLength) continue
+
+				// Close previous streaming line if we're moving to a different message
+				if (lastStreamingMessageIndex >= 0 && lastStreamingMessageIndex !== i && !jsonOutput) {
+					process.stdout.write("\n")
+					lastStreamingMessageIndex = -1
+				}
+
+				processedMessages.set(i, currentTextLength)
 
 				// Output the message
 				if (jsonOutput) {
 					process.stdout.write(JSON.stringify(message) + "\n")
 				} else {
-					outputMessageAsText(message, verbose || false)
+					const isStreaming = outputMessageAsText(message, verbose || false, lastOutputLength)
+					// Track streaming state for text messages
+					if (isStreaming) {
+						lastStreamingMessageIndex = i
+					} else {
+						lastStreamingMessageIndex = -1
+					}
 				}
 
 				// Check for completion
@@ -64,6 +81,12 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 						hasError = true
 					}
 				}
+			}
+
+			// Close streaming line on completion
+			if (isComplete && lastStreamingMessageIndex >= 0 && !jsonOutput) {
+				process.stdout.write("\n")
+				lastStreamingMessageIndex = -1
 			}
 		} catch (error) {
 			if (jsonOutput) {
@@ -105,15 +128,17 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 		}
 
 		if (!isComplete) {
+			// Close any open streaming line before error message
+			if (lastStreamingMessageIndex >= 0 && !jsonOutput) {
+				process.stdout.write("\n")
+				lastStreamingMessageIndex = -1
+			}
 			if (jsonOutput) {
 				process.stdout.write(JSON.stringify({ type: "error", message: "Task timeout" }) + "\n")
 			} else {
 				process.stderr.write("Error: Task timeout" + "\n")
 			}
 			hasError = true
-		} else if (!hasError && !jsonOutput) {
-			// Print completion message for non-JSON mode
-			process.stdout.write("\nTask completed successfully\n")
 		}
 	} catch (error) {
 		if (jsonOutput) {
@@ -125,6 +150,10 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 		}
 		hasError = true
 	} finally {
+		// Close any open streaming line
+		if (lastStreamingMessageIndex >= 0 && !jsonOutput) {
+			process.stdout.write("\n")
+		}
 		// Restore original postStateToWebview
 		controller.postStateToWebview = originalPostState
 		unsubscribePartial()
@@ -135,17 +164,35 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 
 /**
  * Format a Cline message as plain text
+ * @param previousLength - Length of text already output for this message (for streaming)
+ * @returns true if this is a streaming message (caller should track for newline), false otherwise
  */
-function outputMessageAsText(message: ClineMessage, verbose: boolean) {
+function outputMessageAsText(message: ClineMessage, verbose: boolean, previousLength: number = 0): boolean {
 	const timestamp = new Date(message.ts || Date.now()).toLocaleTimeString()
+	const fullText = message.text ?? ""
+
+	if (!fullText) {
+		// Skip partial messages without text
+		return false
+	}
+
+	// For streaming text continuations, output only new content
+	if (previousLength > 0 && message.type === "say" && message.say === "text") {
+		process.stdout.write(fullText.slice(previousLength))
+		return true // Still streaming
+	}
 
 	if (message.type === "say") {
 		if (message.say === "task") {
-			process.stdout.write(`[${timestamp}] Task: ${message.text || ""}\n`)
+			process.stdout.write(`[${timestamp}] Task: ${fullText}\n`)
 		} else if (message.say === "text") {
-			process.stdout.write(`[${timestamp}] ${message.text || ""}\n`)
-		} else if (message.say === "completion_result") {
-			process.stdout.write(`[${timestamp}] Completed: ${message.text || ""}\n`)
+			// First output of text message - write prefix but no newline (streaming)
+			process.stdout.write(`[${timestamp}] ${fullText}`)
+			return true // Streaming - newline will be added when stream ends
+		} else if (message.say === "completion_result" && fullText) {
+			process.stdout.write(`[${timestamp}] Completed: ${fullText}\n`)
+		} else if (message.say === "error") {
+			process.stderr.write(`[${timestamp}] Error: ${fullText}\n`)
 		} else if (message.say === "api_req_started") {
 			if (verbose) {
 				process.stdout.write(`[${timestamp}] API request started\n`)
@@ -155,13 +202,20 @@ function outputMessageAsText(message: ClineMessage, verbose: boolean) {
 				process.stdout.write(`[${timestamp}] API request finished\n`)
 			}
 		} else if (verbose) {
-			process.stdout.write(`[${timestamp}] ${message.say}: ${message.text || ""}\n`)
+			process.stdout.write(`[${timestamp}] ${message.say}: ${fullText}\n`)
 		}
 	} else if (message.type === "ask") {
 		if (message.ask === "completion_result") {
 			process.stdout.write(`[${timestamp}] Task completed\n`)
+		} else if (message.ask === "api_req_failed") {
+			process.stderr.write(`[${timestamp}] API request failed: ${fullText}\n`)
+		} else if (message.ask === "tool" || message.ask === "command" || message.ask === "browser_action_launch") {
+			// These require approval - in non-interactive mode, warn the user
+			process.stderr.write(`[${timestamp}] Waiting for approval (use --yolo for auto-approve): ${message.ask}\n`)
 		} else if (verbose) {
-			process.stdout.write(`[${timestamp}] Question: ${message.text || ""}\n`)
+			process.stdout.write(`[${timestamp}] Question: ${fullText}\n`)
 		}
 	}
+
+	return false
 }
