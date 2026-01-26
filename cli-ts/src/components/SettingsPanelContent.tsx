@@ -10,7 +10,6 @@ import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { Box, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
-import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import { useStdinContext } from "../context/StdinContext"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { Checkbox } from "./Checkbox"
@@ -492,32 +491,45 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 	)
 
 	// Handle API key submission after provider selection
-	const handleApiKeySubmit = useCallback(async () => {
-		if (!pendingProvider || !apiKeyValue.trim()) return
+	const handleApiKeySubmit = useCallback(
+		async (submittedValue: string) => {
+			if (!pendingProvider || !submittedValue.trim()) {
+				return
+			}
 
-		// Get the API key field for this provider
-		const keyField = ProviderToApiKeyMap[pendingProvider as keyof typeof ProviderToApiKeyMap]
-		if (keyField) {
-			const fields = Array.isArray(keyField) ? keyField : [keyField]
-			// Save to secret storage
-			await secretStorage.set(fields[0], apiKeyValue.trim())
-		}
+			// Build config object with provider, model, and API key
+			const config: Record<string, string> = {
+				actModeApiProvider: pendingProvider,
+				planModeApiProvider: pendingProvider,
+				apiProvider: pendingProvider,
+			}
 
-		// Now set the provider and model
-		setProvider(pendingProvider)
-		stateManager.setGlobalState("actModeApiProvider", pendingProvider)
-		stateManager.setGlobalState("planModeApiProvider", pendingProvider)
-		const defaultModelId = getDefaultModelId(pendingProvider)
-		if (defaultModelId) {
-			stateManager.setGlobalState("actModeApiModelId", defaultModelId)
-			stateManager.setGlobalState("planModeApiModelId", defaultModelId)
-		}
+			// Add default model ID
+			const defaultModelId = getDefaultModelId(pendingProvider)
+			if (defaultModelId) {
+				config.actModeApiModelId = defaultModelId
+				config.planModeApiModelId = defaultModelId
+			}
 
-		// Clear state
-		setIsEnteringApiKey(false)
-		setPendingProvider(null)
-		setApiKeyValue("")
-	}, [pendingProvider, apiKeyValue, stateManager])
+			// Add API key using provider-specific field
+			const keyField = ProviderToApiKeyMap[pendingProvider as keyof typeof ProviderToApiKeyMap]
+			if (keyField) {
+				const fields = Array.isArray(keyField) ? keyField : [keyField]
+				config[fields[0]] = submittedValue.trim()
+			}
+
+			// Save via StateManager (same pattern as AuthView)
+			stateManager.setApiConfiguration(config)
+			await stateManager.flushPendingState()
+
+			// Update local state
+			setProvider(pendingProvider)
+			setIsEnteringApiKey(false)
+			setPendingProvider(null)
+			setApiKeyValue("")
+		},
+		[pendingProvider, stateManager],
+	)
 
 	// Handle saving edited value
 	const handleSave = useCallback(() => {
@@ -575,9 +587,9 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 	)
 
 	// Handle keyboard input
+	// Disable when in modes where child components handle input
 	useInput(
 		(input, key) => {
-			// Model picker mode - escape to close, input is handled by ModelPicker
 			// Provider picker mode - escape to close, input is handled by ProviderPicker
 			if (isPickingProvider) {
 				if (key.escape) {
@@ -592,11 +604,6 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 					setIsPickingModel(false)
 					setPickingModelKey(null)
 				}
-				return
-			}
-
-			// API key entry mode - input is handled by ApiKeyInput component
-			if (isEnteringApiKey) {
 				return
 			}
 
@@ -644,7 +651,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 				return
 			}
 		},
-		{ isActive: isRawModeSupported },
+		{ isActive: isRawModeSupported && !isEnteringApiKey },
 	)
 
 	// Render content
