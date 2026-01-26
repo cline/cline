@@ -10,26 +10,23 @@
 import type * as acp from "@agentclientprotocol/sdk"
 import { PROTOCOL_VERSION } from "@agentclientprotocol/sdk"
 import { registerPartialMessageCallback } from "@core/controller/ui/subscribeToPartialMessage"
-import type { ClineAsk, ClineMessage as ClineMessageType } from "@shared/ExtensionMessage"
+import type { ClineAsk, ClineMessage as ClineMessageType, ExtensionState } from "@shared/ExtensionMessage"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { Controller } from "@/core/controller"
+import { getRequestRegistry } from "@/core/controller/grpc-handler.js"
+import { subscribeToState } from "@/core/controller/state/subscribeToState.js"
 import { StateManager } from "@/core/storage/StateManager"
 import { AuthHandler } from "@/hosts/external/AuthHandler.js"
 import { ExternalCommentReviewController } from "@/hosts/external/ExternalCommentReviewController.js"
 import { ExternalWebviewProvider } from "@/hosts/external/ExternalWebviewProvider.js"
 import { HostProvider } from "@/hosts/host-provider.js"
 import { StandaloneTerminalManager } from "@/integrations/terminal/index.js"
+import { Logger } from "@/shared/services/Logger.js"
 import type { Mode } from "@/shared/storage/types"
 import { CliContextResult, initializeCliContext } from "../vscode-context.js"
 import { ACPDiffViewProvider } from "./ACPDiffViewProvider.js"
 import { ACPHostBridgeClientProvider } from "./ACPHostBridgeClientProvider.js"
-import { createSessionState, translateMessage, translateMessages } from "./messageTranslator.js"
-import {
-	AutoApprovalTracker,
-	getAutoApprovalIdentifier,
-	processPermissionRequest,
-	updateSessionStateAfterPermission,
-} from "./permissionHandler.js"
+import { translateMessage } from "./messageTranslator.js"
 import type { AcpAgentOptions, AcpSessionState, ClineAcpSession } from "./types.js"
 
 /**
@@ -52,13 +49,13 @@ export class AcpAgent implements acp.Agent {
 	private clientCapabilities?: acp.ClientCapabilities
 
 	/** Auto-approval tracker for remembering "always allow" decisions */
-	private readonly autoApprovalTracker: AutoApprovalTracker = new AutoApprovalTracker()
+	// private readonly autoApprovalTracker: AutoApprovalTracker = new AutoApprovalTracker()
 
 	/** Track processed message timestamps to detect new messages */
 	private processedMessageTimestamps: Set<number> = new Set()
 
-	/** Track last sent content length for partial messages to avoid duplicates */
-	private partialMessageLastLength: Map<number, number> = new Map()
+	/** Track last sent content for partial messages to compute deltas */
+	private partialMessageLastContent: Map<number, { text?: string; reasoning?: string }> = new Map()
 
 	/** Current active session ID for use by DiffViewProvider */
 	private currentActiveSessionId: string | undefined
@@ -78,7 +75,7 @@ export class AcpAgent implements acp.Agent {
 	async initialize(params: acp.InitializeRequest): Promise<acp.InitializeResponse> {
 		this.clientCapabilities = params.clientCapabilities
 
-		this.initializeHostProvider(params.clientCapabilities)
+		this.initializeHostProvider(this.clientCapabilities)
 
 		await StateManager.initialize(this.ctx.extensionContext)
 
@@ -139,7 +136,7 @@ export class AcpAgent implements acp.Agent {
 				}
 			},
 			hostBridgeClientProvider,
-			(message: string) => console.log(message),
+			(message: string) => Logger.info(message),
 			async () => {
 				return AuthHandler.getInstance().getCallbackUrl()
 			},
@@ -159,7 +156,7 @@ export class AcpAgent implements acp.Agent {
 		const sessionId = crypto.randomUUID()
 
 		if (this.options.debug) {
-			console.error("[AcpAgent] newSession called:", {
+			Logger.debug("[AcpAgent] newSession called:", {
 				sessionId,
 				cwd: params.cwd,
 				mcpServers: params.mcpServers?.length ?? 0,
@@ -212,7 +209,7 @@ export class AcpAgent implements acp.Agent {
 	 */
 	async loadSession(params: acp.LoadSessionRequest): Promise<acp.LoadSessionResponse> {
 		if (this.options.debug) {
-			console.error("[AcpAgent] loadSession called:", {
+			Logger.debug("[AcpAgent] loadSession called:", {
 				sessionId: params.sessionId,
 				cwd: params.cwd,
 			})
@@ -230,7 +227,7 @@ export class AcpAgent implements acp.Agent {
 			}
 
 			// Create Controller for this session
-			const controller = await this.createController()
+			const controller = new Controller(this.ctx.extensionContext)
 
 			// Recreate session from history with all resources
 			session = {
@@ -257,14 +254,14 @@ export class AcpAgent implements acp.Agent {
 			this.sessionStates.set(params.sessionId, sessionState)
 
 			if (this.options.debug) {
-				console.error("[AcpAgent] Session loaded with resources:", {
+				Logger.debug("[AcpAgent] Session loaded with resources:", {
 					sessionId: params.sessionId,
 					hasController: !!controller,
 				})
 			}
 
 			// Replay conversation history via session updates
-			await this.replayConversationHistory(params.sessionId, sessionState)
+			// 	await this.replayConversationHistory(params.sessionId, sessionState)
 		}
 
 		return {
@@ -278,10 +275,6 @@ export class AcpAgent implements acp.Agent {
 		}
 	}
 
-	private async createController(): Promise<Controller> {
-		return {} as Controller
-	}
-
 	/**
 	 * Replay conversation history from disk via session updates.
 	 *
@@ -289,59 +282,59 @@ export class AcpAgent implements acp.Agent {
 	 * translates them to ACP SessionUpdates, sending each to the client
 	 * to reconstruct the conversation state in the UI.
 	 */
-	private async replayConversationHistory(sessionId: string): Promise<void> {
-		try {
-			// Dynamically import disk utilities to avoid circular dependencies
-			const { getSavedClineMessages } = await import("@core/storage/disk")
-
-			// Load saved UI messages from disk
-			const uiMessages = await getSavedClineMessages(sessionId)
-
-			if (uiMessages.length === 0) {
-				if (this.options.debug) {
-					console.error("[AcpAgent] No saved messages found for session:", sessionId)
-				}
-				return
-			}
-
-			if (this.options.debug) {
-				console.error("[AcpAgent] Replaying conversation history:", {
-					sessionId,
-					messageCount: uiMessages.length,
-				})
-			}
-
-			// Create a temporary session state for translation to avoid polluting the real state
-			const replayState = createSessionState(sessionId)
-
-			// Translate all messages to ACP updates
-			const updates = translateMessages(uiMessages, replayState)
-
-			if (this.options.debug) {
-				console.error("[AcpAgent] Generated updates for replay:", {
-					sessionId,
-					updateCount: updates.length,
-				})
-			}
-
-			// Send all updates to the client to reconstruct conversation state
-			for (const update of updates) {
-				await this.sendSessionUpdate(sessionId, update)
-			}
-
-			if (this.options.debug) {
-				console.error("[AcpAgent] Conversation history replay complete:", sessionId)
-			}
-		} catch (error) {
-			// Log error but don't fail the session load - client will still have a valid session
-			if (this.options.debug) {
-				console.error("[AcpAgent] Error replaying conversation history:", {
-					sessionId,
-					error: error instanceof Error ? error.message : String(error),
-				})
-			}
-		}
-	}
+	// private async replayConversationHistory(sessionId: string): Promise<void> {
+	// 	try {
+	// 		// Dynamically import disk utilities to avoid circular dependencies
+	// 		const { getSavedClineMessages } = await import("@core/storage/disk")
+	//
+	// 		// Load saved UI messages from disk
+	// 		const uiMessages = await getSavedClineMessages(sessionId)
+	//
+	// 		if (uiMessages.length === 0) {
+	// 			if (this.options.debug) {
+	// 				Logger.debug("[AcpAgent] No saved messages found for session:", sessionId)
+	// 			}
+	// 			return
+	// 		}
+	//
+	// 		if (this.options.debug) {
+	// 			Logger.debug("[AcpAgent] Replaying conversation history:", {
+	// 				sessionId,
+	// 				messageCount: uiMessages.length,
+	// 			})
+	// 		}
+	//
+	// 		// Create a temporary session state for translation to avoid polluting the real state
+	// 		const replayState = createSessionState(sessionId)
+	//
+	// 		// Translate all messages to ACP updates
+	// 		const updates = translateMessages(uiMessages, replayState)
+	//
+	// 		if (this.options.debug) {
+	// 			Logger.debug("[AcpAgent] Generated updates for replay:", {
+	// 				sessionId,
+	// 				updateCount: updates.length,
+	// 			})
+	// 		}
+	//
+	// 		// Send all updates to the client to reconstruct conversation state
+	// 		for (const update of updates) {
+	// 			await this.sendSessionUpdate(sessionId, update)
+	// 		}
+	//
+	// 		if (this.options.debug) {
+	// 			Logger.debug("[AcpAgent] Conversation history replay complete:", sessionId)
+	// 		}
+	// 	} catch (error) {
+	// 		// Log error but don't fail the session load - client will still have a valid session
+	// 		if (this.options.debug) {
+	// 			Logger.debug("[AcpAgent] Error replaying conversation history:", {
+	// 				sessionId,
+	// 				error: error instanceof Error ? error.message : String(error),
+	// 			})
+	// 		}
+	// 	}
+	// }
 
 	/**
 	 * Handle a user prompt.
@@ -375,7 +368,7 @@ export class AcpAgent implements acp.Agent {
 		}
 
 		if (this.options.debug) {
-			console.error("[AcpAgent] prompt called:", {
+			Logger.debug("[AcpAgent] prompt called:", {
 				sessionId: params.sessionId,
 				promptLength: params.prompt.length,
 			})
@@ -389,7 +382,7 @@ export class AcpAgent implements acp.Agent {
 
 		// Clear processed timestamps for new prompt cycle
 		this.processedMessageTimestamps.clear()
-		this.partialMessageLastLength.clear()
+		this.partialMessageLastContent.clear()
 
 		// Track cleanup functions for subscriptions
 		const cleanupFunctions: (() => void)[] = []
@@ -423,21 +416,25 @@ export class AcpAgent implements acp.Agent {
 				.map((block) => block.resource.uri)
 
 			if (this.options.debug) {
-				console.error("[AcpAgent] Processing prompt:", {
+				Logger.debug("[AcpAgent] Processing prompt:", {
 					textLength: textContent.length,
 					imageCount: imageContent.length,
 					fileCount: fileResources.length,
 				})
 			}
 
-			// Set up state broadcasting - subscribe to controller state updates
-			const originalPostState = controller.postStateToWebview.bind(controller)
-			controller.postStateToWebview = async () => {
-				await originalPostState()
-				await this.handleStateUpdate(params.sessionId, sessionState, controller)
-			}
+			const requestId = "acp-session" + params.sessionId
+			subscribeToState(
+				controller,
+				{},
+				async (state) => {
+					const s = JSON.parse(state.stateJson) as ExtensionState
+					this.handleStateUpdate(params.sessionId, sessionState, s)
+				},
+				requestId,
+			)
 			cleanupFunctions.push(() => {
-				controller.postStateToWebview = originalPostState
+				getRequestRegistry().cancelRequest(requestId)
 			})
 
 			// Subscribe to partial message events for streaming updates
@@ -445,7 +442,7 @@ export class AcpAgent implements acp.Agent {
 				const message = convertProtoToClineMessage(protoMessage) as ClineMessageType
 				this.handlePartialMessage(params.sessionId, sessionState, message).catch((error) => {
 					if (this.options.debug) {
-						console.error("[AcpAgent] Error handling partial message:", error)
+						Logger.debug("[AcpAgent] Error handling partial message:", error)
 					}
 				})
 			})
@@ -458,7 +455,7 @@ export class AcpAgent implements acp.Agent {
 			if (isLoadedSession && !hasActiveTask) {
 				// First prompt on a loaded session - resume the task from history
 				if (this.options.debug) {
-					console.error("[AcpAgent] Resuming loaded session:", params.sessionId)
+					Logger.debug("[AcpAgent] Resuming loaded session:", params.sessionId)
 				}
 
 				// Clear the flag so subsequent prompts are handled normally
@@ -475,7 +472,7 @@ export class AcpAgent implements acp.Agent {
 			} else if (hasActiveTask && controller.task) {
 				// Continue existing task - respond to pending ask
 				if (this.options.debug) {
-					console.error("[AcpAgent] Continuing existing task:", controller.task.taskId)
+					Logger.debug("[AcpAgent] Continuing existing task:", controller.task.taskId)
 				}
 
 				// Find the last ask message and respond to it
@@ -488,14 +485,14 @@ export class AcpAgent implements acp.Agent {
 					// No pending ask - treat as new user message
 					// This shouldn't normally happen but handle gracefully
 					if (this.options.debug) {
-						console.error("[AcpAgent] No pending ask found, starting new task")
+						Logger.debug("[AcpAgent] No pending ask found, starting new task")
 					}
 					await controller.initTask(textContent, imageContent, fileResources)
 				}
 			} else {
 				// Start new task
 				if (this.options.debug) {
-					console.error("[AcpAgent] Starting new task")
+					Logger.debug("[AcpAgent] Starting new task")
 				}
 				await controller.initTask(textContent, imageContent, fileResources)
 			}
@@ -594,7 +591,7 @@ export class AcpAgent implements acp.Agent {
 					cleanup()
 				} catch (error) {
 					if (this.options.debug) {
-						console.error("[AcpAgent] Error during cleanup:", error)
+						Logger.debug("[AcpAgent] Error during cleanup:", error)
 					}
 				}
 			}
@@ -606,46 +603,70 @@ export class AcpAgent implements acp.Agent {
 	 * Handle a state update from the controller.
 	 * This is called whenever Controller.postStateToWebview() is invoked.
 	 */
-	private async handleStateUpdate(sessionId: string, sessionState: AcpSessionState, controller: Controller): Promise<void> {
+	private async handleStateUpdate(sessionId: string, sessionState: AcpSessionState, state: ExtensionState): Promise<void> {
 		try {
-			const state = await controller.getStateToPostToWebview()
 			const messages = state.clineMessages || []
 
 			// Process new or updated messages
 			for (const message of messages) {
 				// Skip messages that are being handled by the partial message callback
 				// (streaming text messages). These are handled via handlePartialMessage.
-				if (this.partialMessageLastLength.has(message.ts)) {
+				if (this.partialMessageLastContent.has(message.ts)) {
 					continue
 				}
 				await this.processMessage(sessionId, sessionState, message, false)
 			}
 		} catch (error) {
 			if (this.options.debug) {
-				console.error("[AcpAgent] Error handling state update:", error)
+				Logger.debug("[AcpAgent] Error handling state update:", error)
 			}
 		}
 	}
 
 	/**
 	 * Handle a partial message update (streaming content).
+	 * Computes deltas and sends only the new content as chunks.
 	 */
 	private async handlePartialMessage(
 		sessionId: string,
-		sessionState: AcpSessionState,
+		_sessionState: AcpSessionState,
 		message: ClineMessageType,
 	): Promise<void> {
 		const messageKey = message.ts
-		const contentLength = (message.text?.length ?? 0) + (message.reasoning?.length ?? 0)
-		const lastLength = this.partialMessageLastLength.get(messageKey) ?? 0
+		const lastContent = this.partialMessageLastContent.get(messageKey) ?? { text: "", reasoning: "" }
 
-		// Only process if content has actually grown
-		if (contentLength <= lastLength) {
+		const currentText = message.text ?? ""
+		const currentReasoning = message.reasoning ?? ""
+
+		// Compute deltas - only the new portion since last update
+		const textDelta = currentText.slice(lastContent.text?.length ?? 0)
+		const reasoningDelta = currentReasoning.slice(lastContent.reasoning?.length ?? 0)
+
+		// Only process if there's new content
+		if (!textDelta && !reasoningDelta) {
 			return
 		}
 
-		this.partialMessageLastLength.set(messageKey, contentLength)
-		await this.processMessage(sessionId, sessionState, message, true)
+		// Update tracked content
+		this.partialMessageLastContent.set(messageKey, {
+			text: currentText,
+			reasoning: currentReasoning,
+		})
+
+		// Send delta chunks directly
+		if (reasoningDelta) {
+			await this.sendSessionUpdate(sessionId, {
+				sessionUpdate: "agent_thought_chunk",
+				content: { type: "text", text: reasoningDelta },
+			})
+		}
+
+		if (textDelta) {
+			await this.sendSessionUpdate(sessionId, {
+				sessionUpdate: "agent_message_chunk",
+				content: { type: "text", text: textDelta },
+			})
+		}
 	}
 
 	/**
@@ -680,72 +701,7 @@ export class AcpAgent implements acp.Agent {
 
 		// Handle permission requests
 		if (translated.requiresPermission && translated.permissionRequest) {
-			await this.handlePermissionRequest(sessionId, sessionState, message, translated.permissionRequest)
-		}
-	}
-
-	/**
-	 * Handle a permission request from a tool/command.
-	 */
-	private async handlePermissionRequest(
-		sessionId: string,
-		sessionState: AcpSessionState,
-		message: ClineMessageType,
-		permissionRequest: any,
-	): Promise<void> {
-		const session = this.sessions.get(sessionId)
-		const controller = session?.controller
-		if (!controller?.task) {
-			return
-		}
-
-		const askType = message.ask as ClineAsk
-		const identifier = getAutoApprovalIdentifier(permissionRequest.toolCall, askType)
-
-		try {
-			const result = await processPermissionRequest(
-				(sid, tc, opts) => this.requestPermission(sid, tc, opts),
-				sessionId,
-				permissionRequest.toolCall,
-				askType,
-				identifier,
-				this.autoApprovalTracker,
-			)
-
-			// Update session state
-			updateSessionStateAfterPermission(
-				sessionState,
-				permissionRequest.toolCall.toolCallId,
-				result.response === "yesButtonClicked",
-			)
-
-			// Send tool call update based on permission result
-			const status: acp.ToolCallStatus = result.response === "yesButtonClicked" ? "in_progress" : "cancelled"
-			await this.sendSessionUpdate(sessionId, {
-				sessionUpdate: "tool_call_update",
-				toolCallId: permissionRequest.toolCall.toolCallId,
-				status,
-			})
-
-			// Respond to the task's ask
-			if (result.cancelled) {
-				// User cancelled - don't respond, let task handle timeout
-				return
-			}
-
-			await controller.task.handleWebviewAskResponse(result.response, result.text)
-		} catch (error) {
-			if (this.options.debug) {
-				console.error("[AcpAgent] Error handling permission request:", error)
-			}
-
-			// On error, mark tool as failed
-			await this.sendSessionUpdate(sessionId, {
-				sessionUpdate: "tool_call_update",
-				toolCallId: permissionRequest.toolCall.toolCallId,
-				status: "failed",
-				rawOutput: { error: error instanceof Error ? error.message : String(error) },
-			})
+			// TODO handle permission request
 		}
 	}
 
@@ -760,7 +716,7 @@ export class AcpAgent implements acp.Agent {
 		const sessionState = this.sessionStates.get(params.sessionId)
 
 		if (this.options.debug) {
-			console.error("[AcpAgent] cancel called:", {
+			Logger.debug("[AcpAgent] cancel called:", {
 				sessionId: params.sessionId,
 				isProcessing: sessionState?.isProcessing,
 			})
@@ -776,7 +732,7 @@ export class AcpAgent implements acp.Agent {
 					await controller.cancelTask()
 				} catch (error) {
 					if (this.options.debug) {
-						console.error("[AcpAgent] Error cancelling task:", error)
+						Logger.debug("[AcpAgent] Error cancelling task:", error)
 					}
 				}
 			}
@@ -798,7 +754,7 @@ export class AcpAgent implements acp.Agent {
 		}
 
 		if (this.options.debug) {
-			console.error("[AcpAgent] setSessionMode called:", {
+			Logger.debug("[AcpAgent] setSessionMode called:", {
 				sessionId: params.sessionId,
 				modeId: params.modeId,
 			})
@@ -836,7 +792,7 @@ export class AcpAgent implements acp.Agent {
 	 */
 	async authenticate(_params: acp.AuthenticateRequest): Promise<acp.AuthenticateResponse> {
 		if (this.options.debug) {
-			console.error("[AcpAgent] authenticate called (no-op)")
+			Logger.debug("[AcpAgent] authenticate called (no-op)")
 		}
 
 		// Authentication is handled externally for Cline
@@ -859,7 +815,7 @@ export class AcpAgent implements acp.Agent {
 			})
 		} catch (error) {
 			if (this.options.debug) {
-				console.error("[AcpAgent] Error sending session update:", error)
+				Logger.debug("[AcpAgent] Error sending session update:", error)
 			}
 		}
 	}
