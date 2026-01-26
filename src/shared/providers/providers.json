@@ -5,8 +5,8 @@
 			"label": "Cline"
 		},
 		{
-			"value": "openrouter",
-			"label": "OpenRouter"
+			"value": "openai-codex",
+			"label": "ChatGPT Subscription"
 		},
 		{
 			"value": "gemini",
@@ -37,8 +37,8 @@
 			"label": "OpenAI"
 		},
 		{
-			"value": "openai-codex",
-			"label": "OpenAI Codex (ChatGPT Plus/Pro)"
+			"value": "openrouter",
+			"label": "OpenRouter"
 		},
 		{
 			"value": "ollama",

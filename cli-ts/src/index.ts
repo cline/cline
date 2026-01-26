@@ -13,6 +13,7 @@ import { StateManager } from "@/core/storage/StateManager"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
 import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
+import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { StandaloneTerminalManager } from "@/integrations/terminal/standalone/StandaloneTerminalManager"
 import { BannerService } from "@/services/banner/BannerService"
 import { ErrorService } from "@/services/error/ErrorService"
@@ -135,6 +136,9 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 
 	await ErrorService.initialize()
 	await StateManager.initialize(extensionContext as any)
+
+	// Initialize OpenAI Codex OAuth manager with extension context for secrets storage
+	openAiCodexOAuthManager.initialize(extensionContext)
 
 	// Configure the shared Logging class to use HostProvider's output channel
 	Logger.setOutput((msg: string) => HostProvider.get().logToChannel(msg))
@@ -509,6 +513,7 @@ program
  * Check if the user has authentication configured.
  * Returns true if they have either:
  * - Cline provider with stored auth data
+ * - OpenAI Codex provider with OAuth credentials
  * - BYO provider with an API key configured
  */
 async function isAuthConfigured(): Promise<boolean> {
@@ -521,6 +526,12 @@ async function isAuthConfigured(): Promise<boolean> {
 		// For Cline provider, check if we have stored auth data
 		const authData = await secretStorage.get("cline:clineAccountId")
 		return !!authData
+	}
+
+	if (currentProvider === "openai-codex") {
+		// For OpenAI Codex, check if OAuth credentials are stored
+		const isAuthenticated = await openAiCodexOAuthManager.isAuthenticated()
+		return isAuthenticated
 	}
 
 	// For BYO providers, check if the API key is configured
