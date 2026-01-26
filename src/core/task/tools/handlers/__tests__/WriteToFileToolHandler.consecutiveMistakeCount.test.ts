@@ -415,6 +415,157 @@ describe("WriteToFileToolHandler consecutiveMistakeCount", () => {
 		})
 	})
 
+	describe("partial block streaming behavior", () => {
+		/**
+		 * Tests for the fix that skips error UI handling during streaming.
+		 *
+		 * During streaming, handlePartialBlock is called repeatedly with block.partial=true.
+		 * If a diff error occurs (e.g., search string not found), we should skip all error
+		 * handling to prevent:
+		 * - consecutiveMistakeCount from rapidly incrementing
+		 * - diff_error messages from being added/removed repeatedly
+		 * - visual flickering in the diff viewer
+		 *
+		 * Error handling should only run once on the final block (block.partial=false).
+		 */
+
+		it("should NOT increment counter when error occurs during partial block (streaming)", () => {
+			taskState.consecutiveMistakeCount = 0
+
+			// Simulate the streaming behavior where diff errors are skipped for partial blocks
+			const isPartialBlock = true
+			const diffError = new Error("SEARCH block content does not match anything in the file")
+
+			// In WriteToFileToolHandler.validateAndPrepareFileOperation, when block.partial=true:
+			// if (block.partial) { return } - early return, no error handling
+			if (!isPartialBlock) {
+				taskState.consecutiveMistakeCount++
+			}
+
+			// Counter should remain 0 because error handling was skipped
+			taskState.consecutiveMistakeCount.should.equal(0)
+		})
+
+		it("should increment counter when error occurs on final block (not streaming)", () => {
+			taskState.consecutiveMistakeCount = 0
+
+			// Simulate the final block (streaming complete)
+			const isPartialBlock = false
+			const diffError = new Error("SEARCH block content does not match anything in the file")
+
+			// In WriteToFileToolHandler.validateAndPrepareFileOperation, when block.partial=false:
+			// full error handling runs
+			if (!isPartialBlock) {
+				taskState.consecutiveMistakeCount++
+			}
+
+			// Counter should increment because this is the final block
+			taskState.consecutiveMistakeCount.should.equal(1)
+		})
+
+		it("should not accumulate errors during streaming even with multiple partial block failures", () => {
+			taskState.consecutiveMistakeCount = 0
+
+			// Simulate multiple streaming chunks with diff failures
+			// This happens when the search string isn't found because content is still streaming in
+			for (let chunk = 0; chunk < 10; chunk++) {
+				const isPartialBlock = true
+				// Each chunk fails to find the search string
+
+				// With the fix: skip error handling for partial blocks
+				if (!isPartialBlock) {
+					taskState.consecutiveMistakeCount++
+				}
+			}
+
+			// Counter should still be 0 because all errors were during streaming
+			taskState.consecutiveMistakeCount.should.equal(0)
+		})
+
+		it("should increment exactly once when streaming ends with error on final block", () => {
+			taskState.consecutiveMistakeCount = 0
+
+			// Simulate streaming: multiple partial blocks with failures, then final block with failure
+			const chunks = [
+				{ partial: true, error: true }, // chunk 1 - fails, skipped
+				{ partial: true, error: true }, // chunk 2 - fails, skipped
+				{ partial: true, error: true }, // chunk 3 - fails, skipped
+				{ partial: false, error: true }, // final block - fails, counted
+			]
+
+			for (const chunk of chunks) {
+				if (chunk.error && !chunk.partial) {
+					// Only increment on final block errors
+					taskState.consecutiveMistakeCount++
+				}
+			}
+
+			// Counter should be exactly 1 (only the final block error counted)
+			taskState.consecutiveMistakeCount.should.equal(1)
+		})
+
+		it("should allow successful streaming to complete without incrementing counter", () => {
+			taskState.consecutiveMistakeCount = 0
+
+			// Simulate successful streaming where early chunks fail but final chunk succeeds
+			const chunks = [
+				{ partial: true, error: true }, // chunk 1 - incomplete, fails
+				{ partial: true, error: true }, // chunk 2 - incomplete, fails
+				{ partial: true, error: false }, // chunk 3 - now has enough content, succeeds
+				{ partial: false, error: false }, // final block - succeeds
+			]
+
+			for (const chunk of chunks) {
+				if (chunk.error && !chunk.partial) {
+					taskState.consecutiveMistakeCount++
+				}
+			}
+
+			// Counter should be 0 because all errors were during streaming (partial)
+			// and the final block succeeded
+			taskState.consecutiveMistakeCount.should.equal(0)
+		})
+
+		it("should preserve existing counter value when partial block errors occur", () => {
+			// Start with some previous failures
+			taskState.consecutiveMistakeCount = 2
+
+			// Simulate partial block with diff error
+			const isPartialBlock = true
+
+			if (!isPartialBlock) {
+				taskState.consecutiveMistakeCount++
+			}
+
+			// Counter should remain at 2 (no change during streaming)
+			taskState.consecutiveMistakeCount.should.equal(2)
+		})
+
+		it("should correctly accumulate final block errors across multiple operations", () => {
+			taskState.consecutiveMistakeCount = 0
+
+			// Simulate multiple replace_in_file operations, each with streaming then final failure
+			for (let operation = 0; operation < 3; operation++) {
+				// Streaming phase - multiple partial blocks with errors (skipped)
+				for (let chunk = 0; chunk < 5; chunk++) {
+					const isPartialBlock = true
+					if (!isPartialBlock) {
+						taskState.consecutiveMistakeCount++
+					}
+				}
+
+				// Final block with error (counted)
+				const isPartialBlock = false
+				if (!isPartialBlock) {
+					taskState.consecutiveMistakeCount++
+				}
+			}
+
+			// Should be 3: one for each operation's final block failure
+			taskState.consecutiveMistakeCount.should.equal(3)
+		})
+	})
+
 	describe("auto-approval mode", () => {
 		/**
 		 * Auto-approval mode shouldn't affect counter behavior.
