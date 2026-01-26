@@ -17,7 +17,8 @@ import { StandaloneTerminalManager } from "@/integrations/terminal/standalone/St
 import { ErrorService } from "@/services/error/ErrorService"
 import { initializeDistinctId } from "@/services/logging/distinctId"
 import { Logger } from "@/shared/services/Logger"
-import { getProviderModelIdKey } from "@/shared/storage"
+import { getProviderModelIdKey, ProviderToApiKeyMap } from "@/shared/storage"
+import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import { version as CLI_VERSION } from "../package.json"
 import { App } from "./components/App"
 import { checkRawModeSupport } from "./context/StdinContext"
@@ -470,13 +471,81 @@ program
 	.command("version")
 	.description("Show Cline CLI version number")
 	.action(() => printInfo(`Cline CLI version: ${CLI_VERSION}`))
+
+/**
+ * Check if the user has authentication configured.
+ * Returns true if they have either:
+ * - Cline provider with stored auth data
+ * - BYO provider with an API key configured
+ */
+async function isAuthConfigured(): Promise<boolean> {
+	const stateManager = StateManager.get()
+	const mode = stateManager.getGlobalSettingsKey("mode") as string
+	const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
+	const currentProvider = (stateManager.getGlobalSettingsKey(providerKey) as string) || "cline"
+
+	if (currentProvider === "cline") {
+		// For Cline provider, check if we have stored auth data
+		const authData = await secretStorage.get("cline:clineAccountId")
+		return !!authData
+	}
+
+	// For BYO providers, check if the API key is configured
+	const keyField = ProviderToApiKeyMap[currentProvider as keyof typeof ProviderToApiKeyMap]
+	if (!keyField) {
+		return false
+	}
+
+	const fields = Array.isArray(keyField) ? keyField : [keyField]
+	for (const field of fields) {
+		const value = await secretStorage.get(field)
+		if (value) {
+			return true
+		}
+	}
+
+	return false
+}
+
 /**
  * Show welcome prompt and wait for user input
- * Just calls runTask with empty prompt to show welcome screen
+ * If auth is not configured, show auth flow first
  */
 async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: string; thinking?: boolean }) {
-	// Empty prompt will show welcome screen and wait for user input
-	await runTask("", options)
+	const ctx = await initializeCli({ ...options, enableAuth: true })
+
+	// Check if auth is configured
+	const hasAuth = await isAuthConfigured()
+
+	// Query cursor position BEFORE Ink mounts
+	const cursorPos = await queryCursorPos(process.stdin, process.stdout)
+	const terminalRows = process.stdout.rows ?? 24
+	const robotTopRow = calculateRobotTopRow(cursorPos, terminalRows)
+
+	let hadError = false
+
+	await runInkApp(
+		React.createElement(App, {
+			// Start with auth view if not configured, otherwise welcome
+			view: hasAuth ? "welcome" : "auth",
+			verbose: options.verbose,
+			controller: ctx.controller,
+			isRawModeSupported: checkRawModeSupport(),
+			robotTopRow,
+			onWelcomeExit: () => {
+				exit(0)
+			},
+			onError: () => {
+				hadError = true
+			},
+		}),
+		async () => {
+			await ctx.controller.stateManager.flushPendingState()
+			await ctx.controller.dispose()
+			await ErrorService.get().dispose()
+			exit(hadError ? 1 : 0)
+		},
+	)
 }
 
 // Interactive mode (default when no command given)
