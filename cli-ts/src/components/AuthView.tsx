@@ -7,11 +7,9 @@ import { Box, Text, useApp, useInput } from "ink"
 import Spinner from "ink-spinner"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
-import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { AuthService } from "@/services/auth/AuthService"
-import { API_PROVIDERS_LIST, openAiCodexDefaultModelId, openRouterDefaultModelId } from "@/shared/api"
+import { API_PROVIDERS_LIST, openRouterDefaultModelId } from "@/shared/api"
 import { ProviderToApiKeyMap } from "@/shared/storage"
-import { openExternal } from "@/utils/env"
 import { COLORS } from "../constants/colors"
 import { getAllFeaturedModels } from "../constants/featured-models"
 import { useStdinContext } from "../context/StdinContext"
@@ -22,7 +20,7 @@ import { ApiKeyInput } from "./ApiKeyInput"
 import { StaticRobotFrame } from "./AsciiMotionCli"
 import { ImportView } from "./ImportView"
 import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
-import { getProviderLabel, getProviderOrder } from "./ProviderPicker"
+import { getProviderLabel, POPULAR_PROVIDERS } from "./ProviderPicker"
 
 type AuthStep =
 	| "menu"
@@ -35,7 +33,6 @@ type AuthStep =
 	| "error"
 	| "cline_auth"
 	| "cline_model"
-	| "openai_codex_auth"
 	| "import"
 
 // Featured models loaded from shared constants
@@ -99,7 +96,9 @@ const Select: React.FC<{
 					</Text>
 				</Box>
 			))}
-			<Text color="gray">(Use arrow keys to navigate, Enter to select)</Text>
+			<Text color="gray" dimColor>
+				(Use arrow keys to navigate, Enter to select)
+			</Text>
 		</Box>
 	)
 }
@@ -163,10 +162,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [importSources, setImportSources] = useState<DetectedSources>({ codex: false, opencode: false })
 	const [importSource, setImportSource] = useState<ImportSource | null>(null)
 
-	// Use providers.json order, filtered to only available providers
+	// Sort providers with popular ones first, then alphabetically
 	const sortedProviders = useMemo(() => {
-		const availableProviders = new Set(API_PROVIDERS_LIST)
-		return getProviderOrder().filter((p) => availableProviders.has(p))
+		const popular = POPULAR_PROVIDERS.filter((p) => API_PROVIDERS_LIST.includes(p))
+		const others = API_PROVIDERS_LIST.filter((p) => !POPULAR_PROVIDERS.includes(p)).sort()
+		return [...popular, ...others]
 	}, [])
 
 	// Get configured providers (those with API keys set)
@@ -201,9 +201,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	// Main menu items - conditionally include import options
 	const mainMenuItems: SelectItem[] = useMemo(() => {
 		const items: SelectItem[] = [{ label: "Sign in with Cline account", value: "cline_auth" }]
-
-		// Add OpenAI Codex option for ChatGPT subscribers
-		items.push({ label: "Sign in with ChatGPT Subscription", value: "openai_codex_auth" })
 
 		// Add import options if detected
 		if (importSources.codex) {
@@ -387,42 +384,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		}
 	}
 
-	// Start OpenAI Codex OAuth flow
-	const startOpenAiCodexAuth = useCallback(async () => {
-		try {
-			// Get the authorization URL and start the callback server
-			const authUrl = openAiCodexOAuthManager.startAuthorizationFlow()
-
-			// Open browser to authorization URL (uses cross-platform 'open' package)
-			await openExternal(authUrl)
-
-			// Wait for the callback
-			await openAiCodexOAuthManager.waitForCallback()
-
-			// Success - save configuration
-			const stateManager = StateManager.get()
-			const mode = stateManager.getGlobalSettingsKey("mode") || "act"
-			const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
-			const modelIdKey = mode === "act" ? "actModeApiModelId" : "planModeApiModelId"
-			const config: Record<string, string> = {
-				actModeApiProvider: "openai-codex",
-				planModeApiProvider: "openai-codex",
-				[providerKey]: "openai-codex",
-				[modelIdKey]: openAiCodexDefaultModelId,
-			}
-			stateManager.setApiConfiguration(config)
-			await stateManager.flushPendingState()
-
-			setSelectedProvider("openai-codex")
-			setModelId(openAiCodexDefaultModelId)
-			setStep("success")
-		} catch (error) {
-			openAiCodexOAuthManager.cancelAuthorizationFlow()
-			setErrorMessage(error instanceof Error ? error.message : String(error))
-			setStep("error")
-		}
-	}, [])
-
 	const handleMainMenuSelect = useCallback(
 		(value: string) => {
 			if (value === "exit") {
@@ -432,9 +393,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				setStep("cline_auth")
 				setAuthStatus("Starting authentication...")
 				AuthService.getInstance(controller).createAuthRequest()
-			} else if (value === "openai_codex_auth") {
-				setStep("openai_codex_auth")
-				startOpenAiCodexAuth()
 			} else if (value === "configure_byo") {
 				setStep("provider")
 			} else if (value === "import_codex") {
@@ -445,7 +403,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				setStep("import")
 			}
 		},
-		[exit, onComplete, controller, startOpenAiCodexAuth],
+		[exit, onComplete, controller],
 	)
 
 	const handleProviderSelect = useCallback(
@@ -455,14 +413,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				setStep("cline_auth")
 				setAuthStatus("Starting authentication...")
 				AuthService.getInstance(controller).createAuthRequest()
-			} else if (value === "openai-codex") {
-				setStep("openai_codex_auth")
-				startOpenAiCodexAuth()
 			} else {
 				setStep("apikey")
 			}
 		},
-		[controller, startOpenAiCodexAuth],
+		[controller],
 	)
 
 	const handleApiKeySubmit = useCallback(
@@ -623,10 +578,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			case "cline_auth":
 				setStep("menu")
 				break
-			case "openai_codex_auth":
-				openAiCodexOAuthManager.cancelAuthorizationFlow()
-				setStep("menu")
-				break
 			case "cline_model":
 				setClineModelIndex(0)
 				setStep("menu")
@@ -658,7 +609,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 							<Text inverse> </Text>
 						</Box>
 						<Text> </Text>
-						{showProviderTopIndicator && <Text color="gray">... {providerVisibleStart} more above</Text>}
+						{showProviderTopIndicator && (
+							<Text color="gray" dimColor>
+								... {providerVisibleStart} more above
+							</Text>
+						)}
 						{visibleProviderItems.map((item, i) => {
 							const actualIndex = providerVisibleStart + i
 							return (
@@ -671,13 +626,19 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 							)
 						})}
 						{showProviderBottomIndicator && (
-							<Text color="gray">
+							<Text color="gray" dimColor>
 								... {providerItems.length - providerVisibleStart - providerVisibleCount} more below
 							</Text>
 						)}
-						{providerItems.length === 0 && <Text color="gray">No providers match "{providerSearch}"</Text>}
+						{providerItems.length === 0 && (
+							<Text color="gray" dimColor>
+								No providers match "{providerSearch}"
+							</Text>
+						)}
 						<Text> </Text>
-						<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to go back</Text>
+						<Text color="gray" dimColor>
+							Type to search, arrows to navigate, Enter to select, Esc to go back
+						</Text>
 					</Box>
 				)
 			}
@@ -708,7 +669,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 								provider={selectedProvider}
 							/>
 							<Text> </Text>
-							<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to go back</Text>
+							<Text color="gray" dimColor>
+								Type to search, arrows to navigate, Enter to select, Esc to go back
+							</Text>
 						</Box>
 					)
 				}
@@ -721,7 +684,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 						<Text> </Text>
 						<TextInput onChange={setModelId} onSubmit={handleModelIdSubmit} placeholder="model-id" value={modelId} />
 						<Text> </Text>
-						<Text color="gray">Enter to continue, Esc to go back</Text>
+						<Text color="gray" dimColor>
+							Enter to continue, Esc to go back
+						</Text>
 					</Box>
 				)
 
@@ -739,7 +704,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 							value={baseUrl}
 						/>
 						<Text> </Text>
-						<Text color="gray">Enter to skip or continue, Esc to go back</Text>
+						<Text color="gray" dimColor>
+							Enter to skip or continue, Esc to go back
+						</Text>
 					</Box>
 				)
 
@@ -765,24 +732,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 						<Text> </Text>
 						<Text color="gray">Complete sign-in in your browser, then return here.</Text>
 						<Text> </Text>
-						<Text color="gray">Esc to cancel</Text>
-					</Box>
-				)
-
-			case "openai_codex_auth":
-				return (
-					<Box flexDirection="column">
-						<Box>
-							<Text color={COLORS.primaryBlue}>
-								<Spinner type="dots" />
-							</Text>
-							<Text color="white"> Waiting for ChatGPT sign-in...</Text>
-						</Box>
-						<Text> </Text>
-						<Text color="gray">Sign in with your ChatGPT account in the browser.</Text>
-						<Text color="gray">Requires ChatGPT Plus, Pro, or Team subscription.</Text>
-						<Text> </Text>
-						<Text color="gray">Esc to cancel</Text>
+						<Text color="gray" dimColor>
+							Esc to cancel
+						</Text>
 					</Box>
 				)
 
@@ -830,7 +782,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 						</Box>
 
 						<Text> </Text>
-						<Text color="gray">Arrows to navigate, Enter to select</Text>
+						<Text color="gray" dimColor>
+							Arrows to navigate, Enter to select
+						</Text>
 					</Box>
 				)
 			}
@@ -864,7 +818,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [menuIndex, setMenuIndex] = useState(0)
 
 	// Steps that allow going back with escape (apikey handled by ApiKeyInput component)
-	const canGoBack = ["provider", "modelid", "baseurl", "cline_auth", "cline_model", "openai_codex_auth", "error"].includes(step)
+	const canGoBack = ["provider", "modelid", "baseurl", "cline_auth", "cline_model", "error"].includes(step)
 
 	useInput(
 		(input, key) => {
@@ -954,7 +908,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 							</Box>
 						))}
 						<Text> </Text>
-						<Text color="gray">Use arrow keys, Enter to select</Text>
+						<Text color="gray" dimColor>
+							Use arrow keys, Enter to select
+						</Text>
 					</Box>
 				) : (
 					renderAuthContent()

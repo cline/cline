@@ -288,7 +288,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const [isSearching, setIsSearching] = useState(false)
 	const [showRipgrepWarning, setShowRipgrepWarning] = useState(false)
 	const [respondedToAsk, setRespondedToAsk] = useState<number | null>(null)
-	const [userScrolled, setUserScrolled] = useState(false)
 
 	// Slash command state
 	const [availableCommands, setAvailableCommands] = useState<SlashCommandInfo[]>([])
@@ -297,7 +296,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const lastSlashIndexRef = useRef<number>(-1)
 
 	// Settings panel state
-	const [activePanel, setActivePanel] = useState<{ type: "settings"; initialMode?: "model-picker" } | null>(null)
+	const [activePanel, setActivePanel] = useState<"settings" | null>(null)
 
 	// Track which messages have been rendered to Static (by timestamp)
 	// Using refs instead of state to avoid extra renders during streaming->static transition
@@ -519,8 +518,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		return { completedMessages: completed, currentMessage: current }
 	}, [displayMessages])
 
-	// Determine if we're in welcome state (no messages yet and user hasn't scrolled)
-	const isWelcomeState = displayMessages.length === 0 && !userScrolled
+	// Determine if we're in welcome state (no messages yet)
+	const isWelcomeState = displayMessages.length === 0
 
 	// Build Static items - each item is rendered once and stays above dynamic content
 	// We pass ALL completed messages to Static and let Ink handle deduplication by key.
@@ -530,9 +529,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			{ key: string; type: "header" } | { key: string; type: "message"; message: (typeof displayMessages)[0] }
 		> = []
 
-		// Add header as first item ONLY after messages start or user scrolls (so animated robot shows first)
-		// Once messages exist or user scrolls, add header to static so it scrolls up with history
-		if (displayMessages.length > 0 || userScrolled) {
+		// Add header as first item ONLY after messages start (so animated robot shows first)
+		// Once messages exist, add header to static so it scrolls up with history
+		if (displayMessages.length > 0) {
 			items.push({ key: "header", type: "header" })
 		}
 
@@ -542,7 +541,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		}
 
 		return items
-	}, [completedMessages, displayMessages.length, userScrolled])
+	}, [completedMessages, displayMessages.length])
 
 	// Check for pending ask message
 	const lastMessage = messages[messages.length - 1]
@@ -771,17 +770,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				if (cmd) {
 					// Handle CLI-only commands locally
 					if (cmd.name === "settings") {
-						setActivePanel({ type: "settings" })
-						setTextInput("")
-						setCursorPos(0)
-						setSelectedSlashIndex(0)
-						setSlashMenuDismissed(true)
-						return
-					}
-					if (cmd.name === "models") {
-						// If separate models for plan/act is enabled, just open settings (user picks which mode)
-						const hasSeparateModels = StateManager.get().getGlobalSettingsKey("planActSeparateModelsSetting")
-						setActivePanel({ type: "settings", initialMode: hasSeparateModels ? undefined : "model-picker" })
+						setActivePanel("settings")
 						setTextInput("")
 						setCursorPos(0)
 						setSelectedSlashIndex(0)
@@ -948,10 +937,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 			{/* Dynamic region - only current streaming message + input */}
 			<Box flexDirection="column" width="100%">
-				{/* Animated robot and welcome text - only shown before messages start and user hasn't scrolled */}
+				{/* Animated robot and welcome text - only shown before messages start */}
 				{isWelcomeState && (
 					<Box flexDirection="column" marginBottom={1}>
-						<AsciiMotionCli onScroll={() => setUserScrolled(true)} robotTopRow={robotTopRow} />
+						<AsciiMotionCli robotTopRow={robotTopRow} />
 						<Text> </Text>
 						<Text bold color="white">
 							{centerText("What can I do for you?")}
@@ -1002,13 +991,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				)}
 
 				{/* Settings panel */}
-				{activePanel?.type === "settings" && (
-					<SettingsPanelContent
-						controller={ctrl}
-						initialMode={activePanel.initialMode}
-						onClose={() => setActivePanel(null)}
-					/>
-				)}
+				{activePanel === "settings" && <SettingsPanelContent controller={ctrl} onClose={() => setActivePanel(null)} />}
 
 				{/* Slash command menu - below input (takes priority over file menu) */}
 				{showSlashMenu && !activePanel && (
@@ -1048,27 +1031,31 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						{/* Row 1: Instructions (left, can wrap) | Plan/Act toggle (right, no wrap) */}
 						<Box justifyContent="space-between" paddingLeft={1} paddingRight={1} width="100%">
 							<Box flexShrink={1} flexWrap="wrap">
-								<Text color="gray">@ for files · / for commands</Text>
+								<Text color="gray" dimColor>
+									@ for files · / for commands
+								</Text>
 							</Box>
 							<Box flexShrink={0} gap={1}>
 								<Box>
-									<Text bold={mode === "plan"} color={mode === "plan" ? "yellow" : undefined}>
+									<Text bold={mode === "plan"} color={mode === "plan" ? "yellow" : "gray"}>
 										{mode === "plan" ? "●" : "○"} Plan
 									</Text>
 								</Box>
 								<Box>
-									<Text bold={mode === "act"} color={mode === "act" ? COLORS.primaryBlue : undefined}>
+									<Text bold={mode === "act"} color={mode === "act" ? COLORS.primaryBlue : "gray"}>
 										{mode === "act" ? "●" : "○"} Act
 									</Text>
 								</Box>
-								<Text color="gray">(Tab)</Text>
+								<Text color="gray" dimColor>
+									(Tab)
+								</Text>
 							</Box>
 						</Box>
 
 						{/* Row 2: Model/context/tokens/cost */}
 						<Box paddingLeft={1} paddingRight={1}>
 							<Text>
-								{modelId} {(() => {
+								<Text color="gray">{modelId}</Text> {(() => {
 									const bar = createContextBar(
 										metrics.totalTokensIn + metrics.totalTokensOut,
 										DEFAULT_CONTEXT_WINDOW,
@@ -1076,19 +1063,23 @@ export const ChatView: React.FC<ChatViewProps> = ({
 									return (
 										<Text>
 											<Text color="gray">{bar.filled}</Text>
-											<Text color="gray">{bar.empty}</Text>
+											<Text color="gray" dimColor>
+												{bar.empty}
+											</Text>
 										</Text>
 									)
-								})()}({(metrics.totalTokensIn + metrics.totalTokensOut).toLocaleString()}) | $
-								{metrics.totalCost.toFixed(3)}
+								})()}
+								<Text color="gray"> ({(metrics.totalTokensIn + metrics.totalTokensOut).toLocaleString()})</Text>
+								<Text color="gray"> | </Text>
+								<Text color="gray">${metrics.totalCost.toFixed(3)}</Text>
 							</Text>
 						</Box>
 
 						{/* Row 3: Repo/branch/diff stats */}
 						<Box paddingLeft={1} paddingRight={1}>
-							<Text>
+							<Text color="gray">
 								{workspacePath.split("/").pop() || workspacePath}
-								{gitBranch && ` (${gitBranch})`}
+								{gitBranch && <Text color="gray"> ({gitBranch})</Text>}
 								{gitDiffStats && gitDiffStats.files > 0 && (
 									<Text>
 										{" "}
@@ -1105,7 +1096,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 							{yolo ? (
 								<Text color="green">⏵⏵ Auto-approve all enabled (Shift+Tab)</Text>
 							) : (
-								<Text color="gray">Auto-approve all disabled (Shift+Tab)</Text>
+								<Text color="gray" dimColor>
+									Auto-approve all disabled (Shift+Tab)
+								</Text>
 							)}
 						</Box>
 					</>

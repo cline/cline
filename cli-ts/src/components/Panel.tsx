@@ -33,7 +33,10 @@ export const Panel: React.FC<PanelProps> = ({ label, tabs, currentTab, children 
 				<Text bold color={COLORS.primaryBlue}>
 					{label}
 				</Text>
-				<Text color="gray"> (Esc to close)</Text>
+				<Text color="gray" dimColor>
+					{" "}
+					(Esc to close)
+				</Text>
 			</Box>
 
 			{/* Tab bar if tabs are provided */}
@@ -42,16 +45,15 @@ export const Panel: React.FC<PanelProps> = ({ label, tabs, currentTab, children 
 					{tabs.map((tab, idx) => {
 						const isActive = idx === currentTabIndex
 						return (
-							<Text
-								bold={isActive}
-								color={isActive ? COLORS.primaryBlue : "white"}
-								inverse={isActive}
-								key={tab.key}>
+							<Text bold={isActive} color={isActive ? COLORS.primaryBlue : "gray"} inverse={isActive} key={tab.key}>
 								{` ${tab.label} `}
 							</Text>
 						)
 					})}
-					<Text color="gray"> (←/→)</Text>
+					<Text color="gray" dimColor>
+						{" "}
+						(←/→)
+					</Text>
 				</Box>
 			)}
 
