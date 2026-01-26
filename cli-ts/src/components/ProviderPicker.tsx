@@ -12,11 +12,15 @@ const providerLabels: Record<string, string> = Object.fromEntries(
 	providersData.list.map((p: { value: string; label: string }) => [p.value, p.label]),
 )
 
-// Popular providers to show at the top of the list
-export const POPULAR_PROVIDERS = ["anthropic", "openai-native", "openai", "gemini", "bedrock", "openrouter"]
+// Get provider order from providers.json (same order as webview)
+const providerOrder: string[] = providersData.list.map((p: { value: string }) => p.value)
 
 export function getProviderLabel(providerId: string): string {
 	return providerLabels[providerId] || providerId
+}
+
+export function getProviderOrder(): string[] {
+	return providerOrder
 }
 
 interface ProviderPickerProps {
@@ -26,11 +30,10 @@ interface ProviderPickerProps {
 }
 
 export const ProviderPicker: React.FC<ProviderPickerProps> = ({ onSelect, isActive = true, configuredProviders = new Set() }) => {
-	// Sort providers with popular ones first, then alphabetically
+	// Use providers.json order, filtered to only available providers
 	const items: SearchableListItem[] = useMemo(() => {
-		const popular = POPULAR_PROVIDERS.filter((p) => API_PROVIDERS_LIST.includes(p))
-		const others = API_PROVIDERS_LIST.filter((p) => !POPULAR_PROVIDERS.includes(p)).sort()
-		const sorted = [...popular, ...others]
+		const availableProviders = new Set(API_PROVIDERS_LIST)
+		const sorted = providerOrder.filter((p) => availableProviders.has(p))
 
 		return sorted.map((providerId) => ({
 			id: providerId,
