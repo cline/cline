@@ -154,11 +154,21 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			case "api":
 				return [
 					{ key: "provider", label: "Provider", type: "readonly", value: provider },
-					{ key: "actHeader", label: separateModels ? "Act Mode" : "Model", type: "header", value: "" },
-					{ key: "actModelId", label: "Model ID", type: "editable", value: actModelId || "not set" },
-					{ key: "actThinkingEnabled", label: "Enable thinking", type: "checkbox", value: actThinkingEnabled },
 					...(separateModels
 						? [
+								{ key: "actHeader", label: "Act Mode", type: "header" as const, value: "" },
+								{
+									key: "actModelId",
+									label: "Model ID",
+									type: "editable" as const,
+									value: actModelId || "not set",
+								},
+								{
+									key: "actThinkingEnabled",
+									label: "Enable thinking",
+									type: "checkbox" as const,
+									value: actThinkingEnabled,
+								},
 								{ key: "planHeader", label: "Plan Mode", type: "header" as const, value: "" },
 								{
 									key: "planModelId",
@@ -173,7 +183,20 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 									value: planThinkingEnabled,
 								},
 							]
-						: []),
+						: [
+								{
+									key: "actModelId",
+									label: "Model ID",
+									type: "editable" as const,
+									value: actModelId || "not set",
+								},
+								{
+									key: "actThinkingEnabled",
+									label: "Enable thinking",
+									type: "checkbox" as const,
+									value: actThinkingEnabled,
+								},
+							]),
 					{
 						key: "separateModels",
 						label: "Use separate models for Plan and Act",
