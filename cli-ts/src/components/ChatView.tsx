@@ -128,6 +128,7 @@ import { extractSlashQuery, filterCommands, insertSlashCommand } from "../utils/
 import { AsciiMotionCli, StaticRobotFrame } from "./AsciiMotionCli"
 import { ChatMessage } from "./ChatMessage"
 import { FileMentionMenu } from "./FileMentionMenu"
+import { HighlightedInput } from "./HighlightedInput"
 import { SlashCommandMenu } from "./SlashCommandMenu"
 import { ThinkingIndicator } from "./ThinkingIndicator"
 
@@ -795,7 +796,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					width="100%">
 					<Box>
 						{inputPrompt && <Text color="yellow">{inputPrompt} </Text>}
-						<Text>{textInput}</Text>
+						<HighlightedInput text={textInput} />
 						<Text color="gray">▌</Text>
 					</Box>
 					<Text color="gray" dimColor>
