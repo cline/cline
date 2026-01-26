@@ -406,11 +406,23 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		if (item.key === "actThinkingEnabled") {
 			setActThinkingEnabled(newValue)
 			stateManager.setGlobalState("actModeThinkingBudgetTokens", newValue ? 1024 : 0)
+			// Rebuild API handler to apply thinking budget change
+			if (controller?.task) {
+				const currentMode = stateManager.getGlobalSettingsKey("mode")
+				const apiConfig = stateManager.getApiConfiguration()
+				controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+			}
 			return
 		}
 		if (item.key === "planThinkingEnabled") {
 			setPlanThinkingEnabled(newValue)
 			stateManager.setGlobalState("planModeThinkingBudgetTokens", newValue ? 1024 : 0)
+			// Rebuild API handler to apply thinking budget change
+			if (controller?.task) {
+				const currentMode = stateManager.getGlobalSettingsKey("mode")
+				const apiConfig = stateManager.getApiConfiguration()
+				controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+			}
 			return
 		}
 
