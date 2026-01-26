@@ -986,9 +986,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 								text={textInput}
 							/>
 						</Box>
-						<Text color="gray" dimColor>
-							↵ send
-						</Text>
 					</Box>
 				)}
 
