@@ -296,7 +296,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const lastSlashIndexRef = useRef<number>(-1)
 
 	// Settings panel state
-	const [activePanel, setActivePanel] = useState<"settings" | null>(null)
+	const [activePanel, setActivePanel] = useState<{ type: "settings"; initialMode?: "model-picker" } | null>(null)
 
 	// Track which messages have been rendered to Static (by timestamp)
 	// Using refs instead of state to avoid extra renders during streaming->static transition
@@ -770,7 +770,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				if (cmd) {
 					// Handle CLI-only commands locally
 					if (cmd.name === "settings") {
-						setActivePanel("settings")
+						setActivePanel({ type: "settings" })
+						setTextInput("")
+						setCursorPos(0)
+						setSelectedSlashIndex(0)
+						setSlashMenuDismissed(true)
+						return
+					}
+					if (cmd.name === "models") {
+						// If separate models for plan/act is enabled, just open settings (user picks which mode)
+						const hasSeparateModels = StateManager.get().getGlobalSettingsKey("planActSeparateModelsSetting")
+						setActivePanel({ type: "settings", initialMode: hasSeparateModels ? undefined : "model-picker" })
 						setTextInput("")
 						setCursorPos(0)
 						setSelectedSlashIndex(0)
@@ -991,7 +1001,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				)}
 
 				{/* Settings panel */}
-				{activePanel === "settings" && <SettingsPanelContent controller={ctrl} onClose={() => setActivePanel(null)} />}
+				{activePanel?.type === "settings" && (
+					<SettingsPanelContent
+						controller={ctrl}
+						initialMode={activePanel.initialMode}
+						onClose={() => setActivePanel(null)}
+					/>
+				)}
 
 				{/* Slash command menu - below input (takes priority over file menu) */}
 				{showSlashMenu && !activePanel && (
