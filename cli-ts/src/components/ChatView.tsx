@@ -827,7 +827,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						width="100%">
 						<Box>
 							{inputPrompt && <Text color="yellow">{inputPrompt} </Text>}
-							<HighlightedInput text={textInput} />
+							<HighlightedInput availableCommands={availableCommands.map((c) => c.name)} text={textInput} />
 							<Text color="gray">▌</Text>
 						</Box>
 						<Text color="gray" dimColor>

@@ -9,6 +9,7 @@ import React from "react"
 
 interface HighlightedInputProps {
 	text: string
+	availableCommands?: string[]
 }
 
 // Regex for / commands (at start or after whitespace)
@@ -19,7 +20,7 @@ interface Segment {
 	type: "normal" | "mention" | "command"
 }
 
-function parseInput(text: string): Segment[] {
+function parseInput(text: string, availableCommands?: string[]): Segment[] {
 	const highlights: { start: number; end: number; type: "mention" | "command" }[] = []
 
 	// Find all mentions
@@ -33,18 +34,24 @@ function parseInput(text: string): Segment[] {
 		})
 	}
 
-	// Find first slash command only
+	// Find first slash command only (must be complete and valid)
 	slashCommandRegex.lastIndex = 0
 	const slashMatch = slashCommandRegex.exec(text)
 	if (slashMatch) {
 		const prefix = slashMatch[1] || ""
+		const commandText = slashMatch[2] // e.g., "/help"
+		const commandName = commandText.slice(1) // e.g., "help"
 		const commandStart = slashMatch.index + prefix.length
-		const commandEnd = slashMatch.index + slashMatch[0].length
-		highlights.push({
-			start: commandStart,
-			end: commandEnd,
-			type: "command",
-		})
+		const commandEnd = commandStart + commandText.length
+
+		// Only highlight if command exists in available commands (or if no list provided)
+		if (!availableCommands || availableCommands.includes(commandName)) {
+			highlights.push({
+				start: commandStart,
+				end: commandEnd,
+				type: "command",
+			})
+		}
 	}
 
 	// Sort highlights by start position
@@ -86,12 +93,12 @@ function parseInput(text: string): Segment[] {
 	return segments
 }
 
-export const HighlightedInput: React.FC<HighlightedInputProps> = ({ text }) => {
+export const HighlightedInput: React.FC<HighlightedInputProps> = ({ text, availableCommands }) => {
 	if (!text) {
 		return null
 	}
 
-	const segments = parseInput(text)
+	const segments = parseInput(text, availableCommands)
 
 	return (
 		<Text>
