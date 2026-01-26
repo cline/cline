@@ -101,16 +101,14 @@
  * - log-update: node_modules/ink/build/log-update.js (eraseLines logic)
  */
 
-import type { ClineAsk } from "@shared/ExtensionMessage"
+import { combineCommandSequences } from "@shared/combineCommandSequences"
+import type { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics } from "@shared/getApiMetrics"
-import { StringRequest } from "@shared/proto/cline/common"
 import type { Mode } from "@shared/storage/types"
 import { execSync } from "child_process"
 import { Box, Static, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
 import { StateManager } from "@/core/storage/StateManager"
-import { Logger } from "@/shared/services/Logger"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
 import { useIsSpinnerActive } from "../hooks/useStateSubscriber"
 import {
@@ -122,6 +120,7 @@ import {
 	searchWorkspaceFiles,
 } from "../utils/file-search"
 import { jsonParseSafe, parseImagesFromInput } from "../utils/parser"
+import { ActionButtons, type ButtonActionType, getButtonConfig } from "./ActionButtons"
 import { AsciiMotionCli, StaticRobotFrame } from "./AsciiMotionCli"
 import { ChatMessage } from "./ChatMessage"
 import { FileMentionMenu } from "./FileMentionMenu"
@@ -135,7 +134,6 @@ interface ChatViewProps {
 	robotTopRow?: number
 	initialPrompt?: string
 	initialImages?: string[]
-	taskId?: string
 }
 
 const SEARCH_DEBOUNCE_MS = 150
@@ -224,7 +222,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	robotTopRow,
 	initialPrompt,
 	initialImages,
-	taskId,
 }) => {
 	// Get task state from context
 	const taskState = useTaskState()
@@ -237,13 +234,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const [isSearching, setIsSearching] = useState(false)
 	const [showRipgrepWarning, setShowRipgrepWarning] = useState(false)
-	const [escPressedOnce, setEscPressedOnce] = useState(false)
 	const [respondedToAsk, setRespondedToAsk] = useState<number | null>(null)
 
-	// Track which messages have been rendered to Static (by timestamp)
-	// Using refs instead of state to avoid extra renders during streaming->static transition
-	const loggedMessageTsRef = useRef<Set<number>>(new Set())
-	const headerLoggedRef = useRef(false)
 	const [gitBranch, setGitBranch] = useState<string | null>(null)
 
 	// Mode state
@@ -259,6 +251,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		const stateManager = StateManager.get()
 		const modelKey = mode === "act" ? "actModeApiModelId" : "planModeApiModelId"
 		return (stateManager.getGlobalSettingsKey(modelKey) as string) || "claude-sonnet-4-20250514"
+	}, [mode])
+
+	// Get thinking budget based on current mode
+	const thinkingBudget = useMemo(() => {
+		const stateManager = StateManager.get()
+		const budgetKey = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
+		return (stateManager.getGlobalSettingsKey(budgetKey) as number | undefined) || 0
 	}, [mode])
 
 	const toggleMode = useCallback(() => {
@@ -295,34 +294,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		setGitBranch(getGitBranch(workspacePath))
 	}, [workspacePath])
 
-	// Load existing task when taskId is provided
-	useEffect(() => {
-		if (!taskId) return
-
-		const ctrl = controller || taskController
-		if (!ctrl) return
-
-		// Load the task by ID
-		showTaskWithId(ctrl, StringRequest.create({ value: taskId })).catch((error) => {
-			Logger.error("Error loading task:", error)
-			onError?.()
-		})
-	}, [taskId, controller, taskController, onError])
-
 	const messages = taskState.clineMessages || []
 
 	// Filter messages we want to display
 	const displayMessages = useMemo(() => {
 		const filtered = messages.filter((m) => {
 			if (m.say === "api_req_finished") return false
-			if (m.say === "text" && !m.text?.trim()) return false
 			if (m.say === "checkpoint_created") return false
 			if (m.say === "api_req_started") return false
 			if (m.say === "api_req_retried") return false // Redundant with error_retry messages
 			return true
 		})
 
-		return filtered
+		// Combine command messages with their output (like webview does)
+		return combineCommandSequences(filtered)
 	}, [messages])
 
 	// Split messages into completed (for Static) and current (for dynamic region)
@@ -337,13 +322,64 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		// These messages wait until complete before showing directly in static.
 		const skipDynamicTypes = new Set(["completion_result", "plan_mode_respond"])
 
+		// Check if a followup message has options but no selection yet
+		const isUnselectedFollowup = (msg: (typeof displayMessages)[0]) => {
+			if (msg.type === "ask" && msg.ask === "followup" && msg.text) {
+				try {
+					const parsed = JSON.parse(msg.text)
+					return parsed.options && parsed.options.length > 0 && !parsed.selected
+				} catch {
+					return false
+				}
+			}
+			return false
+		}
+
+		// Check if message is a file edit tool (should skip dynamic to avoid rendering issues)
+		const isFileEditTool = (msg: (typeof displayMessages)[0]) => {
+			if ((msg.say === "tool" || msg.ask === "tool") && msg.text) {
+				try {
+					const parsed = JSON.parse(msg.text)
+					const toolName = parsed.tool
+					return (
+						toolName === "editedExistingFile" ||
+						toolName === "newFileCreated" ||
+						toolName === "replace_in_file" ||
+						toolName === "write_to_file"
+					)
+				} catch {
+					return false
+				}
+			}
+			return false
+		}
+
+		// Check if a command should stay in dynamic region
+		// Commands need to wait for output to be combined before going to static
+		const shouldCommandStayInDynamic = (msg: (typeof displayMessages)[0], isLast: boolean) => {
+			const isCommand = msg.ask === "command" || msg.say === "command"
+			if (!isCommand) return false
+
+			// If not completed, definitely stay in dynamic
+			if (!msg.commandCompleted) return true
+
+			// If completed but no output yet AND still the last message,
+			// stay in dynamic to allow output to be combined
+			const hasOutput = msg.text?.includes("Output:") ?? false
+			if (!hasOutput && isLast) return true
+
+			return false
+		}
+
 		for (let i = 0; i < displayMessages.length; i++) {
 			const msg = displayMessages[i]
 			const isLast = i === displayMessages.length - 1
 
 			// Check if this message type should skip dynamic rendering
 			const shouldSkipDynamic =
-				skipDynamicTypes.has(msg.say || "") || (msg.type === "ask" && skipDynamicTypes.has(msg.ask || ""))
+				skipDynamicTypes.has(msg.say || "") ||
+				(msg.type === "ask" && skipDynamicTypes.has(msg.ask || "")) ||
+				isFileEditTool(msg)
 
 			if (msg.partial) {
 				// Message is still streaming
@@ -352,6 +388,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					current = msg
 				}
 				// If shouldSkipDynamic and partial: don't show anywhere, wait for complete
+			} else if (isLast && isUnselectedFollowup(msg)) {
+				// Keep unselected followup in dynamic region so it updates when selected
+				current = msg
+			} else if (shouldCommandStayInDynamic(msg, isLast)) {
+				// Command needs to stay in dynamic to allow output to be combined
+				if (isLast) {
+					current = msg
+				}
+				// If not last but should stay in dynamic, don't add to static yet
 			} else {
 				// Message is complete, add to static
 				completed.push(msg)
@@ -361,27 +406,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		return { completedMessages: completed, currentMessage: current }
 	}, [displayMessages])
 
-	// Determine if we're in welcome state (no messages yet and not resuming a task)
-	const isWelcomeState = displayMessages.length === 0 && !taskId
+	// Determine if we're in welcome state (no messages yet)
+	const isWelcomeState = displayMessages.length === 0
 
 	// Build Static items - each item is rendered once and stays above dynamic content
+	// We pass ALL completed messages to Static and let Ink handle deduplication by key.
+	// Static internally tracks which keys have been rendered and only renders new ones.
 	const staticItems = useMemo(() => {
-		const items: Array<{ type: "header" } | { type: "message"; message: (typeof displayMessages)[0] }> = []
+		const items: Array<
+			{ key: string; type: "header" } | { key: string; type: "message"; message: (typeof displayMessages)[0] }
+		> = []
 
 		// Add header as first item ONLY after messages start (so animated robot shows first)
 		// Once messages exist, add header to static so it scrolls up with history
-		if (!headerLoggedRef.current && displayMessages.length > 0) {
-			items.push({ type: "header" })
-			headerLoggedRef.current = true
+		if (displayMessages.length > 0) {
+			items.push({ key: "header", type: "header" })
 		}
 
-		// Add completed messages that haven't been logged yet
+		// Pass ALL completed messages to Static - it will dedupe by key internally
 		for (const msg of completedMessages) {
-			const wasLogged = loggedMessageTsRef.current.has(msg.ts)
-			if (!wasLogged) {
-				items.push({ type: "message", message: msg })
-				loggedMessageTsRef.current.add(msg.ts)
-			}
+			items.push({ key: String(msg.ts), type: "message", message: msg })
 		}
 
 		return items
@@ -410,6 +454,62 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		},
 		[controller, taskController, pendingAsk],
+	)
+
+	// Handle cancel/interrupt
+	const handleCancel = useCallback(async () => {
+		const ctrl = controller || taskController
+		if (!ctrl) return
+
+		try {
+			await ctrl.cancelTask()
+		} catch {
+			// Controller may be disposed
+		}
+	}, [controller, taskController])
+
+	// Get button config based on the last message state
+	const buttonConfig = useMemo(() => {
+		const lastMsg = messages[messages.length - 1] as ClineMessage | undefined
+		return getButtonConfig(lastMsg, isSpinnerActive)
+	}, [messages, isSpinnerActive])
+
+	// Handle button actions (1 for primary, 2 for secondary)
+	const handleButtonAction = useCallback(
+		async (action: ButtonActionType | undefined, _isPrimary: boolean) => {
+			if (!action) return
+
+			const ctrl = controller || taskController
+			if (!ctrl) return
+
+			switch (action) {
+				case "approve":
+				case "retry":
+					sendAskResponse("yesButtonClicked")
+					break
+				case "reject":
+					// Check for resume states that should trigger exit
+					if (pendingAsk?.ask === "resume_task" || pendingAsk?.ask === "resume_completed_task") {
+						onExit?.()
+					} else {
+						sendAskResponse("noButtonClicked")
+					}
+					break
+				case "proceed":
+					// Proceed can be either yesButtonClicked or messageResponse depending on context
+					sendAskResponse("yesButtonClicked")
+					break
+				case "new_task":
+					// For now, signal to start a new task (user can type new prompt)
+					setRespondedToAsk(pendingAsk?.ts || null)
+					setTextInput("")
+					break
+				case "cancel":
+					handleCancel()
+					break
+			}
+		},
+		[controller, taskController, sendAskResponse, pendingAsk, onExit, handleCancel],
 	)
 
 	// Handle task submission (new task)
@@ -565,38 +665,32 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// Handle ask responses
+		// Handle button actions (1 for primary, 2 for secondary)
+		// Only when buttons are enabled, not streaming, and no text has been typed
+		if (buttonConfig.enableButtons && !isSpinnerActive && textInput === "" && !yolo) {
+			if (input === "1" && buttonConfig.primaryAction) {
+				handleButtonAction(buttonConfig.primaryAction, true)
+				return
+			}
+			if (input === "2" && buttonConfig.secondaryAction) {
+				handleButtonAction(buttonConfig.secondaryAction, false)
+				return
+			}
+		}
+
+		// Handle ask responses for options and text input
 		if (pendingAsk && !yolo) {
-			if (askType === "confirmation") {
-				// y/n confirmation
-				if (input.toLowerCase() === "y") {
-					sendAskResponse("yesButtonClicked")
-					return
-				} else if (input.toLowerCase() === "n") {
-					if (pendingAsk.ask === "resume_task" || pendingAsk.ask === "resume_completed_task") {
-						onExit?.()
-						return
-					}
-					sendAskResponse("noButtonClicked")
-					return
-				}
-			} else if (askType === "options") {
-				// Number selection for options, or free text
-				if (key.return && textInput.trim()) {
-					sendAskResponse("messageResponse", textInput.trim())
-					return
-				}
-				// Check if it's a number for option selection (only when no text typed yet)
+			// Allow sending text message for any ask type where sending is enabled
+			if (key.return && textInput.trim() && !buttonConfig.sendingDisabled) {
+				sendAskResponse("messageResponse", textInput.trim())
+				return
+			}
+			// Number selection for options (only when no text typed yet)
+			if (askType === "options") {
 				const num = parseInt(input, 10)
 				if (textInput === "" && !Number.isNaN(num) && num >= 1 && num <= askOptions.length) {
 					const selectedOption = askOptions[num - 1]
-					sendAskResponse("optionSelected", selectedOption)
-					return
-				}
-			} else if (askType === "text") {
-				// Text input mode
-				if (key.return && textInput.trim()) {
-					sendAskResponse("messageResponse", textInput.trim())
+					sendAskResponse("messageResponse", selectedOption)
 					return
 				}
 			}
@@ -613,38 +707,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 			return
 		}
-		if (key.escape && !mentionInfo.inMentionMode) {
-			if (escPressedOnce) {
-				onExit?.()
-			} else {
-				setEscPressedOnce(true)
-			}
-			return
-		}
 		if (key.backspace || key.delete) {
 			setTextInput((prev) => prev.slice(0, -1))
-			setEscPressedOnce(false)
 			return
 		}
 		if (input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow && !key.tab) {
 			setTextInput((prev) => prev + input)
-			setEscPressedOnce(false)
 		}
 	})
 
 	const borderColor = mode === "act" ? "blueBright" : "yellow"
 	const metrics = getApiMetrics(messages)
 
-	// Determine input placeholder/prompt text
+	// Determine input placeholder/prompt text (no longer needed with buttons, but keep for options/text modes)
 	let inputPrompt = ""
-	if (pendingAsk && !yolo) {
-		if (askType === "confirmation") {
-			inputPrompt = "(y/n)"
-		}
+	if (pendingAsk && !yolo && askType === "options" && askOptions.length > 0) {
+		inputPrompt = `(1-${askOptions.length} or type)`
 	}
 
 	return (
-		<Box>
+		<Box flexDirection="column" width="100%">
 			{/* Static content - rendered once, stays above dynamic region */}
 			<Static items={staticItems}>
 				{(item) => {
@@ -663,7 +745,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					}
 
 					// Completed message
-					return <ChatMessage key={item.message.ts} message={item.message} />
+					return (
+						<Box key={item.message.ts} paddingX={1} width="100%">
+							<ChatMessage message={item.message} mode={mode} />
+						</Box>
+					)
 				}}
 			</Static>
 
@@ -681,7 +767,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				)}
 
 				{/* Current streaming message */}
-				{currentMessage && <ChatMessage isStreaming message={currentMessage} />}
+				{currentMessage && (
+					<Box paddingX={1} width="100%">
+						<ChatMessage isStreaming message={currentMessage} mode={mode} />
+					</Box>
+				)}
 
 				{/* Ripgrep warning if needed */}
 				{showRipgrepWarning && (
@@ -691,24 +781,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					</Box>
 				)}
 
-				{/* Options list for ask prompts */}
-				{pendingAsk && askType === "options" && askOptions.length > 0 && !yolo && (
-					<Box flexDirection="column" marginBottom={1}>
-						{askOptions.map((opt, idx) => (
-							// biome-ignore lint/suspicious/noArrayIndexKey: static options
-							<Text color="gray" key={idx}>
-								{idx + 1}. {opt}
-							</Text>
-						))}
-					</Box>
-				)}
+				{/* Action buttons for tool approvals and other asks (not during streaming) */}
+				{buttonConfig.enableButtons && !isSpinnerActive && !yolo && <ActionButtons config={buttonConfig} mode={mode} />}
 
 				{/* Thinking indicator when processing */}
-				{isSpinnerActive && !pendingAsk && (
-					<Box marginBottom={1}>
-						<ThinkingIndicator mode={mode} startTime={spinnerStartTime} />
-					</Box>
-				)}
+				{isSpinnerActive && <ThinkingIndicator mode={mode} onCancel={handleCancel} startTime={spinnerStartTime} />}
 
 				{/* Input field with border - ALWAYS shown */}
 				<Box
@@ -720,7 +797,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					paddingRight={1}
 					width="100%">
 					<Box>
-						{inputPrompt && <Text color="yellow">{inputPrompt} </Text>}
+						{inputPrompt && <Text color="gray">{inputPrompt} </Text>}
 						<Text>{textInput}</Text>
 						<Text color="gray">▌</Text>
 					</Box>
@@ -754,10 +831,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				<Box justifyContent="space-between" paddingLeft={1} paddingRight={1} width="100%">
 					<Box flexShrink={1} flexWrap="wrap">
 						<Text color="gray" dimColor>
-							@ for files · / for commands ·{" "}
-						</Text>
-						<Text bold={escPressedOnce} color={escPressedOnce ? "white" : "gray"} dimColor={!escPressedOnce}>
-							{escPressedOnce ? "Press Esc again to exit" : "Esc to exit"}
+							@ for files · / for commands
 						</Text>
 					</Box>
 					<Box flexShrink={0} gap={1}>
@@ -794,6 +868,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						<Text color="gray"> ({(metrics.totalTokensIn + metrics.totalTokensOut).toLocaleString()})</Text>
 						<Text color="gray"> | </Text>
 						<Text color="gray">${metrics.totalCost.toFixed(3)}</Text>
+						{thinkingBudget > 0 && <Text color="gray"> | thinking: {thinkingBudget.toLocaleString()}</Text>}
 					</Text>
 				</Box>
 

@@ -14,13 +14,10 @@ import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
 import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
 import { StandaloneTerminalManager } from "@/integrations/terminal/standalone/StandaloneTerminalManager"
-import { BannerService } from "@/services/banner/BannerService"
 import { ErrorService } from "@/services/error/ErrorService"
 import { initializeDistinctId } from "@/services/logging/distinctId"
-import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
-import { getProviderModelIdKey, ProviderToApiKeyMap } from "@/shared/storage"
-import { secretStorage } from "@/shared/storage/ClineSecretStorage"
+import { getProviderModelIdKey } from "@/shared/storage"
 import { version as CLI_VERSION } from "../package.json"
 import { App } from "./components/App"
 import { checkRawModeSupport } from "./context/StdinContext"
@@ -68,6 +65,19 @@ function setupSignalHandlers() {
 
 	process.on("SIGINT", () => shutdown("SIGINT"))
 	process.on("SIGTERM", () => shutdown("SIGTERM"))
+
+	// Suppress known abort errors from unhandled rejections
+	// These occur when task is cancelled and async operations throw "Cline instance aborted"
+	process.on("unhandledRejection", (reason: unknown) => {
+		const message = reason instanceof Error ? reason.message : String(reason)
+		// Silently ignore abort-related errors - they're expected during task cancellation
+		if (message.includes("aborted") || message.includes("abort")) {
+			return
+		}
+		// For other unhandled rejections, log to file via Logger (if available)
+		// This won't show in terminal but will be in log files for debugging
+		Logger.error("Unhandled rejection:", reason)
+	})
 }
 
 setupSignalHandlers()
@@ -97,8 +107,6 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 		workspaceDir: workspacePath,
 	})
 
-	await initializeDistinctId(extensionContext)
-
 	if (options.enableAuth) {
 		AuthHandler.getInstance().setEnabled(true)
 	}
@@ -108,7 +116,7 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 	const logToChannel = (message: string) => outputChannel.appendLine(message)
 
 	HostProvider.initialize(
-		() => new CliWebviewProvider(extensionContext as any),
+		() => new CliWebviewProvider(extensionContext),
 		() => new FileEditProvider(),
 		() => new CliCommentReviewController(),
 		() => new StandaloneTerminalManager(),
@@ -121,7 +129,7 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 	)
 
 	await ErrorService.initialize()
-	await StateManager.initialize(extensionContext as any)
+	await StateManager.initialize(extensionContext)
 
 	// Configure the shared Logging class to use HostProvider's output channel
 	Logger.setOutput((msg: string) => HostProvider.get().logToChannel(msg))
@@ -129,9 +137,7 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 	const webview = HostProvider.get().createWebviewProvider() as CliWebviewProvider
 	const controller = webview.controller
 
-	BannerService.initialize(webview.controller)
-
-	telemetryService.captureHostEvent("cline_cli", "initialized")
+	await initializeDistinctId(extensionContext)
 
 	const ctx = { extensionContext, dataDir: DATA_DIR, extensionDir: EXTENSION_DIR, workspacePath, controller }
 	activeContext = ctx
@@ -189,15 +195,10 @@ async function runTask(
 	// Use clean prompt (with image refs removed)
 	const taskPrompt = cleanPrompt || prompt
 
-	// Task without prompt starts in interactive mode
-	telemetryService.captureHostEvent("task_command", prompt ? "task" : "interactive")
-
 	if (options.plan) {
 		StateManager.get().setGlobalState("mode", "plan")
-		telemetryService.captureHostEvent("mode_flag", "plan")
 	} else if (options.act) {
 		StateManager.get().setGlobalState("mode", "act")
-		telemetryService.captureHostEvent("mode_flag", "act")
 	}
 
 	if (options.model) {
@@ -216,8 +217,6 @@ async function runTask(
 		if (providerModelKey) {
 			StateManager.get().setGlobalState(providerModelKey, options.model)
 		}
-
-		telemetryService.captureHostEvent("model_flag", options.model)
 	}
 
 	// Set thinking budget based on --thinking flag
@@ -226,14 +225,9 @@ async function runTask(
 	const thinkingKey = currentMode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
 	StateManager.get().setGlobalState(thinkingKey, thinkingBudget)
 
-	if (options.thinking) {
-		telemetryService.captureHostEvent("thinking_flag", "true")
-	}
-
 	// Set yolo mode based on --yolo flag
 	if (options.yolo) {
 		StateManager.get().setGlobalState("yoloModeToggled", true)
-		telemetryService.captureHostEvent("yolo_flag", "true")
 	}
 
 	await StateManager.get().flushPendingState()
@@ -243,7 +237,6 @@ async function runTask(
 
 	// Use plain text mode when output is redirected or JSON mode is enabled
 	if (!isTTY || options.json) {
-		telemetryService.captureHostEvent("plain_text_mode", options.json ? "json" : "redirected_output")
 		// Plain text mode: no Ink rendering, just clean text output
 		const success = await runPlainTextTask({
 			controller: ctx.controller,
@@ -315,14 +308,13 @@ async function listHistory(options: { config?: string; limit?: number; page?: nu
 	const totalCount = sortedHistory.length
 	const totalPages = Math.ceil(totalCount / limit)
 
-	telemetryService.captureHostEvent("history_command", "executed")
-
 	if (sortedHistory.length === 0) {
 		printInfo("No task history found.")
 		await ctx.controller.stateManager.flushPendingState()
 		await ctx.controller.dispose()
 		await ErrorService.get().dispose()
 		exit(0)
+		return
 	}
 
 	await runInkApp(
@@ -352,8 +344,6 @@ async function showConfig(options: { config?: string }) {
 
 	// Dynamically import the wrapper to avoid circular dependencies
 	const { ConfigViewWrapper } = await import("./components/ConfigViewWrapper")
-
-	telemetryService.captureHostEvent("config_command", "executed")
 
 	// Check feature flags
 	const skillsEnabled = stateManager.getGlobalSettingsKey("skillsEnabled") ?? false
@@ -396,8 +386,6 @@ async function runAuth(options: {
 		? { provider: options.provider, apikey: options.apikey, modelid: options.modelid, baseurl: options.baseurl }
 		: undefined
 
-	telemetryService.captureHostEvent("auth_command", hasQuickSetupFlags ? "quick_setup" : "interactive")
-
 	let authError = false
 
 	await runInkApp(
@@ -406,12 +394,10 @@ async function runAuth(options: {
 			controller: ctx.controller,
 			isRawModeSupported: checkRawModeSupport(),
 			onComplete: () => {
-				telemetryService.captureHostEvent("auth", "completed")
 				exit(0)
 			},
 			onError: () => {
 				authError = true
-				telemetryService.captureHostEvent("auth", "error")
 			},
 			authQuickSetup: quickSetup,
 		}),
@@ -484,81 +470,13 @@ program
 	.command("version")
 	.description("Show Cline CLI version number")
 	.action(() => printInfo(`Cline CLI version: ${CLI_VERSION}`))
-
-/**
- * Check if the user has authentication configured.
- * Returns true if they have either:
- * - Cline provider with stored auth data
- * - BYO provider with an API key configured
- */
-async function isAuthConfigured(): Promise<boolean> {
-	const stateManager = StateManager.get()
-	const mode = stateManager.getGlobalSettingsKey("mode") as string
-	const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
-	const currentProvider = (stateManager.getGlobalSettingsKey(providerKey) as string) || "cline"
-
-	if (currentProvider === "cline") {
-		// For Cline provider, check if we have stored auth data
-		const authData = await secretStorage.get("cline:clineAccountId")
-		return !!authData
-	}
-
-	// For BYO providers, check if the API key is configured
-	const keyField = ProviderToApiKeyMap[currentProvider as keyof typeof ProviderToApiKeyMap]
-	if (!keyField) {
-		return false
-	}
-
-	const fields = Array.isArray(keyField) ? keyField : [keyField]
-	for (const field of fields) {
-		const value = await secretStorage.get(field)
-		if (value) {
-			return true
-		}
-	}
-
-	return false
-}
-
 /**
  * Show welcome prompt and wait for user input
- * If auth is not configured, show auth flow first
+ * Just calls runTask with empty prompt to show welcome screen
  */
 async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: string; thinking?: boolean }) {
-	const ctx = await initializeCli({ ...options, enableAuth: true })
-
-	// Check if auth is configured
-	const hasAuth = await isAuthConfigured()
-
-	// Query cursor position BEFORE Ink mounts
-	const cursorPos = await queryCursorPos(process.stdin, process.stdout)
-	const terminalRows = process.stdout.rows ?? 24
-	const robotTopRow = calculateRobotTopRow(cursorPos, terminalRows)
-
-	let hadError = false
-
-	await runInkApp(
-		React.createElement(App, {
-			// Start with auth view if not configured, otherwise welcome
-			view: hasAuth ? "welcome" : "auth",
-			verbose: options.verbose,
-			controller: ctx.controller,
-			isRawModeSupported: checkRawModeSupport(),
-			robotTopRow,
-			onWelcomeExit: () => {
-				exit(0)
-			},
-			onError: () => {
-				hadError = true
-			},
-		}),
-		async () => {
-			await ctx.controller.stateManager.flushPendingState()
-			await ctx.controller.dispose()
-			await ErrorService.get().dispose()
-			exit(hadError ? 1 : 0)
-		},
-	)
+	// Empty prompt will show welcome screen and wait for user input
+	await runTask("", options)
 }
 
 // Interactive mode (default when no command given)
@@ -587,8 +505,6 @@ program
 			} else {
 				effectivePrompt = stdinInput
 			}
-
-			telemetryService.captureHostEvent("piped", "detached")
 		}
 
 		if (effectivePrompt) {

@@ -6,14 +6,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import os from "os"
 import path from "path"
-import type { Memento } from "vscode"
+import type { Memento, SecretStorage } from "vscode"
 import { ExtensionRegistryInfo } from "@/registry"
 import { ClineExtensionContext } from "@/shared/cline"
 import { Logger } from "@/shared/services/Logger"
-import { ClineFileStorage } from "@/shared/storage"
-import { name as appName } from "../package.json"
-import { ClineCredentialStorage } from "./controllers/keychains"
-import { ExtensionKind, ExtensionMode, SecretStorage, URI } from "./vscode-shim"
+import { ExtensionKind, ExtensionMode, URI } from "./vscode-shim"
 
 const SETTINGS_SUBFOLDER = "data"
 
@@ -237,11 +234,6 @@ export function initializeCliContext(config: CliContextConfig = {}) {
 	const CLINE_DIR = config.clineDir || process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
 	const DATA_DIR = path.join(CLINE_DIR, SETTINGS_SUBFOLDER)
 
-	// Use keychain-based storage if enabled
-	const useKeychain = process.env.CLINE_SECRETS_STORE === "keychain"
-	const SECRETS_PATH = path.join(DATA_DIR, "secrets.json")
-	const secretStore = useKeychain ? new ClineCredentialStorage(appName, SECRETS_PATH) : new ClineFileStorage(SECRETS_PATH)
-
 	// Workspace storage should always be under ~/.cline/data/workspaces/<hash>/
 	// where hash is derived from the workspace path to keep workspaces isolated
 	const workspacePath = config.workspaceDir || process.cwd()
@@ -273,7 +265,7 @@ export function initializeCliContext(config: CliContextConfig = {}) {
 
 		// Set up KV stores
 		globalState: new MementoStore(path.join(DATA_DIR, "globalState.json")),
-		secrets: secretStore as any,
+		secrets: new SecretStore(path.join(DATA_DIR, "secrets.json")),
 
 		// Set up URIs
 		storageUri: URI.file(WORKSPACE_STORAGE_DIR),

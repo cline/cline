@@ -956,7 +956,7 @@ export class Task {
 
 		await this.postStateToWebview()
 
-		await this.say("text", task, images, files)
+		await this.say("task", task, images, files)
 
 		this.taskState.isInitialized = true
 
@@ -2640,7 +2640,7 @@ export class Task {
 								this.taskState.toolUseIdMap.set(chunk.tool_call.call_id, chunk.tool_call.function.id)
 							}
 
-							this.processNativeToolCalls(assistantTextOnly, toolUseHandler.getPartialToolUsesAsContent())
+							await this.processNativeToolCalls(assistantTextOnly, toolUseHandler.getPartialToolUsesAsContent())
 							await this.presentAssistantMessage()
 							break
 						}
@@ -2884,7 +2884,7 @@ export class Task {
 			})
 			// in case there are native tool calls pending
 			const partialToolBlocks = toolUseHandler.getPartialToolUsesAsContent()?.map((block) => ({ ...block, partial: false }))
-			this.processNativeToolCalls(assistantTextOnly, partialToolBlocks)
+			await this.processNativeToolCalls(assistantTextOnly, partialToolBlocks)
 
 			if (partialBlocks.length > 0) {
 				await this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
@@ -3137,7 +3137,7 @@ export class Task {
 		return [processedUserContent, environmentDetails, clinerulesError]
 	}
 
-	processNativeToolCalls(assistantTextOnly: string, toolBlocks: ToolUse[]) {
+	async processNativeToolCalls(assistantTextOnly: string, toolBlocks: ToolUse[]) {
 		if (!toolBlocks?.length) {
 			return
 		}
@@ -3147,6 +3147,28 @@ export class Task {
 		// Get finalized tool uses and mark them as complete
 		const textContent = assistantTextOnly.trim()
 		const textBlocks: AssistantMessageContent[] = textContent ? [{ type: "text", content: textContent, partial: false }] : []
+
+		// IMPORTANT: Finalize any partial text ClineMessage before we skip over it.
+		//
+		// When native tool calls are processed, we set currentStreamingContentIndex to skip
+		// the text block (line below sets it to textBlocks.length). This means presentAssistantMessage
+		// will never call say("text", content, false) for this text block.
+		//
+		// Without this fix, the partial text ClineMessage remains with partial=true. In the UI
+		// (ChatView), partial messages that are not the last message don't get displayed anywhere:
+		// - Not in completedMessages (because partial=true)
+		// - Not in currentMessage (because it's not the last message - tool message came after)
+		//
+		// The text appears to "disappear" when tool calls start, even though it's still in the array.
+		const clineMessages = this.messageStateHandler.getClineMessages()
+		const lastMessage = clineMessages.at(-1)
+		if (lastMessage?.partial && lastMessage.type === "say" && lastMessage.say === "text") {
+			lastMessage.text = textContent
+			lastMessage.partial = false
+			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+			const protoMessage = convertClineMessageToProto(lastMessage)
+			await sendPartialMessageEvent(protoMessage)
+		}
 
 		this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
 

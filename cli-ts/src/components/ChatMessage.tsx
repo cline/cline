@@ -6,10 +6,12 @@
  * - ⎿ for tool results (indented)
  */
 
+import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Box, Text } from "ink"
 import React from "react"
 import { jsonParseSafe } from "../utils/parser"
+import { DiffView } from "./DiffView"
 
 /**
  * Render inline markdown: **bold**, *italic*, `code`
@@ -76,59 +78,160 @@ const MarkdownText: React.FC<{ children: string; color?: string }> = ({ children
 interface ChatMessageProps {
 	message: ClineMessage
 	isStreaming?: boolean
-}
-
-// Tool name display mapping - convert internal names to user-friendly names
-const TOOL_DISPLAY_NAMES: Record<string, string> = {
-	read_file: "Read",
-	write_to_file: "Write",
-	replace_in_file: "Edit",
-	execute_command: "Bash",
-	search_files: "Search",
-	list_files: "List",
-	list_code_definition_names: "Definitions",
-	browser_action: "Browser",
-	use_mcp_tool: "MCP",
-	access_mcp_resource: "MCP Resource",
-	ask_followup_question: "Question",
-	attempt_completion: "Complete",
-	web_fetch: "Fetch",
-	web_search: "WebSearch",
-	new_task: "Task",
-	focus_chain: "Todo",
+	mode?: "act" | "plan"
 }
 
 /**
- * Format tool call in Claude Code style
- * e.g., Read(src/components/App.tsx)
+ * Two-column layout for messages with a dot prefix.
+ * Keeps content from wrapping under the dot.
+ *
+ * For this to work properly, parent containers must have width="100%"
+ * so flexGrow={1} on the content box has a reference width to fill.
  */
-function formatToolCall(toolName: string, args: Record<string, any>): string {
-	const displayName = TOOL_DISPLAY_NAMES[toolName] || toolName
+const DotRow: React.FC<{ children: React.ReactNode; color?: string }> = ({ children, color }) => (
+	<Box flexDirection="row">
+		<Box width={2}>
+			<Text color={color}>⏺</Text>
+		</Box>
+		<Box flexGrow={1}>{children}</Box>
+	</Box>
+)
 
-	// Extract the most relevant argument for display
-	let mainArg = ""
-	if (args.path) {
-		mainArg = args.path
-	} else if (args.file_path) {
-		mainArg = args.file_path
-	} else if (args.command) {
-		mainArg = args.command.length > 50 ? args.command.substring(0, 47) + "..." : args.command
-	} else if (args.regex) {
-		mainArg = `pattern: "${args.regex}"`
-		if (args.file_pattern) {
-			mainArg += `, path: "${args.file_pattern}"`
-		}
-	} else if (args.url) {
-		mainArg = args.url
-	} else if (args.query) {
-		mainArg = args.query
-	} else if (args.question) {
-		mainArg = args.question.length > 40 ? args.question.substring(0, 37) + "..." : args.question
-	} else if (args.result) {
-		mainArg = args.result.length > 40 ? args.result.substring(0, 37) + "..." : args.result
+/**
+ * Two-column layout for tool results with ⎿ prefix.
+ * Keeps content from wrapping under the prefix.
+ */
+const ResultRow: React.FC<{ children: React.ReactNode; isFirst?: boolean }> = ({ children, isFirst }) => (
+	<Box flexDirection="row">
+		<Box width={3}>
+			<Text dimColor>{isFirst ? "⎿ " : "  "}</Text>
+		</Box>
+		<Box flexGrow={1}>{children}</Box>
+	</Box>
+)
+
+// Tool descriptions for ask (pending) and say (completed) states
+// Format: { ask: "wants to X", say: "X" } where X describes the action
+interface ToolDescription {
+	ask: string // e.g., "wants to read this file"
+	say: string // e.g., "read this file"
+}
+
+const TOOL_DESCRIPTIONS: Record<string, ToolDescription> = {
+	// File operations
+	read_file: { ask: "wants to read this file", say: "read this file" },
+	readFile: { ask: "wants to read this file", say: "read this file" },
+	write_to_file: { ask: "wants to create a new file", say: "created a new file" },
+	writeToFile: { ask: "wants to create a new file", say: "created a new file" },
+	newFileCreated: { ask: "wants to create a new file", say: "created a new file" },
+	replace_in_file: { ask: "wants to edit this file", say: "edited this file" },
+	editedExistingFile: { ask: "wants to edit this file", say: "edited this file" },
+
+	// Directory operations
+	list_files: { ask: "wants to view files in this directory", say: "viewed files in this directory" },
+	listFilesTopLevel: { ask: "wants to view files in this directory", say: "viewed files in this directory" },
+	listFilesRecursive: {
+		ask: "wants to recursively view all files in this directory",
+		say: "recursively viewed all files in this directory",
+	},
+	list_code_definition_names: {
+		ask: "wants to view code definitions in this directory",
+		say: "viewed code definitions in this directory",
+	},
+	listCodeDefinitionNames: {
+		ask: "wants to view code definitions in this directory",
+		say: "viewed code definitions in this directory",
+	},
+	search_files: { ask: "wants to search files", say: "searched files" },
+	searchFiles: { ask: "wants to search files", say: "searched files" },
+
+	// Command execution
+	execute_command: { ask: "wants to execute this command", say: "executed this command" },
+	executeCommand: { ask: "wants to execute this command", say: "executed this command" },
+
+	// Browser
+	browser_action: { ask: "wants to use the browser", say: "used the browser" },
+	browserAction: { ask: "wants to use the browser", say: "used the browser" },
+
+	// MCP
+	use_mcp_tool: { ask: "wants to use an MCP tool", say: "used an MCP tool" },
+	useMcpTool: { ask: "wants to use an MCP tool", say: "used an MCP tool" },
+	access_mcp_resource: { ask: "wants to access an MCP resource", say: "accessed an MCP resource" },
+	accessMcpResource: { ask: "wants to access an MCP resource", say: "accessed an MCP resource" },
+
+	// Web
+	web_fetch: { ask: "wants to fetch content from this URL", say: "fetched content from this URL" },
+	webFetch: { ask: "wants to fetch content from this URL", say: "fetched content from this URL" },
+	web_search: { ask: "wants to search the web", say: "searched the web" },
+	webSearch: { ask: "wants to search the web", say: "searched the web" },
+
+	// Other
+	ask_followup_question: { ask: "wants to ask a question", say: "asked a question" },
+	askFollowupQuestion: { ask: "wants to ask a question", say: "asked a question" },
+	attempt_completion: { ask: "wants to complete the task", say: "completed the task" },
+	attemptCompletion: { ask: "wants to complete the task", say: "completed the task" },
+	new_task: { ask: "wants to create a new task", say: "created a new task" },
+	newTask: { ask: "wants to create a new task", say: "created a new task" },
+	focus_chain: { ask: "wants to update the todo list", say: "updated the todo list" },
+	focusChain: { ask: "wants to update the todo list", say: "updated the todo list" },
+}
+
+// Default description for unknown tools
+const DEFAULT_TOOL_DESCRIPTION: ToolDescription = {
+	ask: "wants to use a tool",
+	say: "used a tool",
+}
+
+/**
+ * Get the primary argument to display for a tool (file path, command, url, etc.)
+ */
+function getToolMainArg(toolName: string, args: Record<string, any>): string {
+	// File path
+	if (args.path) return args.path
+	if (args.file_path) return args.file_path
+
+	// Command - truncate long commands
+	if (args.command) {
+		return args.command.length > 60 ? args.command.substring(0, 57) + "..." : args.command
 	}
 
-	return mainArg ? `${displayName}(${mainArg})` : displayName
+	// Search regex
+	if (args.regex) return args.regex
+
+	// URL
+	if (args.url) return args.url
+
+	// Search query
+	if (args.query) return args.query
+
+	return ""
+}
+
+/**
+ * Render a tool call in webview style: "Cline wants to read this file:" / "Cline read this file:"
+ */
+const ToolCallText: React.FC<{
+	toolName: string
+	args: Record<string, any>
+	mode?: "act" | "plan"
+	isAsk?: boolean
+}> = ({ toolName, args, mode, isAsk = false }) => {
+	const desc = TOOL_DESCRIPTIONS[toolName] || DEFAULT_TOOL_DESCRIPTION
+	const actionText = isAsk ? desc.ask : desc.say
+	const mainArg = getToolMainArg(toolName, args)
+	const toolColor = mode === "plan" ? "yellow" : "blueBright"
+
+	return (
+		<Text>
+			<Text color={toolColor}>Cline {actionText}</Text>
+			{mainArg && (
+				<Text>
+					<Text color={toolColor}>: </Text>
+					<Text>{mainArg}</Text>
+				</Text>
+			)}
+		</Text>
+	)
 }
 
 /**
@@ -171,43 +274,33 @@ function formatToolResult(result: string, maxLines: number = 5): string[] {
 	return displayLines
 }
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
+export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 	const { type, ask, say, text } = message
+	const toolColor = mode === "plan" ? "yellow" : "blueBright"
 
-	// User messages (task, user_feedback) - bubble style with background and >
+	// User messages (task, user_feedback)
 	if (say === "task" || say === "user_feedback") {
 		return (
 			<Box flexDirection="column" marginBottom={1}>
-				<Box backgroundColor="gray" paddingLeft={1} paddingRight={1} width="100%">
-					<Text color="white">&gt; {text}</Text>
-				</Box>
-			</Box>
-		)
-	}
-
-	// Assistant text response
-	if (say === "text") {
-		if (!text?.trim()) return null
-		return (
-			<Box flexDirection="column" marginBottom={1}>
-				<Box>
-					<Text>⏺ </Text>
-					<MarkdownText>{text}</MarkdownText>
-				</Box>
-			</Box>
-		)
-	}
-
-	// Reasoning/thinking
-	if (say === "reasoning") {
-		if (!text?.trim()) return null
-		return (
-			<Box flexDirection="column" marginBottom={1}>
-				<Box>
-					<Text color="yellow" italic>
-						⏺ {truncate(text, 200)}
+				<Box backgroundColor="blackBright" paddingRight={1}>
+					<Text color="white" dimColor>
+						{" "}
+						&gt;{" "}
 					</Text>
+					<Text color="white">{text}</Text>
 				</Box>
+			</Box>
+		)
+	}
+
+	// Assistant text response and reasoning
+	if (say === "text" || say === "reasoning") {
+		if (!text?.trim()) return null
+		return (
+			<Box flexDirection="column" marginBottom={1} width="100%">
+				<DotRow>
+					<Text>{text}</Text>
+				</DotRow>
 			</Box>
 		)
 	}
@@ -216,11 +309,32 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
 	if (type === "ask" && ask === "tool" && text) {
 		const toolInfo = parseToolMessage(text)
 		if (toolInfo) {
-			return (
-				<Box flexDirection="column" marginBottom={1}>
-					<Box>
-						<Text color="blue">⏺ {formatToolCall(toolInfo.toolName, toolInfo.args)}</Text>
+			// File edit tools - show diff
+			const isFileEdit =
+				toolInfo.toolName === "editedExistingFile" ||
+				toolInfo.toolName === "newFileCreated" ||
+				toolInfo.toolName === "replace_in_file" ||
+				toolInfo.toolName === "write_to_file"
+			const filePath = toolInfo.args.path || toolInfo.args.file_path
+
+			if (isFileEdit && filePath && toolInfo.args.content) {
+				return (
+					<Box flexDirection="column" marginBottom={1} width="100%">
+						<DotRow color={toolColor}>
+							<ToolCallText args={toolInfo.args} isAsk mode={mode} toolName={toolInfo.toolName} />
+						</DotRow>
+						<Box marginLeft={2}>
+							<DiffView content={toolInfo.args.content} />
+						</Box>
 					</Box>
+				)
+			}
+
+			return (
+				<Box flexDirection="column" marginBottom={1} width="100%">
+					<DotRow color={toolColor}>
+						<ToolCallText args={toolInfo.args} isAsk mode={mode} toolName={toolInfo.toolName} />
+					</DotRow>
 				</Box>
 			)
 		}
@@ -230,21 +344,39 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
 	if (say === "tool" && text) {
 		const toolInfo = parseToolMessage(text)
 		if (toolInfo) {
+			// File edit tools - show diff
+			const isFileEdit =
+				toolInfo.toolName === "editedExistingFile" ||
+				toolInfo.toolName === "newFileCreated" ||
+				toolInfo.toolName === "replace_in_file" ||
+				toolInfo.toolName === "write_to_file"
+			const filePath = toolInfo.args.path || toolInfo.args.file_path
+
+			if (isFileEdit && filePath && toolInfo.args.content) {
+				return (
+					<Box flexDirection="column" marginBottom={1} width="100%">
+						<DotRow color={toolColor}>
+							<ToolCallText args={toolInfo.args} mode={mode} toolName={toolInfo.toolName} />
+						</DotRow>
+						<Box marginLeft={2}>
+							<DiffView content={toolInfo.args.content} />
+						</Box>
+					</Box>
+				)
+			}
+
 			const hasResult = toolInfo.result && toolInfo.result.trim()
 			return (
-				<Box flexDirection="column" marginBottom={1}>
-					<Box>
-						<Text color="green">⏺ {formatToolCall(toolInfo.toolName, toolInfo.args)}</Text>
-					</Box>
+				<Box flexDirection="column" marginBottom={1} width="100%">
+					<DotRow color={toolColor}>
+						<ToolCallText args={toolInfo.args} mode={mode} toolName={toolInfo.toolName} />
+					</DotRow>
 					{hasResult && (
-						<Box flexDirection="column" marginLeft={2}>
+						<Box flexDirection="column" marginLeft={2} width="100%">
 							{formatToolResult(toolInfo.result!, 5).map((line, idx) => (
-								<Box key={idx}>
-									<Text dimColor>
-										{idx === 0 ? "⎿  " : "   "}
-										{line}
-									</Text>
-								</Box>
+								<ResultRow isFirst={idx === 0} key={idx}>
+									<Text dimColor>{line}</Text>
+								</ResultRow>
 							))}
 						</Box>
 					)}
@@ -253,49 +385,57 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
 		}
 		// Fallback for unparseable tool messages
 		return (
-			<Box flexDirection="column" marginBottom={1}>
-				<Box>
-					<Text color="green">⏺ {truncate(text, 100)}</Text>
-				</Box>
+			<Box flexDirection="column" marginBottom={1} width="100%">
+				<DotRow color={toolColor}>
+					<Text color={toolColor}>{truncate(text, 100)}</Text>
+				</DotRow>
 			</Box>
 		)
 	}
 
-	// Command execution ask
-	if (type === "ask" && ask === "command" && text) {
+	// Command execution (ask or say) - now includes combined output
+	if ((type === "ask" && ask === "command") || say === "command") {
+		if (!text) return null
+
+		// Parse command and output from combined text
+		const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
+		const command = outputIndex === -1 ? text : text.slice(0, outputIndex).trim()
+		const output = outputIndex === -1 ? "" : text.slice(outputIndex + COMMAND_OUTPUT_STRING.length).trim()
+
+		const isAsk = type === "ask"
+		const label = isAsk ? "Cline wants to execute this command: " : "Cline executed this command: "
+
 		return (
-			<Box flexDirection="column" marginBottom={1}>
-				<Box>
-					<Text>⏺ Bash({truncate(text, 60)})</Text>
-				</Box>
+			<Box flexDirection="column" marginBottom={1} width="100%">
+				<DotRow color={toolColor}>
+					<Text>
+						<Text color={toolColor}>{label}</Text>
+						<Text>{truncate(command, 60)}</Text>
+					</Text>
+				</DotRow>
+				{output && (
+					<Box flexDirection="column" marginLeft={2} width="100%">
+						{formatToolResult(output, 8).map((line, idx) => (
+							<ResultRow isFirst={idx === 0} key={idx}>
+								<Text dimColor>{line}</Text>
+							</ResultRow>
+						))}
+					</Box>
+				)}
 			</Box>
 		)
 	}
 
-	// Command say (before execution)
-	if (say === "command" && text) {
-		return (
-			<Box flexDirection="column" marginBottom={1}>
-				<Box>
-					<Text>⏺ Bash({truncate(text, 60)})</Text>
-				</Box>
-			</Box>
-		)
-	}
-
-	// Command output
+	// Command output - should not appear after combineCommandSequences, but handle as fallback
 	if (say === "command_output" && text) {
 		const lines = formatToolResult(text, 8)
 		return (
-			<Box flexDirection="column" marginBottom={1}>
-				<Box flexDirection="column" marginLeft={2}>
+			<Box flexDirection="column" marginBottom={1} width="100%">
+				<Box flexDirection="column" marginLeft={2} width="100%">
 					{lines.map((line, idx) => (
-						<Box key={idx}>
-							<Text dimColor>
-								{idx === 0 ? "⎿  " : "   "}
-								{line}
-							</Text>
-						</Box>
+						<ResultRow isFirst={idx === 0} key={idx}>
+							<Text dimColor>{line}</Text>
+						</ResultRow>
 					))}
 				</Box>
 			</Box>
@@ -313,10 +453,13 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
 			}
 		}
 		return (
-			<Box flexDirection="column" marginBottom={1}>
-				<Box>
-					<Text color="red">⏺ Error: {errorMessage}</Text>
-				</Box>
+			<Box flexDirection="column" marginBottom={1} width="100%">
+				<DotRow color="red">
+					<Text bold color="red">
+						Error
+					</Text>
+					<Text color="red">: {errorMessage}</Text>
+				</DotRow>
 			</Box>
 		)
 	}
@@ -343,48 +486,53 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
 
 		if (retryInfo.failed) {
 			return (
-				<Box flexDirection="column" marginBottom={1}>
-					<Box flexDirection="column">
-						<Text color="red">⏺ Failed after {retryInfo.maxAttempts} retries</Text>
-						<Box marginLeft={2}>
-							<Text color="red" dimColor>
-								{errorMsg}
-							</Text>
-						</Box>
+				<Box flexDirection="column" marginBottom={1} width="100%">
+					<DotRow color="red">
+						<Text bold color="red">
+							Failed
+						</Text>
+						<Text color="red"> after {retryInfo.maxAttempts} retries</Text>
+					</DotRow>
+					<Box marginLeft={2}>
+						<Text color="red" dimColor>
+							{errorMsg}
+						</Text>
 					</Box>
 				</Box>
 			)
 		}
 		return (
-			<Box flexDirection="column" marginBottom={1}>
-				<Box flexDirection="column">
-					<Text color="yellow">
-						⏺ Retrying... (attempt {retryInfo.attempt}/{retryInfo.maxAttempts})
+			<Box flexDirection="column" marginBottom={1} width="100%">
+				<DotRow color="yellow">
+					<Text bold color="yellow">
+						Retrying
 					</Text>
-					<Box marginLeft={2}>
-						<Text color="yellow" dimColor>
-							{errorMsg}
-						</Text>
-					</Box>
+					<Text color="yellow">
+						... (attempt {retryInfo.attempt}/{retryInfo.maxAttempts})
+					</Text>
+				</DotRow>
+				<Box marginLeft={2}>
+					<Text color="yellow" dimColor>
+						{errorMsg}
+					</Text>
 				</Box>
 			</Box>
 		)
 	}
 
 	// Completion result
-	if (say === "completion_result" || (type === "ask" && ask === "completion_result")) {
+	// Only render ask: "completion_result" if it has text - the empty ask is just for UI confirmation
+	if (say === "completion_result" || (type === "ask" && ask === "completion_result" && text)) {
 		return (
-			<Box flexDirection="column" marginBottom={1}>
-				<Box flexDirection="column">
-					<Box>
-						<Text color="green">⏺ Task completed</Text>
+			<Box flexDirection="column" marginBottom={1} width="100%">
+				<DotRow color="green">
+					<Text color="green">Task completed</Text>
+				</DotRow>
+				{text && (
+					<Box marginLeft={2}>
+						<MarkdownText color="greenBright">{text}</MarkdownText>
 					</Box>
-					{text && (
-						<Box marginLeft={2}>
-							<MarkdownText color="green">{text}</MarkdownText>
-						</Box>
-					)}
-				</Box>
+				)}
 			</Box>
 		)
 	}
@@ -398,10 +546,18 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
 	// Browser actions
 	if (say === "browser_action" || say === "browser_action_launch") {
 		return (
-			<Box flexDirection="column" marginBottom={1}>
-				<Box>
-					<Text>⏺ Browser({truncate(text || "", 50)})</Text>
-				</Box>
+			<Box flexDirection="column" marginBottom={1} width="100%">
+				<DotRow color={toolColor}>
+					<Text>
+						<Text color={toolColor}>Cline used the browser</Text>
+						{text && (
+							<Text>
+								<Text color={toolColor}>: </Text>
+								<Text>{truncate(text, 50)}</Text>
+							</Text>
+						)}
+					</Text>
+				</DotRow>
 			</Box>
 		)
 	}
@@ -409,10 +565,18 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
 	// MCP server
 	if (say === "mcp_server_request_started") {
 		return (
-			<Box flexDirection="column" marginBottom={1}>
-				<Box>
-					<Text>⏺ MCP({truncate(text || "", 50)})</Text>
-				</Box>
+			<Box flexDirection="column" marginBottom={1} width="100%">
+				<DotRow color={toolColor}>
+					<Text>
+						<Text color={toolColor}>Cline is using an MCP tool</Text>
+						{text && (
+							<Text>
+								<Text color={toolColor}>: </Text>
+								<Text>{truncate(text, 50)}</Text>
+							</Text>
+						)}
+					</Text>
+				</DotRow>
 			</Box>
 		)
 	}
@@ -420,24 +584,39 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
 	// Info messages
 	if (say === "info") {
 		return (
-			<Box flexDirection="column" marginBottom={1}>
-				<Box>
-					<Text color="gray">⏺ {text}</Text>
-				</Box>
+			<Box flexDirection="column" marginBottom={1} width="100%">
+				<DotRow color="gray">
+					<Text color="gray">{text}</Text>
+				</DotRow>
 			</Box>
 		)
 	}
 
 	// Followup questions from assistant
 	if (type === "ask" && ask === "followup" && text) {
-		const parsed = jsonParseSafe(text, { question: undefined as string | undefined })
+		const parsed = jsonParseSafe(text, {
+			question: undefined as string | undefined,
+			options: undefined as string[] | undefined,
+			selected: undefined as string | undefined,
+		})
 		if (parsed.question) {
 			return (
-				<Box flexDirection="column" marginBottom={1}>
-					<Box>
-						<Text>⏺ </Text>
+				<Box flexDirection="column" marginBottom={1} width="100%">
+					<DotRow>
 						<MarkdownText>{parsed.question}</MarkdownText>
-					</Box>
+					</DotRow>
+					{parsed.options && parsed.options.length > 0 && (
+						<Box flexDirection="column" paddingLeft={2}>
+							{parsed.options.map((opt, idx) => {
+								const isSelected = parsed.selected === opt
+								return (
+									<Text color={isSelected ? "green" : "gray"} key={opt}>
+										{isSelected ? "✓" : `${idx + 1}.`} {opt}
+									</Text>
+								)
+							})}
+						</Box>
+					)}
 				</Box>
 			)
 		}
@@ -448,11 +627,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
 		const parsed = jsonParseSafe(text, { response: undefined as string | undefined })
 		if (parsed.response) {
 			return (
-				<Box flexDirection="column" marginBottom={1}>
-					<Box>
-						<Text color="yellow">⏺ </Text>
+				<Box flexDirection="column" marginBottom={1} width="100%">
+					<DotRow color="yellow">
 						<MarkdownText color="yellow">{parsed.response}</MarkdownText>
-					</Box>
+					</DotRow>
 				</Box>
 			)
 		}
@@ -471,10 +649,8 @@ interface ChatMessageListProps {
 }
 
 export const ChatMessageList: React.FC<ChatMessageListProps> = ({ messages, maxMessages }) => {
-	console.error(messages, "help")
 	// Filter out messages we don't want to display
 	const displayMessages = messages.filter((m) => {
-		console.log(m, "message filter")
 		// Skip api_req_finished, they're just markers
 		if (m.say === "api_req_finished") return false
 		// Skip empty text messages

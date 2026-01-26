@@ -143,7 +143,7 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 					const num = parseInt(input, 10)
 					if (textInput === "" && !Number.isNaN(num) && num >= 1 && num <= parts.options.length) {
 						const selectedOption = parts.options[num - 1]
-						sendResponse("optionSelected", selectedOption)
+						sendResponse("messageResponse", selectedOption)
 					} else {
 						// Regular character input for free text
 						setTextInput((prev) => prev + input)

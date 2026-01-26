@@ -4,41 +4,16 @@
  */
 
 import { Box, Text, useApp, useInput } from "ink"
-import Spinner from "ink-spinner"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import { AuthService } from "@/services/auth/AuthService"
 import { API_PROVIDERS_LIST, openRouterDefaultModelId } from "@/shared/api"
-import providersData from "@/shared/providers/providers.json"
 import { ProviderToApiKeyMap } from "@/shared/storage"
-import { getAllFeaturedModels } from "../constants/featured-models"
+import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import { useStdinContext } from "../context/StdinContext"
-import { useScrollableList } from "../hooks/useScrollableList"
-import { type DetectedSources, detectImportSources, type ImportSource } from "../utils/import-configs"
-import { StaticRobotFrame } from "./AsciiMotionCli"
-import { ImportView } from "./ImportView"
-import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
+import { LoadingSpinner } from "./Spinner"
 
-// Create a lookup map from provider value to display label
-const providerLabels: Record<string, string> = Object.fromEntries(
-	providersData.list.map((p: { value: string; label: string }) => [p.value, p.label]),
-)
-
-type AuthStep =
-	| "menu"
-	| "provider"
-	| "apikey"
-	| "modelid"
-	| "baseurl"
-	| "saving"
-	| "success"
-	| "error"
-	| "cline_auth"
-	| "cline_model"
-	| "import"
-
-// Featured models loaded from shared constants
-const featuredModels = getAllFeaturedModels()
+type AuthStep = "menu" | "provider" | "apikey" | "modelid" | "baseurl" | "saving" | "success" | "error" | "cline_auth"
 
 interface AuthViewProps {
 	controller: any
@@ -60,14 +35,21 @@ interface SelectItem {
 }
 
 /**
- * Get provider display name from provider ID
+ * Format separator
  */
-function getProviderLabel(providerId: string): string {
-	return providerLabels[providerId] || providerId
+function formatSeparator(char: string = "─", width: number = 60): string {
+	return char.repeat(Math.max(width, 10))
 }
 
-// Popular providers to show at the top of the list
-const POPULAR_PROVIDERS = ["anthropic", "openai-native", "openai", "gemini", "bedrock", "openrouter"]
+/**
+ * Capitalize provider name for display
+ */
+function capitalize(str: string): string {
+	return str
+		.split("-")
+		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+		.join(" ")
+}
 
 /**
  * Select component with keyboard navigation
@@ -102,7 +84,7 @@ const Select: React.FC<{
 			)}
 			{items.map((item, index) => (
 				<Box key={item.value}>
-					<Text color={index === selectedIndex ? "blueBright" : undefined}>
+					<Text color={index === selectedIndex ? "green" : undefined}>
 						{index === selectedIndex ? "❯ " : "  "}
 						{item.label}
 					</Text>
@@ -116,15 +98,16 @@ const Select: React.FC<{
 }
 
 /**
- * Text input component - minimal, just the input field
+ * Text input component
  */
 const TextInput: React.FC<{
 	value: string
 	onChange: (value: string) => void
 	onSubmit: (value: string) => void
+	label: string
 	placeholder?: string
 	isPassword?: boolean
-}> = ({ value, onChange, onSubmit, placeholder, isPassword }) => {
+}> = ({ value, onChange, onSubmit, label, placeholder, isPassword }) => {
 	const { isRawModeSupported } = useStdinContext()
 
 	useInput(
@@ -143,9 +126,17 @@ const TextInput: React.FC<{
 	const displayValue = isPassword ? "•".repeat(value.length) : value
 
 	return (
-		<Box>
-			<Text color="white">{displayValue || placeholder || ""}</Text>
-			<Text color="gray">▌</Text>
+		<Box flexDirection="column">
+			<Text bold color="cyan">
+				{label}
+			</Text>
+			<Box>
+				<Text color="white">{displayValue || placeholder || ""}</Text>
+				<Text color="gray">▌</Text>
+			</Box>
+			<Text color="gray" dimColor>
+				(Type your input and press Enter{value ? "" : ", or press Enter to skip"})
+			</Text>
 		</Box>
 	)
 }
@@ -163,18 +154,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [baseUrl, setBaseUrl] = useState("")
 	const [errorMessage, setErrorMessage] = useState("")
 	const [authStatus, setAuthStatus] = useState<string>("")
-	const [providerSearch, setProviderSearch] = useState("")
-	const [providerIndex, setProviderIndex] = useState(0)
-	const [clineModelIndex, setClineModelIndex] = useState(0)
-	const [importSources, setImportSources] = useState<DetectedSources>({ codex: false, opencode: false })
-	const [importSource, setImportSource] = useState<ImportSource | null>(null)
 
-	// Sort providers with popular ones first, then alphabetically
-	const sortedProviders = useMemo(() => {
-		const popular = POPULAR_PROVIDERS.filter((p) => API_PROVIDERS_LIST.includes(p))
-		const others = API_PROVIDERS_LIST.filter((p) => !POPULAR_PROVIDERS.includes(p)).sort()
-		return [...popular, ...others]
-	}, [])
+	// Sort providers alphabetically
+	const sortedProviders = useMemo(() => API_PROVIDERS_LIST.slice().sort(), [])
 
 	// Get configured providers (those with API keys set)
 	const configuredProviders = useMemo(() => {
@@ -205,67 +187,22 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		}
 	}, [sortedProviders, ProviderToApiKeyMap])
 
-	// Main menu items - conditionally include import options
-	const mainMenuItems: SelectItem[] = useMemo(() => {
-		const items: SelectItem[] = [{ label: "Sign in with Cline account", value: "cline_auth" }]
+	// Main menu items
+	const mainMenuItems: SelectItem[] = [
+		{ label: "Sign in to Cline", value: "cline_auth" },
+		{ label: "Configure BYO API provider", value: "configure_byo" },
+		{ label: "Exit", value: "exit" },
+	]
 
-		// Add import options if detected
-		if (importSources.codex) {
-			items.push({ label: "Import from Codex CLI", value: "import_codex" })
-		}
-		if (importSources.opencode) {
-			items.push({ label: "Import from OpenCode", value: "import_opencode" })
-		}
-
-		items.push({ label: "Use your own API key", value: "configure_byo" })
-		items.push({ label: "Exit", value: "exit" })
-
-		return items
-	}, [importSources])
-
-	// Provider menu items - filtered by search (searches both ID and display name)
-	const providerItems: SelectItem[] = useMemo(() => {
-		const search = providerSearch.toLowerCase()
-		const filtered = providerSearch
-			? sortedProviders.filter(
-					(p) => p.toLowerCase().includes(search) || getProviderLabel(p).toLowerCase().includes(search),
-				)
-			: sortedProviders
-		return filtered.map((p: string) => ({
-			label: `${getProviderLabel(p)}${configuredProviders.has(p) ? " (configured)" : ""}`,
-			value: p,
-		}))
-	}, [sortedProviders, configuredProviders, providerSearch])
-
-	// Use shared scrollable list hook for provider windowing
-	const TOTAL_PROVIDER_ROWS = 8
-	const {
-		visibleStart: providerVisibleStart,
-		visibleCount: providerVisibleCount,
-		showTopIndicator: showProviderTopIndicator,
-		showBottomIndicator: showProviderBottomIndicator,
-	} = useScrollableList(providerItems.length, providerIndex, TOTAL_PROVIDER_ROWS)
-
-	const visibleProviderItems = useMemo(() => {
-		return providerItems.slice(providerVisibleStart, providerVisibleStart + providerVisibleCount)
-	}, [providerItems, providerVisibleStart, providerVisibleCount])
-
-	// Detect import sources on mount
-	useEffect(() => {
-		setImportSources(detectImportSources())
-	}, [])
-
-	// Reset provider index when search changes
-	useEffect(() => {
-		setProviderIndex(0)
-	}, [providerSearch])
-
-	// Set default model when entering model step
-	useEffect(() => {
-		if (step === "modelid" && hasModelPicker(selectedProvider)) {
-			setModelId(getDefaultModelId(selectedProvider))
-		}
-	}, [step, selectedProvider])
+	// Provider menu items
+	const providerItems: SelectItem[] = useMemo(
+		() =>
+			sortedProviders.map((p: string) => ({
+				label: `${capitalize(p)}${configuredProviders.has(p) ? " (configured)" : ""}`,
+				value: p,
+			})),
+		[sortedProviders, configuredProviders],
+	)
 
 	// Handle quick setup
 	useEffect(() => {
@@ -304,7 +241,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 
 				setSelectedProvider("cline")
 				setModelId(config[modelIdKey])
-				setStep("cline_model")
+				setStep("success")
 			}
 		}
 
@@ -402,12 +339,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				AuthService.getInstance(controller).createAuthRequest()
 			} else if (value === "configure_byo") {
 				setStep("provider")
-			} else if (value === "import_codex") {
-				setImportSource("codex")
-				setStep("import")
-			} else if (value === "import_opencode") {
-				setImportSource("opencode")
-				setStep("import")
 			}
 		},
 		[exit, onComplete, controller],
@@ -434,47 +365,16 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				return
 			}
 
-			// Store in local state - will be saved via StateManager in saveConfiguration
+			// Use provider-specific API key field
+			const foundKey = ProviderToApiKeyMap[selectedProvider] || "apiKey"
+			const providerKey = Array.isArray(foundKey) ? foundKey[0] : foundKey
+
+			secretStorage.store(providerKey, value)
+
 			setApiKey(value)
 			setStep("modelid")
 		},
 		[selectedProvider],
-	)
-
-	const saveConfiguration = useCallback(
-		async (model: string, base: string) => {
-			try {
-				const stateManager = StateManager.get()
-				const config: Record<string, string> = {
-					actModeApiProvider: selectedProvider,
-					planModeApiProvider: selectedProvider,
-					actModeApiModelId: model,
-					planModeApiModelId: model,
-					apiProvider: selectedProvider,
-				}
-
-				// Add API key using provider-specific field
-				if (apiKey) {
-					const keyField = ProviderToApiKeyMap[selectedProvider as keyof typeof ProviderToApiKeyMap]
-					if (keyField) {
-						const fields = Array.isArray(keyField) ? keyField : [keyField]
-						config[fields[0]] = apiKey
-					}
-				}
-
-				if (base) {
-					config.openAiBaseUrl = base
-				}
-				stateManager.setApiConfiguration(config)
-				await stateManager.flushPendingState()
-
-				setStep("success")
-			} catch (error) {
-				setErrorMessage(error instanceof Error ? error.message : String(error))
-				setStep("error")
-			}
-		},
-		[selectedProvider, apiKey],
 	)
 
 	const handleModelIdSubmit = useCallback(
@@ -490,7 +390,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				saveConfiguration(value, "")
 			}
 		},
-		[selectedProvider, saveConfiguration],
+		[selectedProvider],
 	)
 
 	const handleBaseUrlSubmit = useCallback(
@@ -499,33 +399,44 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			setStep("saving")
 			saveConfiguration(modelId, value)
 		},
-		[modelId, saveConfiguration],
+		[modelId],
 	)
 
-	const handleClineModelSelect = useCallback(
-		(modelId: string) => {
-			setModelId(modelId)
-			setStep("saving")
-			saveConfiguration(modelId, "")
+	const saveConfiguration = useCallback(
+		async (model: string, base: string) => {
+			try {
+				const stateManager = StateManager.get()
+				const config: Record<string, string> = {
+					actModeApiProvider: selectedProvider,
+					planModeApiProvider: selectedProvider,
+					actModeApiModelId: model,
+					planModeApiModelId: model,
+					apiProvider: selectedProvider,
+				}
+
+				if (base) {
+					config.openAiBaseUrl = base
+				}
+				stateManager.setApiConfiguration(config)
+				stateManager.flushPendingState()
+				setStep("success")
+			} catch (error) {
+				setErrorMessage(error instanceof Error ? error.message : String(error))
+				setStep("error")
+			}
 		},
-		[saveConfiguration],
+		[selectedProvider],
 	)
 
-	const handleImportComplete = useCallback(() => {
-		setStep("success")
-	}, [])
-
-	const handleImportCancel = useCallback(() => {
-		setImportSource(null)
-		setStep("menu")
-	}, [])
-
-	// Auto-navigate to welcome after success (immediate)
-	useEffect(() => {
-		if (step === "success" && onNavigateToWelcome) {
-			onNavigateToWelcome()
+	// Success screen menu items
+	const successMenuItems: SelectItem[] = useMemo(() => {
+		const items: SelectItem[] = []
+		if (onNavigateToWelcome) {
+			items.push({ label: "Start a task", value: "welcome" })
 		}
-	}, [step, onNavigateToWelcome])
+		items.push({ label: "Exit", value: "exit" })
+		return items
+	}, [onNavigateToWelcome])
 
 	// Error screen menu items
 	const errorMenuItems: SelectItem[] = useMemo(() => {
@@ -536,6 +447,18 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		items.push({ label: "Exit", value: "exit" })
 		return items
 	}, [onNavigateToWelcome])
+
+	const handleSuccessMenuSelect = useCallback(
+		(value: string) => {
+			if (value === "welcome") {
+				onNavigateToWelcome?.()
+			} else if (value === "exit") {
+				onComplete?.()
+				exit()
+			}
+		},
+		[onNavigateToWelcome, onComplete, exit],
+	)
 
 	const handleErrorMenuSelect = useCallback(
 		(value: string) => {
@@ -557,373 +480,109 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		[onNavigateToWelcome, onError, exit],
 	)
 
-	// Handle going back to previous step
-	const goBack = useCallback(() => {
-		switch (step) {
-			case "provider":
-				setProviderSearch("")
-				setProviderIndex(0)
-				setStep("menu")
-				break
-			case "apikey":
-				setApiKey("")
-				setStep("provider")
-				break
-			case "modelid":
-				setModelId("")
-				// Go back to cline_model if we came from there (Cline provider)
-				if (selectedProvider === "cline") {
-					setStep("cline_model")
-				} else {
-					setStep("apikey")
-				}
-				break
-			case "baseurl":
-				setBaseUrl("")
-				setStep("modelid")
-				break
-			case "cline_auth":
-				setStep("menu")
-				break
-			case "cline_model":
-				setClineModelIndex(0)
-				setStep("menu")
-				break
-			case "import":
-				setImportSource(null)
-				setStep("menu")
-				break
-			case "error":
-				setErrorMessage("")
-				setStep("menu")
-				break
-			// menu, saving, success - no back action
-		}
-	}, [step, selectedProvider])
-
-	// Render the auth box content based on current step
-	// Note: "menu" step is rendered separately in the main return for proper menuIndex tracking
-	const renderAuthContent = () => {
-		switch (step) {
-			case "provider": {
-				return (
-					<Box flexDirection="column">
-						<Text color="white">Select a provider</Text>
-						<Text> </Text>
-						<Box>
-							<Text color="gray">Search: </Text>
-							<Text color="white">{providerSearch}</Text>
-							<Text color="gray">▌</Text>
-						</Box>
-						<Text> </Text>
-						{showProviderTopIndicator && (
-							<Text color="gray" dimColor>
-								... {providerVisibleStart} more above
-							</Text>
-						)}
-						{visibleProviderItems.map((item, i) => {
-							const actualIndex = providerVisibleStart + i
-							return (
-								<Box key={item.value}>
-									<Text color={actualIndex === providerIndex ? "blueBright" : undefined}>
-										{actualIndex === providerIndex ? "❯ " : "  "}
-										{item.label}
-									</Text>
-								</Box>
-							)
-						})}
-						{showProviderBottomIndicator && (
-							<Text color="gray" dimColor>
-								... {providerItems.length - providerVisibleStart - providerVisibleCount} more below
-							</Text>
-						)}
-						{providerItems.length === 0 && (
-							<Text color="gray" dimColor>
-								No providers match "{providerSearch}"
-							</Text>
-						)}
-						<Text> </Text>
-						<Text color="gray" dimColor>
-							Type to search, arrows to navigate, Enter to select, Esc to go back
-						</Text>
-					</Box>
-				)
-			}
-
-			case "apikey":
-				return (
-					<Box flexDirection="column">
-						<Text color="white">{getProviderLabel(selectedProvider)} API Key</Text>
-						<Text> </Text>
-						<Text color="gray">Paste your API key below</Text>
-						<Text> </Text>
-						<TextInput isPassword={true} onChange={setApiKey} onSubmit={handleApiKeySubmit} value={apiKey} />
-						<Text> </Text>
-						<Text color="gray" dimColor>
-							Enter to continue, Esc to go back
-						</Text>
-					</Box>
-				)
-
-			case "modelid":
-				// Show model picker for providers with static model lists
-				if (hasModelPicker(selectedProvider)) {
-					return (
-						<Box flexDirection="column">
-							<Text color="white">Select a model</Text>
-							<Text> </Text>
-							<ModelPicker
-								isActive={step === "modelid"}
-								onChange={setModelId}
-								onSubmit={handleModelIdSubmit}
-								provider={selectedProvider}
-							/>
-							<Text> </Text>
-							<Text color="gray" dimColor>
-								Type to search, arrows to navigate, Enter to select, Esc to go back
-							</Text>
-						</Box>
-					)
-				}
-				// Fall back to text input for providers without static model lists
-				return (
-					<Box flexDirection="column">
-						<Text color="white">Model ID</Text>
-						<Text> </Text>
-						<Text color="gray">e.g., claude-sonnet-4-20250514, gpt-4o</Text>
-						<Text> </Text>
-						<TextInput onChange={setModelId} onSubmit={handleModelIdSubmit} placeholder="model-id" value={modelId} />
-						<Text> </Text>
-						<Text color="gray" dimColor>
-							Enter to continue, Esc to go back
-						</Text>
-					</Box>
-				)
-
-			case "baseurl":
-				return (
-					<Box flexDirection="column">
-						<Text color="white">Base URL (optional)</Text>
-						<Text> </Text>
-						<Text color="gray">For self-hosted or proxy endpoints</Text>
-						<Text> </Text>
-						<TextInput
-							onChange={setBaseUrl}
-							onSubmit={handleBaseUrlSubmit}
-							placeholder="https://api.example.com/v1"
-							value={baseUrl}
-						/>
-						<Text> </Text>
-						<Text color="gray" dimColor>
-							Enter to skip or continue, Esc to go back
-						</Text>
-					</Box>
-				)
-
-			case "saving":
-				return (
-					<Box>
-						<Text color="blueBright">
-							<Spinner type="dots" />
-						</Text>
-						<Text color="white"> Saving configuration...</Text>
-					</Box>
-				)
-
-			case "cline_auth":
-				return (
-					<Box flexDirection="column">
-						<Box>
-							<Text color="blueBright">
-								<Spinner type="dots" />
-							</Text>
-							<Text color="white"> Waiting for browser sign-in...</Text>
-						</Box>
-						<Text> </Text>
-						<Text color="gray">Complete sign-in in your browser, then return here.</Text>
-						<Text> </Text>
-						<Text color="gray" dimColor>
-							Esc to cancel
-						</Text>
-					</Box>
-				)
-
-			case "cline_model": {
-				const allModels = featuredModels
-				return (
-					<Box flexDirection="column">
-						<Text color="white">Choose a model</Text>
-						<Text> </Text>
-
-						{/* Model list */}
-						{allModels.map((model, i) => (
-							<Box flexDirection="column" key={model.id} marginBottom={1}>
-								<Box>
-									<Text color={i === clineModelIndex ? "blueBright" : undefined}>
-										{i === clineModelIndex ? "❯ " : "  "}
-									</Text>
-									<Text bold color={i === clineModelIndex ? "blueBright" : "white"}>
-										{model.name}
-									</Text>
-									{model.label && (
-										<>
-											<Text> </Text>
-											<Text backgroundColor={model.label === "FREE" ? "gray" : "blueBright"} color="black">
-												{" "}
-												{model.label}{" "}
-											</Text>
-										</>
-									)}
-								</Box>
-								<Box paddingLeft={2}>
-									<Text color="gray">{model.description}</Text>
-								</Box>
-							</Box>
-						))}
-
-						{/* Browse all option */}
-						<Box>
-							<Text color={clineModelIndex === allModels.length ? "blueBright" : "gray"}>
-								{clineModelIndex === allModels.length ? "❯ " : "  "}
-								Browse all models...
-							</Text>
-						</Box>
-
-						<Text> </Text>
-						<Text color="gray" dimColor>
-							Arrows to navigate, Enter to select
-						</Text>
-					</Box>
-				)
-			}
-
-			case "import":
-				if (!importSource) {
-					return null
-				}
-				return <ImportView onCancel={handleImportCancel} onComplete={handleImportComplete} source={importSource} />
-
-			case "error":
-				return (
-					<Box flexDirection="column">
-						<Text bold color="red">
-							Something went wrong
-						</Text>
-						<Text> </Text>
-						<Text color="yellow">{errorMessage}</Text>
-						<Text> </Text>
-						<Select items={errorMenuItems} onSelect={handleErrorMenuSelect} />
-					</Box>
-				)
-
-			default:
-				return null
-		}
-	}
-
-	// For menu step, we need to handle input at the top level
-	const { isRawModeSupported } = useStdinContext()
-	const [menuIndex, setMenuIndex] = useState(0)
-
-	// Steps that allow going back with escape
-	const canGoBack = ["provider", "apikey", "modelid", "baseurl", "cline_auth", "cline_model", "error"].includes(step)
-
-	useInput(
-		(input, key) => {
-			// Handle escape to go back (except on menu)
-			if (key.escape && canGoBack) {
-				goBack()
-				return
-			}
-
-			if (step === "menu") {
-				if (key.upArrow) {
-					setMenuIndex((prev) => (prev > 0 ? prev - 1 : mainMenuItems.length - 1))
-				} else if (key.downArrow) {
-					setMenuIndex((prev) => (prev < mainMenuItems.length - 1 ? prev + 1 : 0))
-				} else if (key.return) {
-					handleMainMenuSelect(mainMenuItems[menuIndex].value)
-				}
-			} else if (step === "provider") {
-				if (key.upArrow) {
-					setProviderIndex((prev) => (prev > 0 ? prev - 1 : providerItems.length - 1))
-				} else if (key.downArrow) {
-					setProviderIndex((prev) => (prev < providerItems.length - 1 ? prev + 1 : 0))
-				} else if (key.return) {
-					if (providerItems[providerIndex]) {
-						handleProviderSelect(providerItems[providerIndex].value)
-					}
-				} else if (key.backspace || key.delete) {
-					setProviderSearch((prev) => prev.slice(0, -1))
-				} else if (input && !key.ctrl && !key.meta) {
-					setProviderSearch((prev) => prev + input)
-				}
-			} else if (step === "cline_model") {
-				const allModels = featuredModels
-				const maxIndex = allModels.length // includes "Browse all" option
-
-				if (key.upArrow) {
-					setClineModelIndex((prev) => (prev > 0 ? prev - 1 : maxIndex))
-				} else if (key.downArrow) {
-					setClineModelIndex((prev) => (prev < maxIndex ? prev + 1 : 0))
-				} else if (key.return) {
-					if (clineModelIndex === allModels.length) {
-						// "Browse all models" selected
-						setStep("modelid")
-					} else {
-						// Featured model selected
-						handleClineModelSelect(allModels[clineModelIndex].id)
-					}
-				}
-			}
-			// Note: modelid step input is handled by ModelPicker component
-		},
-		{ isActive: isRawModeSupported && (step === "menu" || step === "provider" || step === "cline_model" || canGoBack) },
-	)
-
 	return (
-		<Box flexDirection="column" paddingLeft={1} paddingRight={1} width="100%">
-			{/* Cline robot - centered */}
-			<StaticRobotFrame />
+		<Box flexDirection="column">
+			<Text bold color="white">
+				🔐 Cline Authentication
+			</Text>
+			<Text color="gray">{formatSeparator()}</Text>
+			<Text> </Text>
 
-			{/* Welcome text - centered */}
-			<Box justifyContent="center" marginTop={1}>
-				<Text bold color="white">
-					Welcome to Cline
-				</Text>
-			</Box>
+			{step === "menu" && (
+				<Select items={mainMenuItems} label="What would you like to do?" onSelect={handleMainMenuSelect} />
+			)}
 
-			{/* Auth box with border */}
-			<Box
-				borderColor="gray"
-				borderStyle="round"
-				flexDirection="column"
-				marginTop={1}
-				paddingBottom={1}
-				paddingLeft={2}
-				paddingRight={2}
-				paddingTop={1}>
-				{step === "menu" ? (
-					<Box flexDirection="column">
-						<Text color="gray">How would you like to get started?</Text>
-						<Text> </Text>
-						{mainMenuItems.map((item, index) => (
-							<Box key={item.value}>
-								<Text color={index === menuIndex ? "blueBright" : undefined}>
-									{index === menuIndex ? "❯ " : "  "}
-									{item.label}
-								</Text>
-							</Box>
-						))}
-						<Text> </Text>
-						<Text color="gray" dimColor>
-							Use arrow keys, Enter to select
+			{step === "provider" && <Select items={providerItems} label="Select a provider:" onSelect={handleProviderSelect} />}
+
+			{step === "apikey" && (
+				<TextInput
+					isPassword={true}
+					label="Enter your API key:"
+					onChange={setApiKey}
+					onSubmit={handleApiKeySubmit}
+					value={apiKey}
+				/>
+			)}
+
+			{step === "modelid" && (
+				<TextInput
+					label="Enter the model ID (e.g., gpt-4, claude-sonnet-4.5):"
+					onChange={setModelId}
+					onSubmit={handleModelIdSubmit}
+					placeholder="model-id"
+					value={modelId}
+				/>
+			)}
+
+			{step === "baseurl" && (
+				<TextInput
+					label="Enter base URL (optional, press Enter to skip):"
+					onChange={setBaseUrl}
+					onSubmit={handleBaseUrlSubmit}
+					placeholder="https://api.example.com/v1"
+					value={baseUrl}
+				/>
+			)}
+
+			{step === "saving" && (
+				<Box>
+					<LoadingSpinner />
+					<Text color="cyan"> Saving configuration...</Text>
+				</Box>
+			)}
+
+			{step === "cline_auth" && (
+				<Box flexDirection="column">
+					<Box>
+						<LoadingSpinner />
+						<Text color="cyan"> {authStatus || "Authenticating with Cline..."}</Text>
+					</Box>
+					<Text color="gray" dimColor>
+						A browser window should open. Complete the sign-in process there.
+					</Text>
+				</Box>
+			)}
+
+			{step === "success" && (
+				<Box flexDirection="column">
+					<Text bold color="green">
+						✓ Successfully configured authentication
+					</Text>
+					<Text color="gray">{formatSeparator()}</Text>
+					<Box flexDirection="column" marginLeft={2}>
+						<Text>
+							<Text color="cyan">Provider:</Text> {capitalize(selectedProvider)}
+						</Text>
+						<Text>
+							<Text color="cyan">Model:</Text> {modelId}
+						</Text>
+						{baseUrl && (
+							<Text>
+								<Text color="cyan">Base URL:</Text> {baseUrl}
+							</Text>
+						)}
+						<Text>
+							<Text color="cyan">API Key:</Text> Configured
 						</Text>
 					</Box>
-				) : (
-					renderAuthContent()
-				)}
-			</Box>
+					<Text color="gray">{formatSeparator()}</Text>
+					<Text color="white">You can now use Cline with this provider.</Text>
+					<Text> </Text>
+					<Select items={successMenuItems} label="What would you like to do?" onSelect={handleSuccessMenuSelect} />
+				</Box>
+			)}
+
+			{step === "error" && (
+				<Box flexDirection="column">
+					<Text bold color="red">
+						✗ Configuration failed
+					</Text>
+					<Text color="gray">{formatSeparator()}</Text>
+					<Text color="red">{errorMessage}</Text>
+					<Text> </Text>
+					<Select items={errorMenuItems} label="What would you like to do?" onSelect={handleErrorMenuSelect} />
+				</Box>
+			)}
 		</Box>
 	)
 }
