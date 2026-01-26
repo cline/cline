@@ -4,6 +4,7 @@ import { globby, Options } from "globby"
 import * as os from "os"
 import * as path from "path"
 import { Logger } from "@/shared/services/Logger"
+import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 
 // Constants
 const DEFAULT_IGNORE_DIRECTORIES = [
@@ -58,7 +59,12 @@ function buildIgnorePatterns(absolutePath: string): string[] {
 	return patterns.map((dir) => `**/${dir}/**`)
 }
 
-export async function listFiles(dirPath: string, recursive: boolean, limit: number): Promise<[string[], boolean]> {
+export async function listFiles(
+	dirPath: string,
+	recursive: boolean,
+	limit: number,
+	clineIgnore?: ClineIgnoreController,
+): Promise<[string[], boolean]> {
 	const absolutePathResult = workspaceResolver.resolveWorkspacePath(dirPath, "", "Services.glob.listFiles")
 	const absolutePath = typeof absolutePathResult === "string" ? absolutePathResult : absolutePathResult.absolutePath
 
@@ -78,7 +84,9 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 		suppressErrors: true,
 	}
 
-	const filePaths = recursive ? await globbyLevelByLevel(limit, options) : (await globby("*", options)).slice(0, limit)
+	const filePaths = recursive
+		? await globbyLevelByLevel(limit, options, clineIgnore)
+		: (await globby("*", options)).slice(0, limit)
 
 	return [filePaths, filePaths.length >= limit]
 }
@@ -95,7 +103,7 @@ Breadth-first traversal of directory structure level by level up to a limit:
    - Potential for loops if symbolic links reference back to parent (we could use followSymlinks: false but that may not be ideal for some projects and it's pointless if they're not using symlinks wrong)
    - Timeout mechanism prevents infinite loops
 */
-async function globbyLevelByLevel(limit: number, options?: Options) {
+async function globbyLevelByLevel(limit: number, options?: Options, clineIgnore?: ClineIgnoreController) {
 	const results: Set<string> = new Set()
 	const queue: string[] = ["*"]
 
@@ -110,6 +118,9 @@ async function globbyLevelByLevel(limit: number, options?: Options) {
 				}
 				results.add(file)
 				if (file.endsWith("/")) {
+					if (clineIgnore && !clineIgnore.validateAccess(file)) {
+						continue
+					}
 					// Escape parentheses in the path to prevent glob pattern interpretation
 					// This is crucial for NextJS folder naming conventions which use parentheses like (auth), (dashboard)
 					// Without escaping, glob treats parentheses as special pattern grouping characters
