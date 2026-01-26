@@ -7,23 +7,10 @@
  * @module acp
  */
 
-import path from "node:path"
 import { AgentSideConnection, ndJsonStream } from "@agentclientprotocol/sdk"
-import { StateManager } from "@/core/storage/StateManager"
-import { HostProvider } from "@/hosts/host-provider"
-import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
-import { StandaloneTerminalManager } from "@/integrations/terminal/standalone/StandaloneTerminalManager"
-import { ErrorService } from "@/services/error/ErrorService"
-import { initializeDistinctId } from "@/services/logging/distinctId"
-import { CliCommentReviewController } from "../controllers/CliCommentReviewController.js"
-import { CliWebviewProvider } from "../controllers/CliWebviewProvider.js"
-import { createCliHostBridgeProvider } from "../controllers/index.js"
-import { initializeCliContext } from "../vscode-context.js"
+import { version as CLI_VERSION } from "../../../package.json"
 import { AcpAgent } from "./AcpAgent.js"
 import { nodeToWebReadable, nodeToWebWritable } from "./streamUtils.js"
-
-/** CLI version - should match the version in index.ts */
-const CLI_VERSION = "0.0.0"
 
 /** Original console methods for restoration if needed */
 const originalConsole = {
@@ -81,160 +68,54 @@ export interface AcpModeOptions {
  * @param options - Configuration options for ACP mode
  */
 export async function runAcpMode(options: AcpModeOptions = {}): Promise<void> {
-	// Step 1: Redirect all console output to stderr
-	// stdout is reserved for JSON-RPC messages
 	redirectConsoleToStderr()
 
-	if (options.verbose) {
-		console.error("[ACP] Starting Cline in ACP mode...")
-		console.error("[ACP] Version:", CLI_VERSION)
-	}
-
-	const workspacePath = options.cwd || process.cwd()
-
-	// Step 2: Initialize CLI context and infrastructure
-	const { extensionContext, DATA_DIR, EXTENSION_DIR } = initializeCliContext({
-		clineDir: options.config,
-		workspaceDir: workspacePath,
-	})
-
-	// Initialize host provider with CLI components
-	// Note: We use the CLI host bridge provider here for the general infrastructure.
-	// File operations delegation to the ACP client happens at the session level:
-	// - AcpAgent creates AcpHostBridgeProvider per-session (in newSession/loadSession)
-	// - When processing prompts, the agent uses the session's AcpHostBridgeProvider
-	//   to delegate file read/write to the client if the client supports it
-	// - Similarly, AcpTerminalManager delegates terminal operations to the client
-	HostProvider.initialize(
-		() => new CliWebviewProvider(extensionContext),
-		() => new FileEditProvider(),
-		() => new CliCommentReviewController(),
-		() => new StandaloneTerminalManager(),
-		createCliHostBridgeProvider(workspacePath),
-		options.verbose ? (message: string) => console.error("[ACP]", message) : () => {},
-		async () => "", // No auth callback URL in ACP mode
-		async (name: string) => path.join(process.cwd(), name),
-		EXTENSION_DIR,
-		DATA_DIR,
-	)
-
-	await ErrorService.initialize()
-	await StateManager.initialize(extensionContext)
-
-	// Create the webview provider and get the controller
-	const webview = HostProvider.get().createWebviewProvider() as CliWebviewProvider
-	const controller = webview.controller
-
-	await initializeDistinctId(extensionContext)
-
-	if (options.verbose) {
-		console.error("[ACP] CLI infrastructure initialized")
-		console.error("[ACP] Data directory:", DATA_DIR)
-		console.error("[ACP] Workspace:", workspacePath)
-	}
-
-	// Step 3: Set up the JSON-RPC stream over stdio
-	// ndJsonStream expects Web Streams, so we convert Node.js streams first
-	// Note: The argument order is (writable, readable) - output first, then input
 	const outputStream = nodeToWebWritable(process.stdout)
 	const inputStream = nodeToWebReadable(process.stdin)
 	const stream = ndJsonStream(outputStream, inputStream)
-
-	if (options.verbose) {
-		console.error("[ACP] Created ndJsonStream for stdio communication")
-	}
-
-	// Track the agent instance for cleanup
 	let agent: AcpAgent | null = null
 
-	// Step 4: Create the AgentSideConnection with our agent factory
-	const connection = new AgentSideConnection((conn) => {
-		if (options.verbose) {
-			console.error("[ACP] Creating AcpAgent instance")
-		}
-
+	new AgentSideConnection((conn) => {
 		agent = new AcpAgent(conn, {
 			version: CLI_VERSION,
-			globalStoragePath: DATA_DIR,
 			debug: options.verbose,
 		})
-
-		// Inject the controller into the agent
-		agent.setController(controller)
-
 		return agent
 	}, stream)
 
-	if (options.verbose) {
-		console.error("[ACP] AgentSideConnection created, waiting for client requests...")
-	}
-
-	// Step 5: Set up signal handlers for graceful shutdown
 	let isShuttingDown = false
-
-	const shutdown = async (signal: string) => {
+	const shutdown = async () => {
 		if (isShuttingDown) {
 			// Force exit on second signal
 			process.exit(1)
 		}
 		isShuttingDown = true
-
-		if (options.verbose) {
-			console.error(`[ACP] ${signal} received, shutting down...`)
-		}
-
 		try {
-			// Cancel any active task
-			const task = controller.task
-			if (task) {
-				task.abortTask()
-			}
-
-			// Flush pending state
-			await controller.stateManager.flushPendingState()
-
-			// Dispose controller
-			await controller.dispose()
-
-			// Dispose error service
-			await ErrorService.get().dispose()
-
-			// Restore console if needed
+			await agent?.shutdown()
 			restoreConsole()
 		} catch (error) {
-			if (options.verbose) {
-				console.error("[ACP] Error during shutdown:", error)
-			}
+			console.error("[ACP] Error during shutdown:", error)
 		}
 
 		process.exit(0)
 	}
 
-	process.on("SIGINT", () => shutdown("SIGINT"))
-	process.on("SIGTERM", () => shutdown("SIGTERM"))
+	process.on("SIGINT", shutdown)
+	process.on("SIGTERM", shutdown)
 
-	// Step 6: Keep the process alive
+	// Keep the process alive
 	// The ndJsonStream will handle stdin events automatically.
 	// We need to ensure the process doesn't exit while waiting for input.
 	process.stdin.resume()
 
 	// Handle stdin end (client disconnected)
-	process.stdin.on("end", async () => {
-		if (options.verbose) {
-			console.error("[ACP] stdin closed, client disconnected")
-		}
-		await shutdown("stdin-end")
-	})
+	process.stdin.on("end", shutdown)
 
 	// Handle stdin errors
 	process.stdin.on("error", async (error) => {
-		if (options.verbose) {
-			console.error("[ACP] stdin error:", error)
-		}
-		await shutdown("stdin-error")
+		console.error("[ACP] stdin error:", error)
+		await shutdown()
 	})
 
-	if (options.verbose) {
-		console.error("[ACP] Process is now listening for ACP requests on stdin")
-	}
+	console.error("[ACP] Process is now listening for ACP requests on stdin")
 }

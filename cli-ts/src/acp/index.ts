@@ -10,14 +10,6 @@
 // Export the ACP Agent implementation
 export { AcpAgent } from "./AcpAgent.js"
 
-// Export the Host Bridge Provider (file operations delegation)
-export {
-	AcpHostBridgeProvider,
-	type FileReadOptions,
-	type FileReadResult,
-	type FileWriteResult,
-} from "./AcpHostBridgeProvider.js"
-
 // Export the Terminal Manager (terminal operations delegation)
 export {
 	AcpTerminalManager,
