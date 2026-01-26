@@ -171,7 +171,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ provider, onChange, on
 			<Box>
 				<Text color="gray">Search: </Text>
 				<Text color="white">{search}</Text>
-				<Text color="gray">▌</Text>
+				<Text inverse> </Text>
 			</Box>
 			<Text> </Text>
 			{showTopIndicator && (

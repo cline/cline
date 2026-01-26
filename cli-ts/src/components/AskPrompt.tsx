@@ -232,7 +232,7 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 							<Text>{icon} </Text>
 							<Text color="cyan">Or type: </Text>
 							<Text>{textInput}</Text>
-							<Text color="gray">▌</Text>
+							<Text inverse> </Text>
 						</Box>
 						<Text color="gray" dimColor>
 							(Enter number to select, or type response + Enter)
@@ -248,7 +248,7 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 						<Text>{icon} </Text>
 						<Text color="cyan">Reply: </Text>
 						<Text>{textInput}</Text>
-						<Text color="gray">▌</Text>
+						<Text inverse> </Text>
 					</Box>
 					<Text color="gray" dimColor>
 						(Type your response and press Enter)
@@ -276,7 +276,7 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 							<Text>{icon} </Text>
 							<Text color="cyan">Or type: </Text>
 							<Text>{textInput}</Text>
-							<Text color="gray">▌</Text>
+							<Text inverse> </Text>
 						</Box>
 						<Text color="gray" dimColor>
 							(Enter number to select, or type response + Enter)
@@ -292,7 +292,7 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 						<Text>{icon} </Text>
 						<Text color="cyan">Reply: </Text>
 						<Text>{textInput}</Text>
-						<Text color="gray">▌</Text>
+						<Text inverse> </Text>
 					</Box>
 					<Text color="gray" dimColor>
 						(Type response + Enter, or just Enter to switch to Act mode)
@@ -330,7 +330,7 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 						<Text>{icon} </Text>
 						<Text color="cyan">Follow-up: </Text>
 						<Text>{textInput}</Text>
-						<Text color="gray">▌</Text>
+						<Text inverse> </Text>
 					</Box>
 					<Text color="gray" dimColor>
 						(Type follow-up question + Enter, or q to exit)

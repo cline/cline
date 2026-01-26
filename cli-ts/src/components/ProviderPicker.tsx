@@ -91,7 +91,7 @@ export const ProviderPicker: React.FC<ProviderPickerProps> = ({ onSelect, isActi
 			<Box>
 				<Text color="gray">Search: </Text>
 				<Text color="white">{search}</Text>
-				<Text color="gray">▌</Text>
+				<Text inverse> </Text>
 			</Box>
 			<Text> </Text>
 			{showTopIndicator && (

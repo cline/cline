@@ -57,7 +57,7 @@ export const ApiKeyInput: React.FC<ApiKeyInputProps> = ({
 			</Box>
 			<Box marginTop={1}>
 				<Text color="white">{"•".repeat(value.length)}</Text>
-				<Text color="gray">▌</Text>
+				<Text inverse> </Text>
 			</Box>
 			<Box marginTop={1}>
 				<Text color="gray" dimColor>

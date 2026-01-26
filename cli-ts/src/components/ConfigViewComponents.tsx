@@ -217,7 +217,7 @@ export const TextInput: React.FC<TextInputProps> = ({ label, onChange, onCancel,
 			</Text>
 			<Box>
 				<Text color="white">{value}</Text>
-				<Text color="gray">▌</Text>
+				<Text inverse> </Text>
 			</Box>
 			<Text color="gray" dimColor>
 				Type: {type} • Enter to save • Esc to cancel
