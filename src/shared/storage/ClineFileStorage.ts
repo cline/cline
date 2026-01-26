@@ -1,77 +1,65 @@
 import * as fs from "node:fs"
 import * as path from "node:path"
 import { Logger } from "../services/Logger"
-import { ClineStorage } from "./ClineStorage"
+import { ClineSyncStorage } from "./ClineStorage"
 
 /**
- * A storage implementation that uses the filesystem to store key-value pairs.
+ * Synchronous file-backed JSON storage.
+ * Stores any JSON-serializable values with sync read and write.
+ * Used for VSCode Memento compatibility and CLI environments.
  */
-export class ClineFileStorage extends ClineStorage {
-	override name = "FileBasedStorage"
+export class ClineFileStorage<T = any> extends ClineSyncStorage<T> {
+	protected name: string
+	private data: Record<string, T>
+	private readonly fsPath: string
 
-	private readonly cache = new Map<string, string>()
-
-	constructor(private fsPath: string) {
+	constructor(filePath: string, name = "ClineFileStorage") {
 		super()
-		this.read()
+		this.fsPath = filePath
+		this.name = name
+		this.data = this.readFromDisk()
 	}
 
-	override async _get(key: string): Promise<string | undefined> {
-		try {
-			return this.cache.get(key) || undefined
-		} catch (error) {
-			throw error
+	protected _get(key: string): T | undefined {
+		return this.data[key]
+	}
+
+	protected _set(key: string, value: T | undefined): void {
+		if (value === undefined) {
+			delete this.data[key]
+		} else {
+			this.data[key] = value
 		}
+		this.writeToDisk()
 	}
 
-	override async _store(key: string, value: string): Promise<void> {
-		try {
-			this.cache.set(key, value)
-			await this.write()
-		} catch (error) {
-			throw error
-		}
+	protected _delete(key: string): void {
+		delete this.data[key]
+		this.writeToDisk()
 	}
 
-	override async _delete(key: string): Promise<void> {
-		try {
-			this.cache.delete(key)
-			await this.write()
-		} catch (error) {
-			Logger.error("FileBasedStorage", error)
-		}
+	protected _keys(): readonly string[] {
+		return Object.keys(this.data)
 	}
 
-	private async read(): Promise<void> {
+	private readFromDisk(): Record<string, T> {
 		try {
-			const fileContent = await fs.promises.readFile(this.fsPath, "utf-8")
-			const json = JSON.parse(fileContent) as Record<string, string>
-			this.cache.clear() // Clear existing cache
-			for (const [key, value] of Object.entries(json)) {
-				if (key && value) {
-					this.cache.set(key, value)
-				}
+			if (fs.existsSync(this.fsPath)) {
+				return JSON.parse(fs.readFileSync(this.fsPath, "utf-8"))
 			}
 		} catch (error) {
-			// File doesn't exist yet - start with empty cache
-			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-				return
-			}
-			throw error
+			Logger.error(`[${this.name}] failed to read from ${this.fsPath}:`, error)
 		}
+		return {}
 	}
 
-	private async write(): Promise<void> {
+	private writeToDisk(): void {
 		try {
-			// Ensure directory exists
 			const dir = path.dirname(this.fsPath)
-			await fs.promises.mkdir(dir, { recursive: true })
-
-			// Convert map to object and save
-			const json = Object.fromEntries(this.cache)
-			await fs.promises.writeFile(this.fsPath, JSON.stringify(json, null, 2), "utf-8")
+			fs.mkdirSync(dir, { recursive: true })
+			fs.writeFileSync(this.fsPath, JSON.stringify(this.data, null, 2), "utf-8")
 		} catch (error) {
-			Logger.error("FileBasedStorage", error)
+			Logger.error(`[${this.name}] failed to write to ${this.fsPath}:`, error)
 		}
 	}
 }
