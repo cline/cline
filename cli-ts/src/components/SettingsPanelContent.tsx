@@ -156,6 +156,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 					{ key: "provider", label: "Provider", type: "readonly", value: provider },
 					...(separateModels
 						? [
+								{ key: "spacer0", label: "", type: "spacer" as const, value: "" },
 								{ key: "actHeader", label: "Act Mode", type: "header" as const, value: "" },
 								{
 									key: "actModelId",
