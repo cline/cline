@@ -62,8 +62,10 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	// Set the distinct ID for logging and telemetry
 	await initializeDistinctId(context)
 
-	// Initialize PostHog client provider
-	PostHogClientProvider.getInstance()
+	// Initialize PostHog client provider (skip in self-hosted mode)
+	if (!ClineEndpoint.isSelfHosted()) {
+		PostHogClientProvider.getInstance()
+	}
 
 	// Setup the external services
 	await ErrorService.initialize()
