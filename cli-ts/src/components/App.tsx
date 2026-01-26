@@ -12,7 +12,6 @@ import { ChatView } from "./ChatView"
 import { ConfigView } from "./ConfigView"
 import { HistoryView } from "./HistoryView"
 import { TaskJsonView } from "./TaskJsonView"
-import { TaskView } from "./TaskView"
 
 export type ViewType = "task" | "history" | "config" | "auth" | "welcome"
 
@@ -192,18 +191,6 @@ export const App: React.FC<AppProps> = ({
 	let content: ReactNode
 
 	switch (currentView) {
-		case "task":
-			content = (
-				<TaskContextProvider controller={controller}>
-					{jsonOutput ? (
-						<TaskJsonView onComplete={onComplete} onError={onError} taskId={selectedTaskId} verbose={verbose} />
-					) : (
-						<TaskView onComplete={onComplete} onError={onError} taskId={selectedTaskId} verbose={verbose} />
-					)}
-				</TaskContextProvider>
-			)
-			break
-
 		case "history":
 			content = (
 				<HistoryView
@@ -256,18 +243,24 @@ export const App: React.FC<AppProps> = ({
 			)
 			break
 
+		case "task":
 		case "welcome":
 			content = (
 				<TaskContextProvider controller={controller}>
-					<ChatView
-						controller={controller}
-						initialImages={initialImages}
-						initialPrompt={initialPrompt}
-						onComplete={onComplete}
-						onError={onError}
-						onExit={onWelcomeExit}
-						robotTopRow={robotTopRow}
-					/>
+					{jsonOutput ? (
+						<TaskJsonView onComplete={onComplete} onError={onError} taskId={selectedTaskId} verbose={verbose} />
+					) : (
+						<ChatView
+							controller={controller}
+							initialImages={initialImages}
+							initialPrompt={initialPrompt}
+							onComplete={onComplete}
+							onError={onError}
+							onExit={onWelcomeExit}
+							robotTopRow={robotTopRow}
+							taskId={selectedTaskId}
+						/>
+					)}
 				</TaskContextProvider>
 			)
 			break

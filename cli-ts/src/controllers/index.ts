@@ -12,7 +12,7 @@ import type {
 import type { HostBridgeClientProvider, StreamingCallbacks } from "@hosts/host-provider-types"
 import * as proto from "@shared/proto/index"
 import { ClineClient } from "@/shared/cline"
-import { CLI_VERSION } from ".."
+import { version as CLI_VERSION } from "../../package.json"
 import { printError, printInfo, printWarning } from "../utils/display"
 
 /**
@@ -80,6 +80,8 @@ export class CliDiffServiceClient implements DiffServiceClientInterface {
 export class CliEnvServiceClient implements EnvServiceClientInterface {
 	private clipboardContent: string = ""
 
+	private telemetrySetting = proto.host.Setting.ENABLED
+
 	async clipboardWriteText(request: proto.cline.StringRequest): Promise<proto.cline.Empty> {
 		this.clipboardContent = request.value || ""
 		printInfo(`📋 Copied to clipboard`)
@@ -105,7 +107,7 @@ export class CliEnvServiceClient implements EnvServiceClientInterface {
 
 	async getTelemetrySettings(_request: proto.cline.EmptyRequest): Promise<proto.host.GetTelemetrySettingsResponse> {
 		return proto.host.GetTelemetrySettingsResponse.create({
-			isEnabled: proto.host.Setting.DISABLED,
+			isEnabled: this.telemetrySetting,
 		})
 	}
 
@@ -116,11 +118,19 @@ export class CliEnvServiceClient implements EnvServiceClientInterface {
 		// Send initial settings
 		callbacks.onResponse(
 			proto.host.TelemetrySettingsEvent.create({
-				isEnabled: proto.host.Setting.DISABLED,
+				isEnabled: this.telemetrySetting,
 			}),
 		)
 		// Return unsubscribe function
 		return () => {}
+	}
+
+	debugLog(request: proto.cline.StringRequest): Promise<proto.cline.Empty> {
+		const message = request.value || ""
+		if (process.env.IS_DEV) {
+			printInfo(`[DebugLog] ${message}`)
+		}
+		return Promise.resolve(proto.cline.Empty.create())
 	}
 
 	async shutdown(_request: proto.cline.EmptyRequest): Promise<proto.cline.Empty> {
