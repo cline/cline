@@ -7,6 +7,7 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Box, Text } from "ink"
 import React from "react"
+import { COLORS } from "../constants/colors"
 import { isFileSaveTool, parseToolFromMessage } from "../utils/tools"
 
 /**
@@ -303,7 +304,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ config, mode = "ac
 	const availableWidth = terminalWidth - 2 - gapWidth // 1 space padding on each side
 	const buttonWidth = Math.floor(availableWidth / buttonCount)
 
-	const modeColor = mode === "plan" ? "yellow" : "blueBright"
+	const modeColor = mode === "plan" ? "yellow" : COLORS.primaryBlue
 
 	const renderButton = (text: string, shortcut: string) => {
 		const label = ` ${text} (${shortcut}) `
