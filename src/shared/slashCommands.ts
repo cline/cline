@@ -61,4 +61,10 @@ export const CLI_ONLY_COMMANDS: SlashCommand[] = [
 		section: "default",
 		cliCompatible: true,
 	},
+	{
+		name: "models",
+		description: "Change the model used for the current mode",
+		section: "default",
+		cliCompatible: true,
+	},
 ]

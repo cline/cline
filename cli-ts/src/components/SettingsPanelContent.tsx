@@ -25,6 +25,7 @@ import { getProviderLabel, ProviderPicker } from "./ProviderPicker"
 interface SettingsPanelContentProps {
 	onClose: () => void
 	controller?: Controller
+	initialMode?: "model-picker"
 }
 
 type SettingsTab = "api" | "auto-approve" | "features" | "other"
@@ -94,7 +95,7 @@ const FEATURE_SETTINGS = {
 
 type FeatureKey = keyof typeof FEATURE_SETTINGS
 
-export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onClose, controller }) => {
+export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onClose, controller, initialMode }) => {
 	const { isRawModeSupported } = useStdinContext()
 	const stateManager = StateManager.get()
 
@@ -102,8 +103,10 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 	const [currentTab, setCurrentTab] = useState<SettingsTab>("api")
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const [isEditing, setIsEditing] = useState(false)
-	const [isPickingModel, setIsPickingModel] = useState(false)
-	const [pickingModelKey, setPickingModelKey] = useState<"actModelId" | "planModelId" | null>(null)
+	const [isPickingModel, setIsPickingModel] = useState(initialMode === "model-picker")
+	const [pickingModelKey, setPickingModelKey] = useState<"actModelId" | "planModelId" | null>(
+		initialMode === "model-picker" ? "actModelId" : null,
+	)
 	const [isPickingProvider, setIsPickingProvider] = useState(false)
 	const [isPickingLanguage, setIsPickingLanguage] = useState(false)
 	const [isEnteringApiKey, setIsEnteringApiKey] = useState(false)
