@@ -5,14 +5,18 @@
 
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
+import { ProviderToApiKeyMap } from "@shared/storage"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { Box, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
+import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import { useStdinContext } from "../context/StdinContext"
+import { ApiKeyInput } from "./ApiKeyInput"
 import { Checkbox } from "./Checkbox"
-import { hasModelPicker, ModelPicker } from "./ModelPicker"
+import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
 import { Panel, PanelTab } from "./Panel"
+import { getProviderLabel, ProviderPicker } from "./ProviderPicker"
 
 interface SettingsPanelContentProps {
 	onClose: () => void
@@ -95,6 +99,10 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 	const [isEditing, setIsEditing] = useState(false)
 	const [isPickingModel, setIsPickingModel] = useState(false)
 	const [pickingModelKey, setPickingModelKey] = useState<"actModelId" | "planModelId" | null>(null)
+	const [isPickingProvider, setIsPickingProvider] = useState(false)
+	const [isEnteringApiKey, setIsEnteringApiKey] = useState(false)
+	const [pendingProvider, setPendingProvider] = useState<string | null>(null)
+	const [apiKeyValue, setApiKeyValue] = useState("")
 	const [editValue, setEditValue] = useState("")
 
 	// Settings state - single object for feature toggles
@@ -131,9 +139,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		() => stateManager.getGlobalSettingsKey("telemetrySetting") || "unset",
 	)
 
-	// Get current provider and model info (refresh on each render to catch changes)
+	// Get current provider and model info
 	const apiConfig = stateManager.getApiConfiguration()
-	const provider = apiConfig.actModeApiProvider || apiConfig.planModeApiProvider || "not configured"
+	const [provider, setProvider] = useState<string>(
+		() => apiConfig.actModeApiProvider || apiConfig.planModeApiProvider || "not configured",
+	)
 	const actModelId = (stateManager.getGlobalSettingsKey("actModeApiModelId") as string) || ""
 	const planModelId = (stateManager.getGlobalSettingsKey("planModeApiModelId") as string) || ""
 
@@ -153,7 +163,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		switch (currentTab) {
 			case "api":
 				return [
-					{ key: "provider", label: "Provider", type: "readonly", value: provider },
+					{ key: "provider", label: "Provider", type: "editable", value: provider || "not configured" },
 					...(separateModels
 						? [
 								{ key: "spacer0", label: "", type: "spacer" as const, value: "" },
@@ -337,6 +347,10 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		setIsEditing(false)
 		setIsPickingModel(false)
 		setPickingModelKey(null)
+		setIsPickingProvider(false)
+		setIsEnteringApiKey(false)
+		setPendingProvider(null)
+		setApiKeyValue("")
 	}, [])
 
 	// Ensure selected index is valid when items change
@@ -353,6 +367,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			return
 
 		if (item.type === "editable") {
+			// For provider field, use the provider picker
+			if (item.key === "provider") {
+				setIsPickingProvider(true)
+				return
+			}
 			// For model ID fields, check if we should use the model picker
 			if ((item.key === "actModelId" || item.key === "planModelId") && hasModelPicker(provider)) {
 				setPickingModelKey(item.key as "actModelId" | "planModelId")
@@ -445,6 +464,61 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		[pickingModelKey, stateManager],
 	)
 
+	// Handle provider selection from picker
+	const handleProviderSelect = useCallback(
+		(providerId: string) => {
+			// Check if this provider needs an API key
+			const keyField = ProviderToApiKeyMap[providerId as keyof typeof ProviderToApiKeyMap]
+			if (keyField) {
+				// Provider needs an API key - go to API key entry mode
+				setPendingProvider(providerId)
+				setApiKeyValue("")
+				setIsPickingProvider(false)
+				setIsEnteringApiKey(true)
+			} else {
+				// Provider doesn't need an API key (rare) - just set it
+				setProvider(providerId)
+				stateManager.setGlobalState("actModeApiProvider", providerId)
+				stateManager.setGlobalState("planModeApiProvider", providerId)
+				const defaultModelId = getDefaultModelId(providerId)
+				if (defaultModelId) {
+					stateManager.setGlobalState("actModeApiModelId", defaultModelId)
+					stateManager.setGlobalState("planModeApiModelId", defaultModelId)
+				}
+				setIsPickingProvider(false)
+			}
+		},
+		[stateManager],
+	)
+
+	// Handle API key submission after provider selection
+	const handleApiKeySubmit = useCallback(async () => {
+		if (!pendingProvider || !apiKeyValue.trim()) return
+
+		// Get the API key field for this provider
+		const keyField = ProviderToApiKeyMap[pendingProvider as keyof typeof ProviderToApiKeyMap]
+		if (keyField) {
+			const fields = Array.isArray(keyField) ? keyField : [keyField]
+			// Save to secret storage
+			await secretStorage.set(fields[0], apiKeyValue.trim())
+		}
+
+		// Now set the provider and model
+		setProvider(pendingProvider)
+		stateManager.setGlobalState("actModeApiProvider", pendingProvider)
+		stateManager.setGlobalState("planModeApiProvider", pendingProvider)
+		const defaultModelId = getDefaultModelId(pendingProvider)
+		if (defaultModelId) {
+			stateManager.setGlobalState("actModeApiModelId", defaultModelId)
+			stateManager.setGlobalState("planModeApiModelId", defaultModelId)
+		}
+
+		// Clear state
+		setIsEnteringApiKey(false)
+		setPendingProvider(null)
+		setApiKeyValue("")
+	}, [pendingProvider, apiKeyValue, stateManager])
+
 	// Handle saving edited value
 	const handleSave = useCallback(() => {
 		const item = items[selectedIndex]
@@ -504,11 +578,25 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 	useInput(
 		(input, key) => {
 			// Model picker mode - escape to close, input is handled by ModelPicker
+			// Provider picker mode - escape to close, input is handled by ProviderPicker
+			if (isPickingProvider) {
+				if (key.escape) {
+					setIsPickingProvider(false)
+				}
+				return
+			}
+
+			// Model picker mode - escape to close, input is handled by ModelPicker
 			if (isPickingModel) {
 				if (key.escape) {
 					setIsPickingModel(false)
 					setPickingModelKey(null)
 				}
+				return
+			}
+
+			// API key entry mode - input is handled by ApiKeyInput component
+			if (isEnteringApiKey) {
 				return
 			}
 
@@ -561,6 +649,41 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 
 	// Render content
 	const renderContent = () => {
+		if (isPickingProvider) {
+			return (
+				<Box flexDirection="column">
+					<Text bold color="blueBright">
+						Select Provider
+					</Text>
+					<Box marginTop={1}>
+						<ProviderPicker isActive={isPickingProvider} onSelect={handleProviderSelect} />
+					</Box>
+					<Box marginTop={1}>
+						<Text color="gray" dimColor>
+							Type to search, arrows to navigate, Enter to select, Esc to cancel
+						</Text>
+					</Box>
+				</Box>
+			)
+		}
+
+		if (isEnteringApiKey && pendingProvider) {
+			return (
+				<ApiKeyInput
+					isActive={isEnteringApiKey}
+					onCancel={() => {
+						setIsEnteringApiKey(false)
+						setPendingProvider(null)
+						setApiKeyValue("")
+					}}
+					onChange={setApiKeyValue}
+					onSubmit={handleApiKeySubmit}
+					providerName={getProviderLabel(pendingProvider)}
+					value={apiKeyValue}
+				/>
+			)
+		}
+
 		if (isPickingModel && pickingModelKey) {
 			const label = pickingModelKey === "actModelId" ? "Model ID (Act)" : "Model ID (Plan)"
 			return (
