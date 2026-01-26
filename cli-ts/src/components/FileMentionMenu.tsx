@@ -43,6 +43,7 @@ export const FileMentionMenu: React.FC<FileMentionMenuProps> = ({ results, selec
 	}
 
 	const { items: visibleResults, startIndex } = getVisibleWindow(results, selectedIndex)
+	const hasMoreBelow = startIndex + visibleResults.length < results.length
 
 	return (
 		<Box flexDirection="column" marginBottom={1} paddingLeft={1} paddingRight={1}>
@@ -58,6 +59,11 @@ export const FileMentionMenu: React.FC<FileMentionMenuProps> = ({ results, selec
 					</Box>
 				)
 			})}
+			{hasMoreBelow && (
+				<Text color="gray" dimColor>
+					{"  "}▼
+				</Text>
+			)}
 		</Box>
 	)
 }
