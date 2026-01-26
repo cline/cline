@@ -125,6 +125,7 @@ import {
 	insertMention,
 	searchWorkspaceFiles,
 } from "../utils/file-search"
+import { isMouseEscapeSequence } from "../utils/input"
 import { jsonParseSafe, parseImagesFromInput } from "../utils/parser"
 import { extractSlashQuery, filterCommands, insertSlashCommand, sortCommandsWorkflowsFirst } from "../utils/slash-commands"
 import { isFileEditTool, parseToolFromMessage } from "../utils/tools"
@@ -741,8 +742,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	// Handle keyboard input
 	useInput((input, key) => {
 		// Filter out mouse escape sequences from AsciiMotionCli's mouse tracking
-		// Mouse events look like: [<35;46;17M or contain escape characters
-		if (input.includes("\x1b") || input.includes("[<") || /\d+;\d+[Mm]/.test(input)) {
+		if (isMouseEscapeSequence(input)) {
 			return
 		}
 

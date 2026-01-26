@@ -14,6 +14,7 @@ import { getAllFeaturedModels } from "../constants/featured-models"
 import { useStdinContext } from "../context/StdinContext"
 import { useScrollableList } from "../hooks/useScrollableList"
 import { type DetectedSources, detectImportSources, type ImportSource } from "../utils/import-configs"
+import { isMouseEscapeSequence } from "../utils/input"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { StaticRobotFrame } from "./AsciiMotionCli"
 import { ImportView } from "./ImportView"
@@ -115,6 +116,11 @@ const TextInput: React.FC<{
 
 	useInput(
 		(input, key) => {
+			// Filter out mouse escape sequences
+			if (isMouseEscapeSequence(input)) {
+				return
+			}
+
 			if (key.return) {
 				onSubmit(value)
 			} else if (key.backspace || key.delete) {

@@ -6,6 +6,7 @@
 import { Box, Text, useInput } from "ink"
 import React from "react"
 import { useStdinContext } from "../context/StdinContext"
+import { isMouseEscapeSequence } from "../utils/input"
 
 interface ApiKeyInputProps {
 	providerName: string
@@ -28,6 +29,11 @@ export const ApiKeyInput: React.FC<ApiKeyInputProps> = ({
 
 	useInput(
 		(input, key) => {
+			// Filter out mouse escape sequences
+			if (isMouseEscapeSequence(input)) {
+				return
+			}
+
 			if (key.escape) {
 				onCancel()
 				return

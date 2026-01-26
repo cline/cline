@@ -9,6 +9,7 @@ import { API_PROVIDERS_LIST } from "@/shared/api"
 import providersData from "@/shared/providers/providers.json"
 import { useStdinContext } from "../context/StdinContext"
 import { useScrollableList } from "../hooks/useScrollableList"
+import { isMouseEscapeSequence } from "../utils/input"
 
 // Create a lookup map from provider value to display label
 const providerLabels: Record<string, string> = Object.fromEntries(
@@ -69,6 +70,11 @@ export const ProviderPicker: React.FC<ProviderPickerProps> = ({ onSelect, isActi
 
 	useInput(
 		(input, key) => {
+			// Filter out mouse escape sequences
+			if (isMouseEscapeSequence(input)) {
+				return
+			}
+
 			if (key.upArrow) {
 				setIndex((prev) => (prev > 0 ? prev - 1 : filteredProviders.length - 1))
 			} else if (key.downArrow) {

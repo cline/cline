@@ -26,6 +26,7 @@ import {
 } from "@/shared/api"
 import { useStdinContext } from "../context/StdinContext"
 import { useScrollableList } from "../hooks/useScrollableList"
+import { isMouseEscapeSequence } from "../utils/input"
 import { fetchOpenRouterModels, getOpenRouterDefaultModelId, usesOpenRouterModels } from "../utils/openrouter-models"
 
 // Map providers to their static model lists and defaults
@@ -126,6 +127,11 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ provider, onChange, on
 
 	useInput(
 		(input, key) => {
+			// Filter out mouse escape sequences
+			if (isMouseEscapeSequence(input)) {
+				return
+			}
+
 			if (key.upArrow) {
 				setIndex((prev) => (prev > 0 ? prev - 1 : filteredModels.length - 1))
 			} else if (key.downArrow) {

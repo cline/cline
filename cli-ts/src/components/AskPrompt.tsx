@@ -9,6 +9,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react"
 import { useStdinContext } from "../context/StdinContext"
 import { useTaskController } from "../context/TaskContext"
 import { useLastCompletedAskMessage } from "../hooks/useStateSubscriber"
+import { isMouseEscapeSequence } from "../utils/input"
 import { jsonParseSafe } from "../utils/parser"
 import { getCliMessagePrefixIcon } from "./MessageRow"
 
@@ -109,6 +110,11 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 	// Handle keyboard input
 	useInput(
 		(input, key) => {
+			// Filter out mouse escape sequences
+			if (isMouseEscapeSequence(input)) {
+				return
+			}
+
 			if (!lastAskMessage || responded) {
 				return
 			}
