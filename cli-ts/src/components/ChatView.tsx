@@ -318,18 +318,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	}, [yolo])
 
 	// Get model ID based on current mode
+	// Re-read when activePanel changes (settings panel closes) to pick up changes
 	const modelId = useMemo(() => {
 		const stateManager = StateManager.get()
 		const modelKey = mode === "act" ? "actModeApiModelId" : "planModeApiModelId"
 		return (stateManager.getGlobalSettingsKey(modelKey) as string) || "claude-sonnet-4-20250514"
-	}, [mode])
+	}, [mode, activePanel])
 
 	// Get thinking budget based on current mode
+	// Re-read when activePanel changes (settings panel closes) to pick up changes
 	const thinkingBudget = useMemo(() => {
 		const stateManager = StateManager.get()
 		const budgetKey = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
 		return (stateManager.getGlobalSettingsKey(budgetKey) as number | undefined) || 0
-	}, [mode])
+	}, [mode, activePanel])
 
 	const toggleMode = useCallback(() => {
 		const newMode: Mode = mode === "act" ? "plan" : "act"
