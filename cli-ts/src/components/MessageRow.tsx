@@ -8,6 +8,7 @@ import { Box, Text } from "ink"
 import React from "react"
 import { formatTimestamp } from "../utils/display"
 import { jsonParseSafe } from "../utils/parser"
+import { isFileEditTool } from "../utils/tools"
 import { DiffView } from "./DiffView"
 import { MessageImage } from "./MessageImage"
 
@@ -252,7 +253,7 @@ const SayMessageContent: React.FC<{ message: ClineMessage; verbose?: boolean }> 
 				content: undefined as string | undefined,
 				path: undefined as string | undefined,
 			})
-			if (path && (tool === "newFileCreated" || tool === "editedExistingFile")) {
+			if (path && isFileEditTool(tool)) {
 				return <DiffView content={content} />
 			}
 

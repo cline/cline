@@ -11,6 +11,7 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Box, Text } from "ink"
 import React from "react"
 import { jsonParseSafe } from "../utils/parser"
+import { getToolDescription, isFileEditTool, parseToolFromMessage } from "../utils/tools"
 import { DiffView } from "./DiffView"
 
 /**
@@ -110,99 +111,27 @@ const ResultRow: React.FC<{ children: React.ReactNode; isFirst?: boolean }> = ({
 	</Box>
 )
 
-// Tool descriptions for ask (pending) and say (completed) states
-// Format: { ask: "wants to X", say: "X" } where X describes the action
-interface ToolDescription {
-	ask: string // e.g., "wants to read this file"
-	say: string // e.g., "read this file"
-}
-
-const TOOL_DESCRIPTIONS: Record<string, ToolDescription> = {
-	// File operations
-	read_file: { ask: "wants to read this file", say: "read this file" },
-	readFile: { ask: "wants to read this file", say: "read this file" },
-	write_to_file: { ask: "wants to create a new file", say: "created a new file" },
-	writeToFile: { ask: "wants to create a new file", say: "created a new file" },
-	newFileCreated: { ask: "wants to create a new file", say: "created a new file" },
-	replace_in_file: { ask: "wants to edit this file", say: "edited this file" },
-	editedExistingFile: { ask: "wants to edit this file", say: "edited this file" },
-
-	// Directory operations
-	list_files: { ask: "wants to view files in this directory", say: "viewed files in this directory" },
-	listFilesTopLevel: { ask: "wants to view files in this directory", say: "viewed files in this directory" },
-	listFilesRecursive: {
-		ask: "wants to recursively view all files in this directory",
-		say: "recursively viewed all files in this directory",
-	},
-	list_code_definition_names: {
-		ask: "wants to view code definitions in this directory",
-		say: "viewed code definitions in this directory",
-	},
-	listCodeDefinitionNames: {
-		ask: "wants to view code definitions in this directory",
-		say: "viewed code definitions in this directory",
-	},
-	search_files: { ask: "wants to search files", say: "searched files" },
-	searchFiles: { ask: "wants to search files", say: "searched files" },
-
-	// Command execution
-	execute_command: { ask: "wants to execute this command", say: "executed this command" },
-	executeCommand: { ask: "wants to execute this command", say: "executed this command" },
-
-	// Browser
-	browser_action: { ask: "wants to use the browser", say: "used the browser" },
-	browserAction: { ask: "wants to use the browser", say: "used the browser" },
-
-	// MCP
-	use_mcp_tool: { ask: "wants to use an MCP tool", say: "used an MCP tool" },
-	useMcpTool: { ask: "wants to use an MCP tool", say: "used an MCP tool" },
-	access_mcp_resource: { ask: "wants to access an MCP resource", say: "accessed an MCP resource" },
-	accessMcpResource: { ask: "wants to access an MCP resource", say: "accessed an MCP resource" },
-
-	// Web
-	web_fetch: { ask: "wants to fetch content from this URL", say: "fetched content from this URL" },
-	webFetch: { ask: "wants to fetch content from this URL", say: "fetched content from this URL" },
-	web_search: { ask: "wants to search the web", say: "searched the web" },
-	webSearch: { ask: "wants to search the web", say: "searched the web" },
-
-	// Other
-	ask_followup_question: { ask: "wants to ask a question", say: "asked a question" },
-	askFollowupQuestion: { ask: "wants to ask a question", say: "asked a question" },
-	attempt_completion: { ask: "wants to complete the task", say: "completed the task" },
-	attemptCompletion: { ask: "wants to complete the task", say: "completed the task" },
-	new_task: { ask: "wants to create a new task", say: "created a new task" },
-	newTask: { ask: "wants to create a new task", say: "created a new task" },
-	focus_chain: { ask: "wants to update the todo list", say: "updated the todo list" },
-	focusChain: { ask: "wants to update the todo list", say: "updated the todo list" },
-}
-
-// Default description for unknown tools
-const DEFAULT_TOOL_DESCRIPTION: ToolDescription = {
-	ask: "wants to use a tool",
-	say: "used a tool",
-}
-
 /**
  * Get the primary argument to display for a tool (file path, command, url, etc.)
  */
-function getToolMainArg(toolName: string, args: Record<string, any>): string {
+function getToolMainArg(_toolName: string, args: Record<string, unknown>): string {
 	// File path
-	if (args.path) return args.path
-	if (args.file_path) return args.file_path
+	if (typeof args.path === "string") return args.path
+	if (typeof args.file_path === "string") return args.file_path
 
 	// Command - truncate long commands
-	if (args.command) {
+	if (typeof args.command === "string") {
 		return args.command.length > 60 ? args.command.substring(0, 57) + "..." : args.command
 	}
 
 	// Search regex
-	if (args.regex) return args.regex
+	if (typeof args.regex === "string") return args.regex
 
 	// URL
-	if (args.url) return args.url
+	if (typeof args.url === "string") return args.url
 
 	// Search query
-	if (args.query) return args.query
+	if (typeof args.query === "string") return args.query
 
 	return ""
 }
@@ -212,11 +141,11 @@ function getToolMainArg(toolName: string, args: Record<string, any>): string {
  */
 const ToolCallText: React.FC<{
 	toolName: string
-	args: Record<string, any>
+	args: Record<string, unknown>
 	mode?: "act" | "plan"
 	isAsk?: boolean
 }> = ({ toolName, args, mode, isAsk = false }) => {
-	const desc = TOOL_DESCRIPTIONS[toolName] || DEFAULT_TOOL_DESCRIPTION
+	const desc = getToolDescription(toolName)
 	const actionText = isAsk ? desc.ask : desc.say
 	const mainArg = getToolMainArg(toolName, args)
 	const toolColor = mode === "plan" ? "yellow" : "blueBright"
@@ -232,25 +161,6 @@ const ToolCallText: React.FC<{
 			)}
 		</Text>
 	)
-}
-
-/**
- * Parse tool message to extract tool info
- */
-function parseToolMessage(text: string): { toolName: string; args: Record<string, any>; result?: string } | null {
-	try {
-		const parsed = JSON.parse(text)
-		if (parsed.tool) {
-			return {
-				toolName: parsed.tool,
-				args: parsed,
-				result: parsed.content || parsed.output,
-			}
-		}
-		return null
-	} catch {
-		return null
-	}
 }
 
 /**
@@ -307,17 +217,12 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 
 	// Tool calls (ask for permission)
 	if (type === "ask" && ask === "tool" && text) {
-		const toolInfo = parseToolMessage(text)
+		const toolInfo = parseToolFromMessage(text)
 		if (toolInfo) {
 			// File edit tools - show diff
-			const isFileEdit =
-				toolInfo.toolName === "editedExistingFile" ||
-				toolInfo.toolName === "newFileCreated" ||
-				toolInfo.toolName === "replace_in_file" ||
-				toolInfo.toolName === "write_to_file"
 			const filePath = toolInfo.args.path || toolInfo.args.file_path
 
-			if (isFileEdit && filePath && toolInfo.args.content) {
+			if (isFileEditTool(toolInfo.toolName) && filePath && toolInfo.args.content) {
 				return (
 					<Box flexDirection="column" marginBottom={1} width="100%">
 						<DotRow color={toolColor}>
@@ -342,17 +247,12 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 
 	// Tool results (say tool)
 	if (say === "tool" && text) {
-		const toolInfo = parseToolMessage(text)
+		const toolInfo = parseToolFromMessage(text)
 		if (toolInfo) {
 			// File edit tools - show diff
-			const isFileEdit =
-				toolInfo.toolName === "editedExistingFile" ||
-				toolInfo.toolName === "newFileCreated" ||
-				toolInfo.toolName === "replace_in_file" ||
-				toolInfo.toolName === "write_to_file"
 			const filePath = toolInfo.args.path || toolInfo.args.file_path
 
-			if (isFileEdit && filePath && toolInfo.args.content) {
+			if (isFileEditTool(toolInfo.toolName) && filePath && toolInfo.args.content) {
 				return (
 					<Box flexDirection="column" marginBottom={1} width="100%">
 						<DotRow color={toolColor}>

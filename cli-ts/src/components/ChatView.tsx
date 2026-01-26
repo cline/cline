@@ -120,6 +120,7 @@ import {
 	searchWorkspaceFiles,
 } from "../utils/file-search"
 import { jsonParseSafe, parseImagesFromInput } from "../utils/parser"
+import { isFileEditTool, parseToolFromMessage } from "../utils/tools"
 import { ActionButtons, type ButtonActionType, getButtonConfig } from "./ActionButtons"
 import { AsciiMotionCli, StaticRobotFrame } from "./AsciiMotionCli"
 import { ChatMessage } from "./ChatMessage"
@@ -228,6 +229,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const { controller: taskController } = useTaskContext()
 	const { isActive: isSpinnerActive, startTime: spinnerStartTime } = useIsSpinnerActive()
 
+	// Prefer prop controller over context controller (memoized for stable reference in callbacks)
+	const ctrl = useMemo(() => controller || taskController, [controller, taskController])
+
 	// Input state
 	const [textInput, setTextInput] = useState("")
 	const [fileResults, setFileResults] = useState<FileSearchResult[]>([])
@@ -278,7 +282,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	const workspacePath = useMemo(() => {
 		try {
-			const ctrl = controller || taskController
 			const root = ctrl?.getWorkspaceManagerSync?.()?.getPrimaryRoot?.()
 			if (root?.path) {
 				return root.path
@@ -287,7 +290,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			// Fallback to cwd
 		}
 		return process.cwd()
-	}, [controller, taskController])
+	}, [ctrl])
 
 	// Get git branch on mount
 	useEffect(() => {
@@ -336,20 +339,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		}
 
 		// Check if message is a file edit tool (should skip dynamic to avoid rendering issues)
-		const isFileEditTool = (msg: (typeof displayMessages)[0]) => {
+		const isFileEditToolMessage = (msg: (typeof displayMessages)[0]) => {
 			if ((msg.say === "tool" || msg.ask === "tool") && msg.text) {
-				try {
-					const parsed = JSON.parse(msg.text)
-					const toolName = parsed.tool
-					return (
-						toolName === "editedExistingFile" ||
-						toolName === "newFileCreated" ||
-						toolName === "replace_in_file" ||
-						toolName === "write_to_file"
-					)
-				} catch {
-					return false
-				}
+				const toolInfo = parseToolFromMessage(msg.text)
+				return toolInfo ? isFileEditTool(toolInfo.toolName) : false
 			}
 			return false
 		}
@@ -379,7 +372,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			const shouldSkipDynamic =
 				skipDynamicTypes.has(msg.say || "") ||
 				(msg.type === "ask" && skipDynamicTypes.has(msg.ask || "")) ||
-				isFileEditTool(msg)
+				isFileEditToolMessage(msg)
 
 			if (msg.partial) {
 				// Message is still streaming
@@ -441,7 +434,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	// Send response to ask message
 	const sendAskResponse = useCallback(
 		async (responseType: string, text?: string) => {
-			const ctrl = controller || taskController
 			if (!ctrl?.task || !pendingAsk) return
 
 			setRespondedToAsk(pendingAsk.ts)
@@ -453,12 +445,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				// Controller may be disposed
 			}
 		},
-		[controller, taskController, pendingAsk],
+		[ctrl, pendingAsk],
 	)
 
 	// Handle cancel/interrupt
 	const handleCancel = useCallback(async () => {
-		const ctrl = controller || taskController
 		if (!ctrl) return
 
 		try {
@@ -466,7 +457,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		} catch {
 			// Controller may be disposed
 		}
-	}, [controller, taskController])
+	}, [ctrl])
 
 	// Get button config based on the last message state
 	const buttonConfig = useMemo(() => {
@@ -479,7 +470,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		async (action: ButtonActionType | undefined, _isPrimary: boolean) => {
 			if (!action) return
 
-			const ctrl = controller || taskController
 			if (!ctrl) return
 
 			switch (action) {
@@ -515,7 +505,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	// Handle task submission (new task)
 	const handleSubmit = useCallback(
 		async (text: string, images: string[]) => {
-			const ctrl = controller || taskController
 			if (!ctrl || !text.trim()) return
 
 			setTextInput("")
@@ -545,7 +534,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				onError?.()
 			}
 		},
-		[controller, taskController, onError],
+		[ctrl, onError],
 	)
 
 	// Auto-submit initial prompt if provided
