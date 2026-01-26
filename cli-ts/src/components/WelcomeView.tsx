@@ -269,7 +269,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 				paddingRight={1}
 				width="100%">
 				<Text>{textInput}</Text>
-				<Text color="gray">▌</Text>
+				<Text inverse> </Text>
 			</Box>
 
 			{/* Model ID and Mode toggle row */}

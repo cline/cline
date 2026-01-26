@@ -131,7 +131,7 @@ const TextInput: React.FC<{
 	return (
 		<Box>
 			<Text color="white">{displayValue || placeholder || ""}</Text>
-			<Text color="gray">▌</Text>
+			<Text inverse> </Text>
 		</Box>
 	)
 }
@@ -599,7 +599,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 						<Box>
 							<Text color="gray">Search: </Text>
 							<Text color="white">{providerSearch}</Text>
-							<Text color="gray">▌</Text>
+							<Text inverse> </Text>
 						</Box>
 						<Text> </Text>
 						{showProviderTopIndicator && (
