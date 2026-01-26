@@ -57,7 +57,7 @@ export const VSCODE_ONLY_COMMANDS: SlashCommand[] = [
 export const CLI_ONLY_COMMANDS: SlashCommand[] = [
 	{
 		name: "settings",
-		description: "Open settings panel",
+		description: "Change API provider, auto-approve, and feature settings",
 		section: "default",
 		cliCompatible: true,
 	},
