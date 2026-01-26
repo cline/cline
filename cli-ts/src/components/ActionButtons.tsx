@@ -4,9 +4,10 @@
  * Supports keyboard navigation (1/2 for buttons, arrows to navigate, esc to cancel)
  */
 
-import type { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Box, Text } from "ink"
 import React from "react"
+import { isFileSaveTool, parseToolFromMessage } from "../utils/tools"
 
 /**
  * Button action types that determine the behavior
@@ -219,13 +220,9 @@ export function getButtonConfig(message: ClineMessage | undefined, isStreaming: 
 
 			// Tool approval (most common)
 			case "tool": {
-				try {
-					const tool = JSON.parse(message.text || "{}") as ClineSayTool
-					if (tool.tool === "editedExistingFile" || tool.tool === "newFileCreated" || tool.tool === "fileDeleted") {
-						return BUTTON_CONFIGS.tool_save
-					}
-				} catch {
-					// Fall through to default tool approval
+				const toolInfo = parseToolFromMessage(message.text)
+				if (toolInfo && isFileSaveTool(toolInfo.toolName)) {
+					return BUTTON_CONFIGS.tool_save
 				}
 				return BUTTON_CONFIGS.tool_approve
 			}
