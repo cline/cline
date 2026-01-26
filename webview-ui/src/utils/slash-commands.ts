@@ -1,6 +1,6 @@
+import type { McpServer } from "@shared/mcp"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { BASE_SLASH_COMMANDS, type SlashCommand, VSCODE_ONLY_COMMANDS } from "../../../src/shared/slashCommands.ts"
-import type { McpServer } from "@shared/mcp"
 
 export type { SlashCommand }
 
@@ -161,7 +161,8 @@ export function shouldShowSlashCommandsMenu(text: string, cursorPosition: number
 	// Check if there's already a valid slash command earlier in the text.
 	// A valid earlier slash command is one that: starts at beginning or after whitespace,
 	// and is followed by whitespace (meaning it's complete).
-	const firstSlashCommandRegex = /(^|\s)\/[a-zA-Z0-9_.-]+\s/
+	// Note: Colons are allowed to support MCP prompt commands like /mcp:server:prompt
+	const firstSlashCommandRegex = /(^|\s)\/[a-zA-Z0-9_.:@-]+\s/
 	const textBeforeCurrentSlash = text.slice(0, slashIndex)
 	if (firstSlashCommandRegex.test(textBeforeCurrentSlash)) {
 		return false

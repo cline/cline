@@ -528,6 +528,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								globalWorkflowToggles,
 								remoteWorkflowToggles,
 								remoteConfigSettings?.remoteGlobalWorkflows,
+								mcpServers,
 							)
 
 							if (allCommands.length === 0) {
@@ -552,6 +553,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							globalWorkflowToggles,
 							remoteWorkflowToggles,
 							remoteConfigSettings?.remoteGlobalWorkflows,
+							mcpServers,
 						)
 						if (commands.length > 0) {
 							handleSlashCommandsSelect(commands[selectedSlashCommandsIndex])

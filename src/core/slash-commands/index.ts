@@ -175,6 +175,9 @@ export async function parseSlashCommands(
 							telemetryService.captureSlashCommandUsed(ulid, commandName, "mcp_prompt")
 
 							return { processedText, needsClinerulesFileCheck: false }
+						} else {
+							// Prompt not found - log for debugging and fall through to workflow checking
+							Logger.debug(`MCP prompt not found: ${commandName} (server: ${serverName}, prompt: ${promptName})`)
 						}
 					} catch (error) {
 						Logger.error(`Error fetching MCP prompt ${commandName}: ${error}`)

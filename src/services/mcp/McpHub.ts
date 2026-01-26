@@ -1161,6 +1161,9 @@ export class McpHub {
 		if (connection.server.disabled) {
 			throw new Error(`Server "${serverName}" is disabled`)
 		}
+		if (!connection.client) {
+			throw new Error(`No client available for server: ${serverName}`)
+		}
 
 		const response = await connection.client.request(
 			{
