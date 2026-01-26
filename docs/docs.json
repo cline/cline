@@ -118,6 +118,7 @@
 							"features/background-edit",
 							"features/checkpoints",
 							"features/cline-rules",
+							"features/conditional-rules",
 							{
 								"group": "Commands & Shortcuts",
 								"pages": [

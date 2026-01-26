@@ -171,6 +171,24 @@ cp clinerules-bank/frameworks/react.md .clinerules/
 
 The folder system transforms your Cline rules from a static document into a dynamic knowledge system that adapts to your team's changing contexts and requirements.
 
+### Conditional Rules
+
+You can make rules activate only when working with specific files by adding YAML frontmatter:
+
+```yaml
+---
+paths:
+  - "src/components/**"
+  - "src/hooks/**"
+---
+
+# React Guidelines
+
+Use functional components with hooks...
+```
+
+This rule will only load when you're working with files matching those patterns. See [Conditional Rules](/features/conditional-rules) for the complete guide on path-based rule activation.
+
 ### Managing Rules with the Toggleable Popover
 
 To make managing both single `.clinerules` files and the folder system even easier, Cline v3.13 introduces a dedicated popover UI directly accessible from the chat interface.

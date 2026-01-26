@@ -1,0 +1,320 @@
+---
+title: "Conditional Rules"
+sidebarTitle: "Conditional Rules"
+description: "Activate rules automatically based on which files you're working with"
+---
+
+Conditional rules let you scope your Cline rules to specific parts of your codebase. Instead of loading every rule for every request, you can define rules that activate only when you're working with matching files, keeping your context focused and your rules relevant.
+
+- **Without conditionals**: Every rule loads for every request, regardless of what you're working on
+- **With conditionals**: Rules activate when the files you're touching match their scope
+
+For example, a rule about React component patterns should only appear when you're actually working with React components—not when you're editing a Python script or updating documentation.
+
+## How It Works
+
+Conditional rules use YAML frontmatter at the top of your rule files. When Cline processes a request, it:
+
+1. **Gathers context** from your current work: open files, visible tabs, files mentioned in your message, and files Cline has edited during the task
+2. **Evaluates each rule's conditions** against this context
+3. **Activates matching rules** and shows you which ones were applied
+
+<Note>
+When a conditional rule activates, you'll see a notification in the chat: **"Conditional rules applied: workspace:frontend-rules.md"**
+</Note>
+
+## Writing Conditional Rules
+
+Add YAML frontmatter to the top of any rule file in your `.clinerules/` directory:
+
+```yaml
+---
+paths:
+  - "src/components/**"
+  - "src/hooks/**"
+---
+
+# React Component Guidelines
+
+When creating or modifying React components:
+- Use functional components with React hooks
+- Extract reusable logic into custom React hooks
+- Keep components focused on a single responsibility
+```
+
+The `---` markers delimit the frontmatter. Everything after the closing `---` is your rule content.
+
+### The `paths` Conditional
+
+Currently, `paths` is the supported conditional. It takes an array of glob patterns:
+
+```yaml
+---
+paths:
+  - "src/**"           # All files under src/
+  - "*.config.js"      # Config files in root
+  - "packages/*/src/"  # Monorepo package sources
+---
+```
+
+**Glob pattern syntax:**
+- `*` matches any characters except `/`
+- `**` matches any characters including `/` (recursive)
+- `?` matches a single character
+- `[abc]` matches any character in the brackets
+- `{a,b}` matches either pattern
+
+**Examples:**
+
+| Pattern | Matches |
+|---------|---------|
+| `src/**/*.ts` | All TypeScript files under `src/` |
+| `*.md` | Markdown files in root only |
+| `**/*.test.ts` | Test files anywhere in the project |
+| `packages/{web,api}/**` | Files in web or api packages |
+| `src/components/*.tsx` | TSX files directly in components (not nested) |
+
+### Behavior Details
+
+**Multiple patterns**: A rule activates if *any* pattern matches *any* file in your current context.
+
+```yaml
+---
+paths:
+  - "frontend/**"
+  - "mobile/**"
+---
+# Activates when working in frontend OR mobile
+```
+
+**No frontmatter**: Rules without frontmatter are always active (universal rules).
+
+**Empty paths array**: `paths: []` means the rule never activates. Use this to temporarily disable a rule without deleting it.
+
+**Invalid YAML**: If the frontmatter can't be parsed, Cline fails open—the rule activates and the raw content (including the malformed frontmatter) is shown to the model so it can still understand your intent.
+
+## What Counts as "Current Context"
+
+Cline builds the evaluation context from multiple sources:
+
+1. **Your message**: File paths mentioned in your prompt (e.g., "update `src/App.tsx`")
+2. **Open tabs**: Files currently open in your editor
+3. **Visible files**: Files visible in your active editor panes
+4. **Edited files**: Files Cline has created, modified, or deleted during the current task
+5. **Pending operations**: Files Cline is about to edit (captured from tool requests)
+
+This means conditional rules can activate:
+- On your first message if you mention a file path
+- When you have relevant files open
+- Mid-task when Cline starts working with matching files
+
+<Tip>
+Conditional rules work best when you're explicit about file paths in your prompts. Saying "update the user service" is less reliable than "update `src/services/user.ts`" for triggering path-based rules.
+</Tip>
+
+## Practical Examples
+
+### Frontend vs Backend Rules
+
+```yaml
+# .clinerules/frontend.md
+---
+paths:
+  - "src/components/**"
+  - "src/pages/**"
+  - "src/hooks/**"
+---
+
+# Frontend Guidelines
+
+- Use Tailwind CSS for styling
+- Prefer server components where possible
+- Keep client components small and focused
+```
+
+```yaml
+# .clinerules/backend.md
+---
+paths:
+  - "src/api/**"
+  - "src/services/**"
+  - "src/db/**"
+---
+
+# Backend Guidelines
+
+- Use dependency injection for services
+- All database queries go through repositories
+- Return typed errors, not thrown exceptions
+```
+
+### Test File Rules
+
+```yaml
+# .clinerules/testing.md
+---
+paths:
+  - "**/*.test.ts"
+  - "**/*.spec.ts"
+  - "**/__tests__/**"
+---
+
+# Testing Standards
+
+- Use descriptive test names: "should [expected behavior] when [condition]"
+- One assertion per test when possible
+- Mock external dependencies, not internal modules
+- Use factories for test data, not fixtures
+```
+
+### Documentation Rules
+
+```yaml
+# .clinerules/docs.md
+---
+paths:
+  - "docs/**"
+  - "**/*.md"
+  - "**/*.mdx"
+---
+
+# Documentation Guidelines
+
+- Use sentence case for headings
+- Include code examples for all features
+- Keep paragraphs short (3-4 sentences max)
+- Link to related documentation
+```
+
+### Monorepo Package Rules
+
+```yaml
+# .clinerules/packages/web-app.md
+---
+paths:
+  - "packages/web/**"
+---
+
+# Web App Specifics
+
+This package uses Next.js 14 with App Router.
+- Place pages in `app/` directory
+- Use `loading.tsx` for suspense boundaries
+- API routes go in `app/api/`
+```
+
+```yaml
+# .clinerules/packages/shared-ui.md
+---
+paths:
+  - "packages/ui/**"
+---
+
+# Shared UI Library
+
+- Export all components from `index.ts`
+- Include Storybook stories for each component
+- Use CSS modules for component styles
+- Document props with JSDoc comments
+```
+
+### Configuration File Rules
+
+```yaml
+# .clinerules/config.md
+---
+paths:
+  - "*.config.js"
+  - "*.config.ts"
+  - ".env*"
+  - "package.json"
+---
+
+# Configuration Guidelines
+
+- Never commit secrets to config files
+- Use environment variables for deployment-specific values
+- Document all config options with comments
+- Keep package.json scripts simple; complex logic goes in scripts/
+```
+
+## Combining with Rule Toggles
+
+Conditional rules work alongside the rule toggle UI. You can:
+
+1. **Toggle off** a conditional rule to disable it entirely (it won't activate even if paths match)
+2. **Toggle on** a conditional rule to let it activate when conditions are met
+
+This gives you two levels of control:
+- **Toggles**: Manual on/off switch
+- **Conditions**: Automatic activation based on context
+
+## Tips for Effective Conditional Rules
+
+### Start Broad, Then Narrow
+
+Begin with broader patterns and refine as you learn what works:
+
+```yaml
+# Start here
+paths:
+  - "src/**"
+
+# Then narrow down
+paths:
+  - "src/features/auth/**"
+```
+
+### Use Descriptive Filenames
+
+Name your rule files to indicate their scope:
+
+```
+.clinerules/
+├── api-endpoints.md      # Rules for API code
+├── database-models.md    # Rules for DB layer
+├── react-components.md   # Rules for React
+└── universal.md          # No frontmatter = always active
+```
+
+### Keep Universal Rules Separate
+
+Put always-on rules (coding standards, project conventions) in files without frontmatter. Reserve conditional rules for context-specific guidance.
+
+### Test Your Patterns
+
+Not sure if a pattern matches? Create a simple test rule:
+
+```yaml
+---
+paths:
+  - "your/pattern/here/**"
+---
+
+TEST: This rule should activate for your/pattern/here files.
+```
+
+Then work with a file in that path and check if you see the activation notification.
+
+## Troubleshooting
+
+**Rule not activating when expected:**
+- Check that the file path in your context matches the glob pattern
+- Verify the rule file is toggled on in the rules panel
+- Make sure the YAML frontmatter is valid (proper `---` delimiters)
+
+**Rule activating unexpectedly:**
+- Review your glob patterns—`**` is recursive and may match more than intended
+- Check if you have files open that match the pattern
+- Remember that mentioned file paths in your message also count
+
+**Frontmatter showing in output:**
+- This usually means the YAML couldn't be parsed
+- Check for syntax errors (unquoted special characters, improper indentation)
+- Cline fails open, so the rule still activates with raw content
+
+## Related Features
+
+- [Cline Rules](/features/cline-rules) for the complete rules system overview
+- [Skills](/features/skills) for on-demand instruction loading
+- [Workflows](/features/slash-commands/workflows/index) for explicit task automation
