@@ -325,14 +325,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		return (stateManager.getGlobalSettingsKey(modelKey) as string) || "claude-sonnet-4-20250514"
 	}, [mode, activePanel])
 
-	// Get thinking budget based on current mode
-	// Re-read when activePanel changes (settings panel closes) to pick up changes
-	const thinkingBudget = useMemo(() => {
-		const stateManager = StateManager.get()
-		const budgetKey = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
-		return (stateManager.getGlobalSettingsKey(budgetKey) as number | undefined) || 0
-	}, [mode, activePanel])
-
 	const toggleMode = useCallback(() => {
 		const newMode: Mode = mode === "act" ? "plan" : "act"
 		setMode(newMode)
@@ -1065,11 +1057,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						{/* Row 2: Model/context/tokens/cost */}
 						<Box paddingLeft={1} paddingRight={1}>
 							<Text>
-								<Text color="gray">
-									{modelId}
-									{thinkingBudget > 0 && " (thinking)"}
-								</Text>{" "}
-								{(() => {
+								<Text color="gray">{modelId}</Text> {(() => {
 									const bar = createContextBar(
 										metrics.totalTokensIn + metrics.totalTokensOut,
 										DEFAULT_CONTEXT_WINDOW,
