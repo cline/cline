@@ -169,7 +169,8 @@
 				"!**/*.js",
 				"!**/scripts/**",
 				"!**/*.tsx",
-				"!**/testing-platform/**"
+				"!**/testing-platform/**",
+				"!**/cli-ts/src/acp/**"
 			]
 		},
 		{

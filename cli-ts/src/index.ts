@@ -661,9 +661,6 @@ program
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
 	.action(async (prompt, options) => {
-		// Always check for piped stdin content
-		const stdinInput = await readStdinIfPiped()
-
 		// Check for ACP mode first - this takes precedence over everything else
 		if (options.acp) {
 			await runAcpMode({
@@ -673,6 +670,9 @@ program
 			})
 			return
 		}
+
+		// Always check for piped stdin content
+		const stdinInput = await readStdinIfPiped()
 
 		// If no prompt argument, check if input is piped via stdin
 		let effectivePrompt = prompt
