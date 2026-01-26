@@ -16,6 +16,7 @@ import { useStdinContext } from "../context/StdinContext"
 import { isMouseEscapeSequence } from "../utils/input"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { Checkbox } from "./Checkbox"
+import { LanguagePicker } from "./LanguagePicker"
 import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
 import { Panel, PanelTab } from "./Panel"
 import { getProviderLabel, ProviderPicker } from "./ProviderPicker"
@@ -103,6 +104,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 	const [isPickingModel, setIsPickingModel] = useState(false)
 	const [pickingModelKey, setPickingModelKey] = useState<"actModelId" | "planModelId" | null>(null)
 	const [isPickingProvider, setIsPickingProvider] = useState(false)
+	const [isPickingLanguage, setIsPickingLanguage] = useState(false)
 	const [isEnteringApiKey, setIsEnteringApiKey] = useState(false)
 	const [pendingProvider, setPendingProvider] = useState<string | null>(null)
 	const [apiKeyValue, setApiKeyValue] = useState("")
@@ -351,6 +353,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		setIsPickingModel(false)
 		setPickingModelKey(null)
 		setIsPickingProvider(false)
+		setIsPickingLanguage(false)
 		setIsEnteringApiKey(false)
 		setPendingProvider(null)
 		setApiKeyValue("")
@@ -379,6 +382,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			if ((item.key === "actModelId" || item.key === "planModelId") && hasModelPicker(provider)) {
 				setPickingModelKey(item.key as "actModelId" | "planModelId")
 				setIsPickingModel(true)
+				return
+			}
+			// For language field, use the language picker
+			if (item.key === "language") {
+				setIsPickingLanguage(true)
 				return
 			}
 			setEditValue(typeof item.value === "string" ? item.value : "")
@@ -477,6 +485,16 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			setPickingModelKey(null)
 		},
 		[pickingModelKey, stateManager],
+	)
+
+	// Handle language selection from picker
+	const handleLanguageSelect = useCallback(
+		(language: string) => {
+			setPreferredLanguage(language)
+			stateManager.setGlobalState("preferredLanguage", language)
+			setIsPickingLanguage(false)
+		},
+		[stateManager],
 	)
 
 	// Handle provider selection from picker
@@ -635,6 +653,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 				return
 			}
 
+			// Language picker mode - escape to close, input is handled by LanguagePicker
+			if (isPickingLanguage) {
+				if (key.escape) {
+					setIsPickingLanguage(false)
+				}
+				return
+			}
+
 			if (isEditing) {
 				if (key.escape) {
 					setIsEditing(false)
@@ -733,6 +759,24 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 							onSubmit={handleModelSelect}
 							provider={provider}
 						/>
+					</Box>
+					<Box marginTop={1}>
+						<Text color="gray" dimColor>
+							Type to search, arrows to navigate, Enter to select, Esc to cancel
+						</Text>
+					</Box>
+				</Box>
+			)
+		}
+
+		if (isPickingLanguage) {
+			return (
+				<Box flexDirection="column">
+					<Text bold color="blueBright">
+						Select Language
+					</Text>
+					<Box marginTop={1}>
+						<LanguagePicker isActive={isPickingLanguage} onSelect={handleLanguageSelect} />
 					</Box>
 					<Box marginTop={1}>
 						<Text color="gray" dimColor>
