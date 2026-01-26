@@ -23,7 +23,7 @@ type SettingsTab = "api" | "auto-approve" | "features" | "other"
 interface ListItem {
 	key: string
 	label: string
-	type: "checkbox" | "readonly" | "editable" | "separator"
+	type: "checkbox" | "readonly" | "editable" | "separator" | "header"
 	value: string | boolean
 	description?: string
 	isSubItem?: boolean
@@ -154,37 +154,34 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			case "api":
 				return [
 					{ key: "provider", label: "Provider", type: "readonly", value: provider },
-					{ key: "actModelId", label: "Model ID (Act)", type: "editable", value: actModelId || "not set" },
 					{
-						key: "actThinkingEnabled",
-						label: "Extended thinking (Act)",
+						key: "separateModels",
+						label: "Use separate models for Plan and Act",
 						type: "checkbox",
-						value: actThinkingEnabled,
-						description: "Enable extended thinking for enhanced reasoning",
+						value: separateModels,
 					},
+					{ key: "separator1", label: "", type: "separator", value: false },
+					{ key: "actHeader", label: separateModels ? "Act Mode" : "Model", type: "header", value: "" },
+					{ key: "actModelId", label: "Model ID", type: "editable", value: actModelId || "not set" },
+					{ key: "actThinkingEnabled", label: "Enable thinking", type: "checkbox", value: actThinkingEnabled },
 					...(separateModels
 						? [
+								{ key: "separator2", label: "", type: "separator" as const, value: false },
+								{ key: "planHeader", label: "Plan Mode", type: "header" as const, value: "" },
 								{
 									key: "planModelId",
-									label: "Model ID (Plan)",
+									label: "Model ID",
 									type: "editable" as const,
 									value: planModelId || "not set",
 								},
 								{
 									key: "planThinkingEnabled",
-									label: "Extended thinking (Plan)",
+									label: "Enable thinking",
 									type: "checkbox" as const,
 									value: planThinkingEnabled,
-									description: "Enable extended thinking for enhanced reasoning",
 								},
 							]
 						: []),
-					{
-						key: "separateModels",
-						label: "Use different models for Plan and Act",
-						type: "checkbox",
-						value: separateModels,
-					},
 				]
 
 			case "auto-approve": {
@@ -329,7 +326,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 	// Handle toggle/edit for selected item
 	const handleAction = useCallback(() => {
 		const item = items[selectedIndex]
-		if (!item || item.type === "readonly" || item.type === "separator") return
+		if (!item || item.type === "readonly" || item.type === "separator" || item.type === "header") return
 
 		if (item.type === "editable") {
 			// For model ID fields, check if we should use the model picker
@@ -450,8 +447,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			setSelectedIndex((i) => {
 				let next = direction === "up" ? (i > 0 ? i - 1 : items.length - 1) : i < items.length - 1 ? i + 1 : 0
 
-				// Skip separators
-				while (items[next]?.type === "separator" && next !== i) {
+				// Skip separators and headers
+				while ((items[next]?.type === "separator" || items[next]?.type === "header") && next !== i) {
 					next = direction === "up" ? (next > 0 ? next - 1 : items.length - 1) : next < items.length - 1 ? next + 1 : 0
 				}
 				return next
@@ -609,6 +606,16 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 				)}
 				{items.map((item, idx) => {
 					const isSelected = idx === selectedIndex
+
+					if (item.type === "header") {
+						return (
+							<Box key={item.key} marginTop={idx > 0 ? 0 : 0}>
+								<Text bold color="white">
+									{item.label}
+								</Text>
+							</Box>
+						)
+					}
 
 					if (item.type === "separator") {
 						return (
