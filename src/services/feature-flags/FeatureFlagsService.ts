@@ -72,16 +72,19 @@ export class FeatureFlagsService {
 		try {
 			const payload = this.cacheInfo.flagsPayload?.featureFlagPayloads?.[flagName]
 			const flagValue = this.cacheInfo.flagsPayload?.featureFlags?.[flagName]
+			const value = payload ?? flagValue ?? FeatureFlagDefaultValue[flagName] ?? undefined
 
-			telemetryService.capture({
-				event: "$feature_flag_called",
-				properties: {
-					$feature_flag: flagName,
-					$feature_flag_response: flagValue,
-				},
-			})
+			if (!this.cache.has(flagName) || this.cache.get(flagName) !== value) {
+				telemetryService.capture({
+					event: "$feature_flag_called",
+					properties: {
+						$feature_flag: flagName,
+						$feature_flag_response: flagValue,
+					},
+				})
+			}
 
-			return payload ?? flagValue ?? FeatureFlagDefaultValue[flagName] ?? undefined
+			return value
 		} catch (error) {
 			Logger.error(`Error checking if feature flag ${flagName} is enabled:`, error)
 			return FeatureFlagDefaultValue[flagName] ?? false
