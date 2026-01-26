@@ -1,8 +1,6 @@
 import { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import { memo, useCallback, useMemo, useState } from "react"
-import { ThinkingRow } from "@/components/chat/ThinkingRow"
 import { TypewriterText } from "@/components/chat/TypewriterText"
 import { cleanPathPrefix } from "@/components/common/CodeAccordian"
 import { Button } from "@/components/ui/button"
@@ -103,7 +101,6 @@ const getCurrentActivities = (allMessages: ClineMessage[]): ClineMessage[] => {
  */
 export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: ToolGroupRendererProps) => {
 	const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({})
-	const [isExpanded, setIsExpanded] = useState(new Set<number>())
 
 	// Filter out tools in the "current activities" range (being shown in loading state)
 	const filteredMessages = useMemo(() => getToolsNotInCurrentActivities(messages, allMessages), [messages, allMessages])
@@ -116,11 +113,11 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 		return getCurrentActivities(allMessages)
 	}, [allMessages, isLastGroup])
 
-	// Build completed tool items with associated reasoning
-	const completedToolsWithReasoning = useMemo(() => buildToolsWithReasoning(filteredMessages), [filteredMessages])
+	// Build completed tool items
+	const completedTools = useMemo(() => buildToolsWithReasoning(filteredMessages), [filteredMessages])
 
 	// Build active tool items
-	const activeToolsWithReasoning = useMemo(() => {
+	const activeTools = useMemo(() => {
 		return currentActivities
 			.map((msg) => {
 				const parsedTool = parseToolSafe(msg.text)
@@ -137,15 +134,15 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 
 	// Merge: completed items first, then active items (active only added to last group)
 	// Deduplicate - exclude completed items that match active items by path
-	const allToolsWithReasoning = useMemo(() => {
+	const allTools = useMemo(() => {
 		// Get paths of active items
-		const activePaths = new Set(activeToolsWithReasoning.map((item) => item.parsedTool.path).filter(Boolean))
+		const activePaths = new Set(activeTools.map((item) => item.parsedTool.path).filter(Boolean))
 
 		// Filter out completed items that are also being actively read
-		const dedupedCompleted = completedToolsWithReasoning.filter((item) => !activePaths.has(item.parsedTool.path))
+		const dedupedCompleted = completedTools.filter((item) => !activePaths.has(item.parsedTool.path))
 
-		return [...dedupedCompleted, ...activeToolsWithReasoning]
-	}, [completedToolsWithReasoning, activeToolsWithReasoning])
+		return [...dedupedCompleted, ...activeTools]
+	}, [completedTools, activeTools])
 
 	const summary = getToolGroupSummary(filteredMessages)
 
@@ -159,20 +156,8 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 		setExpandedItems((prev) => ({ ...prev, [ts]: !prev[ts] }))
 	}, [])
 
-	const handleThinkingToggle = useCallback((ts: number) => {
-		setIsExpanded((prev) => {
-			const newSet = new Set(prev)
-			if (newSet.has(ts)) {
-				newSet.delete(ts)
-			} else {
-				newSet.add(ts)
-			}
-			return newSet
-		})
-	}, [])
-
 	// Don't render if no tools to show
-	if (allToolsWithReasoning.length === 0) {
+	if (allTools.length === 0) {
 		return null
 	}
 
@@ -183,7 +168,7 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 
 			{/* Content - unified list of completed + active tools */}
 			<div className="min-w-0">
-				{allToolsWithReasoning.map(({ tool, parsedTool, reasoning, isActive, activityText }) => {
+				{allTools.map(({ tool, parsedTool, isActive, activityText }) => {
 					const info = getToolDisplayInfo(parsedTool)
 					if (!info) {
 						return null
@@ -192,7 +177,6 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 					const isExpandable = EXPANDABLE_TOOLS.has(parsedTool.tool)
 					const isItemExpanded = expandedItems[tool.ts] ?? false
 					const content = parsedTool.content || null
-					const hasReasoning = !!reasoning?.length
 
 					// Active items render with "Reading..." TypewriterText (match completed item structure exactly)
 					if (isActive && activityText) {
@@ -215,7 +199,7 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 
 					// Completed items render normally (clickable)
 					return (
-						<div className={cn("min-w-0", { "-mb-[5px]": hasReasoning })} key={tool.ts}>
+						<div className="min-w-0" key={tool.ts}>
 							<Button
 								className="flex items-center gap-[3px] cursor-pointer text-[13px] text-description py-[1px] hover:text-link min-w-0 max-w-full px-0 leading-tight -my-0.5"
 								onClick={() => (isExpandable ? handleItemToggle(tool.ts) : handleOpenFile(info.path))}
@@ -230,36 +214,9 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 										},
 									)}>
 									{(info.displayText || cleanPathPrefix(info.path)) + "\u200E"}
-								</span>{" "}
-								{hasReasoning && (
-									<Button
-										className="flex items-center gap-1.5 cursor-pointer text-[13px] text-description py-0 hover:text-link min-w-0 max-w-full px-0"
-										onClick={(e) => {
-											e.stopPropagation()
-											handleThinkingToggle(tool.ts)
-										}}
-										size="icon"
-										variant="text">
-										{isExpanded.has(tool.ts) ? (
-											<ChevronDownIcon className="!size-1 text-foreground" />
-										) : (
-											<ChevronRightIcon className="!size-1 text-foreground" />
-										)}
-									</Button>
-								)}
+								</span>
 							</Button>
-							{hasReasoning && (
-								<div className="pt-2">
-									<ThinkingRow
-										isExpanded={isExpanded.has(tool.ts)}
-										isVisible={hasReasoning}
-										onToggle={handleThinkingToggle.bind(null, tool.ts)}
-										reasoningContent={reasoning}
-										showTitle={false}
-									/>
-								</div>
-							)}
-							{/* Expanded content for folders/search/definitions - raw text */}
+							{/* Expanded content for folders/search/definitions - file lists only */}
 							{isExpandable && isItemExpanded && content && (
 								<pre className="m-1 ml-4 text-xs opacity-80 whitespace-pre-wrap break-words p-2 max-h-40 overflow-auto rounded-xs">
 									{content}
@@ -274,24 +231,25 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 })
 
 /**
- * Build tool items with associated reasoning (reasoning that comes BEFORE a tool).
- * Only processes low-stakes tools, accumulating reasoning messages along the way.
+ * Build tool items WITHOUT reasoning.
+ * Reasoning should not be displayed in file lists - only file/folder content.
  */
 function buildToolsWithReasoning(messages: ClineMessage[]): ToolWithReasoning[] {
 	const result: ToolWithReasoning[] = []
-	const reasoningBuffer: string[] = []
 
 	for (const msg of messages) {
-		if (msg.say === "reasoning" && msg.text) {
-			reasoningBuffer.push(msg.text)
-		} else if (isLowStakesTool(msg)) {
+		// Skip reasoning messages - they should not be in file lists
+		if (msg.say === "reasoning") {
+			continue
+		}
+
+		if (isLowStakesTool(msg)) {
 			const parsedTool = parseToolSafe(msg.text)
 			result.push({
 				tool: msg,
 				parsedTool,
-				reasoning: reasoningBuffer.length > 0 ? reasoningBuffer.join("\n\n") : undefined,
+				reasoning: undefined, // Never show reasoning in file lists
 			})
-			reasoningBuffer.length = 0
 		}
 	}
 
