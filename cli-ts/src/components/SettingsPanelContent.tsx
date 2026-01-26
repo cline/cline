@@ -9,6 +9,8 @@ import { ProviderToApiKeyMap } from "@shared/storage"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { Box, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
+import { buildApiHandler } from "@/core/api"
+import type { Controller } from "@/core/controller"
 import { StateManager } from "@/core/storage/StateManager"
 import { useStdinContext } from "../context/StdinContext"
 import { isMouseEscapeSequence } from "../utils/input"
@@ -20,6 +22,7 @@ import { getProviderLabel, ProviderPicker } from "./ProviderPicker"
 
 interface SettingsPanelContentProps {
 	onClose: () => void
+	controller?: Controller
 }
 
 type SettingsTab = "api" | "auto-approve" | "features" | "other"
@@ -89,7 +92,7 @@ const FEATURE_SETTINGS = {
 
 type FeatureKey = keyof typeof FEATURE_SETTINGS
 
-export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onClose }) => {
+export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onClose, controller }) => {
 	const { isRawModeSupported } = useStdinContext()
 	const stateManager = StateManager.get()
 
@@ -523,13 +526,20 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			stateManager.setApiConfiguration(config)
 			await stateManager.flushPendingState()
 
+			// Rebuild API handler on active task if one exists (matches extension behavior)
+			if (controller?.task) {
+				const currentMode = stateManager.getGlobalSettingsKey("mode")
+				const apiConfig = stateManager.getApiConfiguration()
+				controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+			}
+
 			// Update local state
 			setProvider(pendingProvider)
 			setIsEnteringApiKey(false)
 			setPendingProvider(null)
 			setApiKeyValue("")
 		},
-		[pendingProvider, stateManager],
+		[pendingProvider, stateManager, controller],
 	)
 
 	// Handle saving edited value
