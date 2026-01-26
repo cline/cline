@@ -52,3 +52,13 @@ export const VSCODE_ONLY_COMMANDS: SlashCommand[] = [
 		section: "default",
 	},
 ]
+
+// CLI-only slash commands (handled locally, not sent to backend)
+export const CLI_ONLY_COMMANDS: SlashCommand[] = [
+	{
+		name: "settings",
+		description: "Open settings panel",
+		section: "default",
+		cliCompatible: true,
+	},
+]
