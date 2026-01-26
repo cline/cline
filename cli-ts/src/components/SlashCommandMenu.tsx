@@ -24,6 +24,7 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ commands, se
 	}
 
 	const { items: visibleCommands, startIndex } = getVisibleWindow(commands, selectedIndex)
+	const hasMoreBelow = startIndex + visibleCommands.length < commands.length
 
 	return (
 		<Box flexDirection="column" marginBottom={1} paddingLeft={1} paddingRight={1}>
@@ -49,6 +50,11 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ commands, se
 					</Box>
 				)
 			})}
+			{hasMoreBelow && (
+				<Text color="gray" dimColor>
+					{"  "}▼
+				</Text>
+			)}
 		</Box>
 	)
 }
