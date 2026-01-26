@@ -3,14 +3,13 @@
  * Provides mock implementations of VSCode extension context
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { mkdirSync } from "node:fs"
 import os from "os"
 import path from "path"
-import type { Memento, SecretStorage } from "vscode"
 import { ExtensionRegistryInfo } from "@/registry"
 import { ClineExtensionContext } from "@/shared/cline"
-import { Logger } from "@/shared/services/Logger"
-import { ExtensionKind, ExtensionMode, URI } from "./vscode-shim"
+import { ClineFileStorage } from "@/shared/storage"
+import { EnvironmentVariableCollection, ExtensionKind, ExtensionMode, readJson, URI } from "./vscode-shim"
 
 const SETTINGS_SUBFOLDER = "data"
 
@@ -31,64 +30,33 @@ const CLI_STATE_OVERRIDES: Record<string, any> = {
 }
 
 /**
- * Simple file-based Memento store for persisting state
+ * File-based Memento store with optional key overrides.
+ * Implements VSCode's Memento interface using SyncJsonFileStorage.
  */
-class MementoStore implements Memento {
-	private data: Record<string, any> = {}
-	private filePath: string
+class MementoStore extends ClineFileStorage {
+	private overrides: Record<string, any>
 
-	constructor(filePath: string) {
-		this.filePath = filePath
-		this.load()
+	constructor(filePath: string, overrides: Record<string, any> = {}) {
+		super(filePath, "MementoStore")
+		this.overrides = overrides
 	}
 
-	private load() {
-		try {
-			if (existsSync(this.filePath)) {
-				const content = readFileSync(this.filePath, "utf8")
-				this.data = JSON.parse(content)
-			}
-		} catch (error) {
-			Logger.error(`Failed to load state from ${this.filePath}:`, error)
-			this.data = {}
+	// VSCode Memento interface - override base class get() with overload support
+	override get<T>(key: string): T | undefined
+	override get<T>(key: string, defaultValue: T): T
+	override get<T>(key: string, defaultValue?: T): T | undefined {
+		if (key in this.overrides) {
+			return this.overrides[key] as T
 		}
-	}
-
-	private save() {
-		try {
-			mkdirSync(path.dirname(this.filePath), { recursive: true })
-			writeFileSync(this.filePath, JSON.stringify(this.data, null, 2))
-		} catch (error) {
-			Logger.error(`Failed to save state to ${this.filePath}:`, error)
-		}
-	}
-
-	keys(): readonly string[] {
-		return Object.keys(this.data)
-	}
-
-	get<T>(key: string): T | undefined
-	get<T>(key: string, defaultValue: T): T
-	get<T>(key: string, defaultValue?: T): T | undefined {
-		// Return CLI overrides for locked keys
-		if (key in CLI_STATE_OVERRIDES) {
-			return CLI_STATE_OVERRIDES[key] as T
-		}
-		const value = this.data[key]
+		const value = super.get<T>(key)
 		return value !== undefined ? value : defaultValue
 	}
 
 	async update(key: string, value: any): Promise<void> {
-		// Silently ignore writes to CLI-locked keys
-		if (key in CLI_STATE_OVERRIDES) {
+		if (key in this.overrides) {
 			return
 		}
-		if (value === undefined) {
-			delete this.data[key]
-		} else {
-			this.data[key] = value
-		}
-		this.save()
+		this.set(key, value)
 	}
 
 	setKeysForSync(_keys: readonly string[]): void {
@@ -97,11 +65,11 @@ class MementoStore implements Memento {
 }
 
 /**
- * Simple file-based secret storage
+ * File-based secret storage implementing VSCode's SecretStorage interface.
+ * Uses sync storage internally but exposes async API for VSCode compatibility.
  */
-class SecretStore implements SecretStorage {
-	private data: Record<string, string> = {}
-	private filePath: string
+class SecretStore {
+	private storage: ClineFileStorage<string>
 	private onDidChangeEmitter = {
 		event: () => ({ dispose: () => {} }),
 		fire: (_e: any) => {},
@@ -111,101 +79,22 @@ class SecretStore implements SecretStorage {
 	onDidChange = this.onDidChangeEmitter.event
 
 	constructor(filePath: string) {
-		this.filePath = filePath
-		this.load()
+		this.storage = new ClineFileStorage<string>(filePath, "SecretStore")
 	}
 
-	private load() {
-		try {
-			if (existsSync(this.filePath)) {
-				const content = readFileSync(this.filePath, "utf8")
-				this.data = JSON.parse(content)
-			}
-		} catch {
-			this.data = {}
-		}
+	get(key: string): Promise<string | undefined> {
+		return Promise.resolve(this.storage.get(key))
 	}
 
-	private save() {
-		try {
-			mkdirSync(path.dirname(this.filePath), { recursive: true })
-			writeFileSync(this.filePath, JSON.stringify(this.data, null, 2))
-		} catch (error) {
-			Logger.error(`Failed to save secrets:`, error)
-		}
+	store(key: string, value: string): Promise<void> {
+		this.storage.set(key, value)
+		return Promise.resolve()
 	}
 
-	async get(key: string): Promise<string | undefined> {
-		return this.data[key]
+	delete(key: string): Promise<void> {
+		this.storage.delete(key)
+		return Promise.resolve()
 	}
-
-	async store(key: string, value: string): Promise<void> {
-		this.data[key] = value
-		this.save()
-	}
-
-	async delete(key: string): Promise<void> {
-		delete this.data[key]
-		this.save()
-	}
-}
-
-/**
- * Mock environment variable collection
- */
-class EnvironmentVariableCollection {
-	private variables: Map<string, any> = new Map()
-	persistent = true
-	description = "CLI Environment Variables"
-
-	entries(): IterableIterator<[string, any]> {
-		return this.variables.entries()
-	}
-
-	replace(variable: string, value: string) {
-		this.variables.set(variable, { value, type: "replace" })
-	}
-
-	append(variable: string, value: string) {
-		this.variables.set(variable, { value, type: "append" })
-	}
-
-	prepend(variable: string, value: string) {
-		this.variables.set(variable, { value, type: "prepend" })
-	}
-
-	get(variable: string) {
-		return this.variables.get(variable)
-	}
-
-	forEach(callback: (variable: string, mutator: any, collection: any) => void) {
-		this.variables.forEach((mutator, variable) => {
-			callback(variable, mutator, this)
-		})
-	}
-
-	delete(variable: string) {
-		return this.variables.delete(variable)
-	}
-
-	clear() {
-		this.variables.clear()
-	}
-
-	getScoped(_scope: any) {
-		return this
-	}
-}
-
-function readJson(filePath: string): any {
-	try {
-		if (existsSync(filePath)) {
-			return JSON.parse(readFileSync(filePath, "utf8"))
-		}
-	} catch {
-		// Return empty object if file doesn't exist
-	}
-	return {}
 }
 
 export interface CliContextConfig {
@@ -263,8 +152,8 @@ export function initializeCliContext(config: CliContextConfig = {}) {
 		extension: extension,
 		extensionMode: EXTENSION_MODE,
 
-		// Set up KV stores
-		globalState: new MementoStore(path.join(DATA_DIR, "globalState.json")),
+		// Set up KV stores (globalState has CLI-specific overrides)
+		globalState: new MementoStore(path.join(DATA_DIR, "globalState.json"), CLI_STATE_OVERRIDES),
 		secrets: new SecretStore(path.join(DATA_DIR, "secrets.json")),
 
 		// Set up URIs

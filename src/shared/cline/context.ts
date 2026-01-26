@@ -3,9 +3,8 @@
  * See https://code.visualstudio.com/api for more information
  */
 
-import { Memento, SecretStorage } from "vscode"
 import { URI } from "vscode-uri"
-import { ClineStorage } from "../storage"
+import { ClineMemento, ClineSecretStore } from "../storage"
 
 enum ExtensionMode {
 	/**
@@ -45,13 +44,13 @@ export interface ClineExtensionContext {
 	 * A memento object that stores state in the context
 	 * of the currently opened {@link workspace.workspaceFolders workspace}.
 	 */
-	readonly workspaceState: Memento
+	readonly workspaceState: ClineMemento
 
 	/**
 	 * A memento object that stores state independent
 	 * of the current opened {@link workspace.workspaceFolders workspace}.
 	 */
-	readonly globalState: Memento & {
+	readonly globalState: ClineMemento & {
 		/**
 		 * Set the keys whose values should be synchronized across devices when synchronizing user-data
 		 * like configuration, extensions, and mementos.
@@ -72,7 +71,7 @@ export interface ClineExtensionContext {
 	 * A storage utility for secrets. Secrets are persisted across reloads and are independent of the
 	 * current opened {@link workspace.workspaceFolders workspace}.
 	 */
-	readonly secrets: SecretStorage | ClineStorage
+	readonly secrets: ClineSecretStore
 
 	/**
 	 * The uri of the directory containing the extension.
