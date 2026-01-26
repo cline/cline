@@ -11,6 +11,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import { useStdinContext } from "../context/StdinContext"
 import { Checkbox } from "./Checkbox"
+import { hasModelPicker, ModelPicker } from "./ModelPicker"
 import { Panel, PanelTab } from "./Panel"
 
 interface SettingsPanelContentProps {
@@ -92,6 +93,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 	const [currentTab, setCurrentTab] = useState<SettingsTab>("api")
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const [isEditing, setIsEditing] = useState(false)
+	const [isPickingModel, setIsPickingModel] = useState(false)
+	const [pickingModelKey, setPickingModelKey] = useState<"actModelId" | "planModelId" | null>(null)
 	const [editValue, setEditValue] = useState("")
 
 	// Settings state - single object for feature toggles
@@ -311,6 +314,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		setCurrentTab(tabKey as SettingsTab)
 		setSelectedIndex(0)
 		setIsEditing(false)
+		setIsPickingModel(false)
+		setPickingModelKey(null)
 	}, [])
 
 	// Ensure selected index is valid when items change
@@ -326,6 +331,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		if (!item || item.type === "readonly" || item.type === "separator") return
 
 		if (item.type === "editable") {
+			// For model ID fields, check if we should use the model picker
+			if ((item.key === "actModelId" || item.key === "planModelId") && hasModelPicker(provider)) {
+				setPickingModelKey(item.key as "actModelId" | "planModelId")
+				setIsPickingModel(true)
+				return
+			}
 			setEditValue(typeof item.value === "string" ? item.value : "")
 			setIsEditing(true)
 			return
@@ -387,6 +398,18 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		setAutoApproveSettings(newSettings)
 		stateManager.setGlobalState("autoApprovalSettings", newSettings)
 	}, [items, selectedIndex, stateManager, autoApproveSettings, toggleFeature])
+
+	// Handle model selection from picker
+	const handleModelSelect = useCallback(
+		(modelId: string) => {
+			if (!pickingModelKey) return
+			const stateKey = pickingModelKey === "actModelId" ? "actModeApiModelId" : "planModeApiModelId"
+			stateManager.setGlobalState(stateKey, modelId)
+			setIsPickingModel(false)
+			setPickingModelKey(null)
+		},
+		[pickingModelKey, stateManager],
+	)
 
 	// Handle saving edited value
 	const handleSave = useCallback(() => {
@@ -460,6 +483,15 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 	// Handle keyboard input
 	useInput(
 		(input, key) => {
+			// Model picker mode - escape to close, input is handled by ModelPicker
+			if (isPickingModel) {
+				if (key.escape) {
+					setIsPickingModel(false)
+					setPickingModelKey(null)
+				}
+				return
+			}
+
 			if (isEditing) {
 				if (key.escape) {
 					setIsEditing(false)
@@ -509,6 +541,30 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 
 	// Render content
 	const renderContent = () => {
+		if (isPickingModel && pickingModelKey) {
+			const label = pickingModelKey === "actModelId" ? "Model ID (Act)" : "Model ID (Plan)"
+			return (
+				<Box flexDirection="column">
+					<Text bold color="blueBright">
+						Select: {label}
+					</Text>
+					<Box marginTop={1}>
+						<ModelPicker
+							isActive={isPickingModel}
+							onChange={() => {}}
+							onSubmit={handleModelSelect}
+							provider={provider}
+						/>
+					</Box>
+					<Box marginTop={1}>
+						<Text color="gray" dimColor>
+							Type to search, arrows to navigate, Enter to select, Esc to cancel
+						</Text>
+					</Box>
+				</Box>
+			)
+		}
+
 		if (isEditing) {
 			const item = items[selectedIndex]
 			return (
