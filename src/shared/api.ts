@@ -12,6 +12,7 @@ const API_PROVIDERS_LIST_BASE = [
 	"lmstudio",
 	"gemini",
 	"openai-native",
+	"openai-codex",
 	"requesty",
 	"together",
 	"deepseek",
