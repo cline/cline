@@ -2,18 +2,18 @@ import * as vscode from "vscode"
 import {
 	cleanupMcpMarketplaceCatalogFromGlobalState,
 	migrateCustomInstructionsToGlobalRules,
-	migrateHooksEnabledToBoolean,
 	migrateTaskHistoryToFile,
 	migrateWelcomeViewCompleted,
 	migrateWorkspaceToGlobalStorage,
 } from "./core/storage/state-migrations"
 import { WebviewProvider } from "./core/webview"
-import { Logger } from "./services/logging/Logger"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
 import { StateManager } from "./core/storage/StateManager"
+import { openAiCodexOAuthManager } from "./integrations/openai-codex/oauth"
 import { ExtensionRegistryInfo } from "./registry"
 import { BannerService } from "./services/banner/BannerService"
 import { audioRecordingService } from "./services/dictation/AudioRecordingService"
@@ -26,19 +26,30 @@ import { ShowMessageType } from "./shared/proto/host/window"
 import { syncWorker } from "./shared/services/worker/sync"
 import { getBlobStoreSettingsFromEnv } from "./shared/services/worker/worker"
 import { getLatestAnnouncementId } from "./utils/announcements"
-import { openAiCodexOAuthManager } from "./integrations/openai-codex/oauth"
 import { arePathsEqual } from "./utils/path"
+
 /**
  * Performs intialization for Cline that is common to all platforms.
  *
  * @param context
  * @returns The webview provider
+ * @throws ClineConfigurationError if endpoints.json exists but is invalid
  */
 export async function initialize(context: vscode.ExtensionContext): Promise<WebviewProvider> {
+	// Configure the shared Logging class to use HostProvider's output channels and debug logger
+	Logger.subscribe((msg: string) => HostProvider.get().logToChannel(msg)) // File system logging
+	Logger.subscribe((msg: string) => HostProvider.env.debugLog({ value: msg })) // Host debug logging
+
+	// Initialize ClineEndpoint configuration first (reads ~/.cline/endpoints.json if present)
+	// This must be done before any other code that calls ClineEnv.config()
+	// Throws ClineConfigurationError if config file exists but is invalid
+	const { ClineEndpoint } = await import("./config")
+	await ClineEndpoint.initialize()
+
 	try {
 		await StateManager.initialize(context)
 	} catch (error) {
-		console.error("[Controller] CRITICAL: Failed to initialize StateManager - extension may not function properly:", error)
+		Logger.error("[Controller] CRITICAL: Failed to initialize StateManager - extension may not function properly:", error)
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: "Failed to initialize Cline's application state. Please restart the extension.",
@@ -69,9 +80,6 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 
 	// Ensure taskHistory.json exists and migrate legacy state (runs once)
 	await migrateTaskHistoryToFile(context)
-
-	// Migrate hooksEnabled from ClineFeatureSetting to boolean (one-time cleanup)
-	await migrateHooksEnabledToBoolean(context)
 
 	// Clean up MCP marketplace catalog from global state (moved to disk cache)
 	await cleanupMcpMarketplaceCatalogFromGlobalState(context)
@@ -127,7 +135,7 @@ async function showVersionUpdateAnnouncement(context: vscode.ExtensionContext) {
 		}
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
-		console.error(`Error during post-update actions: ${errorMessage}, Stack trace: ${error.stack}`)
+		Logger.error(`Error during post-update actions: ${errorMessage}, Stack trace: ${error.stack}`)
 	}
 }
 

@@ -2,6 +2,7 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import { BranchList } from "@shared/proto/cline/worktree"
 import { getAvailableBranches as getAvailableBranchesUtil } from "@utils/git-worktree"
 import { getWorkspacePath } from "@utils/path"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
@@ -29,7 +30,7 @@ export async function getAvailableBranches(_controller: Controller, _request: Em
 			currentBranch: result.currentBranch,
 		})
 	} catch (error) {
-		console.error(`Error getting available branches: ${JSON.stringify(error)}`)
+		Logger.error(`Error getting available branches: ${JSON.stringify(error)}`)
 		return BranchList.create({
 			localBranches: [],
 			remoteBranches: [],

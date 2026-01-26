@@ -1,0 +1,4 @@
+`$fn($args)` where {
+	or { $fn <: `console.log`, $fn <: `console.debug`, $fn <: `console.error`, $fn <: `console.warn`, $fn <: `console.info` },
+	register_diagnostic(span=$fn, message="Use Logger service instead of direct console calls.")
+}

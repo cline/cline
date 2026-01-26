@@ -1,6 +1,7 @@
 import { AskSageModelId, askSageDefaultModelId, askSageDefaultURL, askSageModels, ModelInfo } from "@shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
@@ -58,7 +59,7 @@ export class AskSageHandler implements ApiHandler {
 	private apiKey: string
 
 	constructor(options: AskSageHandlerOptions) {
-		console.log("init api url", options.asksageApiUrl, askSageDefaultURL)
+		Logger.log("init api url", options.asksageApiUrl, askSageDefaultURL)
 		this.options = options
 		this.apiKey = options.asksageApiKey || ""
 		this.apiUrl = options.asksageApiUrl || askSageDefaultURL
@@ -164,7 +165,7 @@ export class AskSageHandler implements ApiHandler {
 			})
 
 			if (!response.ok) {
-				console.error("Failed to fetch AskSage usage", await response.text())
+				Logger.error("Failed to fetch AskSage usage", await response.text())
 				return undefined
 			}
 
@@ -177,7 +178,7 @@ export class AskSageHandler implements ApiHandler {
 				outputTokens: 0,
 			}
 		} catch (error) {
-			console.error("Error fetching AskSage usage:", error)
+			Logger.error("Error fetching AskSage usage:", error)
 			return undefined
 		}
 	}

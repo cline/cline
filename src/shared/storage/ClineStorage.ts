@@ -1,3 +1,5 @@
+import { Logger } from "../services/Logger"
+
 export interface ClineStorageChangeEvent {
 	readonly key: string
 }
@@ -46,8 +48,7 @@ export abstract class ClineStorage {
 	public async get(key: string): Promise<string | undefined> {
 		try {
 			return await this._get(key)
-		} catch (error) {
-			console.error(`[${this.name}] failed to get '${key}':`, error)
+		} catch {
 			return undefined
 		}
 	}
@@ -62,7 +63,7 @@ export abstract class ClineStorage {
 			await this._store(key, value)
 			await this.fire(key)
 		} catch (error) {
-			console.error(`[${this.name}] failed to store '${key}':`, error)
+			Logger.error(`[${this.name}] failed to store '${key}':`, error)
 		}
 	}
 
@@ -75,8 +76,8 @@ export abstract class ClineStorage {
 		try {
 			await this._delete(key)
 			await this.fire(key)
-		} catch (error) {
-			console.error(`[${this.name}] failed to delete '${key}':`, error)
+		} catch {
+			// Silently fail on delete errors
 		}
 	}
 

@@ -1,5 +1,6 @@
 import { ApiHandler } from "@core/api"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
+import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { CommandPermissionController } from "@core/permissions"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
@@ -267,7 +268,6 @@ export class ToolExecutor {
 	 * @param block The tool use block that caused the error
 	 */
 	private async handleError(action: string, error: Error, block: ToolUse): Promise<void> {
-		console.log(error)
 		const errorString = `Error ${action}: ${error.message}`
 		await this.say("error", errorString)
 
@@ -581,8 +581,7 @@ export class ToolExecutor {
 			return
 		}
 
-		// Check if hooks are enabled via user setting
-		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
+		const hooksEnabled = getHooksEnabledSafe()
 
 		// Track if we need to cancel after hooks complete
 		let shouldCancelAfterHook = false

@@ -81,11 +81,6 @@ export const freeModels = [
 		label: "FREE",
 	},
 	{
-		id: "x-ai/grok-code-fast-1",
-		description: "Fast inference with strong coding performance",
-		label: "FREE",
-	},
-	{
 		id: "mistralai/devstral-2512:free",
 		description: "Mistral's latest model with strong coding abilities",
 		label: "FREE",

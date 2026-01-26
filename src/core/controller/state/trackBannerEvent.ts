@@ -1,6 +1,7 @@
 import { BannerService } from "@/services/banner/BannerService"
 import { Empty } from "@/shared/proto/cline/common"
 import type { TrackBannerEventRequest } from "@/shared/proto/cline/state"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from ".."
 
 /**
@@ -15,13 +16,13 @@ export async function trackBannerEvent(_controller: Controller, request: TrackBa
 		return {}
 	}
 	if (eventType !== "dismiss") {
-		console.error("Unsupported event type ", eventType)
+		Logger.error("Unsupported event type ", eventType)
 		return {}
 	}
 	try {
 		await BannerService.get().sendBannerEvent(bannerId, eventType)
 	} catch (error) {
-		console.error("Failed to track banner event:", error)
+		Logger.error("Failed to track banner event:", error)
 	}
 	return {}
 }

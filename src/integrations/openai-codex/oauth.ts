@@ -4,6 +4,7 @@ import { URL } from "url"
 import type { ExtensionContext } from "vscode"
 import { z } from "zod"
 import { fetch } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * OpenAI Codex OAuth Configuration
@@ -87,11 +88,7 @@ function parseJwtClaims(token: string): IdTokenClaims | undefined {
  * 3. First organization ID
  */
 function extractAccountIdFromClaims(claims: IdTokenClaims): string | undefined {
-	return (
-		claims.chatgpt_account_id ||
-		claims["https://api.openai.com/auth"]?.chatgpt_account_id ||
-		claims.organizations?.[0]?.id
-	)
+	return claims.chatgpt_account_id || claims["https://api.openai.com/auth"]?.chatgpt_account_id || claims.organizations?.[0]?.id
 }
 
 /**
@@ -148,9 +145,7 @@ function parseOAuthErrorDetails(errorText: string): { errorCode?: string; errorM
 		const errorCode: string | undefined =
 			typeof errorField === "string"
 				? errorField
-				: errorField &&
-					  typeof errorField === "object" &&
-					  typeof (errorField as Record<string, unknown>).type === "string"
+				: errorField && typeof errorField === "object" && typeof (errorField as Record<string, unknown>).type === "string"
 					? ((errorField as Record<string, unknown>).type as string)
 					: undefined
 
@@ -381,9 +376,9 @@ export class OpenAiCodexOAuthManager {
 			return newCredentials.access_token
 		} catch (error) {
 			this.refreshPromise = null
-			console.error("[openai-codex-oauth] Failed to force refresh token:", error)
+			Logger.error("[openai-codex-oauth] Failed to force refresh token:", error)
 			if (error instanceof OpenAiCodexOAuthTokenError && error.isLikelyInvalidGrant()) {
-				console.log("[openai-codex-oauth] Refresh token appears invalid; clearing stored credentials")
+				Logger.log("[openai-codex-oauth] Refresh token appears invalid; clearing stored credentials")
 				await this.clearCredentials()
 			}
 			return null
@@ -408,7 +403,7 @@ export class OpenAiCodexOAuthManager {
 			this.credentials = openAiCodexCredentialsSchema.parse(parsed)
 			return this.credentials
 		} catch (error) {
-			console.error("[openai-codex-oauth] Failed to load credentials:", error)
+			Logger.error("[openai-codex-oauth] Failed to load credentials:", error)
 			return null
 		}
 	}
@@ -463,11 +458,11 @@ export class OpenAiCodexOAuthManager {
 				await this.saveCredentials(newCredentials)
 			} catch (error) {
 				this.refreshPromise = null
-				console.error("[openai-codex-oauth] Failed to refresh token:", error)
+				Logger.error("[openai-codex-oauth] Failed to refresh token:", error)
 
 				// Only clear secrets when the refresh token is clearly invalid/revoked.
 				if (error instanceof OpenAiCodexOAuthTokenError && error.isLikelyInvalidGrant()) {
-					console.log("[openai-codex-oauth] Refresh token appears invalid; clearing stored credentials")
+					Logger.log("[openai-codex-oauth] Refresh token appears invalid; clearing stored credentials")
 					await this.clearCredentials()
 				}
 				return null
@@ -593,14 +588,44 @@ export class OpenAiCodexOAuthManager {
 
 						res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
 						res.end(`<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Authentication Successful</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    color: #fff;
+  }
+  .container { text-align: center; padding: 48px; max-width: 420px; }
+  .icon {
+    width: 72px; height: 72px; margin: 0 auto 24px;
+    background: linear-gradient(135deg, #10a37f 0%, #1a7f64 100%);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .icon svg { width: 36px; height: 36px; stroke: #fff; stroke-width: 3; fill: none; }
+  h1 { font-size: 24px; font-weight: 600; margin-bottom: 12px; }
+  p { font-size: 15px; color: rgba(255,255,255,0.7); line-height: 1.5; }
+  .closing { margin-top: 32px; font-size: 13px; color: rgba(255,255,255,0.5); }
+</style>
 </head>
 <body>
-<h1>Authentication Successful</h1>
-<p>You can close this window and return to VS Code.</p>
+<div class="container">
+  <div class="icon">
+    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+  </div>
+  <h1>Authentication Successful</h1>
+  <p>You're now signed in to OpenAI Codex. You can close this window and return to VS Code.</p>
+  <p class="closing">This window will close automatically...</p>
+</div>
 <script>setTimeout(() => window.close(), 3000);</script>
 </body>
 </html>`)

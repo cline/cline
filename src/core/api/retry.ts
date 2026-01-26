@@ -1,3 +1,5 @@
+import { Logger } from "@/shared/services/Logger"
+
 interface RetryOptions {
 	maxRetries?: number
 	baseDelay?: number
@@ -72,7 +74,7 @@ export function withRetry(options: RetryOptions = {}) {
 						try {
 							await handlerInstance.options.onRetryAttempt(attempt + 1, maxRetries, delay, error)
 						} catch (e) {
-							console.error("Error in onRetryAttempt callback:", e)
+							Logger.error("Error in onRetryAttempt callback:", e)
 						}
 					}
 

@@ -41,14 +41,16 @@ export function sanitizeCellOutputs(cell: Record<string, unknown>): Record<strin
 }
 
 /**
- * Sanitizes a Jupyter notebook JSON by truncating verbose image data in cell outputs.
- * This prevents flooding the LLM context with large base64-encoded images that are
- * not useful for editing (outputs are regenerated when code runs).
+ * Sanitizes a Jupyter notebook JSON for LLM context.
  *
  * @param jsonString The raw notebook JSON string
- * @returns Sanitized JSON string with image data truncated
+ * @param stripAllOutputs If true, removes all outputs entirely. If false (default),
+ *                        only truncates image data while keeping text outputs.
+ *                        Use true for write responses where outputs aren't needed.
+ *                        Use false for reads where text outputs provide useful context.
+ * @returns Sanitized JSON string
  */
-export function sanitizeNotebookForLLM(jsonString: string): string {
+export function sanitizeNotebookForLLM(jsonString: string, stripAllOutputs = false): string {
 	try {
 		const notebook = JSON.parse(jsonString)
 
@@ -56,7 +58,14 @@ export function sanitizeNotebookForLLM(jsonString: string): string {
 			return jsonString
 		}
 
-		notebook.cells = notebook.cells.map((cell: Record<string, unknown>) => sanitizeCellOutputs(cell))
+		if (stripAllOutputs) {
+			notebook.cells = notebook.cells.map((cell: Record<string, unknown>) => ({
+				...cell,
+				outputs: cell.cell_type === "code" ? [] : cell.outputs,
+			}))
+		} else {
+			notebook.cells = notebook.cells.map((cell: Record<string, unknown>) => sanitizeCellOutputs(cell))
+		}
 
 		return JSON.stringify(notebook, null, 1)
 	} catch {

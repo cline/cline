@@ -1,5 +1,6 @@
 import { selectFiles as selectFilesIntegration } from "@integrations/misc/process-files"
 import { BooleanRequest, StringArrays } from "@shared/proto/cline/common"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
@@ -13,7 +14,7 @@ export async function selectFiles(_controller: Controller, request: BooleanReque
 		const { images, files } = await selectFilesIntegration(request.value)
 		return StringArrays.create({ values1: images, values2: files })
 	} catch (error) {
-		console.error("Error selecting images & files:", error)
+		Logger.error("Error selecting images & files:", error)
 		// Return empty array on error
 		return StringArrays.create({ values1: [], values2: [] })
 	}
