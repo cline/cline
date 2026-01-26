@@ -1,0 +1,44 @@
+/**
+ * Reusable Checkbox component for settings panels
+ */
+
+import { Box, Text } from "ink"
+import React from "react"
+
+interface CheckboxProps {
+	/** Label displayed next to the checkbox */
+	label: string
+	/** Current checked state */
+	checked: boolean
+	/** Whether this checkbox is currently selected/focused */
+	isSelected?: boolean
+	/** Optional description shown below the label */
+	description?: string
+}
+
+export const Checkbox: React.FC<CheckboxProps> = ({ label, checked, isSelected = false, description }) => {
+	return (
+		<Box flexDirection="column">
+			<Text>
+				<Text bold color={isSelected ? "blueBright" : undefined}>
+					{isSelected ? "❯" : " "}{" "}
+				</Text>
+				<Text color={checked ? "blueBright" : "gray"}>{checked ? "[✓]" : "[ ]"}</Text>
+				<Text color={isSelected ? "white" : "gray"}> {label}</Text>
+				{isSelected && (
+					<Text color="gray" dimColor>
+						{" "}
+						(Tab to toggle)
+					</Text>
+				)}
+			</Text>
+			{description && (
+				<Box marginLeft={6}>
+					<Text color="gray" dimColor>
+						{description}
+					</Text>
+				</Box>
+			)}
+		</Box>
+	)
+}

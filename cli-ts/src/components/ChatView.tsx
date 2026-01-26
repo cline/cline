@@ -105,6 +105,7 @@ import type { ClineAsk } from "@shared/ExtensionMessage"
 import { getApiMetrics } from "@shared/getApiMetrics"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import type { SlashCommandInfo } from "@shared/proto/cline/slash"
+import { CLI_ONLY_COMMANDS } from "@shared/slashCommands"
 import type { Mode } from "@shared/storage/types"
 import { execSync } from "child_process"
 import { Box, Static, Text, useInput } from "ink"
@@ -129,6 +130,7 @@ import { AsciiMotionCli, StaticRobotFrame } from "./AsciiMotionCli"
 import { ChatMessage } from "./ChatMessage"
 import { FileMentionMenu } from "./FileMentionMenu"
 import { HighlightedInput } from "./HighlightedInput"
+import { SettingsPanelContent } from "./SettingsPanelContent"
 import { SlashCommandMenu } from "./SlashCommandMenu"
 import { ThinkingIndicator } from "./ThinkingIndicator"
 
@@ -251,6 +253,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const [slashMenuDismissed, setSlashMenuDismissed] = useState(false)
 	const lastSlashIndexRef = useRef<number>(-1)
 
+	// Settings panel state
+	const [activePanel, setActivePanel] = useState<"settings" | null>(null)
+
 	// Track which messages have been rendered to Static (by timestamp)
 	// Using refs instead of state to avoid extra renders during streaming->static transition
 	const loggedMessageTsRef = useRef<Set<number>>(new Set())
@@ -263,7 +268,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		return stateManager.getGlobalSettingsKey("mode") || "act"
 	})
 
-	const yolo = useMemo(() => StateManager.get().getGlobalSettingsKey("yoloModeToggled"), [])
+	const [yolo, setYolo] = useState<boolean>(() => StateManager.get().getGlobalSettingsKey("yoloModeToggled") ?? false)
+
+	const toggleYolo = useCallback(() => {
+		const newValue = !yolo
+		setYolo(newValue)
+		StateManager.get().setGlobalState("yoloModeToggled", newValue)
+	}, [yolo])
 
 	// Get model ID based on current mode
 	const modelId = useMemo(() => {
@@ -342,7 +353,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			try {
 				const response = await getAvailableSlashCommands(ctrl, EmptyRequest.create())
 				const cliCommands = response.commands.filter((cmd) => cmd.cliCompatible !== false)
-				setAvailableCommands(sortCommandsWorkflowsFirst(cliCommands))
+				// Add CLI-only commands (like /settings) that are handled locally
+				const cliOnlyCommands: SlashCommandInfo[] = CLI_ONLY_COMMANDS.map((cmd) => ({
+					name: cmd.name,
+					description: cmd.description || "",
+					section: cmd.section || "default",
+					cliCompatible: true,
+				}))
+				setAvailableCommands(sortCommandsWorkflowsFirst([...cliCommands, ...cliOnlyCommands]))
 			} catch {
 				// Fallback: commands will be empty, menu won't show
 			}
@@ -578,6 +596,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			return
 		}
 
+		// When a panel is open, let the panel handle its own input
+		if (activePanel) {
+			return
+		}
+
 		const inSlashMenu = slashInfo.inSlashMode && filteredCommands.length > 0 && !slashMenuDismissed
 		const inFileMenu = mentionInfo.inMentionMode && fileResults.length > 0 && !inSlashMenu
 
@@ -594,6 +617,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			if (key.tab || key.return) {
 				const cmd = filteredCommands[selectedSlashIndex]
 				if (cmd) {
+					// Handle CLI-only commands locally
+					if (cmd.name === "settings") {
+						setActivePanel("settings")
+						setTextInput("")
+						setSelectedSlashIndex(0)
+						setSlashMenuDismissed(true)
+						return
+					}
 					setTextInput(insertSlashCommand(textInput, slashInfo.slashIndex, cmd.name))
 					setSelectedSlashIndex(0)
 				}
@@ -671,6 +702,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		}
 
 		// Normal input handling
+		if (key.shift && key.tab) {
+			toggleYolo()
+			return
+		}
 		if (key.tab && !mentionInfo.inMentionMode && !slashInfo.inSlashMode) {
 			toggleMode()
 			return
@@ -780,27 +815,32 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					</Box>
 				)}
 
-				{/* Input field with border - ALWAYS shown */}
-				<Box
-					borderColor={borderColor}
-					borderStyle="round"
-					flexDirection="row"
-					justifyContent="space-between"
-					paddingLeft={1}
-					paddingRight={1}
-					width="100%">
-					<Box>
-						{inputPrompt && <Text color="yellow">{inputPrompt} </Text>}
-						<HighlightedInput text={textInput} />
-						<Text color="gray">▌</Text>
+				{/* Input field with border - hidden when panel is open */}
+				{!activePanel && (
+					<Box
+						borderColor={borderColor}
+						borderStyle="round"
+						flexDirection="row"
+						justifyContent="space-between"
+						paddingLeft={1}
+						paddingRight={1}
+						width="100%">
+						<Box>
+							{inputPrompt && <Text color="yellow">{inputPrompt} </Text>}
+							<HighlightedInput text={textInput} />
+							<Text color="gray">▌</Text>
+						</Box>
+						<Text color="gray" dimColor>
+							↵ send
+						</Text>
 					</Box>
-					<Text color="gray" dimColor>
-						↵ send
-					</Text>
-				</Box>
+				)}
+
+				{/* Settings panel */}
+				{activePanel === "settings" && <SettingsPanelContent onClose={() => setActivePanel(null)} />}
 
 				{/* Slash command menu - below input (takes priority over file menu) */}
-				{showSlashMenu && (
+				{showSlashMenu && !activePanel && (
 					<Box paddingLeft={1} paddingRight={1}>
 						<SlashCommandMenu
 							commands={filteredCommands}
@@ -811,7 +851,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				)}
 
 				{/* File mention menu - below input (only when not in slash mode) */}
-				{showFileMenu && (
+				{showFileMenu && !activePanel && (
 					<Box paddingLeft={1} paddingRight={1}>
 						<FileMentionMenu
 							isLoading={isSearching}
@@ -823,7 +863,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				)}
 
 				{/* Attached images */}
-				{imagePaths.length > 0 && (
+				{imagePaths.length > 0 && !activePanel && (
 					<Box paddingLeft={1} paddingRight={1}>
 						<Text color="magenta">
 							{imagePaths.length} image{imagePaths.length > 1 ? "s" : ""} attached
@@ -831,8 +871,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					</Box>
 				)}
 
-				{/* Footer - hidden when any menu is shown */}
-				{!showSlashMenu && !showFileMenu && (
+				{/* Footer - hidden when any menu or panel is shown */}
+				{!showSlashMenu && !showFileMenu && !activePanel && (
 					<>
 						{/* Row 1: Instructions (left, can wrap) | Plan/Act toggle (right, no wrap) */}
 						<Box justifyContent="space-between" paddingLeft={1} paddingRight={1} width="100%">
