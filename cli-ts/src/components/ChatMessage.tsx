@@ -215,18 +215,20 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 		)
 	}
 
-	// Tool calls (ask for permission)
-	if (type === "ask" && ask === "tool" && text) {
+	// Tool calls (ask) and tool results (say)
+	const isToolAsk = type === "ask" && ask === "tool"
+	const isToolSay = say === "tool"
+	if ((isToolAsk || isToolSay) && text) {
 		const toolInfo = parseToolFromMessage(text)
 		if (toolInfo) {
-			// File edit tools - show diff
 			const filePath = toolInfo.args.path || toolInfo.args.file_path
 
+			// File edit tools - show diff
 			if (isFileEditTool(toolInfo.toolName) && filePath && toolInfo.args.content) {
 				return (
 					<Box flexDirection="column" marginBottom={1} width="100%">
 						<DotRow color={toolColor}>
-							<ToolCallText args={toolInfo.args} isAsk mode={mode} toolName={toolInfo.toolName} />
+							<ToolCallText args={toolInfo.args} isAsk={isToolAsk} mode={mode} toolName={toolInfo.toolName} />
 						</DotRow>
 						<Box marginLeft={2}>
 							<DiffView content={toolInfo.args.content} />
@@ -235,45 +237,17 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 				)
 			}
 
+			// Only show result content for completed tools (say), not for pending asks
+			const resultLines = isToolSay && toolInfo.result?.trim() ? formatToolResult(toolInfo.result, 5) : []
+
 			return (
 				<Box flexDirection="column" marginBottom={1} width="100%">
 					<DotRow color={toolColor}>
-						<ToolCallText args={toolInfo.args} isAsk mode={mode} toolName={toolInfo.toolName} />
+						<ToolCallText args={toolInfo.args} isAsk={isToolAsk} mode={mode} toolName={toolInfo.toolName} />
 					</DotRow>
-				</Box>
-			)
-		}
-	}
-
-	// Tool results (say tool)
-	if (say === "tool" && text) {
-		const toolInfo = parseToolFromMessage(text)
-		if (toolInfo) {
-			// File edit tools - show diff
-			const filePath = toolInfo.args.path || toolInfo.args.file_path
-
-			if (isFileEditTool(toolInfo.toolName) && filePath && toolInfo.args.content) {
-				return (
-					<Box flexDirection="column" marginBottom={1} width="100%">
-						<DotRow color={toolColor}>
-							<ToolCallText args={toolInfo.args} mode={mode} toolName={toolInfo.toolName} />
-						</DotRow>
-						<Box marginLeft={2}>
-							<DiffView content={toolInfo.args.content} />
-						</Box>
-					</Box>
-				)
-			}
-
-			const hasResult = toolInfo.result && toolInfo.result.trim()
-			return (
-				<Box flexDirection="column" marginBottom={1} width="100%">
-					<DotRow color={toolColor}>
-						<ToolCallText args={toolInfo.args} mode={mode} toolName={toolInfo.toolName} />
-					</DotRow>
-					{hasResult && (
+					{resultLines.length > 0 && (
 						<Box flexDirection="column" marginLeft={2} width="100%">
-							{formatToolResult(toolInfo.result!, 5).map((line, idx) => (
+							{resultLines.map((line, idx) => (
 								<ResultRow isFirst={idx === 0} key={idx}>
 									<Text dimColor>{line}</Text>
 								</ResultRow>
@@ -284,13 +258,15 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 			)
 		}
 		// Fallback for unparseable tool messages
-		return (
-			<Box flexDirection="column" marginBottom={1} width="100%">
-				<DotRow color={toolColor}>
-					<Text color={toolColor}>{truncate(text, 100)}</Text>
-				</DotRow>
-			</Box>
-		)
+		if (isToolSay) {
+			return (
+				<Box flexDirection="column" marginBottom={1} width="100%">
+					<DotRow color={toolColor}>
+						<Text color={toolColor}>{truncate(text, 100)}</Text>
+					</DotRow>
+				</Box>
+			)
+		}
 	}
 
 	// Command execution (ask or say) - now includes combined output
