@@ -993,7 +993,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				)}
 
 				{/* Settings panel */}
-				{activePanel === "settings" && <SettingsPanelContent onClose={() => setActivePanel(null)} />}
+				{activePanel === "settings" && <SettingsPanelContent controller={ctrl} onClose={() => setActivePanel(null)} />}
 
 				{/* Slash command menu - below input (takes priority over file menu) */}
 				{showSlashMenu && !activePanel && (
