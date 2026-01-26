@@ -107,6 +107,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 	const [separateModels, setSeparateModels] = useState<boolean>(
 		() => stateManager.getGlobalSettingsKey("planActSeparateModelsSetting") ?? false,
 	)
+	const [actThinkingBudget, setActThinkingBudget] = useState<number>(
+		() => stateManager.getGlobalSettingsKey("actModeThinkingBudgetTokens") ?? 0,
+	)
+	const [planThinkingBudget, setPlanThinkingBudget] = useState<number>(
+		() => stateManager.getGlobalSettingsKey("planModeThinkingBudgetTokens") ?? 0,
+	)
 
 	// Auto-approve settings (complex nested object)
 	const [autoApproveSettings, setAutoApproveSettings] = useState<AutoApprovalSettings>(() => {
@@ -145,6 +151,13 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 				return [
 					{ key: "provider", label: "Provider", type: "readonly", value: provider },
 					{ key: "actModelId", label: "Model ID (Act)", type: "editable", value: actModelId || "not set" },
+					{
+						key: "actThinkingBudget",
+						label: "Thinking budget (Act)",
+						type: "editable",
+						value: actThinkingBudget > 0 ? actThinkingBudget.toLocaleString() : "disabled",
+						description: "Extended thinking tokens (0 to disable)",
+					},
 					...(separateModels
 						? [
 								{
@@ -152,6 +165,13 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 									label: "Model ID (Plan)",
 									type: "editable" as const,
 									value: planModelId || "not set",
+								},
+								{
+									key: "planThinkingBudget",
+									label: "Thinking budget (Plan)",
+									type: "editable" as const,
+									value: planThinkingBudget > 0 ? planThinkingBudget.toLocaleString() : "disabled",
+									description: "Extended thinking tokens (0 to disable)",
 								},
 							]
 						: []),
@@ -278,6 +298,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		actModelId,
 		planModelId,
 		separateModels,
+		actThinkingBudget,
+		planThinkingBudget,
 		autoApproveSettings,
 		features,
 		preferredLanguage,
@@ -378,6 +400,21 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			case "planModelId":
 				stateManager.setGlobalState("planModeApiModelId", editValue || undefined)
 				break
+			case "actThinkingBudget": {
+				// Parse number, removing commas and treating "disabled"/empty as 0
+				const numValue = editValue === "disabled" || editValue === "" ? 0 : parseInt(editValue.replace(/,/g, ""), 10)
+				const validValue = isNaN(numValue) ? 0 : Math.max(0, numValue)
+				setActThinkingBudget(validValue)
+				stateManager.setGlobalState("actModeThinkingBudgetTokens", validValue)
+				break
+			}
+			case "planThinkingBudget": {
+				const numValue = editValue === "disabled" || editValue === "" ? 0 : parseInt(editValue.replace(/,/g, ""), 10)
+				const validValue = isNaN(numValue) ? 0 : Math.max(0, numValue)
+				setPlanThinkingBudget(validValue)
+				stateManager.setGlobalState("planModeThinkingBudgetTokens", validValue)
+				break
+			}
 			case "language":
 				setPreferredLanguage(editValue)
 				stateManager.setGlobalState("preferredLanguage", editValue)

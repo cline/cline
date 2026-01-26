@@ -904,7 +904,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						{/* Row 2: Model/context/tokens/cost */}
 						<Box paddingLeft={1} paddingRight={1}>
 							<Text>
-								<Text color="gray">{modelId.length > 20 ? modelId.substring(0, 17) + "..." : modelId}</Text>{" "}
+								<Text color="gray">
+									{modelId.length > 20 ? modelId.substring(0, 17) + "..." : modelId}
+									{thinkingBudget > 0 && " (thinking)"}
+								</Text>{" "}
 								{(() => {
 									const bar = createContextBar(
 										metrics.totalTokensIn + metrics.totalTokensOut,
