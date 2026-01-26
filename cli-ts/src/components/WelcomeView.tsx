@@ -17,6 +17,7 @@ import {
 	insertMention,
 	searchWorkspaceFiles,
 } from "../utils/file-search"
+import { isMouseEscapeSequence } from "../utils/input"
 import { parseImagesFromInput } from "../utils/parser"
 import { AccountInfoView } from "./AccountInfoView"
 import { FileMentionMenu } from "./FileMentionMenu"
@@ -163,6 +164,11 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 
 	useInput(
 		(input, key) => {
+			// Filter out mouse escape sequences
+			if (isMouseEscapeSequence(input)) {
+				return
+			}
+
 			const inMenu = mentionInfo.inMentionMode && fileResults.length > 0
 
 			// Menu navigation

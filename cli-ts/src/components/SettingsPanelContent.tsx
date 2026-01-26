@@ -11,6 +11,7 @@ import { Box, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import { useStdinContext } from "../context/StdinContext"
+import { isMouseEscapeSequence } from "../utils/input"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { Checkbox } from "./Checkbox"
 import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
@@ -590,6 +591,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 	// Disable when in modes where child components handle input
 	useInput(
 		(input, key) => {
+			// Filter out mouse escape sequences
+			if (isMouseEscapeSequence(input)) {
+				return
+			}
+
 			// Provider picker mode - escape to close, input is handled by ProviderPicker
 			if (isPickingProvider) {
 				if (key.escape) {
