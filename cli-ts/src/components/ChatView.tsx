@@ -169,6 +169,40 @@ function getGitBranch(cwd?: string): string | null {
 	}
 }
 
+interface GitDiffStats {
+	files: number
+	additions: number
+	deletions: number
+}
+
+/**
+ * Get git diff stats (files changed, additions, deletions)
+ */
+function getGitDiffStats(cwd?: string): GitDiffStats | null {
+	try {
+		const output = execSync("git diff --shortstat", {
+			cwd: cwd || process.cwd(),
+			encoding: "utf-8",
+			stdio: ["pipe", "pipe", "pipe"],
+		}).trim()
+
+		if (!output) return null
+
+		// Parse output like "2 files changed, 10 insertions(+), 5 deletions(-)"
+		const filesMatch = output.match(/(\d+) file/)
+		const addMatch = output.match(/(\d+) insertion/)
+		const delMatch = output.match(/(\d+) deletion/)
+
+		return {
+			files: filesMatch ? parseInt(filesMatch[1], 10) : 0,
+			additions: addMatch ? parseInt(addMatch[1], 10) : 0,
+			deletions: delMatch ? parseInt(delMatch[1], 10) : 0,
+		}
+	} catch {
+		return null
+	}
+}
+
 /**
  * Create a progress bar for context window usage
  * Returns { filled, empty } strings to allow different coloring
@@ -267,6 +301,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const loggedMessageTsRef = useRef<Set<number>>(new Set())
 	const headerLoggedRef = useRef(false)
 	const [gitBranch, setGitBranch] = useState<string | null>(null)
+	const [gitDiffStats, setGitDiffStats] = useState<GitDiffStats | null>(null)
 
 	// Mode state
 	const [mode, setMode] = useState<Mode>(() => {
@@ -341,6 +376,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	// Get git branch on mount
 	useEffect(() => {
 		setGitBranch(getGitBranch(workspacePath))
+		setGitDiffStats(getGitDiffStats(workspacePath))
 	}, [workspacePath])
 
 	// Load existing task when taskId is provided
@@ -379,6 +415,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	}, [ctrl])
 
 	const messages = taskState.clineMessages || []
+
+	// Refresh git diff stats when messages change (after file edits)
+	const lastMsg = messages[messages.length - 1]
+	useEffect(() => {
+		setGitDiffStats(getGitDiffStats(workspacePath))
+	}, [messages.length, lastMsg?.partial, lastMsg?.ts, workspacePath])
 
 	// Filter messages we want to display
 	const displayMessages = useMemo(() => {
@@ -1045,14 +1087,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
 							</Text>
 						</Box>
 
-						{/* Row 3: Repo/branch */}
+						{/* Row 3: Repo/branch/diff stats */}
 						<Box paddingLeft={1} paddingRight={1}>
 							<Text color="gray">
 								{workspacePath.split("/").pop() || workspacePath}
-								{gitBranch && (
-									<Text color="gray">
+								{gitBranch && <Text color="gray"> ({gitBranch})</Text>}
+								{gitDiffStats && gitDiffStats.files > 0 && (
+									<Text>
 										{" "}
-										(<Text color="gray">{gitBranch}</Text>)
+										| {gitDiffStats.files} file{gitDiffStats.files !== 1 ? "s" : ""}{" "}
+										<Text color="green">+{gitDiffStats.additions}</Text>{" "}
+										<Text color="red">-{gitDiffStats.deletions}</Text>
 									</Text>
 								)}
 							</Text>
