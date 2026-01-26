@@ -154,19 +154,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			case "api":
 				return [
 					{ key: "provider", label: "Provider", type: "readonly", value: provider },
-					{
-						key: "separateModels",
-						label: "Use separate models for Plan and Act",
-						type: "checkbox",
-						value: separateModels,
-					},
-					{ key: "separator1", label: "", type: "separator", value: false },
 					{ key: "actHeader", label: separateModels ? "Act Mode" : "Model", type: "header", value: "" },
 					{ key: "actModelId", label: "Model ID", type: "editable", value: actModelId || "not set" },
 					{ key: "actThinkingEnabled", label: "Enable thinking", type: "checkbox", value: actThinkingEnabled },
 					...(separateModels
 						? [
-								{ key: "separator2", label: "", type: "separator" as const, value: false },
 								{ key: "planHeader", label: "Plan Mode", type: "header" as const, value: "" },
 								{
 									key: "planModelId",
@@ -182,6 +174,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 								},
 							]
 						: []),
+					{
+						key: "separateModels",
+						label: "Use separate models for Plan and Act",
+						type: "checkbox",
+						value: separateModels,
+					},
 				]
 
 			case "auto-approve": {
