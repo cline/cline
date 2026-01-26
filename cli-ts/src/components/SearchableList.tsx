@@ -6,6 +6,7 @@
 import { Box, Text, useInput } from "ink"
 // biome-ignore lint/correctness/noUnusedImports: React is needed for JSX at runtime
 import React, { useEffect, useMemo, useState } from "react"
+import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { useScrollableList } from "../hooks/useScrollableList"
 import { isMouseEscapeSequence } from "../utils/input"
@@ -108,7 +109,7 @@ export function SearchableList<T extends SearchableListItem>({
 				const isSelected = actualIndex === index
 				return (
 					<Box key={item.id}>
-						<Text color={isSelected ? "blueBright" : undefined}>
+						<Text color={isSelected ? COLORS.primaryBlue : undefined}>
 							{isSelected ? "> " : "  "}
 							{item.label}
 							{item.suffix && <Text color="gray"> {item.suffix}</Text>}

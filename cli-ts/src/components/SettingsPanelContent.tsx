@@ -12,6 +12,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { buildApiHandler } from "@/core/api"
 import type { Controller } from "@/core/controller"
 import { StateManager } from "@/core/storage/StateManager"
+import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { isMouseEscapeSequence } from "../utils/input"
 import { ApiKeyInput } from "./ApiKeyInput"
@@ -731,7 +732,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		if (isPickingProvider) {
 			return (
 				<Box flexDirection="column">
-					<Text bold color="blueBright">
+					<Text bold color={COLORS.primaryBlue}>
 						Select Provider
 					</Text>
 					<Box marginTop={1}>
@@ -767,7 +768,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			const label = pickingModelKey === "actModelId" ? "Model ID (Act)" : "Model ID (Plan)"
 			return (
 				<Box flexDirection="column">
-					<Text bold color="blueBright">
+					<Text bold color={COLORS.primaryBlue}>
 						Select: {label}
 					</Text>
 					<Box marginTop={1}>
@@ -790,7 +791,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		if (isPickingLanguage) {
 			return (
 				<Box flexDirection="column">
-					<Text bold color="blueBright">
+					<Text bold color={COLORS.primaryBlue}>
 						Select Language
 					</Text>
 					<Box marginTop={1}>
@@ -809,7 +810,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			const item = items[selectedIndex]
 			return (
 				<Box flexDirection="column">
-					<Text bold color="blueBright">
+					<Text bold color={COLORS.primaryBlue}>
 						Edit: {item?.label}
 					</Text>
 					<Box marginTop={1}>
@@ -898,11 +899,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 					// Readonly or editable field
 					return (
 						<Text key={item.key}>
-							<Text bold color={isSelected ? "blueBright" : undefined}>
+							<Text bold color={isSelected ? COLORS.primaryBlue : undefined}>
 								{isSelected ? "❯" : " "}{" "}
 							</Text>
 							<Text color={isSelected ? "white" : "gray"}>{item.label}: </Text>
-							<Text color={item.type === "readonly" ? "gray" : "blueBright"}>
+							<Text color={item.type === "readonly" ? "gray" : COLORS.primaryBlue}>
 								{typeof item.value === "string" ? item.value : String(item.value)}
 							</Text>
 							{item.type === "editable" && isSelected && (

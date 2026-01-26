@@ -10,6 +10,7 @@ import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Box, Text } from "ink"
 import React from "react"
+import { COLORS } from "../constants/colors"
 import { jsonParseSafe } from "../utils/parser"
 import { getToolDescription, isFileEditTool, parseToolFromMessage } from "../utils/tools"
 import { DiffView } from "./DiffView"
@@ -148,7 +149,7 @@ const ToolCallText: React.FC<{
 	const desc = getToolDescription(toolName)
 	const actionText = isAsk ? desc.ask : desc.say
 	const mainArg = getToolMainArg(toolName, args)
-	const toolColor = mode === "plan" ? "yellow" : "blueBright"
+	const toolColor = mode === "plan" ? "yellow" : COLORS.primaryBlue
 
 	return (
 		<Text>
@@ -186,7 +187,7 @@ function formatToolResult(result: string, maxLines: number = 5): string[] {
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 	const { type, ask, say, text } = message
-	const toolColor = mode === "plan" ? "yellow" : "blueBright"
+	const toolColor = mode === "plan" ? "yellow" : COLORS.primaryBlue
 
 	// User messages (task, user_feedback)
 	if (say === "task" || say === "user_feedback") {

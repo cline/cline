@@ -10,6 +10,7 @@ import { StateManager } from "@/core/storage/StateManager"
 import { AuthService } from "@/services/auth/AuthService"
 import { API_PROVIDERS_LIST, openRouterDefaultModelId } from "@/shared/api"
 import { ProviderToApiKeyMap } from "@/shared/storage"
+import { COLORS } from "../constants/colors"
 import { getAllFeaturedModels } from "../constants/featured-models"
 import { useStdinContext } from "../context/StdinContext"
 import { useScrollableList } from "../hooks/useScrollableList"
@@ -89,7 +90,7 @@ const Select: React.FC<{
 			)}
 			{items.map((item, index) => (
 				<Box key={item.value}>
-					<Text color={index === selectedIndex ? "blueBright" : undefined}>
+					<Text color={index === selectedIndex ? COLORS.primaryBlue : undefined}>
 						{index === selectedIndex ? "❯ " : "  "}
 						{item.label}
 					</Text>
@@ -617,7 +618,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 							const actualIndex = providerVisibleStart + i
 							return (
 								<Box key={item.value}>
-									<Text color={actualIndex === providerIndex ? "blueBright" : undefined}>
+									<Text color={actualIndex === providerIndex ? COLORS.primaryBlue : undefined}>
 										{actualIndex === providerIndex ? "❯ " : "  "}
 										{item.label}
 									</Text>
@@ -712,7 +713,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			case "saving":
 				return (
 					<Box>
-						<Text color="blueBright">
+						<Text color={COLORS.primaryBlue}>
 							<Spinner type="dots" />
 						</Text>
 						<Text color="white"> Saving configuration...</Text>
@@ -723,7 +724,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				return (
 					<Box flexDirection="column">
 						<Box>
-							<Text color="blueBright">
+							<Text color={COLORS.primaryBlue}>
 								<Spinner type="dots" />
 							</Text>
 							<Text color="white"> Waiting for browser sign-in...</Text>
@@ -748,16 +749,18 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 						{allModels.map((model, i) => (
 							<Box flexDirection="column" key={model.id} marginBottom={1}>
 								<Box>
-									<Text color={i === clineModelIndex ? "blueBright" : undefined}>
+									<Text color={i === clineModelIndex ? COLORS.primaryBlue : undefined}>
 										{i === clineModelIndex ? "❯ " : "  "}
 									</Text>
-									<Text bold color={i === clineModelIndex ? "blueBright" : "white"}>
+									<Text bold color={i === clineModelIndex ? COLORS.primaryBlue : "white"}>
 										{model.name}
 									</Text>
 									{model.label && (
 										<>
 											<Text> </Text>
-											<Text backgroundColor={model.label === "FREE" ? "gray" : "blueBright"} color="black">
+											<Text
+												backgroundColor={model.label === "FREE" ? "gray" : COLORS.primaryBlue}
+												color="black">
 												{" "}
 												{model.label}{" "}
 											</Text>
@@ -772,7 +775,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 
 						{/* Browse all option */}
 						<Box>
-							<Text color={clineModelIndex === allModels.length ? "blueBright" : "gray"}>
+							<Text color={clineModelIndex === allModels.length ? COLORS.primaryBlue : "gray"}>
 								{clineModelIndex === allModels.length ? "❯ " : "  "}
 								Browse all models...
 							</Text>
@@ -898,7 +901,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 						<Text> </Text>
 						{mainMenuItems.map((item, index) => (
 							<Box key={item.value}>
-								<Text color={index === menuIndex ? "blueBright" : undefined}>
+								<Text color={index === menuIndex ? COLORS.primaryBlue : undefined}>
 									{index === menuIndex ? "❯ " : "  "}
 									{item.label}
 								</Text>
