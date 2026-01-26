@@ -252,7 +252,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const [isSearching, setIsSearching] = useState(false)
 	const [showRipgrepWarning, setShowRipgrepWarning] = useState(false)
 	const [respondedToAsk, setRespondedToAsk] = useState<number | null>(null)
-	const [escPressedOnce, setEscPressedOnce] = useState(false)
 
 	// Slash command state
 	const [availableCommands, setAvailableCommands] = useState<SlashCommandInfo[]>([])
@@ -830,21 +829,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 			return
 		}
-		// Double-esc to exit (first esc shows warning, second esc exits)
-		if (key.escape) {
-			if (escPressedOnce) {
-				onExit?.()
-			} else {
-				setEscPressedOnce(true)
-			}
-			return
-		}
 		if (key.backspace || key.delete) {
 			if (cursorPos > 0) {
 				setTextInput((prev) => prev.slice(0, cursorPos - 1) + prev.slice(cursorPos))
 				setCursorPos((pos) => pos - 1)
 			}
-			setEscPressedOnce(false)
 			return
 		}
 		// Cursor movement (when not in a menu)
@@ -867,7 +856,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		if (input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow && !key.tab) {
 			setTextInput((prev) => prev.slice(0, cursorPos) + input + prev.slice(cursorPos))
 			setCursorPos((pos) => pos + input.length)
-			setEscPressedOnce(false)
 		}
 	})
 
@@ -1010,10 +998,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						<Box justifyContent="space-between" paddingLeft={1} paddingRight={1} width="100%">
 							<Box flexShrink={1} flexWrap="wrap">
 								<Text color="gray" dimColor>
-									@ for files · / for commands ·{" "}
-								</Text>
-								<Text bold={escPressedOnce} color={escPressedOnce ? "white" : "gray"} dimColor={!escPressedOnce}>
-									{escPressedOnce ? "Press Esc again to exit" : "Esc to exit"}
+									@ for files · / for commands
 								</Text>
 							</Box>
 							<Box flexShrink={0} gap={1}>
