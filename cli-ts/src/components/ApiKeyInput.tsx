@@ -11,7 +11,7 @@ interface ApiKeyInputProps {
 	providerName: string
 	value: string
 	onChange: (value: string) => void
-	onSubmit: () => void
+	onSubmit: (value: string) => void
 	onCancel: () => void
 	isActive?: boolean
 }
@@ -33,7 +33,7 @@ export const ApiKeyInput: React.FC<ApiKeyInputProps> = ({
 				return
 			}
 			if (key.return) {
-				onSubmit()
+				onSubmit(value)
 				return
 			}
 			if (key.backspace || key.delete) {

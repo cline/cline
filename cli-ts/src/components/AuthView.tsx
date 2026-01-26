@@ -642,7 +642,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 						isActive={step === "apikey"}
 						onCancel={goBack}
 						onChange={setApiKey}
-						onSubmit={() => handleApiKeySubmit(apiKey)}
+						onSubmit={handleApiKeySubmit}
 						providerName={getProviderLabel(selectedProvider)}
 						value={apiKey}
 					/>
