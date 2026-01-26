@@ -21,6 +21,7 @@ import { telemetryService } from "@services/telemetry"
 import { findLastIndex } from "@shared/array"
 import { ClineToolResponseContent } from "@shared/messages"
 import { orchestrateCommandExecution } from "./CommandOrchestrator"
+import { orchestrateConcurrentCommandExecution } from "./ConcurrentCommandOrchestrator"
 import { StandaloneTerminalManager } from "./standalone/StandaloneTerminalManager"
 import type {
 	CommandExecutorCallbacks,
@@ -50,6 +51,9 @@ export class CommandExecutor {
 
 	// Flag to track if the current command was cancelled externally
 	private wasCancelledExternally = false
+
+	// Track if we're currently in parallel execution mode
+	private isParallelExecution = false
 
 	// Track shell integration warnings to determine when to show background terminal suggestion
 	private shellIntegrationWarningTracker: ShellIntegrationWarningTracker = {
@@ -90,12 +94,23 @@ export class CommandExecutor {
 	}
 
 	/**
+	 * Set whether we're in parallel execution mode.
+	 * In parallel mode, commands don't use ask() to wait for user input on each output chunk.
+	 */
+	setParallelExecution(isParallel: boolean): void {
+		this.isParallelExecution = isParallel
+	}
+
+	/**
 	 * Execute a command in the terminal.
 	 *
 	 * Routing logic:
 	 * 1. Subagent commands (cline CLI) → Always use StandaloneTerminalManager
 	 *    This ensures subagents run in hidden terminals, not cluttering the user's VSCode terminal
 	 * 2. Regular commands → Use the configured terminal manager based on terminalExecutionMode
+	 *
+	 * In parallel execution mode, uses ConcurrentCommandOrchestrator which streams output
+	 * via say() instead of ask(), avoiding conflicts with multiple concurrent commands.
 	 *
 	 * @param command The command to execute
 	 * @param timeoutSeconds Optional timeout in seconds
@@ -136,20 +151,26 @@ export class CommandExecutor {
 		process.once("completed", clearCurrentProcess)
 		process.once("error", clearCurrentProcess)
 
+		// Choose orchestrator based on execution mode
+		// In parallel mode, use ConcurrentCommandOrchestrator to avoid ask() conflicts
+		const orchestrator = this.isParallelExecution ? orchestrateConcurrentCommandExecution : orchestrateCommandExecution
+
 		// Use shared orchestration logic
 		// The StandaloneTerminalManager handles background command tracking internally
-		const result = await orchestrateCommandExecution(process, manager, this.callbacks, {
+		const result = await orchestrator(process, manager, this.callbacks, {
 			command,
 			timeoutSeconds,
 			// When "Proceed While Running" is triggered, track the command in the manager
 			// Returns the log file path so the orchestrator can send it to the UI
 			// existingOutput contains all output lines captured so far
-			onProceedWhileRunning: useStandalone
-				? (existingOutput: string[]) => {
-						const backgroundCmd = this.standaloneManager.trackBackgroundCommand(process, command, existingOutput)
-						return { logFilePath: backgroundCmd.logFilePath }
-					}
-				: undefined,
+			// (Not used in concurrent mode, but kept for compatibility)
+			onProceedWhileRunning:
+				useStandalone && !this.isParallelExecution
+					? (existingOutput: string[]) => {
+							const backgroundCmd = this.standaloneManager.trackBackgroundCommand(process, command, existingOutput)
+							return { logFilePath: backgroundCmd.logFilePath }
+						}
+					: undefined,
 			showShellIntegrationSuggestion: this.shouldShowBackgroundTerminalSuggestion(),
 			terminalType: useStandalone ? "standalone" : "vscode",
 		})

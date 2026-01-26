@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AssistantMessageContent } from "@core/assistant-message"
-import { ClineAskResponse } from "@shared/WebviewMessage"
+import { PendingAskQueue } from "./PendingAskQueue"
 import type { HookExecution } from "./types/HookExecution"
 
 export class TaskState {
@@ -21,11 +21,8 @@ export class TaskState {
 	presentAssistantMessageLocked = false
 	presentAssistantMessageHasPendingUpdates = false
 
-	// Ask/Response handling
-	askResponse?: ClineAskResponse
-	askResponseText?: string
-	askResponseImages?: string[]
-	askResponseFiles?: string[]
+	// Ask/Response handling - now queue-based for concurrent ask support
+	pendingAskQueue = new PendingAskQueue()
 	lastMessageTs?: number
 
 	// Plan mode specific state
@@ -40,6 +37,7 @@ export class TaskState {
 	didAlreadyUseTool = false
 	didEditFile: boolean = false
 	lastToolName: string = "" // Track last tool used for consecutive call detection
+	isExecutingInParallel = false // Track if currently executing tools in parallel
 
 	// Error tracking
 	consecutiveMistakeCount: number = 0

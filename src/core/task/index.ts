@@ -60,7 +60,7 @@ import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import { USER_CONTENT_TAGS } from "@shared/messages/constants"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
-import { ClineDefaultTool, READ_ONLY_TOOLS } from "@shared/tools"
+import { ClineDefaultTool, PARALLEL_SAFE_TOOLS, READ_ONLY_TOOLS } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import { isClaude4PlusModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
@@ -586,6 +586,8 @@ export class Task {
 			throw new Error("Cline instance aborted")
 		}
 		let askTs: number
+		let askId: string | undefined
+
 		if (partial !== undefined) {
 			const clineMessages = this.messageStateHandler.getClineMessages()
 			const lastMessage = clineMessages.at(-1)
@@ -600,18 +602,13 @@ export class Task {
 						text,
 						partial,
 					})
-					// todo be more efficient about saving and posting only new data or one whole message at a time so ignore partial for saves, and only post parts of partial message instead of whole array in new listener
-					// await this.saveClineMessagesAndUpdateHistory()
-					// await this.postStateToWebview()
 					const protoMessage = convertClineMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage)
 					throw new Error("Current ask promise was ignored 1")
 				} else {
 					// this is a new partial message, so add it with partial state
-					// this.askResponse = undefined
-					// this.askResponseText = undefined
-					// this.askResponseImages = undefined
 					askTs = Date.now()
+					askId = this.taskState.pendingAskQueue.createPendingAsk(askTs)
 					this.taskState.lastMessageTs = askTs
 					await this.messageStateHandler.addToClineMessages({
 						ts: askTs,
@@ -627,11 +624,6 @@ export class Task {
 				// partial=false means its a complete version of a previously partial message
 				if (isUpdatingPreviousPartial) {
 					// this is the complete version of a previously partial message, so replace the partial with the complete version
-					this.taskState.askResponse = undefined
-					this.taskState.askResponseText = undefined
-					this.taskState.askResponseImages = undefined
-					this.taskState.askResponseFiles = undefined
-
 					/*
 					Bug for the history books:
 					In the webview we use the ts as the chatrow key for the virtuoso list. Since we would update this ts right at the end of streaming, it would cause the view to flicker. The key prop has to be stable otherwise react has trouble reconciling items between renders, causing unmounting and remounting of components (flickering).
@@ -639,22 +631,18 @@ export class Task {
 					So in this case we must make sure that the message ts is never altered after first setting it.
 					*/
 					askTs = lastMessage.ts
+					askId = this.taskState.pendingAskQueue.createPendingAsk(askTs)
 					this.taskState.lastMessageTs = askTs
-					// lastMessage.ts = askTs
 					await this.messageStateHandler.updateClineMessage(lastMessageIndex, {
 						text,
 						partial: false,
 					})
-					// await this.postStateToWebview()
 					const protoMessage = convertClineMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage)
 				} else {
 					// this is a new partial=false message, so add it like normal
-					this.taskState.askResponse = undefined
-					this.taskState.askResponseText = undefined
-					this.taskState.askResponseImages = undefined
-					this.taskState.askResponseFiles = undefined
 					askTs = Date.now()
+					askId = this.taskState.pendingAskQueue.createPendingAsk(askTs)
 					this.taskState.lastMessageTs = askTs
 					await this.messageStateHandler.addToClineMessages({
 						ts: askTs,
@@ -667,12 +655,8 @@ export class Task {
 			}
 		} else {
 			// this is a new non-partial message, so add it like normal
-			// const lastMessage = this.clineMessages.at(-1)
-			this.taskState.askResponse = undefined
-			this.taskState.askResponseText = undefined
-			this.taskState.askResponseImages = undefined
-			this.taskState.askResponseFiles = undefined
 			askTs = Date.now()
+			askId = this.taskState.pendingAskQueue.createPendingAsk(askTs)
 			this.taskState.lastMessageTs = askTs
 			await this.messageStateHandler.addToClineMessages({
 				ts: askTs,
@@ -683,30 +667,52 @@ export class Task {
 			await this.postStateToWebview()
 		}
 
-		await pWaitFor(() => this.taskState.askResponse !== undefined || this.taskState.lastMessageTs !== askTs, {
-			interval: 100,
-		})
-		if (this.taskState.lastMessageTs !== askTs) {
+		// Wait for this specific ask to be resolved
+		if (!askId) {
+			throw new Error("Failed to create pending ask")
+		}
+
+		await pWaitFor(
+			() => {
+				const pendingAsk = this.taskState.pendingAskQueue.getPendingAsk(askId!)
+				return (
+					pendingAsk?.resolved === true ||
+					this.taskState.pendingAskQueue.wasAskInterrupted(askId!, this.taskState.lastMessageTs)
+				)
+			},
+			{
+				interval: 100,
+			},
+		)
+
+		const pendingAsk = this.taskState.pendingAskQueue.getPendingAsk(askId)
+		if (!pendingAsk || this.taskState.pendingAskQueue.wasAskInterrupted(askId, this.taskState.lastMessageTs)) {
 			throw new Error("Current ask promise was ignored") // could happen if we send multiple asks in a row i.e. with command_output. It's important that when we know an ask could fail, it is handled gracefully
 		}
+
 		const result = {
-			response: this.taskState.askResponse!,
-			text: this.taskState.askResponseText,
-			images: this.taskState.askResponseImages,
-			files: this.taskState.askResponseFiles,
+			response: pendingAsk.response!,
+			text: pendingAsk.text,
+			images: pendingAsk.images,
+			files: pendingAsk.files,
 		}
-		this.taskState.askResponse = undefined
-		this.taskState.askResponseText = undefined
-		this.taskState.askResponseImages = undefined
-		this.taskState.askResponseFiles = undefined
+
+		this.taskState.pendingAskQueue.removePendingAsk(askId)
 		return result
 	}
 
 	async handleWebviewAskResponse(askResponse: ClineAskResponse, text?: string, images?: string[], files?: string[]) {
-		this.taskState.askResponse = askResponse
-		this.taskState.askResponseText = text
-		this.taskState.askResponseImages = images
-		this.taskState.askResponseFiles = files
+		// Get all pending asks and resolve them in the order they were created
+		const pendingAsks = this.taskState.pendingAskQueue.getPendingAsks()
+
+		if (pendingAsks.length === 0) {
+			console.warn("handleWebviewAskResponse: No pending asks to resolve")
+			return
+		}
+
+		// Resolve the first unresolved ask (FIFO order)
+		const firstPendingAsk = pendingAsks[0]
+		this.taskState.pendingAskQueue.resolvePendingAsk(firstPendingAsk.askId, askResponse, text, images, files)
 	}
 
 	async say(
@@ -715,6 +721,7 @@ export class Task {
 		images?: string[],
 		files?: string[],
 		partial?: boolean,
+		call_id?: string,
 	): Promise<number | undefined> {
 		// Allow hook messages even when aborted to enable proper cleanup
 		if (this.taskState.abort && type !== "hook_status" && type !== "hook_output_stream") {
@@ -729,9 +736,14 @@ export class Task {
 		}
 
 		if (partial !== undefined) {
-			const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
+			const clineMessages = this.messageStateHandler.getClineMessages()
+			const lastMessage = clineMessages.at(-1)
 			const isUpdatingPreviousPartial =
-				lastMessage && lastMessage.partial && lastMessage.type === "say" && lastMessage.say === type
+				lastMessage &&
+				lastMessage.partial &&
+				lastMessage.type === "say" &&
+				lastMessage.say === type &&
+				lastMessage.call_id === call_id
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
@@ -755,6 +767,7 @@ export class Task {
 						files,
 						partial,
 						modelInfo,
+						call_id,
 					})
 					await this.postStateToWebview()
 					return sayTs
@@ -788,6 +801,7 @@ export class Task {
 						images,
 						files,
 						modelInfo,
+						call_id,
 					})
 					await this.postStateToWebview()
 					return sayTs
@@ -805,6 +819,7 @@ export class Task {
 				images,
 				files,
 				modelInfo,
+				call_id,
 			})
 			await this.postStateToWebview()
 			return sayTs
@@ -821,12 +836,31 @@ export class Task {
 		return formatResponse.toolError(formatResponse.missingToolParameterError(paramName))
 	}
 
-	async removeLastPartialMessageIfExistsWithType(type: "ask" | "say", askOrSay: ClineAsk | ClineSay) {
+	async removeLastPartialMessageIfExistsWithType(type: "ask" | "say", askOrSay: ClineAsk | ClineSay, call_id?: string) {
 		const clineMessages = this.messageStateHandler.getClineMessages()
-		const lastMessage = clineMessages.at(-1)
-		if (lastMessage?.partial && lastMessage.type === type && (lastMessage.ask === askOrSay || lastMessage.say === askOrSay)) {
-			this.messageStateHandler.setClineMessages(clineMessages.slice(0, -1))
-			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+
+		// If call_id is provided, find the message with matching call_id
+		if (call_id) {
+			const messageIndex = clineMessages.findIndex(
+				(msg) =>
+					msg.partial && msg.type === type && (msg.ask === askOrSay || msg.say === askOrSay) && msg.call_id === call_id,
+			)
+			if (messageIndex >= 0) {
+				clineMessages.splice(messageIndex, 1)
+				this.messageStateHandler.setClineMessages(clineMessages)
+				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+			}
+		} else {
+			// Old behavior: remove the last message of this type (for sequential execution)
+			const lastMessage = clineMessages.at(-1)
+			if (
+				lastMessage?.partial &&
+				lastMessage.type === type &&
+				(lastMessage.ask === askOrSay || lastMessage.say === askOrSay)
+			) {
+				this.messageStateHandler.setClineMessages(clineMessages.slice(0, -1))
+				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+			}
 		}
 	}
 
@@ -2009,6 +2043,34 @@ export class Task {
 		yield* iterator
 	}
 
+	/**
+	 * Collects consecutive complete tool blocks that are safe to run in parallel.
+	 * Stops at the first non-parallel-safe tool or streaming tool.
+	 */
+	private collectConsecutiveParallelToolBlocks(): ToolUse[] {
+		const toolBlocks: ToolUse[] = []
+		let index = this.taskState.currentStreamingContentIndex
+
+		while (index < this.taskState.assistantMessageContent.length) {
+			const block = this.taskState.assistantMessageContent[index]
+
+			// Only collect complete tool blocks
+			if (block.type !== "tool_use" || block.partial) {
+				break
+			}
+
+			// Check if this tool can run in parallel
+			if (!PARALLEL_SAFE_TOOLS.includes(block.name as any)) {
+				break
+			}
+
+			toolBlocks.push(block)
+			index++
+		}
+
+		return toolBlocks
+	}
+
 	async presentAssistantMessage() {
 		if (this.taskState.abort) {
 			throw new Error("Cline instance aborted")
@@ -2101,7 +2163,7 @@ export class Task {
 				await this.say("text", content, undefined, undefined, block.partial)
 				break
 			}
-			case "tool_use":
+			case "tool_use": {
 				// If we have a pending initial commit, we must block unsafe tools until it finishes.
 				// Safe tools (read-only) can run in parallel.
 				if (this.initialCheckpointCommitPromise) {
@@ -2110,8 +2172,35 @@ export class Task {
 						this.initialCheckpointCommitPromise = undefined
 					}
 				}
+
+				// Try to execute multiple parallel-safe tools concurrently
+				if (this.isParallelToolCallingEnabled()) {
+					const parallelTools = this.collectConsecutiveParallelToolBlocks()
+					if (parallelTools.length > 1) {
+						// Set flag to indicate we're in parallel execution
+						// This allows CommandExecutor to use ConcurrentCommandOrchestrator
+						this.taskState.isExecutingInParallel = true
+						this.commandExecutor.setParallelExecution(true)
+
+						try {
+							// Execute all parallel tools concurrently
+							await Promise.all(parallelTools.map((toolBlock) => this.toolExecutor.executeTool(toolBlock)))
+						} finally {
+							// Clear the parallel execution flag
+							this.taskState.isExecutingInParallel = false
+							this.commandExecutor.setParallelExecution(false)
+						}
+
+						// Advance past all executed tools
+						this.taskState.currentStreamingContentIndex += parallelTools.length - 1
+						break
+					}
+				}
+
+				// Fall back to sequential execution for non-parallel tools
 				await this.toolExecutor.executeTool(block)
 				break
+			}
 		}
 
 		/*

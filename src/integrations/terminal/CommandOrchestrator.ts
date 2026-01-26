@@ -198,8 +198,16 @@ export async function orchestrateCommandExecution(
 						await flushBuffer()
 					}
 				}
-			} catch {
-				Logger.error("Error while asking for command output")
+			} catch (error) {
+				// Handle ask being interrupted by concurrent commands
+				// When multiple commands run in parallel, some asks may be ignored
+				// This is expected behavior - just proceed with execution
+				if (error instanceof Error && error.message.includes("ask promise was ignored")) {
+					// Silently proceed - this command's ask was superseded by another concurrent command
+					didContinue = true
+				} else {
+					Logger.error("Error while asking for command output", error)
+				}
 			} finally {
 				// Clear the stuck timer
 				if (bufferStuckTimer) {

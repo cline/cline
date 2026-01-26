@@ -51,3 +51,38 @@ export const READ_ONLY_TOOLS = [
 	ClineDefaultTool.WEB_FETCH,
 	ClineDefaultTool.USE_SKILL,
 ] as const
+
+// Tools that should NEVER run in parallel with other tools
+// These tools have side effects or state dependencies that prevent concurrent execution
+export const NON_PARALLEL_TOOLS = [
+	ClineDefaultTool.FILE_EDIT,
+	ClineDefaultTool.APPLY_PATCH,
+	ClineDefaultTool.NEW_RULE,
+	ClineDefaultTool.MCP_USE,
+	ClineDefaultTool.CONDENSE,
+	ClineDefaultTool.SUMMARIZE_TASK,
+	ClineDefaultTool.ATTEMPT,
+	ClineDefaultTool.PLAN_MODE,
+	ClineDefaultTool.ACT_MODE,
+	ClineDefaultTool.NEW_TASK,
+	ClineDefaultTool.GENERATE_EXPLANATION,
+] as const
+
+// Tools that CAN run in parallel with other tools (but see NON_PARALLEL_TOOLS for exclusions)
+// These are primarily read-only tools that don't affect state
+export const PARALLEL_SAFE_TOOLS = [
+	ClineDefaultTool.BASH,
+	ClineDefaultTool.LIST_FILES,
+	ClineDefaultTool.FILE_READ,
+	ClineDefaultTool.SEARCH,
+	ClineDefaultTool.LIST_CODE_DEF,
+	ClineDefaultTool.WEB_SEARCH,
+	ClineDefaultTool.WEB_FETCH,
+	ClineDefaultTool.BROWSER,
+	ClineDefaultTool.ASK,
+	ClineDefaultTool.FILE_NEW,
+	ClineDefaultTool.MCP_ACCESS,
+	ClineDefaultTool.MCP_DOCS,
+	ClineDefaultTool.REPORT_BUG,
+	ClineDefaultTool.USE_SKILL,
+] as const

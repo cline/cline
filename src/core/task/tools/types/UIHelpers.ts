@@ -12,7 +12,14 @@ import type { TaskConfig } from "./TaskConfig"
  */
 export interface StronglyTypedUIHelpers {
 	// Core UI methods
-	say: (type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<number | undefined>
+	say: (
+		type: ClineSay,
+		text?: string,
+		images?: string[],
+		files?: string[],
+		partial?: boolean,
+		call_id?: string,
+	) => Promise<number | undefined>
 
 	ask: (
 		type: ClineAsk,
@@ -27,7 +34,11 @@ export interface StronglyTypedUIHelpers {
 
 	// Utility methods
 	removeClosingTag: (block: ToolUse, tag: ToolParamName, text?: string) => string
-	removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>
+	removeLastPartialMessageIfExistsWithType: (
+		type: "ask" | "say",
+		askOrSay: ClineAsk | ClineSay,
+		call_id?: string,
+	) => Promise<void>
 
 	// Approval methods
 	shouldAutoApproveTool: (toolName: ClineDefaultTool) => boolean | [boolean, boolean]
@@ -45,12 +56,14 @@ export interface StronglyTypedUIHelpers {
 /**
  * Creates strongly-typed UI helpers from a TaskConfig
  */
-export function createUIHelpers(config: TaskConfig): StronglyTypedUIHelpers {
+export function createUIHelpers(config: TaskConfig, callId?: string): StronglyTypedUIHelpers {
 	return {
-		say: config.callbacks.say,
+		say: (type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean, call_id?: string) =>
+			config.callbacks.say(type, text, images, files, partial, call_id ?? callId),
 		ask: config.callbacks.ask,
 		removeClosingTag: (block: ToolUse, tag: ToolParamName, text?: string) => removeClosingTag(block, tag, text),
-		removeLastPartialMessageIfExistsWithType: config.callbacks.removeLastPartialMessageIfExistsWithType,
+		removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay, call_id?: string) =>
+			config.callbacks.removeLastPartialMessageIfExistsWithType(type, askOrSay, call_id ?? callId),
 		shouldAutoApproveTool: (toolName: ClineDefaultTool) => config.autoApprover.shouldAutoApproveTool(toolName),
 		shouldAutoApproveToolWithPath: config.callbacks.shouldAutoApproveToolWithPath,
 		askApproval: async (messageType: ClineAsk, message: string): Promise<boolean> => {

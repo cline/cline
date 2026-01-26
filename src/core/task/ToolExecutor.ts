@@ -101,11 +101,13 @@ export class ToolExecutor {
 			images?: string[],
 			files?: string[],
 			partial?: boolean,
+			call_id?: string,
 		) => Promise<number | undefined>,
 		private ask: (
 			type: ClineAsk,
 			text?: string,
 			partial?: boolean,
+			call_id?: string,
 		) => Promise<{
 			response: ClineAskResponse
 			text?: string
@@ -114,7 +116,11 @@ export class ToolExecutor {
 		}>,
 		private saveCheckpoint: (isAttemptCompletionMessage?: boolean, completionMessageTs?: number) => Promise<void>,
 		private sayAndCreateMissingParamError: (toolName: ClineDefaultTool, paramName: string, relPath?: string) => Promise<any>,
-		private removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>,
+		private removeLastPartialMessageIfExistsWithType: (
+			type: "ask" | "say",
+			askOrSay: ClineAsk | ClineSay,
+			call_id?: string,
+		) => Promise<void>,
 		private executeCommandTool: (command: string, timeoutSeconds: number | undefined) => Promise<[boolean, any]>,
 		private doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>,
 		private updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>,
@@ -547,7 +553,7 @@ export class ToolExecutor {
 
 		// Check if handler supports partial blocks with proper typing
 		if (handler && "handlePartialBlock" in handler) {
-			const uiHelpers = createUIHelpers(config)
+			const uiHelpers = createUIHelpers(config, block.call_id)
 			const partialHandler = handler as IPartialBlockHandler
 			await partialHandler.handlePartialBlock(block, uiHelpers)
 		}

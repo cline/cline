@@ -84,7 +84,14 @@ export interface TaskServices {
  * All callback functions available to tool handlers
  */
 export interface TaskCallbacks {
-	say: (type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<number | undefined>
+	say: (
+		type: ClineSay,
+		text?: string,
+		images?: string[],
+		files?: string[],
+		partial?: boolean,
+		call_id?: string,
+	) => Promise<number | undefined>
 
 	ask: (
 		type: ClineAsk,
@@ -101,7 +108,11 @@ export interface TaskCallbacks {
 
 	sayAndCreateMissingParamError: (toolName: ClineDefaultTool, paramName: string, relPath?: string) => Promise<any>
 
-	removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>
+	removeLastPartialMessageIfExistsWithType: (
+		type: "ask" | "say",
+		askOrSay: ClineAsk | ClineSay,
+		call_id?: string,
+	) => Promise<void>
 
 	executeCommandTool: (command: string, timeoutSeconds: number | undefined) => Promise<[boolean, any]>
 

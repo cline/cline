@@ -127,3 +127,32 @@ const isGenerating = explanationInfo.status === "generating" && !wasCancelled
 **See also:** `BrowserSessionRow.tsx` uses similar pattern with `isLastApiReqInterrupted` and `isLastMessageResume`.
 
 **Backend side:** When streaming is cancelled, clean up properly (close tabs, clear comments, etc.) by checking `taskState.abort` after the streaming function returns.
+
+## Parallel Command Execution
+When multiple `execute_command` tools run in parallel (via `PARALLEL_SAFE_TOOLS`), commands cannot use `ask()` for interactive output handling—multiple concurrent `ask()` calls cause conflicts because they share single state variables in TaskState.
+
+**The Solution - Queue-Based Ask/Response System:**
+- `PendingAskQueue` (`src/core/task/PendingAskQueue.ts`) - Manages concurrent ask operations with unique IDs per ask
+- `TaskState.pendingAskQueue` - Replaces single `askResponse`/`askResponseText`/`askResponseImages`/`askResponseFiles`
+- `Task.ask()` - Refactored to create unique ask IDs and wait for specific responses
+- `Task.handleWebviewAskResponse()` - Resolves asks in FIFO order (first pending ask gets the response)
+
+**Concurrent Command Orchestration:**
+- `ConcurrentCommandOrchestrator` (`src/integrations/terminal/ConcurrentCommandOrchestrator.ts`) - Alternative to `CommandOrchestrator`
+- Does NOT call `ask()` on each output chunk—streams via `say()` instead
+- No "Proceed While Running" button (not needed for parallel execution)
+- Used when `taskState.isExecutingInParallel = true`
+
+**How It Works:**
+1. When parallel tools execute, flags are set: `taskState.isExecutingInParallel = true` and `commandExecutor.setParallelExecution(true)`
+2. Each command's orchestrator is selected based on these flags
+3. In parallel mode, output is streamed directly without asking for user input on each chunk
+4. Single user response (if needed) is queued and distributed to waiting asks via `PendingAskQueue`
+5. Flags are cleared in a `finally` block to ensure proper cleanup
+
+**Key Files:**
+- `src/core/task/PendingAskQueue.ts` - Queue implementation
+- `src/integrations/terminal/ConcurrentCommandOrchestrator.ts` - Parallel-safe orchestrator
+- `src/core/task/TaskState.ts` - Added `pendingAskQueue` and `isExecutingInParallel`
+- `src/core/task/index.ts` - Refactored `ask()`, `handleWebviewAskResponse()`, and parallel execution logic
+- `src/integrations/terminal/CommandExecutor.ts` - Added `setParallelExecution()` and orchestrator selection

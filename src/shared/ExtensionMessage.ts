@@ -132,6 +132,7 @@ export interface ClineMessage {
 	conversationHistoryIndex?: number
 	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
 	modelInfo?: ClineMessageModelInfo
+	call_id?: string // Unique identifier for parallel tool execution tracking
 }
 
 export type ClineAsk =
