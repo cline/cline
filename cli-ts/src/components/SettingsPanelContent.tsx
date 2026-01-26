@@ -23,7 +23,7 @@ type SettingsTab = "api" | "auto-approve" | "features" | "other"
 interface ListItem {
 	key: string
 	label: string
-	type: "checkbox" | "readonly" | "editable" | "separator" | "header"
+	type: "checkbox" | "readonly" | "editable" | "separator" | "header" | "spacer"
 	value: string | boolean
 	description?: string
 	isSubItem?: boolean
@@ -182,6 +182,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 									type: "checkbox" as const,
 									value: planThinkingEnabled,
 								},
+								{ key: "spacer1", label: "", type: "spacer" as const, value: "" },
 							]
 						: [
 								{
@@ -347,7 +348,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 	// Handle toggle/edit for selected item
 	const handleAction = useCallback(() => {
 		const item = items[selectedIndex]
-		if (!item || item.type === "readonly" || item.type === "separator" || item.type === "header") return
+		if (!item || item.type === "readonly" || item.type === "separator" || item.type === "header" || item.type === "spacer")
+			return
 
 		if (item.type === "editable") {
 			// For model ID fields, check if we should use the model picker
@@ -462,14 +464,15 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		setIsEditing(false)
 	}, [items, selectedIndex, editValue, stateManager])
 
-	// Navigate to next/prev item, skipping separators
+	// Navigate to next/prev item, skipping non-interactive items
 	const navigateItems = useCallback(
 		(direction: "up" | "down") => {
 			setSelectedIndex((i) => {
 				let next = direction === "up" ? (i > 0 ? i - 1 : items.length - 1) : i < items.length - 1 ? i + 1 : 0
 
-				// Skip separators and headers
-				while ((items[next]?.type === "separator" || items[next]?.type === "header") && next !== i) {
+				// Skip separators, headers, and spacers
+				const skipTypes = ["separator", "header", "spacer"]
+				while (skipTypes.includes(items[next]?.type) && next !== i) {
 					next = direction === "up" ? (next > 0 ? next - 1 : items.length - 1) : next < items.length - 1 ? next + 1 : 0
 				}
 				return next
@@ -636,6 +639,10 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 								</Text>
 							</Box>
 						)
+					}
+
+					if (item.type === "spacer") {
+						return <Box key={item.key} marginTop={1} />
 					}
 
 					if (item.type === "separator") {
