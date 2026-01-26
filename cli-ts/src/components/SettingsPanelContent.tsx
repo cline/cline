@@ -301,7 +301,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 						label: "Enable notifications",
 						type: "checkbox",
 						value: autoApproveSettings.enableNotifications,
-						description: "Show notifications for actions",
+						description: "System alerts when Cline needs your attention",
 					},
 				)
 				return result
