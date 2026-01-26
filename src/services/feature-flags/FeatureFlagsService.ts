@@ -74,7 +74,7 @@ export class FeatureFlagsService {
 			const flagValue = this.cacheInfo.flagsPayload?.featureFlags?.[flagName]
 			const value = payload ?? flagValue ?? FeatureFlagDefaultValue[flagName] ?? undefined
 
-			if (this.cache.get(flagName) !== value) {
+			if (!this.cache.has(flagName) || this.cache.get(flagName) !== value) {
 				telemetryService.capture({
 					event: "$feature_flag_called",
 					properties: {
