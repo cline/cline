@@ -63,26 +63,41 @@ const collectToolsInRange = (
 	stopCondition?: (msg: ClineMessage) => boolean,
 ): { icon: LucideIcon; text: string }[] => {
 	const activities: { icon: LucideIcon; text: string }[] = []
+	console.log(`📍 Scanning messages from index ${startIdx} to ${endIdx}`)
+
 	for (let i = startIdx; i < endIdx; i++) {
 		const msg = messages[i]
+		console.log(`  [${i}] type=${msg.type} say=${msg.say} ask=${msg.ask}`)
+
 		if (stopCondition?.(msg)) {
 			break
 		}
-		if (msg.say !== "tool" && msg.ask !== "tool") {
+
+		// Only collect tools that are currently executing (ask === "tool")
+		// Skip completed tools (say === "tool") - they should be in the completed list
+		if (msg.say === "tool") {
+			console.log(`    ⏭️  Skipping completed tool (say==="tool")`)
+			continue
+		}
+		if (msg.ask !== "tool") {
+			console.log(`    ⏭️  Skipping non-tool message (ask!==\"tool")`)
 			continue
 		}
 
 		try {
 			const tool = JSON.parse(msg.text || "{}") as ClineSayTool
 			const activityText = getActivityText(tool)
+			console.log(`    🎯 Found ask==="tool": ${tool.tool} at ${tool.path}`)
 			if (activityText) {
 				const toolIcon = getIconByToolName(tool.tool)
+				console.log(`    ✅ Adding to activities: "${activityText}"`)
 				activities.push({ icon: toolIcon, text: activityText })
 			}
 		} catch {
 			// ignore parse errors
 		}
 	}
+	console.log(`📊 Total activities collected: ${activities.length}`)
 	return activities
 }
 
@@ -159,23 +174,23 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 	}, [message.ts, clineMessages])
 
 	// Find all exploratory tool activities that are currently in flight.
-	// Only show tools between the previous completed API request and the current incomplete one.
-	// Once an API request completes (has cost), tool messages that follow belong to the next cycle.
+	// Tools come AFTER the api_req_started message, so we look from currentApiReq forward.
 	const currentActivities = useMemo(() => {
 		const currentApiReq = findCurrentApiReq(clineMessages)
+		console.log("🔍 [RequestStartRow] currentApiReq:", currentApiReq)
 		if (!currentApiReq) {
 			return []
 		}
 
 		if (!currentApiReq.hasCost) {
 			// CASE A: Current api_req is INCOMPLETE
-			const prevIdx = findPrevCompletedApiReq(clineMessages, currentApiReq.index)
-			if (prevIdx === -1) {
-				return []
-			}
-			return collectToolsInRange(clineMessages, prevIdx + 1, currentApiReq.index)
+			// Look for ask === "tool" messages AFTER the current api_req_started
+			const activities = collectToolsInRange(clineMessages, currentApiReq.index + 1, clineMessages.length)
+			console.log("✅ [RequestStartRow] currentActivities (after api_req):", activities)
+			return activities
 		}
 		// CASE B: Current api_req is COMPLETE - no activities to show
+		console.log("⏹️ [RequestStartRow] Current api_req is COMPLETE")
 		return []
 	}, [clineMessages])
 

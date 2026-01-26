@@ -80,35 +80,17 @@ const getCurrentActivities = (allMessages: ClineMessage[]): ClineMessage[] => {
 		return []
 	}
 
-	// Find previous completed api_req
-	let prevCompletedIndex = -1
-	for (let i = currentApiReqIndex - 1; i >= 0; i--) {
-		const msg = allMessages[i]
-		if (msg.say === "api_req_started" && msg.text) {
-			try {
-				const info = JSON.parse(msg.text)
-				if (info.cost != null) {
-					prevCompletedIndex = i
-					break
-				}
-			} catch {
-				// ignore
-			}
-		}
-	}
-
-	if (prevCompletedIndex === -1) {
-		return []
-	}
-
-	// Collect tools in range
+	// Collect tools AFTER the current api_req_started
 	const activities: ClineMessage[] = []
-	for (let i = prevCompletedIndex + 1; i < currentApiReqIndex; i++) {
+	for (let i = currentApiReqIndex + 1; i < allMessages.length; i++) {
 		const msg = allMessages[i]
-		if (msg.say === "tool" || msg.ask === "tool") {
-			if (isLowStakesTool(msg)) {
-				activities.push(msg)
-			}
+		// Only collect tools that are currently executing (ask === "tool")
+		// Skip completed tools (say === "tool") - they should be in the completed list
+		if (msg.say === "tool" || msg.ask !== "tool") {
+			continue
+		}
+		if (isLowStakesTool(msg)) {
+			activities.push(msg)
 		}
 	}
 
