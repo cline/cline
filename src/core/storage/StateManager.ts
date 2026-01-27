@@ -17,8 +17,6 @@ import {
 } from "@shared/storage/state-keys"
 import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
-import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import {
@@ -269,12 +267,7 @@ export class StateManager {
 			Object.assign(this.taskStateCache, taskSettings)
 		} catch (error) {
 			// If reading fails, just use empty cache
-
-			Logger.error("[StateManager] Failed to load task settings:", error)
-			HostProvider.window.showMessage({
-				type: ShowMessageType.ERROR,
-				message: `Failed to load task settings, defaulting to globally selected settings.`,
-			})
+			Logger.error("[StateManager] Failed to load task settings, defaulting to globally selected settings.", error)
 		}
 	}
 
@@ -737,7 +730,6 @@ export class StateManager {
 				}),
 			)
 		} catch (error) {
-			Logger.error("[StateManager] Failed to persist global state batch:", error)
 			throw error
 		}
 	}
@@ -767,7 +759,6 @@ export class StateManager {
 				}),
 			)
 		} catch (error) {
-			Logger.error("[StateManager] Failed to persist task settings batch:", error)
 			throw error
 		}
 	}
@@ -788,7 +779,6 @@ export class StateManager {
 				}),
 			)
 		} catch (error) {
-			Logger.error("Failed to persist secrets batch:", error)
 			throw error
 		}
 	}
@@ -805,7 +795,6 @@ export class StateManager {
 				}),
 			)
 		} catch (error) {
-			Logger.error("Failed to persist workspace state batch:", error)
 			throw error
 		}
 	}

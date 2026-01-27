@@ -110,9 +110,13 @@ interface ProviderChainOptions {
 	profile?: string
 }
 
-// a special jp inference profile was created for sonnet 4.5
+// a special jp inference profile was created for sonnet 4.5 & haiku 4.5
 // https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html
-const JP_SUPPORTED_CRIS_MODELS = ["anthropic.claude-sonnet-4-5-20250929-v1:0", "anthropic.claude-sonnet-4-5-20250929-v1:0:1m"]
+const JP_SUPPORTED_CRIS_MODELS = [
+	"anthropic.claude-sonnet-4-5-20250929-v1:0",
+	"anthropic.claude-sonnet-4-5-20250929-v1:0:1m",
+	"anthropic.claude-haiku-4-5-20251001-v1:0",
+]
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {

@@ -74,8 +74,7 @@ export abstract class ClineStorage {
 	public async get(key: string): Promise<string | undefined> {
 		try {
 			return await this._get(key)
-		} catch (error) {
-			Logger.error(`[${this.name}] failed to get '${key}':`, error)
+		} catch {
 			return undefined
 		}
 	}
@@ -103,8 +102,8 @@ export abstract class ClineStorage {
 		try {
 			await this._delete(key)
 			await this.fire(key)
-		} catch (error) {
-			Logger.error(`[${this.name}] failed to delete '${key}':`, error)
+		} catch {
+			// Silently fail on delete errors
 		}
 	}
 

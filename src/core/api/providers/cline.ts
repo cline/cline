@@ -35,9 +35,12 @@ export class ClineHandler implements ApiHandler {
 	private clineAccountService = ClineAccountService.getInstance()
 	private _authService: AuthService
 	private client: OpenAI | undefined
-	private readonly _baseUrl = ClineEnv.config().apiBaseUrl
 	lastGenerationId?: string
 	private lastRequestId?: string
+
+	private get _baseUrl(): string {
+		return ClineEnv.config().apiBaseUrl
+	}
 
 	constructor(options: ClineHandlerOptions) {
 		this.options = options
@@ -199,7 +202,7 @@ export class ClineHandler implements ApiHandler {
 					// @ts-ignore-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 
-					if (["x-ai/grok-code-fast-1", "kwaipilot/kat-coder-pro"].includes(this.getModel().id)) {
+					if (["kwaipilot/kat-coder-pro"].includes(this.getModel().id)) {
 						totalCost = 0
 					}
 
