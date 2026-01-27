@@ -266,6 +266,17 @@ async function runTask(
 	// Note: we use the stdinWasPiped flag passed from the caller because process.stdin.isTTY
 	// may not be reliable after stdin has been consumed by readStdinIfPiped()
 	if (!isTTY || options.stdinWasPiped || options.json) {
+		// Check if auth is configured before attempting to run the task
+		// In plain text mode we can't show the interactive auth flow
+		const hasAuth = await isAuthConfigured()
+		if (!hasAuth) {
+			printWarning("Not authenticated. Please run 'cline auth' first to configure your API credentials.")
+			await ctx.controller.stateManager.flushPendingState()
+			await ctx.controller.dispose()
+			await ErrorService.get().dispose()
+			exit(1)
+		}
+
 		const reason = options.json ? "json" : options.stdinWasPiped ? "piped_stdin" : "redirected_output"
 		telemetryService.captureHostEvent("plain_text_mode", reason)
 		// Plain text mode: no Ink rendering, just clean text output
