@@ -228,9 +228,26 @@ function centerText(text: string, terminalWidth?: number): string {
 	return " ".repeat(padding) + text
 }
 
-/** Ask types that need user interaction even in yolo mode */
+/**
+ * Yolo mode auto-approves tool use, commands, browser actions, etc. so the AI can work
+ * uninterrupted. But some ask types genuinely need user input -- you can't auto-approve
+ * "task completed, what next?" or a followup question the AI is asking the user.
+ *
+ * This whitelist defines which ask types should still show buttons and allow text input
+ * even when yolo mode is enabled. Everything NOT in this set gets suppressed (buttons
+ * hidden, input blocked), which is the correct behavior for tool/browser/mcp approvals
+ * since core auto-approves those before they even reach the UI.
+ *
+ * Any new ask types added in the future will be suppressed by default in yolo mode.
+ * If a new ask type needs user interaction, add it here explicitly.
+ */
 const YOLO_INTERACTIVE_ASKS = new Set<ClineAsk>([
 	"completion_result",
+	// In yolo mode, ExecuteCommandToolHandler auto-approves commands via say() (not ask()) at line 176,
+	// so command asks never reach the UI for regular tool use. The only command ask that reaches the UI
+	// is from AttemptCompletionHandler (line 135), which uses askApprovalAndPushFeedback("command", ...)
+	// to let the user choose whether to run the suggested verification command after task completion.
+	"command",
 	"followup",
 	"plan_mode_respond",
 	"resume_task",
