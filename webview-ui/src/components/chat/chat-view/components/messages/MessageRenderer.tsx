@@ -60,10 +60,22 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	}, [messageOrGroup, modifiedMessages])
 
 	// Tool group (low-stakes tools grouped together)
-	// Always render - the loading state in ChatRow shows current activities,
-	// while ToolGroupRenderer shows what's in context. Overlap is fine.
+	// Determine if this is the last tool group to show active items
+	const isLastToolGroup = useMemo(() => {
+		if (!isToolGroup(messageOrGroup)) {
+			return false
+		}
+		// Find the last tool group in groupedMessages
+		for (let i = groupedMessages.length - 1; i >= 0; i--) {
+			if (isToolGroup(groupedMessages[i])) {
+				return i === index
+			}
+		}
+		return false
+	}, [messageOrGroup, groupedMessages, index])
+
 	if (isToolGroup(messageOrGroup)) {
-		return <ToolGroupRenderer allMessages={modifiedMessages} messages={messageOrGroup} />
+		return <ToolGroupRenderer allMessages={modifiedMessages} isLastGroup={isLastToolGroup} messages={messageOrGroup} />
 	}
 
 	// Browser session group

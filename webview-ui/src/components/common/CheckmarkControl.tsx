@@ -298,7 +298,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 const Container = styled.div<{ isMenuOpen?: boolean; $isCheckedOut?: boolean }>`
 	display: flex;
 	align-items: center;
-	padding: 4px 0;
+	padding: 8px 0px 0px 0px;
 	gap: 4px;
 	position: relative;
 	min-width: 0;
@@ -307,6 +307,11 @@ const Container = styled.div<{ isMenuOpen?: boolean; $isCheckedOut?: boolean }>`
 	margin-bottom: 1px;
 	opacity: ${(props) => (props.$isCheckedOut ? 1 : props.isMenuOpen ? 1 : 0.5)};
 	height: 0.5rem;
+
+	&:first-of-type {
+		padding-top: 0px;
+	}
+
 	&:hover {
 		opacity: 1;
 	}
