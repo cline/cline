@@ -103,7 +103,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 										size={12}
 										style={{
 											color: "var(--vscode-descriptionForeground)",
-											cursor: "help",
+
 											marginLeft: "auto",
 										}}
 									/>
@@ -155,7 +155,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 										size={12}
 										style={{
 											color: "var(--vscode-descriptionForeground)",
-											cursor: "help",
+
 											marginLeft: "auto",
 										}}
 									/>
@@ -357,7 +357,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 										size={12}
 										style={{
 											color: "var(--vscode-descriptionForeground)",
-											cursor: "help",
+
 											marginLeft: "auto",
 										}}
 									/>
@@ -463,7 +463,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 										size={12}
 										style={{
 											color: "var(--vscode-descriptionForeground)",
-											cursor: "help",
+
 											marginLeft: "auto",
 										}}
 									/>
