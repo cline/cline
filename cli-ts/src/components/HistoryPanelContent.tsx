@@ -181,7 +181,7 @@ export const HistoryPanelContent: React.FC<HistoryPanelContentProps> = ({ onClos
 
 		return (
 			<Box flexDirection="column">
-				{showUpIndicator && <Text color="gray">{"  "}▲</Text>}
+				<Text color="gray">{showUpIndicator ? "  ▲" : " "}</Text>
 				{visibleItems.map((item, idx) => {
 					const actualIndex = scrollOffset + idx
 					const isSelected = actualIndex === selectedIndex
@@ -197,12 +197,15 @@ export const HistoryPanelContent: React.FC<HistoryPanelContentProps> = ({ onClos
 								</Text>
 							</Box>
 							<Box>
-								<Text color="gray"> {meta}</Text>
+								<Text color="gray">
+									{"  "}
+									{meta}
+								</Text>
 							</Box>
 						</Box>
 					)
 				})}
-				{showDownIndicator && <Text color="gray">{"  "}▼</Text>}
+				<Text color="gray">{showDownIndicator ? "  ▼" : " "}</Text>
 			</Box>
 		)
 	}
@@ -214,7 +217,7 @@ export const HistoryPanelContent: React.FC<HistoryPanelContentProps> = ({ onClos
 				<Text color="white">{searchQuery}</Text>
 				<Text inverse> </Text>
 			</Box>
-			<Box marginBottom={1}>
+			<Box>
 				<Text color="gray">{searchQuery ? "Esc to clear" : "Enter to open · Esc to close"}</Text>
 			</Box>
 			{renderContent()}
