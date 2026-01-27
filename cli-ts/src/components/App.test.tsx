@@ -5,9 +5,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { App } from "./App"
 
 // Mock the child components to isolate App routing logic
-vi.mock("./TaskView", () => ({
-	TaskView: ({ taskId, verbose }: any) =>
-		React.createElement(Text, null, `TaskView: ${taskId || "no-id"} verbose=${String(verbose)}`),
+vi.mock("./ChatView", () => ({
+	ChatView: ({ taskId, controller }: any) =>
+		React.createElement(Text, null, `ChatView: ${taskId || "no-id"} controller=${controller ? "present" : "none"}`),
+}))
+
+vi.mock("./TaskJsonView", () => ({
+	TaskJsonView: ({ taskId, verbose }: any) =>
+		React.createElement(Text, null, `TaskJsonView: ${taskId || "no-id"} verbose=${String(verbose)}`),
 }))
 
 vi.mock("./HistoryView", () => ({
@@ -22,12 +27,12 @@ vi.mock("./AuthView", () => ({
 	AuthView: ({ quickSetup }: any) => React.createElement(Text, null, `AuthView: ${quickSetup?.provider || "no-provider"}`),
 }))
 
-vi.mock("./WelcomeView", () => ({
-	WelcomeView: () => React.createElement(Text, null, "WelcomeView"),
-}))
-
 vi.mock("../context/TaskContext", () => ({
 	TaskContextProvider: ({ children }: any) => children,
+}))
+
+vi.mock("../context/StdinContext", () => ({
+	StdinProvider: ({ children }: any) => children,
 }))
 
 describe("App", () => {
@@ -41,9 +46,15 @@ describe("App", () => {
 	})
 
 	describe("view routing", () => {
-		it("should render TaskView when view is task", () => {
+		it("should render ChatView when view is task", () => {
 			const { lastFrame } = render(<App controller={mockController} taskId="test-task" view="task" />)
-			expect(lastFrame()).toContain("TaskView")
+			expect(lastFrame()).toContain("ChatView")
+			expect(lastFrame()).toContain("test-task")
+		})
+
+		it("should render TaskJsonView when view is task with jsonOutput", () => {
+			const { lastFrame } = render(<App controller={mockController} jsonOutput={true} taskId="test-task" view="task" />)
+			expect(lastFrame()).toContain("TaskJsonView")
 			expect(lastFrame()).toContain("test-task")
 		})
 
@@ -71,17 +82,17 @@ describe("App", () => {
 			expect(lastFrame()).toContain("openai")
 		})
 
-		it("should render WelcomeView when view is welcome", () => {
+		it("should render ChatView when view is welcome", () => {
 			const { lastFrame } = render(
 				<App controller={mockController} onWelcomeExit={() => {}} onWelcomeSubmit={() => {}} view="welcome" />,
 			)
-			expect(lastFrame()).toContain("WelcomeView")
+			expect(lastFrame()).toContain("ChatView")
 		})
 	})
 
 	describe("default props", () => {
-		it("should use default verbose=false", () => {
-			const { lastFrame } = render(<App controller={mockController} view="task" />)
+		it("should use default verbose=false with jsonOutput", () => {
+			const { lastFrame } = render(<App controller={mockController} jsonOutput={true} view="task" />)
 			expect(lastFrame()).toContain("verbose=false")
 		})
 
@@ -92,14 +103,19 @@ describe("App", () => {
 	})
 
 	describe("props passing", () => {
-		it("should pass verbose to TaskView", () => {
-			const { lastFrame } = render(<App controller={mockController} verbose={true} view="task" />)
+		it("should pass verbose to TaskJsonView", () => {
+			const { lastFrame } = render(<App controller={mockController} jsonOutput={true} verbose={true} view="task" />)
 			expect(lastFrame()).toContain("verbose=true")
 		})
 
-		it("should pass taskId to TaskView", () => {
+		it("should pass taskId to ChatView", () => {
 			const { lastFrame } = render(<App controller={mockController} taskId="my-task-123" view="task" />)
 			expect(lastFrame()).toContain("my-task-123")
+		})
+
+		it("should pass controller to ChatView", () => {
+			const { lastFrame } = render(<App controller={mockController} view="task" />)
+			expect(lastFrame()).toContain("controller=present")
 		})
 	})
 })
