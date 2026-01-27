@@ -29,6 +29,8 @@
 	--color-input-placeholder: var(--vscode-input-placeholderForeground);
 	--color-input-error-background: var(--vscode-inputValidation-errorBackground, #a82424);
 	--color-input-error-foreground: var(--vscode-inputValidation-errorForeground, #8f1f1f);
+	--color-input-warning-background: var(--vscode-inputValidation-warningBackground, #663c00);
+	--color-input-warning-foreground: var(--vscode-inputValidation-warningForeground, #7e5100);
 	--color-selection: var(--vscode-list-activeSelectionBackground);
 	--color-selection-foreground: var(--vscode-list-activeSelectionForeground);
 	--color-selection-inactive: var(--vscode-editor-inactiveSelectionBackground);
