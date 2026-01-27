@@ -122,7 +122,7 @@ function getToolMainArg(_toolName: string, args: Record<string, unknown>): strin
 
 	// Command - truncate long commands
 	if (typeof args.command === "string") {
-		return args.command.length > 60 ? args.command.substring(0, 57) + "..." : args.command
+		return args.command.length > 120 ? args.command.substring(0, 117) + "..." : args.command
 	}
 
 	// Search regex
@@ -295,7 +295,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 				<DotRow color={toolColor}>
 					<Text>
 						<Text color={toolColor}>{label}</Text>
-						<Text>{truncate(command, 60)}</Text>
+						<Text>{truncate(command, 120)}</Text>
 					</Text>
 				</DotRow>
 				{output && (
