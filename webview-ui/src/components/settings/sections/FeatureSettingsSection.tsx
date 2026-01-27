@@ -56,6 +56,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		nativeToolCallSetting,
 		enableParallelToolCalling,
 		backgroundEditEnabled,
+		skillsEnabled,
 		mcpDisplayMode,
 		openaiReasoningEffort,
 	} = useExtensionState()
@@ -247,6 +248,20 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</p>
 						</div>
 
+						{/* Skills */}
+						<div className="mt-2.5">
+							<VSCodeCheckbox
+								checked={skillsEnabled}
+								onChange={(e: any) => {
+									const checked = e.target.checked === true
+									updateSetting("skillsEnabled", checked)
+								}}>
+								Enable Skills
+							</VSCodeCheckbox>
+							<p className="text-xs text-(--vscode-descriptionForeground)">
+								Enables custom skills that extend Cline's capabilities with reusable prompts and instructions.
+							</p>
+						</div>
 						{/* Subagents - Only show on macOS and Linux */}
 						{isMacOSOrLinux() && PLATFORM_CONFIG.type === PlatformType.VSCODE && (
 							<div
