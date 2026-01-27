@@ -10,7 +10,7 @@ import {
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch } from "@/shared/net"
+import { createOpenAIClient } from "@/shared/net"
 import { version as extensionVersion } from "../../../../package.json"
 import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
@@ -35,13 +35,13 @@ export class ZAiHandler implements ApiHandler {
 		return this.options.zaiApiLine === "china"
 	}
 
-	private ensureClient(): OpenAI {
+	private async ensureClient(): Promise<OpenAI> {
 		if (!this.client) {
 			if (!this.options.zaiApiKey) {
 				throw new Error("Z AI API key is required")
 			}
 			try {
-				this.client = new OpenAI({
+				this.client = await createOpenAIClient({
 					baseURL: this.useChinaApi() ? "https://open.bigmodel.cn/api/paas/v4" : "https://api.z.ai/api/paas/v4",
 					apiKey: this.options.zaiApiKey,
 					defaultHeaders: {
@@ -49,7 +49,6 @@ export class ZAiHandler implements ApiHandler {
 						"X-Title": "Cline",
 						"X-Cline-Version": extensionVersion,
 					},
-					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating Z AI client: ${error.message}`)
@@ -77,7 +76,7 @@ export class ZAiHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		const client = this.ensureClient()
+		const client = await this.ensureClient()
 		const model = this.getModel()
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },

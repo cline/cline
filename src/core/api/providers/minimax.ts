@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { MinimaxModelId, ModelInfo, minimaxDefaultModelId, minimaxModels } from "@/shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
@@ -24,18 +25,20 @@ export class MinimaxHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private ensureClient(): Anthropic {
+	private async ensureClient(): Promise<Anthropic> {
 		if (!this.client) {
 			if (!this.options.minimaxApiKey) {
 				throw new Error("MiniMax API key is required")
 			}
 			try {
+				const externalHeaders = await buildExternalBasicHeaders()
 				this.client = new Anthropic({
 					apiKey: this.options.minimaxApiKey,
 					baseURL:
 						this.options.minimaxApiLine === "china"
 							? "https://api.minimaxi.com/anthropic"
 							: "https://api.minimax.io/anthropic",
+					defaultHeaders: externalHeaders,
 					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {
@@ -47,7 +50,7 @@ export class MinimaxHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ClineTool[]): ApiStream {
-		const client = this.ensureClient()
+		const client = await this.ensureClient()
 		const model = this.getModel()
 
 		// Tools are available only when native tools are enabled

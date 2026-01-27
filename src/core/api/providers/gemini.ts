@@ -9,6 +9,7 @@ import {
 	ThinkingLevel,
 } from "@google/genai"
 import { GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { telemetryService } from "@/services/telemetry"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
@@ -60,9 +61,10 @@ export class GeminiHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private ensureClient(): GoogleGenAI {
+	private async ensureClient(): Promise<GoogleGenAI> {
 		if (!this.client) {
 			const options = this.options as GeminiHandlerOptions
+			const externalHeaders = await buildExternalBasicHeaders()
 
 			if (options.isVertex) {
 				// Initialize with Vertex AI configuration
@@ -74,6 +76,9 @@ export class GeminiHandler implements ApiHandler {
 						vertexai: true,
 						project,
 						location,
+						httpOptions: {
+							headers: externalHeaders,
+						},
 					})
 				} catch (error) {
 					throw new Error(`Error creating Gemini Vertex AI client: ${error.message}`)
@@ -85,7 +90,12 @@ export class GeminiHandler implements ApiHandler {
 				}
 
 				try {
-					this.client = new GoogleGenAI({ apiKey: options.geminiApiKey })
+					this.client = new GoogleGenAI({
+						apiKey: options.geminiApiKey,
+						httpOptions: {
+							headers: externalHeaders,
+						},
+					})
 				} catch (error) {
 					throw new Error(`Error creating Gemini client: ${error.message}`)
 				}
@@ -110,7 +120,7 @@ export class GeminiHandler implements ApiHandler {
 		maxDelay: 15000,
 	})
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: GoogleTool[]): ApiStream {
-		const client = this.ensureClient()
+		const client = await this.ensureClient()
 		const { id: modelId, info } = this.getModel()
 		const contents = messages.map(convertAnthropicMessageToGemini)
 
@@ -433,7 +443,7 @@ export class GeminiHandler implements ApiHandler {
 	 */
 	async countTokens(content: Array<any>): Promise<number> {
 		try {
-			const client = this.ensureClient()
+			const client = await this.ensureClient()
 			const { id: model } = this.getModel()
 
 			// Convert content to Gemini format

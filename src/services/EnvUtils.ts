@@ -15,6 +15,22 @@ export const ClineHeaders = {
 } as const
 export type ClineHeaderName = (typeof ClineHeaders)[keyof typeof ClineHeaders]
 
+async function buildUserAgent() {
+	try {
+		const host = await HostProvider.env.getHostVersion(EmptyRequest.create({}))
+		return `Cline/${host.clineVersion}`
+	} catch (error) {
+		Logger.error("Failed to get IDE/platform info via HostBridge EnvService.getHostVersion", error)
+		return `Cline/1.0`
+	}
+}
+
+export async function buildExternalBasicHeaders(): Promise<Record<string, string>> {
+	return {
+		"User-Agent": await buildUserAgent(),
+	}
+}
+
 export async function buildBasicClineHeaders(): Promise<Record<string, string>> {
 	const headers: Record<string, string> = {}
 	try {

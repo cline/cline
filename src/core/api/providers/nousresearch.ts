@@ -1,6 +1,7 @@
 import { ModelInfo, NousResearchModelId, nousResearchDefaultModelId, nousResearchModels } from "@shared/api"
 import OpenAI from "openai"
 import { ClineStorageMessage } from "@/shared/messages/content"
+import { createOpenAIClient } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -19,13 +20,13 @@ export class NousResearchHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private ensureClient(): OpenAI {
+	private async ensureClient(): Promise<OpenAI> {
 		if (!this.client) {
 			if (!this.options.nousResearchApiKey) {
 				throw new Error("NousResearch API key is required")
 			}
 			try {
-				this.client = new OpenAI({
+				this.client = await createOpenAIClient({
 					baseURL: "https://inference-api.nousResearch.com/v1",
 					apiKey: this.options.nousResearchApiKey,
 				})
@@ -38,7 +39,7 @@ export class NousResearchHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
-		const client = this.ensureClient()
+		const client = await this.ensureClient()
 		const model = this.getModel()
 
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [

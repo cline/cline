@@ -4,6 +4,7 @@ import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import * as os from "os"
 import * as path from "path"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -59,13 +60,16 @@ export class QwenCodeHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private ensureClient(): OpenAI {
+	private async ensureClient(): Promise<OpenAI> {
 		if (!this.client) {
 			// Create the client instance with dummy key initially
 			// The API key will be updated dynamically via ensureAuthenticated
+			const externalHeaders = await buildExternalBasicHeaders()
 			this.client = new OpenAI({
 				apiKey: "dummy-key-will-be-replaced",
 				baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+				defaultHeaders: externalHeaders,
+				fetch,
 			})
 		}
 		return this.client
@@ -147,7 +151,7 @@ export class QwenCodeHandler implements ApiHandler {
 		}
 
 		// After authentication, update the apiKey and baseURL on the existing client
-		const client = this.ensureClient()
+		const client = await this.ensureClient()
 		client.apiKey = this.credentials.access_token
 		client.baseURL = this.getBaseUrl(this.credentials)
 	}
@@ -167,7 +171,7 @@ export class QwenCodeHandler implements ApiHandler {
 			if (error.status === 401) {
 				// Token expired, refresh and retry
 				this.credentials = await this.refreshAccessToken(this.credentials!)
-				const client = this.ensureClient()
+				const client = await this.ensureClient()
 				client.apiKey = this.credentials.access_token
 				client.baseURL = this.getBaseUrl(this.credentials)
 				return await apiCall()
@@ -180,7 +184,7 @@ export class QwenCodeHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		await this.ensureAuthenticated()
-		const client = this.ensureClient()
+		const client = await this.ensureClient()
 		const model = this.getModel()
 
 		const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam = {

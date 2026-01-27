@@ -3,7 +3,7 @@ import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch } from "@/shared/net"
+import { createOpenAIClient } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -25,20 +25,16 @@ export class HuggingFaceHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private ensureClient(): OpenAI {
+	private async ensureClient(): Promise<OpenAI> {
 		if (!this.client) {
 			if (!this.options.huggingFaceApiKey) {
 				throw new Error("Hugging Face API key is required")
 			}
 
 			try {
-				this.client = new OpenAI({
+				this.client = await createOpenAIClient({
 					baseURL: "https://router.huggingface.co/v1",
 					apiKey: this.options.huggingFaceApiKey,
-					defaultHeaders: {
-						"User-Agent": "Cline/1.0",
-					},
-					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating Hugging Face client: ${error.message}`)
@@ -71,7 +67,7 @@ export class HuggingFaceHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		try {
-			const client = this.ensureClient()
+			const client = await this.ensureClient()
 			const model = this.getModel()
 
 			const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [

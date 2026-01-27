@@ -10,6 +10,7 @@ import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels }
 import axios from "axios"
 import JSON5 from "json5"
 import OpenAI from "openai"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -359,9 +360,17 @@ export class SapAiCoreHandler implements ApiHandler {
 	private deployments?: Deployment[]
 	private aiCoreDestination?: HttpDestination
 	private destinationExpiresAt?: number
+	private externalHeaders: Record<string, string> = {}
 
 	constructor(options: SapAiCoreHandlerOptions) {
 		this.options = options
+	}
+
+	private async ensureExternalHeaders(): Promise<Record<string, string>> {
+		if (Object.keys(this.externalHeaders).length === 0) {
+			this.externalHeaders = await buildExternalBasicHeaders()
+		}
+		return this.externalHeaders
 	}
 
 	/**
@@ -427,9 +436,10 @@ export class SapAiCoreHandler implements ApiHandler {
 			client_secret: this.options.sapAiCoreClientSecret,
 		}
 
+		const externalHeaders = await this.ensureExternalHeaders()
 		const tokenUrl = this.options.sapAiCoreTokenUrl!.replace(/\/+$/, "") + "/oauth/token"
 		const response = await axios.post(tokenUrl, payload, {
-			headers: { "Content-Type": "application/x-www-form-urlencoded" },
+			headers: { ...externalHeaders, "Content-Type": "application/x-www-form-urlencoded" },
 			...getAxiosSettings(),
 		})
 		const token = response.data as Token
@@ -447,7 +457,9 @@ export class SapAiCoreHandler implements ApiHandler {
 	// TODO: these fallback fetching deployment id methods can be removed in future version if decided that users migration to fetching deployment id in design-time (open SAP AI Core provider UI) considered as completed.
 	private async getAiCoreDeployments(): Promise<Deployment[]> {
 		const token = await this.getToken()
+		const externalHeaders = await this.ensureExternalHeaders()
 		const headers = {
+			...externalHeaders,
 			Authorization: `Bearer ${token}`,
 			"AI-Resource-Group": this.options.sapAiResourceGroup || "default",
 			"Content-Type": "application/json",
@@ -585,7 +597,9 @@ export class SapAiCoreHandler implements ApiHandler {
 
 	private async *createMessageWithDeployments(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
 		const token = await this.getToken()
+		const externalHeaders = await this.ensureExternalHeaders()
 		const headers = {
+			...externalHeaders,
 			Authorization: `Bearer ${token}`,
 			"AI-Resource-Group": this.options.sapAiResourceGroup || "default",
 			"Content-Type": "application/json",

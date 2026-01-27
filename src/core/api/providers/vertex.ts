@@ -2,6 +2,7 @@ import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { FunctionDeclaration as GoogleTool } from "@google/genai"
 import { ModelInfo, VertexModelId, vertexDefaultModelId, vertexModels } from "@shared/api"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { ClineTool } from "@/shared/tools"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
@@ -45,7 +46,7 @@ export class VertexHandler implements ApiHandler {
 		return this.geminiHandler
 	}
 
-	private ensureAnthropicClient(): AnthropicVertex {
+	private async ensureAnthropicClient(): Promise<AnthropicVertex> {
 		if (!this.clientAnthropic) {
 			if (!this.options.vertexProjectId) {
 				throw new Error("Vertex AI project ID is required")
@@ -54,11 +55,13 @@ export class VertexHandler implements ApiHandler {
 				throw new Error("Vertex AI region is required")
 			}
 			try {
+				const externalHeaders = await buildExternalBasicHeaders()
 				// Initialize Anthropic client for Claude models
 				this.clientAnthropic = new AnthropicVertex({
 					projectId: this.options.vertexProjectId,
 					// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#regions
 					region: this.options.vertexRegion,
+					defaultHeaders: externalHeaders,
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating Vertex AI Anthropic client: ${error.message}`)
@@ -79,7 +82,7 @@ export class VertexHandler implements ApiHandler {
 			return
 		}
 
-		const clientAnthropic = this.ensureAnthropicClient()
+		const clientAnthropic = await this.ensureAnthropicClient()
 
 		// Claude implementation
 		const budget_tokens = this.options.thinkingBudgetTokens || 0

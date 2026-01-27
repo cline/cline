@@ -8,6 +8,7 @@ import {
 	OCI_HEADER_OPC_REQUEST_ID,
 } from "@/services/auth/oca/utils/constants"
 import { createOcaHeaders } from "@/services/auth/oca/utils/utils"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { OcaModelInfo } from "@/shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
@@ -35,12 +36,21 @@ export interface OcaHandlerOptions extends CommonApiHandlerOptions {
 export class OcaHandler implements ApiHandler {
 	protected options: OcaHandlerOptions
 	protected client: OpenAI | undefined
+	protected externalHeaders: Record<string, string> = {}
 
 	constructor(options: OcaHandlerOptions) {
 		this.options = options
 	}
 
-	protected initializeClient(options: OcaHandlerOptions) {
+	protected async ensureExternalHeaders(): Promise<Record<string, string>> {
+		if (Object.keys(this.externalHeaders).length === 0) {
+			this.externalHeaders = await buildExternalBasicHeaders()
+		}
+		return this.externalHeaders
+	}
+
+	protected async initializeClient(options: OcaHandlerOptions): Promise<OpenAI> {
+		const externalHeaders = await this.ensureExternalHeaders()
 		return new (class OCIOpenAI extends OpenAI {
 			protected override async prepareOptions(opts: any): Promise<void> {
 				const token = await OcaAuthService.getInstance().getAuthToken()
@@ -50,7 +60,7 @@ export class OcaHandler implements ApiHandler {
 				opts.headers ??= {}
 				// OCA Headers
 				const ociHeaders = await createOcaHeaders(token, options.taskId!)
-				opts.headers = { ...opts.headers, ...ociHeaders }
+				opts.headers = { ...opts.headers, ...externalHeaders, ...ociHeaders }
 				Logger.log(`Making request with customer opc-request-id: ${opts.headers?.["opc-request-id"]}`)
 				return super.prepareOptions(opts)
 			}
@@ -91,13 +101,13 @@ export class OcaHandler implements ApiHandler {
 		})
 	}
 
-	protected ensureClient(): OpenAI {
+	protected async ensureClient(): Promise<OpenAI> {
 		if (!this.client) {
 			if (!this.options.ocaModelId) {
 				throw new Error("Oracle Code Assist (OCA) model is not selected")
 			}
 			try {
-				this.client = this.initializeClient(this.options)
+				this.client = await this.initializeClient(this.options)
 			} catch (error) {
 				throw new Error(`Error creating Oracle Code Assist (OCA) client: ${error.message}`)
 			}
@@ -107,18 +117,19 @@ export class OcaHandler implements ApiHandler {
 
 	async getApiCosts(prompt_tokens: number, completion_tokens: number): Promise<number | undefined> {
 		// Reference: https://github.com/BerriAI/litellm/blob/122ee634f434014267af104814022af1d9a0882f/litellm/proxy/spend_tracking/spend_management_endpoints.py#L1473
-		const client = this.ensureClient()
+		const client = await this.ensureClient()
 		const modelId = this.options.ocaModelId || liteLlmDefaultModelId
 		const token = await OcaAuthService.getInstance().getAuthToken()
 		if (!token) {
 			throw new OpenAIError("Unable to handle auth, Oracle Code Assist (OCA) access token is not available")
 		}
+		const externalHeaders = await this.ensureExternalHeaders()
 		const ociHeaders = await createOcaHeaders(token, this.options.taskId!)
 		Logger.log(`Making calculate cost request with customer opc-request-id: ${ociHeaders["opc-request-id"]}`)
 		try {
 			const response = await fetch(`${client.baseURL}/spend/calculate`, {
 				method: "POST",
-				headers: ociHeaders,
+				headers: { ...externalHeaders, ...ociHeaders },
 				body: JSON.stringify({
 					completion_response: {
 						model: modelId,
@@ -166,7 +177,7 @@ export class OcaHandler implements ApiHandler {
 	}
 
 	async *createMessageChatApi(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		const client = this.ensureClient()
+		const client = await this.ensureClient()
 		const formattedMessages = convertToOpenAiMessages(messages)
 		const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam = {
 			role: "system",
@@ -303,7 +314,7 @@ export class OcaHandler implements ApiHandler {
 	}
 
 	async *createMessageResponsesApi(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		const client = this.ensureClient()
+		const client = await this.ensureClient()
 
 		// Convert messages to Responses API input format
 		const input: OpenAI.Responses.ResponseInputItem[] = [

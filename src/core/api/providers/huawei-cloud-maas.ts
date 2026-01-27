@@ -2,7 +2,7 @@ import { HuaweiCloudMaasModelId, huaweiCloudMaasDefaultModelId, huaweiCloudMaasM
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch } from "@/shared/net"
+import { createOpenAIClient } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -22,16 +22,15 @@ export class HuaweiCloudMaaSHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private ensureClient(): OpenAI {
+	private async ensureClient(): Promise<OpenAI> {
 		if (!this.client) {
 			if (!this.options.huaweiCloudMaasApiKey) {
 				throw new Error("Huawei Cloud MaaS API key is required")
 			}
 			try {
-				this.client = new OpenAI({
+				this.client = await createOpenAIClient({
 					baseURL: "https://api.modelarts-maas.com/v1/",
 					apiKey: this.options.huaweiCloudMaasApiKey,
-					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {
 				throw new Error(`Error creating Huawei Cloud MaaS client: ${error.message}`)
@@ -63,7 +62,7 @@ export class HuaweiCloudMaaSHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		const client = this.ensureClient()
+		const client = await this.ensureClient()
 		const model = this.getModel()
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },

@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { GenerateContentConfig, GoogleGenAI } from "@google/genai"
 import { ModelInfo } from "@shared/api"
 import OpenAI from "openai"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { sanitizeAnthropicMessages } from "../transform/anthropic-format"
@@ -33,7 +34,7 @@ export class AIhubmixHandler implements ApiHandler {
 		}
 	}
 
-	private ensureAnthropicClient(): Anthropic {
+	private async ensureAnthropicClient(): Promise<Anthropic> {
 		if (!this.anthropicClient) {
 			if (!this.options.apiKey) {
 				throw new Error("AIhubmix API key is required")
@@ -44,6 +45,7 @@ export class AIhubmixHandler implements ApiHandler {
 					baseURL: this.options.baseURL,
 					defaultHeaders: {
 						"APP-Code": this.options.appCode,
+						...(await buildExternalBasicHeaders()),
 					},
 				})
 			} catch (error) {
@@ -53,7 +55,7 @@ export class AIhubmixHandler implements ApiHandler {
 		return this.anthropicClient
 	}
 
-	private ensureOpenaiClient(): OpenAI {
+	private async ensureOpenaiClient(): Promise<OpenAI> {
 		if (!this.openaiClient) {
 			if (!this.options.apiKey) {
 				throw new Error("AIhubmix API key is required")
@@ -64,6 +66,7 @@ export class AIhubmixHandler implements ApiHandler {
 					baseURL: `${this.options.baseURL}/v1`,
 					defaultHeaders: {
 						"APP-Code": this.options.appCode,
+						...(await buildExternalBasicHeaders()),
 					},
 				})
 			} catch (error) {
@@ -73,7 +76,7 @@ export class AIhubmixHandler implements ApiHandler {
 		return this.openaiClient
 	}
 
-	private ensureGeminiClient(): GoogleGenAI {
+	private async ensureGeminiClient(): Promise<GoogleGenAI> {
 		if (!this.geminiClient) {
 			if (!this.options.apiKey) {
 				throw new Error("AIhubmix API key is required")
@@ -87,6 +90,7 @@ export class AIhubmixHandler implements ApiHandler {
 							// @ts-expect-error
 							"APP-Code": this.options.appCode,
 							Authorization: `Bearer ${this.options.apiKey ?? ""}`,
+							...(await buildExternalBasicHeaders()),
 						},
 					},
 				})
@@ -142,7 +146,7 @@ export class AIhubmixHandler implements ApiHandler {
 	}
 
 	private async *createAnthropicMessage(systemPrompt: string, messages: any[]): ApiStream {
-		const client = this.ensureAnthropicClient()
+		const client = await this.ensureAnthropicClient()
 		const modelId = this.options.modelId || "claude-3-5-sonnet-20241022"
 
 		// Sanitize messages to remove Cline-specific fields like call_id that are not allowed by Anthropic API
@@ -242,7 +246,7 @@ export class AIhubmixHandler implements ApiHandler {
 	}
 
 	private async *createOpenaiMessage(systemPrompt: string, messages: any[]): ApiStream {
-		const client = this.ensureOpenaiClient()
+		const client = await this.ensureOpenaiClient()
 		const modelId = this.options.modelId || "gpt-4o-mini"
 
 		const openaiMessages = [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)]
@@ -278,7 +282,7 @@ export class AIhubmixHandler implements ApiHandler {
 	}
 
 	private async *createGeminiMessage(systemPrompt: string, messages: any[]): ApiStream {
-		const client = this.ensureGeminiClient()
+		const client = await this.ensureGeminiClient()
 		const modelId = this.options.modelId || "gemini-2.0-flash-exp"
 
 		const contents = messages.map(convertAnthropicMessageToGemini)

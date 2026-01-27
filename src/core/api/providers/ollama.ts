@@ -1,6 +1,7 @@
 import { type ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { type Config, type Message, Ollama } from "ollama"
 import type { ChatCompletionTool } from "openai/resources/chat/completions"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -29,17 +30,20 @@ export class OllamaHandler implements ApiHandler {
 		this.options = { ...options, ollamaApiOptionsCtxNum }
 	}
 
-	private ensureClient(): Ollama {
+	private async ensureClient(): Promise<Ollama> {
 		if (!this.client) {
 			try {
+				const externalHeaders = await buildExternalBasicHeaders()
 				const clientOptions: Partial<Config> = {
 					host: this.options.ollamaBaseUrl,
 					fetch,
+					headers: externalHeaders,
 				}
 
 				// Add API key if provided (for Ollama cloud or authenticated instances)
 				if (this.options.ollamaApiKey) {
 					clientOptions.headers = {
+						...clientOptions.headers,
 						Authorization: `Bearer ${this.options.ollamaApiKey}`,
 					}
 				}
@@ -54,7 +58,7 @@ export class OllamaHandler implements ApiHandler {
 
 	@withRetry({ retryAllErrors: true })
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ChatCompletionTool[]): ApiStream {
-		const client = this.ensureClient()
+		const client = await this.ensureClient()
 		const ollamaMessages: Message[] = [{ role: "system", content: systemPrompt }, ...convertToOllamaMessages(messages)]
 
 		try {

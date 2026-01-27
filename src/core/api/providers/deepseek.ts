@@ -2,6 +2,7 @@ import { DeepSeekModelId, deepSeekDefaultModelId, deepSeekModels, ModelInfo } fr
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
@@ -24,7 +25,7 @@ export class DeepSeekHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private ensureClient(): OpenAI {
+	private async ensureClient(): Promise<OpenAI> {
 		if (!this.client) {
 			if (!this.options.deepSeekApiKey) {
 				throw new Error("DeepSeek API key is required")
@@ -33,6 +34,7 @@ export class DeepSeekHandler implements ApiHandler {
 				this.client = new OpenAI({
 					baseURL: "https://api.deepseek.com/v1",
 					apiKey: this.options.deepSeekApiKey,
+					defaultHeaders: await buildExternalBasicHeaders(),
 					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {
@@ -76,7 +78,7 @@ export class DeepSeekHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		const client = this.ensureClient()
+		const client = await this.ensureClient()
 		const model = this.getModel()
 
 		const isDeepseekReasoner = model.id.includes("deepseek-reasoner")

@@ -9,7 +9,7 @@ import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch } from "@/shared/net"
+import { createOpenAIClient } from "@/shared/net"
 import { ApiFormat } from "@/shared/proto/cline/models"
 import { Logger } from "@/shared/services/Logger"
 import { isGPT5ModelFamily } from "@/utils/model-utils"
@@ -35,15 +35,14 @@ export class OpenAiNativeHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private ensureClient(): OpenAI {
+	private async ensureClient(): Promise<OpenAI> {
 		if (!this.client) {
 			if (!this.options.openAiNativeApiKey) {
 				throw new Error("OpenAI API key is required")
 			}
 			try {
-				this.client = new OpenAI({
+				this.client = await createOpenAIClient({
 					apiKey: this.options.openAiNativeApiKey,
-					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating OpenAI client: ${error.message}`)
@@ -87,7 +86,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 		messages: ClineStorageMessage[],
 		tools?: ChatCompletionTool[],
 	): ApiStream {
-		const client = this.ensureClient()
+		const client = await this.ensureClient()
 		const model = this.getModel()
 		const toolCallProcessor = new ToolCallProcessor()
 
@@ -151,7 +150,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 		messages: ClineStorageMessage[],
 		tools: ChatCompletionTool[],
 	): ApiStream {
-		const client = this.ensureClient()
+		const client = await this.ensureClient()
 		const model = this.getModel()
 
 		// Convert messages to Responses API input format

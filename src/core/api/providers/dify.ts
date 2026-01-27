@@ -1,3 +1,4 @@
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -79,6 +80,7 @@ export class DifyHandler implements ApiHandler {
 	private conversationId: string | null = null
 	private currentTaskId: string | null = null
 	private abortController: AbortController | null = null
+	private externalHeaders: Record<string, string> = {}
 
 	constructor(options: DifyHandlerOptions) {
 		this.options = options
@@ -123,10 +125,7 @@ export class DifyHandler implements ApiHandler {
 		try {
 			response = await fetch(fullUrl, {
 				method: "POST",
-				headers: {
-					Authorization: `Bearer ${this.apiKey}`,
-					"Content-Type": "application/json",
-				},
+				headers: await this.headers(),
 				body: JSON.stringify(requestBody),
 			})
 		} catch (error: any) {
@@ -438,9 +437,7 @@ export class DifyHandler implements ApiHandler {
 
 		const response = await fetch(`${this.baseUrl}/files/upload`, {
 			method: "POST",
-			headers: {
-				Authorization: `Bearer ${this.apiKey}`,
-			},
+			headers: await this.headers(),
 			body: formData,
 		})
 
@@ -461,10 +458,7 @@ export class DifyHandler implements ApiHandler {
 	async stopGeneration(taskId: string, user: string = "cline-user"): Promise<void> {
 		const response = await fetch(`${this.baseUrl}/chat-messages/${taskId}/stop`, {
 			method: "POST",
-			headers: {
-				Authorization: `Bearer ${this.apiKey}`,
-				"Content-Type": "application/json",
-			},
+			headers: await this.jsonHeaders(),
 			body: JSON.stringify({ user }),
 		})
 
@@ -494,9 +488,7 @@ export class DifyHandler implements ApiHandler {
 		}
 
 		const response = await fetch(`${this.baseUrl}/conversations/${conversationId}/messages?${params}`, {
-			headers: {
-				Authorization: `Bearer ${this.apiKey}`,
-			},
+			headers: await this.headers(),
 		})
 
 		if (!response.ok) {
@@ -531,9 +523,7 @@ export class DifyHandler implements ApiHandler {
 		}
 
 		const response = await fetch(`${this.baseUrl}/conversations?${params}`, {
-			headers: {
-				Authorization: `Bearer ${this.apiKey}`,
-			},
+			headers: await this.headers(),
 		})
 
 		if (!response.ok) {
@@ -553,10 +543,7 @@ export class DifyHandler implements ApiHandler {
 	async deleteConversation(conversationId: string, user: string = "cline-user"): Promise<void> {
 		const response = await fetch(`${this.baseUrl}/conversations/${conversationId}`, {
 			method: "DELETE",
-			headers: {
-				Authorization: `Bearer ${this.apiKey}`,
-				"Content-Type": "application/json",
-			},
+			headers: await this.headers(),
 			body: JSON.stringify({ user }),
 		})
 
@@ -587,10 +574,7 @@ export class DifyHandler implements ApiHandler {
 
 		const response = await fetch(`${this.baseUrl}/conversations/${conversationId}/name`, {
 			method: "POST",
-			headers: {
-				Authorization: `Bearer ${this.apiKey}`,
-				"Content-Type": "application/json",
-			},
+			headers: await this.jsonHeaders(),
 			body: JSON.stringify(body),
 		})
 
@@ -623,10 +607,7 @@ export class DifyHandler implements ApiHandler {
 
 		const response = await fetch(`${this.baseUrl}/messages/${messageId}/feedbacks`, {
 			method: "POST",
-			headers: {
-				Authorization: `Bearer ${this.apiKey}`,
-				"Content-Type": "application/json",
-			},
+			headers: await this.jsonHeaders(),
 			body: JSON.stringify(body),
 		})
 
@@ -658,5 +639,27 @@ export class DifyHandler implements ApiHandler {
 	resetConversation(): void {
 		this.conversationId = null
 		this.currentTaskId = null
+	}
+
+	private async jsonHeaders() {
+		return {
+			...(await this.headers()),
+			"Content-Type": "application/json",
+		}
+	}
+
+	private async headers() {
+		const externalHeaders = await this.ensureExternalHeaders()
+		return {
+			...externalHeaders,
+			Authorization: `Bearer ${this.apiKey}`,
+		}
+	}
+
+	private async ensureExternalHeaders(): Promise<Record<string, string>> {
+		if (Object.keys(this.externalHeaders).length === 0) {
+			this.externalHeaders = await buildExternalBasicHeaders()
+		}
+		return this.externalHeaders
 	}
 }
