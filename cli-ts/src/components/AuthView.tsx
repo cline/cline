@@ -423,15 +423,25 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		}
 	}, [])
 
+	// Start Cline auth flow
+	const startClineAuth = useCallback(async () => {
+		try {
+			setStep("cline_auth")
+			setAuthStatus("Starting authentication...")
+			await AuthService.getInstance(controller).createAuthRequest()
+		} catch (error) {
+			setErrorMessage(error instanceof Error ? error.message : String(error))
+			setStep("error")
+		}
+	}, [controller])
+
 	const handleMainMenuSelect = useCallback(
 		(value: string) => {
 			if (value === "exit") {
 				exit()
 				onComplete?.()
 			} else if (value === "cline_auth") {
-				setStep("cline_auth")
-				setAuthStatus("Starting authentication...")
-				AuthService.getInstance(controller).createAuthRequest()
+				startClineAuth()
 			} else if (value === "openai_codex_auth") {
 				setStep("openai_codex_auth")
 				startOpenAiCodexAuth()
@@ -445,16 +455,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				setStep("import")
 			}
 		},
-		[exit, onComplete, controller, startOpenAiCodexAuth],
+		[exit, onComplete, startClineAuth, startOpenAiCodexAuth],
 	)
 
 	const handleProviderSelect = useCallback(
 		(value: string) => {
 			setSelectedProvider(value)
 			if (value === "cline") {
-				setStep("cline_auth")
-				setAuthStatus("Starting authentication...")
-				AuthService.getInstance(controller).createAuthRequest()
+				startClineAuth()
 			} else if (value === "openai-codex") {
 				setStep("openai_codex_auth")
 				startOpenAiCodexAuth()
@@ -462,7 +470,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				setStep("apikey")
 			}
 		},
-		[controller, startOpenAiCodexAuth],
+		[startClineAuth, startOpenAiCodexAuth],
 	)
 
 	const handleApiKeySubmit = useCallback(
