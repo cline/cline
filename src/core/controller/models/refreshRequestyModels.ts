@@ -3,6 +3,7 @@ import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/prot
 import axios from "axios"
 import { toRequestyServiceUrl } from "@/shared/clients/requesty"
 import { getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
@@ -50,12 +51,12 @@ export async function refreshRequestyModels(controller: Controller, _: EmptyRequ
 				})
 				models[model.id] = modelInfo
 			}
-			console.log("Requesty models fetched", models)
+			Logger.log("Requesty models fetched", models)
 		} else {
-			console.error("Invalid response from Requesty API")
+			Logger.error("Invalid response from Requesty API")
 		}
 	} catch (error) {
-		console.error("Error fetching Requesty models:", error)
+		Logger.error("Error fetching Requesty models:", error)
 	}
 
 	return OpenRouterCompatibleModelInfo.create({ models })

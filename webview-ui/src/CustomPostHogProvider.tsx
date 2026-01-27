@@ -5,7 +5,10 @@ import { type ReactNode, useEffect, useState } from "react"
 import { useExtensionState } from "./context/ExtensionStateContext"
 
 export function CustomPostHogProvider({ children }: { children: ReactNode }) {
-	const { distinctId, version, userInfo } = useExtensionState()
+	const { distinctId, version, userInfo, environment } = useExtensionState()
+
+	// Skip PostHog entirely in self-hosted mode or when environment is unknown (safety fallback)
+	const isSelfHostedOrUnknown = !environment || environment === "selfHosted"
 
 	// NOTE: This is a hack to stop recording webview click events temporarily.
 	// Remove this to re-enable.
@@ -14,7 +17,7 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 	const [isActive, setIsActive] = useState(false)
 
 	useEffect(() => {
-		if (isActive || !isTelemetryEnabled || !posthogConfig.apiKey) {
+		if (isSelfHostedOrUnknown || isActive || !isTelemetryEnabled || !posthogConfig.apiKey) {
 			return
 		}
 		// At this point, we know apiKey is defined due to the check above
@@ -31,7 +34,7 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 			autocapture: false,
 		})
 		setIsActive(true)
-	}, [])
+	}, [isSelfHostedOrUnknown])
 
 	useEffect(() => {
 		if (!isTelemetryEnabled || !isActive || !distinctId || !version) {

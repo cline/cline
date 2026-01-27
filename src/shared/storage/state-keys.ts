@@ -1,6 +1,5 @@
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import {
-	ANTHROPIC_MIN_THINKING_BUDGET,
 	ApiProvider,
 	DEFAULT_API_PROVIDER,
 	LiteLLMModelInfo,
@@ -20,11 +19,15 @@ import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { LanguageModelChatSelector } from "vscode"
+import { BlobStoreSettings } from "./ClineBlobStorage"
 
 // ============================================================================
 // SINGLE SOURCE OF TRUTH FOR STORAGE KEYS
 //
 // Property definitions with types, default values, and metadata
+// NOTE: When adding a new field, the scripts/generate-state-proto.mjs will be
+// executed automatically to regenerate the proto/cline/state.proto file with the
+// new fields once the file is staged and committed.
 // ============================================================================
 
 /**
@@ -54,6 +57,7 @@ const REMOTE_CONFIG_EXTRA_FIELDS = {
 	remoteGlobalWorkflows: { default: undefined as GlobalInstructionsFile[] | undefined },
 	blockPersonalRemoteMCPServers: { default: false as boolean },
 	openTelemetryOtlpHeaders: { default: undefined as Record<string, string> | undefined },
+	blobStoreConfig: { default: undefined as BlobStoreSettings | undefined },
 } satisfies FieldDefinitions
 
 const GLOBAL_STATE_FIELDS = {
@@ -80,10 +84,11 @@ const GLOBAL_STATE_FIELDS = {
 	remoteRulesToggles: { default: {} as ClineRulesToggles },
 	remoteWorkflowToggles: { default: {} as ClineRulesToggles },
 	dismissedBanners: { default: [] as Array<{ bannerId: string; dismissedAt: number }> },
+	// Path to worktree that should auto-open Cline sidebar when launched
+	worktreeAutoOpenPath: { default: undefined as string | undefined },
 } satisfies FieldDefinitions
 
 // Fields that map directly to ApiHandlerOptions in @shared/api.ts
-// NOTE: Keep these in sync with ApiHandlerOptions interface
 const API_HANDLER_SETTINGS_FIELDS = {
 	// Global configuration (not mode-specific)
 	liteLlmBaseUrl: { default: undefined as string | undefined },
@@ -132,7 +137,7 @@ const API_HANDLER_SETTINGS_FIELDS = {
 
 	// Plan mode configurations
 	planModeApiModelId: { default: undefined as string | undefined },
-	planModeThinkingBudgetTokens: { default: ANTHROPIC_MIN_THINKING_BUDGET as number | undefined },
+	planModeThinkingBudgetTokens: { default: undefined as number | undefined },
 	geminiPlanModeThinkingLevel: { default: undefined as string | undefined },
 	planModeReasoningEffort: { default: undefined as string | undefined },
 	planModeVerbosity: { default: undefined as string | undefined },
@@ -174,7 +179,7 @@ const API_HANDLER_SETTINGS_FIELDS = {
 
 	// Act mode configurations
 	actModeApiModelId: { default: undefined as string | undefined },
-	actModeThinkingBudgetTokens: { default: ANTHROPIC_MIN_THINKING_BUDGET as number | undefined },
+	actModeThinkingBudgetTokens: { default: undefined as number | undefined },
 	geminiActModeThinkingLevel: { default: undefined as string | undefined },
 	actModeReasoningEffort: { default: undefined as string | undefined },
 	actModeVerbosity: { default: undefined as string | undefined },
@@ -247,6 +252,7 @@ const USER_SETTINGS_FIELDS = {
 	yoloModeToggled: { default: false as boolean },
 	useAutoCondense: { default: false as boolean },
 	clineWebToolsEnabled: { default: true as boolean },
+	worktreesEnabled: { default: false as boolean },
 	preferredLanguage: { default: "English" as string },
 	openaiReasoningEffort: { default: "medium" as OpenaiReasoningEffort },
 	mode: { default: "act" as Mode },
@@ -257,7 +263,6 @@ const USER_SETTINGS_FIELDS = {
 	focusChainSettings: { default: DEFAULT_FOCUS_CHAIN_SETTINGS as FocusChainSettings },
 	customPrompt: { default: undefined as "compact" | undefined },
 	autoCondenseThreshold: { default: 0.75 as number }, // number from 0 to 1
-	hooksEnabled: { default: false as boolean },
 	subagentsEnabled: { default: false as boolean },
 	enableParallelToolCalling: { default: false as boolean },
 	backgroundEditEnabled: { default: false as boolean },

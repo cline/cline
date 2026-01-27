@@ -3,6 +3,8 @@
  * Supports ${env:VAR_NAME} syntax for referencing environment variables.
  */
 
+import { Logger } from "@/shared/services/Logger"
+
 /**
  * Expands environment variables in a string value.
  * Supports ${env:VAR_NAME} syntax.
@@ -22,7 +24,7 @@ function expandString(value: string): string {
 		const envValue = process.env[trimmedVarName]
 
 		if (envValue === undefined) {
-			console.warn(`[MCP Config] Environment variable not found: ${trimmedVarName}`)
+			Logger.warn(`[MCP Config] Environment variable not found: ${trimmedVarName}`)
 			return match // Leave unexpanded to show what's missing
 		}
 

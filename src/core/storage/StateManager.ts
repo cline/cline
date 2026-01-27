@@ -4,7 +4,6 @@ import {
 	GlobalState,
 	GlobalStateAndSettings,
 	GlobalStateAndSettingsKey,
-	GlobalStateKey,
 	isSecretKey,
 	isSettingsKey,
 	LocalState,
@@ -18,8 +17,7 @@ import {
 } from "@shared/storage/state-keys"
 import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
-import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageType } from "@/shared/proto/index.host"
+import { Logger } from "@/shared/services/Logger"
 import {
 	getTaskHistoryStateFilePath,
 	readTaskHistoryFromState,
@@ -35,8 +33,22 @@ export interface PersistenceErrorEvent {
 }
 
 /**
- * In-memory state manager for fast state access
- * Provides immediate reads/writes with async disk persistence
+ * In-memory state manager for fast state access.
+ * Provides immediate reads/writes with async disk persistence.
+ *
+ * MULTI-INSTANCE BEHAVIOR:
+ * StateManager reads from disk ONLY during initialize(). After that, all reads come from
+ * the in-memory cache. Writes update both the cache and disk, but other running instances
+ * won't see those changes because they don't re-read from disk.
+ *
+ * This means: If you have multiple VS Code windows open, each has its own StateManager
+ * instance with its own cache. Changing a setting (like plan/act mode) in Window A writes
+ * to disk, but Window B keeps using its cached value. Window B only sees the change after
+ * restart (when it re-initializes from disk).
+ *
+ * This is intentional for performance (avoids constant disk reads) and provides natural
+ * isolation between concurrent instances. Task-specific state is independent anyway since
+ * each window typically runs different tasks.
  */
 export class StateManager {
 	private static instance: StateManager | null = null
@@ -106,9 +118,9 @@ export class StateManager {
 
 		try {
 			// Load all extension state from disk
-			const globalState = await readGlobalStateFromDisk(StateManager.instance.context)
-			const secrets = await readSecretsFromDisk(StateManager.instance.context)
-			const workspaceState = await readWorkspaceStateFromDisk(StateManager.instance.context)
+			const globalState = await readGlobalStateFromDisk(context)
+			const secrets = await readSecretsFromDisk(context)
+			const workspaceState = await readWorkspaceStateFromDisk(context)
 
 			// Populate the cache with all extension state and secrets fields
 			// Use populate method to avoid triggering persistence during initialization
@@ -119,7 +131,7 @@ export class StateManager {
 
 			StateManager.instance.isInitialized = true
 		} catch (error) {
-			console.error("[StateManager] Failed to initialize:", error)
+			Logger.error("[StateManager] Failed to initialize:", error)
 			throw error
 		}
 
@@ -178,7 +190,7 @@ export class StateManager {
 
 		// Then track the keys for persistence
 		Object.keys(updates).forEach((key) => {
-			this.pendingGlobalState.add(key as GlobalStateKey)
+			this.pendingGlobalState.add(key as GlobalStateAndSettingsKey)
 		})
 
 		// Schedule debounced persistence
@@ -253,12 +265,7 @@ export class StateManager {
 			Object.assign(this.taskStateCache, taskSettings)
 		} catch (error) {
 			// If reading fails, just use empty cache
-
-			console.error("[StateManager] Failed to load task settings:", error)
-			HostProvider.window.showMessage({
-				type: ShowMessageType.ERROR,
-				message: `Failed to load task settings, defaulting to globally selected settings.`,
-			})
+			Logger.error("[StateManager] Failed to load task settings, defaulting to globally selected settings.", error)
 		}
 	}
 
@@ -274,7 +281,7 @@ export class StateManager {
 				// Clear pending set after successful persistence
 				this.pendingTaskState.clear()
 			} catch (error) {
-				console.error("[StateManager] Failed to persist task settings before clearing:", error)
+				Logger.error("[StateManager] Failed to persist task settings before clearing:", error)
 				// If persistence fails, we just move on with clearing the in-memory state.
 				// clearTaskSettings realistically probably won't be called in the small window of time between task settings being set and their persistence anyways
 			}
@@ -310,6 +317,12 @@ export class StateManager {
 
 		// Update cache immediately for all keys
 		Object.entries(updates).forEach(([key, value]) => {
+			// Skip unchanged values as we don't want to trigger unnecessary
+			// writes & incorrectly fire an onDidChange events.
+			const current = this.secretsCache[key as keyof Secrets]
+			if (current === value) {
+				return
+			}
 			this.secretsCache[key as keyof Secrets] = value
 			this.pendingSecrets.add(key as SecretKey)
 		})
@@ -462,7 +475,7 @@ export class StateManager {
 						await this.onSyncExternalChange?.()
 					}
 				} catch (err) {
-					console.error("[StateManager] Failed to reload task history on change:", err)
+					Logger.error("[StateManager] Failed to reload task history on change:", err)
 				}
 			}
 
@@ -473,9 +486,9 @@ export class StateManager {
 					this.globalStateCache["taskHistory"] = []
 					await this.onSyncExternalChange?.()
 				})
-				.on("error", (error) => console.error("[StateManager] TaskHistory watcher error:", error))
+				.on("error", (error) => Logger.error("[StateManager] TaskHistory watcher error:", error))
 		} catch (err) {
-			console.error("[StateManager] Failed to set up taskHistory watcher:", err)
+			Logger.error("[StateManager] Failed to set up taskHistory watcher:", err)
 		}
 	}
 
@@ -691,7 +704,7 @@ export class StateManager {
 				await this.persistPendingState()
 				this.persistenceTimeout = null
 			} catch (error) {
-				console.error("[StateManager] Failed to persist pending changes:", error)
+				Logger.error("[StateManager] Failed to persist pending changes:", error)
 				this.persistenceTimeout = null
 
 				// Call persistence error callback for error recovery
@@ -715,7 +728,6 @@ export class StateManager {
 				}),
 			)
 		} catch (error) {
-			console.error("[StateManager] Failed to persist global state batch:", error)
 			throw error
 		}
 	}
@@ -745,7 +757,6 @@ export class StateManager {
 				}),
 			)
 		} catch (error) {
-			console.error("[StateManager] Failed to persist task settings batch:", error)
 			throw error
 		}
 	}
@@ -766,7 +777,6 @@ export class StateManager {
 				}),
 			)
 		} catch (error) {
-			console.error("Failed to persist secrets batch:", error)
 			throw error
 		}
 	}
@@ -783,7 +793,6 @@ export class StateManager {
 				}),
 			)
 		} catch (error) {
-			console.error("Failed to persist workspace state batch:", error)
 			throw error
 		}
 	}

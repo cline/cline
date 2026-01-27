@@ -12,9 +12,8 @@
  * - Provides summary for environment details
  */
 
+import { ClineTempManager } from "@services/temp"
 import * as fs from "fs"
-import * as os from "os"
-import * as path from "path"
 import {
 	BACKGROUND_COMMAND_TIMEOUT_MS,
 	DEFAULT_SUBAGENT_TERMINAL_OUTPUT_LINE_LIMIT,
@@ -431,7 +430,8 @@ export class StandaloneTerminalManager implements ITerminalManager {
 		existingOutput: string[] = [],
 	): BackgroundCommand {
 		const id = `background-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-		const logFilePath = path.join(os.tmpdir(), `cline-${id}.log`)
+		// Use ClineTempManager for proper temp file management and cleanup
+		const logFilePath = ClineTempManager.createTempFilePath("background")
 
 		const backgroundCommand: BackgroundCommand = {
 			id,

@@ -63,7 +63,7 @@ export const recommendedModels = [
 		label: "HOT",
 	},
 	{
-		id: "openai/gpt-5.2",
+		id: "openai/gpt-5.2-codex",
 		description: "OpenAI's latest with strong coding abilities",
 		label: "NEW",
 	},
@@ -78,16 +78,6 @@ export const freeModels = [
 	{
 		id: "kwaipilot/kat-coder-pro",
 		description: "KwaiKAT's most advanced agentic coding model in the KAT-Coder series",
-		label: "FREE",
-	},
-	{
-		id: "x-ai/grok-code-fast-1",
-		description: "Fast inference with strong coding performance",
-		label: "FREE",
-	},
-	{
-		id: "mistralai/devstral-2512:free",
-		description: "Mistral's latest model with strong coding abilities",
 		label: "FREE",
 	},
 ]

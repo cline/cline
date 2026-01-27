@@ -1,7 +1,7 @@
 export interface SlashCommand {
 	name: string
 	description?: string
-	section?: "default" | "custom"
+	section?: "default" | "custom" | "mcp"
 	cliCompatible?: boolean
 }
 

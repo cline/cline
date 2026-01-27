@@ -12,6 +12,7 @@ export type ApiProvider =
 	| "lmstudio"
 	| "gemini"
 	| "openai-native"
+	| "openai-codex"
 	| "requesty"
 	| "together"
 	| "deepseek"
@@ -351,7 +352,7 @@ export const claudeCodeModels = {
 // AWS Bedrock
 // https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
 export type BedrockModelId = keyof typeof bedrockModels
-export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-sonnet-4-20250514-v1:0" // TODO: update to 4-5
+export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-sonnet-4-5-20250929-v1:0"
 export const bedrockModels = {
 	"anthropic.claude-sonnet-4-5-20250929-v1:0": {
 		maxTokens: 8192,
@@ -384,6 +385,7 @@ export const bedrockModels = {
 		supportsImages: true,
 		supportsPromptCache: true,
 		supportsReasoning: true,
+		supportsGlobalEndpoint: true,
 		inputPrice: 1,
 		outputPrice: 5.0,
 		cacheWritesPrice: 1.25,
@@ -1646,6 +1648,59 @@ export const openAiNativeModels = {
 		temperature: 0,
 	},
 } as const satisfies Record<string, OpenAiCompatibleModelInfo>
+
+// OpenAI Codex (ChatGPT Plus/Pro subscription)
+// Uses OAuth authentication via ChatGPT, routes to chatgpt.com/backend-api/codex/responses
+// Subscription-based pricing (all costs are $0)
+export type OpenAiCodexModelId = keyof typeof openAiCodexModels
+export const openAiCodexDefaultModelId: OpenAiCodexModelId = "gpt-5.2-codex"
+export const openAiCodexModels = {
+	"gpt-5.2-codex": {
+		maxTokens: 128_000,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		// Subscription-based: no per-token costs
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "GPT-5.2 Codex: OpenAI's flagship coding model via ChatGPT subscription",
+	},
+	"gpt-5.1-codex-max": {
+		maxTokens: 128_000,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "GPT-5.1 Codex Max: Maximum capability coding model via ChatGPT subscription",
+	},
+	"gpt-5.1-codex-mini": {
+		maxTokens: 128_000,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "GPT-5.1 Codex Mini: Faster version for coding tasks via ChatGPT subscription",
+	},
+	"gpt-5.2": {
+		maxTokens: 128_000,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "GPT-5.2: Latest GPT model via ChatGPT subscription",
+	},
+} as const satisfies Record<string, ModelInfo>
 
 // Azure OpenAI
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
@@ -3272,22 +3327,14 @@ export const sambanovaModels = {
 // Cerebras
 // https://inference-docs.cerebras.ai/api-reference/models
 export type CerebrasModelId = keyof typeof cerebrasModels
-export const cerebrasDefaultModelId: CerebrasModelId = "zai-glm-4.6"
+export const cerebrasDefaultModelId: CerebrasModelId = "zai-glm-4.7"
 export const cerebrasModels = {
-	"zai-glm-4.6": {
-		maxTokens: 40000,
-		contextWindow: 131072,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description: "Fast general-purpose model on Cerebras (up to 1,000 tokens/s). To be deprecated soon.",
-	},
 	"zai-glm-4.7": {
 		maxTokens: 40000,
 		contextWindow: 131072,
 		supportsImages: false,
 		supportsPromptCache: false,
+		temperature: 0.9,
 		inputPrice: 0,
 		outputPrice: 0,
 		description:
@@ -3474,6 +3521,13 @@ export const sapAiCoreDefaultModelId: SapAiCoreModelId = "anthropic--claude-3.5-
 // Pricing is calculated using Capacity Units, not directly in USD
 const sapAiCoreModelDescription = "Pricing is calculated using SAP's Capacity Units rather than direct USD pricing."
 export const sapAiCoreModels = {
+	"anthropic--claude-4.5-haiku": {
+		maxTokens: 64000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
 	"anthropic--claude-4.5-sonnet": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -3482,6 +3536,13 @@ export const sapAiCoreModels = {
 		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-4-sonnet": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
+	"anthropic--claude-4.5-opus": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,

@@ -5,17 +5,16 @@ import { ClineEnv } from "@/config"
 import type { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
 import { getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { AuthService } from "../auth/AuthService"
 import { buildBasicClineHeaders } from "../EnvUtils"
 import { getDistinctId } from "../logging/distinctId"
-import { Logger } from "../logging/Logger"
 
 /**
  * Service for fetching and evaluating banner messages
  */
 export class BannerService {
 	private static instance: BannerService | null = null
-	private readonly _baseUrl = ClineEnv.config().apiBaseUrl
 	private _cachedBanners: Banner[] = []
 	private _lastFetchTime: number = 0
 	private readonly CACHE_DURATION_MS = 24 * 60 * 60 * 1000 // 24 hours - banners change infrequently
@@ -28,6 +27,10 @@ export class BannerService {
 	private consecutiveFailures: number = 0
 	private readonly MAX_CONSECUTIVE_FAILURES = 3
 	private rateLimitBackoffUntil: number = 0 // Timestamp when we can retry after 429
+	
+  private get _baseUrl(): string {
+		return ClineEnv.config().apiBaseUrl
+	}
 
 	private constructor(controller: Controller) {
 		this._controller = controller
@@ -538,7 +541,6 @@ export class BannerService {
 	 */
 	public async getActiveBanners(forceRefresh = false): Promise<BannerCardData[]> {
 		// Disable all banner fetching to prevent blocking the extension
-		Logger.log("BannerService: Banner fetching is temporarily disabled")
 		return []
 	}
 

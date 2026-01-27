@@ -5,6 +5,7 @@ import axios from "axios"
 import fs from "fs/promises"
 import path from "path"
 import { getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
@@ -119,12 +120,12 @@ export async function refreshVercelAiGatewayModels(_controller: Controller): Pro
 			}
 
 			await fs.writeFile(vercelAiGatewayModelsFilePath, JSON.stringify(models))
-			console.log("Vercel AI Gateway models fetched and saved", JSON.stringify(models).slice(0, 300))
+			Logger.log("Vercel AI Gateway models fetched and saved")
 		} else {
-			console.error("Invalid response from Vercel AI Gateway API")
+			Logger.error("Invalid response from Vercel AI Gateway API")
 		}
 	} catch (error) {
-		console.error("Error fetching Vercel AI Gateway models:", error)
+		Logger.error("Error fetching Vercel AI Gateway models:", error)
 
 		// If we failed to fetch models, try to read cached models
 		const cachedModels = await readVercelAiGatewayModels()
@@ -147,7 +148,7 @@ async function readVercelAiGatewayModels(): Promise<Record<string, ModelInfo> | 
 			const fileContents = await fs.readFile(vercelAiGatewayModelsFilePath, "utf8")
 			return JSON.parse(fileContents)
 		} catch (error) {
-			console.error("Error reading cached Vercel AI Gateway models:", error)
+			Logger.error("Error reading cached Vercel AI Gateway models:", error)
 			return undefined
 		}
 	}

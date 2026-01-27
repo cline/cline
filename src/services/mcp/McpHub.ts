@@ -9,6 +9,8 @@ import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotoc
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import {
 	CallToolResultSchema,
+	GetPromptResultSchema,
+	ListPromptsResultSchema,
 	ListResourcesResultSchema,
 	ListResourceTemplatesResultSchema,
 	ListToolsResultSchema,
@@ -16,6 +18,8 @@ import {
 } from "@modelcontextprotocol/sdk/types.js"
 import {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
+	McpPrompt,
+	McpPromptResponse,
 	McpResource,
 	McpResourceResponse,
 	McpResourceTemplate,
@@ -35,6 +39,7 @@ import { z } from "zod"
 import { HostProvider } from "@/hosts/host-provider"
 import { fetch } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { expandEnvironmentVariables } from "@/utils/envExpansion"
 import { getServerAuthHash } from "@/utils/mcpAuth"
 import { TelemetryService } from "../telemetry/TelemetryService"
@@ -193,7 +198,7 @@ export class McpHub {
 
 			return result.data
 		} catch (error) {
-			console.error("Failed to read MCP settings:", error)
+			Logger.error("Failed to read MCP settings:", error)
 			return undefined
 		}
 	}
@@ -227,13 +232,13 @@ export class McpHub {
 				try {
 					await this.updateServerConnections(settings.mcpServers)
 				} catch (error) {
-					console.error("Failed to process MCP settings change:", error)
+					Logger.error("Failed to process MCP settings change:", error)
 				}
 			}
 		})
 
 		this.settingsWatcher.on("error", (error) => {
-			console.error("Error watching MCP settings file:", error)
+			Logger.error("Error watching MCP settings file:", error)
 		})
 	}
 
@@ -302,7 +307,7 @@ export class McpHub {
 		}
 
 		if (config.disabled) {
-			//console.log(`[MCP Debug] Creating disabled connection object for server "${name}"`)
+			//Logger.log(`[MCP Debug] Creating disabled connection object for server "${name}"`)
 			// Create a connection object for disabled server so it appears in UI
 			const disabledConnection: McpConnection = {
 				server: {
@@ -358,7 +363,7 @@ export class McpHub {
 					})
 
 					transport.onerror = async (error) => {
-						console.error(`Transport error for "${name}":`, error)
+						Logger.error(`Transport error for "${name}":`, error)
 						const connection = this.findConnection(name, source)
 						if (connection) {
 							connection.server.status = "disconnected"
@@ -385,9 +390,9 @@ export class McpHub {
 							const isInfoLog = !/\berror\b/i.test(output)
 
 							if (isInfoLog) {
-								console.log(`Server "${name}" info:`, output)
+								Logger.log(`Server "${name}" info:`, output)
 							} else {
-								console.error(`Server "${name}" stderr:`, output)
+								Logger.error(`Server "${name}" stderr:`, output)
 								const connection = this.findConnection(name, source)
 								if (connection) {
 									this.appendErrorMessage(connection, output)
@@ -398,7 +403,7 @@ export class McpHub {
 							}
 						})
 					} else {
-						console.error(`No stderr stream for ${name}`)
+						Logger.error(`No stderr stream for ${name}`)
 					}
 					transport.start = async () => {}
 					break
@@ -440,7 +445,7 @@ export class McpHub {
 					})
 
 					transport.onerror = async (error) => {
-						console.error(`Transport error for "${name}":`, error)
+						Logger.error(`Transport error for "${name}":`, error)
 						const connection = this.findConnection(name, source)
 						if (connection) {
 							connection.server.status = "disconnected"
@@ -452,6 +457,9 @@ export class McpHub {
 					break
 				}
 				case "streamableHttp": {
+					// Use ReconnectingEventSource for auto-reconnection on connection drops
+					global.EventSource = ReconnectingEventSource
+
 					// Custom fetch wrapper that treats 404 as 405 for GET requests.
 					// The MCP SDK sends a GET request to check for SSE stream support.
 					// Per MCP spec, servers should return 405 if they don't support SSE,
@@ -478,7 +486,7 @@ export class McpHub {
 						fetch: streamableHttpFetch,
 					})
 					transport.onerror = async (error) => {
-						console.error(`Transport error for "${name}":`, error)
+						Logger.error(`Transport error for "${name}":`, error)
 						const connection = this.findConnection(name, source)
 						if (connection) {
 							connection.server.status = "disconnected"
@@ -515,7 +523,7 @@ export class McpHub {
 			} catch (error) {
 				if (error instanceof UnauthorizedError) {
 					// Server requires OAuth authentication
-					console.log(`Server "${name}" requires OAuth authentication`)
+					Logger.log(`Server "${name}" requires OAuth authentication`)
 					const unauthConnection: McpConnection = {
 						server: {
 							name,
@@ -545,9 +553,9 @@ export class McpHub {
 			connection.server.error = ""
 
 			// Register notification handler for real-time messages
-			//console.log(`[MCP Debug] Setting up notification handlers for server: ${name}`)
-			//console.log(`[MCP Debug] Client instance:`, connection.client)
-			//console.log(`[MCP Debug] Transport type:`, config.type)
+			//Logger.log(`[MCP Debug] Setting up notification handlers for server: ${name}`)
+			//Logger.log(`[MCP Debug] Client instance:`, connection.client)
+			//Logger.log(`[MCP Debug] Transport type:`, config.type)
 
 			// Try to set notification handler using the client's method
 			try {
@@ -569,25 +577,25 @@ export class McpHub {
 
 				// Set the notification handler
 				connection.client.setNotificationHandler(NotificationMessageSchema as any, async (notification: any) => {
-					//console.log(`[MCP Notification] ${name}:`, JSON.stringify(notification, null, 2))
+					//Logger.log(`[MCP Notification] ${name}:`, JSON.stringify(notification, null, 2))
 
 					const params = notification.params || {}
 					const level = params.level || "info"
 					const data = params.data || params.message || ""
 					const logger = params.logger || ""
 
-					//console.log(`[MCP Message Notification] ${name}: level=${level}, data=${data}, logger=${logger}`)
+					//Logger.log(`[MCP Message Notification] ${name}: level=${level}, data=${data}, logger=${logger}`)
 
 					// Format the message
 					const message = logger ? `[${logger}] ${data}` : data
 
 					// Send notification directly to active task if callback is set
 					if (this.notificationCallback) {
-						//console.log(`[MCP Debug] Sending notification to active task: ${message}`)
+						//Logger.log(`[MCP Debug] Sending notification to active task: ${message}`)
 						this.notificationCallback(name, level, message)
 					} else {
 						// Fallback: store for later retrieval
-						//console.log(`[MCP Debug] No active task, storing notification: ${message}`)
+						//Logger.log(`[MCP Debug] No active task, storing notification: ${message}`)
 						this.pendingNotifications.push({
 							serverName: name,
 							level,
@@ -596,11 +604,11 @@ export class McpHub {
 						})
 					}
 				})
-				//console.log(`[MCP Debug] Successfully set notifications/message handler for ${name}`)
+				//Logger.log(`[MCP Debug] Successfully set notifications/message handler for ${name}`)
 
 				// Also set a fallback handler for any other notification types
 				connection.client.fallbackNotificationHandler = async (notification: any) => {
-					//console.log(`[MCP Fallback Notification] ${name}:`, JSON.stringify(notification, null, 2))
+					//Logger.log(`[MCP Fallback Notification] ${name}:`, JSON.stringify(notification, null, 2))
 
 					// Show in VS Code for visibility
 					HostProvider.window.showMessage({
@@ -608,15 +616,16 @@ export class McpHub {
 						message: `MCP ${name}: ${notification.method || "unknown"} - ${JSON.stringify(notification.params || {})}`,
 					})
 				}
-				//console.log(`[MCP Debug] Successfully set fallback notification handler for ${name}`)
+				//Logger.log(`[MCP Debug] Successfully set fallback notification handler for ${name}`)
 			} catch (error) {
-				console.error(`[MCP Debug] Error setting notification handlers for ${name}:`, error)
+				Logger.error(`[MCP Debug] Error setting notification handlers for ${name}:`, error)
 			}
 
-			// Initial fetch of tools and resources
+			// Initial fetch of tools, resources, and prompts
 			connection.server.tools = await this.fetchToolsList(name)
 			connection.server.resources = await this.fetchResourcesList(name)
 			connection.server.resourceTemplates = await this.fetchResourceTemplatesList(name)
+			connection.server.prompts = await this.fetchPromptsList(name)
 		} catch (error) {
 			// Update status with error
 			const connection = this.findConnection(name, source)
@@ -664,7 +673,7 @@ export class McpHub {
 
 			return tools
 		} catch (error) {
-			console.error(`Failed to fetch tools for ${serverName}:`, error)
+			Logger.error(`Failed to fetch tools for ${serverName}:`, error)
 			return []
 		}
 	}
@@ -683,7 +692,7 @@ export class McpHub {
 			})
 			return response?.resources || []
 		} catch (_error) {
-			// console.error(`Failed to fetch resources for ${serverName}:`, error)
+			// Logger.error(`Failed to fetch resources for ${serverName}:`, error)
 			return []
 		}
 	}
@@ -707,7 +716,35 @@ export class McpHub {
 
 			return response?.resourceTemplates || []
 		} catch (_error) {
-			// console.error(`Failed to fetch resource templates for ${serverName}:`, error)
+			// Logger.error(`Failed to fetch resource templates for ${serverName}:`, error)
+			return []
+		}
+	}
+
+	private async fetchPromptsList(serverName: string): Promise<McpPrompt[]> {
+		try {
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+
+			// Disabled servers don't have clients, so return empty prompts list
+			if (!connection || connection.server.disabled || !connection.client) {
+				return []
+			}
+
+			const response = await connection.client.request({ method: "prompts/list" }, ListPromptsResultSchema, {
+				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+			})
+
+			return (response?.prompts || []).map((prompt) => ({
+				name: prompt.name,
+				title: prompt.title,
+				description: prompt.description,
+				arguments: prompt.arguments?.map((arg) => ({
+					name: arg.name,
+					description: arg.description,
+					required: arg.required,
+				})),
+			}))
+		} catch (_error) {
 			return []
 		}
 	}
@@ -724,7 +761,7 @@ export class McpHub {
 					await connection.client.close()
 				}
 			} catch (error) {
-				console.error(`Failed to close transport for ${name}:`, error)
+				Logger.error(`Failed to close transport for ${name}:`, error)
 			}
 			this.connections = this.connections.filter((conn) => conn.server.name !== name)
 		}
@@ -739,7 +776,7 @@ export class McpHub {
 					await this.mcpOAuthManager.clearServerAuth(name, config.url)
 				}
 			} catch (error) {
-				console.error(`Failed to clear OAuth data for ${name}:`, error)
+				Logger.error(`Failed to clear OAuth data for ${name}:`, error)
 			}
 		}
 	}
@@ -754,7 +791,7 @@ export class McpHub {
 		for (const name of currentNames) {
 			if (!newNames.has(name)) {
 				await this.deleteConnection(name)
-				console.log(`Deleted MCP server: ${name}`)
+				Logger.log(`Deleted MCP server: ${name}`)
 			}
 		}
 
@@ -770,7 +807,7 @@ export class McpHub {
 					}
 					await this.connectToServer(name, config, "rpc")
 				} catch (error) {
-					console.error(`Failed to connect to new MCP server ${name}:`, error)
+					Logger.error(`Failed to connect to new MCP server ${name}:`, error)
 				}
 			} else if (this.configsRequireRestart(JSON.parse(currentConnection.server.config), config)) {
 				// Existing server with changed connection config (excludes Cline-specific settings)
@@ -780,9 +817,9 @@ export class McpHub {
 					}
 					await this.deleteConnection(name) // Don't clear OAuth - just reconnecting with new config
 					await this.connectToServer(name, config, "rpc")
-					console.log(`Reconnected MCP server with updated config: ${name}`)
+					Logger.log(`Reconnected MCP server with updated config: ${name}`)
 				} catch (error) {
-					console.error(`Failed to reconnect MCP server ${name}:`, error)
+					Logger.error(`Failed to reconnect MCP server ${name}:`, error)
 				}
 			} else {
 				// Only Cline-specific settings changed - update in-memory state without restart
@@ -821,7 +858,7 @@ export class McpHub {
 			if (!newNames.has(name)) {
 				await this.clearOAuthForConnection(name) // Clear OAuth data first
 				await this.deleteConnection(name) // Then delete connection
-				console.log(`Deleted MCP server: ${name}`)
+				Logger.log(`Deleted MCP server: ${name}`)
 				connectionChangesOccurred = true
 			}
 		}
@@ -839,7 +876,7 @@ export class McpHub {
 					await this.connectToServer(name, config, "internal")
 					connectionChangesOccurred = true
 				} catch (error) {
-					console.error(`Failed to connect to new MCP server ${name}:`, error)
+					Logger.error(`Failed to connect to new MCP server ${name}:`, error)
 				}
 			} else if (this.configsRequireRestart(JSON.parse(currentConnection.server.config), config)) {
 				// Existing server with changed connection config (excludes Cline-specific settings)
@@ -854,10 +891,10 @@ export class McpHub {
 					}
 					await this.deleteConnection(name)
 					await this.connectToServer(name, config, "internal")
-					console.log(`Reconnected MCP server with updated config: ${name}`)
+					Logger.log(`Reconnected MCP server with updated config: ${name}`)
 					connectionChangesOccurred = true
 				} catch (error) {
-					console.error(`Failed to reconnect MCP server ${name}:`, error)
+					Logger.error(`Failed to reconnect MCP server ${name}:`, error)
 				}
 			} else {
 				// Only Cline-specific settings changed - update in-memory state without restart
@@ -922,7 +959,7 @@ export class McpHub {
 			})
 
 			watcher.on("change", () => {
-				console.log(`Detected change in ${filePath}. Restarting server ${name}...`)
+				Logger.log(`Detected change in ${filePath}. Restarting server ${name}...`)
 				this.restartConnection(name)
 			})
 
@@ -950,7 +987,7 @@ export class McpHub {
 				// Try to connect again using existing config
 				await this.connectToServer(serverName, JSON.parse(inMemoryConfig), "rpc")
 			} catch (error) {
-				console.error(`Failed to restart connection for ${serverName}:`, error)
+				Logger.error(`Failed to restart connection for ${serverName}:`, error)
 			}
 		}
 
@@ -989,7 +1026,7 @@ export class McpHub {
 					message: `${serverName} MCP server connected`,
 				})
 			} catch (error) {
-				console.error(`Failed to restart connection for ${serverName}:`, error)
+				Logger.error(`Failed to restart connection for ${serverName}:`, error)
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message: `Failed to connect to ${serverName} MCP server`,
@@ -1077,12 +1114,12 @@ export class McpHub {
 				const serverOrder = Object.keys(config.mcpServers || {})
 				return this.getSortedMcpServers(serverOrder)
 			}
-			console.error(`Server "${serverName}" not found in MCP configuration`)
+			Logger.error(`Server "${serverName}" not found in MCP configuration`)
 			throw new Error(`Server "${serverName}" not found in MCP configuration`)
 		} catch (error) {
-			console.error("Failed to update server disabled state:", error)
+			Logger.error("Failed to update server disabled state:", error)
 			if (error instanceof Error) {
-				console.error("Error details:", error.message, error.stack)
+				Logger.error("Error details:", error.message, error.stack)
 			}
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
@@ -1112,6 +1149,45 @@ export class McpHub {
 		)
 	}
 
+	async getPrompt(
+		serverName: string,
+		promptName: string,
+		promptArguments?: Record<string, string>,
+	): Promise<McpPromptResponse> {
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
+		if (!connection) {
+			throw new Error(`No connection found for server: ${serverName}`)
+		}
+		if (connection.server.disabled) {
+			throw new Error(`Server "${serverName}" is disabled`)
+		}
+		if (!connection.client) {
+			throw new Error(`No client available for server: ${serverName}`)
+		}
+
+		const response = await connection.client.request(
+			{
+				method: "prompts/get",
+				params: {
+					name: promptName,
+					arguments: promptArguments,
+				},
+			},
+			GetPromptResultSchema,
+			{
+				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+			},
+		)
+
+		return {
+			description: response.description,
+			messages: response.messages.map((msg) => ({
+				role: msg.role,
+				content: msg.content as McpPromptResponse["messages"][0]["content"],
+			})),
+		}
+	}
+
 	async callTool(
 		serverName: string,
 		toolName: string,
@@ -1136,7 +1212,7 @@ export class McpHub {
 			const parsedConfig = ServerConfigSchema.parse(config)
 			timeout = secondsToMs(parsedConfig.timeout)
 		} catch (error) {
-			console.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
+			Logger.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
 		}
 
 		this.telemetryService.captureMcpToolCall(
@@ -1238,7 +1314,7 @@ export class McpHub {
 			const serverOrder = Object.keys(config.mcpServers || {})
 			return this.getSortedMcpServers(serverOrder)
 		} catch (error) {
-			console.error("Failed to update autoApprove settings:", error)
+			Logger.error("Failed to update autoApprove settings:", error)
 			throw error // Re-throw to ensure the error is properly handled
 		} finally {
 			// Clear flag after a delay to ensure file watcher event has been processed
@@ -1288,7 +1364,7 @@ export class McpHub {
 				await this.notifyWebviewOfServerChanges()
 			}
 		} catch (error) {
-			console.error("Failed to update autoApprove settings:", error)
+			Logger.error("Failed to update autoApprove settings:", error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: "Failed to update autoApprove settings",
@@ -1352,7 +1428,7 @@ export class McpHub {
 			const serverOrder = Object.keys(settings.mcpServers || {})
 			return this.getSortedMcpServers(serverOrder)
 		} catch (error) {
-			console.error("Failed to add remote MCP server:", error)
+			Logger.error("Failed to add remote MCP server:", error)
 			throw error
 		}
 	}
@@ -1389,7 +1465,7 @@ export class McpHub {
 				throw new Error(`${serverName} not found in MCP configuration`)
 			}
 		} catch (error) {
-			console.error(`Failed to delete MCP server: ${error instanceof Error ? error.message : String(error)}`)
+			Logger.error(`Failed to delete MCP server: ${error instanceof Error ? error.message : String(error)}`)
 			throw error
 		}
 	}
@@ -1430,9 +1506,9 @@ export class McpHub {
 			const serverOrder = Object.keys(config.mcpServers || {})
 			return this.getSortedMcpServers(serverOrder)
 		} catch (error) {
-			console.error("Failed to update server timeout:", error)
+			Logger.error("Failed to update server timeout:", error)
 			if (error instanceof Error) {
-				console.error("Error details:", error.message, error.stack)
+				Logger.error("Error details:", error.message, error.stack)
 			}
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
@@ -1468,7 +1544,7 @@ export class McpHub {
 	 */
 	setNotificationCallback(callback: (serverName: string, level: string, message: string) => void): void {
 		this.notificationCallback = callback
-		//console.log("[MCP Debug] Notification callback set")
+		//Logger.log("[MCP Debug] Notification callback set")
 	}
 
 	/**
@@ -1476,7 +1552,7 @@ export class McpHub {
 	 */
 	clearNotificationCallback(): void {
 		this.notificationCallback = undefined
-		//console.log("[MCP Debug] Notification callback cleared")
+		//Logger.log("[MCP Debug] Notification callback cleared")
 	}
 
 	/**
@@ -1532,7 +1608,7 @@ export class McpHub {
 			throw new Error("OAuth is only supported for SSE and HTTP transports")
 		}
 
-		console.log(`[McpOAuth] Authentication completed for ${connection.server.name}`)
+		Logger.log(`[McpOAuth] Authentication completed for ${connection.server.name}`)
 
 		// Update server status
 		connection.server.oauthAuthStatus = "authenticated"
@@ -1549,7 +1625,7 @@ export class McpHub {
 			try {
 				await this.deleteConnection(connection.server.name)
 			} catch (error) {
-				console.error(`Failed to close connection for ${connection.server.name}:`, error)
+				Logger.error(`Failed to close connection for ${connection.server.name}:`, error)
 			}
 		}
 		this.connections = []

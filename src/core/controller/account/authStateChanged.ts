@@ -1,4 +1,5 @@
 import { AuthState, AuthStateChangedRequest } from "@shared/proto/cline/account"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 /**
@@ -16,7 +17,7 @@ export async function authStateChanged(controller: Controller, request: AuthStat
 		// Return the same user info
 		return AuthState.create({ user: request.user })
 	} catch (error) {
-		console.error(`Failed to update auth state: ${error}`)
+		Logger.error(`Failed to update auth state: ${error}`)
 		throw error
 	}
 }

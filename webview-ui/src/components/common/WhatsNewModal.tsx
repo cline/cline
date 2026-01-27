@@ -16,7 +16,7 @@ interface WhatsNewModalProps {
 
 export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version }) => {
 	const { clineUser } = useClineAuth()
-	const { openRouterModels, setShowChatModelSelector, refreshOpenRouterModels } = useExtensionState()
+	const { openRouterModels, setShowChatModelSelector, refreshOpenRouterModels, navigateToSettings } = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	const clickedModelsRef = useRef<Set<string>>(new Set())
@@ -41,6 +41,15 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 		},
 		[handleFieldsChange, openRouterModels, setShowChatModelSelector, onClose],
 	)
+
+	const setOpenAiCodexProvider = useCallback(() => {
+		handleFieldsChange({
+			planModeApiProvider: "openai-codex",
+			actModeApiProvider: "openai-codex",
+		})
+		onClose()
+		navigateToSettings("api-config")
+	}, [handleFieldsChange, onClose, navigateToSettings])
 
 	const handleShowAccount = useCallback(() => {
 		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
@@ -87,15 +96,25 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					{/* Description */}
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						<li className="mb-2">
-							<strong>Skills:</strong> Extend Cline with instruction sets for specialized tasks.{" "}
+							<strong>OpenAI ChatGPT Subscription Integration:</strong> Use your ChatGPT subscription directly in
+							Cline with no additional token cost and no api keys to manage.{" "}
+							<span
+								onClick={setOpenAiCodexProvider}
+								style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
+								Sign in
+							</span>
+						</li>
+						<li className="mb-2">
+							<strong>Jupyter Notebooks:</strong> Comprehensive AI-assisted editing of <code>.ipynb</code> files
+							with full cell-level context awareness.{" "}
 							<a
-								href="https://docs.cline.bot/features/skills"
+								href="https://docs.cline.bot/features/jupyter-notebooks"
 								style={{ color: "var(--vscode-textLink-foreground)" }}>
-								Learn more
+								Learn More
 							</a>
 						</li>
 						<li>
-							<strong>Web Search:</strong> Improved websearch tooling in Cline provider.
+							<strong>Grok Code Fast 1</strong> and <strong>Devstral-2512</strong> are no longer free to use.
 						</li>
 					</ul>
 				</div>

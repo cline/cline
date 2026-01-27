@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.49.1",
+	"version": "3.54.0",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -202,6 +202,24 @@
 				"category": "Cline"
 			},
 			{
+				"command": "cline.jupyterGenerateCell",
+				"title": "Generate Jupyter Cell with Cline",
+				"category": "Cline",
+				"icon": "$(sparkle)"
+			},
+			{
+				"command": "cline.jupyterExplainCell",
+				"title": "Explain Jupyter Cell with Cline",
+				"category": "Cline",
+				"icon": "$(question)"
+			},
+			{
+				"command": "cline.jupyterImproveCell",
+				"title": "Improve Jupyter Cell with Cline",
+				"category": "Cline",
+				"icon": "$(lightbulb)"
+			},
+			{
 				"command": "cline.openWalkthrough",
 				"title": "Open Walkthrough",
 				"category": "Cline"
@@ -304,6 +322,25 @@
 					"when": "config.git.enabled && scmProvider == git && cline.isGeneratingCommit"
 				}
 			],
+			"notebook/toolbar": [
+				{
+					"command": "cline.jupyterGenerateCell",
+					"group": "navigation/add@1",
+					"when": "notebookType == 'jupyter-notebook'"
+				}
+			],
+			"notebook/cell/title": [
+				{
+					"command": "cline.jupyterExplainCell",
+					"group": "inline@1",
+					"when": "notebookType == 'jupyter-notebook'"
+				},
+				{
+					"command": "cline.jupyterImproveCell",
+					"group": "inline@2",
+					"when": "notebookType == 'jupyter-notebook'"
+				}
+			],
 			"commandPalette": [
 				{
 					"command": "cline.generateGitCommitMessage",
@@ -403,6 +440,10 @@
 		"storybook": "cd webview-ui && npm run storybook"
 	},
 	"lint-staged": {
+		"src/shared/storage/state-keys.ts": [
+			"node scripts/generate-state-proto.mjs",
+			"git add proto/cline/state.proto"
+		],
 		"*": [
 			"biome check --write --staged --no-errors-on-unmatched --files-ignore-unknown=true"
 		]
@@ -494,6 +535,7 @@
 		"@types/uuid": "^10.0.0",
 		"@vscode/codicons": "^0.0.36",
 		"archiver": "^7.0.1",
+		"aws4fetch": "^1.0.20",
 		"axios": "^1.12.0",
 		"better-sqlite3": "^12.4.1",
 		"cheerio": "^1.0.0",
@@ -528,6 +570,7 @@
 		"p-timeout": "^6.1.4",
 		"p-wait-for": "^5.0.2",
 		"pdf-parse": "^1.1.1",
+		"picomatch": "^4.0.3",
 		"posthog-node": "^5.8.0",
 		"puppeteer-chromium-resolver": "^23.0.0",
 		"puppeteer-core": "^23.4.0",
