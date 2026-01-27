@@ -141,7 +141,7 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 	openAiCodexOAuthManager.initialize(extensionContext)
 
 	// Configure the shared Logging class to use HostProvider's output channel
-	Logger.setOutput((msg: string) => HostProvider.get().logToChannel(msg))
+	Logger.subscribe((msg: string) => HostProvider.get().logToChannel(msg))
 
 	const webview = HostProvider.get().createWebviewProvider() as CliWebviewProvider
 	const controller = webview.controller
