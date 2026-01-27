@@ -1,7 +1,8 @@
+import { ClineEndpoint } from "@/config"
 import { isPostHogConfigValid, posthogConfig } from "@/shared/services/config/posthog-config"
-import { Logger } from "../logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { PostHogClientProvider } from "../telemetry/providers/posthog/PostHogClientProvider"
-import type { IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
+import type { FeatureFlagsAndPayloads, IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
 import { PostHogFeatureFlagsProvider } from "./providers/PostHogFeatureFlagsProvider"
 
 /**
@@ -44,9 +45,13 @@ export class FeatureFlagsProviderFactory {
 
 	/**
 	 * Gets the default feature flags provider configuration
-	 * @returns Default configuration using PostHog
+	 * @returns Default configuration using PostHog, or no-op for self-hosted mode
 	 */
 	public static getDefaultConfig(): FeatureFlagsProviderConfig {
+		// Use no-op provider in self-hosted mode to avoid external network calls
+		if (ClineEndpoint.isSelfHosted()) {
+			return { type: "no-op" }
+		}
 		const hasValidConfig = isPostHogConfigValid(posthogConfig)
 		return {
 			type: hasValidConfig ? "posthog" : "no-op",
@@ -59,14 +64,8 @@ export class FeatureFlagsProviderFactory {
  * or for testing purposes
  */
 class NoOpFeatureFlagsProvider implements IFeatureFlagsProvider {
-	public async getFeatureFlag(flagName: string): Promise<boolean | string | undefined> {
-		Logger.info(`[NoOpFeatureFlagsProvider] getFeatureFlag called with flagName=${flagName}`)
-		return undefined
-	}
-
-	public async getFeatureFlagPayload(flagName: string) {
-		Logger.info(`[NoOpFeatureFlagsProvider] getFeatureFlagPayload called with flagName=${flagName}`)
-		return null
+	async getAllFlagsAndPayloads(_: { flagKeys?: string[] }): Promise<FeatureFlagsAndPayloads | undefined> {
+		return {}
 	}
 
 	public isEnabled(): boolean {

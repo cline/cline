@@ -48,6 +48,8 @@ import {
 	nebiusModels,
 	nousResearchDefaultModelId,
 	nousResearchModels,
+	openAiCodexDefaultModelId,
+	openAiCodexModels,
 	openAiModelInfoSaneDefaults,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
@@ -91,6 +93,8 @@ export function getModelsForProvider(
 			return geminiModels
 		case "openai-native":
 			return openAiNativeModels
+		case "openai-codex":
+			return openAiCodexModels
 		case "deepseek":
 			return deepSeekModels
 		case "qwen":
@@ -131,6 +135,8 @@ export function getModelsForProvider(
 			return huggingFaceModels
 		case "nousResearch":
 			return nousResearchModels
+		case "litellm":
+			return dynamicModels?.liteLlmModels
 		// Providers with dynamic models - return undefined
 		case "openrouter":
 		case "cline":
@@ -138,7 +144,6 @@ export function getModelsForProvider(
 		case "ollama":
 		case "lmstudio":
 		case "vscode-lm":
-		case "litellm":
 		case "requesty":
 		case "hicap":
 		case "dify":
@@ -220,6 +225,8 @@ export function normalizeApiConfiguration(
 			return getProviderData(geminiModels, geminiDefaultModelId)
 		case "openai-native":
 			return getProviderData(openAiNativeModels, openAiNativeDefaultModelId)
+		case "openai-codex":
+			return getProviderData(openAiCodexModels, openAiCodexDefaultModelId)
 		case "deepseek":
 			return getProviderData(deepSeekModels, deepSeekDefaultModelId)
 		case "qwen":
@@ -781,6 +788,7 @@ export async function syncModeConfigurations(
 		case "vertex":
 		case "gemini":
 		case "openai-native":
+		case "openai-codex":
 		case "deepseek":
 		case "qwen":
 		case "doubao":

@@ -37,7 +37,6 @@ const SETTINGS_ONLY_PROVIDERS: ApiProvider[] = [
 	"ollama",
 	"lmstudio",
 	"vscode-lm",
-	"litellm",
 	"requesty",
 	"hicap",
 	"dify",
@@ -96,7 +95,10 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		showMcp,
 		showHistory,
 		showAccount,
+		remoteConfigSettings,
 		favoritedModelIds,
+		basetenModels,
+		liteLlmModels,
 	} = useExtensionState()
 	const { handleModeFieldChange, handleModeFieldsChange, handleFieldsChange } = useApiConfigurationHandlers()
 
@@ -126,8 +128,12 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 	// Use the setting for split mode
 	const isSplit = planActSeparateModelsSetting
 
-	// Check if model supports thinking
+	// Check if model supports thinking (token-based budget)
+	// OpenAI Codex uses discrete reasoning effort levels controlled via global settings, not token budgets
 	const supportsThinking = useMemo(() => {
+		if (selectedProvider === "openai-codex") {
+			return false
+		}
 		if (selectedProvider === "anthropic" || selectedProvider === "claude-code") {
 			return SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId)
 		}
@@ -157,8 +163,12 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 
 	// Get configured providers
 	const configuredProviders = useMemo(() => {
+		if (remoteConfigSettings?.remoteConfiguredProviders?.length) {
+			return remoteConfigSettings.remoteConfiguredProviders
+		}
+
 		return getConfiguredProviders(apiConfiguration)
-	}, [apiConfiguration])
+	}, [apiConfiguration, remoteConfigSettings?.remoteConfiguredProviders])
 
 	// Get models for current provider
 	const allModels = useMemo((): ModelItem[] => {
@@ -177,7 +187,10 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		}
 
 		// Use centralized helper for static provider models
-		const models = getModelsForProvider(selectedProvider, apiConfiguration)
+		const models = getModelsForProvider(selectedProvider, apiConfiguration, {
+			basetenModels,
+			liteLlmModels,
+		})
 		if (models) {
 			return Object.entries(models).map(([id, info]) => ({
 				id,
@@ -188,7 +201,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		}
 
 		return []
-	}, [selectedProvider, openRouterModels, vercelAiGatewayModels, apiConfiguration])
+	}, [selectedProvider, openRouterModels, vercelAiGatewayModels, apiConfiguration, basetenModels, liteLlmModels])
 
 	// Multi-word substring search - all words must match somewhere in id/name/provider
 	const matchesSearch = useCallback((model: ModelItem, query: string): boolean => {
@@ -310,6 +323,19 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 					{
 						basetenModelId: modelId,
 						basetenModelInfo: modelInfo,
+					},
+					modeToUse,
+				)
+			} else if (selectedProvider === "litellm") {
+				// LiteLLM uses provider-specific model ID and info fields
+				handleModeFieldsChange(
+					{
+						liteLlmModelId: { plan: "planModeLiteLlmModelId", act: "actModeLiteLlmModelId" },
+						liteLlmModelInfo: { plan: "planModeLiteLlmModelInfo", act: "actModeLiteLlmModelInfo" },
+					},
+					{
+						liteLlmModelId: modelId,
+						liteLlmModelInfo: modelInfo,
 					},
 					modeToUse,
 				)
@@ -606,7 +632,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 										<TooltipTrigger asChild>
 											<IconToggle
 												$isActive={thinkingEnabled}
-												$isDisabled={!supportsThinking}
+												$isHidden={!supportsThinking}
 												onClick={(e) => {
 													e.stopPropagation()
 													supportsThinking && handleThinkingToggle(!thinkingEnabled)
@@ -614,13 +640,13 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 												<Brain size={14} />
 											</IconToggle>
 										</TooltipTrigger>
-										<TooltipContent side="top" style={{ zIndex: 9999 }}>
-											{!supportsThinking
-												? "Thinking not supported by this model"
-												: thinkingEnabled
+										{supportsThinking && (
+											<TooltipContent side="top" style={{ zIndex: 9999 }}>
+												{thinkingEnabled
 													? "Extended thinking enabled"
 													: "Enable extended thinking for enhanced reasoning"}
-										</TooltipContent>
+											</TooltipContent>
+										)}
 									</Tooltip>
 									<Tooltip>
 										<TooltipTrigger asChild>
@@ -884,8 +910,8 @@ const SettingsSection = styled.div`
 	flex-direction: column;
 `
 
-const IconToggle = styled.button<{ $isActive: boolean; $isDisabled?: boolean }>`
-	display: flex;
+const IconToggle = styled.button<{ $isActive: boolean; $isDisabled?: boolean; $isHidden?: boolean }>`
+	display: ${(props) => (props.$isHidden ? "none" : "flex")};
 	align-items: center;
 	justify-content: center;
 	width: 24px;

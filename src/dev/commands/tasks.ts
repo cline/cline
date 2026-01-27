@@ -6,6 +6,7 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * Registers development-only commands for task manipulation.
@@ -31,7 +32,7 @@ export function registerTaskCommands(controller: Controller): vscode.Disposable[
 					if (secrets[hash].tokens_saved_at) {
 						secrets[hash].tokens_saved_at = Date.now() - 2 * 60 * 60 * 1000 // 2 hours ago
 						expiredCount++
-						console.log(`[Dev] Expired tokens for hash: ${hash}`)
+						Logger.log(`[Dev] Expired tokens for hash: ${hash}`)
 					}
 				}
 
@@ -48,7 +49,7 @@ export function registerTaskCommands(controller: Controller): vscode.Disposable[
 				}
 			} catch (error) {
 				vscode.window.showErrorMessage(`Failed to expire tokens: ${error}`)
-				console.error("[Dev] Error expiring MCP OAuth tokens:", error)
+				Logger.error("[Dev] Error expiring MCP OAuth tokens:", error)
 			}
 		}),
 		vscode.commands.registerCommand("cline.dev.createTestTasks", async () => {

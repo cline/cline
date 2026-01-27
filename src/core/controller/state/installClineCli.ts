@@ -2,6 +2,7 @@ import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { ShowMessageType } from "@shared/proto/host/window"
 import { ExecuteCommandInTerminalRequest } from "@shared/proto/host/workspace"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
@@ -26,7 +27,7 @@ export async function installClineCli(_controller: Controller, _request: EmptyRe
 			throw new Error("Failed to execute command in terminal")
 		}
 	} catch (error) {
-		console.error("Error executing CLI installation:", error)
+		Logger.error("Error executing CLI installation:", error)
 		await HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: `Failed to start CLI installation: ${error instanceof Error ? error.message : "Unknown error"}`,

@@ -133,6 +133,31 @@ export const GlobalInstructionsFileSchema = z.object({
 	contents: z.string(),
 })
 
+export const S3AccessKeySettingsSchema = z.object({
+	bucket: z.string(),
+	accessKeyId: z.string(),
+	secretAccessKey: z.string(),
+	region: z.string().optional(),
+	endpoint: z.string().optional(),
+	accountId: z.string().optional(),
+	intervalMs: z.number().optional(),
+	maxRetries: z.number().optional(),
+	batchSize: z.number().optional(),
+	maxQueueSize: z.number().optional(),
+	maxFailedAgeMs: z.number().optional(),
+	backfillEnabled: z.boolean().optional(),
+})
+
+export const PromptUploadingSchema = z.object({
+	enabled: z.boolean().optional(),
+	type: z.literal("s3_access_keys").optional(),
+	s3AccessSettings: S3AccessKeySettingsSchema.optional(),
+})
+
+export const EnterpriseTelemetrySchema = z.object({
+	promptUploading: PromptUploadingSchema.optional(),
+})
+
 export const RemoteConfigSchema = z.object({
 	// The version of the remote config settings, e.g. v1
 	// This field is for internal use only, and won't be visible to the administrator in the UI.
@@ -177,6 +202,8 @@ export const RemoteConfigSchema = z.object({
 	openTelemetryLogBatchTimeout: z.number().optional(),
 	openTelemetryLogMaxQueueSize: z.number().optional(),
 
+	enterpriseTelemetry: EnterpriseTelemetrySchema.optional(),
+
 	// Rules & Workflows
 	globalRules: z.array(GlobalInstructionsFileSchema).optional(),
 	globalWorkflows: z.array(GlobalInstructionsFileSchema).optional(),
@@ -206,3 +233,7 @@ export type LiteLLMSettings = z.infer<typeof LiteLLMSchema>
 export type LiteLLMModel = z.infer<typeof LiteLLMModelSchema>
 
 export type APIKeySettings = z.infer<typeof APIKeySchema>
+
+export type EnterpriseTelemetry = z.infer<typeof EnterpriseTelemetrySchema>
+export type PromptUploading = z.infer<typeof PromptUploadingSchema>
+export type S3AccessKeySettings = z.infer<typeof S3AccessKeySettingsSchema>

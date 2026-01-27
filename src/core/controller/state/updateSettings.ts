@@ -1,5 +1,4 @@
 import { buildApiHandler } from "@core/api"
-
 import { Empty } from "@shared/proto/cline/common"
 import {
 	PlanActMode,
@@ -11,9 +10,12 @@ import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { ClineEnv } from "@/config"
+import { fetchRemoteConfig } from "@/core/storage/remote-config/fetch"
+import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { HostProvider } from "@/hosts/host-provider"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { telemetryService } from "../../../services/telemetry"
 import { BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
 import { Controller } from ".."
@@ -193,6 +195,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("clineWebToolsEnabled", request.clineWebToolsEnabled)
 		}
 
+		// Update worktrees setting
+		if (request.worktreesEnabled !== undefined) {
+			controller.stateManager.setGlobalState("worktreesEnabled", request.worktreesEnabled)
+		}
+
 		if (request.dictationSettings !== undefined) {
 			// Convert from protobuf format (snake_case) to TypeScript format (camelCase)
 			const dictationSettings = {
@@ -333,17 +340,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("multiRootEnabled", !!request.multiRootEnabled)
 		}
 
-		if (request.hooksEnabled !== undefined) {
-			const isEnabled = !!request.hooksEnabled
-
-			// Platform validation: Only allow enabling hooks on macOS and Linux
-			if (isEnabled && process.platform === "win32") {
-				throw new Error("Hooks are not yet supported on Windows")
-			}
-
-			controller.stateManager.setGlobalState("hooksEnabled", isEnabled)
-		}
-
 		if (request.subagentsEnabled !== undefined) {
 			const currentSettings = controller.stateManager.getGlobalSettingsKey("subagentsEnabled")
 			const wasEnabled = currentSettings ?? false
@@ -383,12 +379,31 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("enableParallelToolCalling", !!request.enableParallelToolCalling)
 		}
 
+		if (request.optOutOfRemoteConfig !== undefined) {
+			const hadOptedOut = controller.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig")
+			const isOptingOut = !!request.optOutOfRemoteConfig
+			const isReenablingRemoteConfig = !isOptingOut && hadOptedOut
+
+			// Update now so any subsequent function can access the updated value
+			controller.stateManager.setGlobalState("optOutOfRemoteConfig", isOptingOut)
+
+			if (isOptingOut && !hadOptedOut) {
+				clearRemoteConfig()
+			} else if (isReenablingRemoteConfig) {
+				// Fire-and-forget: We don't need to await here
+				// The function catches any errors and posts the updated state to the webview
+				// The immediate state update below shows the user's intent (opted-in),
+				// and we apply the actual config afterwards without blocking the settings update
+				fetchRemoteConfig(controller)
+			}
+		}
+
 		// Post updated state to webview
 		await controller.postStateToWebview()
 
 		return Empty.create()
 	} catch (error) {
-		console.error("Failed to update settings:", error)
+		Logger.error("Failed to update settings:", error)
 		throw error
 	}
 }

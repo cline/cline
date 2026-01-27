@@ -21,16 +21,15 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 	const {
 		enableCheckpointsSetting,
 		mcpDisplayMode,
-		mcpResponsesCollapsed,
 		openaiReasoningEffort,
 		strictPlanModeEnabled,
 		yoloModeToggled,
 		dictationSettings,
 		useAutoCondense,
 		clineWebToolsEnabled,
+		worktreesEnabled,
 		focusChainSettings,
 		multiRootSetting,
-		hooksEnabled,
 		skillsEnabled,
 		remoteConfigSettings,
 		subagentsEnabled,
@@ -201,19 +200,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
-						<VSCodeCheckbox
-							checked={mcpResponsesCollapsed}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								updateSetting("mcpResponsesCollapsed", checked)
-							}}>
-							Collapse MCP Responses
-						</VSCodeCheckbox>
-						<p className="text-xs text-(--vscode-descriptionForeground)">
-							Sets the default display mode for MCP response panels
-						</p>
-					</div>
-					<div style={{ marginTop: 10 }}>
 						<label
 							className="block text-sm font-medium text-(--vscode-foreground) mb-1"
 							htmlFor="openai-reasoning-effort-dropdown">
@@ -347,6 +333,21 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</p>
 						</div>
 					)}
+					{worktreesEnabled?.featureFlag && (
+						<div style={{ marginTop: 10 }}>
+							<VSCodeCheckbox
+								checked={worktreesEnabled?.user}
+								onChange={(e: any) => {
+									const checked = e.target.checked === true
+									updateSetting("worktreesEnabled", checked)
+								}}>
+								Enable Worktrees
+							</VSCodeCheckbox>
+							<p className="text-xs text-(--vscode-descriptionForeground)">
+								Enables git worktree management for running parallel Cline tasks.
+							</p>
+						</div>
+					)}
 					<div className="mt-2.5">
 						<VSCodeCheckbox
 							checked={nativeToolCallSetting}
@@ -409,30 +410,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</p>
 						</div>
 					)}
-					<div className="mt-2.5">
-						<VSCodeCheckbox
-							checked={hooksEnabled}
-							disabled={!isMacOSOrLinux()}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								updateSetting("hooksEnabled", checked)
-							}}>
-							Enable Hooks
-						</VSCodeCheckbox>
-						{!isMacOSOrLinux() ? (
-							<p className="text-xs mt-1" style={{ color: "var(--vscode-inputValidation-warningForeground)" }}>
-								Hooks are not yet supported on Windows. This feature is currently available on macOS and Linux
-								only.
-							</p>
-						) : (
-							<p className="text-xs">
-								<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
-								<span className="text-description">
-									Allows execution of hooks from .clinerules/hooks/ directory.
-								</span>
-							</p>
-						)}
-					</div>
 					<div className="mt-2.5">
 						<VSCodeCheckbox
 							checked={skillsEnabled}

@@ -5,6 +5,7 @@ import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import * as os from "os"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
 import { Setting } from "@/shared/proto/index.host"
+import { Logger } from "@/shared/services/Logger"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
 import { setDistinctId } from "../logging/distinctId"
@@ -16,7 +17,7 @@ import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
  * When adding a new category, add it both here and to the initial values in telemetryCategoryEnabled
  * Ensure `if (!this.isCategoryEnabled('<category_name>')` is added to the capture method
  */
-type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "dictation" | "subagents" | "hooks"
+type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "dictation" | "subagents" | "skills" | "hooks"
 
 /**
  * Terminal type for telemetry differentiation
@@ -109,6 +110,7 @@ export class TelemetryService {
 		["dictation", true], // Dictation telemetry enabled
 		["focus_chain", true], // Focus Chain telemetry enabled
 		["subagents", true], // CLI Subagents telemetry enabled
+		["skills", true], // Skills telemetry enabled
 		["hooks", true], // Hooks telemetry enabled
 	])
 
@@ -284,6 +286,8 @@ export class TelemetryService {
 			SUBAGENT_DISABLED: "task.subagent_disabled",
 			SUBAGENT_STARTED: "task.subagent_started",
 			SUBAGENT_COMPLETED: "task.subagent_completed",
+			// Skills telemetry events
+			SKILL_USED: "task.skill_used",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -308,6 +312,15 @@ export class TelemetryService {
 			CONTEXT_MODIFIED: "hooks.context_modified",
 			// Tracks when hook discovery completes
 			DISCOVERY_COMPLETED: "hooks.discovery_completed",
+		},
+		// Worktree-related events for tracking worktree feature usage
+		WORKTREE: {
+			// Tracks when user opens worktrees view from home page
+			VIEW_OPENED: "worktree.view_opened",
+			// Tracks when a worktree is created
+			CREATED: "worktree.created",
+			// Tracks when a worktree merge is attempted
+			MERGE_ATTEMPTED: "worktree.merge_attempted",
 		},
 	}
 
@@ -335,7 +348,7 @@ export class TelemetryService {
 		private telemetryMetadata: TelemetryMetadata,
 	) {
 		this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
-		console.info(`[TelemetryService] Initialized with ${providers.length} telemetry provider(s)`)
+		Logger.info(`[TelemetryService] Initialized with ${providers.length} telemetry provider(s)`)
 	}
 
 	public addProvider(provider: ITelemetryProvider) {
@@ -424,7 +437,7 @@ export class TelemetryService {
 					provider.log(event, properties)
 				}
 			} catch (error) {
-				console.error(`[TelemetryService] Provider failed for event ${event}:`, error)
+				Logger.error(`[TelemetryService] Provider failed for event ${event}:`, error)
 			}
 		})
 	}
@@ -449,7 +462,7 @@ export class TelemetryService {
 			try {
 				provider.recordCounter(name, value, attrs, description, required)
 			} catch (error) {
-				console.error(`[TelemetryService] recordCounter failed: ${name}`, error)
+				Logger.error(`[TelemetryService] recordCounter failed: ${name}`, error)
 			}
 		})
 	}
@@ -466,7 +479,7 @@ export class TelemetryService {
 			try {
 				provider.recordHistogram(name, value, attrs, description, required)
 			} catch (error) {
-				console.error(`[TelemetryService] recordHistogram failed: ${name}`, error)
+				Logger.error(`[TelemetryService] recordHistogram failed: ${name}`, error)
 			}
 		})
 	}
@@ -487,7 +500,7 @@ export class TelemetryService {
 			try {
 				provider.recordGauge(name, value, attrs, description, required)
 			} catch (error) {
-				console.error(`[TelemetryService] recordGauge failed: ${name}`, error)
+				Logger.error(`[TelemetryService] recordGauge failed: ${name}`, error)
 			}
 		})
 	}
@@ -591,7 +604,7 @@ export class TelemetryService {
 			try {
 				provider.identifyUser(userInfo, propertiesWithMetadata)
 			} catch (error) {
-				console.error(`[TelemetryService] Provider failed for user identification:`, error)
+				Logger.error(`[TelemetryService] Provider failed for user identification:`, error)
 			}
 		})
 
@@ -788,7 +801,7 @@ export class TelemetryService {
 	) {
 		// Ensure required parameters are provided
 		if (!ulid || !provider || !model || !source) {
-			console.warn("TelemetryService: Missing required parameters for message capture")
+			Logger.warn("TelemetryService: Missing required parameters for message capture")
 			return
 		}
 
@@ -931,7 +944,7 @@ export class TelemetryService {
 	 * @param feedbackType The type of feedback ("thumbs_up" or "thumbs_down")
 	 */
 	public captureTaskFeedback(ulid: string, feedbackType: TaskFeedbackType) {
-		console.info("TelemetryService: Capturing task feedback", {
+		Logger.info("TelemetryService: Capturing task feedback", {
 			ulid,
 			feedbackType,
 		})
@@ -1001,6 +1014,42 @@ export class TelemetryService {
 		const toolCallCount = this.incrementTaskCounter(this.taskToolCallCounts, ulid)
 		this.recordCounter(TelemetryService.METRICS.TOOLS.CALLS_TOTAL, 1, toolAttributes)
 		this.recordHistogram(TelemetryService.METRICS.TOOLS.CALLS_PER_TASK, toolCallCount, toolAttributes)
+	}
+
+	public captureSkillUsed(args: {
+		ulid: string
+		skillName: string
+		skillSource: "global" | "project"
+		skillsAvailableGlobal: number
+		skillsAvailableProject: number
+		provider?: string
+		modelId?: string
+	}): void {
+		if (!this.isCategoryEnabled("skills")) {
+			return
+		}
+
+		if (!args.ulid || !args.skillName) {
+			return
+		}
+
+		const skillsAvailableGlobal = Math.max(0, args.skillsAvailableGlobal)
+		const skillsAvailableProject = Math.max(0, args.skillsAvailableProject)
+
+		const properties = {
+			ulid: args.ulid,
+			skillName: args.skillName,
+			skillSource: args.skillSource,
+			skillsAvailableGlobal,
+			skillsAvailableProject,
+			provider: args.provider,
+			modelId: args.modelId,
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.SKILL_USED,
+			properties,
+		})
 	}
 
 	/**
@@ -1625,18 +1674,31 @@ export class TelemetryService {
 	 * @param success Whether the command output was successfully captured
 	 * @param terminalType The type of terminal ("standalone")
 	 * @param method The standalone-specific method used to capture output
+	 * @param exitCode The process exit code (useful for diagnosing failure types: 1=error, 127=not found, 126=permission denied)
 	 */
-	public captureTerminalExecution(success: boolean, terminalType: "standalone", method: StandaloneOutputMethod): void
+	public captureTerminalExecution(
+		success: boolean,
+		terminalType: "standalone",
+		method: StandaloneOutputMethod,
+		exitCode?: number | null,
+	): void
 	/**
 	 * Implementation of captureTerminalExecution
 	 */
-	public captureTerminalExecution(success: boolean, terminalType: TerminalType, method: TerminalOutputMethod): void {
+	public captureTerminalExecution(
+		success: boolean,
+		terminalType: TerminalType,
+		method: TerminalOutputMethod,
+		exitCode?: number | null,
+	): void {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_EXECUTION,
 			properties: {
 				success,
 				terminalType,
 				method,
+				// Only include exitCode for standalone terminals when it's a meaningful value
+				...(terminalType === "standalone" && exitCode !== undefined && exitCode !== null && { exitCode }),
 			},
 		})
 	}
@@ -1832,6 +1894,51 @@ export class TelemetryService {
 				hint_provided: hintProvided,
 				results_found: resultsFound,
 				search_duration_ms: searchDurationMs,
+			},
+		})
+	}
+
+	/**
+	 * Records when user opens the worktrees view
+	 * @param source Where the user opened the view from (home_page or menu_bar)
+	 */
+	public captureWorktreeViewOpened(source: "home_page" | "menu_bar") {
+		this.capture({
+			event: TelemetryService.EVENTS.WORKTREE.VIEW_OPENED,
+			properties: {
+				source,
+			},
+		})
+	}
+
+	/**
+	 * Records when a worktree is created
+	 * @param success Whether the creation was successful
+	 * @param worktreeCount Total number of worktrees after creation (to track power users)
+	 */
+	public captureWorktreeCreated(success: boolean, worktreeCount?: number) {
+		this.capture({
+			event: TelemetryService.EVENTS.WORKTREE.CREATED,
+			properties: {
+				success,
+				worktree_count: worktreeCount,
+			},
+		})
+	}
+
+	/**
+	 * Records when a worktree merge is attempted
+	 * @param success Whether the merge was successful
+	 * @param hasConflicts Whether merge conflicts were detected
+	 * @param deleteAfterMerge Whether user chose to delete worktree after merge
+	 */
+	public captureWorktreeMergeAttempted(success: boolean, hasConflicts: boolean, deleteAfterMerge: boolean) {
+		this.capture({
+			event: TelemetryService.EVENTS.WORKTREE.MERGE_ATTEMPTED,
+			properties: {
+				success,
+				has_conflicts: hasConflicts,
+				delete_after_merge: deleteAfterMerge,
 			},
 		})
 	}
@@ -2156,7 +2263,7 @@ export class TelemetryService {
 			telemetryFn()
 		} catch (error) {
 			const contextStr = context ? ` [Context: ${context}]` : ""
-			console.error(`[Telemetry] Failed to capture telemetry${contextStr}:`, error)
+			Logger.error(`[Telemetry] Failed to capture telemetry${contextStr}:`, error)
 		}
 	}
 

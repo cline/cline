@@ -2,6 +2,17 @@ const SEARCH_BLOCK_START = "------- SEARCH"
 const SEARCH_BLOCK_END = "======="
 const REPLACE_BLOCK_END = "+++++++ REPLACE"
 
+/**
+ * Converts a character index in a string to a 1-based line number.
+ * @param content - The full content string
+ * @param charIndex - The character index in the content
+ * @returns The 1-based line number where charIndex falls
+ */
+export function getLineNumberFromCharIndex(content: string, charIndex: number): number {
+	if (charIndex <= 0) return 1
+	return content.substring(0, charIndex).split("\n").length
+}
+
 const SEARCH_BLOCK_CHAR = "-"
 const REPLACE_BLOCK_CHAR = "+"
 const LEGACY_SEARCH_BLOCK_CHAR = "<"
@@ -236,7 +247,7 @@ export async function constructNewFileContent(
 	originalContent: string,
 	isFinal: boolean,
 	version: "v1" | "v2" = "v1",
-): Promise<string> {
+): Promise<{ newContent: string; matchIndices: number[] }> {
 	const constructor = constructNewFileContentVersionMapping[version]
 	if (!constructor) {
 		throw new Error(`Invalid version '${version}' for file content constructor`)
@@ -246,13 +257,17 @@ export async function constructNewFileContent(
 
 const constructNewFileContentVersionMapping: Record<
 	string,
-	(diffContent: string, originalContent: string, isFinal: boolean) => Promise<string>
+	(diffContent: string, originalContent: string, isFinal: boolean) => Promise<{ newContent: string; matchIndices: number[] }>
 > = {
 	v1: constructNewFileContentV1,
 	v2: constructNewFileContentV2,
 } as const
 
-async function constructNewFileContentV1(diffContent: string, originalContent: string, isFinal: boolean): Promise<string> {
+async function constructNewFileContentV1(
+	diffContent: string,
+	originalContent: string,
+	isFinal: boolean,
+): Promise<{ newContent: string; matchIndices: number[] }> {
 	let result = ""
 	let lastProcessedIndex = 0
 
@@ -470,7 +485,9 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 		result += originalContent.slice(currentPos)
 	}
 
-	return result
+	// Return all match indices from the replacements
+	// This is used to determine the line numbers for each SEARCH/REPLACE block in the UI
+	return { newContent: result, matchIndices: replacements.map((r) => r.start) }
 }
 
 enum ProcessingState {
@@ -566,7 +583,7 @@ class NewFileContentConstructor {
 		this.internalProcessLine(line, true, this.pendingNonStandardLines.length)
 	}
 
-	public getResult() {
+	public getResult(): { newContent: string; matchIndices: number[] } {
 		// If this is the final chunk, append any remaining original content
 		if (this.isFinal && this.lastProcessedIndex < this.originalContent.length) {
 			this.result += this.originalContent.slice(this.lastProcessedIndex)
@@ -574,7 +591,10 @@ class NewFileContentConstructor {
 		if (this.isFinal && this.state !== ProcessingState.Idle) {
 			throw new Error("File processing incomplete - SEARCH/REPLACE operations still active during finalization")
 		}
-		return this.result
+		// Note: V2 implementation doesn't currently track match indices
+		// For now, return empty array. If V2 becomes the default and we need line numbers,
+		// we should add state to track all match indices.
+		return { newContent: this.result, matchIndices: [] }
 	}
 
 	private internalProcessLine(
@@ -800,7 +820,11 @@ class NewFileContentConstructor {
 	}
 }
 
-export async function constructNewFileContentV2(diffContent: string, originalContent: string, isFinal: boolean): Promise<string> {
+export async function constructNewFileContentV2(
+	diffContent: string,
+	originalContent: string,
+	isFinal: boolean,
+): Promise<{ newContent: string; matchIndices: number[] }> {
 	const newFileContentConstructor = new NewFileContentConstructor(originalContent, isFinal)
 
 	const lines = diffContent.split("\n")

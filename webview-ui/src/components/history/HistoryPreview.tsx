@@ -1,9 +1,9 @@
 import { StringRequest } from "@shared/proto/cline/common"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { memo, useMemo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { TaskServiceClient } from "@/services/grpc-client"
+import { Button } from "../ui/button"
 
 type HistoryPreviewProps = {
 	showHistoryView: () => void
@@ -164,15 +164,15 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 								</div>
 							))}
 							<div className="flex items-center justify-center">
-								<VSCodeButton
-									appearance="icon"
+								<Button
 									aria-label="View all history"
 									onClick={() => showHistoryView()}
 									style={{
 										opacity: 0.9,
-									}}>
+									}}
+									variant="ghost">
 									<div className="text-base text-description">View All</div>
-								</VSCodeButton>
+								</Button>
 							</div>
 						</>
 					) : (

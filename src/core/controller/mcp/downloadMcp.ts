@@ -4,6 +4,7 @@ import { McpDownloadResponse } from "@shared/proto/cline/mcp"
 import axios from "axios"
 import { ClineEnv } from "@/config"
 import { getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 
@@ -45,7 +46,7 @@ export async function downloadMcp(controller: Controller, request: StringRequest
 			throw new Error("Invalid response from MCP marketplace API")
 		}
 
-		console.log("[downloadMcp] Response from download API", { response })
+		Logger.log("[downloadMcp] Response from download API", { response })
 
 		const mcpDetails = response.data
 
@@ -89,7 +90,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			requiresApiKey: mcpDetails.requiresApiKey,
 		})
 	} catch (error) {
-		console.error("Failed to download MCP:", error)
+		Logger.error("Failed to download MCP:", error)
 		let errorMessage = "Failed to download MCP"
 
 		if (axios.isAxiosError(error)) {

@@ -7,6 +7,7 @@ import * as readline from "readline"
 import { WorkspaceRootManager } from "@/core/workspace"
 import { HostProvider } from "@/hosts/host-provider"
 import { GetOpenTabsRequest } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { getBinaryLocation } from "@/utils/fs"
 
 // Wrapper function for childProcess.spawn
@@ -182,7 +183,7 @@ export async function searchWorkspaceFiles(
 
 		return await Promise.all(verifiedResultsPromises)
 	} catch (error) {
-		console.error("Error in searchWorkspaceFiles:", error)
+		Logger.error("Error in searchWorkspaceFiles:", error)
 		return []
 	}
 }
@@ -244,7 +245,7 @@ export async function searchWorkspaceFilesMultiroot(
 				const results = await searchWorkspaceFiles(query, workspace.path, limit, selectedType, workspace.name)
 				return results
 			} catch (error) {
-				console.error(`[searchWorkspaceFilesMultiroot] Error searching workspace ${workspace.name}:`, error)
+				Logger.error(`[searchWorkspaceFilesMultiroot] Error searching workspace ${workspace.name}:`, error)
 				return []
 			}
 		})
@@ -286,7 +287,7 @@ export async function searchWorkspaceFilesMultiroot(
 
 		return flatResults
 	} catch (error) {
-		console.error("[searchWorkspaceFilesMultiroot] Error in multiroot search:", error)
+		Logger.error("[searchWorkspaceFilesMultiroot] Error in multiroot search:", error)
 		return []
 	}
 }
