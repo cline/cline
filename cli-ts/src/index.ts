@@ -194,6 +194,7 @@ async function runTask(
 		yolo?: boolean
 		images?: string[]
 		json?: boolean
+		stdinWasPiped?: boolean
 	},
 	existingContext?: CliContext,
 ) {
@@ -260,9 +261,13 @@ async function runTask(
 	// Detect if output is a TTY (interactive terminal) or redirected to a file/pipe
 	const isTTY = process.stdout.isTTY === true
 
-	// Use plain text mode when output is redirected or JSON mode is enabled
-	if (!isTTY || options.json) {
-		telemetryService.captureHostEvent("plain_text_mode", options.json ? "json" : "redirected_output")
+	// Use plain text mode when output is redirected, stdin was piped, or JSON mode is enabled
+	// Ink requires raw mode on stdin which isn't available when stdin is piped
+	// Note: we use the stdinWasPiped flag passed from the caller because process.stdin.isTTY
+	// may not be reliable after stdin has been consumed by readStdinIfPiped()
+	if (!isTTY || options.stdinWasPiped || options.json) {
+		const reason = options.json ? "json" : options.stdinWasPiped ? "piped_stdin" : "redirected_output"
+		telemetryService.captureHostEvent("plain_text_mode", reason)
 		// Plain text mode: no Ink rendering, just clean text output
 		const success = await runPlainTextTask({
 			controller: ctx.controller,
@@ -465,7 +470,6 @@ program
 	.option("-p, --plan", "Run in plan mode")
 	.option("-y, --yolo", "Enable yolo mode (auto-approve actions)")
 	.option("-m, --model <model>", "Model to use for the task")
-	.option("-i, --images <paths...>", "Image file paths to include with the task")
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory for the task")
 	.option("--config <path>", "Path to Cline configuration directory")
@@ -616,10 +620,16 @@ program
 			}
 
 			telemetryService.captureHostEvent("piped", "detached")
+
+			// Debug: show that we received piped input
+			if (options.verbose) {
+				process.stderr.write(`[debug] Received ${stdinInput.length} bytes from stdin\n`)
+			}
 		}
 
 		if (effectivePrompt) {
-			await runTask(effectivePrompt, options)
+			// Pass stdinWasPiped flag so runTask knows to use plain text mode
+			await runTask(effectivePrompt, { ...options, stdinWasPiped: !!stdinInput })
 		} else {
 			// Show welcome prompt if no prompt given
 			await showWelcome(options)

@@ -42,91 +42,55 @@ jobs:
           node-version: '20.x'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Setup Go
-        if: steps.check_commits.outputs.skip != 'true'
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.24'
-          cache-dependency-path: cli/go.sum
-
-      # Cache root dependencies - only reuse if package-lock.json exactly matches
-      - name: Cache root dependencies
+      # Cache cli-ts dependencies
+      - name: Cache cli-ts dependencies
         if: steps.check_commits.outputs.skip != 'true'
         uses: actions/cache@v4
-        id: root-cache
+        id: cli-ts-cache
         with:
-          path: node_modules
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+          path: cli-ts/node_modules
+          key: ${{ runner.os }}-npm-cli-ts-${{ hashFiles('cli-ts/package-lock.json') }}
 
-      # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
-      - name: Cache webview-ui dependencies
-        if: steps.check_commits.outputs.skip != 'true'
-        uses: actions/cache@v4
-        id: webview-cache
-        with:
-          path: webview-ui/node_modules
-          key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
-
-      - name: Install root dependencies
-        if: steps.check_commits.outputs.skip != 'true' && steps.root-cache.outputs.cache-hit != 'true'
-        run: npm ci --include=optional
-
-      - name: Install webview-ui dependencies
-        if: steps.check_commits.outputs.skip != 'true' && steps.webview-cache.outputs.cache-hit != 'true'
-        run: cd webview-ui && npm ci --include=optional
+      - name: Install cli-ts dependencies
+        if: steps.check_commits.outputs.skip != 'true' && steps.cli-ts-cache.outputs.cache-hit != 'true'
+        run: cd cli-ts && npm ci
 
       - name: Generate nightly version with timestamp
         if: steps.check_commits.outputs.skip != 'true'
         id: version
         run: |
-          # Read base version from cli/package.json (e.g., "1.0.9")
-          BASE_VERSION=$(node -p "require('./cli/package.json').version")
-          
+          # Read base version from cli-ts/package.json (e.g., "2.0.0")
+          BASE_VERSION=$(node -p "require('./cli-ts/package.json').version")
+
           # Generate timestamp (Unix epoch seconds)
           TIMESTAMP=$(date +%s)
-          
-          # Create unique nightly version: 1.0.9-nightly.1736365200
+
+          # Create unique nightly version: 2.0.0-nightly.1736365200
           VERSION="${BASE_VERSION}-nightly.${TIMESTAMP}"
-          
+
           echo "Base version: $BASE_VERSION"
           echo "Generated nightly version: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Update cli/package.json with nightly version
+      - name: Update cli-ts/package.json with nightly version
         if: steps.check_commits.outputs.skip != 'true'
         run: |
           # Update version with timestamp-based nightly version
           node -e "
             const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('cli/package.json', 'utf8'));
+            const pkg = JSON.parse(fs.readFileSync('cli-ts/package.json', 'utf8'));
             pkg.version = '${{ steps.version.outputs.version }}';
-            fs.writeFileSync('cli/package.json', JSON.stringify(pkg, null, '\t'));
+            fs.writeFileSync('cli-ts/package.json', JSON.stringify(pkg, null, '\t'));
           "
-          
-          echo "Using version ${{ steps.version.outputs.version }} for build"
-          cat cli/package.json | grep '"version"'
 
-      - name: Download ripgrep binaries
-        if: steps.check_commits.outputs.skip != 'true'
-        run: npm run download-ripgrep
+          echo "Using version ${{ steps.version.outputs.version }} for build"
+          cat cli-ts/package.json | grep '"version"'
 
       - name: Clean previous builds
         if: steps.check_commits.outputs.skip != 'true'
         run: rm -rf dist-standalone
 
-      - name: Generate Protos (First Pass)
-        if: steps.check_commits.outputs.skip != 'true'
-        run: npm run protos && npm run protos-go
-
-      - name: Compile CLI
-        if: steps.check_commits.outputs.skip != 'true'
-        run: npm run compile-cli
-
-      - name: Compile CLI for all platforms
-        if: steps.check_commits.outputs.skip != 'true'
-        run: npm run compile-cli-all-platforms
-
-      - name: Build standalone NPM package
+      - name: Build and package CLI
         if: steps.check_commits.outputs.skip != 'true'
         env:
           TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
@@ -139,23 +103,19 @@ jobs:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
           POSTHOG_TELEMETRY_ENABLED: "true"
-        run: npm run compile-standalone-npm
-
-      - name: Generate Protos (Second Pass - Bug Workaround)
-        if: steps.check_commits.outputs.skip != 'true'
-        run: npm run protos && npm run protos-go
+        run: node scripts/package-npm.mjs
 
       - name: Verify build output
         if: steps.check_commits.outputs.skip != 'true'
         run: |
           echo "Checking dist-standalone directory..."
           ls -la dist-standalone/
-          
-          echo "Verifying CLI binaries..."
-          ls -lh cli/bin/cline-* || echo "Warning: CLI binaries not found"
-          
+
+          echo "Checking dist-standalone/dist..."
+          ls -la dist-standalone/dist/
+
           echo "Checking package.json in dist-standalone..."
-          cat dist-standalone/package.json | grep version
+          cat dist-standalone/package.json
 
       - name: Publish to NPM with nightly tag
         if: steps.check_commits.outputs.skip != 'true'
