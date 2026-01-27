@@ -811,9 +811,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 						<ProviderPicker isActive={isPickingProvider} onSelect={handleProviderSelect} />
 					</Box>
 					<Box marginTop={1}>
-						<Text color="gray" dimColor>
-							Type to search, arrows to navigate, Enter to select, Esc to cancel
-						</Text>
+						<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to cancel</Text>
 					</Box>
 				</Box>
 			)
@@ -840,7 +838,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			return (
 				<Box flexDirection="column">
 					<Box>
-						<Text color="blueBright">
+						<Text color={COLORS.primaryBlue}>
 							<Spinner type="dots" />
 						</Text>
 						<Text color="white"> Waiting for ChatGPT sign-in...</Text>
@@ -850,9 +848,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 					</Box>
 					<Text color="gray">Requires ChatGPT Plus, Pro, or Team subscription.</Text>
 					<Box marginTop={1}>
-						<Text color="gray" dimColor>
-							Esc to cancel
-						</Text>
+						<Text color="gray">Esc to cancel</Text>
 					</Box>
 				</Box>
 			)
@@ -868,9 +864,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 						<Text color="yellow">{codexAuthError}</Text>
 					</Box>
 					<Box marginTop={1}>
-						<Text color="gray" dimColor>
-							Press any key to continue
-						</Text>
+						<Text color="gray">Press any key to continue</Text>
 					</Box>
 				</Box>
 			)
@@ -892,9 +886,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 						/>
 					</Box>
 					<Box marginTop={1}>
-						<Text color="gray" dimColor>
-							Type to search, arrows to navigate, Enter to select, Esc to cancel
-						</Text>
+						<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to cancel</Text>
 					</Box>
 				</Box>
 			)
@@ -910,9 +902,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 						<LanguagePicker isActive={isPickingLanguage} onSelect={handleLanguageSelect} />
 					</Box>
 					<Box marginTop={1}>
-						<Text color="gray" dimColor>
-							Type to search, arrows to navigate, Enter to select, Esc to cancel
-						</Text>
+						<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to cancel</Text>
 					</Box>
 				</Box>
 			)
@@ -929,9 +919,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 						<Text color="white">{editValue}</Text>
 						<Text color="gray">|</Text>
 					</Box>
-					<Text color="gray" dimColor>
-						Enter to save, Esc to cancel
-					</Text>
+					<Text color="gray">Enter to save, Esc to cancel</Text>
 				</Box>
 			)
 		}
@@ -942,13 +930,9 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 				<Box flexDirection="column">
 					<Text color="green">Auto-approve all is enabled (Shift+Tab)</Text>
 					<Box marginTop={1}>
-						<Text color="gray" dimColor>
-							All tool calls are automatically approved. When disabled, the settings
-						</Text>
+						<Text color="gray">All tool calls are automatically approved. When disabled, the settings</Text>
 					</Box>
-					<Text color="gray" dimColor>
-						below control which actions are auto-approved.
-					</Text>
+					<Text color="gray">below control which actions are auto-approved.</Text>
 				</Box>
 			)
 		}
@@ -957,9 +941,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			<Box flexDirection="column">
 				{currentTab === "auto-approve" && !features.autoApproveAll && (
 					<Box marginBottom={1}>
-						<Text color="gray" dimColor>
-							These actions are auto-approved when 'Auto-approve all' is disabled:
-						</Text>
+						<Text color="gray">These actions are auto-approved when 'Auto-approve all' is disabled:</Text>
 					</Box>
 				)}
 				{items.map((item, idx) => {
@@ -1014,16 +996,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 							<Text bold color={isSelected ? COLORS.primaryBlue : undefined}>
 								{isSelected ? "❯" : " "}{" "}
 							</Text>
-							<Text color={isSelected ? "white" : "gray"}>{item.label}: </Text>
+							<Text color={isSelected ? COLORS.primaryBlue : "white"}>{item.label}: </Text>
 							<Text color={item.type === "readonly" ? "gray" : COLORS.primaryBlue}>
 								{typeof item.value === "string" ? item.value : String(item.value)}
 							</Text>
-							{item.type === "editable" && isSelected && (
-								<Text color="gray" dimColor>
-									{" "}
-									(Tab to edit)
-								</Text>
-							)}
+							{item.type === "editable" && isSelected && <Text color="gray"> (Tab to edit)</Text>}
 						</Text>
 					)
 				})}
