@@ -1,4 +1,5 @@
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
+import { EventEmitter } from "events"
 import getFolderSize from "get-folder-size"
 import Mutex from "p-mutex"
 import { findLastIndex } from "@/shared/array"
@@ -13,6 +14,28 @@ import { getCwd, getDesktopDir } from "@/utils/path"
 import { ensureTaskDirectoryExists, saveApiConversationHistory, saveClineMessages } from "../storage/disk"
 import { TaskState } from "./TaskState"
 
+// Event types for clineMessages changes
+export type ClineMessageChangeType = "add" | "update" | "delete" | "set"
+
+export interface ClineMessageChange {
+	type: ClineMessageChangeType
+	/** The full array after the change */
+	messages: ClineMessage[]
+	/** The affected index (for add/update/delete) */
+	index?: number
+	/** The new/updated message (for add/update) */
+	message?: ClineMessage
+	/** The old message before change (for update/delete) */
+	previousMessage?: ClineMessage
+	/** The entire previous array (for set) */
+	previousMessages?: ClineMessage[]
+}
+
+// Strongly-typed event emitter interface
+export interface MessageStateHandlerEvents {
+	clineMessagesChanged: [change: ClineMessageChange]
+}
+
 interface MessageStateHandlerParams {
 	taskId: string
 	ulid: string
@@ -22,7 +45,7 @@ interface MessageStateHandlerParams {
 	checkpointManagerErrorMessage?: string
 }
 
-export class MessageStateHandler {
+export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents> {
 	private apiConversationHistory: ClineStorageMessage[] = []
 	private clineMessages: ClineMessage[] = []
 	private taskIsFavorited: boolean
@@ -39,11 +62,19 @@ export class MessageStateHandler {
 	private stateMutex = new Mutex()
 
 	constructor(params: MessageStateHandlerParams) {
+		super()
 		this.taskId = params.taskId
 		this.ulid = params.ulid
 		this.taskState = params.taskState
 		this.taskIsFavorited = params.taskIsFavorited ?? false
 		this.updateTaskHistory = params.updateTaskHistory
+	}
+
+	/**
+	 * Emit a clineMessagesChanged event with the change details
+	 */
+	private emitClineMessagesChanged(change: ClineMessageChange): void {
+		this.emit("clineMessagesChanged", change)
 	}
 
 	setCheckpointTracker(tracker: CheckpointTracker | undefined) {
@@ -72,7 +103,13 @@ export class MessageStateHandler {
 	}
 
 	setClineMessages(newMessages: ClineMessage[]) {
+		const previousMessages = this.clineMessages
 		this.clineMessages = newMessages
+		this.emitClineMessagesChanged({
+			type: "set",
+			messages: this.clineMessages,
+			previousMessages,
+		})
 	}
 
 	/**
@@ -166,7 +203,14 @@ export class MessageStateHandler {
 			// it's important that apiConversationHistory is initialized before we add cline messages
 			message.conversationHistoryIndex = this.apiConversationHistory.length - 1 // NOTE: this is the index of the last added message which is the user message, and once the clinemessages have been presented we update the apiconversationhistory with the completed assistant message. This means when resetting to a message, we need to +1 this index to get the correct assistant message that this tool use corresponds to
 			message.conversationHistoryDeletedRange = this.taskState.conversationHistoryDeletedRange
+			const index = this.clineMessages.length
 			this.clineMessages.push(message)
+			this.emitClineMessagesChanged({
+				type: "add",
+				messages: this.clineMessages,
+				index,
+				message,
+			})
 			await this.saveClineMessagesAndUpdateHistoryInternal()
 		})
 	}
@@ -177,7 +221,13 @@ export class MessageStateHandler {
 	 */
 	async overwriteClineMessages(newMessages: ClineMessage[]) {
 		return await this.withStateLock(async () => {
+			const previousMessages = this.clineMessages
 			this.clineMessages = newMessages
+			this.emitClineMessagesChanged({
+				type: "set",
+				messages: this.clineMessages,
+				previousMessages,
+			})
 			await this.saveClineMessagesAndUpdateHistoryInternal()
 		})
 	}
@@ -192,8 +242,19 @@ export class MessageStateHandler {
 				throw new Error(`Invalid message index: ${index}`)
 			}
 
+			// Capture previous state before mutation
+			const previousMessage = { ...this.clineMessages[index] }
+
 			// Apply updates to the message
 			Object.assign(this.clineMessages[index], updates)
+
+			this.emitClineMessagesChanged({
+				type: "update",
+				messages: this.clineMessages,
+				index,
+				previousMessage,
+				message: this.clineMessages[index],
+			})
 
 			// Save changes and update history
 			await this.saveClineMessagesAndUpdateHistoryInternal()
@@ -210,8 +271,18 @@ export class MessageStateHandler {
 				throw new Error(`Invalid message index: ${index}`)
 			}
 
+			// Capture the message before deletion
+			const previousMessage = this.clineMessages[index]
+
 			// Remove the message at the specified index
 			this.clineMessages.splice(index, 1)
+
+			this.emitClineMessagesChanged({
+				type: "delete",
+				messages: this.clineMessages,
+				index,
+				previousMessage,
+			})
 
 			// Save changes and update history
 			await this.saveClineMessagesAndUpdateHistoryInternal()
