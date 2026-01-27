@@ -80,7 +80,7 @@ const vscodeStubPlugin = {
 	name: "vscode-stub",
 	setup(build) {
 		// Redirect 'vscode' imports to our shim
-		build.onResolve({ filter: /^vscode$/ }, (args) => {
+		build.onResolve({ filter: /^vscode$/ }, () => {
 			return { path: path.join(__dirname, "src", "vscode-shim.ts") }
 		})
 	},
