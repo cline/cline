@@ -38,7 +38,15 @@ describe("Hook System", () => {
 
 		// Mock StateManager to return our temp directory
 		sandbox.stub(StateManager, "get").returns({
-			getGlobalStateKey: () => [{ path: tempDir }],
+			getGlobalStateKey: (key: string) => {
+				if (key === "workspaceRoots") {
+					return [{ path: tempDir }]
+				}
+				if (key === "primaryRootIndex") {
+					return 0
+				}
+				return undefined
+			},
 		} as any)
 
 		// Reset hook discovery cache for clean test state
@@ -79,6 +87,44 @@ describe("Hook System", () => {
 	})
 
 	describe("StdioHookRunner", () => {
+		it("should execute hook from the primary workspace root directory", async () => {
+			// Create a test hook script that outputs the current working directory
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const hookScript = `#!/usr/bin/env node
+const input = require('fs').readFileSync(0, 'utf-8');
+// Output the current working directory
+console.log(JSON.stringify({
+  cancel: false,
+  contextModification: "CWD: " + process.cwd()
+}))`
+
+			await writeHookScript(hookPath, hookScript)
+
+			// Test execution
+			const factory = new HookFactory()
+			const runner = await factory.create("PreToolUse")
+
+			const result = await runner.run({
+				taskId: "test-task",
+				preToolUse: {
+					toolName: "test_tool",
+					parameters: {},
+				},
+			})
+
+			result.cancel.should.be.false()
+			// The hook should execute from the primary workspace root (tempDir)
+			// On macOS, paths may have /private prefix due to symlink resolution,
+			// so we verify the path contains our tempDir basename
+			const cwdFromHook = result.contextModification!.replace("CWD: ", "")
+			// The cwd should be the tempDir (primary workspace root), not the hooks dir
+			// Get just the unique part of the tempDir path for comparison
+			const tempDirBasename = path.basename(tempDir)
+			cwdFromHook.should.containEql(tempDirBasename)
+			// Verify the cwd ends with the tempDir (not .clinerules/hooks)
+			path.basename(cwdFromHook).should.equal(tempDirBasename)
+		})
+
 		it("should execute hook script and parse output", async () => {
 			// Create a test hook script
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")

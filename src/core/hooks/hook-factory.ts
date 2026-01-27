@@ -263,6 +263,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 		private readonly abortSignal?: AbortSignal,
 		private readonly taskId?: string,
 		private readonly toolName?: string,
+		private readonly cwd?: string,
 	) {
 		super(hookName)
 	}
@@ -302,7 +303,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 		const inputJson = JSON.stringify(jsonObj)
 
 		// Create HookProcess for execution with streaming
-		const hookProcess = new HookProcess(this.scriptPath, HOOK_EXECUTION_TIMEOUT_MS, this.abortSignal)
+		const hookProcess = new HookProcess(this.scriptPath, HOOK_EXECUTION_TIMEOUT_MS, this.abortSignal, this.cwd)
 
 		// Set up streaming if callback is provided
 		if (this.streamCallback) {
@@ -775,10 +776,17 @@ export class HookFactory {
 			)
 		}
 
+		// Get the primary workspace root to use as the working directory for all hooks
+		// Use primaryRootIndex from state for consistency with workspace management architecture
+		const stateManager = StateManager.get()
+		const workspaceRoots = stateManager.getGlobalStateKey("workspaceRoots")
+		const primaryRootIndex = stateManager.getGlobalStateKey("primaryRootIndex") ?? 0
+		const primaryCwd = workspaceRoots?.[primaryRootIndex]?.path
+
 		// Create runners with source determination for each script
 		const runners = scripts.map((script) => {
 			const source = this.determineScriptSource(script, hooksDirs)
-			return new StdioHookRunner(hookName, script, source, streamCallback, abortSignal, taskId, toolName)
+			return new StdioHookRunner(hookName, script, source, streamCallback, abortSignal, taskId, toolName, primaryCwd)
 		})
 
 		if (runners.length === 0) {
