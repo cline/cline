@@ -1,12 +1,15 @@
 {
 	"name": "@cline/cli",
-	"version": "0.0.0",
-	"description": "Cline CLI - TypeScript implementation that reuses core Cline functionality",
+	"version": "2.0.0",
+	"description": "Autonomous coding agent CLI - capable of creating/editing files, running commands, using the browser, and more",
 	"main": "dist/cli.mjs",
 	"bin": {
 		"cline": "./dist/cli.mjs"
 	},
 	"type": "module",
+	"engines": {
+		"node": ">=20.0.0"
+	},
 	"scripts": {
 		"build": "node esbuild.mjs",
 		"build:production": "node esbuild.mjs --production",
@@ -21,16 +24,36 @@
 	},
 	"keywords": [
 		"cline",
-		"cli",
+		"claude",
+		"dev",
+		"mcp",
+		"openrouter",
+		"coding",
+		"agent",
+		"autonomous",
+		"chatgpt",
+		"sonnet",
 		"ai",
-		"coding-assistant"
+		"llama",
+		"cli"
 	],
-	"author": "Cline Bot Inc.",
+	"author": {
+		"name": "Cline Bot Inc."
+	},
 	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/cline/cline"
+	},
+	"homepage": "https://cline.bot",
+	"bugs": {
+		"url": "https://github.com/cline/cline/issues"
+	},
 	"devDependencies": {
 		"@types/node": "20.x",
 		"@types/prompts": "^2.4.9",
 		"@types/react": "^19.2.9",
+		"dotenv": "^16.4.5",
 		"esbuild": "^0.25.0",
 		"ink-testing-library": "^4.0.0",
 		"rimraf": "^6.0.1",
