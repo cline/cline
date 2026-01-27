@@ -129,9 +129,9 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 	const isSplit = planActSeparateModelsSetting
 
 	// Check if model supports thinking (token-based budget)
-	// OpenAI Codex uses discrete reasoning effort levels controlled via global settings, not token budgets
+	// OpenAI models use discrete reasoning effort levels, not token budgets
 	const supportsThinking = useMemo(() => {
-		if (selectedProvider === "openai-codex") {
+		if (selectedProvider === "openai-codex" || selectedProvider === "openai-native") {
 			return false
 		}
 		if (selectedProvider === "anthropic" || selectedProvider === "claude-code") {
@@ -755,7 +755,9 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 										key={model.id}
 										onClick={() => handleSelectModel(model.id, openRouterModels[model.id])}
 										onMouseEnter={() => setSelectedIndex(index)}
-										ref={(el) => (itemRefs.current[index] = el)}>
+										ref={(el) => {
+											itemRefs.current[index] = el
+										}}>
 										<ModelInfoRow>
 											<ModelName>{model.name}</ModelName>
 											<ModelProvider>{model.provider}</ModelProvider>
@@ -775,7 +777,9 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 										key={model.id}
 										onClick={() => handleSelectModel(model.id, model.info)}
 										onMouseEnter={() => setSelectedIndex(globalIndex)}
-										ref={(el) => (itemRefs.current[globalIndex] = el)}>
+										ref={(el) => {
+											itemRefs.current[globalIndex] = el
+										}}>
 										<ModelInfoRow>
 											<ModelName>{model.name}</ModelName>
 											<ModelProvider>{model.provider}</ModelProvider>
