@@ -24,6 +24,7 @@ import {
 	groqModels,
 	mistralDefaultModelId,
 	mistralModels,
+	openAiCodexDefaultModelId,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
 	xaiDefaultModelId,
@@ -41,11 +42,13 @@ import { AuthHandler } from "@/hosts/external/AuthHandler.js"
 import { ExternalCommentReviewController } from "@/hosts/external/ExternalCommentReviewController.js"
 import { ExternalWebviewProvider } from "@/hosts/external/ExternalWebviewProvider.js"
 import { HostProvider } from "@/hosts/host-provider.js"
+import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { StandaloneTerminalManager } from "@/integrations/terminal/index.js"
 import { AuthService } from "@/services/auth/AuthService.js"
 import { Logger } from "@/shared/services/Logger.js"
 import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import type { Mode } from "@/shared/storage/types"
+import { openExternal } from "@/utils/env"
 import { fetchOpenRouterModels, usesOpenRouterModels } from "../utils/openrouter-models"
 import { CliContextResult, initializeCliContext } from "../vscode-context.js"
 import { ACPDiffViewProvider } from "./ACPDiffViewProvider.js"
@@ -148,6 +151,11 @@ export class AcpAgent implements acp.Agent {
 					id: "cline-oauth",
 					name: "Sign in with Cline",
 					description: "Authenticate with your Cline account via browser OAuth",
+				},
+				{
+					id: "openai-codex-oauth",
+					name: "Sign in with ChatGPT",
+					description: "Authenticate with your ChatGPT Plus/Pro/Team subscription",
 				},
 			],
 		}
@@ -914,14 +922,18 @@ export class AcpAgent implements acp.Agent {
 	/**
 	 * Handle authentication requests.
 	 *
-	 * This method implements the OAuth flow for Cline account authentication:
-	 * 1. Opens the browser to the Cline OAuth page
-	 * 2. Waits for the callback to be received
-	 * 3. Returns when authentication is complete
+	 * This method implements OAuth flows for:
+	 * - Cline account authentication (cline-oauth)
+	 * - OpenAI Codex/ChatGPT authentication (openai-codex-oauth)
 	 */
 	async authenticate(params: acp.AuthenticateRequest): Promise<acp.AuthenticateResponse> {
 		if (this.options.debug) {
 			Logger.debug("[AcpAgent] authenticate called:", { methodId: params.methodId })
+		}
+
+		// Handle OpenAI Codex OAuth flow
+		if (params.methodId === "openai-codex-oauth") {
+			return this.authenticateOpenAiCodex()
 		}
 
 		if (params.methodId !== "cline-oauth") {
@@ -1116,6 +1128,7 @@ export class AcpAgent implements acp.Agent {
 	 * Check if the user has authentication configured.
 	 * Returns true if they have either:
 	 * - Cline provider with stored auth data
+	 * - OpenAI Codex provider with OAuth credentials
 	 * - BYO provider with an API key configured
 	 */
 	private async isAuthConfigured(): Promise<boolean> {
@@ -1128,6 +1141,12 @@ export class AcpAgent implements acp.Agent {
 			// For Cline provider, check if we have stored auth data
 			const authData = await secretStorage.get("cline:clineAccountId")
 			return !!authData
+		}
+
+		// For OpenAI Codex provider, check OAuth credentials
+		if (currentProvider === "openai-codex") {
+			openAiCodexOAuthManager.initialize(this.ctx.extensionContext)
+			return await openAiCodexOAuthManager.isAuthenticated()
 		}
 
 		// For BYO providers, check if the API key is configured
@@ -1145,5 +1164,57 @@ export class AcpAgent implements acp.Agent {
 		}
 
 		return false
+	}
+
+	/**
+	 * Handle OpenAI Codex OAuth authentication flow.
+	 *
+	 * This method:
+	 * 1. Initializes the OAuth manager
+	 * 2. Opens the browser to OpenAI's auth page
+	 * 3. Waits for the callback with tokens
+	 * 4. Configures the provider on success
+	 */
+	private async authenticateOpenAiCodex(): Promise<acp.AuthenticateResponse> {
+		if (this.options.debug) {
+			Logger.debug("[AcpAgent] Starting OpenAI Codex OAuth flow...")
+		}
+
+		try {
+			// Initialize the OAuth manager with extension context
+			openAiCodexOAuthManager.initialize(this.ctx.extensionContext)
+
+			// Get the authorization URL and start the callback server
+			const authUrl = openAiCodexOAuthManager.startAuthorizationFlow()
+
+			if (this.options.debug) {
+				Logger.debug("[AcpAgent] Opening browser for OpenAI Codex auth:", authUrl)
+			}
+
+			// Open browser to authorization URL
+			await openExternal(authUrl)
+
+			// Wait for the callback (blocks until auth completes or times out)
+			await openAiCodexOAuthManager.waitForCallback()
+
+			if (this.options.debug) {
+				Logger.debug("[AcpAgent] OpenAI Codex authentication successful")
+			}
+
+			// Success - configure the provider
+			const stateManager = StateManager.get()
+			stateManager.setGlobalState("actModeApiProvider", "openai-codex")
+			stateManager.setGlobalState("planModeApiProvider", "openai-codex")
+			stateManager.setGlobalState("actModeApiModelId", openAiCodexDefaultModelId)
+			stateManager.setGlobalState("planModeApiModelId", openAiCodexDefaultModelId)
+			await stateManager.flushPendingState()
+
+			return {}
+		} catch (error) {
+			// Clean up on error
+			openAiCodexOAuthManager.cancelAuthorizationFlow()
+			Logger.error("[AcpAgent] OpenAI Codex authentication error:", error)
+			throw error
+		}
 	}
 }
