@@ -703,9 +703,8 @@ if (IS_DEV && IS_DEV !== "false") {
 
 async function performStorageMigrations(context: ExtensionContext): Promise<void> {
 	try {
-		// If they still have the old welcomeViewCompleted flag,
-		// we know they haven't had the migrations run yet.
-		if (!context.globalState.get<boolean>("welcomeViewCompleted")) {
+		// Migrate is not done if old welcomeViewCompleted flag is still stored in global state
+		if (context.globalState.get<boolean>("welcomeViewCompleted") === undefined) {
 			// If has already been migrated, skip
 			return
 		}
