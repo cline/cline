@@ -53,45 +53,69 @@ function generateToolCallId(): string {
 }
 
 /**
+ * Options for translating a message.
+ */
+export interface TranslateMessageOptions {
+	/**
+	 * An existing toolCallId to use for tool messages.
+	 * If provided, updates will be sent as tool_call_update instead of new tool_call.
+	 * This is used when updating a streaming tool call that was already created.
+	 */
+	existingToolCallId?: string
+}
+
+/**
  * Translate a single Cline message to ACP session updates.
  *
  * @param message - The Cline message to translate
  * @param sessionState - The current session state for tracking tool calls
+ * @param options - Optional translation options (e.g., existing toolCallId for updates)
  * @returns The translated message with ACP updates and permission requirements
  */
-export function translateMessage(message: ClineMessage, sessionState: AcpSessionState): TranslatedMessage {
+export function translateMessage(
+	message: ClineMessage,
+	sessionState: AcpSessionState,
+	options?: TranslateMessageOptions,
+): TranslatedMessage {
 	const updates: acp.SessionUpdate[] = []
 	let requiresPermission = false
 	let permissionRequest: TranslatedMessage["permissionRequest"]
+	let toolCallId: string | undefined
 
 	if (message.type === "say" && message.say) {
-		const sayResult = translateSayMessage(message, sessionState)
+		const sayResult = translateSayMessage(message, sessionState, options)
 		updates.push(...sayResult.updates)
+		toolCallId = sayResult.toolCallId
 	} else if (message.type === "ask" && message.ask) {
-		const askResult = translateAskMessage(message, sessionState)
+		const askResult = translateAskMessage(message, sessionState, options)
 		updates.push(...askResult.updates)
 		requiresPermission = askResult.requiresPermission ?? false
 		permissionRequest = askResult.permissionRequest
+		toolCallId = askResult.toolCallId
 	}
 
 	return {
 		updates,
 		requiresPermission,
 		permissionRequest,
+		toolCallId,
 	}
 }
 
 /**
  * Translate a "say" type Cline message to ACP updates.
  */
-function translateSayMessage(message: ClineMessage, sessionState: AcpSessionState): TranslatedMessage {
+function translateSayMessage(
+	message: ClineMessage,
+	sessionState: AcpSessionState,
+	options?: TranslateMessageOptions,
+): TranslatedMessage {
 	const updates: acp.SessionUpdate[] = []
+	let toolCallId: string | undefined
 	const say = message.say!
 
 	switch (say) {
 		case "text":
-		case "user_feedback":
-		case "user_feedback_diff":
 			// Text messages → agent_message_chunk
 			if (message.text) {
 				updates.push({
@@ -99,6 +123,12 @@ function translateSayMessage(message: ClineMessage, sessionState: AcpSessionStat
 					content: { type: "text", text: message.text },
 				})
 			}
+			break
+
+		case "user_feedback":
+		case "user_feedback_diff":
+			// User feedback messages - don't echo the user's input back to them
+			// The ACP client already displays what the user typed
 			break
 
 		case "reasoning":
@@ -201,10 +231,10 @@ function translateSayMessage(message: ClineMessage, sessionState: AcpSessionStat
 
 		case "api_req_started":
 			// API request started - could be shown as agent thinking
-			updates.push({
-				sessionUpdate: "agent_thought_chunk",
-				content: { type: "text", text: "Processing..." },
-			})
+			// updates.push({
+			// 	sessionUpdate: "agent_thought_chunk",
+			// 	content: { type: "text", text: "Making API Request" },
+			// })
 			break
 
 		case "api_req_finished":
@@ -212,18 +242,49 @@ function translateSayMessage(message: ClineMessage, sessionState: AcpSessionStat
 			break
 
 		case "task":
-			// Task started - informational message
-			if (message.text) {
-				updates.push({
-					sessionUpdate: "agent_message_chunk",
-					content: { type: "text", text: message.text },
-				})
-			}
+			// Task started - don't echo the user's prompt back to them
+			// The ACP client already knows what they typed
 			break
 
 		case "task_progress":
 			// Task progress → plan update
 			updates.push(...translateTaskProgressMessage(message))
+			break
+
+		case "hook_status":
+			// Format hook status as a human-readable message
+			if (message.text) {
+				try {
+					const hookInfo = JSON.parse(message.text) as { hookName: string; status: string; toolName?: string }
+					const target = hookInfo.toolName ? ` for ${hookInfo.toolName}` : ""
+					let statusText: string
+					switch (hookInfo.status) {
+						case "running":
+							statusText = `Running ${hookInfo.hookName} hook${target}...`
+							break
+						case "completed":
+							statusText = `${hookInfo.hookName} hook completed`
+							break
+						case "cancelled":
+							statusText = `${hookInfo.hookName} hook cancelled`
+							break
+						default:
+							statusText = `${hookInfo.hookName} hook: ${hookInfo.status}`
+					}
+					updates.push({
+						sessionUpdate: "agent_message_chunk",
+						content: { type: "text", text: statusText },
+					})
+				} catch {
+					// If parsing fails, skip the message rather than showing raw JSON
+				}
+			}
+			break
+
+		case "hook_output_stream":
+			// Suppress hook output streams in ACP mode - these are debug details
+			// that clutter the conversation. The hook_status message provides
+			// sufficient user-facing feedback.
 			break
 
 		case "info":
@@ -236,8 +297,6 @@ function translateSayMessage(message: ClineMessage, sessionState: AcpSessionStat
 		case "api_req_retried":
 		case "command_permission_denied":
 		case "generate_explanation":
-		case "hook_status":
-		case "hook_output_stream":
 		case "conditional_rules_applied":
 			// Informational messages - optionally shown as agent messages
 			if (message.text) {
@@ -249,18 +308,23 @@ function translateSayMessage(message: ClineMessage, sessionState: AcpSessionStat
 			break
 	}
 
-	return { updates }
+	return { updates, toolCallId }
 }
 
 /**
  * Translate a "ask" type Cline message to ACP updates.
  * Ask messages typically require permission from the client.
  */
-function translateAskMessage(message: ClineMessage, sessionState: AcpSessionState): TranslatedMessage {
+function translateAskMessage(
+	message: ClineMessage,
+	sessionState: AcpSessionState,
+	options?: TranslateMessageOptions,
+): TranslatedMessage {
 	const updates: acp.SessionUpdate[] = []
 	const ask = message.ask!
 	let requiresPermission = false
 	let permissionRequest: TranslatedMessage["permissionRequest"]
+	let toolCallId: string | undefined
 
 	switch (ask) {
 		case "followup":
@@ -268,10 +332,28 @@ function translateAskMessage(message: ClineMessage, sessionState: AcpSessionStat
 		case "act_mode_respond":
 			// These are questions to the user - send as agent message and await next prompt
 			if (message.text) {
-				updates.push({
-					sessionUpdate: "agent_message_chunk",
-					content: { type: "text", text: message.text },
-				})
+				let textToSend = message.text
+
+				// Try to parse JSON and extract the response/question field
+				// plan_mode_respond uses { response: string, options?: string[] }
+				// followup uses { question: string, options?: string[] }
+				try {
+					const parsed = JSON.parse(message.text)
+					if (ask === "plan_mode_respond" && parsed.response !== undefined) {
+						textToSend = parsed.response
+					} else if (ask === "followup" && parsed.question !== undefined) {
+						textToSend = parsed.question
+					}
+				} catch {
+					// If parsing fails, use the raw text
+				}
+
+				if (textToSend) {
+					updates.push({
+						sessionUpdate: "agent_message_chunk",
+						content: { type: "text", text: textToSend },
+					})
+				}
 			}
 			break
 
@@ -311,32 +393,78 @@ function translateAskMessage(message: ClineMessage, sessionState: AcpSessionStat
 			// Tool permission request → tool_call + request_permission
 			{
 				const toolInfo = message.text ? parseToolInfo(message.text) : null
-				const toolCallId = generateToolCallId()
+				const isUpdate = !!options?.existingToolCallId
+
+				// Reuse existing toolCallId if this is an update to a streaming tool call
+				toolCallId = options?.existingToolCallId || generateToolCallId()
 				sessionState.currentToolCallId = toolCallId
 
-				const toolCall: acp.ToolCall = {
-					toolCallId,
-					title: toolInfo?.title || "Tool operation",
-					kind: toolInfo?.kind || "other",
-					status: "pending",
-					rawInput: toolInfo?.input,
-					locations: toolInfo?.path ? [{ path: toolInfo.path }] : undefined,
-				}
+				if (isUpdate) {
+					// This is an update to an existing streaming tool call - send tool_call_update
+					updates.push({
+						sessionUpdate: "tool_call_update",
+						toolCallId,
+						status: "pending",
+						rawInput: toolInfo?.input,
+						content: toolInfo?.path
+							? [
+									{
+										type: "content",
+										content: { type: "text", text: toolInfo.path },
+									},
+								]
+							: undefined,
+					})
+					// Don't require permission again for updates - only for final non-partial message
+					// Permission will be requested when partial=false
+					if (!message.partial) {
+						const existingToolCall = sessionState.pendingToolCalls.get(toolCallId)
+						if (existingToolCall) {
+							// Update the existing tool call with latest info
+							existingToolCall.rawInput = toolInfo?.input
+							existingToolCall.locations = toolInfo?.path ? [{ path: toolInfo.path }] : undefined
+							existingToolCall.title = toolInfo?.title || existingToolCall.title
+							requiresPermission = true
+							permissionRequest = {
+								toolCall: existingToolCall,
+								options: [
+									{ kind: "allow_once", optionId: "allow_once", name: "Allow Once" },
+									{ kind: "allow_always", optionId: "allow_always", name: "Always Allow" },
+									{ kind: "reject_once", optionId: "reject_once", name: "Reject" },
+								],
+							}
+						}
+					}
+				} else {
+					// This is a new tool call
+					const toolCall: acp.ToolCall = {
+						toolCallId,
+						title: toolInfo?.title || "Tool operation",
+						kind: toolInfo?.kind || "other",
+						status: "pending",
+						rawInput: toolInfo?.input,
+						locations: toolInfo?.path ? [{ path: toolInfo.path }] : undefined,
+					}
 
-				updates.push({
-					sessionUpdate: "tool_call",
-					...toolCall,
-				})
+					updates.push({
+						sessionUpdate: "tool_call",
+						...toolCall,
+					})
 
-				sessionState.pendingToolCalls.set(toolCallId, toolCall)
-				requiresPermission = true
-				permissionRequest = {
-					toolCall,
-					options: [
-						{ kind: "allow_once", optionId: "allow_once", name: "Allow Once" },
-						{ kind: "allow_always", optionId: "allow_always", name: "Always Allow" },
-						{ kind: "reject_once", optionId: "reject_once", name: "Reject" },
-					],
+					sessionState.pendingToolCalls.set(toolCallId, toolCall)
+
+					// Only request permission for non-partial messages (complete tool calls)
+					if (!message.partial) {
+						requiresPermission = true
+						permissionRequest = {
+							toolCall,
+							options: [
+								{ kind: "allow_once", optionId: "allow_once", name: "Allow Once" },
+								{ kind: "allow_always", optionId: "allow_always", name: "Always Allow" },
+								{ kind: "reject_once", optionId: "reject_once", name: "Reject" },
+							],
+						}
+					}
 				}
 			}
 			break
@@ -375,7 +503,12 @@ function translateAskMessage(message: ClineMessage, sessionState: AcpSessionStat
 		case "use_mcp_server":
 			// MCP server usage permission
 			{
-				const mcpInfo = message.text ? JSON.parse(message.text) : {}
+				let mcpInfo: Record<string, unknown> = {}
+				try {
+					mcpInfo = message.text ? JSON.parse(message.text) : {}
+				} catch {
+					// If JSON parsing fails, use empty object
+				}
 				const toolCallId = generateToolCallId()
 				sessionState.currentToolCallId = toolCallId
 
@@ -425,7 +558,7 @@ function translateAskMessage(message: ClineMessage, sessionState: AcpSessionStat
 			break
 	}
 
-	return { updates, requiresPermission, permissionRequest }
+	return { updates, requiresPermission, permissionRequest, toolCallId }
 }
 
 /**

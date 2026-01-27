@@ -9,12 +9,10 @@
 
 import type * as acp from "@agentclientprotocol/sdk"
 import { PROTOCOL_VERSION } from "@agentclientprotocol/sdk"
-import { registerPartialMessageCallback } from "@core/controller/ui/subscribeToPartialMessage"
-import type { ClineAsk, ClineMessage as ClineMessageType, ExtensionState } from "@shared/ExtensionMessage"
-import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
+import type { ClineMessageChange } from "@core/task/message-state"
+import type { ClineAsk, ClineMessage as ClineMessageType } from "@shared/ExtensionMessage"
+import { ClineEndpoint } from "@/config.js"
 import { Controller } from "@/core/controller"
-import { getRequestRegistry } from "@/core/controller/grpc-handler.js"
-import { subscribeToState } from "@/core/controller/state/subscribeToState.js"
 import { StateManager } from "@/core/storage/StateManager"
 import { AuthHandler } from "@/hosts/external/AuthHandler.js"
 import { ExternalCommentReviewController } from "@/hosts/external/ExternalCommentReviewController.js"
@@ -27,6 +25,7 @@ import { CliContextResult, initializeCliContext } from "../vscode-context.js"
 import { ACPDiffViewProvider } from "./ACPDiffViewProvider.js"
 import { ACPHostBridgeClientProvider } from "./ACPHostBridgeClientProvider.js"
 import { translateMessage } from "./messageTranslator.js"
+import { handlePermissionResponse } from "./permissionHandler.js"
 import type { AcpAgentOptions, AcpSessionState, ClineAcpSession } from "./types.js"
 
 /**
@@ -51,11 +50,11 @@ export class AcpAgent implements acp.Agent {
 	/** Auto-approval tracker for remembering "always allow" decisions */
 	// private readonly autoApprovalTracker: AutoApprovalTracker = new AutoApprovalTracker()
 
-	/** Track processed message timestamps to detect new messages */
-	private processedMessageTimestamps: Set<number> = new Set()
-
 	/** Track last sent content for partial messages to compute deltas */
-	private partialMessageLastContent: Map<number, { text?: string; reasoning?: string }> = new Map()
+	private partialMessageLastContent: Map<number, string> = new Map()
+
+	/** Map message timestamps to toolCallIds to avoid creating duplicate tool calls during streaming */
+	private messageToToolCallId: Map<number, string> = new Map()
 
 	/** Current active session ID for use by DiffViewProvider */
 	private currentActiveSessionId: string | undefined
@@ -77,6 +76,7 @@ export class AcpAgent implements acp.Agent {
 
 		this.initializeHostProvider(this.clientCapabilities)
 
+		await ClineEndpoint.initialize()
 		await StateManager.initialize(this.ctx.extensionContext)
 
 		return {
@@ -245,9 +245,9 @@ export class AcpAgent implements acp.Agent {
 		session.lastActivityAt = Date.now()
 		this.currentActiveSessionId = params.sessionId
 
-		// Clear processed timestamps for new prompt cycle
-		this.processedMessageTimestamps.clear()
+		// Clear delta tracking state for new prompt cycle
 		this.partialMessageLastContent.clear()
+		this.messageToToolCallId.clear()
 
 		// Track cleanup functions for subscriptions
 		const cleanupFunctions: (() => void)[] = []
@@ -260,8 +260,8 @@ export class AcpAgent implements acp.Agent {
 			_rejectPrompt = reject
 		})
 
-		// Track if we've already resolved/rejected
-		let promptResolved = false
+		// Track if we've already resolved/rejected (object for pass-by-reference)
+		const promptResolved = { value: false }
 
 		try {
 			// Extract text content from prompt
@@ -287,31 +287,6 @@ export class AcpAgent implements acp.Agent {
 					fileCount: fileResources.length,
 				})
 			}
-
-			const requestId = "acp-session" + params.sessionId
-			subscribeToState(
-				controller,
-				{},
-				async (state) => {
-					const s = JSON.parse(state.stateJson) as ExtensionState
-					this.handleStateUpdate(params.sessionId, sessionState, s)
-				},
-				requestId,
-			)
-			cleanupFunctions.push(() => {
-				getRequestRegistry().cancelRequest(requestId)
-			})
-
-			// Subscribe to partial message events for streaming updates
-			const unsubscribePartial = registerPartialMessageCallback((protoMessage) => {
-				const message = convertProtoToClineMessage(protoMessage) as ClineMessageType
-				this.handlePartialMessage(params.sessionId, sessionState, message).catch((error) => {
-					if (this.options.debug) {
-						Logger.debug("[AcpAgent] Error handling partial message:", error)
-					}
-				})
-			})
-			cleanupFunctions.push(unsubscribePartial)
 
 			// Determine if this is a new task, continuation, or loaded session resume
 			const hasActiveTask = controller.task !== undefined
@@ -362,82 +337,29 @@ export class AcpAgent implements acp.Agent {
 				await controller.initTask(textContent, imageContent, fileResources)
 			}
 
-			// Wait for task to complete, be cancelled, or need user input
-			const checkTaskState = async () => {
-				if (promptResolved) {
-					return
+			// Subscribe to clineMessages changes after task is created
+			if (controller.task) {
+				const onClineMessagesChanged = (change: ClineMessageChange) => {
+					this.handleClineMessagesChanged(params.sessionId, sessionState, change, resolvePrompt, promptResolved).catch(
+						(error) => {
+							if (this.options.debug) {
+								Logger.debug("[AcpAgent] Error handling clineMessagesChanged:", error)
+							}
+						},
+					)
 				}
 
-				// Check cancellation
-				if (sessionState.cancelled) {
-					promptResolved = true
-					resolvePrompt({ stopReason: "cancelled" })
-					return
-				}
-
-				// Check if controller has a task
-				if (!controller.task) {
-					// Task was cleared - likely completed or cancelled
-					promptResolved = true
-					resolvePrompt({ stopReason: "end_turn" })
-					return
-				}
-
-				const task = controller.task
-				const taskState = task.taskState
-
-				// Check if task is awaiting user response (followup, plan response, etc.)
-				if (taskState.isAwaitingPlanResponse) {
-					promptResolved = true
-					resolvePrompt({ stopReason: "end_turn" })
-					return
-				}
-
-				// Check if streaming has finished and there's no pending ask
-				if (!taskState.isStreaming) {
-					const messages = task.messageStateHandler.getClineMessages()
-					const lastMessage = messages[messages.length - 1]
-
-					// If last message is an ask that requires user input, we're done
-					if (lastMessage?.type === "ask") {
-						const askType = lastMessage.ask as ClineAsk
-						// followup, plan_mode_respond, act_mode_respond all require next prompt
-						if (
-							askType === "followup" ||
-							askType === "plan_mode_respond" ||
-							askType === "act_mode_respond" ||
-							askType === "completion_result" ||
-							askType === "resume_task" ||
-							askType === "resume_completed_task"
-						) {
-							promptResolved = true
-							resolvePrompt({ stopReason: "end_turn" })
-							return
-						}
-					}
-
-					// If last message is completion_result say, we're done
-					if (lastMessage?.type === "say" && lastMessage.say === "completion_result") {
-						promptResolved = true
-						resolvePrompt({ stopReason: "end_turn" })
-						return
-					}
-				}
-
-				// Continue polling
-				if (!promptResolved) {
-					setTimeout(checkTaskState, 100)
-				}
+				controller.task.messageStateHandler.on("clineMessagesChanged", onClineMessagesChanged)
+				cleanupFunctions.push(() => {
+					controller.task?.messageStateHandler.off("clineMessagesChanged", onClineMessagesChanged)
+				})
 			}
-
-			// Start checking task state
-			checkTaskState()
 
 			// Return the promise that will resolve when task completes
 			return await promptPromise
 		} catch (error) {
-			if (!promptResolved) {
-				promptResolved = true
+			if (!promptResolved.value) {
+				promptResolved.value = true
 				// Send error as session update before returning
 				await this.sendSessionUpdate(params.sessionId, {
 					sessionUpdate: "agent_message_chunk",
@@ -464,126 +386,284 @@ export class AcpAgent implements acp.Agent {
 		}
 	}
 
-	/**
-	 * Handle a state update from the controller.
-	 * This is called whenever Controller.postStateToWebview() is invoked.
-	 */
-	private async handleStateUpdate(sessionId: string, sessionState: AcpSessionState, state: ExtensionState): Promise<void> {
+	private async handleClineMessagesChanged(
+		sessionId: string,
+		sessionState: AcpSessionState,
+		change: ClineMessageChange,
+		resolvePrompt: (response: acp.PromptResponse) => void,
+		promptResolved: { value: boolean },
+	): Promise<void> {
 		try {
-			const messages = state.clineMessages || []
+			switch (change.type) {
+				case "add":
+					// Process the newly added message
+					if (change.message) {
+						await this.processMessageWithDelta(sessionId, sessionState, change.message)
+						this.checkMessageForPromptResolution(change.message, resolvePrompt, promptResolved)
+					}
+					break
 
-			// Process new or updated messages
-			for (const message of messages) {
-				// Skip messages that are being handled by the partial message callback
-				// (streaming text messages). These are handled via handlePartialMessage.
-				if (this.partialMessageLastContent.has(message.ts)) {
-					continue
-				}
-				await this.processMessage(sessionId, sessionState, message, false)
+				case "update":
+					// Process the updated message (streaming updates)
+					if (change.message) {
+						await this.processMessageWithDelta(sessionId, sessionState, change.message)
+						// Also check for prompt resolution on updates - message may have transitioned from partial to complete
+						this.checkMessageForPromptResolution(change.message, resolvePrompt, promptResolved)
+					}
+					break
+				case "set":
+					// Check the last message for prompt resolution
+					break
+				case "delete":
+					// Message deleted - no action needed for ACP updates
+					break
 			}
 		} catch (error) {
 			if (this.options.debug) {
-				Logger.debug("[AcpAgent] Error handling state update:", error)
+				Logger.debug("[AcpAgent] Error handling clineMessagesChanged:", error)
 			}
 		}
 	}
 
 	/**
-	 * Handle a partial message update (streaming content).
-	 * Computes deltas and sends only the new content as chunks.
+	 * Handle a permission request for an ask message.
 	 *
-	 * Only streams text for appropriate message types:
-	 * - say="text" → stream as agent_message_chunk
-	 * - say="reasoning" or reasoning field → stream as agent_thought_chunk
-	 * - say="tool" and other types → skip (handled by translateMessage via handleStateUpdate)
+	 * This method:
+	 * 1. Sends the permission request to the client
+	 * 2. Waits for the user's decision
+	 * 3. Responds to Cline's ask based on the decision
+	 *
+	 * @param sessionId - The session ID
+	 * @param sessionState - The session state
+	 * @param message - The Cline ask message
+	 * @param permissionRequest - The permission request details from translateMessage
 	 */
-	private async handlePartialMessage(
+	private async handlePermissionRequest(
 		sessionId: string,
-		_sessionState: AcpSessionState,
+		sessionState: AcpSessionState,
 		message: ClineMessageType,
+		permissionRequest: Omit<acp.RequestPermissionRequest, "sessionId">,
 	): Promise<void> {
-		// Only stream text content for actual text messages
-		// Tool messages (say="tool") contain JSON that should be translated to tool_call updates,
-		// not emitted as raw agent text. Let handleStateUpdate/translateMessage handle those.
-		const isTextMessage = message.type === "say" && message.say === "text"
-		const isReasoningMessage = message.type === "say" && message.say === "reasoning"
+		const session = this.sessions.get(sessionId)
+		const controller = session?.controller
 
-		// Skip non-streamable message types
-		if (!isTextMessage && !isReasoningMessage && !message.reasoning) {
+		if (!controller?.task) {
+			if (this.options.debug) {
+				Logger.debug("[AcpAgent] No active task for permission request")
+			}
 			return
 		}
 
-		const messageKey = message.ts
-		const lastContent = this.partialMessageLastContent.get(messageKey) ?? { text: "", reasoning: "" }
+		const askType = message.ask as ClineAsk
 
-		const currentText = message.text ?? ""
-		const currentReasoning = message.reasoning ?? ""
+		try {
+			// Request permission from the client
+			const response = await this.requestPermission(sessionId, permissionRequest.toolCall, permissionRequest.options)
 
-		// Compute deltas - only the new portion since last update
-		const textDelta = currentText.slice(lastContent.text?.length ?? 0)
-		const reasoningDelta = currentReasoning.slice(lastContent.reasoning?.length ?? 0)
+			if (this.options.debug) {
+				Logger.debug("[AcpAgent] Permission response received:", response.outcome)
+			}
 
-		// Only process if there's new content
-		if (!textDelta && !reasoningDelta) {
-			return
-		}
+			// Handle the response
+			const result = handlePermissionResponse(response, askType)
 
-		// Update tracked content
-		this.partialMessageLastContent.set(messageKey, {
-			text: currentText,
-			reasoning: currentReasoning,
-		})
+			// Update tool call status based on permission result
+			if (sessionState.currentToolCallId) {
+				if (result.cancelled) {
+					await this.sendSessionUpdate(sessionId, {
+						sessionUpdate: "tool_call_update",
+						toolCallId: sessionState.currentToolCallId,
+						status: "failed",
+						rawOutput: { reason: "cancelled" },
+					})
+				} else if (result.response === "noButtonClicked") {
+					await this.sendSessionUpdate(sessionId, {
+						sessionUpdate: "tool_call_update",
+						toolCallId: sessionState.currentToolCallId,
+						status: "failed",
+						rawOutput: { reason: "rejected" },
+					})
+				} else {
+					// Permission granted - mark as in_progress
+					await this.sendSessionUpdate(sessionId, {
+						sessionUpdate: "tool_call_update",
+						toolCallId: sessionState.currentToolCallId,
+						status: "in_progress",
+					})
+				}
+			}
 
-		// Send reasoning delta as thought chunk
-		if (reasoningDelta) {
-			await this.sendSessionUpdate(sessionId, {
-				sessionUpdate: "agent_thought_chunk",
-				content: { type: "text", text: reasoningDelta },
-			})
-		}
+			// Respond to Cline's ask based on the permission result
+			if (result.cancelled) {
+				// Cancellation - reject the operation
+				await controller.task.handleWebviewAskResponse("noButtonClicked")
+			} else {
+				// Pass the response to Cline
+				await controller.task.handleWebviewAskResponse(result.response, result.text)
+			}
+		} catch (error) {
+			if (this.options.debug) {
+				Logger.debug("[AcpAgent] Error handling permission request:", error)
+			}
 
-		// Only send text delta for actual text messages (not tool JSON)
-		if (textDelta && isTextMessage) {
-			await this.sendSessionUpdate(sessionId, {
-				sessionUpdate: "agent_message_chunk",
-				content: { type: "text", text: textDelta },
-			})
+			// Update tool call status to failed
+			if (sessionState.currentToolCallId) {
+				await this.sendSessionUpdate(sessionId, {
+					sessionUpdate: "tool_call_update",
+					toolCallId: sessionState.currentToolCallId,
+					status: "failed",
+					rawOutput: { error: String(error) },
+				})
+			}
+
+			// Reject the operation on error
+			await controller.task.handleWebviewAskResponse("noButtonClicked")
 		}
 	}
 
 	/**
-	 * Process a single ClineMessage and send appropriate ACP updates.
+	 * Check if a message should resolve the prompt (end the turn).
 	 */
-	private async processMessage(
+	private checkMessageForPromptResolution(
+		message: ClineMessageType,
+		resolvePrompt: (response: acp.PromptResponse) => void,
+		promptResolved: { value: boolean },
+	): void {
+		if (promptResolved.value) return
+
+		// Don't resolve for partial (still streaming) messages
+		if (message.partial) return
+
+		// Check for ask messages that require user input
+		if (message.type === "ask") {
+			const askType = message.ask as ClineAsk
+			if (
+				askType === "followup" ||
+				askType === "plan_mode_respond" ||
+				askType === "act_mode_respond" ||
+				askType === "completion_result" ||
+				askType === "resume_task" ||
+				askType === "resume_completed_task"
+			) {
+				promptResolved.value = true
+				resolvePrompt({ stopReason: "end_turn" })
+				return
+			}
+		}
+
+		// Check for completion_result say message
+		if (message.type === "say" && message.say === "completion_result") {
+			promptResolved.value = true
+			resolvePrompt({ stopReason: "end_turn" })
+		}
+	}
+
+	/**
+	 * Process a message and compute deltas for streaming content.
+	 *
+	 * This method uses translateMessage to properly map ClineMessages to ACP SessionUpdates,
+	 * while computing deltas for text content to avoid sending duplicate content during
+	 * streaming updates.
+	 *
+	 * For text-streaming messages (text, reasoning, followup, plan_mode_respond):
+	 * - Computes delta between current and last-sent content
+	 * - Only sends the new portion to avoid duplicates
+	 *
+	 * For other messages (tool calls, commands, etc.):
+	 * - Uses translateMessage to produce proper ACP updates
+	 * - Sends complete updates (no delta computation needed)
+	 */
+	private async processMessageWithDelta(
 		sessionId: string,
 		sessionState: AcpSessionState,
 		message: ClineMessageType,
-		isPartial: boolean,
 	): Promise<void> {
 		const messageKey = message.ts
+		const lastText = this.partialMessageLastContent.get(messageKey) || ""
 
-		// For partial messages, always process (they're updates to existing)
-		// For complete messages, check if already processed
-		if (!isPartial && this.processedMessageTimestamps.has(messageKey)) {
-			return
-		}
+		// Determine if this is a text-streaming message type that needs delta handling
+		const isTextStreamingMessage =
+			(message.type === "say" && (message.say === "text" || message.say === "reasoning")) ||
+			(message.type === "ask" &&
+				(message.ask === "followup" || message.ask === "plan_mode_respond" || message.ask === "act_mode_respond"))
 
-		// Mark as processed if complete
-		if (!isPartial) {
-			this.processedMessageTimestamps.add(messageKey)
-		}
+		if (isTextStreamingMessage && message.text) {
+			// Extract the actual text content for JSON-wrapped messages
+			// plan_mode_respond uses { response: string, options?: string[] }
+			// followup uses { question: string, options?: string[] }
+			let textContent = message.text
+			if (message.type === "ask" && (message.ask === "plan_mode_respond" || message.ask === "followup")) {
+				try {
+					const parsed = JSON.parse(message.text)
+					if (message.ask === "plan_mode_respond" && parsed.response !== undefined) {
+						textContent = parsed.response
+					} else if (message.ask === "followup" && parsed.question !== undefined) {
+						textContent = parsed.question
+					}
+				} catch {
+					// If parsing fails, use the raw text
+				}
+			}
 
-		// Translate the message to ACP updates
-		const translated = translateMessage(message, sessionState)
+			// For streaming text messages, compute delta to avoid sending duplicates
+			let textDelta: string
+			if (textContent.startsWith(lastText)) {
+				textDelta = textContent.slice(lastText.length)
+			} else {
+				// Content changed entirely (rare), send all
+				textDelta = textContent
+			}
 
-		// Send all generated updates
-		for (const update of translated.updates) {
-			await this.sendSessionUpdate(sessionId, update)
-		}
+			// Only send if there's new content
+			if (textDelta) {
+				// Determine the correct update type based on message type
+				const sessionUpdate: "agent_message_chunk" | "agent_thought_chunk" =
+					message.type === "say" && message.say === "reasoning" ? "agent_thought_chunk" : "agent_message_chunk"
 
-		// Handle permission requests
-		if (translated.requiresPermission && translated.permissionRequest) {
-			// TODO handle permission request
+				await this.sendSessionUpdate(sessionId, {
+					sessionUpdate,
+					content: { type: "text", text: textDelta },
+				})
+			}
+
+			// Track what we've sent (use extracted text, not raw JSON)
+			this.partialMessageLastContent.set(messageKey, textContent)
+		} else {
+			// For non-streaming messages, use the full translator
+			// Check if we already have a toolCallId for this message (from a previous partial update)
+			const existingToolCallId = this.messageToToolCallId.get(messageKey)
+
+			const result = translateMessage(message, sessionState, {
+				existingToolCallId,
+			})
+
+			// Send all updates produced by the translator
+			for (const update of result.updates) {
+				await this.sendSessionUpdate(sessionId, update)
+			}
+
+			// Track the toolCallId for this message so subsequent updates reuse it
+			if (result.toolCallId) {
+				this.messageToToolCallId.set(messageKey, result.toolCallId)
+			}
+
+			// Handle permission requests for ask messages
+			// Only process permissions for non-partial (complete) ask messages
+			if (result.requiresPermission && result.permissionRequest && !message.partial) {
+				// Handle the permission request asynchronously
+				// This will request permission from the client and respond to Cline
+				await this.handlePermissionRequest(sessionId, sessionState, message, result.permissionRequest)
+			}
+
+			// Track text content for this message (in case of future updates)
+			if (message.text) {
+				this.partialMessageLastContent.set(messageKey, message.text)
+			}
+
+			// Clean up the mapping when the message is complete (not partial)
+			if (!message.partial && result.toolCallId) {
+				this.messageToToolCallId.delete(messageKey)
+			}
 		}
 	}
 
@@ -700,6 +780,37 @@ export class AcpAgent implements acp.Agent {
 				Logger.debug("[AcpAgent] Error sending session update:", error)
 			}
 		}
+	}
+
+	/**
+	 * Request permission from the client for a tool call.
+	 *
+	 * This method sends a `session/request_permission` request to the client
+	 * and returns the user's decision.
+	 *
+	 * @param sessionId - The session ID
+	 * @param toolCall - The tool call update containing details about the operation
+	 * @param options - Available permission options for the user to choose from
+	 * @returns The permission response from the client
+	 */
+	async requestPermission(
+		sessionId: string,
+		toolCall: acp.ToolCallUpdate,
+		options: acp.PermissionOption[],
+	): Promise<acp.RequestPermissionResponse> {
+		if (this.options.debug) {
+			Logger.debug("[AcpAgent] Requesting permission:", {
+				sessionId,
+				toolCallId: toolCall.toolCallId,
+				options: options.map((o) => o.optionId),
+			})
+		}
+
+		return await this.connection.requestPermission({
+			sessionId,
+			toolCall,
+			options,
+		})
 	}
 
 	async shutdown(): Promise<void> {
