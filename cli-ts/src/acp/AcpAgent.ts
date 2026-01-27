@@ -8,7 +8,7 @@
  */
 
 import type * as acp from "@agentclientprotocol/sdk"
-import { PROTOCOL_VERSION } from "@agentclientprotocol/sdk"
+import { PROTOCOL_VERSION, RequestError } from "@agentclientprotocol/sdk"
 import type { ClineMessageChange } from "@core/task/message-state"
 import type { ApiProvider } from "@shared/api"
 import {
@@ -30,7 +30,8 @@ import {
 	xaiModels,
 } from "@shared/api"
 import type { ClineAsk, ClineMessage as ClineMessageType } from "@shared/ExtensionMessage"
-import { BASE_SLASH_COMMANDS, CLI_ONLY_COMMANDS, VSCODE_ONLY_COMMANDS } from "@shared/slashCommands"
+import { CLI_ONLY_COMMANDS, VSCODE_ONLY_COMMANDS } from "@shared/slashCommands"
+import { ProviderToApiKeyMap } from "@shared/storage"
 import { getProviderModelIdKey } from "@shared/storage/provider-keys"
 import { ClineEndpoint } from "@/config.js"
 import { Controller } from "@/core/controller"
@@ -41,7 +42,9 @@ import { ExternalCommentReviewController } from "@/hosts/external/ExternalCommen
 import { ExternalWebviewProvider } from "@/hosts/external/ExternalWebviewProvider.js"
 import { HostProvider } from "@/hosts/host-provider.js"
 import { StandaloneTerminalManager } from "@/integrations/terminal/index.js"
+import { AuthService } from "@/services/auth/AuthService.js"
 import { Logger } from "@/shared/services/Logger.js"
+import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import type { Mode } from "@/shared/storage/types"
 import { fetchOpenRouterModels, usesOpenRouterModels } from "../utils/openrouter-models"
 import { CliContextResult, initializeCliContext } from "../vscode-context.js"
@@ -140,6 +143,13 @@ export class AcpAgent implements acp.Agent {
 				name: "cline",
 				version: this.options.version,
 			},
+			authMethods: [
+				{
+					id: "cline-oauth",
+					name: "Sign in with Cline",
+					description: "Authenticate with your Cline account via browser OAuth",
+				},
+			],
 		}
 	}
 
@@ -194,6 +204,12 @@ export class AcpAgent implements acp.Agent {
 	 * provides the working directory and optionally MCP servers to use.
 	 */
 	async newSession(params: acp.NewSessionRequest): Promise<acp.NewSessionResponse> {
+		// Check if authentication is required
+		const isAuthenticated = await this.isAuthConfigured()
+		if (!isAuthenticated) {
+			throw RequestError.authRequired()
+		}
+
 		const sessionId = crypto.randomUUID()
 
 		if (this.options.debug) {
@@ -898,17 +914,93 @@ export class AcpAgent implements acp.Agent {
 	/**
 	 * Handle authentication requests.
 	 *
-	 * Currently a no-op as Cline handles authentication separately.
-	 * Future versions may support OAuth flows through this method.
+	 * This method implements the OAuth flow for Cline account authentication:
+	 * 1. Opens the browser to the Cline OAuth page
+	 * 2. Waits for the callback to be received
+	 * 3. Returns when authentication is complete
 	 */
-	async authenticate(_params: acp.AuthenticateRequest): Promise<acp.AuthenticateResponse> {
+	async authenticate(params: acp.AuthenticateRequest): Promise<acp.AuthenticateResponse> {
 		if (this.options.debug) {
-			Logger.debug("[AcpAgent] authenticate called (no-op)")
+			Logger.debug("[AcpAgent] authenticate called:", { methodId: params.methodId })
 		}
 
-		// Authentication is handled externally for Cline
-		// Return empty response to indicate no auth action needed
-		return {}
+		if (params.methodId !== "cline-oauth") {
+			throw new Error(`Unknown authentication method: ${params.methodId}`)
+		}
+
+		// Enable the AuthHandler to receive OAuth callbacks
+		const authHandler = AuthHandler.getInstance()
+		authHandler.setEnabled(true)
+
+		if (this.options.debug) {
+			Logger.debug("[AcpAgent] AuthHandler enabled, getting callback URL...")
+		}
+
+		// Get the callback URL first to ensure the server is ready
+		let callbackUrl: string
+		try {
+			callbackUrl = await authHandler.getCallbackUrl()
+			if (this.options.debug) {
+				Logger.debug("[AcpAgent] Callback URL ready:", callbackUrl)
+			}
+		} catch (error) {
+			Logger.error("[AcpAgent] Failed to get callback URL:", error)
+			throw new Error(`Failed to start auth server: ${error instanceof Error ? error.message : String(error)}`)
+		}
+
+		// Create a temporary controller for auth purposes
+		const tempController = new Controller(this.ctx.extensionContext)
+
+		try {
+			// Get the AuthService instance with the temp controller
+			const authService = AuthService.getInstance(tempController)
+
+			if (this.options.debug) {
+				Logger.debug("[AcpAgent] Starting OAuth flow...")
+			}
+
+			// Start the OAuth flow - this opens the browser
+			await authService.createAuthRequest()
+
+			if (this.options.debug) {
+				Logger.debug("[AcpAgent] Browser opened, waiting for callback...")
+			}
+
+			// Wait for authentication to complete (with timeout)
+			const AUTH_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
+			const POLL_INTERVAL_MS = 1000 // 1 second
+
+			const startTime = Date.now()
+
+			while (Date.now() - startTime < AUTH_TIMEOUT_MS) {
+				// Check if auth data has been stored
+				const authData = await secretStorage.get("cline:clineAccountId")
+				if (authData) {
+					if (this.options.debug) {
+						Logger.debug("[AcpAgent] Authentication successful")
+					}
+
+					// Set up the provider configuration for cline
+					const stateManager = StateManager.get()
+					stateManager.setGlobalState("actModeApiProvider", "cline")
+					stateManager.setGlobalState("planModeApiProvider", "cline")
+					await stateManager.flushPendingState()
+
+					return {}
+				}
+
+				// Wait before polling again
+				await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+			}
+
+			throw new Error("Authentication timed out. Please try again.")
+		} catch (error) {
+			Logger.error("[AcpAgent] Authentication error:", error)
+			throw error
+		} finally {
+			// Clean up the temp controller
+			await tempController.dispose()
+		}
 	}
 
 	// ============================================================
@@ -1021,18 +1113,37 @@ export class AcpAgent implements acp.Agent {
 	}
 
 	/**
-	 * Get the list of supported slash commands.
-	 *
-	 * This includes built-in commands and any enabled workflow commands.
+	 * Check if the user has authentication configured.
+	 * Returns true if they have either:
+	 * - Cline provider with stored auth data
+	 * - BYO provider with an API key configured
 	 */
-	private getSupportedSlashCommands(): string[] {
-		// Built-in commands that are always available
-		const builtInCommands = BASE_SLASH_COMMANDS.filter((cmd) => cmd.cliCompatible).map((cmd) => cmd.name)
+	private async isAuthConfigured(): Promise<boolean> {
+		const stateManager = StateManager.get()
+		const mode = stateManager.getGlobalSettingsKey("mode") as string
+		const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
+		const currentProvider = (stateManager.getGlobalSettingsKey(providerKey) as string) || "cline"
 
-		// Filter out CLI-only and VSCode-only commands
-		const cliOnlyNames = new Set(CLI_ONLY_COMMANDS.map((c) => c.name))
-		const vscodeOnlyNames = new Set(VSCODE_ONLY_COMMANDS.map((c) => c.name))
+		if (currentProvider === "cline") {
+			// For Cline provider, check if we have stored auth data
+			const authData = await secretStorage.get("cline:clineAccountId")
+			return !!authData
+		}
 
-		return builtInCommands.filter((name) => !cliOnlyNames.has(name) && !vscodeOnlyNames.has(name))
+		// For BYO providers, check if the API key is configured
+		const keyField = ProviderToApiKeyMap[currentProvider as keyof typeof ProviderToApiKeyMap]
+		if (!keyField) {
+			return false
+		}
+
+		const fields = Array.isArray(keyField) ? keyField : [keyField]
+		for (const field of fields) {
+			const value = await secretStorage.get(field)
+			if (value) {
+				return true
+			}
+		}
+
+		return false
 	}
 }
