@@ -136,6 +136,7 @@ import { AsciiMotionCli, StaticRobotFrame } from "./AsciiMotionCli"
 import { ChatMessage } from "./ChatMessage"
 import { FileMentionMenu } from "./FileMentionMenu"
 import { HighlightedInput } from "./HighlightedInput"
+import { HistoryPanelContent } from "./HistoryPanelContent"
 import { SettingsPanelContent } from "./SettingsPanelContent"
 import { SlashCommandMenu } from "./SlashCommandMenu"
 import { ThinkingIndicator } from "./ThinkingIndicator"
@@ -311,7 +312,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const lastSlashIndexRef = useRef<number>(-1)
 
 	// Settings panel state
-	const [activePanel, setActivePanel] = useState<{ type: "settings"; initialMode?: "model-picker" } | null>(null)
+	const [activePanel, setActivePanel] = useState<
+		{ type: "settings"; initialMode?: "model-picker" } | { type: "history" } | null
+	>(null)
 
 	// Track which messages have been rendered to Static (by timestamp)
 	// Using refs instead of state to avoid extra renders during streaming->static transition
@@ -814,6 +817,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						setSlashMenuDismissed(true)
 						return
 					}
+					if (cmd.name === "history") {
+						setActivePanel({ type: "history" })
+						setTextInput("")
+						setCursorPos(0)
+						setSelectedSlashIndex(0)
+						setSlashMenuDismissed(true)
+						return
+					}
 					const newText = insertSlashCommand(textInput, slashInfo.slashIndex, cmd.name)
 					setTextInput(newText)
 					setCursorPos(newText.length)
@@ -1042,6 +1053,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						controller={ctrl}
 						initialMode={activePanel.initialMode}
 						onClose={() => setActivePanel(null)}
+					/>
+				)}
+
+				{/* History panel */}
+				{activePanel?.type === "history" && ctrl && (
+					<HistoryPanelContent
+						controller={ctrl}
+						onClose={() => setActivePanel(null)}
+						onSelectTask={() => setActivePanel(null)}
 					/>
 				)}
 
