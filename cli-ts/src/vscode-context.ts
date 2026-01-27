@@ -52,7 +52,7 @@ class MementoStore extends ClineFileStorage {
 		return value !== undefined ? value : defaultValue
 	}
 
-	async update(key: string, value: any): Promise<void> {
+	override async update(key: string, value: any): Promise<void> {
 		if (key in this.overrides) {
 			return
 		}

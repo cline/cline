@@ -8,6 +8,7 @@ import type { ApiProvider } from "@shared/api"
 import { Command } from "commander"
 import { render } from "ink"
 import React from "react"
+import { ClineEndpoint } from "@/config"
 import { Controller } from "@/core/controller"
 import { StateManager } from "@/core/storage/StateManager"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
@@ -111,6 +112,7 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 		workspaceDir: workspacePath,
 	})
 
+	await ClineEndpoint.initialize()
 	await initializeDistinctId(extensionContext)
 
 	if (options.enableAuth) {
