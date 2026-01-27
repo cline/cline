@@ -4,6 +4,7 @@
 
 import { Box, Text } from "ink"
 import React from "react"
+import { COLORS } from "../constants/colors"
 
 interface CheckboxProps {
 	/** Label displayed next to the checkbox */
@@ -20,23 +21,16 @@ export const Checkbox: React.FC<CheckboxProps> = ({ label, checked, isSelected =
 	return (
 		<Box flexDirection="column">
 			<Text>
-				<Text bold color={isSelected ? "blueBright" : undefined}>
+				<Text bold color={isSelected ? COLORS.primaryBlue : undefined}>
 					{isSelected ? "❯" : " "}{" "}
 				</Text>
-				<Text color={checked ? "blueBright" : "gray"}>{checked ? "[✓]" : "[ ]"}</Text>
-				<Text color={isSelected ? "white" : "gray"}> {label}</Text>
-				{isSelected && (
-					<Text color="gray" dimColor>
-						{" "}
-						(Tab to toggle)
-					</Text>
-				)}
+				<Text color={isSelected || checked ? COLORS.primaryBlue : "gray"}>{checked ? "[✓]" : "[ ]"}</Text>
+				<Text color={isSelected ? COLORS.primaryBlue : "white"}> {label}</Text>
+				{isSelected && <Text color="gray"> (Tab to toggle)</Text>}
 			</Text>
 			{description && (
 				<Box marginLeft={6}>
-					<Text color="gray" dimColor>
-						{description}
-					</Text>
+					<Text color="gray">{description}</Text>
 				</Box>
 			)}
 		</Box>

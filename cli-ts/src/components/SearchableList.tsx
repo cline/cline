@@ -6,6 +6,7 @@
 import { Box, Text, useInput } from "ink"
 // biome-ignore lint/correctness/noUnusedImports: React is needed for JSX at runtime
 import React, { useEffect, useMemo, useState } from "react"
+import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { useScrollableList } from "../hooks/useScrollableList"
 import { isMouseEscapeSequence } from "../utils/input"
@@ -98,17 +99,13 @@ export function SearchableList<T extends SearchableListItem>({
 				<Text inverse> </Text>
 			</Box>
 			<Text> </Text>
-			{showTopIndicator && (
-				<Text color="gray" dimColor>
-					... {visibleStart} more above
-				</Text>
-			)}
+			{showTopIndicator && <Text color="gray">... {visibleStart} more above</Text>}
 			{visibleItems.map((item, i) => {
 				const actualIndex = visibleStart + i
 				const isSelected = actualIndex === index
 				return (
 					<Box key={item.id}>
-						<Text color={isSelected ? "blueBright" : undefined}>
+						<Text color={isSelected ? COLORS.primaryBlue : undefined}>
 							{isSelected ? "> " : "  "}
 							{item.label}
 							{item.suffix && <Text color="gray"> {item.suffix}</Text>}
@@ -116,16 +113,8 @@ export function SearchableList<T extends SearchableListItem>({
 					</Box>
 				)
 			})}
-			{showBottomIndicator && (
-				<Text color="gray" dimColor>
-					... {filteredItems.length - visibleStart - visibleCount} more below
-				</Text>
-			)}
-			{filteredItems.length === 0 && (
-				<Text color="gray" dimColor>
-					No matches for "{search}"
-				</Text>
-			)}
+			{showBottomIndicator && <Text color="gray">... {filteredItems.length - visibleStart - visibleCount} more below</Text>}
+			{filteredItems.length === 0 && <Text color="gray">No matches for "{search}"</Text>}
 		</Box>
 	)
 }

@@ -134,12 +134,8 @@ export const CheckpointMenu: React.FC<CheckpointMenuProps> = ({ messages, onSele
 		return (
 			<Box borderColor="yellow" borderStyle="round" flexDirection="column" marginTop={1} paddingLeft={1} paddingRight={1}>
 				<Text color="yellow">No checkpoints available</Text>
-				<Text color="gray" dimColor>
-					Checkpoints are created at task completion points
-				</Text>
-				<Text color="gray" dimColor>
-					Press Escape to close
-				</Text>
+				<Text color="gray">Checkpoints are created at task completion points</Text>
+				<Text color="gray">Press Escape to close</Text>
 			</Box>
 		)
 	}
@@ -150,9 +146,7 @@ export const CheckpointMenu: React.FC<CheckpointMenuProps> = ({ messages, onSele
 				<Text bold color="cyan">
 					Restore Checkpoint
 				</Text>
-				<Text color="gray" dimColor>
-					Select a checkpoint to restore (↑/↓ or number, Enter to select, Escape to cancel)
-				</Text>
+				<Text color="gray">Select a checkpoint to restore (↑/↓ or number, Enter to select, Escape to cancel)</Text>
 				<Box flexDirection="column" marginTop={1}>
 					{checkpoints.map((cp, idx) => {
 						const isSelected = idx === selectedCheckpoint
@@ -163,9 +157,9 @@ export const CheckpointMenu: React.FC<CheckpointMenuProps> = ({ messages, onSele
 								<Text color={isSelected ? "green" : "gray"}>{isSelected ? "> " : "  "}</Text>
 								<Text color={isSelected ? "white" : "gray"}>{idx + 1}. </Text>
 								<Text color={isSelected ? "cyan" : undefined}>{cp.label}</Text>
-								<Text color="gray"> - </Text>
-								<Text dimColor>
-									{dateStr} {timeStr}
+								<Text color="gray">
+									{" "}
+									- {dateStr} {timeStr}
 								</Text>
 							</Box>
 						)
@@ -182,7 +176,7 @@ export const CheckpointMenu: React.FC<CheckpointMenuProps> = ({ messages, onSele
 			<Text bold color="cyan">
 				Restore Type
 			</Text>
-			<Text color="gray" dimColor>
+			<Text color="gray">
 				Restoring to: {selectedCp?.label} ({selectedCp?.date.toLocaleString()})
 			</Text>
 			<Box flexDirection="column" marginTop={1}>
@@ -197,17 +191,13 @@ export const CheckpointMenu: React.FC<CheckpointMenuProps> = ({ messages, onSele
 								</Text>
 							</Box>
 							<Box marginLeft={4}>
-								<Text color="gray" dimColor>
-									{opt.description}
-								</Text>
+								<Text color="gray">{opt.description}</Text>
 							</Box>
 						</Box>
 					)
 				})}
 			</Box>
-			<Text color="gray" dimColor>
-				(↑/↓ to select, Enter to confirm, Escape to go back)
-			</Text>
+			<Text color="gray">(↑/↓ to select, Enter to confirm, Escape to go back)</Text>
 		</Box>
 	)
 }

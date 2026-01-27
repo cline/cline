@@ -5,6 +5,7 @@
 
 import { Box, Text, useInput } from "ink"
 import React from "react"
+import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { isMouseEscapeSequence } from "../utils/input"
 
@@ -55,7 +56,7 @@ export const ApiKeyInput: React.FC<ApiKeyInputProps> = ({
 
 	return (
 		<Box flexDirection="column">
-			<Text bold color="blueBright">
+			<Text bold color={COLORS.primaryBlue}>
 				{providerName} API Key
 			</Text>
 			<Box marginTop={1}>
@@ -66,9 +67,7 @@ export const ApiKeyInput: React.FC<ApiKeyInputProps> = ({
 				<Text inverse> </Text>
 			</Box>
 			<Box marginTop={1}>
-				<Text color="gray" dimColor>
-					Enter to save, Esc to cancel
-				</Text>
+				<Text color="gray">Enter to save, Esc to cancel</Text>
 			</Box>
 		</Box>
 	)

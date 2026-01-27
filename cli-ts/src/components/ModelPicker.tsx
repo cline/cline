@@ -24,6 +24,7 @@ import {
 	xaiDefaultModelId,
 	xaiModels,
 } from "@/shared/api"
+import { COLORS } from "../constants/colors"
 import { fetchOpenRouterModels, getOpenRouterDefaultModelId, usesOpenRouterModels } from "../utils/openrouter-models"
 import { SearchableList, SearchableListItem } from "./SearchableList"
 
@@ -107,7 +108,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ provider, onChange, on
 	if (isLoading) {
 		return (
 			<Box>
-				<Text color="blueBright">
+				<Text color={COLORS.primaryBlue}>
 					<Spinner type="dots" />
 				</Text>
 				<Text color="gray"> Loading models...</Text>

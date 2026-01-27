@@ -8,10 +8,15 @@ import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { ProviderToApiKeyMap } from "@shared/storage"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { Box, Text, useInput } from "ink"
+import Spinner from "ink-spinner"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { buildApiHandler } from "@/core/api"
 import type { Controller } from "@/core/controller"
 import { StateManager } from "@/core/storage/StateManager"
+import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
+import { openAiCodexDefaultModelId } from "@/shared/api"
+import { openExternal } from "@/utils/env"
+import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { isMouseEscapeSequence } from "../utils/input"
 import { ApiKeyInput } from "./ApiKeyInput"
@@ -24,6 +29,7 @@ import { getProviderLabel, ProviderPicker } from "./ProviderPicker"
 interface SettingsPanelContentProps {
 	onClose: () => void
 	controller?: Controller
+	initialMode?: "model-picker"
 }
 
 type SettingsTab = "api" | "auto-approve" | "features" | "other"
@@ -93,7 +99,7 @@ const FEATURE_SETTINGS = {
 
 type FeatureKey = keyof typeof FEATURE_SETTINGS
 
-export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onClose, controller }) => {
+export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onClose, controller, initialMode }) => {
 	const { isRawModeSupported } = useStdinContext()
 	const stateManager = StateManager.get()
 
@@ -101,11 +107,15 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 	const [currentTab, setCurrentTab] = useState<SettingsTab>("api")
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const [isEditing, setIsEditing] = useState(false)
-	const [isPickingModel, setIsPickingModel] = useState(false)
-	const [pickingModelKey, setPickingModelKey] = useState<"actModelId" | "planModelId" | null>(null)
+	const [isPickingModel, setIsPickingModel] = useState(initialMode === "model-picker")
+	const [pickingModelKey, setPickingModelKey] = useState<"actModelId" | "planModelId" | null>(
+		initialMode === "model-picker" ? "actModelId" : null,
+	)
 	const [isPickingProvider, setIsPickingProvider] = useState(false)
 	const [isPickingLanguage, setIsPickingLanguage] = useState(false)
 	const [isEnteringApiKey, setIsEnteringApiKey] = useState(false)
+	const [isWaitingForCodexAuth, setIsWaitingForCodexAuth] = useState(false)
+	const [codexAuthError, setCodexAuthError] = useState<string | null>(null)
 	const [pendingProvider, setPendingProvider] = useState<string | null>(null)
 	const [apiKeyValue, setApiKeyValue] = useState("")
 	const [editValue, setEditValue] = useState("")
@@ -509,9 +519,57 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		[stateManager],
 	)
 
+	// Handle OpenAI Codex OAuth flow
+	const startCodexAuth = useCallback(async () => {
+		try {
+			setIsWaitingForCodexAuth(true)
+			setCodexAuthError(null)
+
+			// Get the authorization URL and start the callback server
+			const authUrl = openAiCodexOAuthManager.startAuthorizationFlow()
+
+			// Open browser to authorization URL
+			await openExternal(authUrl)
+
+			// Wait for the callback
+			await openAiCodexOAuthManager.waitForCallback()
+
+			// Success - save configuration
+			const config: Record<string, string> = {
+				actModeApiProvider: "openai-codex",
+				planModeApiProvider: "openai-codex",
+				actModeApiModelId: openAiCodexDefaultModelId,
+				planModeApiModelId: openAiCodexDefaultModelId,
+			}
+			stateManager.setApiConfiguration(config)
+			await stateManager.flushPendingState()
+
+			// Rebuild API handler on active task if one exists
+			if (controller?.task) {
+				const currentMode = stateManager.getGlobalSettingsKey("mode")
+				const apiConfig = stateManager.getApiConfiguration()
+				controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+			}
+
+			setProvider("openai-codex")
+			setIsWaitingForCodexAuth(false)
+		} catch (error) {
+			openAiCodexOAuthManager.cancelAuthorizationFlow()
+			setCodexAuthError(error instanceof Error ? error.message : String(error))
+			setIsWaitingForCodexAuth(false)
+		}
+	}, [stateManager, controller])
+
 	// Handle provider selection from picker
 	const handleProviderSelect = useCallback(
 		(providerId: string) => {
+			// Special handling for OpenAI Codex - uses OAuth instead of API key
+			if (providerId === "openai-codex") {
+				setIsPickingProvider(false)
+				startCodexAuth()
+				return
+			}
+
 			// Check if this provider needs an API key
 			const keyField = ProviderToApiKeyMap[providerId as keyof typeof ProviderToApiKeyMap]
 			if (keyField) {
@@ -533,7 +591,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 				setIsPickingProvider(false)
 			}
 		},
-		[stateManager],
+		[stateManager, startCodexAuth],
 	)
 
 	// Handle API key submission after provider selection
@@ -679,6 +737,21 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 				return
 			}
 
+			// Codex OAuth waiting mode - escape to cancel
+			if (isWaitingForCodexAuth) {
+				if (key.escape) {
+					openAiCodexOAuthManager.cancelAuthorizationFlow()
+					setIsWaitingForCodexAuth(false)
+				}
+				return
+			}
+
+			// Codex OAuth error mode - any key to dismiss
+			if (codexAuthError) {
+				setCodexAuthError(null)
+				return
+			}
+
 			if (isEditing) {
 				if (key.escape) {
 					setIsEditing(false)
@@ -731,16 +804,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		if (isPickingProvider) {
 			return (
 				<Box flexDirection="column">
-					<Text bold color="blueBright">
+					<Text bold color={COLORS.primaryBlue}>
 						Select Provider
 					</Text>
 					<Box marginTop={1}>
 						<ProviderPicker isActive={isPickingProvider} onSelect={handleProviderSelect} />
 					</Box>
 					<Box marginTop={1}>
-						<Text color="gray" dimColor>
-							Type to search, arrows to navigate, Enter to select, Esc to cancel
-						</Text>
+						<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to cancel</Text>
 					</Box>
 				</Box>
 			)
@@ -763,11 +834,47 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			)
 		}
 
+		if (isWaitingForCodexAuth) {
+			return (
+				<Box flexDirection="column">
+					<Box>
+						<Text color={COLORS.primaryBlue}>
+							<Spinner type="dots" />
+						</Text>
+						<Text color="white"> Waiting for ChatGPT sign-in...</Text>
+					</Box>
+					<Box marginTop={1}>
+						<Text color="gray">Sign in with your ChatGPT account in the browser.</Text>
+					</Box>
+					<Text color="gray">Requires ChatGPT Plus, Pro, or Team subscription.</Text>
+					<Box marginTop={1}>
+						<Text color="gray">Esc to cancel</Text>
+					</Box>
+				</Box>
+			)
+		}
+
+		if (codexAuthError) {
+			return (
+				<Box flexDirection="column">
+					<Text bold color="red">
+						ChatGPT sign-in failed
+					</Text>
+					<Box marginTop={1}>
+						<Text color="yellow">{codexAuthError}</Text>
+					</Box>
+					<Box marginTop={1}>
+						<Text color="gray">Press any key to continue</Text>
+					</Box>
+				</Box>
+			)
+		}
+
 		if (isPickingModel && pickingModelKey) {
 			const label = pickingModelKey === "actModelId" ? "Model ID (Act)" : "Model ID (Plan)"
 			return (
 				<Box flexDirection="column">
-					<Text bold color="blueBright">
+					<Text bold color={COLORS.primaryBlue}>
 						Select: {label}
 					</Text>
 					<Box marginTop={1}>
@@ -779,9 +886,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 						/>
 					</Box>
 					<Box marginTop={1}>
-						<Text color="gray" dimColor>
-							Type to search, arrows to navigate, Enter to select, Esc to cancel
-						</Text>
+						<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to cancel</Text>
 					</Box>
 				</Box>
 			)
@@ -790,16 +895,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		if (isPickingLanguage) {
 			return (
 				<Box flexDirection="column">
-					<Text bold color="blueBright">
+					<Text bold color={COLORS.primaryBlue}>
 						Select Language
 					</Text>
 					<Box marginTop={1}>
 						<LanguagePicker isActive={isPickingLanguage} onSelect={handleLanguageSelect} />
 					</Box>
 					<Box marginTop={1}>
-						<Text color="gray" dimColor>
-							Type to search, arrows to navigate, Enter to select, Esc to cancel
-						</Text>
+						<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to cancel</Text>
 					</Box>
 				</Box>
 			)
@@ -809,16 +912,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			const item = items[selectedIndex]
 			return (
 				<Box flexDirection="column">
-					<Text bold color="blueBright">
+					<Text bold color={COLORS.primaryBlue}>
 						Edit: {item?.label}
 					</Text>
 					<Box marginTop={1}>
 						<Text color="white">{editValue}</Text>
 						<Text color="gray">|</Text>
 					</Box>
-					<Text color="gray" dimColor>
-						Enter to save, Esc to cancel
-					</Text>
+					<Text color="gray">Enter to save, Esc to cancel</Text>
 				</Box>
 			)
 		}
@@ -829,13 +930,9 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 				<Box flexDirection="column">
 					<Text color="green">Auto-approve all is enabled (Shift+Tab)</Text>
 					<Box marginTop={1}>
-						<Text color="gray" dimColor>
-							All tool calls are automatically approved. When disabled, the settings
-						</Text>
+						<Text color="gray">All tool calls are automatically approved. When disabled, the settings</Text>
 					</Box>
-					<Text color="gray" dimColor>
-						below control which actions are auto-approved.
-					</Text>
+					<Text color="gray">below control which actions are auto-approved.</Text>
 				</Box>
 			)
 		}
@@ -844,9 +941,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			<Box flexDirection="column">
 				{currentTab === "auto-approve" && !features.autoApproveAll && (
 					<Box marginBottom={1}>
-						<Text color="gray" dimColor>
-							These actions are auto-approved when 'Auto-approve all' is disabled:
-						</Text>
+						<Text color="gray">These actions are auto-approved when 'Auto-approve all' is disabled:</Text>
 					</Box>
 				)}
 				{items.map((item, idx) => {
@@ -898,19 +993,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 					// Readonly or editable field
 					return (
 						<Text key={item.key}>
-							<Text bold color={isSelected ? "blueBright" : undefined}>
+							<Text bold color={isSelected ? COLORS.primaryBlue : undefined}>
 								{isSelected ? "❯" : " "}{" "}
 							</Text>
-							<Text color={isSelected ? "white" : "gray"}>{item.label}: </Text>
-							<Text color={item.type === "readonly" ? "gray" : "blueBright"}>
+							<Text color={isSelected ? COLORS.primaryBlue : "white"}>{item.label}: </Text>
+							<Text color={item.type === "readonly" ? "gray" : COLORS.primaryBlue}>
 								{typeof item.value === "string" ? item.value : String(item.value)}
 							</Text>
-							{item.type === "editable" && isSelected && (
-								<Text color="gray" dimColor>
-									{" "}
-									(Tab to edit)
-								</Text>
-							)}
+							{item.type === "editable" && isSelected && <Text color="gray"> (Tab to edit)</Text>}
 						</Text>
 					)
 				})}

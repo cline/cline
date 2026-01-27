@@ -219,9 +219,7 @@ export const TextInput: React.FC<TextInputProps> = ({ label, onChange, onCancel,
 				<Text color="white">{value}</Text>
 				<Text inverse> </Text>
 			</Box>
-			<Text color="gray" dimColor>
-				Type: {type} • Enter to save • Esc to cancel
-			</Text>
+			<Text color="gray">Type: {type} • Enter to save • Esc to cancel</Text>
 		</Box>
 	)
 }
@@ -259,9 +257,7 @@ export const BooleanSelect: React.FC<BooleanSelectProps> = ({ label, onCancel, o
 				<Text color={selected ? "green" : undefined}>{selected ? "❯ " : "  "}true</Text>
 				<Text color={!selected ? "green" : undefined}>{!selected ? "❯ " : "  "}false</Text>
 			</Box>
-			<Text color="gray" dimColor>
-				↑/↓ to toggle • Enter to save • Esc to cancel
-			</Text>
+			<Text color="gray">↑/↓ to toggle • Enter to save • Esc to cancel</Text>
 		</Box>
 	)
 }
@@ -276,12 +272,7 @@ export const ConfigRow: React.FC<{ entry: ConfigEntry; isSelected: boolean }> = 
 				<Text color="cyan">{entry.key}</Text>
 				<Text color="gray">: </Text>
 				<Text color={valueColor}>{formatValue(entry.value)}</Text>
-				{!entry.isEditable && (
-					<Text color="gray" dimColor>
-						{" "}
-						(read-only)
-					</Text>
-				)}
+				{!entry.isEditable && <Text color="gray"> (read-only)</Text>}
 			</Text>
 		</Box>
 	)
@@ -302,11 +293,7 @@ export const ToggleRow: React.FC<{
 				<Text color={entry.enabled ? "green" : "red"}>{entry.enabled ? "●" : "○"}</Text>
 				<Text> </Text>
 				<Text color="white">{fileName}</Text>
-				{showType && (
-					<Text color="gray" dimColor>
-						{typeLabel}
-					</Text>
-				)}
+				{showType && <Text color="gray">{typeLabel}</Text>}
 			</Text>
 		</Box>
 	)
@@ -346,7 +333,7 @@ export const SkillRow: React.FC<{
 			</Box>
 			{skill.description && (
 				<Box marginLeft={4}>
-					<Text color="gray" dimColor>
+					<Text color="gray">
 						{skill.description.length > 60 ? skill.description.slice(0, 57) + "..." : skill.description}
 					</Text>
 				</Box>

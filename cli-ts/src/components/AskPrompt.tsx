@@ -240,9 +240,7 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 							<Text>{textInput}</Text>
 							<Text inverse> </Text>
 						</Box>
-						<Text color="gray" dimColor>
-							(Enter number to select, or type response + Enter)
-						</Text>
+						<Text color="gray">(Enter number to select, or type response + Enter)</Text>
 					</Box>
 				)
 			}
@@ -256,9 +254,7 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 						<Text>{textInput}</Text>
 						<Text inverse> </Text>
 					</Box>
-					<Text color="gray" dimColor>
-						(Type your response and press Enter)
-					</Text>
+					<Text color="gray">(Type your response and press Enter)</Text>
 				</Box>
 			)
 		}
@@ -284,9 +280,7 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 							<Text>{textInput}</Text>
 							<Text inverse> </Text>
 						</Box>
-						<Text color="gray" dimColor>
-							(Enter number to select, or type response + Enter)
-						</Text>
+						<Text color="gray">(Enter number to select, or type response + Enter)</Text>
 					</Box>
 				)
 			}
@@ -300,9 +294,7 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 						<Text>{textInput}</Text>
 						<Text inverse> </Text>
 					</Box>
-					<Text color="gray" dimColor>
-						(Type response + Enter, or just Enter to switch to Act mode)
-					</Text>
+					<Text color="gray">(Type response + Enter, or just Enter to switch to Act mode)</Text>
 				</Box>
 			)
 		}
@@ -338,9 +330,7 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 						<Text>{textInput}</Text>
 						<Text inverse> </Text>
 					</Box>
-					<Text color="gray" dimColor>
-						(Type follow-up question + Enter, or q to exit)
-					</Text>
+					<Text color="gray">(Type follow-up question + Enter, or q to exit)</Text>
 				</Box>
 			)
 

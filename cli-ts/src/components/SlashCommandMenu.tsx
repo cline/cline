@@ -6,6 +6,7 @@
 import type { SlashCommandInfo } from "@shared/proto/cline/slash"
 import { Box, Text } from "ink"
 import React from "react"
+import { COLORS } from "../constants/colors"
 import { getVisibleWindow } from "../utils/slash-commands"
 
 interface SlashCommandMenuProps {
@@ -36,25 +37,19 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ commands, se
 				return (
 					<Box flexDirection="column" key={cmd.name}>
 						<Box>
-							<Text color={isSelected ? "blueBright" : undefined}>
+							<Text color={isSelected ? COLORS.primaryBlue : undefined}>
 								{isSelected ? "❯" : " "} /{cmd.name}
 							</Text>
 						</Box>
 						{showDescription && cmd.description && (
 							<Box paddingLeft={3}>
-								<Text color="gray" dimColor>
-									{cmd.description}
-								</Text>
+								<Text color="gray">{cmd.description}</Text>
 							</Box>
 						)}
 					</Box>
 				)
 			})}
-			{hasMoreBelow && (
-				<Text color="gray" dimColor>
-					{"  "}▼
-				</Text>
-			)}
+			{hasMoreBelow && <Text color="gray">{"  "}▼</Text>}
 		</Box>
 	)
 }

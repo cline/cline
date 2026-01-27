@@ -144,15 +144,15 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 			<Text bold color="white">
 				{"📜 Task History (" + totalCount + " total)"}
 			</Text>
-			<Text dimColor>Use ↑↓/j/k to navigate, Enter to select</Text>
+			<Text color="gray">Use ↑↓/j/k to navigate, Enter to select</Text>
 
 			{totalPages > 1 && (
 				<Box>
-					<Text dimColor>
+					<Text color="gray">
 						Page {currentPage} of {totalPages}{" "}
 					</Text>
-					{hasPrevPage ? <Text color="blue">[← prev] </Text> : <Text dimColor>[← prev] </Text>}
-					{hasNextPage ? <Text color="blue">[next →]</Text> : <Text dimColor>[next →]</Text>}
+					{hasPrevPage ? <Text color="blue">[← prev] </Text> : <Text color="gray">[← prev] </Text>}
+					{hasNextPage ? <Text color="blue">[next →]</Text> : <Text color="gray">[next →]</Text>}
 				</Box>
 			)}
 			<Text>{formatSeparator()}</Text>
@@ -161,7 +161,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 				<Text>No task history available.</Text>
 			) : (
 				<Box flexDirection="column">
-					{showUpIndicator && <Text dimColor>{"  ↑ " + startIndex + " more above"}</Text>}
+					{showUpIndicator && <Text color="gray">{"  ↑ " + startIndex + " more above"}</Text>}
 					{visibleTasks.map((task, index) => {
 						const actualIndex = startIndex + index
 						const isSelected = actualIndex === selectedIndex
@@ -173,7 +173,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 							<Box flexDirection="column" key={`${task.id}-${actualIndex}`} marginBottom={1}>
 								<Box>
 									<Text color={isSelected ? "green" : undefined}>{isSelected ? "> " : "  "}</Text>
-									<Text dimColor>{date}</Text>
+									<Text color="gray">{date}</Text>
 								</Box>
 								<Box marginLeft={4}>
 									<Text color="cyan">{task.id}</Text>
@@ -186,18 +186,18 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 								</Box>
 								{typeof task.totalCost === "number" && (
 									<Box marginLeft={4}>
-										<Text dimColor>Cost: ${task.totalCost ? task.totalCost.toFixed(4) : "0"}</Text>
+										<Text color="gray">Cost: ${task.totalCost ? task.totalCost.toFixed(4) : "0"}</Text>
 									</Box>
 								)}
 								{task.modelId && (
 									<Box marginLeft={4}>
-										<Text dimColor>Model: {task.modelId}</Text>
+										<Text color="gray">Model: {task.modelId}</Text>
 									</Box>
 								)}
 							</Box>
 						)
 					})}
-					{showDownIndicator && <Text dimColor>{"  ↓ " + (pageItems.length - endIndex) + " more below"}</Text>}
+					{showDownIndicator && <Text color="gray">{"  ↓ " + (pageItems.length - endIndex) + " more below"}</Text>}
 				</Box>
 			)}
 

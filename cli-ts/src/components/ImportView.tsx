@@ -6,6 +6,7 @@
 import { Box, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
+import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import {
 	getProviderDisplayName,
@@ -134,16 +135,14 @@ export const ImportView: React.FC<ImportViewProps> = ({ source, onComplete, onCa
 				<Text> </Text>
 				{keys.map((k, i) => (
 					<Box key={`${k.provider}-${i}`}>
-						<Text color={i === selectedIndex ? "blueBright" : undefined}>
+						<Text color={i === selectedIndex ? COLORS.primaryBlue : undefined}>
 							{i === selectedIndex ? "❯ " : "  "}
 							{getProviderDisplayName(k.provider)}
 						</Text>
 					</Box>
 				))}
 				<Text> </Text>
-				<Text color="gray" dimColor>
-					Arrows to navigate, Enter to select, Esc to go back
-				</Text>
+				<Text color="gray">Arrows to navigate, Enter to select, Esc to go back</Text>
 			</Box>
 		)
 	}
@@ -173,21 +172,19 @@ export const ImportView: React.FC<ImportViewProps> = ({ source, onComplete, onCa
 				)}
 				<Text> </Text>
 				<Box>
-					<Text color={confirmIndex === 0 ? "blueBright" : undefined}>
+					<Text color={confirmIndex === 0 ? COLORS.primaryBlue : undefined}>
 						{confirmIndex === 0 ? "❯ " : "  "}
 						Confirm import
 					</Text>
 				</Box>
 				<Box>
-					<Text color={confirmIndex === 1 ? "blueBright" : undefined}>
+					<Text color={confirmIndex === 1 ? COLORS.primaryBlue : undefined}>
 						{confirmIndex === 1 ? "❯ " : "  "}
 						Cancel
 					</Text>
 				</Box>
 				<Text> </Text>
-				<Text color="gray" dimColor>
-					Enter to confirm, Esc to go back
-				</Text>
+				<Text color="gray">Enter to confirm, Esc to go back</Text>
 			</Box>
 		)
 	}
@@ -209,9 +206,7 @@ export const ImportView: React.FC<ImportViewProps> = ({ source, onComplete, onCa
 				<Text> </Text>
 				<Text color="yellow">{errorMessage}</Text>
 				<Text> </Text>
-				<Text color="gray" dimColor>
-					Press Enter or Esc to go back
-				</Text>
+				<Text color="gray">Press Enter or Esc to go back</Text>
 			</Box>
 		)
 	}
