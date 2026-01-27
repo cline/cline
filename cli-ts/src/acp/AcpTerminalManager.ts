@@ -391,6 +391,8 @@ export class AcpTerminalManager implements ITerminalManager {
 	private terminalReuseEnabled: boolean = true
 	private terminalOutputLineLimit: number = DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT
 	private subagentTerminalOutputLineLimit: number = DEFAULT_SUBAGENT_TERMINAL_OUTPUT_LINE_LIMIT
+	private shellIntegrationTimeout: number = 0
+	private defaultTerminalProfile: string = ""
 
 	/**
 	 * Creates a new AcpTerminalManager.
@@ -1104,12 +1106,13 @@ export class AcpTerminalManager implements ITerminalManager {
 
 	/**
 	 * Get the current session ID.
+	 * @throws Error if session ID is not available
 	 */
-	getSessionId(): string | undefined {
-		const sId = this.sessionIdResolver()
-		if (!sId) {
+	private getSessionId(): string {
+		const sessionId = this.sessionIdResolver()
+		if (!sessionId) {
 			throw new Error("Session ID is undefined. Cannot perform terminal operations.")
 		}
-		return this.sessionIdResolver()
+		return sessionId
 	}
 }

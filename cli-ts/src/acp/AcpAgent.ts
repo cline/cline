@@ -24,6 +24,7 @@ import type { Mode } from "@/shared/storage/types"
 import { CliContextResult, initializeCliContext } from "../vscode-context.js"
 import { ACPDiffViewProvider } from "./ACPDiffViewProvider.js"
 import { ACPHostBridgeClientProvider } from "./ACPHostBridgeClientProvider.js"
+import { AcpTerminalManager } from "./AcpTerminalManager.js"
 import { translateMessage } from "./messageTranslator.js"
 import { handlePermissionResponse } from "./permissionHandler.js"
 import type { AcpAgentOptions, AcpSessionState, ClineAcpSession } from "./types.js"
@@ -123,14 +124,12 @@ export class AcpAgent implements acp.Agent {
 			() => new ExternalCommentReviewController(),
 			() => {
 				if (clientCapabilities?.terminal) {
-					return new StandaloneTerminalManager()
-					// TODO AcpTerminalManager
-					// return new AcpTerminalManager(
-					// 	this.connection,
-					// 	params.clientCapabilities,
-					// 	() => this.currentActiveSessionId,
-					// 	this.options.debug,
-					// )
+					return new AcpTerminalManager(
+						this.connection,
+						clientCapabilities,
+						() => this.currentActiveSessionId,
+						this.options.debug,
+					)
 				} else {
 					return new StandaloneTerminalManager()
 				}
