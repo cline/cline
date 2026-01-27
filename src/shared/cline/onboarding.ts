@@ -22,6 +22,22 @@ export const CLINE_ONBOARDING_MODELS: OnboardingModel[] = [
 		},
 	},
 	{
+		group: "free",
+		id: "arcee-ai/trinity-large-preview:free",
+		name: "Arcee AI: Trinity Large Preview",
+		score: 88,
+		latency: 2,
+		badge: "New",
+		info: {
+			contextWindow: 131_000,
+			supportsImages: false,
+			supportsPromptCache: false,
+			inputPrice: 0,
+			outputPrice: 0,
+			tiers: [],
+		},
+	},
+	{
 		group: "frontier",
 		id: "anthropic/claude-sonnet-4.5",
 		name: "Anthropic: Claude Sonnet 4.5",
