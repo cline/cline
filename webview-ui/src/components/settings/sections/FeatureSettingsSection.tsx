@@ -1,8 +1,11 @@
+import { McpDisplayMode } from "@shared/McpDisplayMode"
 import { EmptyRequest } from "@shared/proto/index.cline"
-import { VSCodeButton, VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { Brain, Pencil, Wrench } from "lucide-react"
+import { OpenaiReasoningEffort } from "@shared/storage/types"
+import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { Brain, Info, Pencil, Settings, Wrench } from "lucide-react"
 import { memo, useEffect, useState } from "react"
 import styled from "styled-components"
+import McpDisplayModeDropdown from "@/components/mcp/chat-display/McpDisplayModeDropdown"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -59,9 +62,15 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		nativeToolCallSetting,
 		enableParallelToolCalling,
 		backgroundEditEnabled,
+		mcpDisplayMode,
+		openaiReasoningEffort,
 	} = useExtensionState()
 
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
+
+	const handleReasoningEffortChange = (newValue: OpenaiReasoningEffort) => {
+		updateSetting("openaiReasoningEffort", newValue)
+	}
 
 	// Poll for CLI installation status while the component is mounted
 	useEffect(() => {
@@ -411,6 +420,71 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								</p>
 							</div>
 						)}
+					</CategoryBox>
+
+					{/* ==================== ADVANCED ==================== */}
+					<CategoryBox>
+						<CategoryHeader>
+							<Settings size={14} style={{ color: "var(--vscode-textLink-foreground)" }} />
+							<CategoryTitle>Advanced</CategoryTitle>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Info
+										size={12}
+										style={{
+											color: "var(--vscode-descriptionForeground)",
+											cursor: "help",
+											marginLeft: "auto",
+										}}
+									/>
+								</TooltipTrigger>
+								<TooltipContent side="top">Advanced configuration options</TooltipContent>
+							</Tooltip>
+						</CategoryHeader>
+
+						{/* OpenAI Reasoning Effort */}
+						<div>
+							<label
+								className="block text-sm font-medium text-(--vscode-foreground) mb-1"
+								htmlFor="openai-reasoning-effort-dropdown">
+								OpenAI Reasoning Effort
+							</label>
+							<VSCodeDropdown
+								className="w-full"
+								currentValue={openaiReasoningEffort || "medium"}
+								id="openai-reasoning-effort-dropdown"
+								onChange={(e: any) => {
+									const newValue = e.target.currentValue as OpenaiReasoningEffort
+									handleReasoningEffortChange(newValue)
+								}}>
+								<VSCodeOption value="minimal">Minimal</VSCodeOption>
+								<VSCodeOption value="low">Low</VSCodeOption>
+								<VSCodeOption value="medium">Medium</VSCodeOption>
+								<VSCodeOption value="high">High</VSCodeOption>
+							</VSCodeDropdown>
+							<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
+								Reasoning effort for the OpenAI family of models (applies to all OpenAI model providers)
+							</p>
+						</div>
+
+						{/* MCP Display Mode */}
+						<div className="mt-2.5">
+							<label
+								className="block text-sm font-medium text-(--vscode-foreground) mb-1"
+								htmlFor="mcp-display-mode-dropdown">
+								MCP Display Mode
+							</label>
+							<McpDisplayModeDropdown
+								className="w-full"
+								id="mcp-display-mode-dropdown"
+								onChange={(newMode: McpDisplayMode) => updateSetting("mcpDisplayMode", newMode)}
+								value={mcpDisplayMode}
+							/>
+							<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
+								Controls how MCP responses are displayed: plain text, rich formatting with links/images, or
+								markdown rendering.
+							</p>
+						</div>
 					</CategoryBox>
 				</div>
 			</Section>
