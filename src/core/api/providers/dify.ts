@@ -124,7 +124,7 @@ export class DifyHandler implements ApiHandler {
 		try {
 			response = await fetch(fullUrl, {
 				method: "POST",
-				headers: this.headers(),
+				headers: this.jsonHeaders(),
 				body: JSON.stringify(requestBody),
 			})
 		} catch (error: any) {
@@ -542,7 +542,7 @@ export class DifyHandler implements ApiHandler {
 	async deleteConversation(conversationId: string, user: string = "cline-user"): Promise<void> {
 		const response = await fetch(`${this.baseUrl}/conversations/${conversationId}`, {
 			method: "DELETE",
-			headers: this.headers(),
+			headers: this.jsonHeaders(),
 			body: JSON.stringify({ user }),
 		})
 

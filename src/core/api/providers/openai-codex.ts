@@ -195,9 +195,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 					new OpenAI({
 						apiKey: accessToken,
 						baseURL: CODEX_API_BASE_URL,
-						defaultHeaders: {
-							...codexHeaders,
-						},
+						defaultHeaders: codexHeaders,
 						fetch, // Use shared fetch for proxy support
 					})
 

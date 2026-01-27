@@ -42,15 +42,8 @@ export class OcaHandler implements ApiHandler {
 		this.options = options
 	}
 
-	protected ensureExternalHeaders(): Record<string, string> {
-		if (Object.keys(this.externalHeaders).length === 0) {
-			this.externalHeaders = buildExternalBasicHeaders()
-		}
-		return this.externalHeaders
-	}
-
 	protected initializeClient(options: OcaHandlerOptions): OpenAI {
-		const externalHeaders = this.ensureExternalHeaders()
+		const externalHeaders = buildExternalBasicHeaders()
 		return new (class OCIOpenAI extends OpenAI {
 			protected override async prepareOptions(opts: any): Promise<void> {
 				const token = await OcaAuthService.getInstance().getAuthToken()
@@ -123,7 +116,7 @@ export class OcaHandler implements ApiHandler {
 		if (!token) {
 			throw new OpenAIError("Unable to handle auth, Oracle Code Assist (OCA) access token is not available")
 		}
-		const externalHeaders = this.ensureExternalHeaders()
+		const externalHeaders = buildExternalBasicHeaders()
 		const ociHeaders = await createOcaHeaders(token, this.options.taskId!)
 		Logger.log(`Making calculate cost request with customer opc-request-id: ${ociHeaders["opc-request-id"]}`)
 		try {
